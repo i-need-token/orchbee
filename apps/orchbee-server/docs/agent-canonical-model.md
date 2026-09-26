@@ -573,3 +573,5 @@ Cursor adds a direct native and Desktop boundary witness for session-identified 
 Qoder admits only session-identified with sessionLifecycle. Direct native registry and exact ingress tests extend the identity-only witnesses without changing historical corpora.
 
 Antigravity CLI shares the identity-only boundary witness and maps adapter antigravity-cli to canonical provider antigravity. Its PreInvocation does not establish turn state or readiness.
+
+Mastracode grants session/turn lifecycle, activity, approvals and subagents through the closed observation registry. Direct joined-ingress evidence covers identity, one keyed run, attention request/resolution and completion. Historical corpus fingerprints remain unchanged.

@@ -10,7 +10,7 @@ import type {
 	AgentIntegrationCommandRunner,
 } from '../NodeAgentIntegrationCommandRunner';
 
-const stableRoot = '/user-data/agent-observation-adapters/0.4.10';
+const stableRoot = '/user-data/agent-observation-adapters/0.4.11';
 const legacyRoot = '/Applications/Orchbee Local.app/Contents/Resources/agent-observation-adapters';
 
 describe('CodexAgentIntegrationAdapter', () => {

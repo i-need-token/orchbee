@@ -29,6 +29,7 @@ const ADAPTER_IDS = new Set([
 	'cursor',
 	'qodercli',
 	'antigravity-cli',
+	'mastracode',
 	'pi',
 	'omp',
 	'gemini',

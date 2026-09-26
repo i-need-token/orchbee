@@ -227,7 +227,7 @@ fn exercise_installed_json_hooks(provider: &str, target: &Path) {
         );
         assert_eq!(
             serde_json::from_slice::<Value>(&output.stdout).unwrap()["events"],
-            1
+            if provider == "mastracode" { 10 } else { 1 }
         );
     }
 }
@@ -322,7 +322,7 @@ fn opencode_migrates_only_owned_undiscovered_entries_and_resolves_xdg() {
         (
             String::from_utf8(bytes.clone())
                 .unwrap()
-                .replace("/0.4.10/", "/9.0.0/"),
+                .replace("/0.4.11/", "/9.0.0/"),
             "stale-side",
         ),
     ] {
@@ -337,7 +337,7 @@ fn opencode_migrates_only_owned_undiscovered_entries_and_resolves_xdg() {
         &obsolete,
         String::from_utf8(bytes.clone())
             .unwrap()
-            .replace("/0.4.10/", "/0.4.2/"),
+            .replace("/0.4.11/", "/0.4.2/"),
     )
     .unwrap();
     assert_eq!(inspect("explain")["result"]["state"], "update-required");
@@ -685,7 +685,7 @@ fn grok_inventory_joins_local_configuration_and_runs_shipped_powershell_hooks() 
         (fixture.capsule().join("bundle"), Value::Null, "unknown", 9),
         (
             fixture.0.join("foreign/bundle"),
-            Value::from("0.4.10"),
+            Value::from("0.4.11"),
             "conflict",
             3,
         ),
@@ -825,7 +825,7 @@ impl Fixture {
     }
     fn capsule(&self) -> PathBuf {
         self.home()
-            .join(".orchbee/agent-observation-adapters/0.4.10")
+            .join(".orchbee/agent-observation-adapters/0.4.11")
     }
     fn run(&self, verb: &str, provider: &str, config_home: &Path) -> Output {
         self.run_options(verb, provider, config_home, &[])
@@ -1076,7 +1076,7 @@ fn claude_repairs_owned_old_installations_and_preserves_foreign_or_newer_sources
         "enabled"
     );
     for (source, version, expected) in [
-        (fixture.0.join("foreign"), "0.4.10", "conflict"),
+        (fixture.0.join("foreign"), "0.4.11", "conflict"),
         (
             fixture.capsule().parent().unwrap().join("9.0.0"),
             "9.0.0",
@@ -1193,7 +1193,7 @@ fn javascript_modules_load_and_deliver_ordered_windows_observations() {
 
         let old = String::from_utf8(original.clone())
             .unwrap()
-            .replace("/0.4.10/", "/0.4.2/");
+            .replace("/0.4.11/", "/0.4.2/");
         fs::write(&target, old).unwrap();
         assert_eq!(
             fixture.provider_document("explain", provider, 0)["result"]["state"],
@@ -1371,5 +1371,71 @@ fn outdated_filter_preserves_unknown_and_blocked_inspections_without_effects() {
         assert_eq!(fs::read_to_string(config).unwrap(), content);
         assert!(fixture.calls().is_empty());
         assert!(!fixture.capsule().exists());
+    }
+}
+
+#[test]
+fn mastracode_flat_hooks_repair_missing_entries_and_execute_on_windows() {
+    let fixture = Fixture::new();
+    fs::write(fixture.0.join("bin/mastracode.cmd"), b"@exit /b 99\r\n").unwrap();
+    let target = fixture.home().join(".mastracode/hooks.json");
+    fs::create_dir_all(target.parent().unwrap()).unwrap();
+    let original = r#"{"future":{"big":123456789012345678901234567890},"SessionStart":[{"command":"echo user","type":"command"}]}"#;
+    fs::write(&target, original).unwrap();
+    let id = "mastracode";
+    assert_eq!(
+        fixture.provider_document("explain", id, 0)["result"]["state"],
+        "not-installed"
+    );
+    fixture.provider_document("enable", id, 0);
+    let installed = fs::read_to_string(&target).unwrap();
+    assert!(installed.contains("123456789012345678901234567890"));
+    fixture.provider_document("enable", id, 0);
+    assert_eq!(fs::read_to_string(&target).unwrap(), installed);
+    exercise_installed_json_hooks(id, &target);
+    // Keep the large foreign value raw; remove only the selected event using RawValue.
+    let mut partial: std::collections::BTreeMap<String, Box<serde_json::value::RawValue>> =
+        serde_json::from_str(&installed).unwrap();
+    partial.remove("AgentEnd");
+    fs::write(&target, serde_json::to_vec(&partial).unwrap()).unwrap();
+    assert_eq!(
+        fixture.provider_document("explain", id, 0)["result"]["state"],
+        "update-required"
+    );
+    let doctor = Command::new(env!("CARGO_BIN_EXE_orchbee"))
+        .env("USERPROFILE", fixture.home())
+        .args(["agent", "doctor", "--provider", id, "--format", "json"])
+        .output()
+        .unwrap();
+    assert!(
+        doctor.status.success(),
+        "{}",
+        String::from_utf8_lossy(&doctor.stdout)
+    );
+    let result: Value = serde_json::from_slice(&doctor.stdout).unwrap();
+    assert_eq!(
+        result["result"]["providers"][0]["hook"]["state"],
+        "update-required"
+    );
+    fixture.provider_document("enable", id, 0);
+    assert_eq!(fs::read_to_string(&target).unwrap(), installed);
+    let changed = installed.replace("\"timeout\":10000", "\"timeout\":10");
+    assert_ne!(changed, installed);
+    fs::write(&target, &changed).unwrap();
+    fixture.provider_document("enable", id, 3);
+    fixture.provider_document("disable", id, 3);
+    assert_eq!(fs::read_to_string(&target).unwrap(), changed);
+    fs::write(&target, &installed).unwrap();
+    fixture.provider_document("disable", id, 0);
+    let restored: std::collections::BTreeMap<String, Box<serde_json::value::RawValue>> =
+        serde_json::from_slice(&fs::read(&target).unwrap()).unwrap();
+    let original: std::collections::BTreeMap<String, Box<serde_json::value::RawValue>> =
+        serde_json::from_str(original).unwrap();
+    assert_eq!(
+        restored.keys().collect::<Vec<_>>(),
+        original.keys().collect::<Vec<_>>()
+    );
+    for (key, value) in original {
+        assert_eq!(restored[&key].get(), value.get());
     }
 }

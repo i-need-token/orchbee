@@ -540,7 +540,10 @@ pub(crate) fn mutate(
         if providers::guarded_spec(id).is_some()
             || matches!(
                 id,
-                IntegrationId::Cursor | IntegrationId::QoderCli | IntegrationId::AntigravityCli
+                IntegrationId::Cursor
+                    | IntegrationId::QoderCli
+                    | IntegrationId::AntigravityCli
+                    | IntegrationId::Mastracode
             )
         {
             // A filesystem vector's post-effect observation is a fresh
@@ -993,7 +996,10 @@ fn enable_vector(
     let resource_root = context.capsule_root.to_string_lossy().into_owned();
     let reserve = providers::inspect_slots(id);
     match id {
-        IntegrationId::Cursor | IntegrationId::QoderCli | IntegrationId::AntigravityCli => {
+        IntegrationId::Cursor
+        | IntegrationId::QoderCli
+        | IntegrationId::AntigravityCli
+        | IntegrationId::Mastracode => {
             #[cfg(windows)]
             {
                 json_hooks_windows::update(
@@ -1298,7 +1304,10 @@ fn disable_vector(
     let options = providers::resource_options(context, legacy_roots);
     let reserve = providers::inspect_slots(id);
     match id {
-        IntegrationId::Cursor | IntegrationId::QoderCli | IntegrationId::AntigravityCli => {
+        IntegrationId::Cursor
+        | IntegrationId::QoderCli
+        | IntegrationId::AntigravityCli
+        | IntegrationId::Mastracode => {
             #[cfg(windows)]
             {
                 json_hooks_windows::update(
@@ -2019,8 +2028,10 @@ pub(crate) fn plan_enable(
         argv: argv.iter().map(|arg| (*arg).to_owned()).collect(),
     };
     match id {
-        IntegrationId::Cursor | IntegrationId::QoderCli | IntegrationId::AntigravityCli =>
-        {
+        IntegrationId::Cursor
+        | IntegrationId::QoderCli
+        | IntegrationId::AntigravityCli
+        | IntegrationId::Mastracode => {
             #[cfg(windows)]
             if let Some(target) =
                 crate::agent_configuration_windows::json_hooks(id.as_str(), context.home)

@@ -19,6 +19,8 @@ use super::{
     model::State,
 };
 
+mod flat_events;
+
 pub(super) const LIMIT: u64 = 512 * 1024;
 const PREFIX: &str = "powershell.exe -NoLogo -NoProfile -NonInteractive -EncodedCommand ";
 const MARKER: &str = "# orchbee-agent-observation:";
@@ -61,14 +63,16 @@ impl Object {
 }
 
 fn declaration(id: &str, root: &Path) -> Option<Value> {
-    event_name(id)?;
+    if id != "mastracode" {
+        event_name(id)?;
+    }
     let node = NODE.replace("'cursor'", &format!("'{id}'"));
     let encoded_root = STANDARD.encode(root.to_str()?.as_bytes());
     let script = format!(
         "{MARKER}{id}\n{ROOT}{encoded_root}';\ntry {{ & node -e \"{node}\" 2>$null | Out-Null }} catch {{}}\n[Console]::Out.Write('{{}}')\n"
     );
     let utf16: Vec<u8> = script.encode_utf16().flat_map(u16::to_le_bytes).collect();
-    let mut entry = json!({"command":format!("{PREFIX}{}",STANDARD.encode(utf16)),"timeout":10});
+    let mut entry = json!({"command":format!("{PREFIX}{}",STANDARD.encode(utf16)),"timeout":if id == "mastracode" {10000} else {10}});
     if id != "cursor" {
         entry["type"] = json!("command");
         if id == "qodercli" {
@@ -157,6 +161,7 @@ fn item_root(id: &str, value: &RawValue) -> Result<Option<PathBuf>, ()> {
 pub(crate) enum JsonHookScan {
     Absent,
     Owned(PathBuf),
+    Incomplete(PathBuf),
     Disabled(PathBuf),
     Conflict,
     Malformed,
@@ -275,6 +280,9 @@ fn parse(id: &str, bytes: &[u8]) -> Result<Document, JsonHookScan> {
 
 /// Budgeted doctor and onboarding share the same pure ownership classifier.
 pub(crate) fn scan_json_hooks(id: &str, bytes: &[u8]) -> JsonHookScan {
+    if id == "mastracode" {
+        return flat_events::scan(bytes);
+    }
     if id == "antigravity-cli" {
         return scan_named(bytes);
     }
@@ -301,14 +309,19 @@ pub(super) fn state(id: &str, bytes: Option<&[u8]>, options: &ResourceOptions) -
     };
     let scan = scan_json_hooks(id, bytes);
     let disabled = matches!(&scan, JsonHookScan::Disabled(_));
+    let incomplete = matches!(&scan, JsonHookScan::Incomplete(_));
     match scan {
         JsonHookScan::Absent => State::NotInstalled,
         JsonHookScan::Conflict => State::Conflict,
         JsonHookScan::Malformed => State::Unknown,
-        JsonHookScan::Owned(root) | JsonHookScan::Disabled(root) => {
+        JsonHookScan::Owned(root)
+        | JsonHookScan::Disabled(root)
+        | JsonHookScan::Incomplete(root) => {
             match classify_resource_root(&root.to_string_lossy(), options) {
                 ResourceOwnership::Current => {
-                    if disabled {
+                    if incomplete {
+                        State::UpdateRequired
+                    } else if disabled {
                         State::Disabled
                     } else {
                         State::Enabled
@@ -333,6 +346,9 @@ pub(super) fn inspect(id: &str, home: &Path, options: &ResourceOptions) -> State
 }
 
 pub(super) fn patch(id: &str, bytes: Option<&[u8]>, root: &Path, enable: bool) -> Option<Vec<u8>> {
+    if id == "mastracode" {
+        return flat_events::patch(bytes, root, enable);
+    }
     if id == "antigravity-cli" {
         return patch_named(bytes, root, enable);
     }
@@ -365,7 +381,7 @@ mod tests {
     #[test]
     fn raw_user_values_survive_enable_repair_and_disable() {
         let input = br#"{"large":123456789012345678901234567890,"nested":{"future":1e999,"duplicate":1,"duplicate":2},"hooks":{"stop":[{"command":"echo user"}],"sessionStart":[{"command":"echo before"}]}}"#;
-        let root = Path::new(r"C:\Users\用户 & ' $ `\.orchbee\agent-observation-adapters\0.4.10");
+        let root = Path::new(r"C:\Users\用户 & ' $ `\.orchbee\agent-observation-adapters\0.4.11");
         let installed = patch("cursor", Some(input), root, true).unwrap();
         assert!(
             matches!(scan_json_hooks("cursor", &installed), JsonHookScan::Owned(found) if found == root)
@@ -399,7 +415,7 @@ mod tests {
                 JsonHookScan::Malformed
             ));
         }
-        let root = Path::new(r"C:\owned\0.4.10");
+        let root = Path::new(r"C:\owned\0.4.11");
         let bytes = patch("cursor", None, root, true).unwrap();
         let mut doc: Value = serde_json::from_slice(&bytes).unwrap();
         doc["hooks"]["sessionStart"][0]["timeout"] = json!(99);
@@ -425,7 +441,7 @@ mod tests {
 
 #[test]
 fn qoder_groups_keep_foreign_raw_values_and_refuse_edited_or_misplaced_ownership() {
-    let root = Path::new(r"C:\owned\0.4.10");
+    let root = Path::new(r"C:\owned\0.4.11");
     let input = br#"{"version":1e999,"hooks":{"SessionStart":[{"matcher":"resume","hooks":[{"type":"prompt","prompt":"keep","future":123456789012345678901234567890}]}]}}"#;
     let installed = patch("qodercli", Some(input), root, true).unwrap();
     assert!(
@@ -477,14 +493,14 @@ fn qoder_groups_keep_foreign_raw_values_and_refuse_edited_or_misplaced_ownership
 #[test]
 fn antigravity_named_blocks_preserve_foreign_values_and_validate_disabled_ownership() {
     let id = "antigravity-cli";
-    let root = Path::new(r"C:\owned\0.4.10");
+    let root = Path::new(r"C:\owned\0.4.11");
     let options = ResourceOptions {
         resource_root: root,
-        expected_version: "0.4.10",
+        expected_version: "0.4.11",
         legacy_roots: &[],
     };
     for (version, expected) in [
-        ("0.4.10", State::Disabled),
+        ("0.4.11", State::Disabled),
         ("0.4.9", State::UpdateRequired),
         ("9.0.0", State::StaleSide),
     ] {

@@ -301,6 +301,7 @@ fn is_adapter_id(value: &str) -> bool {
             | "cursor"
             | "qodercli"
             | "antigravity-cli"
+            | "mastracode"
             | "pi"
             | "omp"
             | "gemini"
@@ -330,6 +331,31 @@ pub fn resolve_adapter(adapter_id: &str, event: HookObservationEvent) -> Option<
     const CAP_TURN_QA: &[AgentCapability] = &[TurnLifecycle, Questions, Activity];
     let (accepted, capabilities, provider_id): (&[HookObservationEvent], &[AgentCapability], &str) =
         match adapter_id {
+            "mastracode" => (
+                &[
+                    SessionIdentified,
+                    SessionEnded,
+                    TurnStarted,
+                    TurnStopped,
+                    TurnCanceled,
+                    TurnFailed,
+                    ToolStarted,
+                    ToolFinished,
+                    ToolFailed,
+                    ApprovalRequested,
+                    AttentionResolved,
+                    SubagentStarted,
+                    SubagentStopped,
+                ],
+                &[
+                    SessionLifecycle,
+                    TurnLifecycle,
+                    Activity,
+                    Approvals,
+                    Subagents,
+                ],
+                "mastracode",
+            ),
             "antigravity-cli" => (&[SessionIdentified], &[SessionLifecycle], "antigravity"),
             "qodercli" => (&[SessionIdentified], &[SessionLifecycle], "qodercli"),
             "cursor" => (

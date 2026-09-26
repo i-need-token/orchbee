@@ -18,12 +18,14 @@ assert.ok(
 		'cursor',
 		'qodercli',
 		'antigravity-cli',
+		'mastracode',
 	].includes(provider),
 );
 const extensionProvider = provider === 'gemini' || provider === 'qwen-code';
-const jsonProvider = ['cursor', 'qodercli', 'antigravity-cli'].includes(provider);
+const jsonProvider = ['cursor', 'qodercli', 'antigravity-cli', 'mastracode'].includes(provider);
 function hookFile() {
-	if (provider === 'cursor' || provider === 'antigravity-cli') return 'hooks.json';
+	if (provider === 'cursor' || provider === 'antigravity-cli' || provider === 'mastracode')
+		return 'hooks.json';
 	if (provider === 'qodercli') return 'settings.json';
 	if (provider === 'qwen-code') return 'qwen-extension.json';
 	if (provider === 'grok') return 'hooks/grok.json';
@@ -31,8 +33,12 @@ function hookFile() {
 	return 'hooks/hooks.json';
 }
 const document = JSON.parse(fs.readFileSync(path.join(root, hookFile()), 'utf8'));
-const hooks =
-	provider === 'antigravity-cli' ? document['orchbee-agent-observation'] : document.hooks;
+function selectedHooks() {
+	if (provider === 'antigravity-cli') return document['orchbee-agent-observation'];
+	if (provider === 'mastracode') return document;
+	return document.hooks;
+}
+const hooks = selectedHooks();
 const pipe = String.raw`\\.\pipe\orchbee-${randomBytes(16).toString('hex')}-observation`;
 const observations = [];
 const connections = new Set();
@@ -94,7 +100,7 @@ async function run(hook, input, scriptRoot = root) {
 	await new Promise((resolve, reject) => {
 		const child = spawn(command, args, {
 			windowsHide: true,
-			windowsVerbatimArguments: shell === 'cmd.exe' && !jsonProvider,
+			windowsVerbatimArguments: shell === 'cmd.exe' && (!jsonProvider || provider === 'mastracode'),
 			env: {
 				...hookEnvironment,
 				SystemRoot: process.env.SystemRoot,
@@ -138,17 +144,48 @@ function hookFor(event) {
 		assert.equal(entry.shell, 'powershell');
 		return entry;
 	}
-	if (provider === 'cursor')
+	if (provider === 'cursor' || provider === 'mastracode')
 		return hooks[event].find((hook) => hook.command.startsWith('powershell.exe -NoLogo'));
 	return provider === 'github-copilot' ? hooks[event][0] : hooks[event][0].hooks[0];
 }
 function eventNames() {
+	if (provider === 'mastracode')
+		return [
+			'SessionStart',
+			'AgentStart',
+			'PreToolUse',
+			'PostToolUse',
+			'PermissionRequest',
+			'PermissionResult',
+			'SubagentStart',
+			'SubagentEnd',
+			'AgentEnd',
+			'SessionEnd',
+		];
 	if (provider === 'antigravity-cli') return ['PreInvocation'];
 	if (jsonProvider) return [provider === 'cursor' ? 'sessionStart' : 'SessionStart'];
 	return provider === 'gemini'
 		? ['SessionStart', 'BeforeAgent', 'AfterAgent', 'SessionEnd']
 		: ['SessionStart', 'UserPromptSubmit', 'Stop', 'SessionEnd'];
 }
+function expectedEvents() {
+	if (provider === 'mastracode')
+		return [
+			'session-identified',
+			'turn-started',
+			'tool-started',
+			'tool-finished',
+			'approval-requested',
+			'attention-resolved',
+			'subagent-started',
+			'subagent-stopped',
+			'turn-stopped',
+			'session-ended',
+		];
+	if (jsonProvider) return ['session-identified'];
+	return ['session-started', 'turn-started', 'turn-stopped', 'session-ended'];
+}
+const expected = expectedEvents();
 try {
 	const events = eventNames();
 	for (const event of events) {
@@ -162,6 +199,16 @@ try {
 					? { submitted_prompt: 'PRIVATE_SUBMITTED_PROMPT' }
 					: {}),
 				...(provider === 'antigravity-cli' ? { conversationId: 'literal-path-session' } : {}),
+				...(provider === 'mastracode'
+					? {
+							run_id: 'run-1',
+							tool_name: 'shell',
+							tool_call_id: 'call-1',
+							permission_kind: 'tool_approval',
+							decision: 'approved',
+							stop_reason: 'complete',
+						}
+					: {}),
 				hook_event_name: event,
 				session_id: 'literal-path-session',
 				prompt: 'PRIVATE_PROMPT',
@@ -170,12 +217,10 @@ try {
 			}),
 		);
 	}
-	assert.equal(observations.length, jsonProvider ? 1 : 4);
+	assert.equal(observations.length, expected.length);
 	assert.deepEqual(
 		observations.map((entry) => entry.observation.event),
-		jsonProvider
-			? ['session-identified']
-			: ['session-started', 'turn-started', 'turn-stopped', 'session-ended'],
+		expected,
 	);
 	for (const envelope of observations) {
 		assert.equal(envelope.adapterId, provider);
@@ -210,7 +255,7 @@ try {
 		);
 	}
 
-	assert.equal(observations.length, jsonProvider ? 1 : 4);
+	assert.equal(observations.length, expected.length);
 	process.stdout.write(JSON.stringify({ events: observations.length, silent: true }));
 } finally {
 	await Promise.all(

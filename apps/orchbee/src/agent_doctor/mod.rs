@@ -27,6 +27,7 @@ pub(crate) const PROVIDER_IDS: &[&str] = &[
     "cline",
     "opencode",
     "kilo",
+    "mastracode",
     "antigravity-cli",
     "qodercli",
     "cursor",
@@ -68,8 +69,8 @@ use probes::{
 /// filesystem operations promise no hard IO deadline.
 #[cfg(any(target_os = "linux", windows))]
 const RUN_BUDGET: Duration = Duration::from_secs(5);
-/// Total probe items a run admits: ≤10 provider targets + ≤11 executable
-/// scans (10 providers + node) + ≤20 roots + env + socket = ≤43, under 64.
+/// Shared cap for provider targets, executable scans, roots, environment and
+/// endpoint facts. Exhaustion remains explicit as the registry grows.
 #[cfg(any(target_os = "linux", windows))]
 const MAX_PROBE_ITEMS: usize = 64;
 /// Aggregate bytes all probes may read in one run.
@@ -168,6 +169,8 @@ enum ConsistentOutcome {
     },
     /// A self-consistent declaration — `present` with the carried reason.
     Present { reason: HookReason },
+    /// Proven entries whose declared event set needs repair. Root guards still apply.
+    Incomplete,
 }
 
 #[cfg(any(target_os = "linux", windows))]
@@ -486,6 +489,14 @@ fn finalize_hook(
         detail.insert("recordedRoot".to_owned(), Value::Object(recorded_detail));
     }
     match consistent {
+        ConsistentOutcome::Incomplete => match root_state.recorded_hook_outcome() {
+            Some((state, reason)) => (state, reason, detail),
+            None => (
+                HookState::UpdateRequired,
+                HookReason::MarkerMismatch,
+                detail,
+            ),
+        },
         ConsistentOutcome::Configured {
             enabled_flag: Some(false),
             ..
@@ -553,20 +564,27 @@ fn probe_json_hooks(
     };
     let scan = scan_json_hooks(provider.id, &bytes);
     let disabled = matches!(&scan, JsonHookScan::Disabled(_));
+    let incomplete = matches!(&scan, JsonHookScan::Incomplete(_));
     match scan {
         JsonHookScan::Absent => final_verdict(HookState::Absent, HookReason::TargetMissing),
         JsonHookScan::Conflict => final_verdict(HookState::Conflict, HookReason::ForeignContent),
         JsonHookScan::Malformed => final_verdict(HookState::Unknown, HookReason::Malformed),
-        JsonHookScan::Owned(root) | JsonHookScan::Disabled(root) => HookProbe::AwaitsRoot {
+        JsonHookScan::Owned(root)
+        | JsonHookScan::Disabled(root)
+        | JsonHookScan::Incomplete(root) => HookProbe::AwaitsRoot {
             root_index: recorded_root(
                 recorded,
                 provider,
                 "source",
                 root.to_string_lossy().into_owned().into_bytes(),
             ),
-            consistent: ConsistentOutcome::Configured {
-                enabled_flag: Some(!disabled),
-                enabled_reason: HookReason::MarkerConsistent,
+            consistent: if incomplete {
+                ConsistentOutcome::Incomplete
+            } else {
+                ConsistentOutcome::Configured {
+                    enabled_flag: Some(!disabled),
+                    enabled_reason: HookReason::MarkerConsistent,
+                }
             },
             detail: Map::new(),
         },

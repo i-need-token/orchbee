@@ -3,6 +3,11 @@
 use std::path::{Path, PathBuf};
 
 pub(crate) fn json_hooks(id: &str, home: &Path) -> Option<PathBuf> {
+    if id == "mastracode" {
+        return home
+            .is_absolute()
+            .then(|| home.join(".mastracode/hooks.json"));
+    }
     if id == "antigravity-cli" {
         return home
             .is_absolute()

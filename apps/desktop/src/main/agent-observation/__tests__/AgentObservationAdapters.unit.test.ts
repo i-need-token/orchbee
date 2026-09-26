@@ -24,6 +24,77 @@ const ompUrl = resourceUrl('omp/orchbee-agent-observation.mjs');
 const ompEntryUrl = resourceUrl('omp/orchbee-agent-observation.cjs');
 const clineUrl = resourceUrl('cline/orchbee-agent-observation.js');
 
+describe('Mastracode lifecycle boundary', () => {
+	it('keeps run identity and permission correlation without private content', async () => {
+		const { sanitizeAgentHookInput: sanitize } = await import(sanitizersUrl);
+		const base = {
+			session_id: 'session-1',
+			run_id: 'run-1',
+			tool_call_id: 'call-1',
+			tool_name: 'shell',
+			permission_kind: 'tool_approval',
+			tool_input: 'PRIVATE',
+			result: 'PRIVATE',
+			task: 'PRIVATE',
+		};
+		for (const [hook, event] of [
+			['SessionStart', 'session-identified'],
+			['SessionEnd', 'session-ended'],
+			['AgentStart', 'turn-started'],
+			['PreToolUse', 'tool-started'],
+			['PostToolUse', 'tool-finished'],
+			['PermissionRequest', 'approval-requested'],
+			['SubagentStart', 'subagent-started'],
+			['SubagentEnd', 'subagent-stopped'],
+		]) {
+			const result = sanitize('mastracode', { ...base, hook_event_name: hook });
+			expect(result).toMatchObject({ event, sessionKey: 'session-1' });
+			expect(JSON.stringify(result)).not.toContain('PRIVATE');
+		}
+		for (const decision of [
+			'approved',
+			'declined',
+			'dismissed',
+			'auto_approved',
+			'auto_declined',
+		]) {
+			expect(
+				sanitize('mastracode', { ...base, hook_event_name: 'PermissionResult', decision }),
+			).toMatchObject({ event: 'attention-resolved', operationKey: 'call-1', turnKey: 'run-1' });
+		}
+		for (const [stop_reason, event] of [
+			['complete', 'turn-stopped'],
+			['aborted', 'turn-canceled'],
+			['error', 'turn-failed'],
+		]) {
+			expect(
+				sanitize('mastracode', { ...base, hook_event_name: 'AgentEnd', stop_reason }),
+			).toMatchObject({ event, turnKey: 'run-1' });
+		}
+		expect(
+			sanitize('mastracode', { ...base, hook_event_name: 'PostToolUse', tool_error: true }),
+		).toMatchObject({ event: 'tool-failed' });
+		expect(
+			sanitize('mastracode', { ...base, hook_event_name: 'PreToolUse', tool_call_id: undefined }),
+		).toMatchObject({ event: 'tool-started', operationKey: null });
+		for (const changed of [
+			{ hook_event_name: 'AgentEnd', stop_reason: 'suspended' },
+			{ hook_event_name: 'AgentEnd', stop_reason: 'future' },
+			{ hook_event_name: 'AgentStart', run_id: undefined },
+			{ hook_event_name: 'AgentStart', run_id: 'bad/id' },
+			{ hook_event_name: 'PermissionRequest', tool_call_id: undefined },
+			{ hook_event_name: 'PermissionRequest', permission_kind: 'future' },
+			{ hook_event_name: 'PermissionResult', decision: 'future' },
+			{ hook_event_name: 'PostToolUse', tool_error: 'false' },
+			{ hook_event_name: 'SubagentEnd', tool_call_id: undefined },
+			{ hook_event_name: 'UserPromptSubmit' },
+			{ hook_event_name: 'Stop' },
+			{ hook_event_name: 'Interrupt' },
+		])
+			expect(sanitize('mastracode', { ...base, ...changed })).toBeNull();
+	});
+});
+
 describe('OpenCode-family observation boundary', () => {
 	it('observes Antigravity conversation identity without requiring undocumented event fields', async () => {
 		const sanitizers = await import(resourceUrl('scripts/hook-sanitizers.mjs'));

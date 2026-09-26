@@ -1471,3 +1471,52 @@ fn identity_translation_preserves_active_blocked_and_completed_state() {
         }
     }
 }
+
+#[test]
+fn mastracode_joined_lifecycle_preserves_run_and_attention() {
+    use serde_json::json;
+    let mut runtime = AgentRuntime::new();
+    let mut ingress = AgentHookObservationIngress::new(None, JoinOptions::default());
+    seed_clock_adapter_hint(&mut ingress, &mut runtime, 0.0);
+    for (step, (event, kind, requests)) in [
+        ("session-identified", "unknown", 0),
+        ("turn-started", "active", 0),
+        ("approval-requested", "active", 1),
+        ("session-identified", "active", 1),
+        ("attention-resolved", "active", 0),
+        ("turn-stopped", "idle", 0),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let event_id = format!("event-{:016}", step + 1);
+        let correlation_id = format!("correlation-{:016}", step + 1);
+        let mut envelope: Value = serde_json::from_slice(&clock_adapter_envelope_body()).unwrap();
+        envelope["adapterId"] = json!("mastracode");
+        envelope["eventId"] = json!(event_id);
+        envelope["correlations"] = json!([{"correlationId":correlation_id,"visibility":"visible"}]);
+        envelope["observation"]["event"] = json!(event);
+        envelope["observation"]["turnKey"] = json!("run-1");
+        envelope["observation"]["operationKey"] = json!("call-1");
+        ingress.observe_terminal_application_signal(&mut runtime,
+            &json!({"correlationId":correlation_id,"eventId":event_id,"kind":"correlation","version":3}).to_string(),
+            format!("{:032x}",1u8),"desktop:presentation:c1".to_owned(),0.0);
+        assert!(ingress.admit_envelope(&mut runtime, &serde_json::to_vec(&envelope).unwrap(), 0.0));
+        let snapshot = ingress.snapshot_json(&runtime);
+        let session = &snapshot["sessions"][0];
+        assert_eq!(session["turn"]["kind"], kind, "{snapshot}");
+        assert_eq!(
+            session["pendingRequests"].as_array().unwrap().len(),
+            requests
+        );
+        if event == "turn-stopped" {
+            assert_eq!(session["lastOutcome"]["kind"], "succeeded");
+        }
+        assert_eq!(
+            runtime.snapshot().sessions[0]
+                .presentation_attachments
+                .len(),
+            1
+        );
+    }
+}

@@ -135,6 +135,11 @@ const fn spec(id: IntegrationId) -> Spec {
             executable: "kilo",
             inspect_slots: 0,
         },
+        IntegrationId::Mastracode => Spec {
+            kind: Kind::JsonHooks,
+            executable: "mastracode",
+            inspect_slots: 0,
+        },
         IntegrationId::AntigravityCli => Spec {
             kind: Kind::JsonHooks,
             executable: "agy",
@@ -227,6 +232,7 @@ pub(crate) const fn management_mode(id: IntegrationId, declared: ManagementMode)
                 | IntegrationId::Cursor
                 | IntegrationId::QoderCli
                 | IntegrationId::AntigravityCli
+                | IntegrationId::Mastracode
         )
     {
         return ManagementMode::ManualOnly;
@@ -242,6 +248,7 @@ pub(crate) const fn management_mode(id: IntegrationId, declared: ManagementMode)
                 | IntegrationId::Cursor
                 | IntegrationId::QoderCli
                 | IntegrationId::AntigravityCli
+                | IntegrationId::Mastracode
                 | IntegrationId::Pi
                 | IntegrationId::Omp
                 | IntegrationId::GitHubCopilot

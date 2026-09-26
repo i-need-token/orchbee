@@ -553,3 +553,49 @@ fn qoder_hook_boundary_accepts_only_identified_session() {
         }
     }
 }
+
+#[test]
+fn mastracode_hook_boundary_keeps_a_closed_lifecycle_registry() {
+    use super::hook_contract::{HookObservationEvent as E, resolve_adapter};
+    for event in [
+        E::SessionIdentified,
+        E::SessionEnded,
+        E::TurnStarted,
+        E::TurnStopped,
+        E::TurnCanceled,
+        E::TurnFailed,
+        E::ToolStarted,
+        E::ToolFinished,
+        E::ToolFailed,
+        E::ApprovalRequested,
+        E::AttentionResolved,
+        E::SubagentStarted,
+        E::SubagentStopped,
+    ] {
+        let adapter = resolve_adapter("mastracode", event).unwrap();
+        assert_eq!(adapter.provider_id, "mastracode");
+        assert_eq!(
+            adapter.capabilities,
+            [
+                "sessionLifecycle",
+                "turnLifecycle",
+                "activity",
+                "approvals",
+                "subagents"
+            ]
+        );
+        let mut envelope = test_envelope(0, 0.0);
+        envelope["adapterId"] = json!("mastracode");
+        envelope["observation"]["event"] = json!(event.as_str());
+        assert!(parse_envelope(&envelope).is_some());
+    }
+    for event in [
+        E::SessionStarted,
+        E::SessionIdle,
+        E::QuestionRequested,
+        E::CompactionStarted,
+        E::TurnInterrupted,
+    ] {
+        assert!(resolve_adapter("mastracode", event).is_none());
+    }
+}

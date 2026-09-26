@@ -3,6 +3,21 @@ import { describe, expect, it } from 'vitest';
 import { resolveAgentHookAdapter } from '../resolveAgentHookAdapter';
 
 describe('resolveAgentHookAdapter', () => {
+	it('grants Mastracode lifecycle and approvals while rejecting unobserved events', () => {
+		expect(resolveAgentHookAdapter('mastracode', 'approval-requested')).toMatchObject({
+			providerId: 'mastracode',
+			capabilities: ['sessionLifecycle', 'turnLifecycle', 'activity', 'approvals', 'subagents'],
+		});
+		for (const event of [
+			'session-started',
+			'session-idle',
+			'question-requested',
+			'turn-interrupted',
+			'compaction-started',
+		] as const)
+			expect(resolveAgentHookAdapter('mastracode', event)).toBeNull();
+	});
+
 	it('maps Antigravity CLI session identity to its canonical Agent provider', () => {
 		expect(resolveAgentHookAdapter('antigravity-cli', 'session-identified')).toEqual({
 			adapterId: 'antigravity-cli',

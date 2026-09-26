@@ -143,7 +143,7 @@ fn make_dirs() -> Dirs {
     ));
     let home = root.join("home");
     let dirs = Dirs {
-        capsule_root: home.join(".orchbee/agent-observation-adapters/0.4.10"),
+        capsule_root: home.join(".orchbee/agent-observation-adapters/0.4.11"),
         adapter_source: root.join("adapter-source"),
         bin: root.join("bin"),
         root,

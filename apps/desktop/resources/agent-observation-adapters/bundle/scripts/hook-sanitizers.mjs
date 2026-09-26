@@ -3,6 +3,8 @@ const IDENTITY_PATTERN = /^[A-Za-z0-9._:-]{1,128}$/u;
 export function sanitizeAgentHookInput(adapterId, value) {
 	if (!isRecord(value)) return null;
 	switch (adapterId) {
+		case 'mastracode':
+			return sanitizeMastracodeHook(value);
 		case 'antigravity-cli': {
 			if (value.hook_event_name !== undefined && value.hook_event_name !== 'PreInvocation')
 				return null;
@@ -30,6 +32,76 @@ export function sanitizeAgentHookInput(adapterId, value) {
 			return sanitizeGitHubCopilotHook(value);
 		case 'qwen-code':
 			return sanitizeQwenCodeHook(value);
+		default:
+			return null;
+	}
+}
+
+function sanitizeMastracodeHook(value) {
+	const sessionKey = identity(value.session_id);
+	if (sessionKey === null) return null;
+	const event = value.hook_event_name;
+	if (event === 'SessionStart') return observation(sessionKey, 'session-identified');
+	if (event === 'SessionEnd') return observation(sessionKey, 'session-ended');
+	const turnKey = identity(value.run_id);
+	if (turnKey === null) return null;
+	switch (event) {
+		case 'AgentStart':
+			return observation(sessionKey, 'turn-started', { turnKey, activity: 'thinking' });
+		case 'AgentEnd': {
+			const outcome = { complete: 'turn-stopped', aborted: 'turn-canceled', error: 'turn-failed' };
+			return Object.hasOwn(outcome, value.stop_reason)
+				? observation(sessionKey, outcome[value.stop_reason], { turnKey })
+				: null;
+		}
+		case 'PreToolUse':
+		case 'PostToolUse': {
+			if (identity(value.tool_name) === null) return null;
+			const operationKey = nullableIdentity(value.tool_call_id);
+			if (
+				operationKey === undefined ||
+				(value.tool_error !== undefined && typeof value.tool_error !== 'boolean')
+			)
+				return null;
+			return event === 'PreToolUse'
+				? observation(sessionKey, 'tool-started', { turnKey, operationKey, activity: 'tool' })
+				: observation(sessionKey, value.tool_error === true ? 'tool-failed' : 'tool-finished', {
+						turnKey,
+						operationKey,
+					});
+		}
+		case 'PermissionRequest':
+		case 'PermissionResult': {
+			const operationKey = identity(value.tool_call_id);
+			if (
+				operationKey === null ||
+				!['tool_approval', 'sandbox_access', 'plan_approval'].includes(value.permission_kind)
+			)
+				return null;
+			if (
+				event === 'PermissionResult' &&
+				!['approved', 'declined', 'dismissed', 'auto_approved', 'auto_declined'].includes(
+					value.decision,
+				)
+			)
+				return null;
+			return observation(
+				sessionKey,
+				event === 'PermissionRequest' ? 'approval-requested' : 'attention-resolved',
+				{ turnKey, operationKey },
+			);
+		}
+		case 'SubagentStart':
+		case 'SubagentEnd': {
+			const agentKey = identity(value.tool_call_id);
+			return agentKey === null
+				? null
+				: observation(
+						sessionKey,
+						event === 'SubagentStart' ? 'subagent-started' : 'subagent-stopped',
+						{ turnKey, agentKey },
+					);
+		}
 		default:
 			return null;
 	}

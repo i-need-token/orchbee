@@ -477,3 +477,5 @@ Cursor 增加原生和 Desktop 边界的直接证据，仅支持 session-identif
 Qoder 仅准入具有 sessionLifecycle 的 session-identified。原生注册表和精确入口的直接测试扩展仅识别身份的证据，不修改历史语料。
 
 Antigravity CLI 复用仅识别身份的边界证据，将适配器 antigravity-cli 映射为规范 provider antigravity。PreInvocation 不建立回合状态或就绪事实。
+
+Mastracode 通过封闭观察注册表授予会话／回合生命周期、活动、批准及子 Agent 能力。直接关联入口证据覆盖身份、一个带标识的运行、提示请求／解除及完成；历史语料指纹不变。

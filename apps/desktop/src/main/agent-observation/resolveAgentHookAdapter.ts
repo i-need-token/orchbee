@@ -48,6 +48,26 @@ const CODEX_EVENTS = new Set<AgentHookObservationEvent>([
 ]);
 
 const REGISTRY = {
+	mastracode: {
+		acceptedEvents: new Set<AgentHookObservationEvent>([
+			'session-identified',
+			'session-ended',
+			'turn-started',
+			'turn-stopped',
+			'turn-canceled',
+			'turn-failed',
+			'tool-started',
+			'tool-finished',
+			'tool-failed',
+			'approval-requested',
+			'attention-resolved',
+			'subagent-started',
+			'subagent-stopped',
+		]),
+		adapterId: 'mastracode',
+		capabilities: ['sessionLifecycle', 'turnLifecycle', 'activity', 'approvals', 'subagents'],
+		providerId: AgentProviderIdSchema.parse('mastracode'),
+	},
 	'antigravity-cli': {
 		acceptedEvents: new Set<AgentHookObservationEvent>(['session-identified']),
 		adapterId: 'antigravity-cli',
