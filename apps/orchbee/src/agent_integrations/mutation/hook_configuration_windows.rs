@@ -285,7 +285,7 @@ mod tests {
             let original = br#"{"user":"original","hooks":{}}"#;
             let foreign = br#"{"user":"newer","hooks":{}}"#;
             fs::write(&target, original).unwrap();
-            let capsule = fixture.0.join("capsules/0.4.14");
+            let capsule = fixture.0.join("capsules/0.4.15");
             let cancel = Cancel(Cell::new(false));
             let context = ProviderContext {
                 home: &fixture.0,
@@ -297,7 +297,7 @@ mod tests {
                 management_mode: ManagementMode::ManagedLocal,
             };
             let options = ResourceOptions {
-                expected_version: "0.4.14",
+                expected_version: "0.4.15",
                 legacy_roots: &[],
                 resource_root: &capsule,
             };

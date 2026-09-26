@@ -34,6 +34,22 @@ describe('resolveAgentHookAdapter', () => {
 			expect(resolveAgentHookAdapter('antigravity-cli', event)).toBeNull();
 		}
 	});
+	it('admits Devin session identity without completion or approval decisions', () => {
+		expect(resolveAgentHookAdapter('devin', 'session-identified')).toEqual({
+			adapterId: 'devin',
+			capabilities: ['sessionLifecycle'],
+			providerId: 'devin',
+		});
+		for (const event of [
+			'session-started',
+			'session-ended',
+			'turn-started',
+			'turn-stopped',
+			'approval-requested',
+			'attention-resolved',
+		] as const)
+			expect(resolveAgentHookAdapter('devin', event)).toBeNull();
+	});
 	it('admits only Letta identity without idle or turn lifecycle', () => {
 		expect(resolveAgentHookAdapter('letta', 'session-identified')).toEqual({
 			adapterId: 'letta',

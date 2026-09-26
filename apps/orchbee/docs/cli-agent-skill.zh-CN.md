@@ -189,3 +189,5 @@ Windows provider 选择还支持 `cursor`、`qodercli` 和 `antigravity-cli`；�
 `kimi` 提供方支持 Windows TOML 会话接入和离线诊断；旧 `.kimi` 保持原样。
 
 `letta` 提供方支持 Windows 会话接入，采用静默 hook 与提供方自己的 HOME 解析规则。
+
+`devin` 提供方通过 APPDATA 配置支持 Windows 会话接入与诊断。

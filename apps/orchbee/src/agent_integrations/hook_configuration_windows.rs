@@ -19,7 +19,7 @@ use super::{
     model::State,
 };
 
-mod flat_events;
+mod event_sets;
 mod kimi;
 use crate::agent_configuration_windows::{
     HookConfigurationKind, HookConfigurationTarget, hook_configuration_candidates,
@@ -67,7 +67,7 @@ impl Object {
 }
 
 fn declaration(id: &str, root: &Path) -> Option<Value> {
-    if id != "mastracode" {
+    if !matches!(id, "mastracode" | "devin") {
         event_name(id)?;
     }
     let mut entry = json!({"command": command(id, root)?, "timeout":if matches!(id,"mastracode"|"letta") {10000} else {10}});
@@ -347,7 +347,10 @@ pub(crate) fn scan_hook_configuration(
     }
     let id = kind.id();
     if id == "mastracode" {
-        return flat_events::scan(bytes);
+        return event_sets::scan(event_sets::EventSet::Mastracode, bytes);
+    }
+    if id == "devin" {
+        return event_sets::scan(event_sets::EventSet::Devin, bytes);
     }
     if id == "antigravity-cli" {
         return scan_named(bytes);
@@ -442,7 +445,10 @@ pub(super) fn patch(
     }
     let id = kind.id();
     if id == "mastracode" {
-        return flat_events::patch(bytes, root, enable);
+        return event_sets::patch(event_sets::EventSet::Mastracode, bytes, root, enable);
+    }
+    if id == "devin" {
+        return event_sets::patch(event_sets::EventSet::Devin, bytes, root, enable);
     }
     if id == "antigravity-cli" {
         return patch_named(bytes, root, enable);
@@ -485,7 +491,7 @@ mod tests {
     use super::*;
     #[test]
     fn letta_owns_a_silent_millisecond_hook_and_preserves_policy_and_foreign_values() {
-        let root = Path::new(r"C:\owned\0.4.14");
+        let root = Path::new(r"C:\owned\0.4.15");
         let input = br#"{"large":123456789012345678901234567890,"hooks":{"disabled":true,"future":{"number":1e999},"SessionStart":[{"hooks":[{"type":"prompt","prompt":"USER"}]}]}}"#;
         let installed = patch(HookConfigurationKind::Letta, Some(input), root, true).unwrap();
         assert!(
@@ -532,7 +538,7 @@ mod tests {
     #[test]
     fn raw_user_values_survive_enable_repair_and_disable() {
         let input = br#"{"large":123456789012345678901234567890,"nested":{"future":1e999,"duplicate":1,"duplicate":2},"hooks":{"stop":[{"command":"echo user"}],"sessionStart":[{"command":"echo before"}]}}"#;
-        let root = Path::new(r"C:\Users\用户 & ' $ `\.orchbee\agent-observation-adapters\0.4.14");
+        let root = Path::new(r"C:\Users\用户 & ' $ `\.orchbee\agent-observation-adapters\0.4.15");
         let installed = patch(HookConfigurationKind::Cursor, Some(input), root, true).unwrap();
         assert!(
             matches!(scan_hook_configuration(HookConfigurationKind::Cursor, &installed), HookConfigurationScan::Owned(found) if found == root)
@@ -566,7 +572,7 @@ mod tests {
                 HookConfigurationScan::Malformed
             ));
         }
-        let root = Path::new(r"C:\owned\0.4.14");
+        let root = Path::new(r"C:\owned\0.4.15");
         let bytes = patch(HookConfigurationKind::Cursor, None, root, true).unwrap();
         let mut doc: Value = serde_json::from_slice(&bytes).unwrap();
         doc["hooks"]["sessionStart"][0]["timeout"] = json!(99);
@@ -595,7 +601,7 @@ mod tests {
 
 #[test]
 fn qoder_groups_keep_foreign_raw_values_and_refuse_edited_or_misplaced_ownership() {
-    let root = Path::new(r"C:\owned\0.4.14");
+    let root = Path::new(r"C:\owned\0.4.15");
     let input = br#"{"version":1e999,"hooks":{"SessionStart":[{"matcher":"resume","hooks":[{"type":"prompt","prompt":"keep","future":123456789012345678901234567890}]}]}}"#;
     let installed = patch(HookConfigurationKind::Qoder, Some(input), root, true).unwrap();
     assert!(
@@ -655,14 +661,14 @@ fn qoder_groups_keep_foreign_raw_values_and_refuse_edited_or_misplaced_ownership
 #[test]
 fn antigravity_named_blocks_preserve_foreign_values_and_validate_disabled_ownership() {
     let id = HookConfigurationKind::Antigravity;
-    let root = Path::new(r"C:\owned\0.4.14");
+    let root = Path::new(r"C:\owned\0.4.15");
     let options = ResourceOptions {
         resource_root: root,
-        expected_version: "0.4.14",
+        expected_version: "0.4.15",
         legacy_roots: &[],
     };
     for (version, expected) in [
-        ("0.4.14", State::Disabled),
+        ("0.4.15", State::Disabled),
         ("0.4.9", State::UpdateRequired),
         ("9.0.0", State::StaleSide),
     ] {
@@ -707,7 +713,7 @@ fn antigravity_named_blocks_preserve_foreign_values_and_validate_disabled_owners
 
 #[test]
 fn droid_document_shapes_preserve_foreign_data_and_own_only_session_group() {
-    let root = Path::new(r"C:\owned\0.4.14");
+    let root = Path::new(r"C:\owned\0.4.15");
     for (kind,input) in [
         (HookConfigurationKind::DroidStandalone,br#"{"SessionStart":[{"matcher":"resume","hooks":[{"type":"command","command":"echo user"}]}],"future":{"big":1e999}}"#.as_slice()),
         (HookConfigurationKind::DroidSettings,br#"{"hooks":{"SessionStart":[{"matcher":"resume","hooks":[{"type":"command","command":"echo user"}]}]},"future":{"big":1e999}}"#.as_slice()),

@@ -13,6 +13,7 @@ pub(crate) enum HookConfigurationKind {
     DroidSettings,
     Kimi,
     Letta,
+    Devin,
 }
 impl HookConfigurationKind {
     /// Canonical observation and integration identity independent of file representation.
@@ -20,6 +21,7 @@ impl HookConfigurationKind {
         match self {
             Self::Kimi => "kimi",
             Self::Letta => "letta",
+            Self::Devin => "devin",
             Self::Cursor => "cursor",
             Self::Qoder => "qodercli",
             Self::Antigravity => "antigravity-cli",
@@ -62,6 +64,7 @@ pub(crate) fn hook_configuration_candidates(
     let kind = match id {
         "kimi" => HookConfigurationKind::Kimi,
         "letta" => HookConfigurationKind::Letta,
+        "devin" => HookConfigurationKind::Devin,
         "cursor" => HookConfigurationKind::Cursor,
         "qodercli" => HookConfigurationKind::Qoder,
         "antigravity-cli" => HookConfigurationKind::Antigravity,
@@ -75,6 +78,10 @@ pub(crate) fn hook_configuration_candidates(
 }
 
 fn single_hook_configuration(id: &str, home: &Path) -> Option<PathBuf> {
+    if id == "devin" {
+        let root = PathBuf::from(std::env::var_os("APPDATA").filter(|v| !v.is_empty())?);
+        return root.is_absolute().then(|| root.join("devin/config.json"));
+    }
     if id == "letta" {
         let root = std::env::var_os("HOME")
             .filter(|v| !v.is_empty())

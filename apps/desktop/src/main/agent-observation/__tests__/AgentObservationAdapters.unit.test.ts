@@ -118,6 +118,37 @@ describe('OpenCode-family observation boundary', () => {
 			).toBeNull();
 		}
 	});
+	it('sanitizes all six Devin identity hooks without guessing turn completion', async () => {
+		const sanitizers = await import(resourceUrl('scripts/hook-sanitizers.mjs'));
+		for (const hook_event_name of [
+			'SessionStart',
+			'UserPromptSubmit',
+			'PreToolUse',
+			'PostToolUse',
+			'PermissionRequest',
+			'Stop',
+		]) {
+			const input = {
+				hook_event_name,
+				session_id: 'devin-session',
+				prompt_id: 'PRIVATE',
+				cwd: 'PRIVATE',
+				tool_input: { secret: 'PRIVATE' },
+			};
+			const result = sanitizers.sanitizeAgentHookInput('devin', input);
+			expect(result).toMatchObject({ sessionKey: 'devin-session', event: 'session-identified' });
+			expect(JSON.stringify(result)).not.toContain('PRIVATE');
+			for (const session_id of [null, undefined, '', 'x'.repeat(129), 'bad id'])
+				expect(sanitizers.sanitizeAgentHookInput('devin', { ...input, session_id })).toBeNull();
+		}
+		for (const hook_event_name of ['SessionEnd', 'PostCompaction', 'unknown', null])
+			expect(
+				sanitizers.sanitizeAgentHookInput('devin', {
+					hook_event_name,
+					session_id: 'devin-session',
+				}),
+			).toBeNull();
+	});
 	it('keeps Letta default conversations distinct and excludes prompt feedback', async () => {
 		const sanitizers = await import(resourceUrl('scripts/hook-sanitizers.mjs'));
 		const input = {

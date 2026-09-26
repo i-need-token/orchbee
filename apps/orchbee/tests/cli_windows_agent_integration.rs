@@ -12,6 +12,161 @@ use std::{
 struct Fixture(PathBuf);
 
 #[test]
+fn devin_grouped_hooks_preserve_settings_and_use_roaming_directory() {
+    use base64::{Engine as _, engine::general_purpose::STANDARD};
+    let fixture = Fixture::new();
+    fs::write(fixture.0.join("bin/devin.cmd"), b"@exit /b 99\r\n").unwrap();
+    let target = fixture.0.join("roaming/devin/config.json");
+    fs::create_dir_all(target.parent().unwrap()).unwrap();
+    let original = r#"{"large":123456789012345678901234567890,"hooks":{"disabled":false,"future":{"raw":1e999},"SessionStart":[{"hooks":[{"type":"prompt","prompt":"USER"}]}]}}"#;
+    fs::write(&target, original).unwrap();
+    fixture.provider_document("enable", "devin", 0);
+    let installed = fs::read_to_string(&target).unwrap();
+    fixture.provider_document("enable", "devin", 0);
+    assert_eq!(fs::read_to_string(&target).unwrap(), installed);
+    exercise_installed_json_hooks("devin", &target);
+    let mut partial: Value = serde_json::from_slice(
+        &fixture
+            .command("explain", "devin", &fixture.config_home(), &[])
+            .output()
+            .unwrap()
+            .stdout,
+    )
+    .unwrap();
+    assert_eq!(partial["result"]["state"], "enabled");
+    // Keep the original raw large numbers while removing one generated group.
+    let event_start = installed.find("\"PreToolUse\":[").unwrap();
+    let event_end = installed[event_start..].find("],").unwrap() + event_start + 2;
+    let missing = format!("{}{}", &installed[..event_start], &installed[event_end..]);
+    fs::write(&target, &missing).unwrap();
+    assert_eq!(
+        fixture.provider_document("explain", "devin", 0)["result"]["state"],
+        "update-required"
+    );
+    let doctor = Command::new(env!("CARGO_BIN_EXE_orchbee"))
+        .args(["agent", "doctor", "--provider", "devin", "--format", "json"])
+        .env("USERPROFILE", fixture.home())
+        .env("APPDATA", fixture.0.join("roaming"))
+        .output()
+        .unwrap();
+    partial = serde_json::from_slice(&doctor.stdout).unwrap();
+    assert_eq!(
+        partial["result"]["providers"][0]["hook"]["state"],
+        "update-required"
+    );
+    fixture.provider_document("enable", "devin", 0);
+    assert_eq!(fs::read_to_string(&target).unwrap(), installed);
+
+    let command_pattern = regex::Regex::new(r"EncodedCommand ([A-Za-z0-9+/=]+)").unwrap();
+    let captures = command_pattern.captures(&installed).unwrap();
+    let encoded = captures.get(1).unwrap().as_str();
+    let bytes = STANDARD.decode(encoded).unwrap();
+    let words: Vec<_> = bytes
+        .chunks_exact(2)
+        .map(|v| u16::from_le_bytes([v[0], v[1]]))
+        .collect();
+    let script = String::from_utf16(&words).unwrap();
+    let recorded = script
+        .split("$env:ORCHBEE_AGENT_HOOK_ROOT='")
+        .nth(1)
+        .unwrap()
+        .split('\'')
+        .next()
+        .unwrap();
+    let recorded_root =
+        PathBuf::from(String::from_utf8(STANDARD.decode(recorded).unwrap()).unwrap());
+    assert_eq!(
+        recorded_root.canonicalize().unwrap(),
+        fixture.capsule().canonicalize().unwrap()
+    );
+    for (version, expected) in [("0.4.2", "update-required"), ("9.0.0", "stale-side")] {
+        let changed = script.replace(
+            recorded,
+            &STANDARD.encode(
+                recorded_root
+                    .parent()
+                    .unwrap()
+                    .join(version)
+                    .to_str()
+                    .unwrap(),
+            ),
+        );
+        assert_ne!(changed, script);
+        let bytes: Vec<_> = changed.encode_utf16().flat_map(u16::to_le_bytes).collect();
+        let declaration = installed.replace(encoded, &STANDARD.encode(bytes));
+        fs::write(&target, &declaration).unwrap();
+        assert_eq!(
+            fixture.provider_document("explain", "devin", 0)["result"]["state"],
+            expected
+        );
+        if expected == "update-required" {
+            fixture.provider_document("enable", "devin", 0);
+            assert_eq!(fs::read_to_string(&target).unwrap(), installed);
+        } else {
+            fixture.provider_document("enable", "devin", 3);
+            fixture.provider_document("disable", "devin", 3);
+            assert_eq!(fs::read_to_string(&target).unwrap(), declaration);
+        }
+    }
+    fs::write(&target, &installed).unwrap();
+    let doctor = Command::new(env!("CARGO_BIN_EXE_orchbee"))
+        .args(["agent", "doctor", "--provider", "devin", "--format", "json"])
+        .env("USERPROFILE", fixture.home())
+        .env("APPDATA", fixture.0.join("roaming"))
+        .output()
+        .unwrap();
+    assert_eq!(
+        serde_json::from_slice::<Value>(&doctor.stdout).unwrap()["result"]["providers"][0]["hook"]
+            ["state"],
+        "present"
+    );
+    let changed = installed.replace("\"timeout\":10", "\"timeout\":11");
+    assert_ne!(changed, installed);
+    fs::write(&target, &changed).unwrap();
+    fixture.provider_document("enable", "devin", 3);
+    fixture.provider_document("disable", "devin", 3);
+    assert_eq!(fs::read_to_string(&target).unwrap(), changed);
+    fs::write(&target, &installed).unwrap();
+    fixture.provider_document("disable", "devin", 0);
+    let restored = fs::read_to_string(&target).unwrap();
+    for retained in [
+        "123456789012345678901234567890",
+        "\"disabled\":false",
+        "\"raw\":1e999",
+        "\"prompt\":\"USER\"",
+    ] {
+        assert!(restored.contains(retained));
+    }
+    let provider_home = fixture.0.join("Devin roaming 用户");
+    let invoke = |verb: &str, home: &Path| {
+        let output = fixture
+            .command(verb, "devin", &fixture.config_home(), &[])
+            .env("APPDATA", home)
+            .output()
+            .unwrap();
+        (
+            output.status.code(),
+            serde_json::from_slice::<Value>(&output.stdout).unwrap(),
+        )
+    };
+    assert_eq!(invoke("enable", &provider_home).0, Some(0));
+    assert!(provider_home.join("devin/config.json").exists());
+    assert_eq!(fs::read_to_string(&target).unwrap(), restored);
+    assert_eq!(
+        invoke("enable", Path::new("relative-devin-home")).0,
+        Some(9)
+    );
+    assert_eq!(invoke("disable", &provider_home).0, Some(0));
+    let absent = fixture
+        .command("enable", "devin", &fixture.config_home(), &[])
+        .env_remove("APPDATA")
+        .output()
+        .unwrap();
+    assert_eq!(absent.status.code(), Some(9));
+    assert!(!fixture.home().join(".config/devin").exists());
+}
+
+#[test]
 fn letta_silent_hooks_preserve_settings_and_use_provider_home() {
     use base64::{Engine as _, engine::general_purpose::STANDARD};
     let fixture = Fixture::new();
@@ -470,7 +625,11 @@ fn exercise_installed_json_hooks(provider: &str, target: &Path) {
         );
         assert_eq!(
             serde_json::from_slice::<Value>(&output.stdout).unwrap()["events"],
-            if provider == "mastracode" { 10 } else { 1 }
+            match provider {
+                "mastracode" => 10,
+                "devin" => 6,
+                _ => 1,
+            }
         );
     }
 }
@@ -565,7 +724,7 @@ fn opencode_migrates_only_owned_undiscovered_entries_and_resolves_xdg() {
         (
             String::from_utf8(bytes.clone())
                 .unwrap()
-                .replace("/0.4.14/", "/9.0.0/"),
+                .replace("/0.4.15/", "/9.0.0/"),
             "stale-side",
         ),
     ] {
@@ -580,7 +739,7 @@ fn opencode_migrates_only_owned_undiscovered_entries_and_resolves_xdg() {
         &obsolete,
         String::from_utf8(bytes.clone())
             .unwrap()
-            .replace("/0.4.14/", "/0.4.2/"),
+            .replace("/0.4.15/", "/0.4.2/"),
     )
     .unwrap();
     assert_eq!(inspect("explain")["result"]["state"], "update-required");
@@ -929,7 +1088,7 @@ fn grok_inventory_joins_local_configuration_and_runs_shipped_powershell_hooks() 
         (fixture.capsule().join("bundle"), Value::Null, "unknown", 9),
         (
             fixture.0.join("foreign/bundle"),
-            Value::from("0.4.14"),
+            Value::from("0.4.15"),
             "conflict",
             3,
         ),
@@ -1069,7 +1228,7 @@ impl Fixture {
     }
     fn capsule(&self) -> PathBuf {
         self.home()
-            .join(".orchbee/agent-observation-adapters/0.4.14")
+            .join(".orchbee/agent-observation-adapters/0.4.15")
     }
     fn run(&self, verb: &str, provider: &str, config_home: &Path) -> Output {
         self.run_options(verb, provider, config_home, &[])
@@ -1108,6 +1267,7 @@ impl Fixture {
             .env_remove("CURSOR_CONFIG_DIR")
             .env_remove("KIMI_CODE_HOME")
             .env("USERPROFILE", self.home())
+            .env("APPDATA", self.0.join("roaming"))
             .env("HOME", self.0.join("wrong-posix-home"))
             .env("CODEX_HOME", config_home)
             .env("GROK_HOME", config_home)
@@ -1324,7 +1484,7 @@ fn claude_repairs_owned_old_installations_and_preserves_foreign_or_newer_sources
         "enabled"
     );
     for (source, version, expected) in [
-        (fixture.0.join("foreign"), "0.4.14", "conflict"),
+        (fixture.0.join("foreign"), "0.4.15", "conflict"),
         (
             fixture.capsule().parent().unwrap().join("9.0.0"),
             "9.0.0",
@@ -1442,7 +1602,7 @@ fn javascript_modules_load_and_deliver_ordered_windows_observations() {
 
         let old = String::from_utf8(original.clone())
             .unwrap()
-            .replace("/0.4.14/", "/0.4.2/");
+            .replace("/0.4.15/", "/0.4.2/");
         fs::write(&target, old).unwrap();
         assert_eq!(
             fixture.provider_document("explain", provider, 0)["result"]["state"],

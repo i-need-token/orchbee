@@ -485,3 +485,5 @@ Droid 加入仅识别身份的注册表和原生入口见证，在 SessionStart 
 Kimi 仅准入 session-identified 与 session-ended。重复身份保留规范轮次状态；Stop 及其他不支持的生命周期事件仍被拒绝。
 
 Letta 仅准入 session-identified，保留未知或现有轮次状态。默认对话身份包含 Agent ID；内容及推测的完成状态不会进入规范状态。
+
+Devin 六组 hook 仅接收 session-identified。身份刷新保留未知或已有轮次状态，不解决权限请求，也不推断完成。

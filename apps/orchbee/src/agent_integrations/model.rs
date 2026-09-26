@@ -22,6 +22,7 @@ pub(crate) enum IntegrationId {
     Droid,
     Kimi,
     Letta,
+    Devin,
     Pi,
     Omp,
     Gemini,
@@ -31,7 +32,7 @@ pub(crate) enum IntegrationId {
 }
 
 impl IntegrationId {
-    pub(crate) const ALL: [Self; 18] = [
+    pub(crate) const ALL: [Self; 19] = [
         Self::ClaudeCode,
         Self::Codex,
         Self::Grok,
@@ -44,6 +45,7 @@ impl IntegrationId {
         Self::Droid,
         Self::Kimi,
         Self::Letta,
+        Self::Devin,
         Self::Pi,
         Self::Omp,
         Self::Gemini,
@@ -66,6 +68,7 @@ impl IntegrationId {
             Self::Droid => "droid",
             Self::Kimi => "kimi",
             Self::Letta => "letta",
+            Self::Devin => "devin",
             Self::Pi => "pi",
             Self::Omp => "omp",
             Self::Gemini => "gemini",

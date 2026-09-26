@@ -17,7 +17,7 @@ pub(crate) const SUPPORTED_CONTRACT_VERSION: u64 = 3;
 
 /// The capsule payload version the manifest contract requires —
 /// `AGENT_OBSERVATION_CAPSULE_VERSION`.
-pub(crate) const CAPSULE_PAYLOAD_VERSION: &str = "0.4.14";
+pub(crate) const CAPSULE_PAYLOAD_VERSION: &str = "0.4.15";
 
 // ---------------------------------------------------------------------------
 // Provider binding table — the literals of
@@ -168,6 +168,15 @@ pub(crate) const PROVIDERS: &[Provider] = &[
         kind: ProbeKind::ConfigurationHooks,
         node_applicable: true,
         home_target: ".mastracode/hooks.json",
+        bootstrap: None,
+        manual_command: None,
+    },
+    Provider {
+        id: "devin",
+        executable: "devin",
+        kind: ProbeKind::ConfigurationHooks,
+        node_applicable: true,
+        home_target: "devin/config.json",
         bootstrap: None,
         manual_command: None,
     },
@@ -1052,7 +1061,7 @@ pub(crate) fn parse_cline_package(bytes: &[u8]) -> ClinePackage {
 // ---------------------------------------------------------------------------
 
 /// The strict capsule manifest check: exactly the three declared keys,
-/// `contractVersion === 3`, `payloadVersion === "0.4.14"`, and a lowercase
+/// `contractVersion === 3`, `payloadVersion === "0.4.15"`, and a lowercase
 /// `payloadSha256` — plus the declared values carried for detail.
 #[derive(Clone, Debug)]
 pub(crate) struct CapsuleManifestScan {

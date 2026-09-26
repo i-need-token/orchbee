@@ -48,6 +48,12 @@ const CODEX_EVENTS = new Set<AgentHookObservationEvent>([
 ]);
 
 const REGISTRY = {
+	devin: {
+		acceptedEvents: new Set<AgentHookObservationEvent>(['session-identified']),
+		adapterId: 'devin',
+		capabilities: ['sessionLifecycle'],
+		providerId: AgentProviderIdSchema.parse('devin'),
+	},
 	letta: {
 		acceptedEvents: new Set<AgentHookObservationEvent>(['session-identified']),
 		adapterId: 'letta',

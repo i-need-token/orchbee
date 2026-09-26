@@ -22,11 +22,13 @@ assert.ok(
 		'droid',
 		'kimi',
 		'letta',
+		'devin',
 	].includes(provider),
 );
 const extensionProvider = provider === 'gemini' || provider === 'qwen-code';
 const encodedProvider = [
 	'letta',
+	'devin',
 	'cursor',
 	'qodercli',
 	'antigravity-cli',
@@ -35,6 +37,7 @@ const encodedProvider = [
 	'kimi',
 ].includes(provider);
 function hookFile() {
+	if (provider === 'devin') return 'config.json';
 	if (provider === 'droid' || provider === 'kimi') return configurationFile;
 	if (provider === 'cursor' || provider === 'antigravity-cli' || provider === 'mastracode')
 		return 'hooks.json';
@@ -161,7 +164,7 @@ async function run(hook, input, scriptRoot = root) {
 }
 function hookFor(event) {
 	if (provider === 'antigravity-cli') return hooks[event][0];
-	if (provider === 'qodercli' || provider === 'letta') {
+	if (['qodercli', 'letta', 'devin'].includes(provider)) {
 		const entry = hooks[event]
 			.flatMap((group) => group.hooks)
 			.find((hook) => hook.command?.startsWith('powershell.exe -NoLogo'));
@@ -173,6 +176,15 @@ function hookFor(event) {
 	return provider === 'github-copilot' ? hooks[event][0] : hooks[event][0].hooks[0];
 }
 function eventNames() {
+	if (provider === 'devin')
+		return [
+			'SessionStart',
+			'UserPromptSubmit',
+			'PreToolUse',
+			'PostToolUse',
+			'PermissionRequest',
+			'Stop',
+		];
 	if (provider === 'kimi') return ['SessionStart', 'SessionEnd'];
 	if (provider === 'mastracode')
 		return [
@@ -194,6 +206,7 @@ function eventNames() {
 		: ['SessionStart', 'UserPromptSubmit', 'Stop', 'SessionEnd'];
 }
 function expectedEvents() {
+	if (provider === 'devin') return Array(6).fill('session-identified');
 	if (provider === 'kimi') return ['session-identified', 'session-ended'];
 	if (provider === 'mastracode')
 		return [

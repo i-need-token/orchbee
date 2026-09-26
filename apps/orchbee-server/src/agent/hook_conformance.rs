@@ -539,6 +539,7 @@ fn qoder_hook_boundary_accepts_only_identified_session() {
         ("antigravity-cli", "antigravity"),
         ("droid", "droid"),
         ("letta", "letta"),
+        ("devin", "devin"),
     ] {
         let mut envelope = test_envelope(0, 0.0);
         envelope["adapterId"] = json!(id);

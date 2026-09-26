@@ -581,3 +581,5 @@ Droid joins the identity-only registry and native ingress witnesses, preserving 
 Kimi admits only session-identified and session-ended. Repeated identity preserves canonical turn state; Stop and other unsupported lifecycle events remain rejected.
 
 Letta admits only session-identified and preserves unknown or existing turn state. Default conversation identities include the Agent ID; content and guessed completion never enter canonical state.
+
+Devin admits only session-identified across its six hooks. Identity refreshes preserve unknown or existing turn state and never resolve permission requests or infer completion.

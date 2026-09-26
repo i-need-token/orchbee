@@ -31,6 +31,7 @@ pub(crate) const PROVIDER_IDS: &[&str] = &[
     "droid",
     "kimi",
     "letta",
+    "devin",
     "antigravity-cli",
     "qodercli",
     "cursor",

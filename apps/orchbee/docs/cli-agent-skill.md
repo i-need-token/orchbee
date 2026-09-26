@@ -194,3 +194,5 @@ The `droid` provider supports Windows session identity onboarding and offline so
 The `kimi` provider supports Windows TOML session onboarding and offline diagnostics; legacy `.kimi` is untouched.
 
 The `letta` provider supports Windows session onboarding with silent hooks and provider-owned HOME resolution.
+
+The `devin` provider supports Windows session onboarding and diagnosis through its APPDATA configuration.
