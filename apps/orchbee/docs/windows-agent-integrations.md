@@ -31,7 +31,7 @@ is supported. Inspection and mutation share the same platform admission policy.
 OpenCode uses its ESM entry; the Pi/OMP installed CommonJS bootstrap dynamically imports
 the capsule's **ESM** entry and calls its named registration function. Importing their
 CommonJS wrapper and looking for that named export would silently skip registration.
-The module refinement keeps its existing bootstrap behavior with payload 0.4.15. The deterministic bootstrap bytes and file URL remain the ownership
+The module refinement keeps its existing bootstrap behavior with payload 0.4.16. The deterministic bootstrap bytes and file URL remain the ownership
 proof: changed, foreign or newer entries are refused; older owned entries can be repaired.
 Windows doctor derives the capsule root from the full `bundle/<provider>/<entry>` suffix,
 so a healthy installed module is inspected against its capsule manifest instead of the
@@ -64,7 +64,7 @@ Filtered lists use v2 with outdatedOnly true, inspectedCount, unresolvedProvider
 
 ## Claude exec hooks
 
-Claude Code is also managed on Windows with capsule 0.4.15. Its hook declaration uses the provider's `command` plus `args` exec form: Node receives the plugin script path as a literal argument, including spaces, apostrophes, Unicode, dollar signs and backticks. A fixed dynamic-import guard ignores a removed script; the existing bounded sanitizer and Windows pipe/console transport remain the only observation path. No Bash or PowerShell launcher is required. Node must remain on the provider PATH; if it is absent, Claude reports its non-blocking spawn diagnostic, and no observation is produced. This replaces the old Claude-only promise of silent success without Node. Other providers retain their own launch contracts. The [upstream exec contract](https://code.claude.com/docs/en/hooks#exec-form-and-shell-form) defines argument substitution.
+Claude Code is also managed on Windows with capsule 0.4.16. Its hook declaration uses the provider's `command` plus `args` exec form: Node receives the plugin script path as a literal argument, including spaces, apostrophes, Unicode, dollar signs and backticks. A fixed dynamic-import guard ignores a removed script; the existing bounded sanitizer and Windows pipe/console transport remain the only observation path. No Bash or PowerShell launcher is required. Node must remain on the provider PATH; if it is absent, Claude reports its non-blocking spawn diagnostic, and no observation is produced. This replaces the old Claude-only promise of silent success without Node. Other providers retain their own launch contracts. The [upstream exec contract](https://code.claude.com/docs/en/hooks#exec-form-and-shell-form) defines argument substitution.
 
 Enable, disable and repair reuse the existing user-scoped plugin commands and bounded Windows process owner. Old owned capsules require explicit repair; current enabled entries are no-ops, and foreign/newer entries remain refused. Isolated provider-command and shipped-hook witnesses cover onboarding and sanitized delivery. They do not establish authenticated Claude task completion. The shared portable hook declaration changes, but this work adds no macOS/Linux workflow or runtime validation.
 
@@ -72,7 +72,7 @@ Enable, disable and repair reuse the existing user-scoped plugin commands and bo
 
 Windows targets the plugin contract verified with official Copilot CLI 1.0.88: `plugin list --json` returns a flat array, and plugin commands do not accept the retired `--kind` or `--plugin` switches. One fixed command owner supplies inspection, plans and effects. Inspection requires the exact marketplace, local installed origin, live source and payload version; foreign, newer and malformed observations never authorize repair. The Unix adapter retains its earlier command and parsing contract. No speculative mutation retry is performed.
 
-Capsule 0.4.15 uses Copilot's exec hook form with Node. The fixed import guard reads the provider's COPILOT_PLUGIN_ROOT environment variable as a path, with no shell expansion, and keeps the existing PascalCase event input contract. Missing roots or scripts are silent; Node remains a prerequisite. The [plugin reference](https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-plugin-reference) and [hook reference](https://docs.github.com/en/copilot/reference/hooks-reference) own upstream semantics. The existing local mutation budget, Job Object teardown, immutable publication, receipt and content-free observation rules remain. Controlled installation and hook delivery do not establish authenticated Agent task completion.
+Capsule 0.4.16 uses Copilot's exec hook form with Node. The fixed import guard reads the provider's COPILOT_PLUGIN_ROOT environment variable as a path, with no shell expansion, and keeps the existing PascalCase event input contract. Missing roots or scripts are silent; Node remains a prerequisite. The [plugin reference](https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-plugin-reference) and [hook reference](https://docs.github.com/en/copilot/reference/hooks-reference) own upstream semantics. The existing local mutation budget, Job Object teardown, immutable publication, receipt and content-free observation rules remain. Controlled installation and hook delivery do not establish authenticated Agent task completion.
 
 A newer reported Claude or Copilot plugin version blocks Windows repair even when its marketplace root is an older owned capsule. Missing version data cannot authorize replacement.
 
@@ -82,7 +82,7 @@ Windows Codex and Grok inspection parses each complete UTF-8 TOML document withi
 
 Grok's installed JSON inventory does not report activation. Windows joins the exact owned bundle source and version to the user configuration in nonempty GROK_HOME, otherwise USERPROFILE/.grok. Invalid overrides never fall back. Explicit disabled entries win; an unlisted user plugin is disabled. This is local onboarding state: project/managed policies and already-running sessions remain provider-owned. Enable uses the existing install/trust or enable commands; disable removes only the source-proven plugin. A newer reported plugin version blocks repair even from an older owned capsule.
 
-Capsule 0.4.15 supplies Grok's command-only hook as a fixed Node bootstrap encoded into the declaration. No user path or hook input becomes shell source. Node reads GROK_PLUGIN_ROOT and imports the joined script with pathToFileURL; missing roots/scripts are silent, while Node is a prerequisite. Existing input, event, transport and hook deadline bounds remain. Real PowerShell 5.1/7 witnesses exercise the shipped command and redirected JSON stdin in isolated profiles; no authenticated Grok task or new macOS/Linux workflow is implied.
+Capsule 0.4.16 supplies Grok's command-only hook as a fixed Node bootstrap encoded into the declaration. No user path or hook input becomes shell source. Node reads GROK_PLUGIN_ROOT and imports the joined script with pathToFileURL; missing roots/scripts are silent, while Node is a prerequisite. Existing input, event, transport and hook deadline bounds remain. Real PowerShell 5.1/7 witnesses exercise the shipped command and redirected JSON stdin in isolated profiles; no authenticated Grok task or new macOS/Linux workflow is implied.
 
 ## OpenCode automatic discovery
 
@@ -100,7 +100,7 @@ The shared OpenCode-family normalizer consumes untrusted event/callback objects 
 
 Each plugin instance owns a FIFO of at most 64 outstanding normalized observations. Delivery is serial, best effort and bounded by the existing transport. At overflow it stops admission until reload and discards the queued suffix; an in-flight send may finish. Dispose uses the same stop rule. It never resumes after dropping unknown lifecycle evidence or fabricates completion. Transport failure is silent and does not poison later admitted sends. Deterministic tests cover normalization, identity ambiguity, ordering, overflow, failure and disposal; a real Node bootstrap/private Windows pipe witness covers installation through delivery. These controlled witnesses do not prove authenticated provider work.
 
-References: [Kilo plugin API](https://github.com/Kilo-Org/kilocode/blob/cb67014ffdb39ffe890e3a47a0a9c35c0e63538b/packages/plugin/src/index.ts), [Kilo global paths](https://github.com/Kilo-Org/kilocode/blob/cb67014ffdb39ffe890e3a47a0a9c35c0e63538b/packages/core/src/global.ts), [OpenCode legacy lifecycle](https://github.com/anomalyco/opencode/blob/v1.1.25/packages/opencode/src/session/index.ts), and [OpenCode current lifecycle](https://github.com/anomalyco/opencode/blob/v1.18.30/packages/schema/src/v1/session.ts). Capsule 0.4.15 carries the shared module; the canonical observation registry adds Kilo, while Desktop onboarding retains its own provider boundary.
+References: [Kilo plugin API](https://github.com/Kilo-Org/kilocode/blob/cb67014ffdb39ffe890e3a47a0a9c35c0e63538b/packages/plugin/src/index.ts), [Kilo global paths](https://github.com/Kilo-Org/kilocode/blob/cb67014ffdb39ffe890e3a47a0a9c35c0e63538b/packages/core/src/global.ts), [OpenCode legacy lifecycle](https://github.com/anomalyco/opencode/blob/v1.1.25/packages/opencode/src/session/index.ts), and [OpenCode current lifecycle](https://github.com/anomalyco/opencode/blob/v1.18.30/packages/schema/src/v1/session.ts). Capsule 0.4.16 carries the shared module; the canonical observation registry adds Kilo, while Desktop onboarding retains its own provider boundary.
 
 ## Gemini and Qwen Windows extensions
 
@@ -108,7 +108,7 @@ Windows manages self-contained Gemini and Qwen extension directories using the e
 
 After proving the directory marker and complete file fingerprint, Windows inspection also requires the exact extension name and parseable payload version. An older payload needs repair; a newer payload refuses downgrade even under an older marker contract. Missing/malformed versions are unknown, edited or foreign contents are conflicts. Existing cancellation, backup restoration, committed-prefix receipts and residual ownership remain. Enable copies the source and shared scripts into one self-contained directory; disable removes only a reverified owned directory.
 
-Capsule 0.4.15 uses a fixed Node command that reads the provider-hydrated ORCHBEE_AGENT_EXTENSION_ROOT environment value. User paths never enter shell source. Gemini recursively hydrates its hooks/hooks.json; Qwen recursively hydrates inline hooks in qwen-extension.json, so Qwen has no duplicate external hooks file. The guard imports the joined forward-hook.mjs, preserving existing input bounds and event semantics. Node is required; missing roots/scripts or invalid input are silent. Source contracts are [Gemini extension loading](https://github.com/google-gemini/gemini-cli/blob/20f707577424c0c60cde3470b1495f228773e307/packages/cli/src/config/extension-manager.ts) and [Qwen extension loading](https://github.com/QwenLM/qwen-code/blob/c3a4058a0c7207de7b421e9da0622a9ec890dbad/packages/core/src/extension/extensionManager.ts). Controlled PowerShell 5.1/7 and cmd witnesses exercise the shipped commands with raw JSON stdin and a private Windows observation pipe; no authenticated provider task is implied.
+Capsule 0.4.16 uses a fixed Node command that reads the provider-hydrated ORCHBEE_AGENT_EXTENSION_ROOT environment value. User paths never enter shell source. Gemini recursively hydrates its hooks/hooks.json; Qwen recursively hydrates inline hooks in qwen-extension.json, so Qwen has no duplicate external hooks file. The guard imports the joined forward-hook.mjs, preserving existing input bounds and event semantics. Node is required; missing roots/scripts or invalid input are silent. Source contracts are [Gemini extension loading](https://github.com/google-gemini/gemini-cli/blob/20f707577424c0c60cde3470b1495f228773e307/packages/cli/src/config/extension-manager.ts) and [Qwen extension loading](https://github.com/QwenLM/qwen-code/blob/c3a4058a0c7207de7b421e9da0622a9ec890dbad/packages/core/src/extension/extensionManager.ts). Controlled PowerShell 5.1/7 and cmd witnesses exercise the shipped commands with raw JSON stdin and a private Windows observation pipe; no authenticated provider task is implied.
 
 On Windows, the staged Qwen manifest explicitly selects `shell: powershell` for each owned command hook before its fingerprint is written. The upstream default cmd spawn can quote the complete Node expression into an inert string; provider exit 0 alone is insufficient evidence. Gemini already selects PowerShell on Windows. The shared capsule remains portable; only native Windows Qwen installation applies this projection. The extra direct cmd witness passes verbatim command source and is distinct from upstream default-shell dispatch.
 
@@ -224,7 +224,7 @@ Remove this dependency when its last configuration-editing consumer disappears.
 Evidence includes lossless foreign-rule fixtures, both TOML representations,
 partial repair and refusal, isolated public lifecycle/doctor/override checks,
 installed PowerShell 5.1/7 and cmd delivery, and shared JSON regression. No paid
-provider session is needed. Capsule 0.4.15 and matching receivers roll out together;
+provider session is needed. Capsule 0.4.16 and matching receivers roll out together;
 older receivers reject the new adapter. Disable removes only proven owned rules.
 
 Sources: [Kimi configuration](https://moonshotai.github.io/kimi-code/en/configuration/config-files),
@@ -253,7 +253,7 @@ is inferred. Missing/invalid payloads remain silent. Resume preserves turn state
 
 Pure ownership and identity tests plus isolated public setup/repair/refusal/disable,
 HOME override, doctor and installed PowerShell 5.1/7/cmd pipe witnesses cover this
-contract. They do not establish authenticated Letta work. Capsule 0.4.15 and its
+contract. They do not establish authenticated Letta work. Capsule 0.4.16 and its
 receivers form one cohort; rollback selects the previous cohort, and disable removes
 only proven owned declarations. No new dependency or other-platform workflow is added.
 Source: [Letta 0.33.2 hook implementation](https://github.com/letta-ai/letta-code/tree/46e1f82ba44145e8b8d0ac283c2470b59822715e/src/hooks).
@@ -287,10 +287,48 @@ doctor checks, plus six installed commands through PowerShell 5.1/7 and cmd/priv
 pipe establish the controlled boundary. They do not independently establish the
 real Devin hook dispatcher. Discovery used only the installed CLI's help/version;
 no Devin Agent task or orchestration runs.
-Capsule 0.4.15 rolls out with its matching receivers; rollback uses the previous
+Capsule 0.4.16 rolls out with its matching receivers; rollback uses the previous
 cohort. Fixtures isolate APPDATA as well as the native profile. No new dependency
 or other-platform workflow is introduced.
 
 Sources: [Devin hooks](https://docs.devin.ai/cli/extensibility/hooks/overview),
 [lifecycle](https://docs.devin.ai/cli/extensibility/hooks/lifecycle-hooks), and
 [Windows configuration](https://docs.devin.ai/cli/reference/configuration/config-file).
+
+## Hermes Windows session plugin
+
+Hermes owns its configuration and plugin activation. Windows resolves a nonempty
+trimmed absolute literal HERMES_HOME, otherwise LOCALAPPDATA/hermes, falling back
+to the native profile's AppData/Local/hermes when LOCALAPPDATA is empty. A safe
+single-component HERMES_DATA_DIR_SUFFIX applies only to the default. Relative or
+unexpanded explicit roots refuse. Provider commands receive the resolved
+HERMES_HOME, so inspection and activation select the same profile.
+
+Orchbee owns only plugins/orchbee-agent-observation/__init__.py and plugin.yaml.
+The manifest is JSON, a YAML subset; each entire generated file proves its capsule
+root. Foreign/edited/newer members refuse. One missing member or independently
+proven old/current members require repair, including interrupted two-file updates.
+Enable publishes the entry then manifest through the shared bounded Windows file
+publication primitive, preserving metadata and recoverable preimages. It then
+runs Hermes's own plugins enable command and verifies plugins list --json. Disable
+runs plugins disable and retains both files. Python caches, other plugin files,
+configuration YAML and capability grants remain provider-owned. No directory is
+removed. A disabled partial/older entry still reports update-required for repair.
+Provider admission failure or timeout preserves observed effects and
+recovery paths; activation requires a subsequent provider session.
+
+The Python plugin registers on_session_start, on_session_reset and pre_llm_call.
+Only cli/tui/desktop/acp platforms are admitted, and pre_llm_call is CLI-only.
+Strict session identity crosses a bounded, hidden, shell-free Node subprocess to
+the existing observation transport. Callbacks return no context or decisions;
+only session-identified is emitted. Content, working/idle and completion are not
+inferred. Offline doctor reports provider-command-inspection-required rather than
+claiming that an existing plugin is enabled.
+
+Pure file/list classification, isolated public activation/repair/refusal/disable,
+and Python import plus real Windows pipe witnesses cover these boundaries. They
+do not establish authenticated Hermes work or live-session reload. Capsule 0.4.16
+and matching receivers roll out together; rollback selects the previous cohort.
+No new dependency or other-platform implementation is added.
+Source: [pinned Hermes plugin implementation](https://github.com/NousResearch/hermes-agent/tree/2a05208012cf50bbe8ff7b7b54a3825fd1e4692a/hermes_cli)
+and [native Windows](https://hermes-agent.nousresearch.com/docs/user-guide/windows-native).

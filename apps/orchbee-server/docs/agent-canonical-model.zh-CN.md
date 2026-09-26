@@ -487,3 +487,5 @@ Kimi 仅准入 session-identified 与 session-ended。重复身份保留规范�
 Letta 仅准入 session-identified，保留未知或现有轮次状态。默认对话身份包含 Agent ID；内容及推测的完成状态不会进入规范状态。
 
 Devin 六组 hook 仅接收 session-identified。身份刷新保留未知或已有轮次状态，不解决权限请求，也不推断完成。
+
+Hermes 仅准入 session-identified。会话启动／重置和 CLI 恢复观察保留规范轮次状态，不制造空闲或完成。

@@ -191,3 +191,5 @@ Windows provider 选择还支持 `cursor`、`qodercli` 和 `antigravity-cli`；�
 `letta` 提供方支持 Windows 会话接入，采用静默 hook 与提供方自己的 HOME 解析规则。
 
 `devin` 提供方通过 APPDATA 配置支持 Windows 会话接入与诊断。
+
+`hermes` 提供方在选定的 Hermes 配置档中管理 Windows 会话插件。激活使用提供方 CLI；离线 doctor 不声称激活状态。

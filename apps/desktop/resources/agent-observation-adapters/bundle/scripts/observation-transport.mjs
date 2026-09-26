@@ -34,6 +34,7 @@ const ADAPTER_IDS = new Set([
 	'kimi',
 	'letta',
 	'devin',
+	'hermes',
 	'pi',
 	'omp',
 	'gemini',

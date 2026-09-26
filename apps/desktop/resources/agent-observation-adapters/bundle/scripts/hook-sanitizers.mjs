@@ -3,6 +3,16 @@ const IDENTITY_PATTERN = /^[A-Za-z0-9._:-]{1,128}$/u;
 export function sanitizeAgentHookInput(adapterId, value) {
 	if (!isRecord(value)) return null;
 	switch (adapterId) {
+		case 'hermes': {
+			if (
+				!['on_session_start', 'on_session_reset', 'pre_llm_call'].includes(value.event) ||
+				!['cli', 'tui', 'desktop', 'acp'].includes(value.platform) ||
+				(value.event === 'pre_llm_call' && value.platform !== 'cli')
+			)
+				return null;
+			const sessionKey = identity(value.session_id);
+			return sessionKey === null ? null : observation(sessionKey, 'session-identified');
+		}
 		case 'devin': {
 			if (
 				![

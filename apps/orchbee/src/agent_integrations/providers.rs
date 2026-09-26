@@ -74,6 +74,7 @@ enum CliKind {
     Claude,
     Grok,
     Copilot,
+    Hermes,
 }
 
 #[derive(Clone, Copy)]
@@ -134,6 +135,11 @@ const fn spec(id: IntegrationId) -> Spec {
             }),
             executable: "kilo",
             inspect_slots: 0,
+        },
+        IntegrationId::Hermes => Spec {
+            kind: Kind::Cli(CliKind::Hermes),
+            executable: "hermes",
+            inspect_slots: 1,
         },
         IntegrationId::Devin => Spec {
             kind: Kind::ConfigurationHooks,
@@ -257,6 +263,7 @@ pub(crate) const fn management_mode(id: IntegrationId, declared: ManagementMode)
                 | IntegrationId::Kimi
                 | IntegrationId::Letta
                 | IntegrationId::Devin
+                | IntegrationId::Hermes
         )
     {
         return ManagementMode::ManualOnly;
@@ -277,6 +284,7 @@ pub(crate) const fn management_mode(id: IntegrationId, declared: ManagementMode)
                 | IntegrationId::Kimi
                 | IntegrationId::Letta
                 | IntegrationId::Devin
+                | IntegrationId::Hermes
                 | IntegrationId::Pi
                 | IntegrationId::Omp
                 | IntegrationId::GitHubCopilot
@@ -467,6 +475,13 @@ pub(crate) fn inspect_full(
     let mut timed_out = false;
     let mut read_slot =
         |executable: &Path, arguments: &[&str], context: &ProviderContext| -> ReadOutcome {
+            #[cfg(windows)]
+            let outcome = if id == IntegrationId::Hermes {
+                super::hermes_windows::read(executable, context)
+            } else {
+                read(executable, arguments, context)
+            };
+            #[cfg(not(windows))]
             let outcome = read(executable, arguments, context);
             if matches!(outcome, ReadOutcome::TimedOut) {
                 timed_out = true;
@@ -484,6 +499,30 @@ pub(crate) fn inspect_full(
             #[cfg(windows)]
             let state =
                 super::hook_configuration_windows::inspect(id.as_str(), context.home, &options);
+            #[cfg(not(windows))]
+            let state = State::Unknown;
+            (state, state == State::Unknown, InspectionDetail::Plain)
+        }
+        Kind::Cli(CliKind::Hermes) => {
+            #[cfg(windows)]
+            let state = match super::hermes_windows::local(context.home, &options) {
+                Some(local) if matches!(local.state, State::Conflict | State::StaleSide) => {
+                    local.state
+                }
+                Some(local) => match read_slot(
+                    executable.as_deref().expect("gated above"),
+                    &["plugins", "list", "--json"],
+                    context,
+                ) {
+                    ReadOutcome::Stdout(bytes) => super::hermes_windows::list_state(
+                        &bytes,
+                        local.state,
+                        options.expected_version,
+                    ),
+                    _ => State::Unknown,
+                },
+                None => State::Unknown,
+            };
             #[cfg(not(windows))]
             let state = State::Unknown;
             (state, state == State::Unknown, InspectionDetail::Plain)

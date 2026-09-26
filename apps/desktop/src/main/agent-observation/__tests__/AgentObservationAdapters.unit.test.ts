@@ -118,6 +118,53 @@ describe('OpenCode-family observation boundary', () => {
 			).toBeNull();
 		}
 	});
+	it('admits only interactive Hermes identities with CLI-only resume observations', async () => {
+		const sanitizers = await import(resourceUrl('scripts/hook-sanitizers.mjs'));
+		for (const event of ['on_session_start', 'on_session_reset', 'pre_llm_call']) {
+			for (const platform of ['cli', 'tui', 'desktop', 'acp', 'gateway', null]) {
+				const result = sanitizers.sanitizeAgentHookInput('hermes', {
+					event,
+					platform,
+					session_id: 'hermes-session',
+					messages: 'PRIVATE',
+					tool_input: 'PRIVATE',
+				});
+				const admitted =
+					platform !== null &&
+					platform !== 'gateway' &&
+					(event !== 'pre_llm_call' || platform === 'cli');
+				expect(result).toEqual(
+					admitted
+						? {
+								activity: null,
+								agentKey: null,
+								event: 'session-identified',
+								operationKey: null,
+								sessionKey: 'hermes-session',
+								turnKey: null,
+								version: 1,
+							}
+						: null,
+				);
+				expect(JSON.stringify(result)).not.toContain('PRIVATE');
+			}
+		}
+		for (const session_id of ['', null, 'a/b', 'x'.repeat(129)])
+			expect(
+				sanitizers.sanitizeAgentHookInput('hermes', {
+					event: 'on_session_start',
+					platform: 'cli',
+					session_id,
+				}),
+			).toBeNull();
+		expect(
+			sanitizers.sanitizeAgentHookInput('hermes', {
+				event: 'post_llm_call',
+				platform: 'cli',
+				session_id: 'valid',
+			}),
+		).toBeNull();
+	});
 	it('sanitizes all six Devin identity hooks without guessing turn completion', async () => {
 		const sanitizers = await import(resourceUrl('scripts/hook-sanitizers.mjs'));
 		for (const hook_event_name of [

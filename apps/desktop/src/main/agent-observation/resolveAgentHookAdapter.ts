@@ -48,6 +48,12 @@ const CODEX_EVENTS = new Set<AgentHookObservationEvent>([
 ]);
 
 const REGISTRY = {
+	hermes: {
+		acceptedEvents: new Set<AgentHookObservationEvent>(['session-identified']),
+		adapterId: 'hermes',
+		capabilities: ['sessionLifecycle'],
+		providerId: AgentProviderIdSchema.parse('hermes'),
+	},
 	devin: {
 		acceptedEvents: new Set<AgentHookObservationEvent>(['session-identified']),
 		adapterId: 'devin',

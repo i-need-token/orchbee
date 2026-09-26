@@ -27,6 +27,7 @@ const AgentHookAdapterIdSchema = z.enum([
 	'kimi',
 	'letta',
 	'devin',
+	'hermes',
 	'pi',
 	'omp',
 	'gemini',

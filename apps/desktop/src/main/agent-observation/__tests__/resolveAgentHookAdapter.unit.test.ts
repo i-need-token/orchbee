@@ -34,6 +34,21 @@ describe('resolveAgentHookAdapter', () => {
 			expect(resolveAgentHookAdapter('antigravity-cli', event)).toBeNull();
 		}
 	});
+	it('admits only Hermes session identity', () => {
+		expect(resolveAgentHookAdapter('hermes', 'session-identified')).toEqual({
+			adapterId: 'hermes',
+			capabilities: ['sessionLifecycle'],
+			providerId: 'hermes',
+		});
+		for (const event of [
+			'session-started',
+			'session-ended',
+			'turn-started',
+			'turn-stopped',
+			'approval-requested',
+		] as const)
+			expect(resolveAgentHookAdapter('hermes', event)).toBeNull();
+	});
 	it('admits Devin session identity without completion or approval decisions', () => {
 		expect(resolveAgentHookAdapter('devin', 'session-identified')).toEqual({
 			adapterId: 'devin',

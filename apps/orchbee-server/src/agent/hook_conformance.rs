@@ -540,6 +540,7 @@ fn qoder_hook_boundary_accepts_only_identified_session() {
         ("droid", "droid"),
         ("letta", "letta"),
         ("devin", "devin"),
+        ("hermes", "hermes"),
     ] {
         let mut envelope = test_envelope(0, 0.0);
         envelope["adapterId"] = json!(id);

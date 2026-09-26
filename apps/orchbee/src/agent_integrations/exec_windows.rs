@@ -68,6 +68,38 @@ pub(crate) fn run_command(
     deadline: Instant,
     cancel: Option<&dyn crate::termination_signal::TerminationSource>,
 ) -> CommandResult {
+    run_scoped_command(executable, arguments, home, None, deadline, cancel)
+}
+pub(crate) fn run_hermes_command(
+    executable: &Path,
+    arguments: &[String],
+    home: &Path,
+    deadline: Instant,
+    cancel: Option<&dyn crate::termination_signal::TerminationSource>,
+) -> CommandResult {
+    let Some(profile) = crate::agent_configuration_windows::hermes_home(home) else {
+        return CommandResult::Failed;
+    };
+    if !super::files::path_admitted(&profile) {
+        return CommandResult::Failed;
+    }
+    run_scoped_command(
+        executable,
+        arguments,
+        home,
+        Some(&profile),
+        deadline,
+        cancel,
+    )
+}
+fn run_scoped_command(
+    executable: &Path,
+    arguments: &[String],
+    home: &Path,
+    hermes_home: Option<&Path>,
+    deadline: Instant,
+    cancel: Option<&dyn crate::termination_signal::TerminationSource>,
+) -> CommandResult {
     if cancel.is_some_and(|source| source.requested()) {
         return CommandResult::Cancelled;
     }
@@ -88,6 +120,9 @@ pub(crate) fn run_command(
         .stdin(Stdio::null())
         .stdout(writer)
         .stderr(Stdio::null());
+    if let Some(profile) = hermes_home {
+        command.env("HERMES_HOME", profile);
+    }
     let mut wrapped = CommandWrap::from(command);
     wrapped
         .wrap(CreationFlags(CREATE_NO_WINDOW))

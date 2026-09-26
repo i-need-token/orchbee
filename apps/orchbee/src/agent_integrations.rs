@@ -22,6 +22,8 @@ mod exec;
 #[cfg_attr(windows, path = "agent_integrations/files_windows.rs")]
 mod files;
 #[cfg(windows)]
+mod hermes_windows;
+#[cfg(windows)]
 mod hook_configuration_windows;
 #[cfg(any(unix, windows))]
 mod inspect;

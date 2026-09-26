@@ -12,7 +12,7 @@ import { createDesktopAgentIntegrationAdapters } from '../createDesktopAgentInte
 describe('Desktop Agent integration adapters', () => {
 	it('constructs the complete closed registry in canonical order', () => {
 		const adapters = createDesktopAgentIntegrationAdapters({
-			capsuleRoot: '/user-data/agent-observation-adapters/0.4.15',
+			capsuleRoot: '/user-data/agent-observation-adapters/0.4.16',
 			commandRunner: new FakeRunner(),
 			homeDirectory: '/home/person',
 			platform: 'darwin',
@@ -26,7 +26,7 @@ describe('Desktop Agent integration adapters', () => {
 
 	it('keeps platform policy outside provider inspection output', async () => {
 		const adapters = createDesktopAgentIntegrationAdapters({
-			capsuleRoot: '/user-data/agent-observation-adapters/0.4.15',
+			capsuleRoot: '/user-data/agent-observation-adapters/0.4.16',
 			commandRunner: new FakeRunner(),
 			homeDirectory: '/home/person',
 			platform: 'win32',
@@ -51,7 +51,7 @@ describe('Desktop Agent integration adapters', () => {
 			{ kind: 'completed', stdout: '' },
 		]);
 		const resourceRoot = '/application/agent-observation-adapters';
-		const capsuleRoot = '/user-data/agent-observation-adapters/0.4.15';
+		const capsuleRoot = '/user-data/agent-observation-adapters/0.4.16';
 		const adapters = createDesktopAgentIntegrationAdapters({
 			capsule: {
 				isReady: async () => true,
@@ -78,7 +78,7 @@ describe('Desktop Agent integration adapters', () => {
 
 	it('migrates only an exact legacy Claude marketplace after explicit enable', async () => {
 		const legacyRoot = '/application/agent-observation-adapters';
-		const capsuleRoot = '/user-data/agent-observation-adapters/0.4.15';
+		const capsuleRoot = '/user-data/agent-observation-adapters/0.4.16';
 		const runner = new SequencedRunner([
 			{
 				kind: 'completed',
@@ -121,7 +121,7 @@ describe('Desktop Agent integration adapters', () => {
 					{
 						enabled: true,
 						id: 'orchbee-agent-observation@orchbee-local',
-						version: '0.4.15',
+						version: '0.4.16',
 					},
 				]),
 			},
@@ -134,7 +134,7 @@ describe('Desktop Agent integration adapters', () => {
 		]);
 		const claude = createAdapters(
 			runner,
-			'/user-data/agent-observation-adapters/0.4.15',
+			'/user-data/agent-observation-adapters/0.4.16',
 			'/application/agent-observation-adapters',
 		).find(({ integrationId }) => integrationId === 'claude-code');
 		if (claude === undefined) throw new Error('Missing Claude adapter.');
@@ -145,7 +145,7 @@ describe('Desktop Agent integration adapters', () => {
 
 	it('replaces a source-proven legacy Grok copy after explicit enable', async () => {
 		const legacyRoot = '/application/agent-observation-adapters';
-		const capsuleRoot = '/user-data/agent-observation-adapters/0.4.15';
+		const capsuleRoot = '/user-data/agent-observation-adapters/0.4.16';
 		const runner = new SequencedRunner([
 			{
 				kind: 'completed',
@@ -175,7 +175,7 @@ describe('Desktop Agent integration adapters', () => {
 
 	it('repoints an exact legacy Copilot marketplace after explicit enable', async () => {
 		const legacyRoot = '/application/agent-observation-adapters';
-		const capsuleRoot = '/user-data/agent-observation-adapters/0.4.15';
+		const capsuleRoot = '/user-data/agent-observation-adapters/0.4.16';
 		const runner = new SequencedRunner([
 			{
 				kind: 'completed',

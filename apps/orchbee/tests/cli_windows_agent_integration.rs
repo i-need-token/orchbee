@@ -12,6 +12,203 @@ use std::{
 struct Fixture(PathBuf);
 
 #[test]
+fn hermes_plugin_activation_repairs_members_and_preserves_python_cache() {
+    use std::os::windows::process::CommandExt;
+    let fixture = Fixture::new();
+    let node = std::env::split_paths(&std::env::var_os("PATH").unwrap())
+        .map(|p| p.join("node.exe"))
+        .find(|p| p.is_file())
+        .unwrap();
+    let script =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/windows-hermes-provider.mjs");
+    fs::write(
+        fixture.0.join("bin/hermes.cmd"),
+        format!(
+            "@echo off\r\n\"{}\" \"{}\" %*\r\n",
+            node.display(),
+            script.display()
+        ),
+    )
+    .unwrap();
+    let profile = fixture.0.join("local/hermes");
+    let directory = profile.join("plugins/orchbee-agent-observation");
+    let invoke = |verb| fixture.provider_document(verb, "hermes", 0);
+    assert_eq!(invoke("explain")["result"]["state"], "not-installed");
+    invoke("enable");
+    assert_eq!(invoke("explain")["result"]["state"], "enabled");
+    let original = fs::read(directory.join("__init__.py")).unwrap();
+    let manifest = fs::read(directory.join("plugin.yaml")).unwrap();
+    let calls = fs::read(profile.join("fixture-activation-calls")).unwrap();
+    invoke("enable");
+    assert_eq!(
+        fs::read(profile.join("fixture-activation-calls")).unwrap(),
+        calls
+    );
+    fs::write(directory.join("user-note.txt"), b"KEEP USER FILE").unwrap();
+    let output = Command::new(&node)
+        .arg(
+            Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("tests/fixtures/windows-hermes-exec-plugin.mjs"),
+        )
+        .arg(&directory)
+        .creation_flags(0x0800_0000)
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        serde_json::from_slice::<Value>(&output.stdout).unwrap()["events"],
+        9
+    );
+    assert!(directory.join("__pycache__").is_dir());
+    invoke("disable");
+    assert_eq!(invoke("explain")["result"]["state"], "disabled");
+    assert_eq!(fs::read(directory.join("__init__.py")).unwrap(), original);
+    assert!(directory.join("__pycache__").is_dir());
+    invoke("enable");
+    // Removing one entry is an interrupted publication witness, not loss of ownership.
+    fs::remove_file(directory.join("__init__.py")).unwrap();
+    assert_eq!(invoke("explain")["result"]["state"], "update-required");
+    invoke("disable"); // Activation can stop even while a missing entry still needs repair.
+    invoke("enable");
+    assert_eq!(fs::read(directory.join("__init__.py")).unwrap(), original);
+    {
+        use base64::{Engine as _, engine::general_purpose::STANDARD};
+        let text = String::from_utf8(original.clone()).unwrap();
+        let encoded = text
+            .lines()
+            .nth(1)
+            .unwrap()
+            .strip_prefix("ORCHBEE_ROOT = '")
+            .unwrap()
+            .strip_suffix("'")
+            .unwrap();
+        let recorded = PathBuf::from(String::from_utf8(STANDARD.decode(encoded).unwrap()).unwrap());
+        for (version, state) in [("0.4.2", "update-required"), ("9.0.0", "stale-side")] {
+            let root = recorded.parent().unwrap().join(version);
+            let entry = text.replace(encoded, &STANDARD.encode(root.to_str().unwrap()));
+            let mut value: Value = serde_json::from_slice(&manifest).unwrap();
+            value["orchbee_root"] = root.to_str().unwrap().into();
+            value["version"] = version.into();
+            let changed = serde_json::to_vec(&value).unwrap();
+            fs::write(directory.join("__init__.py"), entry.as_bytes()).unwrap();
+            fs::write(directory.join("plugin.yaml"), &changed).unwrap();
+            assert_eq!(invoke("explain")["result"]["state"], state);
+            if state == "update-required" {
+                invoke("enable");
+                assert_eq!(fs::read(directory.join("plugin.yaml")).unwrap(), manifest);
+            } else {
+                fixture.provider_document("enable", "hermes", 3);
+                fixture.provider_document("disable", "hermes", 3);
+                assert_eq!(
+                    fs::read(directory.join("__init__.py")).unwrap(),
+                    entry.as_bytes()
+                );
+                assert_eq!(fs::read(directory.join("plugin.yaml")).unwrap(), changed);
+            }
+        }
+        fs::write(directory.join("__init__.py"), &original).unwrap();
+        fs::write(directory.join("plugin.yaml"), &manifest).unwrap();
+    }
+    fs::write(directory.join("__init__.py"), b"# user edit").unwrap();
+    fixture.provider_document("enable", "hermes", 3);
+    fixture.provider_document("disable", "hermes", 3);
+    assert_eq!(
+        fs::read(directory.join("__init__.py")).unwrap(),
+        b"# user edit"
+    );
+    fs::write(directory.join("__init__.py"), &original).unwrap();
+    fs::write(directory.join("plugin.json"), b"{}").unwrap();
+    fixture.provider_document("enable", "hermes", 3);
+    fs::remove_file(directory.join("plugin.json")).unwrap();
+    assert_eq!(fs::read(directory.join("plugin.yaml")).unwrap(), manifest);
+    assert_eq!(
+        fs::read(directory.join("user-note.txt")).unwrap(),
+        b"KEEP USER FILE"
+    );
+    let custom = fixture.0.join("custom hermes 用户");
+    let output = fixture
+        .command("enable", "hermes", &fixture.config_home(), &[])
+        .env("HERMES_HOME", &custom)
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stdout)
+    );
+    assert!(
+        custom
+            .join("plugins/orchbee-agent-observation/plugin.yaml")
+            .exists()
+    );
+    for invalid in ["relative", "C:\\$HOME\\hermes", "C:\\%USERPROFILE%\\hermes"] {
+        let output = fixture
+            .command("enable", "hermes", &fixture.config_home(), &[])
+            .env("HERMES_HOME", invalid)
+            .output()
+            .unwrap();
+        assert_ne!(output.status.code(), Some(0));
+    }
+    for (variable, value, expected) in [
+        (
+            "HERMES_DATA_DIR_SUFFIX",
+            "-dev",
+            fixture.0.join("local/hermes-dev"),
+        ),
+        (
+            "LOCALAPPDATA",
+            "",
+            fixture.home().join("AppData/Local/hermes"),
+        ),
+    ] {
+        let output = fixture
+            .command("enable", "hermes", &fixture.config_home(), &[])
+            .env(variable, value)
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stdout)
+        );
+        assert!(
+            expected
+                .join("plugins/orchbee-agent-observation/plugin.yaml")
+                .exists()
+        );
+    }
+    let invalid = fixture
+        .command("enable", "hermes", &fixture.config_home(), &[])
+        .env("HERMES_DATA_DIR_SUFFIX", "../outside")
+        .output()
+        .unwrap();
+    assert_ne!(invalid.status.code(), Some(0));
+    let doctor = Command::new(env!("CARGO_BIN_EXE_orchbee"))
+        .args([
+            "agent",
+            "doctor",
+            "--provider",
+            "hermes",
+            "--format",
+            "json",
+        ])
+        .env("USERPROFILE", fixture.home())
+        .env("HERMES_HOME", &custom)
+        .output()
+        .unwrap();
+    let doc: Value = serde_json::from_slice(&doctor.stdout).unwrap();
+    assert_eq!(
+        doc["result"]["providers"][0]["hook"]["reason"],
+        "provider-command-inspection-required"
+    );
+    invoke("disable");
+}
+
+#[test]
 fn devin_grouped_hooks_preserve_settings_and_use_roaming_directory() {
     use base64::{Engine as _, engine::general_purpose::STANDARD};
     let fixture = Fixture::new();
@@ -724,7 +921,7 @@ fn opencode_migrates_only_owned_undiscovered_entries_and_resolves_xdg() {
         (
             String::from_utf8(bytes.clone())
                 .unwrap()
-                .replace("/0.4.15/", "/9.0.0/"),
+                .replace("/0.4.16/", "/9.0.0/"),
             "stale-side",
         ),
     ] {
@@ -739,7 +936,7 @@ fn opencode_migrates_only_owned_undiscovered_entries_and_resolves_xdg() {
         &obsolete,
         String::from_utf8(bytes.clone())
             .unwrap()
-            .replace("/0.4.15/", "/0.4.2/"),
+            .replace("/0.4.16/", "/0.4.2/"),
     )
     .unwrap();
     assert_eq!(inspect("explain")["result"]["state"], "update-required");
@@ -1088,7 +1285,7 @@ fn grok_inventory_joins_local_configuration_and_runs_shipped_powershell_hooks() 
         (fixture.capsule().join("bundle"), Value::Null, "unknown", 9),
         (
             fixture.0.join("foreign/bundle"),
-            Value::from("0.4.15"),
+            Value::from("0.4.16"),
             "conflict",
             3,
         ),
@@ -1228,7 +1425,7 @@ impl Fixture {
     }
     fn capsule(&self) -> PathBuf {
         self.home()
-            .join(".orchbee/agent-observation-adapters/0.4.15")
+            .join(".orchbee/agent-observation-adapters/0.4.16")
     }
     fn run(&self, verb: &str, provider: &str, config_home: &Path) -> Output {
         self.run_options(verb, provider, config_home, &[])
@@ -1268,6 +1465,9 @@ impl Fixture {
             .env_remove("KIMI_CODE_HOME")
             .env("USERPROFILE", self.home())
             .env("APPDATA", self.0.join("roaming"))
+            .env("LOCALAPPDATA", self.0.join("local"))
+            .env_remove("HERMES_HOME")
+            .env_remove("HERMES_DATA_DIR_SUFFIX")
             .env("HOME", self.0.join("wrong-posix-home"))
             .env("CODEX_HOME", config_home)
             .env("GROK_HOME", config_home)
@@ -1484,7 +1684,7 @@ fn claude_repairs_owned_old_installations_and_preserves_foreign_or_newer_sources
         "enabled"
     );
     for (source, version, expected) in [
-        (fixture.0.join("foreign"), "0.4.15", "conflict"),
+        (fixture.0.join("foreign"), "0.4.16", "conflict"),
         (
             fixture.capsule().parent().unwrap().join("9.0.0"),
             "9.0.0",
@@ -1602,7 +1802,7 @@ fn javascript_modules_load_and_deliver_ordered_windows_observations() {
 
         let old = String::from_utf8(original.clone())
             .unwrap()
-            .replace("/0.4.15/", "/0.4.2/");
+            .replace("/0.4.16/", "/0.4.2/");
         fs::write(&target, old).unwrap();
         assert_eq!(
             fixture.provider_document("explain", provider, 0)["result"]["state"],

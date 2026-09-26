@@ -172,3 +172,48 @@ pub(crate) fn extension_directory(id: &str, home: &Path) -> Option<PathBuf> {
         .unwrap_or(fallback);
     root.is_absolute().then(|| root.join(suffix))
 }
+
+/// Pin the same literal profile root for filesystem admission and provider commands.
+pub(crate) fn hermes_home(home: &Path) -> Option<PathBuf> {
+    let override_root = std::env::var_os("HERMES_HOME")
+        .map(|v| v.into_string())
+        .transpose()
+        .ok()?;
+    let explicit = override_root
+        .as_deref()
+        .map(str::trim)
+        .filter(|v| !v.is_empty());
+    let root = if let Some(value) = explicit {
+        PathBuf::from(value)
+    } else {
+        let local = std::env::var_os("LOCALAPPDATA")
+            .map(|v| v.into_string())
+            .transpose()
+            .ok()?;
+        let base = local
+            .as_deref()
+            .map(str::trim)
+            .filter(|v| !v.is_empty())
+            .map(PathBuf::from)
+            .unwrap_or_else(|| home.join("AppData/Local"));
+        let suffix = std::env::var_os("HERMES_DATA_DIR_SUFFIX")
+            .unwrap_or_default()
+            .into_string()
+            .ok()?;
+        if !suffix
+            .bytes()
+            .all(|v| v.is_ascii_alphanumeric() || matches!(v, b'.' | b'_' | b'-'))
+        {
+            return None;
+        }
+        base.join(format!("hermes{suffix}"))
+    };
+    let text = root.to_str()?;
+    let bytes = text.as_bytes();
+    let expands = bytes
+        .windows(2)
+        .any(|s| s[0] == b'$' && (s[1].is_ascii_alphanumeric() || matches!(s[1], b'_' | b'{')))
+        || text.matches('%').count() >= 2
+        || text.starts_with('~');
+    (root.is_absolute() && !expands).then_some(root)
+}

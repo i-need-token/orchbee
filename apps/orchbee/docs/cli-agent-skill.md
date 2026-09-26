@@ -196,3 +196,5 @@ The `kimi` provider supports Windows TOML session onboarding and offline diagnos
 The `letta` provider supports Windows session onboarding with silent hooks and provider-owned HOME resolution.
 
 The `devin` provider supports Windows session onboarding and diagnosis through its APPDATA configuration.
+
+The `hermes` provider manages a Windows session plugin in the selected Hermes profile. Activation uses the provider CLI; offline doctor does not claim activation.

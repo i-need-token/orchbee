@@ -45,6 +45,10 @@ pub(crate) enum Direction {
 }
 
 #[cfg(windows)]
+mod file_publication_windows;
+#[cfg(windows)]
+mod hermes_windows;
+#[cfg(windows)]
 mod hook_configuration_windows;
 
 impl Direction {
@@ -869,6 +873,33 @@ fn run_step(
     attempted: &mut Vec<AttemptedStep>,
     effect: &mut bool,
 ) -> Attempt {
+    run_step_with(
+        executable,
+        argv,
+        context,
+        reserve_slots,
+        attempted,
+        effect,
+        |argv_owned| {
+            exec::run_command(
+                executable,
+                argv_owned,
+                context.home,
+                context.deadline,
+                context.cancel,
+            )
+        },
+    )
+}
+fn run_step_with(
+    executable: &Path,
+    argv: &[&str],
+    context: &ProviderContext,
+    reserve_slots: usize,
+    attempted: &mut Vec<AttemptedStep>,
+    effect: &mut bool,
+    execute: impl FnOnce(&[String]) -> CommandResult,
+) -> Attempt {
     let deadline_ok = now() + SLOT * (reserve_slots.saturating_add(1) as u32) <= context.deadline;
     if !deadline_ok {
         // Slot admission refused: the command was never spawned, so the
@@ -892,13 +923,7 @@ fn run_step(
     // A spawned provider command may have mutated state before any
     // outcome is known — the frontier crosses at the spawn.
     *effect = true;
-    let result = exec::run_command(
-        executable,
-        &argv_owned,
-        context.home,
-        context.deadline,
-        context.cancel,
-    );
+    let result = execute(&argv_owned);
     let outcome = match result {
         CommandResult::Completed { .. } => StepOutcome::Completed,
         CommandResult::Failed => StepOutcome::Failed,
@@ -1000,6 +1025,25 @@ fn enable_vector(
     let resource_root = context.capsule_root.to_string_lossy().into_owned();
     let reserve = providers::inspect_slots(id);
     match id {
+        IntegrationId::Hermes => {
+            #[cfg(windows)]
+            {
+                hermes_windows::update(
+                    context,
+                    &options,
+                    true,
+                    EffectTrace {
+                        attempted,
+                        residuals,
+                        begun: effect,
+                    },
+                )
+            }
+            #[cfg(not(windows))]
+            {
+                Attempt::Refused(Refusal::ManualActionRequired)
+            }
+        }
         IntegrationId::Cursor
         | IntegrationId::QoderCli
         | IntegrationId::AntigravityCli
@@ -1312,6 +1356,25 @@ fn disable_vector(
     let options = providers::resource_options(context, legacy_roots);
     let reserve = providers::inspect_slots(id);
     match id {
+        IntegrationId::Hermes => {
+            #[cfg(windows)]
+            {
+                hermes_windows::update(
+                    context,
+                    &options,
+                    false,
+                    EffectTrace {
+                        attempted,
+                        residuals,
+                        begun: effect,
+                    },
+                )
+            }
+            #[cfg(not(windows))]
+            {
+                Attempt::Refused(Refusal::ManualActionRequired)
+            }
+        }
         IntegrationId::Cursor
         | IntegrationId::QoderCli
         | IntegrationId::AntigravityCli
@@ -2040,6 +2103,23 @@ pub(crate) fn plan_enable(
         argv: argv.iter().map(|arg| (*arg).to_owned()).collect(),
     };
     match id {
+        IntegrationId::Hermes => {
+            #[cfg(windows)]
+            if let Some(profile) = crate::agent_configuration_windows::hermes_home(context.home) {
+                if initial.state != State::Disabled {
+                    for name in ["__init__.py", "plugin.yaml"] {
+                        steps.push(PlannedStep::GuardedWrite {
+                            target: profile.join("plugins/orchbee-agent-observation").join(name),
+                        });
+                    }
+                }
+                steps.push(command(
+                    "hermes",
+                    &["plugins", "enable", super::hermes_windows::NAME],
+                ));
+                steps.push(command("hermes", &["plugins", "list", "--json"]));
+            }
+        }
         IntegrationId::Cursor
         | IntegrationId::QoderCli
         | IntegrationId::AntigravityCli

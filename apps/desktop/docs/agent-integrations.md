@@ -68,7 +68,7 @@ One process-wide controller serializes mutation. An explicit request follows thi
 1. Initialize or reuse the latest read-only inventory.
 2. Reject unavailable enable, manual-only management, conflicts, and concurrent work before a
    write.
-3. Preflight and atomically publish Capsule `0.4.15` without changing provider configuration.
+3. Preflight and atomically publish Capsule `0.4.16` without changing provider configuration.
 4. Re-inspect provider-owned state and execute only fixed command vectors or an exact guarded-entry
    operation; only exact legacy entries are eligible for migration.
 5. Re-inspect the selected adapter after every attempted effect.
@@ -229,3 +229,5 @@ Kimi session identity/end events are accepted at the shared observation boundary
 Letta session identity is accepted at the shared observation boundary; native Windows owns onboarding and Desktop management remains separate.
 
 Devin session identity is accepted at the shared observation boundary; Windows native CLI owns its configuration management.
+
+Hermes session identity is accepted by the shared receiver; its Windows native onboarding remains separate from Desktop management.
