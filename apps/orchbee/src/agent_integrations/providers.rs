@@ -135,6 +135,11 @@ const fn spec(id: IntegrationId) -> Spec {
             executable: "kilo",
             inspect_slots: 0,
         },
+        IntegrationId::Letta => Spec {
+            kind: Kind::ConfigurationHooks,
+            executable: "letta",
+            inspect_slots: 0,
+        },
         IntegrationId::Kimi => Spec {
             kind: Kind::ConfigurationHooks,
             executable: "kimi",
@@ -245,6 +250,7 @@ pub(crate) const fn management_mode(id: IntegrationId, declared: ManagementMode)
                 | IntegrationId::Mastracode
                 | IntegrationId::Droid
                 | IntegrationId::Kimi
+                | IntegrationId::Letta
         )
     {
         return ManagementMode::ManualOnly;
@@ -263,6 +269,7 @@ pub(crate) const fn management_mode(id: IntegrationId, declared: ManagementMode)
                 | IntegrationId::Mastracode
                 | IntegrationId::Droid
                 | IntegrationId::Kimi
+                | IntegrationId::Letta
                 | IntegrationId::Pi
                 | IntegrationId::Omp
                 | IntegrationId::GitHubCopilot

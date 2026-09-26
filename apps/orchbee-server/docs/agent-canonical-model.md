@@ -579,3 +579,5 @@ Mastracode grants session/turn lifecycle, activity, approvals and subagents thro
 Droid joins the identity-only registry and native ingress witnesses, preserving unknown or existing turn state on SessionStart.
 
 Kimi admits only session-identified and session-ended. Repeated identity preserves canonical turn state; Stop and other unsupported lifecycle events remain rejected.
+
+Letta admits only session-identified and preserves unknown or existing turn state. Default conversation identities include the Agent ID; content and guessed completion never enter canonical state.

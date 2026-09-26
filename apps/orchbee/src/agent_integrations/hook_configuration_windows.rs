@@ -70,8 +70,10 @@ fn declaration(id: &str, root: &Path) -> Option<Value> {
     if id != "mastracode" {
         event_name(id)?;
     }
-    let mut entry =
-        json!({"command": command(id, root)?, "timeout":if id == "mastracode" {10000} else {10}});
+    let mut entry = json!({"command": command(id, root)?, "timeout":if matches!(id,"mastracode"|"letta") {10000} else {10}});
+    if id == "letta" {
+        entry["quiet"] = json!(true);
+    }
     if id != "cursor" {
         entry["type"] = json!("command");
         if id == "qodercli" {
@@ -84,8 +86,13 @@ fn declaration(id: &str, root: &Path) -> Option<Value> {
 fn command(id: &str, root: &Path) -> Option<String> {
     let node = NODE.replace("'cursor'", &format!("'{id}'"));
     let encoded_root = STANDARD.encode(root.to_str()?.as_bytes());
+    let output = if id == "letta" {
+        ""
+    } else {
+        "[Console]::Out.Write('{}')\n"
+    };
     let script = format!(
-        "{MARKER}{id}\n{ROOT}{encoded_root}';\ntry {{ & node -e \"{node}\" 2>$null | Out-Null }} catch {{}}\n[Console]::Out.Write('{{}}')\n"
+        "{MARKER}{id}\n{ROOT}{encoded_root}';\ntry {{ & node -e \"{node}\" 2>$null | Out-Null }} catch {{}}\n{output}"
     );
     let utf16: Vec<u8> = script.encode_utf16().flat_map(u16::to_le_bytes).collect();
     Some(format!("{PREFIX}{}", STANDARD.encode(utf16)))
@@ -152,7 +159,7 @@ fn command_root(id: &str, command: &str) -> Result<Option<PathBuf>, ()> {
 fn event_name(id: &str) -> Option<&'static str> {
     match id {
         "cursor" => Some("sessionStart"),
-        "qodercli" | "droid" => Some("SessionStart"),
+        "qodercli" | "droid" | "letta" => Some("SessionStart"),
         "antigravity-cli" => Some("PreInvocation"),
         _ => None,
     }
@@ -289,7 +296,7 @@ fn parse(kind: HookConfigurationKind, bytes: &[u8]) -> Result<Document, HookConf
     let mut entries = Vec::new();
     let mut owned = None;
     for (event, raw) in &hooks.0 {
-        if id == "droid"
+        if matches!(id, "droid" | "letta")
             && ![
                 "PreToolUse",
                 "PostToolUse",
@@ -302,6 +309,8 @@ fn parse(kind: HookConfigurationKind, bytes: &[u8]) -> Result<Document, HookConf
                 "SessionEnd",
             ]
             .contains(&event.as_str())
+            && !(id == "letta"
+                && ["PostToolUseFailure", "PermissionRequest"].contains(&event.as_str()))
         {
             continue;
         }
@@ -447,6 +456,7 @@ pub(super) fn patch(
         let item = if matches!(
             kind,
             HookConfigurationKind::Qoder
+                | HookConfigurationKind::Letta
                 | HookConfigurationKind::DroidStandalone
                 | HookConfigurationKind::DroidSettings
         ) {
@@ -474,9 +484,55 @@ pub(super) fn patch(
 mod tests {
     use super::*;
     #[test]
+    fn letta_owns_a_silent_millisecond_hook_and_preserves_policy_and_foreign_values() {
+        let root = Path::new(r"C:\owned\0.4.14");
+        let input = br#"{"large":123456789012345678901234567890,"hooks":{"disabled":true,"future":{"number":1e999},"SessionStart":[{"hooks":[{"type":"prompt","prompt":"USER"}]}]}}"#;
+        let installed = patch(HookConfigurationKind::Letta, Some(input), root, true).unwrap();
+        assert!(
+            matches!(scan_hook_configuration(HookConfigurationKind::Letta, &installed), HookConfigurationScan::Owned(found) if found == root)
+        );
+        let doc: Object = serde_json::from_slice(&installed).unwrap();
+        let hooks: Object = serde_json::from_str(doc.0["hooks"].get()).unwrap();
+        assert_eq!(hooks.0["disabled"].get(), "true");
+        assert_eq!(hooks.0["future"].get(), r#"{"number":1e999}"#);
+        let entries: Value = serde_json::from_str(hooks.0["SessionStart"].get()).unwrap();
+        let entry = &entries[1]["hooks"][0];
+        assert_eq!(entry["timeout"], 10000);
+        assert_eq!(entry["quiet"], true);
+        let command = entry["command"].as_str().unwrap();
+        let bytes = STANDARD
+            .decode(command.strip_prefix(PREFIX).unwrap())
+            .unwrap();
+        let words: Vec<_> = bytes
+            .chunks_exact(2)
+            .map(|v| u16::from_le_bytes([v[0], v[1]]))
+            .collect();
+        assert!(!String::from_utf16(&words).unwrap().contains("Out.Write"));
+        assert_eq!(
+            patch(HookConfigurationKind::Letta, Some(&installed), root, true).unwrap(),
+            installed
+        );
+        let disabled = patch(HookConfigurationKind::Letta, Some(&installed), root, false).unwrap();
+        let disabled: Object = serde_json::from_slice(&disabled).unwrap();
+        let original: Object = serde_json::from_slice(input).unwrap();
+        assert_eq!(disabled.0["large"].get(), original.0["large"].get());
+        let restored: Object = serde_json::from_str(disabled.0["hooks"].get()).unwrap();
+        let original: Object = serde_json::from_str(original.0["hooks"].get()).unwrap();
+        for key in ["disabled", "future", "SessionStart"] {
+            assert_eq!(restored.0[key].get(), original.0[key].get());
+        }
+        let changed = String::from_utf8(installed)
+            .unwrap()
+            .replace("\"quiet\":true", "\"quiet\":false");
+        assert!(matches!(
+            scan_hook_configuration(HookConfigurationKind::Letta, changed.as_bytes()),
+            HookConfigurationScan::Conflict
+        ));
+    }
+    #[test]
     fn raw_user_values_survive_enable_repair_and_disable() {
         let input = br#"{"large":123456789012345678901234567890,"nested":{"future":1e999,"duplicate":1,"duplicate":2},"hooks":{"stop":[{"command":"echo user"}],"sessionStart":[{"command":"echo before"}]}}"#;
-        let root = Path::new(r"C:\Users\用户 & ' $ `\.orchbee\agent-observation-adapters\0.4.13");
+        let root = Path::new(r"C:\Users\用户 & ' $ `\.orchbee\agent-observation-adapters\0.4.14");
         let installed = patch(HookConfigurationKind::Cursor, Some(input), root, true).unwrap();
         assert!(
             matches!(scan_hook_configuration(HookConfigurationKind::Cursor, &installed), HookConfigurationScan::Owned(found) if found == root)
@@ -510,7 +566,7 @@ mod tests {
                 HookConfigurationScan::Malformed
             ));
         }
-        let root = Path::new(r"C:\owned\0.4.13");
+        let root = Path::new(r"C:\owned\0.4.14");
         let bytes = patch(HookConfigurationKind::Cursor, None, root, true).unwrap();
         let mut doc: Value = serde_json::from_slice(&bytes).unwrap();
         doc["hooks"]["sessionStart"][0]["timeout"] = json!(99);
@@ -539,7 +595,7 @@ mod tests {
 
 #[test]
 fn qoder_groups_keep_foreign_raw_values_and_refuse_edited_or_misplaced_ownership() {
-    let root = Path::new(r"C:\owned\0.4.13");
+    let root = Path::new(r"C:\owned\0.4.14");
     let input = br#"{"version":1e999,"hooks":{"SessionStart":[{"matcher":"resume","hooks":[{"type":"prompt","prompt":"keep","future":123456789012345678901234567890}]}]}}"#;
     let installed = patch(HookConfigurationKind::Qoder, Some(input), root, true).unwrap();
     assert!(
@@ -599,14 +655,14 @@ fn qoder_groups_keep_foreign_raw_values_and_refuse_edited_or_misplaced_ownership
 #[test]
 fn antigravity_named_blocks_preserve_foreign_values_and_validate_disabled_ownership() {
     let id = HookConfigurationKind::Antigravity;
-    let root = Path::new(r"C:\owned\0.4.13");
+    let root = Path::new(r"C:\owned\0.4.14");
     let options = ResourceOptions {
         resource_root: root,
-        expected_version: "0.4.13",
+        expected_version: "0.4.14",
         legacy_roots: &[],
     };
     for (version, expected) in [
-        ("0.4.13", State::Disabled),
+        ("0.4.14", State::Disabled),
         ("0.4.9", State::UpdateRequired),
         ("9.0.0", State::StaleSide),
     ] {
@@ -651,7 +707,7 @@ fn antigravity_named_blocks_preserve_foreign_values_and_validate_disabled_owners
 
 #[test]
 fn droid_document_shapes_preserve_foreign_data_and_own_only_session_group() {
-    let root = Path::new(r"C:\owned\0.4.13");
+    let root = Path::new(r"C:\owned\0.4.14");
     for (kind,input) in [
         (HookConfigurationKind::DroidStandalone,br#"{"SessionStart":[{"matcher":"resume","hooks":[{"type":"command","command":"echo user"}]}],"future":{"big":1e999}}"#.as_slice()),
         (HookConfigurationKind::DroidSettings,br#"{"hooks":{"SessionStart":[{"matcher":"resume","hooks":[{"type":"command","command":"echo user"}]}]},"future":{"big":1e999}}"#.as_slice()),

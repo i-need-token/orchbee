@@ -48,6 +48,12 @@ const CODEX_EVENTS = new Set<AgentHookObservationEvent>([
 ]);
 
 const REGISTRY = {
+	letta: {
+		acceptedEvents: new Set<AgentHookObservationEvent>(['session-identified']),
+		adapterId: 'letta',
+		capabilities: ['sessionLifecycle'],
+		providerId: AgentProviderIdSchema.parse('letta'),
+	},
 	kimi: {
 		acceptedEvents: new Set<AgentHookObservationEvent>(['session-identified', 'session-ended']),
 		adapterId: 'kimi',

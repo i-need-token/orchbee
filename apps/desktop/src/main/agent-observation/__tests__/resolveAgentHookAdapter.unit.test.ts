@@ -34,6 +34,22 @@ describe('resolveAgentHookAdapter', () => {
 			expect(resolveAgentHookAdapter('antigravity-cli', event)).toBeNull();
 		}
 	});
+	it('admits only Letta identity without idle or turn lifecycle', () => {
+		expect(resolveAgentHookAdapter('letta', 'session-identified')).toEqual({
+			adapterId: 'letta',
+			capabilities: ['sessionLifecycle'],
+			providerId: 'letta',
+		});
+		for (const event of [
+			'session-started',
+			'session-ended',
+			'session-idle',
+			'turn-started',
+			'turn-stopped',
+			'approval-requested',
+		] as const)
+			expect(resolveAgentHookAdapter('letta', event)).toBeNull();
+	});
 	it('limits Kimi to identified and ended session events', () => {
 		for (const event of ['session-identified', 'session-ended'] as const) {
 			expect(resolveAgentHookAdapter('kimi', event)).toEqual({

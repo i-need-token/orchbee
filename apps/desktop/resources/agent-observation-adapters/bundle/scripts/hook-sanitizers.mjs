@@ -3,6 +3,16 @@ const IDENTITY_PATTERN = /^[A-Za-z0-9._:-]{1,128}$/u;
 export function sanitizeAgentHookInput(adapterId, value) {
 	if (!isRecord(value)) return null;
 	switch (adapterId) {
+		case 'letta': {
+			if (value.event_type !== 'SessionStart' || typeof value.is_new_session !== 'boolean')
+				return null;
+			let sessionKey = identity(value.conversation_id);
+			if (sessionKey === 'default') {
+				const agentKey = identity(value.agent_id);
+				sessionKey = agentKey === null ? null : identity(`default:${agentKey}`);
+			}
+			return sessionKey === null ? null : observation(sessionKey, 'session-identified');
+		}
 		case 'kimi': {
 			const sessionKey = identity(value.session_id);
 			if (sessionKey === null) return null;

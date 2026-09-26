@@ -546,6 +546,7 @@ pub(crate) fn mutate(
                     | IntegrationId::Mastracode
                     | IntegrationId::Droid
                     | IntegrationId::Kimi
+                    | IntegrationId::Letta
             )
         {
             // A filesystem vector's post-effect observation is a fresh
@@ -1003,7 +1004,8 @@ fn enable_vector(
         | IntegrationId::AntigravityCli
         | IntegrationId::Mastracode
         | IntegrationId::Droid
-        | IntegrationId::Kimi => {
+        | IntegrationId::Kimi
+        | IntegrationId::Letta => {
             #[cfg(windows)]
             {
                 hook_configuration_windows::update(
@@ -1313,7 +1315,8 @@ fn disable_vector(
         | IntegrationId::AntigravityCli
         | IntegrationId::Mastracode
         | IntegrationId::Droid
-        | IntegrationId::Kimi => {
+        | IntegrationId::Kimi
+        | IntegrationId::Letta => {
             #[cfg(windows)]
             {
                 hook_configuration_windows::update(
@@ -2039,7 +2042,8 @@ pub(crate) fn plan_enable(
         | IntegrationId::AntigravityCli
         | IntegrationId::Mastracode
         | IntegrationId::Droid
-        | IntegrationId::Kimi => {
+        | IntegrationId::Kimi
+        | IntegrationId::Letta => {
             #[cfg(windows)]
             if let Ok((target, _)) =
                 super::hook_configuration_windows::load(id.as_str(), context.home)

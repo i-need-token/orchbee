@@ -68,7 +68,7 @@ One process-wide controller serializes mutation. An explicit request follows thi
 1. Initialize or reuse the latest read-only inventory.
 2. Reject unavailable enable, manual-only management, conflicts, and concurrent work before a
    write.
-3. Preflight and atomically publish Capsule `0.4.13` without changing provider configuration.
+3. Preflight and atomically publish Capsule `0.4.14` without changing provider configuration.
 4. Re-inspect provider-owned state and execute only fixed command vectors or an exact guarded-entry
    operation; only exact legacy entries are eligible for migration.
 5. Re-inspect the selected adapter after every attempted effect.
@@ -225,3 +225,5 @@ The observation registry also admits Mastracode lifecycle facts. Windows native 
 Droid session identity is accepted at the shared observation boundary. Native Windows owns configuration management; Desktop management remains separate.
 
 Kimi session identity/end events are accepted at the shared observation boundary. Native Windows owns TOML onboarding; Desktop management remains separate.
+
+Letta session identity is accepted at the shared observation boundary; native Windows owns onboarding and Desktop management remains separate.

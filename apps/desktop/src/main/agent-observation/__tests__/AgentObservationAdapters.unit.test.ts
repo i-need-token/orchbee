@@ -118,6 +118,39 @@ describe('OpenCode-family observation boundary', () => {
 			).toBeNull();
 		}
 	});
+	it('keeps Letta default conversations distinct and excludes prompt feedback', async () => {
+		const sanitizers = await import(resourceUrl('scripts/hook-sanitizers.mjs'));
+		const input = {
+			event_type: 'SessionStart',
+			is_new_session: false,
+			conversation_id: 'default',
+			agent_id: 'agent-a',
+			working_directory: 'PRIVATE',
+			agent_name: 'PRIVATE',
+		};
+		const first = sanitizers.sanitizeAgentHookInput('letta', input);
+		const second = sanitizers.sanitizeAgentHookInput('letta', { ...input, agent_id: 'agent-b' });
+		expect(first).toMatchObject({ event: 'session-identified', sessionKey: 'default:agent-a' });
+		expect(second).toMatchObject({ sessionKey: 'default:agent-b' });
+		expect(JSON.stringify(first)).not.toContain('PRIVATE');
+		expect(
+			sanitizers.sanitizeAgentHookInput('letta', { ...input, conversation_id: 'conversation-1' }),
+		).toMatchObject({ sessionKey: 'conversation-1' });
+		for (const changed of [
+			{ agent_id: undefined },
+			{ agent_id: '' },
+			{ agent_id: 'x'.repeat(121) },
+			{ conversation_id: 3 },
+			{ is_new_session: 'true' },
+			{ event_type: 'Stop' },
+			{ event_type: undefined },
+		]) {
+			expect(sanitizers.sanitizeAgentHookInput('letta', { ...input, ...changed })).toBeNull();
+		}
+		expect(
+			sanitizers.sanitizeAgentHookInput('letta', { ...input, agent_id: 'x'.repeat(120) }),
+		).not.toBeNull();
+	});
 	it('observes Kimi session lifecycle without guessing turn completion', async () => {
 		const sanitizers = await import(resourceUrl('scripts/hook-sanitizers.mjs'));
 		for (const [hook, event] of [

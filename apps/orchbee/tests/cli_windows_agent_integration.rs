@@ -12,6 +12,123 @@ use std::{
 struct Fixture(PathBuf);
 
 #[test]
+fn letta_silent_hooks_preserve_settings_and_use_provider_home() {
+    use base64::{Engine as _, engine::general_purpose::STANDARD};
+    let fixture = Fixture::new();
+    fs::write(fixture.0.join("bin/letta.cmd"), b"@exit /b 99\r\n").unwrap();
+    let target = fixture.home().join(".letta/settings.json");
+    fs::create_dir_all(target.parent().unwrap()).unwrap();
+    let original = r#"{"large":123456789012345678901234567890,"hooks":{"disabled":false,"future":{"raw":1e999},"SessionStart":[{"hooks":[{"type":"prompt","prompt":"USER"}]}]}}"#;
+    fs::write(&target, original).unwrap();
+    fixture.provider_document("enable", "letta", 0);
+    let installed = fs::read_to_string(&target).unwrap();
+    fixture.provider_document("enable", "letta", 0);
+    assert_eq!(fs::read_to_string(&target).unwrap(), installed);
+    exercise_installed_json_hooks("letta", &target);
+    let command_pattern = regex::Regex::new(r"EncodedCommand ([A-Za-z0-9+/=]+)").unwrap();
+    let captures = command_pattern.captures(&installed).unwrap();
+    let encoded = captures.get(1).unwrap().as_str();
+    let bytes = STANDARD.decode(encoded).unwrap();
+    let words: Vec<_> = bytes
+        .chunks_exact(2)
+        .map(|v| u16::from_le_bytes([v[0], v[1]]))
+        .collect();
+    let script = String::from_utf16(&words).unwrap();
+    let recorded = script
+        .split("$env:ORCHBEE_AGENT_HOOK_ROOT='")
+        .nth(1)
+        .unwrap()
+        .split('\'')
+        .next()
+        .unwrap();
+    let recorded_root =
+        PathBuf::from(String::from_utf8(STANDARD.decode(recorded).unwrap()).unwrap());
+    assert_eq!(
+        recorded_root.canonicalize().unwrap(),
+        fixture.capsule().canonicalize().unwrap()
+    );
+    for (version, expected) in [("0.4.2", "update-required"), ("9.0.0", "stale-side")] {
+        let changed = script.replace(
+            recorded,
+            &STANDARD.encode(
+                recorded_root
+                    .parent()
+                    .unwrap()
+                    .join(version)
+                    .to_str()
+                    .unwrap(),
+            ),
+        );
+        assert_ne!(changed, script);
+        let bytes: Vec<_> = changed.encode_utf16().flat_map(u16::to_le_bytes).collect();
+        let declaration = installed.replace(encoded, &STANDARD.encode(bytes));
+        fs::write(&target, &declaration).unwrap();
+        assert_eq!(
+            fixture.provider_document("explain", "letta", 0)["result"]["state"],
+            expected
+        );
+        if expected == "update-required" {
+            fixture.provider_document("enable", "letta", 0);
+            assert_eq!(fs::read_to_string(&target).unwrap(), installed);
+        } else {
+            fixture.provider_document("enable", "letta", 3);
+            fixture.provider_document("disable", "letta", 3);
+            assert_eq!(fs::read_to_string(&target).unwrap(), declaration);
+        }
+    }
+    fs::write(&target, &installed).unwrap();
+    let doctor = Command::new(env!("CARGO_BIN_EXE_orchbee"))
+        .args(["agent", "doctor", "--provider", "letta", "--format", "json"])
+        .env("USERPROFILE", fixture.home())
+        .env_remove("HOME")
+        .output()
+        .unwrap();
+    assert_eq!(
+        serde_json::from_slice::<Value>(&doctor.stdout).unwrap()["result"]["providers"][0]["hook"]
+            ["state"],
+        "present"
+    );
+    let changed = installed.replace("\"quiet\":true", "\"quiet\":false");
+    assert_ne!(changed, installed);
+    fs::write(&target, &changed).unwrap();
+    fixture.provider_document("enable", "letta", 3);
+    fixture.provider_document("disable", "letta", 3);
+    assert_eq!(fs::read_to_string(&target).unwrap(), changed);
+    fs::write(&target, &installed).unwrap();
+    fixture.provider_document("disable", "letta", 0);
+    let restored = fs::read_to_string(&target).unwrap();
+    for retained in [
+        "123456789012345678901234567890",
+        "\"disabled\":false",
+        "\"raw\":1e999",
+        "\"prompt\":\"USER\"",
+    ] {
+        assert!(restored.contains(retained));
+    }
+    let provider_home = fixture.0.join("Letta HOME 用户");
+    let invoke = |verb: &str, home: &Path| {
+        let output = fixture
+            .command(verb, "letta", &fixture.config_home(), &[])
+            .env("HOME", home)
+            .output()
+            .unwrap();
+        (
+            output.status.code(),
+            serde_json::from_slice::<Value>(&output.stdout).unwrap(),
+        )
+    };
+    assert_eq!(invoke("enable", &provider_home).0, Some(0));
+    assert!(provider_home.join(".letta/settings.json").exists());
+    assert_eq!(fs::read_to_string(&target).unwrap(), restored);
+    assert_eq!(
+        invoke("enable", Path::new("relative-letta-home")).0,
+        Some(9)
+    );
+    assert_eq!(invoke("disable", &provider_home).0, Some(0));
+    assert!(!fixture.home().join(".letta/hooks").exists());
+}
+
+#[test]
 fn kimi_toml_hooks_preserve_user_settings_and_execute_on_windows() {
     use std::os::windows::process::CommandExt;
     let fixture = Fixture::new();
@@ -448,7 +565,7 @@ fn opencode_migrates_only_owned_undiscovered_entries_and_resolves_xdg() {
         (
             String::from_utf8(bytes.clone())
                 .unwrap()
-                .replace("/0.4.13/", "/9.0.0/"),
+                .replace("/0.4.14/", "/9.0.0/"),
             "stale-side",
         ),
     ] {
@@ -463,7 +580,7 @@ fn opencode_migrates_only_owned_undiscovered_entries_and_resolves_xdg() {
         &obsolete,
         String::from_utf8(bytes.clone())
             .unwrap()
-            .replace("/0.4.13/", "/0.4.2/"),
+            .replace("/0.4.14/", "/0.4.2/"),
     )
     .unwrap();
     assert_eq!(inspect("explain")["result"]["state"], "update-required");
@@ -812,7 +929,7 @@ fn grok_inventory_joins_local_configuration_and_runs_shipped_powershell_hooks() 
         (fixture.capsule().join("bundle"), Value::Null, "unknown", 9),
         (
             fixture.0.join("foreign/bundle"),
-            Value::from("0.4.13"),
+            Value::from("0.4.14"),
             "conflict",
             3,
         ),
@@ -952,7 +1069,7 @@ impl Fixture {
     }
     fn capsule(&self) -> PathBuf {
         self.home()
-            .join(".orchbee/agent-observation-adapters/0.4.13")
+            .join(".orchbee/agent-observation-adapters/0.4.14")
     }
     fn run(&self, verb: &str, provider: &str, config_home: &Path) -> Output {
         self.run_options(verb, provider, config_home, &[])
@@ -999,6 +1116,9 @@ impl Fixture {
             .env("LC_ALL", "en-US")
             .current_dir(&self.0)
             .stdin(Stdio::null());
+        if provider == "letta" {
+            command.env_remove("HOME");
+        }
         command
     }
     fn document(&self, verb: &str, code: i32) -> Value {
@@ -1204,7 +1324,7 @@ fn claude_repairs_owned_old_installations_and_preserves_foreign_or_newer_sources
         "enabled"
     );
     for (source, version, expected) in [
-        (fixture.0.join("foreign"), "0.4.13", "conflict"),
+        (fixture.0.join("foreign"), "0.4.14", "conflict"),
         (
             fixture.capsule().parent().unwrap().join("9.0.0"),
             "9.0.0",
@@ -1322,7 +1442,7 @@ fn javascript_modules_load_and_deliver_ordered_windows_observations() {
 
         let old = String::from_utf8(original.clone())
             .unwrap()
-            .replace("/0.4.13/", "/0.4.2/");
+            .replace("/0.4.14/", "/0.4.2/");
         fs::write(&target, old).unwrap();
         assert_eq!(
             fixture.provider_document("explain", provider, 0)["result"]["state"],

@@ -304,6 +304,7 @@ fn is_adapter_id(value: &str) -> bool {
             | "mastracode"
             | "droid"
             | "kimi"
+            | "letta"
             | "pi"
             | "omp"
             | "gemini"
@@ -359,6 +360,7 @@ pub fn resolve_adapter(adapter_id: &str, event: HookObservationEvent) -> Option<
                 "mastracode",
             ),
             "antigravity-cli" => (&[SessionIdentified], &[SessionLifecycle], "antigravity"),
+            "letta" => (&[SessionIdentified], &[SessionLifecycle], "letta"),
             "kimi" => (
                 &[SessionIdentified, SessionEnded],
                 &[SessionLifecycle],

@@ -25,6 +25,7 @@ const AgentHookAdapterIdSchema = z.enum([
 	'mastracode',
 	'droid',
 	'kimi',
+	'letta',
 	'pi',
 	'omp',
 	'gemini',

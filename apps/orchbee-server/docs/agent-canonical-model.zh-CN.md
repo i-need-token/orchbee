@@ -483,3 +483,5 @@ Mastracode 通过封闭观察注册表授予会话／回合生命周期、活动
 Droid 加入仅识别身份的注册表和原生入口见证，在 SessionStart 时保留未知或已有回合状态。
 
 Kimi 仅准入 session-identified 与 session-ended。重复身份保留规范轮次状态；Stop 及其他不支持的生命周期事件仍被拒绝。
+
+Letta 仅准入 session-identified，保留未知或现有轮次状态。默认对话身份包含 Agent ID；内容及推测的完成状态不会进入规范状态。

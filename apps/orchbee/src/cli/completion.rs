@@ -828,6 +828,7 @@ const PROVIDER_VALUES: &[&str] = &[
     "mastracode",
     "droid",
     "kimi",
+    "letta",
     "pi",
     "omp",
     "qwen-code",

@@ -102,7 +102,7 @@ fn conflicting_sources_fail_before_runtime_and_help_describes_both_contracts() {
     );
     assert!(output.status.success());
     let schema: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
-    assert_eq!(schema["version"], 58);
+    assert_eq!(schema["version"], 59);
     assert_eq!(
         schema["result"]["schema"]["schemaId"],
         "orchbee.worktree.query"

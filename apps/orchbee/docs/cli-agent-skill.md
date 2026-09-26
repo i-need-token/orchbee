@@ -192,3 +192,5 @@ The `mastracode` provider supports managed Windows lifecycle hooks and offline d
 The `droid` provider supports Windows session identity onboarding and offline source-priority diagnostics.
 
 The `kimi` provider supports Windows TOML session onboarding and offline diagnostics; legacy `.kimi` is untouched.
+
+The `letta` provider supports Windows session onboarding with silent hooks and provider-owned HOME resolution.

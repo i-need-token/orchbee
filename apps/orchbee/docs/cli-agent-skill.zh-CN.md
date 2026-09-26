@@ -187,3 +187,5 @@ Windows provider 选择还支持 `cursor`、`qodercli` 和 `antigravity-cli`；�
 `droid` provider 支持 Windows 会话身份接入和离线来源优先级诊断。
 
 `kimi` 提供方支持 Windows TOML 会话接入和离线诊断；旧 `.kimi` 保持原样。
+
+`letta` 提供方支持 Windows 会话接入，采用静默 hook 与提供方自己的 HOME 解析规则。

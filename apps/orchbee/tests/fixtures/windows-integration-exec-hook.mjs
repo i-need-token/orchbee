@@ -21,10 +21,12 @@ assert.ok(
 		'mastracode',
 		'droid',
 		'kimi',
+		'letta',
 	].includes(provider),
 );
 const extensionProvider = provider === 'gemini' || provider === 'qwen-code';
 const encodedProvider = [
+	'letta',
 	'cursor',
 	'qodercli',
 	'antigravity-cli',
@@ -36,7 +38,7 @@ function hookFile() {
 	if (provider === 'droid' || provider === 'kimi') return configurationFile;
 	if (provider === 'cursor' || provider === 'antigravity-cli' || provider === 'mastracode')
 		return 'hooks.json';
-	if (provider === 'qodercli') return 'settings.json';
+	if (provider === 'qodercli' || provider === 'letta') return 'settings.json';
 	if (provider === 'qwen-code') return 'qwen-extension.json';
 	if (provider === 'grok') return 'hooks/grok.json';
 	if (provider === 'github-copilot') return 'hooks/copilot.json';
@@ -145,7 +147,10 @@ async function run(hook, input, scriptRoot = root) {
 			try {
 				assert.equal(code, 0, Buffer.concat(output).toString());
 				assert.equal(signal, null);
-				assert.equal(Buffer.concat(output).toString().trim(), encodedProvider ? '{}' : '');
+				assert.equal(
+					Buffer.concat(output).toString().trim(),
+					encodedProvider && provider !== 'letta' ? '{}' : '',
+				);
 				resolve();
 			} catch (error) {
 				reject(error);
@@ -156,11 +161,11 @@ async function run(hook, input, scriptRoot = root) {
 }
 function hookFor(event) {
 	if (provider === 'antigravity-cli') return hooks[event][0];
-	if (provider === 'qodercli') {
+	if (provider === 'qodercli' || provider === 'letta') {
 		const entry = hooks[event]
 			.flatMap((group) => group.hooks)
 			.find((hook) => hook.command?.startsWith('powershell.exe -NoLogo'));
-		assert.equal(entry.shell, 'powershell');
+		if (provider === 'qodercli') assert.equal(entry.shell, 'powershell');
 		return entry;
 	}
 	if (provider === 'cursor' || provider === 'mastracode' || provider === 'kimi')
@@ -230,6 +235,14 @@ try {
 							stop_reason: 'complete',
 						}
 					: {}),
+				...(provider === 'letta'
+					? {
+							event_type: event,
+							is_new_session: true,
+							conversation_id: 'literal-path-session',
+							agent_id: 'agent-1',
+						}
+					: {}),
 				hook_event_name: event,
 				session_id: 'literal-path-session',
 				prompt: 'PRIVATE_PROMPT',
@@ -270,6 +283,9 @@ try {
 			missing,
 			JSON.stringify({
 				session_id: 'missing-runtime-session',
+				event_type: events[0],
+				is_new_session: false,
+				conversation_id: 'missing-runtime-session',
 				conversationId: 'missing-runtime-session',
 				hook_event_name: events[0],
 			}),

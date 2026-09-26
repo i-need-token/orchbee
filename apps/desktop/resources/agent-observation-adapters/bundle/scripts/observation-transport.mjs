@@ -32,6 +32,7 @@ const ADAPTER_IDS = new Set([
 	'mastracode',
 	'droid',
 	'kimi',
+	'letta',
 	'pi',
 	'omp',
 	'gemini',
