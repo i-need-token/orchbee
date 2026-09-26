@@ -475,3 +475,5 @@ names 家族还接受 `{kind:"presentation", presentationId}`。解析、分配�
 Cursor 增加原生和 Desktop 边界的直接证据，仅支持 session-identified（及旧版 session-started）身份；历史语料指纹不变。它授予 sessionLifecycle，不声明回合、活动或权限能力。
 
 Qoder 仅准入具有 sessionLifecycle 的 session-identified。原生注册表和精确入口的直接测试扩展仅识别身份的证据，不修改历史语料。
+
+Antigravity CLI 复用仅识别身份的边界证据，将适配器 antigravity-cli 映射为规范 provider antigravity。PreInvocation 不建立回合状态或就绪事实。

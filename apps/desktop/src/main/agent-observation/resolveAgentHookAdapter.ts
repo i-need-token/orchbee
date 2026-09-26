@@ -48,6 +48,12 @@ const CODEX_EVENTS = new Set<AgentHookObservationEvent>([
 ]);
 
 const REGISTRY = {
+	'antigravity-cli': {
+		acceptedEvents: new Set<AgentHookObservationEvent>(['session-identified']),
+		adapterId: 'antigravity-cli',
+		capabilities: ['sessionLifecycle'],
+		providerId: AgentProviderIdSchema.parse('antigravity'),
+	},
 	qodercli: {
 		acceptedEvents: new Set<AgentHookObservationEvent>(['session-identified']),
 		adapterId: 'qodercli',

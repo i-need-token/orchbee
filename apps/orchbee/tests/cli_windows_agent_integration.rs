@@ -90,31 +90,7 @@ fn check_json_hooks(provider: &str) {
     assert!(installed.contains("echo user-start") && installed.contains("echo user"));
     fixture.provider_document("enable", provider, 0);
     assert_eq!(fs::read_to_string(&target).unwrap(), installed);
-    let node = std::env::split_paths(&std::env::var_os("PATH").unwrap())
-        .map(|path| path.join("node.exe"))
-        .find(|path| path.is_file())
-        .unwrap();
-    for shell in ["powershell.exe", "pwsh.exe", "cmd.exe"] {
-        let output = Command::new(&node)
-            .arg(
-                Path::new(env!("CARGO_MANIFEST_DIR"))
-                    .join("tests/fixtures/windows-integration-exec-hook.mjs"),
-            )
-            .args([provider, target.parent().unwrap().to_str().unwrap(), shell])
-            .creation_flags(0x0800_0000)
-            .output()
-            .unwrap();
-        assert!(
-            output.status.success(),
-            "{} {}",
-            String::from_utf8_lossy(&output.stdout),
-            String::from_utf8_lossy(&output.stderr)
-        );
-        assert_eq!(
-            serde_json::from_slice::<Value>(&output.stdout).unwrap()["events"],
-            1
-        );
-    }
+    exercise_installed_json_hooks(provider, &target);
     let doc: Value = serde_json::from_str(&installed).unwrap();
     let entry = if provider == "cursor" {
         &doc["hooks"][event][1]
@@ -227,6 +203,90 @@ fn check_json_hooks(provider: &str) {
     assert!(output.status.success());
 }
 
+fn exercise_installed_json_hooks(provider: &str, target: &Path) {
+    use std::os::windows::process::CommandExt;
+    let node = std::env::split_paths(&std::env::var_os("PATH").unwrap())
+        .map(|path| path.join("node.exe"))
+        .find(|path| path.is_file())
+        .unwrap();
+    for shell in ["powershell.exe", "pwsh.exe", "cmd.exe"] {
+        let output = Command::new(&node)
+            .arg(
+                Path::new(env!("CARGO_MANIFEST_DIR"))
+                    .join("tests/fixtures/windows-integration-exec-hook.mjs"),
+            )
+            .args([provider, target.parent().unwrap().to_str().unwrap(), shell])
+            .creation_flags(0x0800_0000)
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "{} {}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert_eq!(
+            serde_json::from_slice::<Value>(&output.stdout).unwrap()["events"],
+            1
+        );
+    }
+}
+
+#[test]
+fn antigravity_named_hooks_preserve_foreign_blocks_and_execute_on_windows() {
+    let fixture = Fixture::new();
+    fs::write(fixture.0.join("bin/agy.cmd"), b"@exit /b 99\r\n").unwrap();
+    let target = fixture.home().join(".gemini/config/hooks.json");
+    fs::create_dir_all(target.parent().unwrap()).unwrap();
+    let original = r#"{"user":{"enabled":false,"future":123456789012345678901234567890,"PreInvocation":[{"command":"echo user"}]}}"#;
+    fs::write(&target, original).unwrap();
+    let id = "antigravity-cli";
+    assert_eq!(
+        fixture.provider_document("explain", id, 0)["result"]["state"],
+        "not-installed"
+    );
+    fixture.provider_document("enable", id, 0);
+    let installed = fs::read_to_string(&target).unwrap();
+    assert!(installed.contains("123456789012345678901234567890"));
+    fixture.provider_document("enable", id, 0);
+    assert_eq!(fs::read_to_string(&target).unwrap(), installed);
+    exercise_installed_json_hooks(id, &target);
+    let disabled = installed.replace("\"enabled\":true", "\"enabled\":false");
+    assert_ne!(disabled, installed);
+    fs::write(&target, &disabled).unwrap();
+    assert_eq!(
+        fixture.provider_document("explain", id, 0)["result"]["state"],
+        "disabled"
+    );
+    fixture.provider_document("disable", id, 0);
+    assert_eq!(fs::read_to_string(&target).unwrap(), disabled);
+    let doctor = Command::new(env!("CARGO_BIN_EXE_orchbee"))
+        .args(["agent", "doctor", "--provider", id, "--format", "json"])
+        .env("USERPROFILE", fixture.home())
+        .output()
+        .unwrap();
+    assert!(
+        doctor.status.success(),
+        "{}",
+        String::from_utf8_lossy(&doctor.stdout)
+    );
+    assert_eq!(
+        serde_json::from_slice::<Value>(&doctor.stdout).unwrap()["result"]["providers"][0]["hook"]
+            ["state"],
+        "disabled"
+    );
+    fixture.provider_document("enable", id, 0);
+    assert_eq!(fs::read_to_string(&target).unwrap(), installed);
+    let changed = installed.replace("\"timeout\":10", "\"timeout\":99");
+    fs::write(&target, &changed).unwrap();
+    fixture.provider_document("enable", id, 3);
+    fixture.provider_document("disable", id, 3);
+    assert_eq!(fs::read_to_string(&target).unwrap(), changed);
+    fs::write(&target, &installed).unwrap();
+    fixture.provider_document("disable", id, 0);
+    assert_eq!(fs::read_to_string(&target).unwrap(), original);
+}
+
 #[test]
 fn opencode_migrates_only_owned_undiscovered_entries_and_resolves_xdg() {
     let fixture = Fixture::new();
@@ -262,7 +322,7 @@ fn opencode_migrates_only_owned_undiscovered_entries_and_resolves_xdg() {
         (
             String::from_utf8(bytes.clone())
                 .unwrap()
-                .replace("/0.4.9/", "/9.0.0/"),
+                .replace("/0.4.10/", "/9.0.0/"),
             "stale-side",
         ),
     ] {
@@ -277,7 +337,7 @@ fn opencode_migrates_only_owned_undiscovered_entries_and_resolves_xdg() {
         &obsolete,
         String::from_utf8(bytes.clone())
             .unwrap()
-            .replace("/0.4.9/", "/0.4.2/"),
+            .replace("/0.4.10/", "/0.4.2/"),
     )
     .unwrap();
     assert_eq!(inspect("explain")["result"]["state"], "update-required");
@@ -625,7 +685,7 @@ fn grok_inventory_joins_local_configuration_and_runs_shipped_powershell_hooks() 
         (fixture.capsule().join("bundle"), Value::Null, "unknown", 9),
         (
             fixture.0.join("foreign/bundle"),
-            Value::from("0.4.9"),
+            Value::from("0.4.10"),
             "conflict",
             3,
         ),
@@ -765,7 +825,7 @@ impl Fixture {
     }
     fn capsule(&self) -> PathBuf {
         self.home()
-            .join(".orchbee/agent-observation-adapters/0.4.9")
+            .join(".orchbee/agent-observation-adapters/0.4.10")
     }
     fn run(&self, verb: &str, provider: &str, config_home: &Path) -> Output {
         self.run_options(verb, provider, config_home, &[])
@@ -1016,7 +1076,7 @@ fn claude_repairs_owned_old_installations_and_preserves_foreign_or_newer_sources
         "enabled"
     );
     for (source, version, expected) in [
-        (fixture.0.join("foreign"), "0.4.9", "conflict"),
+        (fixture.0.join("foreign"), "0.4.10", "conflict"),
         (
             fixture.capsule().parent().unwrap().join("9.0.0"),
             "9.0.0",
@@ -1133,7 +1193,7 @@ fn javascript_modules_load_and_deliver_ordered_windows_observations() {
 
         let old = String::from_utf8(original.clone())
             .unwrap()
-            .replace("/0.4.9/", "/0.4.2/");
+            .replace("/0.4.10/", "/0.4.2/");
         fs::write(&target, old).unwrap();
         assert_eq!(
             fixture.provider_document("explain", provider, 0)["result"]["state"],

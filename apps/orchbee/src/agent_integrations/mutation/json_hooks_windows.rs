@@ -61,7 +61,7 @@ fn update_observed(
     };
     if !matches!(
         hooks::state(id, expected.as_deref(), options),
-        State::NotInstalled | State::Enabled | State::UpdateRequired
+        State::NotInstalled | State::Enabled | State::Disabled | State::UpdateRequired
     ) {
         return Attempt::Conflict;
     }
@@ -284,7 +284,7 @@ mod tests {
             let original = br#"{"user":"original","hooks":{}}"#;
             let foreign = br#"{"user":"newer","hooks":{}}"#;
             fs::write(&target, original).unwrap();
-            let capsule = fixture.0.join("capsules/0.4.9");
+            let capsule = fixture.0.join("capsules/0.4.10");
             let cancel = Cancel(Cell::new(false));
             let context = ProviderContext {
                 home: &fixture.0,
@@ -296,7 +296,7 @@ mod tests {
                 management_mode: ManagementMode::ManagedLocal,
             };
             let options = ResourceOptions {
-                expected_version: "0.4.9",
+                expected_version: "0.4.10",
                 legacy_roots: &[],
                 resource_root: &capsule,
             };

@@ -25,6 +25,28 @@ const ompEntryUrl = resourceUrl('omp/orchbee-agent-observation.cjs');
 const clineUrl = resourceUrl('cline/orchbee-agent-observation.js');
 
 describe('OpenCode-family observation boundary', () => {
+	it('observes Antigravity conversation identity without requiring undocumented event fields', async () => {
+		const sanitizers = await import(resourceUrl('scripts/hook-sanitizers.mjs'));
+		const input = {
+			conversationId: 'agy-conversation',
+			invocationNum: 3,
+			transcriptPath: 'PRIVATE',
+			workspacePaths: ['PRIVATE'],
+		};
+		const result = sanitizers.sanitizeAgentHookInput('antigravity-cli', input);
+		expect(result).toMatchObject({ event: 'session-identified', sessionKey: 'agy-conversation' });
+		expect(JSON.stringify(result)).not.toContain('PRIVATE');
+		for (const changed of [
+			{ conversationId: '' },
+			{ conversationId: 3 },
+			{ hook_event_name: 'Stop' },
+			{ hookEventName: 'PostInvocation' },
+		]) {
+			expect(
+				sanitizers.sanitizeAgentHookInput('antigravity-cli', { ...input, ...changed }),
+			).toBeNull();
+		}
+	});
 	it('limits Qoder to exact SessionStart identity and omits content', async () => {
 		const sanitizers = await import(resourceUrl('scripts/hook-sanitizers.mjs'));
 		const input = {

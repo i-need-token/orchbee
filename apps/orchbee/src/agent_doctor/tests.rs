@@ -757,23 +757,25 @@ fn capsule_manifest_shape_and_version() {
     };
     let digest = "a".repeat(64);
     // Strict three-key set + supported versions → valid.
-    let scan = probes::scan_capsule_manifest(&manifest("3", "\"0.4.9\"", &digest, "").into_bytes())
-        .expect("bounded json record");
+    let scan =
+        probes::scan_capsule_manifest(&manifest("3", "\"0.4.10\"", &digest, "").into_bytes())
+            .expect("bounded json record");
     assert!(scan.valid_shape && !scan.version_mismatch);
     assert_eq!(
         scan.declared_payload_sha256.as_deref(),
         Some(digest.as_str())
     );
     // Declared ≠ supported → version-mismatch (uninspectable, not broken).
-    let scan = probes::scan_capsule_manifest(&manifest("4", "\"0.4.9\"", &digest, "").into_bytes())
-        .expect("bounded json record");
+    let scan =
+        probes::scan_capsule_manifest(&manifest("4", "\"0.4.10\"", &digest, "").into_bytes())
+            .expect("bounded json record");
     assert!(scan.version_mismatch && !scan.valid_shape);
     let scan = probes::scan_capsule_manifest(&manifest("3", "\"9.9.9\"", &digest, "").into_bytes())
         .expect("bounded json record");
     assert!(scan.version_mismatch && !scan.valid_shape);
     // Missing or extra keys → shape-invalid, never version-mismatch.
     let scan = probes::scan_capsule_manifest(
-        &manifest("3", "\"0.4.9\"", &digest, ",\"extra\":1").into_bytes(),
+        &manifest("3", "\"0.4.10\"", &digest, ",\"extra\":1").into_bytes(),
     )
     .expect("bounded json record");
     assert!(!scan.valid_shape && !scan.version_mismatch);
@@ -782,7 +784,7 @@ fn capsule_manifest_shape_and_version() {
     assert!(!scan.valid_shape && !scan.version_mismatch);
     // Bad digest spelling → shape-invalid.
     let scan =
-        probes::scan_capsule_manifest(&manifest("3", "\"0.4.9\"", "not-hex", "").into_bytes())
+        probes::scan_capsule_manifest(&manifest("3", "\"0.4.10\"", "not-hex", "").into_bytes())
             .expect("bounded json record");
     assert!(!scan.valid_shape);
     // Non-record documents do not scan at all.
@@ -837,7 +839,7 @@ fn supplied_root_probe_states() {
     };
     let digest = probes::capsule_payload_digest(&mut walked);
     let manifest =
-        format!(r#"{{"contractVersion":3,"payloadVersion":"0.4.9","payloadSha256":"{digest}"}}"#);
+        format!(r#"{{"contractVersion":3,"payloadVersion":"0.4.10","payloadSha256":"{digest}"}}"#);
     std::fs::write(root.join(probes::CAPSULE_MANIFEST_NAME), manifest).expect("write manifest");
     let mut budget = Budget::new();
     let outcome = probe_root(root.as_os_str().as_bytes(), &mut budget);

@@ -185,4 +185,4 @@ Windows Agent Get now emits v5 (v6 with `--client`), adding a separate `manageme
 
 Windows `agent integration list --outdated-only` selects owned entries requiring update or repair and reports unresolved and blocked provider IDs separately. Its v2 result retains the full inspection completeness before filtering. Use `agent integration enable --provider <id>` for the explicit guarded repair; an empty filtered list alone does not prove that every provider was inspected successfully.
 
-Windows provider selection additionally admits `cursor` and `qodercli`; onboarding preserves unrelated JSON hooks and reports only evidenced session identity.
+Windows provider selection additionally admits `cursor`, `qodercli` and `antigravity-cli`; onboarding preserves unrelated JSON hooks and reports only evidenced session identity.

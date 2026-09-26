@@ -3,6 +3,22 @@ import { describe, expect, it } from 'vitest';
 import { resolveAgentHookAdapter } from '../resolveAgentHookAdapter';
 
 describe('resolveAgentHookAdapter', () => {
+	it('maps Antigravity CLI session identity to its canonical Agent provider', () => {
+		expect(resolveAgentHookAdapter('antigravity-cli', 'session-identified')).toEqual({
+			adapterId: 'antigravity-cli',
+			capabilities: ['sessionLifecycle'],
+			providerId: 'antigravity',
+		});
+		for (const event of [
+			'session-started',
+			'session-idle',
+			'turn-started',
+			'approval-requested',
+			'session-ended',
+		] as const) {
+			expect(resolveAgentHookAdapter('antigravity-cli', event)).toBeNull();
+		}
+	});
 	it('limits Qoder to session identity without legacy or lifecycle claims', () => {
 		expect(resolveAgentHookAdapter('qodercli', 'session-identified')).toEqual({
 			adapterId: 'qodercli',

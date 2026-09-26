@@ -571,3 +571,5 @@ The frozen corpora retain their original source fingerprints. The additive Kilo 
 Cursor adds a direct native and Desktop boundary witness for session-identified (and legacy session-started) identity only; historical corpus fingerprints remain unchanged. It grants sessionLifecycle without turn, activity or permission claims.
 
 Qoder admits only session-identified with sessionLifecycle. Direct native registry and exact ingress tests extend the identity-only witnesses without changing historical corpora.
+
+Antigravity CLI shares the identity-only boundary witness and maps adapter antigravity-cli to canonical provider antigravity. Its PreInvocation does not establish turn state or readiness.

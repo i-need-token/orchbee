@@ -27,6 +27,7 @@ pub(crate) const PROVIDER_IDS: &[&str] = &[
     "cline",
     "opencode",
     "kilo",
+    "antigravity-cli",
     "qodercli",
     "cursor",
     "pi",
@@ -158,9 +159,13 @@ struct RootOutcome {
 #[cfg(any(target_os = "linux", windows))]
 /// The hook outcome a consistent recorded root unlocks.
 enum ConsistentOutcome {
-    /// Codex: `enabled=false` → `disabled`; `true` → `present` with
-    /// `enabledFlag:true`; absent → `present` with `enabledFlag:"absent"`.
-    Codex { enabled_flag: Option<bool> },
+    /// A proven declaration with a boolean enable policy. False is terminal;
+    /// otherwise the recorded root governs before the provider's enabled reason.
+    /// Codex additionally exposes its original enabledFlag in the detail map.
+    Configured {
+        enabled_flag: Option<bool>,
+        enabled_reason: HookReason,
+    },
     /// A self-consistent declaration — `present` with the carried reason.
     Present { reason: HookReason },
 }
@@ -481,25 +486,17 @@ fn finalize_hook(
         detail.insert("recordedRoot".to_owned(), Value::Object(recorded_detail));
     }
     match consistent {
-        // An explicit `enabled = false` is terminal: the verdict is
-        // `disabled` regardless of the root outcome — the root's state
-        // survives only as the detail fact attached above.
-        ConsistentOutcome::Codex {
+        ConsistentOutcome::Configured {
             enabled_flag: Some(false),
+            ..
         } => (HookState::Disabled, HookReason::DisabledFlag, detail),
-        ConsistentOutcome::Codex { .. } | ConsistentOutcome::Present { .. } => {
-            match root_state.recorded_hook_outcome() {
-                Some((state, reason)) => (state, reason, detail),
-                None => match consistent {
-                    ConsistentOutcome::Present { reason } => (HookState::Present, reason, detail),
-                    ConsistentOutcome::Codex { .. } => (
-                        HookState::Present,
-                        HookReason::ConfigDeclaresInstall,
-                        detail,
-                    ),
-                },
-            }
-        }
+        ConsistentOutcome::Configured { enabled_reason, .. }
+        | ConsistentOutcome::Present {
+            reason: enabled_reason,
+        } => match root_state.recorded_hook_outcome() {
+            Some((state, reason)) => (state, reason, detail),
+            None => (HookState::Present, enabled_reason, detail),
+        },
     }
 }
 
@@ -554,19 +551,22 @@ fn probe_json_hooks(
         FileRead::Absent => return final_verdict(HookState::Absent, HookReason::TargetMissing),
         read => return read_uninspectable(read),
     };
-    match scan_json_hooks(provider.id, &bytes) {
+    let scan = scan_json_hooks(provider.id, &bytes);
+    let disabled = matches!(&scan, JsonHookScan::Disabled(_));
+    match scan {
         JsonHookScan::Absent => final_verdict(HookState::Absent, HookReason::TargetMissing),
         JsonHookScan::Conflict => final_verdict(HookState::Conflict, HookReason::ForeignContent),
         JsonHookScan::Malformed => final_verdict(HookState::Unknown, HookReason::Malformed),
-        JsonHookScan::Owned(root) => HookProbe::AwaitsRoot {
+        JsonHookScan::Owned(root) | JsonHookScan::Disabled(root) => HookProbe::AwaitsRoot {
             root_index: recorded_root(
                 recorded,
                 provider,
                 "source",
                 root.to_string_lossy().into_owned().into_bytes(),
             ),
-            consistent: ConsistentOutcome::Present {
-                reason: HookReason::MarkerConsistent,
+            consistent: ConsistentOutcome::Configured {
+                enabled_flag: Some(!disabled),
+                enabled_reason: HookReason::MarkerConsistent,
             },
             detail: Map::new(),
         },
@@ -656,7 +656,10 @@ fn probe_codex(
     // root's observed state still lands in `detail.recordedRoot`.
     HookProbe::AwaitsRoot {
         root_index,
-        consistent: ConsistentOutcome::Codex { enabled_flag },
+        consistent: ConsistentOutcome::Configured {
+            enabled_flag,
+            enabled_reason: HookReason::ConfigDeclaresInstall,
+        },
         detail,
     }
 }

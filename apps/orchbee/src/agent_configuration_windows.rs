@@ -3,6 +3,11 @@
 use std::path::{Path, PathBuf};
 
 pub(crate) fn json_hooks(id: &str, home: &Path) -> Option<PathBuf> {
+    if id == "antigravity-cli" {
+        return home
+            .is_absolute()
+            .then(|| home.join(".gemini/config/hooks.json"));
+    }
     let (variable, directory, file) = match id {
         "cursor" => ("CURSOR_CONFIG_DIR", ".cursor", "hooks.json"),
         "qodercli" => ("QODER_CONFIG_DIR", ".qoder", "settings.json"),

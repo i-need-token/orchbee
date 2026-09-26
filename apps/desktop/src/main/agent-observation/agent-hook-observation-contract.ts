@@ -21,6 +21,7 @@ const AgentHookAdapterIdSchema = z.enum([
 	'kilo',
 	'cursor',
 	'qodercli',
+	'antigravity-cli',
 	'pi',
 	'omp',
 	'gemini',

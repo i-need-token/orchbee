@@ -9,21 +9,30 @@ import path from 'node:path';
 
 const [provider, root, shell] = process.argv.slice(2);
 assert.ok(
-	['claude-code', 'github-copilot', 'grok', 'gemini', 'qwen-code', 'cursor', 'qodercli'].includes(
-		provider,
-	),
+	[
+		'claude-code',
+		'github-copilot',
+		'grok',
+		'gemini',
+		'qwen-code',
+		'cursor',
+		'qodercli',
+		'antigravity-cli',
+	].includes(provider),
 );
 const extensionProvider = provider === 'gemini' || provider === 'qwen-code';
-const jsonProvider = provider === 'cursor' || provider === 'qodercli';
+const jsonProvider = ['cursor', 'qodercli', 'antigravity-cli'].includes(provider);
 function hookFile() {
-	if (provider === 'cursor') return 'hooks.json';
+	if (provider === 'cursor' || provider === 'antigravity-cli') return 'hooks.json';
 	if (provider === 'qodercli') return 'settings.json';
 	if (provider === 'qwen-code') return 'qwen-extension.json';
 	if (provider === 'grok') return 'hooks/grok.json';
 	if (provider === 'github-copilot') return 'hooks/copilot.json';
 	return 'hooks/hooks.json';
 }
-const hooks = JSON.parse(fs.readFileSync(path.join(root, hookFile()), 'utf8')).hooks;
+const document = JSON.parse(fs.readFileSync(path.join(root, hookFile()), 'utf8'));
+const hooks =
+	provider === 'antigravity-cli' ? document['orchbee-agent-observation'] : document.hooks;
 const pipe = String.raw`\\.\pipe\orchbee-${randomBytes(16).toString('hex')}-observation`;
 const observations = [];
 const connections = new Set();
@@ -121,6 +130,7 @@ async function run(hook, input, scriptRoot = root) {
 	});
 }
 function hookFor(event) {
+	if (provider === 'antigravity-cli') return hooks[event][0];
 	if (provider === 'qodercli') {
 		const entry = hooks[event]
 			.flatMap((group) => group.hooks)
@@ -133,6 +143,7 @@ function hookFor(event) {
 	return provider === 'github-copilot' ? hooks[event][0] : hooks[event][0].hooks[0];
 }
 function eventNames() {
+	if (provider === 'antigravity-cli') return ['PreInvocation'];
 	if (jsonProvider) return [provider === 'cursor' ? 'sessionStart' : 'SessionStart'];
 	return provider === 'gemini'
 		? ['SessionStart', 'BeforeAgent', 'AfterAgent', 'SessionEnd']
@@ -150,6 +161,7 @@ try {
 				...(provider === 'qwen-code' && event === 'UserPromptSubmit'
 					? { submitted_prompt: 'PRIVATE_SUBMITTED_PROMPT' }
 					: {}),
+				...(provider === 'antigravity-cli' ? { conversationId: 'literal-path-session' } : {}),
 				hook_event_name: event,
 				session_id: 'literal-path-session',
 				prompt: 'PRIVATE_PROMPT',
@@ -190,7 +202,11 @@ try {
 		};
 		await run(
 			missing,
-			JSON.stringify({ session_id: 'missing-runtime-session', hook_event_name: events[0] }),
+			JSON.stringify({
+				session_id: 'missing-runtime-session',
+				conversationId: 'missing-runtime-session',
+				hook_event_name: events[0],
+			}),
 		);
 	}
 

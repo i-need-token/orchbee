@@ -17,6 +17,7 @@ pub(crate) enum IntegrationId {
     Kilo,
     Cursor,
     QoderCli,
+    AntigravityCli,
     Pi,
     Omp,
     Gemini,
@@ -26,7 +27,7 @@ pub(crate) enum IntegrationId {
 }
 
 impl IntegrationId {
-    pub(crate) const ALL: [Self; 13] = [
+    pub(crate) const ALL: [Self; 14] = [
         Self::ClaudeCode,
         Self::Codex,
         Self::Grok,
@@ -34,6 +35,7 @@ impl IntegrationId {
         Self::Kilo,
         Self::Cursor,
         Self::QoderCli,
+        Self::AntigravityCli,
         Self::Pi,
         Self::Omp,
         Self::Gemini,
@@ -51,6 +53,7 @@ impl IntegrationId {
             Self::Kilo => "kilo",
             Self::Cursor => "cursor",
             Self::QoderCli => "qodercli",
+            Self::AntigravityCli => "antigravity-cli",
             Self::Pi => "pi",
             Self::Omp => "omp",
             Self::Gemini => "gemini",

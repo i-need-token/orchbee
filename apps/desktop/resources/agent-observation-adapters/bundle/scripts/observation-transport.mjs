@@ -28,6 +28,7 @@ const ADAPTER_IDS = new Set([
 	'kilo',
 	'cursor',
 	'qodercli',
+	'antigravity-cli',
 	'pi',
 	'omp',
 	'gemini',

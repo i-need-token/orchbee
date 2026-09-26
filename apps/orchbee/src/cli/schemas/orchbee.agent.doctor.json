@@ -32,7 +32,7 @@
 				},
 				"providers": {
 					"type": "array",
-					"maxItems": 13,
+					"maxItems": 14,
 					"items": {
 						"$ref": "#/$defs/providerRow"
 					}
@@ -110,6 +110,7 @@
 				"kilo",
 				"cursor",
 				"qodercli",
+				"antigravity-cli",
 				"pi",
 				"omp",
 				"qwen-code"

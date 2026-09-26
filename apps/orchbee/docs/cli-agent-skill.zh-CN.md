@@ -180,4 +180,4 @@ Windows Agent Get 现在输出 v5（使用 `--client` 时为 v6），增加独�
 
 Windows `agent integration list --outdated-only` 筛选需要更新或修复的自有条目，并分别报告检查未决和受阻的 provider ID。v2 结果保留筛选前全部检查的完整性。使用 `agent integration enable --provider <id>` 显式执行受保护的修复；筛选列表为空本身不能证明所有 provider 都已成功检查。
 
-Windows provider 选择还支持 `cursor` 和 `qodercli`；接入保留其他 JSON Hook，仅上报有证据的会话身份。
+Windows provider 选择还支持 `cursor`、`qodercli` 和 `antigravity-cli`；接入保留其他 JSON Hook，仅上报有证据的会话身份。

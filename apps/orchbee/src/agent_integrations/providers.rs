@@ -135,6 +135,11 @@ const fn spec(id: IntegrationId) -> Spec {
             executable: "kilo",
             inspect_slots: 0,
         },
+        IntegrationId::AntigravityCli => Spec {
+            kind: Kind::JsonHooks,
+            executable: "agy",
+            inspect_slots: 0,
+        },
         IntegrationId::QoderCli => Spec {
             kind: Kind::JsonHooks,
             executable: "qoder",
@@ -218,7 +223,10 @@ pub(crate) const fn management_mode(id: IntegrationId, declared: ManagementMode)
     if !cfg!(windows)
         && matches!(
             id,
-            IntegrationId::Kilo | IntegrationId::Cursor | IntegrationId::QoderCli
+            IntegrationId::Kilo
+                | IntegrationId::Cursor
+                | IntegrationId::QoderCli
+                | IntegrationId::AntigravityCli
         )
     {
         return ManagementMode::ManualOnly;
@@ -233,6 +241,7 @@ pub(crate) const fn management_mode(id: IntegrationId, declared: ManagementMode)
                 | IntegrationId::Kilo
                 | IntegrationId::Cursor
                 | IntegrationId::QoderCli
+                | IntegrationId::AntigravityCli
                 | IntegrationId::Pi
                 | IntegrationId::Omp
                 | IntegrationId::GitHubCopilot

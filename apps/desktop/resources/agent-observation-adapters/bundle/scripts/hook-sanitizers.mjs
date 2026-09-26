@@ -3,6 +3,13 @@ const IDENTITY_PATTERN = /^[A-Za-z0-9._:-]{1,128}$/u;
 export function sanitizeAgentHookInput(adapterId, value) {
 	if (!isRecord(value)) return null;
 	switch (adapterId) {
+		case 'antigravity-cli': {
+			if (value.hook_event_name !== undefined && value.hook_event_name !== 'PreInvocation')
+				return null;
+			if (value.hookEventName !== undefined && value.hookEventName !== 'PreInvocation') return null;
+			const sessionKey = identity(value.conversationId);
+			return sessionKey === null ? null : observation(sessionKey, 'session-identified');
+		}
 		case 'qodercli': {
 			const sessionKey = identity(value.session_id);
 			return value.hook_event_name === 'SessionStart' && sessionKey !== null

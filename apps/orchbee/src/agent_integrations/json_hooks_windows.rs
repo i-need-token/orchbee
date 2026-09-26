@@ -69,9 +69,11 @@ fn declaration(id: &str, root: &Path) -> Option<Value> {
     );
     let utf16: Vec<u8> = script.encode_utf16().flat_map(u16::to_le_bytes).collect();
     let mut entry = json!({"command":format!("{PREFIX}{}",STANDARD.encode(utf16)),"timeout":10});
-    if id == "qodercli" {
+    if id != "cursor" {
         entry["type"] = json!("command");
-        entry["shell"] = json!("powershell");
+        if id == "qodercli" {
+            entry["shell"] = json!("powershell");
+        }
     }
     Some(entry)
 }
@@ -127,6 +129,7 @@ fn event_name(id: &str) -> Option<&'static str> {
     match id {
         "cursor" => Some("sessionStart"),
         "qodercli" => Some("SessionStart"),
+        "antigravity-cli" => Some("PreInvocation"),
         _ => None,
     }
 }
@@ -154,8 +157,78 @@ fn item_root(id: &str, value: &RawValue) -> Result<Option<PathBuf>, ()> {
 pub(crate) enum JsonHookScan {
     Absent,
     Owned(PathBuf),
+    Disabled(PathBuf),
     Conflict,
     Malformed,
+}
+
+const NAMED_HOOK: &str = "orchbee-agent-observation";
+
+struct NamedDocument {
+    object: Object,
+    owned: Option<(PathBuf, bool)>,
+}
+
+fn parse_named(bytes: &[u8]) -> Result<NamedDocument, JsonHookScan> {
+    let object: Object = serde_json::from_slice(bytes).map_err(|_| JsonHookScan::Malformed)?;
+    let Some(raw) = object.0.get(NAMED_HOOK) else {
+        return Ok(NamedDocument {
+            object,
+            owned: None,
+        });
+    };
+    let block: Object = serde_json::from_str(raw.get()).map_err(|_| JsonHookScan::Malformed)?;
+    if block
+        .0
+        .keys()
+        .any(|key| !matches!(key.as_str(), "PreInvocation" | "enabled"))
+    {
+        return Err(JsonHookScan::Conflict);
+    }
+    let enabled = match block.0.get("enabled") {
+        Some(raw) => {
+            serde_json::from_str::<bool>(raw.get()).map_err(|_| JsonHookScan::Malformed)?
+        }
+        None => true,
+    };
+    let events = block.0.get("PreInvocation").ok_or(JsonHookScan::Conflict)?;
+    let entries: Vec<Box<RawValue>> =
+        serde_json::from_str(events.get()).map_err(|_| JsonHookScan::Malformed)?;
+    let [entry] = entries.as_slice() else {
+        return Err(JsonHookScan::Conflict);
+    };
+    let root = entry_root("antigravity-cli", entry)
+        .map_err(|_| JsonHookScan::Conflict)?
+        .ok_or(JsonHookScan::Conflict)?;
+    Ok(NamedDocument {
+        object,
+        owned: Some((root, enabled)),
+    })
+}
+
+fn scan_named(bytes: &[u8]) -> JsonHookScan {
+    match parse_named(bytes) {
+        Ok(doc) => match doc.owned {
+            Some((root, true)) => JsonHookScan::Owned(root),
+            Some((root, false)) => JsonHookScan::Disabled(root),
+            None => JsonHookScan::Absent,
+        },
+        Err(state) => state,
+    }
+}
+
+fn patch_named(bytes: Option<&[u8]>, root: &Path, enable: bool) -> Option<Vec<u8>> {
+    let mut doc = parse_named(bytes.unwrap_or(b"{}")).ok()?;
+    if enable {
+        doc.object.set(
+            NAMED_HOOK,
+            json!({"enabled":true,"PreInvocation":[declaration("antigravity-cli",root)?]}),
+        )?;
+    } else {
+        doc.object.0.remove(NAMED_HOOK);
+    }
+    let bytes = doc.object.bytes()?;
+    (bytes.len() as u64 <= LIMIT).then_some(bytes)
 }
 
 struct Document {
@@ -202,6 +275,9 @@ fn parse(id: &str, bytes: &[u8]) -> Result<Document, JsonHookScan> {
 
 /// Budgeted doctor and onboarding share the same pure ownership classifier.
 pub(crate) fn scan_json_hooks(id: &str, bytes: &[u8]) -> JsonHookScan {
+    if id == "antigravity-cli" {
+        return scan_named(bytes);
+    }
     match parse(id, bytes) {
         Ok(document) => match document.owned {
             Some((_, root)) => JsonHookScan::Owned(root),
@@ -223,17 +299,26 @@ pub(super) fn state(id: &str, bytes: Option<&[u8]>, options: &ResourceOptions) -
     let Some(bytes) = bytes else {
         return State::NotInstalled;
     };
-    match scan_json_hooks(id, bytes) {
+    let scan = scan_json_hooks(id, bytes);
+    let disabled = matches!(&scan, JsonHookScan::Disabled(_));
+    match scan {
         JsonHookScan::Absent => State::NotInstalled,
         JsonHookScan::Conflict => State::Conflict,
         JsonHookScan::Malformed => State::Unknown,
-        JsonHookScan::Owned(root) => match classify_resource_root(&root.to_string_lossy(), options)
-        {
-            ResourceOwnership::Current => State::Enabled,
-            ResourceOwnership::Legacy => State::UpdateRequired,
-            ResourceOwnership::Newer => State::StaleSide,
-            ResourceOwnership::Foreign => State::Conflict,
-        },
+        JsonHookScan::Owned(root) | JsonHookScan::Disabled(root) => {
+            match classify_resource_root(&root.to_string_lossy(), options) {
+                ResourceOwnership::Current => {
+                    if disabled {
+                        State::Disabled
+                    } else {
+                        State::Enabled
+                    }
+                }
+                ResourceOwnership::Legacy => State::UpdateRequired,
+                ResourceOwnership::Newer => State::StaleSide,
+                ResourceOwnership::Foreign => State::Conflict,
+            }
+        }
     }
 }
 
@@ -248,6 +333,9 @@ pub(super) fn inspect(id: &str, home: &Path, options: &ResourceOptions) -> State
 }
 
 pub(super) fn patch(id: &str, bytes: Option<&[u8]>, root: &Path, enable: bool) -> Option<Vec<u8>> {
+    if id == "antigravity-cli" {
+        return patch_named(bytes, root, enable);
+    }
     let mut doc = parse(id, bytes.unwrap_or(b"{}")).ok()?;
     if let Some((index, _)) = doc.owned {
         doc.entries.remove(index);
@@ -277,7 +365,7 @@ mod tests {
     #[test]
     fn raw_user_values_survive_enable_repair_and_disable() {
         let input = br#"{"large":123456789012345678901234567890,"nested":{"future":1e999,"duplicate":1,"duplicate":2},"hooks":{"stop":[{"command":"echo user"}],"sessionStart":[{"command":"echo before"}]}}"#;
-        let root = Path::new(r"C:\Users\用户 & ' $ `\.orchbee\agent-observation-adapters\0.4.9");
+        let root = Path::new(r"C:\Users\用户 & ' $ `\.orchbee\agent-observation-adapters\0.4.10");
         let installed = patch("cursor", Some(input), root, true).unwrap();
         assert!(
             matches!(scan_json_hooks("cursor", &installed), JsonHookScan::Owned(found) if found == root)
@@ -311,7 +399,7 @@ mod tests {
                 JsonHookScan::Malformed
             ));
         }
-        let root = Path::new(r"C:\owned\0.4.9");
+        let root = Path::new(r"C:\owned\0.4.10");
         let bytes = patch("cursor", None, root, true).unwrap();
         let mut doc: Value = serde_json::from_slice(&bytes).unwrap();
         doc["hooks"]["sessionStart"][0]["timeout"] = json!(99);
@@ -337,7 +425,7 @@ mod tests {
 
 #[test]
 fn qoder_groups_keep_foreign_raw_values_and_refuse_edited_or_misplaced_ownership() {
-    let root = Path::new(r"C:\owned\0.4.9");
+    let root = Path::new(r"C:\owned\0.4.10");
     let input = br#"{"version":1e999,"hooks":{"SessionStart":[{"matcher":"resume","hooks":[{"type":"prompt","prompt":"keep","future":123456789012345678901234567890}]}]}}"#;
     let installed = patch("qodercli", Some(input), root, true).unwrap();
     assert!(
@@ -383,5 +471,56 @@ fn qoder_groups_keep_foreign_raw_values_and_refuse_edited_or_misplaced_ownership
         r#"{"hooks":{"SessionStart":false}}"#,
     ] {
         assert!(patch("qodercli", Some(input.as_bytes()), root, true).is_none());
+    }
+}
+
+#[test]
+fn antigravity_named_blocks_preserve_foreign_values_and_validate_disabled_ownership() {
+    let id = "antigravity-cli";
+    let root = Path::new(r"C:\owned\0.4.10");
+    let options = ResourceOptions {
+        resource_root: root,
+        expected_version: "0.4.10",
+        legacy_roots: &[],
+    };
+    for (version, expected) in [
+        ("0.4.10", State::Disabled),
+        ("0.4.9", State::UpdateRequired),
+        ("9.0.0", State::StaleSide),
+    ] {
+        let bytes = patch(id, None, &root.with_file_name(version), true).unwrap();
+        let text = String::from_utf8(bytes)
+            .unwrap()
+            .replace("\"enabled\":true", "\"enabled\":false");
+        assert_eq!(state(id, Some(text.as_bytes()), &options), expected);
+    }
+    let input = br#"{"user-hook":{"future":1e999,"enabled":false,"PreInvocation":[{"command":"echo user"}]}}"#;
+    let installed = patch(id, Some(input), root, true).unwrap();
+    assert!(matches!(scan_json_hooks(id, &installed), JsonHookScan::Owned(found) if found == root));
+    assert!(std::str::from_utf8(&installed).unwrap().contains("1e999"));
+    assert_eq!(patch(id, Some(&installed), root, false).unwrap(), input);
+    let owned = patch(id, None, root, true).unwrap();
+    let mut value: Value = serde_json::from_slice(&owned).unwrap();
+    value["orchbee-agent-observation"]["enabled"] = json!(false);
+    assert!(
+        matches!(scan_json_hooks(id, &serde_json::to_vec(&value).unwrap()), JsonHookScan::Disabled(found) if found == root)
+    );
+    value["orchbee-agent-observation"]["enabled"] = json!(null);
+    assert!(matches!(
+        scan_json_hooks(id, &serde_json::to_vec(&value).unwrap()),
+        JsonHookScan::Malformed
+    ));
+    value["orchbee-agent-observation"]["enabled"] = json!(true);
+    value["orchbee-agent-observation"]["PreInvocation"][0]["timeout"] = json!(99);
+    assert!(matches!(
+        scan_json_hooks(id, &serde_json::to_vec(&value).unwrap()),
+        JsonHookScan::Conflict
+    ));
+    for input in [
+        r#"{"orchbee-agent-observation":{}}"#,
+        r#"{"orchbee-agent-observation":{"PreInvocation":[{"command":"echo foreign"}]}}"#,
+        r#"{"orchbee-agent-observation":{},"orchbee-agent-observation":{}}"#,
+    ] {
+        assert!(patch(id, Some(input.as_bytes()), root, true).is_none());
     }
 }
