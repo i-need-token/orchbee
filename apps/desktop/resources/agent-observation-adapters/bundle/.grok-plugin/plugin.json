@@ -3,5 +3,5 @@
 	"description": "Locally sanitizes Grok lifecycle hooks for Orchbee Agent status observation",
 	"hooks": "./hooks/grok.json",
 	"name": "orchbee-agent-observation",
-	"version": "0.4.12"
+	"version": "0.4.13"
 }

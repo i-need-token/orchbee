@@ -190,3 +190,5 @@ Windows provider selection additionally admits `cursor`, `qodercli` and `antigra
 The `mastracode` provider supports managed Windows lifecycle hooks and offline diagnostics. Use enable to repair missing owned event entries.
 
 The `droid` provider supports Windows session identity onboarding and offline source-priority diagnostics.
+
+The `kimi` provider supports Windows TOML session onboarding and offline diagnostics; legacy `.kimi` is untouched.

@@ -24,6 +24,7 @@ const AgentHookAdapterIdSchema = z.enum([
 	'antigravity-cli',
 	'mastracode',
 	'droid',
+	'kimi',
 	'pi',
 	'omp',
 	'gemini',

@@ -827,6 +827,7 @@ const PROVIDER_VALUES: &[&str] = &[
     "antigravity-cli",
     "mastracode",
     "droid",
+    "kimi",
     "pi",
     "omp",
     "qwen-code",

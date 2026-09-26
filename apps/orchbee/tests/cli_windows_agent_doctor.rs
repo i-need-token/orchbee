@@ -198,7 +198,7 @@ fn native_home_and_script_discovery_are_offline_and_localized() {
     let all = fixture.run(&["agent", "doctor", "--format", "json"], "en-US", None);
     assert!(all.status.success());
     let all: Value = serde_json::from_slice(&all.stdout).unwrap();
-    assert_eq!(all["result"]["providers"].as_array().unwrap().len(), 16);
+    assert_eq!(all["result"]["providers"].as_array().unwrap().len(), 17);
     let invalid = fixture.document(Some(Path::new("relative-codex-home")));
     assert_eq!(
         invalid["result"]["providers"][0]["hook"]["detail"]["configurationRoot"],

@@ -48,6 +48,12 @@ const CODEX_EVENTS = new Set<AgentHookObservationEvent>([
 ]);
 
 const REGISTRY = {
+	kimi: {
+		acceptedEvents: new Set<AgentHookObservationEvent>(['session-identified', 'session-ended']),
+		adapterId: 'kimi',
+		capabilities: ['sessionLifecycle'],
+		providerId: AgentProviderIdSchema.parse('kimi'),
+	},
 	droid: {
 		acceptedEvents: new Set<AgentHookObservationEvent>(['session-identified']),
 		adapterId: 'droid',

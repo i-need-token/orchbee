@@ -577,3 +577,5 @@ Antigravity CLI shares the identity-only boundary witness and maps adapter antig
 Mastracode grants session/turn lifecycle, activity, approvals and subagents through the closed observation registry. Direct joined-ingress evidence covers identity, one keyed run, attention request/resolution and completion. Historical corpus fingerprints remain unchanged.
 
 Droid joins the identity-only registry and native ingress witnesses, preserving unknown or existing turn state on SessionStart.
+
+Kimi admits only session-identified and session-ended. Repeated identity preserves canonical turn state; Stop and other unsupported lifecycle events remain rejected.

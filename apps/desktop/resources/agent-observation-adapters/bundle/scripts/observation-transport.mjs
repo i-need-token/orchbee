@@ -31,6 +31,7 @@ const ADAPTER_IDS = new Set([
 	'antigravity-cli',
 	'mastracode',
 	'droid',
+	'kimi',
 	'pi',
 	'omp',
 	'gemini',

@@ -3,6 +3,14 @@ const IDENTITY_PATTERN = /^[A-Za-z0-9._:-]{1,128}$/u;
 export function sanitizeAgentHookInput(adapterId, value) {
 	if (!isRecord(value)) return null;
 	switch (adapterId) {
+		case 'kimi': {
+			const sessionKey = identity(value.session_id);
+			if (sessionKey === null) return null;
+			if (value.hook_event_name === 'SessionStart')
+				return observation(sessionKey, 'session-identified');
+			if (value.hook_event_name === 'SessionEnd') return observation(sessionKey, 'session-ended');
+			return null;
+		}
 		case 'mastracode':
 			return sanitizeMastracodeHook(value);
 		case 'antigravity-cli': {

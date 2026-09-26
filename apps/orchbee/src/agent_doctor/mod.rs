@@ -29,6 +29,7 @@ pub(crate) const PROVIDER_IDS: &[&str] = &[
     "kilo",
     "mastracode",
     "droid",
+    "kimi",
     "antigravity-cli",
     "qodercli",
     "cursor",
@@ -522,10 +523,10 @@ fn probe_provider(
     budget: &mut Budget,
 ) -> HookProbe {
     match provider.kind {
-        ProbeKind::JsonHooks => {
+        ProbeKind::ConfigurationHooks => {
             #[cfg(windows)]
             {
-                probe_json_hooks(provider, home, recorded, budget)
+                probe_hook_configuration(provider, home, recorded, budget)
             }
             #[cfg(not(windows))]
             {
@@ -548,15 +549,15 @@ fn probe_provider(
 }
 
 #[cfg(windows)]
-fn probe_json_hooks(
+fn probe_hook_configuration(
     provider: &Provider,
     home: &Path,
     recorded: &mut Vec<RootCandidate>,
     budget: &mut Budget,
 ) -> HookProbe {
-    use crate::agent_integrations::{JsonHookScan, scan_json_hooks};
+    use crate::agent_integrations::{HookConfigurationScan, scan_hook_configuration};
     let Some(candidates) =
-        crate::agent_configuration_windows::json_hook_candidates(provider.id, home)
+        crate::agent_configuration_windows::hook_configuration_candidates(provider.id, home)
     else {
         return final_verdict(HookState::Unknown, HookReason::NotInspected);
     };
@@ -574,16 +575,22 @@ fn probe_json_hooks(
     let Some((kind, bytes)) = selected else {
         return final_verdict(HookState::Absent, HookReason::TargetMissing);
     };
-    let scan = scan_json_hooks(kind, &bytes);
-    let disabled = matches!(&scan, JsonHookScan::Disabled(_));
-    let incomplete = matches!(&scan, JsonHookScan::Incomplete(_));
+    let scan = scan_hook_configuration(kind, &bytes);
+    let disabled = matches!(&scan, HookConfigurationScan::Disabled(_));
+    let incomplete = matches!(&scan, HookConfigurationScan::Incomplete(_));
     match scan {
-        JsonHookScan::Absent => final_verdict(HookState::Absent, HookReason::TargetMissing),
-        JsonHookScan::Conflict => final_verdict(HookState::Conflict, HookReason::ForeignContent),
-        JsonHookScan::Malformed => final_verdict(HookState::Unknown, HookReason::Malformed),
-        JsonHookScan::Owned(root)
-        | JsonHookScan::Disabled(root)
-        | JsonHookScan::Incomplete(root) => HookProbe::AwaitsRoot {
+        HookConfigurationScan::Absent => {
+            final_verdict(HookState::Absent, HookReason::TargetMissing)
+        }
+        HookConfigurationScan::Conflict => {
+            final_verdict(HookState::Conflict, HookReason::ForeignContent)
+        }
+        HookConfigurationScan::Malformed => {
+            final_verdict(HookState::Unknown, HookReason::Malformed)
+        }
+        HookConfigurationScan::Owned(root)
+        | HookConfigurationScan::Disabled(root)
+        | HookConfigurationScan::Incomplete(root) => HookProbe::AwaitsRoot {
             root_index: recorded_root(
                 recorded,
                 provider,

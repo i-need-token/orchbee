@@ -40,6 +40,8 @@ base64.workspace = true
 serde_core = { version = "=1.0.229", default-features = false, features = ["std"] }
 # Complete, bounded provider-owned TOML configuration inspection.
 toml = { version = "=1.1.6", default-features = false, features = ["std", "parse", "serde"] }
+# Syntax-preserving provider TOML hook editing; Windows integration owner.
+toml_edit = { version = "=0.25.15", default-features = false, features = ["parse", "display"] }
 # Suspended Job Object assignment and bounded process-tree cancellation.
 process-wrap.workspace = true
 windows.workspace = true

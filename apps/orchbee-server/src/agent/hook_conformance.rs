@@ -603,3 +603,29 @@ fn mastracode_hook_boundary_keeps_a_closed_lifecycle_registry() {
         assert!(resolve_adapter("mastracode", event).is_none());
     }
 }
+
+#[test]
+fn kimi_hook_boundary_accepts_session_lifecycle_only() {
+    use super::hook_contract::{HookObservationEvent as E, resolve_adapter};
+    for (event, name) in [
+        (E::SessionIdentified, "session-identified"),
+        (E::SessionEnded, "session-ended"),
+    ] {
+        let mut envelope = test_envelope(0, 0.0);
+        envelope["adapterId"] = json!("kimi");
+        envelope["observation"]["event"] = json!(name);
+        assert!(parse_envelope(&envelope).is_some());
+        let adapter = resolve_adapter("kimi", event).unwrap();
+        assert_eq!(adapter.provider_id, "kimi");
+        assert_eq!(adapter.capabilities, ["sessionLifecycle"]);
+    }
+    for event in [
+        E::SessionStarted,
+        E::SessionIdle,
+        E::TurnStarted,
+        E::TurnStopped,
+        E::ApprovalRequested,
+    ] {
+        assert!(resolve_adapter("kimi", event).is_none());
+    }
+}

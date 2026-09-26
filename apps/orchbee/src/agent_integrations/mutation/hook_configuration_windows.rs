@@ -1,14 +1,14 @@
-//! Optimistic, bounded replacement of a provider-owned JSON configuration.
+//! Optimistic, bounded replacement of a provider-owned hook configuration.
 //! The original remains recoverable until the published bytes are verified.
 use super::super::{
-    files, inspect::ResourceOptions, json_hooks_windows as hooks, model::State,
+    files, hook_configuration_windows as hooks, inspect::ResourceOptions, model::State,
     providers::ProviderContext,
 };
 use super::{
     Attempt, AttemptedStep, EffectTrace, FailureCode, FsStep, StepKind, cancelled, now,
     step_outcome,
 };
-use crate::agent_configuration_windows::JsonHookKind;
+use crate::agent_configuration_windows::HookConfigurationKind;
 use std::{
     fs::File,
     io,
@@ -43,7 +43,7 @@ pub(super) fn update(
 }
 
 fn update_observed(
-    kind: JsonHookKind,
+    kind: HookConfigurationKind,
     target: &Path,
     context: &ProviderContext,
     options: &ResourceOptions,
@@ -78,11 +78,11 @@ fn update_observed(
         return Attempt::Failed(FailureCode::OperationFailed);
     };
     *effect = true;
-    let container = match files::stage_directory(parent, "json-hook") {
+    let container = match files::stage_directory(parent, "hook-configuration") {
         Ok(path) => path,
         Err(_) => return Attempt::Failed(FailureCode::OperationFailed),
     };
-    let staged = container.join("hooks.json");
+    let staged = container.join("configuration");
     if files::write_file_exclusive(&staged, &replacement).is_err() {
         residuals.push(container);
         return Attempt::Failed(FailureCode::OperationFailed);
@@ -124,7 +124,7 @@ fn update_observed(
             if let Some(stop) = stop(context) {
                 return stop;
             }
-            let recovery = container.join("original.json");
+            let recovery = container.join("original");
             let merged = files::preserve_configuration_metadata(&moved, &staged, &recovery);
             record(attempted, "preserve-configuration-metadata", &moved, merged);
             if hooks::read(&recovery).ok().flatten() == expected {
@@ -285,7 +285,7 @@ mod tests {
             let original = br#"{"user":"original","hooks":{}}"#;
             let foreign = br#"{"user":"newer","hooks":{}}"#;
             fs::write(&target, original).unwrap();
-            let capsule = fixture.0.join("capsules/0.4.12");
+            let capsule = fixture.0.join("capsules/0.4.13");
             let cancel = Cancel(Cell::new(false));
             let context = ProviderContext {
                 home: &fixture.0,
@@ -297,7 +297,7 @@ mod tests {
                 management_mode: ManagementMode::ManagedLocal,
             };
             let options = ResourceOptions {
-                expected_version: "0.4.12",
+                expected_version: "0.4.13",
                 legacy_roots: &[],
                 resource_root: &capsule,
             };
@@ -305,7 +305,7 @@ mod tests {
             let mut residuals = Vec::new();
             let mut effect = false;
             let result = update_observed(
-                JsonHookKind::Cursor,
+                HookConfigurationKind::Cursor,
                 &target,
                 &context,
                 &options,

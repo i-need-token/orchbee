@@ -34,6 +34,23 @@ describe('resolveAgentHookAdapter', () => {
 			expect(resolveAgentHookAdapter('antigravity-cli', event)).toBeNull();
 		}
 	});
+	it('limits Kimi to identified and ended session events', () => {
+		for (const event of ['session-identified', 'session-ended'] as const) {
+			expect(resolveAgentHookAdapter('kimi', event)).toEqual({
+				adapterId: 'kimi',
+				capabilities: ['sessionLifecycle'],
+				providerId: 'kimi',
+			});
+		}
+		for (const event of [
+			'session-started',
+			'session-idle',
+			'turn-started',
+			'turn-stopped',
+			'approval-requested',
+		] as const)
+			expect(resolveAgentHookAdapter('kimi', event)).toBeNull();
+	});
 	it('limits Droid to session identity without legacy or lifecycle claims', () => {
 		expect(resolveAgentHookAdapter('droid', 'session-identified')).toEqual({
 			adapterId: 'droid',

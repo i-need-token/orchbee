@@ -20,14 +20,20 @@ assert.ok(
 		'antigravity-cli',
 		'mastracode',
 		'droid',
+		'kimi',
 	].includes(provider),
 );
 const extensionProvider = provider === 'gemini' || provider === 'qwen-code';
-const jsonProvider = ['cursor', 'qodercli', 'antigravity-cli', 'mastracode', 'droid'].includes(
-	provider,
-);
+const encodedProvider = [
+	'cursor',
+	'qodercli',
+	'antigravity-cli',
+	'mastracode',
+	'droid',
+	'kimi',
+].includes(provider);
 function hookFile() {
-	if (provider === 'droid') return configurationFile;
+	if (provider === 'droid' || provider === 'kimi') return configurationFile;
 	if (provider === 'cursor' || provider === 'antigravity-cli' || provider === 'mastracode')
 		return 'hooks.json';
 	if (provider === 'qodercli') return 'settings.json';
@@ -76,11 +82,11 @@ await new Promise((resolve, reject) => {
 async function run(hook, input, scriptRoot = root) {
 	let command = process.execPath;
 	let args;
-	if (provider === 'grok' || extensionProvider || jsonProvider) {
+	if (provider === 'grok' || extensionProvider || encodedProvider) {
 		assert.ok(['powershell.exe', 'pwsh.exe', 'cmd.exe'].includes(shell));
 		assert.ok(
 			hook.command.startsWith(
-				jsonProvider
+				encodedProvider
 					? 'powershell.exe -NoLogo -NoProfile -NonInteractive -EncodedCommand '
 					: 'node -e "eval(Buffer.from(',
 			),
@@ -103,10 +109,17 @@ async function run(hook, input, scriptRoot = root) {
 		assert.equal(hookEnvironment.ORCHBEE_AGENT_EXTENSION_ROOT, scriptRoot);
 		assert.ok(!hook.command.includes(scriptRoot));
 	}
+	const kimiDefaultShell = provider === 'kimi' && shell === 'cmd.exe';
+	if (kimiDefaultShell) {
+		command = hook.command;
+		args = [];
+	}
 	await new Promise((resolve, reject) => {
 		const child = spawn(command, args, {
+			shell: kimiDefaultShell,
 			windowsHide: true,
-			windowsVerbatimArguments: shell === 'cmd.exe' && (!jsonProvider || provider === 'mastracode'),
+			windowsVerbatimArguments:
+				shell === 'cmd.exe' && (!encodedProvider || provider === 'mastracode'),
 			env: {
 				...hookEnvironment,
 				SystemRoot: process.env.SystemRoot,
@@ -132,7 +145,7 @@ async function run(hook, input, scriptRoot = root) {
 			try {
 				assert.equal(code, 0, Buffer.concat(output).toString());
 				assert.equal(signal, null);
-				assert.equal(Buffer.concat(output).toString().trim(), jsonProvider ? '{}' : '');
+				assert.equal(Buffer.concat(output).toString().trim(), encodedProvider ? '{}' : '');
 				resolve();
 			} catch (error) {
 				reject(error);
@@ -150,11 +163,12 @@ function hookFor(event) {
 		assert.equal(entry.shell, 'powershell');
 		return entry;
 	}
-	if (provider === 'cursor' || provider === 'mastracode')
+	if (provider === 'cursor' || provider === 'mastracode' || provider === 'kimi')
 		return hooks[event].find((hook) => hook.command.startsWith('powershell.exe -NoLogo'));
 	return provider === 'github-copilot' ? hooks[event][0] : hooks[event][0].hooks[0];
 }
 function eventNames() {
+	if (provider === 'kimi') return ['SessionStart', 'SessionEnd'];
 	if (provider === 'mastracode')
 		return [
 			'SessionStart',
@@ -169,12 +183,13 @@ function eventNames() {
 			'SessionEnd',
 		];
 	if (provider === 'antigravity-cli') return ['PreInvocation'];
-	if (jsonProvider) return [provider === 'cursor' ? 'sessionStart' : 'SessionStart'];
+	if (encodedProvider) return [provider === 'cursor' ? 'sessionStart' : 'SessionStart'];
 	return provider === 'gemini'
 		? ['SessionStart', 'BeforeAgent', 'AfterAgent', 'SessionEnd']
 		: ['SessionStart', 'UserPromptSubmit', 'Stop', 'SessionEnd'];
 }
 function expectedEvents() {
+	if (provider === 'kimi') return ['session-identified', 'session-ended'];
 	if (provider === 'mastracode')
 		return [
 			'session-identified',
@@ -188,7 +203,7 @@ function expectedEvents() {
 			'turn-stopped',
 			'session-ended',
 		];
-	if (jsonProvider) return ['session-identified'];
+	if (encodedProvider) return ['session-identified'];
 	return ['session-started', 'turn-started', 'turn-stopped', 'session-ended'];
 }
 const expected = expectedEvents();
@@ -237,7 +252,7 @@ try {
 	}
 	await run(hookFor(events[0]), '{malformed');
 	await run(hookFor(events[0]), '{}', path.join(root, 'missing'));
-	if (jsonProvider) {
+	if (encodedProvider) {
 		const original = hookFor(events[0]);
 		const encoded = original.command.split(' ').at(-1);
 		const script = Buffer.from(encoded, 'base64')

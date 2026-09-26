@@ -21,12 +21,12 @@ mod exec;
 #[cfg(any(unix, windows))]
 #[cfg_attr(windows, path = "agent_integrations/files_windows.rs")]
 mod files;
+#[cfg(windows)]
+mod hook_configuration_windows;
 #[cfg(any(unix, windows))]
 mod inspect;
 #[cfg(windows)]
-mod json_hooks_windows;
-#[cfg(windows)]
-pub(crate) use json_hooks_windows::{JsonHookScan, scan_json_hooks};
+pub(crate) use hook_configuration_windows::{HookConfigurationScan, scan_hook_configuration};
 /// The closed result vocabularies stay available on every platform — the
 /// parser names them — while platform adapters own filesystem and process effects.
 pub(crate) mod model;

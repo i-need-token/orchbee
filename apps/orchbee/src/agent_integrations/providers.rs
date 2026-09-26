@@ -64,7 +64,7 @@ enum Kind {
     Codex,
     /// cline's managed-install scan plus the bundle source-readiness fold.
     Cline,
-    JsonHooks,
+    ConfigurationHooks,
     /// Guarded filesystem entries (module files and extension directories).
     Guarded(GuardedSpec),
 }
@@ -135,28 +135,33 @@ const fn spec(id: IntegrationId) -> Spec {
             executable: "kilo",
             inspect_slots: 0,
         },
+        IntegrationId::Kimi => Spec {
+            kind: Kind::ConfigurationHooks,
+            executable: "kimi",
+            inspect_slots: 0,
+        },
         IntegrationId::Droid => Spec {
-            kind: Kind::JsonHooks,
+            kind: Kind::ConfigurationHooks,
             executable: "droid",
             inspect_slots: 0,
         },
         IntegrationId::Mastracode => Spec {
-            kind: Kind::JsonHooks,
+            kind: Kind::ConfigurationHooks,
             executable: "mastracode",
             inspect_slots: 0,
         },
         IntegrationId::AntigravityCli => Spec {
-            kind: Kind::JsonHooks,
+            kind: Kind::ConfigurationHooks,
             executable: "agy",
             inspect_slots: 0,
         },
         IntegrationId::QoderCli => Spec {
-            kind: Kind::JsonHooks,
+            kind: Kind::ConfigurationHooks,
             executable: "qoder",
             inspect_slots: 0,
         },
         IntegrationId::Cursor => Spec {
-            kind: Kind::JsonHooks,
+            kind: Kind::ConfigurationHooks,
             executable: "agent",
             inspect_slots: 0,
         },
@@ -239,6 +244,7 @@ pub(crate) const fn management_mode(id: IntegrationId, declared: ManagementMode)
                 | IntegrationId::AntigravityCli
                 | IntegrationId::Mastracode
                 | IntegrationId::Droid
+                | IntegrationId::Kimi
         )
     {
         return ManagementMode::ManualOnly;
@@ -256,6 +262,7 @@ pub(crate) const fn management_mode(id: IntegrationId, declared: ManagementMode)
                 | IntegrationId::AntigravityCli
                 | IntegrationId::Mastracode
                 | IntegrationId::Droid
+                | IntegrationId::Kimi
                 | IntegrationId::Pi
                 | IntegrationId::Omp
                 | IntegrationId::GitHubCopilot
@@ -459,9 +466,10 @@ pub(crate) fn inspect_full(
     };
 
     let (state, inspection_failed, detail) = match spec.kind {
-        Kind::JsonHooks => {
+        Kind::ConfigurationHooks => {
             #[cfg(windows)]
-            let state = super::json_hooks_windows::inspect(id.as_str(), context.home, &options);
+            let state =
+                super::hook_configuration_windows::inspect(id.as_str(), context.home, &options);
             #[cfg(not(windows))]
             let state = State::Unknown;
             (state, state == State::Unknown, InspectionDetail::Plain)

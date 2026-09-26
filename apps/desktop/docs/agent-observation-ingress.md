@@ -127,11 +127,11 @@ Identity-only hooks use `session-identified`. After the normal strict envelope, 
 and exact presentation join, the translator ensures the session and attaches presentations, then
 performs no turn, activity, request or outcome transition. A new session retains its `unknown`
 turn; repeated identity preserves any known state. The canonical runtime owns all such state.
-Cursor, Qoder, Antigravity, Mastracode and Droid emit this event; Cursor's legacy `session-started` from capsule `0.4.7` has the same identity-only
+Cursor, Qoder, Antigravity, Mastracode, Droid and Kimi emit this event; Cursor's legacy `session-started` from capsule `0.4.7` has the same identity-only
 meaning. Other providers retain their existing `session-started` behavior and do not gain admission
 to the new event. Identity never proves readiness or process liveness.
 
-Capsule `0.4.12` ships with matching native and Desktop receivers. Older receivers reject the new
+Capsule `0.4.13` ships with matching native and Desktop receivers. Older receivers reject the new
 event without acknowledgment. Cohort rollback restores prior semantics; there is no durable-state
 migration. Direct boundary and native ingress tests cover new/legacy identity, unknown state,
 repetition and unrelated-provider rejection. Translator tests additionally preserve active turns,

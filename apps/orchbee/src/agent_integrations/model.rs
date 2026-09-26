@@ -20,6 +20,7 @@ pub(crate) enum IntegrationId {
     AntigravityCli,
     Mastracode,
     Droid,
+    Kimi,
     Pi,
     Omp,
     Gemini,
@@ -29,7 +30,7 @@ pub(crate) enum IntegrationId {
 }
 
 impl IntegrationId {
-    pub(crate) const ALL: [Self; 16] = [
+    pub(crate) const ALL: [Self; 17] = [
         Self::ClaudeCode,
         Self::Codex,
         Self::Grok,
@@ -40,6 +41,7 @@ impl IntegrationId {
         Self::AntigravityCli,
         Self::Mastracode,
         Self::Droid,
+        Self::Kimi,
         Self::Pi,
         Self::Omp,
         Self::Gemini,
@@ -60,6 +62,7 @@ impl IntegrationId {
             Self::AntigravityCli => "antigravity-cli",
             Self::Mastracode => "mastracode",
             Self::Droid => "droid",
+            Self::Kimi => "kimi",
             Self::Pi => "pi",
             Self::Omp => "omp",
             Self::Gemini => "gemini",

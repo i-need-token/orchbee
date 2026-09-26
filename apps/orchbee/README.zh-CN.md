@@ -164,7 +164,7 @@ Windows `agent doctor --provider codex --format json` 现在可以检查本地�
 和胶囊完整性，不启动 Site，也不改变 provider 接入配置。版本 3 文档报告 Windows 端点投递
 尚未检查；已安装配置不证明 Agent 已接通。
 
-Windows `agent integration list/explain/enable/disable --provider <id>` 可管理 Claude Code、Codex、Grok、GitHub Copilot、OpenCode、Kilo、Pi、OMP、Gemini 和 Qwen Code。详见 [Windows 集成契约](docs/windows-agent-integrations.zh-CN.md)。Windows `site diagnose` 使用 `orchbee.site.diagnose.windows` v2 报告只读运行时、锁和管道名称事实。Capsule 0.4.12 提供 Claude Code、Codex、Grok 和 GitHub Copilot hook 与 JavaScript 模块，
+Windows `agent integration list/explain/enable/disable --provider <id>` 可管理 Claude Code、Codex、Grok、GitHub Copilot、OpenCode、Kilo、Pi、OMP、Gemini 和 Qwen Code。详见 [Windows 集成契约](docs/windows-agent-integrations.zh-CN.md)。Windows `site diagnose` 使用 `orchbee.site.diagnose.windows` v2 报告只读运行时、锁和管道名称事实。Capsule 0.4.13 提供 Claude Code、Codex、Grok 和 GitHub Copilot hook 与 JavaScript 模块，
 通过原生 observation 管道与 Console 关联投递。Windows x64 cohort 包含保留关联信息所需的
 固定 ConPTY 运行时。Agent start 仍待完成，其他 provider 保留既有平台限制。
 `terminal send --stdin` 接受重定向普通文件和 Windows 管道；所属隐藏 Windows PowerShell
@@ -754,3 +754,5 @@ Windows 支持通过 `agent integration enable --provider cursor`、`agent integ
 Windows `agent integration enable --provider mastracode` 安装会话、运行、工具、权限及子 Agent 观察，可修复不完整的自有 Hook 集合。
 
 Windows `agent integration enable --provider droid` 管理生效用户配置中的会话身份 Hook，不遮蔽已有回退 Hook。
+
+Windows `agent integration enable --provider kimi` 管理当前 Kimi 的 TOML 会话 hook；工作中／阻塞／空闲对齐仍未完成。

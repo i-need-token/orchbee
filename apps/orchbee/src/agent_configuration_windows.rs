@@ -4,18 +4,20 @@ use std::path::{Path, PathBuf};
 
 /// The actual provider document shape; both Droid origins share one adapter identity.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum JsonHookKind {
+pub(crate) enum HookConfigurationKind {
     Cursor,
     Qoder,
     Antigravity,
     Mastracode,
     DroidStandalone,
     DroidSettings,
+    Kimi,
 }
-impl JsonHookKind {
+impl HookConfigurationKind {
     /// Canonical observation and integration identity independent of file representation.
     pub(crate) const fn id(self) -> &'static str {
         match self {
+            Self::Kimi => "kimi",
             Self::Cursor => "cursor",
             Self::Qoder => "qodercli",
             Self::Antigravity => "antigravity-cli",
@@ -26,46 +28,50 @@ impl JsonHookKind {
 }
 /// One candidate configuration. Callers own reads, budgets and failure handling.
 #[derive(Clone)]
-pub(crate) struct JsonHookTarget {
+pub(crate) struct HookConfigurationTarget {
     pub(crate) path: PathBuf,
-    pub(crate) kind: JsonHookKind,
+    pub(crate) kind: HookConfigurationKind,
 }
 /// Priority is authoritative; errors at an earlier candidate never admit fallback.
 /// When no candidate exists, use the first one for a new declaration.
-pub(crate) fn json_hook_candidates(id: &str, home: &Path) -> Option<Vec<JsonHookTarget>> {
+pub(crate) fn hook_configuration_candidates(
+    id: &str,
+    home: &Path,
+) -> Option<Vec<HookConfigurationTarget>> {
     if id == "droid" {
         if !home.is_absolute() {
             return None;
         }
         return Some(vec![
-            JsonHookTarget {
+            HookConfigurationTarget {
                 path: home.join(".factory/hooks.json"),
-                kind: JsonHookKind::DroidStandalone,
+                kind: HookConfigurationKind::DroidStandalone,
             },
-            JsonHookTarget {
+            HookConfigurationTarget {
                 path: home.join(".factory/hooks/hooks.json"),
-                kind: JsonHookKind::DroidStandalone,
+                kind: HookConfigurationKind::DroidStandalone,
             },
-            JsonHookTarget {
+            HookConfigurationTarget {
                 path: home.join(".factory/settings.json"),
-                kind: JsonHookKind::DroidSettings,
+                kind: HookConfigurationKind::DroidSettings,
             },
         ]);
     }
     let kind = match id {
-        "cursor" => JsonHookKind::Cursor,
-        "qodercli" => JsonHookKind::Qoder,
-        "antigravity-cli" => JsonHookKind::Antigravity,
-        "mastracode" => JsonHookKind::Mastracode,
+        "kimi" => HookConfigurationKind::Kimi,
+        "cursor" => HookConfigurationKind::Cursor,
+        "qodercli" => HookConfigurationKind::Qoder,
+        "antigravity-cli" => HookConfigurationKind::Antigravity,
+        "mastracode" => HookConfigurationKind::Mastracode,
         _ => return None,
     };
-    Some(vec![JsonHookTarget {
-        path: single_json_hooks(id, home)?,
+    Some(vec![HookConfigurationTarget {
+        path: single_hook_configuration(id, home)?,
         kind,
     }])
 }
 
-fn single_json_hooks(id: &str, home: &Path) -> Option<PathBuf> {
+fn single_hook_configuration(id: &str, home: &Path) -> Option<PathBuf> {
     if id == "mastracode" {
         return home
             .is_absolute()
@@ -77,6 +83,7 @@ fn single_json_hooks(id: &str, home: &Path) -> Option<PathBuf> {
             .then(|| home.join(".gemini/config/hooks.json"));
     }
     let (variable, directory, file) = match id {
+        "kimi" => ("KIMI_CODE_HOME", ".kimi-code", "config.toml"),
         "cursor" => ("CURSOR_CONFIG_DIR", ".cursor", "hooks.json"),
         "qodercli" => ("QODER_CONFIG_DIR", ".qoder", "settings.json"),
         _ => return None,

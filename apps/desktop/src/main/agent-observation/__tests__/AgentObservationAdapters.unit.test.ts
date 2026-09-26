@@ -118,6 +118,38 @@ describe('OpenCode-family observation boundary', () => {
 			).toBeNull();
 		}
 	});
+	it('observes Kimi session lifecycle without guessing turn completion', async () => {
+		const sanitizers = await import(resourceUrl('scripts/hook-sanitizers.mjs'));
+		for (const [hook, event] of [
+			['SessionStart', 'session-identified'],
+			['SessionEnd', 'session-ended'],
+		]) {
+			const result = sanitizers.sanitizeAgentHookInput('kimi', {
+				hook_event_name: hook,
+				session_id: 'kimi-1',
+				cwd: 'PRIVATE',
+				prompt: 'PRIVATE',
+				session_title: 'PRIVATE',
+			});
+			expect(result).toMatchObject({ event, sessionKey: 'kimi-1' });
+			expect(JSON.stringify(result)).not.toContain('PRIVATE');
+		}
+		for (const changed of [
+			{ session_id: '' },
+			{ session_id: 3 },
+			{ hook_event_name: 'Stop' },
+			{ hook_event_name: 'TurnStarted' },
+			{ hook_event_name: undefined },
+		]) {
+			expect(
+				sanitizers.sanitizeAgentHookInput('kimi', {
+					hook_event_name: 'SessionStart',
+					session_id: 'kimi-1',
+					...changed,
+				}),
+			).toBeNull();
+		}
+	});
 	it('limits Droid to exact SessionStart identity and omits content', async () => {
 		const sanitizers = await import(resourceUrl('scripts/hook-sanitizers.mjs'));
 		const input = {

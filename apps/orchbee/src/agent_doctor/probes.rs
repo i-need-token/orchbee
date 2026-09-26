@@ -17,7 +17,7 @@ pub(crate) const SUPPORTED_CONTRACT_VERSION: u64 = 3;
 
 /// The capsule payload version the manifest contract requires —
 /// `AGENT_OBSERVATION_CAPSULE_VERSION`.
-pub(crate) const CAPSULE_PAYLOAD_VERSION: &str = "0.4.12";
+pub(crate) const CAPSULE_PAYLOAD_VERSION: &str = "0.4.13";
 
 // ---------------------------------------------------------------------------
 // Provider binding table — the literals of
@@ -39,7 +39,7 @@ pub(crate) enum ProbeKind {
     Bootstrap,
     /// The `~/.cline/plugins` install scan.
     Cline,
-    JsonHooks,
+    ConfigurationHooks,
 }
 
 /// The bootstrap template tail a provider's module derives: everything after
@@ -165,16 +165,25 @@ pub(crate) const PROVIDERS: &[Provider] = &[
     Provider {
         id: "mastracode",
         executable: "mastracode",
-        kind: ProbeKind::JsonHooks,
+        kind: ProbeKind::ConfigurationHooks,
         node_applicable: true,
         home_target: ".mastracode/hooks.json",
         bootstrap: None,
         manual_command: None,
     },
     Provider {
+        id: "kimi",
+        executable: "kimi",
+        kind: ProbeKind::ConfigurationHooks,
+        node_applicable: true,
+        home_target: ".kimi-code/config.toml",
+        bootstrap: None,
+        manual_command: None,
+    },
+    Provider {
         id: "droid",
         executable: "droid",
-        kind: ProbeKind::JsonHooks,
+        kind: ProbeKind::ConfigurationHooks,
         node_applicable: true,
         home_target: ".factory/hooks.json",
         bootstrap: None,
@@ -183,7 +192,7 @@ pub(crate) const PROVIDERS: &[Provider] = &[
     Provider {
         id: "antigravity-cli",
         executable: "agy",
-        kind: ProbeKind::JsonHooks,
+        kind: ProbeKind::ConfigurationHooks,
         node_applicable: true,
         home_target: ".gemini/config/hooks.json",
         bootstrap: None,
@@ -192,7 +201,7 @@ pub(crate) const PROVIDERS: &[Provider] = &[
     Provider {
         id: "qodercli",
         executable: "qoder",
-        kind: ProbeKind::JsonHooks,
+        kind: ProbeKind::ConfigurationHooks,
         node_applicable: true,
         home_target: ".qoder/settings.json",
         bootstrap: None,
@@ -201,7 +210,7 @@ pub(crate) const PROVIDERS: &[Provider] = &[
     Provider {
         id: "cursor",
         executable: "agent",
-        kind: ProbeKind::JsonHooks,
+        kind: ProbeKind::ConfigurationHooks,
         node_applicable: true,
         home_target: ".cursor/hooks.json",
         bootstrap: None,
@@ -1034,7 +1043,7 @@ pub(crate) fn parse_cline_package(bytes: &[u8]) -> ClinePackage {
 // ---------------------------------------------------------------------------
 
 /// The strict capsule manifest check: exactly the three declared keys,
-/// `contractVersion === 3`, `payloadVersion === "0.4.12"`, and a lowercase
+/// `contractVersion === 3`, `payloadVersion === "0.4.13"`, and a lowercase
 /// `payloadSha256` — plus the declared values carried for detail.
 #[derive(Clone, Debug)]
 pub(crate) struct CapsuleManifestScan {

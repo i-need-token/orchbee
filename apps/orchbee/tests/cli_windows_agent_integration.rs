@@ -12,6 +12,127 @@ use std::{
 struct Fixture(PathBuf);
 
 #[test]
+fn kimi_toml_hooks_preserve_user_settings_and_execute_on_windows() {
+    use std::os::windows::process::CommandExt;
+    let fixture = Fixture::new();
+    fs::write(fixture.0.join("bin/kimi.cmd"), b"@exit /b 99\r\n").unwrap();
+    let target = fixture.home().join(".kimi-code/config.toml");
+    let legacy = fixture.home().join(".kimi/config.toml");
+    fs::create_dir_all(target.parent().unwrap()).unwrap();
+    fs::create_dir_all(legacy.parent().unwrap()).unwrap();
+    fs::write(&legacy, "# legacy user data\n").unwrap();
+    let user = "# user settings\nlarge = 9223372036854775807 # exact\nhooks = [{event='PreToolUse',command='echo user'}] # preserve\n[custom]\nvalue='unchanged'\n";
+    fs::write(&target, user).unwrap();
+    fixture.provider_document("enable", "kimi", 0);
+    let installed = fs::read_to_string(&target).unwrap();
+    assert!(installed.contains("9223372036854775807 # exact"));
+    assert!(installed.contains("# preserve"));
+    fixture.provider_document("enable", "kimi", 0);
+    assert_eq!(fs::read_to_string(&target).unwrap(), installed);
+    let configuration: toml::Table = installed.parse().unwrap();
+    let rules = configuration["hooks"].as_array().unwrap();
+    let mut hooks = serde_json::Map::new();
+    for rule in rules.iter().skip(1) {
+        hooks.insert(
+            rule["event"].as_str().unwrap().into(),
+            serde_json::json!([rule]),
+        );
+    }
+    // The driver consumes parsed installed declarations, never another generated command.
+    let witness = fixture.0.join("installed-kimi-hooks.json");
+    fs::write(
+        &witness,
+        serde_json::to_vec(&serde_json::json!({"hooks":hooks})).unwrap(),
+    )
+    .unwrap();
+    for shell in ["powershell.exe", "pwsh.exe", "cmd.exe"] {
+        let output = Command::new("node.exe")
+            .arg(
+                Path::new(env!("CARGO_MANIFEST_DIR"))
+                    .join("tests/fixtures/windows-integration-exec-hook.mjs"),
+            )
+            .arg("kimi")
+            .arg(&fixture.0)
+            .arg(shell)
+            .arg(witness.file_name().unwrap())
+            .env("USERPROFILE", fixture.home())
+            .stdin(Stdio::null())
+            .creation_flags(0x0800_0000)
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "{shell}: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let delivery: Value = serde_json::from_slice(&output.stdout).unwrap();
+        assert_eq!(delivery["events"], 2);
+    }
+    let doctor = || {
+        let output = Command::new(env!("CARGO_BIN_EXE_orchbee"))
+            .args(["agent", "doctor", "--provider", "kimi", "--format", "json"])
+            .env("USERPROFILE", fixture.home())
+            .env_remove("KIMI_CODE_HOME")
+            .creation_flags(0x0800_0000)
+            .output()
+            .unwrap();
+        serde_json::from_slice::<Value>(&output.stdout).unwrap()
+    };
+    assert_eq!(
+        doctor()["result"]["providers"][0]["hook"]["state"],
+        "present"
+    );
+    let mut partial = installed.parse::<toml_edit::DocumentMut>().unwrap();
+    partial["hooks"].as_array_mut().unwrap().remove(2);
+    fs::write(&target, partial.to_string()).unwrap();
+    assert_eq!(
+        doctor()["result"]["providers"][0]["hook"]["state"],
+        "update-required"
+    );
+    fixture.provider_document("enable", "kimi", 0);
+    assert_eq!(fs::read_to_string(&target).unwrap(), installed);
+    for changed in [
+        installed.replace("timeout = 10", "timeout = 11"),
+        "hooks = 1".into(),
+    ] {
+        fs::write(&target, &changed).unwrap();
+        let code = if changed == "hooks = 1" { 9 } else { 3 };
+        fixture.provider_document("enable", "kimi", code);
+        fixture.provider_document("disable", "kimi", code);
+        assert_eq!(fs::read_to_string(&target).unwrap(), changed);
+    }
+    fs::write(&target, &installed).unwrap();
+    fixture.provider_document("disable", "kimi", 0);
+    let disabled = fs::read_to_string(&target).unwrap();
+    assert!(disabled.contains("'echo user'") && disabled.contains("# preserve"));
+    assert_eq!(
+        disabled.parse::<toml::Table>().unwrap()["hooks"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(fs::read_to_string(&legacy).unwrap(), "# legacy user data\n");
+    let override_root = fixture.0.join("Kimi override 用户");
+    let invoke = |verb: &str, root: &Path| {
+        let output = fixture
+            .command(verb, "kimi", &fixture.config_home(), &[])
+            .env("KIMI_CODE_HOME", root)
+            .output()
+            .unwrap();
+        (
+            output.status.code(),
+            serde_json::from_slice::<Value>(&output.stdout).unwrap(),
+        )
+    };
+    assert_eq!(invoke("enable", &override_root).0, Some(0));
+    assert!(override_root.join("config.toml").exists());
+    assert_eq!(fs::read_to_string(&target).unwrap(), disabled);
+    assert_eq!(invoke("enable", Path::new("relative-kimi-home")).0, Some(9));
+    assert_eq!(invoke("disable", &override_root).0, Some(0));
+}
+
+#[test]
 fn cursor_json_hooks_preserve_user_config_and_execute_on_windows() {
     check_json_hooks("cursor");
 }
@@ -327,7 +448,7 @@ fn opencode_migrates_only_owned_undiscovered_entries_and_resolves_xdg() {
         (
             String::from_utf8(bytes.clone())
                 .unwrap()
-                .replace("/0.4.12/", "/9.0.0/"),
+                .replace("/0.4.13/", "/9.0.0/"),
             "stale-side",
         ),
     ] {
@@ -342,7 +463,7 @@ fn opencode_migrates_only_owned_undiscovered_entries_and_resolves_xdg() {
         &obsolete,
         String::from_utf8(bytes.clone())
             .unwrap()
-            .replace("/0.4.12/", "/0.4.2/"),
+            .replace("/0.4.13/", "/0.4.2/"),
     )
     .unwrap();
     assert_eq!(inspect("explain")["result"]["state"], "update-required");
@@ -613,6 +734,7 @@ fn kilo_uses_explicit_config_before_xdg_without_invalid_fallback() {
             .env_remove("QWEN_HOME")
             .env_remove("QODER_CONFIG_DIR")
             .env_remove("CURSOR_CONFIG_DIR")
+            .env_remove("KIMI_CODE_HOME")
             .env_remove("ORCHBEE_AGENT_OBSERVATION_SOCKET_V3")
             .stdin(Stdio::null());
         configure(&mut doctor);
@@ -690,7 +812,7 @@ fn grok_inventory_joins_local_configuration_and_runs_shipped_powershell_hooks() 
         (fixture.capsule().join("bundle"), Value::Null, "unknown", 9),
         (
             fixture.0.join("foreign/bundle"),
-            Value::from("0.4.12"),
+            Value::from("0.4.13"),
             "conflict",
             3,
         ),
@@ -830,7 +952,7 @@ impl Fixture {
     }
     fn capsule(&self) -> PathBuf {
         self.home()
-            .join(".orchbee/agent-observation-adapters/0.4.12")
+            .join(".orchbee/agent-observation-adapters/0.4.13")
     }
     fn run(&self, verb: &str, provider: &str, config_home: &Path) -> Output {
         self.run_options(verb, provider, config_home, &[])
@@ -867,6 +989,7 @@ impl Fixture {
             .env_remove("QWEN_HOME")
             .env_remove("QODER_CONFIG_DIR")
             .env_remove("CURSOR_CONFIG_DIR")
+            .env_remove("KIMI_CODE_HOME")
             .env("USERPROFILE", self.home())
             .env("HOME", self.0.join("wrong-posix-home"))
             .env("CODEX_HOME", config_home)
@@ -1081,7 +1204,7 @@ fn claude_repairs_owned_old_installations_and_preserves_foreign_or_newer_sources
         "enabled"
     );
     for (source, version, expected) in [
-        (fixture.0.join("foreign"), "0.4.12", "conflict"),
+        (fixture.0.join("foreign"), "0.4.13", "conflict"),
         (
             fixture.capsule().parent().unwrap().join("9.0.0"),
             "9.0.0",
@@ -1181,6 +1304,7 @@ fn javascript_modules_load_and_deliver_ordered_windows_observations() {
             .env_remove("QWEN_HOME")
             .env_remove("QODER_CONFIG_DIR")
             .env_remove("CURSOR_CONFIG_DIR")
+            .env_remove("KIMI_CODE_HOME")
             .env(
                 "PATH",
                 std::env::join_paths([fixture.0.join("bin"), node.parent().unwrap().to_path_buf()])
@@ -1198,7 +1322,7 @@ fn javascript_modules_load_and_deliver_ordered_windows_observations() {
 
         let old = String::from_utf8(original.clone())
             .unwrap()
-            .replace("/0.4.12/", "/0.4.2/");
+            .replace("/0.4.13/", "/0.4.2/");
         fs::write(&target, old).unwrap();
         assert_eq!(
             fixture.provider_document("explain", provider, 0)["result"]["state"],

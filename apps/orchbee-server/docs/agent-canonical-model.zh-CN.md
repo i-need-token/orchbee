@@ -481,3 +481,5 @@ Antigravity CLI 复用仅识别身份的边界证据，将适配器 antigravity-
 Mastracode 通过封闭观察注册表授予会话／回合生命周期、活动、批准及子 Agent 能力。直接关联入口证据覆盖身份、一个带标识的运行、提示请求／解除及完成；历史语料指纹不变。
 
 Droid 加入仅识别身份的注册表和原生入口见证，在 SessionStart 时保留未知或已有回合状态。
+
+Kimi 仅准入 session-identified 与 session-ended。重复身份保留规范轮次状态；Stop 及其他不支持的生命周期事件仍被拒绝。

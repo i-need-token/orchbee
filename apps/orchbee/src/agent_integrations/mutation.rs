@@ -45,7 +45,7 @@ pub(crate) enum Direction {
 }
 
 #[cfg(windows)]
-mod json_hooks_windows;
+mod hook_configuration_windows;
 
 impl Direction {
     pub(crate) const fn as_str(self) -> &'static str {
@@ -545,6 +545,7 @@ pub(crate) fn mutate(
                     | IntegrationId::AntigravityCli
                     | IntegrationId::Mastracode
                     | IntegrationId::Droid
+                    | IntegrationId::Kimi
             )
         {
             // A filesystem vector's post-effect observation is a fresh
@@ -1001,10 +1002,11 @@ fn enable_vector(
         | IntegrationId::QoderCli
         | IntegrationId::AntigravityCli
         | IntegrationId::Mastracode
-        | IntegrationId::Droid => {
+        | IntegrationId::Droid
+        | IntegrationId::Kimi => {
             #[cfg(windows)]
             {
-                json_hooks_windows::update(
+                hook_configuration_windows::update(
                     id.as_str(),
                     context,
                     &options,
@@ -1310,10 +1312,11 @@ fn disable_vector(
         | IntegrationId::QoderCli
         | IntegrationId::AntigravityCli
         | IntegrationId::Mastracode
-        | IntegrationId::Droid => {
+        | IntegrationId::Droid
+        | IntegrationId::Kimi => {
             #[cfg(windows)]
             {
-                json_hooks_windows::update(
+                hook_configuration_windows::update(
                     id.as_str(),
                     context,
                     &options,
@@ -2035,9 +2038,12 @@ pub(crate) fn plan_enable(
         | IntegrationId::QoderCli
         | IntegrationId::AntigravityCli
         | IntegrationId::Mastracode
-        | IntegrationId::Droid => {
+        | IntegrationId::Droid
+        | IntegrationId::Kimi => {
             #[cfg(windows)]
-            if let Ok((target, _)) = super::json_hooks_windows::load(id.as_str(), context.home) {
+            if let Ok((target, _)) =
+                super::hook_configuration_windows::load(id.as_str(), context.home)
+            {
                 steps.push(PlannedStep::GuardedWrite {
                     target: target.path,
                 });
