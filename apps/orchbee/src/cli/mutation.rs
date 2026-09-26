@@ -55,6 +55,16 @@ pub(super) struct Receipt {
 
 impl Receipt {
     #[cfg(windows)]
+    pub(super) fn launch_failure(&self) -> Option<super::FailureKind> {
+        match self.terminal.as_ref().map(|terminal| terminal.outcome) {
+            Some("pending" | "started") => None,
+            Some("outcome-unknown") => Some(super::FailureKind::OutcomeUnknown),
+            Some("failed") => Some(super::FailureKind::Rejected),
+            _ => Some(super::FailureKind::ServiceUnavailable),
+        }
+    }
+
+    #[cfg(windows)]
     pub(super) fn committed_revision(&self) -> Option<WorkbenchRevision> {
         self.revision
     }
@@ -1051,7 +1061,7 @@ mod linux {
             | WorkbenchAction::WorkspaceRename { .. }
             | WorkbenchAction::WorkspacePrimaryDirectoryAccept { .. } => {
                 let request = WorkbenchSetupRequest::try_from(command).map_err(|_| internal())?;
-                match client.submit_workbench_setup(request, deadline) {
+                match client.submit_workbench_setup_with_wake(request, deadline, wake) {
                     WorkbenchSetupSubmission::Committed(WorkbenchSetupCommit::ProjectCreated {
                         revision,
                         project_id,
@@ -1148,7 +1158,12 @@ mod linux {
                     WorkspaceLaunchRequest, WorkspaceLaunchSubmission,
                 };
                 let request = WorkspaceLaunchRequest::try_from(command).map_err(|_| internal())?;
-                match client.submit_workspace_launch(request, deadline) {
+                let submission = if wake.is_some() {
+                    client.submit_workspace_launch_with_wake(request, deadline, wake)
+                } else {
+                    client.submit_workspace_launch(request, deadline)
+                };
+                match submission {
                     WorkspaceLaunchSubmission::Committed(commit) => {
                         let terminal = commit.terminal_outcome.as_ref().map_or(
                             TerminalFact {

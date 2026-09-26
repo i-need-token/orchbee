@@ -1,5 +1,9 @@
 mod client_control;
 mod creation;
+#[cfg(windows)]
+mod workspace_creation;
+#[cfg(windows)]
+pub(crate) use workspace_creation::WorkspaceCreationCommand;
 mod panel_input;
 pub(crate) use creation::{CreationCommand, CreationDirectory, CreationKind};
 mod schema_export;
@@ -12,9 +16,9 @@ pub(crate) use client_control::{
 pub(crate) use terminal_output::{OutputSelection, OutputSource, OutputTarget};
 mod workspace_group_close;
 pub(crate) use workspace_group_close::WorkspaceGroupCloseCommand;
-mod worktree;
 #[cfg(windows)]
-mod worktree_path_windows;
+pub(crate) mod user_path_windows;
+mod worktree;
 use std::{ffi::OsString, path::PathBuf};
 pub(crate) use worktree::{
     WorktreeCommand, WorktreeQueryCommand, WorktreeStartCommand, WorktreeStartKind,
@@ -1065,6 +1069,11 @@ pub(crate) enum RuntimeStatusScope {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum Request {
+    #[cfg(windows)]
+    WorkspaceCreation {
+        command: WorkspaceCreationCommand,
+        format: OutputFormat,
+    },
     RuntimeStatus {
         scope: RuntimeStatusScope,
         format: OutputFormat,
@@ -2705,6 +2714,10 @@ fn resolve_words(
             ))
         }
         ["workspace", "create"] => {
+            #[cfg(windows)]
+            if workspace_creation::enhanced(options) {
+                return workspace_creation::parse(options, envelope);
+            }
             let context = UsageContext::Path("workspace create");
             if options.cwd.is_some() {
                 check_scope(options, WORKSPACE_LAUNCH_SCOPE, context, envelope)?;

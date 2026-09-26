@@ -10,7 +10,7 @@
 			"const": "orchbee.api.schema"
 		},
 		"version": {
-			"const": 51
+			"const": 64
 		},
 		"source": {
 			"type": "object",
@@ -121,7 +121,8 @@
 						"orchbee.terminal.output",
 						"orchbee.status.client",
 						"orchbee.status.server",
-						"orchbee.agent.changes"
+						"orchbee.agent.changes",
+						"orchbee.workspace.creation"
 					],
 					"propertyNames": {
 						"$ref": "#/$defs/schemaId"
@@ -207,7 +208,8 @@
 				"orchbee.terminal.output",
 				"orchbee.status.client",
 				"orchbee.status.server",
-				"orchbee.agent.changes"
+				"orchbee.agent.changes",
+				"orchbee.workspace.creation"
 			]
 		}
 	}

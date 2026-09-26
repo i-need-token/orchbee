@@ -1,0 +1,317 @@
+//! Workspace creation resolves source identity independently from its destination Project.
+use crate::{
+    cli::{
+        Failure, FailureKind,
+        caller_context::PanelTarget,
+        client_control::{selection, windows as control},
+        default_project, query, results,
+        source::{ArmedSignals, SignalWatch},
+        source_context,
+    },
+    invocation::{CreationDirectory, Resource, WorkspaceCreationCommand, user_path_windows},
+    local_client::LocalClient,
+    localization::Locale,
+};
+use orchbee_workbench_protocol::{
+    ClientViewAction, ClientViewOutcome, ClientViewPhase, ClientViewRecord, Snapshot,
+    WorkbenchDirectoryPath, WorkbenchLabel,
+};
+use serde_json::{Value, json};
+use std::time::Instant;
+
+pub(super) struct Prepared {
+    pub(super) project: default_project::Selection,
+    pub(super) directory: Directory,
+    pub(super) label: WorkbenchLabel,
+    pub(super) selected: Option<ClientViewRecord>,
+}
+pub(super) struct Directory {
+    pub(super) path: WorkbenchDirectoryPath,
+    policy: &'static str,
+    source: &'static str,
+    panel: Option<String>,
+}
+impl Directory {
+    pub(super) fn document(&self) -> Value {
+        json!({"policy":self.policy,"source":self.source,"path":self.path,"sourcePanelId":self.panel})
+    }
+}
+
+pub(super) fn prepare(
+    command: &WorkspaceCreationCommand,
+    client: &mut LocalClient,
+    snapshot: &Snapshot,
+    deadline: Instant,
+    signals: &mut ArmedSignals,
+    locale: Locale,
+) -> Result<Prepared, Failure> {
+    signals.check_before(deadline)?;
+    let follows = matches!(
+        command.directory,
+        CreationDirectory::Default | CreationDirectory::Follow | CreationDirectory::Workspace
+    );
+    let implicit = follows && command.source.is_none();
+    let caller = if command.client.is_none() && implicit {
+        PanelTarget::prepare_optional(|name| std::env::var_os(name))?
+            .map(|caller| caller.resolve(snapshot))
+            .transpose()?
+    } else {
+        None
+    };
+    let selected = if command.client.is_some() || command.focus || (implicit && caller.is_none()) {
+        let reply = control::exchange(
+            client,
+            &snapshot.site_id,
+            ClientViewAction::List {},
+            deadline,
+            signals,
+        )?;
+        signals.check_before(deadline)?;
+        let clients = match reply.outcome {
+            ClientViewOutcome::Listed { clients } => clients,
+            ClientViewOutcome::Denied {} => return Err(Failure::new(FailureKind::Denied)),
+            ClientViewOutcome::Unavailable { .. } => return Err(unavailable()),
+            _ => return Err(Failure::new(FailureKind::ProtocolInvalid)),
+        };
+        if clients.is_empty() && command.client.is_none() && !command.focus && caller.is_none() {
+            None
+        } else {
+            let selected =
+                selection::select(&clients, command.client.as_ref(), caller.as_ref())?.clone();
+            if selected.view.phase != ClientViewPhase::Ready {
+                return Err(unavailable());
+            }
+            Some(selected)
+        }
+    } else {
+        None
+    };
+    let mut origin = if follows {
+        source_context::resolve(snapshot, caller.as_ref(), selected.as_ref())?
+    } else {
+        None
+    };
+    let source_target = if follows {
+        command
+            .source
+            .as_ref()
+            .or_else(|| origin.as_ref().and_then(|origin| origin.workspace.as_ref()))
+    } else {
+        None
+    };
+    let workspace = source_target
+        .map(|target| {
+            results::resolve_or_fail(
+                snapshot.navigation.projects.iter().flat_map(|project| {
+                    project.workspaces.iter().map(move |workspace| {
+                        (
+                            workspace.workspace_id.as_str(),
+                            workspace.label.as_str(),
+                            (project, workspace),
+                        )
+                    })
+                }),
+                target,
+                Resource::Workspace,
+            )
+        })
+        .transpose()?;
+    // Explicit source can use ambient cwd only after proving its exact membership.
+    if follows && command.source.is_some() && origin.is_none() && command.client.is_none() {
+        origin = PanelTarget::prepare_optional(|name| std::env::var_os(name))
+            .ok()
+            .flatten()
+            .and_then(|caller| caller.resolve(snapshot).ok())
+            .and_then(|caller| {
+                source_context::resolve(snapshot, Some(&caller), None)
+                    .ok()
+                    .flatten()
+            });
+    }
+    let panel = origin
+        .as_ref()
+        .filter(|origin| {
+            workspace.is_none_or(|(_, workspace)| {
+                origin
+                    .workspace
+                    .as_ref()
+                    .is_some_and(|target| target.text() == workspace.workspace_id.as_str())
+            })
+        })
+        .and_then(|origin| origin.panel.as_ref());
+    let primary = workspace
+        .and_then(|(project, workspace)| {
+            workspace.primary_directory_id.as_ref().and_then(|id| {
+                project
+                    .directories
+                    .iter()
+                    .find(|directory| &directory.directory_id == id)
+            })
+        })
+        .map(|directory| directory.path.clone());
+    let policy = match command.directory {
+        CreationDirectory::Default | CreationDirectory::Follow => "follow",
+        CreationDirectory::Explicit => "explicit",
+        CreationDirectory::Home => "home",
+        CreationDirectory::Current => "current",
+        CreationDirectory::Workspace => "workspace",
+    };
+    let mut resolved_source = policy;
+    let mut source_panel = None;
+    let path = match command.directory {
+        CreationDirectory::Explicit => {
+            resolved_source = "argument";
+            command.options.cwd.clone().ok_or_else(internal)?
+        }
+        CreationDirectory::Home => local_directory("~")?,
+        CreationDirectory::Current => local_directory(".")?,
+        CreationDirectory::Workspace => {
+            primary.ok_or_else(|| Failure::new(FailureKind::NotFound))?
+        }
+        CreationDirectory::Default | CreationDirectory::Follow => {
+            let live = if let Some(panel) = panel {
+                source_panel = Some(panel.text().to_owned());
+                let terminal = query::primary_terminal(snapshot, panel)?;
+                let sample = query::read_terminal_processes_cancellable(
+                    client,
+                    deadline,
+                    snapshot,
+                    &terminal,
+                    signals.poll_fd(),
+                );
+                signals.check_before(deadline)?;
+                root_directory(&sample?.1.info)?
+            } else {
+                None
+            };
+            if let Some(path) = live {
+                resolved_source = "terminal-process";
+                path
+            } else if let Some(path) = primary {
+                resolved_source = "workspace";
+                path
+            } else {
+                resolved_source = "home";
+                local_directory("~")?
+            }
+        }
+    };
+    let directory = Directory {
+        policy,
+        source: resolved_source,
+        path,
+        panel: source_panel,
+    };
+    let project = default_project::select(
+        snapshot,
+        command.project.as_ref(),
+        workspace.map(|(project, _)| &project.project_id),
+    )?;
+    let label = command
+        .label
+        .clone()
+        .unwrap_or_else(|| automatic_label(&directory.path, locale));
+    Ok(Prepared {
+        project,
+        directory,
+        label,
+        selected,
+    })
+}
+
+fn internal() -> Failure {
+    Failure::new(FailureKind::InternalFailure)
+}
+fn unavailable() -> Failure {
+    Failure::new(FailureKind::ServiceUnavailable)
+}
+fn local_directory(value: &str) -> Result<WorkbenchDirectoryPath, Failure> {
+    user_path_windows::normalize(value, |name| std::env::var_os(name), std::env::current_dir)
+        .map_err(|_| unavailable())
+}
+fn root_directory(
+    info: &orchbee_terminal_protocol::TerminalProcessInfo,
+) -> Result<Option<WorkbenchDirectoryPath>, Failure> {
+    let row = info
+        .processes
+        .iter()
+        .find(|row| row.pid == info.root_pid)
+        .ok_or_else(unavailable)?;
+    row.current_directory
+        .as_deref()
+        .map(|path| {
+            if !std::path::Path::new(path).is_absolute() {
+                return Err(Failure::new(FailureKind::ProtocolInvalid));
+            }
+            WorkbenchDirectoryPath::parse(path)
+                .map_err(|_| Failure::new(FailureKind::ProtocolInvalid))
+        })
+        .transpose()
+}
+fn automatic_label(path: &WorkbenchDirectoryPath, locale: Locale) -> WorkbenchLabel {
+    let name = std::path::Path::new(path.as_str())
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or(locale.cli_default_workspace_label());
+    WorkbenchLabel::parse(&name.chars().take(512).collect::<String>())
+        .expect("nonempty bounded directory label")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn an_absent_root_cwd_can_fall_back_but_a_missing_root_or_bad_path_cannot() {
+        use orchbee_terminal_protocol::{
+            AttachmentId, TerminalId, TerminalProcess, TerminalProcessInfo,
+        };
+        let mut sample = TerminalProcessInfo {
+            attachment_id: AttachmentId::parse("00000000000000000000000000000001").unwrap(),
+            terminal_id: TerminalId::parse("00000000000000000000000000000002").unwrap(),
+            root_pid: 10,
+            processes: vec![],
+        };
+        assert_eq!(
+            root_directory(&sample).unwrap_err().kind,
+            FailureKind::ServiceUnavailable
+        );
+        sample.processes.push(TerminalProcess {
+            pid: 10,
+            parent_pid: None,
+            creation_time: 1,
+            image: None,
+            command_line: None,
+            current_directory: None,
+        });
+        assert!(root_directory(&sample).unwrap().is_none());
+        sample.processes[0].current_directory = Some("relative".to_owned());
+        assert_eq!(
+            root_directory(&sample).unwrap_err().kind,
+            FailureKind::ProtocolInvalid
+        );
+        sample.processes[0].current_directory = Some("C:/live".to_owned());
+        assert_eq!(
+            root_directory(&sample).unwrap().unwrap().as_str(),
+            "C:/live"
+        );
+    }
+    #[test]
+    fn automatic_label_is_unicode_bounded_and_roots_are_localized() {
+        let path = WorkbenchDirectoryPath::parse(&format!("C:/{}", "猫".repeat(600))).unwrap();
+        assert_eq!(
+            automatic_label(&path, Locale::EnUs)
+                .as_str()
+                .chars()
+                .count(),
+            512
+        );
+        assert_eq!(
+            automatic_label(&WorkbenchDirectoryPath::parse("C:/").unwrap(), Locale::EnUs).as_str(),
+            "Workspace"
+        );
+        assert_eq!(
+            automatic_label(&WorkbenchDirectoryPath::parse("C:/").unwrap(), Locale::ZhCn).as_str(),
+            "工作区"
+        );
+    }
+}

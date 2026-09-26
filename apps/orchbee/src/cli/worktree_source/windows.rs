@@ -1,5 +1,5 @@
 //! Windows preparation owns Client discovery and the one proven root-process cwd read.
-use super::context;
+use crate::cli::source_context as context;
 use crate::{
     cli::{
         Failure, FailureKind,

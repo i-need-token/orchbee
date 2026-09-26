@@ -10,6 +10,14 @@ pub(crate) use agent_start::run as run_agent_start;
 mod caller_context;
 mod creation;
 mod current_panel;
+#[cfg(any(windows, test))]
+mod default_project;
+#[cfg(any(windows, test))]
+mod source_context;
+#[cfg(windows)]
+pub(crate) mod workspace_creation;
+#[cfg(windows)]
+mod workspace_focus;
 pub(crate) use creation::run as run_creation;
 mod completion;
 pub(crate) mod config;
@@ -243,6 +251,30 @@ pub(crate) struct IoDiagnostic {
 }
 
 impl Failure {
+    /// Composite operations preserve rich failures alongside earlier known commits.
+    pub(super) fn observation(&self) -> Value {
+        json!({"kind":self.kind.as_str(),"details":self.details,"source":self.source,"schema":self.failure_schema.unwrap_or(schema::FAILURE_ID),"version":self.version})
+    }
+
+    pub(super) fn document(&self) -> Value {
+        let mut document = Map::from_iter([
+            (
+                "schema".to_owned(),
+                json!(self.failure_schema.unwrap_or(schema::FAILURE_ID)),
+            ),
+            ("version".to_owned(), json!(self.version)),
+        ]);
+        let mut failure = Map::from_iter([("kind".to_owned(), json!(self.kind.as_str()))]);
+        if let Some(details) = &self.details {
+            failure.insert("details".to_owned(), json!(details));
+        }
+        document.insert("failure".to_owned(), Value::Object(failure));
+        if let Some(source) = &self.source {
+            document.insert("source".to_owned(), source.clone());
+        }
+        Value::Object(document)
+    }
+
     pub(crate) const fn new(kind: FailureKind) -> Self {
         Self {
             kind,
@@ -330,25 +362,9 @@ pub(crate) fn failure_output(
     }
     match format {
         Some(OutputFormat::Json) => {
-            let mut document = Map::from_iter([
-                (
-                    "schema".to_owned(),
-                    json!(failure.failure_schema.unwrap_or(schema::FAILURE_ID)),
-                ),
-                ("version".to_owned(), json!(failure.version)),
-            ]);
-            let mut failure_object =
-                Map::from_iter([("kind".to_owned(), json!(failure.kind.as_str()))]);
-            if let Some(details) = failure.details {
-                failure_object.insert("details".to_owned(), Value::Object(details));
-            }
-            document.insert("failure".to_owned(), Value::Object(failure_object));
-            if let Some(source) = failure.source {
-                document.insert("source".to_owned(), source);
-            }
+            let document = failure.document();
             // Failure documents are small and bounded well below the output cap.
-            let stdout =
-                output::encode_document(&Value::Object(document)).unwrap_or_else(|_| Vec::new());
+            let stdout = output::encode_document(&document).unwrap_or_else(|_| Vec::new());
             Output {
                 status,
                 stdout,

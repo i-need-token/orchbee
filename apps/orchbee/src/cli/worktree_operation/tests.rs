@@ -154,6 +154,7 @@ fn canonical_source_preserves_project_and_explicit_operands_do_not_read_cwd() {
 
 fn answer(status: WorktreeOperationStatus) -> Answer {
     Answer {
+        setup: None,
         operation_id: WorkbenchRequestId::parse(&id(12)).unwrap(),
         wait: None,
         post_open: None,

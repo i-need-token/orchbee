@@ -33,7 +33,24 @@ impl Locale {
             (Self::ZhCn, _) => "不可用",
         };
         let mut text = format!("{label}\n");
+        let setup = &result["setup"];
         let fields = [
+            (
+                "Created Project",
+                "已创建项目",
+                setup["project"]["result"]["projectId"].as_str(),
+            ),
+            ("Setup stage", "准备阶段", setup["stage"].as_str()),
+            (
+                "Setup failure",
+                "准备失败",
+                setup["failure"]["kind"].as_str(),
+            ),
+            (
+                "Setup request",
+                "准备请求",
+                setup["failure"]["details"]["requestId"].as_str(),
+            ),
             ("Operation", "操作", Some(id)),
             ("Phase", "阶段", status["phase"].as_str()),
             (
@@ -162,10 +179,10 @@ impl Locale {
     pub(super) fn cli_worktree_help(self, path: CommandPath) -> &'static str {
         match (self, path) {
             (Self::EnUs, CommandPath::WorktreeCreate) => {
-                "orchbee worktree create [--project <target>] [--workspace <target>|--cwd <path>] [--branch <name>] [--base <ref>] [--path <path>] [--label <label>] [--trust-repository] [--request-id <id>] [--detach] [--timeout <ms>] [--format text|json] [--client <id>] [--focus|--no-focus]\n\nWindows: create a Git worktree, associate a Workspace, and launch its terminal.\nSource: explicit --client overrides caller; otherwise caller, unique current ready TUI, then CLI cwd only with no caller/Clients. Missing Workspace directory uses only the proven terminal root cwd.\nProject may be omitted when inferred from the Workspace or when exactly one exists.\nWindows paths: absolute, caller-relative or ~ (USERPROFILE, HOMEDRIVE+HOMEPATH, HOME). No shell expansion.\nDefault branch: worktree/<operation-id>; default base: HEAD.\nDefault path: sibling <repository>-worktrees/<branch-slug>. Existing branches ignore --base.\n--trust-repository grants Git trust only to this operation. It does not change Git configuration.\n--focus switches an existing TUI after opening; default --no-focus. Focus rejects --detach; a focus failure retains the Worktree result (JSON v2).\nTimeout: 1–3600000 ms, default 120000. --detach returns the retained operation immediately.\nCtrl+C stops waiting; status reads the continuing operation. Do not replay an uncertain mutation.\nOptional terminal geometry: --cols <n> --rows <n> --cell-width <n> --cell-height <n> (all four).\n"
+                "orchbee worktree create [--project <target>] [--workspace <target>|--cwd <path>] [--branch <name>] [--base <ref>] [--path <path>] [--label <label>] [--trust-repository] [--request-id <id>] [--detach] [--timeout <ms>] [--format text|json] [--client <id>] [--focus|--no-focus]\n\nWindows: create a Git worktree, associate a Workspace, and launch its terminal.\nSource: explicit --client overrides caller; otherwise caller, unique current ready TUI, then CLI cwd only with no caller/Clients. Missing Workspace directory uses only the proven terminal root cwd.\nProject may be omitted when inferred from the Workspace or when exactly one exists. With zero Projects, create one Default first; multiple Projects without a source are ambiguous. A first-Project attempt uses JSON v3 with a separate setup receipt.\nWindows paths: absolute, caller-relative or ~ (USERPROFILE, HOMEDRIVE+HOMEPATH, HOME). No shell expansion.\nDefault branch: worktree/<operation-id>; default base: HEAD.\nDefault path: sibling <repository>-worktrees/<branch-slug>. Existing branches ignore --base.\n--trust-repository grants Git trust only to this operation. It does not change Git configuration.\n--focus switches an existing TUI after opening; default --no-focus. Focus rejects --detach; a focus failure retains the Worktree result (JSON v2).\nTimeout: 1–3600000 ms, default 120000. --detach returns the retained operation immediately.\nCtrl+C stops waiting; status reads the continuing operation. Do not replay an uncertain mutation.\nOptional terminal geometry: --cols <n> --rows <n> --cell-width <n> --cell-height <n> (all four).\n"
             }
             (Self::ZhCn, CommandPath::WorktreeCreate) => {
-                "orchbee worktree create [--project <target>] [--workspace <target>|--cwd <路径>] [--branch <名称>] [--base <引用>] [--path <路径>] [--label <标签>] [--trust-repository] [--request-id <id>] [--detach] [--timeout <毫秒>] [--format text|json] [--client <id>] [--focus|--no-focus]\n\nWindows：创建 Git worktree，关联 Workspace 并启动其终端。\n来源：显式 --client 优先于调用者；否则依次为调用者、唯一当前就绪 TUI、无调用者和 Client 时的 CLI cwd。Workspace 无主目录时只用已证明终端的根进程 cwd。\n可从 Workspace 推导项目，或只有一个项目时，可省略 --project。\nWindows 路径支持绝对路径、相对调用者目录或 ~（USERPROFILE、HOMEDRIVE+HOMEPATH、HOME）。不做 shell 展开。\n默认分支：worktree/<操作标识>；默认基准：HEAD。\n默认路径：同级 <仓库名>-worktrees/<分支路径名>。已有分支忽略 --base。\n--trust-repository 仅对此操作授予 Git 信任，不修改 Git 配置。\n--focus 在打开后切换已有 TUI，默认 --no-focus。聚焦不可与 --detach 混用；聚焦失败保留 Worktree 结果（JSON v2）。\n超时：1–3600000 毫秒，默认 120000。--detach 立即返回保留的操作。\nCtrl+C 停止等待；status 可查询继续执行的操作。不要重放结果不确定的变更。\n可选终端尺寸：--cols <n> --rows <n> --cell-width <n> --cell-height <n>（四项全填）。\n"
+                "orchbee worktree create [--project <target>] [--workspace <target>|--cwd <路径>] [--branch <名称>] [--base <引用>] [--path <路径>] [--label <标签>] [--trust-repository] [--request-id <id>] [--detach] [--timeout <毫秒>] [--format text|json] [--client <id>] [--focus|--no-focus]\n\nWindows：创建 Git worktree，关联 Workspace 并启动其终端。\n来源：显式 --client 优先于调用者；否则依次为调用者、唯一当前就绪 TUI、无调用者和 Client 时的 CLI cwd。Workspace 无主目录时只用已证明终端的根进程 cwd。\n可从 Workspace 推导项目，或只有一个项目时，可省略 --project。零项目时先创建默认项目；无来源且多项目时拒绝歧义。首次项目创建使用 JSON v3，独立保留 setup 回执。\nWindows 路径支持绝对路径、相对调用者目录或 ~（USERPROFILE、HOMEDRIVE+HOMEPATH、HOME）。不做 shell 展开。\n默认分支：worktree/<操作标识>；默认基准：HEAD。\n默认路径：同级 <仓库名>-worktrees/<分支路径名>。已有分支忽略 --base。\n--trust-repository 仅对此操作授予 Git 信任，不修改 Git 配置。\n--focus 在打开后切换已有 TUI，默认 --no-focus。聚焦不可与 --detach 混用；聚焦失败保留 Worktree 结果（JSON v2）。\n超时：1–3600000 毫秒，默认 120000。--detach 立即返回保留的操作。\nCtrl+C 停止等待；status 可查询继续执行的操作。不要重放结果不确定的变更。\n可选终端尺寸：--cols <n> --rows <n> --cell-width <n> --cell-height <n>（四项全填）。\n"
             }
             (Self::EnUs, CommandPath::WorktreeOpen) => {
                 "orchbee worktree open (--path <path>|--branch <name>) [--project <target>] [--workspace <target>|--cwd <path>] [--label <label>] [--trust-repository] [--request-id <id>] [--detach] [--timeout <ms>] [--format text|json] [--client <id>] [--focus|--no-focus]\n\nWindows: inspect an existing checkout and reuse or create its Workspace. No Git checkout is created.\nMain and linked checkouts are supported; ambiguous branch selection requires --path.\nSource/project defaults, absolute/relative/~ paths, terminal geometry and waiting follow worktree create.\n--focus switches an existing TUI after opening; default --no-focus. Focus cannot be detached.\n--label also renames a reused Workspace. Inspect partial launch outcomes in the result.\n"

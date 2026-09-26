@@ -931,6 +931,40 @@ fn admit_snapshot(
     }
 }
 
+/// Refresh an existing admitted session without rebinding its Site or replaying a read.
+#[cfg(windows)]
+pub(in crate::cli) fn refresh_snapshot(
+    client: &mut LocalClient,
+    site: &orchbee_workbench_protocol::SiteId,
+    minimum: orchbee_workbench_protocol::WorkbenchRevision,
+    deadline: Instant,
+    signals: &mut super::source::ArmedSignals,
+) -> Result<Snapshot, Failure> {
+    signals.check_before(deadline)?;
+    let result = client.submit_workbench_snapshot_read_before(
+        SnapshotReadIntent {
+            protocol_version: ProtocolVersion,
+            request_id: request_id()?,
+        },
+        deadline.min(Instant::now() + Duration::from_secs(2)),
+    );
+    signals.check_before(deadline)?;
+    match result.map_err(classify_read)?.outcome {
+        WorkbenchSnapshotOutcome::Available { snapshot }
+            if &snapshot.site_id == site && snapshot.revision >= minimum =>
+        {
+            Ok(snapshot)
+        }
+        WorkbenchSnapshotOutcome::Available { .. } => {
+            Err(Failure::new(FailureKind::ProtocolInvalid))
+        }
+        WorkbenchSnapshotOutcome::Denied {} => Err(Failure::new(FailureKind::Denied)),
+        WorkbenchSnapshotOutcome::Unavailable { .. } => {
+            Err(Failure::new(FailureKind::ServiceUnavailable))
+        }
+    }
+}
+
 /// One checked deadline `budget` out from now.
 #[cfg(any(target_os = "linux", windows))]
 fn deadline_after(budget: Duration) -> Result<Instant, Failure> {

@@ -33,6 +33,19 @@ pub(crate) enum Finish {
 }
 pub(crate) struct ArmedSignals(ControlInterrupt);
 impl ArmedSignals {
+    pub(in crate::cli) fn check_before(&mut self, deadline: Instant) -> Result<(), Failure> {
+        if self
+            .take()
+            .map_err(|_| Failure::new(FailureKind::InternalFailure))?
+            .is_some()
+        {
+            Err(Failure::new(FailureKind::Cancelled))
+        } else if Instant::now() >= deadline {
+            Err(Failure::new(FailureKind::Timeout))
+        } else {
+            Ok(())
+        }
+    }
     pub(crate) fn arm() -> io::Result<Self> {
         ControlInterrupt::arm().map(Self)
     }

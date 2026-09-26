@@ -5,8 +5,7 @@ use crate::cli::FailureKind;
 use orchbee_workbench_protocol::WorkbenchClientId;
 #[cfg(any(windows, test))]
 use orchbee_workbench_protocol::{
-    ClientViewAvailability, ClientViewPhase, ClientViewRecord, WorkbenchProjectId,
-    WorkbenchTerminalOutcome, WorkbenchWorkspaceId, WorkbenchWorktreeOutcome,
+    WorkbenchProjectId, WorkbenchTerminalOutcome, WorkbenchWorkspaceId, WorkbenchWorktreeOutcome,
     WorktreeOperationStatus,
 };
 use serde_json::{Value, json};
@@ -93,18 +92,11 @@ pub(super) fn opened(
     }
 }
 
-#[cfg(any(windows, test))]
-pub(super) fn unchanged(original: &ClientViewRecord, current: &ClientViewRecord) -> bool {
-    current.client_id == original.client_id
-        && current.availability == ClientViewAvailability::Current
-        && current.view.phase == ClientViewPhase::Ready
-        && current.view.workbench_revision >= original.view.workbench_revision
-        && matches!((&original.view.selection,&current.view.selection),(Some(before),Some(after)) if before.terminal_context_id == after.terminal_context_id && before.tab_id == after.tab_id && before.panel_id == after.panel_id && before.zoomed == after.zoomed)
-}
-
-#[cfg(test)]
+#[cfg(all(test, windows))]
 mod tests {
     use super::*;
+    use crate::cli::workspace_focus::unchanged;
+    use orchbee_workbench_protocol::ClientViewRecord;
     #[test]
     fn revision_and_derived_count_refresh_do_not_override_navigation_guard() {
         let mut original: ClientViewRecord = serde_json::from_value(json!({"clientId":"00000000000000000000000000000001","heartbeat":"1","viewRevision":"1","availability":"current","view":{"phase":"ready","workbenchRevision":"2","selection":{"terminalContextId":"00000000000000000000000000000002","tabId":"00000000000000000000000000000004","panelId":"00000000000000000000000000000005","zoomed":false,"panelCount":1}}})).unwrap();

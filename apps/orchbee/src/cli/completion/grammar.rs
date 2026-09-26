@@ -34,6 +34,7 @@ pub(super) fn build() -> serde_json::Value {
         let words = &command["words"];
         command["cwdValues"] = json!(if *words == json!(["tab", "create"])
             || *words == json!(["panel", "split"])
+            || *words == json!(["workspace", "create"])
         {
             super::CWD_VALUES
         } else {

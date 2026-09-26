@@ -57,6 +57,14 @@ impl LocalClient {
         request: WorkspaceLaunchRequest,
         deadline: Instant,
     ) -> WorkspaceLaunchSubmission {
+        self.submit_workspace_launch_with_wake(request, deadline, None)
+    }
+    pub(crate) fn submit_workspace_launch_with_wake(
+        &mut self,
+        request: WorkspaceLaunchRequest,
+        deadline: Instant,
+        wake: Option<orchbee_local_ipc::LocalIo<'_>>,
+    ) -> WorkspaceLaunchSubmission {
         if self.connection.is_none() {
             return WorkspaceLaunchSubmission::DefinitelyNotSubmitted(
                 NotSubmitted::SessionUnavailable,
@@ -91,7 +99,7 @@ impl LocalClient {
             &self.clock,
             deadline,
             self.io_chunk_limits,
-            None,
+            wake,
             &frame,
             |io| read_workbench_response(io),
         );

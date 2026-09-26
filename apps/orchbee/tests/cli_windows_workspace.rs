@@ -15,8 +15,7 @@ fn run(words: &[&str], locale: &str) -> Output {
 fn launch_usage_is_checked_before_runtime_without_environment_value_echo() {
     for locale in ["en_US.UTF-8", "zh_CN.UTF-8"] {
         for tail in [
-            vec!["--env", "TOKEN=private-value"],
-            vec!["--cwd", "relative"],
+            vec!["--cwd", "C:relative"],
             vec!["--cwd", r"C:\repo", "--env", "ORCHBEE_SECRET=private-value"],
             vec![
                 "--cwd",
@@ -75,6 +74,11 @@ fn help_discovers_directory_launch_and_its_recovery_contract() {
         assert!(output.stderr.is_empty());
         let text = String::from_utf8(output.stdout).unwrap();
         for flag in [
+            "--workspace",
+            "--client",
+            "--focus",
+            "--no-focus",
+            "--timeout",
             "--cwd",
             "--env",
             "--exec",

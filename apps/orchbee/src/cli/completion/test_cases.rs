@@ -251,7 +251,7 @@ pub(super) const CASES: &[(&str, &str, bool)] = &[
     ("orchbee tab create --cwd h", "home", true),
     ("orchbee panel split --cwd=current", "--cwd=current", true),
     ("orchbee panel split --cwd=w", "--cwd=workspace", true),
-    ("orchbee workspace create --cwd ", "follow", false),
+    ("orchbee workspace create --cwd ", "follow", true),
     ("orchbee worktree list --cwd ", "home", false),
     (
         "orchbee tab create --cwd follow --cwd=",

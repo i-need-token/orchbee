@@ -32,6 +32,7 @@ pub(super) fn run(
         }
     };
     let mut answer = Answer {
+        setup: None,
         operation_id,
         observation: Observation::Unavailable {
             reason: "not-submitted",
@@ -41,7 +42,8 @@ pub(super) fn run(
             .then(super::post_open::Receipt::new),
     };
     let mut site_id = None;
-    let result = observe(command, &mut answer, &mut site_id, &mut signals);
+    let result = observe(command, &mut answer, &mut site_id, &mut signals, locale);
+    let result = retain_setup_failure(&mut answer, result);
     let mut finalization = None;
     let result = match signals.finish() {
         Ok(Finish::Clear) => result,
@@ -76,6 +78,7 @@ pub(super) fn run(
     } else {
         result
     };
+    let result = retain_setup_failure(&mut answer, result);
     let mut output = match result {
         Ok(()) => emit(site_id.as_ref(), answer, format, locale),
         Err(error) => failure_output(error, Some(format), locale),
@@ -84,11 +87,25 @@ pub(super) fn run(
     output
 }
 
+// Settle submission truth before signal finalization can replace the invocation exit.
+fn retain_setup_failure(answer: &mut Answer, result: Result<(), Failure>) -> Result<(), Failure> {
+    match (answer.setup.as_mut(), result) {
+        (Some(setup), Err(error)) => {
+            if setup.failure.is_none() {
+                setup.failure = Some(error);
+            }
+            Ok(())
+        }
+        (_, result) => result,
+    }
+}
+
 fn observe(
     command: &WorktreeCommand,
     answer: &mut Answer,
     site_id: &mut Option<SiteId>,
     signals: &mut ArmedSignals,
+    locale: Locale,
 ) -> Result<(), Failure> {
     let (detached, timeout, read) = match command {
         WorktreeCommand::Start(start) => (start.detach, start.timeout_ms, false),
@@ -101,7 +118,7 @@ fn observe(
     if interrupted(answer, signals, deadline)? {
         return Ok(());
     }
-    let (mut client, _, snapshot) = query::snapshot_session_until(deadline)?;
+    let (mut client, _, mut snapshot) = query::snapshot_session_until(deadline)?;
     *site_id = Some(snapshot.site_id.clone());
     if interrupted(answer, signals, deadline)? {
         return Ok(());
@@ -119,7 +136,7 @@ fn observe(
                         cwd: &start.cwd,
                         client: start.client.as_ref(),
                         focus: start.focus,
-                        require_project: true,
+                        require_project: false,
                     },
                     &mut client,
                     &snapshot,
@@ -130,13 +147,36 @@ fn observe(
                 if let Some(receipt) = &mut answer.post_open {
                     receipt.client_id = selected.as_ref().map(|client| client.client_id.clone());
                 }
-                super::selection::intent_from_source(
-                    start,
-                    prepared
-                        .project
-                        .ok_or_else(|| Failure::new(FailureKind::ProtocolInvalid))?,
-                    prepared.source,
-                )?
+                let project = match crate::cli::default_project::select(
+                    &snapshot,
+                    start.project.as_ref(),
+                    prepared.project.as_ref(),
+                )? {
+                    crate::cli::default_project::Selection::Existing(project) => project,
+                    crate::cli::default_project::Selection::CreateDefault => {
+                        answer.setup = Some(super::Setup {
+                            project: None,
+                            stage: "project",
+                            failure: None,
+                        });
+                        let setup = answer.setup.as_mut().expect("allocated setup receipt");
+                        let (project, fresh) = crate::cli::default_project::create(
+                            &mut client,
+                            &snapshot,
+                            orchbee_workbench_protocol::WorkbenchLabel::parse(
+                                locale.cli_default_project_label(),
+                            )
+                            .map_err(|_| Failure::new(FailureKind::InternalFailure))?,
+                            deadline,
+                            signals,
+                            &mut setup.project,
+                        )?;
+                        snapshot = fresh;
+                        setup.stage = "worktree";
+                        project
+                    }
+                };
+                super::selection::intent_from_source(start, project, prepared.source)?
             };
             WorkbenchWorktreeAction::Start {
                 operation_id: answer.operation_id.clone(),
@@ -284,6 +324,38 @@ mod tests {
     use orchbee_workbench_protocol::{
         WorkbenchProjectId, WorkbenchWorktreeOutcome, WorkbenchWorktreeResult,
     };
+
+    #[test]
+    fn finalization_never_erases_unknown_setup_request_identity() {
+        let mut answer = Answer {
+            setup: Some(super::super::Setup {
+                project: None,
+                stage: "project",
+                failure: None,
+            }),
+            operation_id: WorkbenchRequestId::parse("00000000000000000000000000000001").unwrap(),
+            observation: Observation::Unavailable {
+                reason: "not-submitted",
+            },
+            wait: None,
+            post_open: None,
+        };
+        let failure =
+            Failure::new(FailureKind::OutcomeUnknown).details(serde_json::Map::from_iter([(
+                "requestId".to_owned(),
+                serde_json::json!("00000000000000000000000000000002"),
+            )]));
+        retain_setup_failure(&mut answer, Err(failure)).unwrap();
+        answer.wait = Some(Wait::Cancelled);
+        retain_setup_failure(&mut answer, Err(Failure::new(FailureKind::InternalFailure))).unwrap();
+        assert_eq!(answer.exit_code(), 130);
+        let document = answer.document();
+        assert_eq!(document["setup"]["failure"]["kind"], "outcome-unknown");
+        assert_eq!(
+            document["setup"]["failure"]["details"]["requestId"],
+            "00000000000000000000000000000002"
+        );
+    }
 
     #[test]
     fn later_observation_cannot_replace_known_project_or_attempt_with_unrelated_state() {

@@ -1,4 +1,4 @@
-//! Windows Worktree operands become absolute before runtime access, without probing filesystem paths.
+//! Windows user path operands become absolute before runtime access, without probing filesystem paths.
 use orchbee_workbench_protocol::{MAXIMUM_DIRECTORY_PATH_BYTES, WorkbenchDirectoryPath};
 use std::{
     ffi::OsString,
@@ -6,13 +6,13 @@ use std::{
 };
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(super) enum PathFailure {
+pub(crate) enum PathFailure {
     Input,
     Context(&'static str),
 }
 
 /// Preserves literal absolute operands and resolves only explicitly declared caller-relative inputs.
-pub(super) fn normalize(
+pub(crate) fn normalize(
     value: &str,
     mut environment: impl FnMut(&str) -> Option<OsString>,
     cwd: impl FnOnce() -> std::io::Result<PathBuf>,

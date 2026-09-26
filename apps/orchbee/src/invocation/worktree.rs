@@ -388,7 +388,7 @@ fn worktree_path(
 ) -> Result<WorkbenchDirectoryPath, ParseFailure> {
     #[cfg(windows)]
     {
-        use super::worktree_path_windows::{PathFailure, normalize};
+        use super::user_path_windows::{PathFailure, normalize};
         normalize(value, |name| std::env::var_os(name), std::env::current_dir).map_err(|failure| {
             match failure {
                 PathFailure::Input => invalid(

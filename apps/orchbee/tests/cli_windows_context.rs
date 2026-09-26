@@ -112,8 +112,8 @@ fn offline_catalog_is_closed_and_current_panel_schema_is_discoverable() {
     let schemas = document["result"]["schemas"]
         .as_object()
         .expect("dictionary");
-    assert_eq!(document["version"], 40);
-    assert_eq!(schemas.len(), 72);
+    assert_eq!(document["version"], 64);
+    assert_eq!(schemas.len(), 73);
     let validator =
         jsonschema::draft202012::new(&schemas["orchbee.api.schema"]).expect("catalog schema");
     validator.validate(&document).expect("valid catalog");
@@ -121,6 +121,7 @@ fn offline_catalog_is_closed_and_current_panel_schema_is_discoverable() {
         jsonschema::draft202012::new(schema).expect("schema compiles");
     }
     for id in [
+        "orchbee.workspace.creation",
         "orchbee.panel.rename",
         "orchbee.panel.layout",
         "orchbee.panel.input",

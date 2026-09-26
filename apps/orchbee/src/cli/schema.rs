@@ -65,6 +65,10 @@ const DOCUMENTS: &[(&str, &str)] = &[
         include_str!("schemas/orchbee.panel.input.json"),
     ),
     (
+        "orchbee.workspace.creation",
+        include_str!("schemas/orchbee.workspace.creation.json"),
+    ),
+    (
         "orchbee.creation.result",
         include_str!("schemas/orchbee.creation.result.json"),
     ),
@@ -388,8 +392,8 @@ pub(crate) fn answer(schema_id: Option<&str>, format: OutputFormat, locale: Loca
     };
     let document = json!({
         "schema": "orchbee.api.schema",
-        // Catalog v42 adds selected Client Agent attention observations.
-        "version": 62,
+        // Workspace creation and optional first-Project receipts share this closed catalog.
+        "version": 64,
         "source": embedded_source(),
         "result": result,
     });

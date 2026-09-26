@@ -6,8 +6,6 @@ use orchbee_workbench_protocol::{
 };
 use std::path::PathBuf;
 
-#[cfg(any(windows, test))]
-mod context;
 #[cfg(windows)]
 pub(super) mod windows;
 

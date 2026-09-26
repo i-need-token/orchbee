@@ -18,6 +18,14 @@ impl LocalClient {
         request: WorkbenchSetupRequest,
         deadline: Instant,
     ) -> WorkbenchSetupSubmission {
+        self.submit_workbench_setup_with_wake(request, deadline, None)
+    }
+    pub(crate) fn submit_workbench_setup_with_wake(
+        &mut self,
+        request: WorkbenchSetupRequest,
+        deadline: Instant,
+        wake: Option<orchbee_local_ipc::LocalIo<'_>>,
+    ) -> WorkbenchSetupSubmission {
         if self.connection.is_none() {
             return WorkbenchSetupSubmission::DefinitelyNotSubmitted(
                 WorkbenchSetupNotSubmitted::SessionUnavailable,
@@ -52,7 +60,7 @@ impl LocalClient {
             &self.clock,
             deadline,
             self.io_chunk_limits,
-            None,
+            wake,
             &frame,
             |io| read_workbench_response(io),
         );

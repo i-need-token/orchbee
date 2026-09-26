@@ -542,6 +542,11 @@ const COMMAND_FLAGS: &[(&str, &[&str])] = &[
     (
         "workspace:create",
         &[
+            "--workspace",
+            "--client",
+            "--focus",
+            "--no-focus",
+            "--timeout",
             "--project",
             "--label",
             "--cwd",
@@ -1686,7 +1691,7 @@ fn joined_offer_cases_bash() -> String {
     let provider = joined("--provider", PROVIDER_VALUES);
     format!(
         concat!(
-            "            --cwd) ((!seen_cwd)) && [[ $family:$sub == tab:create || $family:$sub == panel:split ]] && candidates=\"{cwd}\" ;;\n",
+            "            --cwd) ((!seen_cwd)) && [[ $family:$sub == tab:create || $family:$sub == panel:split || $family:$sub == workspace:create ]] && candidates=\"{cwd}\" ;;\n",
             "            --source)\n",
             "                if ((!seen_output_source)); then\n",
             "                    case \"$state\" in\n",
@@ -2013,7 +2018,7 @@ fn bash() -> String {
             "        case \"$family:$sub\" in\n",
             "{direction_cases}\n",
             "        esac\n",
-            "    elif [[ $value == cwd ]]; then [[ $family:$sub == tab:create || $family:$sub == panel:split ]] && candidates=\"{cwd_values}\"\n",
+            "    elif [[ $value == cwd ]]; then [[ $family:$sub == tab:create || $family:$sub == panel:split || $family:$sub == workspace:create ]] && candidates=\"{cwd_values}\"\n",
             "    elif [[ $value == output_source ]]; then candidates=\"{output_source_values}\"\n",
             "    elif [[ $value == right_click ]]; then candidates=\"{right_click_values}\"\n",
             "    elif [[ $value == key ]]; then candidates=\"{key_values}\"\n",
@@ -2371,7 +2376,7 @@ fn zsh() -> String {
             "        case \"$family:$sub\" in\n",
             "{direction_cases}\n",
             "        esac\n",
-            "    elif [[ $value == cwd ]]; then [[ $family:$sub == tab:create || $family:$sub == panel:split ]] && candidates=\"{cwd_values}\"\n",
+            "    elif [[ $value == cwd ]]; then [[ $family:$sub == tab:create || $family:$sub == panel:split || $family:$sub == workspace:create ]] && candidates=\"{cwd_values}\"\n",
             "    elif [[ $value == output_source ]]; then candidates=\"{output_source_values}\"\n",
             "    elif [[ $value == right_click ]]; then candidates=\"{right_click_values}\"\n",
             "    elif [[ $value == key ]]; then candidates=\"{key_values}\"\n",
@@ -2893,7 +2898,7 @@ fn joined_offer_cases_fish() -> String {
     let provider = joined("--provider", PROVIDER_VALUES);
     format!(
         concat!(
-            "            case '--cwd'; if test $seen_cwd -eq 0; and contains -- \"$family:$sub\" tab:create panel:split; set candidates {cwd}; end\n",
+            "            case '--cwd'; if test $seen_cwd -eq 0; and contains -- \"$family:$sub\" tab:create panel:split workspace:create; set candidates {cwd}; end\n",
             "            case '--source'\n",
             "                if test $seen_output_source -eq 0\n",
             "                    switch \"$state\"\n",
@@ -3194,7 +3199,7 @@ fn fish() -> String {
             "        switch \"$family:$sub\"\n",
             "{direction_cases}\n",
             "        end\n",
-            "    else if test \"$value\" = cwd; if contains -- \"$family:$sub\" tab:create panel:split; set candidates {cwd_values}; end\n",
+            "    else if test \"$value\" = cwd; if contains -- \"$family:$sub\" tab:create panel:split workspace:create; set candidates {cwd_values}; end\n",
             "    else if test \"$value\" = output_source; set candidates {output_source_values}\n",
             "    else if test \"$value\" = right_click; set candidates {right_click_values}\n",
             "    else if test \"$value\" = key; set candidates {key_values}\n",
@@ -3378,8 +3383,8 @@ fn command_flag_conflicts(command: &str, flag: &str) -> &'static [&'static str] 
         ("terminal:read" | "agent:read", "--ansi") => {
             &["--plain", "--history", "--rows", "--unwrap"]
         }
-        ("tab:create" | "panel:split", "--focus") => &["--no-focus"],
-        ("tab:create" | "panel:split", "--no-focus") => &["--focus"],
+        ("tab:create" | "panel:split" | "workspace:create", "--focus") => &["--no-focus"],
+        ("tab:create" | "panel:split" | "workspace:create", "--no-focus") => &["--focus"],
         ("tab:create" | "panel:split", "--profile") => &["--exec", "--arg"],
         ("tab:create" | "panel:split", "--exec" | "--arg") => &["--profile"],
         ("panel:input" | "panel:split", "--panel") => &["--current"],
