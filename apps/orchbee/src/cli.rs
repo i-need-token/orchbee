@@ -50,6 +50,30 @@ pub(crate) use worktree_operation::run as run_worktree;
 #[cfg_attr(windows, path = "cli/source_windows.rs")]
 pub(crate) mod source;
 mod terminal_output;
+#[cfg(windows)]
+pub(crate) mod terminal_stream;
+
+pub(crate) fn terminal_observe(
+    command: &crate::invocation::TerminalObserveCommand,
+    locale: Locale,
+) -> Output {
+    #[cfg(windows)]
+    {
+        terminal_stream::run(command, locale)
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = command;
+        let failure = Failure::new(FailureKind::ServiceUnavailable);
+        Output {
+            status: failure.kind.exit_code(),
+            stdout: Vec::new(),
+            stderr: locale.cli_failure(&failure),
+            finalization: None,
+        }
+    }
+}
+
 mod text;
 #[cfg(any(target_os = "linux", windows))]
 mod wait_deadline;

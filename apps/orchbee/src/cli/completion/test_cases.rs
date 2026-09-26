@@ -1,6 +1,30 @@
 //! Shared observable completion obligations, independent of shell syntax.
 
 pub(super) const CASES: &[(&str, &str, bool)] = &[
+    ("orchbee terminal se", "session", true),
+    ("orchbee terminal session ob", "observe", true),
+    (
+        "orchbee terminal --timeout 1000 session ob",
+        "observe",
+        true,
+    ),
+    ("orchbee terminal --history session ob", "observe", false),
+    (
+        "orchbee terminal session observe 11111111111111111111111111111111 --co",
+        "--cols",
+        true,
+    ),
+    (
+        "orchbee terminal session observe 11111111111111111111111111111111 --co",
+        "--confirm",
+        false,
+    ),
+    (
+        "orchbee terminal session observe 11111111111111111111111111111111 --cols 120 --co",
+        "--cols",
+        false,
+    ),
+    ("orchbee help terminal session ob", "observe", true),
     ("orchbee worktree create --f", "--focus", true),
     ("orchbee worktree create --detach --f", "--focus", false),
     ("orchbee worktree open --focus --d", "--detach", false),

@@ -3,8 +3,8 @@
 mod windows;
 #[cfg(windows)]
 pub use windows::{
-    ChildOutputReader, LocalListener, LocalStream, Readiness, current_user_sid, endpoint_exists,
-    endpoint_exists_before,
+    ChildInputWriter, ChildOutputReader, LocalListener, LocalStream, Readiness, current_user_sid,
+    endpoint_exists, endpoint_exists_before,
 };
 
 #[cfg(unix)]

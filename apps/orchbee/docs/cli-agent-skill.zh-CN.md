@@ -193,3 +193,7 @@ Windows provider 选择还支持 `cursor`、`qodercli` 和 `antigravity-cli`；�
 `devin` 提供方通过 APPDATA 配置支持 Windows 会话接入与诊断。
 
 `hermes` 提供方在选定的 Hermes 配置档中管理 Windows 会话插件。激活使用提供方 CLI；离线 doctor 不声称激活状态。
+
+## Windows 终端观察流
+
+`terminal session observe <terminal> [--cols <n>] [--rows <n>] [--timeout <ms>]` 从一个已有绑定输出 NDJSON，不获取控制权，也不改变 Host 尺寸。[流契约](windows-terminal-streams.zh-CN.md) 拥有完整安全 ANSI 帧、重置、先刷新后确认、期限和清理规则。默认视口为 120×40，默认不限时。两种输出格式均产生 `orchbee.terminal.stream` v1 记录。目录 v67 含 75 个 schema、87 条原生命令路径。机器控制和交互式 attach 仍是独立的后续工作。

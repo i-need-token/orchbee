@@ -37,6 +37,10 @@ pub(crate) const PROJECT_RENAME_RESULT_ID: &str = "orchbee.project.rename";
 /// `schema` id → embedded document, in dictionary order.
 const DOCUMENTS: &[(&str, &str)] = &[
     (
+        "orchbee.terminal.stream",
+        include_str!("schemas/orchbee.terminal.stream.json"),
+    ),
+    (
         "orchbee.agent.changes",
         include_str!("schemas/orchbee.agent.changes.json"),
     ),
@@ -397,7 +401,7 @@ pub(crate) fn answer(schema_id: Option<&str>, format: OutputFormat, locale: Loca
     let document = json!({
         "schema": "orchbee.api.schema",
         // Workspace creation and optional first-Project receipts share this closed catalog.
-        "version": 66,
+        "version": 67,
         "source": embedded_source(),
         "result": result,
     });

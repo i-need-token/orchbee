@@ -388,6 +388,38 @@ impl crate::AsLocalIo for ChildOutputReader {
     }
 }
 
+/// Nonblocking parent writer paired with a blocking child stdin. No flush thread is created.
+pub struct ChildInputWriter(LocalStream);
+
+impl ChildInputWriter {
+    pub fn pipe() -> io::Result<(Self, std::process::Stdio)> {
+        static SERIAL: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+        let path = format!(
+            r"\\.\pipe\orchbee-child-input-{}-{}",
+            std::process::id(),
+            SERIAL.fetch_add(1, Ordering::Relaxed)
+        );
+        let listener = LocalListener::bind(&path)?;
+        // Standard child readers use synchronous ReadFile. A LocalStream handle is
+        // overlapped even in PIPE_WAIT mode: inheriting it can strand the next read.
+        let reader = std::fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .open(&path)?;
+        let (writer, ()) = listener.accept()?;
+        writer.set_nonblocking(true)?;
+        Ok((Self(writer), std::process::Stdio::from(reader)))
+    }
+}
+impl Write for ChildInputWriter {
+    fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
+        self.0.write(bytes)
+    }
+    fn flush(&mut self) -> io::Result<()> {
+        self.0.flush()
+    }
+}
+
 fn reject_zero(timeout: Option<Duration>) -> io::Result<()> {
     if timeout.is_some_and(|value| value.is_zero()) {
         Err(io::ErrorKind::InvalidInput.into())

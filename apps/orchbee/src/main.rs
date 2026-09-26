@@ -103,6 +103,9 @@ fn main() -> ExitCode {
             Ok(invocation::Request::Help(topic)) => cli::help(topic, locale),
             Ok(invocation::Request::Skill) => cli::skill(locale),
             Ok(invocation::Request::Completion(shell)) => cli::completion(shell, locale),
+            Ok(invocation::Request::TerminalObserve { command }) => {
+                cli::terminal_observe(&command, locale)
+            }
             Ok(invocation::Request::Query { command, format }) => {
                 cli::query(command, format, locale)
             }

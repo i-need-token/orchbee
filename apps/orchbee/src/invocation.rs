@@ -9,11 +9,13 @@ pub(crate) use creation::{CreationCommand, CreationDirectory, CreationKind};
 mod schema_export;
 mod terminal_output;
 mod terminal_run;
+mod terminal_stream;
 pub(crate) use client_control::{
     ClientCommand, ClientLayoutTarget, ClientNavigationTarget, LayoutQuery, PanelSwapCommand,
     PanelSwapDestination, ZoomMode,
 };
 pub(crate) use terminal_output::{OutputSelection, OutputSource, OutputTarget};
+pub(crate) use terminal_stream::TerminalObserveCommand;
 mod workspace_group_close;
 pub(crate) use workspace_group_close::WorkspaceGroupCloseCommand;
 #[cfg(windows)]
@@ -157,6 +159,7 @@ pub(crate) enum Family {
     Panel,
     Layout,
     Terminal,
+    TerminalSession,
     Worktree,
     LaunchProfile,
     Site,
@@ -178,6 +181,7 @@ impl Family {
             Self::Panel => "panel",
             Self::Layout => "layout",
             Self::Terminal => "terminal",
+            Self::TerminalSession => "terminal session",
             Self::Worktree => "worktree",
             Self::LaunchProfile => "launch-profile",
             Self::Site => "site",
@@ -256,6 +260,7 @@ pub(crate) enum CommandPath {
     PanelMove,
     TerminalList,
     TerminalGet,
+    TerminalObserve,
     TerminalRead,
     TerminalWaitOutput,
     TerminalSend,
@@ -350,6 +355,7 @@ impl CommandPath {
             Self::PanelMove => "panel move",
             Self::TerminalList => "terminal list",
             Self::TerminalGet => "terminal get",
+            Self::TerminalObserve => "terminal session observe",
             Self::TerminalRead => "terminal read",
             Self::TerminalWaitOutput => "terminal wait-output",
             Self::TerminalSend => "terminal send",
@@ -1069,6 +1075,9 @@ pub(crate) enum RuntimeStatusScope {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum Request {
+    TerminalObserve {
+        command: TerminalObserveCommand,
+    },
     #[cfg(windows)]
     WorkspaceCreation {
         command: WorkspaceCreationCommand,
@@ -3123,6 +3132,9 @@ fn resolve_words(
                 options,
             ))
         }
+        ["terminal", "session", "observe", operands @ ..] => {
+            terminal_stream::observe(operands, options, envelope)
+        }
         ["terminal", "read", value] => {
             check_scope(
                 options,
@@ -3882,6 +3894,8 @@ fn help_topic(path: &[&str]) -> Option<HelpTopic> {
         ["tab"] => HelpTopic::Family(Family::Tab),
         ["panel"] => HelpTopic::Family(Family::Panel),
         ["terminal"] => HelpTopic::Family(Family::Terminal),
+        ["terminal", "session"] => HelpTopic::Family(Family::TerminalSession),
+        ["terminal", "session", "observe"] => HelpTopic::Command(CommandPath::TerminalObserve),
         ["api"] => HelpTopic::Family(Family::Api),
         ["site"] => HelpTopic::Family(Family::Site),
         ["config"] => HelpTopic::Family(Family::Config),

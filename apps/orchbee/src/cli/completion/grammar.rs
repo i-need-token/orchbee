@@ -2,9 +2,8 @@
 
 use super::{
     BUSINESS_FLAGS, COMMAND_FLAGS, DIRECTION_VALUES, FAMILY_VERBS, FORMAT_VALUES, HELP_CHILDREN,
-    HELP_LEVEL3, HELP_TOPICS, INTEGRATION_VERBS, KEY_VALUES, OPERAND_PATHS, PROVIDER_VALUES,
-    REPEATABLE_FLAGS, RIGHT_CLICK_VALUES, SHELLS, UNTIL_VALUES, command_flag_conflicts,
-    command_flags, flag_value,
+    HELP_LEVEL3, HELP_TOPICS, KEY_VALUES, OPERAND_PATHS, PROVIDER_VALUES, REPEATABLE_FLAGS,
+    RIGHT_CLICK_VALUES, SHELLS, UNTIL_VALUES, command_flag_conflicts, command_flags, flag_value,
 };
 use serde_json::json;
 
@@ -13,6 +12,9 @@ pub(super) fn build() -> serde_json::Value {
     for (family, verbs) in FAMILY_VERBS {
         for verb in *verbs {
             let path = format!("{family}:{verb}");
+            if HELP_LEVEL3.iter().any(|(parent, _)| *parent == path) {
+                continue;
+            }
             commands.push(json!({
                 "words": [family, verb],
                 "flags": command_flags(&path),
@@ -22,8 +24,12 @@ pub(super) fn build() -> serde_json::Value {
             }));
         }
     }
-    for verb in INTEGRATION_VERBS {
-        commands.push(json!({"words": ["agent", "integration", verb], "flags": command_flags(&format!("agent:integration:{verb}")), "conflicts": [], "operand": 0, "directions": []}));
+    for (parent, verbs) in HELP_LEVEL3 {
+        for verb in *verbs {
+            let path = format!("{parent}:{verb}");
+            let words = path.split(':').collect::<Vec<_>>();
+            commands.push(json!({"words": words, "flags": command_flags(&path), "conflicts": [], "operand": usize::from(OPERAND_PATHS.contains(&path.as_str())), "directions": []}));
+        }
     }
     commands.push(
         json!({"words": ["status"], "flags": [], "conflicts": [], "operand": 0, "directions": []}),

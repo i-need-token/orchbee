@@ -82,6 +82,15 @@ pub(crate) fn encode_document(document: &Value) -> Result<Vec<u8>, TooLarge> {
     Ok(bounded.bytes)
 }
 
+/// One compact NDJSON record, completely prepared under the per-record bound.
+#[cfg(windows)]
+pub(crate) fn encode_record(document: &Value) -> Result<Vec<u8>, TooLarge> {
+    let mut bounded = Bounded::new(LIMIT);
+    serde_json::to_writer(&mut bounded, document).map_err(|_| TooLarge)?;
+    bounded.write_all(b"\n").map_err(|_| TooLarge)?;
+    Ok(bounded.bytes)
+}
+
 /// Run a text renderer against the bounded sink: the bound is enforced while
 /// the document is being built, so preparation aborts at the cap instead of
 /// measuring an already complete oversized body. `Err(TooLarge)` means no

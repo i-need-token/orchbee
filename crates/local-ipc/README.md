@@ -45,3 +45,8 @@ absence could be established. These are separate-instant name facts, never peer
 identity or health. OS enumeration failures stay errors; filesystem stalls remain
 outside the cooperative budget. Tests retain an actual listener through inspection
 and check deadline/entry-budget exhaustion without manufacturing absence.
+
+`ChildInputWriter::pipe` pairs a nonblocking parent writer with blocking child stdin;
+`ChildOutputReader::pipe` provides the reverse direction. The terminal stream relay
+uses both without changing inherited user handle modes. The process owner must bound
+reads/writes, close pipes and stop/join its child; transport writes never imply consumption.

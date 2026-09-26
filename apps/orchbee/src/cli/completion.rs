@@ -7,7 +7,7 @@
 //!
 //! Walker state (per completed word):
 //! - `state` — positional position: verb | sub | deep | after | operand | help |
-//!   completion (`deep` is the third level under `agent integration`)
+//!   completion (`deep` covers `agent integration` and `terminal session`)
 //! - `done` — the argv can no longer produce a legal request (invalid or
 //!   terminal): no candidates
 //! - `ended` — `--` was seen: option termination, and `--` is never consumed
@@ -38,7 +38,7 @@
 //!    `--mouse` or an invalid value — joined or separate — is usage
 //! 6. business flags → legal iff a command reachable here admits the flag:
 //!    verb records it (checked when the command lands), sub requires the
-//!    flag's owning family, deep admits the `agent integration` union scope,
+//!    flag's owning family, deep admits its nested family's union scope,
 //!    after/operand require membership in the resolved command's flag scope
 //!    (`--workspace`/`--standalone` stay exclusive); operand-taking paths
 //!    consume one positional first; leaf/help/completion reject all options
@@ -53,9 +53,9 @@
 //!      `--mouse` was seen) | `tui`→leaf (fails if a business flag or
 //!      `--format` was seen) | `help`→help / `completion`→completion (both
 //!      fail if any option was seen); families fail if `--mouse` was seen
-//!    - sub: family:verb → after, or `agent:integration` → deep; the verb's
+//!    - sub: family:verb → after, or a nested family → deep; the verb's
 //!      declared flag scope must cover everything already seen
-//!    - deep: `agent:integration:<verb>` → after under the same union scope
+//!    - deep: nested family plus verb → after under its declared scope
 //!    - after: operand-taking paths → operand; anything else → done
 //!    - operand/leaf/completion → done
 //!    - help: HELP_TOPICS / HELP_CHILDREN / HELP_LEVEL3 walk
@@ -204,7 +204,15 @@ const FAMILY_VERBS: &[(&str, &[&str])] = &[
     ),
     (
         "terminal",
-        &["get", "list", "read", "run", "send", "wait-output"],
+        &[
+            "get",
+            "list",
+            "read",
+            "run",
+            "send",
+            "session",
+            "wait-output",
+        ],
     ),
     (
         "workspace",
@@ -326,7 +334,10 @@ const REPEATABLE_FLAGS: &[&str] = &[
 
 /// `<family>:<verb>` (or `agent:integration:<verb>`) → the business flags
 /// that command admits. Commands not listed here admit none.
+const OBSERVE_FLAGS: &[&str] = &["--cols", "--rows", "--timeout"];
 const COMMAND_FLAGS: &[(&str, &[&str])] = &[
+    ("terminal:session", OBSERVE_FLAGS),
+    ("terminal:session:observe", OBSERVE_FLAGS),
     (
         "panel:resize",
         &[
@@ -850,6 +861,7 @@ const PROVIDER_VALUES: &[&str] = &[
 
 /// `<family>:<verb>` paths that consume one positional operand.
 const OPERAND_PATHS: &[&str] = &[
+    "terminal:session:observe",
     "panel:input",
     "panel:resize",
     "panel:swap",
@@ -981,7 +993,15 @@ const HELP_CHILDREN: &[(&str, &[&str])] = &[
     ),
     (
         "terminal",
-        &["get", "list", "read", "run", "send", "wait-output"],
+        &[
+            "get",
+            "list",
+            "read",
+            "run",
+            "send",
+            "session",
+            "wait-output",
+        ],
     ),
     (
         "workspace",
@@ -1003,9 +1023,12 @@ const HELP_CHILDREN: &[(&str, &[&str])] = &[
     ),
 ];
 
-/// `help <topic> <child>` → third-level words. Only `agent integration`
-/// reaches a third help level.
-const HELP_LEVEL3: &[(&str, &[&str])] = &[("agent:integration", INTEGRATION_VERBS)];
+/// `help <topic> <child>` → third-level words. Nested command families
+/// reach a third help level.
+const HELP_LEVEL3: &[(&str, &[&str])] = &[
+    ("agent:integration", INTEGRATION_VERBS),
+    ("terminal:session", &["observe"]),
+];
 
 const SHELLS: &[&str] = &["bash", "elvish", "fish", "powershell", "zsh"];
 const FORMAT_VALUES: &[&str] = &["text", "json"];
@@ -1172,19 +1195,24 @@ fn integration_bad_bits() -> String {
 /// `agent:integration:<flag>` patterns — the flags admitted at the `deep`
 /// state, where the resolved command is not yet chosen.
 fn deep_flag_patterns() -> String {
-    INTEGRATION_COMMAND_FLAGS
+    HELP_LEVEL3
         .iter()
-        .map(|flag| format!("agent:integration:{flag}"))
+        .flat_map(|(path, verbs)| {
+            verbs.iter().flat_map(move |verb| {
+                command_flags(&format!("{path}:{verb}"))
+                    .iter()
+                    .map(move |flag| format!("{path}:{flag}"))
+            })
+        })
+        .collect::<std::collections::BTreeSet<_>>()
+        .into_iter()
         .collect::<Vec<_>>()
         .join("|")
 }
-
-/// `agent:integration:<verb>` patterns — the words legal at the `deep`
-/// state and inside `help agent integration`.
 fn deep_verb_patterns() -> String {
-    INTEGRATION_VERBS
+    HELP_LEVEL3
         .iter()
-        .map(|verb| format!("agent:integration:{verb}"))
+        .flat_map(|(path, verbs)| verbs.iter().map(move |verb| format!("{path}:{verb}")))
         .collect::<Vec<_>>()
         .join("|")
 }
@@ -1215,19 +1243,16 @@ fn help_level3_cases_fish() -> String {
 /// fish `deep`-state flag admission arms — the `agent integration` union
 /// scope while no verb is chosen yet.
 fn deep_flag_cases_fish() -> String {
-    INTEGRATION_COMMAND_FLAGS
-        .iter()
-        .map(|flag| format!("                            case 'agent:integration:{flag}'"))
+    deep_flag_patterns()
+        .split('|')
+        .map(|path| format!("                            case '{path}'"))
         .collect::<Vec<_>>()
         .join("\n")
 }
-
-/// fish `agent:integration:<verb>` case words — legal at the `deep` state
-/// and inside `help agent integration`.
 fn deep_verb_cases_fish() -> String {
-    INTEGRATION_VERBS
-        .iter()
-        .map(|verb| format!("'agent:integration:{verb}'"))
+    deep_verb_patterns()
+        .split('|')
+        .map(|path| format!("'{path}'"))
         .collect::<Vec<_>>()
         .join(" ")
 }
@@ -1940,6 +1965,7 @@ fn bash() -> String {
             "                        esac ;;\n",
             "                    sub)\n",
             "                        case \"$family:$word\" in\n",
+            "                            terminal:session) sub=session; state=deep; admit '--cols --rows --timeout' \"${{seen_flags[@]}}\" || done=1 ;;\n",
             "                            agent:integration)\n",
             "                                sub=integration; state=deep\n",
             "                                # The sub-family's union scope must cover\n",
@@ -1957,10 +1983,10 @@ fn bash() -> String {
             "                    deep)\n",
             "                        case \"$family:$sub:$word\" in\n",
             "                            {deep_verb_patterns})\n",
-            "                                sub=\"integration:$word\"; state=after\n",
+            "                                sub=\"$sub:$word\"; state=after\n",
             "                                # Every `agent integration` verb shares the\n",
             "                                # same flag scope — the union check.\n",
-            "                                (({integration_bad})) && done=1 ;;\n",
+            "                                if [[ $family == agent ]]; then (({integration_bad})) && done=1; fi ;;\n",
             "                            *) done=1 ;;\n",
             "                        esac ;;\n",
             "                    after)\n",
@@ -2008,7 +2034,7 @@ fn bash() -> String {
             "        esac\n",
             "        [[ -z $verbs ]] && dead=1\n",
             "    elif [[ $state == deep ]]; then\n",
-            "        (({integration_bad})) || verbs=\"{integration_verb_words}\"\n",
+            "        if [[ $family == terminal ]]; then verbs=observe; else (({integration_bad})) || verbs=\"{integration_verb_words}\"; fi\n",
             "        [[ -z $verbs ]] && dead=1\n",
             "    fi\n",
             "    if ((done || ended || dead || seen_zoom_on + seen_zoom_off + seen_zoom_toggle > 1)); then candidates=\"\"\n",
@@ -2308,6 +2334,7 @@ fn zsh() -> String {
             "                        esac ;;\n",
             "                    sub)\n",
             "                        case \"$family:$word\" in\n",
+            "                            terminal:session) sub=session; state=deep; admit '--cols --rows --timeout' \"${{seen_flags[@]}}\" || done=1 ;;\n",
             "                            agent:integration)\n",
             "                                sub=integration; state=deep\n",
             "                                (({integration_bad})) && done=1 ;;\n",
@@ -2321,8 +2348,8 @@ fn zsh() -> String {
             "                    deep)\n",
             "                        case \"$family:$sub:$word\" in\n",
             "                            {deep_verb_patterns})\n",
-            "                                sub=\"integration:$word\"; state=after\n",
-            "                                (({integration_bad})) && done=1 ;;\n",
+            "                                sub=\"$sub:$word\"; state=after\n",
+            "                                if [[ $family == agent ]]; then (({integration_bad})) && done=1; fi ;;\n",
             "                            *) done=1 ;;\n",
             "                        esac ;;\n",
             "                    after)\n",
@@ -2366,7 +2393,7 @@ fn zsh() -> String {
             "        esac\n",
             "        [[ -z $verbs ]] && dead=1\n",
             "    elif [[ $state == deep ]]; then\n",
-            "        (({integration_bad})) || verbs=\"{integration_verb_words}\"\n",
+            "        if [[ $family == terminal ]]; then verbs=observe; else (({integration_bad})) || verbs=\"{integration_verb_words}\"; fi\n",
             "        [[ -z $verbs ]] && dead=1\n",
             "    fi\n",
             "    if ((done || ended || dead || seen_zoom_on + seen_zoom_off + seen_zoom_toggle > 1)); then candidates=\"\"\n",
@@ -3128,9 +3155,11 @@ fn fish() -> String {
             "                        end\n",
             "                    case sub\n",
             "                        switch \"$family:$word\"\n",
+            "                            case 'terminal:session'\n",
+            "                                set sub session; set state deep; __orchbee_admit '--cols --rows --timeout' $seen_flags; or set done 1\n",
             "                            case 'agent:integration'\n",
             "                                set sub integration; set state deep\n",
-            "                                if test $seen_provider2 -eq 1; or not __orchbee_admit '{integration_allowed}' $seen_flags; set done 1; end\n",
+            "                                if test $family = agent; and begin; test $seen_provider2 -eq 1; or not __orchbee_admit '{integration_allowed}' $seen_flags; end; set done 1; end\n",
             "                            case {paths}\n",
             "                                set sub $word; set state after\n",
             "                                switch \"$family:$sub\"\n",
@@ -3141,7 +3170,7 @@ fn fish() -> String {
             "                    case deep\n",
             "                        switch \"$family:$sub:$word\"\n",
             "                            case {deep_verb_cases}\n",
-            "                                set sub \"integration:$word\"; set state after\n",
+            "                                set sub \"$sub:$word\"; set state after\n",
             "                                if test $seen_provider2 -eq 1; or not __orchbee_admit '{integration_allowed}' $seen_flags; set done 1; end\n",
             "                            case '*'; set done 1\n",
             "                        end\n",
@@ -3188,7 +3217,7 @@ fn fish() -> String {
             "        end\n",
             "        if test (count $verbs) -eq 0; set dead 1; end\n",
             "    else if test \"$state\" = deep\n",
-            "        if test $seen_provider2 -eq 0; and __orchbee_admit '{integration_allowed}' $seen_flags; set verbs {integration_verb_words}; end\n",
+            "        if test $family = terminal; set verbs observe; else if test $seen_provider2 -eq 0; and __orchbee_admit '{integration_allowed}' $seen_flags; set verbs {integration_verb_words}; end\n",
             "        if test (count $verbs) -eq 0; set dead 1; end\n",
             "    end\n",
             "    set -l candidates\n",
@@ -3491,11 +3520,14 @@ mod tests {
         );
         // Every operand path is an implemented verb.
         for path in OPERAND_PATHS {
-            let (family, verb) = path.split_once(':').expect("family:verb");
+            let (family, verb) = path.rsplit_once(':').expect("family:verb");
             assert!(
                 FAMILY_VERBS
                     .iter()
-                    .any(|(f, verbs)| *f == family && verbs.contains(&verb)),
+                    .any(|(f, verbs)| *f == family && verbs.contains(&verb))
+                    || HELP_LEVEL3
+                        .iter()
+                        .any(|(f, verbs)| *f == family && verbs.contains(&verb)),
                 "{path} is not an implemented command"
             );
         }
@@ -3508,7 +3540,9 @@ mod tests {
             let implemented = FAMILY_VERBS
                 .iter()
                 .any(|(f, verbs)| *f == family && verbs.contains(&verb))
-                || (family == "agent:integration" && INTEGRATION_VERBS.contains(&verb));
+                || HELP_LEVEL3
+                    .iter()
+                    .any(|(f, verbs)| *f == family && verbs.contains(&verb));
             assert!(implemented, "{command} is not an implemented command");
             for flag in *flags {
                 assert!(BUSINESS_FLAGS.contains(flag), "{command} lists {flag}");

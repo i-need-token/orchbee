@@ -807,6 +807,39 @@ pub(crate) fn snapshot_session() -> Result<(LocalClient, Instant, Snapshot), Fai
     admit_snapshot(&cohort, &site, deadline, None)
 }
 
+/// Existing-only stream admission and Snapshot read under one cancellable budget.
+#[cfg(windows)]
+pub(super) fn stream_snapshot(
+    deadline: Instant,
+    wake: Option<BorrowedFd<'_>>,
+) -> Result<(LocalClient, Snapshot), Failure> {
+    let (cohort, site) = session_preamble(deadline.min(Instant::now() + COHORT_BUDGET), None)?;
+    let mut client = LocalClient::connect_before_cancellable(
+        site.client_socket_path(),
+        cohort.identity(),
+        deadline,
+        wake,
+    )
+    .map_err(classify_connect)?;
+    let result = client
+        .submit_workbench_snapshot_read_before_cancellable(
+            SnapshotReadIntent {
+                protocol_version: ProtocolVersion,
+                request_id: request_id()?,
+            },
+            deadline,
+            wake,
+        )
+        .map_err(classify_read)?;
+    match result.outcome {
+        WorkbenchSnapshotOutcome::Available { snapshot } => Ok((client, snapshot)),
+        WorkbenchSnapshotOutcome::Denied {} => Err(Failure::new(FailureKind::Denied)),
+        WorkbenchSnapshotOutcome::Unavailable { .. } => {
+            Err(Failure::new(FailureKind::ServiceUnavailable))
+        }
+    }
+}
+
 /// The same preamble and admission as `snapshot_session`, but every stage
 /// shares the caller's absolute deadline — a total command budget sampled
 /// once at entry. The cohort check still never exceeds its own budget: it
@@ -1393,7 +1426,7 @@ fn attach_viewer(
 }
 
 #[cfg(any(target_os = "linux", windows))]
-fn attach_viewer_cancellable(
+pub(super) fn attach_viewer_cancellable(
     client: &mut LocalClient,
     deadline: Instant,
     snapshot: &Snapshot,
@@ -2255,7 +2288,7 @@ fn classify_launch_read(error: SubmissionError) -> Failure {
 }
 
 #[cfg(any(target_os = "linux", windows))]
-fn classify_viewer(error: SubmissionError) -> Failure {
+pub(super) fn classify_viewer(error: SubmissionError) -> Failure {
     match error {
         SubmissionError::SessionUnavailable | SubmissionError::RequestEncoding(_) => {
             Failure::new(FailureKind::InternalFailure)
@@ -2283,7 +2316,7 @@ fn classify_viewer(error: SubmissionError) -> Failure {
 /// contention or a dead terminal is unavailability, while a feedback-state
 /// contradiction is a protocol violation.
 #[cfg(any(target_os = "linux", windows))]
-fn classify_viewer_rejected(reason: ViewerRejectedReason) -> Failure {
+pub(super) fn classify_viewer_rejected(reason: ViewerRejectedReason) -> Failure {
     match reason {
         ViewerRejectedReason::AlreadyAttached | ViewerRejectedReason::TerminalUnavailable => {
             viewer_unavailable()

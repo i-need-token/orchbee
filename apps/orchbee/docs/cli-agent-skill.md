@@ -198,3 +198,7 @@ The `letta` provider supports Windows session onboarding with silent hooks and p
 The `devin` provider supports Windows session onboarding and diagnosis through its APPDATA configuration.
 
 The `hermes` provider manages a Windows session plugin in the selected Hermes profile. Activation uses the provider CLI; offline doctor does not claim activation.
+
+## Windows terminal observation stream
+
+`terminal session observe <terminal> [--cols <n>] [--rows <n>] [--timeout <ms>]` emits NDJSON from one existing binding without control or Host resizing. The [stream contract](windows-terminal-streams.md) owns full safe ANSI frames, resets, flush-before-ACK, deadlines and cleanup. Default viewport: 120×40; default duration: unlimited. Both output formats emit `orchbee.terminal.stream` v1 records. Catalog v67 has 75 schemas and 87 native command paths. Machine control and interactive attach remain separate work.

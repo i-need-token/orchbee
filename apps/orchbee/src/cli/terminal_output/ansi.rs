@@ -199,7 +199,10 @@ fn output_too_large(_: output::TooLarge) -> Failure {
     )]))
 }
 
-fn write_cell_text(out: &mut output::Bounded, text: &str) -> Result<(), output::TooLarge> {
+pub(in crate::cli) fn write_cell_text(
+    out: &mut output::Bounded,
+    text: &str,
+) -> Result<(), output::TooLarge> {
     // Borrow whole safe runs; no repeated allocation for aliased graphemes.
     let mut start = 0;
     for (offset, ch) in text.char_indices() {
@@ -212,7 +215,7 @@ fn write_cell_text(out: &mut output::Bounded, text: &str) -> Result<(), output::
     out.push(&text[start..])
 }
 
-fn write_style(
+pub(in crate::cli) fn write_style(
     out: &mut output::Bounded,
     style: TerminalTextStyle,
 ) -> Result<(), output::TooLarge> {
