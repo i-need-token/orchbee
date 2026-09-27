@@ -2,16 +2,11 @@
 
 ## 权威与语法
 
-本文拥有按来源读取的 `terminal read` 和 `agent read`。既有可见屏幕、
-`--history --rows`、`--unwrap` 和展示尾部形式仍由
-[原生 CLI 查询](native-cli-query.zh-CN.md) 管理。既有调用保持文档和行为不变。
+本参考负责 Windows 的 `terminal read` 和 `agent read`，包括其默认 recent 来源（80 个物理行）。`--source visible` 显式请求实时屏幕。裸 `--unwrap` 选择 recent-unwrapped。显式 `--history --rows` 保留由[原生 CLI 查询](native-cli-query.zh-CN.md)负责的旧纯历史文档；不改变 Mac/Linux 默认行为。
 
-`--source visible|recent|recent-unwrapped|detection` 选择文本快照。`--plain` 直接导出
-UTF-8 文本，没有标题或引号，省略来源时默认为 `recent`。
-它与 `--format json` 冲突。来源读取拒绝 `--history`、`--rows` 和
-`--unwrap`；`recent-unwrapped` 明确选择拼接策略。`--lines` 接受
-32 位无符号整数，钳制到 1000，允许零。所有语法在副作用前解析。
-Terminal 目标仍为精确 ID 或类型后缀；Agent 选择器沿用既有解析器。
+`--source visible|recent|recent-unwrapped|detection` 选择文本快照。`--plain` 原样导出 UTF-8，与 JSON 互斥。显式来源/plain/ANSI 拒绝 history/rows/unwrap；显式拼接用 recent-unwrapped。`--lines` 接受无符号 32 位整数，钳制到 1000，允许零。所有语法在效果发生前解析。终端和 Agent 目标解析不变。
+
+Windows 不带限定选项的读取现在输出 `orchbee.terminal.output` v1，替代旧的可见屏文档。脚本应显式选择来源并使用对应 schema。回滚恢复旧可执行文件，不涉及持久化迁移。
 
 ## 选择模型
 
@@ -67,10 +62,8 @@ Agent 解析在同一会话的附着前完成。可见或空选择无需行请�
 
 ## 按来源等待
 
-Windows `terminal wait-output` 通过 `--source`、`--lines` 或 `--forever` 选择相同来源。
-任一参数会选择来源模式，默认 `recent`，与既有 `--rows` 互斥。既有调用保留
-1000 行保留窗口、30000 ms 期限及 v1/v2 文档。来源模式也默认 30000 ms；
-`--forever` 则移除总期限，并与 `--timeout` 冲突。
+Windows `terminal wait-output` 始终使用此来源模型，默认 recent（80 个物理行），不设总期限。显式 `--timeout` 限制总等待时长；`--forever` 是可选的无总期限别名，与 timeout 互斥。`--rows <1..1000>` 选择对应行数的 recent，与显式 source/lines 冲突。全部 Windows 调用输出 v3。需要 30 秒期限和 1000 行窗口时，用 `--lines 1000 --timeout 30000`；来源范围仍以最近端点为准。
+
 每次准入及 I/O 仍有五秒上限。有限超时沿用既有正数范围，模式沿用非空及
 编译程序大小上限。
 

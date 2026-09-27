@@ -6,6 +6,10 @@ Windows 命名 Site 生命周期：`session list [--format json]` 读取有界�
 
 用 `agent rename <session-id> <name>` 设置唯一运行时别名，`agent names` 列出绑定。`agent get <name>`、`agent explain <name>` 与 `agent wait <name>` 可直接解析名称；等待固定原会话，不因后续名称复用而改变目标。`agent resolve <name>` 也可显式取得完整 ID。名称与会话 ID 冲突时，`--name <alias>` 明确选择别名，`--session <id>` 明确选择 ID。`agent rename <target> --clear` 只释放名称。会话结束或 Site dispose 后名称消失。重命名回复丢失是结果未知，禁止盲目重放。
 
+Windows `terminal read` 和 `agent read` 默认读取 recent（80 个物理行），输出 `orchbee.terminal.output` v1。`--source visible|recent|recent-unwrapped|detection` 显式选择来源；裸 `--unwrap` 选择 recent-unwrapped。`--lines` 允许零并钳制到 1000。`--plain` 原样导出 UTF-8，与 JSON 互斥。显式 source/plain/ANSI 不能与旧 history/rows/unwrap 混用。显式 `--history --rows` 保留纯历史文档。[输出契约](native-terminal-output.zh-CN.md)负责样本验证及迁移。
+
+Windows `terminal wait-output` 默认 recent80 且无总超时，显式来源选择也一样。`--timeout` 是有限期限；`--forever` 显式请求默认行为，与 timeout 互斥。`--rows` 是 recent 行数别名（1..1000），与显式 source/lines 冲突。全部 Windows 等待输出 v3，timeoutMs 可为 null，保留有界 I/O 和 Ctrl+C 清理。recent 拼接软换行，visible/detection 匹配物理行。既有输出可匹配，不证明命令完成。屏幕读取用 `--source visible`；较大有限窗口用 `--lines 1000 --timeout 30000`。
+
 ## 发现当前构建
 
 使用 `orchbee --help`、`orchbee help <family>` 和 `orchbee help <family> <command>` 获取精确语法。`orchbee --version`、`orchbee --skill`、`orchbee completion powershell` 和 `orchbee api schema` 均可离线使用。`orchbee api schema <schema-id>` 输出内嵌结果 schema。原生程序与 Desktop CLI 的能力不同；应读取实际调用程序的帮助。

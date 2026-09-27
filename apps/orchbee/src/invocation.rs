@@ -2499,7 +2499,11 @@ fn resolve_words(
                 context,
                 envelope,
             )?;
-            if options.output_source.is_some() || options.plain || options.ansi {
+            if options.output_source.is_some()
+                || options.plain
+                || options.ansi
+                || terminal_output::implicit_read(options)
+            {
                 return terminal_output::request(
                     OutputTarget::Agent(agent_selector(rest, options, context, envelope)?),
                     options,
@@ -3475,7 +3479,11 @@ fn resolve_words(
                 envelope,
             )?;
             let context = UsageContext::Path("terminal read");
-            if options.output_source.is_some() || options.plain || options.ansi {
+            if options.output_source.is_some()
+                || options.plain
+                || options.ansi
+                || terminal_output::implicit_read(options)
+            {
                 return terminal_output::request(
                     OutputTarget::Terminal(target(
                         (*value).to_owned(),
@@ -3517,7 +3525,11 @@ fn resolve_words(
                 envelope,
             )?;
             let context = UsageContext::Path("terminal wait-output");
-            if options.output_source.is_some() || options.lines.is_some() || options.forever {
+            if cfg!(windows)
+                || options.output_source.is_some()
+                || options.lines.is_some()
+                || options.forever
+            {
                 return terminal_output::wait_request(
                     target((*value).to_owned(), Resource::Terminal, envelope)?,
                     options,

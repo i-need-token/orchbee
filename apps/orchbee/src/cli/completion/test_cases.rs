@@ -1,6 +1,16 @@
 //! Shared observable completion obligations, independent of shell syntax.
 
 pub(super) const CASES: &[(&str, &str, bool)] = &[
+    (
+        "orchbee terminal wait-output target --rows 3 --f",
+        "--forever",
+        cfg!(windows),
+    ),
+    (
+        "orchbee terminal wait-output target --forever --r",
+        "--rows",
+        cfg!(windows),
+    ),
     ("orchbee terminal send abc --key f", "f25", true),
     (
         "orchbee terminal send abc --key enter --key s",
@@ -385,11 +395,6 @@ pub(super) const CASES: &[(&str, &str, bool)] = &[
     (
         "orchbee terminal wait-output target --forever --t",
         "--timeout",
-        false,
-    ),
-    (
-        "orchbee terminal wait-output target --forever --r",
-        "--rows",
         false,
     ),
     (

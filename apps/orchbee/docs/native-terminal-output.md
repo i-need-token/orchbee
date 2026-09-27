@@ -2,16 +2,11 @@
 
 ## Authority and grammar
 
-This reference owns source-selected `terminal read` and `agent read`. The legacy visible,
-`--history --rows`, `--unwrap` and presentation-tail forms remain governed by
-[native CLI queries](native-cli-query.md). Existing invocations keep their documents and behavior.
+This reference owns Windows `terminal read` and `agent read`, including their default recent source (80 physical rows). `--source visible` explicitly requests the live screen. Bare `--unwrap` selects recent-unwrapped. Explicit `--history --rows` retains the legacy history-only document governed by [native CLI queries](native-cli-query.md); no Mac/Linux default is changed.
 
-`--source visible|recent|recent-unwrapped|detection` selects a text snapshot. `--plain` exports
-its UTF-8 text directly, without headings or quoting, and defaults the source to `recent`.
-It conflicts with `--format json`. Source-selected reads reject `--history`, `--rows` and
-`--unwrap`; `recent-unwrapped` supplies the explicit joining policy. `--lines` accepts an
-unsigned 32-bit integer, clamps it to 1000, and permits zero. All grammar resolves before effects.
-Terminal targets remain exact IDs or typed suffixes; Agent selectors retain their existing resolver.
+`--source visible|recent|recent-unwrapped|detection` selects a text snapshot. `--plain` exports UTF-8 directly and conflicts with JSON. Explicit source/plain/ANSI rejects history/rows/unwrap; use recent-unwrapped for explicit joining. `--lines` accepts an unsigned 32-bit integer, clamps to 1000 and permits zero. All grammar resolves before effects. Terminal and Agent target resolution remains unchanged.
+
+Unqualified Windows reads now emit `orchbee.terminal.output` v1 instead of the legacy visible document. Scripts must select the source and consume the corresponding schema explicitly. Rollback restores the old executable; there is no persisted migration.
 
 ## Selection model
 
@@ -69,10 +64,8 @@ checks and model review, not an unrun model-checking claim.
 
 ## Source-selected waits
 
-Windows `terminal wait-output` selects the same sources with `--source`, `--lines` or `--forever`.
-Any of these chooses source mode, defaults to `recent`, and excludes legacy `--rows`. Existing
-invocations retain their 1000-row retained window, 30000 ms deadline and v1/v2 documents. Source mode
-also defaults to 30000 ms; `--forever` instead removes the total ceiling and conflicts with `--timeout`.
+Windows `terminal wait-output` always uses this source model, defaulting to recent (80 physical rows) and no total deadline. Explicit `--timeout` bounds the total wait; `--forever` is an optional no-ceiling alias and conflicts with timeout. `--rows <1..1000>` selects recent with that line count and conflicts with explicit source/lines. Every Windows invocation emits v3. For a finite 30-second, 1000-row wait, use `--lines 1000 --timeout 30000`; the source range remains governed by the recent endpoint.
+
 Every individual admission and I/O remains bounded to five seconds. Finite timeouts keep the existing
 positive range and patterns keep their existing nonempty and compiled-program bounds.
 

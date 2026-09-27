@@ -211,23 +211,28 @@
 					"version": {
 						"const": 2
 					}
-				}
+				},
+				"type": "object"
 			},
 			"then": {
 				"properties": {
 					"result": {
-						"required": ["encoding"]
+						"required": ["encoding"],
+						"type": "object"
 					}
-				}
+				},
+				"type": "object"
 			},
 			"else": {
 				"properties": {
 					"result": {
 						"not": {
-							"required": ["encoding"]
+							"required": ["encoding"],
+							"type": "object"
 						}
 					}
-				}
+				},
+				"type": "object"
 			}
 		}
 	]

@@ -2566,6 +2566,8 @@ impl Locale {
             (Self::ZhCn, CommandPath::AgentPrompt) => {
                 "orchbee agent prompt <target> <text> [--wait] [--until <condition>]... [--timeout <ms> | --forever] [--format text|json]\n\n定位存活 Agent，有待处理请求时拒绝，再提交字面 paste 加 Enter。\n目标：Session ID/名称/Panel ID、--session <id>、--name <alias>\n或 --panel <id|@panel:suffix>。Panel 选择主终端。--until/--timeout/--forever 要求 --wait。\n先观察活动再等待条件匹配；Windows 默认 idle/done/blocked 且无总超时，Linux 保持 600000 毫秒。--forever 取消总期限，与 --timeout 互斥。\nWindows Codex 在 paste 和 Enter 之间增加 Right 键。等待失败保留已接受输入回执。\n不重放不确定输入；状态匹配不标识本次提示自己的轮次。\n"
             }
+            (Self::EnUs, CommandPath::AgentRead) if cfg!(windows) => HELP_AGENT_OUTPUT_EN,
+            (Self::ZhCn, CommandPath::AgentRead) if cfg!(windows) => HELP_AGENT_OUTPUT_ZH,
             (Self::EnUs, CommandPath::AgentRead) => {
                 "orchbee agent read <target> [--history --rows <n>] [--unwrap] [--lines <n>] [--format text|json]\n\nRead the terminal bound to one live Agent. Target: Session ID/name/Panel ID, --session <id>,\n--name <alias>, or --panel <id|@panel:suffix>. Panel selects its primary terminal;\notherwise exactly one navigable binding is required. Uses terminal\nread/history envelopes; history excludes visible rows.\n\nExplicit sources: --source visible|recent|recent-unwrapped|detection.\nRecent includes history and live screen (default 80 physical rows); detection\nuses one screen height near the cursor, not Agent state. Source-mode --lines\naccepts 0..4294967295 and clamps to 1000. Visible is this viewer's live screen.\n--plain prints UTF-8 text directly and defaults to recent; it conflicts with\n--format json. Source/plain cannot mix with --history, --rows or --unwrap.\nJSON uses orchbee.terminal.output; a stale sample fails without a hidden retry.\n\n--ansi exports styled text directly (default recent); --format json instead\nuses orchbee.terminal.output v2 with encoding: ansi. It conflicts with\n--plain, --history, --rows and --unwrap. Styled blanks remain content;\nrecent-unwrapped joins soft wraps. Detection stays plain text. This is a\nstyled snapshot with SGR, not original PTY bytes or graphics replay.\n"
             }
@@ -2834,10 +2836,14 @@ const HELP_TERMINAL_LIST_ZH: &str = "orchbee terminal list [--format text|json]\
 const HELP_TERMINAL_GET_EN: &str = "orchbee terminal get <terminal-id> [--format text|json]\n\nShow one bound terminal by complete typed ID or @terminal:<suffix>:\nworker id and its single boundTo location (presentation, panel, tab,\ncontext).\n";
 const HELP_TERMINAL_GET_ZH: &str = "orchbee terminal get <terminal-id> [--format text|json]\n\n按完整类型化 ID 或 @terminal:<suffix> 显示一个已绑定终端：worker id 及其唯一 boundTo 位置\n（presentation、panel、tab、context）。\n";
 
+#[cfg(not(windows))]
 const HELP_TERMINAL_READ_EN: &str = "orchbee terminal read <terminal-id> [--history --rows <n>] [--unwrap] [--lines <n>] [--format text|json]\n\nRead the current visible content of one bound terminal. The terminal is\nresolved from the Workbench snapshot, then observed once through a short-\nlived read-only viewer on the same session; nothing is created, activated,\nor mutated. Text output prints the grid rows; '--format json' emits the\norchbee.terminal.read envelope with frame metadata and row content.\n\nWith '--history --rows <n>' (both flags required together, 1..=1000), read\nup to n retained rows that have scrolled off the active screen instead of\nthe visible frame; '--format json' emits the orchbee.terminal.history\nenvelope with scrollback metadata and row content.\n\n'--unwrap' is a read-only presentation transform: verified soft-wrapped\nphysical rows join into logical lines (hard breaks and empty lines are\npreserved; a window edge inside a wrapped line reports startsMidLine/\nendsMidLine instead of claiming a complete line). '--lines <n>' (1..=65535)\nshows only the last n emitted entries — logical lines under '--unwrap',\nphysical rows otherwise — and never widens the fetched window.\n\nExplicit sources: --source visible|recent|recent-unwrapped|detection.\nRecent includes history and live screen (default 80 physical rows); detection\nuses one screen height near the cursor, not Agent state. Source-mode --lines\naccepts 0..4294967295 and clamps to 1000. Visible is this viewer's live screen.\n--plain prints UTF-8 text directly and defaults to recent; it conflicts with\n--format json. Source/plain cannot mix with --history, --rows or --unwrap.\nJSON uses orchbee.terminal.output; a stale sample fails without a hidden retry.\n\n--ansi exports styled text directly (default recent); --format json instead\nuses orchbee.terminal.output v2 with encoding: ansi. It conflicts with\n--plain, --history, --rows and --unwrap. Styled blanks remain content;\nrecent-unwrapped joins soft wraps. Detection stays plain text. This is a\nstyled snapshot with SGR, not original PTY bytes or graphics replay.\n";
+#[cfg(not(windows))]
 const HELP_TERMINAL_READ_ZH: &str = "orchbee terminal read <terminal-id> [--history --rows <n>] [--unwrap] [--lines <n>] [--format text|json]\n\n读取一个已绑定终端的当前可见内容。终端经 Workbench 快照解析后，通过同\n一会话上短暂存活的只读 viewer 观察一次；不创建、不激活、不修改任何\n状态。文本输出逐行打印网格内容；'--format json' 输出带帧元数据与行内\n容的 orchbee.terminal.read 封套。\n\n加 '--history --rows <n>'（两个 flag 必须成对，1..=1000）时，读取已滚\n出当前活动屏幕的至多 n 行保留历史，而非可见帧；'--format json' 输出\n带历史元数据与行内容的 orchbee.terminal.history 封套。\n\n'--unwrap' 是只读的呈现变换：经验证的软换行物理行拼接为逻辑行（保留\n硬换行与空行；窗口边缘落在换行行内部时以 startsMidLine/endsMidLine\n如实标记，而非声称完整行）。'--lines <n>'（1..=65535）只显示最后 n\n条已发出的条目——'--unwrap' 下为逻辑行，否则为物理行——且不会扩大\n抓取窗口。\n\n显式来源：--source visible|recent|recent-unwrapped|detection。\nrecent 合并历史与实时屏幕，默认 80 个物理行；detection 读取光标附近\n一个屏幕高度，不是 Agent 状态。来源模式 --lines 接受 0..4294967295，\n钳制到 1000。visible 是当前查看器的实时屏幕。\n--plain 直接输出 UTF-8 文本，默认 recent；与 --format json 冲突。\n来源/plain 不能与 --history、--rows 或 --unwrap 混用。\nJSON 使用 orchbee.terminal.output；样本过期时失败，不隐藏重试。\n\n--ansi 直接导出带样式文本（默认 recent）；配合 --format json 时改用\norchbee.terminal.output v2，encoding 为 ansi。它与 --plain、--history、\n--rows 和 --unwrap 冲突。保留带样式空格；recent-unwrapped 拼接软换行。\ndetection 仍输出纯文本。这是包含 SGR 的样式快照，不是原始 PTY 字节或图形重放。\n";
 
+#[cfg(not(windows))]
 const HELP_TERMINAL_WAIT_OUTPUT_EN: &str = "orchbee terminal wait-output <terminal-id> (--match <text> | --regex <pattern>) [--rows <n>] [--timeout <ms>] [--format text|json]\n\nWait until the pattern appears in one bound terminal's retained output —\nexactly one of '--match' or '--regex' is required. '--match' is a literal,\ncase-sensitive substring (1..=4096 bytes); '--regex' is a nonempty UTF-8\nregular expression of at most 1024 bytes, compiled once before any\nconnection (invalid or oversized programs are usage failures). Matching\nchecks the most recent --rows retained rows (1..=1000, default 1000)\nspanning the visible screen and scrollback as one window, joining\nsoft-wrapped rows into logical lines first; a regex match reports its\nbyte length and fragment-edge flags, and '^'/'$' anchor at the observed\nfragment edges. '--timeout' bounds the total wait in milliseconds\n(1..=3600000, default 30000); the command exits 0 on match, 7 on timeout,\nand 130 when cancelled by HUP/INT/QUIT/TERM. Nothing is typed into the\nterminal and nothing is created or mutated. Text output prints the\nmatching line; '--format json' emits the orchbee.terminal.wait-output\nenvelope with match and observation metadata.\n\nSource mode: --source visible|recent|recent-unwrapped|detection, --lines N,\nor --forever. It defaults to recent (80 physical rows), excludes --rows,\nand uses orchbee.terminal.wait-output v3. --lines allows zero and clamps to\n1000. Recent sources join soft wraps; visible/detection match physical lines.\n--forever removes the total deadline, conflicts with --timeout, and retains\nfive-second I/O limits and Ctrl+C cleanup. Zero lines never match.\n";
+#[cfg(not(windows))]
 const HELP_TERMINAL_WAIT_OUTPUT_ZH: &str = "orchbee terminal wait-output <terminal-id> (--match <text> | --regex <pattern>) [--rows <n>] [--timeout <ms>] [--format text|json]\n\n等待一个已绑定终端的保留输出中出现指定模式——'--match' 与 '--regex'\n必须且只能提供一个。'--match' 为字面、区分大小写的子串（1..=4096 字\n节）；'--regex' 为至多 1024 字节的非空 UTF-8 正则表达式，在任何连接\n建立前编译一次（非法或超限程序报用法错误）。搜索范围为最近 --rows\n行保留行（1..=1000，默认 1000），可见屏与回滚历史作为一个窗口，并\n先把软换行行拼接为逻辑行；正则命中会报告字节长度与片段边缘标记，\n'^'/'$' 仅锚定观测到的片段边界。'--timeout' 以毫秒限定总等待预算\n（1..=3600000，默认 30000）；匹配成功退出 0，超时退出 7，被\nHUP/INT/QUIT/TERM 取消时退出 130。不向终端写入任何输入，不创建、不\n修改任何状态。文本输出打印匹配行；'--format json' 输出带匹配与观测\n元数据的 orchbee.terminal.wait-output 封套。\n\n来源模式：--source visible|recent|recent-unwrapped|detection、--lines N\n或 --forever。默认 recent（80 个物理行），与 --rows 互斥，使用\norchbee.terminal.wait-output v3。--lines 允许零，钳制到 1000。\nrecent 来源拼接软换行；visible/detection 匹配物理行。\n--forever 移除总期限，与 --timeout 互斥，仍保留五秒 I/O 上限和\nCtrl+C 清理。零行从不匹配。\n";
 const HELP_TERMINAL_RUN_EN: &str = r#"orchbee terminal run <target> <command> [--format text|json]
 
@@ -3857,3 +3863,87 @@ impl Locale {
         }
     }
 }
+
+#[cfg(windows)]
+const HELP_TERMINAL_READ_EN: &str = r#"orchbee terminal read <terminal-id> [--source visible|recent|recent-unwrapped|detection] [--lines <n>] [--plain|--ansi] [--format text|json]
+
+Read recent output by default: up to 80 physical rows from history and the live
+screen. --source visible selects only the live screen; detection selects one
+screen height near recent output. --lines permits zero and clamps to 1000.
+--unwrap without an explicit source selects recent-unwrapped (joins soft wraps).
+--plain exports UTF-8 text and conflicts with JSON; --ansi exports styled text
+or an ANSI JSON member. Detection stays plain. This is a snapshot, not PTY replay.
+
+JSON uses orchbee.terminal.output v1 (text) or v2 (ANSI), including the selected
+source and observed range. Explicit --history --rows <1..1000> retains the
+legacy history-only document and may use --unwrap/--lines. Do not combine
+history with --source, --plain or --ansi; explicit source/plain/ANSI excludes
+--unwrap. Use --source visible to request the previous default screen scope.
+Samples remain revision-fenced, read-only and bounded by a five-second deadline.
+"#;
+#[cfg(windows)]
+const HELP_TERMINAL_READ_ZH: &str = r#"orchbee terminal read <terminal-id> [--source visible|recent|recent-unwrapped|detection] [--lines <n>] [--plain|--ansi] [--format text|json]
+
+默认读取最近输出：历史与实时屏幕中最多 80 个物理行。--source visible 仅选择
+实时屏幕；detection 选择最近输出附近一个屏幕高度。--lines 允许零并钳制到 1000。
+未显式指定来源时，--unwrap 选择 recent-unwrapped（拼接软换行）。
+--plain 导出 UTF-8 文本，与 JSON 冲突；--ansi 导出样式文本或 ANSI JSON 字段。
+detection 保持纯文本。这是快照，不是 PTY 重放。
+
+JSON 使用 orchbee.terminal.output v1（文本）或 v2（ANSI），含来源和观测范围。
+显式 --history --rows <1..1000> 保留旧的纯历史文档，可组合 --unwrap/--lines。
+history 不能与 --source、--plain、--ansi 混用；显式来源/plain/ANSI 排除 --unwrap。
+用 --source visible 请求原默认屏幕范围。读取仍固定修订、无输入副作用，总期限五秒。
+"#;
+const HELP_AGENT_OUTPUT_EN: &str = r#"orchbee agent read <target> [--source visible|recent|recent-unwrapped|detection] [--lines <n>] [--plain|--ansi] [--format text|json]
+
+Read one live Agent's terminal, defaulting to recent output (80 physical rows).
+Targets: Session ID/name/Panel ID, --session <id>, --name <alias>, or --panel <id>.
+A Panel selects its primary terminal; otherwise require one navigable binding.
+--lines permits zero and clamps to 1000. Bare --unwrap selects recent-unwrapped.
+--source visible selects the live screen; detection reads screen-height output,
+not Agent state. --plain exports UTF-8 and excludes JSON. --ansi exports style.
+JSON uses orchbee.terminal.output v1 (text) or v2 (ANSI).
+Explicit --history --rows preserves the history-only document; it excludes
+source/plain/ANSI. See terminal read help for bounds, conflicts and cleanup.
+"#;
+const HELP_AGENT_OUTPUT_ZH: &str = r#"orchbee agent read <target> [--source visible|recent|recent-unwrapped|detection] [--lines <n>] [--plain|--ansi] [--format text|json]
+
+读取一个存活 Agent 的终端，默认最近输出（80 个物理行）。目标可用 Session ID、名称、
+Panel ID、--session <id>、--name <alias> 或 --panel <id>。Panel 选择主终端；
+其他选择要求唯一可导航绑定。--lines 允许零并钳制到 1000。裸 --unwrap 选择 recent-unwrapped。
+--source visible 选择实时屏幕；detection 读取一个屏幕高度的输出，不是 Agent 状态。
+--plain 导出 UTF-8，与 JSON 互斥；--ansi 导出样式。
+JSON 使用 orchbee.terminal.output v1（文本）或 v2（ANSI）。
+显式 --history --rows 保留纯历史文档，与 source/plain/ANSI 互斥。
+边界、冲突和清理规则见 terminal read 帮助。
+"#;
+#[cfg(windows)]
+const HELP_TERMINAL_WAIT_OUTPUT_EN: &str = r#"orchbee terminal wait-output <terminal-id> (--match <text>|--regex <pattern>) [--source visible|recent|recent-unwrapped|detection] [--lines <n>] [--timeout <ms>|--forever] [--format text|json]
+
+Wait for output, defaulting to recent (80 physical rows) without a total deadline.
+--timeout sets 1..3600000 milliseconds; --forever explicitly selects no total
+ceiling and conflicts with --timeout. Every I/O step remains bounded to five
+seconds, and Ctrl+C stops the wait and releases its read-only viewer.
+--lines permits zero (never matches) and clamps to 1000. --rows <1..1000> is a
+recent-line alias, excluding --source/--lines. Recent sources join soft wraps;
+visible/detection match physical lines. Existing output can match immediately.
+--match is literal, case sensitive, 1..4096 UTF-8 bytes. --regex is at most 1024
+bytes and compiles before any connection. No input, resize or focus change.
+Exit 0 on match, 7 on timeout, 130 on cancellation. JSON uses
+orchbee.terminal.wait-output v3 with nullable timeoutMs. To retain a finite
+30-second wait over 1000 recent rows, use --lines 1000 --timeout 30000.
+"#;
+#[cfg(windows)]
+const HELP_TERMINAL_WAIT_OUTPUT_ZH: &str = r#"orchbee terminal wait-output <terminal-id> (--match <text>|--regex <pattern>) [--source visible|recent|recent-unwrapped|detection] [--lines <n>] [--timeout <ms>|--forever] [--format text|json]
+
+等待输出，默认 recent（80 个物理行），不设总期限。
+--timeout 指定 1..3600000 毫秒；--forever 显式选择无总期限，与 --timeout 互斥。
+每次 I/O 仍限制五秒，Ctrl+C 停止等待并释放只读 viewer。
+--lines 允许零（从不匹配）并钳制到 1000。--rows <1..1000> 是 recent 行数别名，
+与 --source/--lines 互斥。recent 来源拼接软换行，visible/detection 匹配物理行。
+既有输出可立即匹配。--match 是区分大小写的字面值，1..4096 UTF-8 字节；
+--regex 至多 1024 字节，在建立任何连接前编译。不输入、不 resize、不改变焦点。
+匹配退出 0，超时退出 7，取消退出 130。JSON 使用 orchbee.terminal.wait-output v3，
+timeoutMs 可为 null。需要 30 秒期限和 1000 个最近行时，用 --lines 1000 --timeout 30000。
+"#;

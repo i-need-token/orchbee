@@ -6,23 +6,43 @@
 	"required": ["schema", "version", "source", "result"],
 	"additionalProperties": false,
 	"properties": {
-		"schema": { "const": "orchbee.terminal.history" },
-		"version": { "enum": [1, 2] },
-		"source": { "$ref": "#/$defs/snapshotSource" },
+		"schema": {
+			"const": "orchbee.terminal.history"
+		},
+		"version": {
+			"enum": [1, 2]
+		},
+		"source": {
+			"$ref": "#/$defs/snapshotSource"
+		},
 		"result": {
 			"type": "object",
 			"required": ["terminal", "history", "content"],
 			"additionalProperties": false,
 			"properties": {
-				"terminal": { "$ref": "#/$defs/terminal" },
-				"history": { "$ref": "#/$defs/history" },
-				"content": { "$ref": "#/$defs/content" }
+				"terminal": {
+					"$ref": "#/$defs/terminal"
+				},
+				"history": {
+					"$ref": "#/$defs/history"
+				},
+				"content": {
+					"$ref": "#/$defs/content"
+				}
 			}
 		}
 	},
 	"allOf": [
 		{
-			"if": { "properties": { "version": { "const": 1 } }, "required": ["version"] },
+			"if": {
+				"properties": {
+					"version": {
+						"const": 1
+					}
+				},
+				"required": ["version"],
+				"type": "object"
+			},
 			"then": {
 				"properties": {
 					"result": {
@@ -31,49 +51,93 @@
 								"required": ["rows"],
 								"not": {
 									"anyOf": [
-										{ "required": ["lines"] },
-										{ "required": ["lineCount"] },
-										{ "required": ["tail"] }
+										{
+											"required": ["lines"],
+											"type": "object"
+										},
+										{
+											"required": ["lineCount"],
+											"type": "object"
+										},
+										{
+											"required": ["tail"],
+											"type": "object"
+										}
 									]
-								}
+								},
+								"type": "object"
 							}
-						}
+						},
+						"type": "object"
 					}
-				}
+				},
+				"type": "object"
 			},
 			"else": {
 				"properties": {
 					"result": {
 						"properties": {
 							"content": {
-								"anyOf": [{ "required": ["lines"] }, { "required": ["tail"] }]
+								"anyOf": [
+									{
+										"required": ["lines"],
+										"type": "object"
+									},
+									{
+										"required": ["tail"],
+										"type": "object"
+									}
+								]
 							}
-						}
+						},
+						"type": "object"
 					}
-				}
+				},
+				"type": "object"
 			}
 		}
 	],
 	"$defs": {
-		"id": { "type": "string", "pattern": "^[0-9a-f]{32}$" },
-		"decimal": { "type": "string", "pattern": "^(0|[1-9][0-9]*)$" },
-		"positiveDecimal": { "type": "string", "pattern": "^[1-9][0-9]*$" },
+		"id": {
+			"type": "string",
+			"pattern": "^[0-9a-f]{32}$"
+		},
+		"decimal": {
+			"type": "string",
+			"pattern": "^(0|[1-9][0-9]*)$"
+		},
+		"positiveDecimal": {
+			"type": "string",
+			"pattern": "^[1-9][0-9]*$"
+		},
 		"terminal": {
 			"type": "object",
 			"required": ["terminalId", "workerId", "boundTo"],
 			"additionalProperties": false,
 			"properties": {
-				"terminalId": { "$ref": "#/$defs/id" },
-				"workerId": { "$ref": "#/$defs/id" },
+				"terminalId": {
+					"$ref": "#/$defs/id"
+				},
+				"workerId": {
+					"$ref": "#/$defs/id"
+				},
 				"boundTo": {
 					"type": "object",
 					"required": ["presentationId", "panelId", "tabId", "terminalContextId"],
 					"additionalProperties": false,
 					"properties": {
-						"presentationId": { "$ref": "#/$defs/id" },
-						"panelId": { "$ref": "#/$defs/id" },
-						"tabId": { "$ref": "#/$defs/id" },
-						"terminalContextId": { "$ref": "#/$defs/id" }
+						"presentationId": {
+							"$ref": "#/$defs/id"
+						},
+						"panelId": {
+							"$ref": "#/$defs/id"
+						},
+						"tabId": {
+							"$ref": "#/$defs/id"
+						},
+						"terminalContextId": {
+							"$ref": "#/$defs/id"
+						}
 					}
 				}
 			}
@@ -94,16 +158,44 @@
 			],
 			"additionalProperties": false,
 			"properties": {
-				"revision": { "$ref": "#/$defs/decimal" },
-				"generation": { "$ref": "#/$defs/positiveDecimal" },
-				"alternateScreen": { "type": "boolean" },
-				"columns": { "type": "integer", "minimum": 1, "maximum": 4096 },
-				"screenRows": { "type": "integer", "minimum": 1, "maximum": 4096 },
-				"scrollbackRows": { "$ref": "#/$defs/decimal" },
-				"totalRows": { "$ref": "#/$defs/decimal" },
-				"startRow": { "$ref": "#/$defs/decimal" },
-				"requestedRows": { "type": "integer", "minimum": 1, "maximum": 1000 },
-				"windowRows": { "type": "integer", "minimum": 0, "maximum": 4096 }
+				"revision": {
+					"$ref": "#/$defs/decimal"
+				},
+				"generation": {
+					"$ref": "#/$defs/positiveDecimal"
+				},
+				"alternateScreen": {
+					"type": "boolean"
+				},
+				"columns": {
+					"type": "integer",
+					"minimum": 1,
+					"maximum": 4096
+				},
+				"screenRows": {
+					"type": "integer",
+					"minimum": 1,
+					"maximum": 4096
+				},
+				"scrollbackRows": {
+					"$ref": "#/$defs/decimal"
+				},
+				"totalRows": {
+					"$ref": "#/$defs/decimal"
+				},
+				"startRow": {
+					"$ref": "#/$defs/decimal"
+				},
+				"requestedRows": {
+					"type": "integer",
+					"minimum": 1,
+					"maximum": 1000
+				},
+				"windowRows": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 4096
+				}
 			}
 		},
 		"content": {
@@ -114,50 +206,121 @@
 				"rows": {
 					"type": "array",
 					"maxItems": 1000,
-					"items": { "$ref": "#/$defs/contentRow" }
+					"items": {
+						"$ref": "#/$defs/contentRow"
+					}
 				},
 				"lines": {
 					"type": "array",
 					"maxItems": 1000,
-					"items": { "$ref": "#/$defs/logicalLine" }
+					"items": {
+						"$ref": "#/$defs/logicalLine"
+					}
 				},
-				"lineCount": { "type": "integer", "minimum": 0, "maximum": 1000 },
-				"tail": { "$ref": "#/$defs/tail" },
-				"rowCount": { "type": "integer", "minimum": 0, "maximum": 1000 },
-				"truncated": { "type": "boolean" },
-				"omittedRows": { "type": "integer", "minimum": 0, "maximum": 1000 },
+				"lineCount": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 1000
+				},
+				"tail": {
+					"$ref": "#/$defs/tail"
+				},
+				"rowCount": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 1000
+				},
+				"truncated": {
+					"type": "boolean"
+				},
+				"omittedRows": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 1000
+				},
 				"limits": {
 					"type": "object",
 					"required": ["rows", "textBytes"],
 					"additionalProperties": false,
 					"properties": {
-						"rows": { "const": 1000 },
-						"textBytes": { "const": 4194304 }
+						"rows": {
+							"const": 1000
+						},
+						"textBytes": {
+							"const": 4194304
+						}
 					}
 				}
 			},
 			"allOf": [
 				{
-					"if": { "required": ["lines"] },
+					"if": {
+						"required": ["lines"],
+						"type": "object"
+					},
 					"then": {
 						"required": ["lineCount"],
-						"not": { "required": ["rows"] },
+						"not": {
+							"required": ["rows"],
+							"type": "object"
+						},
 						"properties": {
-							"tail": { "properties": { "entries": { "const": "lines" } } }
-						}
+							"tail": {
+								"properties": {
+									"entries": {
+										"const": "lines"
+									}
+								},
+								"type": "object"
+							}
+						},
+						"type": "object"
 					},
 					"else": {
 						"required": ["rows"],
-						"not": { "required": ["lineCount"] },
+						"not": {
+							"required": ["lineCount"],
+							"type": "object"
+						},
 						"properties": {
-							"tail": { "properties": { "entries": { "const": "rows" } } }
-						}
+							"tail": {
+								"properties": {
+									"entries": {
+										"const": "rows"
+									}
+								},
+								"type": "object"
+							}
+						},
+						"type": "object"
 					}
 				},
 				{
-					"if": { "properties": { "truncated": { "const": true } } },
-					"then": { "properties": { "omittedRows": { "minimum": 1 } } },
-					"else": { "properties": { "omittedRows": { "const": 0 } } }
+					"if": {
+						"properties": {
+							"truncated": {
+								"const": true
+							}
+						},
+						"type": "object"
+					},
+					"then": {
+						"properties": {
+							"omittedRows": {
+								"minimum": 1,
+								"type": "integer"
+							}
+						},
+						"type": "object"
+					},
+					"else": {
+						"properties": {
+							"omittedRows": {
+								"const": 0
+							}
+						},
+						"type": "object"
+					}
 				}
 			]
 		},
@@ -166,11 +329,21 @@
 			"required": ["firstRow", "lastRow", "text", "startsMidLine", "endsMidLine"],
 			"additionalProperties": false,
 			"properties": {
-				"firstRow": { "$ref": "#/$defs/decimal" },
-				"lastRow": { "$ref": "#/$defs/decimal" },
-				"text": { "type": "string" },
-				"startsMidLine": { "type": "boolean" },
-				"endsMidLine": { "type": "boolean" }
+				"firstRow": {
+					"$ref": "#/$defs/decimal"
+				},
+				"lastRow": {
+					"$ref": "#/$defs/decimal"
+				},
+				"text": {
+					"type": "string"
+				},
+				"startsMidLine": {
+					"type": "boolean"
+				},
+				"endsMidLine": {
+					"type": "boolean"
+				}
 			}
 		},
 		"tail": {
@@ -178,9 +351,19 @@
 			"required": ["requested", "omitted", "entries"],
 			"additionalProperties": false,
 			"properties": {
-				"requested": { "type": "integer", "minimum": 1, "maximum": 65535 },
-				"omitted": { "type": "integer", "minimum": 0, "maximum": 999 },
-				"entries": { "enum": ["rows", "lines"] }
+				"requested": {
+					"type": "integer",
+					"minimum": 1,
+					"maximum": 65535
+				},
+				"omitted": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 999
+				},
+				"entries": {
+					"enum": ["rows", "lines"]
+				}
 			}
 		},
 		"contentRow": {
@@ -188,15 +371,23 @@
 			"required": ["index", "text", "continuation"],
 			"additionalProperties": false,
 			"properties": {
-				"index": { "$ref": "#/$defs/decimal" },
-				"text": { "type": "string" },
+				"index": {
+					"$ref": "#/$defs/decimal"
+				},
+				"text": {
+					"type": "string"
+				},
 				"continuation": {
 					"type": "object",
 					"required": ["fromPrevious", "intoNext"],
 					"additionalProperties": false,
 					"properties": {
-						"fromPrevious": { "type": "boolean" },
-						"intoNext": { "type": "boolean" }
+						"fromPrevious": {
+							"type": "boolean"
+						},
+						"intoNext": {
+							"type": "boolean"
+						}
 					}
 				}
 			}
@@ -206,9 +397,16 @@
 			"required": ["kind", "siteId", "revision"],
 			"additionalProperties": false,
 			"properties": {
-				"kind": { "const": "workbench-snapshot" },
-				"siteId": { "$ref": "#/$defs/id" },
-				"revision": { "type": "string", "pattern": "^(0|[1-9][0-9]*)$" }
+				"kind": {
+					"const": "workbench-snapshot"
+				},
+				"siteId": {
+					"$ref": "#/$defs/id"
+				},
+				"revision": {
+					"type": "string",
+					"pattern": "^(0|[1-9][0-9]*)$"
+				}
 			}
 		}
 	}

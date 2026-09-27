@@ -33,6 +33,10 @@ pub(crate) enum OutputTarget {
     Agent(AgentTarget),
 }
 
+pub(super) fn implicit_read(options: &Options) -> bool {
+    cfg!(windows) && !options.history && options.rows.is_none()
+}
+
 pub(super) fn request(
     target: OutputTarget,
     options: &Options,
@@ -49,7 +53,10 @@ pub(super) fn request(
     for (present, other) in [
         (options.history, "--history"),
         (options.rows.is_some(), "--rows"),
-        (options.unwrap, "--unwrap"),
+        (
+            options.unwrap && (options.output_source.is_some() || options.plain || options.ansi),
+            "--unwrap",
+        ),
     ] {
         if present {
             return Err(usage_with(
@@ -98,7 +105,12 @@ pub(super) fn selection(
     context: UsageContext,
     envelope: FailureEnvelope,
 ) -> Result<OutputSelection, ParseFailure> {
-    let source = match options.output_source.as_deref().unwrap_or("recent") {
+    let default = if cfg!(windows) && options.unwrap {
+        "recent-unwrapped"
+    } else {
+        "recent"
+    };
+    let source = match options.output_source.as_deref().unwrap_or(default) {
         "visible" => OutputSource::Visible,
         "recent" => OutputSource::Recent,
         "recent-unwrapped" => OutputSource::RecentUnwrapped,
@@ -146,7 +158,9 @@ pub(super) fn wait_request(
     context: UsageContext,
     envelope: FailureEnvelope,
 ) -> Result<Request, ParseFailure> {
-    if options.rows.is_some() {
+    if options.rows.is_some()
+        && (!cfg!(windows) || options.output_source.is_some() || options.lines.is_some())
+    {
         return Err(usage_with(
             UsageReason::ConflictingOptions {
                 context,
@@ -175,9 +189,16 @@ pub(super) fn wait_request(
     Ok(query(
         QueryCommand::TerminalSourceWait {
             target,
-            selection: selection(options, context, envelope)?,
+            selection: if cfg!(windows) && options.rows.is_some() {
+                OutputSelection {
+                    source: OutputSource::Recent,
+                    lines: Some(history_rows_option(options, context, envelope)?),
+                }
+            } else {
+                selection(options, context, envelope)?
+            },
             matcher: wait_matcher_option(options, context, envelope)?,
-            timeout_ms: if options.forever {
+            timeout_ms: if options.forever || (cfg!(windows) && options.timeout.is_none()) {
                 None
             } else {
                 Some(wait_timeout_option(options, context, envelope)?)
@@ -193,6 +214,56 @@ mod tests {
 
     fn parse(words: &[&str]) -> Result<Request, ParseFailure> {
         parse_request(words.iter().map(OsString::from))
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn windows_implicit_reads_and_waits_use_recent_without_a_total_wait_deadline() {
+        let id = "11111111111111111111111111111111";
+        for words in [vec!["terminal", "read", id], vec!["agent", "read", "alpha"]] {
+            assert!(matches!(
+                parse(&words),
+                Ok(Request::Query {
+                    command: QueryCommand::TerminalOutput {
+                        selection: OutputSelection {
+                            source: OutputSource::Recent,
+                            lines: None
+                        },
+                        plain: false,
+                        ansi: false,
+                        ..
+                    },
+                    ..
+                })
+            ));
+            let mut unwrapped = words.clone();
+            unwrapped.extend(["--unwrap", "--lines", "0"]);
+            assert!(matches!(
+                parse(&unwrapped),
+                Ok(Request::Query {
+                    command: QueryCommand::TerminalOutput {
+                        selection: OutputSelection {
+                            source: OutputSource::RecentUnwrapped,
+                            lines: Some(0)
+                        },
+                        ..
+                    },
+                    ..
+                })
+            ));
+        }
+        for (extra, lines, timeout) in [
+            (vec![], None, None),
+            (vec!["--rows=3"], Some(3), None),
+            (vec!["--rows=3", "--forever"], Some(3), None),
+            (vec!["--timeout=30000"], None, Some(30_000)),
+        ] {
+            let mut words = vec!["terminal", "wait-output", id, "--match=done"];
+            words.extend(extra);
+            assert!(matches!(parse(&words), Ok(Request::Query {
+                command: QueryCommand::TerminalSourceWait { selection: OutputSelection { source: OutputSource::Recent, lines: found }, timeout_ms, .. }, ..
+            }) if found == lines && timeout_ms == timeout));
+        }
     }
 
     #[test]
@@ -283,6 +354,7 @@ mod tests {
             );
             assert!(plain);
         }
+        #[cfg(not(windows))]
         assert!(matches!(
             parse(&["terminal", "read", id]),
             Ok(Request::Query {
@@ -348,13 +420,13 @@ mod tests {
                 vec!["--source=visible"],
                 OutputSource::Visible,
                 None,
-                Some(30_000),
+                if cfg!(windows) { None } else { Some(30_000) },
             ),
             (
                 vec!["--lines=0"],
                 OutputSource::Recent,
                 Some(0),
-                Some(30_000),
+                if cfg!(windows) { None } else { Some(30_000) },
             ),
             (
                 vec!["--lines=4294967295", "--timeout=7"],
@@ -387,6 +459,7 @@ mod tests {
             assert_eq!(selection, OutputSelection { source, lines });
             assert_eq!(timeout_ms, timeout);
         }
+        #[cfg(not(windows))]
         assert!(matches!(
             parse(&["terminal", "wait-output", id, "--match=x"]),
             Ok(Request::Query {
@@ -401,7 +474,6 @@ mod tests {
         for extra in [
             vec!["--source=visible", "--rows=2"],
             vec!["--lines=1", "--rows=2"],
-            vec!["--forever", "--rows=2"],
             vec!["--forever", "--timeout=1"],
             vec!["--source=visible", "--timeout=0"],
             vec!["--source=bad"],

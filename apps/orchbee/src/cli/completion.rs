@@ -3665,6 +3665,8 @@ fn command_flag_conflicts(command: &str, flag: &str) -> &'static [&'static str] 
         ("panel:current" | "panel:process-info", "--panel") => &["--current", "--client"],
         ("panel:current" | "panel:process-info", "--client" | "--current") => &["--panel"],
         ("terminal:wait-output", "--source" | "--lines") => &["--rows"],
+        ("terminal:wait-output", "--forever") if cfg!(windows) => &["--timeout"],
+        ("terminal:wait-output", "--rows") if cfg!(windows) => &["--source", "--lines"],
         ("terminal:wait-output", "--forever") => &["--rows", "--timeout"],
         ("terminal:wait-output", "--timeout") => &["--forever"],
         ("terminal:wait-output", "--rows") => &["--source", "--lines", "--forever"],

@@ -58,7 +58,8 @@
 						"const": 1
 					}
 				},
-				"required": ["version"]
+				"required": ["version"],
+				"type": "object"
 			},
 			"then": {
 				"properties": {
@@ -66,12 +67,15 @@
 						"properties": {
 							"match": {
 								"not": {
-									"required": ["patternKind"]
+									"required": ["patternKind"],
+									"type": "object"
 								}
 							}
-						}
+						},
+						"type": "object"
 					}
-				}
+				},
+				"type": "object"
 			},
 			"else": {
 				"if": {
@@ -80,18 +84,22 @@
 							"const": 2
 						}
 					},
-					"required": ["version"]
+					"required": ["version"],
+					"type": "object"
 				},
 				"then": {
 					"properties": {
 						"result": {
 							"properties": {
 								"match": {
-									"required": ["patternKind"]
+									"required": ["patternKind"],
+									"type": "object"
 								}
-							}
+							},
+							"type": "object"
 						}
-					}
+					},
+					"type": "object"
 				}
 			}
 		},
@@ -102,20 +110,24 @@
 						"const": 3
 					}
 				},
-				"required": ["version"]
+				"required": ["version"],
+				"type": "object"
 			},
 			"then": {
 				"properties": {
 					"result": {
-						"required": ["selection"]
+						"required": ["selection"],
+						"type": "object"
 					}
-				}
+				},
+				"type": "object"
 			},
 			"else": {
 				"properties": {
 					"result": {
 						"not": {
-							"required": ["selection"]
+							"required": ["selection"],
+							"type": "object"
 						},
 						"properties": {
 							"observed": {
@@ -125,13 +137,17 @@
 									},
 									"requestedRows": {
 										"minimum": 1,
-										"maximum": 1000
+										"maximum": 1000,
+										"type": "integer"
 									}
-								}
+								},
+								"type": "object"
 							}
-						}
+						},
+						"type": "object"
 					}
-				}
+				},
+				"type": "object"
 			}
 		}
 	],
@@ -240,7 +256,8 @@
 			"allOf": [
 				{
 					"if": {
-						"required": ["patternKind"]
+						"required": ["patternKind"],
+						"type": "object"
 					},
 					"then": {
 						"required": [
@@ -249,25 +266,31 @@
 							"matchedTruncated",
 							"startsMidLine",
 							"endsMidLine"
-						]
+						],
+						"type": "object"
 					},
 					"else": {
 						"not": {
 							"anyOf": [
 								{
-									"required": ["matchLength"]
+									"required": ["matchLength"],
+									"type": "object"
 								},
 								{
-									"required": ["matched"]
+									"required": ["matched"],
+									"type": "object"
 								},
 								{
-									"required": ["matchedTruncated"]
+									"required": ["matchedTruncated"],
+									"type": "object"
 								},
 								{
-									"required": ["startsMidLine"]
+									"required": ["startsMidLine"],
+									"type": "object"
 								},
 								{
-									"required": ["endsMidLine"]
+									"required": ["endsMidLine"],
+									"type": "object"
 								}
 							]
 						}

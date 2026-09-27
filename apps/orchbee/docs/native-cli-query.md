@@ -512,11 +512,11 @@ close-status` and `workspace close-resume` both flags are strict stable IDs inst
   any runtime access under a 1 MiB program-size limit and a 1 MiB lazy-DFA cache limit.
   A missing, empty, oversized, or non-compiling value — or coexistence with `--match` — is
   `invalid-usage`.
-- `--timeout <ms>`: single-use value flag, optional on `terminal wait-output` (default
+- `--timeout <ms>`: single-use value flag, optional on `terminal wait-output` (Windows defaults to no total deadline; other platforms use
   `30000`) and on `agent wait` (Windows defaults to no total timeout, Linux to `600000`); one decimal `u32` in `1..=3600000`.
   A repeated, non-numeric, or out-of-range value is `invalid-usage`.
 - `--rows <n>` on `terminal wait-output` is the searched retained-row window `1..=1000`
-  (default `1000`) covering the most recent visible+history rows as one range — unrelated
+  (Windows aliases recent lines, default 80; legacy default `1000`) covering the most recent visible+history rows as one range — unrelated
   to the geometry flag of the same name.
 - `--target-panel <target>`: single-use value flag, required on legacy same-Tab `panel move` and optional with `--into-tab`; parsed with
   the `panel` target rule (a complete typed ID only) and resolved inside the moved panel's
@@ -893,7 +893,7 @@ materialized emitted rows — they change neither the fetched window nor the rea
 - Either flag lifts the envelope to `version:2` (`orchbee.terminal.read` /
   `orchbee.terminal.history`); flag-free output stays `version:1` byte-identical.
 
-`terminal wait-output` reuses the same snapshot admission and attach preamble, then keeps the
+The legacy non-Windows `terminal wait-output` path reuses snapshot admission and attachment. Windows uses the source-selected wait contract below. The legacy path keeps the
 read-only viewer alive for a bounded observation loop instead of a single frame:
 
 - **Deadline** — one absolute deadline `T0 + --timeout` is taken at command start
@@ -2386,19 +2386,9 @@ not evaluated or admitted by this repair.
 
 ## Source-selected terminal output
 
-Windows `terminal read` and `agent read` accept `--source visible|recent|recent-unwrapped|detection`.
-Recent combines retained history with the live screen; detection reads the recent screen-height
-range. `--plain` exports text directly for pipes, defaults to recent, and excludes JSON. Source-mode
-`--lines` allows zero, clamps to 1000, and defaults to 80 for recent. It excludes the legacy
-history/rows/unwrap flags, whose behavior stays unchanged. The [output contract](native-terminal-output.md)
-owns selection, exact sample validation and `orchbee.terminal.output` v1; catalog v69 has 78 schemas.
+Windows `terminal read` and `agent read` default to recent output (80 physical rows) and `orchbee.terminal.output` v1. `--source visible|recent|recent-unwrapped|detection` selects explicitly; bare `--unwrap` chooses recent-unwrapped. `--lines` allows zero and clamps to 1000. `--plain` exports UTF-8 directly and excludes JSON. Explicit source/plain/ANSI cannot mix with legacy history/rows/unwrap. Explicit `--history --rows` retains its history-only document. The [output contract](native-terminal-output.md) owns sample validation and migration.
 
-Windows `terminal wait-output` accepts the same `--source` and `--lines` selection, or `--forever`
-for an explicit wait without a total ceiling. Any of these chooses source mode (default recent),
-excludes `--rows`, and emits `orchbee.terminal.wait-output` v3. Without `--forever`, the default
-remains 30000 ms; `--forever` conflicts with `--timeout`, retains five-second I/O bounds and supports
-Ctrl+C. Recent waits join soft wraps; visible/detection match physical lines. Old invocations retain
-v1/v2 output. A match can come from existing output and never proves command completion.
+Windows `terminal wait-output` defaults to recent80 and no total timeout, including explicit source selection. `--timeout` is finite; `--forever` explicitly requests the default and conflicts with timeout. `--rows` aliases recent lines (1..1000), excluding explicit source/lines. All Windows waits emit v3 with nullable timeoutMs and retain bounded I/O and Ctrl+C cleanup. Recent joins soft wraps; visible/detection match physical lines. Existing output can match without proving command completion. Use `--source visible` for a screen read or `--lines 1000 --timeout 30000` for a finite larger wait.
 
 Windows `terminal read` and `agent read --ansi` export styled snapshots, defaulting to recent output.
 Use `--format json` for `orchbee.terminal.output` v2 with `result.encoding: "ansi"`; text/plain reads

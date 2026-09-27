@@ -418,10 +418,10 @@ Windows `agent wait --client <id>` 同时固定一个精确 Client 和已解析 
   非空 UTF-8 正则表达式，至多 1024 字节，在任何运行时访问之前以 1 MiB 程序大小上限
   与 1 MiB 惰性 DFA 缓存上限编译一次。缺失、空、超长或编译失败的值——或与 `--match`
   并存——均为 `invalid-usage`。
-- `--timeout <ms>`：带值 flag，单次使用，`terminal wait-output`（默认 `30000`）与
+- `--timeout <ms>`：带值 flag，单次使用，`terminal wait-output`（Windows 默认无总期限，其他平台为 `30000`）与
   `agent wait`（Windows 默认无总超时，Linux 默认 `600000`）上可选；取一个 `1..=3600000` 的十进制 `u32`。
   重复、非数值或越界值均为 `invalid-usage`。
-- `terminal wait-output` 上的 `--rows <n>` 是被搜索的保留行窗口 `1..=1000`（默认
+- `terminal wait-output` 上的 `--rows <n>` 是被搜索的保留行窗口 `1..=1000`（Windows 为 recent 行数别名，默认 80；旧路径默认
   `1000`），把最近的可见行与历史行作为同一范围覆盖——与同名的几何 flag 无关。
 - `--target-panel <target>`：带值 flag，单次使用，既有同 Tab `panel move` 上必填，`--into-tab` 形式可选；按 `panel` 的
   target 规则解析（仅完整 typed ID）；既有移动在来源 Tab 内解析，`--into-tab` 形式在目标 Tab 内解析。
@@ -744,7 +744,7 @@ Windows 托管安装由 [Windows 集成契约](windows-agent-integrations.zh-CN.
 - 任一 flag 使封套升为 `version:2`（`orchbee.terminal.read` /
   `orchbee.terminal.history`）；不带 flag 的输出保持 `version:1` 逐字节不变。
 
-`terminal wait-output` 沿用同一快照准入与 attach 前导，但只读 viewer 在单次帧之后继续
+非 Windows 的旧 `terminal wait-output` 路径沿用快照准入与 attach 前导；Windows 使用下文来源等待契约。旧路径只读 viewer 在单次帧之后继续
 保持存活，进入有界观察循环：
 
 - **期限**——在命令开始时取一个绝对 deadline `T0 + --timeout`（默认 30000ms，准入范围
@@ -2028,19 +2028,9 @@ PowerShell 补全将纯 ASCII 十进制整数 AST 常量按原始文本读取，
 
 ## 按来源读取终端输出
 
-Windows `terminal read` 和 `agent read` 接受 `--source visible|recent|recent-unwrapped|detection`。
-recent 合并保留历史与实时屏幕；detection 读取最近的一个屏幕高度范围。
-`--plain` 为管道直接导出文本，默认 recent，与 JSON 互斥。来源模式
-`--lines` 允许零，钳制到 1000，recent 默认 80。它与既有 history/rows/unwrap
-参数互斥，既有行为保持不变。[输出契约](native-terminal-output.zh-CN.md)
-拥有选择、精确样本验证及 `orchbee.terminal.output` v1；目录 v69 共 78 个 schema。
+Windows `terminal read` 和 `agent read` 默认读取 recent（80 个物理行），输出 `orchbee.terminal.output` v1。`--source visible|recent|recent-unwrapped|detection` 显式选择来源；裸 `--unwrap` 选择 recent-unwrapped。`--lines` 允许零并钳制到 1000。`--plain` 原样导出 UTF-8，与 JSON 互斥。显式 source/plain/ANSI 不能与旧 history/rows/unwrap 混用。显式 `--history --rows` 保留纯历史文档。[输出契约](native-terminal-output.zh-CN.md)负责样本验证及迁移。
 
-Windows `terminal wait-output` 接受相同的 `--source` 和 `--lines` 选择，也可用 `--forever`
-明确取消总等待时限。任一参数都会启用来源模式（默认 recent），与 `--rows` 互斥，
-并输出 `orchbee.terminal.wait-output` v3。不带 `--forever` 时默认仍为 30000 ms；
-`--forever` 与 `--timeout` 互斥，保留每次 I/O 的五秒上限并支持 Ctrl+C。
-recent 等待合并软换行；visible/detection 按物理行匹配。既有调用保留 v1/v2 输出。
-现有输出也能满足等待，匹配成功不代表命令执行完成。
+Windows `terminal wait-output` 默认 recent80 且无总超时，显式来源选择也一样。`--timeout` 是有限期限；`--forever` 显式请求默认行为，与 timeout 互斥。`--rows` 是 recent 行数别名（1..1000），与显式 source/lines 冲突。全部 Windows 等待输出 v3，timeoutMs 可为 null，保留有界 I/O 和 Ctrl+C 清理。recent 拼接软换行，visible/detection 匹配物理行。既有输出可匹配，不证明命令完成。屏幕读取用 `--source visible`；较大有限窗口用 `--lines 1000 --timeout 30000`。
 
 Windows `terminal read` 与 `agent read --ansi` 导出带样式快照，默认读取 recent 输出。
 `--format json` 使用 `orchbee.terminal.output` v2，并带 `result.encoding: "ansi"`；文本/plain

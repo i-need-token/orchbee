@@ -3,6 +3,59 @@ use super::PanelQueryTarget;
 use super::{CreationCommand, CreationKind, SiteStopCommand};
 use std::ffi::OsString;
 
+fn expected_terminal_read(
+    target: Target,
+    history: Option<u16>,
+    unwrap: bool,
+    lines: Option<u16>,
+) -> QueryCommand {
+    if cfg!(windows) && history.is_none() {
+        QueryCommand::TerminalOutput {
+            target: super::OutputTarget::Terminal(target),
+            selection: super::OutputSelection {
+                source: if unwrap {
+                    super::OutputSource::RecentUnwrapped
+                } else {
+                    super::OutputSource::Recent
+                },
+                lines: lines.map(|n| n.min(1000)),
+            },
+            plain: false,
+            ansi: false,
+        }
+    } else {
+        QueryCommand::TerminalRead {
+            target,
+            history,
+            unwrap,
+            lines,
+        }
+    }
+}
+
+fn expected_output_wait(text: &str, rows: Option<u16>, timeout: Option<u32>) -> QueryCommand {
+    let target = Target::Id(ID.into());
+    let matcher = WaitPattern::Literal(text.to_owned());
+    if cfg!(windows) {
+        QueryCommand::TerminalSourceWait {
+            target,
+            matcher,
+            selection: super::OutputSelection {
+                source: super::OutputSource::Recent,
+                lines: rows,
+            },
+            timeout_ms: timeout,
+        }
+    } else {
+        QueryCommand::TerminalWaitOutput {
+            target,
+            matcher,
+            rows: rows.unwrap_or(1000),
+            timeout_ms: timeout.unwrap_or(30_000),
+        }
+    }
+}
+
 #[cfg(windows)]
 #[test]
 fn client_workbench_queries_route_exact_clients_and_reject_unrelated_options() {
@@ -387,12 +440,7 @@ fn accepts_every_query_path_with_default_text() {
         ),
         (
             &["terminal", "read", ID],
-            QueryCommand::TerminalRead {
-                target: Target::Id(ID.into()),
-                history: None,
-                unwrap: false,
-                lines: None,
-            },
+            expected_terminal_read(Target::Id(ID.into()), None, false, None),
         ),
         (&["api", "snapshot"], QueryCommand::ApiSnapshot),
         (
@@ -1270,12 +1318,7 @@ fn selector_targets_parse_for_their_own_resource() {
         ),
         (
             &["terminal", "read", "@terminal:beef"],
-            QueryCommand::TerminalRead {
-                target: Target::Selector("@terminal:beef".into()),
-                history: None,
-                unwrap: false,
-                lines: None,
-            },
+            expected_terminal_read(Target::Selector("@terminal:beef".into()), None, false, None),
         ),
     ];
     for (arguments, command) in cases {
@@ -4070,12 +4113,7 @@ fn ownership_and_terminator_keep_their_reasons() {
 fn terminal_read_history_grammar() {
     let read = |history: Option<u16>| {
         query(
-            QueryCommand::TerminalRead {
-                target: Target::Id(ID.into()),
-                history,
-                unwrap: false,
-                lines: None,
-            },
+            expected_terminal_read(Target::Id(ID.into()), history, false, None),
             OutputFormat::Text,
         )
     };
@@ -4116,12 +4154,7 @@ fn terminal_read_history_grammar() {
             "json"
         ]),
         Ok(Request::Query {
-            command: QueryCommand::TerminalRead {
-                target: Target::Id(ID.into()),
-                history: Some(7),
-                unwrap: false,
-                lines: None,
-            },
+            command: expected_terminal_read(Target::Id(ID.into()), Some(7), false, None),
             format: OutputFormat::Json,
         })
     );
@@ -4265,12 +4298,7 @@ fn terminal_read_history_grammar() {
 fn terminal_read_presentation_grammar() {
     let read = |history: Option<u16>, unwrap: bool, lines: Option<u16>| {
         query(
-            QueryCommand::TerminalRead {
-                target: Target::Id(ID.into()),
-                history,
-                unwrap,
-                lines,
-            },
+            expected_terminal_read(Target::Id(ID.into()), history, unwrap, lines),
             OutputFormat::Text,
         )
     };
@@ -4311,7 +4339,16 @@ fn terminal_read_presentation_grammar() {
     }
     // The tail value shape: 1..=65535, the shared unsigned-integer spelling.
     for value in ["0", "65536", "abc", "-1", "5.0", "", " 5", "5 "] {
-        let arguments = ["terminal", "read", ID, "--lines", value];
+        let arguments = [
+            "terminal",
+            "read",
+            ID,
+            "--history",
+            "--rows",
+            "20",
+            "--lines",
+            value,
+        ];
         let Err(failure) = parse(&arguments) else {
             panic!("{arguments:?} must fail");
         };
@@ -4378,22 +4415,16 @@ fn terminal_read_presentation_grammar() {
 
 #[test]
 fn terminal_wait_output_grammar() {
-    let wait = |match_text: &str, rows: u16, timeout_ms: u32| {
+    let wait = |text: &str, rows: Option<u16>, timeout: Option<u32>| {
         query(
-            QueryCommand::TerminalWaitOutput {
-                target: Target::Id(ID.into()),
-                matcher: WaitPattern::Literal(match_text.to_owned()),
-                rows,
-                timeout_ms,
-            },
+            expected_output_wait(text, rows, timeout),
             OutputFormat::Text,
         )
-    };
-    // Required flag plus the two defaults; option order is free.
+    }; // Required flag plus the two defaults; option order is free.
     for (arguments, expected) in [
         (
             &["terminal", "wait-output", ID, "--match", "ready"][..],
-            wait("ready", 1000, 30_000),
+            wait("ready", None, None),
         ),
         (
             &[
@@ -4405,7 +4436,7 @@ fn terminal_wait_output_grammar() {
                 "--rows",
                 "1",
             ][..],
-            wait("ready", 1, 30_000),
+            wait("ready", Some(1), None),
         ),
         (
             &[
@@ -4419,12 +4450,12 @@ fn terminal_wait_output_grammar() {
                 "--match",
                 "ready",
             ][..],
-            wait("ready", 1000, 3_600_000),
+            wait("ready", Some(1000), Some(3_600_000)),
         ),
         // `--match` owns its next word whole — flag-looking text is a value.
         (
             &["terminal", "wait-output", ID, "--match", "--rows"][..],
-            wait("--rows", 1000, 30_000),
+            wait("--rows", None, None),
         ),
     ] {
         assert_eq!(parse(arguments), Ok(expected), "{arguments:?}");
@@ -4441,12 +4472,7 @@ fn terminal_wait_output_grammar() {
             "json"
         ]),
         Ok(Request::Query {
-            command: QueryCommand::TerminalWaitOutput {
-                target: Target::Id(ID.into()),
-                matcher: WaitPattern::Literal("ready".to_owned()),
-                rows: 1000,
-                timeout_ms: 30_000,
-            },
+            command: expected_output_wait("ready", None, None),
             format: OutputFormat::Json,
         })
     );
@@ -4500,11 +4526,23 @@ fn terminal_wait_output_grammar() {
             "3"
         ]),
         Ok(query(
-            QueryCommand::TerminalWaitOutput {
-                target: Target::Id(ID.into()),
-                matcher: WaitPattern::Regex(compiled),
-                rows: 3,
-                timeout_ms: 30_000,
+            if cfg!(windows) {
+                QueryCommand::TerminalSourceWait {
+                    target: Target::Id(ID.into()),
+                    matcher: WaitPattern::Regex(compiled),
+                    selection: super::OutputSelection {
+                        source: super::OutputSource::Recent,
+                        lines: Some(3),
+                    },
+                    timeout_ms: None,
+                }
+            } else {
+                QueryCommand::TerminalWaitOutput {
+                    target: Target::Id(ID.into()),
+                    matcher: WaitPattern::Regex(compiled),
+                    rows: 3,
+                    timeout_ms: 30_000,
+                }
             },
             OutputFormat::Text,
         ))
