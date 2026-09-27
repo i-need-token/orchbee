@@ -15,7 +15,9 @@ pub(crate) use client_control::{
     PanelSwapDestination, ZoomMode,
 };
 pub(crate) use terminal_output::{OutputSelection, OutputSource, OutputTarget};
-pub(crate) use terminal_stream::{TerminalControlCommand, TerminalObserveCommand};
+pub(crate) use terminal_stream::{
+    AttachTarget, TerminalAttachCommand, TerminalControlCommand, TerminalObserveCommand,
+};
 mod workspace_group_close;
 pub(crate) use workspace_group_close::WorkspaceGroupCloseCommand;
 #[cfg(windows)]
@@ -260,6 +262,8 @@ pub(crate) enum CommandPath {
     PanelMove,
     TerminalList,
     TerminalGet,
+    TerminalAttach,
+    AgentAttach,
     TerminalObserve,
     TerminalControl,
     TerminalRead,
@@ -356,6 +360,8 @@ impl CommandPath {
             Self::PanelMove => "panel move",
             Self::TerminalList => "terminal list",
             Self::TerminalGet => "terminal get",
+            Self::TerminalAttach => "terminal attach",
+            Self::AgentAttach => "agent attach",
             Self::TerminalObserve => "terminal session observe",
             Self::TerminalControl => "terminal session control",
             Self::TerminalRead => "terminal read",
@@ -1077,6 +1083,9 @@ pub(crate) enum RuntimeStatusScope {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum Request {
+    TerminalAttach {
+        command: TerminalAttachCommand,
+    },
     TerminalObserve {
         command: TerminalObserveCommand,
     },
@@ -3140,6 +3149,12 @@ fn resolve_words(
                 options,
             ))
         }
+        ["terminal", "attach", operands @ ..] => {
+            terminal_stream::attach(operands, options, envelope, false)
+        }
+        ["agent", "attach", operands @ ..] => {
+            terminal_stream::attach(operands, options, envelope, true)
+        }
         ["terminal", "session", "control", operands @ ..] => {
             terminal_stream::control(operands, options, envelope)
         }
@@ -3905,6 +3920,8 @@ fn help_topic(path: &[&str]) -> Option<HelpTopic> {
         ["tab"] => HelpTopic::Family(Family::Tab),
         ["panel"] => HelpTopic::Family(Family::Panel),
         ["terminal"] => HelpTopic::Family(Family::Terminal),
+        ["terminal", "attach"] => HelpTopic::Command(CommandPath::TerminalAttach),
+        ["agent", "attach"] => HelpTopic::Command(CommandPath::AgentAttach),
         ["terminal", "session"] => HelpTopic::Family(Family::TerminalSession),
         ["terminal", "session", "observe"] => HelpTopic::Command(CommandPath::TerminalObserve),
         ["terminal", "session", "control"] => HelpTopic::Command(CommandPath::TerminalControl),

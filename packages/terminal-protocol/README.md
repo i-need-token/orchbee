@@ -54,7 +54,7 @@ wide-cell and adjacent-wrap relationships, exact length, and bounded optional ex
 before returning `TerminalTextFrame`. The output carries rows of shared `Arc<str>` graphemes and
 text styles, cursor position/visibility, complete geometry, screen, colors, theme revision,
 routing facts, and the validated `captured_interaction` modes word — exposed through the narrow
-`TerminalInteraction` tracking/format/cursor-mode/bracketed-paste queries rather than raw bits. Sharing strings
+`TerminalInteraction` tracking/format/cursor-mode/bracketed-paste/focus-reporting queries rather than raw bits. Sharing strings
 prevents repeated cell references from expanding one wire string into one allocation per cell.
 
 This is a text-table decoder, not a full graphics/extension decoder or a Client state machine.

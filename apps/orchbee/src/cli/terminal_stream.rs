@@ -10,7 +10,10 @@ use orchbee_client_server_protocol::{
 };
 use serde_json::{Value, json};
 use std::time::{Duration, Instant};
+mod attach;
 mod control;
+mod display;
+pub(crate) use attach::run as run_attach;
 mod frame;
 mod history;
 mod input;
@@ -28,7 +31,7 @@ pub(crate) fn run(command: &TerminalObserveCommand, locale: Locale) -> Output {
     let failure_output = |failure: Failure| Output {
         status: failure.kind.exit_code(),
         stdout: Vec::new(),
-        stderr: locale.cli_failure(&failure),
+        stderr: locale.terminal_stream_failure(&failure),
         finalization: None,
     };
     let signal = match ControlInterrupt::arm() {

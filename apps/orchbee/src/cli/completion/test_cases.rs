@@ -1,6 +1,56 @@
 //! Shared observable completion obligations, independent of shell syntax.
 
 pub(super) const CASES: &[(&str, &str, bool)] = &[
+    ("orchbee terminal a", "attach", true),
+    ("orchbee agent a", "attach", true),
+    ("orchbee help terminal a", "attach", true),
+    ("orchbee --mouse off ", "terminal", true),
+    ("orchbee --mouse off ", "agent", true),
+    ("orchbee --mouse off ", "status", false),
+    ("orchbee --mouse off terminal ", "attach", true),
+    ("orchbee --mouse off terminal ", "session", false),
+    ("orchbee --mouse off agent ", "attach", true),
+    ("orchbee --mouse off agent ", "integration", false),
+    (
+        "orchbee --mouse off --format=json terminal a",
+        "attach",
+        true,
+    ),
+    ("orchbee --takeover --mouse=", "--mouse=off", true),
+    ("orchbee terminal attach target --m", "--mouse", true),
+    (
+        "orchbee terminal attach target --mouse=",
+        "--mouse=off",
+        true,
+    ),
+    (
+        "orchbee terminal attach target --mouse off --m",
+        "--mouse",
+        false,
+    ),
+    (
+        "orchbee terminal attach target --mouse invalid --f",
+        "--format",
+        false,
+    ),
+    (
+        "orchbee terminal read target --mouse off --f",
+        "--format",
+        false,
+    ),
+    ("orchbee agent attach --name alpha --m", "--mouse", true),
+    ("orchbee agent attach --name alpha --s", "--session", false),
+    ("orchbee agent attach alpha --n", "--name", false),
+    (
+        "orchbee agent attach alpha --name beta --f",
+        "--format",
+        false,
+    ),
+    (
+        "orchbee agent attach --name alpha extra --f",
+        "--format",
+        false,
+    ),
     ("orchbee terminal session c", "control", true),
     (
         "orchbee --takeover terminal session observe target --f",

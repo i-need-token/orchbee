@@ -1265,6 +1265,78 @@ fn caller_deadline_viewer_and_control_forms_keep_the_shorter_exchange_budget() -
 }
 
 #[test]
+fn semantic_paste_accepts_only_its_own_receipt_without_replaying_unknown_input() -> TestResult {
+    use orchbee_client_server_protocol::{
+        ControllerId, PasteAcceptedBytes, PasteContent, TerminalControlAction,
+        TerminalControlOutcome, TerminalControlRequest, TerminalControlResult, ViewerId,
+    };
+    for valid in [false, true] {
+        let server = FakeServer::start(move |mut stream| {
+            expect_hello(&mut stream, COHORT)?;
+            admit(&mut stream, 49)?;
+            let ClientMessage::TerminalControl(request) =
+                read_client_message(&mut stream).map_err(io::Error::other)?
+            else {
+                panic!("paste request")
+            };
+            assert!(
+                matches!(request.action(), TerminalControlAction::Paste { content, .. } if content.as_bytes() == b"paste")
+            );
+            let outcome = if valid {
+                TerminalControlOutcome::Pasted {
+                    accepted_bytes: PasteAcceptedBytes::new(17).unwrap(),
+                }
+            } else {
+                TerminalControlOutcome::InputAccepted {}
+            };
+            write_server_message(
+                &mut stream,
+                &ServerMessage::TerminalControlResult(TerminalControlResult::new(
+                    request.request_id().clone(),
+                    outcome,
+                )),
+            )
+            .map_err(io::Error::other)?;
+            assert_eq!(stream.read(&mut [0])?, 0, "paste is never replayed");
+            Ok(())
+        })?;
+        let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
+        let result = client.submit_terminal_control_cancellable(
+            TerminalControlRequest::new(
+                RequestId::parse(FIRST_REQUEST_ID)?,
+                TerminalControlAction::Paste {
+                    attachment_id: ViewerId::parse(FIRST_REQUEST_ID)?,
+                    controller_id: ControllerId::parse(SECOND_REQUEST_ID)?,
+                    sequence: std::num::NonZeroU64::MIN,
+                    content: PasteContent::new(b"paste".to_vec())?,
+                },
+            ),
+            Some(Instant::now() + Duration::from_secs(2)),
+            None,
+        );
+        if valid {
+            assert!(matches!(
+                result?.outcome(),
+                TerminalControlOutcome::Pasted { .. }
+            ));
+            assert!(client.generation().is_some());
+        } else {
+            assert!(matches!(
+                result,
+                Err(SubmissionError::OutcomeUnknown {
+                    reason: OutcomeUnknownReason::InvalidResult(_),
+                    ..
+                })
+            ));
+            assert!(client.generation().is_none());
+        }
+        drop(client);
+        server.finish()?;
+    }
+    Ok(())
+}
+
+#[test]
 fn operation_clock_clones_share_the_injected_monotonic_source() -> TestResult {
     let server = FakeServer::start(|mut stream| {
         expect_hello(&mut stream, COHORT)?;

@@ -267,12 +267,16 @@ impl WaitViewport for InheritedWaitViewport<'_> {
 /// terminal input descriptor — never a fresh `/dev/tty`.
 pub(crate) struct InheritedWaitInput {
     input: File,
+    #[cfg(windows)]
+    terminal: InheritedTerminal,
 }
 
 impl InheritedWaitInput {
     pub(crate) fn open(terminal: &InheritedTerminal) -> io::Result<Self> {
         Ok(Self {
             input: File::from(terminal.duplicate_input()?),
+            #[cfg(windows)]
+            terminal: terminal.clone(),
         })
     }
 }
@@ -282,7 +286,7 @@ impl WaitInput for InheritedWaitInput {
         #[cfg(windows)]
         {
             let _ = &self.input;
-            crate::windows_console_input::next_input(timeout)
+            self.terminal.next_input(timeout)
         }
         #[cfg(unix)]
         {

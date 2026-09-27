@@ -271,8 +271,9 @@ Windows `agent wait --client <id>` 同时固定一个精确 Client 和已解析 
   `--paste` 仅能与 `--file` 或 `--stdin` 同用，生成一条粘贴记录及可选的末尾 Enter 记录。
   零个或多于一种源均为 `invalid-usage`；冲突按固定次序
   `--text`、`--key`、`--file`、`--stdin` 命名，与 argv 次序无关。
-- `--mouse off|on`：带值 flag，单次使用，仅显式 `tui` 路由受理——宿主机指针捕获
-  用于面板命中，默认开启。两种声明写法（`--mouse on` 与 `--mouse=on`）取值同为
+- `--mouse off|on`：带值 flag，单次使用，在显式 `tui`、`terminal attach` 和
+  `agent attach` 路由受理；宿主机指针捕获默认开启。attach 遵循
+  [Windows 流契约](windows-terminal-streams.zh-CN.md)，包括任一全局格式下均输出交互画面。两种声明写法（`--mouse on` 与 `--mouse=on`）取值同为
   封闭的 `off|on` 词表；缺失或未知值、任一写法下的重复、出现在其他命令路由
   或裸调用，均为 `invalid-usage`。
 - `--include-ended`：无值布尔 flag，单次使用，仅 `agent list` 受理；让请求页包含

@@ -78,13 +78,49 @@ Page 键仅在未启用鼠标跟踪的普通屏幕、且应用光标关闭或 br
 reset 之后，不代表隐藏的实时帧已经显示。EOF 和 release 仅在确认 detach 后成功；无法
 确认清理时为 outcome-unknown。Ctrl+C 和总超时沿用观察命令退出类别及有界清理预留。
 
+## 交互式 attach
+
+`terminal attach <terminal>` 和 `agent attach <target>` 是 Windows 终端界面。
+支持 `--takeover`、`--timeout <ms>` 和 `--mouse on|off`（默认 on）；Agent 选择器还支持
+`--session`、`--name` 或 `--panel`。先验证语法，再准入继承的交互 stdin/stdout。
+二者均不启动 Site、不改变 Workbench 焦点，也不回退到其他终端。Agent 解析在原始可取消
+准入预算内选出唯一活动绑定。即使指定全局 format，输出仍是交互画面。
+
+| 阶段             | 所有者动作与释放规则                                                                      |
+| ---------------- | ----------------------------------------------------------------------------------------- |
+| TTY admitted     | 读取继承控制台几何，不改变模式                                                            |
+| Binding selected | 单次 Snapshot 和精确 Viewer；Agent 解析只读                                               |
+| Granted          | 取得或显式接管控制权，确认初始 resize                                                     |
+| Mode owned       | 既有 TerminalModeGuard 拥有 raw mode、备用屏幕、光标、paste、focus 及可选 pointer capture |
+| Attached         | 共享 control Session 和历史核心；先刷新显示画面，再确认 frame/row                         |
+| Ending           | 仅 detach 一次精确 Viewer；错误及展开时也须在诊断前恢复控制台模式                         |
+
+`Ctrl+B` 后按 `q` 脱离，但不停止终端。连续两次 `Ctrl+B` 发送一个字面前缀。
+其他后续事件保留暂存前缀及原顺序。粘贴是单次语义操作，绝不参与脱离匹配。
+非法、超长或超时粘贴被拒绝，不提交片段；排空到结束标记前始终保有粘贴所有权。
+`--mouse off` 下的鼠标报告不会消耗暂存前缀。
+raw mode 下的 `Ctrl+C` 交付应用；外部控制台中断取消本次调用。普通 PageUp/PageDown 和
+滚轮共享 control 的历史／应用分流；其他鼠标事件使用已验证的窗格跟踪契约。
+不支持的输入产生有界本地化提示。尺寸变化使用实际控制台几何；暂时的零几何保留最后
+有效尺寸，不发送 resize。旧尺寸帧不能授权新坐标
+下的鼠标／历史操作。
+
+进程内显示接口共享 NDJSON 的帧／历史渲染，不先编码再解析该协议。控制台写入沿用既有
+继承 Unicode TUI writer；不声称对操作系统控制台无响应提供硬时限。IPC 和清理仍有有界
+预算。显式脱离只有在释放已确认、模式已恢复后才成功；传输丢失不伪造终端正常退出。
+DEC 1007、像素／图形和扩展键盘模式的残余能力仍须实现并取得 Windows 证据。
+
 ## 验证与限制
 
 确定性核心和 Windows 脚本化传输检查覆盖精确绑定、多帧、reset、部分输出、中断、到期
 和清理。管道测试须证明下游阻塞不会遗留转发进程。同作者测试不代表独立评审、TLA 执行、
-远端／命名 Site 路由、其他平台、图形流或后续交互 attach 已完成。control 证据须覆盖
+远端／命名 Site 路由、其他平台或图形流验收已完成。control 证据须覆盖
 有序输入、部分接受、非法记录后继续、resize、release／EOF、历史反馈顺序和在途控制交换中断。
 
 清理结果在尚未尝试 Viewer attach 时为 `not-attached`，仅收到确认后为 `detached`；
-释放连接但无法确认 detach 时为 `session-released`。脚本化证据不能替代最终对 Windows
-打包运行时的验收。
+释放连接但无法确认 detach 时为 `session-released`。Windows 打包控制台实测覆盖了包含
+脱离前缀的中文 bracketed paste、原始 Ctrl+C 交付、关闭鼠标时的准入、忙碌控制者拒绝、
+接管隔离、历史翻页、正常脱离、超时恢复、重新获取控制权以及不同控制台尺寸准入，
+也覆盖了独立 TUI 的共享输入。宿主窗口动态缩放、鼠标视觉交互和真实认证 Agent 的
+attach 仍是独立验收义务。流超时使用专门诊断；拒绝保留控制者原因，不暗示此前已交付
+的输入被撤销。脚本化证据不能替代最终对 Windows 打包运行时的验收。

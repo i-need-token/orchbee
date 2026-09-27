@@ -28,9 +28,10 @@ reports, or primary-screen wheel history scrolling. Those are separate accepted 
   `鼠标已释放 · Ctrl+B m 恢复`) never disagrees with the host's actual reporting state. While
   released every decoded pointer event is ignored before probing or hit resolution, and all
   in-flight gestures and the wheel stream are cancelled; re-arming does not resurrect them.
-- `--mouse` is admitted only on `tui` (`off` and `on` values). Bare `orchbee` rejects the option
-  and still defaults to capture on; every other command family rejects it; `tui` continues to
-  reject `--format`. Both declared spellings are admitted — `--mouse off|on` and
+- `--mouse` is admitted on `tui` (`off` and `on` values). Windows `terminal attach` and
+  `agent attach` also admit it under the separate [stream contract](windows-terminal-streams.md).
+  Bare `orchbee` rejects the option and still defaults to capture on; other routes reject it;
+  `tui` continues to reject `--format`. Both declared spellings are admitted — `--mouse off|on` and
   `--mouse=off|on` — while values outside the closed pair, dash-led values, and repeated
   occurrences all refuse.
 - A `Shift`-modified report is never claimed: the host reserves `Shift` for native selection, and

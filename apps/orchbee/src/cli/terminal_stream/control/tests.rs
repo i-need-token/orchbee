@@ -245,7 +245,7 @@ fn control_orders_chunks_resize_receipts_and_exact_cleanup_without_replay() -> T
                 projection: TerminalProjection::new(route.attachment_id, route.host_epoch),
                 history: history::History::default(),
                 gate: &gate,
-                relay: &mut relay,
+                output: &mut relay,
             };
             session.resize(geometry).unwrap();
             let result = session.drive(&mut reader);

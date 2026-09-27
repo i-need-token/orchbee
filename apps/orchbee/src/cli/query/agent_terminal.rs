@@ -110,10 +110,20 @@ pub(crate) fn resolve_agent_terminal(
     target: &AgentTarget,
     deadline: Instant,
 ) -> Result<ResolvedAgentTerminal, Failure> {
+    resolve_agent_terminal_cancellable(client, snapshot, target, deadline, None)
+}
+
+pub(crate) fn resolve_agent_terminal_cancellable(
+    client: &mut LocalClient,
+    snapshot: &Snapshot,
+    target: &AgentTarget,
+    deadline: Instant,
+    wake: Option<BorrowedFd<'_>>,
+) -> Result<ResolvedAgentTerminal, Failure> {
     let resolved =
-        agent_target::resolve_on_session(client, target, Some(snapshot), deadline, None)?;
+        agent_target::resolve_on_session(client, target, Some(snapshot), deadline, wake)?;
     let session_id = resolved.session_id;
-    let observation = read_agent_observation(client, &session_id, deadline, None)?;
+    let observation = read_agent_observation(client, &session_id, deadline, wake)?;
     let terminal = select_terminal_for_presentation(
         snapshot,
         &observation.session,

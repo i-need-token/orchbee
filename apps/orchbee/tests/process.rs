@@ -321,6 +321,27 @@ check() {
  for candidate in "${COMPREPLY[@]}"; do [[ "$candidate" == "$expected" ]] && found=1; done
  if [[ "$found" != "$present" ]]; then printf '%s\n' "completion failed: $* -> ${COMPREPLY[*]} expected $expected = $present"; exit 1; fi
 }
+check attach 1 orchbee terminal a
+check attach 1 orchbee agent a
+check terminal 1 orchbee --mouse off ''
+check agent 1 orchbee --mouse off ''
+check status 0 orchbee --mouse off ''
+check attach 1 orchbee --mouse off terminal ''
+check session 0 orchbee --mouse off terminal ''
+check attach 1 orchbee --mouse off agent ''
+check integration 0 orchbee --mouse off agent ''
+check attach 1 orchbee --mouse off --format=json terminal a
+check --mouse=off 1 orchbee --takeover --mouse=
+check --mouse 1 orchbee terminal attach target --m
+check --mouse=off 1 orchbee terminal attach target --mouse=
+check --mouse 0 orchbee terminal attach target --mouse off --m
+check --format 0 orchbee terminal attach target --mouse invalid --f
+check --format 0 orchbee terminal read target --mouse off --f
+check --mouse 1 orchbee agent attach --name alpha --m
+check --session 0 orchbee agent attach --name alpha --s
+check --name 0 orchbee agent attach alpha --n
+check --format 0 orchbee agent attach alpha --name beta --f
+check --format 0 orchbee agent attach --name alpha extra --f
 check control 1 orchbee terminal session c
 check --format 0 orchbee --takeover terminal session observe target --f
 check --format 0 orchbee terminal session observe target --takeover --f

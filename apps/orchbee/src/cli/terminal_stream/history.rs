@@ -1,4 +1,5 @@
 //! CLI adapter for the same retained-history state machine used by the TUI.
+use super::display::Display;
 use super::*;
 use crate::terminal_session::terminal_viewport::{
     TerminalViewport, ViewportEffect, ViewportNav, ViewportReadRejection, ViewportStep,
@@ -125,7 +126,7 @@ impl History {
         client: &mut LocalClient,
         viewer: &ViewerId,
         gate: &Gate<'_>,
-        mut relay: Option<&mut relay::Relay>,
+        mut relay: Option<&mut dyn Display>,
     ) -> Result<(), Failure> {
         let Some(core) = self.core.as_mut() else {
             return Ok(());
@@ -205,13 +206,7 @@ impl History {
                 generation,
                 revision,
             } => {
-                let record = surface(core)?;
-                emit(
-                    relay.as_mut().expect("ACK requires output"),
-                    record,
-                    gate.step()?,
-                    gate.cancelled,
-                )?;
+                present(core, *relay.as_mut().expect("ACK requires output"), gate)?;
                 feedback(
                     client,
                     Action::RowsApplied {
@@ -247,6 +242,14 @@ impl History {
         };
         self.apply(effect)
     }
+    pub(super) fn present(&self, output: &mut dyn Display, gate: &Gate<'_>) -> Result<(), Failure> {
+        if let Some(core) = self.core.as_ref() {
+            present(core, output, gate)
+        } else {
+            output.event(json!({"kind":"reset","reason":"history-recovering"}), gate)
+        }
+    }
+    #[cfg(test)]
     pub(super) fn record(&self) -> Result<Value, Failure> {
         self.core.as_ref().map_or_else(
             || Ok(json!({"kind":"reset","reason":"history-recovering"})),
@@ -260,6 +263,18 @@ fn feedback(client: &mut LocalClient, action: Action, gate: &Gate<'_>) -> Result
         other => Err(classify(other)),
     }
 }
+fn present(
+    core: &TerminalViewport,
+    output: &mut dyn Display,
+    gate: &Gate<'_>,
+) -> Result<(), Failure> {
+    let ViewportSurface::Window(window) = core.surface() else {
+        return output.event(json!({"kind":"reset","reason":"history-pending"}), gate);
+    };
+    let (columns, rows) = core.geometry();
+    output.history(window, columns, rows, gate)
+}
+#[cfg(test)]
 fn surface(core: &TerminalViewport) -> Result<Value, Failure> {
     let ViewportSurface::Window(window) = core.surface() else {
         return Ok(json!({"kind":"reset","reason":"history-pending"}));

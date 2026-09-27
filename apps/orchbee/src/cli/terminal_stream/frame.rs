@@ -9,6 +9,18 @@ pub(super) fn history(
     columns: u16,
     rows: u16,
 ) -> Result<Value, Failure> {
+    let bytes = render_history(window, columns, rows)?;
+    Ok(json!({"kind":"history","encoding":"ansi","full":true,
+        "sequence":window.sequence.to_string(),"generation":window.generation.to_string(),"revision":window.revision.to_string(),
+        "width":columns,"height":rows,"startRow":window.start_row.to_string(),"totalRows":window.total_rows.to_string(),
+        "bytes":base64::engine::general_purpose::STANDARD.encode(bytes)}))
+}
+
+pub(super) fn render_history(
+    window: &orchbee_terminal_protocol::TerminalTextRowWindow,
+    columns: u16,
+    rows: u16,
+) -> Result<Vec<u8>, Failure> {
     let bytes = output::render_text(|out| {
         out.push("\x1b[0m\x1b[?25l\x1b[2J\x1b[H")?;
         for (line, row) in window.rows.iter().take(usize::from(rows)).enumerate() {
@@ -50,13 +62,25 @@ pub(super) fn history(
     if bytes.len() > 5 * 1024 * 1024 {
         return Err(Failure::new(FailureKind::OutputTooLarge));
     }
-    Ok(json!({"kind":"history","encoding":"ansi","full":true,
-        "sequence":window.sequence.to_string(),"generation":window.generation.to_string(),"revision":window.revision.to_string(),
-        "width":columns,"height":rows,"startRow":window.start_row.to_string(),"totalRows":window.total_rows.to_string(),
-        "bytes":base64::engine::general_purpose::STANDARD.encode(bytes)}))
+    Ok(bytes)
 }
 
 pub(super) fn record(frame: &TerminalTextFrame, columns: u16, rows: u16) -> Result<Value, Failure> {
+    let bytes = render(frame, columns, rows)?;
+    Ok(json!({
+        "kind":"frame", "encoding":"ansi", "full":true,
+        "sequence":frame.route.sequence.to_string(), "generation":frame.route.generation.to_string(),
+        "revision":frame.route.revision.to_string(), "width":columns, "height":rows,
+        "sourceWidth":frame.geometry.columns, "sourceHeight":frame.geometry.rows,
+        "bytes":base64::engine::general_purpose::STANDARD.encode(bytes),
+    }))
+}
+
+pub(super) fn render(
+    frame: &TerminalTextFrame,
+    columns: u16,
+    rows: u16,
+) -> Result<Vec<u8>, Failure> {
     let bytes = output::render_text(|out| {
         let base = orchbee_terminal_protocol::TerminalTextStyle {
             foreground: frame.foreground,
@@ -117,11 +141,5 @@ pub(super) fn record(frame: &TerminalTextFrame, columns: u16, rows: u16) -> Resu
     if bytes.len() > 5 * 1024 * 1024 {
         return Err(Failure::new(FailureKind::OutputTooLarge));
     }
-    Ok(json!({
-        "kind":"frame", "encoding":"ansi", "full":true,
-        "sequence":frame.route.sequence.to_string(), "generation":frame.route.generation.to_string(),
-        "revision":frame.route.revision.to_string(), "width":columns, "height":rows,
-        "sourceWidth":frame.geometry.columns, "sourceHeight":frame.geometry.rows,
-        "bytes":base64::engine::general_purpose::STANDARD.encode(bytes),
-    }))
+    Ok(bytes)
 }

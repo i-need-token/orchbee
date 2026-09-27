@@ -241,6 +241,21 @@ impl Default for LegacyDecoder {
 }
 
 impl LegacyDecoder {
+    /// A framed paste retains ownership through overflow/timeout draining.
+    /// Interactive attach rejects these raw fragments instead of submitting a
+    /// partial paste; the Workbench dispatcher retains its passthrough policy.
+    #[cfg(windows)]
+    pub(crate) fn paste_pending(&self) -> bool {
+        matches!(
+            self.state,
+            State::Paste { .. }
+                | State::Discard {
+                    drain: Drain::Paste(_),
+                    ..
+                }
+        )
+    }
+
     pub(crate) const fn new(wait: Duration) -> Self {
         Self {
             state: State::Ground,

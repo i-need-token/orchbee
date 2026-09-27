@@ -66,10 +66,10 @@ pub(super) fn build() -> serde_json::Value {
     });
     // Validate ownership of every generated flag table in Rust as well as
     // exercising candidates in a real PowerShell process.
-    debug_assert!(
-        COMMAND_FLAGS
+    debug_assert!(COMMAND_FLAGS.iter().all(|(_, flags)| {
+        flags
             .iter()
-            .all(|(_, flags)| flags.iter().all(|flag| BUSINESS_FLAGS.contains(flag)))
-    );
+            .all(|flag| *flag == "--mouse" || BUSINESS_FLAGS.contains(flag))
+    }));
     grammar
 }

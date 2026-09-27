@@ -87,6 +87,11 @@ impl TerminalInteraction {
         self.0 & (1 << 2) != 0
     }
 
+    /// Focus reporting (wire bit 3), captured with the same screen revision.
+    pub const fn focus_reporting(self) -> bool {
+        self.0 & (1 << 3) != 0
+    }
+
     /// Application cursor keys (wire bit 0): when set, cursor-key output
     /// uses SS3 (`ESC O`) instead of CSI (`ESC [`).
     pub const fn application_cursor_keys(self) -> bool {

@@ -595,10 +595,18 @@ impl TerminalModes for InheritedTerminalModes {
     }
 
     fn disable_pointer_capture(&self) -> io::Result<()> {
+        #[cfg(windows)]
+        self.terminal
+            .input_mode
+            .set_mode(self.terminal.input_mode.mode()? & !0x0010)?;
         self.write_command(PointerCapture(false))
     }
 
     fn enable_pointer_capture(&self) -> io::Result<()> {
+        #[cfg(windows)]
+        self.terminal
+            .input_mode
+            .set_mode(self.terminal.input_mode.mode()? | 0x0010)?;
         self.write_command(PointerCapture(true))
     }
 
@@ -700,11 +708,13 @@ impl TerminalModes for InheritedTerminalModes {
             self.terminal.output_mode.mode()?,
         );
         *saved = Some(original);
-        // ReadConsoleInputW owns key/mouse/resize records. Disable VT input
-        // and cooked processing so that two console input models cannot race.
+        // Keep VT input so ConPTY retains bracketed-paste delimiters. Our one
+        // record reader preserves VK=0 control characters instead of feeding
+        // them through a key-layout translator. Pointer capture owns the mouse
+        // bit separately; raw admission must not capture with --mouse off.
         self.terminal
             .input_mode
-            .set_mode((original.0 | 0x0098) & !0x0247)
+            .set_mode((original.0 | 0x0288) & !0x0057)
     }
     #[cfg(windows)]
     fn disable_raw_mode(&self) -> io::Result<()> {

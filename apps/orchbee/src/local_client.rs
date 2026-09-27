@@ -464,9 +464,8 @@ impl LocalClient {
                 TerminalControlAction::Acquire { .. } | TerminalControlAction::Takeover { .. },
                 TerminalControlOutcome::Acquired { .. },
             )
-            | (TerminalControlAction::Input { .. }, TerminalControlOutcome::InputAccepted {}) => {
-                true
-            }
+            | (TerminalControlAction::Input { .. }, TerminalControlOutcome::InputAccepted {})
+            | (TerminalControlAction::Paste { .. }, TerminalControlOutcome::Pasted { .. }) => true,
             (
                 TerminalControlAction::Resize { geometry, .. },
                 TerminalControlOutcome::Resized { geometry: actual },

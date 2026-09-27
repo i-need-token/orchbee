@@ -1,30 +1,8 @@
 //! Translate console records into the existing terminal byte decoder. The
 //! decoder remains the only owner of bindings, paste, modal input, and mouse.
-use crossterm::event::{
-    self, Event, KeyCode, KeyEventKind, KeyModifiers, MouseButton, MouseEventKind,
-};
-use std::{
-    io,
-    time::{Duration, Instant},
-};
-
-pub(crate) fn next_input(timeout: Duration) -> io::Result<Option<Vec<u8>>> {
-    if !event::poll(timeout)? {
-        return Ok(None);
-    }
-    let mut output = Vec::new();
-    let deadline = Instant::now() + Duration::from_millis(4);
-    for _ in 0..4096 {
-        encode(event::read()?, &mut output);
-        if output.len() >= 4096
-            || Instant::now() >= deadline
-            || !event::poll(Duration::from_millis(1))?
-        {
-            break;
-        }
-    }
-    Ok((!output.is_empty()).then_some(output))
-}
+use crossterm::event::{Event, KeyCode, KeyEventKind, KeyModifiers, MouseButton, MouseEventKind};
+mod records;
+pub(crate) use records::Reader;
 
 fn encode(event: Event, output: &mut Vec<u8>) {
     match event {

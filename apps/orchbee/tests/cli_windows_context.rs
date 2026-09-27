@@ -23,6 +23,23 @@ fn run(arguments: &[&str], terminal: Option<&str>, worker: Option<&str>, locale:
 }
 
 #[test]
+fn attach_requires_inherited_console_before_runtime_or_agent_resolution() {
+    for locale in ["en_US.UTF-8", "zh_CN.UTF-8"] {
+        for args in [
+            vec!["terminal", "attach", "@terminal:01"],
+            vec!["agent", "attach", "--name=alpha", "--format=json"],
+        ] {
+            let output = run(&args, None, None, locale);
+            assert_eq!(output.status.code(), Some(2));
+            assert!(output.stdout.is_empty(), "attach is always interactive");
+            let stderr = String::from_utf8(output.stderr).unwrap();
+            assert!(stderr.contains("terminal session control"), "{stderr}");
+            assert!(!stderr.contains("invalid-relative-runtime"));
+        }
+    }
+}
+
+#[test]
 fn creation_checks_caller_metadata_before_runtime_and_explicit_client_bypasses_it() {
     for base in [
         vec!["tab", "create"],

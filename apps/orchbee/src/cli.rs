@@ -53,6 +53,27 @@ mod terminal_output;
 #[cfg(windows)]
 pub(crate) mod terminal_stream;
 
+pub(crate) fn terminal_attach(
+    command: &crate::invocation::TerminalAttachCommand,
+    locale: Locale,
+) -> Output {
+    #[cfg(windows)]
+    {
+        terminal_stream::run_attach(command, locale)
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = command;
+        let failure = Failure::new(FailureKind::ServiceUnavailable);
+        Output {
+            status: failure.kind.exit_code(),
+            stdout: Vec::new(),
+            stderr: locale.cli_failure(&failure),
+            finalization: None,
+        }
+    }
+}
+
 pub(crate) fn terminal_observe(
     command: &crate::invocation::TerminalObserveCommand,
     locale: Locale,

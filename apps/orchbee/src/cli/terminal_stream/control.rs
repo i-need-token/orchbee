@@ -1,3 +1,4 @@
+use super::display::Display;
 use super::*;
 use crate::{
     client_view::Modifiers,
@@ -20,7 +21,7 @@ pub(crate) fn run(command: &TerminalControlCommand, locale: Locale) -> Output {
     let output = |failure: Option<Failure>| Output {
         status: failure.as_ref().map_or(0, |f| f.kind.exit_code()),
         stdout: Vec::new(),
-        stderr: failure.map_or_else(String::new, |f| locale.cli_failure(&f)),
+        stderr: failure.map_or_else(String::new, |f| locale.terminal_stream_failure(&f)),
         finalization: None,
     };
     let signal = match ControlInterrupt::arm() {
@@ -129,24 +130,22 @@ fn control(
         projection,
         history: history::History::default(),
         gate,
-        relay,
+        output: relay,
     };
     session.resize(geometry)?;
-    emit(
-        session.relay,
+    session.output.event(
         json!({"kind":"opened","mode":"control","controllerId":controller_id,"source":{
         "siteId":snapshot.site_id,"revision":snapshot.revision,"terminalId":terminal.terminal_id,"workerId":terminal.worker_id,
         "viewerId":viewer,"attachmentId":attachment.to_text(),"hostEpoch":epoch.to_text()
     },"width":geometry.columns(),"height":geometry.rows()}),
-        gate.step()?,
-        gate.cancelled,
+        gate,
     )?;
     let mut input =
         input::Reader::start().map_err(|_| Failure::new(FailureKind::InternalFailure))?;
     session.drive(&mut input)
 }
 
-struct Session<'a, 'g> {
+pub(super) struct Session<'a, 'g> {
     client: &'a mut LocalClient,
     viewer: ViewerId,
     controller: ControllerId,
@@ -156,9 +155,67 @@ struct Session<'a, 'g> {
     projection: TerminalProjection,
     history: history::History,
     gate: &'a Gate<'g>,
-    relay: &'a mut relay::Relay,
+    output: &'a mut dyn Display,
 }
-impl Session<'_, '_> {
+impl<'a, 'g> Session<'a, 'g> {
+    pub(super) fn new(
+        client: &'a mut LocalClient,
+        viewer: ViewerId,
+        controller: ControllerId,
+        geometry: Geometry,
+        projection: TerminalProjection,
+        gate: &'a Gate<'g>,
+        output: &'a mut dyn Display,
+    ) -> Self {
+        Self {
+            client,
+            viewer,
+            controller,
+            sequence: 0,
+            ordinal: 0,
+            geometry,
+            projection,
+            history: history::History::default(),
+            gate,
+            output,
+        }
+    }
+    pub(super) fn geometry(&self) -> Geometry {
+        self.geometry
+    }
+    pub(super) fn frame(&self) -> Option<&TerminalTextFrame> {
+        self.projection.frame()
+    }
+    pub(super) fn advance_history(&mut self) -> Result<(), Failure> {
+        self.history
+            .advance(self.client, &self.viewer, self.gate, Some(self.output))
+    }
+    pub(super) fn notice(&mut self) -> Result<(), Failure> {
+        self.output.event(json!({"kind":"notice"}), self.gate)
+    }
+    pub(super) fn paste(&mut self, text: String) -> Result<(), Failure> {
+        self.history.resume(self.client, &self.viewer, self.gate)?;
+        if text.is_empty() {
+            return Ok(());
+        }
+        let content = orchbee_client_server_protocol::PasteContent::new(text.into_bytes())
+            .map_err(|_| Failure::new(FailureKind::InvalidUsage))?;
+        let sequence = self.sequence()?;
+        match submit(
+            self.client,
+            ControlAction::Paste {
+                attachment_id: self.viewer.clone(),
+                controller_id: self.controller.clone(),
+                sequence,
+                content,
+            },
+            self.gate,
+        )? {
+            ControlOutcome::Pasted { .. } => Ok(()),
+            other => Err(classify_control(other)),
+        }
+    }
+
     fn sequence(&mut self) -> Result<NonZeroU64, Failure> {
         self.sequence = self
             .sequence
@@ -166,7 +223,7 @@ impl Session<'_, '_> {
             .ok_or_else(|| Failure::new(FailureKind::ProtocolInvalid))?;
         Ok(NonZeroU64::new(self.sequence).expect("incremented"))
     }
-    fn resize(&mut self, geometry: Geometry) -> Result<(), Failure> {
+    pub(super) fn resize(&mut self, geometry: Geometry) -> Result<(), Failure> {
         let action = ControlAction::Resize {
             attachment_id: self.viewer.clone(),
             controller_id: self.controller.clone(),
@@ -181,10 +238,23 @@ impl Session<'_, '_> {
             other => Err(classify_control(other)),
         }
     }
-    fn input(&mut self, bytes: &[u8]) -> Result<usize, (Failure, usize)> {
+    pub(super) fn input(&mut self, bytes: &[u8]) -> Result<usize, (Failure, usize)> {
         self.history
             .resume(self.client, &self.viewer, self.gate)
             .map_err(|f| (f, 0))?;
+        self.write_input(bytes)
+    }
+    pub(super) fn focus(&mut self, focused: bool) -> Result<(), Failure> {
+        if self
+            .frame()
+            .is_some_and(|frame| frame.interaction.focus_reporting())
+        {
+            self.write_input(if focused { b"\x1b[I" } else { b"\x1b[O" })
+                .map_err(|(failure, _)| failure)?;
+        }
+        Ok(())
+    }
+    fn write_input(&mut self, bytes: &[u8]) -> Result<usize, (Failure, usize)> {
         let mut accepted = 0;
         for chunk in bytes.chunks(4096) {
             let sequence = self.sequence().map_err(|f| (f, accepted))?;
@@ -209,7 +279,7 @@ impl Session<'_, '_> {
             self.gate.step()?;
             self.poll()?;
             self.history
-                .advance(self.client, &self.viewer, self.gate, Some(self.relay))?;
+                .advance(self.client, &self.viewer, self.gate, Some(self.output))?;
             match input.poll().map_err(|e| {
                 Failure::new(if e.kind() == std::io::ErrorKind::InvalidData {
                     FailureKind::InvalidUsage
@@ -268,14 +338,10 @@ impl Session<'_, '_> {
         }
     }
     fn receipt(&mut self, outcome: Value, operation: &str) -> Result<(), Failure> {
-        emit(
-            self.relay,
-            json!({"kind":"control","ordinal":self.ordinal.to_string(),"operation":operation,"outcome":outcome}),
-            self.gate.step()?,
-            self.gate.cancelled,
-        )
+        self.output.event(json!({"kind":"control","ordinal":self.ordinal.to_string(),"operation":operation,"outcome":outcome}), self.gate)
     }
-    fn poll(&mut self) -> Result<(), Failure> {
+
+    pub(super) fn poll(&mut self) -> Result<(), Failure> {
         match exchange(
             self.client,
             Action::Poll {
@@ -291,34 +357,28 @@ impl Session<'_, '_> {
                     .receive_for_geometry(&record, None)
                     .map_err(|_| Failure::new(FailureKind::ProtocolInvalid))?;
                 let Some(feedback) = feedback else {
-                    return emit(
-                        self.relay,
+                    return self.output.event(
                         json!({"kind":"reset","reason":"projection-blocked"}),
-                        self.gate.step()?,
-                        self.gate.cancelled,
+                        self.gate,
                     );
                 };
                 if matches!(feedback, Action::FrameApplied { .. }) {
                     self.history.frame()?;
-                    let record = if self.history.active() {
-                        self.history.record()?
+                    if self.history.active() {
+                        self.history.present(self.output, self.gate)?;
                     } else {
-                        frame::record(
+                        self.output.live(
                             self.projection
                                 .frame()
                                 .ok_or_else(|| Failure::new(FailureKind::ProtocolInvalid))?,
                             self.geometry.columns(),
                             self.geometry.rows(),
-                        )?
-                    };
-                    emit(self.relay, record, self.gate.step()?, self.gate.cancelled)?;
+                            self.gate,
+                        )?;
+                    }
                 } else if matches!(feedback, Action::NeedSnapshot { .. }) {
-                    emit(
-                        self.relay,
-                        json!({"kind":"reset","reason":"resynchronize"}),
-                        self.gate.step()?,
-                        self.gate.cancelled,
-                    )?;
+                    self.output
+                        .event(json!({"kind":"reset","reason":"resynchronize"}), self.gate)?;
                 }
                 match exchange(self.client, feedback, self.gate)? {
                     Outcome::FeedbackAccepted {} => Ok(()),
@@ -328,7 +388,10 @@ impl Session<'_, '_> {
             other => Err(classify(other)),
         }
     }
-    fn scroll(&mut self, scroll: input::Scroll) -> Result<Option<&'static str>, (Failure, usize)> {
+    pub(super) fn scroll(
+        &mut self,
+        scroll: input::Scroll,
+    ) -> Result<Option<&'static str>, (Failure, usize)> {
         let Some(frame) = self.projection.frame() else {
             return Ok(Some("frame-unavailable"));
         };
@@ -429,7 +492,7 @@ fn scroll_effect(
     }
 }
 
-fn submit(
+pub(super) fn submit(
     client: &mut LocalClient,
     action: ControlAction,
     gate: &Gate<'_>,
@@ -445,9 +508,14 @@ fn submit(
         .map(|r| r.into_outcome())
         .map_err(query::classify_viewer)
 }
-fn classify_control(outcome: ControlOutcome) -> Failure {
+pub(super) fn classify_control(outcome: ControlOutcome) -> Failure {
+    if let ControlOutcome::Rejected { reason } = outcome {
+        return Failure::new(FailureKind::Rejected).details(serde_json::Map::from_iter([
+            ("stage".into(), json!("terminal-control")),
+            ("reason".into(), json!(reason)),
+        ]));
+    }
     Failure::new(match outcome {
-        ControlOutcome::Rejected { .. } => FailureKind::Rejected,
         ControlOutcome::Unavailable { .. } => FailureKind::ServiceUnavailable,
         ControlOutcome::OutcomeUnknown {} => FailureKind::OutcomeUnknown,
         _ => FailureKind::ProtocolInvalid,

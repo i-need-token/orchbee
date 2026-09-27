@@ -92,11 +92,17 @@ trait ViewportSource {
 
 struct InheritedInputSource {
     input: File,
+    #[cfg(windows)]
+    terminal: InheritedTerminal,
 }
 
 impl InheritedInputSource {
-    fn new(input: File) -> Self {
-        Self { input }
+    fn new(input: File, _terminal: &InheritedTerminal) -> Self {
+        Self {
+            input,
+            #[cfg(windows)]
+            terminal: _terminal.clone(),
+        }
     }
 }
 
@@ -105,7 +111,7 @@ impl InputSource for InheritedInputSource {
         #[cfg(windows)]
         {
             let _ = &self.input;
-            crate::windows_console_input::next_input(timeout)
+            self.terminal.next_input(timeout)
         }
         #[cfg(unix)]
         {
@@ -243,7 +249,7 @@ fn run_prepared_surface(
     )
     .map_err(TuiFailure::Runtime)?;
     let input = File::from(inherited.duplicate_input().map_err(TuiFailure::Runtime)?);
-    let mut inputs = InheritedInputSource::new(input);
+    let mut inputs = InheritedInputSource::new(input, &inherited);
     let theme = crate::tui_theme::Theme::terminal_native();
     // Pointer reporting is armed (or left released) before the loop so the
     // first drawn frame already agrees with the dispatcher's settled flag.

@@ -10,6 +10,8 @@ use orchbee_workbench_protocol::WorkbenchPanelId;
 use orchbee_workbench_protocol::WorkbenchTabId;
 
 mod decoder;
+#[cfg(windows)]
+pub(crate) use decoder::{DecodedItem, DecodedKind, LegacyDecoder};
 mod dispatcher;
 mod modal;
 mod mouse;

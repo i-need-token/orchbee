@@ -11,6 +11,68 @@ pub(crate) struct TerminalControlCommand {
     pub(crate) stream: TerminalObserveCommand,
     pub(crate) takeover: bool,
 }
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) enum AttachTarget {
+    Terminal(Target),
+    Agent(AgentTarget),
+}
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct TerminalAttachCommand {
+    pub(crate) target: AttachTarget,
+    pub(crate) takeover: bool,
+    pub(crate) timeout_ms: Option<u32>,
+    pub(crate) mouse: bool,
+}
+pub(super) fn attach(
+    operands: &[&str],
+    options: &Options,
+    envelope: FailureEnvelope,
+    agent: bool,
+) -> Result<Request, ParseFailure> {
+    let context = UsageContext::Path(if agent {
+        "agent attach"
+    } else {
+        "terminal attach"
+    });
+    check_scope(
+        options,
+        Scope {
+            takeover: true,
+            mouse: true,
+            timeout: true,
+            name: agent,
+            session: agent,
+            panel: agent,
+            ..NO_OPTIONS
+        },
+        context,
+        envelope,
+    )?;
+    let selected = if agent {
+        AttachTarget::Agent(agent_selector(operands, options, context, envelope)?)
+    } else {
+        let [value] = operands else {
+            return Err(if operands.is_empty() {
+                missing_required(context, "<terminal>", envelope)
+            } else {
+                unexpected_argument(context, operands[1], envelope)
+            });
+        };
+        AttachTarget::Terminal(target((*value).to_owned(), Resource::Terminal, envelope)?)
+    };
+    Ok(Request::TerminalAttach {
+        command: TerminalAttachCommand {
+            target: selected,
+            takeover: options.takeover,
+            mouse: options.mouse.unwrap_or(true),
+            timeout_ms: if options.timeout.is_some() {
+                agent_wait_timeout_option(options, context, envelope)?
+            } else {
+                None
+            },
+        },
+    })
+}
 pub(super) fn control(
     operands: &[&str],
     options: &Options,
@@ -124,6 +186,67 @@ fn stream(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn attach_targets_are_explicit_and_options_are_scoped_before_effects() {
+        let parse = |words: &[&str]| parse_request(words.iter().map(OsString::from));
+        let Request::TerminalAttach { command } = parse(&[
+            "--mouse=off",
+            "terminal",
+            "attach",
+            "@terminal:ab",
+            "--takeover",
+            "--timeout=50",
+            "--format=json",
+        ])
+        .unwrap() else {
+            panic!("attach")
+        };
+        assert!(!command.mouse);
+        assert!(command.takeover);
+        assert_eq!(command.timeout_ms, Some(50));
+        assert!(matches!(command.target, AttachTarget::Terminal(_)));
+        for words in [
+            vec!["agent", "attach", "alpha"],
+            vec!["agent", "attach", "--name=alpha"],
+            vec!["agent", "attach", "--session=session-1"],
+            vec!["agent", "attach", "--panel=@panel:ab"],
+        ] {
+            let Request::TerminalAttach { command } = parse(&words).unwrap() else {
+                panic!("agent attach")
+            };
+            assert!(command.mouse);
+            assert!(!command.takeover);
+            assert_eq!(command.timeout_ms, None);
+            assert!(matches!(command.target, AttachTarget::Agent(_)));
+        }
+        for words in [
+            vec!["terminal", "attach"],
+            vec!["terminal", "attach", "@terminal:ab", "extra"],
+            vec!["terminal", "attach", "@terminal:ab", "--cols=80"],
+            vec!["terminal", "attach", "@terminal:ab", "--mouse=invalid"],
+            vec![
+                "terminal",
+                "attach",
+                "@terminal:ab",
+                "--mouse=on",
+                "--mouse=off",
+            ],
+            vec!["terminal", "attach", "@terminal:ab", "--timeout=0"],
+            vec!["terminal", "attach", "@terminal:ab", "--name=alpha"],
+            vec!["agent", "attach"],
+            vec!["agent", "attach", "alpha", "--name=alpha"],
+            vec![
+                "agent",
+                "attach",
+                "--panel=@panel:ab",
+                "--session=session-1",
+            ],
+            vec!["agent", "attach", "--name=alpha", "--stdin"],
+        ] {
+            assert!(parse(&words).is_err(), "{words:?}");
+        }
+    }
+
     fn parse(extra: &[&str]) -> Result<Request, ParseFailure> {
         parse_request(
             ["terminal", "session", "observe"]

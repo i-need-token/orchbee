@@ -9,6 +9,21 @@
 单元格几何是独立的就绪关注，由 [`native-startup-wait.md`](native-startup-wait.md) 治理。
 宿主以零报告的像素几何被如实报告为 "pixel 未知"——一种正常状态，绝不伪造。
 
+## Windows 输入归属
+
+准入后的继承控制台在启动等待、TUI 和直接 attach 之间共享一个记录读取器。
+它在阶段切换时保留 UTF-16 代理项和有界重复状态；没有竞争读取的 Crossterm 事件读取器或
+后台输入线程。每次读取最多交付 4096 字节，活动排空预算为四毫秒。虚拟键码为零的 VT 字符，
+包括 C0 和 bracketed-paste 边界，原样进入语义解码器。物理键盘与鼠标记录复用已有字节编码；
+raw Ctrl+C 仍是应用输入。
+
+raw mode 保持 `ENABLE_VIRTUAL_TERMINAL_INPUT` 开启并关闭 cooked 处理。关闭 VT 输入会让
+ConPTY 丢弃粘贴边界；用键盘布局查询解释零键码 ESC 也会丢失边界。指针租约单独拥有原生
+鼠标输入位及 VT 上报写入，因此 `--mouse off` 的 raw 准入不捕获鼠标。
+恢复时还原保存的原始控制台输入／输出模式。参见微软的
+[控制台模式契约](https://learn.microsoft.com/en-us/windows/console/setconsolemode)与
+[粘贴边界过滤说明](https://github.com/microsoft/terminal/issues/18094)。
+
 ## 视口观测
 
 对继承终端的运行时观测区分三种结果。区分基于类型化结果，绝不基于错误文本。

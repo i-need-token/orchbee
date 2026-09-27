@@ -89,15 +89,58 @@ pending reset, not display of a hidden live frame. EOF and release are successfu
 confirmed detach. Unconfirmed cleanup becomes outcome-unknown. Ctrl+C and total timeout retain
 the observation exit classes and bounded cleanup reserve.
 
+## Interactive attach
+
+`terminal attach <terminal>` and `agent attach <target>` are Windows terminal interfaces.
+They accept `--takeover`, `--timeout <ms>` and `--mouse on|off` (default on); Agent selectors also
+accept `--session`, `--name` or `--panel`. Grammar validation precedes admission of inherited
+interactive stdin/stdout. Neither interface starts a Site, changes Workbench focus or falls back
+to another terminal. Agent resolution selects one live binding under the original cancellable
+admission budget. Output remains an interactive screen even with a global format selection.
+
+| Phase            | Owned action and release rule                                                                                 |
+| ---------------- | ------------------------------------------------------------------------------------------------------------- |
+| TTY admitted     | Read inherited console geometry without changing modes                                                        |
+| Binding selected | One Snapshot and exact Viewer; Agent resolution is read-only                                                  |
+| Granted          | Acquire or explicitly take over the controller; acknowledge initial resize                                    |
+| Mode owned       | Existing TerminalModeGuard owns raw mode, alternate screen, cursor, paste, focus and optional pointer capture |
+| Attached         | Share the control Session and history core; flush the displayed surface before frame/row acknowledgement      |
+| Ending           | Detach the exact Viewer once; restore console modes before diagnostics, including errors and unwinding        |
+
+`Ctrl+B`, then `q`, detaches without stopping the terminal. Pressing `Ctrl+B` twice sends one
+literal prefix. Other followers preserve the held prefix and their own order. A paste is one
+semantic operation and never participates in detach matching. Invalid, oversized or timed-out
+pastes are rejected without submitting fragments; draining retains paste ownership through the
+terminator. Mouse reports with `--mouse off` do not consume a held prefix. Raw-mode `Ctrl+C` reaches the
+application; an external console interrupt cancels the invocation. Plain PageUp/PageDown and
+wheel input share control's history/application routing; other mouse events use the validated
+pane tracking contract. Unsupported input produces a bounded localized notice. Resizes use the
+observed console geometry; transient zero geometry keeps the last valid size without resizing.
+An old-size frame cannot authorize new pointer/history coordinates.
+
+The in-process display seam shares frame/history rendering with NDJSON without encoding and
+then parsing that protocol. Console writes use the existing inherited Unicode TUI writer; this
+is not a hard bound on an unresponsive operating-system console. IPC and cleanup keep their
+bounded budgets. Explicit detach succeeds only after confirmed release and mode restoration;
+transport loss never fabricates normal terminal exit. DEC 1007, pixel/graphics and extended
+keyboard-mode residuals remain obligations until their own implementation and Windows evidence.
+
 ## Verification and limits
 
 Deterministic core and scripted Windows transport checks cover exact binding, repeated frames,
 resets, partial output, cancellation, expiry and cleanup. Pipe tests must prove a blocked consumer
 cannot strand the relay. Same-author tests do not establish independent review, TLA execution,
-remote/named Site routing, other platforms, graphics streams or the later interactive attach slice. Control evidence must
+remote/named Site routing, other platforms or graphics streams. Control evidence must
 cover ordered input, partial acceptance, invalid-record continuation, resize, release/EOF, history
 feedback ordering and cancellation of an in-flight controller exchange.
 
 Cleanup reports `not-attached` before any Viewer attach attempt, `detached` only after its
 acknowledgement, or `session-released` when the socket is dropped without confirmed detach.
-Scripted evidence does not replace final acceptance against the packaged Windows runtime.
+Packaged Windows console witnesses cover bracketed Unicode paste containing the detach prefix,
+raw Ctrl+C delivery, mouse-off entry, busy-controller refusal, takeover fencing, history paging,
+normal detach, timeout restoration, re-acquisition and admission at different console sizes.
+They also exercise shared input in the standalone TUI. Dynamic host-window resizing, visual mouse
+interaction and authenticated Agent attachment remain separate acceptance obligations.
+Stream timeouts use a stream-specific diagnostic; refusals retain the controller reason and do
+not imply that previously delivered input was undone. Scripted evidence does not replace final
+acceptance against the packaged Windows runtime.

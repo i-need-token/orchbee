@@ -25,8 +25,9 @@ mode-lease 机制。
   （`mouse released · Ctrl+B m restores` / `鼠标已释放 · Ctrl+B m 恢复`）与宿主实际上报
   状态绝不不一致。released 期间，每个已解码指针事件在探测或命中解析之前即被忽略，所有
   在途手势与滚轮流取消；重新 arm 不复活它们。
-- `--mouse` 仅在 `tui` 准入（`off` 与 `on` 两个值）。裸 `orchbee` 拒绝该选项且仍默认
-  捕获开启；其他命令族一律拒绝；`tui` 继续拒绝 `--format`。两种声明写法均可——
+- `--mouse` 在 `tui` 准入（`off` 与 `on` 两个值）。Windows `terminal attach` 和
+  `agent attach` 也按独立的[流契约](windows-terminal-streams.zh-CN.md)受理该选项。
+  裸 `orchbee` 拒绝该选项且仍默认捕获开启；其他路由拒绝；`tui` 继续拒绝 `--format`。两种声明写法均可——
   `--mouse off|on` 与 `--mouse=off|on`——封闭词表以外的值、以 dash 开头的值、重复
   出现一律拒绝。
 - `Shift` 修饰的报告从不被认领：宿主保留 `Shift` 用于原生选择；拖动中的 `Shift` 报告

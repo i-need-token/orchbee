@@ -11,6 +11,23 @@ geometry query); obtaining a drawable cell geometry is a separate readiness conc
 [`native-startup-wait.md`](native-startup-wait.md). Host-reported pixel geometry that arrives
 as zero is reported honestly as "pixels unknown" — a normal state, never a fabricated one.
 
+## Windows input ownership
+
+The admitted inherited console owns one shared record reader across startup wait, the TUI and
+direct attach. It retains UTF-16 surrogate and bounded repeat state through those phase changes;
+there is no competing Crossterm event reader or background input thread. Each read yields at most
+4096 bytes with a four-millisecond active-drain budget. Zero-virtual-key VT characters, including
+C0 and bracketed-paste delimiters, reach the semantic decoder unchanged. Physical key and mouse
+records reuse the existing byte encoding; raw Ctrl+C stays application input.
+
+Raw mode keeps `ENABLE_VIRTUAL_TERMINAL_INPUT` enabled and disables cooked processing. Turning VT
+input off lets ConPTY discard paste delimiters; interpreting its zero-key-code ESC through a
+keyboard-layout lookup also loses the boundary. The pointer lease separately owns the native
+mouse-input bit and its VT reporting writes, so raw admission with `--mouse off` does not capture
+the mouse. Restoration reinstates the original saved console input/output modes. See Microsoft's
+[console-mode contract](https://learn.microsoft.com/en-us/windows/console/setconsolemode) and
+[paste delimiter filtering](https://github.com/microsoft/terminal/issues/18094).
+
 ## Viewport observation
 
 The runtime observation of the inherited terminal distinguishes three outcomes. The distinction
