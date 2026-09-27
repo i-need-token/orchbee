@@ -1,6 +1,13 @@
 //! Shared observable completion obligations, independent of shell syntax.
 
 pub(super) const CASES: &[(&str, &str, bool)] = &[
+    ("orchbee layout ", "export", true),
+    ("orchbee help layout ", "export", true),
+    ("orchbee layout export --c", "--client", true),
+    ("orchbee layout export --f", "--file", false),
+    ("orchbee layout export --tab x --p", "--panel", false),
+    ("orchbee layout export --panel x --c", "--current", false),
+    ("orchbee layout export --current --t", "--tab", false),
     ("orchbee sess", "session", true),
     ("orchbee session ", "list", true),
     ("orchbee session ", "attach", true),

@@ -560,10 +560,12 @@ pub(super) const HELP_PANEL_ZOOM_ZH: &str = r"用法: orchbee panel zoom [panel]
 省略 --client 时，经校验的调用者 Terminal／Worker 信息选择唯一聚焦 TUI；外部调用要求恰好一个当前有效 TUI。部分或无效调用者信息会失败；显式 --client 忽略调用者信息。默认超时 30000ms（1..3600000）。成功要求观测到目标选择且成功绘制。--detach 或中断仅结束等待；使用操作标识查询 client control-status。
 ";
 
+#[cfg(not(windows))]
 pub(super) const HELP_LAYOUT_EN: &str = r"Usage: orchbee layout set-split-ratio [--tab <tab> | --panel <panel> | --current] --path <root|0.1> --ratio <number> [--client <client-id>] [--format text|json]
 
 Adjust a split in one Windows TUI without changing focus. See orchbee help layout set-split-ratio.
 ";
+#[cfg(not(windows))]
 pub(super) const HELP_LAYOUT_ZH: &str = r"用法: orchbee layout set-split-ratio [--tab <tab> | --panel <panel> | --current] --path <root|0.1> --ratio <number> [--client <client-id>] [--format text|json]
 
 调整一个 Windows TUI 的分割，不改变焦点。详见 orchbee help layout set-split-ratio。

@@ -4,6 +4,8 @@
 mod client_control;
 mod client_layout;
 #[cfg(windows)]
+mod layouts;
+#[cfg(windows)]
 mod named_sessions;
 #[cfg(windows)]
 mod panel_relocation;
@@ -2254,6 +2256,12 @@ impl Locale {
                 Self::EnUs => HELP_TAB_EN,
                 Self::ZhCn => HELP_TAB_ZH,
             },
+            #[cfg(windows)]
+            (_, HelpTopic::Family(Family::Layout)) => match self {
+                Self::EnUs => layouts::FAMILY_EN,
+                Self::ZhCn => layouts::FAMILY_ZH,
+            },
+            #[cfg(not(windows))]
             (_, HelpTopic::Family(Family::Layout)) => match self {
                 Self::EnUs => client_control::HELP_LAYOUT_EN,
                 Self::ZhCn => client_control::HELP_LAYOUT_ZH,
@@ -2332,6 +2340,10 @@ impl Locale {
             (Self::EnUs, CommandPath::PanelResize) => client_control::HELP_PANEL_RESIZE_EN,
             (Self::ZhCn, CommandPath::PanelResize) => client_control::HELP_PANEL_RESIZE_ZH,
             (Self::EnUs, CommandPath::LayoutSetSplitRatio) => client_control::HELP_LAYOUT_RATIO_EN,
+            #[cfg(windows)]
+            (Self::EnUs, CommandPath::LayoutExport) => layouts::EXPORT_EN,
+            #[cfg(windows)]
+            (Self::ZhCn, CommandPath::LayoutExport) => layouts::EXPORT_ZH,
             (Self::ZhCn, CommandPath::LayoutSetSplitRatio) => client_control::HELP_LAYOUT_RATIO_ZH,
             (Self::EnUs, CommandPath::PanelFocus) => client_control::HELP_PANEL_FOCUS_EN,
             (Self::ZhCn, CommandPath::PanelFocus) => client_control::HELP_PANEL_FOCUS_ZH,

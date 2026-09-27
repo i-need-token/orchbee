@@ -316,6 +316,22 @@ fn fixed_outputs_are_far_below_the_bound() {
     // Every `CommandPath` variant, in both locales — the bound must cover the
     // mutation helps as well as the queries.
     let commands = [
+        #[cfg(windows)]
+        CommandPath::SessionList,
+        #[cfg(windows)]
+        CommandPath::SessionAttach,
+        #[cfg(windows)]
+        CommandPath::SessionStop,
+        #[cfg(windows)]
+        CommandPath::SessionDelete,
+        CommandPath::StatusServer,
+        CommandPath::StatusClient,
+        CommandPath::PanelInput,
+        CommandPath::TerminalAttach,
+        CommandPath::AgentAttach,
+        CommandPath::TerminalObserve,
+        CommandPath::TerminalControl,
+        CommandPath::TerminalRun,
         CommandPath::ClientList,
         CommandPath::ClientGet,
         CommandPath::ClientControlStatus,
@@ -328,6 +344,8 @@ fn fixed_outputs_are_far_below_the_bound() {
         CommandPath::PanelEdges,
         CommandPath::PanelResize,
         CommandPath::LayoutSetSplitRatio,
+        #[cfg(windows)]
+        CommandPath::LayoutExport,
         CommandPath::AgentDoctor,
         CommandPath::AgentExplain,
         CommandPath::AgentFocus,
@@ -419,6 +437,7 @@ fn fixed_outputs_are_far_below_the_bound() {
     // everything the walk does enumerate. Both legal surfaces are walked:
     // trailing `--help` and the `help` prefix.
     let roots = [
+        "session",
         "layout",
         "client",
         "agent",
@@ -438,6 +457,15 @@ fn fixed_outputs_are_far_below_the_bound() {
         "worktree",
     ];
     let verbs = [
+        "export",
+        "move-block",
+        "server",
+        "client",
+        "input",
+        "attach",
+        "observe",
+        "control",
+        "run",
         "changes",
         "swap",
         "resize",
@@ -513,6 +541,12 @@ fn fixed_outputs_are_far_below_the_bound() {
         assert!(
             commands.contains(command),
             "command path {command:?} resolved by the grammar is not pinned in the bound test"
+        );
+    }
+    for command in &commands {
+        assert!(
+            topics.contains(command),
+            "pinned command {command:?} is not reachable through the enumerated help paths"
         );
     }
     assert_eq!(

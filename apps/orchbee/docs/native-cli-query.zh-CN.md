@@ -988,7 +988,7 @@ Canonical 遍历次序：`navigation.projects` 顺序；各 project 的 `workspa
 terminal 绑定按该 panel 顺序且 `primaryPresentation` 先于 `childPresentations`。不新增排序；
 过滤后的列表与 `ambiguous` 候选都保持该次序。
 
-快照与单效果命令封套使用 `{schema, version, source, result}`；分阶段流程有自己的内嵌 schema。每份 schema 定义发出的版本及严格形状。增加 Panel 输入策略后，`orchbee.panel.list` 与 `orchbee.tab.get` 为 v2，`orchbee.panel.get/current` 为 v3；`orchbee.api.snapshot` 加入可选 Tab 自动命名后为 v4。`orchbee.terminal.get` 因保留实际启动程序／参数为 v4。`orchbee.terminal.read/history` 带 `--unwrap` 或 `--lines` 时为 v2，`orchbee.terminal.wait-output` 携带正则匹配细节时为 v2；三者不带这些 flag 时仍为 v1。各命令与失败的完整版本契约见 `api schema <id>`。当前目录为 v73，包含 81 份必需文档：注册 ID 会改变闭合字典形状，与业务文档版本独立。来源保留各所有者的含义：
+快照与单效果命令封套使用 `{schema, version, source, result}`；分阶段流程有自己的内嵌 schema。每份 schema 定义发出的版本及严格形状。增加 Panel 输入策略后，`orchbee.panel.list` 与 `orchbee.tab.get` 为 v2，`orchbee.panel.get/current` 为 v3；`orchbee.api.snapshot` 加入可选 Tab 自动命名后为 v4。`orchbee.terminal.get` 因保留实际启动程序／参数为 v4。`orchbee.terminal.read/history` 带 `--unwrap` 或 `--lines` 时为 v2，`orchbee.terminal.wait-output` 携带正则匹配细节时为 v2；三者不带这些 flag 时仍为 v1。各命令与失败的完整版本契约见 `api schema <id>`。当前目录为 v74，包含 83 份必需文档：注册 ID 会改变闭合字典形状，与业务文档版本独立。来源保留各所有者的含义：
 
 - `source.kind="workbench-snapshot"`：带同一份已验证快照的 `siteId` 与十进制字符串
   `revision`——仅在完整有效读取之后出现。
@@ -1997,3 +1997,7 @@ Server 在 Worker 验证后原子提交拓扑与目录且不重启终端；Proje
 通用事件及既有 child、分组、固定结构限制仍是独立义务。
 
 目录 v72 包含 81 份 schema，命令路径保持 96 条。
+
+## 可复用布局导出
+
+Windows `layout export` 输出带比例、手工标签、观测目录及冻结启动命令的可复用 JSON 树。目标、Client 选择、边界、取消、无副作用与一致性规则由[布局契约](windows-layouts.zh-CN.md)拥有。`orchbee.layout.export` v1 和 `orchbee.cli.failure.layout` v1 列入当前目录 v74（83 份文档）。导出不等于尚未实现的布局 apply。

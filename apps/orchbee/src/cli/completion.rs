@@ -176,6 +176,9 @@ const FAMILY_VERBS: &[(&str, &[&str])] = &[
     ),
     ("api", &["schema", "snapshot"]),
     ("client", &["control-status", "get", "list"]),
+    #[cfg(windows)]
+    ("layout", &["export", "set-split-ratio"]),
+    #[cfg(not(windows))]
     ("layout", &["set-split-ratio"]),
     ("launch-profile", &["create", "delete", "get", "list"]),
     ("config", &["check"]),
@@ -351,6 +354,11 @@ const REPEATABLE_FLAGS: &[&str] = &[
 const CONTROL_FLAGS: &[&str] = &["--cols", "--rows", "--timeout", "--takeover"];
 const OBSERVE_FLAGS: &[&str] = &["--cols", "--rows", "--timeout"];
 const COMMAND_FLAGS: &[(&str, &[&str])] = &[
+    #[cfg(windows)]
+    (
+        "layout:export",
+        &["--tab", "--panel", "--current", "--client", "--timeout"],
+    ),
     #[cfg(windows)]
     ("session:attach", &["--mouse"]),
     #[cfg(windows)]
@@ -1029,6 +1037,9 @@ const HELP_CHILDREN: &[(&str, &[&str])] = &[
     ),
     ("api", &["schema", "snapshot"]),
     ("client", &["control-status", "get", "list"]),
+    #[cfg(windows)]
+    ("layout", &["export", "set-split-ratio"]),
+    #[cfg(not(windows))]
     ("layout", &["set-split-ratio"]),
     ("launch-profile", &["create", "delete", "get", "list"]),
     ("config", &["check"]),
@@ -3495,6 +3506,9 @@ fn command_conflict_pairs(
 
 fn command_flag_conflicts(command: &str, flag: &str) -> &'static [&'static str] {
     match (command, flag) {
+        ("layout:export", "--tab") => &["--panel", "--current"],
+        ("layout:export", "--panel") => &["--tab", "--current"],
+        ("layout:export", "--current") => &["--tab", "--panel"],
         ("panel:move", "--into-tab") => &[
             "--new-tab",
             "--new-workspace",

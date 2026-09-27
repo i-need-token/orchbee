@@ -1,6 +1,10 @@
 mod client_control;
 #[cfg(windows)]
+mod layouts;
+#[cfg(windows)]
 mod named_sessions;
+#[cfg(windows)]
+pub(crate) use layouts::LayoutExportCommand;
 #[cfg(windows)]
 pub(crate) use named_sessions::NamedSessionCommand;
 mod creation;
@@ -224,6 +228,8 @@ pub(crate) enum CommandPath {
     PanelFocus,
     PanelResize,
     LayoutSetSplitRatio,
+    #[cfg(windows)]
+    LayoutExport,
     PanelZoom,
     PanelLayout,
     PanelNeighbor,
@@ -332,6 +338,8 @@ impl CommandPath {
             Self::PanelFocus => "panel focus",
             Self::PanelResize => "panel resize",
             Self::LayoutSetSplitRatio => "layout set-split-ratio",
+            #[cfg(windows)]
+            Self::LayoutExport => "layout export",
             Self::PanelZoom => "panel zoom",
             Self::PanelLayout => "panel layout",
             Self::PanelNeighbor => "panel neighbor",
@@ -1123,6 +1131,11 @@ pub(crate) enum RuntimeStatusScope {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum Request {
+    #[cfg(windows)]
+    LayoutExport {
+        command: LayoutExportCommand,
+        format: OutputFormat,
+    },
     #[cfg(windows)]
     NamedSession {
         command: NamedSessionCommand,
@@ -2318,6 +2331,8 @@ fn resolve_words(
     envelope: FailureEnvelope,
 ) -> Result<Request, ParseFailure> {
     match words {
+        #[cfg(windows)]
+        ["layout", "export"] => layouts::export(options, envelope),
         #[cfg(windows)]
         ["session", ..] => named_sessions::parse(words, options, envelope),
         ["client", ..]
@@ -4046,6 +4061,8 @@ fn help_topic(path: &[&str]) -> Option<HelpTopic> {
         ["panel", "resize"] => HelpTopic::Command(CommandPath::PanelResize),
         ["layout"] => HelpTopic::Family(Family::Layout),
         ["layout", "set-split-ratio"] => HelpTopic::Command(CommandPath::LayoutSetSplitRatio),
+        #[cfg(windows)]
+        ["layout", "export"] => HelpTopic::Command(CommandPath::LayoutExport),
         ["panel", "zoom"] => HelpTopic::Command(CommandPath::PanelZoom),
         ["panel", "layout"] => HelpTopic::Command(CommandPath::PanelLayout),
         ["panel", "neighbor"] => HelpTopic::Command(CommandPath::PanelNeighbor),
@@ -4130,6 +4147,8 @@ fn help_topic(path: &[&str]) -> Option<HelpTopic> {
         ["panel", "move"] => HelpTopic::Command(CommandPath::PanelMove),
         ["terminal", "list"] => HelpTopic::Command(CommandPath::TerminalList),
         ["terminal", "get"] => HelpTopic::Command(CommandPath::TerminalGet),
+        ["terminal", "observe"] => HelpTopic::Command(CommandPath::TerminalObserve),
+        ["terminal", "control"] => HelpTopic::Command(CommandPath::TerminalControl),
         ["terminal", "read"] => HelpTopic::Command(CommandPath::TerminalRead),
         ["terminal", "wait-output"] => HelpTopic::Command(CommandPath::TerminalWaitOutput),
         ["terminal", "send"] => HelpTopic::Command(CommandPath::TerminalSend),

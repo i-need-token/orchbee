@@ -1,0 +1,52 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "orchbee.cli.failure.layout",
+	"title": "Windows layout observation failure",
+	"type": "object",
+	"additionalProperties": false,
+	"required": ["schema", "version", "failure"],
+	"properties": {
+		"schema": {
+			"const": "orchbee.cli.failure.layout"
+		},
+		"version": {
+			"const": 1
+		},
+		"failure": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["kind", "details"],
+			"properties": {
+				"kind": {
+					"enum": [
+						"check-failed",
+						"service-unavailable",
+						"denied",
+						"protocol-invalid",
+						"timeout",
+						"cancelled",
+						"transport-loss"
+					]
+				},
+				"details": {
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["reason"],
+					"properties": {
+						"reason": {
+							"enum": [
+								"layout-too-large",
+								"layout-changed",
+								"unsupported-presentation",
+								"launch-untracked",
+								"terminal-binding-changed",
+								"client-not-ready",
+								"layout-unavailable"
+							]
+						}
+					}
+				}
+			}
+		}
+	}
+}

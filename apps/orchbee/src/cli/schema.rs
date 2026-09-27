@@ -39,6 +39,14 @@ pub(crate) const PROJECT_RENAME_RESULT_ID: &str = "orchbee.project.rename";
 /// `schema` id → embedded document, in dictionary order.
 const DOCUMENTS: &[(&str, &str)] = &[
     (
+        "orchbee.layout.export",
+        include_str!("schemas/orchbee.layout.export.json"),
+    ),
+    (
+        "orchbee.cli.failure.layout",
+        include_str!("schemas/orchbee.cli.failure.layout.json"),
+    ),
+    (
         "orchbee.panel.move",
         include_str!("schemas/orchbee.panel.move.json"),
     ),
@@ -427,7 +435,7 @@ pub(crate) fn answer(schema_id: Option<&str>, format: OutputFormat, locale: Loca
     let document = json!({
         "schema": "orchbee.api.schema",
         // Workspace creation and optional first-Project receipts share this closed catalog.
-        "version": 73,
+        "version": 74,
         "source": embedded_source(),
         "result": result,
     });
@@ -450,3 +458,6 @@ pub(crate) fn answer(schema_id: Option<&str>, format: OutputFormat, locale: Loca
         ),
     }
 }
+
+#[cfg(test)]
+mod tests;

@@ -7711,3 +7711,45 @@ fn workspace_move_grammar_covers_boundaries_blocks_and_scope() {
     maximum.push(ID);
     assert!(parse(&maximum).is_err());
 }
+
+#[cfg(windows)]
+#[test]
+fn reusable_layout_export_has_closed_targets_options_and_total_deadline() {
+    let parse = |words: &[&str]| parse_request(words.iter().map(OsString::from));
+    for words in [
+        vec!["layout", "export"],
+        vec!["layout", "export", "--current"],
+        vec!["layout", "export", "--tab", "named", "--timeout", "3600000"],
+        vec![
+            "--format=json",
+            "layout",
+            "export",
+            "--panel",
+            "@panel:abcd",
+            "--client",
+            "11111111111111111111111111111111",
+        ],
+    ] {
+        let Request::LayoutExport { command, .. } = parse(&words).unwrap() else {
+            panic!("layout export expected")
+        };
+        assert!((1..=3_600_000).contains(&command.timeout_ms));
+    }
+    for suffix in [
+        vec!["extra"],
+        vec!["--tab", "a", "--panel", "@panel:abcd"],
+        vec!["--tab", "a", "--current"],
+        vec!["--panel", "@panel:abcd", "--current"],
+        vec!["--workspace", "a"],
+        vec!["--file", "a"],
+        vec!["--confirm"],
+        vec!["--focus"],
+        vec!["--client", "bad"],
+        vec!["--timeout", "0"],
+        vec!["--timeout", "3600001"],
+    ] {
+        let mut words = vec!["layout", "export"];
+        words.extend(suffix);
+        assert!(parse(&words).is_err(), "{words:?}");
+    }
+}

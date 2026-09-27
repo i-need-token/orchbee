@@ -529,9 +529,18 @@ impl LocalClient {
         request: TerminalLaunchReadRequest,
         deadline: Instant,
     ) -> Result<TerminalLaunchReadResult, SubmissionError> {
+        self.submit_terminal_launch_read_cancellable(request, deadline, None)
+    }
+
+    pub(crate) fn submit_terminal_launch_read_cancellable(
+        &mut self,
+        request: TerminalLaunchReadRequest,
+        deadline: Instant,
+        wake: Option<BorrowedFd<'_>>,
+    ) -> Result<TerminalLaunchReadResult, SubmissionError> {
         let request_id = request.request_id().clone();
         let message = ClientMessage::TerminalLaunchRead(request);
-        let result = self.exchange_before(message, &request_id, deadline)?;
+        let result = self.exchange_with_wake(message, &request_id, Some(deadline), wake)?;
         let ServerMessage::TerminalLaunchReadResult(result) = result else {
             return self.retire_with_unknown(
                 request_id,

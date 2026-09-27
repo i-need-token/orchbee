@@ -25,6 +25,8 @@ pub(crate) mod config;
 mod configuration;
 pub(crate) mod escape;
 pub(crate) mod integration;
+#[cfg(windows)]
+pub(crate) mod layouts;
 mod mutation;
 #[cfg(windows)]
 pub(crate) mod named_sessions;

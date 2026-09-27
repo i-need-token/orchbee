@@ -10,7 +10,7 @@
 			"const": "orchbee.api.schema"
 		},
 		"version": {
-			"const": 73
+			"const": 74
 		},
 		"source": {
 			"type": "object",
@@ -27,10 +27,16 @@
 			"additionalProperties": false,
 			"oneOf": [
 				{
-					"required": ["schema"]
+					"required": ["schema"],
+					"properties": {
+						"schema": {}
+					}
 				},
 				{
-					"required": ["schemas"]
+					"required": ["schemas"],
+					"properties": {
+						"schemas": {}
+					}
 				}
 			],
 			"properties": {
@@ -127,7 +133,12 @@
 						"orchbee.cli.failure.configuration",
 						"orchbee.terminal.control.input",
 						"orchbee.session.list",
-						"orchbee.session.delete"
+						"orchbee.session.delete",
+						"orchbee.layout.export",
+						"orchbee.cli.failure.layout",
+						"orchbee.cli.failure.workspace-move",
+						"orchbee.panel.move",
+						"orchbee.workspace.move"
 					],
 					"propertyNames": {
 						"$ref": "#/$defs/schemaId"
@@ -219,7 +230,12 @@
 				"orchbee.cli.failure.configuration",
 				"orchbee.terminal.control.input",
 				"orchbee.session.list",
-				"orchbee.session.delete"
+				"orchbee.session.delete",
+				"orchbee.layout.export",
+				"orchbee.cli.failure.layout",
+				"orchbee.cli.failure.workspace-move",
+				"orchbee.panel.move",
+				"orchbee.workspace.move"
 			]
 		}
 	}

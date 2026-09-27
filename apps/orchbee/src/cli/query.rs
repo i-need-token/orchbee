@@ -2265,7 +2265,7 @@ fn wait_cleanup_details(
 /// breakage is clean transport loss and a malformed or mismatched answer is a
 /// protocol violation — never `outcome-unknown`, because nothing was mutated.
 #[cfg(any(target_os = "linux", windows))]
-fn classify_launch_read(error: SubmissionError) -> Failure {
+pub(in crate::cli) fn classify_launch_read(error: SubmissionError) -> Failure {
     match error {
         SubmissionError::SessionUnavailable | SubmissionError::RequestEncoding(_) => {
             Failure::new(FailureKind::InternalFailure)
