@@ -8,7 +8,7 @@ use crate::cli::{
     client_control::{selection, windows::exchange},
     query, results,
     source::{ArmedSignals, Finish, SignalWatch},
-    stage_details,
+    stage_details, workbench_query,
 };
 use orchbee_workbench_protocol::{ClientViewAction, ClientViewOutcome};
 use serde_json::Value;
@@ -63,14 +63,17 @@ fn collect(
         PanelQueryTarget::Client(_) => None,
     };
     check_pending(deadline, signals)?;
-    let snapshot_result = query::snapshot_session_until(deadline);
+    let snapshot_result = query::stream_snapshot(deadline, signals.poll_fd());
     check_pending(deadline, signals)?;
-    let (mut client, _, snapshot) = snapshot_result?;
+    let (mut client, snapshot) = snapshot_result?;
     let source = results::snapshot_source(&snapshot);
-    let panel = if let Some(prepared) = prepared {
-        prepared
-            .resolve(&snapshot)
-            .map_err(|error| error.source(source.clone()))?
+    let (panel, selected) = if let Some(prepared) = prepared {
+        (
+            prepared
+                .resolve(&snapshot)
+                .map_err(|error| error.source(source.clone()))?,
+            None,
+        )
     } else {
         let reply = exchange(
             &mut client,
@@ -96,13 +99,32 @@ fn collect(
             PanelQueryTarget::Client(id) => Some(id),
             _ => None,
         };
-        selection::current_panel(selection::select(&clients, explicit, None)?, &snapshot)?
+        let selected = selection::select(&clients, explicit, None)?;
+        let panel = if matches!(command, QueryCommand::PanelCurrent(_)) {
+            selection::observed_panel(selected, &snapshot)?
+        } else {
+            selection::current_panel(selected, &snapshot)?
+        };
+        (panel, Some(selected.clone()))
     };
     check_pending(deadline, signals)?;
     let result = match command {
         QueryCommand::PanelCurrent(_) => {
-            results::project(&QueryCommand::PanelGet(panel), &snapshot)
-                .map(|projection| (source.clone(), projection))
+            let projection = results::project(&QueryCommand::PanelGet(panel), &snapshot)?;
+            workbench_query::collect(
+                &mut client,
+                &snapshot,
+                projection,
+                selected,
+                deadline,
+                signals,
+            )
+            .map(|(source, document)| {
+                (
+                    source,
+                    results::Projection::WorkbenchQuery(Box::new(document)),
+                )
+            })
         }
         QueryCommand::PanelProcessInfo(_) => {
             let terminal = query::primary_terminal(&snapshot, &panel)
@@ -120,7 +142,14 @@ fn collect(
     };
     // Cancellation/expiry wins over a provisional transport fault; session drops before output.
     check_pending(deadline, signals)?;
-    result.map_err(|error| error.source(source))
+    result.map_err(|error| {
+        // Enrichment failures have their own closed envelopes and provenance contracts.
+        if matches!(command, QueryCommand::PanelCurrent(_)) && error.failure_schema.is_some() {
+            error
+        } else {
+            error.source(source)
+        }
+    })
 }
 
 fn failure(kind: FailureKind) -> Failure {

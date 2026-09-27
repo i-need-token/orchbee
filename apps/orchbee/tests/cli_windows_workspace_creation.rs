@@ -86,19 +86,20 @@ fn project(stream: &mut LocalStream) {
     );
 }
 fn launch(stream: &mut LocalStream, path: &str, outcome: &str) -> bool {
+    let label = std::path::Path::new(path)
+        .file_name()
+        .unwrap()
+        .to_str()
+        .unwrap();
+    launch_named(stream, path, outcome, label)
+}
+fn launch_named(stream: &mut LocalStream, path: &str, outcome: &str, label: &str) -> bool {
     let request = command(stream);
     let action = json!(request.action);
     assert_eq!(action["kind"], "workspace.launch");
     assert_eq!(action["projectId"], id(3));
     assert_eq!(action["options"]["cwd"], path);
-    assert_eq!(
-        action["label"],
-        std::path::Path::new(path)
-            .file_name()
-            .unwrap()
-            .to_str()
-            .unwrap()
-    );
+    assert_eq!(action["label"], label);
     if outcome == "unknown" {
         return false;
     }
@@ -633,3 +634,6 @@ fn root_cwd(stream: &mut LocalStream, cwd: Option<&str>) {
     );
     viewer_reply(stream, request, c::TerminalViewerOutcome::Detached {});
 }
+
+#[path = "cli_windows_workspace_creation/unified.rs"]
+mod unified;

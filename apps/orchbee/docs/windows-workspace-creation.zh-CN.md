@@ -4,9 +4,9 @@
 
 本记录拥有可选 Workspace 创建输入、首个 Project 设置及独立 Client 聚焦阶段。Server 拥有规范 Project／Workspace／Directory 身份和终端接纳；CLI 组合既有命令，不自行启动 shell。[原生设置交互](native-workspace-setup.zh-CN.md) 保留独立的 TUI 草稿和绘制规则。
 
-既有有效的完整显式命令保留 mutation-v4 输出：`workspace create --project <target> --label <label>` 创建空 Workspace；加绝对 `--cwd` 则启动首个终端。没有新增选项时，这些旧形式行为不变。省略原有必填参数，或使用新增来源、Client、聚焦、超时、目录策略选项，会选择 Windows 增强启动流程。例如添加 `--no-focus` 可明确选择增强创建，同时不提交 Client 聚焦请求。Mac/Linux 运行时行为不变。
+所有 Windows `workspace create` 均经同一流程创建 Workspace 和首个终端，包括 `workspace create --project <target> --label <label>` 省略 cwd 或提供绝对 `--cwd` 的形式。`--no-focus` 只选择聚焦策略，不改变创建效果。来源默认值与配置的目录策略统一生效。这替代原来的空 Workspace 与顶层 mutation-v4 形式：脚本从 `orchbee.workspace.creation` v1 的 `workspace.result` 读取资源 ID。原本有效的命令现在可能启动进程并校验调用者／来源上下文。Mac/Linux CLI 行为及原始 Server/TUI 空工作区操作保持不变。
 
-增强创建接受可选 `--project`、`--label`、来源 `--workspace`、精确 `--client`、互斥的 `--focus`／`--no-focus`（默认），以及 `--timeout`（1–3600000 毫秒，默认 30000）。既有 env、exec／args、profile 及终端尺寸四项全填的接纳规则继续生效。聚焦要求在任何变更前已有就绪 Client；绝不启动 TUI。
+创建接受可选 `--project`、`--label`、来源 `--workspace`、精确 `--client`、互斥的 `--focus`／`--no-focus`（默认），以及 `--timeout`（1–3600000 毫秒，默认 30000）。既有 env、exec／args、profile 及终端尺寸四项全填的接纳规则继续生效。聚焦要求在任何变更前已有就绪 Client；绝不启动 TUI。
 
 ## 来源、目录与 Project 决策
 
@@ -49,7 +49,7 @@
 
 允许已选中新建目标的规则仅适用于 Workspace 创建。Worktree 聚焦仍采用更严格的选择未变守卫。派生面板数和普通规范刷新版本不是导航身份。观测到其他上下文／Tab／Panel 或缩放状态会停止聚焦。这些检查均不证明 Git／进程／界面的原子事务。
 
-增强输出使用 `orchbee.workspace.creation` v1，分别记录 Project 设置、Workspace 变更、目录来源和 Client 副作用。已知失败保留原始结构化失败，包括不确定提交的请求身份。仅请求阶段全部成功才为完成；待启动终端仍明确为 pending。解析／准备失败使用既有失败封套。旧变更输出保持不变。
+所有 Windows 创建输出使用 `orchbee.workspace.creation` v1，分别记录 Project 设置、Workspace 变更、目录来源和 Client 副作用。已知失败保留原始结构化失败，包括不确定提交的请求身份。仅请求阶段全部成功才为完成；待启动终端仍明确为 pending。解析／准备失败使用既有失败封套。嵌套 Workspace 回执保留 mutation-v4 契约。
 
 ## Worktree 首个 Project 复用
 
@@ -57,10 +57,10 @@
 
 ## 证据与边界
 
-确定性证据覆盖旧／增强语法、路径脱敏、零／单／多个 Project 选择、来源优先级、目录缺失与无效观测、标签及聚焦守卫。Windows CLI 脚本轨迹覆盖并发版本、Project 提交后失败、不确定交接且不重放、终端 pending／失败、首次 Workspace 调整、选择变化及超时。版本化 Schema 检查保留各阶段部分回执。夹具拥有并释放自己的配置目录、管道与进程。
+确定性证据覆盖统一的普通／no-focus／默认／绝对／相对语法、路径脱敏、零／单／多个 Project 选择、来源优先级、目录缺失与无效观测、标签及聚焦守卫。Windows CLI 脚本轨迹覆盖并发版本、Project 提交后失败、不确定交接且不重放、终端 pending／失败、首次 Workspace 调整、选择变化及超时。版本化 Schema 检查保留各阶段部分回执。夹具拥有并释放自己的配置目录、管道与进程。
 
 参考语义为 Herdr `e0507237ad8d41f60aece10d00ef29ce2339ca34` 的 WorkspaceCreate 及焦点面板／初始目录／主目录创建策略。Orchbee 的显式 Project 歧义、精确 Client 路由和部分回执保留仍是可见适配。这些是有界同作者检查；完整双 TUI 验收独立进行，TLA 暂缓。匹配版本组整体发布；回退不会撤销已提交的用户 Project 或 Workspace。
 
-组合回执的失败观测完整保留 `kind`、可空 `details`、可空 `source`、原始 `schema` 和 `version`。该嵌套记录由组合 Schema 拥有；无详情的本地守卫错误不伪装成要求详情的独立失败封套。API 目录 v66 含 74 个 schema，命令路径仍为 86 条。
+组合回执的失败观测完整保留 `kind`、可空 `details`、可空 `source`、原始 `schema` 和 `version`。该嵌套记录由组合 Schema 拥有；无详情的本地守卫错误不伪装成要求详情的独立失败封套。API 目录 v83 含 88 个 schema，命令路径仍为 99 条。
 
 没有更具体详情的创建预检错误使用通用 `orchbee.cli.failure` v2，仅接受 `workspace-creation` 阶段及缺失／不可用／协议／传输／超时／取消类别。原有 v1 失败矩阵保持不变。嵌套失败观测按各生产者的精确详情／来源约束校验；本地无详情守卫必须同时没有来源。

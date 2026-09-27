@@ -4,9 +4,9 @@
 
 This record owns optional Workspace creation inputs, first-Project setup, and the separate Client focus phase. Server owns canonical Project/Workspace/Directory identities and terminal admission; CLI composes existing commands and never starts a shell itself. The [native setup interaction](native-workspace-setup.md) retains its separate TUI draft and drawing rules.
 
-Existing valid fully explicit commands retain their mutation-v4 output: `workspace create --project <target> --label <label>` creates an empty Workspace; adding an absolute `--cwd` launches its first terminal. With no new options, these legacy forms keep their behavior. Omitted required operands or new source, Client, focus, timeout or directory-policy options select the enhanced Windows launch workflow. For example, adding `--no-focus` deliberately opts into enhanced creation without submitting Client focus. Mac/Linux runtime behavior is unchanged.
+Every Windows `workspace create` creates a Workspace with its first terminal through the same workflow, including `workspace create --project <target> --label <label>` with omitted cwd or an absolute `--cwd`. `--no-focus` only selects focus policy; it never selects a different creation effect. Source defaults and configured directory policy apply uniformly. This replaces the earlier empty-Workspace and top-level mutation-v4 forms: scripts read resource IDs from `workspace.result` in `orchbee.workspace.creation` v1. Previously valid commands can now launch a process and validate caller/source context. Mac/Linux CLI behavior and raw Server/TUI empty-workspace actions are unchanged.
 
-Enhanced creation accepts optional `--project`, `--label`, source `--workspace`, exact `--client`, mutually exclusive `--focus`/`--no-focus` (default), and `--timeout` (1–3600000 ms, default 30000). Existing env, exec/args, profile and all-or-none terminal geometry admission remains authoritative. Focus requires an existing ready Client before any mutation; it never launches a TUI.
+Creation accepts optional `--project`, `--label`, source `--workspace`, exact `--client`, mutually exclusive `--focus`/`--no-focus` (default), and `--timeout` (1–3600000 ms, default 30000). Existing env, exec/args, profile and all-or-none terminal geometry admission remains authoritative. Focus requires an existing ready Client before any mutation; it never launches a TUI.
 
 ## Source, directory and Project decisions
 
@@ -49,7 +49,7 @@ One invocation owns a prepared directory/provenance, optional selected Client, o
 
 The already-created selection allowance is specific to Workspace creation. Worktree focus retains its stricter unchanged-selection guard. Derived panel counts and ordinary canonical refresh revisions are not navigation identity. A different observed context/Tab/Panel or zoom state stops focus. None of these checks proves an atomic Git/process/UI transaction.
 
-Enhanced output uses `orchbee.workspace.creation` v1 and records Project setup, Workspace mutation, directory provenance and Client effects independently. Known failures retain the original structured failure, including request identity for uncertain submission. The outcome is complete only when the requested phases succeed; a pending terminal remains explicitly pending. Parser/preparation failures use existing failure envelopes. Legacy mutation output remains unchanged.
+All Windows creation output uses `orchbee.workspace.creation` v1 and records Project setup, Workspace mutation, directory provenance and Client effects independently. Known failures retain the original structured failure, including request identity for uncertain submission. The outcome is complete only when the requested phases succeed; a pending terminal remains explicitly pending. Parser/preparation failures use existing failure envelopes. The nested Workspace receipt retains its mutation-v4 contract.
 
 ## Worktree first-Project reuse
 
@@ -57,10 +57,10 @@ The same zero-Project preparation serves [Worktree Create/Open](windows-worktree
 
 ## Evidence and limits
 
-The deterministic evidence covers legacy/enhanced grammar, path redaction, zero/one/multiple Project selection, source precedence, directory absence versus invalid observations, labels and focus guards. Scripted Windows CLI traces cover competing revisions, Project commit followed by failure, uncertain handoffs with no replay, terminal pending/failure, first-Workspace reconciliation, changed selection and timeout. Versioned schema checks preserve each partial receipt. Fixtures own and release their profiles, pipes and processes.
+The deterministic evidence covers uniform ordinary/no-focus/default/absolute/relative grammar, path redaction, zero/one/multiple Project selection, source precedence, directory absence versus invalid observations, labels and focus guards. Scripted Windows CLI traces cover competing revisions, Project commit followed by failure, uncertain handoffs with no replay, terminal pending/failure, first-Workspace reconciliation, changed selection and timeout. Versioned schema checks preserve each partial receipt. Fixtures own and release their profiles, pipes and processes.
 
 Reference semantics are Herdr `e0507237ad8d41f60aece10d00ef29ce2339ca34`, WorkspaceCreate and the focused-pane/seed/home creation policy. Orchbee's explicit Project ambiguity, exact Client routing and retained partial receipts remain visible adaptations. These are bounded same-author checks; full two-TUI acceptance is separate and TLA is deferred. The matched cohort rolls out together; rollback does not undo already committed user Projects or Workspaces.
 
-Composite failure observations preserve `kind`, nullable `details`, nullable `source`, original `schema` and `version`. This nested record belongs to the composite schema; local guards without details do not pretend to be standalone failure envelopes requiring details. API catalog v66 contains 74 schemas; command paths remain 86.
+Composite failure observations preserve `kind`, nullable `details`, nullable `source`, original `schema` and `version`. This nested record belongs to the composite schema; local guards without details do not pretend to be standalone failure envelopes requiring details. API catalog v83 contains 88 schemas; command paths remain 99.
 
 Creation preparation errors without more specific details use generic `orchbee.cli.failure` v2, restricted to the `workspace-creation` stage and missing/unavailable/protocol/transport/timeout/cancelled kinds. The existing v1 failure matrix is unchanged. Nested failure observations validate each producer's exact detail/source constraints; local guards without details must also lack a source.

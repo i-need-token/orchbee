@@ -845,7 +845,7 @@ Windows `agent integration enable --provider devin` manages six session identity
 
 Windows `agent integration enable --provider hermes` publishes two owned Python plugin entries and enables them through the provider CLI; disable retains the plugin and its cache.
 
-Windows `workspace create` accepts omitted Project, label and cwd, resolves source terminal/Workspace/home defaults, creates a Default Project only when none exist, and optionally focuses an existing TUI with `--focus`. Legacy explicit empty-Workspace commands remain compatible. Project, Workspace and focus return separate receipts; Worktree Create/Open shares first-Project setup. See the [Workspace creation contract](docs/windows-workspace-creation.md). The current API catalog is v68 with 76 schemas and 88 command paths.
+Windows `workspace create` accepts omitted Project, label and cwd, resolves source terminal/Workspace/home defaults, creates a Default Project only when none exist, and optionally focuses an existing TUI with `--focus`. Every Windows form launches its first terminal; explicit operands and no-focus use the same workflow and receipt. Project, Workspace and focus return separate receipts; Worktree Create/Open shares first-Project setup. See the [Workspace creation contract](docs/windows-workspace-creation.md). The current API catalog is v83 with 88 schemas and 99 command paths.
 
 ## Windows CLI configuration
 

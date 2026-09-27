@@ -28,11 +28,11 @@ Windows `workspace list/get` 返回 `number`、`tabCount` 和 `panelCount`；
 并限制列表中的显示宽度。
 
 这些投影消费单个已验证 Workbench 快照，保留其来源修订号、仅连接已有 Site 的准入、
-有界输出和无 TUI 时的可用性。不执行导航、进程检查或变更。Windows 在这六个 list/get
+有界输出和无 TUI 时的可用性。不执行导航或变更；运行时观察见下文。Windows 在这六个 list/get
 查询中接受可选 `--client <id>`，补充全局焦点和 Client 在各 Workspace 记住的活动 Tab。
 [Client 查询契约](windows-client-control.zh-CN.md#client-相对-workbench-查询)定义这一有界只读关联、
 来源记录与一致性检查。Schema 版本为 `orchbee.workspace.list/get` 6、`orchbee.tab.list` 4、
-`orchbee.tab.get` 5 和 `orchbee.panel.list/get` 7；内嵌目录为版本82，含88份 schema。
+`orchbee.tab.get` 5 和 `orchbee.panel.list/get` 7；内嵌目录为版本83，含88份 schema。
 保留的选择读取控制使用 `orchbee.client.control` v2，视口读取使用 v3，其他控制保留 v1。
 `orchbee.cli.failure.client-query` v1 标识指定 Client 的读取失败，既有目标和准入诊断保持完整。
 进程和 worktree 观察使用下文所述的各自所有者；上报元数据仍由独立所有者负责，拓扑字段不代表已实现它。
@@ -42,7 +42,7 @@ Windows `workspace list/get` 返回 `number`、`tabCount` 和 `panelCount`；
 
 ## Workbench Agent 汇总
 
-Windows Workspace/Tab/Panel 的 list/get 查询新增根级 `agents` 观察，包含规范 Agent
+Windows Workspace/Tab/Panel 的 list/get 及 Panel current 查询新增根级 `agents` 观察，包含规范 Agent
 修订号、List 请求 ID 和匹配的活动会话摘要。各行包含 `agentSessionIds` 和可空
 `agentStatus`。仅可导航的主 Presentation 绑定参与，子 presentation 和已结束会话不参与。
 一个 Session 即使有多个匹配绑定，也只在每行计算一次；多个匹配 Session 均保留。
@@ -107,13 +107,13 @@ Workbench 修订、主 Directory 路径及 Worker 一致，且来源检出项必
 Git 清理仍归既有 Worker 读取任务所有。外部文件系统变化不受栅栏约束：这些是依次进行的
 实时观察，不是原子 Git 快照或 Herdr 的缓存关联。`unavailable` 绝不表示“不是仓库”。
 
-Workspace list/get 使用 schema 版本 6；目录版本 82 仍包含 88 份文档。其他查询版本
+Workspace list/get 使用 schema 版本 6；目录版本 83 仍包含 88 份文档。其他查询版本
 保留既有契约。验证覆盖主／链接检出、检出子目录中的 Workspace、目录缺失、Git 不可用、
 来源事实不匹配、总期限、安全文本，以及拓扑和 Client 视图不变的真实 Windows 读取。
 
 ## Panel 终端观察
 
-Windows `panel list/get` 还返回可空的 `cwd`、`cwdSource`、`foregroundCwd`、
+Windows `panel list/get/current` 还返回可空的 `cwd`、`cwdSource`、`foregroundCwd`、
 `terminalTitle`、`terminalTitleStripped`，以及必需的 `terminalObservation`。
 观察状态为 `unbound`、带 `reason: terminal-unavailable` 的 `unavailable`，或带有效帧和
 已观察/不可用进程样本的 `observed`。终端停止不会让 Panel 从列表消失。只有有类型的
@@ -138,12 +138,12 @@ file URI 按严格 UTF-8 解码一次百分号转义（盘符路径或 UNC autho
 既有五秒总期限覆盖所有 Panel 观察、Agent 关联和最终规范/Client 检查。所有结果路径都
 释放 viewer，准入会话销毁作为兜底。不产生输入、resize、焦点、history-demand 或 Client 确认效果。
 独立的帧/进程观察不是原子快照。新 viewer 的实时帧不代表所选 Client 的滚动偏移，后者
-由下述单独的 Client viewport 观察提供。Panel list/get schema 为版本7，目录为版本81，共87份。
+由下述单独的 Client viewport 观察提供。Panel list/get schema 为版本7，目录为版本83，共88份。
 
 ## Panel Client 滚动查询
 
-Windows Panel list/get 返回可空的 `scroll` 及必需的 `scrollObservation`。
-未指定 `--client` 时观察为 `no-client`，新 Host viewer 无法确定用户滚动位置。
+Windows Panel list/get/current 返回可空的 `scroll` 及必需的 `scrollObservation`。
+未选定 Client 时观察为 `no-client`，新 Host viewer 无法确定用户滚动位置。
 指定精确 Client 后，有界只读视口批次返回其已安装的实时/历史指标，或明确的不可用/待处理
 状态，见 [Client 视口观察](windows-client-control.zh-CN.md#client-视口观察)。
 根 Client 来源保留各操作 ID，发布前检查请求的 Panel ID、主绑定、规范修订号及所选视图一致。
@@ -367,7 +367,7 @@ Windows `agent wait --client <id>` 同时固定一个精确 Client 和已解析 
   `not-found` `{resource:"directory"}` 作答。
 - `--standalone`：无值布尔 flag，单次使用，仅 `tab list` 与 `tab create`；两处均与
   `--workspace` 互斥。
-- `--label <label>`：带值 flag，单次使用；`project create`、`project rename`、旧式 `workspace create`、`workspace rename` 与 `tab rename` 上必填。Windows `tab create` 与 `panel split` 可省略，采用创建前相应 Tab／Panel 数加一。显式值为非空且在协议上限内的 Workbench label；空串或超长均为 `invalid-usage`。
+- `--label <label>`：带值 flag，单次使用；`project create`、`project rename`、非 Windows `workspace create`、`workspace rename` 与 `tab rename` 上必填。Windows `tab create` 与 `panel split` 可省略，采用创建前相应 Tab／Panel 数加一。显式值为非空且在协议上限内的 Workbench label；空串或超长均为 `invalid-usage`。
 - `--path <path>`：带值 flag，单次使用，`workspace accept-directory` 上必填，也由 Windows Worktree Create/Open 接受。值为 `WorkbenchDirectoryPath`：字面本机绝对路径（POSIX `/` 或 Windows 盘符绝对路径），至多
   4,096 UTF-8 字节且不含 NUL。CLI 从不展开 `~` 或 `$`，从不创建或修复目录，也从不探测
   文件系统——缺失、相对、含 NUL 或超长的值在任何运行时访问之前即为 `invalid-usage`，
@@ -1130,7 +1130,7 @@ Canonical 遍历次序：`navigation.projects` 顺序；各 project 的 `workspa
 terminal 绑定按该 panel 顺序且 `primaryPresentation` 先于 `childPresentations`。不新增排序；
 过滤后的列表与 `ambiguous` 候选都保持该次序。
 
-快照与单效果命令封套使用 `{schema, version, source, result}`；分阶段流程有自己的内嵌 schema。每份 schema 定义发出的版本及严格形状。Workbench 查询版本见上文；`orchbee.panel.current` 保持 v3，`orchbee.api.snapshot` 因 Workspace 排序为 v5。`orchbee.terminal.get` 因保留实际启动程序／参数为 v4。`orchbee.terminal.read/history` 带 `--unwrap` 或 `--lines` 时为 v2，`orchbee.terminal.wait-output` 携带正则匹配细节时为 v2；三者不带这些 flag 时仍为 v1。各命令与失败的完整版本契约见 `api schema <id>`。当前目录为 v82，包含 88 份必需文档：注册 ID 会改变闭合字典形状，与业务文档版本独立。来源保留各所有者的含义：
+快照与单效果命令封套使用 `{schema, version, source, result}`；分阶段流程有自己的内嵌 schema。每份 schema 定义发出的版本及严格形状。Workbench 查询版本见上文；`orchbee.panel.current` 在 Windows 为 v4（其他平台保持 v3），`orchbee.api.snapshot` 因 Workspace 排序为 v5。`orchbee.terminal.get` 因保留实际启动程序／参数为 v4。`orchbee.terminal.read/history` 带 `--unwrap` 或 `--lines` 时为 v2，`orchbee.terminal.wait-output` 携带正则匹配细节时为 v2；三者不带这些 flag 时仍为 v1。各命令与失败的完整版本契约见 `api schema <id>`。当前目录为 v83，包含 88 份必需文档：注册 ID 会改变闭合字典形状，与业务文档版本独立。来源保留各所有者的含义：
 
 - `source.kind="workbench-snapshot"`：带同一份已验证快照的 `siteId` 与十进制字符串
   `revision`——仅在完整有效读取之后出现。
@@ -1826,7 +1826,8 @@ cwd 和环境。空选项保留旧 JSON 和二进制编码。非空 OBCN 环境�
 `panel process-info` 共用目标解析。显式 Panel 选择器忽略调用者环境，无需 Client。
 显式 `--client` 忽略调用者环境，与显式 Panel 选择器互斥。否则仅当两个调用者变量
 均缺失时允许回退至唯一 current Client；部分缺失、格式错误或过期的调用者信息
-会失败。所选 Client 必须 Ready，且 Panel 仍属于其报告的 Context 和 Tab。
+会失败。当前 Panel 读取接受 Ready 或 Busy Client；process-info 仍只接受 Ready。
+Panel 必须仍属于其报告的 Context 和 Tab。
 Client 选择歧义时必须使用 `--client`。
 
 Windows Worker 从已接纳的启动授权写入子进程的 `ORCHBEE_TERMINAL_ID` 与
@@ -1840,10 +1841,12 @@ Windows Worker 从已接纳的启动授权写入子进程的 `ORCHBEE_TERMINAL_I
 返回 `not-found`（退出码 3）；身份重复返回 `protocol-invalid`（退出码 5）。
 无效调用者绑定绝不回退。快照与可选 Client 观察并非原子操作，答案受观察时点限定。
 
-当前 Panel 结果使用带快照来源的 `orchbee.panel.current` v3，与 Panel Get 投影
-一致。五秒查询期限、取消、只读 Client 回退、进程查询的 Viewer 清理以及映射到
-声明的 Windows 证据由所链接契约负责。目录 v69 包含 78 个 schema。不产生激活、
-输入、控制权或焦点效果；Desktop 与其他平台运行时扩展仍排除。TLA 执行继续延后。
+Windows 当前 Panel 使用 `orchbee.panel.current` v4，补齐与 Panel Get 一致的主 Agent、
+终端标题／cwd／进程，以及精确所选 Client 的焦点／滚动。显式或调用者 Panel 查询保持
+无界面可用。解析时的 Client 记录固定到最终视图／修订检查；并发选择变化会失败，
+不输出部分结果。五秒期限、取消、只读操作、Viewer 清理和 Windows 证据由所链接
+契约负责。目录 v83 含 88 个 schema。不产生激活、输入、控制权或焦点效果；
+非 Windows current 保留 v3。TLA 执行继续延后。
 
 Windows Worker 身份在每次连接 Server 时由已有 OS 随机源重新生成；同一 Worker
 的终端共享该 ID。不同 Site 可能复用 Terminal ID，因此精确匹配 Worker 可拒绝
@@ -1852,9 +1855,9 @@ Server 发布移除前，查询仍反映成员状态；发布后才找不到旧�
 
 ## 目录工作区创建
 
-Windows `workspace create` 的[工作区创建契约](windows-workspace-creation.zh-CN.md)拥有可选项目、名称、来源、目录及聚焦。旧显式 `--project <target> --label <label>` 创建空 Workspace；不带新选项且加绝对 `--cwd` 时保留一次原生 Server 请求（`workspace.launch`）及 mutation v4。省略参数、相对路径、目录策略或新来源／Client／聚焦／超时选项进入增强启动流程。不带 cwd 的环境／程序／profile／尺寸选项也使用新默认值。增强回执为 `orchbee.workspace.creation` v1，分别保留首次项目创建、工作区及聚焦；目录 v69 共 78 个 schema、94 条命令路径。
+Windows `workspace create` 的[工作区创建契约](windows-workspace-creation.zh-CN.md)拥有可选项目、名称、来源、目录及聚焦。所有参数组合均使用同一首终端启动流程，包括显式 `--project <target> --label <label>` 且省略或提供绝对 `--cwd`。`--no-focus` 仅影响聚焦。`orchbee.workspace.creation` v1 分别保留首个 Project 设置、Workspace 与聚焦；资源 ID 和终端状态位于 `workspace.result`。这替代此前空 Workspace／顶层 mutation-v4 分流。目录 v83 含 88 个 schema、99 条命令路径。
 
-Worker 先探测请求目录，Server 再用一次修订原子登记 Workspace、目录、Terminal Context 及首个 Tab/Panel/Presentation。准入失败时不创建这些资源。旧流程提交成功返回现有 mutation v4 信封：action 为 `workspace.create`，包含 `projectId`、`workspaceId`、`directoryId`、`terminalContextId`、`tabId`、`panelId`、`presentationId`、字面 `path`、`label` 和 `terminal`。现有 schema 已允许这些字段，版本和目录不变。终端可能在提交后仍待定或启动失败：保留返回 ID，查询 Workspace，不再需要时显式关闭。响应未知时绝不自动重放或回滚。
+Worker 先探测请求目录，Server 再用一次修订原子登记 Workspace、目录、Terminal Context 及首个 Tab/Panel/Presentation。准入失败时不创建这些资源。提交成功保留嵌套 mutation v4 信封：action 为 `workspace.create`，包含 `projectId`、`workspaceId`、`directoryId`、`terminalContextId`、`tabId`、`panelId`、`presentationId`、字面 `path`、`label` 和 `terminal`。现有 schema 已允许这些字段，版本和目录不变。终端可能在提交后仍待定或启动失败：保留返回 ID，查询 Workspace，不再需要时显式关闭。响应未知时绝不自动重放或回滚。
 
 未发布的原生线协议动作要求 `projectId`、`label`、`geometry` 和 `options.cwd`；可选的 `launch` 与 `profile` 仍互斥。复用现有 48 KiB 启动请求上限、精确请求账本和终端结算。`workspace-launch-pending` 与 `workspace-launched` 回显已提交修订和全部七个 ID；只有后者携带 `terminalOutcome`。Server 拥有六个新结构 ID 及终端绑定。共享 Workbench schema 和 Desktop binding 不构成支持此原生扩展的证据。必须整体启用及回退同一构建 cohort。Server 的[细化记录](../../orchbee-server/README.zh-CN.md#目录工作区启动)持有准入、提交和恢复语义。
 
@@ -2132,7 +2135,7 @@ Server 在 Worker 验证后原子提交拓扑与目录且不重启终端；Proje
 
 ## 可复用布局导出
 
-Windows `layout export` 输出带比例、手工标签、观测目录及冻结启动命令的可复用 JSON 树。[布局契约](windows-layouts.zh-CN.md)拥有导出目标、Client 选择、边界、取消、无副作用与一致性规则，以及已实现的 `layout apply` 创建／替换流程和效果回执。`orchbee.layout.export` v1 和 `orchbee.cli.failure.layout` v1 包含在当前目录 v82（88 份文档）中。
+Windows `layout export` 输出带比例、手工标签、观测目录及冻结启动命令的可复用 JSON 树。[布局契约](windows-layouts.zh-CN.md)拥有导出目标、Client 选择、边界、取消、无副作用与一致性规则，以及已实现的 `layout apply` 创建／替换流程和效果回执。`orchbee.layout.export` v1 和 `orchbee.cli.failure.layout` v1 包含在当前目录 v83（88 份文档）中。
 
 ## 程序化语义按键
 

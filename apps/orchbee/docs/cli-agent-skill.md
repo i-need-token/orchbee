@@ -26,7 +26,7 @@ Keep Agent `--session <id>` separate from the Site selector. Only activation cre
 
 Use `orchbee status --format json` or `orchbee api snapshot` to inspect the running Site, then the appropriate `project`, `workspace`, `tab`, `panel`, `terminal`, `worktree`, or `agent` list/get command. Follow each command's declared filters and use returned stable IDs. Labels and suffix selectors are only accepted where help declares them; ambiguous targets must be resolved explicitly.
 
-`orchbee terminal read <terminal-id> --history --rows 50 --lines 50 --unwrap --format json` reads retained output. Output can contain secrets; forward only what the task needs. Read/query commands do not create missing resources. Use `workspace create --project <target> --label <label> --cwd <absolute-path>` to admit a directory and create the Workspace with its first terminal in one request. Inspect the separate committed-resource and terminal-launch outcomes.
+`orchbee terminal read <terminal-id> --history --rows 50 --lines 50 --unwrap --format json` reads retained output. Output can contain secrets; forward only what the task needs. Read/query commands do not create missing resources. Use `workspace create --project <target> --label <label> --cwd <absolute-path>` to admit a directory and create the Workspace with its first terminal in one request. Inspect the separate committed-resource and terminal-launch outcomes. Windows creation always launches the first terminal, including when cwd is omitted. `--no-focus` changes only focus policy. All forms return `orchbee.workspace.creation` v1; read IDs and terminal facts from `workspace.result` and preserve partial receipts after a failure.
 
 `orchbee agent read --name alpha --lines 50 --format json` reads the visible terminal
 for a live named session. Add `--history --rows 50` for retained scrollback instead.
@@ -78,7 +78,9 @@ select the unique current TUI Client. Use `--client <id>` for multiple Clients, 
 `--panel <id-or-selector>` for a headless explicit lookup. Those two selectors conflict and
 both ignore caller environment. Partial, malformed, or stale caller metadata never falls back.
 `--current` aliases the default lookup and may combine with `--client`. No focus changes.
-`orchbee.panel.current` is v3; queries have one five-second deadline and support Ctrl+C.
+`orchbee.panel.current` is v4 on Windows: it shares Panel Get Agent, terminal and selected-Client
+focus/scroll observations. Changed Client views or canonical snapshots fail without partial
+results. Queries have one five-second deadline and support Ctrl+C.
 
 Use explicit `--forever` on `agent wait` or `agent prompt --wait` for no total deadline; it conflicts with `--timeout`. Windows defaults to no total timeout and idle/done/blocked; every read stays bounded. `--until blocked` matches fresh needs-attention; `--until done` matches fresh completed outcomes, without an unseen marker. Windows wait uses version 3 with nullable matchedChange for historical evidence; Windows prompt uses version 3 with separate activity-gate history. Both use null timeoutMs for infinite mode; infinite read-timeout failures also use version 2. Windows Codex prompts add Right between paste and Enter to clear paste-burst Enter suppression.
 

@@ -19,7 +19,7 @@ directory = "~/Projects/worktrees"
 | 输入                                      | 结果                                                                              |
 | ----------------------------------------- | --------------------------------------------------------------------------------- |
 | 显式 CLI cwd 或 worktree 路径             | 覆盖对应的有效配置                                                                |
-| 增强 Workspace、Tab 或 Panel 创建省略 cwd | 应用 `terminal.new_cwd`，随后执行已有的来源目录策略                               |
+| Workspace、Tab 或 Panel 创建省略 cwd | 应用 `terminal.new_cwd`，随后执行已有的来源目录策略                               |
 | 已配置根目录且省略 worktree 路径          | 在任何 Project 或 Git 修改前查询来源仓库，选择 `root/repository-name/branch-slug` |
 | 未配置根目录                              | 保持已有的同级检出路径                                                            |
 | Resume                                    | 使用操作已保留的路径和分支，不重新加载配置                                        |

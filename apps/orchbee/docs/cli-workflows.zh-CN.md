@@ -23,17 +23,17 @@ Invoke-OrchbeeJson -Words @('site', 'start')
 $project = Invoke-OrchbeeJson -Words @('project', 'create', '--label', 'demo')
 $created = Invoke-OrchbeeJson -Words @('workspace', 'create', '--project', $project.result.projectId,
     '--label', 'main', '--cwd', 'C:\existing\repo', '--env', 'DEMO=hello')
-$created.result
-& $cli workspace get $created.result.workspaceId --format json
+$created.workspace.result
+& $cli workspace get $created.workspace.result.workspaceId --format json
 & $cli tui
 # Close this Workspace when finished:
-& $cli workspace close $created.result.workspaceId --confirm --format json
+& $cli workspace close $created.workspace.result.workspaceId --confirm --format json
 # Or stop the whole Windows Site and all its terminals:
 $stopped = Invoke-OrchbeeJson -Words @('site', 'stop', '--confirm')
 & $cli site stop-status $stopped.result.requestId --format json
 ```
 
-使用终端前检查 `result.terminal.outcome`：`started` 确认启动；pending、failed、unavailable 或 unknown 需要根据返回 ID 查询资源。退出 TUI 不会关闭 Workspace。命令自动创建首个终端，并保持客户端焦点。Windows Codex 接入使用 `agent integration enable --provider codex`；`site diagnose` 报告 Windows 本地运行时事实，不激活 Site。下方编号的 POSIX 示例描述已有 Linux 路径。
+使用终端前检查 `workspace.result.terminal.outcome`：`started` 确认启动；pending、failed、unavailable 或 unknown 需要根据返回 ID 查询资源。退出 TUI 不会关闭 Workspace。命令自动创建首个终端，并保持客户端焦点。Windows Codex 接入使用 `agent integration enable --provider codex`；`site diagnose` 报告 Windows 本地运行时事实，不激活 Site。下方编号的 POSIX 示例描述已有 Linux 路径。
 
 ## Windows Agent 诊断
 

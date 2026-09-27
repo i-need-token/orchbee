@@ -34,12 +34,12 @@ JSON preserves labels exactly; text escapes them and bounds list display width.
 
 These projections consume one validated Workbench snapshot and retain its source
 revision, existing-only admission, bounded output, and headless availability. They
-perform no navigation, process inspection or mutation. Windows accepts optional
+perform no navigation or mutation. Runtime observations are described below. Windows accepts optional
 `--client <id>` on these six list/get queries to add global focus and the Client's
 remembered active Tab in each Workspace. The [Client query contract](windows-client-control.md#client-relative-workbench-queries)
 owns this bounded, read-only join and its provenance and consistency checks.
 Schema versions are `orchbee.workspace.list/get` 6, `orchbee.tab.list` 4,
-`orchbee.tab.get` 5 and `orchbee.panel.list/get` 7; the embedded catalog is version 82
+`orchbee.tab.get` 5 and `orchbee.panel.list/get` 7; the embedded catalog is version 83
 with 88 schemas. Retained selection-read controls use `orchbee.client.control` v2;
 viewport reads use v3; other controls retain v1. `orchbee.cli.failure.client-query` v1 identifies selected
 Client read failures; existing target and admission diagnostics remain intact.
@@ -52,7 +52,7 @@ labels, escaped text and schema validation of real Windows query documents.
 
 ## Workbench Agent summaries
 
-Windows Workspace/Tab/Panel list/get queries add one root `agents` observation with
+Windows Workspace/Tab/Panel list/get and Panel current queries add one root `agents` observation with
 its canonical Agent revision, List request IDs and matched live session summaries.
 Rows carry `agentSessionIds` and nullable `agentStatus`. Only navigable primary
 Presentation bindings contribute; child presentations and ended sessions do not.
@@ -132,7 +132,7 @@ Git cleanup remains owned by the existing Worker read task. External filesystem
 changes are not fenced: these are sequential live observations, not an atomic Git
 snapshot or Herdr's cached membership. `unavailable` never means “not a repository.”
 
-Workspace list/get use schema version 6; catalog version 82 still contains 87
+Workspace list/get use schema version 6; catalog version 83 still contains 88
 documents. Other query versions retain their existing contracts. Verification
 covers main and linked checkouts, Workspace directories inside a checkout, missing
 directories, unavailable Git, mismatched source facts, total deadlines, safe text
@@ -140,7 +140,7 @@ and real Windows reads without topology or Client-view changes.
 
 ## Panel terminal observations
 
-Windows `panel list/get` also returns nullable `cwd`, `cwdSource`, `foregroundCwd`,
+Windows `panel list/get/current` also returns nullable `cwd`, `cwdSource`, `foregroundCwd`,
 `terminalTitle` and `terminalTitleStripped`, plus a required `terminalObservation`.
 The observation is `unbound`, `unavailable` with `reason: terminal-unavailable`, or
 `observed` with a validated frame and an observed/unavailable process sample. A stopped
@@ -172,12 +172,12 @@ Client checks. Viewers detach on every outcome, with admitted-session teardown a
 There is no input, resize, focus, history-demand or Client acknowledgement effect. These independent
 frame/process observations are not an atomic snapshot. A fresh viewer's live frame never claims
 the selected Client's scroll offset: the Client viewport observation below supplies it.
-Panel list/get schemas are version 7 and the catalog is version 82 with 88 schemas.
+Panel list/get schemas are version 7 and the catalog is version 83 with 88 schemas.
 
 ## Panel Client scroll queries
 
-Windows Panel list/get returns nullable `scroll` and required `scrollObservation`.
-Without `--client`, the observation is `no-client`; a new Host viewer cannot establish
+Windows Panel list/get/current returns nullable `scroll` and required `scrollObservation`.
+Without a selected Client, the observation is `no-client`; a new Host viewer cannot establish
 the user's scroll position. With an exact Client, bounded read-only viewport batches
 return its installed live/history metrics or explicit unavailable/pending state, as
 defined by [Client viewport observations](windows-client-control.md#client-viewport-observations).
@@ -450,7 +450,7 @@ close-status` and `workspace close-resume` both flags are strict stable IDs inst
   the worktree failure envelope.
 - `--standalone`: valueless boolean flag, single use, only on `tab list` and `tab create`;
   mutually exclusive with `--workspace` on both.
-- `--label <label>`: single-use value flag, required on `project create`, `project rename`, legacy `workspace create`, `workspace rename` and `tab rename`. Windows `tab create` and `panel split` allow omission, using the preflight Tab/Panel count plus one. Explicit values are nonempty protocol-bounded Workbench labels; empty or oversized values are `invalid-usage`.
+- `--label <label>`: single-use value flag, required on `project create`, `project rename`, non-Windows `workspace create`, `workspace rename` and `tab rename`. Windows `tab create` and `panel split` allow omission, using the preflight Tab/Panel count plus one. Explicit values are nonempty protocol-bounded Workbench labels; empty or oversized values are `invalid-usage`.
 - `--path <path>`: single-use value flag, required on `workspace accept-directory` and also admitted by Windows Worktree Create/Open. The value is a `WorkbenchDirectoryPath`: a literal absolute local-platform path
   (POSIX `/` or an absolute Windows drive path) of at most 4,096 UTF-8 bytes without NUL. The CLI never expands `~` or `$`,
   never creates or repairs the directory, and never probes the filesystem — a missing,
@@ -1370,7 +1370,7 @@ Canonical traversal order: `navigation.projects` order; each project's `workspac
 `children[1]`; terminal bindings in that panel order with `primaryPresentation` before
 `childPresentations`. No sorting is added; filtered lists and `ambiguous` candidates preserve it.
 
-Snapshot and one-effect command envelopes use `{schema, version, source, result}`; staged workflows have their own embedded schemas. Every schema defines its emitted version and strict shape. Workbench query versions are listed above; `orchbee.panel.current` remains v3 and `orchbee.api.snapshot` is v5 with Workspace ordering. `orchbee.terminal.get` is v4 for the retained launch program/arguments. `orchbee.terminal.read/history` use v2 with `--unwrap` or `--lines`; `orchbee.terminal.wait-output` uses v2 for regex match details. Their flag-free outputs remain v1. See `api schema <id>` for each command and failure's complete version contract. The current catalog is v82 with 88 required documents: registering an ID changes the closed dictionary shape, independently of business document versions. Sources retain their owner's meaning:
+Snapshot and one-effect command envelopes use `{schema, version, source, result}`; staged workflows have their own embedded schemas. Every schema defines its emitted version and strict shape. Workbench query versions are listed above; `orchbee.panel.current` is v4 on Windows (v3 elsewhere) and `orchbee.api.snapshot` is v5 with Workspace ordering. `orchbee.terminal.get` is v4 for the retained launch program/arguments. `orchbee.terminal.read/history` use v2 with `--unwrap` or `--lines`; `orchbee.terminal.wait-output` uses v2 for regex match details. Their flag-free outputs remain v1. See `api schema <id>` for each command and failure's complete version contract. The current catalog is v83 with 88 required documents: registering an ID changes the closed dictionary shape, independently of business document versions. Sources retain their owner's meaning:
 
 - `source.kind="workbench-snapshot"` with `siteId` and decimal-string `revision` from the same
   validated snapshot — present only after a complete valid read.
@@ -2159,8 +2159,8 @@ Windows Panel using the [current Panel contract](native-current-panel.md), share
 `panel process-info`. Explicit Panel selectors ignore caller environment and need no Client.
 Explicit `--client` ignores caller environment and conflicts with explicit Panel selectors.
 Otherwise, only two absent caller variables permit unique current Client fallback; partial,
-malformed, or stale caller information fails. Selected Clients must be Ready with a Panel still
-belonging to their reported Context and Tab. Ambiguous Client selection requires `--client`.
+malformed, or stale caller information fails. Current Panel reads accept Ready or Busy Clients;
+process-info retains Ready-only selection. The Panel must still belong to the reported Context and Tab. Ambiguous Client selection requires `--client`.
 
 The Windows Worker writes `ORCHBEE_TERMINAL_ID` and `ORCHBEE_WORKER_ID` from admitted
 launch authorization into child environments, overriding inherited conflicts. These product
@@ -2174,11 +2174,13 @@ An absent or mismatched binding fails `not-found` (exit 3); duplicate identity f
 `protocol-invalid` (exit 5). Invalid caller binding never falls back. Snapshot and optional
 Client observations are not atomic. The answer is bounded by their observation times.
 
-The current Panel result uses `orchbee.panel.current` v3 with its snapshot source, matching the
-Panel Get projection. The five-second query deadline, cancellation, read-only Client fallback,
-Viewer cleanup for process queries, and claim-mapped Windows evidence are owned by the linked
-contract. Catalogue v69 contains 78 schemas. No activation, input, control, or focus effects;
-Desktop and other-platform runtime additions remain excluded. TLA execution remains deferred.
+Windows current Panel uses `orchbee.panel.current` v4 with the complete Panel Get enrichment:
+primary Agent, terminal title/cwd/processes, and exact selected Client focus/scroll. Explicit or
+caller Panel selection stays headless. The Client record used for resolution is pinned through
+final view/revision checks; concurrent selection changes fail without a partial result. The
+five-second deadline, cancellation, read-only operations, Viewer cleanup and Windows evidence
+are owned by the linked contract. Catalog v83 contains 88 schemas. No activation, input,
+control-authority or focus effects; non-Windows current retains v3. TLA execution remains deferred.
 
 Windows Worker identities are fresh per Server connection using the existing OS random source;
 one Worker shares that ID across its terminals. Terminal IDs can repeat across Sites, so exact
@@ -2188,9 +2190,9 @@ publishes removal, after which the old binding is not found.
 
 ## Directory Workspace creation
 
-The Windows `workspace create` [contract](windows-workspace-creation.md) owns optional Project, label, source, directory and focus. Legacy explicit `--project <target> --label <label>` creates an empty Workspace; adding an absolute `--cwd` with no new options keeps one native Server request (`workspace.launch`) and mutation v4. Omitted operands, relative paths, directory policies or new source/Client/focus/timeout options select enhanced launch. Env/program/profile/geometry options without cwd also use the new defaults. Enhanced `orchbee.workspace.creation` v1 preserves first-Project setup, Workspace and focus separately; catalog v69 contains 78 schemas and 94 command paths.
+The Windows `workspace create` [contract](windows-workspace-creation.md) owns optional Project, label, source, directory and focus. All argument combinations use one first-terminal launch workflow, including explicit `--project <target> --label <label>` with omitted or absolute `--cwd`. `--no-focus` affects only focus. `orchbee.workspace.creation` v1 preserves first-Project setup, Workspace and focus separately; resource IDs and terminal state are in `workspace.result`. This replaces the previous empty-Workspace/top-level mutation-v4 split. Catalog v83 contains 88 schemas and 99 command paths.
 
-The Worker probes the requested directory before the Server atomically registers the Workspace, directory, Terminal Context and first Tab/Panel/Presentation at one revision. Failed admission creates none of them. A successful legacy commit returns the existing mutation v4 envelope with action `workspace.create`, `projectId`, `workspaceId`, `directoryId`, `terminalContextId`, `tabId`, `panelId`, `presentationId`, literal `path`, `label`, and `terminal`. The existing schema already admits these fields; its version and catalog are unchanged. Terminal launch can remain pending or fail after commit: keep the returned IDs, inspect the Workspace and explicitly close it if unwanted. An unknown response is never automatically replayed or rolled back.
+The Worker probes the requested directory before the Server atomically registers the Workspace, directory, Terminal Context and first Tab/Panel/Presentation at one revision. Failed admission creates none of them. A successful commit retains the nested mutation v4 envelope with action `workspace.create`, `projectId`, `workspaceId`, `directoryId`, `terminalContextId`, `tabId`, `panelId`, `presentationId`, literal `path`, `label`, and `terminal`. The existing schema already admits these fields; its version and catalog are unchanged. Terminal launch can remain pending or fail after commit: keep the returned IDs, inspect the Workspace and explicitly close it if unwanted. An unknown response is never automatically replayed or rolled back.
 
 The unpublished native wire action requires `projectId`, `label`, `geometry`, and `options.cwd`; optional `launch` and `profile` remain mutually exclusive. It uses the existing 48 KiB launch request limit, exact request ledger and terminal settlement. `workspace-launch-pending` and `workspace-launched` echo the committed revision and all seven IDs; only the latter carries `terminalOutcome`. The Server owns all six new structural IDs and the terminal binding. Shared Workbench schemas and Desktop bindings do not establish this native extension's support. Activate and roll back the same complete binary cohort. The Server's [refinement record](../../orchbee-server/README.md#directory-workspace-launch) owns admission, commit and recovery.
 
@@ -2501,7 +2503,7 @@ Catalog v72 contains 81 schemas and retains 96 command paths.
 
 ## Reusable layout export
 
-Windows `layout export` emits a reusable JSON tree with ratios, manual labels, observed directories and frozen launch commands. The [layout contract](windows-layouts.md) owns export targets, Client selection, bounds, cancellation, absence of terminal effects and consistency, together with the implemented `layout apply` creation/replacement workflow and its effect receipts. `orchbee.layout.export` v1 and `orchbee.cli.failure.layout` v1 are included in the current catalog v82 (88 documents).
+Windows `layout export` emits a reusable JSON tree with ratios, manual labels, observed directories and frozen launch commands. The [layout contract](windows-layouts.md) owns export targets, Client selection, bounds, cancellation, absence of terminal effects and consistency, together with the implemented `layout apply` creation/replacement workflow and its effect receipts. `orchbee.layout.export` v1 and `orchbee.cli.failure.layout` v1 are included in the current catalog v83 (88 documents).
 
 ## Programmatic semantic keys
 

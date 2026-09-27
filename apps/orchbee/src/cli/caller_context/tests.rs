@@ -1,4 +1,5 @@
 use super::*;
+#[cfg(not(windows))]
 use crate::invocation::QueryCommand;
 use crate::{cli::OutputFormat, localization::Locale};
 use orchbee_workbench_protocol::{PanelNode, parse_snapshot};
@@ -57,24 +58,28 @@ fn current_binding_follows_primary_child_and_moved_workspace_with_one_read() {
                 workspace.then(|| json!(hex(8))).as_ref()
             );
             assert_eq!(source["revision"], "7");
-            let output = super::super::success_output(
-                projection,
-                source,
-                &QueryCommand::PanelCurrent(crate::invocation::PanelQueryTarget::Current),
-                OutputFormat::Json,
-                Locale::EnUs,
-            );
-            let document: Value = serde_json::from_slice(&output.stdout).expect("envelope");
-            let schema: Value =
-                serde_json::from_str(include_str!("../schemas/orchbee.panel.current.json"))
-                    .expect("schema");
-            jsonschema::draft202012::new(&schema)
-                .expect("validator")
-                .validate(&document)
-                .expect("valid result");
-            assert_eq!(document["schema"], "orchbee.panel.current");
-            assert_eq!(document["version"], 3);
-            assert_eq!(output.status, 0);
+            // Windows composes this target into WorkbenchQuery before emitting v4.
+            #[cfg(not(windows))]
+            {
+                let output = super::super::success_output(
+                    projection,
+                    source,
+                    &QueryCommand::PanelCurrent(crate::invocation::PanelQueryTarget::Current),
+                    OutputFormat::Json,
+                    Locale::EnUs,
+                );
+                let document: Value = serde_json::from_slice(&output.stdout).expect("envelope");
+                let schema: Value =
+                    serde_json::from_str(include_str!("../schemas/orchbee.panel.current.json"))
+                        .expect("schema");
+                jsonschema::draft202012::new(&schema)
+                    .expect("validator")
+                    .validate(&document)
+                    .expect("valid result");
+                assert_eq!(document["schema"], "orchbee.panel.current");
+                assert_eq!(document["version"], 3);
+                assert_eq!(output.status, 0);
+            }
         }
     }
 }

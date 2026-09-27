@@ -19,7 +19,7 @@ Only these two sections and keys are accepted. `terminal.new_cwd` accepts `follo
 | Input                                                    | Result                                                                                                    |
 | -------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
 | Explicit CLI cwd or worktree path                        | Overrides the corresponding valid setting                                                                 |
-| Omitted cwd in enhanced Workspace, Tab or Panel creation | Apply `terminal.new_cwd`, then the existing source-directory policy                                       |
+| Omitted cwd in Workspace, Tab or Panel creation | Apply `terminal.new_cwd`, then the existing source-directory policy                                       |
 | Omitted worktree path with configured root               | Query the source repository before any Project or Git mutation; select `root/repository-name/branch-slug` |
 | No configured root                                       | Keep the existing sibling checkout path                                                                   |
 | Resume                                                   | Use the path and branch already retained in the operation; do not reload settings                         |

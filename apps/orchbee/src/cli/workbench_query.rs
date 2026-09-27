@@ -208,8 +208,33 @@ fn execute(
     let original = selected
         .map(|id| current(&mut client, &snapshot, id, deadline, signals, panel_read))
         .transpose()?;
+    collect(
+        &mut client,
+        &snapshot,
+        projection,
+        original,
+        deadline,
+        signals,
+    )
+}
+
+/// Enrich an already resolved projection using its original snapshot and Client selection.
+/// The caller owns admission, the absolute deadline, and signal finalization.
+pub(super) fn collect(
+    client: &mut crate::local_client::LocalClient,
+    snapshot: &Snapshot,
+    projection: Projection,
+    original: Option<ClientViewRecord>,
+    deadline: Instant,
+    signals: &mut ArmedSignals,
+) -> Result<(Value, Document), Failure> {
+    signals.check_before(deadline)?;
+    let panel_read = matches!(
+        projection,
+        Projection::PanelList(_) | Projection::PanelGet(_)
+    );
     if let Some(record) = &original {
-        verify_membership(&snapshot, &record.view, &[])?;
+        verify_membership(snapshot, &record.view, &[])?;
     }
     let requested = original
         .as_ref()
@@ -243,7 +268,7 @@ fn execute(
             },
         };
         let answer = control::submit_control(
-            &mut client,
+            client,
             &snapshot.site_id,
             request.clone(),
             deadline,
@@ -271,42 +296,37 @@ fn execute(
         if navigation.workbench_revision != snapshot.revision || view != record.view {
             return Err(Failure::new(FailureKind::Rejected));
         }
-        verify_membership(&snapshot, &view, &navigation.contexts)?;
+        verify_membership(snapshot, &view, &navigation.contexts)?;
         document.operations.push(request.operation_id);
         document.contexts.extend(navigation.contexts);
     }
     document.agents = Some(super::workbench_agents::read(
-        &mut client,
-        &snapshot,
+        client,
+        snapshot,
         &document.projection,
         document.client.as_ref(),
         deadline,
         signals,
     )?);
     document.worktrees = super::workbench_worktrees::read(
-        &mut client,
-        &snapshot,
+        client,
+        snapshot,
         &document.projection,
         deadline,
         signals,
     )?;
-    document.metadata = super::workbench_metadata::read(
-        &mut client,
-        &snapshot,
-        &document.projection,
-        deadline,
-        signals,
-    )?;
+    document.metadata =
+        super::workbench_metadata::read(client, snapshot, &document.projection, deadline, signals)?;
     document.terminals = super::workbench_terminals::read(
-        &mut client,
-        &snapshot,
+        client,
+        snapshot,
         &document.projection,
         deadline,
         signals,
     )?;
     document.viewports = super::workbench_viewports::read(
-        &mut client,
-        &snapshot,
+        client,
+        snapshot,
         &document.projection,
         document.client.as_ref(),
         deadline,
@@ -318,10 +338,10 @@ fn execute(
             .extend(viewports.operations.iter().cloned());
     }
     if let Some(metadata) = &mut document.metadata {
-        metadata.verify(&mut client, &snapshot, deadline, signals)?;
+        metadata.verify(client, snapshot, deadline, signals)?;
     }
     let final_snapshot = query::refresh_snapshot(
-        &mut client,
+        client,
         &snapshot.site_id,
         snapshot.revision,
         deadline,
@@ -332,8 +352,8 @@ fn execute(
     }
     if let Some(original) = &document.client {
         let final_client = current(
-            &mut client,
-            &snapshot,
+            client,
+            snapshot,
             &original.client_id,
             deadline,
             signals,
@@ -346,7 +366,7 @@ fn execute(
         }
     }
     signals.check_before(deadline)?;
-    Ok((results::snapshot_source(&snapshot), document))
+    Ok((results::snapshot_source(snapshot), document))
 }
 
 fn verify_membership(

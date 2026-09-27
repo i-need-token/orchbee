@@ -91,7 +91,13 @@ pub(crate) const fn schema_version(command: &QueryCommand) -> u64 {
         QueryCommand::TerminalSourceWait { .. } => 3,
         QueryCommand::TerminalOutput { ansi: true, .. } => 2,
         QueryCommand::PanelGet(_) => 7,
-        QueryCommand::PanelCurrent(_) => 3,
+        QueryCommand::PanelCurrent(_) => {
+            if cfg!(windows) {
+                4
+            } else {
+                3
+            }
+        }
         QueryCommand::ApiSnapshot => 5,
         QueryCommand::PanelList { .. } => 7,
         QueryCommand::TabGet(_) => 5,

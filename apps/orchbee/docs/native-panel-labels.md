@@ -89,6 +89,8 @@ integration the change can be reverted as one contract slice; after integration 
 cohort, or clear overrides with that cohort before reverting. Never silently rewrite fallback
 labels or discard canonical overrides to make an older reader accept them.
 
-CLI read envelopes `orchbee.panel.get` and `orchbee.panel.current` are version 3; `orchbee.api.snapshot` is version 4 with optional Tab naming metadata. Panel reads keep the creation `label` and add nullable `customLabel` plus effective `displayLabel`; raw snapshots retain the canonical omitted-when-absent override. The schema catalog is v36 with 69 documents.
+CLI Panel reads keep the creation `label` and add nullable `customLabel` plus effective
+`displayLabel`; raw snapshots retain the canonical omitted-when-absent override. Current
+schema versions and the catalog are owned by [Native CLI queries](native-cli-query.md).
 
 In a leaf header, an explicit custom title precedes the ordinal so narrow panes keep user text visible. Uncustomized headers retain their existing localized resource prefix. Both forms use the same sanitization and display-cell truncation.

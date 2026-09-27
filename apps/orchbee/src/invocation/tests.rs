@@ -1660,6 +1660,7 @@ fn accepts_every_mutation_path() {
                 label: label("site"),
             },
         ),
+        #[cfg(not(windows))]
         (
             &["workspace", "create", "--project", "web", "--label", "api"],
             MutationCommand::WorkspaceCreate {
@@ -3060,9 +3061,15 @@ fn mutation_options_stay_inside_their_command_scope() {
             "{arguments:?}"
         );
     }
-    // The legal form still parses.
+    // The legal form still parses; Windows always composes terminal creation.
+    #[cfg(windows)]
+    assert!(matches!(
+        parse(&create),
+        Ok(Request::WorkspaceCreation { .. })
+    ));
     create.push("--format");
     create.push("json");
+    #[cfg(not(windows))]
     assert_eq!(
         parse(&create),
         Ok(mutation(
@@ -6901,13 +6908,8 @@ fn panel_process_info_grammar_rejects_conflicting_targets_before_effects() {
 }
 
 #[test]
-fn workspace_launch_requires_cwd_and_preserves_launch_values() {
-    let Request::Mutation {
-        command: MutationCommand::WorkspaceLaunch {
-            options, launch, ..
-        },
-        ..
-    } = parse(&[
+fn workspace_launch_preserves_launch_values_in_the_platform_workflow() {
+    let request = parse(&[
         "workspace",
         "create",
         "--project",
@@ -6923,9 +6925,19 @@ fn workspace_launch_requires_cwd_and_preserves_launch_values() {
         "--arg",
         "/K",
     ])
-    .unwrap()
-    else {
-        panic!("directory Workspace launch expected");
+    .unwrap();
+    let (options, launch) = match request {
+        #[cfg(windows)]
+        Request::WorkspaceCreation { command, .. } => (command.options, command.launch),
+        #[cfg(not(windows))]
+        Request::Mutation {
+            command:
+                MutationCommand::WorkspaceLaunch {
+                    options, launch, ..
+                },
+            ..
+        } => (options, launch),
+        _ => panic!("directory Workspace launch expected"),
     };
     assert_eq!(options.cwd.unwrap().as_str(), r"C:\project space");
     assert_eq!(

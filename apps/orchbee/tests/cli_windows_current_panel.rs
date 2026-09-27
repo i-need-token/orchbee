@@ -150,7 +150,7 @@ fn document(output: &std::process::Output) -> Value {
 }
 
 #[test]
-fn caller_explicit_and_client_targets_preserve_precedence_without_control_requests() {
+fn caller_explicit_and_client_targets_preserve_precedence_without_mutating_controls() {
     for process in [false, true] {
         for mode in 0..5 {
             let fixture = Fixture::new();
@@ -167,6 +167,17 @@ fn caller_explicit_and_client_targets_preserve_precedence_without_control_reques
                 }
                 if process {
                     process_read(&mut stream, selected + 200, false);
+                } else {
+                    enrichment::read(
+                        &mut stream,
+                        selected,
+                        match mode {
+                            3 => Some(10),
+                            4 => Some(12),
+                            _ => None,
+                        },
+                        "stable",
+                    );
                 }
                 assert_closed(&mut stream);
             });
@@ -209,7 +220,25 @@ fn caller_explicit_and_client_targets_preserve_precedence_without_control_reques
             if process {
                 assert_eq!(doc["result"]["terminal"]["terminalId"], id(selected + 200));
             } else {
+                assert_eq!(doc["version"], 4);
                 assert_eq!(doc["result"]["panel"]["panelId"], id(selected));
+                assert_eq!(doc["result"]["panel"]["agentSessionIds"], json!([]));
+                assert_eq!(
+                    doc["result"]["panel"]["terminalObservation"]["state"],
+                    "unavailable"
+                );
+                if mode < 3 {
+                    assert!(doc["result"].get("client").is_none());
+                    assert!(doc["result"]["panel"].get("focused").is_none());
+                    assert!(doc["result"]["panel"]["scroll"].is_null());
+                    assert_eq!(
+                        doc["result"]["panel"]["scrollObservation"]["state"],
+                        "no-client"
+                    );
+                } else {
+                    assert_eq!(doc["result"]["panel"]["focused"], true);
+                    assert_eq!(doc["result"]["panel"]["scroll"]["offsetFromBottom"], "276");
+                }
             }
         }
     }
@@ -363,3 +392,6 @@ fn client_list_faults_and_partial_reply_have_closed_failures_and_one_total_budge
         }
     }
 }
+
+#[path = "cli_windows_current_panel/enrichment.rs"]
+mod enrichment;

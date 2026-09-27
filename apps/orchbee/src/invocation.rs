@@ -895,6 +895,7 @@ pub(crate) enum MutationCommand {
         target: Target,
         label: WorkbenchLabel,
     },
+    #[cfg(not(windows))]
     WorkspaceCreate {
         project: Target,
         label: WorkbenchLabel,
@@ -2942,47 +2943,50 @@ fn resolve_words(
         }
         ["workspace", "create"] => {
             #[cfg(windows)]
-            if workspace_creation::enhanced(options) {
-                return workspace_creation::parse(options, envelope);
+            {
+                workspace_creation::parse(options, envelope)
             }
-            let context = UsageContext::Path("workspace create");
-            if options.cwd.is_some() {
-                check_scope(options, WORKSPACE_LAUNCH_SCOPE, context, envelope)?;
-                let project = target(
-                    required(&options.project, context, "'--project'", envelope)?,
-                    Resource::Project,
-                    envelope,
-                )?;
-                let label = label_option(options, context, envelope)?;
-                let geometry = geometry_option(options, context, envelope)?;
-                reject_launch_profile_conflict(options, context, envelope)?;
-                let launch = launch_option(options, context, envelope)?;
-                let profile = profile_option(options, context, envelope)?;
-                let launch_options = launch_options(options, context, envelope)?;
-                Ok(mutation(
-                    MutationCommand::WorkspaceLaunch {
-                        project,
-                        label,
-                        geometry,
-                        launch,
-                        profile,
-                        options: launch_options,
-                    },
-                    options,
-                ))
-            } else {
-                check_scope(options, WORKSPACE_CREATE_SCOPE, context, envelope)?;
-                Ok(mutation(
-                    MutationCommand::WorkspaceCreate {
-                        project: target(
-                            required(&options.project, context, "'--project'", envelope)?,
-                            Resource::Project,
-                            envelope,
-                        )?,
-                        label: label_option(options, context, envelope)?,
-                    },
-                    options,
-                ))
+            #[cfg(not(windows))]
+            {
+                let context = UsageContext::Path("workspace create");
+                if options.cwd.is_some() {
+                    check_scope(options, WORKSPACE_LAUNCH_SCOPE, context, envelope)?;
+                    let project = target(
+                        required(&options.project, context, "'--project'", envelope)?,
+                        Resource::Project,
+                        envelope,
+                    )?;
+                    let label = label_option(options, context, envelope)?;
+                    let geometry = geometry_option(options, context, envelope)?;
+                    reject_launch_profile_conflict(options, context, envelope)?;
+                    let launch = launch_option(options, context, envelope)?;
+                    let profile = profile_option(options, context, envelope)?;
+                    let launch_options = launch_options(options, context, envelope)?;
+                    Ok(mutation(
+                        MutationCommand::WorkspaceLaunch {
+                            project,
+                            label,
+                            geometry,
+                            launch,
+                            profile,
+                            options: launch_options,
+                        },
+                        options,
+                    ))
+                } else {
+                    check_scope(options, WORKSPACE_CREATE_SCOPE, context, envelope)?;
+                    Ok(mutation(
+                        MutationCommand::WorkspaceCreate {
+                            project: target(
+                                required(&options.project, context, "'--project'", envelope)?,
+                                Resource::Project,
+                                envelope,
+                            )?,
+                            label: label_option(options, context, envelope)?,
+                        },
+                        options,
+                    ))
+                }
             }
         }
         ["workspace", "move", value] => {
@@ -4638,6 +4642,7 @@ const PANEL_LIST_SCOPE: Scope = Scope {
     ..NO_OPTIONS
 };
 
+#[cfg(not(windows))]
 const WORKSPACE_LAUNCH_SCOPE: Scope = Scope {
     project: true,
     label: true,
@@ -4650,6 +4655,7 @@ const WORKSPACE_LAUNCH_SCOPE: Scope = Scope {
     ..NO_OPTIONS
 };
 
+#[cfg(not(windows))]
 const WORKSPACE_CREATE_SCOPE: Scope = Scope {
     project: true,
     label: true,
@@ -5166,6 +5172,7 @@ fn mouse_option(value: &str) -> Option<bool> {
 }
 
 /// Per-launch overrides are independent of the program/profile selection.
+#[cfg(not(windows))]
 fn launch_options(
     options: &Options,
     context: UsageContext,

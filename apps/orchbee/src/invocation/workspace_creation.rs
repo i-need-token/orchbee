@@ -1,11 +1,10 @@
-//! Windows launch defaults are opt-in extensions around the valid legacy forms.
+//! Every Windows Workspace creation uses one launch workflow and explicit focus policy.
 use super::{
     CreationDirectory, ExpectedValue, FailureEnvelope, LaunchOptions, LaunchProfileSelector,
     LaunchSelection, NO_OPTIONS, Options, OutputFormat, ParseFailure, Request, Resource, Scope,
-    Target, UsageContext, UsageReason, WorkbenchDirectoryPath, WorkbenchLabel,
-    WorkbenchTerminalGeometry, check_scope, client_control, geometry_option, label_option,
-    launch_option, launch_options_with_directory, profile_option, reject_launch_profile_conflict,
-    target, usage_with, wait_timeout_option,
+    Target, UsageContext, UsageReason, WorkbenchLabel, WorkbenchTerminalGeometry, check_scope,
+    client_control, geometry_option, label_option, launch_option, launch_options_with_directory,
+    profile_option, reject_launch_profile_conflict, target, usage_with, wait_timeout_option,
 };
 use orchbee_workbench_protocol::WorkbenchClientId;
 
@@ -22,29 +21,6 @@ pub(crate) struct WorkspaceCreationCommand {
     pub(crate) client: Option<WorkbenchClientId>,
     pub(crate) focus: bool,
     pub(crate) timeout_ms: u32,
-}
-
-pub(super) fn enhanced(options: &Options) -> bool {
-    options.project.is_none()
-        || options.label.is_none()
-        || options.workspace.is_some()
-        || options.client.is_some()
-        || options.focus
-        || options.no_focus
-        || options.timeout.is_some()
-        || options.cwd.as_deref().is_some_and(|value| {
-            matches!(value, "follow" | "home" | "current" | "workspace")
-                || WorkbenchDirectoryPath::parse(value).is_err()
-        })
-        || (options.cwd.is_none()
-            && (options.exec.is_some()
-                || options.profile.is_some()
-                || !options.args.is_empty()
-                || !options.environment.is_empty()
-                || options.cols.is_some()
-                || options.rows.is_some()
-                || options.cell_width.is_some()
-                || options.cell_height.is_some()))
 }
 
 pub(super) fn parse(options: &Options, envelope: FailureEnvelope) -> Result<Request, ParseFailure> {
@@ -161,13 +137,28 @@ mod tests {
         super::super::parse_request(words.iter().map(OsString::from))
     }
     #[test]
-    fn explicit_legacy_forms_keep_their_empty_or_directory_mutation() {
-        for cwd in [None, Some("C:/repo")] {
+    fn every_workspace_create_launches_with_identical_defaults_with_or_without_no_focus() {
+        for cwd in [
+            None,
+            Some("C:/repo"),
+            Some("./repo"),
+            Some("current"),
+            Some("home"),
+        ] {
             let mut args = vec!["workspace", "create", "--project=p", "--label=w"];
             if let Some(cwd) = cwd {
                 args.extend(["--cwd", cwd]);
             }
-            assert!(matches!(parse(&args).unwrap(), Request::Mutation { .. }));
+            let ordinary = parse(&args).unwrap();
+            args.push("--no-focus");
+            assert_eq!(parse(&args).unwrap(), ordinary, "{args:?}");
+            let Request::WorkspaceCreation { command, .. } = ordinary else {
+                panic!("launch workflow");
+            };
+            assert_eq!(command.project, Some(Target::Label("p".into())));
+            assert_eq!(command.label.unwrap().as_str(), "w");
+            assert!(!command.focus);
+            assert_eq!(command.timeout_ms, 30_000);
         }
         for tail in [
             vec![],
@@ -181,14 +172,14 @@ mod tests {
             let mut args = vec!["workspace", "create"];
             args.extend(tail);
             let Request::WorkspaceCreation { command, .. } = parse(&args).unwrap() else {
-                panic!("enhanced workflow")
+                panic!("launch workflow")
             };
             assert!(!command.focus);
             assert_eq!(command.timeout_ms, 30_000);
         }
     }
     #[test]
-    fn invalid_enhanced_inputs_refuse_before_runtime() {
+    fn invalid_creation_inputs_refuse_before_runtime() {
         for tail in [
             vec!["--focus", "--no-focus"],
             vec!["--focus", "--detach"],

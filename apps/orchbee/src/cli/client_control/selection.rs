@@ -73,7 +73,25 @@ pub(in crate::cli) fn current_panel(
     client: &ClientViewRecord,
     snapshot: &Snapshot,
 ) -> Result<Target, Failure> {
-    if client.view.phase != ClientViewPhase::Ready {
+    selected_panel(client, snapshot, false)
+}
+
+/// Read-only Panel projections may observe a stable Busy Client, including history mode.
+pub(in crate::cli) fn observed_panel(
+    client: &ClientViewRecord,
+    snapshot: &Snapshot,
+) -> Result<Target, Failure> {
+    selected_panel(client, snapshot, true)
+}
+
+fn selected_panel(
+    client: &ClientViewRecord,
+    snapshot: &Snapshot,
+    allow_busy: bool,
+) -> Result<Target, Failure> {
+    if client.view.phase != ClientViewPhase::Ready
+        && !(allow_busy && client.view.phase == ClientViewPhase::Busy)
+    {
         return Err(failure(
             FailureKind::ServiceUnavailable,
             "client-not-ready",

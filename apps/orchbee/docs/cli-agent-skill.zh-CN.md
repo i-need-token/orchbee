@@ -25,7 +25,7 @@ Windows 上，`--site <name>` 为启动、查询、输入和停止选择命名�
 
 使用 `orchbee status --format json` 或 `orchbee api snapshot` 检查运行中的 Site，再使用相应的 `project`、`workspace`、`tab`、`panel`、`terminal`、`worktree` 或 `agent` list/get 命令。遵循各命令声明的过滤参数，使用返回的稳定 ID。仅在帮助声明支持时使用标签和后缀选择器；有歧义的目标必须明确解析。
 
-`orchbee terminal read <terminal-id> --history --rows 50 --lines 50 --unwrap --format json` 读取保留输出。输出可能含有秘密，只转发任务需要的内容。读取/查询命令不会创建缺失资源。使用 `workspace create --project <target> --label <label> --cwd <absolute-path>`，一次请求接纳目录并创建 Workspace 和首个终端。分别检查资源提交和终端启动结果。
+`orchbee terminal read <terminal-id> --history --rows 50 --lines 50 --unwrap --format json` 读取保留输出。输出可能含有秘密，只转发任务需要的内容。读取/查询命令不会创建缺失资源。使用 `workspace create --project <target> --label <label> --cwd <absolute-path>`，一次请求接纳目录并创建 Workspace 和首个终端。分别检查资源提交和终端启动结果。 Windows 创建始终启动首个终端，包括省略 cwd 的情况。`--no-focus` 仅改变聚焦策略。所有形式返回 `orchbee.workspace.creation` v1；从 `workspace.result` 读取 ID 和终端事实，失败后保留部分回执。
 
 `orchbee agent read --name alpha --lines 50 --format json` 读取存活命名会话的可见终端。
 添加 `--history --rows 50` 则改为读取保留的滚动历史。结果使用终端 read/history schema，
@@ -75,8 +75,9 @@ Windows `panel current` 与 `panel process-info` 共用
 选择唯一 current TUI Client。多个 Client 用 `--client <id>` 指定；无 TUI 时可用
 `--panel <id-or-selector>` 显式查询。两个选择器互斥，均忽略调用者环境。
 部分缺失、无效或过期的调用者信息绝不回退。`--current` 是默认查询的别名，
-可与 `--client` 同用。不改变焦点。`orchbee.panel.current` 为 v3；查询共用
-一个五秒期限，支持 Ctrl+C。
+可与 `--client` 同用。不改变焦点。`orchbee.panel.current` 在 Windows 为 v4：与 Panel Get
+共用 Agent、终端及所选 Client 焦点／滚动观察。Client 视图或规范快照变化时失败，
+不输出部分结果。查询共用五秒总期限并支持 Ctrl+C。
 
 `agent wait` 或 `agent prompt --wait` 可显式加 `--forever`，与 `--timeout` 互斥；Windows 默认无总超时，条件为 idle/done/blocked；单次读取始终有界。`--until blocked` 对应 fresh needs-attention，`--until done` 对应 fresh 完成结果集合，不表示未读。Windows wait 为版本 3，以可空 matchedChange 单列历史证据；Windows prompt 为版本 3，单列活动门槛历史，两者无限模式的 timeoutMs 为 null；无限等待读取超时失败也为版本 2。Windows Codex 的提示提交在 paste 与 Enter 间加入 Right，以清除 paste-burst 对 Enter 的抑制。
 
