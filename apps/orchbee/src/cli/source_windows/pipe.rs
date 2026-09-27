@@ -2,7 +2,7 @@
 //! cancellable without altering shared handle modes. Payload is opaque stdin;
 //! only a fixed script and a numeric bound reach the system PowerShell process.
 
-use super::{InputSource, SignalWatch, SourceFailure, limit_for, usage};
+use super::{InputSource, SignalWatch, SourceFailure, usage};
 use crate::{
     cli::{Failure, FailureKind},
     invocation::SendSourceCause,
@@ -65,12 +65,11 @@ fn check(deadline: Instant, signals: &mut dyn SignalWatch) -> Result<(), SourceF
 
 pub(super) fn acquire(
     file: File,
-    paste: bool,
+    limit: usize,
     deadline: Instant,
     signals: &mut dyn SignalWatch,
 ) -> Result<Vec<u8>, SourceFailure> {
     check(deadline, signals)?;
-    let limit = limit_for(paste);
     let system = winsafe::GetSystemDirectory().map_err(|_| unreadable())?;
     let executable = PathBuf::from(system).join("WindowsPowerShell/v1.0/powershell.exe");
     let (mut output, writer) = ChildOutputReader::pipe().map_err(|_| unreadable())?;
@@ -132,6 +131,7 @@ fn collect(
 
 #[cfg(test)]
 mod tests {
+    use super::super::limit_for;
     use super::*;
     use std::{io::Write, os::windows::io::OwnedHandle};
 
@@ -151,7 +151,7 @@ mod tests {
         let producer = thread::spawn(move || writer.write_all(&payload));
         let result = acquire(
             File::from(OwnedHandle::from(reader)),
-            paste,
+            limit_for(paste),
             Instant::now() + Duration::from_secs(5),
             &mut Signals(usize::MAX),
         );
@@ -196,7 +196,7 @@ mod tests {
         let started = Instant::now();
         let result = acquire(
             File::from(OwnedHandle::from(reader)),
-            false,
+            limit_for(false),
             started + Duration::from_millis(200),
             &mut Signals(usize::MAX),
         );
@@ -215,7 +215,7 @@ mod tests {
         let (reader, mut writer) = io::pipe().expect("pipe");
         let result = acquire(
             File::from(OwnedHandle::from(reader)),
-            false,
+            limit_for(false),
             Instant::now() + Duration::from_secs(5),
             &mut Signals(8),
         );

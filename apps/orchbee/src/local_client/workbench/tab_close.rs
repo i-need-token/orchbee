@@ -63,20 +63,33 @@ impl LocalClient {
         request: WorkbenchTabCloseRequest,
         deadline: Instant,
     ) -> WorkbenchTabCloseSubmission {
+        self.submit_workbench_tab_close_with_wake(request, deadline, None)
+    }
+
+    /// Submit once with caller cancellation, preserving definite rejection and uncertain handoff.
+    pub(crate) fn submit_workbench_tab_close_with_wake(
+        &mut self,
+        request: WorkbenchTabCloseRequest,
+        deadline: Instant,
+        wake: Option<orchbee_local_ipc::LocalIo<'_>>,
+    ) -> WorkbenchTabCloseSubmission {
         let command = request.0;
-        let response =
-            match self.exchange_tab_close(WorkbenchRequest::Command(command.clone()), deadline) {
-                Ok(response) => response,
-                Err(CloseExchangeError::NotSubmitted(reason)) => {
-                    return WorkbenchTabCloseSubmission::DefinitelyNotSubmitted(reason);
-                }
-                Err(CloseExchangeError::Failed(reason)) => {
-                    return WorkbenchTabCloseSubmission::OutcomeUnknown {
-                        request_id: command.request_id,
-                        reason,
-                    };
-                }
-            };
+        let response = match self.exchange_tab_close_with_wake(
+            WorkbenchRequest::Command(command.clone()),
+            deadline,
+            wake,
+        ) {
+            Ok(response) => response,
+            Err(CloseExchangeError::NotSubmitted(reason)) => {
+                return WorkbenchTabCloseSubmission::DefinitelyNotSubmitted(reason);
+            }
+            Err(CloseExchangeError::Failed(reason)) => {
+                return WorkbenchTabCloseSubmission::OutcomeUnknown {
+                    request_id: command.request_id,
+                    reason,
+                };
+            }
+        };
         match classify_command_result(&command, response) {
             Ok(result) => result,
             Err(reason) => {
@@ -94,6 +107,15 @@ impl LocalClient {
         &mut self,
         request: WorkbenchRequest,
         deadline: Instant,
+    ) -> Result<WorkbenchResponse, CloseExchangeError> {
+        self.exchange_tab_close_with_wake(request, deadline, None)
+    }
+
+    fn exchange_tab_close_with_wake(
+        &mut self,
+        request: WorkbenchRequest,
+        deadline: Instant,
+        wake: Option<orchbee_local_ipc::LocalIo<'_>>,
     ) -> Result<WorkbenchResponse, CloseExchangeError> {
         if self.connection.is_none() {
             return Err(CloseExchangeError::NotSubmitted(
@@ -119,7 +141,7 @@ impl LocalClient {
             &self.clock,
             deadline,
             self.io_chunk_limits,
-            None,
+            wake,
             &frame,
             |io| read_workbench_response(io),
         ) {

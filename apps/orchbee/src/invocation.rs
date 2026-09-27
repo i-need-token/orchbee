@@ -4,7 +4,7 @@ mod layouts;
 #[cfg(windows)]
 mod named_sessions;
 #[cfg(windows)]
-pub(crate) use layouts::LayoutExportCommand;
+pub(crate) use layouts::{LayoutApplyCommand, LayoutDestination, LayoutExportCommand};
 #[cfg(windows)]
 pub(crate) use named_sessions::NamedSessionCommand;
 mod creation;
@@ -230,6 +230,8 @@ pub(crate) enum CommandPath {
     LayoutSetSplitRatio,
     #[cfg(windows)]
     LayoutExport,
+    #[cfg(windows)]
+    LayoutApply,
     PanelZoom,
     PanelLayout,
     PanelNeighbor,
@@ -340,6 +342,8 @@ impl CommandPath {
             Self::LayoutSetSplitRatio => "layout set-split-ratio",
             #[cfg(windows)]
             Self::LayoutExport => "layout export",
+            #[cfg(windows)]
+            Self::LayoutApply => "layout apply",
             Self::PanelZoom => "panel zoom",
             Self::PanelLayout => "panel layout",
             Self::PanelNeighbor => "panel neighbor",
@@ -1131,6 +1135,11 @@ pub(crate) enum RuntimeStatusScope {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum Request {
+    #[cfg(windows)]
+    LayoutApply {
+        command: LayoutApplyCommand,
+        format: OutputFormat,
+    },
     #[cfg(windows)]
     LayoutExport {
         command: LayoutExportCommand,
@@ -2333,6 +2342,8 @@ fn resolve_words(
     match words {
         #[cfg(windows)]
         ["layout", "export"] => layouts::export(options, envelope),
+        #[cfg(windows)]
+        ["layout", "apply"] => layouts::apply(options, envelope),
         #[cfg(windows)]
         ["session", ..] => named_sessions::parse(words, options, envelope),
         ["client", ..]
@@ -4063,6 +4074,8 @@ fn help_topic(path: &[&str]) -> Option<HelpTopic> {
         ["layout", "set-split-ratio"] => HelpTopic::Command(CommandPath::LayoutSetSplitRatio),
         #[cfg(windows)]
         ["layout", "export"] => HelpTopic::Command(CommandPath::LayoutExport),
+        #[cfg(windows)]
+        ["layout", "apply"] => HelpTopic::Command(CommandPath::LayoutApply),
         ["panel", "zoom"] => HelpTopic::Command(CommandPath::PanelZoom),
         ["panel", "layout"] => HelpTopic::Command(CommandPath::PanelLayout),
         ["panel", "neighbor"] => HelpTopic::Command(CommandPath::PanelNeighbor),

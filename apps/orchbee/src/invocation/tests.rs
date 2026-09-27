@@ -7753,3 +7753,63 @@ fn reusable_layout_export_has_closed_targets_options_and_total_deadline() {
         assert!(parse(&words).is_err(), "{words:?}");
     }
 }
+#[cfg(windows)]
+#[test]
+fn reusable_layout_apply_requires_a_source_and_confirmed_exclusive_destination() {
+    let parse = |words: &[&str]| parse_request(words.iter().map(OsString::from));
+    for words in [
+        vec!["layout", "apply", "--stdin"],
+        vec![
+            "layout",
+            "apply",
+            "--file",
+            "中文 file.json",
+            "--standalone",
+            "--focus",
+        ],
+        vec![
+            "layout",
+            "apply",
+            "--stdin",
+            "--tab",
+            "old",
+            "--confirm",
+            "--no-focus",
+        ],
+        vec![
+            "layout",
+            "apply",
+            "--stdin",
+            "--workspace",
+            "work",
+            "--label",
+            "new",
+            "--timeout=1",
+        ],
+    ] {
+        let Request::LayoutApply { command, .. } = parse(&words).expect("admitted apply") else {
+            panic!("apply expected");
+        };
+        assert!((1..=3_600_000).contains(&command.timeout_ms));
+    }
+    for suffix in [
+        vec![],
+        vec!["--tab", "old"],
+        vec!["--confirm"],
+        vec!["--file", "x", "--stdin"],
+        vec!["--tab", "old", "--confirm", "--workspace", "work"],
+        vec!["--workspace", "work", "--standalone"],
+        vec!["--focus", "--no-focus"],
+        vec!["extra"],
+        vec!["--timeout=0"],
+        vec!["--client=bad"],
+        vec!["--panel=x"],
+    ] {
+        let mut words = vec!["layout", "apply"];
+        if !suffix.is_empty() {
+            words.push("--stdin");
+        }
+        words.extend(suffix);
+        assert!(parse(&words).is_err(), "{words:?}");
+    }
+}

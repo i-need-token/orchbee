@@ -1,6 +1,10 @@
 //! Windows reusable-layout workflows. Canonical membership and Client view keep separate owners.
+mod apply;
 mod export;
+mod launch;
 mod model;
+mod template;
+mod workflow;
 use super::{
     Failure, FailureKind, Output, failure_output, output,
     source::{ArmedSignals, Finish},
@@ -9,6 +13,8 @@ use crate::{
     invocation::{LayoutExportCommand, OutputFormat},
     localization::Locale,
 };
+/// Create or replace a Windows layout with bounded recovery and retained effect receipts.
+pub(crate) use apply::run as apply;
 use serde_json::{Map, json};
 use std::time::{Duration, Instant};
 

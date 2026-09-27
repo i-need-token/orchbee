@@ -1,0 +1,70 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "orchbee.cli.failure.layout-apply",
+	"title": "Windows layout application failure",
+	"type": "object",
+	"additionalProperties": false,
+	"required": ["schema", "version", "failure"],
+	"properties": {
+		"schema": {
+			"const": "orchbee.cli.failure.layout-apply"
+		},
+		"version": {
+			"const": 1
+		},
+		"failure": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["kind", "details"],
+			"properties": {
+				"kind": {
+					"enum": [
+						"ambiguous",
+						"cancelled",
+						"check-failed",
+						"denied",
+						"incompatible",
+						"internal-failure",
+						"invalid-identifier",
+						"invalid-usage",
+						"not-found",
+						"outcome-unknown",
+						"output-too-large",
+						"protocol-invalid",
+						"rejected",
+						"service-unavailable",
+						"session-capacity",
+						"timeout",
+						"transport-loss"
+					]
+				},
+				"details": {
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["reason"],
+					"properties": {
+						"reason": {
+							"enum": [
+								"input-unavailable",
+								"invalid-layout",
+								"layout-too-large",
+								"program-unavailable",
+								"interrupted",
+								"client-unavailable",
+								"destination-unavailable",
+								"invalid-receipt",
+								"layout-changed",
+								"launch-unavailable",
+								"launch-failed",
+								"client-selection-changed",
+								"close-incomplete",
+								"ownership-unverified",
+								"recovery-expired"
+							]
+						}
+					}
+				}
+			}
+		}
+	}
+}

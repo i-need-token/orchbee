@@ -16,9 +16,30 @@ impl LocalClient {
         expected_close_request_id: Option<&WorkbenchRequestId>,
         deadline: Instant,
     ) -> Result<WorkbenchTabCloseReadOutcome, WorkbenchTabCloseReadError> {
-        let response = match self
-            .exchange_tab_close(WorkbenchRequest::TabCloseRead(request.clone()), deadline)
-        {
+        self.submit_workbench_tab_close_read_with_wake(
+            request,
+            expected_close_request_id,
+            deadline,
+            None,
+        )
+    }
+
+    /// Read retained Close state with an optional cancellation wake and exact operation correlation.
+    ///
+    /// # Errors
+    /// Distinguishes a request not submitted from a failed observation; neither erases known Close facts.
+    pub(crate) fn submit_workbench_tab_close_read_with_wake(
+        &mut self,
+        request: WorkbenchTabCloseRead,
+        expected_close_request_id: Option<&WorkbenchRequestId>,
+        deadline: Instant,
+        wake: Option<orchbee_local_ipc::LocalIo<'_>>,
+    ) -> Result<WorkbenchTabCloseReadOutcome, WorkbenchTabCloseReadError> {
+        let response = match self.exchange_tab_close_with_wake(
+            WorkbenchRequest::TabCloseRead(request.clone()),
+            deadline,
+            wake,
+        ) {
             Ok(response) => response,
             Err(CloseExchangeError::NotSubmitted(reason)) => {
                 return Err(WorkbenchTabCloseReadError::NotSubmitted(reason));

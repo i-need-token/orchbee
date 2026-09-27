@@ -136,7 +136,7 @@ fn portable_bounds_are_checked_before_terminal_reads_and_never_drop_child_presen
     ));
     let mut next = 0;
     let mut root = panel(&mut next);
-    for _ in 0..MAX_DEPTH {
+    for _ in 1..MAX_DEPTH {
         let other = panel(&mut next);
         root = branch(root, other, &mut next);
     }

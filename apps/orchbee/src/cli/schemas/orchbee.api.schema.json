@@ -10,7 +10,7 @@
 			"const": "orchbee.api.schema"
 		},
 		"version": {
-			"const": 74
+			"const": 75
 		},
 		"source": {
 			"type": "object",
@@ -138,7 +138,9 @@
 						"orchbee.cli.failure.layout",
 						"orchbee.cli.failure.workspace-move",
 						"orchbee.panel.move",
-						"orchbee.workspace.move"
+						"orchbee.workspace.move",
+						"orchbee.layout.apply",
+						"orchbee.cli.failure.layout-apply"
 					],
 					"propertyNames": {
 						"$ref": "#/$defs/schemaId"
@@ -235,7 +237,9 @@
 				"orchbee.cli.failure.layout",
 				"orchbee.cli.failure.workspace-move",
 				"orchbee.panel.move",
-				"orchbee.workspace.move"
+				"orchbee.workspace.move",
+				"orchbee.layout.apply",
+				"orchbee.cli.failure.layout-apply"
 			]
 		}
 	}

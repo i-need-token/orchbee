@@ -346,6 +346,8 @@ fn fixed_outputs_are_far_below_the_bound() {
         CommandPath::LayoutSetSplitRatio,
         #[cfg(windows)]
         CommandPath::LayoutExport,
+        #[cfg(windows)]
+        CommandPath::LayoutApply,
         CommandPath::AgentDoctor,
         CommandPath::AgentExplain,
         CommandPath::AgentFocus,
@@ -457,6 +459,7 @@ fn fixed_outputs_are_far_below_the_bound() {
         "worktree",
     ];
     let verbs = [
+        "apply",
         "export",
         "move-block",
         "server",

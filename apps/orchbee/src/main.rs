@@ -134,6 +134,10 @@ fn main() -> ExitCode {
                 cli::layouts::export(&command, format, locale)
             }
             #[cfg(windows)]
+            Ok(invocation::Request::LayoutApply { command, format }) => {
+                cli::layouts::apply(&command, format, locale)
+            }
+            #[cfg(windows)]
             Ok(invocation::Request::WorkspaceCreation { command, format }) => {
                 cli::workspace_creation::run(&command, format, locale)
             }

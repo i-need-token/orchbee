@@ -48,7 +48,7 @@ pub(super) fn leaves(
         Ok(())
     }
     let mut out = Vec::new();
-    walk(root, 0, &mut out)?;
+    walk(root, 1, &mut out)?;
     Ok(out)
 }
 

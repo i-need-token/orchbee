@@ -75,9 +75,30 @@ impl SignalWatch for ArmedSignals {
     }
 }
 
+/// Acquire a document through the same cancellable raw-byte boundary as terminal input.
+pub(in crate::cli) fn acquire_document(
+    path: Option<&str>,
+    limit: usize,
+    deadline: Instant,
+    signals: &mut dyn SignalWatch,
+) -> Result<Vec<u8>, SourceFailure> {
+    match path {
+        Some(path) => acquire_file_limit(path, limit, deadline, signals),
+        None => acquire_stdin_limit(limit, deadline, signals),
+    }
+}
+
 fn acquire_file(
     path: &str,
     paste: bool,
+    deadline: Instant,
+    signals: &mut dyn SignalWatch,
+) -> Result<Vec<u8>, SourceFailure> {
+    acquire_file_limit(path, limit_for(paste), deadline, signals)
+}
+fn acquire_file_limit(
+    path: &str,
+    limit: usize,
     deadline: Instant,
     signals: &mut dyn SignalWatch,
 ) -> Result<Vec<u8>, SourceFailure> {
@@ -90,13 +111,20 @@ fn acquire_file(
         file,
         InputSource::File,
         Some(path),
-        paste,
+        limit,
         deadline,
         signals,
     )
 }
 fn acquire_stdin(
     paste: bool,
+    deadline: Instant,
+    signals: &mut dyn SignalWatch,
+) -> Result<Vec<u8>, SourceFailure> {
+    acquire_stdin_limit(limit_for(paste), deadline, signals)
+}
+fn acquire_stdin_limit(
+    limit: usize,
     deadline: Instant,
     signals: &mut dyn SignalWatch,
 ) -> Result<Vec<u8>, SourceFailure> {
@@ -112,15 +140,15 @@ fn acquire_stdin(
     let kind = winapi_util::file::typ(&file)
         .map_err(|_| usage("--stdin", None, SendSourceCause::UnsupportedStream))?;
     if kind.is_pipe() {
-        return pipe::acquire(file, paste, deadline, signals);
+        return pipe::acquire(file, limit, deadline, signals);
     }
-    read_regular(file, InputSource::Stdin, None, paste, deadline, signals)
+    read_regular(file, InputSource::Stdin, None, limit, deadline, signals)
 }
 fn read_regular(
     mut file: File,
     source: InputSource,
     path: Option<&str>,
-    paste: bool,
+    limit: usize,
     deadline: Instant,
     signals: &mut dyn SignalWatch,
 ) -> Result<Vec<u8>, SourceFailure> {
@@ -132,7 +160,6 @@ fn read_regular(
             SendSourceCause::UnsupportedStream
         }));
     }
-    let limit = limit_for(paste);
     let mut output = Vec::new();
     loop {
         if let Some(signal) = signals

@@ -2343,6 +2343,10 @@ impl Locale {
             #[cfg(windows)]
             (Self::EnUs, CommandPath::LayoutExport) => layouts::EXPORT_EN,
             #[cfg(windows)]
+            (Self::EnUs, CommandPath::LayoutApply) => layouts::APPLY_EN,
+            #[cfg(windows)]
+            (Self::ZhCn, CommandPath::LayoutApply) => layouts::APPLY_ZH,
+            #[cfg(windows)]
             (Self::ZhCn, CommandPath::LayoutExport) => layouts::EXPORT_ZH,
             (Self::ZhCn, CommandPath::LayoutSetSplitRatio) => client_control::HELP_LAYOUT_RATIO_ZH,
             (Self::EnUs, CommandPath::PanelFocus) => client_control::HELP_PANEL_FOCUS_EN,

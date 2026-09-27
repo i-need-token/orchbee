@@ -177,7 +177,7 @@ const FAMILY_VERBS: &[(&str, &[&str])] = &[
     ("api", &["schema", "snapshot"]),
     ("client", &["control-status", "get", "list"]),
     #[cfg(windows)]
-    ("layout", &["export", "set-split-ratio"]),
+    ("layout", &["apply", "export", "set-split-ratio"]),
     #[cfg(not(windows))]
     ("layout", &["set-split-ratio"]),
     ("launch-profile", &["create", "delete", "get", "list"]),
@@ -354,6 +354,23 @@ const REPEATABLE_FLAGS: &[&str] = &[
 const CONTROL_FLAGS: &[&str] = &["--cols", "--rows", "--timeout", "--takeover"];
 const OBSERVE_FLAGS: &[&str] = &["--cols", "--rows", "--timeout"];
 const COMMAND_FLAGS: &[(&str, &[&str])] = &[
+    #[cfg(windows)]
+    (
+        "layout:apply",
+        &[
+            "--file",
+            "--stdin",
+            "--tab",
+            "--confirm",
+            "--workspace",
+            "--standalone",
+            "--label",
+            "--client",
+            "--focus",
+            "--no-focus",
+            "--timeout",
+        ],
+    ),
     #[cfg(windows)]
     (
         "layout:export",
@@ -1038,7 +1055,7 @@ const HELP_CHILDREN: &[(&str, &[&str])] = &[
     ("api", &["schema", "snapshot"]),
     ("client", &["control-status", "get", "list"]),
     #[cfg(windows)]
-    ("layout", &["export", "set-split-ratio"]),
+    ("layout", &["apply", "export", "set-split-ratio"]),
     #[cfg(not(windows))]
     ("layout", &["set-split-ratio"]),
     ("launch-profile", &["create", "delete", "get", "list"]),
@@ -3506,6 +3523,14 @@ fn command_conflict_pairs(
 
 fn command_flag_conflicts(command: &str, flag: &str) -> &'static [&'static str] {
     match (command, flag) {
+        ("layout:apply", "--file") => &["--stdin"],
+        ("layout:apply", "--stdin") => &["--file"],
+        ("layout:apply", "--tab") => &["--workspace", "--standalone"],
+        ("layout:apply", "--workspace") => &["--tab", "--standalone", "--confirm"],
+        ("layout:apply", "--standalone") => &["--tab", "--workspace", "--confirm"],
+        ("layout:apply", "--confirm") => &["--workspace", "--standalone"],
+        ("layout:apply", "--focus") => &["--no-focus"],
+        ("layout:apply", "--no-focus") => &["--focus"],
         ("layout:export", "--tab") => &["--panel", "--current"],
         ("layout:export", "--panel") => &["--tab", "--current"],
         ("layout:export", "--current") => &["--tab", "--panel"],

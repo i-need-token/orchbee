@@ -59,6 +59,10 @@ pub(super) struct Receipt {
 
 impl Receipt {
     #[cfg(windows)]
+    pub(super) fn close_request_id(&self) -> Option<&str> {
+        self.close_request_id.as_deref()
+    }
+    #[cfg(windows)]
     pub(super) fn launch_failure(&self) -> Option<super::FailureKind> {
         match self.terminal.as_ref().map(|terminal| terminal.outcome) {
             Some("pending" | "started") => None,
@@ -1568,7 +1572,7 @@ mod linux {
             WorkbenchAction::TabClose { .. } => {
                 let request =
                     WorkbenchTabCloseRequest::try_from(command).map_err(|_| internal())?;
-                match client.submit_workbench_tab_close(request, deadline) {
+                match client.submit_workbench_tab_close_with_wake(request, deadline, wake) {
                     WorkbenchTabCloseSubmission::Accepted(WorkbenchTabCloseAccepted {
                         close_request_id,
                         terminal_context_id,
