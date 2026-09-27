@@ -26,7 +26,10 @@ use crate::{worker_obcn_carrier::create_worker_carrier, worker_registry::WorkerR
 
 const WORKER_ID: WorkerId = WorkerId::from_bytes([7; 16]);
 
-fn viewer(service: &LocalTerminalService, handle: WorkerRequestHandle) -> ViewerAttachment<'_> {
+pub(super) fn viewer(
+    service: &LocalTerminalService,
+    handle: WorkerRequestHandle,
+) -> ViewerAttachment<'_> {
     let attachment_id = OperationId::from_bytes([2; 16]).unwrap();
     let worker_id = CapabilityWorkerId::from_bytes(WORKER_ID.as_bytes()).unwrap();
     ViewerAttachment {
@@ -72,7 +75,7 @@ fn attached_result() -> Result<WorkerOperationResult, WorkerRequestError> {
     }))
 }
 
-fn service() -> LocalTerminalService {
+pub(super) fn service() -> LocalTerminalService {
     LocalTerminalService::from_identity(
         Arc::new(Mutex::new(WorkerRegistry::new())),
         Err(std::io::ErrorKind::PermissionDenied.into()),

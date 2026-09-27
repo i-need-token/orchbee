@@ -1,4 +1,4 @@
-use orchbee_terminal_protocol::{TerminalTextFrame, TerminalTextStyle};
+use orchbee_terminal_protocol::{TerminalTextFrame, TerminalTextRow, TerminalTextStyle};
 use ratatui::{
     Frame,
     layout::Rect,
@@ -14,7 +14,32 @@ pub(super) fn render(
     terminal: &TerminalTextFrame,
     show_cursor: bool,
 ) {
-    for row in &terminal.rows {
+    render_rows(
+        frame,
+        area,
+        &terminal.rows,
+        terminal.foreground,
+        terminal.background,
+    );
+    if show_cursor
+        && terminal.cursor.visible
+        && terminal.cursor.column < area.width
+        && terminal.cursor.row < area.height
+    {
+        frame.set_cursor_position((
+            area.x + terminal.cursor.column,
+            area.y + terminal.cursor.row,
+        ));
+    }
+}
+pub(super) fn render_rows(
+    frame: &mut Frame<'_>,
+    area: Rect,
+    rows: &[TerminalTextRow],
+    foreground: u32,
+    background: u32,
+) {
+    for row in rows {
         if row.index >= area.height {
             continue;
         }
@@ -28,7 +53,7 @@ pub(super) fn render(
             else {
                 continue;
             };
-            output.set_style(style(cell.style, terminal));
+            output.set_style(style(cell.style, foreground, background));
             if cell.width == 2 {
                 output.set_diff_option(ratatui::buffer::CellDiffOption::Skip);
                 continue;
@@ -49,21 +74,11 @@ pub(super) fn render(
             }
         }
     }
-    if show_cursor
-        && terminal.cursor.visible
-        && terminal.cursor.column < area.width
-        && terminal.cursor.row < area.height
-    {
-        frame.set_cursor_position((
-            area.x + terminal.cursor.column,
-            area.y + terminal.cursor.row,
-        ));
-    }
 }
-fn style(value: TerminalTextStyle, terminal: &TerminalTextFrame) -> Style {
+fn style(value: TerminalTextStyle, foreground: u32, background: u32) -> Style {
     let mut style = Style::new()
-        .fg(color(value.foreground, terminal.foreground))
-        .bg(color(value.background, terminal.background));
+        .fg(color(value.foreground, foreground))
+        .bg(color(value.background, background));
     for (bit, modifier) in [
         (1, Modifier::BOLD),
         (2, Modifier::ITALIC),

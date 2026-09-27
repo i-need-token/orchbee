@@ -1,6 +1,6 @@
 //! Two real consumers of validated surfaces: NDJSON and the inherited console.
 use super::*;
-use orchbee_terminal_protocol::{TerminalTextFrame, TerminalTextRowWindow};
+use orchbee_terminal_protocol::TerminalTextFrame;
 
 pub(super) trait Display {
     fn event(&mut self, record: Value, gate: &Gate<'_>) -> Result<(), Failure>;
@@ -16,7 +16,7 @@ pub(super) trait Display {
     }
     fn history(
         &mut self,
-        window: &TerminalTextRowWindow,
+        window: &crate::terminal_session::terminal_viewport::ViewportWindow,
         columns: u16,
         rows: u16,
         gate: &Gate<'_>,

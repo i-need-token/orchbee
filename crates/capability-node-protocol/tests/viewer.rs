@@ -40,6 +40,7 @@ fn viewer_controls_round_trip_every_closed_action_and_outcome() -> TestResult {
             demand: ViewerHistoryDemand::ViewingHistory,
         },
         TerminalViewerAction::ReadViewportRows {
+            detail: orchbee_capability_node_protocol::ViewerRowDetail::Text,
             origin: ViewportRowOrigin::Tail { rows_before: 30 },
             row_count: 24,
             revision: 7,
@@ -48,6 +49,7 @@ fn viewer_controls_round_trip_every_closed_action_and_outcome() -> TestResult {
             maximum_bytes: 8 * 1024 * 1024,
         },
         TerminalViewerAction::ReadViewportRows {
+            detail: orchbee_capability_node_protocol::ViewerRowDetail::Text,
             origin: ViewportRowOrigin::Committed { delta: -12 },
             row_count: 24,
             revision: 7,
@@ -329,6 +331,7 @@ fn history_viewport_action_tags_seven_through_eleven_layout_is_fixed() -> TestRe
         &encode(
             request,
             TerminalViewerAction::ReadViewportRows {
+                detail: orchbee_capability_node_protocol::ViewerRowDetail::Text,
                 origin: ViewportRowOrigin::Tail {
                     rows_before: 0x0102_0304,
                 },
@@ -353,6 +356,7 @@ fn history_viewport_action_tags_seven_through_eleven_layout_is_fixed() -> TestRe
         &encode(
             request,
             TerminalViewerAction::ReadViewportRows {
+                detail: orchbee_capability_node_protocol::ViewerRowDetail::Text,
                 origin: ViewportRowOrigin::Committed { delta: -12 },
                 row_count: 24,
                 revision: 0,
@@ -378,6 +382,7 @@ fn history_viewport_action_tags_seven_through_eleven_layout_is_fixed() -> TestRe
     ] {
         let message = CapabilityNodeMessage::TerminalViewerRequest(TerminalViewerRequest {
             action: TerminalViewerAction::ReadViewportRows {
+                detail: orchbee_capability_node_protocol::ViewerRowDetail::Text,
                 origin,
                 row_count: 24,
                 revision: 0,
@@ -439,6 +444,7 @@ fn history_viewport_actions_reject_out_of_bounds_and_unknown_values() -> TestRes
     let encoded = encode_message(&CapabilityNodeMessage::TerminalViewerRequest(
         TerminalViewerRequest {
             action: TerminalViewerAction::ReadViewportRows {
+                detail: orchbee_capability_node_protocol::ViewerRowDetail::Text,
                 origin: ViewportRowOrigin::Committed { delta: -12 },
                 row_count: 24,
                 revision: 0,
@@ -583,5 +589,45 @@ fn binary_header_bounds_and_identity_fail_closed_before_payload_use() -> TestRes
     let mut trailing = encoded;
     trailing.push(0);
     assert!(decode_message(&trailing).is_err());
+    Ok(())
+}
+
+#[test]
+fn viewport_render_preserves_the_text_body_and_uses_its_own_tag() -> TestResult {
+    let mut bytes = Vec::new();
+    for detail in [ViewerRowDetail::Text, ViewerRowDetail::Render] {
+        let message = CapabilityNodeMessage::TerminalViewerRequest(TerminalViewerRequest {
+            request_id: OperationId::from_bytes([1; 16])?,
+            attachment_id: OperationId::from_bytes([2; 16])?,
+            worker_id: WorkerId::from_bytes([3; 16])?,
+            worker_generation: WorkerGeneration::new(NonZeroU64::MIN),
+            action: TerminalViewerAction::ReadViewportRows {
+                detail,
+                origin: ViewportRowOrigin::Committed { delta: -3 },
+                row_count: 24,
+                revision: 4,
+                generation: NonZeroU64::MIN,
+                request_sequence: NonZeroU64::MIN,
+                maximum_bytes: 8388608,
+            },
+        });
+        let encoded = encode_message(&message)?;
+        assert_eq!(decode_message(&encoded)?, message);
+        assert_eq!(
+            encoded[65],
+            if detail == ViewerRowDetail::Text {
+                9
+            } else {
+                14
+            }
+        );
+        assert!(decode_message(&encoded[..encoded.len() - 1]).is_err());
+        let mut unknown = encoded.clone();
+        unknown[65] = 15;
+        assert!(decode_message(&unknown).is_err());
+        bytes.push(encoded);
+    }
+    assert_eq!(&bytes[0][..65], &bytes[1][..65]);
+    assert_eq!(&bytes[0][66..], &bytes[1][66..]);
     Ok(())
 }

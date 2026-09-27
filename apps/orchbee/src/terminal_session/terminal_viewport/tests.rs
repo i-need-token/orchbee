@@ -7,10 +7,7 @@
 use std::{num::NonZeroU64, time::Duration, time::Instant};
 
 use orchbee_client_server_protocol::{ViewerRowsRejectedReason, ViewportRowOrigin};
-use orchbee_terminal_protocol::{
-    AttachmentId, HistoryAnchorStatus, HistoryChanged, HostEpoch, TerminalRowPromptClass,
-    TerminalTextCellMapping, TerminalTextRowWindow, TerminalTextWindowRow,
-};
+use orchbee_terminal_protocol::{AttachmentId, HistoryAnchorStatus, HistoryChanged, HostEpoch};
 
 use super::{
     TerminalViewport, ViewportMode, ViewportNav, ViewportReadRejection, ViewportStep,
@@ -44,27 +41,38 @@ fn window(
     total_rows: u64,
     columns: u16,
     rows: u16,
-) -> TerminalTextRowWindow {
+) -> crate::terminal_session::terminal_viewport::ViewportWindow {
     let (attachment_id, host_epoch) = ids();
-    TerminalTextRowWindow {
-        attachment_id,
-        host_epoch,
-        sequence: NonZeroU64::new(sequence).expect("sequence"),
-        revision: sequence,
-        generation: NonZeroU64::new(generation).expect("generation"),
-        total_rows,
-        start_row,
-        columns,
-        ignored_optional_flags: 0,
+    crate::terminal_session::terminal_viewport::ViewportWindow {
+        route: orchbee_terminal_protocol::TerminalRowWindowRoute {
+            attachment_id,
+            host_epoch,
+            sequence: NonZeroU64::new(sequence).unwrap(),
+            revision: sequence,
+            generation: NonZeroU64::new(generation).unwrap(),
+            total_rows,
+            start_row,
+            columns,
+            row_count: rows,
+            detail: orchbee_terminal_protocol::RowWindowDetail::Render,
+        },
+        foreground: 0xffffff,
+        background: 0,
         rows: (0..rows)
-            .map(|offset| TerminalTextWindowRow {
-                index: start_row + u64::from(offset),
-                prompt_class: TerminalRowPromptClass::None,
-                wrap: false,
-                wrap_continuation: false,
-                identity_ascii: true,
-                text: "x".into(),
-                mappings: Vec::<TerminalTextCellMapping>::new(),
+            .map(|index| orchbee_terminal_protocol::TerminalTextRow {
+                index,
+                flags: 0,
+                cells: vec![orchbee_terminal_protocol::TerminalTextCell {
+                    text: "x".into(),
+                    width: 0,
+                    style: orchbee_terminal_protocol::TerminalTextStyle {
+                        foreground: 0xffffff,
+                        background: 0,
+                        underline_color: 0x1000000,
+                        flags: 0,
+                        underline: 0,
+                    },
+                }],
             })
             .collect(),
     }
@@ -444,7 +452,7 @@ fn foreign_route_window_is_protocol_error() {
         other => panic!("expected one read, got {other:?}"),
     };
     let mut foreign = window(request_sequence.get(), 1, 0, 200, 80, 24);
-    foreign.attachment_id = AttachmentId::from_bytes([8; 16]).expect("other attachment");
+    foreign.route.attachment_id = AttachmentId::from_bytes([8; 16]).expect("other attachment");
     let effect = viewport.window(foreign, Instant::now());
     assert!(effect.protocol_error);
 }
@@ -954,31 +962,56 @@ fn resize_drops_staged_wire_steps() {
 fn row_response_requires_the_transport_envelope_and_matching_bounded_payload() {
     use orchbee_terminal_protocol::{
         CURRENT_PROTOCOL_VERSION, CorrelationId, Envelope, MessageRole, PayloadEncoding,
-        decode_terminal_text_row_window, encode_transport_envelope,
+        decode_terminal_render_row_window, encode_transport_envelope,
     };
     const ROWS: &[u8] = include_bytes!(
-        "../../../../../packages/terminal-protocol/fixtures/terminal-row-window-v0.0.3.bin"
+        "../../../../../packages/terminal-protocol/fixtures/ghostty-render-row-window-v0.0.3.bin"
     );
-    let expected = decode_terminal_text_row_window(ROWS).unwrap();
+    let expected = decode_terminal_render_row_window(ROWS).unwrap();
     let envelope = Envelope {
         protocol: CURRENT_PROTOCOL_VERSION,
         role: MessageRole::Response,
         kind: 46,
         payload_encoding: PayloadEncoding::RowWindow,
-        host_epoch: Some(expected.host_epoch),
+        host_epoch: Some(expected.route().host_epoch),
         correlation_id: Some(CorrelationId::from_bytes([3; 16]).unwrap()),
         optional_message: false,
         payload: ROWS,
     };
     let encoded = encode_transport_envelope(&envelope).unwrap();
     let actual = super::decode_viewport_window(&encoded, ROWS.len() as u32).unwrap();
-    assert_eq!(actual.sequence, expected.sequence);
-    assert_eq!(actual.attachment_id, expected.attachment_id);
-    assert_eq!(actual.host_epoch, expected.host_epoch);
-    assert_eq!(actual.rows, expected.rows);
+    assert_eq!(actual.route, expected.route());
+    assert_eq!(actual.foreground, 0xd8dee9);
+    assert_eq!(actual.foreground, expected.projection().foreground());
+    assert_eq!(actual.background, 0x101418);
+    assert_eq!(actual.background, expected.projection().background());
+    let mut aliases = std::collections::HashMap::new();
+    for (actual_row, expected_row) in actual.rows.iter().zip(expected.projection().rows()) {
+        assert_eq!(actual_row.index, expected_row.index());
+        assert_eq!(actual_row.flags, expected_row.flags());
+        for (cell, expected) in actual_row.cells.iter().zip(expected_row.cells()) {
+            assert_eq!(cell.text.as_ref(), expected.text);
+            assert_eq!(cell.style, expected.style);
+            assert_eq!(cell.width, expected.width);
+            let key = (expected.text.as_ptr() as usize, expected.text.len());
+            if let Some(previous) = aliases.insert(key, &cell.text) {
+                assert!(
+                    std::sync::Arc::ptr_eq(previous, &cell.text),
+                    "aliased wire strings must share allocation"
+                );
+            }
+        }
+    }
+    assert!(
+        actual
+            .rows
+            .iter()
+            .flat_map(|r| &r.cells)
+            .any(|c| c.width == 1)
+    );
     assert!(
         super::decode_viewport_window(ROWS, u32::MAX).is_err(),
-        "bare OBRW is not a transport response"
+        "bare OBRW is not a response"
     );
     assert!(super::decode_viewport_window(&encoded, ROWS.len() as u32 - 1).is_err());
     assert!(super::decode_viewport_window(&encoded[..encoded.len() - 1], u32::MAX).is_err());
@@ -988,4 +1021,27 @@ fn row_response_requires_the_transport_envelope_and_matching_bounded_payload() {
     })
     .unwrap();
     assert!(super::decode_viewport_window(&mismatched, u32::MAX).is_err());
+    let text = include_bytes!(
+        "../../../../../packages/terminal-protocol/fixtures/terminal-row-window-v0.0.3.bin"
+    );
+    let text_record = encode_transport_envelope(&Envelope {
+        payload: text,
+        ..envelope
+    })
+    .unwrap();
+    assert!(
+        super::decode_viewport_window(&text_record, u32::MAX).is_err(),
+        "no text fallback"
+    );
+    let mut bad_graphics = ROWS.to_vec();
+    *bad_graphics.last_mut().unwrap() = 1;
+    let malformed = encode_transport_envelope(&Envelope {
+        payload: &bad_graphics,
+        ..envelope
+    })
+    .unwrap();
+    assert!(
+        super::decode_viewport_window(&malformed, u32::MAX).is_err(),
+        "unused graphics still strictly validated"
+    );
 }

@@ -539,38 +539,53 @@ use std::num::NonZeroU64;
 
 use orchbee_terminal_protocol::{
     AttachmentId, HostEpoch, TerminalFrameRoute, TerminalInteraction, TerminalPixelGeometry,
-    TerminalRowPromptClass, TerminalTextCell, TerminalTextCellMapping, TerminalTextCursor,
-    TerminalTextFrame, TerminalTextRow, TerminalTextRowWindow, TerminalTextStyle,
-    TerminalTextWindowRow,
+    TerminalTextCell, TerminalTextCursor, TerminalTextFrame, TerminalTextRow, TerminalTextStyle,
 };
 use ratatui::layout::Rect;
 
 use crate::terminal_session::NativeViewportSurface;
 
-/// A validated row window with identity-ASCII rows — the shape the core
-/// fences before it ever reaches this painter.
-fn history_window(texts: &[&str], columns: u16) -> TerminalTextRowWindow {
-    TerminalTextRowWindow {
-        attachment_id: AttachmentId::from_bytes([7; 16]).expect("attachment"),
-        host_epoch: HostEpoch::from_bytes([9; 16]).expect("epoch"),
-        sequence: NonZeroU64::new(1).expect("sequence"),
-        revision: 1,
-        generation: NonZeroU64::new(1).expect("generation"),
-        total_rows: 200,
-        start_row: 42,
-        columns,
-        ignored_optional_flags: 0,
+/// A styled row window already fenced by the viewport core.
+fn history_window(
+    texts: &[&str],
+    columns: u16,
+) -> crate::terminal_session::terminal_viewport::ViewportWindow {
+    use orchbee_terminal_protocol::{RowWindowDetail, TerminalRowWindowRoute};
+    crate::terminal_session::terminal_viewport::ViewportWindow {
+        route: TerminalRowWindowRoute {
+            attachment_id: AttachmentId::from_bytes([7; 16]).unwrap(),
+            host_epoch: HostEpoch::from_bytes([9; 16]).unwrap(),
+            sequence: NonZeroU64::MIN,
+            revision: 1,
+            generation: NonZeroU64::MIN,
+            total_rows: 200,
+            start_row: 42,
+            columns,
+            row_count: texts.len() as u16,
+            detail: RowWindowDetail::Render,
+        },
+        foreground: 0xffffff,
+        background: 0,
         rows: texts
             .iter()
             .enumerate()
-            .map(|(offset, text)| TerminalTextWindowRow {
-                index: 42 + offset as u64,
-                prompt_class: TerminalRowPromptClass::None,
-                wrap: false,
-                wrap_continuation: false,
-                identity_ascii: true,
-                text: (*text).into(),
-                mappings: Vec::<TerminalTextCellMapping>::new(),
+            .map(|(index, text)| TerminalTextRow {
+                index: index as u16,
+                flags: 0,
+                cells: text
+                    .chars()
+                    .map(|ch| TerminalTextCell {
+                        text: ch.to_string().into(),
+                        width: 0,
+                        style: TerminalTextStyle {
+                            foreground: 0x1000000,
+                            background: 0x1000000,
+                            underline_color: 0x1000000,
+                            flags: 0,
+                            underline: 0,
+                        },
+                    })
+                    .collect(),
             })
             .collect(),
     }
@@ -779,4 +794,121 @@ fn history_entering_keeps_the_live_frame() {
     );
     assert!(joined.contains("Loading history…"), "{rows:?}");
     assert!(rows[7].contains("Esc back to live"), "{rows:?}");
+}
+
+#[test]
+fn history_chrome_clears_child_styles_text_and_crossing_wide_cells() {
+    use ratatui::style::Modifier;
+    let line = "X".repeat(40);
+    let mut window = history_window(&[&line, &line, &line], 40);
+    for row in &mut window.rows {
+        for cell in &mut row.cells {
+            cell.style.flags = 1 | 2 | 16 | 32 | 64;
+            cell.style.underline = 1;
+            cell.style.background = 0x123456;
+        }
+    }
+    // The nine-column English badge begins at31, inside this wide glyph.
+    window.rows[0].cells[30].text = "界".into();
+    window.rows[0].cells[30].width = 1;
+    window.rows[0].cells[31].text = "".into();
+    window.rows[0].cells[31].width = 2;
+    let theme = crate::tui_theme::Theme::rgb_test_dark();
+    let mut terminal = infallible(Terminal::new(TestBackend::new(40, 3)));
+    infallible(terminal.draw(|frame| {
+        super::viewport::render(
+            frame,
+            Rect::new(0, 0, 40, 3),
+            NativeViewportSurface::Window {
+                window: &window,
+                position: Some((42, 200)),
+            },
+            None,
+            false,
+            Locale::EnUs,
+            &theme,
+        );
+    }));
+    let buffer = terminal.backend().buffer();
+    assert!(buffer[(0, 0)].modifier.contains(Modifier::HIDDEN));
+    assert!(buffer[(0, 1)].modifier.contains(Modifier::HIDDEN));
+    assert_eq!(buffer[(30, 0)].symbol(), " ");
+    let leaked = Modifier::BOLD
+        | Modifier::ITALIC
+        | Modifier::REVERSED
+        | Modifier::HIDDEN
+        | Modifier::CROSSED_OUT
+        | Modifier::UNDERLINED;
+    for x in 31..40 {
+        assert!(!buffer[(x, 0)].modifier.intersects(leaked));
+    }
+    for x in 0..40 {
+        assert!(!buffer[(x, 2)].modifier.intersects(leaked));
+    }
+    for x in 14..23 {
+        assert_eq!(buffer[(x, 2)].symbol(), " ");
+    }
+    let rows = buffer_rows(&terminal, 40, 3);
+    assert!(rows[0].contains("HISTORY"));
+    assert!(rows[2].contains("Row 42 of 200"));
+    assert!(rows[2].contains("Esc back to live"));
+}
+
+#[test]
+fn history_preserves_styles_defaults_wide_cells_and_sanitization() {
+    use ratatui::style::{Color, Modifier};
+    let mut window = history_window(&["header", "ABCDE"], 8);
+    window.foreground = 0x010203;
+    window.background = 0x040506;
+    window.rows[1].cells[0].style = TerminalTextStyle {
+        foreground: 0x123456,
+        background: 0xabcdef,
+        underline_color: 0x1000000,
+        flags: 3,
+        underline: 1,
+    };
+    window.rows[1].cells[1].text = "界".into();
+    window.rows[1].cells[1].width = 1;
+    window.rows[1].cells[2].text = "".into();
+    window.rows[1].cells[2].width = 2;
+    window.rows[1].cells[3].text = "\x1b[31m".into();
+    let theme = crate::tui_theme::Theme::rgb_test_dark();
+    let mut terminal = infallible(Terminal::new(TestBackend::new(40, 8)));
+    infallible(terminal.draw(|frame| {
+        super::viewport::render(
+            frame,
+            Rect::new(0, 0, 40, 8),
+            NativeViewportSurface::Window {
+                window: &window,
+                position: None,
+            },
+            None,
+            true,
+            Locale::EnUs,
+            &theme,
+        )
+    }));
+    let buffer = terminal.backend().buffer();
+    assert_eq!(buffer[(0, 1)].fg, Color::Rgb(0x12, 0x34, 0x56));
+    assert_eq!(buffer[(0, 1)].bg, Color::Rgb(0xab, 0xcd, 0xef));
+    assert!(
+        buffer[(0, 1)]
+            .modifier
+            .contains(Modifier::BOLD | Modifier::ITALIC | Modifier::UNDERLINED)
+    );
+    assert_eq!(buffer[(1, 1)].symbol(), "界");
+    assert_eq!(buffer[(3, 1)].symbol(), "�");
+    assert_eq!(buffer[(4, 1)].fg, Color::Rgb(1, 2, 3));
+    assert_eq!(buffer[(4, 1)].bg, Color::Rgb(4, 5, 6));
+    let clipped = render_viewport(
+        2,
+        4,
+        NativeViewportSurface::Window {
+            window: &window,
+            position: None,
+        },
+        None,
+        Locale::EnUs,
+    );
+    assert_eq!(clipped[1], "A ");
 }

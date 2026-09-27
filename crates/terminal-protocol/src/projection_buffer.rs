@@ -19,6 +19,8 @@ pub struct TerminalProjectionBuffer<'a> {
     geometry: TerminalPixelGeometry,
     scrollback_rows: u64,
     theme_revision: u64,
+    foreground: u32,
+    background: u32,
     ignored_optional_flags: u8,
     sections: [&'a [u8]; 16],
     strings: &'a str,
@@ -59,6 +61,16 @@ impl<'a> TerminalProjectionBuffer<'a> {
     #[must_use]
     pub const fn theme_revision(&self) -> u64 {
         self.theme_revision
+    }
+
+    #[must_use]
+    pub const fn foreground(&self) -> u32 {
+        self.foreground
+    }
+
+    #[must_use]
+    pub const fn background(&self) -> u32 {
+        self.background
     }
 
     #[must_use]
@@ -240,6 +252,8 @@ pub fn decode_terminal_projection_buffer(
         geometry,
         scrollback_rows: u64_at(bytes, 88),
         theme_revision: u64_at(bytes, 145),
+        foreground: u32_at(bytes, 112),
+        background: u32_at(bytes, 116),
         ignored_optional_flags: bytes[7] & 0x7f,
         sections,
         strings,

@@ -1,16 +1,12 @@
-//! Retained-history pane surface: validated OBRW text rows plus the mode
-//! badge. The window this paints is already fenced to the pane's current
-//! generation and column geometry by the viewport core — this layer only
-//! clips to the leaf. Copy, search, selection, styled cells, clipboard
-//! integration, and persistence are deliberately out of this slice.
+//! Styled retained rows reuse the live cell painter, with fenced history chrome.
+use orchbee_terminal_protocol::TerminalTextFrame;
 
-use orchbee_terminal_protocol::{TerminalTextFrame, TerminalTextRowWindow, TerminalTextWindowRow};
 use ratatui::{Frame, layout::Rect, style::Style, widgets::Clear};
 
 use crate::{
     localization::Locale,
     terminal_session::NativeViewportSurface,
-    terminal_text::{display_width, sanitize_terminal_text, truncate_display},
+    terminal_text::{display_width, truncate_display},
     tui_theme::{Role, Theme},
 };
 
@@ -32,7 +28,13 @@ pub(super) fn render(
     match surface {
         NativeViewportSurface::Window { window, position } => {
             frame.render_widget(Clear, area);
-            paint_rows(frame, area, window);
+            terminal_cells::render_rows(
+                frame,
+                area,
+                &window.rows,
+                window.foreground,
+                window.background,
+            );
             badge(frame, area, locale.terminal_history_badge(), theme);
             bottom_line(frame, area, position, locale, theme);
         }
@@ -58,72 +60,6 @@ pub(super) fn render(
     }
 }
 
-/// Plain-text rows, top-aligned inside the leaf: rows clip to the leaf
-/// bounds, mapped cells land on their recorded columns, forbidden scalars
-/// are sanitized, and anything the row cannot express paints blank —
-/// never guessed.
-fn paint_rows(frame: &mut Frame<'_>, area: Rect, window: &TerminalTextRowWindow) {
-    for (offset, row) in window.rows.iter().enumerate() {
-        let Ok(offset) = u16::try_from(offset) else {
-            break;
-        };
-        if offset >= area.height {
-            break;
-        }
-        paint_row(frame, area, offset, row);
-    }
-}
-
-fn paint_row(frame: &mut Frame<'_>, area: Rect, offset: u16, row: &TerminalTextWindowRow) {
-    let y = area.y + offset;
-    if row.identity_ascii {
-        // Identity rows are one ASCII cell per byte, columns in order.
-        let text = sanitize_terminal_text(&row.text);
-        frame.buffer_mut().set_stringn(
-            area.x,
-            y,
-            text.as_ref(),
-            usize::from(area.width),
-            Style::new(),
-        );
-        return;
-    }
-    for (index, mapping) in row.mappings.iter().enumerate() {
-        if mapping.column >= area.width {
-            continue;
-        }
-        let end = row
-            .mappings
-            .get(index + 1)
-            .map_or(row.text.len(), |next| next.byte_offset as usize);
-        let start = mapping.byte_offset as usize;
-        if start >= end || end > row.text.len() {
-            continue;
-        }
-        let text = sanitize_terminal_text(&row.text[start..end]);
-        if text.is_empty() {
-            continue;
-        }
-        let column = area.x + mapping.column;
-        if mapping.width == 2 && usize::from(mapping.column) + 1 >= usize::from(area.width) {
-            // A double-width cell at the leaf's last column has no room:
-            // the decoder proved it occupies two columns, so paint the
-            // visible half blank rather than overflowing the leaf.
-            frame
-                .buffer_mut()
-                .set_stringn(column, y, " ", 1, Style::new());
-            continue;
-        }
-        frame.buffer_mut().set_stringn(
-            column,
-            y,
-            text.as_ref(),
-            usize::from(mapping.width),
-            Style::new(),
-        );
-    }
-}
-
 /// The right-aligned mode badge on the leaf's first row — the only
 /// chrome this surface owns.
 fn badge(frame: &mut Frame<'_>, area: Rect, label: &str, theme: &Theme) {
@@ -136,6 +72,13 @@ fn badge(frame: &mut Frame<'_>, area: Rect, label: &str, theme: &Theme) {
         return;
     }
     let x = area.x + area.width - width;
+    if x > area.x
+        && let Some(cell) = frame.buffer_mut().cell_mut((x - 1, area.y))
+        && display_width(cell.symbol()) > 1
+    {
+        cell.reset();
+    }
+    frame.render_widget(Clear, Rect::new(x, area.y, width, 1));
     frame
         .buffer_mut()
         .set_stringn(x, area.y, &label, usize::from(width), Style::new());
@@ -161,6 +104,7 @@ fn bottom_line(
         return;
     }
     let y = area.y + area.height - 1;
+    frame.render_widget(Clear, Rect::new(area.x, y, area.width, 1));
     let width = usize::from(area.width);
     let hint = truncate_display(locale.terminal_history_hint(), width, "…");
     let hint_width = u16::try_from(display_width(&hint)).unwrap_or(u16::MAX);

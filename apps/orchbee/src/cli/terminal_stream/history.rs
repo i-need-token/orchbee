@@ -3,7 +3,7 @@ use super::display::Display;
 use super::*;
 use crate::terminal_session::terminal_viewport::{
     TerminalViewport, ViewportEffect, ViewportNav, ViewportReadRejection, ViewportStep,
-    ViewportSurface, decode_history_changed, decode_viewport_window,
+    ViewportSurface, ViewportWindowFailure, decode_history_changed, decode_viewport_window,
 };
 use orchbee_client_server_protocol::{HistoryDemand, ProjectionDemand};
 use orchbee_terminal_protocol::TerminalTextFrame;
@@ -155,6 +155,7 @@ impl History {
                 match exchange(
                     client,
                     Action::ReadViewportRows {
+                        detail: orchbee_client_server_protocol::ViewerRowDetail::Render,
                         attachment_id: viewer.clone(),
                         origin,
                         row_count,
@@ -165,11 +166,12 @@ impl History {
                     },
                     gate,
                 )? {
-                    Outcome::Record(record) => {
-                        let window = decode_viewport_window(&record, maximum_bytes)
-                            .map_err(|()| Failure::new(FailureKind::ProtocolInvalid))?;
-                        core.window(window, Instant::now())
-                    }
+                    Outcome::Record(record) => match decode_viewport_window(&record, maximum_bytes) {
+                        Ok(window) => core.window(window, Instant::now()),
+                        Err(ViewportWindowFailure::Invalid) => return Err(Failure::new(FailureKind::ProtocolInvalid)),
+                        Err(ViewportWindowFailure::MemoryLimit) => core.read_outcome(request_sequence,
+                            ViewportReadRejection::Typed(orchbee_client_server_protocol::ViewerRowsRejectedReason::ResourceExhausted), Instant::now()),
+                    },
                     Outcome::RowsRejected { reason } => core.read_outcome(
                         request_sequence,
                         ViewportReadRejection::Typed(reason),

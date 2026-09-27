@@ -13,7 +13,7 @@ use crate::{
     terminal_lifecycle::{InheritedTerminalModes, TerminalModeGuard},
 };
 use orchbee_client_server_protocol::{Geometry, TerminalControlAction, TerminalControlOutcome};
-use orchbee_terminal_protocol::{MouseTracking, TerminalTextFrame, TerminalTextRowWindow};
+use orchbee_terminal_protocol::{MouseTracking, TerminalTextFrame};
 use std::io::{self, Write};
 mod input;
 #[cfg(test)]
@@ -330,7 +330,7 @@ impl<W: Write> Display for ConsoleDisplay<W> {
     }
     fn history(
         &mut self,
-        window: &TerminalTextRowWindow,
+        window: &crate::terminal_session::terminal_viewport::ViewportWindow,
         columns: u16,
         rows: u16,
         gate: &Gate<'_>,

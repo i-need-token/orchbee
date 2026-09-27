@@ -106,6 +106,7 @@ fn history_viewport_actions_encode_their_canonical_json_shape()
         ),
         (
             TerminalViewerAction::ReadViewportRows {
+                detail: super::ViewerRowDetail::Text,
                 attachment_id: attachment_id.clone(),
                 origin: ViewportRowOrigin::Tail { rows_before: 30 },
                 row_count: 24,
@@ -118,6 +119,7 @@ fn history_viewport_actions_encode_their_canonical_json_shape()
         ),
         (
             TerminalViewerAction::ReadViewportRows {
+                detail: super::ViewerRowDetail::Text,
                 attachment_id: attachment_id.clone(),
                 origin: ViewportRowOrigin::Committed { delta: -12 },
                 row_count: 24,
@@ -219,5 +221,24 @@ fn host_rejected_round_trips_as_viewer_rejection() -> Result<(), Box<dyn std::er
         )
     );
     assert_eq!(decode_server_frame(&frame)?, message);
+    Ok(())
+}
+
+#[test]
+fn viewport_render_detail_is_explicit_and_closed() -> Result<(), Box<dyn std::error::Error>> {
+    let mut value = serde_json::json!({"kind":"read-viewport-rows", "attachmentId":ATTACHMENT,
+        "origin":{"kind":"tail","rowsBefore":3}, "rowCount":24, "revision":"7",
+        "generation":"1", "requestSequence":"1", "maximumBytes":8388608, "detail":"render"});
+    let action: TerminalViewerAction = serde_json::from_value(value.clone())?;
+    assert!(matches!(
+        action,
+        TerminalViewerAction::ReadViewportRows {
+            detail: super::ViewerRowDetail::Render,
+            ..
+        }
+    ));
+    assert_eq!(serde_json::to_value(action)?, value);
+    value["detail"] = serde_json::json!("unknown");
+    assert!(serde_json::from_value::<TerminalViewerAction>(value).is_err());
     Ok(())
 }

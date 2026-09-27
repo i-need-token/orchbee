@@ -77,6 +77,9 @@ OBRW payload bound `read-rows` uses). The Host serves the current view: the retu
 becomes the window's captured identity, so the binding does not require revision equality with the
 request. `rowsBefore` and `delta` are bounded JSON integers (`u32`/`i32` domains, both inside the
 JavaScript safe-integer range); `delta` is signed natively and admits negative scroll deltas.
+The optional `detail` is `text` (default, omitted in canonical encoding) or `render`. Server
+forwards that exact detail and rejects a response of the other kind. Interactive history requests
+render; existing text requests preserve their bytes. Upgrade or roll back complete cohorts.
 
 `rows-applied` carries `requestSequence`, `generation`, and `revision` — the exact tuple the Host
 promotes from a pending viewport anchor to committed. `history-observed` carries `sequence`,

@@ -774,7 +774,7 @@ pub(super) enum ViewportOutcome {
     /// payload. The UI never interprets transport bytes as bare row data.
     Window {
         request_sequence: std::num::NonZeroU64,
-        window: Box<orchbee_terminal_protocol::TerminalTextRowWindow>,
+        window: Box<super::terminal_viewport::ViewportWindow>,
     },
     /// The read was refused: a typed `rows-rejected` reason, or the opaque
     /// host rejection that also covers pending-pin blockage.

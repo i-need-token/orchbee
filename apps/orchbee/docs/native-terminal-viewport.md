@@ -13,8 +13,8 @@ The protocol contract is owned by `crates/terminal-protocol` (`row_window.rs`, `
 `row_access.rs`) and by `crates/client-server-protocol/src/viewer.rs` for the
 `TerminalViewerAction` surface; this document consumes that contract and never extends it.
 
-This slice deliberately does not implement copy/search/selection on history, styled rendering,
-clipboard integration, or persistence. Those are separate accepted decisions.
+History preserves captured cell colors, attributes and wide-cell geometry. Copy/search/selection,
+graphics display, clipboard integration and persistence remain separate obligations.
 
 The same app-local core also serves the Windows CLI control stream through
 `cli/terminal_stream/history.rs`. Each attached control invocation owns one core, read watermark
@@ -66,9 +66,16 @@ and recovery on reaching the live tail. Entry refusal leaves the pane Live witho
 - `Read{origin,row_count,revision,generation,request_sequence,maximum_bytes}` — a
   `ReadViewportRows` lease-bound action. The worker validates the complete kind-46 Response
   envelope (current protocol, required correlation, nonoptional row-window encoding, requested
-  payload bound and matching envelope/body epoch), then decodes the OBRW payload. It publishes
-  a boxed typed window in `ViewportOutcome::Window`; raw transport bytes never reach the UI
-  row decoder. CLI history uses the same app-local decoder. Malformed/foreign responses fail
+  payload bound and matching envelope/body epoch), then strictly decodes render-detail OBRW,
+  nested OBPB and OBKG. `terminal_viewport/window.rs` materializes one immutable styled window
+  with captured default colors; repeated borrowed string aliases share an `Arc<str>` by exact
+  pointer/length. Unique copied string bytes also fit the requested payload budget, checked before
+  allocation; local exhaustion becomes `ResourceExhausted` recovery to release the already-served
+  Host pin, never a retry against that pending pin. Host-issued `LimitExceeded` retains its
+  existing bounded halving. That budget plus fixed per-cell storage bounds retained allocation.
+  It publishes a boxed typed window in `ViewportOutcome::Window`; raw transport bytes never
+  reach the UI row decoder. Both interactive consumers request render detail; text responses
+  are rejected rather than silently dropping styles. CLI history uses the same app-local decoder. Malformed/foreign responses fail
   before row installation; `RowsRejected{reason}` publishes
   `ViewportOutcome::ReadRejected` with the typed reason; an opaque host rejection publishes the
   host-shaped variant of the same outcome; `Unavailable` faults the pane.
@@ -175,15 +182,21 @@ is consumed without dismissing the overlay.
 
 ## Rendering
 
-A valid text row window paints as plain text (no cell styling), bounded by the pane content
-geometry. Old-generation or old-column data never paints: the surface accessor re-validates the
+A validated render window uses the same styled-cell painter as live output, bounded by the pane
+content geometry. Colors use the window's captured defaults, never the TUI theme or a newer live
+frame. Style attributes and wide/spacer cells retain live-painter behavior; controls are sanitized
+and a clipped wide cell paints blank. History never shows a cursor. Graphics resources are fully
+validated at decode but not displayed; this does not complete graphics history. Old-generation or old-column data never paints: the surface accessor re-validates the
 installed window's generation and columns against current facts on every draw. `Entering` keeps
 the last verified live frame under a history badge; `Viewing` without a current window clears to
 the badge; `Recovering` clears to a recovering indicator. The leaf's last row carries a
 localized position readout (`start_row`/`total_rows` of the currently validated window — an
 expired or stale window shows none) on the left and a persistent localized return-to-live hint
 on the right; narrow panes degrade on grapheme boundaries with the hint keeping priority. `Esc`
-returns to live output.
+returns to live output. The badge rectangle and the entire footer row reset underlying cells
+before painting their semantic styles, so child colors, hidden/reversed attributes and history
+text cannot leak into chrome. A wide glyph crossing the badge's left edge is blanked rather
+than painting half a glyph across the label.
 
 ## Invariants
 
@@ -220,7 +233,7 @@ returns to live output.
 | `terminal_input/dispatcher.rs`              | `history_key` port route before ordinary pending bytes; wheel hand-off                                                                                             |
 | `client_view.rs`, `client_view/bindings.rs` | `ClientAction::EnterHistory`, `Ctrl+B PageUp` binding, help precedence                                                                                             |
 | `tui_pointer.rs`                            | `PointerProbe.viewport_non_live`, non-Live wheel scroll and non-wheel event consumption                                                                            |
-| `tui_render.rs`, `tui_render/viewport.rs`   | Plain-text window painter, indicators, position/hint bottom line, generation/column fencing                                                                        |
+| `tui_render.rs`, `tui_render/viewport.rs`   | Shared styled-cell painter, indicators, position/hint bottom line, generation/column fencing                                                                       |
 | `localization.rs`                           | History notices, indicators, position, and hint strings (en/zh)                                                                                                    |
 | `formal/tla/TerminalClientViewport.tla`     | State-machine model covering blockage, watermark, staged admission, typed outcomes, events, silence, bounds, and recovery; registered in `scripts/tla/models.json` |
 

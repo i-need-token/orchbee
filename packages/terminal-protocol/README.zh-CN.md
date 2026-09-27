@@ -61,8 +61,8 @@ Ghostty fixture，以及 owner 的 malformed-frame corpus 和 byte-boundary test
 
 ## Rust 文本行窗口 binding
 
-`decode_terminal_text_row_window` 为规划中的原生历史界面消费未改变的 OBRW 0.0.3 text
-detail。它先校验完整共享 header——精确 framing 与 version、total 与 body 长度、required
+`decode_terminal_text_row_window` 为文本行消费者消费未改变的 OBRW 0.0.3 text detail。
+交互式原生历史使用 render binding。文本 binding 先校验完整共享 header——精确 framing 与 version、total 与 body 长度、required
 flag 与 reserved field、窗口 shape、detail section 长度，以及非零 Host/attachment
 identity——合法的 render 窗口随后以 text-only API 之外的语义关闭拒绝，其 payload 从不被
 解释。对 text detail，它在返回 `TerminalTextRowWindow` 前校验每一行的 flag、prompt
@@ -236,7 +236,7 @@ pnpm verify
 
 `decode_terminal_projection_buffer` 严格验证借用的 OBPB 0.0.2 snapshot 与 delta，包括全部
 规范分区、元数据／字符串范围、单元格／样式值及行／宽字符／换行不变量。它使用既有
-`TerminalTextStyle` 颜色和标志暴露不可变的借用行／单元格，不展开重复字符串别名。
+`TerminalTextStyle` 颜色和标志暴露不可变的借用行／单元格及捕获的默认前景／背景色，不展开重复字符串别名。
 这是完整解码器，不是 TypeScript 可信本地结构视图的快速路径。
 
 `decode_terminal_render_row_window` 共享既有 OBRW 头部所有者，要求 render detail，并验证

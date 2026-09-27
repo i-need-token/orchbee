@@ -11,7 +11,7 @@ pub const MAXIMUM_READ_ROWS: u16 = 4096;
 pub const MINIMUM_READ_ROWS_BYTES: u32 = 112;
 pub const MAXIMUM_READ_ROWS_BYTES: u32 = 8 * 1024 * 1024;
 
-/// Text keeps the original ReadRows action tag; render uses its own tag.
+/// Text preserves original read action tags; render uses distinct action tags.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ViewerRowDetail {
     Text,
@@ -127,6 +127,7 @@ pub enum TerminalViewerAction {
     // viewport identity, never request equality. `maximum_bytes` still bounds
     // the OBRW payload, not the record.
     ReadViewportRows {
+        detail: ViewerRowDetail,
         origin: ViewportRowOrigin,
         row_count: u16,
         revision: u64,

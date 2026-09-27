@@ -4,6 +4,7 @@ mod agent_attention;
 mod client_control;
 #[cfg(windows)]
 mod client_layout;
+use super::terminal_viewport::ViewportWindow;
 use super::{
     mailbox::{
         AdmissionError, CausalSettlement, CommandMailbox, CreateMarker, CreatePrecommitOutcome,
@@ -32,7 +33,6 @@ use crate::{
     terminal_projection::TerminalProjection,
 };
 use orchbee_client_server_protocol::{ControlInput, Geometry, TerminalViewerAction};
-use orchbee_terminal_protocol::TerminalTextRowWindow;
 use orchbee_workbench_protocol::{
     ProtocolVersion, WorkbenchAction, WorkbenchCommand, WorkbenchLabel, WorkbenchPanelId,
     WorkbenchTabId, WorkbenchTabMoveDirection, WorkbenchTerminalGeometry,
@@ -127,7 +127,7 @@ pub(crate) enum NativeSessionNotice {
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum NativeViewportSurface<'a> {
     Window {
-        window: &'a TerminalTextRowWindow,
+        window: &'a ViewportWindow,
         /// `(start_row, total_rows)` re-validated at the same instant the
         /// window was fenced — the only honest position source.
         position: Option<(u64, u64)>,
@@ -1462,7 +1462,7 @@ impl NativeUi {
                     request_sequence,
                     window,
                 } => {
-                    if window.sequence != request_sequence {
+                    if window.route.sequence != request_sequence {
                         self.retire(CarrierFailure::Protocol);
                         return true;
                     }

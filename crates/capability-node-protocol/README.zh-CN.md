@@ -218,8 +218,9 @@ OBCN control 边界，也不解码帧内容。严格的内存 decode 拒绝尾�
   `rowsBefore`（`u32`）、committed 后随 `delta`（`i32`），然后依次是 `rowCount`（`u16`，
   1 到 4096）、`revision`（`u64`）、正数 `generation`（`u64`）、正数 `requestSequence`
   （`u64`）与 `maximumBytes`（`u32`，112 到 8,388,608——是 OBRW payload 边界，不是 record
-  边界）。Purpose、detail 与 revision policy 由调用方 adapter 固定为
-  viewport/text/current-view，不由本 payload 表达。
+  边界）。Tag 9 选择 text，tag 14 选择 render，正文使用相同边界及布局。
+  Purpose 与 revision policy 保持 viewport/current-view。既有 text 字节不变，旧接收方
+  拒绝 tag 14。升级或回滚完整 cohort。
 - Tag 10 `rows-applied` 追加正数 `requestSequence`（`u64`）、正数 `generation`（`u64`）与
   `revision`（`u64`）——与 `FrameApplied` 相同的字段顺序。
 - Tag 11 `history-observed` 追加正数 `sequence`（`u64`）、正数 `generation`（`u64`）与

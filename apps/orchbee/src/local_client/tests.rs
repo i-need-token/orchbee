@@ -941,6 +941,7 @@ fn viewer_accepts_the_extended_typed_outcomes_and_retires_on_a_wrong_pairing() -
         ),
         (
             Action::ReadViewportRows {
+                detail: orchbee_client_server_protocol::ViewerRowDetail::Text,
                 attachment_id: viewer(),
                 origin: ViewportRowOrigin::Tail { rows_before: 4 },
                 row_count: 2,

@@ -23,7 +23,9 @@ use crate::{
             PendingCreateCommit, PendingMoveCommit, ReadyDecision, ReconcileStep, ReconcileTarget,
             RefreshDecision, SetupEventDisposition,
         },
-        terminal_viewport::{ViewportReadRejection, ViewportStep, decode_viewport_window},
+        terminal_viewport::{
+            ViewportReadRejection, ViewportStep, ViewportWindowFailure, decode_viewport_window,
+        },
         workbench_projection::project_native_standalone_tabs,
     },
 };
@@ -926,6 +928,7 @@ impl NativeExecutor {
                     lease,
                     &key,
                     TerminalViewerAction::ReadViewportRows {
+                        detail: orchbee_client_server_protocol::ViewerRowDetail::Render,
                         attachment_id,
                         origin,
                         row_count,
@@ -940,13 +943,23 @@ impl NativeExecutor {
                     return Ok(());
                 };
                 match outcome {
-                    TerminalViewerOutcome::Record(record) => ViewportOutcome::Window {
-                        request_sequence,
-                        window: Box::new(
-                            decode_viewport_window(&record, maximum_bytes)
-                                .map_err(|()| CarrierFailure::Protocol)?,
-                        ),
-                    },
+                    TerminalViewerOutcome::Record(record) => {
+                        match decode_viewport_window(&record, maximum_bytes) {
+                            Ok(window) => ViewportOutcome::Window {
+                                request_sequence,
+                                window: Box::new(window),
+                            },
+                            Err(ViewportWindowFailure::Invalid) => {
+                                return Err(ReadyFlowError::Carrier(CarrierFailure::Protocol));
+                            }
+                            Err(ViewportWindowFailure::MemoryLimit) => ViewportOutcome::ReadRejected {
+                                request_sequence,
+                                rejection: ViewportReadRejection::Typed(
+                                    orchbee_client_server_protocol::ViewerRowsRejectedReason::ResourceExhausted,
+                                ),
+                            },
+                        }
+                    }
                     TerminalViewerOutcome::RowsRejected { reason } => {
                         ViewportOutcome::ReadRejected {
                             request_sequence,

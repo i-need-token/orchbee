@@ -221,6 +221,7 @@ fn apply(
             },
         ),
         TerminalViewerAction::ReadViewportRows {
+            detail,
             origin,
             row_count,
             revision,
@@ -234,7 +235,10 @@ fn apply(
             request.attachment_id,
             ReadRows {
                 attachment_id: id,
-                detail: RowWindowDetail::Text,
+                detail: match detail {
+                    ViewerRowDetail::Text => RowWindowDetail::Text,
+                    ViewerRowDetail::Render => RowWindowDetail::Render,
+                },
                 generation,
                 maximum_bytes,
                 origin: match origin {

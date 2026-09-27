@@ -71,6 +71,8 @@ attachment 与 demand 对，因此调用方按 correlation 加回显 demand 匹�
 相同的 OBRW payload 边界）。Host 按当前视图服务：返回的 revision 成为该窗口的捕获身份，
 因此 binding 不要求响应与请求 revision 相等。`rowsBefore` 与 `delta` 是有界 JSON 整数
 （`u32`/`i32` 域，均在 JavaScript 安全整数范围内）；`delta` 原生有符号，允许负滚动差值。
+可选 `detail` 为 `text`（默认，规范编码省略）或 `render`。Server 精确转发该类型并拒绝
+另一类型的响应。交互历史请求 render；既有 text 请求字节保持不变。升级或回滚完整 cohort。
 
 `rows-applied` 携带 `requestSequence`、`generation` 与 `revision`——Host 将 pending 视口锚
 提升为 committed 所需的精确三元组。`history-observed` 携带 `sequence`、`generation` 与

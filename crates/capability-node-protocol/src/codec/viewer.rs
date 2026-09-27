@@ -79,6 +79,7 @@ pub(super) fn encode_request(value: TerminalViewerRequest) -> Vec<u8> {
             bytes.push(demand.tag());
         }
         TerminalViewerAction::ReadViewportRows {
+            detail,
             origin,
             row_count,
             revision,
@@ -86,7 +87,10 @@ pub(super) fn encode_request(value: TerminalViewerRequest) -> Vec<u8> {
             request_sequence,
             maximum_bytes,
         } => {
-            bytes.push(9);
+            bytes.push(match detail {
+                ViewerRowDetail::Text => 9,
+                ViewerRowDetail::Render => 14,
+            });
             match origin {
                 ViewportRowOrigin::Tail { rows_before } => {
                     bytes.push(1);
@@ -194,7 +198,7 @@ pub(super) fn decode_request(bytes: &[u8]) -> Result<TerminalViewerRequest, Prot
         8 => TerminalViewerAction::SetHistoryDemand {
             demand: ViewerHistoryDemand::from_tag(reader.read_u8()?)?,
         },
-        9 => {
+        tag @ (9 | 14) => {
             let origin = match reader.read_u8()? {
                 1 => ViewportRowOrigin::Tail {
                     rows_before: reader.read_u32()?,
@@ -217,6 +221,11 @@ pub(super) fn decode_request(bytes: &[u8]) -> Result<TerminalViewerRequest, Prot
                 return Err(ProtocolError::InvalidPayload);
             }
             TerminalViewerAction::ReadViewportRows {
+                detail: if tag == 9 {
+                    ViewerRowDetail::Text
+                } else {
+                    ViewerRowDetail::Render
+                },
                 origin,
                 row_count,
                 revision,

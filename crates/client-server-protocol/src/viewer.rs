@@ -4,7 +4,7 @@ use std::num::NonZeroU64;
 
 pub const MAXIMUM_VIEWER_RECORD_BYTES: usize = 64 + 36 * 1024 * 1024;
 
-/// Buffer reads default to text; render retains styles and graphics resources.
+/// Buffer and viewport reads default to text; render retains styles and graphics resources.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum ViewerRowDetail {
@@ -127,6 +127,8 @@ pub enum TerminalViewerAction {
     // window's revision is Host-captured identity, never request equality.
     ReadViewportRows {
         attachment_id: ViewerId,
+        #[serde(default, skip_serializing_if = "ViewerRowDetail::is_text")]
+        detail: ViewerRowDetail,
         origin: ViewportRowOrigin,
         row_count: u16,
         #[serde(with = "crate::number::decimal")]

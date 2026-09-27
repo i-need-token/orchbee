@@ -240,8 +240,9 @@ all reject.
   (`u32`) for tail or `delta` (`i32`) for committed, then `rowCount` (`u16`, 1 through 4096),
   `revision` (`u64`), positive `generation` (`u64`), positive `requestSequence` (`u64`), and
   `maximumBytes` (`u32`, 112 through 8,388,608 — an OBRW payload bound, not a record bound).
-  Purpose, detail, and revision policy are fixed viewport/text/current-view by the caller's
-  adapter, not by this payload.
+  Tag 9 selects text detail; tag 14 selects render detail with the identical bounded body.
+  Purpose and revision policy stay viewport/current-view. Existing text bytes are unchanged;
+  old receivers reject tag 14. Upgrade or roll back complete cohorts.
 - Tag 10 `rows-applied` adds positive `requestSequence` (`u64`), positive `generation` (`u64`),
   and `revision` (`u64`) — the same field order `FrameApplied` uses.
 - Tag 11 `history-observed` adds positive `sequence` (`u64`), positive `generation` (`u64`), and

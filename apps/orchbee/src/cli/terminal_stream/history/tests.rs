@@ -6,18 +6,27 @@ use crate::{
 use orchbee_local_ipc::ChildOutputReader;
 use orchbee_terminal_protocol::{
     CURRENT_PROTOCOL_VERSION, CorrelationId, Envelope, HistoryAnchorStatus, HistoryChanged,
-    HistoryControl, MessageRole, PayloadEncoding, decode_terminal_text_frame,
-    decode_terminal_text_row_window, encode_history_control, encode_transport_envelope,
+    HistoryControl, MessageRole, PayloadEncoding, decode_terminal_render_row_window,
+    decode_terminal_text_frame, encode_history_control, encode_transport_envelope,
 };
 use std::{io, num::NonZeroU64};
 const ROWS: &[u8] = include_bytes!(
-    "../../../../../../packages/terminal-protocol/fixtures/terminal-row-window-v0.0.3.bin"
+    "../../../../../../packages/terminal-protocol/fixtures/ghostty-render-row-window-v0.0.3.bin"
 );
+fn rows() -> Vec<u8> {
+    let mut bytes = ROWS.to_vec();
+    let frame = decode_terminal_text_frame(SNAPSHOT).unwrap();
+    bytes[16..32].copy_from_slice(frame.route.host_epoch.as_bytes());
+    bytes[32..48].copy_from_slice(frame.route.attachment_id.as_bytes());
+    bytes[112 + 24..112 + 40].copy_from_slice(frame.route.host_epoch.as_bytes());
+    bytes[112 + 40..112 + 56].copy_from_slice(frame.route.attachment_id.as_bytes());
+    bytes
+}
 type TestResult = Result<(), Box<dyn std::error::Error>>;
 
 #[test]
 fn history_demands_exact_windows_flush_before_ack_and_restore_before_live() -> TestResult {
-    let window = decode_terminal_text_row_window(ROWS)?;
+    let window = decode_terminal_render_row_window(&rows())?.route();
     let (mut output, child_output) = ChildOutputReader::pipe()?;
     let epoch = window.host_epoch;
     let server = FakeServer::start(move |mut stream| {
@@ -43,11 +52,12 @@ fn history_demands_exact_windows_flush_before_ack_and_restore_before_live() -> T
             reply(&mut stream, pause, Outcome::FeedbackAccepted {})?;
             let read = request(&mut stream)?;
             assert!(
-                matches!(read.action(), Action::ReadViewportRows { request_sequence, generation, revision: 42, row_count: 2, .. }
-                if request_sequence.get() == sequence && generation.get() == 3)
+                matches!(read.action(), Action::ReadViewportRows { request_sequence, generation, detail: orchbee_client_server_protocol::ViewerRowDetail::Render, revision: 11, row_count: 6, .. }
+                if request_sequence.get() == sequence && generation.get() == 13)
             );
-            let mut bytes = ROWS.to_vec();
+            let mut bytes = rows();
             bytes[48..56].copy_from_slice(&sequence.to_le_bytes());
+            bytes[112 + 56..112 + 64].copy_from_slice(&sequence.to_le_bytes());
             let bytes = encode_transport_envelope(&Envelope {
                 protocol: CURRENT_PROTOCOL_VERSION,
                 role: MessageRole::Response,
@@ -62,14 +72,14 @@ fn history_demands_exact_windows_flush_before_ack_and_restore_before_live() -> T
             reply(&mut stream, read, Outcome::Record(bytes))?;
             let ack = request(&mut stream)?;
             assert!(
-                matches!(ack.action(), Action::RowsApplied { request_sequence, generation, revision: 42, .. }
-                if request_sequence.get() == sequence && generation.get() == 3)
+                matches!(ack.action(), Action::RowsApplied { request_sequence, generation, revision: 11, .. }
+                if request_sequence.get() == sequence && generation.get() == 13)
             );
             let emitted = line(&mut output)?;
             assert_eq!(emitted["kind"], "history");
             assert_eq!(emitted["sequence"], sequence.to_string());
-            assert_eq!(emitted["startRow"], "100");
-            assert_eq!(emitted["totalRows"], "125");
+            assert_eq!(emitted["startRow"], "0");
+            assert_eq!(emitted["totalRows"], "6");
             let schema: Value =
                 serde_json::from_str(include_str!("../../schemas/orchbee.terminal.stream.json"))?;
             jsonschema::draft202012::new(&schema)
@@ -107,9 +117,11 @@ fn history_demands_exact_windows_flush_before_ack_and_restore_before_live() -> T
     };
     let mut relay = relay::Relay::with_output(child_output)?;
     let mut frame = decode_terminal_text_frame(SNAPSHOT)?;
+    frame.route.attachment_id = window.attachment_id;
+    frame.route.host_epoch = window.host_epoch;
     frame.geometry.columns = window.columns;
-    frame.geometry.rows = 2;
-    frame.scrollback_rows = window.total_rows - 2;
+    frame.geometry.rows = 6;
+    frame.scrollback_rows = 1;
     let projection = TerminalProjection::new(window.attachment_id, window.host_epoch);
     let mut history = History {
         sequence: 7,

@@ -15,9 +15,8 @@ use crate::terminal_session::mailbox::EventDeadline;
 use orchbee_client_server_protocol::{ControllerId, ViewportRowOrigin};
 use orchbee_terminal_protocol::{
     AttachmentId, HistoryAnchorStatus, HistoryChanged, HostEpoch, TerminalFrameRoute,
-    TerminalInteraction, TerminalPixelGeometry, TerminalRowPromptClass, TerminalTextCell,
-    TerminalTextCellMapping, TerminalTextCursor, TerminalTextFrame, TerminalTextRow,
-    TerminalTextRowWindow, TerminalTextStyle, TerminalTextWindowRow,
+    TerminalInteraction, TerminalPixelGeometry, TerminalTextCell, TerminalTextCursor,
+    TerminalTextFrame, TerminalTextRow, TerminalTextStyle,
 };
 use std::{io, num::NonZeroU64, sync::atomic::AtomicU64, time::Instant};
 
@@ -214,26 +213,37 @@ fn window(
     sequence: u64,
     generation: u64,
     start_row: u64,
-) -> TerminalTextRowWindow {
-    TerminalTextRowWindow {
-        attachment_id: *projection.attachment(),
-        host_epoch: *projection.epoch(),
-        sequence: NonZeroU64::new(sequence).unwrap(),
-        revision: sequence,
-        generation: NonZeroU64::new(generation).unwrap(),
-        total_rows: 400,
-        start_row,
-        columns: 80,
-        ignored_optional_flags: 0,
-        rows: (0..24u64)
-            .map(|offset| TerminalTextWindowRow {
-                index: start_row + offset,
-                prompt_class: TerminalRowPromptClass::None,
-                wrap: false,
-                wrap_continuation: false,
-                identity_ascii: true,
-                text: "x".into(),
-                mappings: Vec::<TerminalTextCellMapping>::new(),
+) -> crate::terminal_session::terminal_viewport::ViewportWindow {
+    crate::terminal_session::terminal_viewport::ViewportWindow {
+        route: orchbee_terminal_protocol::TerminalRowWindowRoute {
+            attachment_id: *projection.attachment(),
+            host_epoch: *projection.epoch(),
+            sequence: NonZeroU64::new(sequence).unwrap(),
+            revision: sequence,
+            generation: NonZeroU64::new(generation).unwrap(),
+            total_rows: 400,
+            start_row,
+            columns: 80,
+            row_count: 24,
+            detail: orchbee_terminal_protocol::RowWindowDetail::Render,
+        },
+        foreground: 0xffffff,
+        background: 0,
+        rows: (0..24)
+            .map(|index| orchbee_terminal_protocol::TerminalTextRow {
+                index,
+                flags: 0,
+                cells: vec![orchbee_terminal_protocol::TerminalTextCell {
+                    text: "x".into(),
+                    width: 0,
+                    style: orchbee_terminal_protocol::TerminalTextStyle {
+                        foreground: 0xffffff,
+                        background: 0,
+                        underline_color: 0x1000000,
+                        flags: 0,
+                        underline: 0,
+                    },
+                }],
             })
             .collect(),
     }

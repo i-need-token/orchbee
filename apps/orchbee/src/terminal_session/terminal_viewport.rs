@@ -16,8 +16,7 @@ use std::{collections::VecDeque, num::NonZeroU64, time::Duration, time::Instant}
 use orchbee_client_server_protocol::{ViewerRowsRejectedReason, ViewportRowOrigin};
 use orchbee_terminal_protocol::{
     AttachmentId, CURRENT_PROTOCOL_VERSION, HistoryAnchorStatus, HistoryChanged, HistoryControl,
-    HostEpoch, MessageRole, PayloadEncoding, TerminalTextRowWindow, decode_history_control,
-    decode_terminal_text_row_window, decode_transport_envelope,
+    HostEpoch, MessageRole, PayloadEncoding, decode_history_control, decode_transport_envelope,
 };
 
 use super::state::SessionNotice;
@@ -56,30 +55,8 @@ pub(crate) fn decode_history_changed(
     }
 }
 
-/// Validate the transport response before decoding its text row payload.
-/// Both the native worker and CLI history use this boundary; the viewport
-/// core separately fences attachment, read sequence, generation and geometry.
-pub(crate) fn decode_viewport_window(
-    record: &[u8],
-    maximum_bytes: u32,
-) -> Result<TerminalTextRowWindow, ()> {
-    let envelope = decode_transport_envelope(record).map_err(|_| ())?;
-    if envelope.protocol != CURRENT_PROTOCOL_VERSION
-        || envelope.kind != 46
-        || envelope.role != MessageRole::Response
-        || envelope.optional_message
-        || envelope.payload_encoding != PayloadEncoding::RowWindow
-        || envelope.correlation_id.is_none()
-        || envelope.payload.len() > maximum_bytes as usize
-    {
-        return Err(());
-    }
-    let window = decode_terminal_text_row_window(envelope.payload).map_err(|_| ())?;
-    if envelope.host_epoch != Some(window.host_epoch) {
-        return Err(());
-    }
-    Ok(window)
-}
+mod window;
+pub(crate) use window::{ViewportWindow, ViewportWindowFailure, decode_viewport_window};
 
 /// Committed reads move at most this many rows per step, matching the wire
 /// `Committed{delta}` domain.
@@ -171,8 +148,8 @@ pub(crate) enum ViewportNav {
 /// access re-validates generation and columns so stale data can never paint.
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum ViewportSurface<'a> {
-    /// A current, gate-passing window: paint its plain-text rows.
-    Window(&'a TerminalTextRowWindow),
+    /// A current, gate-passing window: paint its styled rows.
+    Window(&'a ViewportWindow),
     /// Entering with no window yet: the last verified live frame may show
     /// beneath the history badge.
     Entering,
@@ -200,7 +177,7 @@ pub(crate) struct TerminalViewport {
     epoch: HostEpoch,
     columns: u16,
     facts: Option<HistoryChanged>,
-    window: Option<TerminalTextRowWindow>,
+    window: Option<ViewportWindow>,
     ack: AckState,
     committed: bool,
     read_flight: Option<NonZeroU64>,
@@ -424,20 +401,20 @@ impl TerminalViewport {
     /// order; anything that cannot prove which pending it settled enters
     /// recovery. (Decode failures never reach here: the caller retires them
     /// as protocol faults.)
-    pub(crate) fn window(&mut self, window: TerminalTextRowWindow, now: Instant) -> ViewportEffect {
+    pub(crate) fn window(&mut self, window: ViewportWindow, now: Instant) -> ViewportEffect {
         if self.recovery_pending() {
             // A demand transition — applied or already staged — cleared the
             // host pin this window came from; discarding it is provably
             // safe, and it must not install or re-arm anything.
             return ViewportEffect::default();
         }
-        if window.attachment_id != self.attachment || window.host_epoch != self.epoch {
+        if window.route.attachment_id != self.attachment || window.route.host_epoch != self.epoch {
             return ViewportEffect {
                 protocol_error: true,
                 ..ViewportEffect::default()
             };
         }
-        if self.read_flight != Some(window.sequence) {
+        if self.read_flight != Some(window.route.sequence) {
             // Cannot prove which pending it settled: recovery, never adoption.
             self.queue_recover();
             return ViewportEffect {
@@ -446,8 +423,8 @@ impl TerminalViewport {
             };
         }
         let facts_generation = self.facts.map(|facts| facts.generation);
-        if Some(window.generation) != facts_generation
-            || window.columns != self.columns
+        if Some(window.route.generation) != facts_generation
+            || window.route.columns != self.columns
             || self.needs_facts
         {
             self.read_flight = None;
@@ -478,8 +455,11 @@ impl TerminalViewport {
         // under the current facts, so the committed-position repaint debt a
         // pending `refresh` marks is settled — the committed anchor, whatever
         // position it lands on, will be this fresh data.
-        let (request_sequence, generation, revision) =
-            (window.sequence, window.generation, window.revision);
+        let (request_sequence, generation, revision) = (
+            window.route.sequence,
+            window.route.generation,
+            window.route.revision,
+        );
         self.window = Some(window);
         self.read_flight = None;
         self.read_generation = None;
@@ -556,7 +536,7 @@ impl TerminalViewport {
             && self
                 .window
                 .as_ref()
-                .is_some_and(|window| window.sequence == request_sequence);
+                .is_some_and(|window| window.route.sequence == request_sequence);
         if self.recovery_pending() || !matches {
             return ViewportEffect::default();
         }
@@ -682,15 +662,15 @@ impl TerminalViewport {
             return None;
         }
         let window = self.current_window()?;
-        Some((window.start_row, window.total_rows))
+        Some((window.route.start_row, window.route.total_rows))
     }
 
-    fn current_window(&self) -> Option<&TerminalTextRowWindow> {
+    fn current_window(&self) -> Option<&ViewportWindow> {
         let window = self.window.as_ref()?;
-        if self.needs_facts || window.columns != self.columns {
+        if self.needs_facts || window.route.columns != self.columns {
             return None;
         }
-        if Some(window.generation) != self.facts.map(|facts| facts.generation) {
+        if Some(window.route.generation) != self.facts.map(|facts| facts.generation) {
             return None;
         }
         Some(window)
@@ -744,9 +724,9 @@ impl TerminalViewport {
         if self.ack == AckState::Pending {
             if let Some(window) = self.window.as_ref() {
                 self.pending_commands.push_back(ViewportStep::Ack {
-                    request_sequence: window.sequence,
-                    generation: window.generation,
-                    revision: window.revision,
+                    request_sequence: window.route.sequence,
+                    generation: window.route.generation,
+                    revision: window.route.revision,
                 });
             }
             return;
@@ -860,9 +840,12 @@ impl TerminalViewport {
     /// downward scroll is checked against before it exits to live.
     fn rows_before_estimate(&self) -> Option<i64> {
         let window = self.window.as_ref()?;
-        let below = window
-            .total_rows
-            .saturating_sub(window.start_row.saturating_add(window.rows.len() as u64));
+        let below = window.route.total_rows.saturating_sub(
+            window
+                .route
+                .start_row
+                .saturating_add(window.rows.len() as u64),
+        );
         Some(i64::try_from(below.min(i64::MAX as u64)).unwrap_or(i64::MAX))
     }
 

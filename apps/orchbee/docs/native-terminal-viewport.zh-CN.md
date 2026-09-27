@@ -12,8 +12,8 @@ demand 双腿、行窗口 read/acknowledge 握手、导航意图、恢复，以�
 与 `crates/client-server-protocol/src/viewer.rs`（`TerminalViewerAction` 面）所有；
 本文档消费该契约，绝不扩展它。
 
-本切片刻意不实现历史上的复制/搜索/选择、样式渲染、剪贴板集成或持久化——这些是另行
-接受的决策。
+历史保留捕获的单元格颜色、属性及宽字符几何。复制／搜索／选区、图形显示、剪贴板集成
+与持久化仍是独立义务。
 
 同一应用内核心也通过 `cli/terminal_stream/history.rs` 服务 Windows CLI 控制流。每个
 已附着的 control 调用拥有一个核心、读取水位及严格历史事件序号。CLI 的 demand/行交换
@@ -60,8 +60,13 @@ demand 双腿、行窗口 read/acknowledge 握手、导航意图、恢复，以�
 - `Read{origin,row_count,revision,generation,request_sequence,maximum_bytes}` — 租约约束的
   `ReadViewportRows` 动作。worker 校验完整的 kind-46 Response 封装（当前协议、必需的
   correlation、非 optional 的 row-window 编码、请求的载荷上限及封装/数据体 epoch 一致），
-  再解码 OBRW 载荷。`ViewportOutcome::Window` 发布装箱的类型化窗口；原始传输字节
-  不进入 UI 的行解码器。CLI 历史使用相同的应用内解码器。畸形/异源响应在安装行前失败；`RowsRejected{reason}` 发布带类型理由的
+  再严格解码 render OBRW 及内嵌 OBPB/OBKG。`terminal_viewport/window.rs` 生成一个带捕获默认色的
+  不可变样式窗口，按精确指针／长度让重复借用字符串别名共享 `Arc<str>`。复制的唯一字符串
+  字节也受请求载荷预算约束，在分配前检查；本地耗尽转为 `ResourceExhausted` 恢复，释放
+  Host 已服务窗口的钉，不针对该 pending 钉重试。Host 返回的 `LimitExceeded` 仍沿用既有
+  有界行数减半。该预算加固定单元格存储限定保留内存。`ViewportOutcome::Window` 发布装箱的类型化窗口；原始
+  传输字节不进入 UI 行解码器。两个交互消费者均请求 render；拒绝 text 响应，不静默丢样式。
+  CLI 历史使用相同的应用内解码器。畸形/异源响应在安装行前失败；`RowsRejected{reason}` 发布带类型理由的
   `ViewportOutcome::ReadRejected`；不透明宿主拒绝发布同一结果的宿主形态；`Unavailable`
   → 窗格判错。
 - `Ack{request_sequence,generation,revision}` — `RowsApplied`。受理 → 发布
@@ -149,12 +154,17 @@ help 打开时 `PageUp` 仍归 help。
 
 ## 呈现
 
-合法文本行窗口以纯文本（无单元格样式）绘制，受窗格内容几何约束。旧 generation 或旧
+已验证的 render 窗口与实时输出共用样式单元格画笔，受窗格内容几何约束。颜色使用窗口
+捕获的默认值，不取 TUI 主题或更新的实时帧。样式属性和宽字符／占位格沿用实时绘制行为；
+控制字符经过净化，被裁切的宽字符绘为空白。历史不显示光标。图形资源在解码时完整验证，
+但暂不显示，不能据此关闭图形历史义务。旧 generation 或旧
 列数的数据绝不绘制：surface 访问器每次绘制都以当前事实复核已安装窗口的 generation 与
 列数。`Entering` 在历史徽标下保留最近已验证 live 帧；`Viewing` 无当前窗口 → 清屏加徽标；
 `Recovering` → 清屏加恢复指示。叶区末行左侧显示本地化位置读数（当前已验证窗口的
 `start_row`/`total_rows`——已过期或陈旧窗口不显示），右侧常驻本地化返回实时提示；
-窄窗格按字素边界降级，提示保持优先。`Esc` 返回实时输出。
+窄窗格按字素边界降级，提示保持优先。`Esc` 返回实时输出。徽标矩形和整个末行先重置底层
+单元格，再绘制各自语义样式，避免子程序颜色、隐藏／反色属性及历史文字残留到提示区。
+跨过徽标左边界的宽字符绘为空白，不让半个字形覆盖徽标。
 
 ## 不变式
 
@@ -190,7 +200,7 @@ help 打开时 `PageUp` 仍归 help。
 | `terminal_input/dispatcher.rs`              | `history_key` 端口路由（先于普通 pending 字节）；wheel 移交                                                                        |
 | `client_view.rs`、`client_view/bindings.rs` | `ClientAction::EnterHistory`、`Ctrl+B PageUp` 绑定、help 优先级                                                                    |
 | `tui_pointer.rs`                            | `PointerProbe.viewport_non_live`、非 Live wheel 滚动与非滚轮事件消费                                                               |
-| `tui_render.rs`、`tui_render/viewport.rs`   | 纯文本窗口画笔、指示、位置/提示末行、generation/列围栏                                                                             |
+| `tui_render.rs`、`tui_render/viewport.rs`   | 共享样式单元格画笔、指示、位置/提示末行、generation/列围栏                                                                         |
 | `localization.rs`                           | 历史提示、指示、位置与提示字符串（en/zh）                                                                                          |
 | `formal/tla/TerminalClientViewport.tla`     | 覆盖阻塞、水位、暂存受理、有类型结果、事件、静默、界限与恢复的状态机模型；注册于 `scripts/tla/models.json`                         |
 

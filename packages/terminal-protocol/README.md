@@ -67,8 +67,8 @@ feedback after a successful draw. Worker and Server continue to use only route i
 
 ## Rust text row-window binding
 
-`decode_terminal_text_row_window` consumes the unchanged OBRW 0.0.3 text detail for the
-planned native history surface. It validates the complete shared header — exact framing and
+`decode_terminal_text_row_window` consumes unchanged OBRW 0.0.3 text detail for text-row consumers.
+Interactive native history uses the render binding. The text binding validates the complete shared header — exact framing and
 version, total and body lengths, required flags and reserved fields, window shape, detail
 section lengths, and non-zero Host/attachment identities — before a legal render window fails
 closed as outside this text-only API; its payload is never interpreted. For text detail it
@@ -323,7 +323,7 @@ checks compare tracked files without rewriting them.
 `decode_terminal_projection_buffer` strictly validates borrowed OBPB 0.0.2 snapshots and deltas,
 including every canonical section, metadata/string range, cell/style value and row/wide/wrap
 invariant. It exposes immutable borrowed rows/cells using the existing `TerminalTextStyle` colors
-and flags, without expanding repeated string aliases. This is a full decoder, not the trusted local
+and flags, plus the captured default foreground/background, without expanding repeated string aliases. This is a full decoder, not the trusted local
 TypeScript structural-view fast path.
 
 `decode_terminal_render_row_window` shares the existing OBRW header owner, requires render detail,

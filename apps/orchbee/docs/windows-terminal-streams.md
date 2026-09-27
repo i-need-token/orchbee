@@ -82,8 +82,10 @@ the latest validated frame sends one cursor arrow; disabled routes to retained h
 sending application input. Mode changes replace the fact with each frame. Cell-only scroll and
 attach pointer events use SGR cell fallback when the child requests pixel format; they preserve
 cell coordinates, modifiers and release identity without requiring host pixel geometry. Exact
-pixel input remains separate work. History output is safe text ANSI; source styling and graphics
-are not reconstructed.
+pixel input remains separate work. History requests render-detail rows and synthesizes bounded
+ANSI from validated cells, preserving captured colors, style attributes and wide-cell geometry.
+It shares the live cell painter and never replays raw PTY output. Graphics resources are strictly
+validated but are not displayed; graphics history remains a separate obligation.
 
 Every stream output record uses version 2. `control` reports command receipts; `history` reports
 a retained row surface; ordinary `frame` and `reset` retain their projection meanings. While
@@ -145,7 +147,11 @@ normal detach, timeout restoration, re-acquisition and admission at different co
 They also exercise shared input in the standalone TUI. A real Windows child requesting `?1016`
 receives exact SGR cell bytes for control wheel/modifiers and attach press/drag/release injected
 through the console; this proves cell fallback, not exact pixel capture or physical mouse visuals.
-Dynamic host-window resizing, visual mouse
+Packaged TUI and attach witnesses retain history RGB colors, bold/italic/underline and wide
+characters; attach also preserves decomposed combining text. TUI history chrome clears underlying
+styles and footer text. Typing restores live output and delivers each input once, and normal
+detachment leaves the child running. These witnesses do not establish complete native TUI glyph
+fidelity or physical visual acceptance. Dynamic host-window resizing, visual mouse
 interaction and authenticated Agent attachment remain separate acceptance obligations.
 Stream timeouts use a stream-specific diagnostic; refusals retain the controller reason and do
 not imply that previously delivered input was undone. Scripted evidence does not replace final
