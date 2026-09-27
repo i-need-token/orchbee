@@ -1,6 +1,6 @@
 # Local Site Runtime
 
-Private Unix native runtime facilities shared by the Client, Server, and Worker. This library
+Private native runtime facilities shared by the Client, Server, and Worker. This library
 owns descriptor-relative runtime admission, lock/marker primitives, and immutable development
 cohort verification. Applications own process launch, service state, and terminal authorization.
 
@@ -214,6 +214,28 @@ application startup policy, retry, remove stale endpoints, or grant recovery aut
 | Limits       | One effective user; wrong-owner tests inject the expected UID. Kernel metadata and advisory locks are trusted. Concurrent creation requires owner-preserving umask. Durable means no unlink/truncate, not fsync. Cooperative deadlines exclude kernel stalls and process suspension. The model does not prove filesystem or kernel semantics.         |
 
 ## Windows refinement
+
+`WindowsSessionStore` retains bounded checkpoint bytes under
+`<LocalAppData>/Orchbee/native-sessions/<canonical-runtime-endpoint-digest>`. Its caller supplies
+the LocalAppData directory and admitted Site; the Server owns checkpoint validation and recovery.
+Different runtime bases and named scopes have separate stores. Private ancestor handles, protected
+new-directory ACLs, no-reparse admission and single-link file checks apply. A private `state.lock`
+is held exclusively for the store lifetime; a competing owner receives `WouldBlock`.
+
+`checkpoint.json` absence is distinct from an empty, oversized or unreadable file. Reads are
+bounded by the caller's admitted byte limit. Publishing checks that limit and any existing target,
+creates `checkpoint.pending`, writes and flushes the complete bytes, closes the staging handle,
+then uses same-directory `MoveFileEx` with `REPLACE_EXISTING`. Pre-publication
+failure preserves the committed file; cleanup removes only the admitted owned staging file.
+If cleanup fails, the failure remains explicit and the next exclusive owner retries reclamation.
+A crash-left pending file is uncommitted and never substitutes for the committed checkpoint.
+Other users are excluded by the private ACL; same-user writers must respect the lock. Successful
+file flushing and replacement do not guarantee directory-entry durability across power loss or
+storage-device failure. The safe pinned API does not expose a combined write-through replacement flag.
+
+The store does not interpret JSON, select a default data directory, relaunch a process, replay an
+operation or grant Site restart authority. Server startup/stop integration and actual restart
+witnesses remain necessary before claiming session persistence.
 
 The native Windows adapter retains activation/lifetime-lock ownership; the explicit
 stop record below refines the original immutable attempt marker. It admits an absolute local path only after

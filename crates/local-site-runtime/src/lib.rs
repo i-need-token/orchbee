@@ -10,7 +10,11 @@ mod rendezvous_types;
 #[cfg_attr(windows, path = "retained_child_windows.rs")]
 mod retained_child;
 #[cfg(windows)]
+mod session_store_windows;
+#[cfg(windows)]
 mod windows_permissions;
+#[cfg(windows)]
+pub use session_store_windows::WindowsSessionStore;
 #[cfg(all(test, windows))]
 mod windows_tests;
 

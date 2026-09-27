@@ -1,6 +1,6 @@
 # Local Site Runtime
 
-供 Client、Server 和 Worker 共用的私有 Unix 原生运行时设施。本库负责相对目录描述符的运行时准入、
+供 Client、Server 和 Worker 共用的私有原生运行时设施。本库负责相对目录描述符的运行时准入、
 锁与标记原语，以及不可变开发 cohort 校验。应用负责进程启动、服务状态和终端授权。
 
 ## 本地启动模型
@@ -190,6 +190,22 @@ Primitive 自身不选择应用启动策略、不重试、不移除陈旧端点�
 | 限制   | 单个有效用户；错误所有者测试注入 expected UID。信任内核元数据与 advisory lock。并发创建要求保留所有者位的 umask。Durable 表示不 unlink/truncate，并非 fsync。协作式截止时间排除内核阻塞和进程暂停。模型不证明文件系统或内核语义。                   |
 
 ## Windows 细化
+
+`WindowsSessionStore` 在 `<LocalAppData>/Orchbee/native-sessions/<canonical-runtime-endpoint-digest>`
+下保留有界检查点字节。调用者传入 LocalAppData 目录及已准入 Site，Server 拥有检查点校验和恢复。
+不同运行基目录及命名作用域各自隔离存储。沿用私有祖先句柄、新目录的受保护 ACL、拒绝重解析点
+及文件单链接检查。私有 `state.lock` 在存储所有者存活期间独占持有；竞争者收到 `WouldBlock`。
+
+`checkpoint.json` 缺失与空文件、超限或不可读文件分别表达，读取受调用者已准入字节限制约束。
+发布先检查大小及已有目标，创建 `checkpoint.pending`，写入并刷新完整字节，关闭暂存句柄，
+再使用同目录 `MoveFileEx` 和 `REPLACE_EXISTING` 替换。发布前失败保留已提交
+文件，清理只移除已准入的自有暂存文件。清理失败明确返回，由下一位独占所有者重试回收。
+崩溃遗留的 pending 文件未提交，不能替代已提交检查点。私有 ACL 排除其他用户，同用户写入者
+必须遵守锁。文件刷新和替换成功不保证目录项在断电或存储设备故障后仍持久有效；固定版本的
+安全 API 不提供可组合的写穿透替换标志。
+
+存储层不解释 JSON、不选择默认数据目录、不重新启动进程、不重放操作，也不授予 Site 重启权限。
+Server 启动／停止集成及实际重启证据齐备前，不声称已支持会话持久化。
 
 Windows 原生适配保留激活锁和生命周期锁归属；下文的显式停止记录细化原有不可变尝试标记。
 绝对本地路径必须先拒绝重解析点，并保留不允许共享删除的目录句柄。
