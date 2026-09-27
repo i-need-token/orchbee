@@ -454,6 +454,53 @@
 					},
 					"required": ["kind", "terminalContextId", "tabId", "panelId", "rightClick"],
 					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "workspace.move"
+						},
+						"workspaceId": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/workspaceId"
+						},
+						"insertIndex": {
+							"type": "integer",
+							"minimum": 0,
+							"maximum": 1023
+						}
+					},
+					"required": ["kind", "workspaceId", "insertIndex"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "workspace.move-block"
+						},
+						"workspaceIds": {
+							"type": "array",
+							"minItems": 1,
+							"maxItems": 1023,
+							"uniqueItems": true,
+							"items": {
+								"$ref": "urn:orchbee:schema:workbench:v1#/$defs/workspaceId"
+							}
+						},
+						"beforeWorkspaceId": {
+							"anyOf": [
+								{
+									"$ref": "urn:orchbee:schema:workbench:v1#/$defs/workspaceId"
+								},
+								{
+									"type": "null"
+								}
+							]
+						}
+					},
+					"required": ["kind", "workspaceIds"],
+					"additionalProperties": false
 				}
 			]
 		},
@@ -504,7 +551,9 @@
 				"identity-exhausted",
 				"revision-exhausted",
 				"request-identity-conflict",
-				"tab-move-index-out-of-bounds"
+				"tab-move-index-out-of-bounds",
+				"workspace-move-index-out-of-bounds",
+				"workspace-move-target-in-block"
 			]
 		},
 		"commandUnavailableReason": {
@@ -1143,6 +1192,28 @@
 						}
 					},
 					"required": ["kind", "revision"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "workspaces-reordered"
+						},
+						"revision": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/revision"
+						},
+						"workspaceOrder": {
+							"type": "array",
+							"minItems": 1,
+							"maxItems": 1023,
+							"uniqueItems": true,
+							"items": {
+								"$ref": "urn:orchbee:schema:workbench:v1#/$defs/workspaceId"
+							}
+						}
+					},
+					"required": ["kind", "revision", "workspaceOrder"],
 					"additionalProperties": false
 				}
 			]

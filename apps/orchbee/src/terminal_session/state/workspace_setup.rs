@@ -364,6 +364,7 @@ impl NativeSessionState {
     ) -> Option<Box<PreparedSetupCompletion>> {
         let known = self.setup.known.as_ref()?;
         let status = match &known.commit {
+            WorkbenchSetupCommit::WorkspaceOrder { .. } => return None,
             WorkbenchSetupCommit::ProjectRenamed { unchanged, .. }
             | WorkbenchSetupCommit::WorkspaceRenamed { unchanged, .. } => known.operation.status(
                 if *unchanged {

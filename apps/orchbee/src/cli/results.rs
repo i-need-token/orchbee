@@ -91,7 +91,7 @@ pub(crate) const fn schema_version(command: &QueryCommand) -> u64 {
         QueryCommand::TerminalSourceWait { .. } => 3,
         QueryCommand::TerminalOutput { ansi: true, .. } => 2,
         QueryCommand::PanelGet(_) | QueryCommand::PanelCurrent(_) => 3,
-        QueryCommand::ApiSnapshot => 4,
+        QueryCommand::ApiSnapshot => 5,
         QueryCommand::PanelList { .. } | QueryCommand::TabGet(_) => 2,
         QueryCommand::TerminalGet(_) => 3,
         #[cfg(windows)]
@@ -1993,14 +1993,17 @@ pub(crate) fn project(command: &QueryCommand, snapshot: &Snapshot) -> Result<Pro
                 None => snapshot.navigation.projects.iter().collect(),
             };
             Ok(Projection::WorkspaceList(
-                projects
-                    .iter()
-                    .flat_map(|project| {
-                        project
-                            .workspaces
+                snapshot
+                    .navigation
+                    .ordered_workspaces()
+                    .map_err(|_| Failure::new(FailureKind::InternalFailure))?
+                    .into_iter()
+                    .filter(|(owner, _)| {
+                        projects
                             .iter()
-                            .map(|workspace| workspace_row(project, workspace))
+                            .any(|project| project.project_id == owner.project_id)
                     })
+                    .map(|(project, workspace)| workspace_row(project, workspace))
                     .collect(),
             ))
         }
@@ -2721,6 +2724,41 @@ mod tests {
             assert_eq!(details["target"], json!(target));
             assert!(details.get("candidates").is_none(), "{resource}");
         }
+    }
+
+    #[test]
+    fn workspace_list_uses_global_order_and_preserves_filtered_ownership() {
+        let mut source = snapshot();
+        source.navigation.workspace_order = source
+            .navigation
+            .projects
+            .iter()
+            .rev()
+            .map(|p| p.workspaces[0].workspace_id.clone())
+            .collect();
+        let Projection::WorkspaceList(rows) =
+            project(&QueryCommand::WorkspaceList { project: None }, &source).unwrap()
+        else {
+            panic!("list")
+        };
+        assert_eq!(
+            rows.iter()
+                .map(|r| r.workspace_id.as_str())
+                .collect::<Vec<_>>(),
+            vec![hex(0x41), hex(0x40)]
+        );
+        assert_eq!(rows[0].project_id, hex(0x11));
+        let Projection::WorkspaceList(rows) = project(
+            &QueryCommand::WorkspaceList {
+                project: Some(Target::Id(hex(0x10))),
+            },
+            &source,
+        )
+        .unwrap() else {
+            panic!("list")
+        };
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].workspace_id, hex(0x40));
     }
 
     #[test]

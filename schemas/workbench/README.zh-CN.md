@@ -55,6 +55,18 @@ Project、Directory、Workspace 与 Terminal Context array 使用 identity 升�
 context 恰好存在一次，每个 context 也恰好被引用一次。除 JSON Schema validation 外，identity
 uniqueness、tree depth、node quantity、membership 与 reference invariant 还作用于完整 snapshot。
 
+### Workspace 显示顺序
+
+Workspace 移动命令的块输入和重排输出使用非空、无重复且最多 1023 个 Workspace ID 的列表，专用请求／结果上限为 48 KiB，其他命令保留既有上限。完整重排输出携带已提交修订，无变化移动使用既有 `unchanged` 结果。块的可选 before 目标允许省略或 null；位于来源块内的目标在变更前拒绝。
+
+Navigation 可选携带 `workspaceOrder`，上限 1023 个 Workspace 身份。缺省或空列表沿用 Project 优先的身份顺序遍历。
+非空顺序必须是该 Navigation 中全部 Workspace 身份的完整排列：重复、缺少成员或外来身份均无效。
+完整 Navigation 替换与快照都检查该不变量。Project、Directory 与 Workspace 成员数组仍按身份排序；
+显示顺序不改变归属、Directory 引用或终端绑定。筛选视图保持对应子序列，Client 本地选中身份仍由 Client 拥有。
+
+原生排序权威在显式顺序末尾添加新建 Workspace，关闭时移除对应身份。私有检查点保留该字段；旧检查点缺少
+该字段时保持原有遍历。所有参与者使用同一兼容 cohort；旧严格解码器可能拒绝新增字段，绝不能通过丢弃字段来修复。
+
 ## Intent 与 delta
 
 `workbench.snapshot.read` 请求完整 authorized projection。原始 projection document union 仍然只

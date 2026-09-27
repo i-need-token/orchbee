@@ -58,6 +58,7 @@ fn split_root() -> PanelNode {
 fn panel_snapshot(revision: u64, root: PanelNode) -> Snapshot {
     Snapshot {
         navigation: Navigation {
+            workspace_order: Vec::new(),
             projects: Vec::new(),
             standalone_terminal_context_id: WorkbenchTerminalContextId::parse(&id(3)).unwrap(),
         },

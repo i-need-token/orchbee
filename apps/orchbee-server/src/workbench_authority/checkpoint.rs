@@ -7,8 +7,8 @@ use orchbee_workbench_protocol::{
     LaunchSelection, MAXIMUM_LAUNCH_PROFILE_CATALOG_BYTES, MAXIMUM_LAUNCH_PROFILE_ENTRIES,
     Navigation, PanelNode, Presentation, Project, ProtocolVersion, SiteId, Snapshot,
     TerminalContext, WorkbenchDirectoryId, WorkbenchDirectoryPath, WorkbenchProjectId,
-    WorkbenchProtocolDocument, WorkbenchRevision, WorkbenchTerminalContextId, WorkerId, Workspace,
-    serialize_document,
+    WorkbenchProtocolDocument, WorkbenchRevision, WorkbenchTerminalContextId, WorkbenchWorkspaceId,
+    WorkerId, Workspace, serialize_document,
 };
 use serde::{Deserialize, Serialize};
 
@@ -128,6 +128,8 @@ struct Checkpoint {
 struct StoredNavigation {
     standalone_terminal_context_id: WorkbenchTerminalContextId,
     projects: Vec<StoredProject>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    workspace_order: Vec<WorkbenchWorkspaceId>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -219,6 +221,7 @@ impl WorkbenchAuthority {
             version: 1,
             last_identity,
             navigation: StoredNavigation {
+                workspace_order: snapshot.navigation.workspace_order,
                 standalone_terminal_context_id: snapshot.navigation.standalone_terminal_context_id,
                 projects,
             },
@@ -317,6 +320,7 @@ fn checkpoint_parts(
         revision: WorkbenchRevision::new(0),
         site_id: site_id.clone(),
         navigation: Navigation {
+            workspace_order: checkpoint.navigation.workspace_order.clone(),
             standalone_terminal_context_id: checkpoint
                 .navigation
                 .standalone_terminal_context_id

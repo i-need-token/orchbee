@@ -1,5 +1,6 @@
 use super::*;
 mod location_labels;
+mod workspace_order;
 use crate::local_client::workbench::workspace_setup::{
     WorkbenchSetupCommit, WorkbenchSetupNotSubmitted, WorkbenchSetupOutcomeUnknownReason,
     WorkbenchSetupPrecommit, WorkbenchSetupRequest, WorkbenchSetupSubmission,
@@ -568,4 +569,56 @@ fn setup_retires_terminal_mutation_receipts() -> TestResult {
         }
     }
     Ok(())
+}
+
+fn exchange_setup(
+    command: WorkbenchCommand,
+    response: WorkbenchResponse,
+    retain_carrier: bool,
+) -> Result<WorkbenchSetupSubmission, Box<dyn std::error::Error>> {
+    let expected = command.clone();
+    let server = FakeServer::start(move |mut stream| {
+        expect_hello(&mut stream, COHORT)?;
+        admit(&mut stream, 71)?;
+        assert_eq!(
+            read_workbench_request(&mut stream).map_err(io::Error::other)?,
+            WorkbenchRequest::Command(expected)
+        );
+        write_workbench_response(&mut stream, &response).map_err(io::Error::other)?;
+        if retain_carrier {
+            assert_eq!(
+                read_workbench_request(&mut stream).map_err(io::Error::other)?,
+                WorkbenchRequest::SnapshotRead(snapshot_request(SECOND_REQUEST_ID))
+            );
+            write_workbench_response(
+                &mut stream,
+                &WorkbenchResponse::Snapshot(snapshot_result(SECOND_REQUEST_ID)),
+            )
+            .map_err(io::Error::other)
+        } else {
+            require_retirement(&mut stream)
+        }
+    })?;
+    let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
+    let request = WorkbenchSetupRequest::try_from(command).unwrap();
+    let deadline = client.operation_clock().now() + SERVER_GUARD_TIMEOUT;
+    let actual = client.submit_workbench_setup(request.clone(), deadline);
+    if retain_carrier {
+        assert_eq!(client.generation().map(NonZeroU64::get), Some(71));
+        assert_eq!(
+            client.submit_workbench_snapshot_read(snapshot_request(SECOND_REQUEST_ID))?,
+            snapshot_result(SECOND_REQUEST_ID)
+        );
+    } else {
+        assert_eq!(client.generation(), None);
+        assert!(matches!(
+            client.submit_workbench_setup(request, deadline),
+            WorkbenchSetupSubmission::DefinitelyNotSubmitted(
+                WorkbenchSetupNotSubmitted::SessionUnavailable
+            )
+        ));
+    }
+    drop(client);
+    server.finish()?;
+    Ok(actual)
 }

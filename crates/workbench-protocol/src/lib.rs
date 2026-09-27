@@ -5,6 +5,11 @@ mod identity;
 mod model;
 mod panel_label;
 mod validation;
+mod workspace_order;
+pub use workspace_order::{
+    MAXIMUM_ENCODED_WORKSPACE_ORDER_BYTES, MAXIMUM_WORKSPACE_ORDER_LENGTH,
+    WorkbenchWorkspaceInsertIndex, WorkbenchWorkspaceList,
+};
 
 pub use panel_label::{PanelCustomLabel, PanelLabelUpdate};
 

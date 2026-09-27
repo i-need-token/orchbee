@@ -166,6 +166,12 @@ impl WorkbenchAuthority {
             worker_id: worker_id.clone(),
             path: path.clone(),
         });
+        if !candidate.navigation.workspace_order.is_empty() {
+            candidate
+                .navigation
+                .workspace_order
+                .push(workspace_id.clone());
+        }
         candidate
             .terminal_contexts
             .push(empty_context(terminal_context_id.clone()));

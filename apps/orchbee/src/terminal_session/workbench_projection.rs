@@ -607,35 +607,37 @@ pub(super) fn project_native_context_tabs(
         project_label: None,
         workspace_label: None,
     }];
-    for project in &snapshot.navigation.projects {
-        for workspace in &project.workspaces {
-            if workspace.primary_directory_id.as_ref().is_some_and(|id| {
-                project
-                    .directories
-                    .iter()
-                    .filter(|directory| &directory.directory_id == id)
-                    .count()
-                    != 1
-            }) {
-                return Err(NativeProjectionError);
-            }
-            if navigation.len() == MAXIMUM_TERMINAL_CONTEXTS {
-                return Err(NativeProjectionError);
-            }
-            navigation.push(NativeContext {
-                location: NativeContextLocation::Workspace {
-                    project_id: project.project_id.clone(),
-                    workspace_id: workspace.workspace_id.clone(),
-                    terminal_context_id: workspace.terminal_context_id.clone(),
-                },
-                project_label: Some(
-                    WorkbenchLabel::parse(&project.label).map_err(|_| NativeProjectionError)?,
-                ),
-                workspace_label: Some(
-                    WorkbenchLabel::parse(&workspace.label).map_err(|_| NativeProjectionError)?,
-                ),
-            });
+    for (project, workspace) in snapshot
+        .navigation
+        .ordered_workspaces()
+        .map_err(|_| NativeProjectionError)?
+    {
+        if workspace.primary_directory_id.as_ref().is_some_and(|id| {
+            project
+                .directories
+                .iter()
+                .filter(|directory| &directory.directory_id == id)
+                .count()
+                != 1
+        }) {
+            return Err(NativeProjectionError);
         }
+        if navigation.len() == MAXIMUM_TERMINAL_CONTEXTS {
+            return Err(NativeProjectionError);
+        }
+        navigation.push(NativeContext {
+            location: NativeContextLocation::Workspace {
+                project_id: project.project_id.clone(),
+                workspace_id: workspace.workspace_id.clone(),
+                terminal_context_id: workspace.terminal_context_id.clone(),
+            },
+            project_label: Some(
+                WorkbenchLabel::parse(&project.label).map_err(|_| NativeProjectionError)?,
+            ),
+            workspace_label: Some(
+                WorkbenchLabel::parse(&workspace.label).map_err(|_| NativeProjectionError)?,
+            ),
+        });
     }
     if !navigation.iter().any(|entry| &entry.location == location)
         || navigation.iter().enumerate().any(|(index, entry)| {

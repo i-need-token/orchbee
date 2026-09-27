@@ -10,6 +10,7 @@ mod panel_labels;
 mod stateful;
 mod workspace_directory;
 mod workspace_group_close;
+mod workspace_order;
 mod worktree_operation;
 
 fn authority() -> (WorkbenchAuthority, WorkbenchGrant) {
@@ -703,6 +704,7 @@ fn publication_read_replays_committed_history_under_the_read_grant() {
     let base = Snapshot {
         revision: WorkbenchRevision::new(0),
         navigation: Navigation {
+            workspace_order: Vec::new(),
             projects: Vec::new(),
             standalone_terminal_context_id: replayed
                 .navigation

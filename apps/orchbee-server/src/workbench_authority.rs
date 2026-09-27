@@ -28,6 +28,7 @@ pub use checkpoint::{
 mod terminal_membership;
 mod workspace_directory;
 mod workspace_group_close;
+mod workspace_order;
 mod worktree_membership;
 mod worktree_operation;
 pub use workspace_group_close::{WorkspaceGroupCloseMemberPlan, WorkspaceGroupClosePlan};
@@ -266,6 +267,7 @@ impl WorkbenchAuthority {
             revision: WorkbenchRevision::new(0),
             site_id,
             navigation: Navigation {
+                workspace_order: Vec::new(),
                 projects: Vec::new(),
                 standalone_terminal_context_id: context_id.clone(),
             },
@@ -728,6 +730,12 @@ impl WorkbenchAuthority {
                         terminal_context_id: terminal_context_id.clone(),
                         label: label.as_str().to_owned(),
                     });
+                    if !candidate.navigation.workspace_order.is_empty() {
+                        candidate
+                            .navigation
+                            .workspace_order
+                            .push(workspace_id.clone());
+                    }
                     candidate
                         .terminal_contexts
                         .push(empty_context(terminal_context_id.clone()));
@@ -765,6 +773,20 @@ impl WorkbenchAuthority {
                     workspace.label = label.as_str().to_owned();
                     candidate.revision = revision;
                     WorkbenchCommandOutcome::Renamed { revision }
+                }
+                action @ (PureWorkbenchAction::WorkspaceMove { .. }
+                | PureWorkbenchAction::WorkspaceMoveBlock { .. }) => {
+                    let Some(order) = workspace_order::reorder(&candidate.navigation, &action)?
+                    else {
+                        return Ok(self.unchanged());
+                    };
+                    let revision = self.next_revision()?;
+                    candidate.navigation.workspace_order = order.ids().to_vec();
+                    candidate.revision = revision;
+                    WorkbenchCommandOutcome::WorkspacesReordered {
+                        revision,
+                        workspace_order: order,
+                    }
                 }
                 PureWorkbenchAction::TabRename {
                     terminal_context_id,
@@ -1033,6 +1055,14 @@ enum PlanFailure {
 }
 
 enum PureWorkbenchAction {
+    WorkspaceMove {
+        workspace_id: WorkbenchWorkspaceId,
+        insert_index: orchbee_workbench_protocol::WorkbenchWorkspaceInsertIndex,
+    },
+    WorkspaceMoveBlock {
+        workspace_ids: orchbee_workbench_protocol::WorkbenchWorkspaceList,
+        before_workspace_id: Option<WorkbenchWorkspaceId>,
+    },
     ProjectCreate {
         label: WorkbenchLabel,
     },
@@ -1078,6 +1108,20 @@ enum PureWorkbenchAction {
 impl PureWorkbenchAction {
     fn from_action(action: &WorkbenchAction) -> Option<Self> {
         Some(match action {
+            WorkbenchAction::WorkspaceMove {
+                workspace_id,
+                insert_index,
+            } => Self::WorkspaceMove {
+                workspace_id: workspace_id.clone(),
+                insert_index: *insert_index,
+            },
+            WorkbenchAction::WorkspaceMoveBlock {
+                workspace_ids,
+                before_workspace_id,
+            } => Self::WorkspaceMoveBlock {
+                workspace_ids: workspace_ids.clone(),
+                before_workspace_id: before_workspace_id.clone(),
+            },
             WorkbenchAction::ProjectCreate { label } => Self::ProjectCreate {
                 label: label.clone(),
             },

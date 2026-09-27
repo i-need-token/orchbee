@@ -32,6 +32,7 @@ fn projected(tab_count: usize, revision: u64) -> NativeContextTabs {
 fn snapshot(tab_count: usize, revision: u64) -> Snapshot {
     Snapshot {
         navigation: Navigation {
+            workspace_order: Vec::new(),
             projects: Vec::new(),
             standalone_terminal_context_id: context_id(STANDALONE_CONTEXT_VALUE),
         },

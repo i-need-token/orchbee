@@ -61,6 +61,23 @@ group's members are contiguous. Every referenced context exists exactly once and
 referenced exactly once. Identity uniqueness, tree depth, node quantity, membership, and reference
 invariants apply to the complete snapshot in addition to JSON Schema validation.
 
+### Workspace display order
+
+Workspace move commands use a nonempty unique list of at most 1023 Workspace IDs for block input and reordered output. Dedicated request/result limits are 48 KiB; other commands retain their existing limits. The complete reordered output carries the committed revision. An unchanged move uses the existing `unchanged` outcome. The optional block before-target accepts omission or null; a target within the source block is rejected before mutation.
+
+Navigation optionally carries `workspaceOrder`, bounded to 1023 Workspace identities. Absent or
+empty means the existing Project-major identity traversal. A nonempty order is an exact permutation
+of all Workspace identities in that navigation: duplicates, missing members and foreign identities
+are invalid. This invariant applies to a complete navigation replacement as well as a snapshot.
+The Projects, Directories and Workspace membership arrays retain their canonical identity order;
+display order never changes ownership, Directory references or terminal bindings. Filtered views
+preserve the corresponding subsequence. Client-local selected identities remain Client-owned.
+
+The native ordering authority appends newly created Workspaces to an explicit order and removes
+closed identities. A private checkpoint retains this field; older checkpoints without it keep
+their original traversal. All participants use one compatible cohort; an older strict decoder may
+reject the additive field and must never discard it as a repair.
+
 ## Intent and delta
 
 `workbench.snapshot.read` requests the complete authorized projection. The original projection

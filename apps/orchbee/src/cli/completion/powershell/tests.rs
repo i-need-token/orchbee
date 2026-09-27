@@ -9,6 +9,20 @@ use std::{
 fn real_powershell_completes_scoped_grammar_without_runtime() {
     let mut cases = super::super::test_cases::CASES.to_vec();
     cases.extend([
+        ("orchbee workspace mo", "move-block", true),
+        ("orchbee workspace move alpha --i", "--insert-index", true),
+        (
+            "orchbee workspace move-block alpha beta --b",
+            "--before",
+            true,
+        ),
+        (
+            "orchbee workspace move-block alpha --before=beta --b",
+            "--before",
+            false,
+        ),
+        ("orchbee workspace move alpha --b", "--before", false),
+        ("orchbee workspace list --b", "--before", false),
         ("orchbee --si", "--site", true),
         ("orchbee --site work sta", "status", true),
         ("orchbee --site=work tui --m", "--mouse", true),

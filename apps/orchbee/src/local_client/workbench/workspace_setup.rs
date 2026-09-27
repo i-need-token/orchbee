@@ -138,6 +138,8 @@ impl TryFrom<WorkbenchCommand> for WorkbenchSetupRequest {
             WorkbenchAction::ProjectCreate { .. }
                 | WorkbenchAction::ProjectRename { .. }
                 | WorkbenchAction::WorkspaceRename { .. }
+                | WorkbenchAction::WorkspaceMove { .. }
+                | WorkbenchAction::WorkspaceMoveBlock { .. }
                 | WorkbenchAction::WorkspaceCreate { .. }
                 | WorkbenchAction::WorkspacePrimaryDirectoryAccept { .. }
         ) {
@@ -267,6 +269,10 @@ impl std::error::Error for WorkbenchSetupOutcomeUnknownReason {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum WorkbenchSetupCommit {
+    WorkspaceOrder {
+        revision: WorkbenchRevision,
+        workspace_order: Option<orchbee_workbench_protocol::WorkbenchWorkspaceList>,
+    },
     // Labels are validated against the original canonical label by the frozen operation owner.
     // These IDs preserve which request target the wire's shared Renamed/Unchanged result names.
     ProjectRenamed {
@@ -299,7 +305,8 @@ pub(crate) enum WorkbenchSetupCommit {
 impl WorkbenchSetupCommit {
     pub(crate) const fn revision(&self) -> WorkbenchRevision {
         match self {
-            Self::ProjectCreated { revision, .. }
+            Self::WorkspaceOrder { revision, .. }
+            | Self::ProjectCreated { revision, .. }
             | Self::ProjectRenamed { revision, .. }
             | Self::WorkspaceRenamed { revision, .. }
             | Self::WorkspaceCreated { revision, .. }

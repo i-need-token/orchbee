@@ -9,6 +9,7 @@ fn near_limit_snapshot() -> Snapshot {
         site_id: SiteId::parse(&id(10000)).unwrap(),
         revision: WorkbenchRevision::new(1),
         navigation: Navigation {
+            workspace_order: Vec::new(),
             projects: Vec::new(),
             standalone_terminal_context_id: standalone.clone(),
         },

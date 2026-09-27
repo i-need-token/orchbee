@@ -262,6 +262,30 @@ export const WorkbenchNavigationSchema = z
 	.strictObject({
 		projects: z.array(WorkbenchProjectSchema).max(WORKBENCH_MAXIMUM_PROJECTS).readonly(),
 		standaloneTerminalContextId: WorkbenchTerminalContextIdSchema,
+		workspaceOrder: z
+			.array(WorkbenchWorkspaceIdSchema)
+			.max(WORKBENCH_MAXIMUM_TERMINAL_CONTEXTS - 1)
+			.readonly()
+			.optional(),
+	})
+	.superRefine((navigation, context) => {
+		const order = navigation.workspaceOrder;
+		if (order === undefined || order.length === 0) return;
+		const members = navigation.projects.flatMap((project) =>
+			project.workspaces.map((workspace) => workspace.workspaceId),
+		);
+		const identities = new Set(members);
+		if (
+			order.length !== members.length ||
+			identities.size !== members.length ||
+			new Set(order).size !== order.length ||
+			order.some((id) => !identities.has(id))
+		) {
+			context.addIssue({
+				code: 'custom',
+				message: 'Workspace display order must be an exact permutation of navigation membership',
+			});
+		}
 	})
 	.readonly();
 

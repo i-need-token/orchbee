@@ -557,6 +557,302 @@
 					"terminalContextId": "33333333333333333333333333333333"
 				}
 			]
+		},
+		"snapshot-workspace-order-legacy": {
+			"kind": "workbench.snapshot",
+			"navigation": {
+				"projects": [
+					{
+						"directories": [],
+						"label": "Project 1",
+						"projectId": "0000000000000000000000000000000b",
+						"workspaces": [
+							{
+								"label": "Workspace 1",
+								"primaryDirectoryId": null,
+								"terminalContextId": "0000000000000000000000000000001f",
+								"workspaceId": "00000000000000000000000000000015"
+							},
+							{
+								"label": "Workspace 2",
+								"primaryDirectoryId": null,
+								"terminalContextId": "00000000000000000000000000000020",
+								"workspaceId": "00000000000000000000000000000016"
+							}
+						]
+					},
+					{
+						"directories": [],
+						"label": "Project 2",
+						"projectId": "0000000000000000000000000000000c",
+						"workspaces": [
+							{
+								"label": "Workspace 3",
+								"primaryDirectoryId": null,
+								"terminalContextId": "00000000000000000000000000000021",
+								"workspaceId": "00000000000000000000000000000017"
+							},
+							{
+								"label": "Workspace 4",
+								"primaryDirectoryId": null,
+								"terminalContextId": "00000000000000000000000000000022",
+								"workspaceId": "00000000000000000000000000000018"
+							}
+						]
+					}
+				],
+				"standaloneTerminalContextId": "33333333333333333333333333333333"
+			},
+			"protocolVersion": 1,
+			"revision": "1",
+			"siteId": "11111111111111111111111111111111",
+			"terminalContexts": [
+				{
+					"groups": [],
+					"tabs": [],
+					"terminalContextId": "0000000000000000000000000000001f"
+				},
+				{
+					"groups": [],
+					"tabs": [],
+					"terminalContextId": "00000000000000000000000000000020"
+				},
+				{
+					"groups": [],
+					"tabs": [],
+					"terminalContextId": "00000000000000000000000000000021"
+				},
+				{
+					"groups": [],
+					"tabs": [],
+					"terminalContextId": "00000000000000000000000000000022"
+				},
+				{
+					"groups": [],
+					"tabs": [],
+					"terminalContextId": "33333333333333333333333333333333"
+				}
+			]
+		},
+		"snapshot-workspace-order-explicit-empty": {
+			"kind": "workbench.snapshot",
+			"navigation": {
+				"projects": [
+					{
+						"directories": [],
+						"label": "Project 1",
+						"projectId": "0000000000000000000000000000000b",
+						"workspaces": [
+							{
+								"label": "Workspace 1",
+								"primaryDirectoryId": null,
+								"terminalContextId": "0000000000000000000000000000001f",
+								"workspaceId": "00000000000000000000000000000015"
+							},
+							{
+								"label": "Workspace 2",
+								"primaryDirectoryId": null,
+								"terminalContextId": "00000000000000000000000000000020",
+								"workspaceId": "00000000000000000000000000000016"
+							}
+						]
+					},
+					{
+						"directories": [],
+						"label": "Project 2",
+						"projectId": "0000000000000000000000000000000c",
+						"workspaces": [
+							{
+								"label": "Workspace 3",
+								"primaryDirectoryId": null,
+								"terminalContextId": "00000000000000000000000000000021",
+								"workspaceId": "00000000000000000000000000000017"
+							},
+							{
+								"label": "Workspace 4",
+								"primaryDirectoryId": null,
+								"terminalContextId": "00000000000000000000000000000022",
+								"workspaceId": "00000000000000000000000000000018"
+							}
+						]
+					}
+				],
+				"standaloneTerminalContextId": "33333333333333333333333333333333",
+				"workspaceOrder": []
+			},
+			"protocolVersion": 1,
+			"revision": "1",
+			"siteId": "11111111111111111111111111111111",
+			"terminalContexts": [
+				{
+					"groups": [],
+					"tabs": [],
+					"terminalContextId": "0000000000000000000000000000001f"
+				},
+				{
+					"groups": [],
+					"tabs": [],
+					"terminalContextId": "00000000000000000000000000000020"
+				},
+				{
+					"groups": [],
+					"tabs": [],
+					"terminalContextId": "00000000000000000000000000000021"
+				},
+				{
+					"groups": [],
+					"tabs": [],
+					"terminalContextId": "00000000000000000000000000000022"
+				},
+				{
+					"groups": [],
+					"tabs": [],
+					"terminalContextId": "33333333333333333333333333333333"
+				}
+			]
+		},
+		"snapshot-workspace-order-cross-project": {
+			"kind": "workbench.snapshot",
+			"navigation": {
+				"projects": [
+					{
+						"directories": [],
+						"label": "Project 1",
+						"projectId": "0000000000000000000000000000000b",
+						"workspaces": [
+							{
+								"label": "Workspace 1",
+								"primaryDirectoryId": null,
+								"terminalContextId": "0000000000000000000000000000001f",
+								"workspaceId": "00000000000000000000000000000015"
+							},
+							{
+								"label": "Workspace 2",
+								"primaryDirectoryId": null,
+								"terminalContextId": "00000000000000000000000000000020",
+								"workspaceId": "00000000000000000000000000000016"
+							}
+						]
+					},
+					{
+						"directories": [],
+						"label": "Project 2",
+						"projectId": "0000000000000000000000000000000c",
+						"workspaces": [
+							{
+								"label": "Workspace 3",
+								"primaryDirectoryId": null,
+								"terminalContextId": "00000000000000000000000000000021",
+								"workspaceId": "00000000000000000000000000000017"
+							},
+							{
+								"label": "Workspace 4",
+								"primaryDirectoryId": null,
+								"terminalContextId": "00000000000000000000000000000022",
+								"workspaceId": "00000000000000000000000000000018"
+							}
+						]
+					}
+				],
+				"standaloneTerminalContextId": "33333333333333333333333333333333",
+				"workspaceOrder": [
+					"00000000000000000000000000000018",
+					"00000000000000000000000000000015",
+					"00000000000000000000000000000017",
+					"00000000000000000000000000000016"
+				]
+			},
+			"protocolVersion": 1,
+			"revision": "2",
+			"siteId": "11111111111111111111111111111111",
+			"terminalContexts": [
+				{
+					"groups": [],
+					"tabs": [],
+					"terminalContextId": "0000000000000000000000000000001f"
+				},
+				{
+					"groups": [],
+					"tabs": [],
+					"terminalContextId": "00000000000000000000000000000020"
+				},
+				{
+					"groups": [],
+					"tabs": [],
+					"terminalContextId": "00000000000000000000000000000021"
+				},
+				{
+					"groups": [],
+					"tabs": [],
+					"terminalContextId": "00000000000000000000000000000022"
+				},
+				{
+					"groups": [],
+					"tabs": [],
+					"terminalContextId": "33333333333333333333333333333333"
+				}
+			]
+		},
+		"delta-workspace-order-cross-project": {
+			"kind": "workbench.delta",
+			"protocolVersion": 1,
+			"siteId": "11111111111111111111111111111111",
+			"baseRevision": "1",
+			"revision": "2",
+			"changes": [
+				{
+					"kind": "navigation-replaced",
+					"navigation": {
+						"projects": [
+							{
+								"directories": [],
+								"label": "Project 1",
+								"projectId": "0000000000000000000000000000000b",
+								"workspaces": [
+									{
+										"label": "Workspace 1",
+										"primaryDirectoryId": null,
+										"terminalContextId": "0000000000000000000000000000001f",
+										"workspaceId": "00000000000000000000000000000015"
+									},
+									{
+										"label": "Workspace 2",
+										"primaryDirectoryId": null,
+										"terminalContextId": "00000000000000000000000000000020",
+										"workspaceId": "00000000000000000000000000000016"
+									}
+								]
+							},
+							{
+								"directories": [],
+								"label": "Project 2",
+								"projectId": "0000000000000000000000000000000c",
+								"workspaces": [
+									{
+										"label": "Workspace 3",
+										"primaryDirectoryId": null,
+										"terminalContextId": "00000000000000000000000000000021",
+										"workspaceId": "00000000000000000000000000000017"
+									},
+									{
+										"label": "Workspace 4",
+										"primaryDirectoryId": null,
+										"terminalContextId": "00000000000000000000000000000022",
+										"workspaceId": "00000000000000000000000000000018"
+									}
+								]
+							}
+						],
+						"standaloneTerminalContextId": "33333333333333333333333333333333",
+						"workspaceOrder": [
+							"00000000000000000000000000000018",
+							"00000000000000000000000000000015",
+							"00000000000000000000000000000017",
+							"00000000000000000000000000000016"
+						]
+					}
+				}
+			]
 		}
 	},
 	"validDocuments": [
@@ -577,7 +873,11 @@
 		"delta-duplicate-context-target",
 		"delta-invalid-result",
 		"snapshot-panel-input-r2",
-		"snapshot-automatic-tab-r2"
+		"snapshot-automatic-tab-r2",
+		"snapshot-workspace-order-legacy",
+		"snapshot-workspace-order-explicit-empty",
+		"snapshot-workspace-order-cross-project",
+		"delta-workspace-order-cross-project"
 	],
 	"invalidDocuments": [
 		{
@@ -1347,6 +1647,260 @@
 					}
 				]
 			}
+		},
+		{
+			"name": "workspace-order-duplicate",
+			"boundary": "schema",
+			"value": {
+				"kind": "workbench.delta",
+				"protocolVersion": 1,
+				"siteId": "11111111111111111111111111111111",
+				"baseRevision": "1",
+				"revision": "2",
+				"changes": [
+					{
+						"kind": "navigation-replaced",
+						"navigation": {
+							"projects": [
+								{
+									"directories": [],
+									"label": "Project 1",
+									"projectId": "0000000000000000000000000000000b",
+									"workspaces": [
+										{
+											"label": "Workspace 1",
+											"primaryDirectoryId": null,
+											"terminalContextId": "0000000000000000000000000000001f",
+											"workspaceId": "00000000000000000000000000000015"
+										},
+										{
+											"label": "Workspace 2",
+											"primaryDirectoryId": null,
+											"terminalContextId": "00000000000000000000000000000020",
+											"workspaceId": "00000000000000000000000000000016"
+										}
+									]
+								},
+								{
+									"directories": [],
+									"label": "Project 2",
+									"projectId": "0000000000000000000000000000000c",
+									"workspaces": [
+										{
+											"label": "Workspace 3",
+											"primaryDirectoryId": null,
+											"terminalContextId": "00000000000000000000000000000021",
+											"workspaceId": "00000000000000000000000000000017"
+										},
+										{
+											"label": "Workspace 4",
+											"primaryDirectoryId": null,
+											"terminalContextId": "00000000000000000000000000000022",
+											"workspaceId": "00000000000000000000000000000018"
+										}
+									]
+								}
+							],
+							"standaloneTerminalContextId": "33333333333333333333333333333333",
+							"workspaceOrder": [
+								"00000000000000000000000000000015",
+								"00000000000000000000000000000015",
+								"00000000000000000000000000000017",
+								"00000000000000000000000000000018"
+							]
+						}
+					}
+				]
+			}
+		},
+		{
+			"name": "workspace-order-missing",
+			"boundary": "semantic",
+			"value": {
+				"kind": "workbench.delta",
+				"protocolVersion": 1,
+				"siteId": "11111111111111111111111111111111",
+				"baseRevision": "1",
+				"revision": "2",
+				"changes": [
+					{
+						"kind": "navigation-replaced",
+						"navigation": {
+							"projects": [
+								{
+									"directories": [],
+									"label": "Project 1",
+									"projectId": "0000000000000000000000000000000b",
+									"workspaces": [
+										{
+											"label": "Workspace 1",
+											"primaryDirectoryId": null,
+											"terminalContextId": "0000000000000000000000000000001f",
+											"workspaceId": "00000000000000000000000000000015"
+										},
+										{
+											"label": "Workspace 2",
+											"primaryDirectoryId": null,
+											"terminalContextId": "00000000000000000000000000000020",
+											"workspaceId": "00000000000000000000000000000016"
+										}
+									]
+								},
+								{
+									"directories": [],
+									"label": "Project 2",
+									"projectId": "0000000000000000000000000000000c",
+									"workspaces": [
+										{
+											"label": "Workspace 3",
+											"primaryDirectoryId": null,
+											"terminalContextId": "00000000000000000000000000000021",
+											"workspaceId": "00000000000000000000000000000017"
+										},
+										{
+											"label": "Workspace 4",
+											"primaryDirectoryId": null,
+											"terminalContextId": "00000000000000000000000000000022",
+											"workspaceId": "00000000000000000000000000000018"
+										}
+									]
+								}
+							],
+							"standaloneTerminalContextId": "33333333333333333333333333333333",
+							"workspaceOrder": [
+								"00000000000000000000000000000015",
+								"00000000000000000000000000000016",
+								"00000000000000000000000000000017"
+							]
+						}
+					}
+				]
+			}
+		},
+		{
+			"name": "workspace-order-foreign",
+			"boundary": "semantic",
+			"value": {
+				"kind": "workbench.delta",
+				"protocolVersion": 1,
+				"siteId": "11111111111111111111111111111111",
+				"baseRevision": "1",
+				"revision": "2",
+				"changes": [
+					{
+						"kind": "navigation-replaced",
+						"navigation": {
+							"projects": [
+								{
+									"directories": [],
+									"label": "Project 1",
+									"projectId": "0000000000000000000000000000000b",
+									"workspaces": [
+										{
+											"label": "Workspace 1",
+											"primaryDirectoryId": null,
+											"terminalContextId": "0000000000000000000000000000001f",
+											"workspaceId": "00000000000000000000000000000015"
+										},
+										{
+											"label": "Workspace 2",
+											"primaryDirectoryId": null,
+											"terminalContextId": "00000000000000000000000000000020",
+											"workspaceId": "00000000000000000000000000000016"
+										}
+									]
+								},
+								{
+									"directories": [],
+									"label": "Project 2",
+									"projectId": "0000000000000000000000000000000c",
+									"workspaces": [
+										{
+											"label": "Workspace 3",
+											"primaryDirectoryId": null,
+											"terminalContextId": "00000000000000000000000000000021",
+											"workspaceId": "00000000000000000000000000000017"
+										},
+										{
+											"label": "Workspace 4",
+											"primaryDirectoryId": null,
+											"terminalContextId": "00000000000000000000000000000022",
+											"workspaceId": "00000000000000000000000000000018"
+										}
+									]
+								}
+							],
+							"standaloneTerminalContextId": "33333333333333333333333333333333",
+							"workspaceOrder": [
+								"00000000000000000000000000000015",
+								"00000000000000000000000000000016",
+								"00000000000000000000000000000017",
+								"00000000000000000000000000000063"
+							]
+						}
+					}
+				]
+			}
+		},
+		{
+			"name": "workspace-order-null",
+			"boundary": "schema",
+			"value": {
+				"kind": "workbench.delta",
+				"protocolVersion": 1,
+				"siteId": "11111111111111111111111111111111",
+				"baseRevision": "1",
+				"revision": "2",
+				"changes": [
+					{
+						"kind": "navigation-replaced",
+						"navigation": {
+							"projects": [
+								{
+									"directories": [],
+									"label": "Project 1",
+									"projectId": "0000000000000000000000000000000b",
+									"workspaces": [
+										{
+											"label": "Workspace 1",
+											"primaryDirectoryId": null,
+											"terminalContextId": "0000000000000000000000000000001f",
+											"workspaceId": "00000000000000000000000000000015"
+										},
+										{
+											"label": "Workspace 2",
+											"primaryDirectoryId": null,
+											"terminalContextId": "00000000000000000000000000000020",
+											"workspaceId": "00000000000000000000000000000016"
+										}
+									]
+								},
+								{
+									"directories": [],
+									"label": "Project 2",
+									"projectId": "0000000000000000000000000000000c",
+									"workspaces": [
+										{
+											"label": "Workspace 3",
+											"primaryDirectoryId": null,
+											"terminalContextId": "00000000000000000000000000000021",
+											"workspaceId": "00000000000000000000000000000017"
+										},
+										{
+											"label": "Workspace 4",
+											"primaryDirectoryId": null,
+											"terminalContextId": "00000000000000000000000000000022",
+											"workspaceId": "00000000000000000000000000000018"
+										}
+									]
+								}
+							],
+							"standaloneTerminalContextId": "33333333333333333333333333333333",
+							"workspaceOrder": null
+						}
+					}
+				]
+			}
 		}
 	],
 	"transitions": [
@@ -1429,6 +1983,15 @@
 			"outcome": {
 				"kind": "rejected",
 				"reason": "invalid-projection"
+			}
+		},
+		{
+			"name": "workspace-order-cross-project-preserves-membership",
+			"initial": "snapshot-workspace-order-legacy",
+			"delta": "delta-workspace-order-cross-project",
+			"outcome": {
+				"kind": "applied",
+				"snapshot": "snapshot-workspace-order-cross-project"
 			}
 		}
 	]

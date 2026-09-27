@@ -295,6 +295,10 @@ impl WorkbenchAuthority {
                 };
                 project.workspaces.remove(workspace_index);
                 candidate
+                    .navigation
+                    .workspace_order
+                    .retain(|id| id != workspace_id);
+                candidate
                     .terminal_contexts
                     .retain(|context| context.terminal_context_id != context_id);
             }

@@ -7,8 +7,8 @@
 [原生 Tab Session](native-tab-session.zh-CN.md) 的上下文选择扩展，随 Session reducer、传输、
 导航渲染及其正确性证据一起更新。
 
-`Ctrl+B [` 和 `Ctrl+B ]` 按 Server 顺序选择上一个、下一个位置：独立上下文，然后是每个 Project
-中的 Workspace。边界循环。标签仅用于展示；Project、Workspace 和 context ID 确立身份。
+`Ctrl+B [` 和 `Ctrl+B ]` 按 Server 顺序选择上一个、下一个位置：独立上下文，然后是 canonical
+全局 Workspace 显示顺序。显式顺序缺失或为空时仍按 Project 遍历，排序不改变 Project 归属。边界循环。标签仅用于展示；Project、Workspace 和 context ID 确立身份。
 进入其他位置恢复本 Client 上次选择的 Tab 和 Panel，前提是这些身份仍属于该位置；
 否则选择首个现存成员，没有 Tab 则进入 Empty。
 进入和离开 Empty 都不会创建终端。已有 Tab 控制作用于当前上下文；显式 `c` 使用 Server

@@ -340,7 +340,7 @@ fn validate_terminal_geometry(value: WorkbenchTerminalGeometry) -> Result<(), &'
 }
 
 #[derive(Clone, Copy)]
-struct Binary64SafeInteger(u64);
+pub(super) struct Binary64SafeInteger(pub(super) u64);
 
 impl Serialize for Binary64SafeInteger {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
@@ -423,6 +423,17 @@ pub enum WorkbenchAction {
         project_id: WorkbenchProjectId,
         workspace_id: WorkbenchWorkspaceId,
         label: WorkbenchLabel,
+    },
+    #[serde(rename = "workspace.move")]
+    WorkspaceMove {
+        workspace_id: WorkbenchWorkspaceId,
+        insert_index: crate::WorkbenchWorkspaceInsertIndex,
+    },
+    #[serde(rename = "workspace.move-block")]
+    WorkspaceMoveBlock {
+        workspace_ids: crate::WorkbenchWorkspaceList,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        before_workspace_id: Option<WorkbenchWorkspaceId>,
     },
     /// Close one Workspace semantically: every captured terminal leaf member
     /// runs the retained Close lifecycle, then one authoritative commit
@@ -694,6 +705,8 @@ pub enum WorkbenchRejectionReason {
     RevisionMismatch,
     ProjectUnavailable,
     WorkspaceUnavailable,
+    WorkspaceMoveIndexOutOfBounds,
+    WorkspaceMoveTargetInBlock,
     WorkspaceGroupCloseRequired,
     WorkspaceDirectoryUnavailable,
     WorkspaceDirectoryConflict,
@@ -777,6 +790,10 @@ pub enum WorkbenchCommandOutcome {
         revision: WorkbenchRevision,
         workspace_id: WorkbenchWorkspaceId,
         terminal_context_id: WorkbenchTerminalContextId,
+    },
+    WorkspacesReordered {
+        revision: WorkbenchRevision,
+        workspace_order: crate::WorkbenchWorkspaceList,
     },
     WorkspacePrimaryDirectoryAccepted {
         revision: WorkbenchRevision,
@@ -1055,6 +1072,15 @@ fn validate_request(request: &WorkbenchRequest) -> Result<(), ContractError> {
 }
 
 fn request_byte_limit(request: &WorkbenchRequest) -> usize {
+    if matches!(
+        request,
+        WorkbenchRequest::Command(WorkbenchCommand {
+            action: WorkbenchAction::WorkspaceMoveBlock { .. },
+            ..
+        })
+    ) {
+        return crate::MAXIMUM_ENCODED_WORKSPACE_ORDER_BYTES;
+    }
     if matches!(request, WorkbenchRequest::ClientView(request) if request.carries_attention()) {
         return MAXIMUM_ENCODED_CLIENT_ATTENTION_BYTES;
     }
@@ -1140,6 +1166,10 @@ fn validate_response(response: &WorkbenchResponse, encoded: &[u8]) -> Result<(),
             enforce_encoded_limit(encoded, MAXIMUM_ENCODED_WORKTREE_OPERATION_BYTES)?;
             result.validate()
         }
+        WorkbenchResponse::Command(WorkbenchCommandResult {
+            outcome: WorkbenchCommandOutcome::WorkspacesReordered { .. },
+            ..
+        }) => enforce_encoded_limit(encoded, crate::MAXIMUM_ENCODED_WORKSPACE_ORDER_BYTES),
         WorkbenchResponse::Command(_)
         | WorkbenchResponse::TabCloseRead(_)
         | WorkbenchResponse::TabCloseResume(_)

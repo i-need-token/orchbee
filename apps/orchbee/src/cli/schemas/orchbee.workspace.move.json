@@ -1,0 +1,147 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "orchbee.workspace.move",
+	"title": "orchbee Workspace ordering receipt envelope",
+	"type": "object",
+	"required": ["schema", "version", "source", "result"],
+	"additionalProperties": false,
+	"properties": {
+		"schema": {
+			"const": "orchbee.workspace.move"
+		},
+		"version": {
+			"const": 1
+		},
+		"source": {
+			"$ref": "#/$defs/commandSource"
+		},
+		"result": {
+			"type": "object",
+			"required": ["action", "outcome", "revision"],
+			"additionalProperties": false,
+			"properties": {
+				"action": {
+					"enum": ["workspace.move", "workspace.move-block"]
+				},
+				"outcome": {
+					"enum": ["committed", "unchanged"]
+				},
+				"revision": {
+					"$ref": "#/$defs/revision"
+				},
+				"workspaceId": {
+					"$ref": "#/$defs/id"
+				},
+				"insertIndex": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 1023
+				},
+				"workspaceIds": {
+					"type": "array",
+					"minItems": 1,
+					"maxItems": 1023,
+					"uniqueItems": true,
+					"items": {
+						"$ref": "#/$defs/id"
+					}
+				},
+				"beforeWorkspaceId": {
+					"$ref": "#/$defs/id"
+				},
+				"workspaceOrder": {
+					"type": "array",
+					"minItems": 1,
+					"maxItems": 1023,
+					"uniqueItems": true,
+					"items": {
+						"$ref": "#/$defs/id"
+					}
+				}
+			},
+			"allOf": [
+				{
+					"if": {
+						"properties": {
+							"action": {
+								"const": "workspace.move"
+							}
+						}
+					},
+					"then": {
+						"required": ["workspaceId", "insertIndex"],
+						"not": {
+							"anyOf": [
+								{
+									"required": ["workspaceIds"]
+								},
+								{
+									"required": ["beforeWorkspaceId"]
+								}
+							]
+						}
+					},
+					"else": {
+						"required": ["workspaceIds"],
+						"not": {
+							"anyOf": [
+								{
+									"required": ["workspaceId"]
+								},
+								{
+									"required": ["insertIndex"]
+								}
+							]
+						}
+					}
+				},
+				{
+					"if": {
+						"properties": {
+							"outcome": {
+								"const": "committed"
+							}
+						}
+					},
+					"then": {
+						"required": ["workspaceOrder"]
+					},
+					"else": {
+						"not": {
+							"required": ["workspaceOrder"]
+						}
+					}
+				}
+			]
+		}
+	},
+	"$defs": {
+		"id": {
+			"type": "string",
+			"pattern": "^[0-9a-f]{32}$"
+		},
+		"revision": {
+			"type": "string",
+			"pattern": "^(0|[1-9][0-9]*)$"
+		},
+		"commandSource": {
+			"type": "object",
+			"required": ["kind", "siteId", "requestId", "expectedRevision"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": {
+					"const": "workbench-command"
+				},
+				"siteId": {
+					"$ref": "#/$defs/id"
+				},
+				"requestId": {
+					"$ref": "#/$defs/id"
+				},
+				"expectedRevision": {
+					"$ref": "#/$defs/revision"
+				}
+			}
+		}
+	}
+}

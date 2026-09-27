@@ -589,6 +589,7 @@ fn presentation_index_resolves_only_live_panel_identities() {
     let presentation = TerminalPresentationId::parse(&hex(42)).unwrap();
     let snapshot = Snapshot {
         navigation: Navigation {
+            workspace_order: Vec::new(),
             projects: Vec::new(),
             standalone_terminal_context_id: context.clone(),
         },

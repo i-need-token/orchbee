@@ -529,3 +529,56 @@ fn retains_shared_projection_size_limit_and_rejects_foreign_profile_identity() {
         Err(WorkbenchCheckpointError::InvalidIdentity)
     );
 }
+
+#[test]
+fn workspace_order_survives_checkpoint_and_invalid_permutations_are_refused() {
+    let mut owner = fixture();
+    let project_id = owner.snapshot().navigation.projects[0].project_id.clone();
+    let added = command(
+        &mut owner,
+        WorkbenchAction::WorkspaceCreate {
+            project_id,
+            label: WorkbenchLabel::parse("second").unwrap(),
+        },
+    );
+    let WorkbenchCommandOutcome::WorkspaceCreated { workspace_id, .. } = added else {
+        panic!("workspace")
+    };
+    let result = command(
+        &mut owner,
+        WorkbenchAction::WorkspaceMove {
+            workspace_id: workspace_id.clone(),
+            insert_index: orchbee_workbench_protocol::WorkbenchWorkspaceInsertIndex::new(0)
+                .unwrap(),
+        },
+    );
+    assert!(matches!(
+        result,
+        WorkbenchCommandOutcome::WorkspacesReordered { .. }
+    ));
+    let bytes = owner.checkpoint(&worker(200)).unwrap();
+    let recovered = restore(&bytes).unwrap();
+    assert_eq!(
+        recovered.snapshot().navigation.workspace_order,
+        owner.snapshot().navigation.workspace_order
+    );
+    assert_eq!(
+        recovered
+            .snapshot()
+            .navigation
+            .ordered_workspaces()
+            .unwrap()[0]
+            .1
+            .workspace_id,
+        workspace_id
+    );
+    for order in [
+        json!([identity(4)]),
+        json!([identity(4), identity(4)]),
+        json!([identity(4), identity(900)]),
+    ] {
+        let mut value: Value = serde_json::from_slice(&bytes).unwrap();
+        value["navigation"]["workspaceOrder"] = order;
+        assert!(WorkbenchCheckpoint::parse(&serde_json::to_vec(&value).unwrap()).is_err());
+    }
+}

@@ -322,6 +322,8 @@ fn fixed_outputs_are_far_below_the_bound() {
         CommandPath::WorkspaceGet,
         CommandPath::WorkspaceList,
         CommandPath::WorkspaceRename,
+        CommandPath::WorkspaceMove,
+        CommandPath::WorkspaceMoveBlock,
         CommandPath::WorktreeList,
         CommandPath::WorktreeCreate,
         CommandPath::WorktreeOpen,

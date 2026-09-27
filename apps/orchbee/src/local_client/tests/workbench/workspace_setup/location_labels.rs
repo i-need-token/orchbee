@@ -18,58 +18,6 @@ fn rename_command(workspace: bool, baseline: u64) -> WorkbenchCommand {
     )
 }
 
-fn exchange_rename(
-    command: WorkbenchCommand,
-    response: WorkbenchResponse,
-    retain_carrier: bool,
-) -> Result<WorkbenchSetupSubmission, Box<dyn std::error::Error>> {
-    let expected = command.clone();
-    let server = FakeServer::start(move |mut stream| {
-        expect_hello(&mut stream, COHORT)?;
-        admit(&mut stream, 71)?;
-        assert_eq!(
-            read_workbench_request(&mut stream).map_err(io::Error::other)?,
-            WorkbenchRequest::Command(expected)
-        );
-        write_workbench_response(&mut stream, &response).map_err(io::Error::other)?;
-        if retain_carrier {
-            assert_eq!(
-                read_workbench_request(&mut stream).map_err(io::Error::other)?,
-                WorkbenchRequest::SnapshotRead(snapshot_request(SECOND_REQUEST_ID))
-            );
-            write_workbench_response(
-                &mut stream,
-                &WorkbenchResponse::Snapshot(snapshot_result(SECOND_REQUEST_ID)),
-            )
-            .map_err(io::Error::other)
-        } else {
-            require_retirement(&mut stream)
-        }
-    })?;
-    let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
-    let request = WorkbenchSetupRequest::try_from(command).unwrap();
-    let deadline = client.operation_clock().now() + SERVER_GUARD_TIMEOUT;
-    let actual = client.submit_workbench_setup(request.clone(), deadline);
-    if retain_carrier {
-        assert_eq!(client.generation().map(NonZeroU64::get), Some(71));
-        assert_eq!(
-            client.submit_workbench_snapshot_read(snapshot_request(SECOND_REQUEST_ID))?,
-            snapshot_result(SECOND_REQUEST_ID)
-        );
-    } else {
-        assert_eq!(client.generation(), None);
-        assert!(matches!(
-            client.submit_workbench_setup(request, deadline),
-            WorkbenchSetupSubmission::DefinitelyNotSubmitted(
-                WorkbenchSetupNotSubmitted::SessionUnavailable
-            )
-        ));
-    }
-    drop(client);
-    server.finish()?;
-    Ok(actual)
-}
-
 #[test]
 fn location_rename_receipts_bind_exact_target_and_noop_revision() -> TestResult {
     for workspace in [false, true] {
@@ -98,7 +46,7 @@ fn location_rename_receipts_bind_exact_target_and_noop_revision() -> TestResult 
                 }
             };
             assert!(
-                matches!(exchange_rename(command, command_response(FIRST_REQUEST_ID, outcome), true)?, WorkbenchSetupSubmission::Committed(actual) if actual == expected)
+                matches!(exchange_setup(command, command_response(FIRST_REQUEST_ID, outcome), true)?, WorkbenchSetupSubmission::Committed(actual) if actual == expected)
             );
         }
     }
@@ -140,7 +88,7 @@ fn location_rename_rejects_creation_results_and_impossible_revisions() -> TestRe
                 },
             ),
         ] {
-            let actual = exchange_rename(
+            let actual = exchange_setup(
                 rename_command(workspace, baseline),
                 command_response(FIRST_REQUEST_ID, outcome),
                 false,
@@ -161,7 +109,7 @@ fn location_rename_rejects_creation_results_and_impossible_revisions() -> TestRe
         }
         for kind in 0..3 {
             assert!(matches!(
-                exchange_rename(
+                exchange_setup(
                     rename_command(workspace, 7),
                     command_response(FIRST_REQUEST_ID, setup_outcome(kind, 8)),
                     false
@@ -180,7 +128,7 @@ fn location_rename_rejects_creation_results_and_impossible_revisions() -> TestRe
 fn location_rename_refusals_follow_exact_project_or_workspace_authority() -> TestResult {
     for workspace in [false, true] {
         assert!(matches!(
-            exchange_rename(
+            exchange_setup(
                 rename_command(workspace, 7),
                 command_response(FIRST_REQUEST_ID, WorkbenchCommandOutcome::Denied {}),
                 true
@@ -205,7 +153,7 @@ fn location_rename_refusals_follow_exact_project_or_workspace_authority() -> Tes
             (WorkbenchRejectionReason::TabUnavailable, false),
         ] {
             let revision = WorkbenchRevision::new(99);
-            let result = exchange_rename(
+            let result = exchange_setup(
                 rename_command(workspace, 7),
                 command_response(
                     FIRST_REQUEST_ID,
@@ -242,7 +190,7 @@ fn location_rename_refusals_follow_exact_project_or_workspace_authority() -> Tes
                 false,
             ),
         ] {
-            let result = exchange_rename(
+            let result = exchange_setup(
                 rename_command(workspace, 7),
                 command_response(
                     FIRST_REQUEST_ID,
@@ -272,7 +220,7 @@ fn location_rename_refusals_follow_exact_project_or_workspace_authority() -> Tes
 fn location_rename_retires_wrong_correlation_and_response_family() -> TestResult {
     for workspace in [false, true] {
         assert!(
-            matches!(exchange_rename(rename_command(workspace, 7), command_response(SECOND_REQUEST_ID, WorkbenchCommandOutcome::Renamed { revision: WorkbenchRevision::new(8) }), false)?, WorkbenchSetupSubmission::OutcomeUnknown { request_id, reason: WorkbenchSetupOutcomeUnknownReason::CorrelationMismatch { expected, received } } if request_id.as_str() == FIRST_REQUEST_ID && expected.as_str() == FIRST_REQUEST_ID && received.as_str() == SECOND_REQUEST_ID)
+            matches!(exchange_setup(rename_command(workspace, 7), command_response(SECOND_REQUEST_ID, WorkbenchCommandOutcome::Renamed { revision: WorkbenchRevision::new(8) }), false)?, WorkbenchSetupSubmission::OutcomeUnknown { request_id, reason: WorkbenchSetupOutcomeUnknownReason::CorrelationMismatch { expected, received } } if request_id.as_str() == FIRST_REQUEST_ID && expected.as_str() == FIRST_REQUEST_ID && received.as_str() == SECOND_REQUEST_ID)
         );
         for response in close_control_responses()
             .into_iter()
@@ -281,7 +229,7 @@ fn location_rename_retires_wrong_correlation_and_response_family() -> TestResult
             ))])
         {
             assert!(matches!(
-                exchange_rename(rename_command(workspace, 7), response, false)?,
+                exchange_setup(rename_command(workspace, 7), response, false)?,
                 WorkbenchSetupSubmission::OutcomeUnknown {
                     reason: WorkbenchSetupOutcomeUnknownReason::UnexpectedResponse,
                     ..

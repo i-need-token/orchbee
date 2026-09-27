@@ -256,6 +256,8 @@ pub(crate) enum CommandPath {
     WorkspaceGet,
     WorkspaceCreate,
     WorkspaceRename,
+    WorkspaceMove,
+    WorkspaceMoveBlock,
     WorkspaceAcceptDirectory,
     WorkspaceClose,
     WorkspaceCloseStatus,
@@ -362,6 +364,8 @@ impl CommandPath {
             Self::WorkspaceGet => "workspace get",
             Self::WorkspaceCreate => "workspace create",
             Self::WorkspaceRename => "workspace rename",
+            Self::WorkspaceMove => "workspace move",
+            Self::WorkspaceMoveBlock => "workspace move-block",
             Self::WorkspaceAcceptDirectory => "workspace accept-directory",
             Self::WorkspaceClose => "workspace close",
             Self::WorkspaceCloseStatus => "workspace close-status",
@@ -886,6 +890,14 @@ pub(crate) enum MutationCommand {
         target: Target,
         label: WorkbenchLabel,
     },
+    WorkspaceMove {
+        target: Target,
+        insert_index: orchbee_workbench_protocol::WorkbenchWorkspaceInsertIndex,
+    },
+    WorkspaceMoveBlock {
+        targets: Vec<Target>,
+        before: Option<Target>,
+    },
     WorkspaceAcceptDirectory {
         target: Target,
         path: WorkbenchDirectoryPath,
@@ -1261,6 +1273,8 @@ pub(crate) enum ExpectedValue {
     Dimension,
     TabDirection,
     TabInsertIndex,
+    WorkspaceInsertIndex,
+    WorkspaceBlockSize,
     PanelDirection,
     LayoutDirection,
     FiniteNumber,
@@ -1490,6 +1504,7 @@ struct Options {
     label: Option<String>,
     direction: Option<String>,
     insert_index: Option<String>,
+    before: Option<String>,
     amount: Option<String>,
     ratio: Option<String>,
     right_click: Option<String>,
@@ -1589,6 +1604,7 @@ const VALUE_FLAGS: &[&str] = &[
     "--cursor",
     "--direction",
     "--insert-index",
+    "--before",
     "--amount",
     "--ratio",
     "--right-click",
@@ -2130,6 +2146,7 @@ fn apply_value_flag(
         "--label" => &mut options.label,
         "--direction" => &mut options.direction,
         "--insert-index" => &mut options.insert_index,
+        "--before" => &mut options.before,
         "--amount" => &mut options.amount,
         "--ratio" => &mut options.ratio,
         "--right-click" => &mut options.right_click,
@@ -2876,6 +2893,81 @@ fn resolve_words(
                     options,
                 ))
             }
+        }
+        ["workspace", "move", value] => {
+            let context = UsageContext::Path("workspace move");
+            check_scope(
+                options,
+                Scope {
+                    insert_index: true,
+                    ..NO_OPTIONS
+                },
+                context,
+                envelope,
+            )?;
+            let raw = required(&options.insert_index, context, "'--insert-index'", envelope)?;
+            let insert_index = (!raw.is_empty() && raw.bytes().all(|b| b.is_ascii_digit()))
+                .then(|| raw.parse::<usize>().ok())
+                .flatten()
+                .and_then(|n| {
+                    orchbee_workbench_protocol::WorkbenchWorkspaceInsertIndex::new(n).ok()
+                })
+                .ok_or_else(|| {
+                    usage_with(
+                        UsageReason::InvalidValue {
+                            context,
+                            option: "--insert-index",
+                            value: raw,
+                            expected: ExpectedValue::WorkspaceInsertIndex,
+                        },
+                        envelope,
+                    )
+                })?;
+            Ok(mutation(
+                MutationCommand::WorkspaceMove {
+                    target: target((*value).to_owned(), Resource::Workspace, envelope)?,
+                    insert_index,
+                },
+                options,
+            ))
+        }
+        ["workspace", "move-block", values @ ..] => {
+            let context = UsageContext::Path("workspace move-block");
+            check_scope(
+                options,
+                Scope {
+                    before: true,
+                    ..NO_OPTIONS
+                },
+                context,
+                envelope,
+            )?;
+            if values.is_empty()
+                || values.len() > orchbee_workbench_protocol::MAXIMUM_WORKSPACE_ORDER_LENGTH
+            {
+                return Err(usage_with(
+                    UsageReason::InvalidValue {
+                        context,
+                        option: "targets",
+                        value: values.len().to_string(),
+                        expected: ExpectedValue::WorkspaceBlockSize,
+                    },
+                    envelope,
+                ));
+            }
+            let targets = values
+                .iter()
+                .map(|value| target((*value).to_owned(), Resource::Workspace, envelope))
+                .collect::<Result<Vec<_>, _>>()?;
+            let before = options
+                .before
+                .as_ref()
+                .map(|value| target(value.clone(), Resource::Workspace, envelope))
+                .transpose()?;
+            Ok(mutation(
+                MutationCommand::WorkspaceMoveBlock { targets, before },
+                options,
+            ))
         }
         ["workspace", "rename", value] => {
             check_scope(
@@ -3993,6 +4085,8 @@ fn help_topic(path: &[&str]) -> Option<HelpTopic> {
         ["workspace", "get"] => HelpTopic::Command(CommandPath::WorkspaceGet),
         ["workspace", "create"] => HelpTopic::Command(CommandPath::WorkspaceCreate),
         ["workspace", "rename"] => HelpTopic::Command(CommandPath::WorkspaceRename),
+        ["workspace", "move"] => HelpTopic::Command(CommandPath::WorkspaceMove),
+        ["workspace", "move-block"] => HelpTopic::Command(CommandPath::WorkspaceMoveBlock),
         ["workspace", "accept-directory"] => {
             HelpTopic::Command(CommandPath::WorkspaceAcceptDirectory)
         }
@@ -4125,6 +4219,7 @@ struct Scope {
     label: bool,
     direction: bool,
     insert_index: bool,
+    before: bool,
     amount: bool,
     ratio: bool,
     right_click: bool,
@@ -4246,6 +4341,7 @@ const NO_OPTIONS: Scope = Scope {
     label: false,
     direction: false,
     insert_index: false,
+    before: false,
     amount: false,
     ratio: false,
     right_click: false,
@@ -4671,6 +4767,9 @@ fn first_out_of_scope(options: &Options, scope: Scope) -> Option<&'static str> {
     }
     if options.label.is_some() && !scope.label {
         return Some("--label");
+    }
+    if options.before.is_some() && !scope.before {
+        return Some("--before");
     }
     if options.insert_index.is_some() && !scope.insert_index {
         return Some("--insert-index");

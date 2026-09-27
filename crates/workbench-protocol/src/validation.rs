@@ -332,6 +332,11 @@ fn validate_navigation_structure(navigation: &Navigation) -> Result<(), Validati
     if navigation.projects.len() > MAXIMUM_PROJECTS {
         return Err(ValidationError);
     }
+    if !navigation.workspace_order.is_empty() {
+        navigation
+            .ordered_workspaces()
+            .map_err(|_| ValidationError)?;
+    }
     for project in &navigation.projects {
         validate_label(&project.label)?;
         if project.directories.len() > MAXIMUM_DIRECTORIES_PER_PROJECT {

@@ -40,6 +40,9 @@ pub(super) struct Receipt {
     ids: Vec<(&'static str, String)>,
     direction: Option<&'static str>,
     insert_index: Option<orchbee_workbench_protocol::WorkbenchTabInsertIndex>,
+    workspace_insert_index: Option<orchbee_workbench_protocol::WorkbenchWorkspaceInsertIndex>,
+    workspace_order: Option<orchbee_workbench_protocol::WorkbenchWorkspaceList>,
+    workspace_sources: Option<orchbee_workbench_protocol::WorkbenchWorkspaceList>,
     label: Option<String>,
     custom_label: Option<orchbee_workbench_protocol::PanelLabelUpdate>,
     right_click: Option<orchbee_workbench_protocol::PanelRightClickTarget>,
@@ -110,6 +113,15 @@ impl Receipt {
         if let Some(index) = self.insert_index {
             result.insert("insertIndex".to_owned(), json!(index));
         }
+        if let Some(index) = self.workspace_insert_index {
+            result.insert("insertIndex".to_owned(), json!(index));
+        }
+        if let Some(order) = &self.workspace_order {
+            result.insert("workspaceOrder".to_owned(), json!(order));
+        }
+        if let Some(sources) = &self.workspace_sources {
+            result.insert("workspaceIds".to_owned(), json!(sources));
+        }
         if let Some(direction) = self.direction {
             result.insert("direction".to_owned(), json!(direction));
         }
@@ -145,7 +157,7 @@ impl Receipt {
             // additions; version-3 validators stay behind. `project rename`
             // keeps its dedicated v1 document — the shared action enum stays
             // closed.
-            "version": if matches!(self.schema_id, super::schema::PROJECT_RENAME_RESULT_ID | super::schema::PANEL_RENAME_RESULT_ID | super::schema::PANEL_INPUT_RESULT_ID | super::schema::TAB_MOVE_RESULT_ID) {
+            "version": if matches!(self.schema_id, super::schema::PROJECT_RENAME_RESULT_ID | super::schema::PANEL_RENAME_RESULT_ID | super::schema::PANEL_INPUT_RESULT_ID | super::schema::TAB_MOVE_RESULT_ID | super::schema::WORKSPACE_MOVE_RESULT_ID) {
                 1
             } else {
                 4
@@ -238,6 +250,31 @@ impl Receipt {
         }
         if let Some(index) = self.insert_index {
             rows.push(("insertIndex", index.value().to_string()));
+        }
+        if let Some(index) = self.workspace_insert_index {
+            rows.push(("insertIndex", index.value().to_string()));
+        }
+        if let Some(order) = &self.workspace_order {
+            rows.push((
+                "workspaceOrder",
+                order
+                    .ids()
+                    .iter()
+                    .map(|id| id.as_str())
+                    .collect::<Vec<_>>()
+                    .join(" "),
+            ));
+        }
+        if let Some(sources) = &self.workspace_sources {
+            rows.push((
+                "workspaceIds",
+                sources
+                    .ids()
+                    .iter()
+                    .map(|id| id.as_str())
+                    .collect::<Vec<_>>()
+                    .join(" "),
+            ));
         }
         if let Some(direction) = self.direction {
             rows.push(("direction", direction.to_owned()));
@@ -575,7 +612,13 @@ mod linux {
     pub(super) fn run(command: &MutationCommand, format: OutputFormat, locale: Locale) -> Output {
         match execute(command) {
             Err(failure) => {
-                let failure = if matches!(command, MutationCommand::TabMoveIndex { .. }) {
+                let failure = if matches!(
+                    command,
+                    MutationCommand::WorkspaceMove { .. }
+                        | MutationCommand::WorkspaceMoveBlock { .. }
+                ) {
+                    failure.failure_schema(super::super::schema::WORKSPACE_MOVE_FAILURE_ID)
+                } else if matches!(command, MutationCommand::TabMoveIndex { .. }) {
                     failure.failure_schema(super::super::schema::TAB_MOVE_FAILURE_ID)
                 } else {
                     failure
@@ -587,7 +630,13 @@ mod linux {
     }
 
     fn execute(command: &MutationCommand) -> Result<Receipt, Failure> {
-        if matches!(command, MutationCommand::TabMoveIndex { .. }) && !cfg!(windows) {
+        if matches!(
+            command,
+            MutationCommand::TabMoveIndex { .. }
+                | MutationCommand::WorkspaceMove { .. }
+                | MutationCommand::WorkspaceMoveBlock { .. }
+        ) && !cfg!(windows)
+        {
             return Err(Failure::new(FailureKind::ServiceUnavailable)
                 .details(stage_reason_details("platform", "unsupported-platform")));
         }
@@ -685,6 +734,44 @@ mod linux {
                 Ok(WorkbenchAction::WorkspaceCreate {
                     project_id: project.project_id.clone(),
                     label: label.clone(),
+                })
+            }
+            MutationCommand::WorkspaceMove {
+                target,
+                insert_index,
+            } => {
+                let (_, workspace) = resolve_workspace(snapshot, target)?;
+                Ok(WorkbenchAction::WorkspaceMove {
+                    workspace_id: workspace.workspace_id.clone(),
+                    insert_index: *insert_index,
+                })
+            }
+            MutationCommand::WorkspaceMoveBlock { targets, before } => {
+                let ids = targets
+                    .iter()
+                    .map(|target| {
+                        resolve_workspace(snapshot, target)
+                            .map(|(_, workspace)| workspace.workspace_id.clone())
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+                let before_workspace_id = before
+                    .as_ref()
+                    .map(|target| {
+                        resolve_workspace(snapshot, target)
+                            .map(|(_, workspace)| workspace.workspace_id.clone())
+                    })
+                    .transpose()?;
+                let workspace_ids = orchbee_workbench_protocol::WorkbenchWorkspaceList::new(ids)
+                    .map_err(|_| {
+                        Failure::new(FailureKind::Rejected).details(Map::from_iter([
+                            ("stage".to_owned(), json!("command")),
+                            ("reason".to_owned(), json!("duplicate-workspace")),
+                            ("revision".to_owned(), json!(snapshot.revision)),
+                        ]))
+                    })?;
+                Ok(WorkbenchAction::WorkspaceMoveBlock {
+                    workspace_ids,
+                    before_workspace_id,
                 })
             }
             MutationCommand::WorkspaceRename { target, label } => {
@@ -1059,6 +1146,8 @@ mod linux {
             | WorkbenchAction::ProjectRename { .. }
             | WorkbenchAction::WorkspaceCreate { .. }
             | WorkbenchAction::WorkspaceRename { .. }
+            | WorkbenchAction::WorkspaceMove { .. }
+            | WorkbenchAction::WorkspaceMoveBlock { .. }
             | WorkbenchAction::WorkspacePrimaryDirectoryAccept { .. } => {
                 let request = WorkbenchSetupRequest::try_from(command).map_err(|_| internal())?;
                 match client.submit_workbench_setup_with_wake(request, deadline, wake) {
@@ -1141,6 +1230,45 @@ mod linux {
                     }
                     // Other setup commits are action-incompatible here; the
                     // transport already classifies them as unknown.
+                    WorkbenchSetupSubmission::Committed(WorkbenchSetupCommit::WorkspaceOrder {
+                        revision,
+                        workspace_order,
+                    }) => {
+                        let unchanged = workspace_order.is_none();
+                        let action = match &resolved.action {
+                            WorkbenchAction::WorkspaceMove { .. } => "workspace.move",
+                            WorkbenchAction::WorkspaceMoveBlock { .. } => "workspace.move-block",
+                            _ => return Err(internal()),
+                        };
+                        let mut result = receipt(
+                            &resolved,
+                            action,
+                            if unchanged { "unchanged" } else { "committed" },
+                        )
+                        .schema(super::super::schema::WORKSPACE_MOVE_RESULT_ID)
+                        .revision(revision);
+                        result.workspace_order = workspace_order;
+                        match &resolved.action {
+                            WorkbenchAction::WorkspaceMove {
+                                workspace_id,
+                                insert_index,
+                            } => {
+                                result = result.id("workspaceId", workspace_id.as_str());
+                                result.workspace_insert_index = Some(*insert_index);
+                            }
+                            WorkbenchAction::WorkspaceMoveBlock {
+                                workspace_ids,
+                                before_workspace_id,
+                            } => {
+                                result.workspace_sources = Some(workspace_ids.clone());
+                                if let Some(before) = before_workspace_id {
+                                    result = result.id("beforeWorkspaceId", before.as_str());
+                                }
+                            }
+                            _ => return Err(internal()),
+                        }
+                        Ok(result)
+                    }
                     WorkbenchSetupSubmission::Committed(_) => Err(internal()),
                     WorkbenchSetupSubmission::DefinitePrecommit(precommit) => {
                         Err(precommit_failure(precommit.into(), &resolved.action))
@@ -1818,6 +1946,9 @@ mod linux {
                 ],
                 direction: None,
                 insert_index: None,
+                workspace_insert_index: None,
+                workspace_order: None,
+                workspace_sources: None,
                 label: None,
                 custom_label: None,
                 right_click: None,
@@ -1904,6 +2035,9 @@ mod linux {
             ids: Vec::new(),
             direction: None,
             insert_index: None,
+            workspace_insert_index: None,
+            workspace_order: None,
+            workspace_sources: None,
             label: None,
             custom_label: None,
             right_click: None,
@@ -2068,6 +2202,12 @@ mod linux {
             WorkbenchRejectionReason::TerminalContextUnavailable => "terminal-context-unavailable",
             WorkbenchRejectionReason::TabUnavailable => "tab-unavailable",
             WorkbenchRejectionReason::TabMoveIndexOutOfBounds => "tab-move-index-out-of-bounds",
+            WorkbenchRejectionReason::WorkspaceMoveIndexOutOfBounds => {
+                "workspace-move-index-out-of-bounds"
+            }
+            WorkbenchRejectionReason::WorkspaceMoveTargetInBlock => {
+                "workspace-move-target-in-block"
+            }
             WorkbenchRejectionReason::PanelUnavailable => "panel-unavailable",
             WorkbenchRejectionReason::PanelNotLeaf => "panel-not-leaf",
             WorkbenchRejectionReason::LastPanelInTab => "last-panel-in-tab",

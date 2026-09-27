@@ -135,6 +135,43 @@ process witness `real_workspace_panel_move_relocates_a_leaf_without_touching_eit
 exercises the same commit through the Workspace tree-membership path with both retained shells
 proven alive.
 
+## Accepted Workspace ordering model
+
+Users reorder a Site-wide Workspace list without moving Projects, directories, terminal contexts,
+or running terminals. Navigation retains identity-sorted membership and an optional complete
+`workspaceOrder` permutation; absent/empty means the original Project-major traversal. This avoids
+conflating display order with ownership and supports a block spanning different Projects.
+
+| Decision                                                                       | Result                                                                                      |
+| ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------- |
+| Indexed source missing, or original insertion boundary exceeds Workspace count | Reject before mutation.                                                                     |
+| Source S, original insertion boundary N                                        | Destination is N - 1 when S < N, otherwise N; S and S + 1 are no-ops.                       |
+| Empty block, duplicate/missing source or missing target                        | Reject the whole block.                                                                     |
+| Before-target belongs to the block                                             | Reject; no partial reorder.                                                                 |
+| Valid block and optional before-target                                         | Remove all source IDs, insert them in caller order before the target or at the end.         |
+| Effective order unchanged                                                      | Retain Unchanged without revision, identity allocation or a redundant ordering field.       |
+| Effective order changed                                                        | Publish the complete permutation and one revision through the existing pure command commit. |
+
+The existing mutation grant, Site/revision checks, request replay/conflict and bounded ledger own
+admission and publication; a lost result does not authorize replay under a fresh identity. Every
+fallible permutation/projection preparation precedes the authoritative commit. Reordering leaves
+Workspace/Project membership, Directory references, terminal bindings, worktree associations and
+Client-local selected IDs unchanged. New Workspace creation appends to an explicit order; Close
+removes the committed closed ID. Checkpoint capture/restore retains and validates ordering.
+
+Reference behavior is Herdr `e0507237` R020/R021: original insertion boundaries, caller-ordered
+noncontiguous blocks, atomic validation, and preserved logical selection. Native public operations
+are `workspace move <target> --insert-index N` and `workspace move-block <targets...> [--before target]`.
+Their Windows CLI and TUI consumers use this shared order, including filtered-list subsequences.
+Generic moved/reordered event delivery belongs to the separate event-stream owner and remains an
+explicit integration obligation; an ordering receipt is not event-delivery evidence.
+
+Evidence obligations are shared Rust/TypeScript permutation and delta conformance; cross-Project
+indexed/block/no-op/invalid/replay/stale cases; create/close/checkpoint continuation; bounded full
+Workspace capacity; per-Client selection preservation; and real Windows list/TUI/terminal survival
+and restart. Focused evidence does not establish full parity, Desktop UI behavior or other platform
+delivery. There are no process, Git or filesystem effects in the ordering commit itself.
+
 ## Accepted canonical Tab move model
 
 ### Insertion boundary extension

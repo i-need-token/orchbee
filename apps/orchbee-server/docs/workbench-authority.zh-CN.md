@@ -104,6 +104,37 @@ fresh graft、化简后两树相等；更晚的规范修订按普通规范规则
 `real_workspace_panel_move_relocates_a_leaf_without_touching_either_terminal` 经 Workspace
 树成员关系路径覆盖同一提交，并证明两个保留 shell 均存活。
 
+## 已接受的 Workspace 排序模型
+
+用户重排整个 Site 的 Workspace 列表，不移动 Project、目录、终端上下文或运行中的终端。
+Navigation 保留按身份排序的成员关系，以及可选的完整 `workspaceOrder` 排列；缺省／空列表沿用
+原来的 Project 优先遍历。这将显示顺序与归属分开，支持跨多个 Project 的块移动。
+
+| 判定                                            | 结果                                                            |
+| ----------------------------------------------- | --------------------------------------------------------------- |
+| 索引源不存在，或原始插入边界超过 Workspace 数量 | 修改前拒绝。                                                    |
+| 源位置 S，原始插入边界 N                        | S < N 时目标为 N - 1，否则为 N；S 和 S + 1 都是无变化。         |
+| 空块、重复／缺失源或缺失目标                    | 拒绝整个块。                                                    |
+| before 目标属于被移动块                         | 拒绝，不进行部分排序。                                          |
+| 有效块及可选 before 目标                        | 移除所有源身份，按调用者顺序插入目标前或列表末尾。              |
+| 有效顺序不变                                    | 保留 Unchanged，不增加 revision、不分配身份、不写冗余排序字段。 |
+| 有效顺序改变                                    | 经现有纯命令提交发布完整排列及一个 revision。                   |
+
+现有修改 grant、Site／revision 检查、请求重放／冲突及有界 ledger 拥有准入和发布；结果丢失不能
+授权用新请求身份重放。所有可失败的排列／投影准备发生在权威提交前。排序保持 Workspace／Project
+成员关系、Directory 引用、终端绑定、worktree 关联和 Client 本地选中身份不变。新建 Workspace
+追加到显式顺序末尾；Close 移除已提交关闭的身份。检查点捕获／恢复保留并验证顺序。
+
+参考行为为 Herdr `e0507237` R020/R021：原始插入边界、按调用者顺序收集不连续块、原子验证和逻辑选择保留。
+原生公开操作为 `workspace move <target> --insert-index N` 及 `workspace move-block <targets...> [--before target]`。
+Windows CLI 与 TUI 消费该共享顺序，筛选列表保持对应子序列。通用 moved／reordered 事件交付属于
+独立事件流所有者，仍是明确的集成义务；排序回执不是事件送达证据。
+
+证据义务包括 Rust／TypeScript 共享排列及 delta 一致性，跨 Project 的索引／块／无变化／无效／重放／
+过期用例，新建／关闭／检查点延续，完整 Workspace 容量边界，每 Client 选择保留，以及真实 Windows
+列表／TUI／终端存活和重启。定向证据不证明完整对齐、Desktop UI 行为或其他平台交付。排序提交本身
+没有进程、Git 或文件系统效果。
+
 ## 已接受的规范 Tab 移动模型
 
 ### 插入边界扩展

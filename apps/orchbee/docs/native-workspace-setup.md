@@ -79,3 +79,9 @@ cleanup and attach ordering. Linux native process evidence starts with a fresh S
 configures a Workspace through visible native controls, explicitly launches in the chosen path,
 returns to the original standalone shell, and observes invalid-directory refusal without fallback.
 These are local development witnesses; they do not establish installed or cross-platform readiness.
+
+## Global Workspace ordering
+
+Windows `workspace move <target> --insert-index N` and `workspace move-block <targets...> [--before target]` resolve every exact ID, label or Workspace suffix against one snapshot, then submit once through the navigation authority. The global display order preserves Project/directory ownership, terminal identities and each Client selection. Indices are insertion boundaries in the original order; a block uses caller order and may cross Projects. The source block contains 1–1023 distinct resolved IDs. No-op preserves the revision.
+
+The navigation submission adapter accepts the dedicated reordered result only for these actions and validates its revision; incompatible or uncorrelated post-submission answers retire the session and report outcome unknown. CLI output uses `orchbee.workspace.move` v1 with a complete `workspaceOrder` on commit and an explicit unchanged outcome otherwise; refusals use its dedicated failure schema. Nothing replays or compensates automatically. Snapshot output advances to v5 for optional `navigation.workspaceOrder`; lists and native navigation consume the same order. Focused Windows acceptance covers cross-Project single/block moves, no-op and refusal invariants, two TUI Clients retaining selections and live shell PIDs, canonical keyboard navigation, creation/close order maintenance and clean-stop restart with working fresh shells. Full replacement acceptance remains separate.

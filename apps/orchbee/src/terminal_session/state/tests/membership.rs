@@ -5,6 +5,7 @@ use orchbee_workbench_protocol::{Project, WorkbenchProjectId, WorkbenchWorkspace
 fn removal_snapshot(tab_count: usize, revision: u64) -> Snapshot {
     Snapshot {
         navigation: Navigation {
+            workspace_order: Vec::new(),
             projects: Vec::new(),
             standalone_terminal_context_id: context_id(9),
         },

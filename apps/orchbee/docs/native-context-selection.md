@@ -9,7 +9,8 @@ location and selection. This reference governs the context-selection extension t
 navigation rendering and their correctness evidence.
 
 `Ctrl+B [` and `Ctrl+B ]` select the previous and next location in Server order: standalone,
-then each Project's Workspaces. Selection wraps at either boundary. Labels are presentation;
+then the canonical global Workspace display order. An absent/empty explicit order retains
+Project-major traversal; sorting never changes Project ownership. Selection wraps at either boundary. Labels are presentation;
 Project, Workspace and context IDs establish identity. Entering another location restores this
 Client's last selected Tab and Panel when those identities still belong there; otherwise it selects
 the first surviving member, or Empty when there are no Tabs. Empty can be

@@ -423,6 +423,7 @@ fn maximum_context_snapshot() -> Result<Snapshot, Box<dyn Error>> {
 
     Ok(Snapshot {
         navigation: Navigation {
+            workspace_order: Vec::new(),
             projects,
             standalone_terminal_context_id,
         },

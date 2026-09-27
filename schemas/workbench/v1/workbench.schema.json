@@ -255,6 +255,12 @@
 			"additionalProperties": false,
 			"required": ["projects", "standaloneTerminalContextId"],
 			"properties": {
+				"workspaceOrder": {
+					"type": "array",
+					"maxItems": 1023,
+					"uniqueItems": true,
+					"items": { "$ref": "#/$defs/workspaceId" }
+				},
 				"projects": {
 					"type": "array",
 					"maxItems": 256,

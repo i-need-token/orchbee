@@ -226,6 +226,8 @@ const FAMILY_VERBS: &[(&str, &[&str])] = &[
         "workspace",
         &[
             "accept-directory",
+            "move",
+            "move-block",
             "close",
             "close-resume",
             "close-status",
@@ -272,6 +274,7 @@ const BUSINESS_FLAGS: &[&str] = &[
     "--label",
     "--direction",
     "--insert-index",
+    "--before",
     "--cols",
     "--rows",
     "--cell-width",
@@ -610,6 +613,8 @@ const COMMAND_FLAGS: &[(&str, &[&str])] = &[
         ],
     ),
     ("workspace:rename", &["--label"]),
+    ("workspace:move", &["--insert-index"]),
+    ("workspace:move-block", &["--before"]),
     (
         "workspace:close",
         &[
@@ -959,6 +964,8 @@ const OPERAND_PATHS: &[&str] = &[
     "workspace:close",
     "workspace:get",
     "workspace:rename",
+    "workspace:move",
+    "workspace:move-block",
 ];
 
 /// Help topics that lead anywhere (`help <word>`); leaf topics accept no
@@ -1060,6 +1067,8 @@ const HELP_CHILDREN: &[(&str, &[&str])] = &[
         "workspace",
         &[
             "accept-directory",
+            "move",
+            "move-block",
             "close",
             "close-resume",
             "close-status",
@@ -1127,6 +1136,7 @@ fn flag_bit(flag: &str) -> &'static str {
         "--ansi" => "seen_ansi",
         "--direction" => "seen_direction",
         "--insert-index" => "seen_insert_index",
+        "--before" => "seen_before",
         "--amount" => "seen_amount",
         "--ratio" => "seen_ratio",
         "--cols" => "seen_cols",

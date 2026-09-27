@@ -1,0 +1,1092 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "orchbee.cli.failure.workspace-move",
+	"title": "orchbee Workspace ordering runtime failure",
+	"type": "object",
+	"required": ["schema", "version", "failure"],
+	"additionalProperties": false,
+	"properties": {
+		"schema": {
+			"const": "orchbee.cli.failure.workspace-move"
+		},
+		"version": {
+			"const": 1
+		},
+		"failure": {
+			"type": "object",
+			"required": ["kind"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": {
+					"enum": [
+						"ambiguous",
+						"cancelled",
+						"check-failed",
+						"denied",
+						"incompatible",
+						"internal-failure",
+						"invalid-identifier",
+						"invalid-usage",
+						"not-found",
+						"outcome-unknown",
+						"output-too-large",
+						"protocol-invalid",
+						"rejected",
+						"service-unavailable",
+						"session-capacity",
+						"timeout",
+						"transport-loss"
+					]
+				},
+				"details": {
+					"type": "object"
+				}
+			}
+		},
+		"source": {
+			"$ref": "#/$defs/source"
+		}
+	},
+	"allOf": [
+		{
+			"if": {
+				"properties": {
+					"failure": {
+						"properties": {
+							"kind": {
+								"const": "ambiguous"
+							}
+						},
+						"required": ["kind"]
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"failure": {
+						"required": ["details"],
+						"properties": {
+							"details": {
+								"$ref": "#/$defs/ambiguousDetails"
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"failure": {
+						"properties": {
+							"kind": {
+								"const": "check-failed"
+							}
+						},
+						"required": ["kind"]
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"failure": {
+						"required": ["details"],
+						"properties": {
+							"details": {
+								"oneOf": [
+									{
+										"$ref": "#/$defs/checkStageDetails"
+									},
+									{
+										"$ref": "#/$defs/platformDetails"
+									}
+								]
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"failure": {
+						"properties": {
+							"kind": {
+								"const": "service-unavailable"
+							}
+						},
+						"required": ["kind"]
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"failure": {
+						"required": ["details"],
+						"properties": {
+							"details": {
+								"oneOf": [
+									{
+										"$ref": "#/$defs/unavailableStageDetails"
+									},
+									{
+										"$ref": "#/$defs/commandUnavailableDetails"
+									},
+									{
+										"$ref": "#/$defs/historyReadUnavailableDetails"
+									},
+									{
+										"$ref": "#/$defs/waitOutputUnavailableDetails"
+									},
+									{
+										"$ref": "#/$defs/platformDetails"
+									},
+									{
+										"$ref": "#/$defs/cohortStageDetails"
+									},
+									{
+										"$ref": "#/$defs/socketBudgetDetails"
+									}
+								]
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"failure": {
+						"properties": {
+							"kind": {
+								"const": "transport-loss"
+							}
+						},
+						"required": ["kind"]
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"failure": {
+						"required": ["details"],
+						"properties": {
+							"details": {
+								"$ref": "#/$defs/transportStageDetails"
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"failure": {
+						"properties": {
+							"kind": {
+								"const": "incompatible"
+							}
+						},
+						"required": ["kind"]
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"failure": {
+						"required": ["details"],
+						"properties": {
+							"details": {
+								"oneOf": [
+									{
+										"$ref": "#/$defs/admissionDetails"
+									},
+									{
+										"$ref": "#/$defs/cohortStageDetails"
+									}
+								]
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"failure": {
+						"properties": {
+							"kind": {
+								"const": "session-capacity"
+							}
+						},
+						"required": ["kind"]
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"failure": {
+						"required": ["details"],
+						"properties": {
+							"details": {
+								"$ref": "#/$defs/admissionDetails"
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"failure": {
+						"properties": {
+							"kind": {
+								"const": "protocol-invalid"
+							}
+						},
+						"required": ["kind"]
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"failure": {
+						"required": ["details"],
+						"properties": {
+							"details": {
+								"oneOf": [
+									{
+										"$ref": "#/$defs/protocolStageDetails"
+									},
+									{
+										"$ref": "#/$defs/correlationDetails"
+									}
+								]
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"failure": {
+						"properties": {
+							"kind": {
+								"enum": ["invalid-identifier", "not-found"]
+							}
+						},
+						"required": ["kind"]
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"failure": {
+						"required": ["details"],
+						"properties": {
+							"details": {
+								"$ref": "#/$defs/identifierDetails"
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"failure": {
+						"properties": {
+							"kind": {
+								"const": "outcome-unknown"
+							}
+						},
+						"required": ["kind"]
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"failure": {
+						"required": ["details"],
+						"properties": {
+							"details": {
+								"$ref": "#/$defs/outcomeUnknownDetails"
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"failure": {
+						"properties": {
+							"kind": {
+								"const": "rejected"
+							}
+						},
+						"required": ["kind"]
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"failure": {
+						"required": ["details"],
+						"properties": {
+							"details": {
+								"oneOf": [
+									{
+										"$ref": "#/$defs/rejectedDetails"
+									},
+									{
+										"$ref": "#/$defs/historyReadRejectedDetails"
+									},
+									{
+										"$ref": "#/$defs/waitOutputRejectedDetails"
+									},
+									{
+										"$ref": "#/$defs/recoveryRequiredDetails"
+									}
+								]
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"failure": {
+						"properties": {
+							"kind": {
+								"const": "output-too-large"
+							}
+						},
+						"required": ["kind"]
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"failure": {
+						"required": ["details"],
+						"properties": {
+							"details": {
+								"$ref": "#/$defs/limitDetails"
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"failure": {
+						"properties": {
+							"kind": {
+								"const": "timeout"
+							}
+						},
+						"required": ["kind"]
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"failure": {
+						"required": ["details"],
+						"properties": {
+							"details": {
+								"oneOf": [
+									{
+										"$ref": "#/$defs/waitTimeoutDetails"
+									},
+									{
+										"$ref": "#/$defs/activationStageDetails"
+									},
+									{
+										"$ref": "#/$defs/cohortStageDetails"
+									}
+								]
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"failure": {
+						"properties": {
+							"kind": {
+								"const": "cancelled"
+							}
+						},
+						"required": ["kind"]
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"failure": {
+						"required": ["details"],
+						"properties": {
+							"details": {
+								"oneOf": [
+									{
+										"$ref": "#/$defs/waitCancelledDetails"
+									},
+									{
+										"$ref": "#/$defs/doctorStageDetails"
+									}
+								]
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"failure": {
+						"properties": {
+							"kind": {
+								"const": "denied"
+							}
+						},
+						"required": ["kind"]
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"failure": {
+						"properties": {
+							"details": {
+								"oneOf": [
+									{
+										"$ref": "#/$defs/cohortStageDetails"
+									}
+								]
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"failure": {
+						"properties": {
+							"kind": {
+								"const": "internal-failure"
+							}
+						},
+						"required": ["kind"]
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"failure": {
+						"properties": {
+							"details": {
+								"oneOf": [
+									{
+										"$ref": "#/$defs/activationStageDetails"
+									},
+									{
+										"$ref": "#/$defs/cohortStageDetails"
+									}
+								]
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"failure": {
+						"properties": {
+							"kind": {
+								"const": "invalid-usage"
+							}
+						},
+						"required": ["kind"]
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"failure": {
+						"not": {
+							"required": ["details"]
+						}
+					}
+				}
+			}
+		}
+	],
+	"$defs": {
+		"id": {
+			"type": "string",
+			"pattern": "^[0-9a-f]{32}$"
+		},
+		"resource": {
+			"enum": ["panel", "project", "schema", "tab", "terminal", "workspace"]
+		},
+		"ambiguityResource": {
+			"enum": ["panel", "project", "tab", "terminal", "workspace"]
+		},
+		"identifierDetails": {
+			"type": "object",
+			"required": ["resource", "target"],
+			"additionalProperties": false,
+			"properties": {
+				"resource": {
+					"$ref": "#/$defs/resource"
+				},
+				"target": {
+					"type": "string"
+				}
+			}
+		},
+		"ambiguousDetails": {
+			"type": "object",
+			"required": ["resource", "target", "candidates", "totalCount"],
+			"additionalProperties": false,
+			"properties": {
+				"resource": {
+					"$ref": "#/$defs/ambiguityResource"
+				},
+				"target": {
+					"type": "string"
+				},
+				"candidates": {
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/id"
+					},
+					"minItems": 2,
+					"maxItems": 8
+				},
+				"totalCount": {
+					"type": "integer",
+					"minimum": 2
+				}
+			}
+		},
+		"checkStageDetails": {
+			"type": "object",
+			"required": ["stage"],
+			"additionalProperties": false,
+			"properties": {
+				"stage": {
+					"enum": ["cohort", "runtime-base", "runtime-directory", "socket"]
+				}
+			}
+		},
+		"unavailableStageDetails": {
+			"type": "object",
+			"required": ["stage"],
+			"additionalProperties": false,
+			"properties": {
+				"stage": {
+					"enum": ["admission", "discovery", "launch-read", "snapshot", "viewer"]
+				},
+				"matchObserved": {
+					"const": true
+				},
+				"cleanup": {
+					"$ref": "#/$defs/cleanupState"
+				}
+			}
+		},
+		"commandUnavailableDetails": {
+			"type": "object",
+			"required": ["stage", "reason"],
+			"additionalProperties": false,
+			"properties": {
+				"stage": {
+					"const": "command"
+				},
+				"reason": {
+					"$ref": "#/$defs/unavailableReason"
+				}
+			}
+		},
+		"transportStageDetails": {
+			"type": "object",
+			"required": ["stage"],
+			"additionalProperties": false,
+			"properties": {
+				"stage": {
+					"enum": ["admission", "command", "launch-read", "send", "snapshot", "viewer"]
+				},
+				"matchObserved": {
+					"const": true
+				},
+				"cleanup": {
+					"$ref": "#/$defs/cleanupState"
+				}
+			}
+		},
+		"rejectedDetails": {
+			"type": "object",
+			"required": ["stage", "reason", "revision"],
+			"additionalProperties": false,
+			"properties": {
+				"stage": {
+					"const": "command"
+				},
+				"reason": {
+					"$ref": "#/$defs/rejectionReason"
+				},
+				"revision": {
+					"$ref": "#/$defs/revision"
+				}
+			}
+		},
+		"outcomeUnknownDetails": {
+			"type": "object",
+			"required": ["stage", "requestId", "reason"],
+			"additionalProperties": false,
+			"properties": {
+				"stage": {
+					"enum": ["command", "send"]
+				},
+				"requestId": {
+					"$ref": "#/$defs/id"
+				},
+				"reason": {
+					"$ref": "#/$defs/outcomeUnknownReason"
+				}
+			}
+		},
+		"historyReadRejectedDetails": {
+			"type": "object",
+			"required": ["stage", "operation", "reason"],
+			"additionalProperties": false,
+			"properties": {
+				"stage": {
+					"const": "viewer"
+				},
+				"operation": {
+					"const": "read-history"
+				},
+				"reason": {
+					"const": "limit-exceeded"
+				}
+			}
+		},
+		"historyReadUnavailableDetails": {
+			"type": "object",
+			"required": ["stage", "operation", "reason"],
+			"additionalProperties": false,
+			"properties": {
+				"stage": {
+					"const": "viewer"
+				},
+				"operation": {
+					"const": "read-history"
+				},
+				"reason": {
+					"enum": [
+						"history-evicted",
+						"invalid-phase",
+						"missing-resource",
+						"resource-exhausted",
+						"stale-generation",
+						"stale-revision"
+					]
+				}
+			}
+		},
+		"waitOutputRejectedDetails": {
+			"type": "object",
+			"required": ["stage", "operation", "reason"],
+			"additionalProperties": false,
+			"properties": {
+				"stage": {
+					"const": "viewer"
+				},
+				"operation": {
+					"const": "wait-output"
+				},
+				"reason": {
+					"const": "limit-exceeded"
+				},
+				"matchObserved": {
+					"const": true
+				},
+				"cleanup": {
+					"$ref": "#/$defs/cleanupState"
+				}
+			}
+		},
+		"waitOutputUnavailableDetails": {
+			"type": "object",
+			"required": ["stage", "operation", "reason"],
+			"additionalProperties": false,
+			"properties": {
+				"stage": {
+					"const": "viewer"
+				},
+				"operation": {
+					"const": "wait-output"
+				},
+				"reason": {
+					"enum": [
+						"history-evicted",
+						"invalid-phase",
+						"missing-resource",
+						"resource-exhausted",
+						"stale-generation",
+						"stale-revision"
+					]
+				},
+				"matchObserved": {
+					"const": true
+				},
+				"cleanup": {
+					"$ref": "#/$defs/cleanupState"
+				}
+			}
+		},
+		"cleanupState": {
+			"enum": ["confirmed", "requested", "unconfirmed"]
+		},
+		"waitTimeoutDetails": {
+			"type": "object",
+			"required": ["stage", "timeoutMs", "observed"],
+			"additionalProperties": false,
+			"properties": {
+				"stage": {
+					"const": "wait"
+				},
+				"timeoutMs": {
+					"type": "integer",
+					"minimum": 1,
+					"maximum": 3600000
+				},
+				"observed": {
+					"type": "object",
+					"required": ["completedObservations"],
+					"additionalProperties": false,
+					"properties": {
+						"completedObservations": {
+							"type": "integer",
+							"minimum": 0
+						}
+					}
+				},
+				"matchObserved": {
+					"const": true
+				},
+				"cleanup": {
+					"$ref": "#/$defs/cleanupState"
+				}
+			}
+		},
+		"waitCancelledDetails": {
+			"type": "object",
+			"required": ["stage"],
+			"additionalProperties": false,
+			"properties": {
+				"stage": {
+					"const": "wait"
+				},
+				"matchObserved": {
+					"const": true
+				},
+				"cleanup": {
+					"$ref": "#/$defs/cleanupState"
+				}
+			}
+		},
+		"doctorStageDetails": {
+			"type": "object",
+			"required": ["stage"],
+			"additionalProperties": false,
+			"properties": {
+				"stage": {
+					"const": "agent-doctor"
+				}
+			}
+		},
+		"unavailableReason": {
+			"enum": [
+				"directory-unavailable",
+				"no-compatible-worker",
+				"request-ledger-full",
+				"server-busy",
+				"service-unavailable",
+				"terminal-busy",
+				"terminal-runtime-unavailable"
+			]
+		},
+		"rejectionReason": {
+			"enum": [
+				"identity-exhausted",
+				"panel-unavailable",
+				"project-unavailable",
+				"request-identity-conflict",
+				"resource-limit",
+				"revision-exhausted",
+				"revision-mismatch",
+				"site-mismatch",
+				"tab-unavailable",
+				"terminal-context-unavailable",
+				"workspace-directory-conflict",
+				"workspace-directory-unavailable",
+				"workspace-unavailable",
+				"tab-move-index-out-of-bounds",
+				"workspace-move-index-out-of-bounds",
+				"workspace-move-target-in-block",
+				"duplicate-workspace"
+			]
+		},
+		"outcomeUnknownReason": {
+			"enum": [
+				"action-incompatible",
+				"correlation-mismatch",
+				"response-invalid",
+				"response-loss",
+				"validation-failed",
+				"write-failure"
+			]
+		},
+		"admissionDetails": {
+			"type": "object",
+			"required": ["stage"],
+			"additionalProperties": false,
+			"properties": {
+				"stage": {
+					"const": "admission"
+				}
+			}
+		},
+		"protocolStageDetails": {
+			"type": "object",
+			"required": ["stage"],
+			"additionalProperties": false,
+			"properties": {
+				"stage": {
+					"enum": ["admission", "launch-read", "snapshot", "viewer"]
+				},
+				"matchObserved": {
+					"const": true
+				},
+				"cleanup": {
+					"$ref": "#/$defs/cleanupState"
+				}
+			}
+		},
+		"correlationDetails": {
+			"type": "object",
+			"required": ["stage", "reason"],
+			"additionalProperties": false,
+			"properties": {
+				"stage": {
+					"enum": ["launch-read", "snapshot", "viewer"]
+				},
+				"reason": {
+					"const": "correlation-mismatch"
+				},
+				"matchObserved": {
+					"const": true
+				},
+				"cleanup": {
+					"$ref": "#/$defs/cleanupState"
+				}
+			}
+		},
+		"revision": {
+			"type": "string",
+			"pattern": "^(0|[1-9][0-9]*)$"
+		},
+		"platformDetails": {
+			"type": "object",
+			"required": ["stage", "reason"],
+			"additionalProperties": false,
+			"properties": {
+				"stage": {
+					"const": "platform"
+				},
+				"reason": {
+					"const": "unsupported-platform"
+				},
+				"command": {
+					"enum": ["agent doctor", "config check"]
+				}
+			}
+		},
+		"limitDetails": {
+			"type": "object",
+			"required": ["limitBytes"],
+			"additionalProperties": false,
+			"properties": {
+				"limitBytes": {
+					"const": 8388608
+				}
+			}
+		},
+		"activationStageDetails": {
+			"type": "object",
+			"required": ["stage"],
+			"additionalProperties": false,
+			"properties": {
+				"stage": {
+					"const": "activation"
+				}
+			}
+		},
+		"cohortStageDetails": {
+			"type": "object",
+			"required": ["stage"],
+			"additionalProperties": false,
+			"properties": {
+				"stage": {
+					"const": "cohort"
+				}
+			}
+		},
+		"recoveryRequiredDetails": {
+			"type": "object",
+			"required": ["stage", "reason"],
+			"additionalProperties": false,
+			"properties": {
+				"stage": {
+					"const": "activation"
+				},
+				"reason": {
+					"const": "recovery-required"
+				}
+			}
+		},
+		"socketBudgetDetails": {
+			"type": "object",
+			"required": ["stage", "reason"],
+			"additionalProperties": false,
+			"properties": {
+				"stage": {
+					"const": "runtime-directory"
+				},
+				"reason": {
+					"const": "address-too-long"
+				}
+			}
+		},
+		"source": {
+			"oneOf": [
+				{
+					"type": "object",
+					"required": ["kind", "siteId", "revision"],
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "workbench-snapshot"
+						},
+						"siteId": {
+							"$ref": "#/$defs/id"
+						},
+						"revision": {
+							"$ref": "#/$defs/revision"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"required": ["kind", "siteId", "revision"],
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "terminal-launch-read"
+						},
+						"siteId": {
+							"$ref": "#/$defs/id"
+						},
+						"revision": {
+							"$ref": "#/$defs/revision"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"required": ["kind", "siteId", "requestId", "snapshotRevision"],
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "terminal.send"
+						},
+						"siteId": {
+							"$ref": "#/$defs/id"
+						},
+						"requestId": {
+							"$ref": "#/$defs/id"
+						},
+						"snapshotRevision": {
+							"$ref": "#/$defs/revision"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"required": ["kind", "siteId", "requestId", "expectedRevision"],
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "workbench-command"
+						},
+						"siteId": {
+							"$ref": "#/$defs/id"
+						},
+						"requestId": {
+							"$ref": "#/$defs/id"
+						},
+						"expectedRevision": {
+							"$ref": "#/$defs/revision"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"required": ["kind"],
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "embedded"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"required": ["kind"],
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "local-runtime"
+						}
+					}
+				}
+			]
+		}
+	}
+}

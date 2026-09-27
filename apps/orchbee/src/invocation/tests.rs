@@ -7655,3 +7655,59 @@ fn workspace_creation_defaults_are_accepted_with_and_without_site_selection() {
         assert_eq!(selected.site.unwrap().as_str(), "work");
     }
 }
+
+#[test]
+fn workspace_move_grammar_covers_boundaries_blocks_and_scope() {
+    for value in ["0", "1", "1023", "002"] {
+        assert_eq!(
+            parse(&["workspace", "move", ID, "--insert-index", value]),
+            Ok(mutation(
+                MutationCommand::WorkspaceMove {
+                    target: Target::Id(ID.into()),
+                    insert_index: orchbee_workbench_protocol::WorkbenchWorkspaceInsertIndex::new(
+                        value.parse().unwrap()
+                    )
+                    .unwrap()
+                },
+                OutputFormat::Text
+            ))
+        );
+    }
+    assert_eq!(
+        parse(&["--before=third", "workspace", "move-block", "second", ID]),
+        Ok(mutation(
+            MutationCommand::WorkspaceMoveBlock {
+                targets: vec![Target::Label("second".into()), Target::Id(ID.into())],
+                before: Some(Target::Label("third".into()))
+            },
+            OutputFormat::Text
+        ))
+    );
+    for value in ["-1", "1024", "1.5", "+1", "1e1", ""] {
+        assert!(
+            parse(&["workspace", "move", ID, "--insert-index", value]).is_err(),
+            "{value}"
+        );
+    }
+    for args in [
+        vec!["workspace", "move", ID],
+        vec![
+            "workspace",
+            "move",
+            ID,
+            "--insert-index=1",
+            "--before=other",
+        ],
+        vec!["workspace", "move-block"],
+        vec!["workspace", "move-block", ID, "--insert-index=1"],
+        vec!["workspace", "move-block", ID, "--before=a", "--before=b"],
+        vec!["workspace", "list", "--before=a"],
+    ] {
+        assert!(parse(&args).is_err(), "{args:?}");
+    }
+    let mut maximum = vec!["workspace", "move-block"];
+    maximum.extend(std::iter::repeat_n(ID, 1023));
+    assert!(parse(&maximum).is_ok());
+    maximum.push(ID);
+    assert!(parse(&maximum).is_err());
+}

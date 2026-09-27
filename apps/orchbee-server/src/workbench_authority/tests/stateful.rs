@@ -418,6 +418,12 @@ fn run(steps: &[Step]) -> Result<(), String> {
                 | WorkbenchAction::WorkspaceClose { .. } => {
                     return Err("pure trace generated lifecycle close".to_owned());
                 }
+                WorkbenchAction::WorkspaceMove { .. }
+                | WorkbenchAction::WorkspaceMoveBlock { .. } => {
+                    return Err(
+                        "workspace order belongs to the dedicated ordering trace".to_owned()
+                    );
+                }
                 WorkbenchAction::TabMove { .. }
                 | WorkbenchAction::TabMoveIndex { .. }
                 | WorkbenchAction::PanelMove { .. }

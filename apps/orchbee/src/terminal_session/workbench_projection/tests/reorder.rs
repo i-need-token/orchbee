@@ -157,3 +157,45 @@ fn reordered_members_still_reject_every_immutable_change_and_duplicate_identity(
         Err(NativeProjectionDivergence)
     );
 }
+
+#[test]
+fn workspace_order_changes_navigation_without_changing_selected_context() {
+    let mut source = snapshot(1, 10);
+    for value in [201, 211] {
+        source.navigation.projects.push(Project {
+            project_id: WorkbenchProjectId::parse(&format!("{value:032x}")).unwrap(),
+            label: format!("project {value}"),
+            directories: Vec::new(),
+            workspaces: vec![Workspace {
+                workspace_id: WorkbenchWorkspaceId::parse(&format!("{:032x}", value + 1)).unwrap(),
+                label: format!("workspace {value}"),
+                primary_directory_id: None,
+                terminal_context_id: context_id(value + 2),
+            }],
+        });
+        source
+            .terminal_contexts
+            .push(terminal_context(value + 2, 0));
+    }
+    let old = project_native_standalone_tabs(&source).unwrap();
+    let selected = old.navigation[1].location.clone();
+    let before = project_native_context_tabs(&source, &selected).unwrap();
+    source.navigation.workspace_order = source
+        .navigation
+        .projects
+        .iter()
+        .rev()
+        .map(|p| p.workspaces[0].workspace_id.clone())
+        .collect();
+    source.revision = WorkbenchRevision::new(11);
+    let after = project_native_context_tabs(&source, &selected).unwrap();
+    assert_eq!(after.location, before.location);
+    assert_eq!(after.navigation[1].location, old.navigation[2].location);
+    assert_eq!(after.navigation[2].location, selected);
+    assert_eq!(after.projects, before.projects);
+    assert_eq!(after.tabs, before.tabs);
+    assert_eq!(
+        validate_canonical_refresh(&before, after.clone()),
+        Ok(after)
+    );
+}

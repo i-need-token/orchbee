@@ -68,3 +68,9 @@ decoder 义务。
 及 attach 的顺序。Linux 原生进程证据从全新 Site 开始，经可见原生控制创建并配置 Workspace，
 显式在所选路径启动终端、返回原 standalone shell，并观察无效目录拒绝且不回退。这些是本地
 开发见证，不证明安装后或跨平台就绪。
+
+## 全局 Workspace 排序
+
+Windows 的 `workspace move <target> --insert-index N` 和 `workspace move-block <targets...> [--before target]` 在同一快照中解析全部精确 ID、标签或 Workspace 后缀，再通过导航权威提交一次。全局显示顺序保留 Project／目录归属、终端身份及各 Client 的选择。索引是原顺序的插入边界；块按调用者顺序移动，允许跨 Project，来源包含 1–1023 个不同的已解析 ID。无变化时保留修订。
+
+导航提交适配器只为这些动作接受专用重排结果，并校验修订；提交后不兼容或关联不符的响应会释放会话并报告结果未知。CLI 输出使用 `orchbee.workspace.move` v1，已提交结果携带完整 `workspaceOrder`，否则明确返回 unchanged；拒绝使用专用失败 schema。没有自动重放或补偿。快照输出为可选 `navigation.workspaceOrder` 升至 v5，列表及原生导航读取同一顺序。Windows 定向验收覆盖跨 Project 单项／块移动、无变化和拒绝不变量、两个 TUI Client 保留选择及存活 shell PID、canonical 键盘导航、创建／关闭的顺序维护，以及正常停止后恢复排序并运行新 shell。完整替换验收仍独立保留。

@@ -94,11 +94,33 @@ pub(super) fn classify_outcome(
                 unchanged,
             }
         }
+        (
+            WorkbenchAction::WorkspaceMove { .. } | WorkbenchAction::WorkspaceMoveBlock { .. },
+            WorkbenchCommandOutcome::WorkspacesReordered {
+                revision,
+                workspace_order,
+            },
+        ) if ordering_outcome_matches(action, &workspace_order) => {
+            WorkbenchSetupCommit::WorkspaceOrder {
+                revision,
+                workspace_order: Some(workspace_order),
+            }
+        }
+        (
+            WorkbenchAction::WorkspaceMove { .. } | WorkbenchAction::WorkspaceMoveBlock { .. },
+            WorkbenchCommandOutcome::Unchanged { revision },
+        ) => WorkbenchSetupCommit::WorkspaceOrder {
+            revision,
+            workspace_order: None,
+        },
         _ => return Err(WorkbenchSetupOutcomeUnknownReason::ActionIncompatible),
     };
     let unchanged = matches!(
         commit,
-        WorkbenchSetupCommit::ProjectRenamed {
+        WorkbenchSetupCommit::WorkspaceOrder {
+            workspace_order: None,
+            ..
+        } | WorkbenchSetupCommit::ProjectRenamed {
             unchanged: true,
             ..
         } | WorkbenchSetupCommit::WorkspaceRenamed {
@@ -122,6 +144,45 @@ pub(super) fn classify_outcome(
     Ok(WorkbenchSetupSubmission::Committed(commit))
 }
 
+fn ordering_outcome_matches(
+    action: &WorkbenchAction,
+    order: &orchbee_workbench_protocol::WorkbenchWorkspaceList,
+) -> bool {
+    let ids = order.ids();
+    match action {
+        WorkbenchAction::WorkspaceMove {
+            workspace_id,
+            insert_index,
+        } => {
+            let boundary = insert_index.value();
+            boundary <= ids.len()
+                && ids
+                    .iter()
+                    .position(|id| id == workspace_id)
+                    .is_some_and(|position| {
+                        position == boundary || position.checked_add(1) == Some(boundary)
+                    })
+        }
+        WorkbenchAction::WorkspaceMoveBlock {
+            workspace_ids,
+            before_workspace_id,
+        } => {
+            let Some(start) = ids
+                .windows(workspace_ids.ids().len())
+                .position(|window| window == workspace_ids.ids())
+            else {
+                return false;
+            };
+            let end = start + workspace_ids.ids().len();
+            match before_workspace_id {
+                Some(before) => ids.get(end) == Some(before),
+                None => end == ids.len(),
+            }
+        }
+        _ => false,
+    }
+}
+
 fn compatible_rejection(action: &WorkbenchAction, reason: WorkbenchRejectionReason) -> bool {
     match reason {
         WorkbenchRejectionReason::SiteMismatch
@@ -142,9 +203,17 @@ fn compatible_rejection(action: &WorkbenchAction, reason: WorkbenchRejectionReas
                 | WorkbenchAction::WorkspaceRename { .. }
                 | WorkbenchAction::WorkspacePrimaryDirectoryAccept { .. }
         ),
+        WorkbenchRejectionReason::WorkspaceMoveIndexOutOfBounds => {
+            matches!(action, WorkbenchAction::WorkspaceMove { .. })
+        }
+        WorkbenchRejectionReason::WorkspaceMoveTargetInBlock => {
+            matches!(action, WorkbenchAction::WorkspaceMoveBlock { .. })
+        }
         WorkbenchRejectionReason::WorkspaceUnavailable => matches!(
             action,
             WorkbenchAction::WorkspaceRename { .. }
+                | WorkbenchAction::WorkspaceMove { .. }
+                | WorkbenchAction::WorkspaceMoveBlock { .. }
                 | WorkbenchAction::WorkspacePrimaryDirectoryAccept { .. }
         ),
         WorkbenchRejectionReason::WorkspaceDirectoryConflict => matches!(

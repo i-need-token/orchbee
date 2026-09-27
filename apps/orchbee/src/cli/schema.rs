@@ -29,6 +29,8 @@ pub(crate) const LAUNCH_PROFILE_FAILURE_ID: &str = "orchbee.cli.failure.launch-p
 pub(crate) const CLOSE_FAILURE_ID: &str = "orchbee.cli.failure.close";
 pub(crate) const MUTATION_RESULT_ID: &str = "orchbee.mutation.result";
 pub(crate) const PANEL_RENAME_RESULT_ID: &str = "orchbee.panel.rename";
+pub(crate) const WORKSPACE_MOVE_RESULT_ID: &str = "orchbee.workspace.move";
+pub(crate) const WORKSPACE_MOVE_FAILURE_ID: &str = "orchbee.cli.failure.workspace-move";
 pub(crate) const TAB_MOVE_RESULT_ID: &str = "orchbee.tab.move";
 pub(crate) const TAB_MOVE_FAILURE_ID: &str = "orchbee.cli.failure.tab-move";
 pub(crate) const PANEL_INPUT_RESULT_ID: &str = "orchbee.panel.input";
@@ -36,6 +38,14 @@ pub(crate) const PROJECT_RENAME_RESULT_ID: &str = "orchbee.project.rename";
 
 /// `schema` id → embedded document, in dictionary order.
 const DOCUMENTS: &[(&str, &str)] = &[
+    (
+        WORKSPACE_MOVE_RESULT_ID,
+        include_str!("schemas/orchbee.workspace.move.json"),
+    ),
+    (
+        WORKSPACE_MOVE_FAILURE_ID,
+        include_str!("schemas/orchbee.cli.failure.workspace-move.json"),
+    ),
     (
         "orchbee.session.list",
         include_str!("schemas/orchbee.session.list.json"),
@@ -413,7 +423,7 @@ pub(crate) fn answer(schema_id: Option<&str>, format: OutputFormat, locale: Loca
     let document = json!({
         "schema": "orchbee.api.schema",
         // Workspace creation and optional first-Project receipts share this closed catalog.
-        "version": 69,
+        "version": 70,
         "source": embedded_source(),
         "result": result,
     });

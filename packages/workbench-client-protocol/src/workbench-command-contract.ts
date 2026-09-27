@@ -73,6 +73,14 @@ import {
 	WorkerIdSchema,
 } from './workbench-semantic-contract';
 
+const WORKBENCH_MAXIMUM_ENCODED_WORKSPACE_ORDER_BYTES = 48 * 1024;
+const WorkbenchWorkspaceListSchema = z
+	.array(WorkbenchWorkspaceIdSchema)
+	.min(1)
+	.max(1023)
+	.refine((ids) => new Set(ids).size === ids.length, 'Workspace IDs must be unique')
+	.readonly();
+
 export const WORKBENCH_MAXIMUM_ENCODED_SNAPSHOT_RESULT_BYTES =
 	WORKBENCH_MAXIMUM_ENCODED_PROJECTION_BYTES + 1024;
 export const WORKBENCH_MAXIMUM_RESULT_PUBLICATIONS = 64;
@@ -109,6 +117,22 @@ export const WorkbenchActionSchema = z.discriminatedUnion('kind', [
 			projectId: WorkbenchProjectIdSchema,
 			workspaceId: WorkbenchWorkspaceIdSchema,
 			label: WorkbenchLabelSchema,
+		})
+		.readonly(),
+	z
+		.strictObject({
+			kind: z.literal('workspace.move'),
+			workspaceId: WorkbenchWorkspaceIdSchema,
+			insertIndex: z.number().int().min(0).max(1023),
+		})
+		.readonly(),
+	z
+		.strictObject({
+			kind: z.literal('workspace.move-block'),
+			workspaceIds: WorkbenchWorkspaceListSchema,
+			beforeWorkspaceId: WorkbenchWorkspaceIdSchema.nullish().transform(
+				(value) => value ?? undefined,
+			),
 		})
 		.readonly(),
 	z
@@ -290,6 +314,8 @@ export const WorkbenchRequestSchema = z
 			value.action.completion?.outcome.kind === 'layout-read'
 		)
 			maximum = WORKBENCH_MAXIMUM_ENCODED_CLIENT_LAYOUT_BYTES;
+		if (value.kind === 'workbench.command' && value.action.kind === 'workspace.move-block')
+			maximum = WORKBENCH_MAXIMUM_ENCODED_WORKSPACE_ORDER_BYTES;
 		return encodedBytes(value) <= maximum;
 	}, 'Workbench request exceeds its encoded limit');
 
@@ -304,6 +330,8 @@ export const WorkbenchRejectionReasonSchema = z.enum([
 	'terminal-context-unavailable',
 	'tab-unavailable',
 	'tab-move-index-out-of-bounds',
+	'workspace-move-index-out-of-bounds',
+	'workspace-move-target-in-block',
 	'panel-unavailable',
 	'panel-not-leaf',
 	'last-panel-in-tab',
@@ -367,6 +395,13 @@ export const WorkbenchCommandOutcomeSchema = z.discriminatedUnion('kind', [
 		.strictObject({ kind: z.literal('panel-input-configured'), revision: WorkbenchRevisionSchema })
 		.readonly(),
 	z.strictObject({ kind: z.literal('unchanged'), revision: WorkbenchRevisionSchema }).readonly(),
+	z
+		.strictObject({
+			kind: z.literal('workspaces-reordered'),
+			revision: WorkbenchRevisionSchema,
+			workspaceOrder: WorkbenchWorkspaceListSchema,
+		})
+		.readonly(),
 	z
 		.strictObject({
 			kind: z.literal('tab-moved'),
@@ -597,6 +632,8 @@ export const WorkbenchResponseSchema = z
 			maximum = WORKBENCH_MAXIMUM_ENCODED_WORKSPACE_CLOSE_READ_RESULT_BYTES;
 		}
 
+		if (value.kind === 'workbench.command.result' && value.outcome.kind === 'workspaces-reordered')
+			maximum = WORKBENCH_MAXIMUM_ENCODED_WORKSPACE_ORDER_BYTES;
 		if (encodedBytes(value) > maximum)
 			context.addIssue({ code: 'custom', message: 'Workbench result exceeds its encoded limit' });
 		if (
