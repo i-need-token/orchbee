@@ -9,12 +9,19 @@ Panel's current primary terminal. Select an exact Panel ID or `@panel:<suffix>`.
 owns binding lifetime, source ordering, guards and expiry.
 
 The parser validates the entire report before connection. Source uses 1–80 ASCII letters,
-digits, `:._-`; text strips control characters, trims and retains at most 80 Unicode scalars.
+digits, `:._-`; display text strips control characters, trims and retains at most 80 Unicode scalars.
 An empty token value removes its key; empty optional presentation text is omitted. State labels
 require nonempty normalized text. Repeated state/token options use the last value. At least one
 presentation set/clear or token change is required. Setting and clearing the same field fails, including explicitly supplied empty text.
 Pure presentation sets replace the source record; including any presentation clear changes to
 selective patch semantics. Optional Agent/source guards filter display; they confer no authority.
+An explicitly supplied `--agent` must be nonempty after trimming. Recognized report aliases and
+executable paths normalize to the report label (`claude`, `agy`, `copilot`, `qwen`, for example);
+unknown labels retain their trimmed case and content. The Agent guard is never truncated or
+stripped of internal controls: values outside the current 80-scalar, control-free wire contract
+fail before connection. This bound on custom labels remains a difference from Herdr's report
+input and a dependency of complete Agent report support. Native process provider IDs keep their
+separate recognition contract.
 
 One existing-Site admission and snapshot share a cancellable five-second deadline. Resolve the
 primary binding once and include it as `expectedBinding`; the Server rejects a changed binding.

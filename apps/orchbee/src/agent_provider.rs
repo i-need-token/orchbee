@@ -29,7 +29,11 @@ pub(crate) const CANONICAL_IDS: &[&str] = &[
 
 pub(crate) fn provider(label: &str) -> Option<&'static str> {
     let name = basename(label);
-    match name.as_str() {
+    lookup(&name)
+}
+
+fn lookup(name: &str) -> Option<&'static str> {
+    match name {
         "pi" => Some("pi"),
         "claude" | "claude-code" => Some("claude-code"),
         "codex" => Some("codex"),
@@ -65,6 +69,36 @@ pub(crate) fn provider(label: &str) -> Option<&'static str> {
     }
 }
 
+/// Normalize a reported identity without converting custom labels into display text.
+/// Report labels and native provider IDs have deliberately different canonical forms.
+pub(crate) fn reported_label(label: &str) -> Option<String> {
+    let label = label.trim();
+    if label.is_empty() {
+        return None;
+    }
+    let mut name = label.to_lowercase();
+    for suffix in [".exe", ".cmd", ".bat", ".ps1", ".js"] {
+        if let Some(stem) = name.strip_suffix(suffix) {
+            name = stem.to_owned();
+            break;
+        }
+    }
+    let name = name
+        .rsplit(['/', '\\'])
+        .find(|component| !component.is_empty())
+        .unwrap_or(&name);
+    // `agent` is Cursor's native executable, but is an unspecified custom report identity.
+    let recognized = (name != "agent").then(|| lookup(name)).flatten();
+    Some(match recognized {
+        Some("claude-code") => "claude".to_owned(),
+        Some("antigravity") => "agy".to_owned(),
+        Some("github-copilot") => "copilot".to_owned(),
+        Some("qwen-code") => "qwen".to_owned(),
+        Some(id) => id.to_owned(),
+        None => label.to_owned(),
+    })
+}
+
 pub(crate) fn basename(path: &str) -> String {
     let value = path
         .rsplit(['/', '\\'])
@@ -92,4 +126,44 @@ pub(crate) fn executable(canonical: &str) -> Option<&'static str> {
         "qwen-code" => "qwen",
         _ => id,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn reported_identities_preserve_custom_labels_and_use_report_alias_rules() {
+        for (input, expected) in [
+            (" CLAUDE-Code.EXE ", "claude"),
+            (r"C:\tools\GitHub-Copilot.CMD", "copilot"),
+            ("/tools/Qwen Code.bat", "qwen"),
+            ("Antigravity-CLI.ps1", "agy"),
+            ("cursor-agent.js", "cursor"),
+            ("muse-bin-1.2.3.exe", "muse"),
+            ("/tools/codex/", "codex"),
+            ("codex.exe/", "codex.exe/"),
+            ("agent", "agent"),
+            ("codex.mjs", "codex.mjs"),
+            ("codex.com", "codex.com"),
+            (" 团队 Agent ", "团队 Agent"),
+            (r" C:\Unknown\Tool.EXE ", r"C:\Unknown\Tool.EXE"),
+            ("foo\tbar", "foo\tbar"),
+        ] {
+            assert_eq!(
+                reported_label(input).as_deref(),
+                Some(expected),
+                "{input:?}"
+            );
+        }
+        for id in CANONICAL_IDS {
+            assert!(reported_label(id).is_some());
+        }
+        assert_eq!(reported_label(" \t\n"), None);
+        assert_eq!(reported_label(""), None);
+        assert_eq!(provider("agent"), Some("cursor"));
+        assert_eq!(provider("codex.mjs"), Some("codex"));
+        assert_eq!(provider("codex.com"), Some("codex"));
+        assert_eq!(provider("codex.bat"), None);
+    }
 }

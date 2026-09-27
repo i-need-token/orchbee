@@ -1313,6 +1313,7 @@ pub(crate) enum UsageContext {
 /// expect; rendered per locale, never serialized.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum ExpectedValue {
+    MetadataAgent,
     MetadataStateLabel,
     MetadataPresentation,
     MetadataSource,

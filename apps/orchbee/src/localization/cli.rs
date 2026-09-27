@@ -641,6 +641,12 @@ impl Locale {
             UsageContext::Root | UsageContext::Literal(_) => "orchbee --help".to_owned(),
         };
         let expected = |expected: ExpectedValue| match (self, expected) {
+            (Self::EnUs, ExpectedValue::MetadataAgent) => {
+                "a nonempty Agent label, at most 80 Unicode scalars without control characters"
+            }
+            (Self::ZhCn, ExpectedValue::MetadataAgent) => {
+                "非空 Agent 标签，至多 80 个 Unicode 标量且不含控制字符"
+            }
             (Self::EnUs, ExpectedValue::MetadataStateLabel) => {
                 "STATE=TEXT with nonempty text; state is idle, working, blocked, done or unknown"
             }

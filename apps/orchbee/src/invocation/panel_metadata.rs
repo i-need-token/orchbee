@@ -81,7 +81,15 @@ pub(super) fn parse(
     let normalize =
         |value: &Option<String>| value.as_deref().and_then(MetadataTokenValue::normalize);
     let mut patch = PanelMetadataPatch {
-        agent: normalize(&fields.agent),
+        agent: fields
+            .agent
+            .as_deref()
+            .map(|value| {
+                crate::agent_provider::reported_label(value)
+                    .and_then(|label| MetadataTokenValue::parse(&label).ok())
+                    .ok_or_else(|| invalid("--agent", value, ExpectedValue::MetadataAgent))
+            })
+            .transpose()?,
         applies_to_source: fields
             .applies_to_source
             .as_deref()
@@ -141,6 +149,43 @@ mod tests {
     fn parse_args(args: &[&str]) -> Result<Request, ParseFailure> {
         super::super::parse_request(args.iter().map(std::ffi::OsString::from))
     }
+    #[test]
+    fn agent_guard_is_normalized_losslessly_or_rejected_before_admission() {
+        let report = |agent: &str| {
+            parse_args(&[
+                "panel",
+                "report-metadata",
+                "@panel:abc",
+                "--source=hook",
+                "--title=x",
+                "--agent",
+                agent,
+            ])
+        };
+        for (raw, expected) in [
+            (" CLAUDE-Code.exe ", "claude"),
+            ("自定义 Agent", "自定义 Agent"),
+        ] {
+            let Request::PanelMetadata { command, .. } = report(raw).unwrap() else {
+                panic!("report")
+            };
+            assert_eq!(command.patch.agent.unwrap().as_str(), expected);
+        }
+        let boundary = "界".repeat(80);
+        let Request::PanelMetadata { command, .. } = report(&boundary).unwrap() else {
+            panic!("report")
+        };
+        assert_eq!(command.patch.agent.unwrap().as_str(), boundary);
+        for raw in [
+            "".to_owned(),
+            " \t".to_owned(),
+            "foo\tbar".to_owned(),
+            "界".repeat(81),
+        ] {
+            assert!(report(&raw).is_err(), "{raw:?}");
+        }
+    }
+
     #[test]
     fn whole_report_normalization_and_conflicts_precede_effects() {
         let Request::PanelMetadata { command, .. } = parse_args(&[
