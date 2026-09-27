@@ -12,6 +12,15 @@ diagnostic facts, never an operation grant or proof of future availability. The
 the [local Client protocol](../../crates/local-client-protocol/README.md) owns framing. Only Windows
 dispatches this new read; old admission and Linux/macOS runtime behavior remain unchanged.
 
+## Durable Windows session lifecycle
+
+For native default/named scopes, the CLI activation owner publishes an exact private Active catalog record before the managed
+Server starts. Before Worker effects, the Server admits and retains this record alongside its
+checkpoint store and lifetime owner. After confirmed child exit and listener cleanup, shutdown
+publishes durable Stopped before completing the runtime activation record. A publication failure
+leaves recovery uncertainty and never grants a successful clean-stop receipt. The runtime crate
+owns catalog encoding, path admission and replacement; the Server owns when shutdown is proven.
+
 ## Managed Windows Site shutdown
 
 One stop identity owns the remaining managed Server lifetime. Accepting it atomically closes new
@@ -28,7 +37,7 @@ Agent observation and Client listeners, waking and joining retained Client handl
 the stopped activation record. An activation guard excludes concurrent restart during publication
 and lifetime-lock release. Pipe absence or lost replies cannot prove completion. Failed attempts
 remain queryable while the control listener survives; after listener closure, the strict activation
-record is the only positive receipt. No process discovery, adoption, path removal or platform stop
+record remains a positive receipt. No process discovery, adoption, path removal or platform stop
 implementation for Linux/macOS is part of this owner.
 
 Experimental, unshipped private Rust Server application. It owns the in-memory Workbench

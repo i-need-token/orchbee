@@ -101,7 +101,7 @@ fn delete(
         let local_app_data = std::env::var_os("LOCALAPPDATA")
             .map(PathBuf::from)
             .ok_or_else(|| Failure::new(FailureKind::CheckFailed))?;
-        let catalog = Catalog::try_lock(&base).map_err(local_error)?;
+        let catalog = Catalog::try_lock(&base, &local_app_data).map_err(local_error)?;
         Ok::<_, Failure>(catalog.delete(name, &local_app_data, deadline, || {
             signals.take().map(|signal| signal.is_some())
         }))
@@ -155,7 +155,10 @@ fn list(format: OutputFormat, locale: Locale) -> Output {
     };
     let collected = (|| {
         let (base, _) = crate::local_activation::runtime_location().map_err(local_error)?;
-        let entries = Catalog::list(&base, deadline).map_err(local_error)?;
+        let local = std::env::var_os("LOCALAPPDATA")
+            .map(PathBuf::from)
+            .ok_or_else(|| Failure::new(FailureKind::CheckFailed))?;
+        let entries = Catalog::list(&base, &local, deadline).map_err(local_error)?;
         let mut documents = Vec::new();
         let mut text = String::new();
         for entry in entries {
@@ -218,7 +221,12 @@ fn observe(
     let site = match Rendezvous::from_runtime_directory(&entry.runtime) {
         Ok(site) => site,
         Err(RendezvousError::System { source, .. }) if source.kind() == io::ErrorKind::NotFound => {
-            return Ok((SessionState::Absent, None));
+            let state = match entry.absent_runtime_state().map_err(local_error)? {
+                None => SessionState::Absent,
+                Some(ActivationState::Stopped { .. }) => SessionState::Stopped,
+                _ => SessionState::RecoveryRequired,
+            };
+            return Ok((state, None));
         }
         Err(_) => return Err(Failure::new(FailureKind::CheckFailed)),
     };
@@ -239,7 +247,12 @@ fn observe(
         {
             let marker = site.activation_state().map_err(local_error)?;
             let lifetime = site.observe_site_lifetime_lock().map_err(local_error)?;
-            Ok((inactive_state(marker, lifetime), None))
+            let state = if entry.accepts_runtime_state(marker) {
+                inactive_state(marker, lifetime)
+            } else {
+                SessionState::RecoveryRequired
+            };
+            Ok((state, None))
         }
         Err(ConnectClientError::ConnectFailed(error) | ConnectClientError::Io(error)) => {
             Err(local_error(error))

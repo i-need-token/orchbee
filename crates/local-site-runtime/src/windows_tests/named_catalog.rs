@@ -41,7 +41,7 @@ fn intent(fixture: &Fixture, name: &WindowsSiteName) -> PathBuf {
 #[test]
 fn inventory_is_read_only_sorted_and_case_sensitive() {
     let fixture = Fixture::new();
-    let initial = Catalog::list(&fixture.0, deadline()).unwrap();
+    let initial = Catalog::list(&fixture.0, &fixture.0, deadline()).unwrap();
     assert_eq!(initial.len(), 1);
     assert_eq!(initial[0].name.as_str(), "default");
     assert_eq!(fs::read_dir(&fixture.0).unwrap().count(), 0);
@@ -49,7 +49,7 @@ fn inventory_is_read_only_sorted_and_case_sensitive() {
     let (_, lower, _) = prepared(&fixture, "work", true);
     assert_ne!(upper, lower);
     let before = fs::read_dir(&fixture.0).unwrap().count();
-    let entries = Catalog::list(&fixture.0, deadline()).unwrap();
+    let entries = Catalog::list(&fixture.0, &fixture.0, deadline()).unwrap();
     assert_eq!(
         entries
             .iter()
@@ -60,7 +60,7 @@ fn inventory_is_read_only_sorted_and_case_sensitive() {
     assert!(entries.iter().all(|entry| !entry.deleting));
     assert_eq!(fs::read_dir(&fixture.0).unwrap().count(), before);
     fs::write(lower.join("session-name.json"), b"{}").unwrap();
-    assert!(Catalog::list(&fixture.0, deadline()).is_err());
+    assert!(Catalog::list(&fixture.0, &fixture.0, deadline()).is_err());
     assert_eq!(fs::read(lower.join("session-name.json")).unwrap(), b"{}");
 }
 
@@ -69,9 +69,12 @@ fn stopped_deletion_removes_only_selected_owned_storage_and_is_idempotent() {
     let fixture = Fixture::new();
     let (name, runtime, state) = prepared(&fixture, "work", true);
     let (_, peer, peer_state) = prepared(&fixture, "Work", true);
-    let catalog = Catalog::try_lock(&fixture.0).unwrap();
+    let catalog = Catalog::try_lock(&fixture.0, &fixture.0).unwrap();
     assert_eq!(
-        Catalog::try_lock(&fixture.0).err().unwrap().kind(),
+        Catalog::try_lock(&fixture.0, &fixture.0)
+            .err()
+            .unwrap()
+            .kind(),
         io::ErrorKind::WouldBlock
     );
     assert_eq!(
@@ -102,16 +105,21 @@ fn stopped_deletion_removes_only_selected_owned_storage_and_is_idempotent() {
             .reason,
         Reason::DefaultSession
     );
-    assert_eq!(Catalog::list(&fixture.0, deadline()).unwrap().len(), 2);
+    assert_eq!(
+        Catalog::list(&fixture.0, &fixture.0, deadline())
+            .unwrap()
+            .len(),
+        2
+    );
     drop(catalog);
-    assert!(Catalog::try_lock(&fixture.0).is_ok());
+    assert!(Catalog::try_lock(&fixture.0, &fixture.0).is_ok());
 }
 
 #[test]
 fn active_locked_or_listening_sessions_cannot_be_deleted() {
     let fixture = Fixture::new();
     let (name, runtime, state) = prepared(&fixture, "live", false);
-    let catalog = Catalog::try_lock(&fixture.0).unwrap();
+    let catalog = Catalog::try_lock(&fixture.0, &fixture.0).unwrap();
     let site = Rendezvous::from_runtime_directory(&runtime).unwrap();
     assert_eq!(
         catalog
@@ -178,7 +186,7 @@ fn checkpoint_sharing_failure_fences_start_and_retry_completes() {
     let fixture = Fixture::new();
     let (name, runtime, state) = prepared(&fixture, "blocked", true);
     let held = permissions::open_file(&state.join("checkpoint.json"), false, false).unwrap();
-    let catalog = Catalog::try_lock(&fixture.0).unwrap();
+    let catalog = Catalog::try_lock(&fixture.0, &fixture.0).unwrap();
     let failure = catalog
         .delete(&name, &fixture.0, deadline(), || Ok(false))
         .unwrap_err();
@@ -190,7 +198,7 @@ fn checkpoint_sharing_failure_fences_start_and_retry_completes() {
         Rendezvous::prepare_mode_checked(&fixture.0, SiteScope::parse(&scope(&name)).unwrap())
             .is_err()
     );
-    assert!(Catalog::list(&fixture.0, deadline()).unwrap()[1].deleting);
+    assert!(Catalog::list(&fixture.0, &fixture.0, deadline()).unwrap()[1].deleting);
     drop(held);
     assert_eq!(
         catalog.delete(&name, &fixture.0, deadline(), || Ok(false)),
@@ -207,7 +215,7 @@ fn retry_accepts_partial_runtime_without_identity_and_missing_runtime() {
         let fixture = Fixture::new();
         let (name, runtime, state) = prepared(&fixture, "partial", true);
         let held = permissions::open_directory(&runtime, false).unwrap();
-        let catalog = Catalog::try_lock(&fixture.0).unwrap();
+        let catalog = Catalog::try_lock(&fixture.0, &fixture.0).unwrap();
         assert!(
             catalog
                 .delete(&name, &fixture.0, deadline(), || Ok(false))
@@ -216,7 +224,7 @@ fn retry_accepts_partial_runtime_without_identity_and_missing_runtime() {
         );
         assert!(!state.exists());
         assert!(!runtime.join("session-name.json").exists());
-        assert!(Catalog::list(&fixture.0, deadline()).unwrap()[1].deleting);
+        assert!(Catalog::list(&fixture.0, &fixture.0, deadline()).unwrap()[1].deleting);
         drop(held);
         if remove_runtime {
             fs::remove_dir(&runtime).unwrap();
@@ -234,7 +242,7 @@ fn retry_accepts_partial_runtime_without_identity_and_missing_runtime() {
 fn unknown_files_and_hard_links_refuse_before_intent_and_preserve_bytes() {
     let fixture = Fixture::new();
     let (name, runtime, state) = prepared(&fixture, "unknown", true);
-    let catalog = Catalog::try_lock(&fixture.0).unwrap();
+    let catalog = Catalog::try_lock(&fixture.0, &fixture.0).unwrap();
     let foreign = runtime.join("user-data");
     fs::write(&foreign, b"do not delete").unwrap();
     assert!(
@@ -276,7 +284,7 @@ fn orphaned_checkpoint_and_malformed_intent_are_not_cleanup_authority() {
         fs::remove_file(entry.unwrap().path()).unwrap();
     }
     fs::remove_dir(&runtime).unwrap();
-    let catalog = Catalog::try_lock(&fixture.0).unwrap();
+    let catalog = Catalog::try_lock(&fixture.0, &fixture.0).unwrap();
     assert_eq!(
         catalog
             .delete(&name, &fixture.0, deadline(), || Ok(false))
@@ -295,7 +303,7 @@ fn orphaned_checkpoint_and_malformed_intent_are_not_cleanup_authority() {
             .delete(&name, &fixture.0, deadline(), || Ok(false))
             .is_err()
     );
-    assert!(Catalog::list(&fixture.0, deadline()).is_err());
+    assert!(Catalog::list(&fixture.0, &fixture.0, deadline()).is_err());
     assert!(
         Rendezvous::prepare_mode_checked(&fixture.0, SiteScope::parse(&scope(&name)).unwrap())
             .is_err()
@@ -309,7 +317,7 @@ fn validated_stale_staging_is_replaced_under_namespace_ownership() {
     let (name, _, _) = prepared(&fixture, "staging", true);
     let staging = fixture.0.join(format!("{}.deleting.pending", scope(&name)));
     fs::write(&staging, b"interrupted staging").unwrap();
-    let catalog = Catalog::try_lock(&fixture.0).unwrap();
+    let catalog = Catalog::try_lock(&fixture.0, &fixture.0).unwrap();
     assert_eq!(
         catalog.delete(&name, &fixture.0, deadline(), || Ok(false)),
         Ok(Outcome::Deleted)
@@ -322,7 +330,7 @@ fn validated_stale_staging_is_replaced_under_namespace_ownership() {
 fn interruption_before_and_after_intent_preserves_honest_recovery_state() {
     let fixture = Fixture::new();
     let (name, runtime, state) = prepared(&fixture, "interrupt", true);
-    let catalog = Catalog::try_lock(&fixture.0).unwrap();
+    let catalog = Catalog::try_lock(&fixture.0, &fixture.0).unwrap();
     let failure = catalog
         .delete(&name, &fixture.0, deadline(), || Ok(true))
         .unwrap_err();

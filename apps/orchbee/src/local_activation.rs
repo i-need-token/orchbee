@@ -112,27 +112,39 @@ pub(crate) fn activate_local_site(deadline: Instant) -> Result<StartedSite, Acti
         )
     })?;
     #[cfg(windows)]
-    let selection = windows_selection::location().map_err(runtime_failure)?;
+    let mut selection = windows_selection::location().map_err(runtime_failure)?;
     #[cfg(windows)]
-    let (base, scope_text) = (selection.base, selection.scope);
+    let (base, scope_text) = (selection.base.clone(), selection.scope.clone());
     #[cfg(not(windows))]
     let (base, scope_text) = runtime_location().map_err(runtime_failure)?;
     let scope = SiteScope::parse(&scope_text)
         .map_err(|_| ActivationFailure::bare(StartupFailure::Runtime))?;
     let scope_directory = base.join(&scope_text);
     #[cfg(windows)]
-    let _named_catalog = if scope_text.starts_with("orchbee-session-") {
-        loop {
-            check_deadline(deadline)?;
-            match orchbee_local_site_runtime::WindowsNamedSiteCatalog::try_lock(&base) {
-                Ok(owner) => break Some(owner),
-                Err(error) if error.kind() == io::ErrorKind::WouldBlock => pause(deadline)?,
-                Err(error) => return Err(runtime_failure(error)),
+    let _named_catalog =
+        if orchbee_local_site_runtime::WindowsNamedSiteCatalog::supports_scope(&scope_text)
+            .map_err(runtime_failure)?
+        {
+            let local = std::env::var_os("LOCALAPPDATA")
+                .map(PathBuf::from)
+                .ok_or_else(|| runtime_failure(io::ErrorKind::NotFound.into()))?;
+            loop {
+                check_deadline(deadline)?;
+                match orchbee_local_site_runtime::WindowsNamedSiteCatalog::try_lock(&base, &local) {
+                    Ok(owner) => break Some(owner),
+                    Err(error) if error.kind() == io::ErrorKind::WouldBlock => pause(deadline)?,
+                    Err(error) => return Err(runtime_failure(error)),
+                }
             }
-        }
-    } else {
-        None
-    };
+        } else {
+            None
+        };
+    #[cfg(windows)]
+    if let Some(catalog) = &_named_catalog {
+        selection.name = catalog
+            .prepare_activation(&scope_text, selection.name.as_ref())
+            .map_err(runtime_failure)?;
+    }
     let site =
         ModeCheckedLocalSiteRendezvous::prepare_mode_checked(&base, scope).map_err(|error| {
             ActivationFailure::caused(
@@ -167,7 +179,13 @@ pub(crate) fn activate_local_site(deadline: Instant) -> Result<StartedSite, Acti
         ModeCheckedLocalSiteRendezvous::from_runtime_directory(site.runtime_directory())
             .map_err(lock_failure)?;
     }
-    let (client, spawned) = connect_or_activate(&site, &cohort, deadline)?;
+    let (client, spawned) = connect_or_activate(
+        &site,
+        &cohort,
+        deadline,
+        #[cfg(windows)]
+        _named_catalog.as_ref(),
+    )?;
     Ok(StartedSite {
         client,
         spawned,
@@ -180,6 +198,7 @@ fn connect_or_activate(
     site: &ModeCheckedLocalSiteRendezvous,
     cohort: &NativeCohort,
     deadline: Instant,
+    #[cfg(windows)] catalog: Option<&orchbee_local_site_runtime::WindowsNamedSiteCatalog>,
 ) -> Result<(LocalClient, bool), ActivationFailure> {
     loop {
         check_deadline(deadline)?;
@@ -207,6 +226,15 @@ fn connect_or_activate(
                     || site.worker_socket_exists().map_err(runtime_failure)?
                 {
                     return Err(ActivationFailure::bare(StartupFailure::RecoveryRequired));
+                }
+                #[cfg(windows)]
+                if let Some(catalog) = catalog {
+                    let mut activation_id = [0; 16];
+                    getrandom::fill(&mut activation_id)
+                        .map_err(|error| runtime_failure(io::Error::other(error.to_string())))?;
+                    catalog
+                        .begin_activation(site, activation_id)
+                        .map_err(runtime_failure)?;
                 }
                 drop(lifetime);
                 check_deadline(deadline)?;

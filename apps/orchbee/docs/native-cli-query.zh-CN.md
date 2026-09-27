@@ -42,6 +42,11 @@ scope 传给子终端，使内部 CLI 命令保持所属 Site，即使 Server �
 
 列表和删除的结果 schema 分别为 `orchbee.session.list` 与 `orchbee.session.delete`。
 
+持久清单在 LocalAppData 保留精确的默认/命名身份和停止回执。使用相同的已准入运行时基目录时，
+即使运行时叶目录被移除，`session list` 仍能发现已停止会话；`session attach`/`site start` 会重建
+路由并恢复检查点。Active 或孤立状态仍要求恢复，不因文件缺失推断已停止。待删除状态也会在临时
+元数据消失后保留，可用相同删除命令继续处理。列表仍只读，不隐式重建运行时基目录本身。
+
 ## Agent 会话名称
 
 `agent names` 列出运行中 Site 的所有存活别名。`agent resolve <target>` 返回完整会话 ID，

@@ -16,7 +16,7 @@ use orchbee_capability_node_protocol::{
 use orchbee_local_client_protocol::{StopFailure, StopPhase};
 use orchbee_local_site_runtime::{
     LockAttempt, ModeCheckedLocalSiteRendezvous, ModeCheckedSiteLock, RetainedActivationRecord,
-    RetainedChild, WindowsSessionStore,
+    RetainedChild, WindowsRetainedSessionRecord, WindowsSessionStore,
 };
 use std::{
     io,
@@ -36,6 +36,7 @@ pub(super) struct Owners {
     pub(super) terminals: Arc<LocalTerminalService>,
     pub(super) agents: Arc<AgentService>,
     pub(super) checkpoint_store: WindowsSessionStore,
+    pub(super) session_record: Option<WindowsRetainedSessionRecord>,
 }
 
 struct Failure {
@@ -128,6 +129,9 @@ pub(super) fn run(
         shutdown.phase(attempt, StopPhase::Completion);
         if Instant::now() >= deadline {
             return Err(io::ErrorKind::TimedOut.into());
+        }
+        if let Some(record) = &mut owners.session_record {
+            record.complete(attempt.id.bytes())?;
         }
         owners.record.complete(attempt.id.bytes())?;
         drop(owners.lifetime);

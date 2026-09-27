@@ -1,7 +1,9 @@
 //! Cooperating native Windows activators and stopped-session deletion share one namespace owner.
 use crate::{
     ActivationState, LockAttempt, ModeCheckedLocalSiteRendezvous as Rendezvous, SiteScope,
-    WindowsSiteName, site_name_windows, windows_permissions as permissions,
+    WindowsSiteName,
+    durable_sessions_windows::{self as durable, Directory, Lifecycle, Record},
+    site_name_windows, windows_permissions as permissions,
 };
 use serde::{Deserialize, Serialize};
 use std::{
@@ -24,6 +26,8 @@ const CHECKPOINT_FILES: &[&str] = &["checkpoint.json", "checkpoint.pending", "st
 
 pub struct WindowsNamedSiteCatalog {
     base: PathBuf,
+    local: PathBuf,
+    durable: Directory,
     _lock: File,
     _directories: Vec<File>,
 }
@@ -33,6 +37,8 @@ pub struct WindowsNamedSiteEntry {
     pub name: WindowsSiteName,
     pub runtime: PathBuf,
     pub deleting: bool,
+    retained: Option<ActivationState>,
+    checkpoint: PathBuf,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -112,7 +118,7 @@ pub(crate) fn require_not_deleting(base: &Path, scope: &str) -> io::Result<()> {
 
 impl WindowsNamedSiteCatalog {
     /// Only declared activation/deletion effects acquire this owner. Reads use `list` instead.
-    pub fn try_lock(base: &Path) -> io::Result<Self> {
+    pub fn try_lock(base: &Path, local: &Path) -> io::Result<Self> {
         let directories = permissions::open_tree(base)?;
         let base = base.canonicalize()?;
         let user = WindowsSiteName::parse("default")?
@@ -126,21 +132,131 @@ impl WindowsNamedSiteCatalog {
             Err(error) => return Err(error),
         };
         match lock.try_lock() {
-            Ok(()) => Ok(Self {
-                base,
-                _lock: lock,
-                _directories: directories,
-            }),
+            Ok(()) => {
+                let durable = Directory::create(local, &base)?;
+                Ok(Self {
+                    durable,
+                    local: local.canonicalize()?,
+                    base,
+                    _lock: lock,
+                    _directories: directories,
+                })
+            }
             Err(TryLockError::WouldBlock) => Err(io::ErrorKind::WouldBlock.into()),
             Err(TryLockError::Error(error)) => Err(error),
         }
     }
 
-    pub fn list(base: &Path, deadline: Instant) -> io::Result<Vec<WindowsNamedSiteEntry>> {
+    pub fn supports_scope(scope: &str) -> io::Result<bool> {
+        Ok(durable::supports_scope(
+            scope,
+            &orchbee_local_ipc::current_user_sid()?,
+        ))
+    }
+
+    /// Validate recovery before creating a missing runtime. This owner already holds the namespace gate.
+    pub fn prepare_activation(
+        &self,
+        scope: &str,
+        explicit: Option<&WindowsSiteName>,
+    ) -> io::Result<Option<WindowsSiteName>> {
+        if !Self::supports_scope(scope)? {
+            return Ok(None);
+        }
+        let record = self.durable.read(scope)?;
+        if record.as_ref().is_some_and(Record::is_deleting) {
+            return Err(io::ErrorKind::WouldBlock.into());
+        }
+        let runtime = self.base.join(scope);
+        let name = match explicit {
+            Some(name) => name.clone(),
+            None => match &record {
+                Some(record) => WindowsSiteName::parse(&record.name)?,
+                None if scope.starts_with(site_name_windows::NAMED_PREFIX) => {
+                    site_name_windows::read(&runtime)?
+                }
+                None => WindowsSiteName::parse("default")?,
+            },
+        };
+        site_name_windows::validate_scope(&runtime, &name)?;
+        match permissions::open_tree(&runtime) {
+            Ok(_) => {}
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {
+                no_endpoints(&runtime)?;
+                let checkpoint = checkpoint_path(&self.local, &runtime);
+                let storage = idle_storage(&checkpoint)?;
+                match record.as_ref().and_then(Record::activation) {
+                    Some(ActivationState::Stopped { .. }) => {
+                        permissions::open_file(&checkpoint.join("checkpoint.json"), false, false)?;
+                    }
+                    None if !storage => {}
+                    _ => return Err(io::ErrorKind::InvalidData.into()),
+                }
+            }
+            Err(error) => return Err(error),
+        }
+        Ok(Some(name))
+    }
+
+    /// One new generation is published before its runtime marker or Server can exist.
+    pub fn begin_activation(&self, site: &Rendezvous, activation_id: [u8; 16]) -> io::Result<()> {
+        if activation_id == [0; 16] {
+            return Err(io::ErrorKind::InvalidInput.into());
+        }
+        let runtime = site.runtime_directory();
+        if runtime.parent() != Some(self.base.as_path()) {
+            return Err(io::ErrorKind::InvalidInput.into());
+        }
+        let scope = runtime
+            .file_name()
+            .and_then(|value| value.to_str())
+            .ok_or(io::ErrorKind::InvalidInput)?;
+        let previous = self.durable.read(scope)?;
+        if previous.as_ref().is_some_and(|record| {
+            !matches!(record.lifecycle, Lifecycle::Stopped { .. })
+                || record.activation_id == Some(activation_id)
+        }) {
+            return Err(io::ErrorKind::InvalidData.into());
+        }
+        let marker = site.activation_state()?;
+        if marker == ActivationState::Active {
+            return Err(io::ErrorKind::InvalidData.into());
+        }
+        no_endpoints(runtime)?;
+        let checkpoint = checkpoint_path(&self.local, runtime);
+        idle_storage(&checkpoint)?;
+        if let Some(previous) = &previous {
+            if let ActivationState::Stopped { request_id } = marker
+                && previous.stopped_id() != Some(request_id)
+            {
+                return Err(io::ErrorKind::InvalidData.into());
+            }
+            permissions::open_file(&checkpoint.join("checkpoint.json"), false, false)?;
+        }
+        let name = if scope.starts_with(site_name_windows::NAMED_PREFIX) {
+            site_name_windows::read(runtime)?
+        } else {
+            WindowsSiteName::parse("default")?
+        };
+        let active = Record::new(&self.base, &name, Some(activation_id), Lifecycle::Active)?;
+        self.durable.publish(scope, &active)
+    }
+
+    pub fn list(
+        base: &Path,
+        local: &Path,
+        deadline: Instant,
+    ) -> io::Result<Vec<WindowsNamedSiteEntry>> {
         let _directories = permissions::open_tree(base)?;
         let base = base.canonicalize()?;
         let sid = orchbee_local_ipc::current_user_sid()?;
-        let mut names = BTreeMap::new();
+        let mut names: BTreeMap<String, (bool, Option<ActivationState>)> = BTreeMap::new();
+        if let Some(directory) = Directory::open(local, &base)? {
+            for (_, record) in directory.list(deadline)? {
+                let state = record.activation();
+                names.insert(record.name.clone(), (record.is_deleting(), state));
+            }
+        }
         for entry in fs::read_dir(&base)? {
             check_deadline(deadline)?;
             let entry = entry?;
@@ -151,7 +267,17 @@ impl WindowsNamedSiteCatalog {
                 let _pins = permissions::open_tree(&entry.path())?;
                 match read_intent(&base, &leaf)? {
                     Some(intent) => (WindowsSiteName::parse(&intent.name)?, true),
-                    None => (site_name_windows::read(&entry.path())?, false),
+                    None => {
+                        let pending = names.iter().find(|(name, (deleting, _))| {
+                            *deleting
+                                && WindowsSiteName::parse(name)
+                                    .is_ok_and(|name| name.scope_for_user(&sid) == leaf)
+                        });
+                        match pending {
+                            Some((name, _)) => (WindowsSiteName::parse(name)?, true),
+                            None => (site_name_windows::read(&entry.path())?, false),
+                        }
+                    }
                 }
             } else if let Some(scope) = leaf
                 .strip_suffix(INTENT_SUFFIX)
@@ -164,24 +290,28 @@ impl WindowsNamedSiteCatalog {
             };
             names
                 .entry(name.as_str().to_owned())
-                .and_modify(|pending| *pending |= deleting)
-                .or_insert(deleting);
-            if names.len() >= MAXIMUM_SESSIONS {
+                .and_modify(|entry| entry.0 |= deleting)
+                .or_insert((deleting, None));
+            if names.len() + usize::from(!names.contains_key("default")) > MAXIMUM_SESSIONS {
                 return Err(io::ErrorKind::FileTooLarge.into());
             }
         }
-        let default = WindowsSiteName::parse("default")?;
-        let mut result = vec![WindowsNamedSiteEntry {
-            runtime: base.join(default.scope_for_user(&sid)),
-            name: default,
-            deleting: false,
-        }];
-        for (name, deleting) in names {
-            let name = WindowsSiteName::parse(&name)?;
+        let (deleting, retained) = names.remove("default").unwrap_or((false, None));
+        if names.len() >= MAXIMUM_SESSIONS {
+            return Err(io::ErrorKind::FileTooLarge.into());
+        }
+        let mut result = Vec::with_capacity(names.len() + 1);
+        for (text, (deleting, retained)) in
+            std::iter::once(("default".to_owned(), (deleting, retained))).chain(names)
+        {
+            let name = WindowsSiteName::parse(&text)?;
+            let runtime = base.join(name.scope_for_user(&sid));
             result.push(WindowsNamedSiteEntry {
-                runtime: base.join(name.scope_for_user(&sid)),
+                checkpoint: checkpoint_path(local, &runtime),
+                runtime,
                 name,
                 deleting,
+                retained,
             });
         }
         Ok(result)
@@ -212,9 +342,13 @@ impl WindowsNamedSiteCatalog {
             let scope = name.scope_for_user(&orchbee_local_ipc::current_user_sid()?);
             let runtime = self.base.join(&scope);
             let previous = read_intent(&self.base, &scope)?;
-            pending = previous.is_some();
+            let durable = self.durable.read(&scope)?;
+            pending = previous.is_some() || durable.as_ref().is_some_and(Record::is_deleting);
             check()?;
             let _app_data = permissions::open_tree(local_app_data)?;
+            if local_app_data.canonicalize()? != self.local {
+                return Err(io::ErrorKind::InvalidInput.into());
+            }
             let mut site = match Rendezvous::for_named_deletion(
                 &self.base,
                 SiteScope::parse(&scope).map_err(io::Error::other)?,
@@ -232,7 +366,8 @@ impl WindowsNamedSiteCatalog {
             let mut lifetime = None;
             let mut stopped = previous
                 .as_ref()
-                .and_then(|intent| intent.stopped_request_id);
+                .and_then(|intent| intent.stopped_request_id)
+                .or_else(|| durable.as_ref().and_then(Record::stopped_id));
             if let Some(site) = &site {
                 activation = match site
                     .try_acquire_activation_lock()
@@ -259,9 +394,28 @@ impl WindowsNamedSiteCatalog {
                         refused = Some(Reason::RecoveryRequired);
                         return Err(io::ErrorKind::InvalidData.into());
                     }
-                    ActivationState::Stopped { request_id } => stopped = Some(request_id),
+                    ActivationState::Stopped { request_id } => {
+                        if durable
+                            .as_ref()
+                            .and_then(Record::stopped_id)
+                            .is_some_and(|retained| retained != request_id)
+                        {
+                            refused = Some(Reason::RecoveryRequired);
+                            return Err(io::ErrorKind::InvalidData.into());
+                        }
+                        stopped = Some(request_id);
+                    }
                     ActivationState::Absent => {}
                 }
+            }
+            if durable.as_ref().is_some_and(|record| {
+                record.lifecycle == Lifecycle::Active
+                    || previous
+                        .as_ref()
+                        .is_some_and(|intent| intent.stopped_request_id != record.stopped_id())
+            }) {
+                refused = Some(Reason::RecoveryRequired);
+                return Err(io::ErrorKind::InvalidData.into());
             }
             for endpoint in Rendezvous::socket_budget_paths(&runtime)
                 .into_iter()
@@ -281,10 +435,20 @@ impl WindowsNamedSiteCatalog {
             if site.is_none() && runtime_directory.is_some() && !pending {
                 return Err(io::ErrorKind::InvalidData.into());
             }
-            if site.is_none() && state.is_none() && runtime_directory.is_none() && !pending {
+            if site.is_none()
+                && state.is_none()
+                && runtime_directory.is_none()
+                && durable.is_none()
+                && !pending
+            {
                 return Ok(WindowsNamedSiteDeleteOutcome::Absent);
             }
-            if site.is_none() && !pending {
+            if site.is_none()
+                && !pending
+                && !durable
+                    .as_ref()
+                    .is_some_and(|record| matches!(record.lifecycle, Lifecycle::Stopped { .. }))
+            {
                 refused = Some(Reason::RecoveryRequired);
                 return Err(io::ErrorKind::InvalidData.into());
             }
@@ -293,7 +457,28 @@ impl WindowsNamedSiteCatalog {
                 None => None,
             };
             check()?;
-            if !pending {
+            if !durable.as_ref().is_some_and(Record::is_deleting) {
+                let record = match durable {
+                    Some(mut record) => {
+                        record.lifecycle = Lifecycle::Deleting {
+                            stopped_request_id: stopped,
+                        };
+                        record
+                    }
+                    None => Record::new(
+                        &self.base,
+                        name,
+                        None,
+                        Lifecycle::Deleting {
+                            stopped_request_id: stopped,
+                        },
+                    )?,
+                };
+                self.durable.publish(&scope, &record)?;
+                pending = true;
+            }
+            check()?;
+            if previous.is_none() {
                 let intent = Intent {
                     version: 1,
                     name: name.as_str().to_owned(),
@@ -331,9 +516,9 @@ impl WindowsNamedSiteCatalog {
                 runtime_directory.remove(RUNTIME_FILES, true, &mut check)?;
             }
             check()?;
-            let intent = permissions::open_file(&intent_path(&self.base, &scope), false, false)?;
-            drop(intent);
-            fs::remove_file(intent_path(&self.base, &scope))?;
+            remove_private_file_if_present(&intent_path(&self.base, &scope))?;
+            check()?;
+            self.durable.remove(&scope)?;
             Ok(WindowsNamedSiteDeleteOutcome::Deleted)
         })();
         result.map_err(|error| {
@@ -350,6 +535,80 @@ impl WindowsNamedSiteCatalog {
                 pending,
             )
         })
+    }
+}
+
+impl WindowsNamedSiteEntry {
+    /// A runtime-only receipt cannot override a conflicting retained activation generation.
+    pub fn accepts_runtime_state(&self, marker: ActivationState) -> bool {
+        self.retained.is_none_or(|retained| retained == marker)
+    }
+
+    /// Missing runtime alone is not stopped evidence. This read creates no lock or marker.
+    pub fn absent_runtime_state(&self) -> io::Result<Option<ActivationState>> {
+        let endpoints = no_endpoints(&self.runtime);
+        if let Err(error) = endpoints {
+            if error.kind() == io::ErrorKind::WouldBlock {
+                return Ok(Some(ActivationState::Active));
+            }
+            return Err(error);
+        }
+        let storage = match idle_storage(&self.checkpoint) {
+            Ok(storage) => storage,
+            Err(error) if error.kind() == io::ErrorKind::WouldBlock => {
+                return Ok(Some(ActivationState::Active));
+            }
+            Err(error) => return Err(error),
+        };
+        match self.retained {
+            Some(stopped @ ActivationState::Stopped { .. }) if storage => {
+                match permissions::open_file(&self.checkpoint.join("checkpoint.json"), false, false)
+                {
+                    Ok(_) => Ok(Some(stopped)),
+                    Err(error) if error.kind() == io::ErrorKind::NotFound => {
+                        Ok(Some(ActivationState::Active))
+                    }
+                    Err(error) => Err(error),
+                }
+            }
+            None if !storage => Ok(None),
+            _ => Ok(Some(ActivationState::Active)),
+        }
+    }
+}
+
+fn checkpoint_path(local: &Path, runtime: &Path) -> PathBuf {
+    local
+        .join("Orchbee")
+        .join("native-sessions")
+        .join(Rendezvous::host_endpoint_id(runtime))
+}
+fn no_endpoints(runtime: &Path) -> io::Result<()> {
+    for endpoint in Rendezvous::socket_budget_paths(runtime)
+        .into_iter()
+        .chain([Rendezvous::observation_endpoint_path(runtime)])
+    {
+        if orchbee_local_ipc::endpoint_exists(&endpoint)? {
+            return Err(io::ErrorKind::WouldBlock.into());
+        }
+    }
+    Ok(())
+}
+fn idle_storage(path: &Path) -> io::Result<bool> {
+    let _pins = match permissions::open_tree(path) {
+        Ok(pins) => pins,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(false),
+        Err(error) => return Err(error),
+    };
+    let file = match permissions::open_file(&path.join("state.lock"), false, true) {
+        Ok(file) => file,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(true),
+        Err(error) => return Err(error),
+    };
+    match file.try_lock() {
+        Ok(()) => Ok(true),
+        Err(TryLockError::WouldBlock) => Err(io::ErrorKind::WouldBlock.into()),
+        Err(TryLockError::Error(error)) => Err(error),
     }
 }
 

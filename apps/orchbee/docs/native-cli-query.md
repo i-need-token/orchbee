@@ -53,6 +53,13 @@ Deletion checks Ctrl+C before each filesystem phase and exits 130 on interruptio
 
 List and delete have `orchbee.session.list` and `orchbee.session.delete` result schemas.
 
+The durable catalog preserves exact default/named identities and stopped receipts in LocalAppData.
+With the same admitted runtime base, `session list` still discovers a stopped session after its
+runtime leaf is removed; `session attach`/`site start` recreates its route and restores the checkpoint.
+Active or orphaned state remains recovery-required, never inferred stopped from missing files.
+Pending deletion also survives loss of temporary metadata and remains resumable by the same delete
+command. Listing remains read-only. The runtime base itself is not implicitly recreated.
+
 ## Agent session names
 
 `agent names` lists all live aliases in the running Site. `agent resolve <target>`

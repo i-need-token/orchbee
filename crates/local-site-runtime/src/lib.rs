@@ -5,6 +5,10 @@ mod cohort;
 #[cfg(windows)]
 pub use activation_record_windows::{ActivationState, RetainedActivationRecord};
 #[cfg(windows)]
+mod durable_sessions_windows;
+#[cfg(windows)]
+pub use durable_sessions_windows::WindowsRetainedSessionRecord;
+#[cfg(windows)]
 mod named_site_catalog_windows;
 #[cfg_attr(windows, path = "rendezvous_windows.rs")]
 mod rendezvous;

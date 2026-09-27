@@ -40,7 +40,7 @@ pub(super) fn run(runtime: &Path) -> io::Result<()> {
     #[cfg(windows)]
     let record = site.retain_active_record()?;
     #[cfg(windows)]
-    let (checkpoint_store, checkpoint) = checkpoint_windows::load(&site)?;
+    let (checkpoint_store, checkpoint, session_record) = checkpoint_windows::load(&site)?;
     #[cfg(unix)]
     nix::unistd::setsid()?;
     // The observation endpoint binds and starts before the Worker socket
@@ -168,6 +168,7 @@ pub(super) fn run(runtime: &Path) -> io::Result<()> {
                 terminals,
                 agents,
                 checkpoint_store,
+                session_record,
             },
             cohort.identity(),
             pending,

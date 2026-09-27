@@ -10,6 +10,13 @@
 CLI 行为和证据；[本机 Client 协议](../../crates/local-client-protocol/README.zh-CN.md)
 拥有帧格式。只有 Windows 分派此新增读取；旧接纳及 Linux／macOS 运行时行为保持不变。
 
+## Windows 持久会话生命周期
+
+对于原生默认/命名 scope，CLI 激活所有者在启动托管 Server 前发布精确的私有 Active 清单记录。Server 在 Worker 效果前准入并
+保留该记录，与检查点存储及生命周期所有者一起持有。确认子进程退出并完成监听器清理后，关闭流程先
+发布持久 Stopped，再完成运行时激活记录。发布失败保留恢复不确定性，绝不授予正常停止的成功回执。
+运行时 crate 拥有清单编码、路径准入及替换；Server 拥有关闭已确认的判定时机。
+
 ## 托管 Windows Site 停止
 
 一个停止标识拥有托管 Server 剩余的生命周期。接受它会原子关闭新应用记录准入；已准入操作及结果写入先结束再清理。
@@ -21,7 +28,7 @@ CLI 行为和证据；[本机 Client 协议](../../crates/local-client-protocol/
 不可用），并发送一次有界 Worker 停止请求。已知无 Host 或 Host 已停止结果，以及准确 Worker 退出，必须先于
 Agent 观察和 Client 监听器停止、唤醒并 join 保留的 Client 处理线程、发布已停止激活记录。激活锁排除记录发布和
 生命周期锁释放期间的并发重启。管道不存在或响应丢失不能证明完成。控制监听器存活时失败尝试仍可查询；监听器关闭后，
-严格的激活记录是唯一肯定回执。此所有者不进行进程发现、接管或路径移除，也不实现 Linux/macOS 停止。
+严格的激活记录仍为肯定回执。此所有者不进行进程发现、接管或路径移除，也不实现 Linux/macOS 停止。
 
 这是实验性且尚未发布的私有 Rust Server application。它拥有内存 Workbench 导航权威与私有 projection
 kernel、第一条 POSIX 本机 Server-Worker process spine 及 serialized post-admission OBCN carrier，

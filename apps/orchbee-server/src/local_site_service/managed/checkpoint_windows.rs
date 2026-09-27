@@ -1,5 +1,6 @@
 use orchbee_local_site_runtime::{
-    ModeCheckedLocalSiteRendezvous, RetainedChild, WindowsSessionStore,
+    ModeCheckedLocalSiteRendezvous, RetainedChild, WindowsRetainedSessionRecord,
+    WindowsSessionStore,
 };
 use orchbee_server::{MAXIMUM_WORKBENCH_CHECKPOINT_BYTES, WorkbenchCheckpoint};
 use std::{
@@ -11,7 +12,11 @@ use std::{
 
 pub(super) fn load(
     site: &ModeCheckedLocalSiteRendezvous,
-) -> io::Result<(WindowsSessionStore, Option<WorkbenchCheckpoint>)> {
+) -> io::Result<(
+    WindowsSessionStore,
+    Option<WorkbenchCheckpoint>,
+    Option<WindowsRetainedSessionRecord>,
+)> {
     let local = std::env::var_os("LOCALAPPDATA")
         .map(PathBuf::from)
         .ok_or_else(|| io::Error::other("LOCALAPPDATA is unavailable"))?;
@@ -21,7 +26,8 @@ pub(super) fn load(
         .map(|bytes| WorkbenchCheckpoint::parse(&bytes))
         .transpose()
         .map_err(io::Error::other)?;
-    Ok((store, checkpoint))
+    let record = WindowsRetainedSessionRecord::retain(&local, site)?;
+    Ok((store, checkpoint, record))
 }
 
 /// No launch has been sent; this Worker cannot own a Host or terminal.
