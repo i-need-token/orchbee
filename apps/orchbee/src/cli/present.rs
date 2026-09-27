@@ -662,6 +662,10 @@ pub(crate) fn render(
             if let Some(client) = &doc.client {
                 out.push(&locale.cli_agent_client_view(client))?;
             }
+            #[cfg(windows)]
+            if let Some(terminal) = &doc.terminal {
+                super::terminal_observation::render(out, terminal, locale)?;
+            }
             match &doc.runtime {
                 super::results::AgentRuntimeDoc::Unavailable(reason) => {
                     out.push(&locale.cli_agent_runtime(None, Some(reason)))

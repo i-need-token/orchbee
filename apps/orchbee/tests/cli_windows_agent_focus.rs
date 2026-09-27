@@ -1,6 +1,9 @@
 //! Resolve a live Agent before one Client navigation; never replay uncertain focus.
 #![cfg(windows)]
 #[allow(dead_code)]
+#[path = "support/terminal_metadata_peer.rs"]
+mod metadata_peer;
+#[allow(dead_code)]
 #[path = "support/windows_agent_peer.rs"]
 mod peer_support;
 use orchbee_agent_observation_protocol::{AgentRequest, read_agent_request};

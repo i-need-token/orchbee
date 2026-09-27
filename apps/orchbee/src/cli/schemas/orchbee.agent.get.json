@@ -10,7 +10,7 @@
 			"const": "orchbee.agent.get"
 		},
 		"version": {
-			"enum": [1, 2, 3, 4, 5, 6]
+			"enum": [1, 2, 3, 4, 5, 6, 7, 8]
 		},
 		"source": {
 			"$ref": "#/$defs/agentReadSource"
@@ -41,7 +41,14 @@
 									"const": "unavailable"
 								},
 								"reason": {
-									"enum": ["session-ended", "unbound", "ambiguous-primary", "binding-changed"]
+									"enum": [
+										"session-ended",
+										"unbound",
+										"ambiguous-primary",
+										"binding-changed",
+										"terminal-unavailable",
+										"process-unavailable"
+									]
 								}
 							},
 							"required": ["kind", "reason"],
@@ -178,6 +185,16 @@
 							"$ref": "#/$defs/managed_agentManagement"
 						}
 					}
+				},
+				"terminal": {
+					"anyOf": [
+						{
+							"type": "null"
+						},
+						{
+							"$ref": "#/$defs/agentTerminal"
+						}
+					]
 				}
 			}
 		}
@@ -1007,6 +1024,583 @@
 					}
 				}
 			}
+		},
+		"legacyRuntime": {
+			"oneOf": [
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "unavailable"
+						},
+						"reason": {
+							"enum": ["session-ended", "unbound", "ambiguous-primary", "binding-changed"]
+						}
+					},
+					"required": ["kind", "reason"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "observed"
+						},
+						"source": {
+							"$ref": "#/$defs/runtimeProcess_source"
+						},
+						"processInfo": {
+							"type": "object",
+							"required": ["terminal", "scope", "rootPid", "processes", "foreground"],
+							"additionalProperties": false,
+							"properties": {
+								"terminal": {
+									"$ref": "#/$defs/runtimeProcess_terminal"
+								},
+								"scope": {
+									"const": "windows-job"
+								},
+								"rootPid": {
+									"type": "integer",
+									"minimum": 1,
+									"maximum": 4294967295
+								},
+								"processes": {
+									"type": "array",
+									"maxItems": 64,
+									"items": {
+										"$ref": "#/$defs/runtimeProcess_process"
+									}
+								},
+								"foreground": {
+									"type": "object",
+									"required": ["kind", "pid", "providerId"],
+									"additionalProperties": false,
+									"properties": {
+										"kind": {
+											"enum": ["agent-chain", "root", "ambiguous", "unavailable"]
+										},
+										"pid": {
+											"type": ["integer", "null"],
+											"minimum": 1,
+											"maximum": 4294967295
+										},
+										"providerId": {
+											"type": ["string", "null"],
+											"pattern": "^[0-9A-Za-z._:-]{1,128}$"
+										}
+									},
+									"oneOf": [
+										{
+											"properties": {
+												"kind": {
+													"const": "agent-chain"
+												},
+												"pid": {
+													"type": "integer"
+												},
+												"providerId": {
+													"type": "string"
+												}
+											}
+										},
+										{
+											"properties": {
+												"kind": {
+													"const": "root"
+												},
+												"pid": {
+													"type": "integer"
+												},
+												"providerId": {
+													"type": "null"
+												}
+											}
+										},
+										{
+											"properties": {
+												"kind": {
+													"const": "ambiguous"
+												},
+												"pid": {
+													"type": "null"
+												},
+												"providerId": {
+													"type": "null"
+												}
+											}
+										},
+										{
+											"properties": {
+												"kind": {
+													"const": "unavailable"
+												},
+												"pid": {
+													"type": "null"
+												},
+												"providerId": {
+													"type": "null"
+												}
+											}
+										}
+									]
+								}
+							}
+						},
+						"promptReady": {
+							"type": "boolean"
+						}
+					},
+					"required": ["kind", "source", "processInfo", "promptReady"],
+					"additionalProperties": false
+				}
+			]
+		},
+		"agentTerminal_terminalObservation": {
+			"oneOf": [
+				{
+					"type": "object",
+					"required": ["state", "reason"],
+					"additionalProperties": false,
+					"properties": {
+						"state": {
+							"const": "unavailable"
+						},
+						"reason": {
+							"const": "terminal-unavailable"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"required": ["state", "frame", "processes"],
+					"additionalProperties": false,
+					"properties": {
+						"state": {
+							"const": "observed"
+						},
+						"frame": {
+							"type": "object",
+							"required": [
+								"hostEpoch",
+								"attachmentId",
+								"sequence",
+								"generation",
+								"revision",
+								"columns",
+								"rows",
+								"alternateScreen",
+								"scrollbackRows",
+								"title",
+								"currentDirectory"
+							],
+							"additionalProperties": false,
+							"properties": {
+								"hostEpoch": {
+									"$ref": "#/$defs/agentTerminal_terminalProcessId"
+								},
+								"attachmentId": {
+									"$ref": "#/$defs/agentTerminal_terminalProcessId"
+								},
+								"sequence": {
+									"type": "string",
+									"pattern": "^[1-9][0-9]{0,19}$",
+									"format": "orchbee-uint64"
+								},
+								"generation": {
+									"type": "string",
+									"pattern": "^[1-9][0-9]{0,19}$",
+									"format": "orchbee-uint64"
+								},
+								"revision": {
+									"type": "string",
+									"pattern": "^(0|[1-9][0-9]{0,19})$",
+									"format": "orchbee-uint64"
+								},
+								"columns": {
+									"type": "integer",
+									"minimum": 1,
+									"maximum": 4096
+								},
+								"rows": {
+									"type": "integer",
+									"minimum": 1,
+									"maximum": 4096
+								},
+								"alternateScreen": {
+									"type": "boolean"
+								},
+								"scrollbackRows": {
+									"type": "string",
+									"pattern": "^(0|[1-9][0-9]{0,19})$",
+									"format": "orchbee-uint64"
+								},
+								"title": {
+									"type": ["string", "null"],
+									"maxLength": 16384
+								},
+								"currentDirectory": {
+									"type": ["string", "null"],
+									"maxLength": 16384
+								}
+							}
+						},
+						"processes": {
+							"oneOf": [
+								{
+									"type": "object",
+									"required": ["state", "source", "result"],
+									"additionalProperties": false,
+									"properties": {
+										"state": {
+											"const": "observed"
+										},
+										"source": {
+											"$ref": "#/$defs/agentTerminal_terminalProcessSource"
+										},
+										"result": {
+											"type": "object",
+											"required": ["terminal", "scope", "rootPid", "processes", "foreground"],
+											"additionalProperties": false,
+											"properties": {
+												"terminal": {
+													"$ref": "#/$defs/agentTerminal_terminalProcessTerminal"
+												},
+												"scope": {
+													"const": "windows-job"
+												},
+												"rootPid": {
+													"type": "integer",
+													"minimum": 1,
+													"maximum": 4294967295
+												},
+												"processes": {
+													"type": "array",
+													"maxItems": 64,
+													"items": {
+														"$ref": "#/$defs/agentTerminal_terminalProcessProcess"
+													}
+												},
+												"foreground": {
+													"type": "object",
+													"required": ["kind", "pid", "providerId"],
+													"additionalProperties": false,
+													"properties": {
+														"kind": {
+															"enum": ["agent-chain", "root", "ambiguous", "unavailable"]
+														},
+														"pid": {
+															"type": ["integer", "null"],
+															"minimum": 1,
+															"maximum": 4294967295
+														},
+														"providerId": {
+															"type": ["string", "null"],
+															"pattern": "^[0-9A-Za-z._:-]{1,128}$"
+														}
+													},
+													"oneOf": [
+														{
+															"properties": {
+																"kind": {
+																	"const": "agent-chain"
+																},
+																"pid": {
+																	"type": "integer"
+																},
+																"providerId": {
+																	"type": "string"
+																}
+															}
+														},
+														{
+															"properties": {
+																"kind": {
+																	"const": "root"
+																},
+																"pid": {
+																	"type": "integer"
+																},
+																"providerId": {
+																	"type": "null"
+																}
+															}
+														},
+														{
+															"properties": {
+																"kind": {
+																	"const": "ambiguous"
+																},
+																"pid": {
+																	"type": "null"
+																},
+																"providerId": {
+																	"type": "null"
+																}
+															}
+														},
+														{
+															"properties": {
+																"kind": {
+																	"const": "unavailable"
+																},
+																"pid": {
+																	"type": "null"
+																},
+																"providerId": {
+																	"type": "null"
+																}
+															}
+														}
+													]
+												}
+											}
+										}
+									}
+								},
+								{
+									"type": "object",
+									"required": ["state", "reason"],
+									"additionalProperties": false,
+									"properties": {
+										"state": {
+											"const": "unavailable"
+										},
+										"reason": {
+											"const": "process-unavailable"
+										}
+									}
+								}
+							]
+						}
+					}
+				}
+			]
+		},
+		"agentTerminal_terminalProcessId": {
+			"type": "string",
+			"pattern": "^[0-9a-f]{32}$"
+		},
+		"agentTerminal_terminalProcessSource": {
+			"type": "object",
+			"required": [
+				"kind",
+				"siteId",
+				"snapshotRevision",
+				"requestId",
+				"hostRequestId",
+				"hostEpoch",
+				"attachmentId",
+				"hostTerminalId"
+			],
+			"additionalProperties": false,
+			"properties": {
+				"kind": {
+					"const": "terminal-process-query"
+				},
+				"siteId": {
+					"$ref": "#/$defs/agentTerminal_terminalProcessId"
+				},
+				"snapshotRevision": {
+					"type": "string",
+					"pattern": "^(0|[1-9][0-9]*)$"
+				},
+				"requestId": {
+					"$ref": "#/$defs/agentTerminal_terminalProcessId"
+				},
+				"hostRequestId": {
+					"$ref": "#/$defs/agentTerminal_terminalProcessId"
+				},
+				"hostEpoch": {
+					"$ref": "#/$defs/agentTerminal_terminalProcessId"
+				},
+				"attachmentId": {
+					"$ref": "#/$defs/agentTerminal_terminalProcessId"
+				},
+				"hostTerminalId": {
+					"$ref": "#/$defs/agentTerminal_terminalProcessId"
+				}
+			}
+		},
+		"agentTerminal_terminalProcessTerminal": {
+			"type": "object",
+			"required": ["terminalId", "workerId", "boundTo"],
+			"additionalProperties": false,
+			"properties": {
+				"terminalId": {
+					"$ref": "#/$defs/agentTerminal_terminalProcessId"
+				},
+				"workerId": {
+					"$ref": "#/$defs/agentTerminal_terminalProcessId"
+				},
+				"boundTo": {
+					"type": "object",
+					"required": ["presentationId", "panelId", "tabId", "terminalContextId"],
+					"additionalProperties": false,
+					"properties": {
+						"presentationId": {
+							"$ref": "#/$defs/agentTerminal_terminalProcessId"
+						},
+						"panelId": {
+							"$ref": "#/$defs/agentTerminal_terminalProcessId"
+						},
+						"tabId": {
+							"$ref": "#/$defs/agentTerminal_terminalProcessId"
+						},
+						"terminalContextId": {
+							"$ref": "#/$defs/agentTerminal_terminalProcessId"
+						}
+					}
+				}
+			}
+		},
+		"agentTerminal_terminalProcessProcess": {
+			"type": "object",
+			"required": [
+				"pid",
+				"parentPid",
+				"creationTime",
+				"image",
+				"commandLine",
+				"currentDirectory",
+				"argv",
+				"providerId"
+			],
+			"additionalProperties": false,
+			"properties": {
+				"pid": {
+					"type": "integer",
+					"minimum": 1,
+					"maximum": 4294967295
+				},
+				"parentPid": {
+					"oneOf": [
+						{
+							"type": "integer",
+							"minimum": 1,
+							"maximum": 4294967295
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"creationTime": {
+					"$ref": "#/$defs/agentTerminal_terminalProcessPositiveDecimal"
+				},
+				"image": {
+					"type": ["string", "null"],
+					"maxLength": 4096,
+					"pattern": "^[^\\u0000]*$"
+				},
+				"commandLine": {
+					"type": ["string", "null"],
+					"maxLength": 4096,
+					"pattern": "^[^\\u0000]*$"
+				},
+				"currentDirectory": {
+					"type": ["string", "null"],
+					"maxLength": 4096,
+					"pattern": "^[^\\u0000]*$"
+				},
+				"argv": {
+					"type": ["array", "null"],
+					"maxItems": 4096,
+					"items": {
+						"type": "string",
+						"maxLength": 4096,
+						"pattern": "^[^\\u0000]*$"
+					}
+				},
+				"providerId": {
+					"type": ["string", "null"],
+					"pattern": "^[0-9A-Za-z._:-]{1,128}$"
+				}
+			}
+		},
+		"agentTerminal_terminalProcessPositiveDecimal": {
+			"type": "string",
+			"pattern": "^[1-9][0-9]*$"
+		},
+		"agentTerminal": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": [
+				"terminalId",
+				"source",
+				"cwd",
+				"cwdSource",
+				"foregroundCwd",
+				"terminalTitle",
+				"terminalTitleStripped",
+				"terminalObservation"
+			],
+			"properties": {
+				"cwd": {
+					"type": ["string", "null"],
+					"maxLength": 16384
+				},
+				"cwdSource": {
+					"enum": [null, "terminal-frame", "root-process"]
+				},
+				"foregroundCwd": {
+					"type": ["string", "null"],
+					"maxLength": 4096
+				},
+				"terminalTitle": {
+					"type": ["string", "null"],
+					"maxLength": 16384
+				},
+				"terminalTitleStripped": {
+					"type": ["string", "null"],
+					"maxLength": 16384
+				},
+				"terminalObservation": {
+					"$ref": "#/$defs/agentTerminal_terminalObservation"
+				},
+				"terminalId": {
+					"$ref": "#/$defs/runtimeProcess_id"
+				},
+				"source": {
+					"$ref": "#/$defs/runtimeProcess_snapshotSource"
+				}
+			},
+			"allOf": [
+				{
+					"if": {
+						"required": ["terminalObservation"],
+						"properties": {
+							"terminalObservation": {
+								"type": "object",
+								"properties": {
+									"state": {
+										"enum": ["unbound", "unavailable"]
+									}
+								}
+							}
+						}
+					},
+					"then": {
+						"properties": {
+							"cwd": {
+								"type": "null"
+							},
+							"cwdSource": {
+								"type": "null"
+							},
+							"foregroundCwd": {
+								"type": "null"
+							},
+							"terminalTitle": {
+								"type": "null"
+							},
+							"terminalTitleStripped": {
+								"type": "null"
+							}
+						}
+					}
+				}
+			]
 		}
 	},
 	"allOf": [
@@ -1014,14 +1608,15 @@
 			"if": {
 				"properties": {
 					"version": {
-						"enum": [2, 4, 6]
+						"enum": [2, 4, 6, 8]
 					}
 				}
 			},
 			"then": {
 				"properties": {
 					"result": {
-						"required": ["client"]
+						"required": ["client"],
+						"type": "object"
 					}
 				}
 			},
@@ -1030,7 +1625,8 @@
 					"result": {
 						"not": {
 							"required": ["client"]
-						}
+						},
+						"type": "object"
 					}
 				}
 			}
@@ -1039,14 +1635,15 @@
 			"if": {
 				"properties": {
 					"version": {
-						"enum": [3, 4, 5, 6]
+						"enum": [3, 4, 5, 6, 7, 8]
 					}
 				}
 			},
 			"then": {
 				"properties": {
 					"result": {
-						"required": ["runtime"]
+						"required": ["runtime"],
+						"type": "object"
 					}
 				}
 			},
@@ -1055,7 +1652,8 @@
 					"result": {
 						"not": {
 							"required": ["runtime"]
-						}
+						},
+						"type": "object"
 					}
 				}
 			}
@@ -1064,14 +1662,15 @@
 			"if": {
 				"properties": {
 					"version": {
-						"enum": [5, 6]
+						"enum": [5, 6, 7, 8]
 					}
 				}
 			},
 			"then": {
 				"properties": {
 					"result": {
-						"required": ["management"]
+						"required": ["management"],
+						"type": "object"
 					}
 				}
 			},
@@ -1080,7 +1679,189 @@
 					"result": {
 						"not": {
 							"required": ["management"]
-						}
+						},
+						"type": "object"
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"version": {
+						"enum": [7, 8]
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"result": {
+						"required": ["terminal"],
+						"allOf": [
+							{
+								"if": {
+									"properties": {
+										"runtime": {
+											"type": "object",
+											"required": ["reason"],
+											"properties": {
+												"kind": {
+													"const": "unavailable"
+												},
+												"reason": {
+													"enum": [
+														"session-ended",
+														"unbound",
+														"ambiguous-primary",
+														"binding-changed"
+													]
+												}
+											}
+										}
+									}
+								},
+								"then": {
+									"properties": {
+										"terminal": {
+											"type": "null"
+										}
+									}
+								}
+							},
+							{
+								"if": {
+									"properties": {
+										"runtime": {
+											"type": "object",
+											"required": ["reason"],
+											"properties": {
+												"kind": {
+													"const": "unavailable"
+												},
+												"reason": {
+													"enum": ["terminal-unavailable"]
+												}
+											}
+										}
+									}
+								},
+								"then": {
+									"properties": {
+										"terminal": {
+											"type": "object",
+											"properties": {
+												"terminalObservation": {
+													"type": "object",
+													"properties": {
+														"state": {
+															"const": "unavailable"
+														}
+													}
+												}
+											}
+										}
+									}
+								}
+							},
+							{
+								"if": {
+									"properties": {
+										"runtime": {
+											"type": "object",
+											"required": ["reason"],
+											"properties": {
+												"kind": {
+													"const": "unavailable"
+												},
+												"reason": {
+													"enum": ["process-unavailable"]
+												}
+											}
+										}
+									}
+								},
+								"then": {
+									"properties": {
+										"terminal": {
+											"type": "object",
+											"properties": {
+												"terminalObservation": {
+													"type": "object",
+													"properties": {
+														"state": {
+															"const": "observed"
+														},
+														"processes": {
+															"type": "object",
+															"properties": {
+																"state": {
+																	"const": "unavailable"
+																}
+															}
+														}
+													}
+												}
+											}
+										}
+									}
+								}
+							},
+							{
+								"if": {
+									"properties": {
+										"runtime": {
+											"type": "object",
+											"properties": {
+												"kind": {
+													"const": "observed"
+												}
+											}
+										}
+									}
+								},
+								"then": {
+									"properties": {
+										"terminal": {
+											"type": "object",
+											"properties": {
+												"terminalObservation": {
+													"type": "object",
+													"properties": {
+														"state": {
+															"const": "observed"
+														},
+														"processes": {
+															"type": "object",
+															"properties": {
+																"state": {
+																	"const": "observed"
+																}
+															}
+														}
+													}
+												}
+											}
+										}
+									}
+								}
+							}
+						],
+						"type": "object"
+					}
+				}
+			},
+			"else": {
+				"properties": {
+					"result": {
+						"not": {
+							"required": ["terminal"]
+						},
+						"properties": {
+							"runtime": {
+								"$ref": "#/$defs/legacyRuntime"
+							}
+						},
+						"type": "object"
 					}
 				}
 			}

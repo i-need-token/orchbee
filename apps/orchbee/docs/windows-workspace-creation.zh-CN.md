@@ -61,6 +61,6 @@
 
 参考语义为 Herdr `e0507237ad8d41f60aece10d00ef29ce2339ca34` 的 WorkspaceCreate 及焦点面板／初始目录／主目录创建策略。Orchbee 的显式 Project 歧义、精确 Client 路由和部分回执保留仍是可见适配。这些是有界同作者检查；完整双 TUI 验收独立进行，TLA 暂缓。匹配版本组整体发布；回退不会撤销已提交的用户 Project 或 Workspace。
 
-组合回执的失败观测完整保留 `kind`、可空 `details`、可空 `source`、原始 `schema` 和 `version`。该嵌套记录由组合 Schema 拥有；无详情的本地守卫错误不伪装成要求详情的独立失败封套。API 目录 v83 含 88 个 schema，命令路径仍为 99 条。
+组合回执的失败观测完整保留 `kind`、可空 `details`、可空 `source`、原始 `schema` 和 `version`。该嵌套记录由组合 Schema 拥有；无详情的本地守卫错误不伪装成要求详情的独立失败封套。API 目录 v84 含 88 个 schema，命令路径仍为 99 条。
 
 没有更具体详情的创建预检错误使用通用 `orchbee.cli.failure` v2，仅接受 `workspace-creation` 阶段及缺失／不可用／协议／传输／超时／取消类别。原有 v1 失败矩阵保持不变。嵌套失败观测按各生产者的精确详情／来源约束校验；本地无详情守卫必须同时没有来源。

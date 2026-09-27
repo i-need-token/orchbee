@@ -80,10 +80,10 @@ pub(crate) const fn schema_version(command: &QueryCommand) -> u64 {
             client: Some(_), ..
         } => 2,
         #[cfg(windows)]
-        QueryCommand::AgentGet(_) => 5,
+        QueryCommand::AgentGet(_) => 7,
         QueryCommand::AgentClientGet { .. } => {
             if cfg!(windows) {
-                6
+                8
             } else {
                 2
             }
@@ -1136,6 +1136,8 @@ pub(crate) struct AgentInspectionDoc {
     pub(crate) session: Box<AgentSessionDetail>,
     pub(crate) client: Option<Box<AgentClientViewDoc>>,
     pub(crate) runtime: AgentRuntimeDoc,
+    #[cfg(windows)]
+    pub(crate) terminal: Option<Value>,
     pub(crate) management: AgentManagementDoc,
 }
 
@@ -1269,6 +1271,10 @@ impl Projection {
             Self::AgentGet(outcome) => json!(outcome),
             Self::AgentInspection(doc) => {
                 let mut result = json!({"kind":"found","revision":doc.revision,"session":doc.session,"runtime":doc.runtime.document(),"management":doc.management.document()});
+                #[cfg(windows)]
+                {
+                    result["terminal"] = json!(doc.terminal);
+                }
                 if let Some(client) = &doc.client {
                     result["client"] = client.document();
                 }

@@ -763,7 +763,7 @@ Windows `agent integration enable --provider devin` 管理 APPDATA/devin/config.
 
 Windows `agent integration enable --provider hermes` 发布两个自有 Python 插件入口，并通过提供方 CLI 启用；停用保留插件及其缓存。
 
-Windows `workspace create` 可省略项目、名称和目录；按来源终端／工作区／主目录解析默认值，零项目时先创建默认项目，可用 `--focus` 聚焦现有 TUI。所有 Windows 形式均启动首个终端；显式参数和不聚焦使用相同流程与回执。项目、工作区和聚焦分别返回回执；Worktree Create／Open 共用首次项目创建。详见[工作区创建契约](docs/windows-workspace-creation.zh-CN.md)。当前 API 目录 v83，88 个 schema，99 条命令路径。
+Windows `workspace create` 可省略项目、名称和目录；按来源终端／工作区／主目录解析默认值，零项目时先创建默认项目，可用 `--focus` 聚焦现有 TUI。所有 Windows 形式均启动首个终端；显式参数和不聚焦使用相同流程与回执。项目、工作区和聚焦分别返回回执；Worktree Create／Open 共用首次项目创建。详见[工作区创建契约](docs/windows-workspace-creation.zh-CN.md)。当前 API 目录 v84，88 个 schema，99 条命令路径。
 
 ## Windows CLI 配置
 

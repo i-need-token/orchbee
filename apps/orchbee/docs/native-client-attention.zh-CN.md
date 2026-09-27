@@ -51,7 +51,7 @@ Workbench 协议复用有界 Agent 协议身份、游标及安全整数 DTO，�
 
 ## 合并规范 Agent 读取
 
-Windows `agent get <target> --client <id>` 在一个已准入会话及五秒总预算内，将精确 Client 观测与后续规范 Get 合并。读取仅路由一次保留的 attention 操作，认证游标，再要求规范修订覆盖 attention 头部。只有 generation 与 sequence 均相同，才输出合并后的 seen／状态变更修订。有界变更读取还须证明 Client 检查点与规范样本之间该会话没有变化；相同计数器无法排除新鲜度跃迁。其他会话的变更保留合并结果；历史丢失或目标的任何中间事件都会保守地标记过期。缺失及过期 Client 版本明确标记，seen 为空；不改写规范状态。不带 `--client` 的 Windows Get 使用带运行时和托管信息的 v5；合并 Get 使用 v6。两者均在同一总预算内，于进程读取后重新核对 Agent 绑定。
+Windows `agent get <target> --client <id>` 在一个已准入会话及五秒总预算内，将精确 Client 观测与后续规范 Get 合并。读取仅路由一次保留的 attention 操作，认证游标，再要求规范修订覆盖 attention 头部。只有 generation 与 sequence 均相同，才输出合并后的 seen／状态变更修订。有界变更读取还须证明 Client 检查点与规范样本之间该会话没有变化；相同计数器无法排除新鲜度跃迁。其他会话的变更保留合并结果；历史丢失或目标的任何中间事件都会保守地标记过期。缺失及过期 Client 版本明确标记，seen 为空；不改写规范状态。不带 `--client` 的 Windows Get 使用带终端、运行时和托管信息的 v7；合并 Get 使用 v8。两者均在同一总预算内，于进程读取后重新核对 Agent 绑定。
 
 独立的 Client 状态将 fresh idle／完成结果投影为已看见时 idle、未看见时 done；缺失／过期版本使该休息状态为空。Working、blocked、unknown、ended 及 stale/disconnected 新鲜度采用规范事实。聚焦指匹配的主 Panel 在 Ready Client 视图中被选中，且未观察到外层失焦；外层焦点为空时保留已声明的兼容回退，不证明操作系统前台。Busy 时仍可读取，但不声称内容聚焦。读取不确认已看见、不导航、不发送输入。
 
@@ -61,4 +61,4 @@ Windows `agent prompt --wait --client <id>` 也在规范活动门槛后使用此
 
 Windows `agent list --client <id>` 先用一个有界规范页选出至多 100 个会话 ID，提交一次保留的 attention 读取，再读取相同页／游标。一次有界变更扫描将全部条目与较新的规范修订核对。目标中间事件或计数器不匹配使对应 Client 投影过期；新增 ID 为缺失，无关事件不影响其他行。页游标过期时失败，不重启分页。空页只验证所选 Client，不执行空 attention 操作。v2 结果增加 `clientId`，并在每个规范条目上增加 `client` 投影；无该 flag 的 list 保持 v1。共用五秒总预算、精确 Client 选择及既有取消／清理规则。列表读取不聚焦、不确认已看见、不逐 Agent 扫描进程。
 
-Windows Agent Get 现在输出 v5（使用 `--client` 时为 v6），增加独立的 `management` 观察，包含来源、修订及 Server 所有的启动状态。Active 记录只来自已完成的启动；手动命名会话仍为非托管。Pending 启动使 promptReady 为 false，`agent prompt` 在输入前拒绝。Status 有界读取共用命令原期限，失败可使用 Agent 读取失败 v3（`operation: management`）；它不重试、不完成启动。`agent start` v2 在现有成功完成后显式报告 interactiveReady。[启动契约](windows-agent-start.zh-CN.md) 拥有生命周期和限制。
+Windows Agent Get 现在输出 v7（使用 `--client` 时为 v8），增加独立的 `management` 观察，包含来源、修订及 Server 所有的启动状态。Active 记录只来自已完成的启动；手动命名会话仍为非托管。Pending 启动使 promptReady 为 false，`agent prompt` 在输入前拒绝。Status 有界读取共用命令原期限，失败可使用 Agent 读取失败 v3（`operation: management`）；它不重试、不完成启动。`agent start` v2 在现有成功完成后显式报告 interactiveReady。[启动契约](windows-agent-start.zh-CN.md) 拥有生命周期和限制。

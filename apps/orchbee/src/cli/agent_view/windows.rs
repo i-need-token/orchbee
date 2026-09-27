@@ -38,8 +38,9 @@ pub(super) fn run(
     };
     // The session is dropped by this closure before the one signal arbitration.
     let result = (|| {
-        let (mut client, _, snapshot) = query::snapshot_session_until(deadline)?;
+        let admitted = query::stream_snapshot(deadline, signals.poll_fd());
         check(deadline, &mut signals)?;
+        let (mut client, snapshot) = admitted?;
         let id = query::agent_attention_target(
             &mut client,
             &snapshot,
@@ -60,7 +61,7 @@ pub(super) fn run(
             })
             .transpose()?;
         let initial = query::read_agent_observation(&mut client, &id, deadline, signals.poll_fd())?;
-        let (canonical, mut runtime) =
+        let (canonical, mut runtime, terminal) =
             runtime::read(&mut client, &snapshot, initial, deadline, &mut signals)?;
         let management = query::read_agent_management(
             &mut client,
@@ -91,6 +92,7 @@ pub(super) fn run(
                 session: canonical.session,
                 client: view,
                 runtime,
+                terminal,
                 management,
             })),
         ))

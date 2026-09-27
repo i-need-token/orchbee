@@ -126,12 +126,12 @@ fn runtime_text_escapes_untrusted_metadata_in_both_locales() {
     let mut read = observed();
     read.frame.title = Some("\x1b]0;evil\x07\n中文".into());
     read.frame.current_directory = Some("C:\\dir\r\nnext".into());
-    let doc = Document(BTreeMap::from([(
-        "4".repeat(32),
-        Observation::Observed(Box::new(read)),
-    )]));
-    for locale in [Locale::EnUs, Locale::ZhCn] {
-        let bytes = crate::cli::output::render_text(|out| doc.render(out, locale)).unwrap();
+    let fields = Observation::Observed(Box::new(read)).fields();
+    for locale in [
+        crate::localization::Locale::EnUs,
+        crate::localization::Locale::ZhCn,
+    ] {
+        let bytes = crate::cli::output::render_text(|out| render(out, &fields, locale)).unwrap();
         let text = String::from_utf8(bytes).unwrap();
         assert!(!text.contains('\x1b'));
         assert!(!text.contains('\x07'));

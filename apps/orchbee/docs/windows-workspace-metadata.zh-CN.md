@@ -81,7 +81,7 @@ Workspace list/get 在同一个已准入连接和原有五秒总期限内组合�
 `orchbee.workspace.list/get` v6 为每行增加 `tokens` 映射；没有保留值时也返回空映射。
 根级 `metadataSource` 携带 Site、Workbench 和元数据修订，以及全部读取请求 ID。
 `orchbee.cli.failure.workbench-query` v2 新增 `metadata-changed`。
-嵌入目录为 v83，共 88 份文档；原生 CLI 有 99 条命令路径。
+嵌入目录为 v84，共 88 份文档；原生 CLI 有 99 条命令路径。
 
 ## 证据与交付
 

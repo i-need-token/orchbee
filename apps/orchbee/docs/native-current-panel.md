@@ -60,7 +60,7 @@ Workbench-query failures, including `client-changed` and `workbench-changed`, wi
 results. Generic current-stage failures retain the exact `current-panel` stage. Windows success
 uses `orchbee.panel.current` v4, with the enriched Panel Get v7 shape and its own schema ID.
 Non-Windows current retains v3; the embedded schema strictly separates these shapes.
-`orchbee.panel.process-info` remains v2. Catalog v83 contains 88 documents and 99 command paths.
+`orchbee.panel.process-info` remains v2. Catalog v84 contains 88 documents and 99 command paths.
 
 ## Refinement and evidence
 

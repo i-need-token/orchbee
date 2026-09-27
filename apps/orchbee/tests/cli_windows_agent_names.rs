@@ -3,6 +3,9 @@
 
 #[path = "cli_windows_agent_names/changes.rs"]
 mod changes;
+#[allow(dead_code)]
+#[path = "support/terminal_metadata_peer.rs"]
+mod metadata_peer;
 #[path = "support/windows_agent_peer.rs"]
 mod peer_support;
 #[path = "cli_windows_agent_names/wait.rs"]
@@ -195,12 +198,13 @@ fn named_get_and_explain_share_one_admission_and_publish_only_the_read_source() 
             let read = read_reply(&mut stream, verb, outcome);
             assert_ne!(resolution, read);
             if verb == "get" {
-                process_reply(&mut stream, vec![process(10, None, "claude-code.exe")]);
+                metadata_peer::sample(&mut stream, "observed", "claude-code.exe");
                 read_reply(
                     &mut stream,
                     "get",
                     json!({"kind":"found","revision":7,"session":session_detail("sess-alpha")}),
                 );
+                bound_snapshot_reply(&mut stream);
                 management_reply(&mut stream, 7, json!({"phase":"unmanaged"}));
             }
             assert_closed(&mut stream);
@@ -325,12 +329,13 @@ fn explicit_session_bypasses_name_resolution_even_for_a_valid_alias_spelling() {
             "get",
             json!({"kind":"found","revision":7,"session":session_detail("sess-alpha")}),
         );
-        process_reply(&mut stream, vec![process(10, None, "claude-code.exe")]);
+        metadata_peer::sample(&mut stream, "observed", "claude-code.exe");
         read_reply(
             &mut stream,
             "get",
             json!({"kind":"found","revision":7,"session":session_detail("sess-alpha")}),
         );
+        bound_snapshot_reply(&mut stream);
         management_reply(&mut stream, 7, json!({"phase":"unmanaged"}));
         assert_closed(&mut stream);
     });
@@ -885,12 +890,13 @@ fn panel_get_and_wait_share_admission_and_pin_the_primary_presentations_session(
                 );
             }
             if !wait {
-                process_reply(&mut stream, vec![process(10, None, "claude-code.exe")]);
+                metadata_peer::sample(&mut stream, "observed", "claude-code.exe");
                 read_reply(
                     &mut stream,
                     "get",
                     json!({"kind":"found","revision":2,"session":detail}),
                 );
+                bound_snapshot_reply(&mut stream);
                 management_reply(&mut stream, 2, json!({"phase":"unmanaged"}));
             }
             assert_closed(&mut stream);

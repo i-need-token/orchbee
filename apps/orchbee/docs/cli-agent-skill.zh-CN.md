@@ -184,11 +184,11 @@ Windows 可用 `agent get <target> --client <id>` 同时查看规范会话事实
 
 需要单次提交后观察特定 TUI 时，使用 `agent prompt <target> <text> --wait --client <id> --until done`。发送前检查 Client；Agent 活动后，done 表示该 Client 当前有未看见的静止状态；idle 表示已看见状态。缺失／过期版本继续等待。Client 丢失时保留已接受的输入回执，不要仅因观察失败就重发。v4 结果包含 Client 投影。
 
-Windows `agent get <target>` 在 v3 中包含运行时进程信息；增加 `--client <id>` 时返回 v4，并包含该 Client 的投影。`runtime.processInfo` 提供实际进程事实，`runtime.promptReady` 表示当前提交预检。绑定不可用或变化时不虚构进程。本预检不保证交互 UI 就绪，也不预留终端以排除竞争。
+Windows `agent get <target>` 在 v7 中包含终端及运行时进程信息；增加 `--client <id>` 时返回 v8，并包含该 Client 的投影。`runtime.processInfo` 提供实际进程事实，`runtime.promptReady` 表示当前提交预检。绑定不可用或变化时不虚构进程。本预检不保证交互 UI 就绪，也不预留终端以排除竞争。 通过 `terminal` 读取原始／整理标题、cwd 及帧／进程来源。Null 表示 Agent 绑定无法安全地确定唯一活动终端；process-unavailable 仍保留可用帧元数据。[查询契约](native-cli-query.zh-CN.md) 拥有缺失和一致性规则。
 
 Windows `agent list --client <id>` 在 v2 列表封套中加入所选 TUI 的状态。它对有界页批量读取，重读原始游标并检查保留变更后才暴露已读／未读。空页仍验证精确 Client；无此参数的列表保持 v1。[Client 提示状态契约](native-client-attention.zh-CN.md) 拥有一致性与期限规则。
 
-Windows Agent Get 现在输出 v5（使用 `--client` 时为 v6），增加独立的 `management` 观察，包含来源、修订及 Server 所有的启动状态。Active 记录只来自已完成的启动；手动命名会话仍为非托管。Pending 启动使 promptReady 为 false，`agent prompt` 在输入前拒绝。Status 有界读取共用命令原期限，失败可使用 Agent 读取失败 v3（`operation: management`）；它不重试、不完成启动。`agent start` v2 在现有成功完成后显式报告 interactiveReady。[启动契约](windows-agent-start.zh-CN.md) 拥有生命周期和限制。
+Windows Agent Get 现在输出 v7（使用 `--client` 时为 v8），增加独立的 `management` 观察，包含来源、修订及 Server 所有的启动状态。Active 记录只来自已完成的启动；手动命名会话仍为非托管。Pending 启动使 promptReady 为 false，`agent prompt` 在输入前拒绝。Status 有界读取共用命令原期限，失败可使用 Agent 读取失败 v3（`operation: management`）；它不重试、不完成启动。`agent start` v2 在现有成功完成后显式报告 interactiveReady。[启动契约](windows-agent-start.zh-CN.md) 拥有生命周期和限制。
 
 Windows `agent integration list --outdated-only` 筛选需要更新或修复的自有条目，并分别报告检查未决和受阻的 provider ID。v2 结果保留筛选前全部检查的完整性。使用 `agent integration enable --provider <id>` 显式执行受保护的修复；筛选列表为空本身不能证明所有 provider 都已成功检查。
 

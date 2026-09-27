@@ -54,7 +54,7 @@ Ready 或 Busy 观察（历史阅读属于 Busy）；`process-info` 仍只接受
 阶段失败保留精确的 `current-panel` 阶段。Windows 成功结果使用 `orchbee.panel.current`
 v4，采用增强 Panel Get v7 形状及独立 schema ID。非 Windows current 保留 v3；
 嵌入 schema 严格区分这两种形状。`orchbee.panel.process-info` 保持 v2。
-目录 v83 包含 88 份文档和 99 条命令路径。
+目录 v84 包含 88 份文档和 99 条命令路径。
 
 ## 细化映射与证据
 

@@ -270,12 +270,15 @@ pub(super) fn assert_closed(stream: &mut LocalStream) {
 }
 
 pub(super) fn bound_snapshot_reply(stream: &mut LocalStream) {
+    bound_snapshot_at(stream, 9);
+}
+pub(super) fn bound_snapshot_at(stream: &mut LocalStream, revision: u64) {
     use orchbee_workbench_protocol::*;
     let WorkbenchRequest::SnapshotRead(intent) = read_workbench_request(stream).unwrap() else {
         panic!("snapshot first");
     };
     let document = json!({
-        "kind":"workbench.snapshot", "protocolVersion":1, "revision":"9", "siteId":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "kind":"workbench.snapshot", "protocolVersion":1, "revision":revision.to_string(), "siteId":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
         "navigation":{"projects":[],"standaloneTerminalContextId":"00000000000000000000000000000001"},
         "terminalContexts":[{"terminalContextId":"00000000000000000000000000000001", "groups":[], "tabs":[{
             "tabId":"00000000000000000000000000000002", "label":"tab", "pinned":false, "groupId":null,

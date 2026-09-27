@@ -94,7 +94,7 @@ locales, never interpreted as terminal control sequences.
 `orchbee.workspace.list/get` v6 adds a `tokens` map to every row, including an empty map
 when no values remain. Root `metadataSource` carries Site, Workbench and metadata revisions
 and all read request IDs. `orchbee.cli.failure.workbench-query` v2 adds `metadata-changed`.
-The embedded catalog is v83 with 88 documents; the native CLI has 99 command paths.
+The embedded catalog is v84 with 88 documents; the native CLI has 99 command paths.
 
 ## Evidence and delivery
 

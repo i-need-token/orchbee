@@ -1,9 +1,10 @@
 //! Reuse a bounded Host sample and revalidate the Agent binding before publishing it.
 use super::*;
-use crate::cli::results::AgentRuntimeDoc;
+use crate::cli::{results::AgentRuntimeDoc, terminal_observation::Observation};
 use orchbee_agent_observation_protocol::{
     AgentLifecycle, AgentPresentationAttachment, AgentSessionDetail,
 };
+use serde_json::{Value, json};
 
 pub(super) fn read(
     client: &mut crate::local_client::LocalClient,
@@ -11,9 +12,9 @@ pub(super) fn read(
     initial: query::AgentObservationRead,
     deadline: Instant,
     signals: &mut ArmedSignals,
-) -> Result<(query::AgentObservationRead, AgentRuntimeDoc), Failure> {
+) -> Result<(query::AgentObservationRead, AgentRuntimeDoc, Option<Value>), Failure> {
     if initial.session.snapshot.lifecycle != AgentLifecycle::Live {
-        return Ok((initial, AgentRuntimeDoc::Unavailable("session-ended")));
+        return Ok((initial, AgentRuntimeDoc::Unavailable("session-ended"), None));
     }
     let results::Projection::PanelList(panels) =
         results::project(&QueryCommand::PanelList { tab: None }, snapshot)?
@@ -38,17 +39,28 @@ pub(super) fn read(
         .collect();
     let (terminal, binding) = match candidates.as_slice() {
         [(terminal, binding)] => ((*terminal).clone(), (*binding).clone()),
-        [] => return Ok((initial, AgentRuntimeDoc::Unavailable("unbound"))),
-        _ => return Ok((initial, AgentRuntimeDoc::Unavailable("ambiguous-primary"))),
+        [] => return Ok((initial, AgentRuntimeDoc::Unavailable("unbound"), None)),
+        _ => {
+            return Ok((
+                initial,
+                AgentRuntimeDoc::Unavailable("ambiguous-primary"),
+                None,
+            ));
+        }
     };
-    let (source, processes) = query::read_terminal_processes_cancellable(
+    let sample = query::terminal_metadata::read(
         client,
-        deadline,
         snapshot,
-        &crate::invocation::Target::Id(terminal),
+        &crate::invocation::Target::Id(terminal.clone()),
+        deadline,
         signals.poll_fd(),
-    )?;
+    );
     check(deadline, signals)?;
+    let observation = match sample {
+        Ok(read) => Observation::Observed(Box::new(read)),
+        Err(error) if error.kind == FailureKind::ServiceUnavailable => Observation::Unavailable,
+        Err(error) => return Err(error),
+    };
     let canonical = query::read_agent_observation(
         client,
         &initial.session.snapshot.session_id,
@@ -59,9 +71,40 @@ pub(super) fn read(
     if canonical.revision.value() < initial.revision.value() {
         return Err(view_failure(FailureKind::ProtocolInvalid));
     }
-    if !binding_unchanged(&initial.session, &canonical.session, &binding) {
-        return Ok((canonical, AgentRuntimeDoc::Unavailable("binding-changed")));
+    let final_snapshot = query::refresh_snapshot(
+        client,
+        &snapshot.site_id,
+        snapshot.revision,
+        deadline,
+        signals,
+    )?;
+    check(deadline, signals)?;
+    if final_snapshot.revision != snapshot.revision
+        || !binding_unchanged(&initial.session, &canonical.session, &binding)
+    {
+        return Ok((
+            canonical,
+            AgentRuntimeDoc::Unavailable("binding-changed"),
+            None,
+        ));
     }
+    let mut terminal_fields = observation.fields();
+    terminal_fields["terminalId"] = json!(terminal);
+    terminal_fields["source"] = results::snapshot_source(snapshot);
+    let Observation::Observed(mut read) = observation else {
+        return Ok((
+            canonical,
+            AgentRuntimeDoc::Unavailable("terminal-unavailable"),
+            Some(terminal_fields),
+        ));
+    };
+    let Some((source, processes)) = read.processes.take() else {
+        return Ok((
+            canonical,
+            AgentRuntimeDoc::Unavailable("process-unavailable"),
+            Some(terminal_fields),
+        ));
+    };
     let view = crate::cli::processes::interpret(&processes.info);
     let agent = &canonical.session;
     let expected = crate::cli::processes::provider(agent.snapshot.provider_id.as_str());
@@ -85,6 +128,7 @@ pub(super) fn read(
             processes: Box::new(processes),
             prompt_ready,
         },
+        Some(terminal_fields),
     ))
 }
 fn binding_unchanged(
