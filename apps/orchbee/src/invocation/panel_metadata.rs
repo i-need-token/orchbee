@@ -71,6 +71,13 @@ pub(super) fn parse(
     };
     let common = super::workspace_metadata::fields(options, context, envelope, false)?;
     let fields = &options.panel_metadata;
+    if (fields.clear_title && fields.title.is_some())
+        || (fields.clear_display_agent && fields.display_agent.is_some())
+        || (fields.clear_state_labels && !fields.state_labels.is_empty())
+    {
+        return Err(invalid("report", "", ExpectedValue::MetadataPresentation));
+    }
+
     let normalize =
         |value: &Option<String>| value.as_deref().and_then(MetadataTokenValue::normalize);
     let mut patch = PanelMetadataPatch {
@@ -174,6 +181,8 @@ mod tests {
             vec!["--state-label=working="],
             vec!["--state-label=nope=text"],
             vec!["--title=x", "--clear-title"],
+            vec!["--title=", "--clear-title"],
+            vec!["--display-agent= ", "--clear-display-agent"],
             vec!["--display-agent=x", "--clear-display-agent"],
             vec!["--state-label=done=x", "--clear-state-labels"],
             vec!["--clear-title", "--clear-title"],

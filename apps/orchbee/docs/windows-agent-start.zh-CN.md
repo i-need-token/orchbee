@@ -82,6 +82,6 @@ Host 进程样本变化或暂时不可用时，在同一原始期限内重新采
 
 ## 检查已完成启动
 
-Windows Agent Get v7（指定 Client 时为 v8）包含 `management`，携带自己的读取来源、采样规范修订及 `state`。Server 仅在接受 Complete 后保留活动启动身份；手动命名仍为非托管。Active 表示该启动已确认交互就绪，与后续工作、待处理事项、新鲜度或 OS 焦点相互独立。清名、结束／移除／销毁、provider 不符及精确物理绑定退役／替换会清除托管记录。重命名保留它；重启持久化仍是独立工作。
+Windows Agent Get v9（指定 Client 时为 v10）包含 `management`，携带自己的读取来源、采样规范修订及 `state`。Server 仅在接受 Complete 后保留活动启动身份；手动命名仍为非托管。Active 表示该启动已确认交互就绪，与后续工作、待处理事项、新鲜度或 OS 焦点相互独立。清名、结束／移除／销毁、provider 不符及精确物理绑定退役／替换会清除托管记录。重命名保留它；重启持久化仍是独立工作。
 
 Pending 状态携带原始预留及当前 blocked 标志。读取不延长期限、不完成启动。Pending 时 Get 将 promptReady 置为 false；prompt 在规范状态／进程预检后读取 management，并在发送前拒绝待启动状态。沿用原始准入／总期限及信号所有者。Status 读取失败保留 Agent 失败族，并在 v3 中标记 operation management。成功的 Start v2 在现有完成和发送证据上增加必需的 interactiveReady true；v1 schema 仍供旧调用者使用。这不改变现有阻塞启动取消策略，也不增加屏幕识别规则引擎。

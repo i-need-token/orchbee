@@ -10,7 +10,7 @@
 			"const": "orchbee.panel.list"
 		},
 		"version": {
-			"const": 7
+			"enum": [7, 8]
 		},
 		"source": {
 			"$ref": "#/$defs/snapshotSource"
@@ -135,6 +135,9 @@
 							},
 							"scrollObservation": {
 								"$ref": "#/$defs/panelScrollObservation"
+							},
+							"metadata": {
+								"$ref": "#/$defs/panelMetadata"
 							}
 						},
 						"allOf": [
@@ -1540,6 +1543,400 @@
 					"$ref": "#/$defs/viewportObservation"
 				}
 			]
+		},
+		"metadataIdentity": {
+			"type": "string",
+			"pattern": "^[0-9a-f]{32}$",
+			"not": {
+				"const": "00000000000000000000000000000000"
+			}
+		},
+		"metadataRevision": {
+			"type": "string",
+			"pattern": "^(?:0|[1-9][0-9]{0,19})$",
+			"maxLength": 20,
+			"format": "orchbee-uint64"
+		},
+		"metadataSource": {
+			"type": "string",
+			"pattern": "^[a-zA-Z0-9:._-]{1,80}$(?![\\s\\S])"
+		},
+		"metadataKey": {
+			"type": "string",
+			"pattern": "^[a-zA-Z0-9_-]{1,32}$(?![\\s\\S])"
+		},
+		"metadataValue": {
+			"type": "string",
+			"minLength": 1,
+			"maxLength": 80,
+			"allOf": [
+				{
+					"not": {
+						"pattern": "[^\\u0020-\\u007e\\u00a0-\\uD7FF\\uE000-\\uFFFF𐀀-􏿿]"
+					}
+				},
+				{
+					"not": {
+						"pattern": "^[\\u0009-\\u000d\\u0020\\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000]|[\\u0009-\\u000d\\u0020\\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000]$"
+					}
+				}
+			]
+		},
+		"metadataTokens": {
+			"type": "object",
+			"maxProperties": 32,
+			"propertyNames": {
+				"$ref": "#/$defs/metadataKey"
+			},
+			"additionalProperties": {
+				"$ref": "#/$defs/metadataValue"
+			}
+		},
+		"metadataBinding": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["workerId", "terminalId"],
+			"properties": {
+				"workerId": {
+					"$ref": "#/$defs/metadataIdentity"
+				},
+				"terminalId": {
+					"$ref": "#/$defs/metadataIdentity"
+				}
+			}
+		},
+		"metadataLabels": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": [],
+			"properties": {
+				"idle": {
+					"$ref": "#/$defs/metadataValue"
+				},
+				"working": {
+					"$ref": "#/$defs/metadataValue"
+				},
+				"blocked": {
+					"$ref": "#/$defs/metadataValue"
+				},
+				"done": {
+					"$ref": "#/$defs/metadataValue"
+				},
+				"unknown": {
+					"$ref": "#/$defs/metadataValue"
+				}
+			}
+		},
+		"metadataField": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["value", "order"],
+			"properties": {
+				"value": {
+					"$ref": "#/$defs/metadataValue"
+				},
+				"order": {
+					"allOf": [
+						{
+							"$ref": "#/$defs/metadataRevision"
+						},
+						{
+							"not": {
+								"const": "0"
+							}
+						}
+					]
+				}
+			}
+		},
+		"metadataFieldLabels": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": [],
+			"properties": {
+				"idle": {
+					"$ref": "#/$defs/metadataField"
+				},
+				"working": {
+					"$ref": "#/$defs/metadataField"
+				},
+				"blocked": {
+					"$ref": "#/$defs/metadataField"
+				},
+				"done": {
+					"$ref": "#/$defs/metadataField"
+				},
+				"unknown": {
+					"$ref": "#/$defs/metadataField"
+				}
+			}
+		},
+		"metadataPresentation": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["source", "agent", "appliesToSource", "title", "displayAgent", "stateLabels"],
+			"properties": {
+				"source": {
+					"$ref": "#/$defs/metadataSource"
+				},
+				"agent": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/metadataValue"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"appliesToSource": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/metadataSource"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"title": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/metadataField"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"displayAgent": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/metadataField"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"stateLabels": {
+					"$ref": "#/$defs/metadataFieldLabels"
+				}
+			},
+			"anyOf": [
+				{
+					"required": ["title"],
+					"properties": {
+						"title": {
+							"$ref": "#/$defs/metadataField"
+						}
+					}
+				},
+				{
+					"required": ["displayAgent"],
+					"properties": {
+						"displayAgent": {
+							"$ref": "#/$defs/metadataField"
+						}
+					}
+				},
+				{
+					"required": ["stateLabels"],
+					"properties": {
+						"stateLabels": {
+							"type": "object",
+							"minProperties": 1
+						}
+					}
+				}
+			]
+		},
+		"panelMetadata": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["source", "binding", "tokens", "presentations", "context", "presentation"],
+			"properties": {
+				"source": {
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["siteId", "workbenchRevision", "metadataRevision", "requestIds"],
+					"properties": {
+						"siteId": {
+							"$ref": "#/$defs/metadataIdentity"
+						},
+						"workbenchRevision": {
+							"$ref": "#/$defs/metadataRevision"
+						},
+						"metadataRevision": {
+							"$ref": "#/$defs/metadataRevision"
+						},
+						"requestIds": {
+							"type": "array",
+							"minItems": 2,
+							"uniqueItems": true,
+							"items": {
+								"$ref": "#/$defs/metadataIdentity"
+							}
+						}
+					}
+				},
+				"binding": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/metadataBinding"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"tokens": {
+					"$ref": "#/$defs/metadataTokens"
+				},
+				"presentations": {
+					"type": "array",
+					"maxItems": 32,
+					"items": {
+						"$ref": "#/$defs/metadataPresentation"
+					}
+				},
+				"context": {
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["agent", "authoritySource"],
+					"properties": {
+						"agent": {
+							"type": "null"
+						},
+						"authoritySource": {
+							"type": "null"
+						}
+					}
+				},
+				"presentation": {
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["title", "displayAgent", "stateLabels"],
+					"properties": {
+						"title": {
+							"anyOf": [
+								{
+									"$ref": "#/$defs/metadataValue"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"displayAgent": {
+							"anyOf": [
+								{
+									"$ref": "#/$defs/metadataValue"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"stateLabels": {
+							"$ref": "#/$defs/metadataLabels"
+						}
+					}
+				}
+			},
+			"allOf": [
+				{
+					"if": {
+						"properties": {
+							"binding": {
+								"type": "null"
+							}
+						}
+					},
+					"then": {
+						"properties": {
+							"tokens": {
+								"type": "object",
+								"maxProperties": 0
+							},
+							"presentations": {
+								"type": "array",
+								"maxItems": 0
+							},
+							"presentation": {
+								"type": "object",
+								"properties": {
+									"title": {
+										"type": "null"
+									},
+									"displayAgent": {
+										"type": "null"
+									},
+									"stateLabels": {
+										"type": "object",
+										"maxProperties": 0
+									}
+								}
+							}
+						}
+					}
+				}
+			]
 		}
-	}
+	},
+	"allOf": [
+		{
+			"if": {
+				"properties": {
+					"version": {
+						"const": 8
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"result": {
+						"type": "object",
+						"properties": {
+							"panels": {
+								"type": "array",
+								"items": {
+									"type": "object",
+									"properties": {
+										"metadata": {
+											"$ref": "#/$defs/panelMetadata"
+										}
+									},
+									"required": ["metadata"]
+								}
+							}
+						}
+					}
+				}
+			},
+			"else": {
+				"properties": {
+					"result": {
+						"type": "object",
+						"properties": {
+							"panels": {
+								"type": "array",
+								"items": {
+									"type": "object",
+									"properties": {
+										"metadata": {
+											"$ref": "#/$defs/panelMetadata"
+										}
+									},
+									"not": {
+										"required": ["metadata"]
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	]
 }

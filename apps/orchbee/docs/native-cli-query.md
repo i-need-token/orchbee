@@ -39,8 +39,8 @@ perform no navigation or mutation. Runtime observations are described below. Win
 remembered active Tab in each Workspace. The [Client query contract](windows-client-control.md#client-relative-workbench-queries)
 owns this bounded, read-only join and its provenance and consistency checks.
 Schema versions are `orchbee.workspace.list/get` 6, `orchbee.tab.list` 4,
-`orchbee.tab.get` 5 and `orchbee.panel.list/get` 7; the embedded catalog is version 84
-with 88 schemas. Retained selection-read controls use `orchbee.client.control` v2;
+`orchbee.tab.get` 5 and `orchbee.panel.list/get` 8; the embedded catalog is version 86
+with 89 schemas. Retained selection-read controls use `orchbee.client.control` v2;
 viewport reads use v3; other controls retain v1. `orchbee.cli.failure.client-query` v1 identifies selected
 Client read failures; existing target and admission diagnostics remain intact.
 Process and worktree observations use their respective owners as described below;
@@ -132,7 +132,7 @@ Git cleanup remains owned by the existing Worker read task. External filesystem
 changes are not fenced: these are sequential live observations, not an atomic Git
 snapshot or Herdr's cached membership. `unavailable` never means “not a repository.”
 
-Workspace list/get use schema version 6; catalog version 84 still contains 88
+Workspace list/get use schema version 6; catalog version 86 contains 89
 documents. Other query versions retain their existing contracts. Verification
 covers main and linked checkouts, Workspace directories inside a checkout, missing
 directories, unavailable Git, mismatched source facts, total deadlines, safe text
@@ -172,7 +172,7 @@ Client checks. Viewers detach on every outcome, with admitted-session teardown a
 There is no input, resize, focus, history-demand or Client acknowledgement effect. These independent
 frame/process observations are not an atomic snapshot. A fresh viewer's live frame never claims
 the selected Client's scroll offset: the Client viewport observation below supplies it.
-Panel list/get schemas are version 7 and the catalog is version 84 with 88 schemas.
+Windows Panel list/get schemas are version 8 and the catalog is version 86 with 89 schemas.
 
 ## Panel Client scroll queries
 
@@ -190,8 +190,8 @@ request unrelated active-Tab memory. Workspace/Tab queries keep their existing g
 All observations share the original admitted connection and five-second total, followed
 by the final canonical and Client revision checks. No query changes the viewport, focus,
 selection, input lease or seen acknowledgement. Independent Host/process and Client
-observations are not an atomic snapshot. Panel list/get use schema 7; retained viewport
-controls use `orchbee.client.control` 3; catalog 81 retains 87 schemas.
+observations are not an atomic snapshot. Windows Panel list/get use schema 8; retained viewport
+controls use `orchbee.client.control` 3; catalog 86 contains 89 schemas.
 
 ## Windows named Site selection
 
@@ -1370,7 +1370,7 @@ Canonical traversal order: `navigation.projects` order; each project's `workspac
 `children[1]`; terminal bindings in that panel order with `primaryPresentation` before
 `childPresentations`. No sorting is added; filtered lists and `ambiguous` candidates preserve it.
 
-Snapshot and one-effect command envelopes use `{schema, version, source, result}`; staged workflows have their own embedded schemas. Every schema defines its emitted version and strict shape. Workbench query versions are listed above; `orchbee.panel.current` is v4 on Windows (v3 elsewhere) and `orchbee.api.snapshot` is v5 with Workspace ordering. `orchbee.terminal.get` is v4 for the retained launch program/arguments. `orchbee.terminal.read/history` use v2 with `--unwrap` or `--lines`; `orchbee.terminal.wait-output` uses v2 for regex match details. Their flag-free outputs remain v1. See `api schema <id>` for each command and failure's complete version contract. The current catalog is v84 with 88 required documents: registering an ID changes the closed dictionary shape, independently of business document versions. Sources retain their owner's meaning:
+Snapshot and one-effect command envelopes use `{schema, version, source, result}`; staged workflows have their own embedded schemas. Every schema defines its emitted version and strict shape. Workbench query versions are listed above; `orchbee.panel.current` is v5 on Windows (v3 elsewhere) and `orchbee.api.snapshot` is v5 with Workspace ordering. `orchbee.terminal.get` is v4 for the retained launch program/arguments. `orchbee.terminal.read/history` use v2 with `--unwrap` or `--lines`; `orchbee.terminal.wait-output` uses v2 for regex match details. Their flag-free outputs remain v1. See `api schema <id>` for each command and failure's complete version contract. The current catalog is v86 with 89 required documents: registering an ID changes the closed dictionary shape, independently of business document versions. Sources retain their owner's meaning:
 
 - `source.kind="workbench-snapshot"` with `siteId` and decimal-string `revision` from the same
   validated snapshot — present only after a complete valid read.
@@ -2174,12 +2174,12 @@ An absent or mismatched binding fails `not-found` (exit 3); duplicate identity f
 `protocol-invalid` (exit 5). Invalid caller binding never falls back. Snapshot and optional
 Client observations are not atomic. The answer is bounded by their observation times.
 
-Windows current Panel uses `orchbee.panel.current` v4 with the complete Panel Get enrichment:
+Windows current Panel uses `orchbee.panel.current` v5 with the complete Panel Get enrichment:
 primary Agent, terminal title/cwd/processes, and exact selected Client focus/scroll. Explicit or
 caller Panel selection stays headless. The Client record used for resolution is pinned through
 final view/revision checks; concurrent selection changes fail without a partial result. The
 five-second deadline, cancellation, read-only operations, Viewer cleanup and Windows evidence
-are owned by the linked contract. Catalog v84 contains 88 schemas. No activation, input,
+are owned by the linked contract. Catalog v86 contains 89 schemas. No activation, input,
 control-authority or focus effects; non-Windows current retains v3. TLA execution remains deferred.
 
 Windows Worker identities are fresh per Server connection using the existing OS random source;
@@ -2190,7 +2190,7 @@ publishes removal, after which the old binding is not found.
 
 ## Directory Workspace creation
 
-The Windows `workspace create` [contract](windows-workspace-creation.md) owns optional Project, label, source, directory and focus. All argument combinations use one first-terminal launch workflow, including explicit `--project <target> --label <label>` with omitted or absolute `--cwd`. `--no-focus` affects only focus. `orchbee.workspace.creation` v1 preserves first-Project setup, Workspace and focus separately; resource IDs and terminal state are in `workspace.result`. This replaces the previous empty-Workspace/top-level mutation-v4 split. Catalog v84 contains 88 schemas and 99 command paths.
+The Windows `workspace create` [contract](windows-workspace-creation.md) owns optional Project, label, source, directory and focus. All argument combinations use one first-terminal launch workflow, including explicit `--project <target> --label <label>` with omitted or absolute `--cwd`. `--no-focus` affects only focus. `orchbee.workspace.creation` v1 preserves first-Project setup, Workspace and focus separately; resource IDs and terminal state are in `workspace.result`. This replaces the previous empty-Workspace/top-level mutation-v4 split. Catalog v86 contains 89 schemas and 100 command paths.
 
 The Worker probes the requested directory before the Server atomically registers the Workspace, directory, Terminal Context and first Tab/Panel/Presentation at one revision. Failed admission creates none of them. A successful commit retains the nested mutation v4 envelope with action `workspace.create`, `projectId`, `workspaceId`, `directoryId`, `terminalContextId`, `tabId`, `panelId`, `presentationId`, literal `path`, `label`, and `terminal`. The existing schema already admits these fields; its version and catalog are unchanged. Terminal launch can remain pending or fail after commit: keep the returned IDs, inspect the Workspace and explicitly close it if unwanted. An unknown response is never automatically replayed or rolled back.
 
@@ -2412,19 +2412,19 @@ Windows `agent focus <target> [--client <id>]` resolves a name, session or Panel
 
 The `orchbee.agent.changes` version-1 envelope contains the canonical changes/current/reset-required outcome and the correlated Agent source. Reset-required is a visible loss-of-continuity result; rebuild the baseline. Invalid/foreign-boot cursor, read denial and runtime unavailability use the existing Agent failure family with operation changes. A page cannot exceed the requested limit. JSON retains typed facts and cursors; localized text shows status, revision and continuation. The Server owns retention, authentication and coherent history; CLI grammar/help/completion/schema/Skill expose this boundary. Other platform runtimes remain unavailable for this new command.
 
-Windows `agent get <target> --client <id>` adds a selected-Client projection in `orchbee.agent.get` v8; ordinary Windows Get is v7 with terminal/runtime information. The [Client attention contract](native-client-attention.md) owns version joining, focus and idle/done mapping. It uses one five-second total and never acknowledges or navigates. Missing/stale observations expose null seen; canonical status remains separate.
+Windows `agent get <target> --client <id>` adds a selected-Client projection in `orchbee.agent.get` v10; ordinary Windows Get is v9 with terminal/runtime information. The [Client attention contract](native-client-attention.md) owns version joining, focus and idle/done mapping. It uses one five-second total and never acknowledges or navigates. Missing/stale observations expose null seen; canonical status remains separate.
 
 Windows `agent prompt --wait` checkpoints the retained Agent change journal after runtime preflight and before submitting input once. A failed checkpoint prevents submission. The checkpoint must cover the preflight revision. Each later fully validated page preserves transient activity; a fresh newer provider version must show working/blocked or a turn-finished transition to open the activity gate. Only working/blocked conditions can match that gate event; settled conditions must match a current sample, so a transient completion followed by working keeps waiting. Metadata and freshness changes alone do not establish activity. The five-second activity gate, original total/read deadlines, pinned identity and cancellation owner remain. A current canonical sample must cover the journal head. Windows v3 separates nullable `matchedChange` and its source from the current observation; Linux remains v2. History loss or a foreign cursor fails explicitly and preserves the accepted input receipt. This proves observed activity after the checkpoint, not causality or exclusive ownership of the submitted turn.
 
 Windows `agent prompt <target> <text> --wait --client <id>` preflights one exact Client before sending and reads its attention on each later sample. The canonical activity gate still applies. Idle/done match only its current corroborated resting projection; missing/stale versions keep waiting. A lost Client or read failure stops the wait with the accepted input receipt retained. The Client read bundle is bounded to two seconds inside the existing five-second evaluation and original total deadline. No read acknowledges, focuses or resubmits. Selected-Client success is v4 with required `client`; ordinary Windows prompt remains v3 and Linux v2. `--client` requires `--wait` and has no Mac/Linux implementation.
 
-Windows `agent get` emits v7; `--client` emits v8. The required nullable `terminal` observation adds `terminalId`, canonical snapshot `source`, `cwd`, `cwdSource`, `foregroundCwd`, `terminalTitle`, `terminalTitleStripped` and `terminalObservation`, using the same projection as Panel queries. One cancellable five-second total covers admission, target resolution, canonical Get, one read-only Viewer for a terminal frame and Windows Job sample, a second canonical Get, a Workbench revision fence, management and optional Client proof. Frame cwd takes precedence over sampled root-process cwd; foregroundCwd uses the disclosed process-selection policy, not OS foreground. Raw and presentation titles remain separate. Frame and process observations are individually sourced, not an atomic snapshot.
+Windows `agent get` emits v9; `--client` emits v10. The required nullable `terminal` observation adds `terminalId`, canonical snapshot `source`, `cwd`, `cwdSource`, `foregroundCwd`, `terminalTitle`, `terminalTitleStripped` and `terminalObservation`, using the same projection as Panel queries. One cancellable five-second total covers admission, target resolution, canonical Get, one read-only Viewer for a terminal frame and Windows Job sample, a second canonical Get, a Workbench revision fence, management and optional Client proof. Frame cwd takes precedence over sampled root-process cwd; foregroundCwd uses the disclosed process-selection policy, not OS foreground. Raw and presentation titles remain separate. Frame and process observations are individually sourced, not an atomic snapshot.
 
-The unique live primary Terminal binding and provider must remain unchanged. Ended, unbound, ambiguous or changed bindings return null terminal and an explicit unavailable runtime; any Workbench revision change discards the sampled data conservatively. An unavailable terminal returns null metadata with `terminalObservation.state` unavailable and runtime reason `terminal-unavailable`. When only the process sample is unavailable, frame metadata survives, process provenance reports unavailable, and runtime reason is `process-unavailable`. Malformed, denied, transport, cancellation and deadline failures fail the command without a partial result. All Viewer attachments close; queries never focus, acknowledge, resize or send input. `runtime` retains its actual process-query source, Windows Job DTO and bounded `promptReady` preflight. Readiness requires fresh known nonblocked Agent facts matching a recognized provider process chain and no pending startup; it is not an input lease or interactive UI readiness. Non-Windows Get remains v1; the embedded schema strictly retains v1-v6 and catalog v84 contains 88 schemas. Reported presentation title/displayAgent/stateLabels/tokens, resumable agentSession, and complete session snapshot remain separate requirements.
+The unique live primary Terminal binding and provider must remain unchanged. Ended, unbound, ambiguous or changed bindings return null terminal and an explicit unavailable runtime; any Workbench revision change discards the sampled data conservatively. An unavailable Host returns null frame fields but preserves Server-owned `terminal.metadata`, with `terminalObservation.state` unavailable and runtime reason `terminal-unavailable`. When only the process sample is unavailable, frame metadata survives, process provenance reports unavailable, and runtime reason is `process-unavailable`. Malformed, denied, transport, cancellation and deadline failures fail the command without a partial result. All Viewer attachments close; queries never focus, acknowledge, resize or send input. `runtime` retains its actual process-query source, Windows Job DTO and bounded `promptReady` preflight. Readiness requires fresh known nonblocked Agent facts matching a recognized provider process chain and no pending startup; it is not an input lease or interactive UI readiness. Non-Windows Get remains v1; the embedded schema strictly retains v1-v8 and catalog v86 contains 89 schemas. Reported presentation fields and tokens are exposed through `terminal.metadata`; actual Agent/source guard context, resumable agentSession, and complete session snapshot remain separate requirements.
 
 Windows `agent list --client <id>` joins the selected TUI status in the v2 list envelope. It batches one bounded page, rereads its original cursor and checks retained changes before exposing seen/unseen. Empty pages still validate the exact Client. No-flag list retains v1. The [Client attention contract](native-client-attention.md) owns consistency and deadlines.
 
-Windows Agent Get now emits v7 (v8 with `--client`), adding a separate `management` observation with source, revision and Server-owned startup state. Active records come only from completed startup; manually named sessions remain unmanaged. Pending startup makes promptReady false and `agent prompt` refuses before input. The bounded Status read shares the original command deadline and can fail with Agent read failure v3 (`operation: management`); it never retries or completes a launch. `agent start` v2 explicitly reports interactiveReady after its existing successful completion. The [startup contract](windows-agent-start.md) owns lifecycle and limits.
+Windows Agent Get now emits v9 (v10 with `--client`), adding a separate `management` observation with source, revision and Server-owned startup state. Active records come only from completed startup; manually named sessions remain unmanaged. Pending startup makes promptReady false and `agent prompt` refuses before input. The bounded Status read shares the original command deadline and can fail with Agent read failure v3 (`operation: management`); it never retries or completes a launch. `agent start` v2 explicitly reports interactiveReady after its existing successful completion. The [startup contract](windows-agent-start.md) owns lifecycle and limits.
 
 The native provider registry now has 20 entries, including Windows Cursor, Qoder and Antigravity JSON hook onboarding and offline diagnosis. The API catalogue is version 62; schema and command-path counts remain unchanged.
 
@@ -2505,7 +2505,7 @@ Catalog v72 contains 81 schemas and retains 96 command paths.
 
 ## Reusable layout export
 
-Windows `layout export` emits a reusable JSON tree with ratios, manual labels, observed directories and frozen launch commands. The [layout contract](windows-layouts.md) owns export targets, Client selection, bounds, cancellation, absence of terminal effects and consistency, together with the implemented `layout apply` creation/replacement workflow and its effect receipts. `orchbee.layout.export` v1 and `orchbee.cli.failure.layout` v1 are included in the current catalog v84 (88 documents).
+Windows `layout export` emits a reusable JSON tree with ratios, manual labels, observed directories and frozen launch commands. The [layout contract](windows-layouts.md) owns export targets, Client selection, bounds, cancellation, absence of terminal effects and consistency, together with the implemented `layout apply` creation/replacement workflow and its effect receipts. `orchbee.layout.export` v1 and `orchbee.cli.failure.layout` v1 are included in the current catalog v86 (89 documents).
 
 ## Programmatic semantic keys
 
@@ -2514,3 +2514,11 @@ Windows `layout export` emits a reusable JSON tree with ratios, manual labels, o
 Old spellings keep their legacy wire records. Extended forms use validated stroke records through both native protocols. Worker supplies physical identity, logical text, unshifted scalar and modifiers; shifted printable text consumes Shift for text generation while retaining the modifier for negotiated full key reporting. Host encodes the current terminal mode, preserving legacy Super character chords as CSI-u. Legacy printable combinations also carry text, so Shift-only letters and Space no longer disappear. Sequence order, at most 64 keys, shared deadline, input-only attachment, prefix receipts and no replay after partial/unknown outcomes remain unchanged. New function keys may be mode-ignored where the child has not enabled a supporting keyboard protocol; receipts retain the actual encoded-byte count.
 
 The same-author regressions cover parser refusal, independent wire goldens, malformed scalar/flag boundaries, mixed record boundaries, Worker semantic projection and Host legacy/Kitty encoding. Focused verification does not replace final Windows cohort acceptance or full-goal regression.
+
+## Windows Panel metadata query
+
+The [Panel metadata contract](windows-panel-metadata.md#query-observation-model) owns batched
+read provenance, exact primary binding checks and the final metadata revision fence. Panel
+list/get v8, current v5 and Agent Get v9/v10 expose `metadata` with raw source records, global
+tokens, explicit absent guard context and eligible effective fields. This never replaces OSC
+title, canonical label, status or readiness. Legacy versions retain their closed prior shapes.

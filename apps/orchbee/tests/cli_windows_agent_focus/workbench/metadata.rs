@@ -37,7 +37,7 @@ pub(super) fn read_reply(stream: &mut LocalStream, case: &str, turn: u64) {
     };
     write_workbench_response(stream, &WorkbenchResponse::WorkspaceMetadata(reply)).unwrap();
 }
-fn empty_agents(stream: &mut LocalStream) {
+pub(super) fn empty_agents(stream: &mut LocalStream) {
     let AgentRequest::Read(request) = read_agent_request(stream).unwrap() else {
         panic!("Agent read")
     };

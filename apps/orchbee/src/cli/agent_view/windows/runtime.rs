@@ -34,11 +34,16 @@ pub(super) fn read(
                     binding.navigable
                         && binding.presentation_id.as_str() == panel.primary_presentation_id
                 })?;
-            Some((terminal, binding))
+            Some((terminal, binding, panel.panel_id.as_str()))
         })
         .collect();
-    let (terminal, binding) = match candidates.as_slice() {
-        [(terminal, binding)] => ((*terminal).clone(), (*binding).clone()),
+    let (terminal, binding, panel_id) = match candidates.as_slice() {
+        [(terminal, binding, panel)] => (
+            (*terminal).clone(),
+            (*binding).clone(),
+            orchbee_workbench_protocol::WorkbenchPanelId::parse(panel)
+                .map_err(|_| view_failure(FailureKind::ProtocolInvalid))?,
+        ),
         [] => return Ok((initial, AgentRuntimeDoc::Unavailable("unbound"), None)),
         _ => {
             return Ok((
@@ -71,6 +76,19 @@ pub(super) fn read(
     if canonical.revision.value() < initial.revision.value() {
         return Err(view_failure(FailureKind::ProtocolInvalid));
     }
+    let metadata = if binding_unchanged(&initial.session, &canonical.session, &binding) {
+        let mut metadata = crate::cli::panel_metadata_query::read(
+            client,
+            snapshot,
+            std::slice::from_ref(&panel_id),
+            deadline,
+            signals,
+        )?;
+        metadata.verify(client, snapshot, deadline, signals)?;
+        Some(metadata)
+    } else {
+        None
+    };
     let final_snapshot = query::refresh_snapshot(
         client,
         &snapshot.site_id,
@@ -89,6 +107,9 @@ pub(super) fn read(
         ));
     }
     let mut terminal_fields = observation.fields();
+    terminal_fields["metadata"] = metadata
+        .expect("stable unique live binding")
+        .value(&panel_id);
     terminal_fields["terminalId"] = json!(terminal);
     terminal_fields["source"] = results::snapshot_source(snapshot);
     let Observation::Observed(mut read) = observation else {

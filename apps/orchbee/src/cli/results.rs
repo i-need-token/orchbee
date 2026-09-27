@@ -80,26 +80,38 @@ pub(crate) const fn schema_version(command: &QueryCommand) -> u64 {
             client: Some(_), ..
         } => 2,
         #[cfg(windows)]
-        QueryCommand::AgentGet(_) => 7,
+        QueryCommand::AgentGet(_) => 9,
         QueryCommand::AgentClientGet { .. } => {
             if cfg!(windows) {
-                8
+                10
             } else {
                 2
             }
         }
         QueryCommand::TerminalSourceWait { .. } => 3,
         QueryCommand::TerminalOutput { ansi: true, .. } => 2,
-        QueryCommand::PanelGet(_) => 7,
+        QueryCommand::PanelGet(_) => {
+            if cfg!(windows) {
+                8
+            } else {
+                7
+            }
+        }
         QueryCommand::PanelCurrent(_) => {
             if cfg!(windows) {
-                4
+                5
             } else {
                 3
             }
         }
         QueryCommand::ApiSnapshot => 5,
-        QueryCommand::PanelList { .. } => 7,
+        QueryCommand::PanelList { .. } => {
+            if cfg!(windows) {
+                8
+            } else {
+                7
+            }
+        }
         QueryCommand::TabGet(_) => 5,
         QueryCommand::WorkspaceList { .. } | QueryCommand::WorkspaceGet(_) => 6,
         QueryCommand::TabList { .. } => 4,

@@ -274,9 +274,6 @@ pub(super) fn bound_snapshot_reply(stream: &mut LocalStream) {
 }
 pub(super) fn bound_snapshot_at(stream: &mut LocalStream, revision: u64) {
     use orchbee_workbench_protocol::*;
-    let WorkbenchRequest::SnapshotRead(intent) = read_workbench_request(stream).unwrap() else {
-        panic!("snapshot first");
-    };
     let document = json!({
         "kind":"workbench.snapshot", "protocolVersion":1, "revision":revision.to_string(), "siteId":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
         "navigation":{"projects":[],"standaloneTerminalContextId":"00000000000000000000000000000001"},
@@ -291,6 +288,13 @@ pub(super) fn bound_snapshot_at(stream: &mut LocalStream, revision: u64) {
         }]}]
     });
     let snapshot = parse_snapshot(&serde_json::to_vec(&document).unwrap()).unwrap();
+    let intent = snapshot_after_metadata(
+        stream,
+        &Snapshot {
+            revision: WorkbenchRevision::new(9),
+            ..snapshot.clone()
+        },
+    );
     write_workbench_response(
         stream,
         &WorkbenchResponse::Snapshot(WorkbenchSnapshotResult {
@@ -451,5 +455,74 @@ pub(super) fn process_sample_for(
             )),
         )
         .unwrap();
+    }
+}
+
+/// Only correlated read batches, then a final empty revision fence; writes always fail this fixture.
+pub(super) fn snapshot_after_metadata(
+    stream: &mut LocalStream,
+    snapshot: &orchbee_workbench_protocol::Snapshot,
+) -> orchbee_workbench_protocol::SnapshotReadIntent {
+    use orchbee_workbench_protocol::*;
+    fn binding(node: &PanelNode, id: &WorkbenchPanelId) -> Option<Option<PresentationBinding>> {
+        match node {
+            PanelNode::Panel {
+                panel_id,
+                primary_presentation,
+                ..
+            } if panel_id == id => Some(primary_presentation.binding.clone()),
+            PanelNode::Panel { .. } => None,
+            PanelNode::Split { children, .. } => {
+                children.iter().find_map(|child| binding(&child.node, id))
+            }
+        }
+    }
+    let mut reads = 0;
+    let mut fenced = false;
+    loop {
+        match read_workbench_request(stream).unwrap() {
+            WorkbenchRequest::SnapshotRead(request) => {
+                assert!(reads == 0 || fenced, "missing metadata fence");
+                return request;
+            }
+            WorkbenchRequest::PanelMetadata(request) => {
+                assert!(!fenced, "no reads after metadata fence");
+                assert_eq!(request.site_id, snapshot.site_id);
+                let PanelMetadataAction::Read { panel_ids } = &request.action else {
+                    panic!("query must never report metadata")
+                };
+                fenced = panel_ids.is_empty();
+                reads += 1;
+                let panels = panel_ids
+                    .iter()
+                    .map(|id| PanelMetadataRow {
+                        panel_id: id.clone(),
+                        binding: snapshot
+                            .terminal_contexts
+                            .iter()
+                            .flat_map(|context| &context.tabs)
+                            .find_map(|tab| binding(&tab.root, id))
+                            .expect("known panel"),
+                        tokens: Default::default(),
+                        presentations: vec![],
+                    })
+                    .collect();
+                write_workbench_response(
+                    stream,
+                    &WorkbenchResponse::PanelMetadata(PanelMetadataResult {
+                        protocol_version: ProtocolVersion,
+                        request_id: request.request_id,
+                        site_id: request.site_id,
+                        outcome: PanelMetadataOutcome::Read {
+                            workbench_revision: snapshot.revision,
+                            metadata_revision: WorkbenchRevision::new(0),
+                            panels,
+                        },
+                    }),
+                )
+                .unwrap();
+            }
+            _ => panic!("snapshot or read-only Panel metadata"),
+        }
     }
 }

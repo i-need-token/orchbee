@@ -1,6 +1,8 @@
 //! Workbench query composition uses the same admitted pipe without state-changing controls.
 #[path = "workbench/metadata.rs"]
 mod metadata;
+#[path = "workbench/panel_metadata.rs"]
+mod panel_metadata;
 use super::*;
 use orchbee_agent_observation_protocol::{AgentResult, write_agent_result};
 #[path = "workbench/runtime.rs"]

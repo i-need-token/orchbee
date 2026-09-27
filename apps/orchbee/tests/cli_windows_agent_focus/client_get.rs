@@ -148,7 +148,7 @@ fn selected_client_get_joins_only_current_versions_and_keeps_canonical_outcome()
             &doc,
             include_str!("../../src/cli/schemas/orchbee.agent.get.json"),
         );
-        assert_eq!(doc["version"], 8);
+        assert_eq!(doc["version"], 10);
         assert_eq!(doc["result"]["session"]["status"]["kind"], "succeeded");
         let client = &doc["result"]["client"];
         assert_eq!(client["state"], expected_state);

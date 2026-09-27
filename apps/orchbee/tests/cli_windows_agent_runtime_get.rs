@@ -88,7 +88,7 @@ fn agent_get_returns_process_facts_and_bounded_prompt_readiness() {
             &doc,
             include_str!("../src/cli/schemas/orchbee.agent.get.json"),
         );
-        assert_eq!(doc["version"], 7);
+        assert_eq!(doc["version"], 9);
         assert!(doc["result"].get("client").is_none());
         if case == "ready" {
             let schema: Value =
@@ -104,6 +104,7 @@ fn agent_get_returns_process_facts_and_bounded_prompt_readiness() {
                 "terminalObservation",
                 "source",
                 "terminalId",
+                "metadata",
             ] {
                 let mut bad = doc.clone();
                 if field == "terminal" {

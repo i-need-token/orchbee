@@ -33,6 +33,7 @@ pub(crate) struct Document {
     viewports: Option<super::workbench_viewports::Document>,
     worktrees: Option<super::workbench_worktrees::Document>,
     metadata: Option<super::workbench_metadata::Document>,
+    panel_metadata: Option<super::panel_metadata_query::Document>,
     operations: Vec<WorkbenchRequestId>,
     contexts: Vec<ClientContextSelection>,
 }
@@ -249,6 +250,7 @@ pub(super) fn collect(
         viewports: None,
         worktrees: None,
         metadata: None,
+        panel_metadata: None,
         operations: vec![],
         contexts: vec![],
     };
@@ -336,6 +338,28 @@ pub(super) fn collect(
         document
             .operations
             .extend(viewports.operations.iter().cloned());
+    }
+    let panel_ids = match document.projection.as_ref() {
+        Projection::PanelList(rows) => Some(
+            rows.iter()
+                .map(|row| row.panel_id.as_str())
+                .collect::<Vec<_>>(),
+        ),
+        Projection::PanelGet(panel) => Some(vec![panel.row.panel_id.as_str()]),
+        _ => None,
+    };
+    if let Some(ids) = panel_ids {
+        let ids = ids
+            .into_iter()
+            .map(|id| {
+                orchbee_workbench_protocol::WorkbenchPanelId::parse(id)
+                    .map_err(|_| Failure::new(FailureKind::InternalFailure))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let mut metadata =
+            super::panel_metadata_query::read(client, snapshot, &ids, deadline, signals)?;
+        metadata.verify(client, snapshot, deadline, signals)?;
+        document.panel_metadata = Some(metadata);
     }
     if let Some(metadata) = &mut document.metadata {
         metadata.verify(client, snapshot, deadline, signals)?;
@@ -429,6 +453,9 @@ impl Document {
         if let Some(terminals) = &self.terminals {
             terminals.enrich(&mut value);
         }
+        if let Some(metadata) = &self.panel_metadata {
+            metadata.enrich(&mut value);
+        }
         if let Some(metadata) = &self.metadata {
             metadata.enrich(&mut value);
         }
@@ -502,6 +529,9 @@ impl Document {
         }
         if let Some(worktrees) = &self.worktrees {
             worktrees.render(out, locale)?;
+        }
+        if let Some(metadata) = &self.panel_metadata {
+            metadata.render(out, locale)?;
         }
         if let Some(metadata) = &self.metadata {
             metadata.render(out, locale)?;

@@ -20,10 +20,8 @@ fn panel(n: u64) -> Value {
     json!({"kind":"panel","panelId":id(n),"primaryPresentation":{"presentationId":id(n+100),"label":"Agent","binding":{"terminalId":id(n+200),"workerId":"6f7263686265652d6c6f63616c2d7631"}},"childPresentations":[{"presentationId":id(n+300),"label":"child","binding":{"terminalId":id(n+400),"workerId":"6f7263686265652d6c6f63616c2d7631"}}]})
 }
 fn snapshot_reply(stream: &mut LocalStream) {
-    let WorkbenchRequest::SnapshotRead(request) = read_workbench_request(stream).unwrap() else {
-        panic!("one snapshot first");
-    };
     let snapshot:Snapshot=serde_json::from_value(json!({"protocolVersion":1,"siteId":id(2),"revision":"12","navigation":{"projects":[],"standaloneTerminalContextId":id(4)},"terminalContexts":[{"terminalContextId":id(4),"groups":[],"tabs":[{"tabId":id(5),"label":"two","pinned":false,"groupId":null,"root":{"kind":"split","splitId":id(50),"orientation":"horizontal","children":[{"slotId":id(51),"node":panel(6)},{"slotId":id(52),"node":panel(8)}]}}]}]})).unwrap();
+    let request = support::snapshot_after_metadata(stream, &snapshot);
     write_workbench_response(
         stream,
         &WorkbenchResponse::Snapshot(WorkbenchSnapshotResult {
@@ -220,7 +218,7 @@ fn caller_explicit_and_client_targets_preserve_precedence_without_mutating_contr
             if process {
                 assert_eq!(doc["result"]["terminal"]["terminalId"], id(selected + 200));
             } else {
-                assert_eq!(doc["version"], 4);
+                assert_eq!(doc["version"], 5);
                 assert_eq!(doc["result"]["panel"]["panelId"], id(selected));
                 assert_eq!(doc["result"]["panel"]["agentSessionIds"], json!([]));
                 assert_eq!(

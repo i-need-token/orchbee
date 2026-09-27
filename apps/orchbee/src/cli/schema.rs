@@ -459,7 +459,7 @@ pub(crate) fn answer(schema_id: Option<&str>, format: OutputFormat, locale: Loca
     let document = json!({
         "schema": "orchbee.api.schema",
         // Panel report-metadata adds its bounded receipt schema.
-        "version": 85,
+        "version": 86,
         "source": embedded_source(),
         "result": result,
     });

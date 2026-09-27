@@ -129,7 +129,7 @@ fn offline_catalog_is_closed_and_current_panel_schema_is_discoverable() {
     let schemas = document["result"]["schemas"]
         .as_object()
         .expect("dictionary");
-    assert_eq!(document["version"], 85);
+    assert_eq!(document["version"], 86);
     assert_eq!(schemas.len(), 89);
     let validator =
         jsonschema::draft202012::new(&schemas["orchbee.api.schema"]).expect("catalog schema");

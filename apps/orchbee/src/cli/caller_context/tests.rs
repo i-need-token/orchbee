@@ -58,7 +58,7 @@ fn current_binding_follows_primary_child_and_moved_workspace_with_one_read() {
                 workspace.then(|| json!(hex(8))).as_ref()
             );
             assert_eq!(source["revision"], "7");
-            // Windows composes this target into WorkbenchQuery before emitting v4.
+            // Windows composes this target into WorkbenchQuery before emitting the current Windows query version.
             #[cfg(not(windows))]
             {
                 let output = super::super::success_output(

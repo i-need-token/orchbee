@@ -147,7 +147,36 @@ pub(super) fn render(
         locale.cli_agent_terminal_heading(),
         super::escape::escape(fields["terminalTitleStripped"].as_str().unwrap_or("-")),
         super::escape::escape(fields["cwd"].as_str().unwrap_or("-")),
-    ))
+    ))?;
+    if let Some(metadata) = fields.get("metadata") {
+        out.write(format_args!(
+            "{}\n{}  {}\n",
+            locale.cli_panel_metadata_heading(),
+            super::escape::escape(metadata["presentation"]["title"].as_str().unwrap_or("-")),
+            super::escape::escape(
+                metadata["presentation"]["displayAgent"]
+                    .as_str()
+                    .unwrap_or("-")
+            )
+        ))?;
+        for key in ["tokens", "stateLabels"] {
+            let values = if key == "tokens" {
+                &metadata[key]
+            } else {
+                &metadata["presentation"][key]
+            };
+            if let Some(values) = values.as_object() {
+                for (key, value) in values {
+                    out.write(format_args!(
+                        "{}={}\n",
+                        super::escape::escape(key),
+                        super::escape::escape(value.as_str().expect("typed metadata value"))
+                    ))?;
+                }
+            }
+        }
+    }
+    Ok(())
 }
 
 #[cfg(test)]

@@ -609,7 +609,7 @@ fn agent_read_attaches_only_to_the_exact_presentation_join() {
 }
 
 #[test]
-fn agent_read_returns_a_schema_valid_frame_and_detaches_before_output() {
+fn agent_visible_read_returns_a_schema_valid_frame_and_detaches_before_output() {
     use orchbee_client_server_protocol::*;
     use orchbee_terminal_protocol::{
         CURRENT_PROTOCOL_VERSION, Envelope, MessageRole, PayloadEncoding,
@@ -648,6 +648,20 @@ fn agent_read_returns_a_schema_valid_frame_and_detaches_before_output() {
                             attachment_id: actual,
                         },
                     ) => assert_eq!(actual, &attachment_id),
+                    (
+                        "applied",
+                        TerminalViewerAction::FrameApplied {
+                            attachment_id: actual,
+                            sequence,
+                            generation,
+                            revision,
+                        },
+                    ) => {
+                        assert_eq!(actual, &attachment_id);
+                        assert_eq!(*sequence, route.sequence);
+                        assert_eq!(*generation, route.generation);
+                        assert_eq!(*revision, route.revision);
+                    }
                     _ => panic!("wrong viewer action"),
                 }
                 write_server_message(
@@ -678,12 +692,21 @@ fn agent_read_returns_a_schema_valid_frame_and_detaches_before_output() {
             })
             .unwrap();
             exchange("poll", TerminalViewerOutcome::Record(record));
+            exchange("applied", TerminalViewerOutcome::FeedbackAccepted {});
             exchange("detach", TerminalViewerOutcome::Detached {});
             assert_closed(&mut stream);
         });
-        let mut arguments = vec!["agent", "read", "--name", "alpha", "--format", "json"];
+        let mut arguments = vec![
+            "agent",
+            "read",
+            "--name",
+            "alpha",
+            "--source=visible",
+            "--format",
+            "json",
+        ];
         if projected {
-            arguments.extend(["--unwrap", "--lines", "1"]);
+            arguments.extend(["--lines", "1"]);
         }
         let output = fixture.run(&arguments);
         join_peer(handler, &output);
@@ -696,9 +719,9 @@ fn agent_read_returns_a_schema_valid_frame_and_detaches_before_output() {
         let document: Value = serde_json::from_slice(&output.stdout).unwrap();
         validate(
             &document,
-            include_str!("../src/cli/schemas/orchbee.terminal.read.json"),
+            include_str!("../src/cli/schemas/orchbee.terminal.output.json"),
         );
-        assert_eq!(document["version"], if projected { 2 } else { 1 });
+        assert_eq!(document["version"], 1);
         assert_eq!(
             document["result"]["terminal"]["terminalId"],
             "33333333333333333333333333333333"

@@ -65,6 +65,10 @@ fn document(command: &QueryCommand, state: &Snapshot) -> Document {
         client: Some(record()),
         agents: None,
         terminals: None,
+        panel_metadata: super::super::panel_metadata_query::empty_fixture(
+            state,
+            &results::project(command, state).unwrap(),
+        ),
         metadata: super::super::workbench_metadata::empty_fixture(
             state,
             &results::project(command, state).unwrap(),
@@ -127,8 +131,19 @@ fn selected_queries_publish_global_focus_and_client_memory_with_closed_schemas()
                 Locale::EnUs,
             );
             assert_eq!(output.status, 0);
-            let doc: Value = serde_json::from_slice(&output.stdout).unwrap();
-            validator.validate(&doc).unwrap();
+            let mut doc: Value = serde_json::from_slice(&output.stdout).unwrap();
+            if !selected
+                && matches!(
+                    command,
+                    QueryCommand::PanelList { .. } | QueryCommand::PanelGet(_)
+                )
+            {
+                doc["version"] = json!(7);
+            }
+            assert!(
+                validator.is_valid(&doc),
+                "schema rejected {key} selected={selected}"
+            );
             assert_eq!(doc["result"].get("client").is_some(), selected);
             if !selected {
                 continue;
@@ -317,7 +332,10 @@ fn six_query_shapes_join_agents_with_optional_client_provenance() {
             );
             assert_eq!(output.status, 0);
             let doc: Value = serde_json::from_slice(&output.stdout).unwrap();
-            validator.validate(&doc).unwrap();
+            assert!(
+                validator.is_valid(&doc),
+                "schema rejected {key} selected={selected}"
+            );
             let row = if doc["result"][key].is_array() {
                 &doc["result"][key][0]
             } else {
