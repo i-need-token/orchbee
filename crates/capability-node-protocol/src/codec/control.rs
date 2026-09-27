@@ -144,6 +144,12 @@ pub(super) fn encode_request(request: &TerminalControlRequest) -> Vec<u8> {
     bytes.extend(request.controller_id.as_bytes());
     match &request.action {
         Action::Acquire => bytes.push(1),
+        Action::Takeover {
+            previous_controller_id,
+        } => {
+            bytes.push(5);
+            bytes.extend(previous_controller_id.as_bytes());
+        }
         Action::Input {
             sequence,
             bytes: input,
@@ -176,6 +182,9 @@ pub(super) fn decode_request(bytes: &[u8]) -> Result<TerminalControlRequest, Pro
     let controller_id = OperationId::from_bytes(reader.read_array()?)?;
     let action = match reader.read_u8()? {
         1 => Action::Acquire,
+        5 => Action::Takeover {
+            previous_controller_id: OperationId::from_bytes(reader.read_array()?)?,
+        },
         2 => {
             let sequence = positive(reader.read_u64()?)?;
             let length = usize::from(reader.read_u16()?);

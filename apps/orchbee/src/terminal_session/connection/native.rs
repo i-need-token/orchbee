@@ -2602,7 +2602,8 @@ impl NativeExecutor {
                 sequence: self.next_control_sequence(key)?,
                 content,
             }),
-            action @ TerminalControlAction::Acquire { .. } => Ok(action),
+            action @ (TerminalControlAction::Acquire { .. }
+            | TerminalControlAction::Takeover { .. }) => Ok(action),
         }
     }
 

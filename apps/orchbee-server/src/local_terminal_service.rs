@@ -66,7 +66,7 @@ pub(crate) struct LocalTerminalService {
     controllers: Mutex<
         std::collections::BTreeMap<
             controller_session::ControlTarget,
-            orchbee_capability_node_protocol::OperationId,
+            controller_session::ControllerReservation,
         >,
     >,
 }

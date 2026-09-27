@@ -650,3 +650,120 @@ fn render_row_read_forwards_detail_and_rejects_a_text_reply() {
         peer.join().unwrap();
     }
 }
+
+#[test]
+fn explicit_takeover_transfers_cleanup_and_old_session_cannot_dispatch_effects() {
+    use orchbee_capability_node_protocol::{
+        TerminalControlAction as WAction, TerminalControlOutcome as WOutcome, TerminalControlResult,
+    };
+    use orchbee_client_server_protocol::{
+        ControlInput, ControlRejectedReason, TerminalControlAction as CAction,
+        TerminalControlOutcome as COutcome, TerminalControlRequest,
+    };
+    for refuse in [false, true] {
+        let service = service();
+        let carrier = create_worker_carrier(WORKER_ID, NonZeroU64::MIN);
+        let handle = carrier.request_handle();
+        assert!(matches!(
+            service.workers.lock().unwrap().admit(WORKER_ID),
+            crate::worker_registry::WorkerAdmission::Accepted { .. }
+        ));
+        let owner =
+            WorkerRegistry::register_carrier(&service.workers, NonZeroU64::MIN, carrier).unwrap();
+        let (server, mut peer) = UnixStream::pair().unwrap();
+        peer.set_read_timeout(Some(std::time::Duration::from_secs(2)))
+            .unwrap();
+        thread::scope(|scope| {
+            let server_thread = scope.spawn(move || owner.run(server));
+            let worker=scope.spawn(move || {
+                let mut incumbent=None;
+                let mut replacement=None;
+                for step in 0..3 {
+                    let CapabilityNodeMessage::TerminalControlRequest(request)=read_message(&mut peer).unwrap() else {panic!("expected control")};
+                    let outcome=match step {
+                        0=>{
+                            assert!(matches!(request.action,WAction::Acquire));
+                            incumbent=Some(request.controller_id);
+                            WOutcome::Acquired
+                        },
+                        1=>{
+                            assert_eq!(request.action,WAction::Takeover {previous_controller_id:incumbent.unwrap()});
+                            assert_ne!(Some(request.controller_id),incumbent);
+                            replacement=Some(request.controller_id);
+                            if refuse {WOutcome::Rejected(orchbee_capability_node_protocol::ControlRejection::HostRejected)} else {WOutcome::Acquired}
+                        },
+                        _=>{
+                            assert!(matches!(request.action,WAction::Release));
+                            assert_eq!(Some(request.controller_id),if refuse {incumbent} else {replacement});
+                            WOutcome::Released
+                        },
+                    };
+                    write_message(&mut peer,&CapabilityNodeMessage::TerminalControlResult(TerminalControlResult {request_id:request.request_id,viewer_id:request.viewer_id,controller_id:request.controller_id,outcome})).unwrap();
+                }
+            });
+            let mut old = viewer(&service, handle.clone());
+            let mut new = viewer(&service, handle.clone());
+            let new_viewer = OperationId::from_bytes([20; 16]).unwrap();
+            new.attachment_id = ViewerId::parse(&format!(
+                "{:032x}",
+                u128::from_be_bytes(new_viewer.as_bytes())
+            ))
+            .unwrap();
+            new.cleanup.as_mut().unwrap().attachment_id = new_viewer;
+            fn run<'a>(
+                service: &'a LocalTerminalService,
+                v: &mut ViewerAttachment<'a>,
+                action: CAction,
+            ) -> COutcome {
+                super::super::controller_session::execute(
+                    service,
+                    Some(v),
+                    &TerminalControlRequest::new(
+                        RequestId::parse("99999999999999999999999999999999").unwrap(),
+                        action,
+                    ),
+                )
+            }
+            let old_action = CAction::Acquire {
+                attachment_id: old.attachment_id.clone(),
+            };
+            let COutcome::Acquired { controller_id } = run(&service, &mut old, old_action) else {
+                panic!("old acquire")
+            };
+            let new_action = CAction::Takeover {
+                attachment_id: new.attachment_id.clone(),
+            };
+            let result = run(&service, &mut new, new_action);
+            if refuse {
+                assert_eq!(
+                    result,
+                    COutcome::Rejected {
+                        reason: ControlRejectedReason::HostRejected
+                    }
+                );
+            } else {
+                assert!(matches!(result, COutcome::Acquired { .. }));
+            }
+            let input = CAction::Input {
+                attachment_id: old.attachment_id.clone(),
+                controller_id,
+                sequence: NonZeroU64::MIN,
+                bytes: ControlInput::new(b"old".to_vec()).unwrap(),
+            };
+            assert_eq!(
+                run(&service, &mut old, input),
+                COutcome::Rejected {
+                    reason: ControlRejectedReason::NotController
+                }
+            );
+            // These manually seeded viewers have no Host viewing attachment; only controller cleanup is exercised.
+            old.cleanup = None;
+            new.cleanup = None;
+            drop(old);
+            drop(new);
+            assert!(service.controllers.lock().unwrap().is_empty());
+            worker.join().unwrap();
+            let _exit = server_thread.join().unwrap();
+        });
+    }
+}

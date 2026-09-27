@@ -595,6 +595,11 @@
 			"direction": "client-to-server",
 			"name": "viewer-read-render-rows",
 			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":2,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"read-rows\",\"attachmentId\":\"33333333333333333333333333333333\",\"detail\":\"render\",\"startRow\":\"400\",\"rowCount\":100,\"revision\":\"7\",\"generation\":\"3\",\"requestSequence\":\"1\",\"maximumBytes\":8388608}}"
+		},
+		{
+			"direction": "client-to-server",
+			"name": "control-takeover",
+			"payload": "{\"kind\":\"terminal.control\",\"protocolVersion\":2,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"takeover\",\"attachmentId\":\"33333333333333333333333333333333\"}}"
 		}
 	],
 	"equivalentMessages": [
@@ -2099,6 +2104,54 @@
 			"direction": "client-to-server",
 			"name": "viewer-read-rows-detail-number",
 			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":2,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"read-rows\",\"attachmentId\":\"33333333333333333333333333333333\",\"detail\":1,\"startRow\":\"400\",\"rowCount\":100,\"revision\":\"7\",\"generation\":\"3\",\"requestSequence\":\"1\",\"maximumBytes\":8388608}}"
+		},
+		{
+			"direction": "client-to-server",
+			"name": "control-takeover-injected-grant",
+			"payload": "{\"kind\":\"terminal.control\",\"protocolVersion\":2,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"takeover\",\"attachmentId\":\"33333333333333333333333333333333\",\"controllerId\":\"22222222222222222222222222222222\"}}",
+			"boundary": "schema"
+		},
+		{
+			"direction": "client-to-server",
+			"name": "control-takeover-missing-attachment",
+			"payload": "{\"kind\":\"terminal.control\",\"protocolVersion\":2,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"takeover\"}}",
+			"boundary": "schema"
+		},
+		{
+			"direction": "client-to-server",
+			"name": "control-takeover-null-attachment",
+			"payload": "{\"kind\":\"terminal.control\",\"protocolVersion\":2,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"takeover\",\"attachmentId\":null}}",
+			"boundary": "schema"
+		},
+		{
+			"direction": "client-to-server",
+			"name": "control-takeover-malformed-attachment",
+			"payload": "{\"kind\":\"terminal.control\",\"protocolVersion\":2,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"takeover\",\"attachmentId\":\"3333333333333333333333333333333g\"}}",
+			"boundary": "schema"
+		},
+		{
+			"direction": "client-to-server",
+			"name": "control-takeover-zero-attachment",
+			"payload": "{\"kind\":\"terminal.control\",\"protocolVersion\":2,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"takeover\",\"attachmentId\":\"00000000000000000000000000000000\"}}",
+			"boundary": "schema"
+		},
+		{
+			"direction": "client-to-server",
+			"name": "control-takeover-uppercase-attachment",
+			"payload": "{\"kind\":\"terminal.control\",\"protocolVersion\":2,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"takeover\",\"attachmentId\":\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\"}}",
+			"boundary": "schema"
+		},
+		{
+			"direction": "client-to-server",
+			"name": "control-takeover-extra-field",
+			"payload": "{\"kind\":\"terminal.control\",\"protocolVersion\":2,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"takeover\",\"attachmentId\":\"33333333333333333333333333333333\",\"viewerId\":\"33333333333333333333333333333333\"}}",
+			"boundary": "schema"
+		},
+		{
+			"direction": "client-to-server",
+			"name": "control-takeover-wrong-selector-name",
+			"payload": "{\"kind\":\"terminal.control\",\"protocolVersion\":2,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"takeover\",\"viewerId\":\"33333333333333333333333333333333\"}}",
+			"boundary": "schema"
 		}
 	],
 	"workingDirectoryCases": [

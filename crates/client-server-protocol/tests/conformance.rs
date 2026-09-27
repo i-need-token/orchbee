@@ -250,6 +250,7 @@ fn canonical_corpus_reaches_every_closed_message_and_result_variant()
     }
     let expected = BTreeSet::from([
         "control-acquire",
+        "control-takeover",
         "control-input",
         "control-resize",
         "control-acquired",
@@ -632,6 +633,7 @@ fn record_coverage(message: &DecodedMessage, reached: &mut BTreeSet<&'static str
             use orchbee_client_server_protocol::TerminalControlAction as Action;
             reached.insert(match request.action() {
                 Action::Acquire { .. } => "control-acquire",
+                Action::Takeover { .. } => "control-takeover",
                 Action::Input { .. } => "control-input",
                 Action::Resize { .. } => "control-resize",
                 Action::Paste { .. } => "control-paste",

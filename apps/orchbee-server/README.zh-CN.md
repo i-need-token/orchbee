@@ -382,7 +382,9 @@ Host cleanup 先释放控制附件，再分离查看附件。显式 OBCN Detach 
 cleanup 完成或该 Worker 不可用；cleanup 经既有有界 request queue 准入，不持锁跨越 I/O。
 过时 cleanup 不能清除新 grant。Host exchange 失败或结果矛盾会结束 Worker connection；完整
 交付后的故障由 Server 报告 unknown control outcome。其他 viewer 不会自动提升。
-保留查看附件的独立 release 和强制接管仍是后续工作。
+显式接管现在遵循[控制权接管模型](docs/terminal-controller-takeover.zh-CN.md)：Pending 预留
+封锁竞争接管和过期效果；候选者负责新旧清理，直到交接得到确认。保留 Viewer 的独立
+release 仍是后续工作。
 
 最多八个 viewer 意味着最多八个控制附件。因此，cleanup 可在下个请求前执行十六次一秒 Host
 exchange。Worker response 预算为二十秒，launch lease 为四十六秒，原生 Client submission 为

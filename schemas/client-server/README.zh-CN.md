@@ -226,7 +226,12 @@ OBCS JSON 限制。其字节契约由本节定义；JSON corpus 拥有控制消�
 `terminal.control` 包含 `protocolVersion`、新的 `requestId` 和一个封闭 `action`。所有 control action
 必须在 action 内携带 `attachmentId`。`acquire` 没有其他字段，并要求该精确 viewer 已附着且归
 提交 Session 所有。Server 为每个终端显式授予一个输入与调整大小共用的
-controller，不接管或自动提升。`acquired` 结果携带新的 `controllerId`，采用非零 32 字符小写
+controller，不自动提升。普通 Acquire 拒绝已占用终端；显式 `takeover` 同样仅携带
+`attachmentId`，替换已激活的旧控制者，拒绝仍在获取/交接中的授权。Server 分配新授权
+身份并在交接前封锁旧授权；Worker 收到精确旧 Host detach 确认后才获取新授权。接管失败
+可能撤销旧权限而未授予新权限，绝不静默恢复权威。Rejected、Unavailable 和 OutcomeUnknown
+保持区分；清理结果未知时保留封锁。见[接管模型](../../apps/orchbee-server/docs/terminal-controller-takeover.zh-CN.md)。
+此 v2 新 action 要求同一开发版本整体部署，旧 peer 会拒绝它。`acquired` 结果携带新的 `controllerId`，采用非零 32 字符小写
 hex 身份格式。Grant 绑定该 Session、viewer、Worker 代次与 Host 终端。
 
 `input` 还包含 `controllerId`、`sequence` 和 `bytes`；`resize` 还包含 `controllerId`、`sequence`

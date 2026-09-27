@@ -57,6 +57,35 @@ impl HostControllers {
             .find(|grant| grant.viewer_id == id)
             .copied()
     }
+    /// Validate the entire replacement before revoking any Host attachment.
+    pub(crate) fn takeover_incumbent(
+        &self,
+        viewer: OperationId,
+        controller: OperationId,
+        terminal: HostTerminalId,
+        previous: OperationId,
+    ) -> Result<Option<ControlGrant>, ControlRejection> {
+        if self.contains(controller)
+            || controller == previous
+            || self
+                .for_viewer(viewer)
+                .is_some_and(|grant| grant.controller_id != previous)
+        {
+            return Err(ControlRejection::ControllerBusy);
+        }
+        match self.grants.get(&previous.as_bytes()).copied() {
+            Some(grant) if grant.terminal_id != terminal => Err(ControlRejection::NotController),
+            Some(grant) if grant.capability_revision.is_none() => {
+                Err(ControlRejection::ControllerBusy)
+            }
+            Some(grant) => Ok(Some(grant)),
+            None if self.for_terminal(terminal).is_some() => Err(ControlRejection::NotController),
+            None if self.grants.len() >= MAXIMUM_CONTROLLERS => {
+                Err(ControlRejection::ControllerBusy)
+            }
+            None => Ok(None),
+        }
+    }
     pub(crate) fn admit(
         &mut self,
         viewer: OperationId,

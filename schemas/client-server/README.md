@@ -246,7 +246,14 @@ control messages, while binding tests cover binary boundaries and opaque byte pr
 `terminal.control` contains `protocolVersion`, a fresh `requestId`, and one closed `action`.
 Every control action requires in-action `attachmentId`. `acquire` has no other field and requires
 that exact attached viewer in the submitting Session. Server explicitly grants one
-combined input-and-resize controller per terminal, without takeover or automatic promotion. The
+combined input-and-resize controller per terminal, without automatic promotion. Ordinary Acquire
+refuses an occupied terminal; explicit `takeover` carries the same sole `attachmentId` field and
+replaces an active incumbent. It refuses pending acquisitions/transfers. Server owns fresh grant
+identities and fences the old grant before transfer; Worker acknowledges exact old Host detach
+before new acquisition. A failed takeover may revoke the old controller without granting a new one,
+never silently restoring authority. Rejected, Unavailable and OutcomeUnknown remain distinct;
+unknown cleanup retains a fence. See the [takeover model](../../apps/orchbee-server/docs/terminal-controller-takeover.md).
+This additive v2 action requires the same development cohort; older peers reject it. The
 `acquired` result carries a fresh `controllerId`, using the nonzero 32-character lowercase hex
 identity format. The grant is bound to that Session, viewer, Worker generation, and Host terminal.
 

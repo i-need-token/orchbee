@@ -970,6 +970,19 @@
 				{
 					"type": "object",
 					"additionalProperties": false,
+					"required": ["kind", "attachmentId"],
+					"properties": {
+						"kind": {
+							"const": "takeover"
+						},
+						"attachmentId": {
+							"$ref": "#/$defs/viewerId"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
 					"required": ["kind", "attachmentId", "controllerId", "sequence", "bytes"],
 					"properties": {
 						"kind": {

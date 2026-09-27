@@ -454,7 +454,10 @@ impl LocalClient {
                 | TerminalControlOutcome::Unavailable { .. }
                 | TerminalControlOutcome::OutcomeUnknown {},
             )
-            | (TerminalControlAction::Acquire { .. }, TerminalControlOutcome::Acquired { .. })
+            | (
+                TerminalControlAction::Acquire { .. } | TerminalControlAction::Takeover { .. },
+                TerminalControlOutcome::Acquired { .. },
+            )
             | (TerminalControlAction::Input { .. }, TerminalControlOutcome::InputAccepted {}) => {
                 true
             }

@@ -55,6 +55,9 @@ impl ControlInput {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum TerminalControlAction {
     Acquire,
+    Takeover {
+        previous_controller_id: OperationId,
+    },
     Release,
     Input {
         sequence: NonZeroU64,

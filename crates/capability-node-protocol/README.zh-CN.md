@@ -568,3 +568,12 @@ render 使用 tag 13，随后为相同的起始行、行数、revision、generat
 此私有未发布扩展保留 OBCN 帧版本及 8 MiB 行负载上限，不增加副作用、重试或回退策略。
 匹配的开发 cohort 一起部署或回退，不涉及持久迁移。精确旧 text 和新 render 字节、非法 body
 及未知 tag 的检查与运行时转发及响应路由测试独立进行。
+
+## 显式控制权接管
+
+Control request action tag 5 表示 Takeover，后接预期旧 controller ID（非零 16 字节）。
+外层 controller ID 指定新的替代授权。只能返回 Acquired、Rejected 或传输失败；Server
+映射不确定投递，绝不重放。Worker 验证精确终端和旧控制者，确认旧 Host detach 后，在
+同一个串行操作内获取替代授权。允许旧控制者已释放，拒绝不同的当前控制者。
+见[交接模型](../../apps/orchbee-server/docs/terminal-controller-takeover.zh-CN.md)。
+既有 tag 不变；不支持混用私有版本。

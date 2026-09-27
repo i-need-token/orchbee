@@ -15,6 +15,9 @@ fn control_wire_preserves_scope_bytes_and_every_action_and_outcome() -> TestResu
     for action in [
         TerminalControlAction::Acquire,
         TerminalControlAction::Release,
+        TerminalControlAction::Takeover {
+            previous_controller_id: OperationId::from_bytes([5; 16])?,
+        },
         TerminalControlAction::Input {
             sequence: NonZeroU64::MAX,
             bytes: ControlInput::new(vec![0x1b; 4096])?,
@@ -64,5 +67,25 @@ fn control_wire_preserves_scope_bytes_and_every_action_and_outcome() -> TestResu
     }
     assert!(ControlInput::new(Vec::new()).is_err());
     assert!(ControlInput::new(vec![0; 4097]).is_err());
+    Ok(())
+}
+
+#[test]
+fn takeover_wire_requires_one_complete_nonzero_previous_controller() -> TestResult {
+    let message = CapabilityNodeMessage::TerminalControlRequest(TerminalControlRequest {
+        request_id: OperationId::from_bytes([1; 16])?,
+        worker_id: WorkerId::from_bytes([2; 16])?,
+        worker_generation: WorkerGeneration::new(NonZeroU64::MIN),
+        viewer_id: OperationId::from_bytes([3; 16])?,
+        controller_id: OperationId::from_bytes([4; 16])?,
+        action: TerminalControlAction::Takeover {
+            previous_controller_id: OperationId::from_bytes([5; 16])?,
+        },
+    });
+    let mut bytes = encode_message(&message)?;
+    assert!(decode_message(&bytes[..bytes.len() - 1]).is_err());
+    let offset = bytes.len() - 16;
+    bytes[offset..].fill(0);
+    assert!(decode_message(&bytes).is_err());
     Ok(())
 }

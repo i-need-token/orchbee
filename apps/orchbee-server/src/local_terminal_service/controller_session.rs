@@ -33,35 +33,69 @@ impl From<BindingViewerTarget> for ControlTarget {
     }
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(super) enum ReservationPhase {
+    Pending,
+    Active,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(super) struct ControllerReservation {
+    controller_id: OperationId,
+    viewer_id: OperationId,
+    phase: ReservationPhase,
+}
+
+#[cfg(test)]
+impl ControllerReservation {
+    pub(super) const fn active_for_test(
+        controller_id: OperationId,
+        viewer_id: OperationId,
+    ) -> Self {
+        Self {
+            controller_id,
+            viewer_id,
+            phase: ReservationPhase::Active,
+        }
+    }
+}
+
 pub(super) struct ControllerLease<'service> {
     service: &'service LocalTerminalService,
     handle: WorkerRequestHandle,
     target: BindingViewerTarget,
     cleanup: WorkerRequest,
     armed: bool,
+    superseded: Option<WorkerRequest>,
     sequence: u64,
 }
 
 impl ControllerLease<'_> {
     pub(super) fn disarm_known_disposed(&mut self) {
         self.armed = false;
+        self.superseded = None;
     }
 }
 
 impl Drop for ControllerLease<'_> {
     fn drop(&mut self) {
         let target = ControlTarget::from(self.target);
-        let revoked = self
-            .service
-            .controllers
-            .lock()
-            .is_ok_and(|owners| owners.get(&target) != Some(&self.cleanup.controller_id));
+        let revoked = self.service.controllers.lock().is_ok_and(|owners| {
+            owners.get(&target).map(|owner| owner.controller_id) != Some(self.cleanup.controller_id)
+        });
         if revoked {
             return;
         }
-        let settled = !self.armed
-            || self.service.target_lifecycle(self.target) == Some(TargetLifecycle::Disposed)
-            || matches!(self.handle.cleanup_control(self.cleanup.clone()), Ok(WorkerOperationResult::Control(result)) if result.outcome==WorkerOutcome::Released);
+        let disposed =
+            self.service.target_lifecycle(self.target) == Some(TargetLifecycle::Disposed);
+        let previous_settled = disposed || self.superseded.as_ref().is_none_or(|request| {
+            matches!(self.handle.cleanup_control(request.clone()), Ok(WorkerOperationResult::Control(result)) if result.outcome == WorkerOutcome::Released)
+        });
+        // Attempt both cleanups even when the previous grant has no receipt.
+        let current_settled = disposed
+            || !self.armed
+            || matches!(self.handle.cleanup_control(self.cleanup.clone()), Ok(WorkerOperationResult::Control(result)) if result.outcome == WorkerOutcome::Released);
+        let settled = previous_settled && current_settled;
         if (settled || !self.handle.is_active())
             && let Ok(mut owners) = self.service.controllers.lock()
         {
@@ -85,8 +119,15 @@ pub(super) fn execute<'service>(
         viewer.controller.take();
         return unavailable(Unavailable::TerminalRuntimeUnavailable);
     }
-    if matches!(request.action(), Action::Acquire { .. }) {
-        return acquire(service, viewer);
+    if matches!(
+        request.action(),
+        Action::Acquire { .. } | Action::Takeover { .. }
+    ) {
+        return acquire(
+            service,
+            viewer,
+            matches!(request.action(), Action::Takeover { .. }),
+        );
     }
     let Some(controller) = viewer.controller.as_mut() else {
         return rejected(Rejected::NotController);
@@ -107,7 +148,7 @@ pub(super) fn execute<'service>(
             sequence,
             ..
         } => (controller_id, *sequence),
-        Action::Acquire { .. } => unreachable!("acquisition handled"),
+        Action::Acquire { .. } | Action::Takeover { .. } => unreachable!("acquisition handled"),
     };
     if id.as_str()
         != format!(
@@ -144,7 +185,7 @@ pub(super) fn execute<'service>(
                 Err(_) => return rejected(Rejected::HostRejected),
             }
         }
-        Action::Acquire { .. } => unreachable!("effect matched"),
+        Action::Acquire { .. } | Action::Takeover { .. } => unreachable!("effect matched"),
     };
     let request_id = {
         let Ok(workers) = service.workers.lock() else {
@@ -164,8 +205,12 @@ pub(super) fn execute<'service>(
         let Ok(owners) = service.controllers.lock() else {
             return unavailable(Unavailable::ServerBusy);
         };
-        if owners.get(&ControlTarget::from(controller.target))
-            != Some(&controller.cleanup.controller_id)
+        if !owners
+            .get(&ControlTarget::from(controller.target))
+            .is_some_and(|owner| {
+                owner.controller_id == controller.cleanup.controller_id
+                    && owner.phase == ReservationPhase::Active
+            })
         {
             return rejected(Rejected::NotController);
         }
@@ -233,6 +278,7 @@ pub(super) fn execute<'service>(
 fn acquire<'service>(
     service: &'service LocalTerminalService,
     viewer: &mut ViewerAttachment<'service>,
+    takeover: bool,
 ) -> Outcome {
     if viewer.controller.is_some() {
         return rejected(Rejected::ControllerBusy);
@@ -241,7 +287,7 @@ fn acquire<'service>(
         return rejected(Rejected::ViewerUnavailable);
     };
     // Generation selection and reservation are one short critical section, never a transport call.
-    let (controller_id, request_id, cleanup_id) = {
+    let (controller_id, request_id, cleanup_id, superseded) = {
         let Ok(workers) = service.workers.lock() else {
             return unavailable(Unavailable::ServerBusy);
         };
@@ -264,7 +310,8 @@ fn acquire<'service>(
                 .allocate_identity()
                 .and_then(|bytes| OperationId::from_bytes(bytes).ok())
         };
-        let (Some(controller_id), Some(request_id), Some(cleanup_id)) = (next(), next(), next())
+        let (Some(controller_id), Some(request_id), Some(cleanup_id), Some(previous_cleanup_id)) =
+            (next(), next(), next(), next())
         else {
             return unavailable(Unavailable::ServerBusy);
         };
@@ -272,16 +319,31 @@ fn acquire<'service>(
         owners.retain(|target, _| {
             target.worker == selected.worker && target.generation == selected.generation
         });
-        if !reserve(&mut owners, selected, controller_id) {
-            return rejected(Rejected::ControllerBusy);
-        }
-        (controller_id, request_id, cleanup_id)
+        let reservation = ControllerReservation {
+            controller_id,
+            viewer_id: template.attachment_id,
+            phase: ReservationPhase::Pending,
+        };
+        let previous = match reserve(&mut owners, selected, reservation, takeover) {
+            Ok(previous) => previous,
+            Err(()) => return rejected(Rejected::ControllerBusy),
+        };
+        let superseded = previous.map(|previous| WorkerRequest {
+            request_id: previous_cleanup_id,
+            controller_id: previous.controller_id,
+            viewer_id: previous.viewer_id,
+            worker_id: template.worker_id,
+            worker_generation: template.worker_generation,
+            action: WorkerAction::Release,
+        });
+        (controller_id, request_id, cleanup_id, superseded)
     };
     let mut lease = ControllerLease {
         service,
         handle: viewer.handle.clone(),
         target: viewer.target,
         sequence: 0,
+        superseded,
         armed: true,
         cleanup: WorkerRequest {
             request_id: cleanup_id,
@@ -296,12 +358,19 @@ fn acquire<'service>(
         .handle
         .request(WorkerOperationRequest::Control(WorkerRequest {
             request_id,
-            action: WorkerAction::Acquire,
+            action: lease
+                .superseded
+                .as_ref()
+                .map_or(WorkerAction::Acquire, |old| WorkerAction::Takeover {
+                    previous_controller_id: old.controller_id,
+                }),
             ..lease.cleanup.clone()
         }));
     match result {
         Ok(WorkerOperationResult::Control(result)) => match result.outcome {
             WorkerOutcome::Acquired => {
+                // The serialized Worker acknowledged old detach before granting the new attachment.
+                lease.superseded = None;
                 let Ok(controller_id) = ControllerId::parse(&format!(
                     "{:032x}",
                     u128::from_be_bytes(controller_id.as_bytes())
@@ -349,15 +418,21 @@ fn install_controller<'service>(
     if coordinator.target_lifecycle(viewer.target) != TargetLifecycle::Unfenced {
         return unavailable(Unavailable::TerminalRuntimeUnavailable);
     }
-    let Ok(owners) = service.controllers.lock() else {
+    let Ok(mut owners) = service.controllers.lock() else {
         return unavailable(Unavailable::ServerBusy);
     };
     let Some(lease) = candidate.as_ref() else {
         return unavailable(Unavailable::TerminalRuntimeUnavailable);
     };
-    if owners.get(&ControlTarget::from(lease.target)) != Some(&lease.cleanup.controller_id) {
+    let Some(owner) = owners.get_mut(&ControlTarget::from(lease.target)) else {
+        return unavailable(Unavailable::TerminalRuntimeUnavailable);
+    };
+    if owner.controller_id != lease.cleanup.controller_id
+        || owner.phase != ReservationPhase::Pending
+    {
         return unavailable(Unavailable::TerminalRuntimeUnavailable);
     }
+    owner.phase = ReservationPhase::Active;
     viewer.controller = candidate.take();
     Outcome::Acquired { controller_id }
 }
@@ -394,28 +469,35 @@ impl LocalTerminalService {
             .lock()
             .map_err(|_| TargetCleanupError::ControllerRegistryUnavailable)?;
         if let Some(id) = owners.get(&target).copied() {
-            remove_exact(&mut owners, target, id);
+            remove_exact(&mut owners, target, id.controller_id);
         }
         Ok(())
     }
 }
 fn reserve(
-    owners: &mut BTreeMap<ControlTarget, OperationId>,
+    owners: &mut BTreeMap<ControlTarget, ControllerReservation>,
     target: ControlTarget,
-    id: OperationId,
-) -> bool {
-    if owners.len() >= 8 || owners.contains_key(&target) {
-        return false;
+    candidate: ControllerReservation,
+    takeover: bool,
+) -> Result<Option<ControllerReservation>, ()> {
+    let previous = owners.get(&target).copied();
+    if previous.is_some_and(|owner| !takeover || owner.phase != ReservationPhase::Active)
+        || (previous.is_none() && owners.len() >= 8)
+    {
+        return Err(());
     }
-    owners.insert(target, id);
-    true
+    owners.insert(target, candidate);
+    Ok(previous)
 }
 fn remove_exact(
-    owners: &mut BTreeMap<ControlTarget, OperationId>,
+    owners: &mut BTreeMap<ControlTarget, ControllerReservation>,
     target: ControlTarget,
     id: OperationId,
 ) {
-    if owners.get(&target) == Some(&id) {
+    if owners
+        .get(&target)
+        .is_some_and(|owner| owner.controller_id == id)
+    {
         owners.remove(&target);
     }
 }

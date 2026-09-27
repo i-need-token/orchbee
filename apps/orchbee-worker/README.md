@@ -891,3 +891,13 @@ admission cases and actual Windows PowerShell 5.1/7 prompt tests cover custom pr
 commands, Unicode directories, non-filesystem providers and idempotence. Real ConPTY creation
 checks the root process cwd after Set-Location. Arbitrary custom startup commands remain outside
 this integration; no current-directory accuracy claim is made for their private shell state.
+
+## Explicit controller takeover
+
+Takeover validates the expected committed incumbent and target before any Host effect. The single
+operation loop releases that exact controller, waits for DetachTerminalAccepted, then attaches the
+new input/resize controller. Late old effects fail token admission; late old cleanup cannot release
+the replacement. Host refusal after detach leaves the old grant revoked. Missing detach proof
+ends the operation with a broker error and never attempts new Attach. Windows-capable local-pipe
+tests exercise real protocol exchanges, not a packaged Worker/Host process acceptance. The
+[Server transfer model](../orchbee-server/docs/terminal-controller-takeover.md) owns the joint contract.

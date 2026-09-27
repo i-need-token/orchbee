@@ -227,6 +227,9 @@ impl RenameServer {
                         }
                         ClientMessage::TerminalControl(request) => {
                             let outcome = match request.action() {
+                                TerminalControlAction::Takeover { .. } => {
+                                    panic!("unexpected takeover in rename fixture")
+                                }
                                 TerminalControlAction::Acquire { attachment_id } => {
                                     assert_eq!(attachment_id, &binding_viewer_id()?);
                                     assert_eq!(successor_stage, 1);

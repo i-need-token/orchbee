@@ -438,7 +438,9 @@ remains occupied until generation-pinned cleanup completes or that Worker become
 cleanup admission uses the existing bounded request queue, with no lock held across I/O. A stale
 cleanup cannot clear a new grant. Failed or contradictory Host exchanges end the Worker connection;
 the Server reports an unknown control outcome after complete delivery. No other viewer is promoted.
-Independent release while retaining the viewing attachment and forced takeover remain later work.
+Explicit takeover now follows the [controller takeover model](docs/terminal-controller-takeover.md):
+Pending reservations fence both competing takeover and stale effects; the candidate owns old/new
+cleanup until acknowledged transfer. Independent release while retaining the Viewer remains later work.
 
 At most eight viewers imply at most eight control attachments. Cleanup can therefore perform sixteen
 one-second Host exchanges before the next request. The Worker response budget is twenty seconds,

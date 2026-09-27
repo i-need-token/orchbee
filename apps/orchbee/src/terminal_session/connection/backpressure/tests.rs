@@ -159,6 +159,9 @@ fn control_busy_uses_fresh_ids_and_consumes_each_effect_sequence_once() -> TestR
                     }
                 } else {
                     match expected {
+                        Control::Takeover { .. } => {
+                            panic!("unexpected takeover in backpressure fixture")
+                        }
                         Control::Acquire { .. } => ControlOutcome::Acquired {
                             controller_id: ControllerId::parse(ID).unwrap(),
                         },

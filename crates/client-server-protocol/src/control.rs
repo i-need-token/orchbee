@@ -101,6 +101,9 @@ pub enum TerminalControlAction {
     Acquire {
         attachment_id: ViewerId,
     },
+    Takeover {
+        attachment_id: ViewerId,
+    },
     Input {
         attachment_id: ViewerId,
         controller_id: ControllerId,
@@ -134,6 +137,9 @@ enum WireControlAction {
     Acquire {
         attachment_id: ViewerId,
     },
+    Takeover {
+        attachment_id: ViewerId,
+    },
     Input {
         attachment_id: ViewerId,
         controller_id: ControllerId,
@@ -153,6 +159,9 @@ enum WireControlAction {
 impl Serialize for TerminalControlAction {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
+            Self::Takeover { attachment_id } => WireControlAction::Takeover {
+                attachment_id: attachment_id.clone(),
+            },
             Self::Acquire { attachment_id } => WireControlAction::Acquire {
                 attachment_id: attachment_id.clone(),
             },
@@ -191,6 +200,7 @@ impl<'de> Deserialize<'de> for TerminalControlAction {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         Ok(match WireControlAction::deserialize(deserializer)? {
             WireControlAction::Acquire { attachment_id } => Self::Acquire { attachment_id },
+            WireControlAction::Takeover { attachment_id } => Self::Takeover { attachment_id },
             WireControlAction::Input {
                 attachment_id,
                 controller_id,
@@ -222,6 +232,7 @@ impl TerminalControlAction {
     pub const fn attachment_id(&self) -> &ViewerId {
         match self {
             Self::Acquire { attachment_id }
+            | Self::Takeover { attachment_id }
             | Self::Input { attachment_id, .. }
             | Self::Resize { attachment_id, .. }
             | Self::Paste { attachment_id, .. } => attachment_id,

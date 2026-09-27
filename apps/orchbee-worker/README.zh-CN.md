@@ -800,3 +800,12 @@ InspectSource 解析包含源目录的检出；Open 允许主检出。Create 在
 现有终端不会补装。准入单测和实际 Windows PowerShell 5.1／7 prompt 测试覆盖自定义 prompt、
 失败命令、Unicode 目录、非文件系统 provider 和幂等。实际 ConPTY 创建检查 Set-Location 后的
 根进程 cwd。任意自定义启动命令不在集成范围内，不声称其 Shell 私有状态的目录准确性。
+
+## 显式控制权接管
+
+Takeover 在任何 Host 效果前验证预期的已提交旧控制者及目标。单操作循环释放精确旧
+controller，等待 DetachTerminalAccepted，然后 attach 新 input/resize controller。迟到的
+旧效果无法通过 token 准入；迟到旧清理不能释放替代授权。detach 后 Host 拒绝新授权时，
+旧授权保持撤销。缺失 detach 证明会以 broker error 结束操作，绝不尝试新 Attach。
+Windows 可运行的本地管道测试覆盖真实协议交换，不代表打包 Worker/Host 进程验收。
+[Server 交接模型](../orchbee-server/docs/terminal-controller-takeover.zh-CN.md)拥有联合契约。

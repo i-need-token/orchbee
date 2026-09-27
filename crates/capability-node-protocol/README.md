@@ -626,3 +626,13 @@ This private unshipped extension retains the OBCN frame version and 8 MiB row pa
 adds neither effects nor retry/fallback policy. Matching development cohorts deploy or roll back
 together without persistent migration. Exact old text and new render bytes, malformed bodies and
 unknown tags are checked independently of the runtime forwarding and response-route tests.
+
+## Explicit controller takeover
+
+Control request action tag 5 is Takeover, followed by the expected previous controller ID
+(nonzero 16 bytes). The outer controller ID names the fresh replacement. Only Acquired, Rejected
+or a transport failure may answer it; the Server maps uncertain delivery without replay.
+Worker validates the exact terminal and incumbent, acknowledges old Host detach, then acquires
+the replacement within one serialized operation. An already-released incumbent is allowed;
+another live incumbent is refused. See the [transfer model](../../apps/orchbee-server/docs/terminal-controller-takeover.md).
+Existing tags remain unchanged; mixed private cohorts are unsupported.

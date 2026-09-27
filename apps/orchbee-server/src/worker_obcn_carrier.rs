@@ -1251,7 +1251,7 @@ fn validate_response(
             }
             let compatible = match (&expected.action, actual.outcome) {
                 (_, Outcome::Rejected(_))
-                | (Action::Acquire, Outcome::Acquired)
+                | (Action::Acquire | Action::Takeover { .. }, Outcome::Acquired)
                 | (Action::Release, Outcome::Released)
                 | (Action::Input { .. }, Outcome::InputAccepted) => true,
                 (Action::Resize { geometry, .. }, Outcome::Resized(actual)) => *geometry == actual,

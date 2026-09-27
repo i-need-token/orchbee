@@ -99,6 +99,9 @@ pub(super) fn run(mut peer: UnixStream, effects: Arc<Mutex<Vec<Effect>>>) {
                 let v = request.viewer_id.as_bytes();
                 let c = request.controller_id.as_bytes();
                 let (effect, outcome) = match request.action {
+                    TerminalControlAction::Takeover { .. } => {
+                        panic!("unexpected takeover in viewer fixture")
+                    }
                     TerminalControlAction::Acquire => {
                         (Effect::Acquire(v, c), TerminalControlOutcome::Acquired)
                     }

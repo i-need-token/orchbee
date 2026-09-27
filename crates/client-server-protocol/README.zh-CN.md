@@ -231,3 +231,11 @@ v2 schema/corpus 覆盖 launch selection、environment、profile provenance、se
 ## 终端进程读取（未发布）
 
 `TerminalViewerAction::ReadProcessInfo`（`read-process-info`）仅携带既有 `attachmentId`。它使用当前 viewer 授权，以 record 结果返回原样、相关联的 Host kind-79 进程样本或 kind-5 typed failure。Server 验证 Host epoch、请求关联、attachment 及物理终端身份，绝不用启动参数替代当前进程事实。原生 `panel process-info` 消费者解释 Host 的类型化结果。读取不创建 controller、输入或 resize 授权，不推进帧反馈，也不把缺失或变化中的进程观察转换为空成功。沿用既有会话期限与临时 viewer 回收规则，要求同一开发版本整体部署。
+
+## 显式控制权接管
+
+`TerminalControlAction::Takeover` 是仅携带 `attachmentId` 的闭合 OBCS v2 `takeover` action。
+复用 Acquire 的 Acquired 结果及拒绝/不可用/未知分类。
+[语言无关契约](../../schemas/client-server/README.zh-CN.md#session-controller)拥有语义；
+[Server 交接模型](../../apps/orchbee-server/docs/terminal-controller-takeover.zh-CN.md)拥有
+预留、撤销及清理。此新增 action 要求同一开发版本整体部署。

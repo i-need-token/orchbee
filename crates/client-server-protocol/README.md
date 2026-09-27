@@ -253,3 +253,11 @@ Native v2 frames are bounded at 48 KiB before allocation. A combined maximum esc
 ## Terminal process reads (unpublished)
 
 `TerminalViewerAction::ReadProcessInfo` (`read-process-info`) carries only the existing `attachmentId`. It uses the current viewer grant and returns an unchanged, correlated Host kind-79 process sample or kind-5 typed failure in a record outcome. Server validates Host epoch, request correlation, attachment and physical terminal identity; it never supplies launch parameters as current process facts. The native `panel process-info` consumer interprets the typed Host result. This read creates no controller, input or resize grant, does not advance frame feedback, and never converts missing or changed process observations to empty success. Existing session deadlines and transient-viewer cleanup apply. Same-development-cohort deployment is required.
+
+## Explicit controller takeover
+
+`TerminalControlAction::Takeover` is the closed OBCS v2 `takeover` action with only `attachmentId`.
+It shares Acquire's Acquired result and rejection/unavailability/unknown classes. The
+[language-neutral contract](../../schemas/client-server/README.md#session-controller) owns semantics;
+[Server's transfer model](../../apps/orchbee-server/docs/terminal-controller-takeover.md) owns
+reservation, revocation and cleanup. This additive action requires a same-development cohort.

@@ -62,9 +62,25 @@ fn apply(
     };
     let id = AttachmentId::from_bytes(request.controller_id.as_bytes())?;
     let correlation = CorrelationId::from_bytes(request.request_id.as_bytes())?;
-    if matches!(request.action, Action::Acquire) {
+    if matches!(request.action, Action::Acquire | Action::Takeover { .. }) {
         if host.viewers.borrow().contains(request.controller_id) {
             return Ok(Outcome::Rejected(Rejection::ControllerBusy));
+        }
+        if let Action::Takeover {
+            previous_controller_id,
+        } = request.action
+        {
+            let incumbent = host.controllers.borrow().takeover_incumbent(
+                request.viewer_id,
+                request.controller_id,
+                target,
+                previous_controller_id,
+            );
+            match incumbent {
+                Err(reason) => return Ok(Outcome::Rejected(reason)),
+                Ok(Some(grant)) => release_viewer(host, server, grant.viewer_id)?,
+                Ok(None) => (),
+            }
         }
         if let Err(reason) =
             host.controllers
