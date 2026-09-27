@@ -806,6 +806,100 @@ fn wheel_entry_starts_three_rows_back_and_coalesces_before_facts() {
 }
 
 #[test]
+fn client_viewport_reads_installed_live_history_and_pending_without_commands() {
+    use orchbee_workbench_protocol::*;
+    let (mut ui, mailbox, _clock, _elapsed) = ready_ui();
+    let snapshot = super::membership_tests::snapshot(2, 1);
+    let key = install_projection(&mut ui, Some((9, false, 24)), 0);
+    let panel = ui
+        .control_observation(false)
+        .unwrap()
+        .1
+        .selection
+        .unwrap()
+        .panel_id
+        .unwrap();
+    let mut command = ClientViewControl {
+        operation_id: WorkbenchRequestId::parse(&format!("{:032x}", 901)).unwrap(),
+        client_id: WorkbenchClientId::parse(&format!("{:032x}", 902)).unwrap(),
+        expected_view_revision: ClientViewSequence::new(1).unwrap(),
+        minimum_workbench_revision: snapshot.revision,
+        intent: ClientViewIntent::Viewports {
+            panel_ids: vec![panel.clone()],
+        },
+    };
+    let live = ui.read_client_viewports(&command, &snapshot).unwrap();
+    assert!(
+        matches!(&live.panels[0].observation, ClientViewportObservation::Observed { mode: ClientViewportMode::Live, scroll, .. } if scroll.offset_from_bottom == 0 && scroll.max_offset_from_bottom == 9 && scroll.viewport_rows == 24)
+    );
+    assert!(mailbox.try_recv().unwrap().is_none());
+    assert!(ui.history_wheel(&key, true));
+    assert_eq!(recv_viewports(&mailbox), [ViewportStep::Enter]);
+    let pending = ui.read_client_viewports(&command, &snapshot).unwrap();
+    assert!(matches!(
+        pending.panels[0].observation,
+        ClientViewportObservation::Pending {
+            phase: ClientViewportPending::Entering
+        }
+    ));
+    assert!(mailbox.try_recv().unwrap().is_none());
+    settle_viewing(&mut ui, &mailbox, &key, 1);
+    let before = ui.control_observation(false).unwrap();
+    assert_eq!(before.1.phase, ClientViewPhase::Busy);
+    let history = ui.read_client_viewports(&command, &snapshot).unwrap();
+    assert!(
+        matches!(&history.panels[0].observation, ClientViewportObservation::Observed { mode: ClientViewportMode::History, scroll, .. } if scroll.offset_from_bottom == 276 && scroll.max_offset_from_bottom == 376 && scroll.viewport_rows == 24)
+    );
+    assert_eq!(
+        ui.read_client_viewports(&command, &snapshot).unwrap(),
+        history
+    );
+    assert_eq!(ui.control_observation(false).unwrap(), before);
+    assert!(mailbox.try_recv().unwrap().is_none());
+    // A new primary binding may not inherit this incarnation's old viewport.
+    let mut rebound = snapshot.clone();
+    let PanelNode::Panel {
+        primary_presentation,
+        ..
+    } = &mut rebound.terminal_contexts[0].tabs[0].root
+    else {
+        panic!()
+    };
+    primary_presentation.binding.as_mut().unwrap().terminal_id =
+        orchbee_workbench_protocol::TerminalId::parse(&format!("{:032x}", 999)).unwrap();
+    assert!(matches!(
+        ui.read_client_viewports(&command, &rebound).unwrap().panels[0].observation,
+        ClientViewportObservation::Unavailable {
+            reason: ClientViewportUnavailable::NotAttached
+        }
+    ));
+    projection_at(&mut ui, &key)
+        .viewport
+        .as_mut()
+        .unwrap()
+        .typed();
+    ui.admit_viewport_steps(&mailbox, &key);
+    assert_eq!(recv_viewports(&mailbox), [ViewportStep::Recover]);
+    assert!(matches!(
+        ui.read_client_viewports(&command, &snapshot)
+            .unwrap()
+            .panels[0]
+            .observation,
+        ClientViewportObservation::Pending {
+            phase: ClientViewportPending::Recovering
+        }
+    ));
+    command.intent = ClientViewIntent::Viewports {
+        panel_ids: vec![WorkbenchPanelId::parse(&format!("{:032x}", 999)).unwrap()],
+    };
+    assert_eq!(
+        ui.read_client_viewports(&command, &snapshot),
+        Err(ClientViewControlReason::TargetUnavailable)
+    );
+    assert!(mailbox.try_recv().unwrap().is_none());
+}
+
+#[test]
 fn wheel_entry_empty_down_and_stale_focus_have_no_effect_or_notice() {
     for (frame, up) in [
         (None, true),

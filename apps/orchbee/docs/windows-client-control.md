@@ -54,6 +54,35 @@ An explicit Client selector chooses that exact live Client. Without it, validate
 
 The boundary is additive within exact cohort admission. Old cohorts do not silently reinterpret new messages. Rolling back the cohort discards only volatile view/control observations; it does not change canonical Workspace or terminal state. New Mac/Linux control runtimes and Desktop CLI exposure are outside this Windows implementation.
 
+## Client viewport observations
+
+Windows Panel list/get with an exact Client reads that Client's installed primary-terminal
+viewports through `viewports`, an ordered batch of 1–16 unique Panel IDs. `viewport-read`
+returns the canonical revision and each Panel's nullable primary terminal identity plus an
+observation: unavailable (`not-attached` or `frame-unavailable`), pending (`entering`,
+`awaiting-window`, `recovering`), or observed (`live` or `history`). Inactive or unbound Panels
+never acquire viewers for a query. Only the current primary incarnation contributes.
+
+Observed sources preserve Host epoch, attachment, generation, revision, columns, screen,
+total rows and starting row. Scroll counters are canonical decimal uint64 strings;
+`viewportRows` is the Client's cell height, not a possibly shortened history response.
+`maxOffsetFromBottom = max(totalRows - viewportRows, 0)` and
+`offsetFromBottom = maxOffsetFromBottom - min(startRow, maxOffsetFromBottom)`.
+Live primary screens start at scrollback; alternate screens have zero scrollback.
+History uses the same generation/geometry-fenced installed window the painter can read.
+Pending recovery or missing data never fabricates a bottom position.
+
+This read may execute while the Client is Busy, including history browsing, without relaxing
+navigation or mutation admission. Starting/unavailable views cannot produce viewport success.
+Exact view revision, one pending operation and canonical membership checks remain required.
+The UI takes no attachment, input, resize, navigation, history-read, acknowledgement or paint
+effect. A batch retains at most 12 KiB; the Server reserves that amount before admission.
+Existing frame kinds and 16 KiB request / 64 KiB result limits remain unchanged. Rust,
+TypeScript and schema/corpus bindings agree; the additive contract requires matched cohorts.
+State is volatile; rollback has no durable migration. Focused evidence covers bounds, wrong
+membership/route, pending/recovery states, Busy read versus mutation admission, and real
+Windows two-Client history observations without focus or viewport changes.
+
 ## Model and evidence
 
 The registered `ClientViewControl` TLA model abstracts owner routing, publication fences, one delivery, UI effects, drawing, interruption and receipt retirement. Exact duration, capacity and serialization bounds belong to maintained executable tests. The Server registry is a deterministic state owner over admitted generation, Client samples, monotonic time, queued/delivered commands and completed observations. The authenticated carrier is an adapter. The TUI controller owns ordered semantic steps; the connection lane owns transport and joining; CLI owns selection, one submission and bounded waiting. No owner writes another's private state.
@@ -88,10 +117,11 @@ Windows `agent focus <target> [--client <id>]` resolves a name, session or Panel
 
 Windows `workspace list/get`, `tab list/get` and `panel list/get` accept optional
 `--client <id>`. Without it, queries keep their canonical headless projection.
-With it, one exact current Ready Client supplies global `focused` flags; Workspace
+With it, one exact current Ready Client supplies global `focused` flags; Panel reads also
+admit Busy for the read-only viewport contract above. Workspace
 rows also carry `activeTabId`, including the remembered selection in inactive
 Workspaces. Null means an empty context. Focus means selected in that TUI, not
-operating-system window focus. Missing, busy, stale or ambiguous facts fail; no
+operating-system window focus. Missing, inadmissibly busy, stale or ambiguous facts fail; no
 other Client is substituted.
 
 The read-only `Selections` intent carries 1–128 unique TerminalContext IDs. The
@@ -115,4 +145,5 @@ Tests cover bounds and duplicate IDs, reply correlation, invalid membership and
 revisions, empty/inactive/reordered/removed selections, independent Clients,
 headless compatibility, grammar, schemas and bilingual output. Real Windows
 acceptance must compare both Clients and canonical state before and after reads.
-Process/Agent/title/scroll/worktree/metadata enrichment is a separate owner join.
+Agent summaries, Panel process/title and Client scroll use their separate observation owners;
+Workspace worktree and reported metadata remain dependent joins.

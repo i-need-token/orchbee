@@ -116,6 +116,9 @@ pub struct ClientViewRecord {
     deny_unknown_fields
 )]
 pub enum ClientViewIntent {
+    Viewports {
+        panel_ids: Vec<WorkbenchPanelId>,
+    },
     Selections {
         terminal_context_ids: Vec<WorkbenchTerminalContextId>,
     },
@@ -177,6 +180,10 @@ pub enum ClientViewIntent {
     },
 }
 impl ClientViewIntent {
+    #[must_use]
+    pub fn is_passive_read(&self) -> bool {
+        matches!(self, Self::Viewports { .. } | Self::AgentAttention { .. })
+    }
     #[must_use]
     pub fn is_attention_read(&self) -> bool {
         matches!(self, Self::AgentAttention { .. })
@@ -271,6 +278,7 @@ impl ClientViewIntent {
         };
         match self {
             Self::AgentAttention { .. }
+            | Self::Viewports { .. }
             | Self::Selections { .. }
             | Self::ToggleZoom { .. }
             | Self::Layout { .. }
@@ -322,6 +330,9 @@ pub struct ClientViewControl {
 }
 impl ClientViewControl {
     pub fn validate(&self) -> Result<(), ContractError> {
+        if let ClientViewIntent::Viewports { panel_ids } = &self.intent {
+            super::client_viewport::validate_panels(panel_ids)?;
+        }
         if let ClientViewIntent::Selections {
             terminal_context_ids,
         } = &self.intent
@@ -370,6 +381,9 @@ pub enum ClientViewControlReason {
     deny_unknown_fields
 )]
 pub enum ClientViewCompletionOutcome {
+    ViewportRead {
+        viewport: Box<super::client_viewport::ClientViewportSnapshot>,
+    },
     NavigationRead {
         navigation: Box<ClientNavigationSnapshot>,
     },
@@ -414,6 +428,10 @@ pub struct ClientViewCompletion {
     deny_unknown_fields
 )]
 pub enum ClientViewControlStatus {
+    ViewportRead {
+        viewport: Box<super::client_viewport::ClientViewportSnapshot>,
+        view: ClientViewObservation,
+    },
     NavigationRead {
         navigation: Box<ClientNavigationSnapshot>,
         view: ClientViewObservation,
@@ -475,6 +493,15 @@ impl ClientViewOperation {
     pub fn validate(&self) -> Result<(), ContractError> {
         self.command.validate()?;
         match &self.status {
+            ClientViewControlStatus::ViewportRead { viewport, view } => {
+                view.validate()?;
+                let ClientViewIntent::Viewports { panel_ids } = &self.command.intent else {
+                    return Err(ContractError::InvalidDocument);
+                };
+                if !viewport.answers(panel_ids, view, self.command.minimum_workbench_revision) {
+                    return Err(ContractError::InvalidDocument);
+                }
+            }
             ClientViewControlStatus::NavigationRead { navigation, view } => {
                 view.validate()?;
                 let ClientViewIntent::Selections {
@@ -732,6 +759,13 @@ impl WorkbenchClientViewRequest {
         } = &self.action
         {
             view.validate()?;
+            if let Some(ClientViewCompletion {
+                outcome: ClientViewCompletionOutcome::ViewportRead { viewport },
+                ..
+            }) = completion
+            {
+                viewport.validate()?;
+            }
             if let Some(ClientViewCompletion {
                 outcome: ClientViewCompletionOutcome::NavigationRead { navigation },
                 ..

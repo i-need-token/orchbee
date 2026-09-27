@@ -201,6 +201,98 @@ fn navigation_receipts_validate_owner_and_correlated_memory_without_reexecution(
 }
 
 #[test]
+fn viewport_read_reserves_bounded_memory_and_reads_busy_without_allowing_navigation() {
+    use orchbee_workbench_protocol::{
+        ClientPanelViewport, ClientViewportObservation, ClientViewportSnapshot,
+        ClientViewportUnavailable,
+    };
+    let now = Instant::now();
+    let mut registry = ClientViewRegistry::default();
+    let mut busy = sample();
+    let ClientViewAction::Synchronize { view, .. } = &mut busy else {
+        panic!()
+    };
+    view.phase = ClientViewPhase::Busy;
+    execute(&mut registry, 1, busy.clone(), now);
+    assert!(matches!(
+        status(execute(
+            &mut registry,
+            20,
+            ClientViewAction::Submit {
+                command: Box::new(command(907, 1))
+            },
+            now
+        )),
+        ClientViewControlStatus::Rejected {
+            reason: ClientViewControlReason::Busy
+        }
+    ));
+    let mut target = command(908, 1);
+    let ClientViewIntent::Panel { panel_id, .. } = target.intent else {
+        panic!()
+    };
+    target.intent = ClientViewIntent::Viewports {
+        panel_ids: vec![panel_id.clone()],
+    };
+    let submit = ClientViewAction::Submit {
+        command: Box::new(target),
+    };
+    assert!(matches!(
+        status(execute(&mut registry, 20, submit.clone(), now)),
+        ClientViewControlStatus::Queued {}
+    ));
+    assert_eq!(
+        registry.receipts[&operation_id(908)].payload_reservation,
+        orchbee_workbench_protocol::MAXIMUM_ENCODED_CLIENT_VIEWPORT_BYTES
+    );
+    assert!(matches!(
+        execute(&mut registry, 1, busy.clone(), now),
+        ClientViewOutcome::Synchronized {
+            control: Some(_),
+            ..
+        }
+    ));
+    let ClientViewAction::Synchronize {
+        completion,
+        heartbeat,
+        ..
+    } = &mut busy
+    else {
+        panic!()
+    };
+    *heartbeat = ClientViewSequence::new(2).unwrap();
+    *completion = Some(ClientViewCompletion {
+        operation_id: operation_id(908),
+        outcome: ClientViewCompletionOutcome::ViewportRead {
+            viewport: Box::new(ClientViewportSnapshot {
+                workbench_revision: WorkbenchRevision::new(12),
+                panels: vec![ClientPanelViewport {
+                    panel_id,
+                    primary_terminal_id: None,
+                    observation: ClientViewportObservation::Unavailable {
+                        reason: ClientViewportUnavailable::NotAttached,
+                    },
+                }],
+            }),
+        },
+    });
+    assert!(matches!(
+        execute(&mut registry, 2, busy.clone(), now),
+        ClientViewOutcome::Conflict {}
+    ));
+    assert!(matches!(
+        execute(&mut registry, 1, busy, now),
+        ClientViewOutcome::Synchronized { control: None, .. }
+    ));
+    let completed = status(read(&mut registry, 908, now));
+    assert!(matches!(
+        completed,
+        ClientViewControlStatus::ViewportRead { .. }
+    ));
+    assert_eq!(status(execute(&mut registry, 20, submit, now)), completed);
+}
+
+#[test]
 fn attention_read_is_allowed_while_busy_and_exact_owner_and_sessions_are_required() {
     let now = Instant::now();
     let mut registry = ClientViewRegistry::default();

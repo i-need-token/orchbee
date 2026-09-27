@@ -30,6 +30,7 @@ pub(crate) struct Document {
     client: Option<ClientViewRecord>,
     agents: Option<super::workbench_agents::Document>,
     terminals: Option<super::workbench_terminals::Document>,
+    viewports: Option<super::workbench_viewports::Document>,
     operations: Vec<WorkbenchRequestId>,
     contexts: Vec<ClientContextSelection>,
 }
@@ -105,6 +106,7 @@ fn current(
     selected: &WorkbenchClientId,
     deadline: Instant,
     signals: &mut ArmedSignals,
+    allow_busy: bool,
 ) -> Result<ClientViewRecord, Failure> {
     signals.check_before(deadline)?;
     let result = control::exchange(
@@ -120,7 +122,8 @@ fn current(
     match result.outcome {
         ClientViewOutcome::Found { client } if client.client_id == *selected => {
             if client.availability != ClientViewAvailability::Current
-                || client.view.phase != ClientViewPhase::Ready
+                || !(client.view.phase == ClientViewPhase::Ready
+                    || (allow_busy && client.view.phase == ClientViewPhase::Busy))
             {
                 return Err(Failure::new(FailureKind::ServiceUnavailable));
             }
@@ -143,10 +146,8 @@ fn requested_contexts(
             .map(|row| row.terminal_context_id.as_str())
             .collect(),
         Projection::WorkspaceGet(doc) => vec![&doc.row.terminal_context_id],
-        Projection::TabList(_)
-        | Projection::TabGet(_)
-        | Projection::PanelList(_)
-        | Projection::PanelGet(_) => vec![],
+        Projection::TabList(_) | Projection::TabGet(_) => vec![],
+        Projection::PanelList(_) | Projection::PanelGet(_) => return Ok(vec![]),
         _ => return Err(Failure::new(FailureKind::InternalFailure)),
     };
     let mut contexts = ids
@@ -169,7 +170,10 @@ fn requested_contexts(
     Ok(contexts)
 }
 
-fn submission_failure(code: u8, outcome: Option<&ClientViewOutcome>) -> Option<FailureKind> {
+pub(super) fn submission_failure(
+    code: u8,
+    outcome: Option<&ClientViewOutcome>,
+) -> Option<FailureKind> {
     Some(match code {
         0 => return None,
         3 => match outcome {
@@ -195,9 +199,16 @@ fn execute(
     signals.check_before(deadline)?;
     let (mut client, snapshot) = admitted?;
     let projection = results::project(command, &snapshot)?;
+    let panel_read = matches!(
+        projection,
+        Projection::PanelList(_) | Projection::PanelGet(_)
+    );
     let original = selected
-        .map(|id| current(&mut client, &snapshot, id, deadline, signals))
+        .map(|id| current(&mut client, &snapshot, id, deadline, signals, panel_read))
         .transpose()?;
+    if let Some(record) = &original {
+        verify_membership(&snapshot, &record.view, &[])?;
+    }
     let requested = original
         .as_ref()
         .map(|record| requested_contexts(&projection, record))
@@ -208,6 +219,7 @@ fn execute(
         client: original,
         agents: None,
         terminals: None,
+        viewports: None,
         operations: vec![],
         contexts: vec![],
     };
@@ -274,6 +286,19 @@ fn execute(
         deadline,
         signals,
     )?;
+    document.viewports = super::workbench_viewports::read(
+        &mut client,
+        &snapshot,
+        &document.projection,
+        document.client.as_ref(),
+        deadline,
+        signals,
+    )?;
+    if let Some(viewports) = &document.viewports {
+        document
+            .operations
+            .extend(viewports.operations.iter().cloned());
+    }
     let final_snapshot = query::refresh_snapshot(
         &mut client,
         &snapshot.site_id,
@@ -291,6 +316,7 @@ fn execute(
             &original.client_id,
             deadline,
             signals,
+            panel_read,
         )?;
         if final_client.view_revision != original.view_revision
             || final_client.view != original.view
@@ -362,6 +388,10 @@ impl Document {
         if let Some(terminals) = &self.terminals {
             terminals.enrich(&mut value);
         }
+        super::workbench_viewports::enrich(
+            self.client.as_ref().and(self.viewports.as_ref()),
+            &mut value,
+        );
         let Some(client) = &self.client else {
             return value;
         };
@@ -422,6 +452,9 @@ impl Document {
         }
         if let Some(terminals) = &self.terminals {
             terminals.render(out, locale)?;
+        }
+        if let Some(viewports) = &self.viewports {
+            viewports.render(out, locale)?;
         }
         let Some(client) = &self.client else {
             return super::present::render(out, &self.projection, command, locale);

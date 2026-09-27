@@ -3725,6 +3725,34 @@ impl Locale {
             Self::ZhCn => "终端观察：面板 / 标题 / 目录",
         }
     }
+    pub(crate) const fn cli_scroll_heading(self) -> &'static str {
+        match self {
+            Self::EnUs => "Client scroll: Panel / state / offset / maximum / rows",
+            Self::ZhCn => "客户端滚动：面板 / 状态 / 偏移 / 最大偏移 / 行数",
+        }
+    }
+    pub(crate) const fn cli_scroll_states(self) -> [&'static str; 7] {
+        match self {
+            Self::EnUs => [
+                "not attached",
+                "frame unavailable",
+                "entering history",
+                "awaiting window",
+                "recovering",
+                "live",
+                "history",
+            ],
+            Self::ZhCn => [
+                "未连接",
+                "帧不可用",
+                "进入历史中",
+                "等待窗口",
+                "恢复中",
+                "实时",
+                "历史",
+            ],
+        }
+    }
 
     pub(crate) fn cli_workbench_agent_status(self, status: Option<&str>) -> &'static str {
         match (self, status) {

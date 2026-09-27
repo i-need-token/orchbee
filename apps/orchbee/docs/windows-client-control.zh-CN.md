@@ -54,6 +54,29 @@ TUI 退出时控制通道停止、唤醒阻塞 I/O 并 join。Server Session 清
 
 该边界在精确 cohort 接纳范围内增量添加。旧 cohort 不会默默重新解释新消息。回滚 cohort 只丢弃易失视图／控制观测，不改变规范 Workspace 或终端状态。新增 Mac/Linux 控制运行时和 Desktop CLI 暴露不在本次 Windows 实现范围内。
 
+## Client 视口观察
+
+Windows Panel list/get 指定精确 Client 后，通过 `viewports` 读取该 Client 已安装的主终端
+视口，每批有序包含 1–16 个唯一 Panel ID。`viewport-read` 返回规范修订号、每个 Panel
+可空的主终端身份及观察：unavailable（`not-attached` 或 `frame-unavailable`）、pending
+（`entering`、`awaiting-window`、`recovering`）或 observed（`live` 或 `history`）。
+查询不会为非活动或未绑定 Panel 创建 viewer，仅当前主终端实例参与。
+
+已观察来源保留 Host epoch、attachment、generation、revision、列数、屏幕、总行数和起始行。
+滚动计数使用规范十进制 uint64 字符串；`viewportRows` 是 Client 单元格高度，不是可能缩短的
+历史响应行数。`maxOffsetFromBottom = max(totalRows - viewportRows, 0)`，
+`offsetFromBottom = maxOffsetFromBottom - min(startRow, maxOffsetFromBottom)`。
+实时主屏从 scrollback 起始，备用屏的 scrollback 为零。历史读取与绘制器相同的、经过代际及
+几何检查的已安装窗口。待恢复或缺失数据绝不伪造位于底部的位置。
+
+此只读操作可在 Client Busy（包括历史浏览）时执行，不放宽导航或变更准入。
+Starting/unavailable 视图不能产生成功的视口观察；精确视图修订、单个待处理操作及规范成员
+检查仍然必需。UI 不执行 attachment、输入、resize、导航、历史读取、确认或绘制副作用。
+每批最多保留 12 KiB，Server 准入前预留该额度。沿用现有帧种类及 16 KiB 请求／64 KiB 结果
+限制。Rust、TypeScript 和 schema/语料保持一致；增量契约要求匹配 cohort。
+状态易失，回滚不迁移持久数据。定向证据覆盖边界、错误成员/路由、待处理/恢复状态、Busy
+只读与变更的准入区别，以及真实 Windows 双 Client 历史观察且焦点、视口不变。
+
 ## 模型与证据
 
 已登记的 `ClientViewControl` TLA 模型抽象所有者路由、发布版本约束、一次投递、UI 效果、绘制、中断及回执回收。精确时长、容量及序列化边界由维护的可执行测试负责。Server registry 是接纳 generation、Client 样本、单调时间、排队／已投递命令及完成观测的确定性状态所有者。认证载体是适配器。TUI controller 拥有有序语义步骤；连接通道拥有传输及 join；CLI 拥有选择、单次提交及有界等待。任何所有者均不写其他所有者的私有状态。
@@ -88,9 +111,9 @@ Windows `agent focus <target> [--client <id>]` 在一次客户端控制提交前
 
 Windows `workspace list/get`、`tab list/get` 和 `panel list/get` 接受可选
 `--client <id>`。省略时保留规范的无界面投影；提供时，由准确指定的当前 Ready Client
-提供全局 `focused` 标记，Workspace 行还包含 `activeTabId`，包括非活动工作区记住的
+提供全局 `focused` 标记；Panel 读取还根据上文只读视口契约接纳 Busy。Workspace 行还包含 `activeTabId`，包括非活动工作区记住的
 选择。null 表示空上下文。焦点指在该 TUI 中被选择，不表示操作系统窗口焦点。
-缺失、忙碌、过期或有歧义的事实明确失败，不替换为其他 Client。
+缺失、不符合准入条件的忙碌、过期或有歧义的事实明确失败，不替换为其他 Client。
 
 只读 `Selections` 意图携带 1–128 个不重复的 TerminalContext ID。TUI 根据单个新鲜
 规范快照解析当前选择或私有导航记忆：保留仍存在的记忆 Tab，否则使用正常返回上下文时
@@ -106,4 +129,5 @@ CLI 先解析查询目标，在单个已准入连接上分批读取，检查准�
 
 测试覆盖数量边界与重复 ID、响应关联、无效成员与修订号、空/非活动/重排/已删除选择、
 独立 Client、无界面兼容、语法、schema 和双语输出。真实 Windows 验收需比较查询前后的
-两个 Client 和规范状态。进程/Agent/标题/滚动/worktree/元数据增强属于后续所有者关联。
+两个 Client 和规范状态。Agent 汇总、Panel 进程/标题和 Client 滚动由各自观察所有者提供；
+Workspace worktree 及上报元数据仍属于后续关联。

@@ -99,6 +99,11 @@ pnpm --filter @orchbee/workbench-client-protocol test:exports
 
 ## Client 视图绑定
 
+`workbench-client-viewport-contract.ts` 校验有序的 1–16 个唯一 Panel 视口观察、十进制 uint64
+位置、来源身份/几何及偏移公式。未知、待处理和实时/历史状态保持独立；接收回执前检查主绑定、
+请求成员及 Ready/Busy 视图约束。快照在现有 Client 控制帧内限制为 12 KiB。
+共享语料覆盖两种绑定及 JSON Schema，不引入 Desktop 运行时。
+
 `workbench-client-view-contract.ts` 使用严格 Zod 结构和语义检查独立绑定 [Client 视图契约](../../schemas/workbench/README.zh-CN.md#易失-client-视图控制)。Rust 与 JSON Schema 证据也消费[共享语料](../../schemas/workbench/v1/workbench-client-view-conformance-v1.json)。该绑定不将 Client 本地选择放入规范 Workbench 快照，也不暴露 Desktop CLI 命令。
 
 `workbench-client-layout-contract.ts` 校验有界单元格矩形、可为 null 的可见性／焦点、唯一 split／slot／Panel 身份、有限比例、物理包含关系及独立重新计算的方向邻居。Client 视图校验把布局读取绑定到精确目标及最低 revision；选中观测还必须与已发布 Client 视图匹配。共享语料覆盖有效的非活动／隐藏目标，以及被拒绝的跨字段、边界和引用违规。

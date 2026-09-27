@@ -2606,6 +2606,1205 @@
 					}
 				}
 			}
+		},
+		{
+			"name": "submit-viewports",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.client-view",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "submit",
+					"command": {
+						"operationId": "00000000000000000000000000000003",
+						"clientId": "00000000000000000000000000000007",
+						"expectedViewRevision": "2",
+						"minimumWorkbenchRevision": "12",
+						"intent": {
+							"kind": "viewports",
+							"panelIds": ["00000000000000000000000000000006"]
+						}
+					}
+				}
+			}
+		},
+		{
+			"name": "busy-client-viewport-history",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.client-view.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "operation",
+					"operation": {
+						"command": {
+							"operationId": "00000000000000000000000000000003",
+							"clientId": "00000000000000000000000000000007",
+							"expectedViewRevision": "2",
+							"minimumWorkbenchRevision": "12",
+							"intent": {
+								"kind": "viewports",
+								"panelIds": ["00000000000000000000000000000006"]
+							}
+						},
+						"status": {
+							"kind": "viewport-read",
+							"view": {
+								"workbenchRevision": "12",
+								"phase": "busy",
+								"selection": {
+									"terminalContextId": "00000000000000000000000000000004",
+									"tabId": "00000000000000000000000000000005",
+									"panelId": "00000000000000000000000000000006",
+									"zoomed": false,
+									"panelCount": 1
+								}
+							},
+							"viewport": {
+								"workbenchRevision": "12",
+								"panels": [
+									{
+										"panelId": "00000000000000000000000000000006",
+										"primaryTerminalId": "00000000000000000000000000000046",
+										"observation": {
+											"state": "observed",
+											"mode": "history",
+											"source": {
+												"hostEpoch": "0000000000000000000000000000001e",
+												"attachmentId": "0000000000000000000000000000001f",
+												"generation": "1",
+												"revision": "9",
+												"columns": 80,
+												"alternateScreen": false,
+												"totalRows": "400",
+												"startRow": "100"
+											},
+											"scroll": {
+												"offsetFromBottom": "276",
+												"maxOffsetFromBottom": "376",
+												"viewportRows": 24
+											}
+										}
+									}
+								]
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"name": "client-viewport-live",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.client-view.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "operation",
+					"operation": {
+						"command": {
+							"operationId": "00000000000000000000000000000003",
+							"clientId": "00000000000000000000000000000007",
+							"expectedViewRevision": "2",
+							"minimumWorkbenchRevision": "12",
+							"intent": {
+								"kind": "viewports",
+								"panelIds": ["00000000000000000000000000000006"]
+							}
+						},
+						"status": {
+							"kind": "viewport-read",
+							"view": {
+								"workbenchRevision": "12",
+								"phase": "busy",
+								"selection": {
+									"terminalContextId": "00000000000000000000000000000004",
+									"tabId": "00000000000000000000000000000005",
+									"panelId": "00000000000000000000000000000006",
+									"zoomed": false,
+									"panelCount": 1
+								}
+							},
+							"viewport": {
+								"workbenchRevision": "12",
+								"panels": [
+									{
+										"panelId": "00000000000000000000000000000006",
+										"primaryTerminalId": "00000000000000000000000000000046",
+										"observation": {
+											"state": "observed",
+											"mode": "live",
+											"source": {
+												"hostEpoch": "0000000000000000000000000000001e",
+												"attachmentId": "0000000000000000000000000000001f",
+												"generation": "1",
+												"revision": "9",
+												"columns": 80,
+												"alternateScreen": false,
+												"totalRows": "400",
+												"startRow": "376"
+											},
+											"scroll": {
+												"offsetFromBottom": "0",
+												"maxOffsetFromBottom": "376",
+												"viewportRows": 24
+											}
+										}
+									}
+								]
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"name": "client-viewport-entering",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.client-view.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "operation",
+					"operation": {
+						"command": {
+							"operationId": "00000000000000000000000000000003",
+							"clientId": "00000000000000000000000000000007",
+							"expectedViewRevision": "2",
+							"minimumWorkbenchRevision": "12",
+							"intent": {
+								"kind": "viewports",
+								"panelIds": ["00000000000000000000000000000006"]
+							}
+						},
+						"status": {
+							"kind": "viewport-read",
+							"view": {
+								"workbenchRevision": "12",
+								"phase": "busy",
+								"selection": {
+									"terminalContextId": "00000000000000000000000000000004",
+									"tabId": "00000000000000000000000000000005",
+									"panelId": "00000000000000000000000000000006",
+									"zoomed": false,
+									"panelCount": 1
+								}
+							},
+							"viewport": {
+								"workbenchRevision": "12",
+								"panels": [
+									{
+										"panelId": "00000000000000000000000000000006",
+										"primaryTerminalId": "00000000000000000000000000000046",
+										"observation": {
+											"state": "pending",
+											"phase": "entering"
+										}
+									}
+								]
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"name": "client-viewport-awaiting-window",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.client-view.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "operation",
+					"operation": {
+						"command": {
+							"operationId": "00000000000000000000000000000003",
+							"clientId": "00000000000000000000000000000007",
+							"expectedViewRevision": "2",
+							"minimumWorkbenchRevision": "12",
+							"intent": {
+								"kind": "viewports",
+								"panelIds": ["00000000000000000000000000000006"]
+							}
+						},
+						"status": {
+							"kind": "viewport-read",
+							"view": {
+								"workbenchRevision": "12",
+								"phase": "busy",
+								"selection": {
+									"terminalContextId": "00000000000000000000000000000004",
+									"tabId": "00000000000000000000000000000005",
+									"panelId": "00000000000000000000000000000006",
+									"zoomed": false,
+									"panelCount": 1
+								}
+							},
+							"viewport": {
+								"workbenchRevision": "12",
+								"panels": [
+									{
+										"panelId": "00000000000000000000000000000006",
+										"primaryTerminalId": "00000000000000000000000000000046",
+										"observation": {
+											"state": "pending",
+											"phase": "awaiting-window"
+										}
+									}
+								]
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"name": "client-viewport-recovering",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.client-view.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "operation",
+					"operation": {
+						"command": {
+							"operationId": "00000000000000000000000000000003",
+							"clientId": "00000000000000000000000000000007",
+							"expectedViewRevision": "2",
+							"minimumWorkbenchRevision": "12",
+							"intent": {
+								"kind": "viewports",
+								"panelIds": ["00000000000000000000000000000006"]
+							}
+						},
+						"status": {
+							"kind": "viewport-read",
+							"view": {
+								"workbenchRevision": "12",
+								"phase": "busy",
+								"selection": {
+									"terminalContextId": "00000000000000000000000000000004",
+									"tabId": "00000000000000000000000000000005",
+									"panelId": "00000000000000000000000000000006",
+									"zoomed": false,
+									"panelCount": 1
+								}
+							},
+							"viewport": {
+								"workbenchRevision": "12",
+								"panels": [
+									{
+										"panelId": "00000000000000000000000000000006",
+										"primaryTerminalId": "00000000000000000000000000000046",
+										"observation": {
+											"state": "pending",
+											"phase": "recovering"
+										}
+									}
+								]
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"name": "client-viewport-unbound",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.client-view.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "operation",
+					"operation": {
+						"command": {
+							"operationId": "00000000000000000000000000000003",
+							"clientId": "00000000000000000000000000000007",
+							"expectedViewRevision": "2",
+							"minimumWorkbenchRevision": "12",
+							"intent": {
+								"kind": "viewports",
+								"panelIds": ["00000000000000000000000000000006"]
+							}
+						},
+						"status": {
+							"kind": "viewport-read",
+							"view": {
+								"workbenchRevision": "12",
+								"phase": "busy",
+								"selection": {
+									"terminalContextId": "00000000000000000000000000000004",
+									"tabId": "00000000000000000000000000000005",
+									"panelId": "00000000000000000000000000000006",
+									"zoomed": false,
+									"panelCount": 1
+								}
+							},
+							"viewport": {
+								"workbenchRevision": "12",
+								"panels": [
+									{
+										"panelId": "00000000000000000000000000000006",
+										"primaryTerminalId": null,
+										"observation": {
+											"state": "unavailable",
+											"reason": "not-attached"
+										}
+									}
+								]
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"name": "client-viewport-maximum-batch",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.client-view.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "operation",
+					"operation": {
+						"command": {
+							"operationId": "00000000000000000000000000000003",
+							"clientId": "00000000000000000000000000000007",
+							"expectedViewRevision": "2",
+							"minimumWorkbenchRevision": "12",
+							"intent": {
+								"kind": "viewports",
+								"panelIds": [
+									"00000000000000000000000000000001",
+									"00000000000000000000000000000002",
+									"00000000000000000000000000000003",
+									"00000000000000000000000000000004",
+									"00000000000000000000000000000005",
+									"00000000000000000000000000000006",
+									"00000000000000000000000000000007",
+									"00000000000000000000000000000008",
+									"00000000000000000000000000000009",
+									"0000000000000000000000000000000a",
+									"0000000000000000000000000000000b",
+									"0000000000000000000000000000000c",
+									"0000000000000000000000000000000d",
+									"0000000000000000000000000000000e",
+									"0000000000000000000000000000000f",
+									"00000000000000000000000000000010"
+								]
+							}
+						},
+						"status": {
+							"kind": "viewport-read",
+							"view": {
+								"workbenchRevision": "12",
+								"phase": "busy",
+								"selection": {
+									"terminalContextId": "00000000000000000000000000000004",
+									"tabId": "00000000000000000000000000000005",
+									"panelId": "00000000000000000000000000000006",
+									"zoomed": false,
+									"panelCount": 1
+								}
+							},
+							"viewport": {
+								"workbenchRevision": "12",
+								"panels": [
+									{
+										"panelId": "00000000000000000000000000000001",
+										"primaryTerminalId": "00000000000000000000000000000046",
+										"observation": {
+											"state": "observed",
+											"mode": "history",
+											"source": {
+												"hostEpoch": "0000000000000000000000000000001e",
+												"attachmentId": "0000000000000000000000000000001f",
+												"generation": "1",
+												"revision": "9",
+												"columns": 80,
+												"alternateScreen": false,
+												"totalRows": "400",
+												"startRow": "100"
+											},
+											"scroll": {
+												"offsetFromBottom": "276",
+												"maxOffsetFromBottom": "376",
+												"viewportRows": 24
+											}
+										}
+									},
+									{
+										"panelId": "00000000000000000000000000000002",
+										"primaryTerminalId": "00000000000000000000000000000046",
+										"observation": {
+											"state": "observed",
+											"mode": "history",
+											"source": {
+												"hostEpoch": "0000000000000000000000000000001e",
+												"attachmentId": "0000000000000000000000000000001f",
+												"generation": "1",
+												"revision": "9",
+												"columns": 80,
+												"alternateScreen": false,
+												"totalRows": "400",
+												"startRow": "100"
+											},
+											"scroll": {
+												"offsetFromBottom": "276",
+												"maxOffsetFromBottom": "376",
+												"viewportRows": 24
+											}
+										}
+									},
+									{
+										"panelId": "00000000000000000000000000000003",
+										"primaryTerminalId": "00000000000000000000000000000046",
+										"observation": {
+											"state": "observed",
+											"mode": "history",
+											"source": {
+												"hostEpoch": "0000000000000000000000000000001e",
+												"attachmentId": "0000000000000000000000000000001f",
+												"generation": "1",
+												"revision": "9",
+												"columns": 80,
+												"alternateScreen": false,
+												"totalRows": "400",
+												"startRow": "100"
+											},
+											"scroll": {
+												"offsetFromBottom": "276",
+												"maxOffsetFromBottom": "376",
+												"viewportRows": 24
+											}
+										}
+									},
+									{
+										"panelId": "00000000000000000000000000000004",
+										"primaryTerminalId": "00000000000000000000000000000046",
+										"observation": {
+											"state": "observed",
+											"mode": "history",
+											"source": {
+												"hostEpoch": "0000000000000000000000000000001e",
+												"attachmentId": "0000000000000000000000000000001f",
+												"generation": "1",
+												"revision": "9",
+												"columns": 80,
+												"alternateScreen": false,
+												"totalRows": "400",
+												"startRow": "100"
+											},
+											"scroll": {
+												"offsetFromBottom": "276",
+												"maxOffsetFromBottom": "376",
+												"viewportRows": 24
+											}
+										}
+									},
+									{
+										"panelId": "00000000000000000000000000000005",
+										"primaryTerminalId": "00000000000000000000000000000046",
+										"observation": {
+											"state": "observed",
+											"mode": "history",
+											"source": {
+												"hostEpoch": "0000000000000000000000000000001e",
+												"attachmentId": "0000000000000000000000000000001f",
+												"generation": "1",
+												"revision": "9",
+												"columns": 80,
+												"alternateScreen": false,
+												"totalRows": "400",
+												"startRow": "100"
+											},
+											"scroll": {
+												"offsetFromBottom": "276",
+												"maxOffsetFromBottom": "376",
+												"viewportRows": 24
+											}
+										}
+									},
+									{
+										"panelId": "00000000000000000000000000000006",
+										"primaryTerminalId": "00000000000000000000000000000046",
+										"observation": {
+											"state": "observed",
+											"mode": "history",
+											"source": {
+												"hostEpoch": "0000000000000000000000000000001e",
+												"attachmentId": "0000000000000000000000000000001f",
+												"generation": "1",
+												"revision": "9",
+												"columns": 80,
+												"alternateScreen": false,
+												"totalRows": "400",
+												"startRow": "100"
+											},
+											"scroll": {
+												"offsetFromBottom": "276",
+												"maxOffsetFromBottom": "376",
+												"viewportRows": 24
+											}
+										}
+									},
+									{
+										"panelId": "00000000000000000000000000000007",
+										"primaryTerminalId": "00000000000000000000000000000046",
+										"observation": {
+											"state": "observed",
+											"mode": "history",
+											"source": {
+												"hostEpoch": "0000000000000000000000000000001e",
+												"attachmentId": "0000000000000000000000000000001f",
+												"generation": "1",
+												"revision": "9",
+												"columns": 80,
+												"alternateScreen": false,
+												"totalRows": "400",
+												"startRow": "100"
+											},
+											"scroll": {
+												"offsetFromBottom": "276",
+												"maxOffsetFromBottom": "376",
+												"viewportRows": 24
+											}
+										}
+									},
+									{
+										"panelId": "00000000000000000000000000000008",
+										"primaryTerminalId": "00000000000000000000000000000046",
+										"observation": {
+											"state": "observed",
+											"mode": "history",
+											"source": {
+												"hostEpoch": "0000000000000000000000000000001e",
+												"attachmentId": "0000000000000000000000000000001f",
+												"generation": "1",
+												"revision": "9",
+												"columns": 80,
+												"alternateScreen": false,
+												"totalRows": "400",
+												"startRow": "100"
+											},
+											"scroll": {
+												"offsetFromBottom": "276",
+												"maxOffsetFromBottom": "376",
+												"viewportRows": 24
+											}
+										}
+									},
+									{
+										"panelId": "00000000000000000000000000000009",
+										"primaryTerminalId": "00000000000000000000000000000046",
+										"observation": {
+											"state": "observed",
+											"mode": "history",
+											"source": {
+												"hostEpoch": "0000000000000000000000000000001e",
+												"attachmentId": "0000000000000000000000000000001f",
+												"generation": "1",
+												"revision": "9",
+												"columns": 80,
+												"alternateScreen": false,
+												"totalRows": "400",
+												"startRow": "100"
+											},
+											"scroll": {
+												"offsetFromBottom": "276",
+												"maxOffsetFromBottom": "376",
+												"viewportRows": 24
+											}
+										}
+									},
+									{
+										"panelId": "0000000000000000000000000000000a",
+										"primaryTerminalId": "00000000000000000000000000000046",
+										"observation": {
+											"state": "observed",
+											"mode": "history",
+											"source": {
+												"hostEpoch": "0000000000000000000000000000001e",
+												"attachmentId": "0000000000000000000000000000001f",
+												"generation": "1",
+												"revision": "9",
+												"columns": 80,
+												"alternateScreen": false,
+												"totalRows": "400",
+												"startRow": "100"
+											},
+											"scroll": {
+												"offsetFromBottom": "276",
+												"maxOffsetFromBottom": "376",
+												"viewportRows": 24
+											}
+										}
+									},
+									{
+										"panelId": "0000000000000000000000000000000b",
+										"primaryTerminalId": "00000000000000000000000000000046",
+										"observation": {
+											"state": "observed",
+											"mode": "history",
+											"source": {
+												"hostEpoch": "0000000000000000000000000000001e",
+												"attachmentId": "0000000000000000000000000000001f",
+												"generation": "1",
+												"revision": "9",
+												"columns": 80,
+												"alternateScreen": false,
+												"totalRows": "400",
+												"startRow": "100"
+											},
+											"scroll": {
+												"offsetFromBottom": "276",
+												"maxOffsetFromBottom": "376",
+												"viewportRows": 24
+											}
+										}
+									},
+									{
+										"panelId": "0000000000000000000000000000000c",
+										"primaryTerminalId": "00000000000000000000000000000046",
+										"observation": {
+											"state": "observed",
+											"mode": "history",
+											"source": {
+												"hostEpoch": "0000000000000000000000000000001e",
+												"attachmentId": "0000000000000000000000000000001f",
+												"generation": "1",
+												"revision": "9",
+												"columns": 80,
+												"alternateScreen": false,
+												"totalRows": "400",
+												"startRow": "100"
+											},
+											"scroll": {
+												"offsetFromBottom": "276",
+												"maxOffsetFromBottom": "376",
+												"viewportRows": 24
+											}
+										}
+									},
+									{
+										"panelId": "0000000000000000000000000000000d",
+										"primaryTerminalId": "00000000000000000000000000000046",
+										"observation": {
+											"state": "observed",
+											"mode": "history",
+											"source": {
+												"hostEpoch": "0000000000000000000000000000001e",
+												"attachmentId": "0000000000000000000000000000001f",
+												"generation": "1",
+												"revision": "9",
+												"columns": 80,
+												"alternateScreen": false,
+												"totalRows": "400",
+												"startRow": "100"
+											},
+											"scroll": {
+												"offsetFromBottom": "276",
+												"maxOffsetFromBottom": "376",
+												"viewportRows": 24
+											}
+										}
+									},
+									{
+										"panelId": "0000000000000000000000000000000e",
+										"primaryTerminalId": "00000000000000000000000000000046",
+										"observation": {
+											"state": "observed",
+											"mode": "history",
+											"source": {
+												"hostEpoch": "0000000000000000000000000000001e",
+												"attachmentId": "0000000000000000000000000000001f",
+												"generation": "1",
+												"revision": "9",
+												"columns": 80,
+												"alternateScreen": false,
+												"totalRows": "400",
+												"startRow": "100"
+											},
+											"scroll": {
+												"offsetFromBottom": "276",
+												"maxOffsetFromBottom": "376",
+												"viewportRows": 24
+											}
+										}
+									},
+									{
+										"panelId": "0000000000000000000000000000000f",
+										"primaryTerminalId": "00000000000000000000000000000046",
+										"observation": {
+											"state": "observed",
+											"mode": "history",
+											"source": {
+												"hostEpoch": "0000000000000000000000000000001e",
+												"attachmentId": "0000000000000000000000000000001f",
+												"generation": "1",
+												"revision": "9",
+												"columns": 80,
+												"alternateScreen": false,
+												"totalRows": "400",
+												"startRow": "100"
+											},
+											"scroll": {
+												"offsetFromBottom": "276",
+												"maxOffsetFromBottom": "376",
+												"viewportRows": 24
+											}
+										}
+									},
+									{
+										"panelId": "00000000000000000000000000000010",
+										"primaryTerminalId": "00000000000000000000000000000046",
+										"observation": {
+											"state": "observed",
+											"mode": "history",
+											"source": {
+												"hostEpoch": "0000000000000000000000000000001e",
+												"attachmentId": "0000000000000000000000000000001f",
+												"generation": "1",
+												"revision": "9",
+												"columns": 80,
+												"alternateScreen": false,
+												"totalRows": "400",
+												"startRow": "100"
+											},
+											"scroll": {
+												"offsetFromBottom": "276",
+												"maxOffsetFromBottom": "376",
+												"viewportRows": 24
+											}
+										}
+									}
+								]
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"name": "client-viewport-maximum-completion",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.client-view",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "synchronize",
+					"heartbeat": "1",
+					"viewRevision": "2",
+					"view": {
+						"workbenchRevision": "12",
+						"phase": "busy",
+						"selection": {
+							"terminalContextId": "00000000000000000000000000000004",
+							"tabId": "00000000000000000000000000000005",
+							"panelId": "00000000000000000000000000000006",
+							"zoomed": false,
+							"panelCount": 1
+						}
+					},
+					"completion": {
+						"operationId": "00000000000000000000000000000003",
+						"outcome": {
+							"kind": "viewport-read",
+							"viewport": {
+								"workbenchRevision": "12",
+								"panels": [
+									{
+										"panelId": "00000000000000000000000000000001",
+										"primaryTerminalId": "00000000000000000000000000000046",
+										"observation": {
+											"state": "observed",
+											"mode": "history",
+											"source": {
+												"hostEpoch": "0000000000000000000000000000001e",
+												"attachmentId": "0000000000000000000000000000001f",
+												"generation": "1",
+												"revision": "9",
+												"columns": 80,
+												"alternateScreen": false,
+												"totalRows": "400",
+												"startRow": "100"
+											},
+											"scroll": {
+												"offsetFromBottom": "276",
+												"maxOffsetFromBottom": "376",
+												"viewportRows": 24
+											}
+										}
+									},
+									{
+										"panelId": "00000000000000000000000000000002",
+										"primaryTerminalId": "00000000000000000000000000000046",
+										"observation": {
+											"state": "observed",
+											"mode": "history",
+											"source": {
+												"hostEpoch": "0000000000000000000000000000001e",
+												"attachmentId": "0000000000000000000000000000001f",
+												"generation": "1",
+												"revision": "9",
+												"columns": 80,
+												"alternateScreen": false,
+												"totalRows": "400",
+												"startRow": "100"
+											},
+											"scroll": {
+												"offsetFromBottom": "276",
+												"maxOffsetFromBottom": "376",
+												"viewportRows": 24
+											}
+										}
+									},
+									{
+										"panelId": "00000000000000000000000000000003",
+										"primaryTerminalId": "00000000000000000000000000000046",
+										"observation": {
+											"state": "observed",
+											"mode": "history",
+											"source": {
+												"hostEpoch": "0000000000000000000000000000001e",
+												"attachmentId": "0000000000000000000000000000001f",
+												"generation": "1",
+												"revision": "9",
+												"columns": 80,
+												"alternateScreen": false,
+												"totalRows": "400",
+												"startRow": "100"
+											},
+											"scroll": {
+												"offsetFromBottom": "276",
+												"maxOffsetFromBottom": "376",
+												"viewportRows": 24
+											}
+										}
+									},
+									{
+										"panelId": "00000000000000000000000000000004",
+										"primaryTerminalId": "00000000000000000000000000000046",
+										"observation": {
+											"state": "observed",
+											"mode": "history",
+											"source": {
+												"hostEpoch": "0000000000000000000000000000001e",
+												"attachmentId": "0000000000000000000000000000001f",
+												"generation": "1",
+												"revision": "9",
+												"columns": 80,
+												"alternateScreen": false,
+												"totalRows": "400",
+												"startRow": "100"
+											},
+											"scroll": {
+												"offsetFromBottom": "276",
+												"maxOffsetFromBottom": "376",
+												"viewportRows": 24
+											}
+										}
+									},
+									{
+										"panelId": "00000000000000000000000000000005",
+										"primaryTerminalId": "00000000000000000000000000000046",
+										"observation": {
+											"state": "observed",
+											"mode": "history",
+											"source": {
+												"hostEpoch": "0000000000000000000000000000001e",
+												"attachmentId": "0000000000000000000000000000001f",
+												"generation": "1",
+												"revision": "9",
+												"columns": 80,
+												"alternateScreen": false,
+												"totalRows": "400",
+												"startRow": "100"
+											},
+											"scroll": {
+												"offsetFromBottom": "276",
+												"maxOffsetFromBottom": "376",
+												"viewportRows": 24
+											}
+										}
+									},
+									{
+										"panelId": "00000000000000000000000000000006",
+										"primaryTerminalId": "00000000000000000000000000000046",
+										"observation": {
+											"state": "observed",
+											"mode": "history",
+											"source": {
+												"hostEpoch": "0000000000000000000000000000001e",
+												"attachmentId": "0000000000000000000000000000001f",
+												"generation": "1",
+												"revision": "9",
+												"columns": 80,
+												"alternateScreen": false,
+												"totalRows": "400",
+												"startRow": "100"
+											},
+											"scroll": {
+												"offsetFromBottom": "276",
+												"maxOffsetFromBottom": "376",
+												"viewportRows": 24
+											}
+										}
+									},
+									{
+										"panelId": "00000000000000000000000000000007",
+										"primaryTerminalId": "00000000000000000000000000000046",
+										"observation": {
+											"state": "observed",
+											"mode": "history",
+											"source": {
+												"hostEpoch": "0000000000000000000000000000001e",
+												"attachmentId": "0000000000000000000000000000001f",
+												"generation": "1",
+												"revision": "9",
+												"columns": 80,
+												"alternateScreen": false,
+												"totalRows": "400",
+												"startRow": "100"
+											},
+											"scroll": {
+												"offsetFromBottom": "276",
+												"maxOffsetFromBottom": "376",
+												"viewportRows": 24
+											}
+										}
+									},
+									{
+										"panelId": "00000000000000000000000000000008",
+										"primaryTerminalId": "00000000000000000000000000000046",
+										"observation": {
+											"state": "observed",
+											"mode": "history",
+											"source": {
+												"hostEpoch": "0000000000000000000000000000001e",
+												"attachmentId": "0000000000000000000000000000001f",
+												"generation": "1",
+												"revision": "9",
+												"columns": 80,
+												"alternateScreen": false,
+												"totalRows": "400",
+												"startRow": "100"
+											},
+											"scroll": {
+												"offsetFromBottom": "276",
+												"maxOffsetFromBottom": "376",
+												"viewportRows": 24
+											}
+										}
+									},
+									{
+										"panelId": "00000000000000000000000000000009",
+										"primaryTerminalId": "00000000000000000000000000000046",
+										"observation": {
+											"state": "observed",
+											"mode": "history",
+											"source": {
+												"hostEpoch": "0000000000000000000000000000001e",
+												"attachmentId": "0000000000000000000000000000001f",
+												"generation": "1",
+												"revision": "9",
+												"columns": 80,
+												"alternateScreen": false,
+												"totalRows": "400",
+												"startRow": "100"
+											},
+											"scroll": {
+												"offsetFromBottom": "276",
+												"maxOffsetFromBottom": "376",
+												"viewportRows": 24
+											}
+										}
+									},
+									{
+										"panelId": "0000000000000000000000000000000a",
+										"primaryTerminalId": "00000000000000000000000000000046",
+										"observation": {
+											"state": "observed",
+											"mode": "history",
+											"source": {
+												"hostEpoch": "0000000000000000000000000000001e",
+												"attachmentId": "0000000000000000000000000000001f",
+												"generation": "1",
+												"revision": "9",
+												"columns": 80,
+												"alternateScreen": false,
+												"totalRows": "400",
+												"startRow": "100"
+											},
+											"scroll": {
+												"offsetFromBottom": "276",
+												"maxOffsetFromBottom": "376",
+												"viewportRows": 24
+											}
+										}
+									},
+									{
+										"panelId": "0000000000000000000000000000000b",
+										"primaryTerminalId": "00000000000000000000000000000046",
+										"observation": {
+											"state": "observed",
+											"mode": "history",
+											"source": {
+												"hostEpoch": "0000000000000000000000000000001e",
+												"attachmentId": "0000000000000000000000000000001f",
+												"generation": "1",
+												"revision": "9",
+												"columns": 80,
+												"alternateScreen": false,
+												"totalRows": "400",
+												"startRow": "100"
+											},
+											"scroll": {
+												"offsetFromBottom": "276",
+												"maxOffsetFromBottom": "376",
+												"viewportRows": 24
+											}
+										}
+									},
+									{
+										"panelId": "0000000000000000000000000000000c",
+										"primaryTerminalId": "00000000000000000000000000000046",
+										"observation": {
+											"state": "observed",
+											"mode": "history",
+											"source": {
+												"hostEpoch": "0000000000000000000000000000001e",
+												"attachmentId": "0000000000000000000000000000001f",
+												"generation": "1",
+												"revision": "9",
+												"columns": 80,
+												"alternateScreen": false,
+												"totalRows": "400",
+												"startRow": "100"
+											},
+											"scroll": {
+												"offsetFromBottom": "276",
+												"maxOffsetFromBottom": "376",
+												"viewportRows": 24
+											}
+										}
+									},
+									{
+										"panelId": "0000000000000000000000000000000d",
+										"primaryTerminalId": "00000000000000000000000000000046",
+										"observation": {
+											"state": "observed",
+											"mode": "history",
+											"source": {
+												"hostEpoch": "0000000000000000000000000000001e",
+												"attachmentId": "0000000000000000000000000000001f",
+												"generation": "1",
+												"revision": "9",
+												"columns": 80,
+												"alternateScreen": false,
+												"totalRows": "400",
+												"startRow": "100"
+											},
+											"scroll": {
+												"offsetFromBottom": "276",
+												"maxOffsetFromBottom": "376",
+												"viewportRows": 24
+											}
+										}
+									},
+									{
+										"panelId": "0000000000000000000000000000000e",
+										"primaryTerminalId": "00000000000000000000000000000046",
+										"observation": {
+											"state": "observed",
+											"mode": "history",
+											"source": {
+												"hostEpoch": "0000000000000000000000000000001e",
+												"attachmentId": "0000000000000000000000000000001f",
+												"generation": "1",
+												"revision": "9",
+												"columns": 80,
+												"alternateScreen": false,
+												"totalRows": "400",
+												"startRow": "100"
+											},
+											"scroll": {
+												"offsetFromBottom": "276",
+												"maxOffsetFromBottom": "376",
+												"viewportRows": 24
+											}
+										}
+									},
+									{
+										"panelId": "0000000000000000000000000000000f",
+										"primaryTerminalId": "00000000000000000000000000000046",
+										"observation": {
+											"state": "observed",
+											"mode": "history",
+											"source": {
+												"hostEpoch": "0000000000000000000000000000001e",
+												"attachmentId": "0000000000000000000000000000001f",
+												"generation": "1",
+												"revision": "9",
+												"columns": 80,
+												"alternateScreen": false,
+												"totalRows": "400",
+												"startRow": "100"
+											},
+											"scroll": {
+												"offsetFromBottom": "276",
+												"maxOffsetFromBottom": "376",
+												"viewportRows": 24
+											}
+										}
+									},
+									{
+										"panelId": "00000000000000000000000000000010",
+										"primaryTerminalId": "00000000000000000000000000000046",
+										"observation": {
+											"state": "observed",
+											"mode": "history",
+											"source": {
+												"hostEpoch": "0000000000000000000000000000001e",
+												"attachmentId": "0000000000000000000000000000001f",
+												"generation": "1",
+												"revision": "9",
+												"columns": 80,
+												"alternateScreen": false,
+												"totalRows": "400",
+												"startRow": "100"
+											},
+											"scroll": {
+												"offsetFromBottom": "276",
+												"maxOffsetFromBottom": "376",
+												"viewportRows": 24
+											}
+										}
+									}
+								]
+							}
+						}
+					}
+				}
+			}
 		}
 	],
 	"invalid": [
@@ -10583,6 +11782,844 @@
 									"zoomed": false,
 									"panelCount": 1
 								}
+							}
+						}
+					}
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "viewport-wrong-offset",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.client-view.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "operation",
+					"operation": {
+						"command": {
+							"operationId": "00000000000000000000000000000003",
+							"clientId": "00000000000000000000000000000007",
+							"expectedViewRevision": "2",
+							"minimumWorkbenchRevision": "12",
+							"intent": {
+								"kind": "viewports",
+								"panelIds": ["00000000000000000000000000000006"]
+							}
+						},
+						"status": {
+							"kind": "viewport-read",
+							"view": {
+								"workbenchRevision": "12",
+								"phase": "busy",
+								"selection": {
+									"terminalContextId": "00000000000000000000000000000004",
+									"tabId": "00000000000000000000000000000005",
+									"panelId": "00000000000000000000000000000006",
+									"zoomed": false,
+									"panelCount": 1
+								}
+							},
+							"viewport": {
+								"workbenchRevision": "12",
+								"panels": [
+									{
+										"panelId": "00000000000000000000000000000006",
+										"primaryTerminalId": "00000000000000000000000000000046",
+										"observation": {
+											"state": "observed",
+											"mode": "history",
+											"source": {
+												"hostEpoch": "0000000000000000000000000000001e",
+												"attachmentId": "0000000000000000000000000000001f",
+												"generation": "1",
+												"revision": "9",
+												"columns": 80,
+												"alternateScreen": false,
+												"totalRows": "400",
+												"startRow": "100"
+											},
+											"scroll": {
+												"offsetFromBottom": "0",
+												"maxOffsetFromBottom": "376",
+												"viewportRows": 24
+											}
+										}
+									}
+								]
+							}
+						}
+					}
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "viewport-wrong-maximum",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.client-view.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "operation",
+					"operation": {
+						"command": {
+							"operationId": "00000000000000000000000000000003",
+							"clientId": "00000000000000000000000000000007",
+							"expectedViewRevision": "2",
+							"minimumWorkbenchRevision": "12",
+							"intent": {
+								"kind": "viewports",
+								"panelIds": ["00000000000000000000000000000006"]
+							}
+						},
+						"status": {
+							"kind": "viewport-read",
+							"view": {
+								"workbenchRevision": "12",
+								"phase": "busy",
+								"selection": {
+									"terminalContextId": "00000000000000000000000000000004",
+									"tabId": "00000000000000000000000000000005",
+									"panelId": "00000000000000000000000000000006",
+									"zoomed": false,
+									"panelCount": 1
+								}
+							},
+							"viewport": {
+								"workbenchRevision": "12",
+								"panels": [
+									{
+										"panelId": "00000000000000000000000000000006",
+										"primaryTerminalId": "00000000000000000000000000000046",
+										"observation": {
+											"state": "observed",
+											"mode": "history",
+											"source": {
+												"hostEpoch": "0000000000000000000000000000001e",
+												"attachmentId": "0000000000000000000000000000001f",
+												"generation": "1",
+												"revision": "9",
+												"columns": 80,
+												"alternateScreen": false,
+												"totalRows": "400",
+												"startRow": "100"
+											},
+											"scroll": {
+												"offsetFromBottom": "276",
+												"maxOffsetFromBottom": "400",
+												"viewportRows": 24
+											}
+										}
+									}
+								]
+							}
+						}
+					}
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "viewport-live-at-history",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.client-view.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "operation",
+					"operation": {
+						"command": {
+							"operationId": "00000000000000000000000000000003",
+							"clientId": "00000000000000000000000000000007",
+							"expectedViewRevision": "2",
+							"minimumWorkbenchRevision": "12",
+							"intent": {
+								"kind": "viewports",
+								"panelIds": ["00000000000000000000000000000006"]
+							}
+						},
+						"status": {
+							"kind": "viewport-read",
+							"view": {
+								"workbenchRevision": "12",
+								"phase": "busy",
+								"selection": {
+									"terminalContextId": "00000000000000000000000000000004",
+									"tabId": "00000000000000000000000000000005",
+									"panelId": "00000000000000000000000000000006",
+									"zoomed": false,
+									"panelCount": 1
+								}
+							},
+							"viewport": {
+								"workbenchRevision": "12",
+								"panels": [
+									{
+										"panelId": "00000000000000000000000000000006",
+										"primaryTerminalId": "00000000000000000000000000000046",
+										"observation": {
+											"state": "observed",
+											"mode": "live",
+											"source": {
+												"hostEpoch": "0000000000000000000000000000001e",
+												"attachmentId": "0000000000000000000000000000001f",
+												"generation": "1",
+												"revision": "9",
+												"columns": 80,
+												"alternateScreen": false,
+												"totalRows": "400",
+												"startRow": "100"
+											},
+											"scroll": {
+												"offsetFromBottom": "276",
+												"maxOffsetFromBottom": "376",
+												"viewportRows": 24
+											}
+										}
+									}
+								]
+							}
+						}
+					}
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "viewport-alternate-history",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.client-view.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "operation",
+					"operation": {
+						"command": {
+							"operationId": "00000000000000000000000000000003",
+							"clientId": "00000000000000000000000000000007",
+							"expectedViewRevision": "2",
+							"minimumWorkbenchRevision": "12",
+							"intent": {
+								"kind": "viewports",
+								"panelIds": ["00000000000000000000000000000006"]
+							}
+						},
+						"status": {
+							"kind": "viewport-read",
+							"view": {
+								"workbenchRevision": "12",
+								"phase": "busy",
+								"selection": {
+									"terminalContextId": "00000000000000000000000000000004",
+									"tabId": "00000000000000000000000000000005",
+									"panelId": "00000000000000000000000000000006",
+									"zoomed": false,
+									"panelCount": 1
+								}
+							},
+							"viewport": {
+								"workbenchRevision": "12",
+								"panels": [
+									{
+										"panelId": "00000000000000000000000000000006",
+										"primaryTerminalId": "00000000000000000000000000000046",
+										"observation": {
+											"state": "observed",
+											"mode": "history",
+											"source": {
+												"hostEpoch": "0000000000000000000000000000001e",
+												"attachmentId": "0000000000000000000000000000001f",
+												"generation": "1",
+												"revision": "9",
+												"columns": 80,
+												"alternateScreen": true,
+												"totalRows": "400",
+												"startRow": "100"
+											},
+											"scroll": {
+												"offsetFromBottom": "276",
+												"maxOffsetFromBottom": "376",
+												"viewportRows": 24
+											}
+										}
+									}
+								]
+							}
+						}
+					}
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "viewport-unbound-observed",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.client-view.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "operation",
+					"operation": {
+						"command": {
+							"operationId": "00000000000000000000000000000003",
+							"clientId": "00000000000000000000000000000007",
+							"expectedViewRevision": "2",
+							"minimumWorkbenchRevision": "12",
+							"intent": {
+								"kind": "viewports",
+								"panelIds": ["00000000000000000000000000000006"]
+							}
+						},
+						"status": {
+							"kind": "viewport-read",
+							"view": {
+								"workbenchRevision": "12",
+								"phase": "busy",
+								"selection": {
+									"terminalContextId": "00000000000000000000000000000004",
+									"tabId": "00000000000000000000000000000005",
+									"panelId": "00000000000000000000000000000006",
+									"zoomed": false,
+									"panelCount": 1
+								}
+							},
+							"viewport": {
+								"workbenchRevision": "12",
+								"panels": [
+									{
+										"panelId": "00000000000000000000000000000006",
+										"primaryTerminalId": null,
+										"observation": {
+											"state": "observed",
+											"mode": "history",
+											"source": {
+												"hostEpoch": "0000000000000000000000000000001e",
+												"attachmentId": "0000000000000000000000000000001f",
+												"generation": "1",
+												"revision": "9",
+												"columns": 80,
+												"alternateScreen": false,
+												"totalRows": "400",
+												"startRow": "100"
+											},
+											"scroll": {
+												"offsetFromBottom": "276",
+												"maxOffsetFromBottom": "376",
+												"viewportRows": 24
+											}
+										}
+									}
+								]
+							}
+						}
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "viewport-wrong-panel",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.client-view.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "operation",
+					"operation": {
+						"command": {
+							"operationId": "00000000000000000000000000000003",
+							"clientId": "00000000000000000000000000000007",
+							"expectedViewRevision": "2",
+							"minimumWorkbenchRevision": "12",
+							"intent": {
+								"kind": "viewports",
+								"panelIds": ["00000000000000000000000000000006"]
+							}
+						},
+						"status": {
+							"kind": "viewport-read",
+							"view": {
+								"workbenchRevision": "12",
+								"phase": "busy",
+								"selection": {
+									"terminalContextId": "00000000000000000000000000000004",
+									"tabId": "00000000000000000000000000000005",
+									"panelId": "00000000000000000000000000000006",
+									"zoomed": false,
+									"panelCount": 1
+								}
+							},
+							"viewport": {
+								"workbenchRevision": "12",
+								"panels": [
+									{
+										"panelId": "00000000000000000000000000000008",
+										"primaryTerminalId": "00000000000000000000000000000046",
+										"observation": {
+											"state": "observed",
+											"mode": "history",
+											"source": {
+												"hostEpoch": "0000000000000000000000000000001e",
+												"attachmentId": "0000000000000000000000000000001f",
+												"generation": "1",
+												"revision": "9",
+												"columns": 80,
+												"alternateScreen": false,
+												"totalRows": "400",
+												"startRow": "100"
+											},
+											"scroll": {
+												"offsetFromBottom": "276",
+												"maxOffsetFromBottom": "376",
+												"viewportRows": 24
+											}
+										}
+									}
+								]
+							}
+						}
+					}
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "viewport-zero-generation",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.client-view.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "operation",
+					"operation": {
+						"command": {
+							"operationId": "00000000000000000000000000000003",
+							"clientId": "00000000000000000000000000000007",
+							"expectedViewRevision": "2",
+							"minimumWorkbenchRevision": "12",
+							"intent": {
+								"kind": "viewports",
+								"panelIds": ["00000000000000000000000000000006"]
+							}
+						},
+						"status": {
+							"kind": "viewport-read",
+							"view": {
+								"workbenchRevision": "12",
+								"phase": "busy",
+								"selection": {
+									"terminalContextId": "00000000000000000000000000000004",
+									"tabId": "00000000000000000000000000000005",
+									"panelId": "00000000000000000000000000000006",
+									"zoomed": false,
+									"panelCount": 1
+								}
+							},
+							"viewport": {
+								"workbenchRevision": "12",
+								"panels": [
+									{
+										"panelId": "00000000000000000000000000000006",
+										"primaryTerminalId": "00000000000000000000000000000046",
+										"observation": {
+											"state": "observed",
+											"mode": "history",
+											"source": {
+												"hostEpoch": "0000000000000000000000000000001e",
+												"attachmentId": "0000000000000000000000000000001f",
+												"generation": "0",
+												"revision": "9",
+												"columns": 80,
+												"alternateScreen": false,
+												"totalRows": "400",
+												"startRow": "100"
+											},
+											"scroll": {
+												"offsetFromBottom": "276",
+												"maxOffsetFromBottom": "376",
+												"viewportRows": 24
+											}
+										}
+									}
+								]
+							}
+						}
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "viewport-bad-epoch",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.client-view.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "operation",
+					"operation": {
+						"command": {
+							"operationId": "00000000000000000000000000000003",
+							"clientId": "00000000000000000000000000000007",
+							"expectedViewRevision": "2",
+							"minimumWorkbenchRevision": "12",
+							"intent": {
+								"kind": "viewports",
+								"panelIds": ["00000000000000000000000000000006"]
+							}
+						},
+						"status": {
+							"kind": "viewport-read",
+							"view": {
+								"workbenchRevision": "12",
+								"phase": "busy",
+								"selection": {
+									"terminalContextId": "00000000000000000000000000000004",
+									"tabId": "00000000000000000000000000000005",
+									"panelId": "00000000000000000000000000000006",
+									"zoomed": false,
+									"panelCount": 1
+								}
+							},
+							"viewport": {
+								"workbenchRevision": "12",
+								"panels": [
+									{
+										"panelId": "00000000000000000000000000000006",
+										"primaryTerminalId": "00000000000000000000000000000046",
+										"observation": {
+											"state": "observed",
+											"mode": "history",
+											"source": {
+												"hostEpoch": "00000000000000000000000000000000",
+												"attachmentId": "0000000000000000000000000000001f",
+												"generation": "1",
+												"revision": "9",
+												"columns": 80,
+												"alternateScreen": false,
+												"totalRows": "400",
+												"startRow": "100"
+											},
+											"scroll": {
+												"offsetFromBottom": "276",
+												"maxOffsetFromBottom": "376",
+												"viewportRows": 24
+											}
+										}
+									}
+								]
+							}
+						}
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "viewport-numeric-offset",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.client-view.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "operation",
+					"operation": {
+						"command": {
+							"operationId": "00000000000000000000000000000003",
+							"clientId": "00000000000000000000000000000007",
+							"expectedViewRevision": "2",
+							"minimumWorkbenchRevision": "12",
+							"intent": {
+								"kind": "viewports",
+								"panelIds": ["00000000000000000000000000000006"]
+							}
+						},
+						"status": {
+							"kind": "viewport-read",
+							"view": {
+								"workbenchRevision": "12",
+								"phase": "busy",
+								"selection": {
+									"terminalContextId": "00000000000000000000000000000004",
+									"tabId": "00000000000000000000000000000005",
+									"panelId": "00000000000000000000000000000006",
+									"zoomed": false,
+									"panelCount": 1
+								}
+							},
+							"viewport": {
+								"workbenchRevision": "12",
+								"panels": [
+									{
+										"panelId": "00000000000000000000000000000006",
+										"primaryTerminalId": "00000000000000000000000000000046",
+										"observation": {
+											"state": "observed",
+											"mode": "history",
+											"source": {
+												"hostEpoch": "0000000000000000000000000000001e",
+												"attachmentId": "0000000000000000000000000000001f",
+												"generation": "1",
+												"revision": "9",
+												"columns": 80,
+												"alternateScreen": false,
+												"totalRows": "400",
+												"startRow": "100"
+											},
+											"scroll": {
+												"offsetFromBottom": 276,
+												"maxOffsetFromBottom": "376",
+												"viewportRows": 24
+											}
+										}
+									}
+								]
+							}
+						}
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "viewport-u64-overflow",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.client-view.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "operation",
+					"operation": {
+						"command": {
+							"operationId": "00000000000000000000000000000003",
+							"clientId": "00000000000000000000000000000007",
+							"expectedViewRevision": "2",
+							"minimumWorkbenchRevision": "12",
+							"intent": {
+								"kind": "viewports",
+								"panelIds": ["00000000000000000000000000000006"]
+							}
+						},
+						"status": {
+							"kind": "viewport-read",
+							"view": {
+								"workbenchRevision": "12",
+								"phase": "busy",
+								"selection": {
+									"terminalContextId": "00000000000000000000000000000004",
+									"tabId": "00000000000000000000000000000005",
+									"panelId": "00000000000000000000000000000006",
+									"zoomed": false,
+									"panelCount": 1
+								}
+							},
+							"viewport": {
+								"workbenchRevision": "12",
+								"panels": [
+									{
+										"panelId": "00000000000000000000000000000006",
+										"primaryTerminalId": "00000000000000000000000000000046",
+										"observation": {
+											"state": "observed",
+											"mode": "history",
+											"source": {
+												"hostEpoch": "0000000000000000000000000000001e",
+												"attachmentId": "0000000000000000000000000000001f",
+												"generation": "1",
+												"revision": "9",
+												"columns": 80,
+												"alternateScreen": false,
+												"totalRows": "18446744073709551616",
+												"startRow": "100"
+											},
+											"scroll": {
+												"offsetFromBottom": "276",
+												"maxOffsetFromBottom": "376",
+												"viewportRows": 24
+											}
+										}
+									}
+								]
+							}
+						}
+					}
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "viewport-empty-request",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.client-view",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "submit",
+					"command": {
+						"operationId": "00000000000000000000000000000003",
+						"clientId": "00000000000000000000000000000007",
+						"expectedViewRevision": "2",
+						"minimumWorkbenchRevision": "12",
+						"intent": {
+							"kind": "viewports",
+							"panelIds": []
+						}
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "viewport-duplicate-request",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.client-view",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "submit",
+					"command": {
+						"operationId": "00000000000000000000000000000003",
+						"clientId": "00000000000000000000000000000007",
+						"expectedViewRevision": "2",
+						"minimumWorkbenchRevision": "12",
+						"intent": {
+							"kind": "viewports",
+							"panelIds": ["00000000000000000000000000000006", "00000000000000000000000000000006"]
+						}
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "viewport-too-many-request",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.client-view",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "submit",
+					"command": {
+						"operationId": "00000000000000000000000000000003",
+						"clientId": "00000000000000000000000000000007",
+						"expectedViewRevision": "2",
+						"minimumWorkbenchRevision": "12",
+						"intent": {
+							"kind": "viewports",
+							"panelIds": [
+								"00000000000000000000000000000001",
+								"00000000000000000000000000000002",
+								"00000000000000000000000000000003",
+								"00000000000000000000000000000004",
+								"00000000000000000000000000000005",
+								"00000000000000000000000000000006",
+								"00000000000000000000000000000007",
+								"00000000000000000000000000000008",
+								"00000000000000000000000000000009",
+								"0000000000000000000000000000000a",
+								"0000000000000000000000000000000b",
+								"0000000000000000000000000000000c",
+								"0000000000000000000000000000000d",
+								"0000000000000000000000000000000e",
+								"0000000000000000000000000000000f",
+								"00000000000000000000000000000010",
+								"00000000000000000000000000000011"
+							]
+						}
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "viewport-starting-view",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.client-view.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "operation",
+					"operation": {
+						"command": {
+							"operationId": "00000000000000000000000000000003",
+							"clientId": "00000000000000000000000000000007",
+							"expectedViewRevision": "2",
+							"minimumWorkbenchRevision": "12",
+							"intent": {
+								"kind": "viewports",
+								"panelIds": ["00000000000000000000000000000006"]
+							}
+						},
+						"status": {
+							"kind": "viewport-read",
+							"view": {
+								"workbenchRevision": "12",
+								"phase": "starting",
+								"selection": {
+									"terminalContextId": "00000000000000000000000000000004",
+									"tabId": "00000000000000000000000000000005",
+									"panelId": "00000000000000000000000000000006",
+									"zoomed": false,
+									"panelCount": 1
+								}
+							},
+							"viewport": {
+								"workbenchRevision": "12",
+								"panels": [
+									{
+										"panelId": "00000000000000000000000000000006",
+										"primaryTerminalId": "00000000000000000000000000000046",
+										"observation": {
+											"state": "observed",
+											"mode": "history",
+											"source": {
+												"hostEpoch": "0000000000000000000000000000001e",
+												"attachmentId": "0000000000000000000000000000001f",
+												"generation": "1",
+												"revision": "9",
+												"columns": 80,
+												"alternateScreen": false,
+												"totalRows": "400",
+												"startRow": "100"
+											},
+											"scroll": {
+												"offsetFromBottom": "276",
+												"maxOffsetFromBottom": "376",
+												"viewportRows": 24
+											}
+										}
+									}
+								]
 							}
 						}
 					}

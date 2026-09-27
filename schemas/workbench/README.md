@@ -390,6 +390,16 @@ Absolute wire paths accept a POSIX leading slash or an ASCII drive letter follow
 
 ## Ephemeral Client view control
 
+`viewports` reads 1–16 ordered unique Panel IDs; `viewport-read` returns the canonical
+revision and nullable primary bindings with unavailable, pending or live/history facts.
+Position counters are decimal uint64, and offsets derive from total/start rows and the
+actual Client viewport height. Sources preserve Host epoch/attachment/generation/revision
+and geometry. The independent bindings enforce metric equations, exact requested membership,
+nonzero source identity and Ready/Busy success; pending states cannot fabricate a position.
+Payloads are bounded to 12 KiB within the existing frame limits, including owner completion.
+The Windows owner reserves memory, permits read-only history observation while Busy and
+preserves mutation gates. Queries never acquire viewers or request history/acknowledgement.
+
 [`workbench-client-view.schema.json`](v1/workbench-client-view.schema.json) owns Client discovery, owner-only synchronization and acknowledged navigation independently of canonical Workbench snapshots. OBWP kinds 25/26 bound requests to 16 KiB and results to 64 KiB. Required nullable fields, nonzero u64 sequences, at most 32 unique Clients, synchronized command fences and observed Applied or single-Panel zoom-unchanged results are checked by independent Rust/TypeScript bindings and the [shared corpus](v1/workbench-client-view-conformance-v1.json). The [Windows runtime contract](../../apps/orchbee/docs/windows-client-control.md) owns freshness, receipt retention, routing, post-draw acknowledgement and shutdown. `ClientViewControl` is the registered bounded lifecycle model; model execution is separate evidence.
 
 ## Client layout observations

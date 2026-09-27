@@ -196,7 +196,7 @@ impl ClientControl {
             }
             let reason = if command.expected_view_revision != sample.revision {
                 Some(Reason::StaleView)
-            } else if !command.intent.is_attention_read()
+            } else if !command.intent.is_passive_read()
                 && matches!(
                     sample.view.phase,
                     ClientViewPhase::Starting | ClientViewPhase::Busy
@@ -392,6 +392,19 @@ fn prepare_control(
     snapshot: Option<&orchbee_workbench_protocol::Snapshot>,
     viewport: Option<(ratatui::layout::Rect, crate::client_view::SidebarSurface)>,
 ) -> Result<ClientViewControl, Box<ClientViewCompletionOutcome>> {
+    if matches!(command.intent, ClientViewIntent::Viewports { .. }) {
+        return Err(Box::new(
+            snapshot
+                .ok_or(Reason::ProjectionUnavailable)
+                .and_then(|snapshot| native.read_client_viewports(command, snapshot))
+                .map_or_else(
+                    |reason| ClientViewCompletionOutcome::Rejected { reason },
+                    |viewport| ClientViewCompletionOutcome::ViewportRead {
+                        viewport: Box::new(viewport),
+                    },
+                ),
+        ));
+    }
     if matches!(command.intent, ClientViewIntent::Selections { .. }) {
         return Err(Box::new(
             snapshot

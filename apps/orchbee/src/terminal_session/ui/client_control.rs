@@ -129,6 +129,7 @@ impl NativeUi {
         }
         let (context_id, tab_id, panel_id) = match &command.intent {
             ClientViewIntent::Selections { .. }
+            | ClientViewIntent::Viewports { .. }
             | ClientViewIntent::AgentAttention { .. }
             | ClientViewIntent::Layout { .. }
             | ClientViewIntent::FocusDirection { .. }

@@ -32,8 +32,8 @@ Windows `workspace list/get` 返回 `number`、`tabCount` 和 `panelCount`；
 查询中接受可选 `--client <id>`，补充全局焦点和 Client 在各 Workspace 记住的活动 Tab。
 [Client 查询契约](windows-client-control.zh-CN.md#client-相对-workbench-查询)定义这一有界只读关联、
 来源记录与一致性检查。Schema 版本为 `orchbee.workspace.list/get` 4、`orchbee.tab.list` 4、
-`orchbee.tab.get` 5 和 `orchbee.panel.list/get` 6；内嵌目录为版本79，含87份 schema。
-保留的选择读取控制使用 `orchbee.client.control` v2，其他控制保留 v1。
+`orchbee.tab.get` 5 和 `orchbee.panel.list/get` 7；内嵌目录为版本80，含87份 schema。
+保留的选择读取控制使用 `orchbee.client.control` v2，视口读取使用 v3，其他控制保留 v1。
 `orchbee.cli.failure.client-query` v1 标识指定 Client 的读取失败，既有目标和准入诊断保持完整。
 进程观察、worktree 事实和上报元数据仍需要各自的所有者提供，这些拓扑字段不代表已实现它们。
 
@@ -102,7 +102,22 @@ file URI 按严格 UTF-8 解码一次百分号转义（盘符路径或 UNC autho
 既有五秒总期限覆盖所有 Panel 观察、Agent 关联和最终规范/Client 检查。所有结果路径都
 释放 viewer，准入会话销毁作为兜底。不产生输入、resize、焦点、history-demand 或 Client 确认效果。
 独立的帧/进程观察不是原子快照。新 viewer 的实时帧不代表所选 Client 的滚动偏移，后者
-仍属于单独的 Client viewport 观察。Panel list/get schema 为版本6，目录为版本79，共87份。
+由下述单独的 Client viewport 观察提供。Panel list/get schema 为版本7，目录为版本80，共87份。
+
+## Panel Client 滚动查询
+
+Windows Panel list/get 返回可空的 `scroll` 及必需的 `scrollObservation`。
+未指定 `--client` 时观察为 `no-client`，新 Host viewer 无法确定用户滚动位置。
+指定精确 Client 后，有界只读视口批次返回其已安装的实时/历史指标，或明确的不可用/待处理
+状态，见 [Client 视口观察](windows-client-control.zh-CN.md#client-视口观察)。
+根 Client 来源保留各操作 ID，发布前检查请求的 Panel ID、主绑定、规范修订号及所选视图一致。
+
+Panel 读取接纳当前 Ready 或 Busy Client，包括历史浏览。直接对规范快照验证选择成员，
+不请求无关的活动 Tab 记忆；Workspace/Tab 查询保留原有准入限制。
+全部观察共用原有已准入连接和五秒总期限，随后执行最终规范及 Client 修订检查。
+查询不改变视口、焦点、选区、输入租约或已读确认。独立的 Host/进程与 Client 观察不是
+原子快照。Panel list/get 使用 schema 7，保留的视口控制使用 `orchbee.client.control` 3，
+catalog 80 仍包含 87 份 schema。
 
 ## Windows 命名 Site 选择
 
@@ -1079,7 +1094,7 @@ Canonical 遍历次序：`navigation.projects` 顺序；各 project 的 `workspa
 terminal 绑定按该 panel 顺序且 `primaryPresentation` 先于 `childPresentations`。不新增排序；
 过滤后的列表与 `ambiguous` 候选都保持该次序。
 
-快照与单效果命令封套使用 `{schema, version, source, result}`；分阶段流程有自己的内嵌 schema。每份 schema 定义发出的版本及严格形状。增加 Panel 输入策略后，`orchbee.panel.list` 与 `orchbee.tab.get` 为 v2，`orchbee.panel.get/current` 为 v3；`orchbee.api.snapshot` 加入可选 Tab 自动命名后为 v4。`orchbee.terminal.get` 因保留实际启动程序／参数为 v4。`orchbee.terminal.read/history` 带 `--unwrap` 或 `--lines` 时为 v2，`orchbee.terminal.wait-output` 携带正则匹配细节时为 v2；三者不带这些 flag 时仍为 v1。各命令与失败的完整版本契约见 `api schema <id>`。当前目录为 v74，包含 83 份必需文档：注册 ID 会改变闭合字典形状，与业务文档版本独立。来源保留各所有者的含义：
+快照与单效果命令封套使用 `{schema, version, source, result}`；分阶段流程有自己的内嵌 schema。每份 schema 定义发出的版本及严格形状。Workbench 查询版本见上文；`orchbee.panel.current` 保持 v3，`orchbee.api.snapshot` 因 Workspace 排序为 v5。`orchbee.terminal.get` 因保留实际启动程序／参数为 v4。`orchbee.terminal.read/history` 带 `--unwrap` 或 `--lines` 时为 v2，`orchbee.terminal.wait-output` 携带正则匹配细节时为 v2；三者不带这些 flag 时仍为 v1。各命令与失败的完整版本契约见 `api schema <id>`。当前目录为 v80，包含 87 份必需文档：注册 ID 会改变闭合字典形状，与业务文档版本独立。来源保留各所有者的含义：
 
 - `source.kind="workbench-snapshot"`：带同一份已验证快照的 `siteId` 与十进制字符串
   `revision`——仅在完整有效读取之后出现。
@@ -2091,4 +2106,4 @@ Server 在 Worker 验证后原子提交拓扑与目录且不重启终端；Proje
 
 ## 可复用布局导出
 
-Windows `layout export` 输出带比例、手工标签、观测目录及冻结启动命令的可复用 JSON 树。目标、Client 选择、边界、取消、无副作用与一致性规则由[布局契约](windows-layouts.zh-CN.md)拥有。`orchbee.layout.export` v1 和 `orchbee.cli.failure.layout` v1 列入当前目录 v74（83 份文档）。导出不等于尚未实现的布局 apply。
+Windows `layout export` 输出带比例、手工标签、观测目录及冻结启动命令的可复用 JSON 树。[布局契约](windows-layouts.zh-CN.md)拥有导出目标、Client 选择、边界、取消、无副作用与一致性规则，以及已实现的 `layout apply` 创建／替换流程和效果回执。`orchbee.layout.export` v1 和 `orchbee.cli.failure.layout` v1 包含在当前目录 v80（87 份文档）中。

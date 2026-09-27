@@ -149,6 +149,13 @@ pnpm --filter @orchbee/workbench-client-protocol test:exports
 
 ## Client view binding
 
+`workbench-client-viewport-contract.ts` validates ordered batches of 1–16 unique Panel
+viewport observations, decimal uint64 positions, source identity/geometry and the offset
+equations. Unknown, pending and live/history states remain distinct; primary binding,
+request membership and Ready/Busy view constraints are checked before accepting a receipt.
+Snapshots are bounded to 12 KiB within the existing Client control frames. Shared corpus
+cases exercise both bindings and JSON Schema without introducing a Desktop runtime.
+
 `workbench-client-view-contract.ts` independently binds the [Client view contract](../../schemas/workbench/README.md#ephemeral-client-view-control) with strict Zod shapes and semantic checks. The [shared corpus](../../schemas/workbench/v1/workbench-client-view-conformance-v1.json) is also consumed by Rust and JSON Schema witnesses. It does not place Client-local selection in canonical Workbench snapshots or expose a Desktop CLI command.
 
 `workbench-client-layout-contract.ts` validates bounded cell rectangles, nullable visibility/focus, unique split/slot/Panel identities, finite ratios, physical containment and independently recomputed directional neighbors. Client view validation ties a layout read to the exact target and minimum revision; selected observations also match the published Client view. The shared corpus covers valid inactive/hidden targets and rejected cross-field, bounds and reference violations.

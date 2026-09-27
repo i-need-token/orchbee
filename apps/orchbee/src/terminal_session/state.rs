@@ -383,6 +383,9 @@ pub(super) struct PaneRecord {
 }
 
 impl PaneRecord {
+    pub(super) const fn binding(&self) -> &NativeTerminalBinding {
+        &self.binding
+    }
     fn new(
         pane_ref: PaneRef,
         index: usize,

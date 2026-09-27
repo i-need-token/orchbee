@@ -1,7 +1,13 @@
 mod client_navigation;
+mod client_viewport;
 pub use client_navigation::{
     ClientContextSelection, ClientNavigationSnapshot, MAXIMUM_CLIENT_SELECTION_CONTEXTS,
     MAXIMUM_ENCODED_CLIENT_NAVIGATION_BYTES,
+};
+pub use client_viewport::{
+    ClientPanelViewport, ClientScrollMetrics, ClientViewportMode, ClientViewportObservation,
+    ClientViewportPending, ClientViewportSnapshot, ClientViewportSource, ClientViewportUnavailable,
+    MAXIMUM_CLIENT_VIEWPORT_PANELS, MAXIMUM_ENCODED_CLIENT_VIEWPORT_BYTES,
 };
 mod client_attention;
 pub use client_attention::{

@@ -7,6 +7,10 @@ import {
 	ClientPanelLayoutSchema,
 } from './workbench-client-layout-contract';
 import { z } from 'zod';
+import {
+	ClientViewportPanelsSchema,
+	ClientViewportSnapshotSchema,
+} from './workbench-client-viewport-contract';
 import { AgentSessionIdSchema } from '@orchbee/agent';
 import {
 	SiteIdSchema,
@@ -148,6 +152,7 @@ const clientNavigation = z
 	})
 	.readonly();
 export const ClientViewIntentSchema = z.discriminatedUnion('kind', [
+	z.strictObject({ kind: z.literal('viewports'), panelIds: ClientViewportPanelsSchema }).readonly(),
 	z
 		.strictObject({ kind: z.literal('selections'), terminalContextIds: selectionContexts })
 		.readonly(),
@@ -207,6 +212,9 @@ export const ClientViewCompletionSchema = z
 		operationId: WorkbenchRequestIdSchema,
 		outcome: z.discriminatedUnion('kind', [
 			z
+				.strictObject({ kind: z.literal('viewport-read'), viewport: ClientViewportSnapshotSchema })
+				.readonly(),
+			z
 				.strictObject({ kind: z.literal('navigation-read'), navigation: clientNavigation })
 				.readonly(),
 			z
@@ -245,6 +253,13 @@ export const ClientViewCompletionSchema = z
 	})
 	.readonly();
 export const ClientViewControlStatusSchema = z.discriminatedUnion('kind', [
+	z
+		.strictObject({
+			kind: z.literal('viewport-read'),
+			viewport: ClientViewportSnapshotSchema,
+			view: ClientViewObservationSchema,
+		})
+		.readonly(),
 	z
 		.strictObject({
 			kind: z.literal('navigation-read'),
@@ -399,6 +414,25 @@ export const ClientViewOperationSchema = z
 				});
 			return;
 		}
+		if (status.kind === 'viewport-read') {
+			const intent = command.intent,
+				viewport = status.viewport,
+				view = status.view;
+			if (
+				intent.kind !== 'viewports' ||
+				!['ready', 'busy'].includes(view.phase) ||
+				BigInt(viewport.workbenchRevision) < BigInt(command.minimumWorkbenchRevision) ||
+				BigInt(viewport.workbenchRevision) < BigInt(view.workbenchRevision) ||
+				viewport.panels.length !== intent.panelIds.length ||
+				viewport.panels.some((row, index) => row.panelId !== intent.panelIds[index])
+			) {
+				context.addIssue({
+					code: 'custom',
+					message: 'Viewport receipt does not match requested Panels or view',
+				});
+			}
+			return;
+		}
 		if (status.kind === 'navigation-read') {
 			const { intent } = command;
 			const { navigation, view } = status;
@@ -502,7 +536,11 @@ export const ClientViewOperationSchema = z
 				break;
 		}
 
-		if (intent.kind === 'agent-attention' || intent.kind === 'selections') {
+		if (
+			intent.kind === 'agent-attention' ||
+			intent.kind === 'selections' ||
+			intent.kind === 'viewports'
+		) {
 			context.addIssue({ code: 'custom', message: 'Read cannot acknowledge navigation' });
 			return;
 		}

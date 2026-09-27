@@ -22,36 +22,76 @@ fn page(stream: &mut LocalStream, revision: u64) {
     write_agent_result(stream,&AgentResult::Read(serde_json::from_value(json!({"kind":"agent.session.list.result","requestId":request.request_id(),"result":{"outcome":{"kind":"listed","revision":revision,"items":items,"nextCursor":null}}})).unwrap())).unwrap();
 }
 
-fn selections(stream: &mut LocalStream) {
-    let view = client_get::selected_reply(stream, false);
+fn viewport(stream: &mut LocalStream, case: &str) {
     let request = view_request(stream);
     let ClientViewAction::Submit { command } = &request.action else {
-        panic!("read selections")
+        panic!("viewport read")
     };
     assert_eq!(
         json!(command.intent),
-        json!({"kind":"selections","terminalContextIds":[id(4)]})
+        json!({"kind":"viewports","panelIds":[id(6),id(8)]})
     );
+    if case == "viewport-lost" {
+        return;
+    }
+    if case == "viewport-timeout" {
+        let command = command.clone();
+        view_reply(
+            stream,
+            &request,
+            json!({"kind":"operation","operation":{"command":command,"status":{"kind":"queued"}}}),
+        );
+        while let Ok(WorkbenchRequest::ClientView(next)) = read_workbench_request(stream) {
+            assert!(
+                matches!(&next.action, ClientViewAction::Read { operation_id } if *operation_id == command.operation_id)
+            );
+            view_reply(
+                stream,
+                &next,
+                json!({"kind":"operation","operation":{"command":command,"status":{"kind":"queued"}}}),
+            );
+        }
+        return;
+    }
+    let mut view = record(7, 6)["view"].clone();
+    if case == "busy" {
+        view["phase"] = json!("busy");
+    }
+    let primary = if case == "wrong-binding" { 207 } else { 206 };
+    let panels = json!([
+        {"panelId":id(6),"primaryTerminalId":id(primary),"observation":{"state":"observed","mode":"history","source":{"hostEpoch":id(50),"attachmentId":id(51),"generation":"1","revision":"5","columns":80,"alternateScreen":false,"totalRows":"400","startRow":"100"},"scroll":{"offsetFromBottom":"276","maxOffsetFromBottom":"376","viewportRows":24}}},
+        {"panelId":id(8),"primaryTerminalId":id(208),"observation":{"state":"unavailable","reason":"not-attached"}}
+    ]);
     view_reply(
         stream,
         &request,
-        json!({"kind":"operation","operation":{"command":command,"status":{"kind":"navigation-read","view":view,"navigation":{"workbenchRevision":"12","contexts":[{"terminalContextId":id(4),"activeTabId":id(5)}]}}}}),
+        json!({"kind":"operation","operation":{"command":command,"status":{"kind":"viewport-read","view":view,"viewport":{"workbenchRevision":"12","panels":panels}}}}),
     );
 }
 
 #[test]
 fn workbench_queries_join_only_primary_agents_and_reject_changed_client_without_partial_output() {
-    for case in ["headless", "seen", "unseen", "stale", "changed-view"] {
+    for case in [
+        "headless",
+        "seen",
+        "unseen",
+        "stale",
+        "changed-view",
+        "busy",
+        "wrong-binding",
+        "viewport-timeout",
+        "viewport-lost",
+    ] {
         let fixture = Fixture::new();
         let listener = LocalListener::bind(fixture.rendezvous().client_socket_path()).unwrap();
         let server = peer(&fixture, listener, move |mut stream| {
             snapshot_reply(&mut stream);
             if case != "headless" {
-                selections(&mut stream);
+                client_get::selected_reply(&mut stream, case == "busy");
             }
             page(&mut stream, 3);
             if case != "headless" {
-                let view = client_get::selected_reply(&mut stream, false);
+                let view = client_get::selected_reply(&mut stream, case == "busy");
                 let request = view_request(&mut stream);
                 let ClientViewAction::Submit { command } = &request.action else {
                     panic!("read attention")
@@ -72,6 +112,13 @@ fn workbench_queries_join_only_primary_agents_and_reject_changed_client_without_
             for _ in 0..2 {
                 runtime::unavailable(&mut stream);
             }
+            if case != "headless" {
+                viewport(&mut stream, case);
+            }
+            if matches!(case, "wrong-binding" | "viewport-timeout" | "viewport-lost") {
+                assert_closed(&mut stream);
+                return;
+            }
             snapshot_reply(&mut stream);
             if case == "changed-view" {
                 let request = view_request(&mut stream);
@@ -83,7 +130,7 @@ fn workbench_queries_join_only_primary_agents_and_reject_changed_client_without_
                     json!({"kind":"found","client":client}),
                 );
             } else if case != "headless" {
-                client_get::selected_reply(&mut stream, false);
+                client_get::selected_reply(&mut stream, case == "busy");
             }
             assert_closed(&mut stream);
         });
@@ -96,6 +143,14 @@ fn workbench_queries_join_only_primary_agents_and_reject_changed_client_without_
         let output = fixture.run(&args);
         server.join().unwrap();
         let doc = document(&output);
+        if matches!(case, "wrong-binding" | "viewport-timeout" | "viewport-lost") {
+            assert_eq!(
+                output.status.code(),
+                Some(if case == "viewport-timeout" { 7 } else { 5 })
+            );
+            assert!(doc.get("result").is_none());
+            continue;
+        }
         if case == "changed-view" {
             assert_eq!(output.status.code(), Some(3));
             validate(
@@ -126,11 +181,25 @@ fn workbench_queries_join_only_primary_agents_and_reject_changed_client_without_
             doc["result"]["panels"][0]["agentStatus"],
             match case {
                 "seen" => json!("idle"),
-                "unseen" => json!("done"),
+                "unseen" | "busy" => json!("done"),
                 _ => Value::Null,
             }
         );
         assert_eq!(doc["result"]["panels"][1]["agentStatus"], "unknown");
+        let row = &doc["result"]["panels"][0];
+        if case == "headless" {
+            assert!(row["scroll"].is_null());
+            assert_eq!(row["scrollObservation"]["state"], "no-client");
+        } else {
+            assert_eq!(row["scroll"]["offsetFromBottom"], "276");
+            assert_eq!(
+                doc["result"]["client"]["operationIds"]
+                    .as_array()
+                    .unwrap()
+                    .len(),
+                1
+            );
+        }
         assert_eq!(
             doc["result"]["agents"]["requestIds"]
                 .as_array()

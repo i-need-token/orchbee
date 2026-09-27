@@ -68,7 +68,17 @@ impl Answer {
             matches!(&reply.outcome, ClientViewOutcome::Operation { operation }
                 if matches!(operation.command.intent, orchbee_workbench_protocol::ClientViewIntent::Selections { .. }))
         });
-        let version = if selection_read { 2 } else { 1 };
+        let viewport_read = self.reply.as_ref().is_some_and(|reply| {
+            matches!(&reply.outcome, ClientViewOutcome::Operation { operation }
+                if matches!(operation.command.intent, orchbee_workbench_protocol::ClientViewIntent::Viewports { .. }))
+        });
+        let version = if viewport_read {
+            3
+        } else if selection_read {
+            2
+        } else {
+            1
+        };
         json!({"schema":"orchbee.client.control","version":version,"siteId":self.site_id,
             "operationId":self.operation_id,"observation":observation,"wait":wait})
     }
@@ -101,6 +111,7 @@ fn outcome_exit(outcome: &ClientViewOutcome) -> u8 {
             | ClientViewControlStatus::LayoutRead { .. }
             | ClientViewControlStatus::AttentionRead { .. }
             | ClientViewControlStatus::NavigationRead { .. }
+            | ClientViewControlStatus::ViewportRead { .. }
             | ClientViewControlStatus::Applied { .. }
             | ClientViewControlStatus::ZoomUnchanged { .. }
             | ClientViewControlStatus::ZoomToggled { .. } => 0,

@@ -39,9 +39,9 @@ perform no navigation, process inspection or mutation. Windows accepts optional
 remembered active Tab in each Workspace. The [Client query contract](windows-client-control.md#client-relative-workbench-queries)
 owns this bounded, read-only join and its provenance and consistency checks.
 Schema versions are `orchbee.workspace.list/get` 4, `orchbee.tab.list` 4,
-`orchbee.tab.get` 5 and `orchbee.panel.list/get` 6; the embedded catalog is version 79
+`orchbee.tab.get` 5 and `orchbee.panel.list/get` 7; the embedded catalog is version 80
 with 87 schemas. Retained selection-read controls use `orchbee.client.control` v2;
-other controls retain v1. `orchbee.cli.failure.client-query` v1 identifies selected
+viewport reads use v3; other controls retain v1. `orchbee.cli.failure.client-query` v1 identifies selected
 Client read failures; existing target and admission diagnostics remain intact.
 Process observations, worktree facts and reported metadata require their
 respective owners and are not implied by these topology fields.
@@ -128,8 +128,27 @@ The existing five-second total covers all Panel observations, Agent joins, and f
 Client checks. Viewers detach on every outcome, with admitted-session teardown as fallback.
 There is no input, resize, focus, history-demand or Client acknowledgement effect. These independent
 frame/process observations are not an atomic snapshot. A fresh viewer's live frame never claims
-the selected Client's scroll offset: that remains a separate Client viewport observation.
-Panel list/get schemas are version 6 and the catalog is version 79 with 87 schemas.
+the selected Client's scroll offset: the Client viewport observation below supplies it.
+Panel list/get schemas are version 7 and the catalog is version 80 with 87 schemas.
+
+## Panel Client scroll queries
+
+Windows Panel list/get returns nullable `scroll` and required `scrollObservation`.
+Without `--client`, the observation is `no-client`; a new Host viewer cannot establish
+the user's scroll position. With an exact Client, bounded read-only viewport batches
+return its installed live/history metrics or explicit unavailable/pending state, as
+defined by [Client viewport observations](windows-client-control.md#client-viewport-observations).
+The root Client source retains each operation ID. Requested Panel IDs, primary bindings,
+canonical revision and the unchanged selected view must agree before publication.
+
+Panel reads accept current Ready or Busy Clients, including history browsing. They
+corroborate selection membership directly against the canonical snapshot; they do not
+request unrelated active-Tab memory. Workspace/Tab queries keep their existing gates.
+All observations share the original admitted connection and five-second total, followed
+by the final canonical and Client revision checks. No query changes the viewport, focus,
+selection, input lease or seen acknowledgement. Independent Host/process and Client
+observations are not an atomic snapshot. Panel list/get use schema 7; retained viewport
+controls use `orchbee.client.control` 3; catalog 80 retains 87 schemas.
 
 ## Windows named Site selection
 
@@ -1308,7 +1327,7 @@ Canonical traversal order: `navigation.projects` order; each project's `workspac
 `children[1]`; terminal bindings in that panel order with `primaryPresentation` before
 `childPresentations`. No sorting is added; filtered lists and `ambiguous` candidates preserve it.
 
-Snapshot and one-effect command envelopes use `{schema, version, source, result}`; staged workflows have their own embedded schemas. Every schema defines its emitted version and strict shape. `orchbee.panel.list` and `orchbee.tab.get` are v2; `orchbee.panel.get/current` are v3 after adding Panel input policy; `orchbee.api.snapshot` is v4 with optional automatic Tab naming. `orchbee.terminal.get` is v4 for the retained launch program/arguments. `orchbee.terminal.read/history` use v2 with `--unwrap` or `--lines`; `orchbee.terminal.wait-output` uses v2 for regex match details. Their flag-free outputs remain v1. See `api schema <id>` for each command and failure's complete version contract. The current catalog is v74 with 83 required documents: registering an ID changes the closed dictionary shape, independently of business document versions. Sources retain their owner's meaning:
+Snapshot and one-effect command envelopes use `{schema, version, source, result}`; staged workflows have their own embedded schemas. Every schema defines its emitted version and strict shape. Workbench query versions are listed above; `orchbee.panel.current` remains v3 and `orchbee.api.snapshot` is v5 with Workspace ordering. `orchbee.terminal.get` is v4 for the retained launch program/arguments. `orchbee.terminal.read/history` use v2 with `--unwrap` or `--lines`; `orchbee.terminal.wait-output` uses v2 for regex match details. Their flag-free outputs remain v1. See `api schema <id>` for each command and failure's complete version contract. The current catalog is v80 with 87 required documents: registering an ID changes the closed dictionary shape, independently of business document versions. Sources retain their owner's meaning:
 
 - `source.kind="workbench-snapshot"` with `siteId` and decimal-string `revision` from the same
   validated snapshot — present only after a complete valid read.
@@ -2449,4 +2468,4 @@ Catalog v72 contains 81 schemas and retains 96 command paths.
 
 ## Reusable layout export
 
-Windows `layout export` emits a reusable JSON tree with ratios, manual labels, observed directories and frozen launch commands. The [layout contract](windows-layouts.md) owns targets, Client selection, bounds, cancellation, absence of terminal effects and consistency. `orchbee.layout.export` v1 and `orchbee.cli.failure.layout` v1 join the current catalog v74 (83 documents). Export does not establish the still-unimplemented layout apply workflow.
+Windows `layout export` emits a reusable JSON tree with ratios, manual labels, observed directories and frozen launch commands. The [layout contract](windows-layouts.md) owns export targets, Client selection, bounds, cancellation, absence of terminal effects and consistency, together with the implemented `layout apply` creation/replacement workflow and its effect receipts. `orchbee.layout.export` v1 and `orchbee.cli.failure.layout` v1 are included in the current catalog v80 (87 documents).

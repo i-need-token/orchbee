@@ -170,7 +170,9 @@ impl ClientViewRegistry {
         else {
             return unavailable(ClientViewUnavailable::ClientUnavailable);
         };
-        let payload_reservation = if matches!(command.intent, ClientViewIntent::Selections { .. }) {
+        let payload_reservation = if matches!(command.intent, ClientViewIntent::Viewports { .. }) {
+            orchbee_workbench_protocol::MAXIMUM_ENCODED_CLIENT_VIEWPORT_BYTES
+        } else if matches!(command.intent, ClientViewIntent::Selections { .. }) {
             orchbee_workbench_protocol::MAXIMUM_ENCODED_CLIENT_NAVIGATION_BYTES
         } else if command.intent.is_attention_read() {
             MAXIMUM_ENCODED_CLIENT_ATTENTION_BYTES
@@ -196,7 +198,7 @@ impl ClientViewRegistry {
         } else if self.receipts.values().any(|receipt| {
             receipt.operation.command.client_id == command.client_id
                 && receipt.operation.status.pending()
-        }) || (!command.intent.is_attention_read()
+        }) || (!command.intent.is_passive_read()
             && matches!(
                 client.view.phase,
                 ClientViewPhase::Starting | ClientViewPhase::Busy
@@ -268,6 +270,12 @@ impl ClientViewRegistry {
                 return ClientViewOutcome::Conflict {};
             }
             let status = match &completion.outcome {
+                ClientViewCompletionOutcome::ViewportRead { viewport } => {
+                    ClientViewControlStatus::ViewportRead {
+                        viewport: viewport.clone(),
+                        view: view.clone(),
+                    }
+                }
                 ClientViewCompletionOutcome::NavigationRead { navigation } => {
                     ClientViewControlStatus::NavigationRead {
                         navigation: navigation.clone(),
@@ -370,7 +378,7 @@ impl ClientViewRegistry {
                 || client.view_revision != receipt.operation.command.expected_view_revision
             {
                 Some(ClientViewControlReason::StaleView)
-            } else if !receipt.operation.command.intent.is_attention_read()
+            } else if !receipt.operation.command.intent.is_passive_read()
                 && matches!(
                     client.view.phase,
                     ClientViewPhase::Starting | ClientViewPhase::Busy

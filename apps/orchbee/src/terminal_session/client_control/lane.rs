@@ -196,6 +196,7 @@ fn run(
             let layout_snapshot = if matches!(
                 control.intent,
                 ClientViewIntent::Selections { .. }
+                    | ClientViewIntent::Viewports { .. }
                     | ClientViewIntent::Layout { .. }
                     | ClientViewIntent::FocusDirection { .. }
                     | ClientViewIntent::Resize { .. }

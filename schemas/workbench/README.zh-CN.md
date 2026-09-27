@@ -349,6 +349,13 @@ implementation。
 
 ## 易失 Client 视图控制
 
+`viewports` 读取 1–16 个有序唯一 Panel ID；`viewport-read` 返回规范修订号、可空主绑定以及
+不可用、待处理或实时/历史事实。位置计数为十进制 uint64，偏移由总行数、起始行和实际 Client
+视口高度计算。来源保留 Host epoch/attachment/generation/revision 及几何。
+独立绑定验证指标公式、精确请求成员、非零来源身份及 Ready/Busy 成功；待处理状态不能伪造位置。
+载荷限制为现有帧内的 12 KiB，包括所有者完成消息。Windows 所有者预留内存、允许 Busy 期间
+只读观察历史，并保留变更准入限制。查询不创建 viewer，不请求历史数据或确认。
+
 [`workbench-client-view.schema.json`](v1/workbench-client-view.schema.json) 拥有 Client 发现、仅所有者可执行的同步及经确认的导航，与规范 Workbench 快照分离。OBWP kind 25／26 将请求限制为 16 KiB、结果限制为 64 KiB。独立 Rust／TypeScript 绑定及[共享语料](v1/workbench-client-view-conformance-v1.json) 校验必填可空字段、非零 u64 序列、最多 32 个唯一 Client、同步命令版本约束，以及已观测 Applied 或单 Panel zoom-unchanged 结果。[Windows 运行时契约](../../apps/orchbee/docs/windows-client-control.zh-CN.md) 拥有新鲜期、回执保留、路由、绘制后确认和停机。`ClientViewControl` 是登记的有界生命周期模型；模型执行是单独的证据。
 
 ## Client 布局观测

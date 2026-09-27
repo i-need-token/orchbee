@@ -8,7 +8,7 @@
 			"const": "orchbee.client.control"
 		},
 		"version": {
-			"enum": [1, 2]
+			"enum": [1, 2, 3]
 		},
 		"siteId": {
 			"anyOf": [
@@ -441,6 +441,29 @@
 					},
 					"required": ["kind", "terminalContextIds"],
 					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "viewports"
+						},
+						"panelIds": {
+							"type": "array",
+							"minItems": 1,
+							"maxItems": 16,
+							"uniqueItems": true,
+							"items": {
+								"type": "string",
+								"pattern": "^[0-9a-f]{32}$",
+								"not": {
+									"const": "00000000000000000000000000000000"
+								}
+							}
+						}
+					},
+					"required": ["kind", "panelIds"],
+					"additionalProperties": false
 				}
 			]
 		},
@@ -678,6 +701,22 @@
 						}
 					},
 					"required": ["kind", "navigation", "view"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "viewport-read"
+						},
+						"viewport": {
+							"$ref": "#/$defs/viewportSnapshot"
+						},
+						"view": {
+							"$ref": "#/$defs/view"
+						}
+					},
+					"required": ["kind", "viewport", "view"],
 					"additionalProperties": false
 				}
 			]
@@ -1207,6 +1246,212 @@
 				}
 			},
 			"required": ["workbenchRevision", "contexts"],
+			"additionalProperties": false
+		},
+		"scrollMetrics": {
+			"type": "object",
+			"properties": {
+				"offsetFromBottom": {
+					"type": "string",
+					"pattern": "^(0|[1-9][0-9]{0,19})$",
+					"format": "orchbee-uint64"
+				},
+				"maxOffsetFromBottom": {
+					"type": "string",
+					"pattern": "^(0|[1-9][0-9]{0,19})$",
+					"format": "orchbee-uint64"
+				},
+				"viewportRows": {
+					"type": "integer",
+					"minimum": 1,
+					"maximum": 4096
+				}
+			},
+			"required": ["offsetFromBottom", "maxOffsetFromBottom", "viewportRows"],
+			"additionalProperties": false
+		},
+		"viewportSource": {
+			"type": "object",
+			"properties": {
+				"hostEpoch": {
+					"type": "string",
+					"pattern": "^[0-9a-f]{32}$",
+					"not": {
+						"const": "00000000000000000000000000000000"
+					}
+				},
+				"attachmentId": {
+					"type": "string",
+					"pattern": "^[0-9a-f]{32}$",
+					"not": {
+						"const": "00000000000000000000000000000000"
+					}
+				},
+				"generation": {
+					"type": "string",
+					"pattern": "^(0|[1-9][0-9]{0,19})$",
+					"format": "orchbee-uint64",
+					"not": {
+						"const": "0"
+					}
+				},
+				"revision": {
+					"type": "string",
+					"pattern": "^(0|[1-9][0-9]{0,19})$",
+					"format": "orchbee-uint64"
+				},
+				"columns": {
+					"type": "integer",
+					"minimum": 1,
+					"maximum": 4096
+				},
+				"alternateScreen": {
+					"type": "boolean"
+				},
+				"totalRows": {
+					"type": "string",
+					"pattern": "^(0|[1-9][0-9]{0,19})$",
+					"format": "orchbee-uint64"
+				},
+				"startRow": {
+					"type": "string",
+					"pattern": "^(0|[1-9][0-9]{0,19})$",
+					"format": "orchbee-uint64"
+				}
+			},
+			"required": [
+				"hostEpoch",
+				"attachmentId",
+				"generation",
+				"revision",
+				"columns",
+				"alternateScreen",
+				"totalRows",
+				"startRow"
+			],
+			"additionalProperties": false
+		},
+		"viewportObservation": {
+			"oneOf": [
+				{
+					"type": "object",
+					"properties": {
+						"state": {
+							"const": "unavailable"
+						},
+						"reason": {
+							"enum": ["not-attached", "frame-unavailable"]
+						}
+					},
+					"required": ["state", "reason"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"state": {
+							"const": "pending"
+						},
+						"phase": {
+							"enum": ["entering", "awaiting-window", "recovering"]
+						}
+					},
+					"required": ["state", "phase"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"state": {
+							"const": "observed"
+						},
+						"mode": {
+							"enum": ["live", "history"]
+						},
+						"source": {
+							"$ref": "#/$defs/viewportSource"
+						},
+						"scroll": {
+							"$ref": "#/$defs/scrollMetrics"
+						}
+					},
+					"required": ["state", "mode", "source", "scroll"],
+					"additionalProperties": false
+				}
+			]
+		},
+		"viewportSnapshot": {
+			"type": "object",
+			"properties": {
+				"workbenchRevision": {
+					"type": "string",
+					"pattern": "^(0|[1-9][0-9]{0,19})$",
+					"format": "orchbee-uint64"
+				},
+				"panels": {
+					"type": "array",
+					"minItems": 1,
+					"maxItems": 16,
+					"items": {
+						"type": "object",
+						"properties": {
+							"panelId": {
+								"type": "string",
+								"pattern": "^[0-9a-f]{32}$",
+								"not": {
+									"const": "00000000000000000000000000000000"
+								}
+							},
+							"primaryTerminalId": {
+								"anyOf": [
+									{
+										"type": "string",
+										"pattern": "^[0-9a-f]{32}$",
+										"not": {
+											"const": "00000000000000000000000000000000"
+										}
+									},
+									{
+										"type": "null"
+									}
+								]
+							},
+							"observation": {
+								"$ref": "#/$defs/viewportObservation"
+							}
+						},
+						"required": ["panelId", "primaryTerminalId", "observation"],
+						"additionalProperties": false,
+						"allOf": [
+							{
+								"if": {
+									"properties": {
+										"primaryTerminalId": {
+											"type": "null"
+										}
+									}
+								},
+								"then": {
+									"properties": {
+										"observation": {
+											"type": "object",
+											"properties": {
+												"state": {
+													"const": "unavailable"
+												},
+												"reason": {
+													"const": "not-attached"
+												}
+											}
+										}
+									}
+								}
+							}
+						]
+					}
+				}
+			},
+			"required": ["workbenchRevision", "panels"],
 			"additionalProperties": false
 		}
 	}
