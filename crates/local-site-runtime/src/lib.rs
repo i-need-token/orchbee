@@ -12,6 +12,10 @@ mod retained_child;
 #[cfg(windows)]
 mod session_store_windows;
 #[cfg(windows)]
+mod site_name_windows;
+#[cfg(windows)]
+pub use site_name_windows::WindowsSiteName;
+#[cfg(windows)]
 mod windows_permissions;
 #[cfg(windows)]
 pub use session_store_windows::WindowsSessionStore;

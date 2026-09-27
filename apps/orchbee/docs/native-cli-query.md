@@ -17,6 +17,28 @@ Authority: this record owns the public grammar, result envelopes, failure matrix
 budgets, exchange state machines and output effects implemented under `src/invocation.rs`
 and `src/cli/**`. Prose and implementation must converge in the same change.
 
+## Windows named Site selection
+
+The global `--site <name>` / `--site=<name>` selects the local Windows Site for the entire
+invocation, including `site start`, `site stop`, queries and `tui`. It does not change the
+Agent `--session` selector. Names are case-sensitive, contain 1–64 ASCII letters, digits,
+`.` / `_` / `-`, and cannot be `.` or `..`. `default` selects the existing default Site.
+The complete argument grammar is validated before selection; offline help, completion,
+version and schema operations do not discover a runtime because a name was supplied.
+
+Selection precedence is explicit `--site`, the managed terminal's `ORCHBEE_RUNTIME_SCOPE`,
+`ORCHBEE_SITE`, then `default`. `ORCHBEE_RUNTIME_BASE` still selects the existing absolute
+base. The Worker supplies the admitted base and scope to child terminals, so nested CLI
+commands keep their owning Site even if a different name was inherited by the Server.
+An explicit `--site default` overrides that inherited scope. Invalid selected environment
+values fail discovery; they never silently select the default Site.
+
+Named runtime leaves hash the current SID and exact name; names are never filesystem path
+components. Activation registers a bounded private identity under its existing activation
+lock before committing the startup marker. Read-only discovery validates that identity
+without creating it. Checkpoint storage is already isolated by the admitted runtime path.
+This selection surface does not yet provide named session list/attach/stop/delete verbs.
+
 ## Agent session names
 
 `agent names` lists all live aliases in the running Site. `agent resolve <target>`

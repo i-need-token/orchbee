@@ -9,6 +9,20 @@ use std::{
 fn real_powershell_completes_scoped_grammar_without_runtime() {
     let mut cases = super::super::test_cases::CASES.to_vec();
     cases.extend([
+        ("orchbee --si", "--site", true),
+        ("orchbee --site work sta", "status", true),
+        ("orchbee --site=work tui --m", "--mouse", true),
+        ("orchbee --site=work tui --s", "--site", false),
+        ("orchbee --site=.. status --f", "--format", false),
+        (
+            "orchbee --site=work --site=other status --f",
+            "--format",
+            false,
+        ),
+        ("orchbee --site work help terminal a", "attach", true),
+        ("orchbee --site work completion p", "powershell", true),
+        ("orchbee --site ", "status", false),
+        ("orchbee agent get --session abc --si", "--site", true),
         (
             "orchbee tab move alpha --insert-index 2 --f",
             "--format",

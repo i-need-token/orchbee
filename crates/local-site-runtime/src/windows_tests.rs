@@ -13,6 +13,7 @@ use std::{
 static SERIAL: AtomicU64 = AtomicU64::new(0);
 
 mod session_store;
+mod site_name;
 
 #[test]
 fn native_admission_rejects_hard_links_junctions_and_non_normalized_paths() {

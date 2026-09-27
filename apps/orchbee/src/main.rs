@@ -60,7 +60,7 @@ use std::{
     process::ExitCode,
 };
 
-use invocation::{Invocation, parse_request};
+use invocation::{Invocation, parse_selected_request};
 use localization::{Locale, select_locale};
 use presentation::{ProcessResult, present};
 
@@ -70,7 +70,11 @@ const _: fn(localization::Locale, bool) -> Result<(), tui_shell::TuiFailure> = t
 
 fn main() -> ExitCode {
     let locale = select_locale(|name| env::var_os(name));
-    let parsed = parse_request(env::args_os().skip(1));
+    let parsed = parse_selected_request(env::args_os().skip(1)).map(|selected| {
+        #[cfg(windows)]
+        local_activation::select_site(selected.site);
+        selected.request
+    });
     #[cfg(any(target_os = "linux", windows))]
     if let Ok(invocation::Request::Tui { mouse }) = &parsed {
         return match local_startup::run(locale, *mouse) {

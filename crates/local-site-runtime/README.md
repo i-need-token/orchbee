@@ -4,6 +4,18 @@ Private native runtime facilities shared by the Client, Server, and Worker. This
 owns descriptor-relative runtime admission, lock/marker primitives, and immutable development
 cohort verification. Applications own process launch, service state, and terminal authorization.
 
+## Windows named runtime identity
+
+`WindowsSiteName` validates exact case-sensitive names of 1–64 ASCII letters, digits,
+dot, underscore or hyphen, excluding `.` and `..`. `default` retains the existing SID-derived
+scope. Other names derive a bounded hashed scope from a domain separator, SID and exact name.
+The private `session-name.json` contains a strict version-1 name record, capped at 256 bytes.
+Only registration under the matching activation lock may create it; existing bytes are read
+and verified, never overwritten or repaired. A partial first write remains a visible failure.
+Read-only rendezvous admission requires a valid record for named scopes and verifies its
+current-user scope derivation. Runtime aliases, unknown fields, duplicate fields and mismatched
+names are rejected. This identity does not grant process control or authorize state deletion.
+
 ## Local startup model
 
 Bare Linux `orchbee` admits its inherited input/output TTY and validates its geometry before

@@ -7,6 +7,13 @@
 [README.md](README.md)。
 如有冲突，以英文为准。
 
+## Windows 子终端 CLI 路由
+
+托管 Windows 启动从准入后的 Site 运行时目录覆盖 `ORCHBEE_RUNTIME_BASE` 和
+`ORCHBEE_RUNTIME_SCOPE`，并保留现有终端与 Worker 身份。覆盖值优先于继承值和启动参数中的值。
+延迟和立即启动使用相同路由；路径文本不可用或无效时拒绝准备，不静默将内部 CLI 命令路由到其他 Site。
+不带托管运行时的显式端点启动保持现有行为。
+
 ## 进程边界
 
 在 macOS 与 Linux 上，确切私有开发调用为：

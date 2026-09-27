@@ -12,6 +12,11 @@
 
 ## 解析目标和检查状态
 
+Windows 上，`--site <name>` 为启动、查询、输入和停止选择命名本地 Site。
+`default` 选择原默认 Site，并覆盖继承的 `ORCHBEE_RUNTIME_SCOPE` 与 `ORCHBEE_SITE`。
+托管子终端继承其精确所属路由。名称区分大小写，由 1–64 个 ASCII 字母、数字、点、下划线或连字符组成，
+排除 `.` 和 `..`。Agent `--session <id>` 与 Site 选择器独立。只有激活操作会创建 Site。
+
 使用 `orchbee status --format json` 或 `orchbee api snapshot` 检查运行中的 Site，再使用相应的 `project`、`workspace`、`tab`、`panel`、`terminal`、`worktree` 或 `agent` list/get 命令。遵循各命令声明的过滤参数，使用返回的稳定 ID。仅在帮助声明支持时使用标签和后缀选择器；有歧义的目标必须明确解析。
 
 `orchbee terminal read <terminal-id> --history --rows 50 --lines 50 --unwrap --format json` 读取保留输出。输出可能含有秘密，只转发任务需要的内容。读取/查询命令不会创建缺失资源。使用 `workspace create --project <target> --label <label> --cwd <absolute-path>`，一次请求接纳目录并创建 Workspace 和首个终端。分别检查资源提交和终端启动结果。

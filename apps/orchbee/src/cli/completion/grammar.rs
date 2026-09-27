@@ -8,6 +8,10 @@ use super::{
 use serde_json::json;
 
 pub(super) fn build() -> serde_json::Value {
+    #[cfg(windows)]
+    let global_flags = ["--site"].as_slice();
+    #[cfg(not(windows))]
+    let global_flags: &[&str] = &[];
     let mut commands = Vec::new();
     for (family, verbs) in FAMILY_VERBS {
         for verb in *verbs {
@@ -49,8 +53,9 @@ pub(super) fn build() -> serde_json::Value {
     }
     let grammar = json!({
         "commands": commands,
-        "valueFlags": BUSINESS_FLAGS.iter().copied().filter(|flag| flag_value(flag).is_some()).chain(["--format", "--mouse"]).collect::<Vec<_>>(),
-        "flags": BUSINESS_FLAGS.iter().copied().chain(["--format", "--mouse"]).collect::<Vec<_>>(),
+        "valueFlags": BUSINESS_FLAGS.iter().copied().filter(|flag| flag_value(flag).is_some()).chain(["--format", "--mouse"]).chain(global_flags.iter().copied()).collect::<Vec<_>>(),
+        "flags": BUSINESS_FLAGS.iter().copied().chain(["--format", "--mouse"]).chain(global_flags.iter().copied()).collect::<Vec<_>>(),
+        "globalFlags": global_flags,
         "repeatable": REPEATABLE_FLAGS,
         "shells": SHELLS,
         "formats": FORMAT_VALUES,

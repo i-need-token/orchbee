@@ -12,6 +12,12 @@ The bare `orchbee` command launches the interactive TUI. Use explicit commands f
 
 ## Resolve targets and inspect state
 
+On Windows, `--site <name>` selects a named local Site for startup, queries, input and stop.
+`default` selects the original default Site; it overrides inherited `ORCHBEE_RUNTIME_SCOPE`
+and `ORCHBEE_SITE`. Managed child terminals inherit their exact owning route. Names are
+case-sensitive 1–64 ASCII letters, digits, dot, underscore or hyphen, excluding `.` and `..`.
+Keep Agent `--session <id>` separate from the Site selector. Only activation creates a Site.
+
 Use `orchbee status --format json` or `orchbee api snapshot` to inspect the running Site, then the appropriate `project`, `workspace`, `tab`, `panel`, `terminal`, `worktree`, or `agent` list/get command. Follow each command's declared filters and use returned stable IDs. Labels and suffix selectors are only accepted where help declares them; ambiguous targets must be resolved explicitly.
 
 `orchbee terminal read <terminal-id> --history --rows 50 --lines 50 --unwrap --format json` reads retained output. Output can contain secrets; forward only what the task needs. Read/query commands do not create missing resources. Use `workspace create --project <target> --label <label> --cwd <absolute-path>` to admit a directory and create the Workspace with its first terminal in one request. Inspect the separate committed-resource and terminal-launch outcomes.

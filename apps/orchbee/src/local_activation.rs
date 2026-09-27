@@ -12,6 +12,11 @@ use orchbee_local_site_runtime::{
 };
 use std::{io, path::PathBuf, thread, time::Instant};
 
+#[cfg(windows)]
+mod windows_selection;
+#[cfg(windows)]
+pub(crate) use windows_selection::select_site;
+
 /// The single local-startup verdict vocabulary, owned here by the shared
 /// activation core so the core never depends on the TUI adapter. The core
 /// itself only ever emits `Cohort`, `Runtime`, `SocketPathTooLong`,
@@ -106,6 +111,11 @@ pub(crate) fn activate_local_site(deadline: Instant) -> Result<StartedSite, Acti
             ActivationCause::Cohort(error),
         )
     })?;
+    #[cfg(windows)]
+    let selection = windows_selection::location().map_err(runtime_failure)?;
+    #[cfg(windows)]
+    let (base, scope_text) = (selection.base, selection.scope);
+    #[cfg(not(windows))]
     let (base, scope_text) = runtime_location().map_err(runtime_failure)?;
     let scope = SiteScope::parse(&scope_text)
         .map_err(|_| ActivationFailure::bare(StartupFailure::Runtime))?;
@@ -125,6 +135,24 @@ pub(crate) fn activate_local_site(deadline: Instant) -> Result<StartedSite, Acti
         .all(|path| unix_socket_path_fits(path))
     {
         return Err(ActivationFailure::bare(StartupFailure::SocketPathTooLong));
+    }
+    #[cfg(windows)]
+    if let Some(name) = selection.name {
+        loop {
+            check_deadline(deadline)?;
+            match site.try_acquire_activation_lock().map_err(lock_failure)? {
+                LockAttempt::Acquired(lock) => {
+                    site.register_session_name(&lock, &name)
+                        .map_err(runtime_failure)?;
+                    break;
+                }
+                LockAttempt::Contended => pause(deadline)?,
+            }
+        }
+    } else {
+        // An inherited route names an already registered runtime, never an implicit new name.
+        ModeCheckedLocalSiteRendezvous::from_runtime_directory(site.runtime_directory())
+            .map_err(lock_failure)?;
     }
     let (client, spawned) = connect_or_activate(&site, &cohort, deadline)?;
     Ok(StartedSite {
@@ -302,23 +330,21 @@ fn failure(error: &io::Error, fallback: StartupFailure) -> StartupFailure {
 
 pub(crate) fn runtime_location() -> io::Result<(PathBuf, String)> {
     #[cfg(windows)]
-    let (fallback, scope) = {
-        use sha2::{Digest, Sha256};
-        let user = orchbee_local_ipc::current_user_sid()?;
-        (
-            std::env::temp_dir(),
-            format!("orchbee-native-{:x}", Sha256::digest(user.as_bytes()))[..47].to_owned(),
-        )
-    };
+    {
+        let location = windows_selection::location()?;
+        Ok((location.base, location.scope))
+    }
     #[cfg(unix)]
-    let (fallback, scope) = (
-        PathBuf::from("/tmp"),
-        format!("orchbee-native-{}", nix::unistd::geteuid()),
-    );
-    Ok((
-        std::env::var_os("ORCHBEE_RUNTIME_BASE")
-            .map(PathBuf::from)
-            .unwrap_or(fallback),
-        scope,
-    ))
+    {
+        let (fallback, scope) = (
+            PathBuf::from("/tmp"),
+            format!("orchbee-native-{}", nix::unistd::geteuid()),
+        );
+        Ok((
+            std::env::var_os("ORCHBEE_RUNTIME_BASE")
+                .map(PathBuf::from)
+                .unwrap_or(fallback),
+            scope,
+        ))
+    }
 }

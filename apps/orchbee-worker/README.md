@@ -8,6 +8,15 @@ Simplified Chinese maintenance translation:
 [README.zh-CN.md](README.zh-CN.md).
 English remains canonical.
 
+## Windows child CLI routing
+
+Managed Windows launches overlay `ORCHBEE_RUNTIME_BASE` and `ORCHBEE_RUNTIME_SCOPE` from the
+admitted Site runtime directory, alongside the existing terminal and Worker identities.
+The overlay wins over inherited and launch-supplied values. Both deferred and immediate
+launches use the same route; unavailable or invalid path text rejects preparation instead
+of silently routing child CLI commands to another Site. Explicit-endpoint launches without
+a managed runtime retain their existing behavior.
+
 ## Process boundary
 
 On macOS and Linux, the exact private development invocation is:

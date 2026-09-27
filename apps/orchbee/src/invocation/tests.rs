@@ -2800,7 +2800,9 @@ fn mutation_required_options_cannot_be_dropped() {
     full_split.extend(GEOMETRY_ARGS);
     let cases: &[&[&str]] = &[
         &["project", "create"],
+        #[cfg(not(windows))]
         &["workspace", "create", "--label", "x"],
+        #[cfg(not(windows))]
         &["workspace", "create", "--project", "p"],
         &["workspace", "rename", "w"],
         &["workspace", "accept-directory", "w"],
@@ -3782,6 +3784,7 @@ fn usage_failures_carry_their_concrete_reason() {
             },
         ),
         // Required options, values, and geometry.
+        #[cfg(not(windows))]
         (
             &["workspace", "create", "--label", "w"],
             UsageReason::MissingRequired {
@@ -6860,9 +6863,12 @@ fn workspace_launch_requires_cwd_and_preserves_launch_values() {
     );
     assert_eq!(launch.unwrap().arguments(), &["/K"]);
     for tail in [
+        #[cfg(not(windows))]
         vec!["--env", "A=B"],
+        #[cfg(not(windows))]
         vec!["--exec", r"C:\cmd.exe"],
         vec!["--cols", "80"],
+        #[cfg(not(windows))]
         vec!["--cwd", "relative"],
         vec![
             "--cwd",
@@ -7426,6 +7432,7 @@ fn creation_directory_policies_are_scoped_and_preserve_absolute_overrides() {
         vec!["tab", "create", "--cwd", "Follow"],
         vec!["tab", "create", "--cwd", "relative"],
         vec!["tab", "create", "--cwd", "home", "--cwd", "current"],
+        #[cfg(not(windows))]
         vec!["workspace", "create", "--cwd", "home"],
     ] {
         assert!(parse(&args).is_err(), "{args:?}");
@@ -7540,5 +7547,111 @@ fn prompt_client_selection_requires_wait_and_one_exact_client() {
         let mut args = vec!["agent", "prompt", "alpha", "task"];
         args.extend(tail);
         assert!(parse(&args).is_err());
+    }
+}
+#[cfg(windows)]
+#[test]
+fn named_site_selection_preserves_complete_grammar_and_value_ownership() {
+    use super::parse_selected_request;
+    let parse = |words: &[&str]| parse_selected_request(words.iter().map(OsString::from));
+    for words in [
+        vec!["--site", "Work", "status"],
+        vec!["status", "--site=Work"],
+    ] {
+        let request = parse(&words).unwrap();
+        assert_eq!(request.site.unwrap().as_str(), "Work");
+        assert_eq!(
+            request.request,
+            parse_request(["status"].into_iter().map(OsString::from)).unwrap()
+        );
+    }
+    for words in [
+        vec!["--site", "..", "status"],
+        vec!["status", "--site="],
+        vec!["--site", "a", "--site=b", "status"],
+        vec!["--site", "--"],
+        vec!["status", "--", "--site", "a"],
+    ] {
+        assert!(parse(&words).is_err(), "{words:?}");
+    }
+    let failure = parse(&["--site=..", "status", "--format=json"]).unwrap_err();
+    assert_eq!(failure.envelope, super::FailureEnvelope::Json);
+    let offline = parse(&["--site", "CON", "--help"]).unwrap();
+    assert_eq!(offline.request, super::Request::RootHelp);
+    let launch = parse(&[
+        "tab",
+        "create",
+        "--standalone",
+        "--exec",
+        r"C:\Windows\System32\cmd.exe",
+        "--arg=--site",
+        "--site",
+        "work",
+    ])
+    .unwrap();
+    assert_eq!(launch.site.unwrap().as_str(), "work");
+    let agent = parse(&[
+        "--site",
+        "work",
+        "agent",
+        "get",
+        "--session",
+        "00000000000000000000000000000001",
+    ]);
+    assert!(agent.is_ok());
+}
+
+#[cfg(windows)]
+#[test]
+fn workspace_creation_defaults_are_accepted_with_and_without_site_selection() {
+    for words in [
+        vec!["workspace", "create", "--label", "w"],
+        vec!["workspace", "create", "--project", "p"],
+        vec![
+            "workspace",
+            "create",
+            "--project",
+            "p",
+            "--label",
+            "w",
+            "--env",
+            "A=B",
+        ],
+        vec![
+            "workspace",
+            "create",
+            "--project",
+            "p",
+            "--label",
+            "w",
+            "--exec",
+            r"C:\cmd.exe",
+        ],
+        vec![
+            "workspace",
+            "create",
+            "--project",
+            "p",
+            "--label",
+            "w",
+            "--cwd",
+            "relative",
+        ],
+        vec!["workspace", "create", "--cwd", "home"],
+    ] {
+        let ordinary = parse_request(words.iter().map(OsString::from)).unwrap();
+        assert!(
+            matches!(ordinary, Request::WorkspaceCreation { .. }),
+            "{words:?}"
+        );
+        let selected = super::parse_selected_request(
+            ["--site", "work"]
+                .iter()
+                .chain(words.iter())
+                .map(OsString::from),
+        )
+        .unwrap();
+        assert_eq!(selected.request, ordinary);
+        assert_eq!(selected.site.unwrap().as_str(), "work");
     }
 }

@@ -80,6 +80,8 @@ impl ObservedTerminalHostResponse {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum HostLaunchAdapterError {
+    #[cfg(windows)]
+    InvalidSiteRoute,
     OperationKindMismatch,
     UnexpectedHostResponse,
     CreationIdentityMismatch,
@@ -94,6 +96,9 @@ pub(crate) enum HostLaunchAdapterError {
 impl fmt::Display for HostLaunchAdapterError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            #[cfg(windows)]
+            Self::InvalidSiteRoute => formatter
+                .write_str("managed Site route cannot be represented in the terminal environment"),
             Self::OperationKindMismatch => {
                 formatter.write_str("authorized Host dispatch has the wrong operation kind")
             }
@@ -120,6 +125,8 @@ impl fmt::Display for HostLaunchAdapterError {
 impl std::error::Error for HostLaunchAdapterError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
+            #[cfg(windows)]
+            Self::InvalidSiteRoute => None,
             Self::CapabilityProtocol(error) => Some(error),
             Self::HostIdentity(error) => Some(error),
             Self::HostProtocol(error) => Some(error),
@@ -179,7 +186,7 @@ pub(crate) fn map_launch_dispatch(
     };
     let control = TerminalCreationControl::CreateTerminal(Box::new(CreateTerminal {
         creation_id: facts.creation_id,
-        environment_overlay: launch_overlay(launch, site_runtime),
+        environment_overlay: launch_overlay(launch, site_runtime)?,
         launch: TerminalLaunch {
             arguments: facts.arguments,
             configuration: facts.configuration,
@@ -202,11 +209,36 @@ pub(crate) fn map_launch_dispatch(
 fn launch_overlay(
     launch: &orchbee_capability_node_protocol::AuthorizedTerminalLaunch,
     site_runtime: Option<&Path>,
-) -> Vec<EnvironmentOverlayEntry> {
+) -> Result<Vec<EnvironmentOverlayEntry>, HostLaunchAdapterError> {
     let overlay = observation_overlay(site_runtime);
     #[cfg(windows)]
     {
         let mut overlay = overlay;
+        if let Some(runtime) = site_runtime {
+            let base = runtime
+                .parent()
+                .filter(|base| base.is_absolute())
+                .and_then(|base| base.to_str())
+                .ok_or(HostLaunchAdapterError::InvalidSiteRoute)?;
+            let scope = runtime
+                .file_name()
+                .and_then(|scope| scope.to_str())
+                .ok_or(HostLaunchAdapterError::InvalidSiteRoute)?;
+            orchbee_local_site_runtime::SiteScope::parse(scope)
+                .map_err(|_| HostLaunchAdapterError::InvalidSiteRoute)?;
+            for (name, value) in [
+                ("ORCHBEE_RUNTIME_BASE", base),
+                ("ORCHBEE_RUNTIME_SCOPE", scope),
+            ] {
+                if value.len() > MAXIMUM_ENVIRONMENT_OVERLAY_VALUE_BYTES {
+                    return Err(HostLaunchAdapterError::InvalidSiteRoute);
+                }
+                overlay.push(EnvironmentOverlayEntry {
+                    name: name.to_owned(),
+                    value: value.to_owned(),
+                });
+            }
+        }
         let authorization = launch.authorization();
         for (name, bytes) in [
             (
@@ -220,12 +252,12 @@ fn launch_overlay(
                 value: format!("{:032x}", u128::from_be_bytes(bytes)),
             });
         }
-        overlay
+        Ok(overlay)
     }
     #[cfg(not(windows))]
     {
         let _ = launch;
-        overlay
+        Ok(overlay)
     }
 }
 

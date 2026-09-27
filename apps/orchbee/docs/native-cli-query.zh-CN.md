@@ -13,6 +13,23 @@ Agent 状态来自 Server 的 canonical Agent 模型，不从终端文字推断�
 归属：本记录拥有 `src/invocation.rs` 与 `src/cli/**` 实现的公共语法、结果信封、失败矩阵、
 预算、交换状态机与输出副作用。文字与实现必须在同一变更中收敛。
 
+## Windows 命名 Site 选择
+
+全局 `--site <name>` / `--site=<name>` 为整个调用选择本地 Windows Site，包括
+`site start`、`site stop`、查询和 `tui`，不改变 Agent `--session` 选择器。
+名称区分大小写，包含 1–64 个 ASCII 字母、数字、`.` / `_` / `-`，不能是 `.` 或 `..`。
+`default` 选择现有默认 Site。先验证完整参数语法，再应用选择；离线 help、completion、
+version 和 schema 操作不会因为提供名称而发现运行时。
+
+选择优先级为显式 `--site`、托管终端的 `ORCHBEE_RUNTIME_SCOPE`、`ORCHBEE_SITE`，最后
+为 `default`。`ORCHBEE_RUNTIME_BASE` 仍选择已存在的绝对基目录。Worker 将准入后的基目录和
+scope 传给子终端，使内部 CLI 命令保持所属 Site，即使 Server 继承了其他名称。
+显式 `--site default` 覆盖继承的 scope。选中的环境变量值无效时，发现失败，不静默回退默认 Site。
+
+命名运行时叶目录由当前 SID 和精确名称散列得到，名称不作为文件系统路径组件。
+激活在现有 activation lock 下注册有界私有身份，再提交启动标记；只读发现验证该身份且不创建它。
+检查点存储已按准入后的运行时路径隔离。此选择入口尚未提供命名 session list/attach/stop/delete 命令。
+
 ## Agent 会话名称
 
 `agent names` 列出运行中 Site 的所有存活别名。`agent resolve <target>` 返回完整会话 ID，

@@ -45,9 +45,11 @@ __ORCHBEE_GRAMMAR__
             $positionals.Add($word)
         }
     }
+    if ($values.ContainsKey('--site') -and ($values['--site'] -cnotmatch '^[A-Za-z0-9._-]{1,64}$' -or $values['--site'] -cin @('.', '..'))) { return }
+    $businessSeen = @($seen | Where-Object { $grammar.globalFlags -cnotcontains $_ })
     $candidates = [System.Collections.Generic.List[string]]::new()
     if ($positionals.Count -gt 0 -and $positionals[0] -cin @('completion', 'help')) {
-        if ($seen.Count -gt 0) { return }
+        if ($businessSeen.Count -gt 0 -or $pending.Length -gt 0) { return }
         if ($positionals[0] -ceq 'completion') {
             if ($positionals.Count -ne 1) { return }
             $candidates.AddRange([string[]]$grammar.shells)
@@ -72,7 +74,7 @@ __ORCHBEE_GRAMMAR__
         }
         $viable = @($grammar.commands | Where-Object {
             $command = $_
-            $allowed = @($command.flags)
+            $allowed = @($command.flags) + @($grammar.globalFlags)
             if ($command.words[0] -cne 'tui') { $allowed += '--format' }
             $valid = $true
             $commandPath = $command.words -join ':'
@@ -107,7 +109,7 @@ __ORCHBEE_GRAMMAR__
                 $keyCount = $positionals.Count - $command.words.Count - $targetWords
                 if ($keyCount -ge 0 -and $keyCount -lt 64) { foreach ($key in $grammar.keys) { $candidates.Add($key) } }
             }
-            $allowed = @($command.flags)
+            $allowed = @($command.flags) + @($grammar.globalFlags)
             if ($command.words[0] -cne 'tui') { $allowed += '--format' }
             foreach ($flag in $allowed) {
                 if (($command.words -join ':') -ceq 'panel:process-info' -and $positionals.Count -gt $command.words.Count -and $flag -ceq '--client') { continue }
@@ -134,7 +136,7 @@ __ORCHBEE_GRAMMAR__
                 }
                 if (-not $conflict) { $offeredFlags.Add($flag) }
             }
-            if ($seen.Count -eq 0 -and $positionals.Count -le $command.words.Count) { $candidates.Add('--help') }
+            if ($businessSeen.Count -eq 0 -and $positionals.Count -le $command.words.Count) { $candidates.Add('--help') }
         }
         $joinedPrefix = ''
         if ($pending.Length -eq 0 -and $wordToComplete -cmatch '^(--[^=]+)=') {
@@ -159,7 +161,7 @@ __ORCHBEE_GRAMMAR__
             foreach ($value in $enum) { $candidates.Add($joinedPrefix + $value) }
         } else {
             $candidates.AddRange($offeredFlags)
-            if ($positionals.Count -eq 0 -and $seen.Count -eq 0) {
+            if ($positionals.Count -eq 0 -and $businessSeen.Count -eq 0) {
                 $candidates.AddRange([string[]]@('help', 'completion', '--version', '--skill'))
             }
         }

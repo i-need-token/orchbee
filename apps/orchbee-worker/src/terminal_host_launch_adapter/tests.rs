@@ -528,6 +528,20 @@ fn admitted_site_observation_socket_sets_the_overlay_variable() -> TestResult {
     if cfg!(windows) {
         expected_overlay.extend([
             EnvironmentOverlayEntry {
+                name: "ORCHBEE_RUNTIME_BASE".into(),
+                value: directory.path().parent().unwrap().to_str().unwrap().into(),
+            },
+            EnvironmentOverlayEntry {
+                name: "ORCHBEE_RUNTIME_SCOPE".into(),
+                value: directory
+                    .path()
+                    .file_name()
+                    .unwrap()
+                    .to_str()
+                    .unwrap()
+                    .into(),
+            },
+            EnvironmentOverlayEntry {
                 name: "ORCHBEE_TERMINAL_ID".into(),
                 value: "0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b".into(),
             },
@@ -815,6 +829,43 @@ fn windows_caller_context_uses_product_authorization_and_overrides_launch_values
             Some("03030303030303030303030303030303")
         );
         assert_eq!(request.environment_overlay.len(), 2);
+    }
+    Ok(())
+}
+#[cfg(windows)]
+#[test]
+fn windows_managed_launch_carries_exact_route_and_rejects_unrepresentable_route() -> TestResult {
+    for mode in [
+        TerminalLaunchMode::Deferred,
+        TerminalLaunchMode::Immediate(geometry(80, 24, 8, 16)?),
+    ] {
+        let dispatch = launch_dispatch(None, mode)?;
+        let request = map_launch_dispatch(
+            &dispatch,
+            resolved_facts("C:/Users/worker")?,
+            Some(std::path::Path::new("C:/isolated/site-a")),
+        )?;
+        for (name, expected) in [
+            ("ORCHBEE_RUNTIME_BASE", "C:/isolated"),
+            ("ORCHBEE_RUNTIME_SCOPE", "site-a"),
+        ] {
+            assert_eq!(
+                request
+                    .environment_overlay
+                    .iter()
+                    .find(|entry| entry.name == name)
+                    .map(|entry| entry.value.as_str()),
+                Some(expected)
+            );
+        }
+        assert!(matches!(
+            map_launch_dispatch(
+                &dispatch,
+                resolved_facts("C:/Users/worker")?,
+                Some(std::path::Path::new("relative/site-a"))
+            ),
+            Err(HostLaunchAdapterError::InvalidSiteRoute)
+        ));
     }
     Ok(())
 }

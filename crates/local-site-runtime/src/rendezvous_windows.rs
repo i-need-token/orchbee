@@ -26,6 +26,8 @@ pub enum LockAttempt {
 #[derive(Debug)]
 pub struct ModeCheckedSiteLock {
     _file: File,
+    runtime: PathBuf,
+    kind: LockKind,
 }
 #[derive(Debug)]
 pub struct ModeCheckedLocalSiteRendezvous {
@@ -74,6 +76,16 @@ impl ModeCheckedLocalSiteRendezvous {
         let runtime = runtime
             .canonicalize()
             .map_err(|error| failure(&runtime, error))?;
+        if scope
+            .as_str()
+            .starts_with(crate::site_name_windows::NAMED_PREFIX)
+        {
+            match crate::site_name_windows::read(&runtime) {
+                Ok(_) => {}
+                Err(error) if create && error.kind() == io::ErrorKind::NotFound => {}
+                Err(error) => return Err(failure(&runtime, error)),
+            }
+        }
         let [client, worker] = Self::socket_paths(&runtime);
         Ok(Self {
             runtime,
@@ -129,6 +141,17 @@ impl ModeCheckedLocalSiteRendezvous {
     pub fn try_acquire_activation_lock(&self) -> Result<LockAttempt, RendezvousError> {
         self.try_acquire(LockKind::Activation)
     }
+    /// Only the matching activation owner can publish the immutable name before startup.
+    pub fn register_session_name(
+        &self,
+        lock: &ModeCheckedSiteLock,
+        name: &crate::WindowsSiteName,
+    ) -> io::Result<()> {
+        if lock.runtime != self.runtime || lock.kind != LockKind::Activation {
+            return Err(io::ErrorKind::PermissionDenied.into());
+        }
+        crate::site_name_windows::register(&self.runtime, name)
+    }
     pub fn try_acquire_site_lifetime_lock(&self) -> Result<LockAttempt, RendezvousError> {
         self.try_acquire(LockKind::SiteLifetime)
     }
@@ -142,7 +165,11 @@ impl ModeCheckedLocalSiteRendezvous {
             Err(error) => return Err(failure(&path, error)),
         };
         match file.try_lock() {
-            Ok(()) => Ok(LockAttempt::Acquired(ModeCheckedSiteLock { _file: file })),
+            Ok(()) => Ok(LockAttempt::Acquired(ModeCheckedSiteLock {
+                _file: file,
+                runtime: self.runtime.clone(),
+                kind,
+            })),
             Err(TryLockError::WouldBlock) => Ok(LockAttempt::Contended),
             Err(TryLockError::Error(error)) => Err(failure(&path, error)),
         }

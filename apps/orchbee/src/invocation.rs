@@ -1177,6 +1177,14 @@ pub(crate) enum Request {
     },
 }
 
+/// Invocation-wide selection is separate from business targets such as Agent sessions.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct SelectedRequest {
+    pub(crate) request: Request,
+    #[cfg(windows)]
+    pub(crate) site: Option<orchbee_local_site_runtime::WindowsSiteName>,
+}
+
 /// How a parse failure is allowed to answer on stdout.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum FailureEnvelope {
@@ -1209,6 +1217,8 @@ pub(crate) enum UsageContext {
 /// expect; rendered per locale, never serialized.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum ExpectedValue {
+    #[cfg(windows)]
+    SiteName,
     RightClick,
     PanelLabel,
     OutputFilePath,
@@ -1424,6 +1434,8 @@ enum Token {
 
 #[derive(Default)]
 struct Options {
+    #[cfg(windows)]
+    site: Option<String>,
     output: Option<String>,
     client: Option<String>,
     focus: bool,
@@ -1531,6 +1543,8 @@ struct Options {
 /// both the format-envelope walk and the option scan so ownership is decided
 /// identically in the two passes.
 const VALUE_FLAGS: &[&str] = &[
+    #[cfg(windows)]
+    "--site",
     "--output",
     "--client",
     "--branch",
@@ -1674,9 +1688,9 @@ fn selection_envelope(format: Option<OutputFormat>) -> FailureEnvelope {
 
 /// Parse the full argv tail into a typed request. The argv envelope (UTF-8 and
 /// total byte budget) is validated before any option interpretation.
-pub(crate) fn parse_request(
+pub(crate) fn parse_selected_request(
     arguments: impl Iterator<Item = OsString>,
-) -> Result<Request, ParseFailure> {
+) -> Result<SelectedRequest, ParseFailure> {
     let mut tokens = Vec::new();
     let mut total_bytes = 0_usize;
     for argument in arguments {
@@ -1696,6 +1710,13 @@ pub(crate) fn parse_request(
         tokens.push(text.to_owned());
     }
     scan(tokens)
+}
+
+#[cfg(test)]
+pub(crate) fn parse_request(
+    arguments: impl Iterator<Item = OsString>,
+) -> Result<Request, ParseFailure> {
+    parse_selected_request(arguments).map(|selected| selected.request)
 }
 
 /// Phase A: scan the complete pre-`--` format envelope before any grammar
@@ -1773,7 +1794,7 @@ fn format_envelope(tokens: &[String]) -> Result<Option<OutputFormat>, ParseFailu
     Ok(format)
 }
 
-fn scan(tokens: Vec<String>) -> Result<Request, ParseFailure> {
+fn scan(tokens: Vec<String>) -> Result<SelectedRequest, ParseFailure> {
     let mut options = Options {
         format: format_envelope(&tokens)?,
         ..Options::default()
@@ -1968,7 +1989,29 @@ fn scan(tokens: Vec<String>) -> Result<Request, ParseFailure> {
             }
         }
     }
-    resolve(positionals, options)
+    #[cfg(windows)]
+    let site = options
+        .site
+        .take()
+        .map(|name| {
+            orchbee_local_site_runtime::WindowsSiteName::parse(&name).map_err(|_| {
+                usage_with(
+                    UsageReason::InvalidValue {
+                        context: UsageContext::Root,
+                        option: "--site",
+                        value: name,
+                        expected: ExpectedValue::SiteName,
+                    },
+                    envelope,
+                )
+            })
+        })
+        .transpose()?;
+    Ok(SelectedRequest {
+        request: resolve(positionals, options)?,
+        #[cfg(windows)]
+        site,
+    })
 }
 
 /// The joined-spelling counterpart of `VALUE_FLAGS`: returns the declared
@@ -2029,6 +2072,8 @@ fn apply_value_flag(
         return Ok(());
     }
     let slot = match option {
+        #[cfg(windows)]
+        "--site" => &mut options.site,
         "--output" => &mut options.output,
         "--branch" => &mut options.branch,
         "--base" => &mut options.base,
