@@ -39,7 +39,7 @@ perform no navigation, process inspection or mutation. Windows accepts optional
 remembered active Tab in each Workspace. The [Client query contract](windows-client-control.md#client-relative-workbench-queries)
 owns this bounded, read-only join and its provenance and consistency checks.
 Schema versions are `orchbee.workspace.list/get` 4, `orchbee.tab.list` 4,
-`orchbee.tab.get` 5 and `orchbee.panel.list/get` 5; the embedded catalog is version 78
+`orchbee.tab.get` 5 and `orchbee.panel.list/get` 6; the embedded catalog is version 79
 with 87 schemas. Retained selection-read controls use `orchbee.client.control` v2;
 other controls retain v1. `orchbee.cli.failure.client-query` v1 identifies selected
 Client read failures; existing target and admission diagnostics remain intact.
@@ -91,8 +91,45 @@ agent-revision-changed, workbench-changed or client-changed). Existing Agent and
 admission errors keep their owning schemas and diagnostics. Selected Client routing
 errors keep the Client query contract. Verification covers priority and uncertainty,
 primary/child membership, duplicate/mixed pages, stale acknowledgements, schema/text,
-headless reads and real Windows two-Client observations. Process/title/scroll and
-Workspace worktree/reported metadata remain separate dependent joins.
+headless reads and real Windows two-Client observations. Panel process/title fields
+use the terminal observation owner below; Client scroll and Workspace worktree/reported
+metadata remain separate dependent joins.
+
+## Panel terminal observations
+
+Windows `panel list/get` also returns nullable `cwd`, `cwdSource`, `foregroundCwd`,
+`terminalTitle` and `terminalTitleStripped`, plus a required `terminalObservation`.
+The observation is `unbound`, `unavailable` with `reason: terminal-unavailable`, or
+`observed` with a validated frame and an observed/unavailable process sample. A stopped
+terminal does not remove its Panel from the list. Only typed terminal/process service
+unavailability becomes unavailable data; protocol, permission, transport, cancellation
+and deadline errors fail the query without a partial result.
+
+One read-only viewer per primary terminal supplies both observations. Frame facts retain
+Host epoch, attachment, sequence, generation, revision, geometry, screen, scrollback count,
+raw title and reported directory. Full cell data is discarded before the summary is retained.
+The process sample uses the existing Windows Job read and its explicit root/Agent-chain/
+ambiguous selection policy; it does not claim OS foreground authority. Each observed sample
+retains its own source and the normal `panel process-info` result. Unavailable process sampling
+does not erase successfully observed frame metadata.
+
+`cwd` uses an absolute Windows path decoded from the frame's reported directory, falling back to the sampled root-process directory;
+file URIs decode percent escapes once as strict UTF-8 (drive paths or UNC authority), without
+query/fragment/control characters or filesystem access; invalid/non-Windows reports remain raw
+in the frame evidence and do not become a filesystem directory.
+`cwdSource` is `terminal-frame`, `root-process` or null. `foregroundCwd` uses the process selected
+by the disclosed process policy and remains null when unavailable or ambiguous. No invoking-CLI
+directory or launch-directory guess is substituted. Raw title is retained unchanged. The stripped
+title removes an exact Windows `Administrator: ` prefix, surrounding whitespace, and at most one
+leading whitespace-delimited Braille or known activity glyph (`·✢✳✶✻✽◐◓◑◒`); empty becomes null.
+Text output escapes all terminal/process-controlled strings.
+
+The existing five-second total covers all Panel observations, Agent joins, and final canonical/
+Client checks. Viewers detach on every outcome, with admitted-session teardown as fallback.
+There is no input, resize, focus, history-demand or Client acknowledgement effect. These independent
+frame/process observations are not an atomic snapshot. A fresh viewer's live frame never claims
+the selected Client's scroll offset: that remains a separate Client viewport observation.
+Panel list/get schemas are version 6 and the catalog is version 79 with 87 schemas.
 
 ## Windows named Site selection
 

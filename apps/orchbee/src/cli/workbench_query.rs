@@ -29,6 +29,7 @@ pub(crate) struct Document {
     pub(super) projection: Box<Projection>,
     client: Option<ClientViewRecord>,
     agents: Option<super::workbench_agents::Document>,
+    terminals: Option<super::workbench_terminals::Document>,
     operations: Vec<WorkbenchRequestId>,
     contexts: Vec<ClientContextSelection>,
 }
@@ -206,6 +207,7 @@ fn execute(
         projection: Box::new(projection),
         client: original,
         agents: None,
+        terminals: None,
         operations: vec![],
         contexts: vec![],
     };
@@ -265,6 +267,13 @@ fn execute(
         deadline,
         signals,
     )?);
+    document.terminals = super::workbench_terminals::read(
+        &mut client,
+        &snapshot,
+        &document.projection,
+        deadline,
+        signals,
+    )?;
     let final_snapshot = query::refresh_snapshot(
         &mut client,
         &snapshot.site_id,
@@ -350,6 +359,9 @@ impl Document {
         if let Some(agents) = &self.agents {
             agents.enrich(&mut value);
         }
+        if let Some(terminals) = &self.terminals {
+            terminals.enrich(&mut value);
+        }
         let Some(client) = &self.client else {
             return value;
         };
@@ -407,6 +419,9 @@ impl Document {
     ) -> Result<(), TooLarge> {
         if let Some(agents) = &self.agents {
             agents.render(out, locale)?;
+        }
+        if let Some(terminals) = &self.terminals {
+            terminals.render(out, locale)?;
         }
         let Some(client) = &self.client else {
             return super::present::render(out, &self.projection, command, locale);

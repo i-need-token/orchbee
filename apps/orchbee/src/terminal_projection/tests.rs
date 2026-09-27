@@ -255,6 +255,28 @@ fn snapshot_delta_gap_and_decoder_failure_have_atomic_feedback() -> TestResult {
     assert!(projection.receive(&record(&snapshot)?).is_err());
     Ok(())
 }
+
+#[test]
+fn frame_metadata_delta_clears_previously_observed_values() -> TestResult {
+    let mut snapshot = SNAPSHOT.to_vec();
+    snapshot[116..124].fill(0);
+    let route = inspect_terminal_frame_route(&snapshot)?;
+    let mut projection = TerminalProjection::new(route.attachment_id, route.host_epoch);
+    projection
+        .receive(&record(&snapshot)?)
+        .map_err(|()| "snapshot")?;
+    assert!(projection.frame().ok_or("frame")?.title.is_some());
+    let mut delta = snapshot;
+    delta[6] = 2;
+    delta[48..56].copy_from_slice(&(route.sequence.get() + 1).to_le_bytes());
+    delta[56..64].copy_from_slice(&route.revision.to_le_bytes());
+    delta[64..72].copy_from_slice(&(route.revision + 1).to_le_bytes());
+    delta[116..124].fill(255);
+    projection.receive(&record(&delta)?).map_err(|()| "delta")?;
+    let frame = projection.frame().ok_or("delta frame")?;
+    assert!(frame.title.is_none() && frame.current_directory.is_none());
+    Ok(())
+}
 #[test]
 fn scope_and_delta_generation_mismatch_never_commit() -> TestResult {
     let route = inspect_terminal_frame_route(SNAPSHOT)?;

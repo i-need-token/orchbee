@@ -761,6 +761,8 @@ fn history_entering_keeps_the_live_frame() {
         background: 0,
         theme_revision: 1,
         scrollback_rows: 9,
+        title: None,
+        current_directory: None,
         rows: vec![TerminalTextRow {
             index: 0,
             flags: 0,

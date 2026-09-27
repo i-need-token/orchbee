@@ -49,6 +49,9 @@ pub struct TerminalTextFrame {
     pub theme_revision: u64,
     /// Retained scrollback row count captured at frame time; zero means no history.
     pub scrollback_rows: u64,
+    /// Raw nullable metadata captured in this frame, including explicit empty strings.
+    pub title: Option<Arc<str>>,
+    pub current_directory: Option<Arc<str>>,
     pub rows: Vec<TerminalTextRow>,
 }
 
@@ -285,6 +288,8 @@ pub fn decode_terminal_text_frame(bytes: &[u8]) -> Result<TerminalTextFrame, Pro
         background,
         theme_revision,
         scrollback_rows,
+        title: (title != u32::MAX).then(|| strings[title as usize].clone()),
+        current_directory: (directory != u32::MAX).then(|| strings[directory as usize].clone()),
         rows,
     })
 }

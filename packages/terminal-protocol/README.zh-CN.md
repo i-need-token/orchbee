@@ -51,6 +51,9 @@ envelope。输出携带共享 `Arc<str>` grapheme 与文本 style 的行、curso
 geometry、screen、color、theme revision、routing fact，以及已验证的 `captured_interaction`
 模式字——经 `TerminalInteraction` 的窄 tracking/format/cursor-mode/bracketed-paste/focus-reporting 查询暴露，而非原始位。
 共享 string 防止同一个 wire string 因多个 cell 引用而放大为每 cell 一次分配。
+可空的 `title` 和 `current_directory` 将已验证的头部字符串引用保留为共享 `Arc<str>`，
+包括空字符串。全一位索引表示缺失。Snapshot 和 delta 头部均完整替换这些观察，null 清除
+此前值。此解码器不解释 URI、文件系统、进程或展示语义。
 
 这是 text table decoder，不是完整 graphics/extension decoder 或 Client 状态机。Optional
 extension 内容跳过且不解释、不保留；任何 required extension 仍拒绝。它不执行 VT、激活

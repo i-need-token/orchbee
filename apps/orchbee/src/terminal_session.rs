@@ -100,7 +100,7 @@ pub(super) enum LegacyCommand {
 
 #[cfg(test)]
 pub(super) enum LegacyEvent {
-    Opened(TerminalProjection, bool),
+    Opened(Box<TerminalProjection>, bool),
     Polled(Option<Vec<u8>>),
     FeedbackAccepted,
     Failed(TerminalStatus),
@@ -723,7 +723,7 @@ impl LegacySession {
         let event = self.events.as_ref().map(Receiver::try_recv);
         let changed = match event {
             Some(Ok(LegacyEvent::Opened(projection, controller))) => {
-                self.projection = Some(projection);
+                self.projection = Some(*projection);
                 self.poll_pending = false;
                 self.status = if controller {
                     TerminalStatus::Controlling

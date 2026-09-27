@@ -9,6 +9,11 @@ fn canonical_text_matches_the_encoding_owner_and_real_ghostty() -> Result<(), Bo
         "../../../packages/terminal-protocol/fixtures/canonical.json"
     ))?;
     let frame = decode_terminal_text_frame(FRAME)?;
+    assert_eq!(frame.title.as_deref(), expected["frame"]["title"].as_str());
+    assert_eq!(
+        frame.current_directory.as_deref(),
+        expected["frame"]["currentDirectory"].as_str()
+    );
     assert_eq!(
         u64::from(frame.geometry.columns),
         expected["frame"]["columns"].as_u64().ok_or("columns")?
@@ -40,6 +45,41 @@ fn canonical_text_matches_the_encoding_owner_and_real_ghostty() -> Result<(), Bo
                 .any(|row| row.cells.iter().any(|cell| !cell.text.trim().is_empty()))
         );
     }
+    Ok(())
+}
+
+#[test]
+fn nullable_metadata_distinguishes_clear_empty_and_invalid_string_indexes()
+-> Result<(), Box<dyn Error>> {
+    let mut absent = FRAME.to_vec();
+    absent[116..124].fill(255);
+    let decoded = decode_terminal_text_frame(&absent)?;
+    assert!(decoded.title.is_none() && decoded.current_directory.is_none());
+    let count = u32::from_le_bytes(FRAME[124..128].try_into()?);
+    for offset in [116, 120] {
+        let mut invalid = FRAME.to_vec();
+        invalid[offset..offset + 4].copy_from_slice(&count.to_le_bytes());
+        assert!(decode_terminal_text_frame(&invalid).is_err());
+    }
+    let mut end = 160;
+    for _ in 0..count {
+        let n = u32::from_le_bytes(FRAME[end..end + 4].try_into()?) as usize;
+        end += 4 + n;
+    }
+    let mut empty = FRAME.to_vec();
+    empty.splice(end..end, 0_u32.to_le_bytes());
+    let length = empty.len() as u32;
+    empty[8..12].copy_from_slice(&length.to_le_bytes());
+    empty[124..128].copy_from_slice(&(count + 1).to_le_bytes());
+    empty[116..120].copy_from_slice(&count.to_le_bytes());
+    empty[120..124].copy_from_slice(&count.to_le_bytes());
+    let decoded = decode_terminal_text_frame(&empty)?;
+    assert_eq!(decoded.title.as_deref(), Some(""));
+    assert_eq!(decoded.current_directory.as_deref(), Some(""));
+    assert!(std::sync::Arc::ptr_eq(
+        decoded.title.as_ref().unwrap(),
+        decoded.current_directory.as_ref().unwrap()
+    ));
     Ok(())
 }
 

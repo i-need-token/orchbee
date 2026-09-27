@@ -32,7 +32,7 @@ Windows `workspace list/get` 返回 `number`、`tabCount` 和 `panelCount`；
 查询中接受可选 `--client <id>`，补充全局焦点和 Client 在各 Workspace 记住的活动 Tab。
 [Client 查询契约](windows-client-control.zh-CN.md#client-相对-workbench-查询)定义这一有界只读关联、
 来源记录与一致性检查。Schema 版本为 `orchbee.workspace.list/get` 4、`orchbee.tab.list` 4、
-`orchbee.tab.get` 5 和 `orchbee.panel.list/get` 5；内嵌目录为版本78，含87份 schema。
+`orchbee.tab.get` 5 和 `orchbee.panel.list/get` 6；内嵌目录为版本79，含87份 schema。
 保留的选择读取控制使用 `orchbee.client.control` v2，其他控制保留 v1。
 `orchbee.cli.failure.client-query` v1 标识指定 Client 的读取失败，既有目标和准入诊断保持完整。
 进程观察、worktree 事实和上报元数据仍需要各自的所有者提供，这些拓扑字段不代表已实现它们。
@@ -72,7 +72,37 @@ Client 确认：已看过为 idle，未看过为 done。缺少此证据时，该
 workbench-changed 或 client-changed。既有 Agent 和准入错误保留原有 schema 与诊断，
 指定 Client 的路由错误沿用 Client 查询契约。验证覆盖优先级与未确定状态、主/子成员关系、
 重复/混合页、过期确认、schema/文本、无界面查询及真实 Windows 双 Client 观察。
-进程/标题/滚动及 Workspace 的 worktree/上报元数据仍属于后续关联。
+Panel 进程/标题字段由下述终端观察所有者提供；Client 滚动及 Workspace 的 worktree/上报元数据
+仍属于后续关联。
+
+## Panel 终端观察
+
+Windows `panel list/get` 还返回可空的 `cwd`、`cwdSource`、`foregroundCwd`、
+`terminalTitle`、`terminalTitleStripped`，以及必需的 `terminalObservation`。
+观察状态为 `unbound`、带 `reason: terminal-unavailable` 的 `unavailable`，或带有效帧和
+已观察/不可用进程样本的 `observed`。终端停止不会让 Panel 从列表消失。只有有类型的
+终端/进程服务不可用才转为不可用数据；协议、权限、传输、取消和期限错误令查询失败，
+不输出部分结果。
+
+每个主终端的单个只读 viewer 提供两类观察。帧事实保留 Host epoch、attachment、sequence、
+generation、revision、几何、屏幕、scrollback 数量、原始标题及上报目录。在保留摘要前释放
+完整单元格数据。进程样本复用 Windows Job 读取及其明确的 root/Agent-chain/ambiguous
+选择策略，不声称 OS 前台权威。已观察样本保留独立来源及标准 `panel process-info` 结果。
+进程采样不可用时仍保留已成功观察的帧元数据。
+
+`cwd` 优先采用从帧上报目录解码的绝对 Windows 路径，回退到采样的根进程目录。
+file URI 按严格 UTF-8 解码一次百分号转义（盘符路径或 UNC authority），不接受 query、fragment、
+控制字符，不访问文件系统；非法或非 Windows 上报仅原样保留在帧证据中，不作为文件系统目录。
+`cwdSource` 为 `terminal-frame`、
+`root-process` 或 null。`foregroundCwd` 来自公开进程策略选中的进程，不可用或歧义时为 null。
+不代入调用 CLI 的目录或猜测的启动目录。原始标题保持不变；简化标题移除精确的 Windows
+`Administrator: ` 前缀、两端空白，以及至多一个用空白分隔的前导 Braille 或已知活动字符
+（`·✢✳✶✻✽◐◓◑◒`），空结果为 null。文本输出转义全部终端/进程控制的字符串。
+
+既有五秒总期限覆盖所有 Panel 观察、Agent 关联和最终规范/Client 检查。所有结果路径都
+释放 viewer，准入会话销毁作为兜底。不产生输入、resize、焦点、history-demand 或 Client 确认效果。
+独立的帧/进程观察不是原子快照。新 viewer 的实时帧不代表所选 Client 的滚动偏移，后者
+仍属于单独的 Client viewport 观察。Panel list/get schema 为版本6，目录为版本79，共87份。
 
 ## Windows 命名 Site 选择
 

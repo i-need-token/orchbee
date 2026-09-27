@@ -47,6 +47,8 @@ mod site_stop;
 mod workbench_agents;
 #[cfg(windows)]
 pub(crate) mod workbench_query;
+#[cfg(windows)]
+mod workbench_terminals;
 pub(crate) use site_stop::run as site_stop;
 mod workspace_group_close;
 mod worktree_operation;

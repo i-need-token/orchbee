@@ -64,6 +64,7 @@ fn document(command: &QueryCommand, state: &Snapshot) -> Document {
         projection: Box::new(results::project(command, state).unwrap()),
         client: Some(record()),
         agents: None,
+        terminals: None,
         operations: vec![WorkbenchRequestId::parse(&id(30)).unwrap()],
         contexts: [(4, Some(5)), (9, Some(13)), (19, None)]
             .into_iter()

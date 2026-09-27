@@ -1,6 +1,8 @@
 //! Workbench query composition uses the same admitted pipe without state-changing controls.
 use super::*;
 use orchbee_agent_observation_protocol::{AgentResult, write_agent_result};
+#[path = "workbench/runtime.rs"]
+mod runtime;
 
 fn page(stream: &mut LocalStream, revision: u64) {
     let AgentRequest::Read(request) = read_agent_request(stream).unwrap() else {
@@ -66,6 +68,9 @@ fn workbench_queries_join_only_primary_agents_and_reject_changed_client_without_
                 );
                 attention::authenticate(&mut stream, true);
                 page(&mut stream, 3);
+            }
+            for _ in 0..2 {
+                runtime::unavailable(&mut stream);
             }
             snapshot_reply(&mut stream);
             if case == "changed-view" {

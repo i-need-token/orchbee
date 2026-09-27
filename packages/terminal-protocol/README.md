@@ -56,6 +56,10 @@ text styles, cursor position/visibility, complete geometry, screen, colors, them
 routing facts, and the validated `captured_interaction` modes word — exposed through the narrow
 `TerminalInteraction` tracking/format/cursor-mode/bracketed-paste/focus-reporting queries rather than raw bits. Sharing strings
 prevents repeated cell references from expanding one wire string into one allocation per cell.
+Nullable `title` and `current_directory` retain the validated header string references as
+shared `Arc<str>` values, including empty strings. The all-ones index means absent. Snapshot
+and delta headers replace these observations completely; null clears a prior value. No URI,
+filesystem, process or presentation interpretation occurs in this decoder.
 
 This is a text-table decoder, not a full graphics/extension decoder or a Client state machine.
 Optional extension contents are skipped without interpretation or retention; every required

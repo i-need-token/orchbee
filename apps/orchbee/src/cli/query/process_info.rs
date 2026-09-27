@@ -54,49 +54,16 @@ pub(crate) fn read_terminal_processes_cancellable(
 ) -> Result<(Value, results::PanelProcessInfoDoc), Failure> {
     let (row, viewer, attachment, epoch, _) =
         attach_viewer_cancellable(client, deadline, snapshot, terminal, wake)?;
-    // All fallible work after attachment is inside the closure; even request
+    // All fallible work after attachment returns here; even request
     // construction failure reaches detach. Dropping the session is the fallback.
-    let outcome = (|| {
-        let request_id = obcs_request_id()?;
-        let request = TerminalViewerRequest::new(
-            request_id.clone(),
-            TerminalViewerAction::ReadProcessInfo {
-                attachment_id: viewer.clone(),
-            },
-        );
-        let result = client
-            .submit_terminal_viewer_cancellable(request, Some(deadline), wake)
-            .map_err(classify_viewer)?;
-        if Instant::now() >= deadline {
-            return Err(Failure::new(FailureKind::Timeout));
-        }
-        let record = match result.outcome() {
-            TerminalViewerOutcome::Record(record) => record,
-            TerminalViewerOutcome::Rejected { reason } => {
-                return Err(classify_viewer_rejected(*reason));
-            }
-            TerminalViewerOutcome::Unavailable { .. } => return Err(viewer_unavailable()),
-            _ => return Err(viewer_protocol_invalid()),
-        };
-        let (info, host_request_id) = decode(record, attachment, epoch)?;
-        let source = json!({
-            "kind": "terminal-process-query",
-            "siteId": snapshot.site_id.as_str(),
-            "snapshotRevision": snapshot.revision,
-            "requestId": request_id.as_str(),
-            "hostRequestId": host_request_id,
-            "hostEpoch": epoch.to_text(),
-            "attachmentId": attachment.to_text(),
-            "hostTerminalId": info.terminal_id.to_text(),
-        });
-        Ok((
-            source,
-            results::PanelProcessInfoDoc {
-                terminal: row,
-                info,
-            },
-        ))
-    })();
+    let outcome = read_attached(
+        client,
+        deadline,
+        snapshot,
+        row,
+        (&viewer, attachment, epoch),
+        wake,
+    );
     if let Ok(request_id) = obcs_request_id() {
         let _ = client.submit_terminal_viewer_cancellable(
             TerminalViewerRequest::new(
@@ -110,6 +77,56 @@ pub(crate) fn read_terminal_processes_cancellable(
         );
     }
     outcome
+}
+
+pub(super) fn read_attached(
+    client: &mut LocalClient,
+    deadline: Instant,
+    snapshot: &Snapshot,
+    row: results::TerminalRow,
+    lease: (&ViewerId, AttachmentId, HostEpoch),
+    wake: Option<BorrowedFd<'_>>,
+) -> Result<(Value, results::PanelProcessInfoDoc), Failure> {
+    let (viewer, attachment, epoch) = lease;
+    let request_id = obcs_request_id()?;
+    let request = TerminalViewerRequest::new(
+        request_id.clone(),
+        TerminalViewerAction::ReadProcessInfo {
+            attachment_id: viewer.clone(),
+        },
+    );
+    let result = client
+        .submit_terminal_viewer_cancellable(request, Some(deadline), wake)
+        .map_err(classify_viewer)?;
+    if Instant::now() >= deadline {
+        return Err(Failure::new(FailureKind::Timeout));
+    }
+    let record = match result.outcome() {
+        TerminalViewerOutcome::Record(record) => record,
+        TerminalViewerOutcome::Rejected { reason } => {
+            return Err(classify_viewer_rejected(*reason));
+        }
+        TerminalViewerOutcome::Unavailable { .. } => return Err(viewer_unavailable()),
+        _ => return Err(viewer_protocol_invalid()),
+    };
+    let (info, host_request_id) = decode(record, attachment, epoch)?;
+    let source = json!({
+        "kind": "terminal-process-query",
+        "siteId": snapshot.site_id.as_str(),
+        "snapshotRevision": snapshot.revision,
+        "requestId": request_id.as_str(),
+        "hostRequestId": host_request_id,
+        "hostEpoch": epoch.to_text(),
+        "attachmentId": attachment.to_text(),
+        "hostTerminalId": info.terminal_id.to_text(),
+    });
+    Ok((
+        source,
+        results::PanelProcessInfoDoc {
+            terminal: row,
+            info,
+        },
+    ))
 }
 
 pub(crate) fn primary_terminal(snapshot: &Snapshot, target: &Target) -> Result<Target, Failure> {

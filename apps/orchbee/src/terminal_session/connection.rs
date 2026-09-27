@@ -228,7 +228,10 @@ pub(super) fn run_legacy(
         return Err(TerminalStatus::Unavailable);
     }
     events
-        .send(LegacyEvent::Opened(projection, controller.is_some()))
+        .send(LegacyEvent::Opened(
+            Box::new(projection),
+            controller.is_some(),
+        ))
         .map_err(|_| TerminalStatus::Unavailable)?;
     while let Ok(command) = commands.recv() {
         match command {

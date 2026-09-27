@@ -51,6 +51,8 @@ struct WaitSample {
 #[cfg(windows)]
 mod agent_management;
 #[cfg(windows)]
+pub(super) mod terminal_metadata;
+#[cfg(windows)]
 pub(in crate::cli) use agent_management::read_agent_management;
 #[cfg(windows)]
 mod agent_journal;
@@ -1662,7 +1664,18 @@ fn poll_terminal_frame(
     client: &mut LocalClient,
     deadline: Instant,
     viewer_id: &ViewerId,
+    projection: TerminalProjection,
+) -> Result<TerminalTextFrame, Failure> {
+    poll_terminal_frame_cancellable(client, deadline, viewer_id, projection, None)
+}
+
+#[cfg(any(target_os = "linux", windows))]
+fn poll_terminal_frame_cancellable(
+    client: &mut LocalClient,
+    deadline: Instant,
+    viewer_id: &ViewerId,
     mut projection: TerminalProjection,
+    wake: Option<BorrowedFd<'_>>,
 ) -> Result<TerminalTextFrame, Failure> {
     loop {
         let poll = TerminalViewerRequest::new(
@@ -1672,7 +1685,7 @@ fn poll_terminal_frame(
             },
         );
         let result = client
-            .submit_terminal_viewer_before(poll, deadline)
+            .submit_terminal_viewer_cancellable(poll, Some(deadline), wake)
             .map_err(classify_viewer)?;
         match result.outcome() {
             TerminalViewerOutcome::Empty {} => std::thread::sleep(EMPTY_POLL_INTERVAL),
@@ -1686,7 +1699,7 @@ fn poll_terminal_frame(
                         }
                         let request = TerminalViewerRequest::new(obcs_request_id()?, feedback);
                         let result = client
-                            .submit_terminal_viewer_before(request, deadline)
+                            .submit_terminal_viewer_cancellable(request, Some(deadline), wake)
                             .map_err(classify_viewer)?;
                         match result.outcome() {
                             TerminalViewerOutcome::FeedbackAccepted {} => {}

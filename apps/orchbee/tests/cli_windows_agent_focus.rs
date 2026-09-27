@@ -31,6 +31,9 @@ fn panel(n: u64) -> Value {
     json!({"kind":"panel","panelId":id(n),"primaryPresentation":{"presentationId":id(n+100),"label":"Agent","binding":{"terminalId":id(n+200),"workerId":"6f7263686265652d6c6f63616c2d7631"}},"childPresentations":[{"presentationId":id(n+300),"label":"child","binding":{"terminalId":id(n+400),"workerId":"6f7263686265652d6c6f63616c2d7631"}}]})
 }
 fn snapshot_reply(stream: &mut LocalStream) {
+    snapshot_at(stream, 12);
+}
+fn snapshot_at(stream: &mut LocalStream, revision: u64) {
     let WorkbenchRequest::SnapshotRead(request) = read_workbench_request(stream).unwrap() else {
         panic!("one snapshot first");
     };
@@ -40,7 +43,12 @@ fn snapshot_reply(stream: &mut LocalStream) {
         &WorkbenchResponse::Snapshot(WorkbenchSnapshotResult {
             protocol_version: ProtocolVersion,
             request_id: request.request_id,
-            outcome: WorkbenchSnapshotOutcome::Available { snapshot },
+            outcome: WorkbenchSnapshotOutcome::Available {
+                snapshot: Snapshot {
+                    revision: WorkbenchRevision::new(revision),
+                    ..snapshot
+                },
+            },
         }),
     )
     .unwrap();

@@ -90,10 +90,11 @@ pub(crate) const fn schema_version(command: &QueryCommand) -> u64 {
         }
         QueryCommand::TerminalSourceWait { .. } => 3,
         QueryCommand::TerminalOutput { ansi: true, .. } => 2,
-        QueryCommand::PanelGet(_) => 5,
+        QueryCommand::PanelGet(_) => 6,
         QueryCommand::PanelCurrent(_) => 3,
         QueryCommand::ApiSnapshot => 5,
-        QueryCommand::PanelList { .. } | QueryCommand::TabGet(_) => 5,
+        QueryCommand::PanelList { .. } => 6,
+        QueryCommand::TabGet(_) => 5,
         QueryCommand::WorkspaceList { .. }
         | QueryCommand::WorkspaceGet(_)
         | QueryCommand::TabList { .. } => 4,
@@ -1220,7 +1221,7 @@ pub(crate) enum LaunchProfileCatalogSelection {
     Profile(LaunchProfileEntry),
 }
 
-fn panel_process_result(doc: &PanelProcessInfoDoc) -> Value {
+pub(super) fn panel_process_result(doc: &PanelProcessInfoDoc) -> Value {
     let view = super::processes::interpret(&doc.info);
     json!({
         "terminal": terminal_row_json(&doc.terminal),
@@ -3540,6 +3541,8 @@ mod tests {
                 background: 0,
                 theme_revision: 1,
                 scrollback_rows: 0,
+                title: None,
+                current_directory: None,
                 rows,
             }
         }
