@@ -51,6 +51,8 @@ pub(crate) mod workbench_query;
 mod workbench_terminals;
 #[cfg(windows)]
 mod workbench_viewports;
+#[cfg(windows)]
+mod workbench_worktrees;
 pub(crate) use site_stop::run as site_stop;
 mod workspace_group_close;
 mod worktree_operation;

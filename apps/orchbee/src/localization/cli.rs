@@ -3731,6 +3731,24 @@ impl Locale {
             Self::ZhCn => "客户端滚动：面板 / 状态 / 偏移 / 最大偏移 / 行数",
         }
     }
+
+    pub(crate) const fn cli_workspace_worktrees_heading(self) -> &'static str {
+        match self {
+            Self::EnUs => "Workspace worktrees",
+            Self::ZhCn => "Workspace 工作树",
+        }
+    }
+    pub(crate) const fn cli_workspace_worktree_states(self) -> [&'static str; 4] {
+        match self {
+            Self::EnUs => [
+                "no directory",
+                "unavailable",
+                "main checkout",
+                "linked checkout",
+            ],
+            Self::ZhCn => ["没有目录", "不可用", "主检出", "链接检出"],
+        }
+    }
     pub(crate) const fn cli_scroll_states(self) -> [&'static str; 7] {
         match self {
             Self::EnUs => [

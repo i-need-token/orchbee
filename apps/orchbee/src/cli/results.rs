@@ -95,9 +95,8 @@ pub(crate) const fn schema_version(command: &QueryCommand) -> u64 {
         QueryCommand::ApiSnapshot => 5,
         QueryCommand::PanelList { .. } => 7,
         QueryCommand::TabGet(_) => 5,
-        QueryCommand::WorkspaceList { .. }
-        | QueryCommand::WorkspaceGet(_)
-        | QueryCommand::TabList { .. } => 4,
+        QueryCommand::WorkspaceList { .. } | QueryCommand::WorkspaceGet(_) => 5,
+        QueryCommand::TabList { .. } => 4,
         QueryCommand::TerminalGet(_) => 4,
         #[cfg(windows)]
         QueryCommand::AgentWait { .. } => 3,

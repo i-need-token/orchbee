@@ -38,13 +38,13 @@ perform no navigation, process inspection or mutation. Windows accepts optional
 `--client <id>` on these six list/get queries to add global focus and the Client's
 remembered active Tab in each Workspace. The [Client query contract](windows-client-control.md#client-relative-workbench-queries)
 owns this bounded, read-only join and its provenance and consistency checks.
-Schema versions are `orchbee.workspace.list/get` 4, `orchbee.tab.list` 4,
-`orchbee.tab.get` 5 and `orchbee.panel.list/get` 7; the embedded catalog is version 80
+Schema versions are `orchbee.workspace.list/get` 5, `orchbee.tab.list` 4,
+`orchbee.tab.get` 5 and `orchbee.panel.list/get` 7; the embedded catalog is version 81
 with 87 schemas. Retained selection-read controls use `orchbee.client.control` v2;
 viewport reads use v3; other controls retain v1. `orchbee.cli.failure.client-query` v1 identifies selected
 Client read failures; existing target and admission diagnostics remain intact.
-Process observations, worktree facts and reported metadata require their
-respective owners and are not implied by these topology fields.
+Process and worktree observations use their respective owners as described below;
+reported metadata remains a separate owner and is not implied by topology fields.
 
 Verification covers global reorder and filtering without renumbering, empty and
 nested trees, child presentations and unbound leaves, list/get agreement, automatic
@@ -92,8 +92,41 @@ admission errors keep their owning schemas and diagnostics. Selected Client rout
 errors keep the Client query contract. Verification covers priority and uncertainty,
 primary/child membership, duplicate/mixed pages, stale acknowledgements, schema/text,
 headless reads and real Windows two-Client observations. Panel process/title fields
-use the terminal observation owner below; Client scroll and Workspace worktree/reported
-metadata remain separate dependent joins.
+use the terminal observation owner below; Client scroll and Workspace worktree observations
+use the owners below. Reported metadata remains a separate dependent join.
+
+## Workspace worktree observations
+
+Windows Workspace list/get joins each canonical primary Directory to the existing
+[read-only Windows Worktree query](windows-worktrees.md#source-based-discovery).
+It returns nullable `worktree` and required `worktreeObservation`. An observed
+summary contains `workerId`, `repositoryRoot`, `commonDirectory`, `repositoryName`,
+`checkoutPath` and `linked`; the pair of Worker ID and common Git directory is the
+repository grouping identity. The name is the final nonempty component of the
+observed repository root, not the Workspace label or invoking CLI directory.
+
+| Input or result                                                                           | Published observation                                     | Effects                               |
+| ----------------------------------------------------------------------------------------- | --------------------------------------------------------- | ------------------------------------- |
+| No primary Directory                                                                      | `no-directory`, null worktree                             | No Git request                        |
+| Valid source discovery                                                                    | `observed`, exact query source and summary                | Read-only Worker Git query            |
+| Git/Worker unavailable, unsupported, spawn/I/O/size failure                               | `unavailable`, request ID and typed reason, null worktree | No fallback, replay or trust override |
+| Denied, missing/changed source, malformed result, transport loss, timeout or cancellation | Whole command fails, without partial success              | Existing query cleanup                |
+
+Each request uses the exact Workspace and `trustRepository: false`. A successful
+reply must agree with the original Site, Workbench revision, primary Directory path
+and Worker, and include that Workspace at the source checkout. One admitted
+connection, signal owner and original five-second total cover all rows, Agent/Client
+joins and the final canonical/Client consistency checks. Queries never activate a
+Site, change associations, navigate, launch a terminal or write Git configuration.
+Git cleanup remains owned by the existing Worker read task. External filesystem
+changes are not fenced: these are sequential live observations, not an atomic Git
+snapshot or Herdr's cached membership. `unavailable` never means “not a repository.”
+
+Workspace list/get use schema version 5; catalog version 81 still contains 87
+documents. Other query versions retain their existing contracts. Verification
+covers main and linked checkouts, Workspace directories inside a checkout, missing
+directories, unavailable Git, mismatched source facts, total deadlines, safe text
+and real Windows reads without topology or Client-view changes.
 
 ## Panel terminal observations
 
@@ -129,7 +162,7 @@ Client checks. Viewers detach on every outcome, with admitted-session teardown a
 There is no input, resize, focus, history-demand or Client acknowledgement effect. These independent
 frame/process observations are not an atomic snapshot. A fresh viewer's live frame never claims
 the selected Client's scroll offset: the Client viewport observation below supplies it.
-Panel list/get schemas are version 7 and the catalog is version 80 with 87 schemas.
+Panel list/get schemas are version 7 and the catalog is version 81 with 87 schemas.
 
 ## Panel Client scroll queries
 
@@ -148,7 +181,7 @@ All observations share the original admitted connection and five-second total, f
 by the final canonical and Client revision checks. No query changes the viewport, focus,
 selection, input lease or seen acknowledgement. Independent Host/process and Client
 observations are not an atomic snapshot. Panel list/get use schema 7; retained viewport
-controls use `orchbee.client.control` 3; catalog 80 retains 87 schemas.
+controls use `orchbee.client.control` 3; catalog 81 retains 87 schemas.
 
 ## Windows named Site selection
 
@@ -1327,7 +1360,7 @@ Canonical traversal order: `navigation.projects` order; each project's `workspac
 `children[1]`; terminal bindings in that panel order with `primaryPresentation` before
 `childPresentations`. No sorting is added; filtered lists and `ambiguous` candidates preserve it.
 
-Snapshot and one-effect command envelopes use `{schema, version, source, result}`; staged workflows have their own embedded schemas. Every schema defines its emitted version and strict shape. Workbench query versions are listed above; `orchbee.panel.current` remains v3 and `orchbee.api.snapshot` is v5 with Workspace ordering. `orchbee.terminal.get` is v4 for the retained launch program/arguments. `orchbee.terminal.read/history` use v2 with `--unwrap` or `--lines`; `orchbee.terminal.wait-output` uses v2 for regex match details. Their flag-free outputs remain v1. See `api schema <id>` for each command and failure's complete version contract. The current catalog is v80 with 87 required documents: registering an ID changes the closed dictionary shape, independently of business document versions. Sources retain their owner's meaning:
+Snapshot and one-effect command envelopes use `{schema, version, source, result}`; staged workflows have their own embedded schemas. Every schema defines its emitted version and strict shape. Workbench query versions are listed above; `orchbee.panel.current` remains v3 and `orchbee.api.snapshot` is v5 with Workspace ordering. `orchbee.terminal.get` is v4 for the retained launch program/arguments. `orchbee.terminal.read/history` use v2 with `--unwrap` or `--lines`; `orchbee.terminal.wait-output` uses v2 for regex match details. Their flag-free outputs remain v1. See `api schema <id>` for each command and failure's complete version contract. The current catalog is v81 with 87 required documents: registering an ID changes the closed dictionary shape, independently of business document versions. Sources retain their owner's meaning:
 
 - `source.kind="workbench-snapshot"` with `siteId` and decimal-string `revision` from the same
   validated snapshot — present only after a complete valid read.
@@ -2468,4 +2501,4 @@ Catalog v72 contains 81 schemas and retains 96 command paths.
 
 ## Reusable layout export
 
-Windows `layout export` emits a reusable JSON tree with ratios, manual labels, observed directories and frozen launch commands. The [layout contract](windows-layouts.md) owns export targets, Client selection, bounds, cancellation, absence of terminal effects and consistency, together with the implemented `layout apply` creation/replacement workflow and its effect receipts. `orchbee.layout.export` v1 and `orchbee.cli.failure.layout` v1 are included in the current catalog v80 (87 documents).
+Windows `layout export` emits a reusable JSON tree with ratios, manual labels, observed directories and frozen launch commands. The [layout contract](windows-layouts.md) owns export targets, Client selection, bounds, cancellation, absence of terminal effects and consistency, together with the implemented `layout apply` creation/replacement workflow and its effect receipts. `orchbee.layout.export` v1 and `orchbee.cli.failure.layout` v1 are included in the current catalog v81 (87 documents).

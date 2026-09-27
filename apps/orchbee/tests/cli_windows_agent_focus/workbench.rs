@@ -3,6 +3,8 @@ use super::*;
 use orchbee_agent_observation_protocol::{AgentResult, write_agent_result};
 #[path = "workbench/runtime.rs"]
 mod runtime;
+#[path = "workbench/worktrees.rs"]
+mod worktrees;
 
 fn page(stream: &mut LocalStream, revision: u64) {
     let AgentRequest::Read(request) = read_agent_request(stream).unwrap() else {

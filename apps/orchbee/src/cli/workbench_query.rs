@@ -31,6 +31,7 @@ pub(crate) struct Document {
     agents: Option<super::workbench_agents::Document>,
     terminals: Option<super::workbench_terminals::Document>,
     viewports: Option<super::workbench_viewports::Document>,
+    worktrees: Option<super::workbench_worktrees::Document>,
     operations: Vec<WorkbenchRequestId>,
     contexts: Vec<ClientContextSelection>,
 }
@@ -220,6 +221,7 @@ fn execute(
         agents: None,
         terminals: None,
         viewports: None,
+        worktrees: None,
         operations: vec![],
         contexts: vec![],
     };
@@ -279,6 +281,13 @@ fn execute(
         deadline,
         signals,
     )?);
+    document.worktrees = super::workbench_worktrees::read(
+        &mut client,
+        &snapshot,
+        &document.projection,
+        deadline,
+        signals,
+    )?;
     document.terminals = super::workbench_terminals::read(
         &mut client,
         &snapshot,
@@ -388,6 +397,9 @@ impl Document {
         if let Some(terminals) = &self.terminals {
             terminals.enrich(&mut value);
         }
+        if let Some(worktrees) = &self.worktrees {
+            worktrees.enrich(&mut value);
+        }
         super::workbench_viewports::enrich(
             self.client.as_ref().and(self.viewports.as_ref()),
             &mut value,
@@ -452,6 +464,9 @@ impl Document {
         }
         if let Some(terminals) = &self.terminals {
             terminals.render(out, locale)?;
+        }
+        if let Some(worktrees) = &self.worktrees {
+            worktrees.render(out, locale)?;
         }
         if let Some(viewports) = &self.viewports {
             viewports.render(out, locale)?;

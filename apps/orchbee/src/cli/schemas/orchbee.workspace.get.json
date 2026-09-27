@@ -10,7 +10,7 @@
 			"const": "orchbee.workspace.get"
 		},
 		"version": {
-			"const": 4
+			"const": 5
 		},
 		"source": {
 			"$ref": "#/$defs/snapshotSource"
@@ -108,8 +108,60 @@
 						},
 						"agentStatus": {
 							"enum": [null, "blocked", "done", "working", "idle", "unknown"]
+						},
+						"worktree": {
+							"anyOf": [
+								{
+									"type": "null"
+								},
+								{
+									"$ref": "#/$defs/workspaceWorktree"
+								}
+							]
+						},
+						"worktreeObservation": {
+							"$ref": "#/$defs/worktreeObservation"
 						}
-					}
+					},
+					"dependentRequired": {
+						"worktree": ["worktreeObservation"],
+						"worktreeObservation": ["worktree"]
+					},
+					"allOf": [
+						{
+							"if": {
+								"type": "object",
+								"required": ["worktreeObservation"],
+								"properties": {
+									"worktreeObservation": {
+										"type": "object",
+										"properties": {
+											"state": {
+												"const": "observed"
+											}
+										},
+										"required": ["state"]
+									}
+								}
+							},
+							"then": {
+								"type": "object",
+								"properties": {
+									"worktree": {
+										"$ref": "#/$defs/workspaceWorktree"
+									}
+								}
+							},
+							"else": {
+								"type": "object",
+								"properties": {
+									"worktree": {
+										"type": "null"
+									}
+								}
+							}
+						}
+					]
 				},
 				"client": {
 					"$ref": "#/$defs/queryClient"
@@ -225,6 +277,21 @@
 										}
 									}
 								}
+							}
+						}
+					}
+				},
+				{
+					"if": {
+						"type": "object",
+						"required": ["agents"]
+					},
+					"then": {
+						"type": "object",
+						"properties": {
+							"workspace": {
+								"type": "object",
+								"required": ["worktree", "worktreeObservation"]
 							}
 						}
 					}
@@ -779,6 +846,218 @@
 					}
 				}
 			}
+		},
+		"worktreeDirectoryPath": {
+			"title": "WorkbenchDirectoryPath",
+			"$comment": "The independent bindings additionally enforce the 4096-byte UTF-8 limit.",
+			"type": "string",
+			"minLength": 1,
+			"maxLength": 4096,
+			"pattern": "^(?:/|(?:\\\\\\\\\\?\\\\)?[A-Za-z]:[/\\\\])[^\\u0000]*$"
+		},
+		"worktreeUnavailableReason": {
+			"oneOf": [
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "unsupported"
+						}
+					},
+					"required": ["kind"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "unavailable"
+						},
+						"reason": {
+							"enum": ["server-busy", "worker-unavailable", "job-dead", "job-unknown"]
+						}
+					},
+					"required": ["kind", "reason"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "git-failed"
+						},
+						"stage": {
+							"enum": ["probe", "list"]
+						},
+						"status": {
+							"anyOf": [
+								{
+									"type": "integer",
+									"minimum": -2147483648,
+									"maximum": 2147483647
+								},
+								{
+									"type": "null"
+								}
+							]
+						}
+					},
+					"required": ["kind", "stage", "status"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "owner-io"
+						},
+						"stage": {
+							"anyOf": [
+								{
+									"enum": ["probe", "list"]
+								},
+								{
+									"type": "null"
+								}
+							]
+						}
+					},
+					"required": ["kind", "stage"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "too-large"
+						},
+						"origin": {
+							"enum": ["git-probe", "git-list", "worker-result", "workbench-result"]
+						}
+					},
+					"required": ["kind", "origin"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "spawn-unavailable"
+						},
+						"stage": {
+							"enum": ["probe", "list"]
+						}
+					},
+					"required": ["kind", "stage"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "spawn-failed"
+						},
+						"stage": {
+							"enum": ["probe", "list"]
+						}
+					},
+					"required": ["kind", "stage"],
+					"additionalProperties": false
+				}
+			]
+		},
+		"workspaceWorktree": {
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+				"workerId": {
+					"$ref": "#/$defs/id"
+				},
+				"repositoryRoot": {
+					"$ref": "#/$defs/worktreeDirectoryPath"
+				},
+				"commonDirectory": {
+					"$ref": "#/$defs/worktreeDirectoryPath"
+				},
+				"repositoryName": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 4096
+				},
+				"checkoutPath": {
+					"$ref": "#/$defs/worktreeDirectoryPath"
+				},
+				"linked": {
+					"type": "boolean"
+				}
+			},
+			"required": [
+				"workerId",
+				"repositoryRoot",
+				"commonDirectory",
+				"repositoryName",
+				"checkoutPath",
+				"linked"
+			]
+		},
+		"worktreeObservation": {
+			"oneOf": [
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"properties": {
+						"state": {
+							"const": "no-directory"
+						}
+					},
+					"required": ["state"]
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"properties": {
+						"state": {
+							"const": "unavailable"
+						},
+						"requestId": {
+							"$ref": "#/$defs/id"
+						},
+						"reason": {
+							"$ref": "#/$defs/worktreeUnavailableReason"
+						}
+					},
+					"required": ["state", "requestId", "reason"]
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"properties": {
+						"state": {
+							"const": "observed"
+						},
+						"source": {
+							"type": "object",
+							"additionalProperties": false,
+							"properties": {
+								"kind": {
+									"const": "worktree-query"
+								},
+								"requestId": {
+									"$ref": "#/$defs/id"
+								},
+								"siteId": {
+									"$ref": "#/$defs/id"
+								},
+								"workbenchRevision": {
+									"$ref": "#/$defs/revision"
+								}
+							},
+							"required": ["kind", "requestId", "siteId", "workbenchRevision"]
+						}
+					},
+					"required": ["state", "source"]
+				}
+			]
 		}
 	}
 }
