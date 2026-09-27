@@ -232,7 +232,7 @@ UTF-8 字节，名称为 1..128 字节的 ASCII 标识符，不含 NUL，不允�
 `=` 逐字保留。Debug 不输出值。含本覆盖的完整请求参与请求身份判断；Server 将其转换为
 独立的 OBCN 类型。
 
-v2 schema/corpus 覆盖 launch selection、environment、profile provenance、send sequence progress 及全部五类 OBSN input record。Conformance 验证独立编写的 canonical bytes 与 negative case。这证明原生 OBCS 一致性，不代表 Desktop 或 Workbench schema 对齐。
+v2 schema/corpus 覆盖 launch selection、environment、profile provenance、send sequence progress 及全部六类 OBSN input record（含语义 stroke）。Conformance 验证独立编写的 canonical bytes 与 negative case。这证明原生 OBCS 一致性，不代表 Desktop 或 Workbench schema 对齐。
 
 原生 v2 帧在分配前限制为 48 KiB。组合最大转义 cwd、executable/argv 与环境的测试覆盖请求预算；旧 32 KiB 上限无法容纳该合法组合。
 

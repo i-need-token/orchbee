@@ -247,6 +247,7 @@ impl SendComboBase {
 /// bracket encoding the Host owns.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum SendRecord {
+    Stroke(crate::SendKeyStroke),
     Text(SendTextInput),
     Key {
         key: SendKey,
@@ -270,7 +271,7 @@ impl SendRecord {
     pub fn decoded_bytes(&self) -> usize {
         match self {
             Self::Text(input) => input.record_bytes(),
-            Self::Key { .. } | Self::Combo { .. } => 0,
+            Self::Key { .. } | Self::Combo { .. } | Self::Stroke(_) => 0,
             Self::Bytes { bytes } => bytes.as_bytes().len(),
             Self::Paste { content } => content.as_bytes().len(),
         }

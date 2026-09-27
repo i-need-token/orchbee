@@ -18,8 +18,8 @@ const HEADER: usize = 12;
 const PREFIX: [u8; 8] = *b"OBSN\0\x01\0\0";
 /// request_id + site_id + worker_id + terminal_id + record count.
 const BODY_PREFIX: usize = 16 * 4 + 1;
-/// Worst-case per-record framing overhead: one kind byte plus a u32 length.
-const RECORD_OVERHEAD: usize = 5;
+/// A semantic stroke uses kind, modifiers, key identity, and a u32 value.
+const RECORD_OVERHEAD: usize = 7;
 /// Bounded body a decoder may allocate: the fixed identity prefix plus the
 /// record-count overhead plus the aggregate decoded payload bound.
 const MAXIMUM_BODY: usize = BODY_PREFIX
@@ -31,6 +31,7 @@ const KEY_RECORD: u8 = 2;
 const COMBO_RECORD: u8 = 3;
 const BYTES_RECORD: u8 = 4;
 const PASTE_RECORD: u8 = 5;
+const STROKE_RECORD: u8 = 6;
 
 const COMBO_BASE_NAMED: u8 = 1;
 const COMBO_BASE_INSERT: u8 = 2;
@@ -69,6 +70,10 @@ pub(crate) fn encode(request: &TerminalSendRequest) -> Result<Vec<u8>, ProtocolE
 
 fn encode_record(body: &mut Vec<u8>, record: &SendRecord) -> Result<(), ProtocolError> {
     match record {
+        SendRecord::Stroke(stroke) => {
+            body.push(STROKE_RECORD);
+            body.extend(stroke.to_wire());
+        }
         SendRecord::Text(input) => {
             body.push(TEXT_RECORD);
             let text = input.text().as_str();
@@ -270,6 +275,14 @@ fn decode_record(
                 _ => return Err(ProtocolError::InvalidPayload),
             };
             records.push(SendRecord::Combo { modifiers, base });
+            Ok(offset)
+        }
+        STROKE_RECORD => {
+            let (raw, offset) = take(offset, 6)?;
+            let stroke = crate::SendKeyStroke::from_wire(
+                raw.try_into().map_err(|_| ProtocolError::InvalidPayload)?,
+            )?;
+            records.push(SendRecord::Stroke(stroke));
             Ok(offset)
         }
         BYTES_RECORD | PASTE_RECORD => {

@@ -25,6 +25,15 @@ pub fn encodeKey(
 ) ![]const u8 {
     var options = ghostty_vt.input.KeyEncodeOptions.fromTerminal(terminal);
     options.macos_option_as_alt = if (input.option_as_alt) .true else .false;
+    // Legacy text encoding otherwise loses Super and types an unmodified
+    // character. Use the encoder's CSI-u path for that chord only, without
+    // changing the terminal's negotiated mode or admitting legacy releases.
+    if (options.kitty_flags.int() == 0 and input.modifiers.meta and
+        input.unshifted_codepoint != 0)
+    {
+        if (input.action == .release) return "";
+        options.kitty_flags = .{ .disambiguate = true };
+    }
     var writer: std.Io.Writer = .fixed(buffer);
     try ghostty_vt.input.encodeKey(&writer, .{
         .action = keyAction(input.action),

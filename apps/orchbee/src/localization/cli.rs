@@ -902,10 +902,10 @@ impl Locale {
                 "非空 UTF-8 提示，受 256 KiB paste 和 64 KiB argv 限制"
             }
             (Self::EnUs, ExpectedValue::SendKeySequence) => {
-                "a key name or 'ctrl+alt+shift+key' combination; repeatable, at most 64"
+                "a key name, f1..f25, space or one character, optionally ctrl/alt/shift/super; at most 64"
             }
             (Self::ZhCn, ExpectedValue::SendKeySequence) => {
-                "键名或 'ctrl+alt+shift+键' 组合；可重复，至多 64 个"
+                "键名、f1..f25、space 或单个字符，可组合 ctrl/alt/shift/super；至多 64 个"
             }
         };
         let (problem, hint) = match reason {
@@ -2868,8 +2868,11 @@ Submit one bounded input sequence to one bound terminal. Choose exactly one
 source family. --text accepts up to 4096 UTF-8 bytes including an optional
 carriage return. Repeat --key for up to 64 semantic keys; named keys include
 enter, escape, tab, backspace, delete, up, down, left, right, home, end,
-page-up, page-down, ctrl-c and ctrl-d. Modifier combinations such as
-ctrl+shift+a are accepted. The Host encodes keys for the terminal's mode.
+page-up, page-down, ctrl-c, ctrl-d, insert, space and f1..f25. A single
+printable Unicode character or punctuation name (plus, semicolon, etc.)
+is also accepted. Combine ctrl/control, alt/option, shift and super/cmd/command
+with +, for example ctrl+shift+a or super+c. Quote shell punctuation.
+The Host encodes keys for the terminal's current keyboard mode.
 
 --file reads a regular file. --stdin accepts a redirected regular file or
 pipe, including Windows pipes, and refuses interactive terminals/devices.
@@ -2894,8 +2897,10 @@ const HELP_TERMINAL_SEND_ZH: &str = r#"orchbee terminal send <terminal-id> (--te
 --text 接受不超过 4096 字节的 UTF-8 文字，含可选附加回车。
 重复 --key 可发送最多 64 个语义按键；具名按键包括 enter、escape、tab、
 backspace、delete、up、down、left、right、home、end、page-up、
-page-down、ctrl-c 和 ctrl-d。接受 ctrl+shift+a 等修饰键组合，
-由 Host 按终端当前模式编码。
+page-down、ctrl-c、ctrl-d、insert、space 和 f1..f25。也接受单个
+可打印 Unicode 字符或 plus、semicolon 等标点名称。用 + 组合
+ctrl/control、alt/option、shift、super/cmd/command，例如 ctrl+shift+a
+或 super+c；Shell 标点请加引号。由 Host 按终端当前键盘模式编码。
 
 --file 读取普通文件。--stdin 接受重定向普通文件或管道，包括 Windows
 管道，拒绝交互终端和设备。文件/stdin 原样保留字节，含非 UTF-8 数据，

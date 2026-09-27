@@ -538,6 +538,14 @@ pub fn build(builder: *std.Build) void {
         "Compile terminal Host local-transport tests without running them",
     );
     focused_transport_compile_step.dependOn(&focused_transport_tests.step);
+    const input_tests = builder.addTest(.{
+        .root_module = engine_test_module,
+        .filters = &.{"programmatic key"},
+    });
+    input_tests.root_module.link_libc = true;
+    const run_input_tests = builder.addRunArtifact(input_tests);
+    builder.step("test-input-encoding", "Run programmatic key encoding regressions")
+        .dependOn(&run_input_tests.step);
     for ([_]*std.Build.Module{
         cli_test_module,
         benchmark_test_module,

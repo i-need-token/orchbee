@@ -1,3 +1,5 @@
+mod stroke;
+
 use orchbee_local_ipc::LocalStream as UnixStream;
 use std::{
     error::Error,
@@ -158,7 +160,7 @@ fn negotiated_excess(request: &TerminalSendRequest, host: &HostBrokerConnection)
             SendRecord::Text(input) => input.record_bytes() as u64,
             SendRecord::Bytes { bytes } => bytes.as_bytes().len() as u64,
             SendRecord::Paste { content } => content.as_bytes().len() as u64,
-            SendRecord::Key { .. } | SendRecord::Combo { .. } => 0,
+            SendRecord::Key { .. } | SendRecord::Combo { .. } | SendRecord::Stroke(_) => 0,
         };
         bytes > limit
     })
@@ -571,6 +573,14 @@ fn input_command(
             }))?,
             None,
         )),
+        SendRecord::Stroke(stroke) => Ok((
+            encode_input_message(&InputMessage::KeyInput(stroke::input(
+                *stroke,
+                attachment_id,
+                capability_revision,
+            )?))?,
+            None,
+        )),
         SendRecord::Key { key } => {
             let (code, control, unshifted_codepoint) = key_fields(*key);
             key_press(
@@ -585,19 +595,30 @@ fn input_command(
             )
         }
         SendRecord::Combo { modifiers, base } => {
-            let (code, unshifted_codepoint) = combo_base_fields(*base);
-            key_press(
+            let key = match *base {
+                SendComboBase::Named(key) => {
+                    orchbee_capability_node_protocol::SendStrokeKey::Named(key)
+                }
+                SendComboBase::Insert => orchbee_capability_node_protocol::SendStrokeKey::Insert,
+                SendComboBase::Function(number) => {
+                    orchbee_capability_node_protocol::SendStrokeKey::Function(number)
+                }
+                SendComboBase::Space => {
+                    orchbee_capability_node_protocol::SendStrokeKey::Character(' ')
+                }
+                SendComboBase::Letter(value) | SendComboBase::Digit(value) => {
+                    orchbee_capability_node_protocol::SendStrokeKey::Character(char::from(value))
+                }
+            };
+            let flags = u8::from(modifiers.control)
+                | (u8::from(modifiers.alt) << 1)
+                | (u8::from(modifiers.shift) << 2);
+            let input = stroke::input(
+                orchbee_capability_node_protocol::SendKeyStroke::new(key, flags)?,
                 attachment_id,
                 capability_revision,
-                &code,
-                TerminalModifiers {
-                    alt: modifiers.alt,
-                    control: modifiers.control,
-                    shift: modifiers.shift,
-                    ..TerminalModifiers::default()
-                },
-                unshifted_codepoint,
-            )
+            )?;
+            Ok((encode_input_message(&InputMessage::KeyInput(input))?, None))
         }
     }
 }
@@ -662,28 +683,6 @@ fn key_fields(key: SendKey) -> (&'static str, bool, u32) {
         SendKey::PageDown => ("PageDown", false, 0),
         SendKey::CtrlC => ("KeyC", true, u32::from(b'c')),
         SendKey::CtrlD => ("KeyD", true, u32::from(b'd')),
-    }
-}
-
-/// The terminal-protocol key identity and neutral codepoint for one combo
-/// base. `Named` reuses the semantic-key spellings (the already-modified
-/// `CtrlC`/`CtrlD` bases cannot occur); `Letter`/`Digit` select the exact
-/// physical `KeyX`/`DigitN` code the Host encoder expects, with the ASCII
-/// codepoint as the unshifted value.
-fn combo_base_fields(base: SendComboBase) -> (String, u32) {
-    match base {
-        SendComboBase::Named(key) => {
-            let (code, _control, codepoint) = key_fields(key);
-            (code.to_owned(), codepoint)
-        }
-        SendComboBase::Insert => ("Insert".to_owned(), 0),
-        SendComboBase::Function(number) => (format!("F{number}"), 0),
-        SendComboBase::Space => ("Space".to_owned(), u32::from(b' ')),
-        SendComboBase::Letter(letter) => (
-            format!("Key{}", (letter - b'a' + b'A') as char),
-            u32::from(letter),
-        ),
-        SendComboBase::Digit(digit) => (format!("Digit{digit}"), u32::from(digit)),
     }
 }
 

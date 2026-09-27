@@ -1298,6 +1298,31 @@ fn send_request(records: crate::SendRecords) -> crate::TerminalSendRequest {
     }
 }
 
+#[test]
+fn send_stroke_frame_preserves_next_record_and_rejects_malformed_values() {
+    use crate::{SendKeyStroke, SendRecord, SendRecords, SendStrokeKey};
+    let records = SendRecords::new(vec![
+        SendRecord::Stroke(SendKeyStroke::new(SendStrokeKey::Character('😀'), 8).unwrap()),
+        SendRecord::Key {
+            key: crate::SendKey::Enter,
+        },
+    ])
+    .unwrap();
+    let request = CapabilityNodeMessage::TerminalSendRequest(send_request(records));
+    let wire = encode_message(&request).unwrap();
+    let at = 12 + 105;
+    assert_eq!(&wire[at..], &[6, 8, 4, 0, 1, 0xf6, 0, 2, 1]);
+    assert_eq!(decode_message(&wire).unwrap(), request);
+    for end in 0..wire.len() {
+        assert!(decode_message(&wire[..end]).is_err());
+    }
+    for (offset, value) in [(0, 7), (1, 16), (2, 0), (3, 1)] {
+        let mut invalid = wire.clone();
+        invalid[at + offset] = value;
+        assert!(decode_message(&invalid).is_err());
+    }
+}
+
 /// One-record convenience: every typed constructor re-validates.
 fn one_record(record: crate::SendRecord) -> crate::SendRecords {
     crate::SendRecords::new(vec![record]).expect("one record is always in bounds")

@@ -2512,3 +2512,11 @@ Catalog v72 contains 81 schemas and retains 96 command paths.
 ## Reusable layout export
 
 Windows `layout export` emits a reusable JSON tree with ratios, manual labels, observed directories and frozen launch commands. The [layout contract](windows-layouts.md) owns export targets, Client selection, bounds, cancellation, absence of terminal effects and consistency, together with the implemented `layout apply` creation/replacement workflow and its effect receipts. `orchbee.layout.export` v1 and `orchbee.cli.failure.layout` v1 are included in the current catalog v82 (88 documents).
+
+## Programmatic semantic keys
+
+`terminal send --key` and `agent send-keys` share one parser. Besides existing named keys, accept bare Space, Insert, F1..F25, one non-control Unicode scalar, punctuation names (`plus`, `semicolon`, etc.), and combinations of Control, Alt, Shift and Super. Aliases include `control`, `option`, `cmd`, `command`, `return`, `esc`, `bs`, and `C-c`. Key and modifier names are case insensitive; uppercase ASCII characters imply Shift. Duplicate modifiers, multiple base keys, empty components and unsupported function numbers are usage errors before admission. Literal `+` is a key; use `plus` inside combinations. Quote shell metacharacters.
+
+Old spellings keep their legacy wire records. Extended forms use validated stroke records through both native protocols. Worker supplies physical identity, logical text, unshifted scalar and modifiers; shifted printable text consumes Shift for text generation while retaining the modifier for negotiated full key reporting. Host encodes the current terminal mode, preserving legacy Super character chords as CSI-u. Legacy printable combinations also carry text, so Shift-only letters and Space no longer disappear. Sequence order, at most 64 keys, shared deadline, input-only attachment, prefix receipts and no replay after partial/unknown outcomes remain unchanged. New function keys may be mode-ignored where the child has not enabled a supporting keyboard protocol; receipts retain the actual encoded-byte count.
+
+The same-author regressions cover parser refusal, independent wire goldens, malformed scalar/flag boundaries, mixed record boundaries, Worker semantic projection and Host legacy/Kitty encoding. Focused verification does not replace final Windows cohort acceptance or full-goal regression.

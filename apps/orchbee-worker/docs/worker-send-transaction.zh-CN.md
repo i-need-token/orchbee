@@ -165,3 +165,7 @@ acceptedBytes={0}`：语义键合法地以零字节应答。
 
 本模型已登记于 `scripts/tla/models.json`，id 为 `worker-send-transaction`
 （owner `orchbee-worker`）。
+
+## 语义 stroke 细化
+
+有序 send 实现把每个已校验 stroke（及既有可打印 combo）映射成一个语义 Host 按下事件。按键身份、文本、已消费 Shift 和 Super 影响编码，不改变 Attach/Input/Detach 所有权或顺序。Host 在终端锁内按当前模式选择字节；编码为零字节的按键仍合法。这些确定性映射细化模型中的抽象输入动作，以 parser/codec/Worker/Host 边界回归为证据。抽象模型不证明键盘编码或多记录字节语义。

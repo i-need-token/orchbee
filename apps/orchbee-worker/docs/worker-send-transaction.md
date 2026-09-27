@@ -194,3 +194,7 @@ acceptedBytes={0}`: a semantic key legally acknowledged with zero bytes.
 
 This model is registered in `scripts/tla/models.json` as
 `worker-send-transaction` (owner `orchbee-worker`).
+
+## Semantic stroke refinement
+
+The ordered send implementation maps each validated stroke (and each legacy printable combo) to one semantic Host key press. Key identity, text, consumed Shift and Super affect encoding, not Attach/Input/Detach ownership or ordering. Host chooses bytes under its terminal lock using current modes; an encoded zero-byte key remains valid. These deterministic mappings refine the model's abstract input action, with parser/codec/Worker/Host boundary regressions as evidence. The abstract model does not prove keyboard encodings or multi-record byte semantics.

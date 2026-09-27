@@ -270,39 +270,13 @@ cleanup 和真实 PTY 证据。
 
 ## Send 消息
 
-OBCN kind 13 `TerminalSendRequest` 与 kind 14 `TerminalSendResult` 承载一次经 Server 授权的
-非交互 input 提交。Server 分配新 request 身份与 input-only attachment 身份；Worker 绝不自行
-铸造二者、绝不查询其 viewer 或 controller 映射、绝不按逻辑 terminal ID 重解析目标——request
-已钉住精确的授权化身。
+原生发送请求使用独立的 `OBNS` record：magic、big-endian u16 编码版本 1、保留零 u16、u32 body 长度，然后依次为 request ID（16 byte）、Worker ID（16）、Worker generation（u64）、Host creation/epoch/terminal ID（48）、Server 分配的输入 attachment ID（16）、u8 记录数（1–64）及有序记录。body 上限为 `105 + 64 * 7 + 1,048,576` byte，分配前检查。已退役的 kind-13 request 不作为当前请求解码。此消息不重绑目标，不授予 controller/viewer/resize 权限。
 
-Request 含 request ID（16 byte）、Worker ID（16）、Worker generation（u64）、精确的
-Host 终端身份（48：creation ID + Host epoch + Host terminal ID），随后 Server 分配的
-attachment ID（16），随后 payload tag：1 text 或 2 key。
-Text 附加 u16 长度与 1 至 4,096 UTF-8 byte 及 `enter` 标志 byte（0 或 1）；回车声明在
-同一 payload 内，因此一个 request 永远编码恰好一条 Host input record，且 `text` + `enter`
-合计必须落在 4,096-byte 界内。Key 附加闭集 u8 码：1 Enter、2 Escape、3 Tab、4 Backspace、
-5 Delete、6 Up、7 Down、8 Left、9 Right、10 Home、11 End、12 PageUp、13 PageDown、14 CtrlC、
-15 CtrlD。所有整数为 big-endian，所有 ID 非零。generation、epoch 与 terminal 身份是 fence：
-Worker 拒绝钉在不同 generation 或 epoch 的 request 而非重绑，本契约不存在 restart-rebind
-行为。
+记录 tag 1–6 分别携带 text、具名 key、旧 combo、opaque bytes、paste content 和语义 stroke；精确字段与边界见[原生发送契约](../../schemas/client-server/README.zh-CN.md#原生版本-2)。`SendKeyStroke` 独立校验 0..15 修饰键位、1..13 具名键、Insert、F1..F25 及非控制 Unicode 标量字符。新增记录保留旧字节和 1 MiB 聚合 decoded payload 上限。Server 映射独立的 OBCS 值，Worker 将语义按键交给 Host 编码器。
 
-Result 含 request ID（16），随后 input 轴——1 Unavailable 带 reason byte（1 HostUnavailable、
-2 HostProtocolFault），2 Rejected 带 reason byte（1 WrongWorker、2 StaleWorkerGeneration、
-3 StaleHostEpoch、4 TerminalUnavailable、5 HostRejected、6 HostInputInvalid、
-7 HostInputLimitExceeded、8 HostInputBackpressure、9 HostInputUnavailable），3 Accepted 带
-u32 `accepted_bytes`——Host 编码进 input 队列的字节数（模式忽略某语义键时零合法；绝非
-request 字节长或键名长），或 4 Unknown——随后正交 cleanup 轴 byte：1 NotNeeded、
-2 Confirmed、3 Unconfirmed。两种配对不可能出自 Attach → input → Detach 序列，构造期与
-两侧 codec 边界都拒绝：Accepted + NotNeeded（已接受的 input 意味着真实附件）与
-Unknown + Confirmed（confirmed 释放意味着已完成的 exchange）。Unknown
-与 Unconfirmed 表示 input 可能已落地或 attachment 可能残留；二者都绝不自动重试。明确的
-Host 拒绝仍释放临时 attachment，而失同步的 exchange 以关闭 Worker-Host carrier 应答而非
-继续请求——降级的 cleanup 状态如实记录而非冒称已释放。
+Kind 14 结果保留请求身份、输入结果（unavailable、rejected、accepted 或 unknown）、已确认前缀进度与独立清理状态。进度以 u8 编码已接受记录数和首个停止记录，然后以 u64 编码已接受编码字节数。中止请求不具原子性；未知或部分接受的输入绝不自动重放。既有类型构造器和 codec 校验 outcome/progress/cleanup 一致性。专用请求记录与有界 OBCN 结果帧共存。
 
-8 KiB OBCN frame 限制、精确长度解码、方向规则与非零身份规则不变。本消息不授予 controller、
-viewer、resize 或 lease 权限，也不占两个映射中的任何槽位；授权 attachment 仅存在于一个
-顺序 send 内。Codec test 覆盖每个 payload/outcome/reason 组合、严格 golden、未知 tag、
-trailing byte 与边界长度；Server 与 Worker 指南拥有准入与真实 Host 证据。
+序列的单个临时附件、精确化身 fence、共享总期限及清理仍由 Server/Worker send transaction 负责。混合 stroke golden 帧及非法/截断输入测试覆盖两段协议边界。此未发布扩展要求 Client、Server、Worker、Host 同批部署或回退，不新增持久化迁移。
 
 ## Worktree job 消息
 

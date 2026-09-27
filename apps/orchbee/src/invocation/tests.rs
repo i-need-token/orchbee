@@ -7037,6 +7037,29 @@ fn agent_terminal_grammar_validates_all_keys_and_exclusive_targets_before_effect
 }
 
 #[test]
+fn terminal_and_agent_send_share_extended_keys_and_reject_partial_invalid_sequences() {
+    for prefix in [
+        vec!["terminal", "send", "00000000000000000000000000000001"],
+        vec!["agent", "send-keys", "alpha"],
+    ] {
+        let terminal = prefix[0] == "terminal";
+        let mut args = prefix.clone();
+        for key in ["f1", "space", "Super+C", "中", "shift+?", "+"] {
+            if terminal {
+                args.push("--key");
+            }
+            args.push(key);
+        }
+        assert!(parse(&args).is_ok(), "{args:?}");
+        if terminal {
+            args.push("--key");
+        }
+        args.push("super+ctrl+control+a");
+        assert!(parse(&args).is_err(), "{args:?}");
+    }
+}
+
+#[test]
 fn prompt_grammar_keeps_text_literal_and_wait_options_explicit() {
     assert!(
         matches!(parse(&["agent", "prompt", "--name", "alpha", "line one\nline two", "--wait", "--until", "succeeded", "--timeout", "1234"]),

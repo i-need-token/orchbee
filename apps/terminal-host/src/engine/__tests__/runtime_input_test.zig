@@ -1749,6 +1749,44 @@ test "finite mouse normalization is safe at maximum legal pixel geometry" {
     try std.testing.expectEqual(@as(usize, 0), runtime.pendingInputBytes());
     try runtime.forceTerminate();
 }
+test "programmatic key text and Super preserve legacy and Kitty semantics" {
+    const runtime = try createIdleRuntime(.{});
+    defer runtime.destroy();
+    const Case = struct {
+        mode: []const u8,
+        key: []const u8,
+        text: []const u8,
+        scalar: u21,
+        shift: bool = false,
+        super: bool = false,
+        expected: []const u8,
+    };
+    for ([_]Case{
+        .{ .mode = "\x1b[=0u", .key = "KeyA", .text = "A", .scalar = 'a', .shift = true, .expected = "A" },
+        .{ .mode = "\x1b[=0u", .key = "KeyC", .text = "c", .scalar = 'c', .super = true, .expected = "\x1b[99;9u" },
+        .{ .mode = "\x1b[=0u", .key = "Equal", .text = "+", .scalar = '+', .expected = "+" },
+        .{ .mode = "\x1b[=7u", .key = "Slash", .text = "?", .scalar = '?', .shift = true, .expected = "?" },
+        .{ .mode = "\x1b[=7u", .key = "Unidentified", .text = "中", .scalar = '中', .super = true, .expected = "\x1b[20013;9u" },
+        .{ .mode = "\x1b[=8u", .key = "KeyA", .text = "A", .scalar = 'a', .shift = true, .expected = "\x1b[97;2u" },
+        .{ .mode = "\x1b[=8u", .key = "F25", .text = "", .scalar = 0, .expected = "\x1b[57388u" },
+    }) |case| {
+        parseTerminalInput(runtime, case.mode);
+        var prepared = try runtime.prepareKeyInput(.{
+            .action = .press,
+            .composing = false,
+            .consumed_modifiers = .{ .shift = case.shift },
+            .key = case.key,
+            .modifiers = .{ .shift = case.shift, .meta = case.super },
+            .text = case.text,
+            .unshifted_codepoint = case.scalar,
+        }, std.math.maxInt(usize));
+        try std.testing.expectEqualSlices(u8, case.expected, prepared.bytes.?);
+        prepared.deinit();
+        try std.testing.expectEqual(@as(usize, 0), runtime.pendingInputBytes());
+    }
+    try runtime.forceTerminate();
+}
+
 test "maximum key text uses the negotiated encoded-byte limit" {
     const runtime = try createIdleRuntime(.{});
     defer runtime.destroy();

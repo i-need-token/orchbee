@@ -589,6 +589,7 @@ mod linux {
     fn send_record(key: crate::invocation::ParsedSendKey) -> SendRecord {
         use crate::invocation::{ParsedSendKey, TerminalComboBase};
         match key {
+            ParsedSendKey::Stroke(stroke) => SendRecord::Stroke(stroke),
             ParsedSendKey::Key(key) => SendRecord::Key { key: send_key(key) },
             ParsedSendKey::Combo(combo) => {
                 let base = match combo.base {

@@ -5,6 +5,7 @@ mod client_control;
 mod layouts;
 #[cfg(windows)]
 mod named_sessions;
+mod send_key;
 #[cfg(windows)]
 pub(crate) use layouts::{LayoutApplyCommand, LayoutDestination, LayoutExportCommand};
 #[cfg(windows)]
@@ -736,6 +737,7 @@ pub(crate) enum TerminalSendInput {
 pub(crate) enum ParsedSendKey {
     Key(TerminalSendKey),
     Combo(TerminalSendCombo),
+    Stroke(orchbee_client_server_protocol::SendKeyStroke),
 }
 
 /// An explicit modifier combination: at least one modifier beside the base
@@ -806,14 +808,13 @@ impl TerminalSendKey {
     }
 }
 
-/// Parse one `--key` value: a bare named key, or `modifier+...+base` with at
-/// least one of `ctrl`/`alt`/`shift` — order-insensitive, each at most once.
-/// The base admits the named vocabulary except `ctrl-c`/`ctrl-d` (a
-/// combination over an already-modified key is ambiguous) plus `insert`,
-/// `f1`..=`f12`, `space`, one ASCII letter, or one ASCII digit. Everything
-/// else — empty segments, unknown bases, bare `f5`-style bases with no
-/// modifier — is refused before any effect.
+/// Keep legacy record encodings stable, then admit the extended semantic
+/// vocabulary. Both paths validate the complete key before runtime effects.
 fn parse_send_key(value: &str) -> Option<ParsedSendKey> {
+    parse_legacy_send_key(value).or_else(|| send_key::parse(value).map(ParsedSendKey::Stroke))
+}
+
+fn parse_legacy_send_key(value: &str) -> Option<ParsedSendKey> {
     if !value.contains('+') {
         return TerminalSendKey::parse(value).map(ParsedSendKey::Key);
     }

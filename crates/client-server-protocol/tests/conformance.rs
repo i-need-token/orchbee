@@ -345,6 +345,7 @@ fn canonical_corpus_reaches_every_closed_message_and_result_variant()
         "send-payload-text-plain",
         "send-payload-key",
         "send-payload-combo",
+        "send-payload-stroke",
         "send-payload-bytes",
         "send-payload-paste",
         "message-terminal-send-result",
@@ -869,6 +870,7 @@ fn record_coverage(message: &DecodedMessage, reached: &mut BTreeSet<&'static str
                     }
                     SendRecord::Key { .. } => "send-payload-key",
                     SendRecord::Combo { .. } => "send-payload-combo",
+                    SendRecord::Stroke(_) => "send-payload-stroke",
                     SendRecord::Bytes { .. } => "send-payload-bytes",
                     SendRecord::Paste { .. } => "send-payload-paste",
                 });

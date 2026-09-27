@@ -238,3 +238,7 @@ pnpm --filter @orchbee/terminal-host benchmark -- \
 源模块应遵循运行时合约中的语义所有者：本地 IPC 传输记录，本机协议适配器转换记录，主机注册表拥有终端成员身份，每个保留的终端记录将一个语义会话绑定到其延迟启动准备或已启动的引擎，每个会话拥有其生命周期，每个 Broker 会话拥有其附件。仅当文件分割使这些所有权边界之一更加清晰时才有用。
 
 包本地[模块边界契约](docs/module-boundaries.md) 把这些 owner 映射到源目录、具名（named）Zig 模块、允许的导入与测试放置。
+
+## 程序化按键编码检查
+
+用 `zig build test-input-encoding` 运行旧模式/Kitty 语义按键的针对性回归。Host 从终端当前模式派生编码。旧模式的 Super 字符按下使用既有 CSI-u 编码器保留组合，不改变协商模式，也不报告旧模式松开事件。Shift 可打印文本与 Kitty 完整报告的按键身份分别保留；Worker send 适配器负责逻辑字符规范化。

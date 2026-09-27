@@ -2143,3 +2143,11 @@ Server 在 Worker 验证后原子提交拓扑与目录且不重启终端；Proje
 ## 可复用布局导出
 
 Windows `layout export` 输出带比例、手工标签、观测目录及冻结启动命令的可复用 JSON 树。[布局契约](windows-layouts.zh-CN.md)拥有导出目标、Client 选择、边界、取消、无副作用与一致性规则，以及已实现的 `layout apply` 创建／替换流程和效果回执。`orchbee.layout.export` v1 和 `orchbee.cli.failure.layout` v1 包含在当前目录 v82（88 份文档）中。
+
+## 程序化语义按键
+
+`terminal send --key` 与 `agent send-keys` 共用解析器。除既有具名键外，接受无修饰的 Space、Insert、F1..F25、单个非控制 Unicode 标量、标点名称（`plus`、`semicolon` 等），以及 Control、Alt、Shift、Super 组合。别名包括 `control`、`option`、`cmd`、`command`、`return`、`esc`、`bs` 和 `C-c`。键名和修饰键名不区分大小写；ASCII 大写字符隐含 Shift。重复修饰键、多个基键、空分段和不支持的功能键编号在准入前报用法错误。字面 `+` 表示一个键；组合中用 `plus`。Shell 元字符请加引号。
+
+旧拼写保留既有 wire 记录，扩展拼写通过两段原生协议的已校验 stroke 记录传递。Worker 提供物理身份、逻辑文本、未修饰标量和修饰键；Shift 生成的可打印文本消费文本生成的 Shift，同时为协商后的完整按键报告保留该修饰键。Host 按当前终端模式编码，旧模式的 Super 字符组合保留为 CSI-u。既有可打印组合也携带文本，避免仅 Shift 的字母和 Space 消失。序列顺序、最多 64 键、共享期限、仅输入附件、前缀回执，以及部分或未知结果不重放均不变。子进程未启用相应键盘协议时，新增功能键可能被当前模式忽略；回执保留实际编码字节数。
+
+同作者回归覆盖解析拒绝、独立 wire golden、非法标量与标志边界、混合记录边界、Worker 语义投影及 Host 旧模式/Kitty 编码。针对性验证不替代最终 Windows cohort 验收或全目标回归。

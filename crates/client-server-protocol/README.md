@@ -256,7 +256,7 @@ duplicates, and no `ORCHBEE_*`, `TERM`, `COLORTERM` or `TERM_PROGRAM`. Empty val
 `=` remain literal. Values are omitted from Debug output. The complete request, including this
 overlay, participates in request identity. The Server converts it to the independent OBCN value.
 
-The v2 schema/corpus covers launch selection, environment, profile provenance, send sequence progress and all five OBSN input record kinds. Conformance verifies independently authored canonical bytes and negative cases. This establishes native OBCS agreement, not Desktop or Workbench schema parity.
+The v2 schema/corpus covers launch selection, environment, profile provenance, send sequence progress and all six OBSN input record kinds (including semantic strokes). Conformance verifies independently authored canonical bytes and negative cases. This establishes native OBCS agreement, not Desktop or Workbench schema parity.
 
 Native v2 frames are bounded at 48 KiB before allocation. A combined maximum escaped cwd, executable/argv and environment test covers the request budget; the older 32 KiB bound cannot contain that valid combination.
 

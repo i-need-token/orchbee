@@ -12,6 +12,7 @@ mod paste_record;
 mod record_identities;
 mod send;
 mod send_record;
+mod send_stroke;
 mod viewer;
 mod viewer_record;
 mod wire;
@@ -64,6 +65,7 @@ pub use send::{
     TerminalSendOutcome, TerminalSendRequest, TerminalSendResult,
 };
 pub use send_record::SEND_RECORD_MAGIC;
+pub use send_stroke::{SendKeyStroke, SendStrokeKey};
 pub use viewer::{
     HistoryDemand, MAXIMUM_READ_ROWS, MAXIMUM_READ_ROWS_BYTES, MAXIMUM_VIEWER_RECORD_BYTES,
     MINIMUM_READ_ROWS_BYTES, ProjectionDemand, TerminalViewerAction, TerminalViewerOutcome,

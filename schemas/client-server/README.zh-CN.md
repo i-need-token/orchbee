@@ -342,15 +342,18 @@ Found launch read 还可携带非 null 的 `launchSelection:{exec,args}`，复�
 
 Send result 以 `progress` 替代 `acceptedBytes`：数值 `recordsAccepted`、`firstStoppedRecord`（0–64）和 `acceptedEncodedBytes`（0–67,108,864）。Accepted records 不超过 stopped index。成功 outcome 要求非零且相等的 count/index，以及非 not-needed 的 cleanup；任何非零 accepted count 都禁止 not-needed。Unknown outcome 禁止 confirmed cleanup。Accepted/unknown 或任何非 not-needed cleanup 都要求 physical target。跨字段关系是独立测试的 binding 细化。Unknown frontier 不授权重发。`input-budget-exhausted` 是新增 unavailable reason。仍须按精确 cohort 发布和回滚；不意味着持久化迁移、Desktop 支持或 Workbench schema 等价。
 
-OBSN header 为 magic `OBSN`、big-endian u16 encoding version `1`、零 u16 reserved field 和 u32 body length。Body 依次为 request/Site/Worker/Terminal identity（各 16 bytes）、u8 count（1–64）及有序 record。Body 上限为 `64 + 1 + 64 * 5 + 1,048,576` bytes；分配前拒绝错误 header。每个 record 以 u8 kind 开始：
+OBSN header 为 magic `OBSN`、big-endian u16 encoding version `1`、零 u16 reserved field 和 u32 body length。Body 依次为 request/Site/Worker/Terminal identity（各 16 bytes）、u8 count（1–64）及有序 record。Body 上限为 `64 + 1 + 64 * 7 + 1,048,576` bytes；分配前拒绝错误 header。每个 record 以 u8 kind 开始：
 
-| Kind    | 剩余 record bytes                                                                                                              |
-| ------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| 1 text  | u16 UTF-8 byte length、text、u8 enter（0 或 1）；非空 text 加可选 CR <=4,096 bytes                                             |
-| 2 key   | u8 code：enter、escape、tab、backspace、delete、up、down、left、right、home、end、page-up、page-down、ctrl-c、ctrl-d 对应 1–15 |
-| 3 combo | u8 非零 modifier flags（Control=1、Alt=2、Shift=4）、u8 base kind、u8 base value                                               |
-| 4 bytes | u32 length、非空 opaque bytes <=1,048,576                                                                                      |
-| 5 paste | u32 length、非空 opaque content <=262,144；Host 拥有 bracket encoding                                                          |
+| Kind     | 剩余 record bytes                                                                                                              |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| 1 text   | u16 UTF-8 byte length、text、u8 enter（0 或 1）；非空 text 加可选 CR <=4,096 bytes                                             |
+| 2 key    | u8 code：enter、escape、tab、backspace、delete、up、down、left、right、home、end、page-up、page-down、ctrl-c、ctrl-d 对应 1–15 |
+| 3 combo  | u8 非零 modifier flags（Control=1、Alt=2、Shift=4）、u8 base kind、u8 base value                                               |
+| 4 bytes  | u32 length、非空 opaque bytes <=1,048,576                                                                                      |
+| 5 paste  | u32 length、非空 opaque content <=262,144；Host 拥有 bracket encoding                                                          |
+| 6 stroke | u8 modifiers（Control=1、Alt=2、Shift=4、Super=8；允许零）、u8 key kind、u32 key value                                         |
+
+Stroke 身份为具名键 `(1,1..13)`、Insert `(2,0)`、F1..F25 `(3,1..25)` 或单个非控制 Unicode 标量 `(4,codepoint)`。未知位、C0/C1 控制符、代理码点和越界值在分发前拒绝。旧记录字节及 combo 边界不变。两个原生协议责任方独立校验相同字段语义；此未发布扩展要求 Client/Server/Worker/Host 同批部署。
 
 Combo base 为 named key `(1,1..13)`、Insert `(2,0)`、F1..F12 `(3,1..12)`、Space `(4,0)`、ASCII 小写字母 `(5,97..122)` 或数字 `(6,48..57)`。额外 flag bit、无效 base、未知 kind、truncation 与 trailing byte 均拒绝。Decoded text（含折叠 CR）、bytes 与 paste content 聚合最多 1,048,576 bytes；key 不携带 decoded payload。请求不具备原子性：result 保留已确认前缀和首个停止 record。v2 corpus 独立于 Rust encoder 提供 canonical binary bytes、每个 key 和 base kind、混合 record 与 negative control。
 

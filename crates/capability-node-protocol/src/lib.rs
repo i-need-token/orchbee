@@ -76,7 +76,9 @@ pub use worktree_mutation::{
     WorktreeMutationStartOutcome,
 };
 
+mod send_stroke;
 mod terminal_control;
+pub use send_stroke::{SendKeyStroke, SendStrokeKey};
 pub use terminal_control::{
     ControlInput, ControlRejection, MAXIMUM_CONTROL_INPUT_BYTES, MAXIMUM_PASTE_CONTENT_BYTES,
     PasteAcceptedBytes, PasteContent, TerminalControlAction, TerminalControlOutcome,

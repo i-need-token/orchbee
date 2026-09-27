@@ -897,12 +897,11 @@ const DIRECTION_VALUES: &[(&str, &[&str])] = &[
     ("panel:move", &["above", "below", "left", "right"]),
 ];
 
-/// The closed semantic-key vocabulary `terminal send --key` accepts — the
-/// same names `invocation::TerminalSendKey` parses.
 const CWD_VALUES: &[&str] = &["follow", "home", "current", "workspace"];
 const OUTPUT_SOURCES: &[&str] = &["visible", "recent", "recent-unwrapped", "detection"];
 const RIGHT_CLICK_VALUES: &[&str] = &["orchbee", "panel"];
 
+/// Discoverable examples; arbitrary printable scalar keys are also accepted.
 const KEY_VALUES: &[&str] = &[
     "enter",
     "escape",
@@ -919,6 +918,40 @@ const KEY_VALUES: &[&str] = &[
     "page-down",
     "ctrl-c",
     "ctrl-d",
+    "space",
+    "insert",
+    "f1",
+    "f2",
+    "f3",
+    "f4",
+    "f5",
+    "f6",
+    "f7",
+    "f8",
+    "f9",
+    "f10",
+    "f11",
+    "f12",
+    "f13",
+    "f14",
+    "f15",
+    "f16",
+    "f17",
+    "f18",
+    "f19",
+    "f20",
+    "f21",
+    "f22",
+    "f23",
+    "f24",
+    "f25",
+    "plus",
+    "minus",
+    "semicolon",
+    "slash",
+    "ctrl+shift+a",
+    "super+c",
+    "alt+enter",
 ];
 
 /// The fourteen `agent wait --until` condition names — the same

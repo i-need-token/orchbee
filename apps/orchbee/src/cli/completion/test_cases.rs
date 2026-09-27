@@ -1,6 +1,13 @@
 //! Shared observable completion obligations, independent of shell syntax.
 
 pub(super) const CASES: &[(&str, &str, bool)] = &[
+    ("orchbee terminal send abc --key f", "f25", true),
+    (
+        "orchbee terminal send abc --key enter --key s",
+        "super+c",
+        true,
+    ),
+    ("orchbee terminal send abc --key=sp", "--key=space", true),
     ("orchbee workspace report-m", "report-metadata", true),
     (
         "orchbee workspace report-metadata main --t",

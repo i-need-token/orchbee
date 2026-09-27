@@ -18,8 +18,8 @@ const SEND_RECORD_VERSION: u16 = 1;
 /// request_id + worker_id + worker_generation + host identity (3×16) +
 /// attachment + record count.
 const SEND_RECORD_BODY_PREFIX: usize = 16 + 16 + 8 + 48 + 16 + 1;
-/// Worst-case per-record framing overhead: one kind byte plus a u32 length.
-const SEND_RECORD_OVERHEAD: usize = 5;
+/// A semantic stroke uses kind, modifiers, key identity, and a u32 value.
+const SEND_RECORD_OVERHEAD: usize = 7;
 /// Bounded body a decoder may allocate: the fixed identity prefix plus the
 /// record-count overhead plus the aggregate decoded payload bound.
 const MAXIMUM_SEND_RECORD_BODY: usize = SEND_RECORD_BODY_PREFIX
@@ -34,6 +34,7 @@ const KEY_RECORD: u8 = 2;
 const COMBO_RECORD: u8 = 3;
 const BYTES_RECORD: u8 = 4;
 const PASTE_RECORD: u8 = 5;
+const STROKE_RECORD: u8 = 6;
 
 const COMBO_BASE_NAMED: u8 = 1;
 const COMBO_BASE_INSERT: u8 = 2;
@@ -49,6 +50,10 @@ const UNKNOWN_INPUT: u8 = 4;
 
 fn encode_record_kind(bytes: &mut Vec<u8>, record: &SendRecord) -> Result<(), ProtocolError> {
     match record {
+        SendRecord::Stroke(stroke) => {
+            bytes.push(STROKE_RECORD);
+            bytes.extend(stroke.to_wire());
+        }
         SendRecord::Text(input) => {
             bytes.push(TEXT_RECORD);
             let text = input.text().as_str();
@@ -140,6 +145,12 @@ fn decode_record_kind(reader: &mut PayloadReader<'_>) -> Result<SendRecord, Prot
                 base: decode_combo_base(reader)?,
             })
         }
+        STROKE_RECORD => Ok(SendRecord::Stroke(crate::SendKeyStroke::from_wire(
+            reader
+                .read_slice(6)?
+                .try_into()
+                .map_err(|_| ProtocolError::InvalidPayload)?,
+        )?)),
         BYTES_RECORD => {
             let length =
                 usize::try_from(reader.read_u32()?).map_err(|_| ProtocolError::InvalidPayload)?;

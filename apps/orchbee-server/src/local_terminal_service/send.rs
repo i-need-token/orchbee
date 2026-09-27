@@ -114,6 +114,16 @@ fn worker_record(
     use orchbee_capability_node_protocol as worker;
     use orchbee_client_server_protocol::SendRecord as Client;
     Some(match record {
+        Client::Stroke(stroke) => {
+            use orchbee_client_server_protocol::SendStrokeKey as Key;
+            let key = match stroke.key() {
+                Key::Named(key) => worker::SendStrokeKey::Named(send_key(key)),
+                Key::Insert => worker::SendStrokeKey::Insert,
+                Key::Function(number) => worker::SendStrokeKey::Function(number),
+                Key::Character(value) => worker::SendStrokeKey::Character(value),
+            };
+            worker::SendRecord::Stroke(worker::SendKeyStroke::new(key, stroke.modifiers()).ok()?)
+        }
         Client::Text(input) => worker::SendRecord::Text(
             worker::SendTextInput::new(
                 worker::SendText::new(input.text().as_str().to_owned()).ok()?,

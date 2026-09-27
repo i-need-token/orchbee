@@ -376,15 +376,18 @@ A found launch read may also carry non-null `launchSelection:{exec,args}` under 
 
 Send results replace `acceptedBytes` with `progress`: numeric `recordsAccepted`, `firstStoppedRecord` (0–64) and `acceptedEncodedBytes` (0–67,108,864). Accepted records never exceed the stopped index. A successful outcome has a nonzero equal count/index and cleanup other than not-needed; any nonzero accepted count excludes not-needed. An unknown outcome excludes confirmed cleanup. Accepted/unknown or any cleanup other than not-needed requires a physical target. Cross-field relations are independently tested binding refinements. The unknown frontier never authorizes resend. `input-budget-exhausted` is an additional unavailable reason. Exact cohort rollout/rollback remains required; no persisted migration, Desktop support or Workbench schema equivalence is implied.
 
-The OBSN header is magic `OBSN`, big-endian u16 encoding version `1`, zero u16 reserved field, and u32 body length. The body is request/Site/Worker/Terminal identities (16 bytes each), u8 count (1–64), then ordered records. Its maximum body length is `64 + 1 + 64 * 5 + 1,048,576` bytes; reject a bad header before allocation. Each record starts with a u8 kind:
+The OBSN header is magic `OBSN`, big-endian u16 encoding version `1`, zero u16 reserved field, and u32 body length. The body is request/Site/Worker/Terminal identities (16 bytes each), u8 count (1–64), then ordered records. Its maximum body length is `64 + 1 + 64 * 7 + 1,048,576` bytes; reject a bad header before allocation. Each record starts with a u8 kind:
 
-| Kind    | Remaining record bytes                                                                                                           |
-| ------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| 1 text  | u16 UTF-8 byte length, text, u8 enter (0 or 1); nonempty text plus optional CR <=4,096 bytes                                     |
-| 2 key   | u8 code: enter, escape, tab, backspace, delete, up, down, left, right, home, end, page-up, page-down, ctrl-c, ctrl-d map to 1–15 |
-| 3 combo | u8 nonzero modifier flags (Control=1, Alt=2, Shift=4), u8 base kind, u8 base value                                               |
-| 4 bytes | u32 length, nonempty opaque bytes <=1,048,576                                                                                    |
-| 5 paste | u32 length, nonempty opaque content <=262,144; Host owns bracket encoding                                                        |
+| Kind     | Remaining record bytes                                                                                                           |
+| -------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| 1 text   | u16 UTF-8 byte length, text, u8 enter (0 or 1); nonempty text plus optional CR <=4,096 bytes                                     |
+| 2 key    | u8 code: enter, escape, tab, backspace, delete, up, down, left, right, home, end, page-up, page-down, ctrl-c, ctrl-d map to 1–15 |
+| 3 combo  | u8 nonzero modifier flags (Control=1, Alt=2, Shift=4), u8 base kind, u8 base value                                               |
+| 4 bytes  | u32 length, nonempty opaque bytes <=1,048,576                                                                                    |
+| 5 paste  | u32 length, nonempty opaque content <=262,144; Host owns bracket encoding                                                        |
+| 6 stroke | u8 modifiers (Control=1, Alt=2, Shift=4, Super=8; zero allowed), u8 key kind, u32 key value                                      |
+
+Stroke identities are named key `(1,1..13)`, Insert `(2,0)`, F1..F25 `(3,1..25)` or one non-control Unicode scalar `(4,codepoint)`. Unknown bits, C0/C1 controls, surrogates and out-of-range values are rejected before dispatch. Legacy record bytes and combo bounds are unchanged. Both native protocol owners use the same field semantics and validate independently; this unpublished extension requires a matched Client/Server/Worker/Host cohort.
 
 Combo bases are named key `(1,1..13)`, Insert `(2,0)`, F1..F12 `(3,1..12)`, Space `(4,0)`, ASCII lowercase letter `(5,97..122)` or digit `(6,48..57)`. Extra flag bits, invalid bases, unknown kinds, truncation and trailing bytes fail closed. Aggregate decoded text (including folded CR), bytes and paste content is at most 1,048,576 bytes; keys carry no decoded payload. The request is not atomic: its result preserves the confirmed prefix and first stopped record. The v2 corpus supplies canonical binary bytes, every key and base kind, mixed records and negative controls independently of the Rust encoder.
 

@@ -6,6 +6,40 @@ use super::{
 use crate::{HostEpoch, HostTerminalId, RequestId, SiteId, TerminalId, WorkerId};
 use std::num::NonZeroU64;
 
+#[test]
+fn send_stroke_mixed_records_preserve_boundaries_and_reject_malformed_payloads() {
+    use crate::{SendKeyStroke, SendStrokeKey};
+    let records = SendRecords::new(vec![
+        SendRecord::Stroke(SendKeyStroke::new(SendStrokeKey::Character('😀'), 8).unwrap()),
+        SendRecord::Key {
+            key: SendKey::Enter,
+        },
+    ])
+    .unwrap();
+    let request = TerminalSendRequest::new(
+        RequestId::parse("11111111111111111111111111111111").unwrap(),
+        SiteId::parse("22222222222222222222222222222222").unwrap(),
+        WorkerId::parse("33333333333333333333333333333333").unwrap(),
+        TerminalId::parse("44444444444444444444444444444444").unwrap(),
+        records,
+    );
+    let wire = crate::send_record::encode(&request).unwrap();
+    let at = 12 + 65;
+    assert_eq!(&wire[at..], &[6, 8, 4, 0, 1, 0xf6, 0, 2, 1]);
+    assert_eq!(
+        crate::send_record::decode(&wire).unwrap(),
+        crate::ClientMessage::TerminalSend(request)
+    );
+    for end in 0..wire.len() {
+        assert!(crate::send_record::decode(&wire[..end]).is_err());
+    }
+    for (offset, value) in [(0, 7), (1, 16), (2, 0), (3, 1)] {
+        let mut invalid = wire.clone();
+        invalid[at + offset] = value;
+        assert!(crate::send_record::decode(&invalid).is_err());
+    }
+}
+
 fn text(value: &str) -> SendText {
     SendText::new(value.to_string()).expect("valid send text")
 }
