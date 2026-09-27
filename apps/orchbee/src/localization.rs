@@ -396,12 +396,6 @@ impl Locale {
             (Self::ZhCn, Some(Notice::PointerInputDropped)) => {
                 "指针输入被丢弃 · 焦点切换未及时就绪"
             }
-            (Self::EnUs, Some(Notice::PointerPixelsUnsupported)) => {
-                "Pane requested pixel mouse reports · unsupported, input dropped"
-            }
-            (Self::ZhCn, Some(Notice::PointerPixelsUnsupported)) => {
-                "面板请求像素鼠标上报 · 不支持，输入已丢弃"
-            }
             (Self::EnUs, Some(Notice::UnknownPrefix)) => {
                 "Unknown prefix key · press Ctrl+B then ? for shortcuts"
             }

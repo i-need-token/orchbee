@@ -437,7 +437,7 @@ fn scroll_effect(
         || (if page {
             host_page
         } else {
-            !frame.alternate_screen && untracked
+            untracked && (!frame.alternate_screen || !frame.interaction.alternate_scroll())
         })
     {
         return ScrollEffect::History(if up {
@@ -454,7 +454,7 @@ fn scroll_effect(
         });
     }
     if untracked {
-        // OBTF currently omits DEC 1007. The remaining parity obligation is documented.
+        // Only an alternate screen with DEC 1007 enabled reaches this branch.
         return ScrollEffect::Input(encode_cursor_arrows(
             up,
             1,
@@ -488,7 +488,6 @@ fn scroll_effect(
     ) {
         PaneEncode::Bytes(bytes) => ScrollEffect::Input(bytes),
         PaneEncode::Silent => ScrollEffect::Rejected("mouse-report-unavailable"),
-        PaneEncode::PixelUnsupported => ScrollEffect::Rejected("pixel-mouse-unavailable"),
     }
 }
 

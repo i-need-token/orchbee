@@ -58,6 +58,7 @@ fn frame_facts(
         format,
         cell_pixel: (0, 0),
         alternate_screen,
+        alternate_scroll: true,
         application_cursor: false,
     }
 }
@@ -871,6 +872,60 @@ fn pane_press_on_reporting_pane_encodes_local_coordinates() {
 }
 
 #[test]
+fn pending_wheel_arrows_stop_when_the_latest_frame_revokes_alternate_scroll() {
+    for revoked in 0..4 {
+        let mut pointer = PointerState::default();
+        pointer.set_capture(true);
+        let mut view = ClientView::new(120);
+        let mut port = RecordingPort {
+            probe: PointerProbe {
+                frame: Some(frame_facts(MouseTracking::None, MouseFormat::Sgr, true)),
+                ..active_probe(0, 0, 1, 1)
+            },
+            ..RecordingPort::default()
+        };
+        let mut builder = HitMapBuilder::new();
+        builder.record(
+            HitLayer::Foreground,
+            Rect::new(0, 0, 4, 6),
+            HitTarget::Pane {
+                pane: pane_ref(1, 1, 1, 0),
+                content: Rect::new(0, 1, 4, 5),
+            },
+        );
+        pointer.publish(builder.finish());
+        for _ in 0..4 {
+            pointer.event(
+                &mut view,
+                &mut port,
+                now(),
+                event(MouseAction::Press, MouseButton::WheelDown, 1, 2),
+            );
+        }
+        assert_eq!(port.bytes(), b"\x1b[B".repeat(5));
+        let frame = port.probe.frame.as_mut().unwrap();
+        match revoked {
+            0 => frame.alternate_scroll = false,
+            1 => frame.alternate_screen = false,
+            2 => frame.tracking = MouseTracking::Normal,
+            _ => port.probe.viewport_non_live = true,
+        }
+        pointer.tick(&mut view, &mut port, now());
+        assert_eq!(port.bytes(), b"\x1b[B".repeat(5));
+        assert_eq!(pointer.wheel.pending, 0);
+        if revoked == 0 {
+            pointer.event(
+                &mut view,
+                &mut port,
+                now(),
+                event(MouseAction::Press, MouseButton::WheelUp, 1, 2),
+            );
+            assert_eq!(port.bytes(), b"\x1b[B".repeat(5));
+        }
+    }
+}
+
+#[test]
 fn alternate_screen_wheel_becomes_bounded_cursor_arrows() {
     let mut pointer = PointerState::default();
     pointer.set_capture(true);
@@ -1097,7 +1152,7 @@ fn captured_input_swallows_pointer_without_gestures() {
 }
 
 #[test]
-fn pixel_format_reports_bounded_notice_instead_of_coordinates() {
+fn pixel_format_keeps_pane_local_cell_press_drag_and_release() {
     let mut pointer = PointerState::default();
     pointer.set_capture(true);
     let mut view = ClientView::new(120);
@@ -1125,13 +1180,20 @@ fn pixel_format_reports_bounded_notice_instead_of_coordinates() {
         builder.finish()
     });
     pointer.event(&mut view, &mut port, now(), press(2, 2));
-    pointer.event(&mut view, &mut port, now(), press(4, 3));
-    // Nothing forwarded; the notice fired once per gesture.
-    assert!(port.forwarded.is_empty());
-    assert_eq!(
-        view.notice(),
-        Some(crate::client_view::Notice::PointerPixelsUnsupported)
+    pointer.event(
+        &mut view,
+        &mut port,
+        now(),
+        event(MouseAction::Motion, MouseButton::Left, 4, 3),
     );
+    pointer.event(
+        &mut view,
+        &mut port,
+        now(),
+        event(MouseAction::Release, MouseButton::Left, 4, 3),
+    );
+    assert_eq!(port.bytes(), b"\x1b[<0;3;2M\x1b[<32;5;3M\x1b[<0;5;3m");
+    assert_eq!(view.notice(), None);
 }
 
 /// A one-pane hit map whose pane is the focused incarnation.

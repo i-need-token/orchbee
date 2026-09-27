@@ -578,6 +578,7 @@ function localTerminalFrame(text: string, frameSequence: bigint): TerminalFrame 
 		generation: 1n,
 		hostEpoch: localHostEpoch,
 		interaction: {
+			alternateScroll: false,
 			applicationCursorKeys: false,
 			applicationKeypad: false,
 			bracketedPaste: false,
@@ -748,6 +749,7 @@ function terminalFrame(linkDetail: boolean, frameSequence = sequence): TerminalF
 		generation,
 		hostEpoch,
 		interaction: {
+			alternateScroll: false,
 			applicationCursorKeys: false,
 			applicationKeypad: false,
 			bracketedPaste: false,

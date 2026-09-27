@@ -42,7 +42,7 @@ impl History {
             let effect = core.nav(ViewportNav::Lines(lines));
             return self.apply(effect);
         }
-        if lines <= 0 {
+        if lines <= 0 || frame.alternate_screen || frame.scrollback_rows == 0 {
             return Ok(());
         }
         feedback(

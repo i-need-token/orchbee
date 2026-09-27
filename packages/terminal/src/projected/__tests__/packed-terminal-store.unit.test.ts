@@ -94,6 +94,7 @@ function presentationDecisionKey(result: ReturnType<PackedTerminalStore['apply']
 }
 
 const interaction = {
+	alternateScroll: false,
 	applicationCursorKeys: false,
 	applicationKeypad: false,
 	bracketedPaste: false,

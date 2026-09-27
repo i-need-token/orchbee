@@ -405,6 +405,7 @@ function terminalFrame(sequence: bigint): TerminalFrame {
 		generation: 1n,
 		hostEpoch,
 		interaction: {
+			alternateScroll: false,
 			applicationCursorKeys: false,
 			applicationKeypad: false,
 			bracketedPaste: false,

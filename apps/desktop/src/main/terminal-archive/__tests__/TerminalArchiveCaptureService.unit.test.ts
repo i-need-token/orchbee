@@ -441,6 +441,7 @@ function createFrame(scrollbackRows: bigint, rowTexts: readonly string[], sequen
 		generation: 3n,
 		hostEpoch: identity.hostEpoch,
 		interaction: {
+			alternateScroll: false,
 			applicationCursorKeys: false,
 			applicationKeypad: false,
 			bracketedPaste: false,

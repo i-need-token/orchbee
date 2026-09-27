@@ -19,7 +19,7 @@ Server 拥有 `PanelNode.Panel.rightClick`，主 Terminal 尚在启动时也属�
 `orchbee` 将右键保留给 Client。`panel` 允许无修饰键的右键按下事件在内容视口内，
 且程序启用鼠标上报、现有输入准入允许时透传。Shift 始终属于 Host。
 本契约建立路由，不新增上下文菜单或可配置的修饰键绕过。
-现有终端编码器拥有上报格式、坐标和不支持像素模式时的拒绝。
+现有终端编码器拥有上报格式、坐标和 cell 输入降级；见[鼠标输入](native-mouse-input.zh-CN.md)。
 
 ## 规范命令模型
 

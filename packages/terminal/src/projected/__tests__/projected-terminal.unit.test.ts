@@ -111,6 +111,7 @@ interface FakeMediaQueryList {
 }
 
 const interaction = {
+	alternateScroll: false,
 	applicationCursorKeys: false,
 	applicationKeypad: false,
 	bracketedPaste: false,

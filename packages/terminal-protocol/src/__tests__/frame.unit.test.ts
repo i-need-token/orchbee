@@ -75,6 +75,7 @@ function oneCellFrame() {
 		generation: 1n,
 		hostEpoch: '11111111111111111111111111111111',
 		interaction: {
+			alternateScroll: false,
 			applicationCursorKeys: false,
 			applicationKeypad: false,
 			bracketedPaste: false,

@@ -92,6 +92,7 @@ const style = {
 	underlineKind: UnderlineKind.none,
 } as const;
 const interaction = {
+	alternateScroll: false,
 	applicationCursorKeys: false,
 	applicationKeypad: false,
 	bracketedPaste: false,

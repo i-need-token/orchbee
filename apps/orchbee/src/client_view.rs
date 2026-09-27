@@ -120,10 +120,6 @@ pub(crate) enum Notice {
     /// A pointer gesture's queued input was dropped: the pending-focus
     /// queue overflowed or its bounded wait expired.
     PointerInputDropped,
-    /// The focused pane requested SGR pixel reports (`?1016`), which this
-    /// client does not encode — the event was dropped rather than
-    /// fabricating cell coordinates as pixels.
-    PointerPixelsUnsupported,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -329,12 +325,6 @@ impl ClientView {
     /// input was dropped and the user sees why.
     pub(crate) fn report_pointer_input_dropped(&mut self) {
         self.notice = Some(Notice::PointerInputDropped);
-    }
-
-    /// The pane requested pixel-format reports this client cannot encode;
-    /// reported once per gesture owner so the notice stays bounded.
-    pub(crate) fn report_pointer_pixels_unsupported(&mut self) {
-        self.notice = Some(Notice::PointerPixelsUnsupported);
     }
 
     /// Whether host pointer reporting is currently released (`Ctrl+B m` or

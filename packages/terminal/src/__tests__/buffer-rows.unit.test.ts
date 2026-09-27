@@ -117,6 +117,7 @@ describe('terminal buffer rows', () => {
 				generation: 1n,
 				hostEpoch: '11'.repeat(16),
 				interaction: {
+					alternateScroll: false,
 					applicationCursorKeys: false,
 					applicationKeypad: false,
 					bracketedPaste: false,

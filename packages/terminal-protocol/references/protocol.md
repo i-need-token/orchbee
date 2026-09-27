@@ -468,6 +468,13 @@ The frame begins with a fixed 160-byte header:
 | `145`  |     8 | Committed Host terminal-theme revision                                                             |
 | `153`  |     7 | Reserved zero                                                                                      |
 
+The interaction word uses bits 0–17 for the existing keyboard/mouse modes and bit 18 for
+Ghostty `mouse_alternate_scroll` (DEC 1007). The Host captures the complete word with each
+revision, including mode-only changes; deltas replace it. OBPB carries the same word at offset
+108, including inside render row windows. Bits 19–31 remain invalid. `alternateScroll` is a
+required typed Boolean; false is an observed mode, never a missing-field default. Update and
+roll back the complete development cohort under the current pre-release version policy.
+
 Variable sections follow in this exact order:
 
 1. Each string is `u32 byteLength` followed by strict UTF-8 bytes.

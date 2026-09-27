@@ -195,6 +195,23 @@ lifecycle and relay policy belong to Desktop and the SSH Runtime.
 
 `build.zig.zon` is the source dependency authority; `windows-conpty.json` owns the staged Windows binary dependency. The build rejects another Zig version or Ghostty archive content and does not read a sibling Ghostty checkout.
 
+### Windows control-signal inheritance
+
+Before publishing its endpoint or starting service workers, the Windows Host clears the inherited
+ignore-Ctrl+C attribute with `SetConsoleCtrlHandler(NULL, FALSE)`. This is one process-startup
+operation; failure aborts service admission. Version-only invocation does not change signal policy.
+A detached Site's new process group must not make every terminal child ignore Ctrl+C. The Host
+remains detached, and terminal Job containment is unchanged. No console attachment, signal broadcast,
+shell injection, per-spawn global toggle or input-byte-triggered process kill is involved.
+
+Children still own their console mode and handlers: processed input may interrupt a foreground
+command; raw input receives byte 3. The Host does not override a child's deliberate signal policy.
+The Windows black-box trace launches the real Host from a launcher that ignores Ctrl+C, waits for
+child callback readiness, sends the byte through the terminal protocol and requires actual signal
+handling before successful child exit. An input acknowledgement alone cannot satisfy that oracle.
+See Microsoft's [inherited handler attribute](https://learn.microsoft.com/windows/console/setconsolectrlhandler)
+and [new-process-group behavior](https://learn.microsoft.com/en-us/windows/win32/procthread/process-creation-flags).
+
 ### Windows observation transport runtime
 
 Windows x64 development cohorts stage Microsoft ConPTY `1.24.260710001` (Terminal

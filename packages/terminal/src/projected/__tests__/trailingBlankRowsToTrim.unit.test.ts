@@ -11,6 +11,7 @@ import type { ProjectedTerminalMetadata } from '../packed-terminal-store';
 import { trailingBlankRowsToTrim, type TrailingBlankRow } from '../trailingBlankRowsToTrim';
 
 const interaction: ProjectedTerminalMetadata['interaction'] = {
+	alternateScroll: false,
 	applicationCursorKeys: false,
 	applicationKeypad: false,
 	bracketedPaste: false,

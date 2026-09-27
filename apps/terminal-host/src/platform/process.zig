@@ -10,6 +10,8 @@ pub const Launch = process_types.Launch;
 pub const ExitResult = process_types.ExitResult;
 pub const ProcessSample = @import("process_sample.zig").Sample;
 pub const environmentVariableOwned = process_common.environmentVariableOwned;
+/// Windows Host startup clears inherited signal suppression before any child launch.
+pub const prepareWindowsTerminalChildren = windows_process.prepareTerminalChildren;
 
 pub fn sampleProcesses(process: *const Process, allocator: @import("std").mem.Allocator) @import("process_sample.zig").Error!ProcessSample {
     if (builtin.os.tag != .windows) return error.ProcessSampleUnsupported;

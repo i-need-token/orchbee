@@ -212,7 +212,6 @@ fn run_console(
                     PaneEncode::Bytes(bytes) => {
                         session.input(&bytes).map_err(|(failure, _)| failure)?;
                     }
-                    PaneEncode::PixelUnsupported => session.notice()?,
                     PaneEncode::Silent => {}
                 },
                 input::Action::Focus(focused) => session.focus(focused)?,

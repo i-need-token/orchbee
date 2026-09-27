@@ -134,6 +134,21 @@ generic command authority；remote lifecycle 与 relay policy 归 Desktop 和 SS
 
 `build.zig.zon` 是源码依赖权威；`windows-conpty.json` 是 Windows 二进制运行时的固定值权威。该构建拒绝另一个 Zig 版本或 Ghostty 存档内容，并且不读取同级 Ghostty 签出。
 
+### Windows 控制信号继承
+
+Windows Host 在发布端点或启动服务工作者之前，通过 `SetConsoleCtrlHandler(NULL, FALSE)`
+清除继承的忽略 Ctrl+C 属性。这是一次进程启动操作，失败则拒绝服务准入；仅查询版本时
+不修改信号策略。分离运行的 Site 所创建的新进程组，不能让所有终端子进程都忽略 Ctrl+C。
+Host 仍保持分离运行，终端 Job 包含关系不变。不附着调用者控制台、不广播信号、不向 shell
+注入命令、不在每次创建进程时切换全局状态，也不根据输入字节直接终止进程。
+
+子进程仍拥有自己的控制台模式与处理器：processed input 可以中断前台命令，raw input
+接收字节 3。Host 不覆盖子进程主动选择的信号策略。Windows 黑盒流程从忽略 Ctrl+C 的
+启动器创建真实 Host，等待子进程回调就绪，经终端协议发送该字节，并要求实际处理信号后
+子进程成功退出。仅有输入确认不能满足该判据。参见 Microsoft 的
+[可继承处理器属性](https://learn.microsoft.com/windows/console/setconsolectrlhandler)和
+[新进程组行为](https://learn.microsoft.com/en-us/windows/win32/procthread/process-creation-flags)。
+
 ### Windows observation 传输运行时
 
 Windows x64 开发 cohort 随 Host 暂存 Microsoft ConPTY `1.24.260710001`

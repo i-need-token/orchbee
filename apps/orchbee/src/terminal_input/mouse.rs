@@ -8,9 +8,9 @@
 //! The encode side is a cell-coordinate port of the Host's pixel-space
 //! pipeline (pinned ghostty-vt `mouse_encode.zig` plus the `input_encoding`
 //! extended-button remap): same input facts, same bytes, because a cell
-//! coordinate is the cell every pixel inside it maps to. SGR pixel
-//! reporting (`?1016`) is deliberately absent — the pane receives the
-//! bounded `PixelUnsupported` marker instead of fabricated coordinates.
+//! coordinate is the cell every pixel inside it maps to. Cell-only input
+//! uses SGR cell fallback when the pane requests pixel reporting (`?1016`),
+//! matching Herdr. This owner never invents an exact pixel position.
 
 use crate::client_view::Modifiers;
 use orchbee_terminal_protocol::{MouseFormat, MouseTracking};
@@ -75,10 +75,6 @@ pub(crate) enum PaneEncode {
     Bytes(Vec<u8>),
     /// The event produced no report under this tracking/format contract.
     Silent,
-    /// The pane requested SGR pixel reports (`?1016`), which M1 does not
-    /// implement — the adapter shows a bounded notice rather than
-    /// fabricating cell coordinates as pixels.
-    PixelUnsupported,
 }
 
 /// Matches the Host's `max_mouse_bytes` bound.
@@ -218,13 +214,13 @@ pub(crate) enum PointerOwner {
 }
 
 /// The §5.1 ownership rule: any tracking mode gives the pane the event;
-/// without tracking only the alternate-screen wheel fallback does
+/// without tracking only the alternate-screen DEC 1007 wheel fallback does
 /// (cursor-key form); everything else is Client territory. Shift-modified
 /// reports are host-owned regardless.
 pub(crate) fn pane_owns_pointer(
     tracking: MouseTracking,
     event: &MouseEvent,
-    alternate_screen: bool,
+    alternate_scroll: bool,
 ) -> PointerOwner {
     if event.mods.shift {
         return PointerOwner::Host;
@@ -232,7 +228,7 @@ pub(crate) fn pane_owns_pointer(
     if tracking != MouseTracking::None {
         return PointerOwner::Pane;
     }
-    if alternate_screen && matches!(event.button, MouseButton::WheelUp | MouseButton::WheelDown) {
+    if alternate_scroll && matches!(event.button, MouseButton::WheelUp | MouseButton::WheelDown) {
         return PointerOwner::Pane;
     }
     PointerOwner::Client
@@ -245,8 +241,8 @@ pub(crate) fn pane_owns_pointer(
 /// the current event" contract — and `last_cell` carries the motion dedup
 /// state (updated on every reported event, read only for motion).
 ///
-/// Returns `PixelUnsupported` for SGR pixel format and `Silent` whenever
-/// the contract produces no report — tracking gate misses, unencodable
+/// Cell-only events use SGR cell encoding for a pixel-format request.
+/// Returns `Silent` when the contract produces no report — tracking gate misses, unencodable
 /// buttons, out-of-range legacy coordinates, and same-cell motion.
 pub(crate) fn encode_pane_report(
     event: &PaneMouseEvent,
@@ -256,9 +252,6 @@ pub(crate) fn encode_pane_report(
     any_button_pressed: bool,
     last_cell: &mut Option<(u16, u16)>,
 ) -> PaneEncode {
-    if format == MouseFormat::SgrPixels {
-        return PaneEncode::PixelUnsupported;
-    }
     if !should_report(event, tracking) {
         return PaneEncode::Silent;
     }
@@ -307,7 +300,7 @@ pub(crate) fn encode_pane_report(
             push_utf8(&mut out, u32::from(cell.1) + 33);
             out
         }
-        MouseFormat::Sgr => {
+        MouseFormat::Sgr | MouseFormat::SgrPixels => {
             let final_byte = if event.action == MouseAction::Release {
                 b'm'
             } else {
@@ -328,7 +321,6 @@ pub(crate) fn encode_pane_report(
             cell.1 + 1
         )
         .into_bytes(),
-        MouseFormat::SgrPixels => unreachable!("pixel format returns early"),
     };
     debug_assert!(bytes.len() <= MAX_PANE_MOUSE_BYTES);
     PaneEncode::Bytes(bytes)

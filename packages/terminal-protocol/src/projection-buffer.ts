@@ -77,7 +77,7 @@ const MAX_UINT32 = 0xffff_ffff;
 const MAX_UINT64 = 0xffff_ffff_ffff_ffffn;
 const COLOR_RGB_MASK = TerminalColorEncoding.rgbMask;
 const CURSOR_FLAGS_MASK = 0b111;
-const INTERACTION_FLAGS_MASK = 0x0003_ffff;
+const INTERACTION_FLAGS_MASK = 0x0007_ffff;
 const ROW_FLAGS_MASK = TerminalRowFlag.wrap | TerminalRowFlag.wrapContinuation;
 const STYLE_FLAGS_MASK = 0x00ff;
 const SECTION_ELEMENT_BYTES = [2, 1, 1, 4, 2, 4, 2, 4, 4, 4, 2, 1, 1, 1, 1, 1] as const;
@@ -348,7 +348,8 @@ function interactionFlags(interaction: TerminalInteraction): number {
 		(interaction.kittyReportEventTypes ? 1 << 14 : 0) |
 		(interaction.kittyReportAlternateKeys ? 1 << 15 : 0) |
 		(interaction.kittyReportAllKeysAsEscapeCodes ? 1 << 16 : 0) |
-		(interaction.kittyReportAssociatedText ? 1 << 17 : 0)
+		(interaction.kittyReportAssociatedText ? 1 << 17 : 0) |
+		(interaction.alternateScroll ? 1 << 18 : 0)
 	);
 }
 
@@ -365,6 +366,7 @@ function interactionFromFlags(flags: number): ProtocolResult<TerminalInteraction
 		return protocolFailure(ProtocolErrorCode.invalidField, 'Projection mouse modes conflict');
 	}
 	return protocolSuccess({
+		alternateScroll: (flags & (1 << 18)) !== 0,
 		applicationCursorKeys: (flags & 1) !== 0,
 		applicationKeypad: (flags & (1 << 1)) !== 0,
 		bracketedPaste: (flags & (1 << 2)) !== 0,

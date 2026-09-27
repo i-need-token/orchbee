@@ -69,11 +69,12 @@ vocabulary; a region may implement a subset.
 ## Passthrough
 
 - A pane's program owns the pointer inside that pane's viewport while it has enabled any pointer
-  reporting mode, or while it uses the alternate screen and the gesture is a wheel movement.
+  reporting mode, or while it uses the alternate screen with DEC 1007 enabled and the gesture is a wheel movement.
 - Forwarded events are translated to pane-local coordinates and re-encoded in the mode the program
   requested. Events outside the viewport are never forwarded.
 - Wheel movement over an alternate-screen program that does not report the mouse is forwarded as
-  arrow-key presses, three per tick by default, so pagers and editors scroll.
+  arrow-key presses only while DEC 1007 is enabled, three per tick by default. Disabling the mode
+  ends queued arrow work and returns subsequent wheel movement to the Client.
 - Focus changes caused by a press are Client-local and happen before forwarding.
 - A pane boundary and every chrome region belong to the Client regardless of the program's
   reporting state.

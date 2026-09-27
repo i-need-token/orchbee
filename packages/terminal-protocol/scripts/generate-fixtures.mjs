@@ -1945,7 +1945,7 @@ function packedProjectionConformanceCorpus(
 			offset: rowFlags + 1,
 		},
 		{
-			bytes: [0x8d, 0x62, 0x04, 0x00],
+			bytes: [0x8d, 0x62, 0x08, 0x00],
 			code: 'unknown-required-flag',
 			name: 'obpb-interaction-unknown-required-flag',
 			offset: 108,

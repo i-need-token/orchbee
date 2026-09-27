@@ -166,3 +166,47 @@ fn console_flush_gates_ack_and_paste_keeps_semantic_authority()
     }
     Ok(())
 }
+
+#[test]
+fn cell_pointer_fallback_obeys_validated_geometry_and_mode_changes()
+-> Result<(), Box<dyn std::error::Error>> {
+    let mut bytes = SNAPSHOT.to_vec();
+    // Any-event tracking with SGR pixel format. The source frame has a
+    // deliberately different geometry from the initial controller size.
+    bytes[100..104].copy_from_slice(&0x880u32.to_le_bytes());
+    let frame = orchbee_terminal_protocol::decode_terminal_text_frame(&bytes)?;
+    let geometry = Geometry::new(frame.geometry.columns, frame.geometry.rows, 0, 0)?;
+    let mouse = MouseEvent {
+        action: MouseAction::Motion,
+        button: MouseButton::Left,
+        mods: crate::client_view::Modifiers::NONE,
+        column: 1,
+        row: 1,
+    };
+    let mut pointer = Pointer::default();
+    assert_eq!(pointer.encode(mouse, None, geometry), PaneEncode::Silent);
+    let resized = Geometry::new(geometry.columns() + 1, geometry.rows(), 0, 0)?;
+    assert_eq!(
+        pointer.encode(mouse, Some(&frame), resized),
+        PaneEncode::Silent
+    );
+    assert_eq!(
+        pointer.encode(mouse, Some(&frame), geometry),
+        PaneEncode::Bytes(b"\x1b[<32;2;2M".to_vec())
+    );
+    assert_eq!(
+        pointer.encode(mouse, Some(&frame), geometry),
+        PaneEncode::Silent
+    );
+    bytes[100..104].copy_from_slice(&0u32.to_le_bytes());
+    let off = orchbee_terminal_protocol::decode_terminal_text_frame(&bytes)?;
+    assert_eq!(
+        pointer.encode(mouse, Some(&off), geometry),
+        PaneEncode::Silent
+    );
+    assert_eq!(
+        pointer.encode(mouse, Some(&frame), geometry),
+        PaneEncode::Bytes(b"\x1b[<32;2;2M".to_vec())
+    );
+    Ok(())
+}

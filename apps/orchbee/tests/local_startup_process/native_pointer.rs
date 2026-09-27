@@ -728,8 +728,8 @@ fn native_tui_mouse_off_starts_released_and_ctrl_b_m_rearms() -> TestResult {
 
 /// A host PTY reporting zero pixel geometry is a real admitted terminal:
 /// cell-addressed reports still encode with exact pane-local coordinates,
-/// and a pane asking for pixel reports (`?1016h`) gets the bounded
-/// unsupported notice — never fabricated pixel coordinates.
+/// including the SGR cell fallback for a pane asking for pixel reports
+/// (`?1016h`). Exact pixel positions are never fabricated.
 #[test]
 fn native_pointer_unknown_pixel_geometry_keeps_cell_input() -> TestResult {
     let _guard = process_witness_guard();
@@ -769,9 +769,8 @@ fn native_pointer_unknown_pixel_geometry_keeps_cell_input() -> TestResult {
         "click on ORCL at pane-local (4,3) under zero pixel geometry: {bytes:?}"
     );
 
-    // `?1016h` asks for pixel-format reports: the next press drops with
-    // the bounded notice instead of fabricating pixel coordinates. The
-    // recorder switch uses the same deterministic handoff as the main
+    // `?1016h` asks for pixel format: the next click still uses the cell
+    // fallback. The recorder switch uses the same handoff as the main
     // test — SIGTERM the pinned cat, require its pidfd exit plus the
     // parent shell's fresh completion marker, then send once into a
     // shell proven alive.
@@ -785,25 +784,20 @@ fn native_pointer_unknown_pixel_geometry_keeps_cell_input() -> TestResult {
         &fixture,
         "pixel.log",
         "\\033[?1016h",
-        None,
+        Some((4, 5)),
         "RECX",
         "ENDX",
     ));
     client.wait_frame_text_after(checkpoint, deadline, &["RECX"], &[], &[], &mut []);
     let _pixel = RecorderProcess::pin(&mut client, &fixture, "pixel.log", deadline);
     let (x, y) = client.cell_position("RECX");
-    let checkpoint = client.checkpoint();
     client.send(&host_sgr(0, x, y, false));
-    client.wait_any_text_after(
-        checkpoint,
-        deadline,
-        "pixel-format unsupported notice",
-        &["pixel mouse reports"],
-    );
-    thread::sleep(Duration::from_millis(75));
-    assert!(
-        !fs::read_to_string(&pixel_log)?.contains("\x1b[<"),
-        "pixel-format click forwarded a report"
+    client.send(&host_sgr(0, x, y, true));
+    let bytes = wait_file_containing(&pixel_log, "m", &mut [&mut client], deadline);
+    assert_eq!(
+        sgr_reports(&bytes)[..],
+        [(0, 5, 4, false), (0, 5, 4, true)],
+        "pixel request keeps cell fallback at pane-local (5,4): {bytes:?}"
     );
 
     let checkpoint = client.checkpoint();

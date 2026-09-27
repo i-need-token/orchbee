@@ -365,8 +365,39 @@ fn scroll_uses_crossterm_modifiers_and_routes_shell_pages_mouse_and_alternate_sc
         ScrollEffect::Input(b"\x1b[<68;2;2M".to_vec())
     );
     assert_eq!(
-        scroll_effect(&frame(1, true), scroll, false),
+        scroll_effect(&frame((1 << 18) | 1, true), scroll, false),
         ScrollEffect::Input(b"\x1bOA".to_vec())
+    );
+    // DEC 1007 is independent of cursor mode. Disabled never emits arrows;
+    // tracking and an already active history view keep their own routing.
+    for cursor in [0, 1] {
+        assert_eq!(
+            scroll_effect(&frame(cursor, true), scroll, false),
+            ScrollEffect::History(80)
+        );
+        assert_eq!(
+            scroll_effect(&frame((1 << 18) | cursor, false), scroll, false),
+            ScrollEffect::History(80)
+        );
+        assert_eq!(
+            scroll_effect(&frame((1 << 18) | cursor, true), scroll, true),
+            ScrollEffect::History(80)
+        );
+    }
+    assert_eq!(
+        scroll_effect(
+            &frame(1 << 18, true),
+            input::Scroll {
+                direction: input::Direction::Down,
+                ..scroll
+            },
+            false
+        ),
+        ScrollEffect::Input(b"\x1b[B".to_vec())
+    );
+    assert_eq!(
+        scroll_effect(&frame((1 << 18) | 0x220, true), scroll, false),
+        ScrollEffect::Input(b"\x1b[<92;1;1M".to_vec())
     );
     let page = input::Scroll {
         source: input::ScrollSource::PageKey,
@@ -386,7 +417,7 @@ fn scroll_uses_crossterm_modifiers_and_routes_shell_pages_mouse_and_alternate_sc
     );
     assert_eq!(
         scroll_effect(&frame(0x820, false), scroll, false),
-        ScrollEffect::Rejected("pixel-mouse-unavailable")
+        ScrollEffect::Input(b"\x1b[<92;1;1M".to_vec())
     );
     Ok(())
 }

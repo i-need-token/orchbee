@@ -326,6 +326,7 @@ function terminalFrame(
 		generation,
 		hostEpoch,
 		interaction: {
+			alternateScroll: false,
 			applicationCursorKeys: false,
 			applicationKeypad: false,
 			bracketedPaste: false,

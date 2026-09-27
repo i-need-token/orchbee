@@ -169,7 +169,7 @@ pub fn validateTerminalFrame(
     {
         return error.InvalidField;
     }
-    if (interaction_flags & ~@as(u32, 0x0003ffff) != 0) return error.UnknownRequiredFlag;
+    if (interaction_flags & ~@as(u32, 0x0007ffff) != 0) return error.UnknownRequiredFlag;
     if (@popCount(interaction_flags & 0x000000f0) > 1 or
         @popCount(interaction_flags & 0x00000f00) > 1)
     {

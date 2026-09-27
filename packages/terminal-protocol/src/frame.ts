@@ -42,7 +42,7 @@ const CURSOR_FLAGS_MASK = 0b111;
 const ROW_FLAGS_MASK = 0b11;
 const CELL_FLAGS_MASK = 0b1_1111;
 const STYLE_FLAGS_MASK = 0x00ff;
-const INTERACTION_FLAGS_MASK = 0x0003_ffff;
+const INTERACTION_FLAGS_MASK = 0x0007_ffff;
 
 export const TerminalFrameKind = {
 	delta: 'delta',
@@ -210,6 +210,7 @@ export const TerminalColorSchema = z.discriminatedUnion('kind', [
 ]);
 
 export const TerminalInteractionSchema = z.strictObject({
+	alternateScroll: z.boolean(),
 	applicationCursorKeys: z.boolean(),
 	applicationKeypad: z.boolean(),
 	bracketedPaste: z.boolean(),
@@ -759,7 +760,8 @@ function interactionFlags(interaction: TerminalInteraction): number {
 		(interaction.kittyReportEventTypes ? 1 << 14 : 0) |
 		(interaction.kittyReportAlternateKeys ? 1 << 15 : 0) |
 		(interaction.kittyReportAllKeysAsEscapeCodes ? 1 << 16 : 0) |
-		(interaction.kittyReportAssociatedText ? 1 << 17 : 0)
+		(interaction.kittyReportAssociatedText ? 1 << 17 : 0) |
+		(interaction.alternateScroll ? 1 << 18 : 0)
 	);
 }
 
@@ -779,6 +781,7 @@ function interactionFromFlags(flags: number): ProtocolResult<TerminalInteraction
 		);
 	}
 	return protocolSuccess({
+		alternateScroll: (flags & (1 << 18)) !== 0,
 		applicationCursorKeys: (flags & 1) !== 0,
 		applicationKeypad: (flags & (1 << 1)) !== 0,
 		bracketedPaste: (flags & (1 << 2)) !== 0,

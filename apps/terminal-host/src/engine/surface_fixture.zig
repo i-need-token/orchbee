@@ -38,7 +38,7 @@ const corpus = "\x1b[?2027h\x1b[?25l\x1b]10;rgb:d8/de/e9\x1b\\" ++
 // This is applied to the same Ghostty terminal and Projection after the primary
 // snapshot. Every asserted metadata field changes in the same terminal mutation;
 // the paired runtime regression proves that 1049 advances the Host generation.
-const alternate_corpus = "\x1b[?1049h" ++
+const alternate_corpus = "\x1b[?1049h\x1b[?1007l" ++
     "\x1b]2;Orchbee alternate\x1b\\" ++
     "\x1b]7;file:///workspace/alternate\x1b\\" ++
     "\x1b[5 q\x1b[?25h\x1b[?1l\x1b>" ++

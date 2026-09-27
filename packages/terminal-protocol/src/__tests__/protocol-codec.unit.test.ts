@@ -60,6 +60,7 @@ const packedProjectionConformanceFixtureUrl = new URL(
 
 function emptyInteraction() {
 	return {
+		alternateScroll: false,
 		applicationCursorKeys: false,
 		applicationKeypad: false,
 		bracketedPaste: false,

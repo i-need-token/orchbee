@@ -76,7 +76,7 @@ Modal 输入捕获（draft 或已 arm 的确认）吞掉指针事件而不产生
 ## Pane 透传
 
 - 当当前帧报告任一 tracking 模式时，pane 程序拥有其 content 视口内的指针事件，外加下文
-  的备用屏幕滚轮回退。帧事实——tracking、format、cell 几何、备用屏幕、application-cursor
+  的备用屏幕滚轮回退。帧事实——tracking、format、cell 几何、备用屏幕、DEC 1007、application-cursor
   模式——来自最新已验证帧的可信 `TerminalInteraction`，每个事件重新探测。
 - 被转发的事件按绘制的 content 原点平移为 pane-local 坐标，并由唯一 owner 按该 pane
   请求的 tracking × format 重新编码：X10 只报 press；Normal 报除 motion 外的一切；
@@ -84,8 +84,10 @@ Modal 输入捕获（draft 或已 arm 的确认）吞掉指针事件而不产生
   motion 去重；视口外的非 release 事件仅在 motion tracking 且有按住时上报并夹到边缘
   cell；legacy `Default` 格式拒绝超过 222 的坐标而不回绕；`Utf8` 把坐标编码为
   codepoint；SGR 使用 `M`/`m` 结尾；URXVT 使用其十进制形式。
-- `SgrPixels`（`?1016`）请求被拒绝：pane 收不到任何内容，Client 每个手势报告一次有界
-  本地化说明，且绝不伪造像素坐标——包括伪造的 cell 中心。
+- 仅有 cell 坐标的输入，即使 pane 请求 `SgrPixels`（`?1016`），也按 SGR cell 编码，
+  与 Herdr 的 cell 降级一致。tracking、修饰键、release 按钮身份、夹取和 motion 去重
+  保持普通 SGR 规则。这不提供精确像素输入，也不推测 cell 中心；宿主捕获仍以 cell
+  为单位，绝不开启 `?1016`。
 - 字节投递复用既有 `forward` 路径，因此 `Controlling` 检查、只读拒绝与确认语义不变。
   `ReadOnly` attachment 丢弃指针输入而不隐式 acquire。对当前无法为本 Client 准入输入的
   pane 的新未聚焦 press 当场裁决——既包括裁决已就绪的 `ReadOnly`，也包括 mode 尚未在
@@ -96,10 +98,12 @@ Modal 输入捕获（draft 或已 arm 的确认）吞掉指针事件而不产生
 
 ## 滚轮回退
 
-在程序不上报 tracking 的备用屏幕 pane 上，滚轮 notch 编码为方向键按下——每个 notch 三
+在程序不上报 tracking 且开启 DEC 1007 的备用屏幕 pane 上，滚轮 notch 编码为方向键按下——每个 notch 三
 次，使用该 pane 的 application-cursor 形式（`ESC O A` 对 `ESC [ A`）。per-pane 流为突发
 设界：方向反转清掉排队余量并丢弃该 notch，每次 flush 至多发出一屏方向键，发现队列为空
-的 tick 关闭该流，使下一个 notch 重新开始。Primary 屏幕滚轮历史回看属于后续切片。
+的 tick 关闭该流，使下一个 notch 重新开始。每次 flush 都按最新帧复核转发条件；关闭
+DEC 1007、离开备用屏幕、开启 tracking 或进入历史会丢弃排队的方向键。DEC 1007 关闭时，
+备用屏幕滚轮事件不发送应用输入。Primary 屏幕滚轮历史回看属于后续切片。
 
 ## 不变式与时序规则
 
@@ -114,8 +118,8 @@ Modal 输入捕获（draft 或已 arm 的确认）吞掉指针事件而不产生
 - `ReleaseNeverCrossesPress`：pending-focus 输入按 FIFO 放行——release 绝不先于其 press
   被投递，取消丢弃整个队列而不重排。
 - `FocusIsClientLocal`：press 引起的焦点变化先于任何到达 pane 的字节生效。
-- `NeverFabricate`：pixel 请求以说明拒绝；未知 cell 几何同样门控 pane 透传而不伪造
-  中心。
+- `NeverFabricate`：cell 事件经 SGR 降级后仍使用 cell 地址。不从 cell 或未知宿主
+  像素几何推算精确像素位置。
 - `PendingKeysFirst`：dispatcher 先 flush 已接受的 pending 键字节再处理指针事件，鼠标
   报告绝不插到更早的键盘输入之前；畸形或中止的鼠标形态序列（`DecodedKind::Ignored`）被
   原子消费——绝不退化为按键，其原始字节也绝不转发给 pane。无关的未知 CSI 保留兼容透传
@@ -143,18 +147,22 @@ Modal 输入捕获（draft 或已 arm 的确认）吞掉指针事件而不产生
 
 ## 验证
 
+以下 Unix PTY 测试维护共享契约，不构成 Windows 运行证据。Windows cell 降级由编码器、
+指针及 attach 回归，以及[终端流](windows-terminal-streams.zh-CN.md)记录的打包
+control/attach 字节实测覆盖。
+
 | 表面                    | 证据                                                                                                                                                                                                                                                                                            |
 | ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 解码                    | `terminal_input/mouse/tests` SGR/X10 表——press/release/motion/wheel/修饰、跨 chunk 原子性、畸形拒绝且不退化为按键；`terminal_input/decoder/tests`——合法 SGR/X10 item、X10 分片喂入、超时 drain、ESC/C1 中止、畸形 body、越界运行、与按键/粘贴交错——所有鼠标形态畸形字节均为 `Ignored`           |
-| 编码契约                | `encode_pane_report` 覆盖每个 tracking × format 单元的表行、release 结尾、去重、夹取、legacy 上界与 pixel 拒绝                                                                                                                                                                                  |
+| 编码契约                | `encode_pane_report` 覆盖每个 tracking × format 单元的表行、release 结尾、去重、夹取、legacy 上界与 SGR cell 降级                                                                                                                                                                               |
 | Hit map                 | `tui_pointer/tests` 层序、边缘/外侧 cell、overlay 捕获与 backdrop 关闭——包括落在未遮盖 tab 条与 pane 上的外点 press 既不选择也不转发、stale-map 丢弃                                                                                                                                            |
 | 手势与 pending focus    | `tui_pointer/tests` press/release 顺序、队列上界与溢出取消、超时、orphan、只读、目标移动拒绝、settled 无帧等待与按事实准入                                                                                                                                                                      |
 | dispatcher 端口写       | `terminal_input/dispatcher/tests`——畸形 SGR/X10 与中止/超时鼠标运行产生零转发字节，而普通按键、粘贴与无关未知 CSI 按序透传                                                                                                                                                                      |
 | 滚轮流                  | `tui_pointer/tests` 每 notch 三次、每次一屏上限、反转清零、排空后关闭                                                                                                                                                                                                                           |
 | 捕获生命周期            | `terminal_lifecycle/tests` 租约配对与恢复；dispatcher `Ctrl+B m` 切换测试；状态指示                                                                                                                                                                                                             |
 | CLI                     | `invocation/tests` `tui --mouse` 值准入、裸调用/其他族拒绝、`--format` 拒绝；`cli/completion` 脚本                                                                                                                                                                                              |
-| 真实 PTY（Legacy 接缝） | `tui_shell/connected_tests::real_tui_routes_pointer_reports_to_the_reporting_pane_and_restores_modes`——记录的 pane-local SGR 字节、pane-local 平移、只读丢弃、pixel 拒绝、滚轮转方向键、捕获切换、模式恢复                                                                                      |
-| 真实 PTY（公开 Native） | `tests/local_startup_process/native_pointer.rs`——真实 PTY 上 spawn 的 `orchbee` 二进制：捕获 arm、X10 与 SGR pane-local 报告、未聚焦 pane 点击聚焦与排队放行、只读拒绝、滚轮转方向键、`Ctrl+B m`、`--mouse off`、退出恢复，以及零像素宿主几何下 cell 寻址报告仍可用、`?1016` 仍获有界不支持通知 |
+| 真实 PTY（Legacy 接缝） | `tui_shell/connected_tests::real_tui_routes_pointer_reports_to_the_reporting_pane_and_restores_modes`——记录的 pane-local SGR 字节、pane-local 平移、只读丢弃、SGR cell 降级、滚轮转方向键、捕获切换、模式恢复                                                                                   |
+| 真实 PTY（公开 Native） | `tests/local_startup_process/native_pointer.rs`——真实 PTY 上 spawn 的 `orchbee` 二进制：捕获 arm、X10 与 SGR pane-local 报告、未聚焦 pane 点击聚焦与排队放行、只读拒绝、滚轮转方向键、`Ctrl+B m`、`--mouse off`、退出恢复，以及零像素宿主几何下 cell 寻址报告仍可用、`?1016` 使用 SGR cell 降级 |
 
 ## 共享右键策略
 

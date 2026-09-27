@@ -319,7 +319,7 @@ fn contract_rows() {
     // 16. Wheel → cursor arrows: three per tick, SS3 vs CSI.
     assert_eq!(encode_cursor_arrows(true, 3, true), b"\x1bOA\x1bOA\x1bOA");
     assert_eq!(encode_cursor_arrows(false, 3, false), b"\x1b[B\x1b[B\x1b[B");
-    // 17. sgr_pixels is never encoded — the unsupported marker, always.
+    // 17. Cell input uses the Herdr SGR fallback even in pixel format.
     assert_eq!(
         encode(
             &event(MouseAction::Press, Some(MouseButton::Left), 0, 0),
@@ -327,7 +327,7 @@ fn contract_rows() {
             MouseFormat::SgrPixels,
             &mut last
         ),
-        PaneEncode::PixelUnsupported
+        PaneEncode::Bytes(b"\x1b[<0;1;1M".to_vec())
     );
 }
 
@@ -437,5 +437,62 @@ fn ownership_follows_interaction_and_shift() {
     assert_eq!(
         pane_owns_pointer(MouseTracking::None, &shifted, false),
         PointerOwner::Host
+    );
+}
+
+#[test]
+fn pixel_request_preserves_cell_fallback_tracking_release_and_dedup() {
+    // Pinned Herdr's independent cell oracle: cell (4,6) produces (5,7),
+    // not its separately tested exact pixel position (48,139).
+    let mut last = None;
+    let hover = event(MouseAction::Motion, None, 4, 6);
+    assert_eq!(
+        bytes(encode(
+            &hover,
+            MouseTracking::Any,
+            MouseFormat::SgrPixels,
+            &mut last
+        )),
+        b"\x1b[<35;5;7M"
+    );
+    assert_eq!(
+        encode(
+            &hover,
+            MouseTracking::Any,
+            MouseFormat::SgrPixels,
+            &mut last
+        ),
+        PaneEncode::Silent
+    );
+    let mut release = event(MouseAction::Release, Some(MouseButton::Right), 4, 6);
+    release.mods = Modifiers::NONE.with_ctrl().with_alt();
+    assert_eq!(
+        bytes(encode(
+            &release,
+            MouseTracking::Normal,
+            MouseFormat::SgrPixels,
+            &mut last
+        )),
+        b"\x1b[<26;5;7m"
+    );
+    for tracking in [
+        MouseTracking::None,
+        MouseTracking::X10,
+        MouseTracking::Normal,
+        MouseTracking::Button,
+    ] {
+        assert_eq!(
+            encode(&hover, tracking, MouseFormat::SgrPixels, &mut None),
+            PaneEncode::Silent
+        );
+    }
+    assert_eq!(
+        bytes(encode(
+            &event(MouseAction::Release, Some(MouseButton::Left), 200, -1),
+            MouseTracking::Any,
+            MouseFormat::SgrPixels,
+            &mut None
+        )),
+        b"\x1b[<0;80;1m"
     );
 }

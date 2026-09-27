@@ -87,6 +87,11 @@ impl TerminalInteraction {
         self.0 & (1 << 2) != 0
     }
 
+    /// DEC 1007 alternate-screen wheel-to-cursor mode (wire bit 18).
+    pub const fn alternate_scroll(self) -> bool {
+        self.0 & (1 << 18) != 0
+    }
+
     /// Focus reporting (wire bit 3), captured with the same screen revision.
     pub const fn focus_reporting(self) -> bool {
         self.0 & (1 << 3) != 0
@@ -181,7 +186,7 @@ pub fn decode_terminal_text_frame(bytes: &[u8]) -> Result<TerminalTextFrame, Pro
         || cursor_row >= row_count
         || !(1..=3).contains(&cursor_shape)
         || !(1..=2).contains(&screen)
-        || interaction & !0x3ffff != 0
+        || interaction & !0x7ffff != 0
         || ((interaction >> 4) & 15).count_ones() > 1
         || ((interaction >> 8) & 15).count_ones() > 1
         || foreground > 0xffffff

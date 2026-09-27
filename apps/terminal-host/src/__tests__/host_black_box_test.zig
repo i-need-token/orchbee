@@ -131,6 +131,7 @@ const Session = struct {
     exit_seen: bool = false,
     host_epoch: [16]u8,
     started_seen: bool = false,
+    control_ready: bool = false,
     terminal_id: ?[16]u8 = null,
     trace: *Trace,
 
@@ -213,6 +214,15 @@ const Session = struct {
         }
     }
 
+    fn awaitControlReady(self: *Session) !void {
+        while (!self.control_ready) {
+            var incoming = try OwnedEnvelope.read(self.allocator, self.client);
+            defer incoming.deinit();
+            if (!incoming.summary.event) return error.UnexpectedResponseEnvelope;
+            try self.observeEvent(incoming.summary);
+        }
+    }
+
     fn observeEvent(self: *Session, envelope: protocol.EnvelopeSummary) !void {
         if (envelope.host_epoch == null or
             !std.mem.eql(u8, &envelope.host_epoch.?, &self.host_epoch))
@@ -268,6 +278,9 @@ const Session = struct {
                 }
                 // Metadata is orthogonal to the lifecycle trace and cannot
                 // satisfy either its Started or its drained-successful-exit oracle.
+                if (metadata.value.title) |title| {
+                    if (std.mem.eql(u8, title, "orchbee-control-ready")) self.control_ready = true;
+                }
             },
             protocol.MessageKind.terminal_exited => {
                 const notice = try std.json.parseFromSlice(
@@ -326,10 +339,11 @@ pub fn main(init: std.process.Init) !void {
     const allocator = allocator_state.allocator();
     const arguments = try init.minimal.args.toSlice(init.arena.allocator());
     if (arguments.len != 2) return error.InvalidArguments;
-    try runTrace(init.io, allocator, arguments[1]);
+    try runTrace(init.io, allocator, arguments[1], false);
+    if (builtin.os.tag == .windows) try runTrace(init.io, allocator, arguments[1], true);
 }
 
-fn runTrace(io: std.Io, allocator: std.mem.Allocator, host_executable: []const u8) !void {
+fn runTrace(io: std.Io, allocator: std.mem.Allocator, host_executable: []const u8, comptime interrupt: bool) !void {
     var runtime_directory = try black_box_transport.RuntimeDirectory.init(allocator);
     defer runtime_directory.deinit();
     var endpoint_bytes: [16]u8 = undefined;
@@ -349,10 +363,16 @@ fn runTrace(io: std.Io, allocator: std.mem.Allocator, host_executable: []const u
     const linux_host_arguments = [_][]const u8{
         "/bin/sh", "-c", "exec 9>\"$1\"; shift; exec \"$@\"", "orchbee-host-launch-fixture", inherited_file,
     } ++ host_arguments;
-    var child = try std.process.spawn(io, .{
-        .argv = if (builtin.os.tag == .linux) &linux_host_arguments else &host_arguments,
-        .stdin = .ignore,
-    });
+    var child = spawn: {
+        // This single-purpose launcher changes only its own inherited flag;
+        // the real Host must clear the child's copy before terminal creation.
+        if (interrupt) try WindowsControl.ignore(true);
+        defer if (interrupt) WindowsControl.ignore(false) catch @panic("signal fixture restore failed");
+        break :spawn try std.process.spawn(io, .{
+            .argv = if (builtin.os.tag == .linux) &linux_host_arguments else &host_arguments,
+            .stdin = .ignore,
+        });
+    };
     var child_reaped = false;
     defer if (!child_reaped) child.kill(io);
 
@@ -390,7 +410,7 @@ fn runTrace(io: std.Io, allocator: std.mem.Allocator, host_executable: []const u
         .trace = &trace,
     };
 
-    const shell = try shellCommand(allocator);
+    const shell = if (interrupt) try controlShellCommand(allocator) else try shellCommand(allocator);
     defer shell.deinit(allocator);
     const create_payload = try createPayload(allocator, shell.executable, shell.arguments);
     defer allocator.free(create_payload);
@@ -493,7 +513,10 @@ fn runTrace(io: std.Io, allocator: std.mem.Allocator, host_executable: []const u
     }
     try trace.observe(.attachment_recommitted);
 
-    const input_text = if (builtin.os.tag == .windows)
+    if (interrupt) try session.awaitControlReady();
+    const input_text = if (interrupt)
+        "\x03"
+    else if (builtin.os.tag == .windows)
         "orchbee-black-box\r\n"
     else
         "orchbee-black-box\n";
@@ -545,6 +568,38 @@ fn runTrace(io: std.Io, allocator: std.mem.Allocator, host_executable: []const u
         "terminal Host black-box trace passed: spawn -> IPC -> create/start/attach -> disconnect/reconnect/replay/reattach -> PTY input/output -> exit -> dispose -> shutdown\n",
         .{},
     );
+    if (interrupt) std.debug.print("Windows inherited Ctrl+C suppression cleared before terminal launch\n", .{});
+}
+
+const WindowsControl = struct {
+    extern "kernel32" fn SetConsoleCtrlHandler(
+        handler: ?*const fn (std.os.windows.DWORD) callconv(.winapi) std.os.windows.BOOL,
+        add: std.os.windows.BOOL,
+    ) callconv(.winapi) std.os.windows.BOOL;
+
+    fn ignore(enabled: bool) !void {
+        if (builtin.os.tag != .windows) unreachable;
+        if (!SetConsoleCtrlHandler(null, if (enabled) .TRUE else .FALSE).toBool()) {
+            return std.os.windows.unexpectedError(std.os.windows.GetLastError());
+        }
+    }
+};
+
+fn controlShellCommand(allocator: std.mem.Allocator) !ShellCommand {
+    if (builtin.os.tag != .windows) unreachable;
+    const root = try pty_process.environmentVariableOwned(allocator, "SystemRoot");
+    defer allocator.free(root);
+    const executable = try std.fs.path.join(allocator, &.{ root, "System32", "WindowsPowerShell", "v1.0", "powershell.exe" });
+    return .{
+        .executable = executable,
+        .owned_executable = executable,
+        .arguments = &.{
+            "-NoLogo",                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          "-NoProfile", "-NonInteractive", "-Command",
+            // Installing a callback does not clear the inherited ignore bit.
+            // No readiness or IPC acknowledgement can satisfy the signal oracle.
+            "Add-Type 'using System; using System.Runtime.InteropServices; using System.Threading; public static class ControlWitness { public delegate bool Handler(uint kind); [DllImport(\"kernel32.dll\")] static extern bool SetConsoleCtrlHandler(Handler h,bool add); static readonly ManualResetEvent Seen=new ManualResetEvent(false); static readonly Handler Callback=Handle; static bool Handle(uint kind) { if(kind!=0) return false; Seen.Set(); return true; } public static bool Arm() { return SetConsoleCtrlHandler(Callback,true); } public static bool Wait() { return Seen.WaitOne(8000); } }'; if(-not [ControlWitness]::Arm()) { exit 8 }; [Console]::TreatControlCAsInput=$false; [Console]::Title='orchbee-control-ready'; if([ControlWitness]::Wait()) { [Console]::WriteLine('control-received'); exit 0 }; exit 9",
+        },
+    };
 }
 
 fn handshake(

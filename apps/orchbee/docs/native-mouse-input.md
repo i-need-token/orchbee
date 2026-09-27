@@ -88,7 +88,7 @@ press, modal surfaces swallow it.
 
 - A pane program owns pointer events inside its content viewport while the current frame reports
   any tracking mode, plus the wheel-on-alternate-screen fallback below. Frame facts — tracking,
-  format, cell geometry, alternate screen, application-cursor mode — come from the trusted
+  format, cell geometry, alternate screen, DEC 1007, application-cursor mode — come from the trusted
   `TerminalInteraction` of the newest verified frame, probed fresh per event.
 - Forwarded events are translated to pane-local coordinates against the painted content origin
   and re-encoded by one owner in the pane's requested tracking × format: X10 reports presses
@@ -97,9 +97,10 @@ press, modal surfaces swallow it.
   out-of-viewport non-release events report only under motion tracking while held and clamp to the
   edge cell, legacy `Default` format refuses coordinates above 222 rather than wrapping, `Utf8`
   encodes coordinates as codepoints, SGR uses `M`/`m` finals, and URXVT uses its decimal form.
-- A `SgrPixels` (`?1016`) request is refused: the pane receives nothing, the Client reports one
-  bounded localized notice per gesture, and no pixel coordinates are fabricated — including a
-  fake cell center.
+- Cell-only input is encoded as SGR cells even when the pane requests `SgrPixels` (`?1016`),
+  matching Herdr's cell fallback. Tracking, modifiers, release identity, clamping and motion
+  deduplication retain the ordinary SGR rules. This does not provide exact pixel input or invent
+  a cell center; host capture remains cell-based and never enables `?1016`.
 - Byte delivery reuses the existing `forward` path, so the `Controlling` check, read-only
   refusal, and acknowledgement semantics are unchanged. A `ReadOnly` attachment drops pointer
   input without an implicit acquire. A fresh unfocused press on a pane that cannot currently
@@ -113,11 +114,14 @@ press, modal surfaces swallow it.
 
 ## Wheel fallback
 
-Over an alternate-screen pane whose program reports no tracking, wheel notches encode as cursor
+Over an alternate-screen pane whose program reports no tracking and enables DEC 1007, wheel notches encode as cursor
 arrow presses — three per notch, in the pane's application-cursor form (`ESC O A` vs `ESC [ A`).
 A per-pane stream bounds the burst: a reversal clears the queued remainder and drops the notch,
 each flush emits at most one viewport of arrows, and a tick that finds the queue empty closes the
-stream so the next notch starts fresh. Primary-screen wheel history scrolling is a later slice.
+stream so the next notch starts fresh. Each flush rechecks eligibility against the newest frame;
+disabling DEC 1007, leaving the alternate screen, enabling tracking or entering history discards
+the queued arrows. With DEC 1007 off, alternate-screen wheel events send no application input.
+Primary-screen wheel history scrolling is a later slice.
 
 ## Invariants and temporal rules
 
@@ -132,8 +136,8 @@ stream so the next notch starts fresh. Primary-screen wheel history scrolling is
 - `ReleaseNeverCrossesPress`: pending-focus input flushes in FIFO order — a release can never be
   delivered ahead of its press, and cancellation drops the queue rather than reordering it.
 - `FocusIsClientLocal`: the focus change a press causes applies before any byte reaches the pane.
-- `NeverFabricate`: pixel requests are refused with a notice; unknown cell geometry already gates
-  pane passthrough instead of fabricating a center.
+- `NeverFabricate`: cell events remain cell-addressed through the SGR fallback. No exact pixel
+  position is inferred from a cell or unknown host pixel geometry.
 - `PendingKeysFirst`: the dispatcher flushes already-accepted pending key bytes before handling a
   pointer event, so a mouse report can never overtake earlier keyboard input; a malformed or
   aborted mouse-shaped sequence (`DecodedKind::Ignored`) is consumed atomically — it can never
@@ -162,18 +166,22 @@ stream so the next notch starts fresh. Primary-screen wheel history scrolling is
 
 ## Verification
 
-| Surface                   | Evidence                                                                                                                                                                                                                                                                                                                                                                                       |
-| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Decode                    | `terminal_input/mouse/tests` SGR/X10 tables — press/release/motion/wheel/modifiers, cross-chunk atomicity, malformed rejection without key fallthrough; `terminal_input/decoder/tests` — valid SGR/X10 items, X10 split feeds, timeout drain, ESC/C1 abort, malformed bodies, over-bound runs, and interleave with keys/paste — all malformed mouse-shaped bytes as `Ignored`                  |
-| Encode contract           | `encode_pane_report` table rows for every tracking × format cell, release finals, dedup, clamping, legacy bound, and pixel refusal                                                                                                                                                                                                                                                             |
-| Hit map                   | `tui_pointer/tests` layer order, edge/outside cells, overlay capture and backdrop dismiss — including an outside press on the uncovered tab strip and pane that never selects or forwards — stale-map drop                                                                                                                                                                                     |
-| Gesture and pending focus | `tui_pointer/tests` press/release ordering, queue bound and overflow cancel, timeout, orphan, read-only, target-moved refusal, settled-without-frame wait, and fact-gated admission                                                                                                                                                                                                            |
-| Dispatcher port writes    | `terminal_input/dispatcher/tests` — malformed SGR/X10 and aborted/timed-out mouse runs produce zero forwarded bytes while ordinary keys, paste, and unrelated unknown CSI pass through in order                                                                                                                                                                                                |
-| Wheel stream              | `tui_pointer/tests` three-per-notch, per-pass viewport cap, reversal clearing, stream close on drain                                                                                                                                                                                                                                                                                           |
-| Capture lifecycle         | `terminal_lifecycle/tests` lease pairing and restoration; dispatcher `Ctrl+B m` toggle test; status indicator                                                                                                                                                                                                                                                                                  |
-| CLI                       | `invocation/tests` `tui --mouse` value admission, bare/other-family refusal, `--format` refusal; `cli/completion` scripts                                                                                                                                                                                                                                                                      |
-| Real PTY (Legacy seam)    | `tui_shell/connected_tests::real_tui_routes_pointer_reports_to_the_reporting_pane_and_restores_modes` — recorded pane-local SGR bytes, pane-local translation, read-only drop, pixel refusal, wheel→arrows, capture toggle, mode restoration                                                                                                                                                   |
-| Real PTY (public Native)  | `tests/local_startup_process/native_pointer.rs` — the spawned `orchbee` binary on a real PTY: capture arming, X10 and SGR pane-local reports, unfocused-pane click focus and queued flush, read-only rejection, wheel→arrows, `Ctrl+B m`, `--mouse off`, exit restoration, and zero-pixel host geometry keeping cell-addressed reports while `?1016` still gets the bounded unsupported notice |
+The Unix PTY suites below track the shared contract; they are not Windows execution evidence.
+Windows cell fallback is covered by the encoder, pointer and attach regressions and the packaged
+control/attach byte witnesses described in [terminal streams](windows-terminal-streams.md).
+
+| Surface                   | Evidence                                                                                                                                                                                                                                                                                                                                                                      |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Decode                    | `terminal_input/mouse/tests` SGR/X10 tables — press/release/motion/wheel/modifiers, cross-chunk atomicity, malformed rejection without key fallthrough; `terminal_input/decoder/tests` — valid SGR/X10 items, X10 split feeds, timeout drain, ESC/C1 abort, malformed bodies, over-bound runs, and interleave with keys/paste — all malformed mouse-shaped bytes as `Ignored` |
+| Encode contract           | `encode_pane_report` table rows for every tracking × format cell, release finals, dedup, clamping, legacy bound, and SGR cell fallback                                                                                                                                                                                                                                        |
+| Hit map                   | `tui_pointer/tests` layer order, edge/outside cells, overlay capture and backdrop dismiss — including an outside press on the uncovered tab strip and pane that never selects or forwards — stale-map drop                                                                                                                                                                    |
+| Gesture and pending focus | `tui_pointer/tests` press/release ordering, queue bound and overflow cancel, timeout, orphan, read-only, target-moved refusal, settled-without-frame wait, and fact-gated admission                                                                                                                                                                                           |
+| Dispatcher port writes    | `terminal_input/dispatcher/tests` — malformed SGR/X10 and aborted/timed-out mouse runs produce zero forwarded bytes while ordinary keys, paste, and unrelated unknown CSI pass through in order                                                                                                                                                                               |
+| Wheel stream              | `tui_pointer/tests` three-per-notch, per-pass viewport cap, reversal clearing, stream close on drain                                                                                                                                                                                                                                                                          |
+| Capture lifecycle         | `terminal_lifecycle/tests` lease pairing and restoration; dispatcher `Ctrl+B m` toggle test; status indicator                                                                                                                                                                                                                                                                 |
+| CLI                       | `invocation/tests` `tui --mouse` value admission, bare/other-family refusal, `--format` refusal; `cli/completion` scripts                                                                                                                                                                                                                                                     |
+| Real PTY (Legacy seam)    | `tui_shell/connected_tests::real_tui_routes_pointer_reports_to_the_reporting_pane_and_restores_modes` — recorded pane-local SGR bytes, pane-local translation, read-only drop, SGR cell fallback, wheel→arrows, capture toggle, mode restoration                                                                                                                              |
+| Real PTY (public Native)  | `tests/local_startup_process/native_pointer.rs` — the spawned `orchbee` binary on a real PTY: capture arming, X10 and SGR pane-local reports, unfocused-pane click focus and queued flush, read-only rejection, wheel→arrows, `Ctrl+B m`, `--mouse off`, exit restoration, and zero-pixel host geometry keeping cell-addressed reports while `?1016` uses SGR cell fallback   |
 
 ## Shared right-button policy
 

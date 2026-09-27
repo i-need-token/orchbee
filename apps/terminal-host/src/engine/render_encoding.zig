@@ -39,6 +39,7 @@ pub fn terminalInteraction(terminal: *const ghostty_vt.Terminal) u32 {
     if (kitty.report_alternates) result |= 1 << 15;
     if (kitty.report_all) result |= 1 << 16;
     if (kitty.report_associated) result |= 1 << 17;
+    if (terminal.modes.get(.mouse_alternate_scroll)) result |= 1 << 18;
     return result;
 }
 

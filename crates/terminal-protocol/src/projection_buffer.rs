@@ -144,7 +144,7 @@ pub fn decode_terminal_projection_buffer(
     if bytes[7] & 0x80 != 0
         || bytes[105] & !7 != 0
         || bytes[107] != 0
-        || u32_at(bytes, 108) & !0x3ffff != 0
+        || u32_at(bytes, 108) & !0x7ffff != 0
         || bytes[153..160].iter().any(|byte| *byte != 0)
         || bytes[288..320].iter().any(|byte| *byte != 0)
     {

@@ -576,6 +576,7 @@ function terminalSnapshot(): Uint8Array {
 		generation: 1n,
 		hostEpoch,
 		interaction: {
+			alternateScroll: false,
 			applicationCursorKeys: false,
 			applicationKeypad: false,
 			bracketedPaste: false,

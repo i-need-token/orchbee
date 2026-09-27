@@ -10,6 +10,17 @@ const windows_api = @import("windows_api.zig");
 
 const ExitResult = process_types.ExitResult;
 const Launch = process_types.Launch;
+
+/// Establish the Host's child signal policy once, before endpoint admission or
+/// concurrent terminal launches. A detached launcher may have inherited or set
+/// the process-global ignore bit; clearing it needs no attached console and
+/// leaves each future child's raw-mode and handler choices to that child.
+pub fn prepareTerminalChildren() !void {
+    if (!windows_api.SetConsoleCtrlHandler(null, .FALSE).toBool()) {
+        return std.os.windows.unexpectedError(std.os.windows.GetLastError());
+    }
+}
+
 fn windowsExecutableCandidate(
     arena: std.mem.Allocator,
     candidate: []const u8,

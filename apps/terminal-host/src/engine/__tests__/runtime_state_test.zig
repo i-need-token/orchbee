@@ -1492,13 +1492,13 @@ test "reader alternate-screen batch publishes one coherent projection generation
     try std.testing.expectEqual(@as(u8, 0), primary.bytes[97] & 0x03);
     const primary_interaction = (1 << 0) | (1 << 1) | (1 << 2) | (1 << 3) |
         (1 << 6) | (1 << 9) | (1 << 12) | (1 << 13) | (1 << 14) |
-        (1 << 15) | (1 << 16) | (1 << 17);
+        (1 << 15) | (1 << 16) | (1 << 17) | (1 << 18);
     try std.testing.expectEqual(
         @as(u32, primary_interaction),
         try readFrameInt(u32, primary.bytes, 100),
     );
 
-    const alternate_bytes = "\x1b[?1049h" ++
+    const alternate_bytes = "\x1b[?1049h\x1b[?1007l" ++
         "\x1b]2;Orchbee alternate\x1b\\" ++
         "\x1b]7;file:///workspace/alternate\x1b\\" ++
         "\x1b[5 q\x1b[?25h\x1b[?1l\x1b>" ++
@@ -1546,6 +1546,28 @@ test "reader alternate-screen batch publishes one coherent projection generation
     );
     try std.testing.expectEqual(alternate_geometry.generation, alternate_summary.generation);
     try std.testing.expectEqual(alternate_geometry.revision, alternate_summary.revision);
+
+    // A mode-only change must publish the new fact without changing screens.
+    try std.testing.expectEqual(ReaderBatchOutcome.committed, commitReaderBatch(runtime, "\x1b[?1007h"));
+    const mode_frame = try requireProjectionFrame(try runtime.encodeProjectionFrameOwned(
+        std.testing.allocator,
+        0,
+        .{
+            .attachment_id = attachment_id,
+            .base_generation = alternate_summary.generation,
+            .base_revision = alternate_summary.revision,
+            .force_snapshot = false,
+            .host_epoch = host_epoch,
+            .maximum_bytes = protocol.Limits.frame_bytes,
+            .sequence = 3,
+        },
+    ));
+    defer std.testing.allocator.free(mode_frame.allocation);
+    const mode_summary = try protocol.validateTerminalFrame(std.testing.allocator, mode_frame.bytes);
+    try std.testing.expectEqual(protocol.FrameKind.delta, mode_summary.kind);
+    try std.testing.expectEqual(alternate_summary.generation, mode_summary.generation);
+    try std.testing.expectEqual(alternate_summary.revision + 1, mode_summary.revision);
+    try std.testing.expectEqual(@as(u32, alternate_interaction | (1 << 18)), try readFrameInt(u32, mode_frame.bytes, 100));
 }
 test "terminal metadata events coalesce by revision and replay once per Host connection" {
     const runtime = try createIdleRuntimeWithGeometry(8, 6, .{});
@@ -1717,7 +1739,8 @@ test "application reset returns alternate state to a fresh primary terminal" {
     try std.testing.expectEqual(protocol.CursorShape.block, summary.cursor_shape);
     try std.testing.expectEqual(@as(u16, 0), summary.cursor_column);
     try std.testing.expectEqual(@as(u16, 0), summary.cursor_row);
-    try std.testing.expectEqual(@as(u32, 0), try readFrameInt(u32, frame.bytes, 100));
+    // A fresh Ghostty terminal enables DEC 1007; all other interaction bits reset.
+    try std.testing.expectEqual(@as(u32, 1 << 18), try readFrameInt(u32, frame.bytes, 100));
 }
 test "application terminal controls reject counter exhaustion before mutation" {
     const runtime = try createIdleRuntimeWithGeometry(8, 6, .{});

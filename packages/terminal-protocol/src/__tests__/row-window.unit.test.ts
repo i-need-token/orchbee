@@ -36,6 +36,7 @@ const emptyGraphics = {
 } as const;
 
 const interaction = {
+	alternateScroll: false,
 	applicationCursorKeys: false,
 	applicationKeypad: false,
 	bracketedPaste: false,

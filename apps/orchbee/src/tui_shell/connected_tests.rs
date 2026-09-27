@@ -296,8 +296,8 @@ fn real_tui_routes_pointer_reports_to_the_reporting_pane_and_restores_modes() ->
     );
 
     // The synthetic mouse program requests button tracking plus SGR
-    // *pixel* format first: cell-capable panes asking for `?1016` get a
-    // bounded localized refusal, never fabricated cell coordinates.
+    // *pixel* format first: cell-only input gets the SGR cell fallback,
+    // never a fabricated exact pixel position.
     let pane_pixel = runtime.directory.join("pane-pixel.log");
     let pane_one = runtime.directory.join("pane-one.log");
     // The recorder must read the pane non-canonically: SGR reports carry
@@ -316,17 +316,15 @@ fn real_tui_routes_pointer_reports_to_the_reporting_pane_and_restores_modes() ->
     // interaction contract, so the click adjudicates against pixels.
     let (px, py) = find_text(&screen_a, b"PX1").ok_or("pixel marker")?;
     master_a.write_all(&sgr_report(0, px, py, true))?;
-    pump_until(&mut master_a, &mut screen_a, |screen| {
-        screen.text().contains("pixel mouse reports")
-    })?;
-    assert!(
-        sgr_reports(&fs::read(&pane_pixel)?).is_empty(),
-        "pixel-mode pane received a fabricated cell report"
-    );
-    // The release closes the refused gesture before the recorder dies.
     master_a.write_all(&sgr_report(0, px, py, false))?;
+    wait_for(|| fs::read(&pane_pixel).is_ok_and(|log| sgr_reports(&log).len() >= 2))?;
+    let reports = sgr_reports(&fs::read(&pane_pixel)?);
+    assert_eq!(reports[0].0, 0, "fallback press button");
+    assert_eq!(reports[0].3, b'M', "fallback press terminator");
+    assert_eq!(reports[1].3, b'm', "fallback release terminator");
+    assert_eq!((reports[0].1, reports[0].2), (reports[1].1, reports[1].2));
 
-    // Recovery: drop the pixel request, re-arm cell reporting, restart the
+    // Drop the pixel request, re-arm cell reporting, restart the
     // recorder — the same pane then receives ordinary cell reports.
     master_a.write_all(b"\x03")?;
     std::thread::sleep(Duration::from_millis(300));

@@ -34,6 +34,7 @@ fn serve(
     environment: *const std.process.Environ.Map,
     options: launcher_arguments.ServeOptions,
 ) !void {
+    if (builtin.os.tag == .windows) try platform.process.prepareWindowsTerminalChildren();
     var server = try local_ipc.LocalServer.initWithIo(
         io,
         allocator,

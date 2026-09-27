@@ -848,6 +848,7 @@ impl LegacySession {
                 frame.geometry.cell_pixel_height,
             ),
             alternate_screen: frame.alternate_screen,
+            alternate_scroll: frame.interaction.alternate_scroll(),
             application_cursor: frame.interaction.application_cursor_keys(),
         });
         probe

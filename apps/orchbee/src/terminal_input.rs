@@ -44,6 +44,7 @@ pub(crate) struct PointerFrameFacts {
     /// reported pixels unknown — cell-mode input still works.
     pub(crate) cell_pixel: (u16, u16),
     pub(crate) alternate_screen: bool,
+    pub(crate) alternate_scroll: bool,
     pub(crate) application_cursor: bool,
 }
 

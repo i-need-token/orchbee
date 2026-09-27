@@ -121,8 +121,14 @@ fn interaction_facts_survive_validated_decode() -> Result<(), Box<dyn Error>> {
             bits & 8 != 0
         );
     }
+    for bits in [0, 1 << 18, (1 << 18) | 0x221] {
+        assert_eq!(
+            with_interaction(bits)?.interaction.alternate_scroll(),
+            bits & (1 << 18) != 0
+        );
+    }
     // Multiple bits in one exclusive group, and unknown bits, still reject.
-    for bits in [0x30, 0x300, 0x40000] {
+    for bits in [0x30, 0x300, 0x80000] {
         assert!(with_interaction(bits).is_err(), "bits {bits:#x} accepted");
     }
     Ok(())

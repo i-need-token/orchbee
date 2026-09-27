@@ -77,10 +77,13 @@ RowsApplied. Typing restores following-bottom/active demand before input. Page k
 only on an untracked normal screen with application-cursor mode off or bracketed paste on;
 otherwise they send PageUp/PageDown. Scroll rejects with `frame-resizing` until the current frame
 matches the acknowledged dimensions. Mouse tracking sends one wheel report, independent of
-`lines`, with the supplied modifiers. Alternate-screen fallback sends one cursor arrow; the
-current frame contract does not expose DEC 1007, so disabling alternate-scroll remains a parity
-obligation. Pixel mouse reports remain explicitly refused until their coordinate capability is
-available. History output is safe text ANSI; source styling and graphics are not reconstructed.
+`lines`, with the supplied modifiers. On an untracked alternate screen, DEC 1007 enabled in
+the latest validated frame sends one cursor arrow; disabled routes to retained history without
+sending application input. Mode changes replace the fact with each frame. Cell-only scroll and
+attach pointer events use SGR cell fallback when the child requests pixel format; they preserve
+cell coordinates, modifiers and release identity without requiring host pixel geometry. Exact
+pixel input remains separate work. History output is safe text ANSI; source styling and graphics
+are not reconstructed.
 
 Every stream output record uses version 2. `control` reports command receipts; `history` reports
 a retained row surface; ordinary `frame` and `reset` retain their projection meanings. While
@@ -122,7 +125,7 @@ The in-process display seam shares frame/history rendering with NDJSON without e
 then parsing that protocol. Console writes use the existing inherited Unicode TUI writer; this
 is not a hard bound on an unresponsive operating-system console. IPC and cleanup keep their
 bounded budgets. Explicit detach succeeds only after confirmed release and mode restoration;
-transport loss never fabricates normal terminal exit. DEC 1007, pixel/graphics and extended
+transport loss never fabricates normal terminal exit. Pixel/graphics and extended
 keyboard-mode residuals remain obligations until their own implementation and Windows evidence.
 
 ## Verification and limits
@@ -139,7 +142,10 @@ acknowledgement, or `session-released` when the socket is dropped without confir
 Packaged Windows console witnesses cover bracketed Unicode paste containing the detach prefix,
 raw Ctrl+C delivery, mouse-off entry, busy-controller refusal, takeover fencing, history paging,
 normal detach, timeout restoration, re-acquisition and admission at different console sizes.
-They also exercise shared input in the standalone TUI. Dynamic host-window resizing, visual mouse
+They also exercise shared input in the standalone TUI. A real Windows child requesting `?1016`
+receives exact SGR cell bytes for control wheel/modifiers and attach press/drag/release injected
+through the console; this proves cell fallback, not exact pixel capture or physical mouse visuals.
+Dynamic host-window resizing, visual mouse
 interaction and authenticated Agent attachment remain separate acceptance obligations.
 Stream timeouts use a stream-specific diagnostic; refusals retain the controller reason and do
 not imply that previously delivered input was undone. Scripted evidence does not replace final

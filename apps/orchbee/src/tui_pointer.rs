@@ -297,15 +297,13 @@ struct PendingFocus {
 
 /// A live pane gesture: the exact pane incarnation that owns the pointer
 /// until release, its painted viewport for local coordinates, and the
-/// encoder state — held button, motion dedup cell, and the once-per-
-/// gesture pixel notice.
+/// encoder state — held button and motion dedup cell.
 struct PaneGesture {
     button: MouseButton,
     expected: PaneRef,
     viewport: Rect,
     pressed: bool,
     last_cell: Option<(u16, u16)>,
-    pixel_notice_reported: bool,
 }
 
 impl PaneGesture {
@@ -369,12 +367,6 @@ impl PaneGesture {
         ) {
             PaneEncode::Bytes(bytes) => forward_or_report(view, &bytes, port),
             PaneEncode::Silent => {}
-            PaneEncode::PixelUnsupported => {
-                if !self.pixel_notice_reported {
-                    self.pixel_notice_reported = true;
-                    view.report_pointer_pixels_unsupported();
-                }
-            }
         }
         match event.action {
             MouseAction::Press
@@ -560,6 +552,17 @@ impl PointerState {
         view: &mut ClientView,
         port: &mut Port,
     ) -> bool {
+        let probe = port.pointer_probe();
+        if probe.viewport_non_live
+            || !probe.frame.is_some_and(|frame| {
+                frame.alternate_screen
+                    && frame.alternate_scroll
+                    && frame.tracking == MouseTracking::None
+            })
+        {
+            self.wheel.clear();
+            return false;
+        }
         let Some((up, count, application_cursor)) = self.wheel.take_flush() else {
             return false;
         };
@@ -770,7 +773,11 @@ impl PointerState {
                 // never to application mouse bytes.
                 return PointerOutcome::Handled;
             }
-            return match pane_owns_pointer(frame.tracking, &event, frame.alternate_screen) {
+            return match pane_owns_pointer(
+                frame.tracking,
+                &event,
+                frame.alternate_screen && frame.alternate_scroll,
+            ) {
                 PointerOwner::Pane => {
                     self.gesture = Gesture::Pane(PaneGesture {
                         button: event.button,
@@ -778,7 +785,6 @@ impl PointerState {
                         viewport: content,
                         pressed: false,
                         last_cell: None,
-                        pixel_notice_reported: false,
                     });
                     let Gesture::Pane(gesture) = &mut self.gesture else {
                         return PointerOutcome::Ignored;
@@ -848,8 +854,11 @@ impl PointerState {
                 return PointerOutcome::RegionsChanged;
             };
             if !after.viewport_non_live
-                && let PointerOwner::Pane =
-                    pane_owns_pointer(frame.tracking, &event, frame.alternate_screen)
+                && let PointerOwner::Pane = pane_owns_pointer(
+                    frame.tracking,
+                    &event,
+                    frame.alternate_screen && frame.alternate_scroll,
+                )
             {
                 self.gesture = Gesture::Pane(PaneGesture {
                     button: event.button,
@@ -857,7 +866,6 @@ impl PointerState {
                     viewport: content,
                     pressed: false,
                     last_cell: None,
-                    pixel_notice_reported: false,
                 });
                 let Gesture::Pane(gesture) = &mut self.gesture else {
                     return PointerOutcome::Handled;
@@ -913,7 +921,11 @@ impl PointerState {
         let Some(frame) = probe.frame else {
             return PointerOutcome::Ignored;
         };
-        match pane_owns_pointer(frame.tracking, &event, frame.alternate_screen) {
+        match pane_owns_pointer(
+            frame.tracking,
+            &event,
+            frame.alternate_screen && frame.alternate_scroll,
+        ) {
             PointerOwner::Pane if frame.tracking != MouseTracking::None => {
                 let mut gesture = PaneGesture {
                     button: event.button,
@@ -921,7 +933,6 @@ impl PointerState {
                     viewport: target.content,
                     pressed: false,
                     last_cell: None,
-                    pixel_notice_reported: false,
                 };
                 gesture.forward(view, port, &frame, event);
                 PointerOutcome::Handled
@@ -1149,14 +1160,17 @@ impl PointerState {
             viewport: pending.viewport,
             pressed: false,
             last_cell: None,
-            pixel_notice_reported: false,
         };
         let mut released = false;
         for event in pending.queued {
             if event.mods.shift || !forwarder.accepts(event) {
                 continue;
             }
-            match pane_owns_pointer(frame.tracking, &event, frame.alternate_screen) {
+            match pane_owns_pointer(
+                frame.tracking,
+                &event,
+                frame.alternate_screen && frame.alternate_scroll,
+            ) {
                 PointerOwner::Pane if frame.tracking != MouseTracking::None => {
                     forwarder.forward(view, port, &frame, event);
                     if event.action == MouseAction::Release {

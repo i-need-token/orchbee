@@ -32,6 +32,11 @@ pub const HANDLE_FLAG_INHERIT: windows.DWORD = 0x0000_0001;
 pub const PROC_THREAD_ATTRIBUTE_JOB_LIST: windows.DWORD = 0x0002_000d;
 pub const PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE: windows.DWORD = 0x0002_0016;
 
+pub extern "kernel32" fn SetConsoleCtrlHandler(
+    handler: ?*const fn (windows.DWORD) callconv(.winapi) windows.BOOL,
+    add: windows.BOOL,
+) callconv(.winapi) windows.BOOL;
+
 pub extern "kernel32" fn CreatePipe(
     read_pipe: *windows.HANDLE,
     write_pipe: *windows.HANDLE,

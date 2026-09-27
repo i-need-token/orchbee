@@ -1172,6 +1172,7 @@ describe('startProjectedTerminalRenderer', () => {
 					},
 					generation: 1n,
 					interaction: {
+						alternateScroll: false,
 						applicationCursorKeys: false,
 						applicationKeypad: false,
 						bracketedPaste: false,

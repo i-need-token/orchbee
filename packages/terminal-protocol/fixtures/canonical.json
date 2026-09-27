@@ -30,6 +30,7 @@
 		"generation": "3",
 		"hostEpoch": "11111111111111111111111111111111",
 		"interaction": {
+			"alternateScroll": true,
 			"applicationCursorKeys": true,
 			"applicationKeypad": false,
 			"bracketedPaste": true,

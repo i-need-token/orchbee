@@ -285,6 +285,7 @@ const EXPECTED_RENDER_ROWS: readonly ExpectedRenderRow[] = [
 ];
 
 const EXPECTED_RENDER_INTERACTION = {
+	alternateScroll: true,
 	applicationCursorKeys: true,
 	applicationKeypad: true,
 	bracketedPaste: true,
@@ -1152,6 +1153,7 @@ describe('Ghostty surface parity', () => {
 				visible: false,
 			},
 			interaction: {
+				alternateScroll: true,
 				applicationCursorKeys: true,
 				applicationKeypad: true,
 				bracketedPaste: true,
@@ -1218,6 +1220,7 @@ describe('Ghostty surface parity', () => {
 			},
 			generation: 2n,
 			interaction: {
+				alternateScroll: false,
 				applicationCursorKeys: false,
 				applicationKeypad: false,
 				bracketedPaste: false,

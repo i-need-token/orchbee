@@ -20,7 +20,7 @@ The state has the same Site-process lifetime as canonical layout; restart persis
 the content viewport when the program reports mouse tracking and existing input admission allows
 delivery. Shift remains Host-owned. This contract establishes routing; it does not introduce a
 context menu or configurable modifier bypass. The existing terminal encoder owns reporting format,
-coordinates and unsupported pixel-mode refusal.
+coordinates and the cell-input fallback; see [mouse input](native-mouse-input.md).
 
 ## Canonical command model
 
