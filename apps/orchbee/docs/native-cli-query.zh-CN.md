@@ -31,14 +31,48 @@ Windows `workspace list/get` 返回 `number`、`tabCount` 和 `panelCount`；
 有界输出和无 TUI 时的可用性。不执行导航、进程检查或变更。Windows 在这六个 list/get
 查询中接受可选 `--client <id>`，补充全局焦点和 Client 在各 Workspace 记住的活动 Tab。
 [Client 查询契约](windows-client-control.zh-CN.md#client-相对-workbench-查询)定义这一有界只读关联、
-来源记录与一致性检查。Schema 版本为 `orchbee.workspace.list/get` 3、`orchbee.tab.list` 3、
-`orchbee.tab.get` 4 和 `orchbee.panel.list/get` 4；内嵌目录为版本77，含86份 schema。
+来源记录与一致性检查。Schema 版本为 `orchbee.workspace.list/get` 4、`orchbee.tab.list` 4、
+`orchbee.tab.get` 5 和 `orchbee.panel.list/get` 5；内嵌目录为版本78，含87份 schema。
 保留的选择读取控制使用 `orchbee.client.control` v2，其他控制保留 v1。
 `orchbee.cli.failure.client-query` v1 标识指定 Client 的读取失败，既有目标和准入诊断保持完整。
-进程/Agent 观察、worktree 事实和上报元数据仍需要各自的所有者提供，这些拓扑字段不代表已实现它们。
+进程观察、worktree 事实和上报元数据仍需要各自的所有者提供，这些拓扑字段不代表已实现它们。
 
 验证覆盖全局重排与筛选后不重新编号、空树与嵌套树、子 presentation 和未绑定叶节点、
 列表/详情一致、自动标签、文本转义，以及真实 Windows 查询文档的 schema 校验。
+
+## Workbench Agent 汇总
+
+Windows Workspace/Tab/Panel 的 list/get 查询新增根级 `agents` 观察，包含规范 Agent
+修订号、List 请求 ID 和匹配的活动会话摘要。各行包含 `agentSessionIds` 和可空
+`agentStatus`。仅可导航的主 Presentation 绑定参与，子 presentation 和已结束会话不参与。
+一个 Session 即使有多个匹配绑定，也只在每行计算一次；多个匹配 Session 均保留。
+只有完整且成功的规范列表才能证明绑定为空，不能把读取失败或截断当作没有 Agent。
+
+每页最多100个摘要，组合查询最多接受512个活动 Session。所有页必须修订号相同且 ID
+不重复；重复游标、带后续页的空页、超限和修订号漂移均失败，不重放、不输出部分结果。
+CLI 复用单个已准入连接、信号所有者和五秒总期限，输出前验证原 Workbench 修订号。
+Agent 观察与 Workbench 快照保留各自来源，不声称分布式原子快照。不扫描进程或推测文本，
+不产生启动、输入、导航和已读确认效果。
+
+指定 `--client` 时，每个 attention 批次最多100个匹配 Session，复用既有
+[经认证的 Client 关联](native-client-attention.zh-CN.md#关联规范-agent-读取)。
+存在匹配 Session 时，后续完整 Agent 列表用于输出，通过事件连续性、generation 和 sequence 核实各 Client
+投影。新出现的 Session 明确标为 missing，不假定已看过。最初没有匹配时，以首次完整列表作为观察。Workbench 和 Client 视图
+修订号必须保持不变。根级结果保留规范摘要以及可选的逐 Session Client 投影。
+
+聚合优先级依次为 blocked、done、working、idle、unknown。新鲜的休止状态需要核实
+Client 确认：已看过为 idle，未看过为 done。缺少此证据时，该 Session 的聚合贡献未确定。
+已证明的 blocked 或 done 仍可决定结果；否则，存在未确定的休止 Session 时聚合值为 null，
+避免把可能的未读完成隐藏在 working/idle 之下。stale/disconnected 观察贡献 unknown，
+并在会话事实中保留明确状态。没有匹配 Session 时为 unknown。未指定 Client 时不伪造 seen。
+文本本地化聚合状态并转义显示数据，JSON 不随语言变化。
+
+`orchbee.cli.failure.workbench-query` v1 使用 `stage: workbench-query` 和封闭的 reason
+表达有界组合失败：agent-capacity、agent-page-invalid、agent-revision-changed、
+workbench-changed 或 client-changed。既有 Agent 和准入错误保留原有 schema 与诊断，
+指定 Client 的路由错误沿用 Client 查询契约。验证覆盖优先级与未确定状态、主/子成员关系、
+重复/混合页、过期确认、schema/文本、无界面查询及真实 Windows 双 Client 观察。
+进程/标题/滚动及 Workspace 的 worktree/上报元数据仍属于后续关联。
 
 ## Windows 命名 Site 选择
 

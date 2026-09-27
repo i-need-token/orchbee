@@ -181,7 +181,7 @@ fn current_client(
     }
     Ok(record)
 }
-fn read_many(
+pub(in crate::cli) fn read_many(
     client: &mut crate::local_client::LocalClient,
     snapshot: &Snapshot,
     selected: &WorkbenchClientId,
@@ -249,6 +249,46 @@ fn read_many(
 }
 
 impl ClientAgentRead {
+    pub(in crate::cli) fn matches_view(&self, expected: &ClientViewObservation) -> bool {
+        &self.view == expected
+    }
+    pub(in crate::cli) fn corroborate_summaries(
+        &self,
+        client: &mut crate::local_client::LocalClient,
+        snapshot: &Snapshot,
+        revision: orchbee_agent_observation_protocol::AgentSafeInteger,
+        items: &[&orchbee_agent_observation_protocol::AgentSessionSummary],
+        deadline: Instant,
+        signals: &mut ArmedSignals,
+    ) -> Result<Vec<results::AgentClientViewDoc>, Failure> {
+        let ids = items
+            .iter()
+            .map(|item| item.session_id.clone())
+            .collect::<Vec<_>>();
+        let changed = query::attention_changed_sessions(
+            client,
+            &self.attention,
+            revision,
+            &ids,
+            deadline,
+            signals.poll_fd(),
+        )
+        .map_err(|failure| failure.failure_schema(crate::cli::schema::AGENT_FAILURE_ID))?;
+        check(deadline, signals)?;
+        items
+            .iter()
+            .map(|item| {
+                self.project(
+                    snapshot,
+                    revision,
+                    AgentViewFacts::summary(item),
+                    changed
+                        .as_ref()
+                        .is_some_and(|ids| !ids.contains(&item.session_id)),
+                )
+            })
+            .collect()
+    }
     pub(in crate::cli) fn corroborate(
         self,
         client: &mut crate::local_client::LocalClient,

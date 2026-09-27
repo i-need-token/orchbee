@@ -1,4 +1,4 @@
-//! Read-only composition of canonical membership and one exact Client's navigation memory.
+//! Read-only Workbench queries with Agent facts and optional exact-Client memory.
 use super::client_control::windows as control;
 use super::{
     Failure, FailureKind, Output, failure_output,
@@ -27,7 +27,8 @@ mod tests;
 #[derive(Debug)]
 pub(crate) struct Document {
     pub(super) projection: Box<Projection>,
-    client: ClientViewRecord,
+    client: Option<ClientViewRecord>,
+    agents: Option<super::workbench_agents::Document>,
     operations: Vec<WorkbenchRequestId>,
     contexts: Vec<ClientContextSelection>,
 }
@@ -43,7 +44,7 @@ fn failure(kind: FailureKind, client: &WorkbenchClientId) -> Failure {
 
 pub(crate) fn run(
     command: &QueryCommand,
-    selected: &WorkbenchClientId,
+    selected: Option<&WorkbenchClientId>,
     format: OutputFormat,
     locale: Locale,
 ) -> Output {
@@ -52,7 +53,10 @@ pub(crate) fn run(
         Ok(signals) => signals,
         Err(_) => {
             return failure_output(
-                failure(FailureKind::InternalFailure, selected),
+                selected.map_or_else(
+                    || Failure::new(FailureKind::InternalFailure),
+                    |id| failure(FailureKind::InternalFailure, id),
+                ),
                 Some(format),
                 locale,
             );
@@ -72,7 +76,7 @@ pub(crate) fn run(
     };
     let mut output = match result {
         Ok((source, document)) => success_output(
-            Projection::ClientWorkbench(Box::new(document)),
+            Projection::WorkbenchQuery(Box::new(document)),
             source,
             command,
             format,
@@ -82,8 +86,10 @@ pub(crate) fn run(
             // Preserve canonical target ambiguity and admission diagnostics.
             let error = if error.details.is_some() || error.failure_schema.is_some() {
                 error
-            } else {
+            } else if let Some(selected) = selected {
                 failure(error.kind, selected)
+            } else {
+                error
             };
             failure_output(error, Some(format), locale)
         }
@@ -180,7 +186,7 @@ fn submission_failure(code: u8, outcome: Option<&ClientViewOutcome>) -> Option<F
 
 fn execute(
     command: &QueryCommand,
-    selected: &WorkbenchClientId,
+    selected: Option<&WorkbenchClientId>,
     deadline: Instant,
     signals: &mut ArmedSignals,
 ) -> Result<(Value, Document), Failure> {
@@ -188,20 +194,31 @@ fn execute(
     signals.check_before(deadline)?;
     let (mut client, snapshot) = admitted?;
     let projection = results::project(command, &snapshot)?;
-    let original = current(&mut client, &snapshot, selected, deadline, signals)?;
-    let requested = requested_contexts(&projection, &original)?;
+    let original = selected
+        .map(|id| current(&mut client, &snapshot, id, deadline, signals))
+        .transpose()?;
+    let requested = original
+        .as_ref()
+        .map(|record| requested_contexts(&projection, record))
+        .transpose()?
+        .unwrap_or_default();
     let mut document = Document {
         projection: Box::new(projection),
         client: original,
+        agents: None,
         operations: vec![],
         contexts: vec![],
     };
     for ids in requested.chunks(MAXIMUM_CLIENT_SELECTION_CONTEXTS) {
+        let record = document
+            .client
+            .as_ref()
+            .ok_or_else(|| Failure::new(FailureKind::InternalFailure))?;
         signals.check_before(deadline)?;
         let request = ClientViewControl {
             operation_id: query::request_id()?,
-            client_id: selected.clone(),
-            expected_view_revision: document.client.view_revision,
+            client_id: record.client_id.clone(),
+            expected_view_revision: record.view_revision,
             minimum_workbench_revision: snapshot.revision,
             intent: ClientViewIntent::Selections {
                 terminal_context_ids: ids.to_vec(),
@@ -233,13 +250,21 @@ fn execute(
         let ClientViewControlStatus::NavigationRead { navigation, view } = operation.status else {
             return Err(Failure::new(FailureKind::Rejected));
         };
-        if navigation.workbench_revision != snapshot.revision || view != document.client.view {
+        if navigation.workbench_revision != snapshot.revision || view != record.view {
             return Err(Failure::new(FailureKind::Rejected));
         }
         verify_membership(&snapshot, &view, &navigation.contexts)?;
         document.operations.push(request.operation_id);
         document.contexts.extend(navigation.contexts);
     }
+    document.agents = Some(super::workbench_agents::read(
+        &mut client,
+        &snapshot,
+        &document.projection,
+        document.client.as_ref(),
+        deadline,
+        signals,
+    )?);
     let final_snapshot = query::refresh_snapshot(
         &mut client,
         &snapshot.site_id,
@@ -247,12 +272,22 @@ fn execute(
         deadline,
         signals,
     )?;
-    let final_client = current(&mut client, &snapshot, selected, deadline, signals)?;
-    if final_snapshot.revision != snapshot.revision
-        || final_client.view_revision != document.client.view_revision
-        || final_client.view != document.client.view
-    {
-        return Err(Failure::new(FailureKind::Rejected));
+    if final_snapshot.revision != snapshot.revision {
+        return Err(super::workbench_agents::failure("workbench-changed"));
+    }
+    if let Some(original) = &document.client {
+        let final_client = current(
+            &mut client,
+            &snapshot,
+            &original.client_id,
+            deadline,
+            signals,
+        )?;
+        if final_client.view_revision != original.view_revision
+            || final_client.view != original.view
+        {
+            return Err(super::workbench_agents::failure("client-changed"));
+        }
     }
     signals.check_before(deadline)?;
     Ok((results::snapshot_source(&snapshot), document))
@@ -312,7 +347,13 @@ fn verify_membership(
 impl Document {
     pub(super) fn result(&self) -> Value {
         let mut value = self.projection.result();
-        let selected = self.client.view.selection.as_ref();
+        if let Some(agents) = &self.agents {
+            agents.enrich(&mut value);
+        }
+        let Some(client) = &self.client else {
+            return value;
+        };
+        let selected = client.view.selection.as_ref();
         let enrich = |row: &mut Value, family: &str| {
             let context = if family == "workspace" || family == "panel-list" {
                 row["terminalContextId"].as_str()
@@ -355,7 +396,7 @@ impl Document {
                 enrich(&mut value[key], key);
             }
         }
-        value["client"] = json!({ "clientId": self.client.client_id, "viewRevision": self.client.view_revision, "operationIds": self.operations, "view": self.client.view });
+        value["client"] = json!({ "clientId": client.client_id, "viewRevision": client.view_revision, "operationIds": self.operations, "view": client.view });
         value
     }
     pub(super) fn render(
@@ -364,9 +405,15 @@ impl Document {
         command: &QueryCommand,
         locale: Locale,
     ) -> Result<(), TooLarge> {
+        if let Some(agents) = &self.agents {
+            agents.render(out, locale)?;
+        }
+        let Some(client) = &self.client else {
+            return super::present::render(out, &self.projection, command, locale);
+        };
         let labels = locale.cli_query_client_labels();
-        out.write(format_args!("{}: {}\n", labels[0], self.client.client_id))?;
-        if let Some(selection) = &self.client.view.selection {
+        out.write(format_args!("{}: {}\n", labels[0], client.client_id))?;
+        if let Some(selection) = &client.view.selection {
             out.write(format_args!(
                 "{}: {}\n{}: {}\n",
                 labels[1],

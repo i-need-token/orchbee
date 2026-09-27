@@ -38,17 +38,61 @@ perform no navigation, process inspection or mutation. Windows accepts optional
 `--client <id>` on these six list/get queries to add global focus and the Client's
 remembered active Tab in each Workspace. The [Client query contract](windows-client-control.md#client-relative-workbench-queries)
 owns this bounded, read-only join and its provenance and consistency checks.
-Schema versions are `orchbee.workspace.list/get` 3, `orchbee.tab.list` 3,
-`orchbee.tab.get` 4 and `orchbee.panel.list/get` 4; the embedded catalog is version77
-with86 schemas. Retained selection-read controls use `orchbee.client.control` v2;
+Schema versions are `orchbee.workspace.list/get` 4, `orchbee.tab.list` 4,
+`orchbee.tab.get` 5 and `orchbee.panel.list/get` 5; the embedded catalog is version 78
+with 87 schemas. Retained selection-read controls use `orchbee.client.control` v2;
 other controls retain v1. `orchbee.cli.failure.client-query` v1 identifies selected
 Client read failures; existing target and admission diagnostics remain intact.
-Process/Agent observations, worktree facts and reported metadata require their
+Process observations, worktree facts and reported metadata require their
 respective owners and are not implied by these topology fields.
 
 Verification covers global reorder and filtering without renumbering, empty and
 nested trees, child presentations and unbound leaves, list/get agreement, automatic
 labels, escaped text and schema validation of real Windows query documents.
+
+## Workbench Agent summaries
+
+Windows Workspace/Tab/Panel list/get queries add one root `agents` observation with
+its canonical Agent revision, List request IDs and matched live session summaries.
+Rows carry `agentSessionIds` and nullable `agentStatus`. Only navigable primary
+Presentation bindings contribute; child presentations and ended sessions do not.
+A Session counts once per row even when it has several matching bindings. Multiple
+matching Sessions remain explicit. Missing bindings produce an empty set only after
+a complete successful canonical list, never after a failed or truncated read.
+
+Agent pages contain at most 100 summaries; the composition admits at most 512 live
+Sessions. All pages must share one revision and contain unique IDs. Repeated cursors,
+empty continuation pages, overflow and revision drift fail without replay or partial
+output. The CLI uses one admitted connection, signal owner and five-second total,
+and verifies the original Workbench revision before publication. An Agent observation
+and a Workbench snapshot retain separate provenance; this is not a distributed atomic
+snapshot. There is no process scan, text inference, startup, input, navigation or
+acknowledgement effect.
+
+With `--client`, up to 100 matched Sessions per attention batch use the existing
+[authenticated Client join](native-client-attention.md#joining-canonical-agent-reads).
+When there are matching Sessions, a later complete Agent list supplies the output; journal continuity, generation and
+sequence corroborate each Client projection. A new Session is explicitly missing,
+not presumed seen. With no initial match, the first complete list is the observation. Workbench and Client view revisions must remain unchanged.
+The root preserves canonical summaries and optional per-Session Client projections.
+
+Aggregate priority is blocked, done, working, idle, unknown. Fresh resting states
+need a corroborated Client acknowledgement: seen means idle, unseen means done.
+Without that evidence, their aggregate contribution is unresolved. A proven blocked
+or done result remains decisive; otherwise an unresolved resting Session makes the
+aggregate null rather than hiding possible unread completion below working/idle.
+Stale/disconnected observations contribute unknown and remain explicit in session
+facts. No matching Sessions yields unknown. The no-Client path never invents seen.
+Text localizes aggregate status and escapes display data; JSON is locale independent.
+
+`orchbee.cli.failure.workbench-query` v1 reports bounded composition failures with
+`stage: workbench-query` and a closed reason (agent-capacity, agent-page-invalid,
+agent-revision-changed, workbench-changed or client-changed). Existing Agent and
+admission errors keep their owning schemas and diagnostics. Selected Client routing
+errors keep the Client query contract. Verification covers priority and uncertainty,
+primary/child membership, duplicate/mixed pages, stale acknowledgements, schema/text,
+headless reads and real Windows two-Client observations. Process/title/scroll and
+Workspace worktree/reported metadata remain separate dependent joins.
 
 ## Windows named Site selection
 

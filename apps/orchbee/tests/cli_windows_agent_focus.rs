@@ -21,6 +21,8 @@ mod client_get;
 mod client_list;
 #[path = "cli_windows_agent_focus/client_wait.rs"]
 mod client_wait;
+#[path = "cli_windows_agent_focus/workbench.rs"]
+mod workbench;
 
 fn id(n: u64) -> String {
     format!("{n:032x}")

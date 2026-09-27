@@ -121,7 +121,7 @@ fn main() -> ExitCode {
                 command,
                 client,
                 format,
-            }) => cli::workbench_client_query::run(&command, &client, format, locale),
+            }) => cli::workbench_query::run(&command, Some(&client), format, locale),
             Ok(invocation::Request::Query { command, format }) => {
                 cli::query(command, format, locale)
             }

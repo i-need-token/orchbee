@@ -26,4 +26,14 @@ fn catalog_requires_and_admits_every_embedded_schema_exactly_once() {
         assert_eq!(declared.len(), names.len(), "duplicate catalog identity");
         assert_eq!(declared, ids, "catalog and embedded dictionary diverged");
     }
+    let output = super::answer(
+        None,
+        crate::invocation::OutputFormat::Json,
+        crate::localization::Locale::EnUs,
+    );
+    let published: Value = serde_json::from_slice(&output.stdout).unwrap();
+    jsonschema::validator_for(&catalog)
+        .unwrap()
+        .validate(&published)
+        .unwrap();
 }

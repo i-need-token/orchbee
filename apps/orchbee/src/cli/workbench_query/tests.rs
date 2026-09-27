@@ -62,7 +62,8 @@ fn snapshot() -> Snapshot {
 fn document(command: &QueryCommand, state: &Snapshot) -> Document {
     Document {
         projection: Box::new(results::project(command, state).unwrap()),
-        client: record(),
+        client: Some(record()),
+        agents: None,
         operations: vec![WorkbenchRequestId::parse(&id(30)).unwrap()],
         contexts: [(4, Some(5)), (9, Some(13)), (19, None)]
             .into_iter()
@@ -103,7 +104,7 @@ fn selected_queries_publish_global_focus_and_client_memory_with_closed_schemas()
             jsonschema::validator_for(&catalog["result"]["schema"]["document"]).unwrap();
         for selected in [false, true] {
             let projection = if selected {
-                Projection::ClientWorkbench(Box::new(document(&command, &state)))
+                Projection::WorkbenchQuery(Box::new(document(&command, &state)))
             } else {
                 results::project(&command, &state).unwrap()
             };
@@ -161,7 +162,7 @@ fn selected_queries_publish_global_focus_and_client_memory_with_closed_schemas()
         }
         for locale in [Locale::EnUs, Locale::ZhCn] {
             let output = success_output(
-                Projection::ClientWorkbench(Box::new(document(&command, &state))),
+                Projection::WorkbenchQuery(Box::new(document(&command, &state))),
                 results::snapshot_source(&state),
                 &command,
                 OutputFormat::Text,
@@ -183,8 +184,8 @@ fn client_query_refuses_false_empty_stale_tab_and_wrong_panel_membership() {
     let state = snapshot();
     let command = QueryCommand::WorkspaceList { project: None };
     let mut doc = document(&command, &state);
-    verify_membership(&state, &doc.client.view, &doc.contexts).unwrap();
-    let requested = requested_contexts(&doc.projection, &doc.client).unwrap();
+    verify_membership(&state, &doc.client.as_ref().unwrap().view, &doc.contexts).unwrap();
+    let requested = requested_contexts(&doc.projection, doc.client.as_ref().unwrap()).unwrap();
     assert_eq!(
         requested
             .iter()
@@ -193,19 +194,32 @@ fn client_query_refuses_false_empty_stale_tab_and_wrong_panel_membership() {
         vec![id(9), id(19), id(4)]
     );
     doc.contexts[1].active_tab_id = None;
-    assert!(verify_membership(&state, &doc.client.view, &doc.contexts).is_err());
+    assert!(verify_membership(&state, &doc.client.as_ref().unwrap().view, &doc.contexts).is_err());
     let mut doc = document(&command, &state);
     doc.contexts[1].active_tab_id = doc.contexts[0].active_tab_id.clone();
-    assert!(verify_membership(&state, &doc.client.view, &doc.contexts).is_err());
+    assert!(verify_membership(&state, &doc.client.as_ref().unwrap().view, &doc.contexts).is_err());
     let mut doc = document(&command, &state);
-    doc.client.view.selection.as_mut().unwrap().panel_count = 2;
-    assert!(verify_membership(&state, &doc.client.view, &doc.contexts).is_err());
+    doc.client
+        .as_mut()
+        .unwrap()
+        .view
+        .selection
+        .as_mut()
+        .unwrap()
+        .panel_count = 2;
+    assert!(verify_membership(&state, &doc.client.as_ref().unwrap().view, &doc.contexts).is_err());
     let mut doc = document(&command, &state);
-    doc.client.view.selection.as_mut().unwrap().panel_id =
-        Some(orchbee_workbench_protocol::WorkbenchPanelId::parse(&id(14)).unwrap());
-    assert!(verify_membership(&state, &doc.client.view, &doc.contexts).is_err());
+    doc.client
+        .as_mut()
+        .unwrap()
+        .view
+        .selection
+        .as_mut()
+        .unwrap()
+        .panel_id = Some(orchbee_workbench_protocol::WorkbenchPanelId::parse(&id(14)).unwrap());
+    assert!(verify_membership(&state, &doc.client.as_ref().unwrap().view, &doc.contexts).is_err());
     assert_eq!(
-        doc.client.view_revision,
+        doc.client.as_ref().unwrap().view_revision,
         ClientViewSequence::new(2).unwrap()
     );
 }
@@ -235,6 +249,117 @@ fn client_query_failure_is_schema_valid_and_localized() {
             assert!(!output.stderr.is_empty());
             assert!(!output.stderr.contains("()"));
             assert!(output.stderr.contains("Client"));
+        }
+    }
+}
+
+#[test]
+fn six_query_shapes_join_agents_with_optional_client_provenance() {
+    let mut value = json!(snapshot());
+    for context in value["terminalContexts"].as_array_mut().unwrap() {
+        for tab in context["tabs"].as_array_mut().unwrap() {
+            tab["root"]["primaryPresentation"]["binding"] =
+                json!({"terminalId":id(80),"workerId":id(81)});
+        }
+    }
+    let snapshot: Snapshot = serde_json::from_value(value).unwrap();
+    for (command, key) in [
+        (QueryCommand::WorkspaceList { project: None }, "workspaces"),
+        (QueryCommand::WorkspaceGet(Target::Id(id(21))), "workspace"),
+        (
+            QueryCommand::TabList {
+                workspace: None,
+                standalone: false,
+            },
+            "tabs",
+        ),
+        (QueryCommand::TabGet(Target::Id(id(5))), "tab"),
+        (QueryCommand::PanelList { tab: None }, "panels"),
+        (QueryCommand::PanelGet(Target::Id(id(6))), "panel"),
+    ] {
+        let schema = crate::cli::schema::answer(
+            Some(results::schema_id(&command)),
+            OutputFormat::Json,
+            Locale::EnUs,
+        );
+        let schema: Value = serde_json::from_slice(&schema.stdout).unwrap();
+        let validator = jsonschema::validator_for(&schema["result"]["schema"]["document"]).unwrap();
+        for selected in [false, true] {
+            let make = || {
+                let mut doc = document(&command, &snapshot);
+                if !selected {
+                    doc.client = None;
+                }
+                doc.agents = Some(super::super::workbench_agents::tests::document(
+                    &doc.projection,
+                    &snapshot,
+                    doc.client.as_ref(),
+                ));
+                Projection::WorkbenchQuery(Box::new(doc))
+            };
+            let output = success_output(
+                make(),
+                results::snapshot_source(&snapshot),
+                &command,
+                OutputFormat::Json,
+                Locale::EnUs,
+            );
+            assert_eq!(output.status, 0);
+            let doc: Value = serde_json::from_slice(&output.stdout).unwrap();
+            validator.validate(&doc).unwrap();
+            let row = if doc["result"][key].is_array() {
+                &doc["result"][key][0]
+            } else {
+                &doc["result"][key]
+            };
+            assert_eq!(
+                row["agentStatus"],
+                if selected { json!("done") } else { Value::Null }
+            );
+            assert!(!row["agentSessionIds"].as_array().unwrap().is_empty());
+            assert_eq!(
+                doc["result"]["agents"]["sessions"][0]
+                    .get("client")
+                    .is_some(),
+                selected
+            );
+            for missing in ["agents", "agentStatus", "agentSessionIds"] {
+                let mut broken = doc.clone();
+                if missing == "agents" {
+                    broken["result"].as_object_mut().unwrap().remove(missing);
+                } else {
+                    let row = &mut broken["result"][key];
+                    let row = if row.is_array() { &mut row[0] } else { row };
+                    row.as_object_mut().unwrap().remove(missing);
+                }
+                assert!(!validator.is_valid(&broken), "{key} missing {missing}");
+            }
+            let mut broken = doc.clone();
+            if selected {
+                broken["result"]["agents"]["sessions"][0]
+                    .as_object_mut()
+                    .unwrap()
+                    .remove("client");
+            } else {
+                broken["result"]["agents"]["sessions"][0]["client"] = json!({});
+            }
+            assert!(!validator.is_valid(&broken));
+            for locale in [Locale::EnUs, Locale::ZhCn] {
+                let output = success_output(
+                    make(),
+                    results::snapshot_source(&snapshot),
+                    &command,
+                    OutputFormat::Text,
+                    locale,
+                );
+                assert_eq!(output.status, 0);
+                assert!(!output.stdout.contains(&0x1b));
+                assert!(
+                    String::from_utf8(output.stdout)
+                        .unwrap()
+                        .contains(locale.cli_workbench_agents_heading())
+                );
+            }
         }
     }
 }

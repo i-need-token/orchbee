@@ -44,7 +44,9 @@ mod site;
 mod site_diagnose;
 mod site_stop;
 #[cfg(windows)]
-pub(crate) mod workbench_client_query;
+mod workbench_agents;
+#[cfg(windows)]
+pub(crate) mod workbench_query;
 pub(crate) use site_stop::run as site_stop;
 mod workspace_group_close;
 mod worktree_operation;
@@ -608,6 +610,18 @@ pub(crate) fn agent_integration(
 }
 
 pub(crate) fn query(command: QueryCommand, format: OutputFormat, locale: Locale) -> Output {
+    #[cfg(windows)]
+    if matches!(
+        command,
+        QueryCommand::WorkspaceList { .. }
+            | QueryCommand::WorkspaceGet(_)
+            | QueryCommand::TabList { .. }
+            | QueryCommand::TabGet(_)
+            | QueryCommand::PanelList { .. }
+            | QueryCommand::PanelGet(_)
+    ) {
+        return workbench_query::run(&command, None, format, locale);
+    }
     match &command {
         QueryCommand::ApiSchema { schema_id } => {
             schema::answer(schema_id.as_deref(), format, locale)
