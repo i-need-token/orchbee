@@ -16,6 +16,12 @@ The protocol contract is owned by `crates/terminal-protocol` (`row_window.rs`, `
 This slice deliberately does not implement copy/search/selection on history, styled rendering,
 clipboard integration, or persistence. Those are separate accepted decisions.
 
+The same app-local core also serves the Windows CLI control stream through
+`cli/terminal_stream/history.rs`. Each attached control invocation owns one core, read watermark
+and strict history-event sequence. CLI demand/row exchanges use the same protocol; complete
+ANSI history output is flushed before RowsApplied. The adapter's NDJSON contract belongs to
+[Windows terminal streams](windows-terminal-streams.md); TUI notice copy remains TUI-owned.
+
 ## State machine
 
 Each pane owns an independent viewport core (`TerminalViewport`, one per `PaneRef`; hidden or

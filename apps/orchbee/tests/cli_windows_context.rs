@@ -112,8 +112,8 @@ fn offline_catalog_is_closed_and_current_panel_schema_is_discoverable() {
     let schemas = document["result"]["schemas"]
         .as_object()
         .expect("dictionary");
-    assert_eq!(document["version"], 67);
-    assert_eq!(schemas.len(), 75);
+    assert_eq!(document["version"], 68);
+    assert_eq!(schemas.len(), 76);
     let validator =
         jsonschema::draft202012::new(&schemas["orchbee.api.schema"]).expect("catalog schema");
     validator.validate(&document).expect("valid catalog");
@@ -121,6 +121,8 @@ fn offline_catalog_is_closed_and_current_panel_schema_is_discoverable() {
         jsonschema::draft202012::new(schema).expect("schema compiles");
     }
     for id in [
+        "orchbee.terminal.stream",
+        "orchbee.terminal.control.input",
         "orchbee.workspace.creation",
         "orchbee.panel.rename",
         "orchbee.panel.layout",
@@ -244,6 +246,56 @@ fn terminal_observe_rejects_invalid_grammar_before_effect_and_closes_missing_run
                 "terminal",
                 "session",
                 "observe",
+                "@terminal:ab",
+                "--timeout=3000",
+            ],
+            None,
+            None,
+            locale,
+        );
+        assert!(!output.status.success());
+        let record: serde_json::Value =
+            serde_json::from_slice(&output.stdout).expect("one closed record");
+        assert_eq!(record["kind"], "closed");
+        assert_eq!(record["cleanup"], "not-attached");
+        assert!(!output.stderr.is_empty());
+        validator.validate(&record).expect("closed record conforms");
+    }
+}
+
+#[test]
+fn terminal_control_rejects_invalid_grammar_before_effect_and_closes_missing_runtime() {
+    let help = run(
+        &["help", "terminal", "session", "control"],
+        None,
+        None,
+        "en_US.UTF-8",
+    );
+    assert!(help.status.success());
+    assert!(String::from_utf8_lossy(&help.stdout).contains("orchbee.terminal.control.input"));
+    let invalid = run(
+        &["terminal", "session", "control", "@terminal:ab", "--cols=0"],
+        None,
+        None,
+        "en_US.UTF-8",
+    );
+    assert_eq!(invalid.status.code(), Some(2));
+    let schema = run(
+        &["api", "schema", "orchbee.terminal.stream"],
+        None,
+        None,
+        "en_US.UTF-8",
+    );
+    let document: serde_json::Value =
+        serde_json::from_slice(&schema.stdout).expect("schema document");
+    let validator = jsonschema::draft202012::new(&document["result"]["schema"]["document"])
+        .expect("stream schema");
+    for locale in ["en_US.UTF-8", "zh_CN.UTF-8"] {
+        let output = run(
+            &[
+                "terminal",
+                "session",
+                "control",
                 "@terminal:ab",
                 "--timeout=3000",
             ],

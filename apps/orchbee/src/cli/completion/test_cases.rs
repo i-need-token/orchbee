@@ -1,6 +1,34 @@
 //! Shared observable completion obligations, independent of shell syntax.
 
 pub(super) const CASES: &[(&str, &str, bool)] = &[
+    ("orchbee terminal session c", "control", true),
+    (
+        "orchbee --takeover terminal session observe target --f",
+        "--format",
+        false,
+    ),
+    (
+        "orchbee terminal session observe target --takeover --f",
+        "--format",
+        false,
+    ),
+    (
+        "orchbee terminal session control target --ta",
+        "--takeover",
+        true,
+    ),
+    (
+        "orchbee terminal session observe target --ta",
+        "--takeover",
+        false,
+    ),
+    ("orchbee --takeover terminal session ", "control", true),
+    ("orchbee --takeover terminal session ", "observe", false),
+    (
+        "orchbee terminal session control target --takeover --ta",
+        "--takeover",
+        false,
+    ),
     ("orchbee terminal se", "session", true),
     ("orchbee terminal session ob", "observe", true),
     (

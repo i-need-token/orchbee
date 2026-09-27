@@ -4,6 +4,58 @@ use base64::Engine;
 use orchbee_terminal_protocol::TerminalTextFrame;
 use serde_json::{Value, json};
 
+pub(super) fn history(
+    window: &orchbee_terminal_protocol::TerminalTextRowWindow,
+    columns: u16,
+    rows: u16,
+) -> Result<Value, Failure> {
+    let bytes = output::render_text(|out| {
+        out.push("\x1b[0m\x1b[?25l\x1b[2J\x1b[H")?;
+        for (line, row) in window.rows.iter().take(usize::from(rows)).enumerate() {
+            if row.identity_ascii {
+                out.write(format_args!("\x1b[{};1H", line + 1))?;
+                let text = row
+                    .text
+                    .get(..row.text.len().min(usize::from(columns)))
+                    .unwrap_or("");
+                ansi::write_cell_text(out, text)?;
+                continue;
+            }
+            for (index, cell) in row.mappings.iter().enumerate() {
+                if cell.column >= columns {
+                    continue;
+                }
+                let end = row
+                    .mappings
+                    .get(index + 1)
+                    .map_or(row.text.len(), |next| next.byte_offset as usize);
+                let text = row.text.get(cell.byte_offset as usize..end).unwrap_or("");
+                out.write(format_args!("\x1b[{};{}H", line + 1, cell.column + 1))?;
+                if cell.width == 2 && cell.column + 1 >= columns {
+                    out.push(" ")?;
+                } else if text
+                    .chars()
+                    .any(crate::terminal_text::is_forbidden_terminal_scalar)
+                    || ratatui::text::Span::raw(text).width() != usize::from(cell.width)
+                {
+                    out.push(if cell.width == 2 { "� " } else { "�" })?;
+                } else {
+                    ansi::write_cell_text(out, text)?;
+                }
+            }
+        }
+        Ok(())
+    })
+    .map_err(|_| Failure::new(FailureKind::OutputTooLarge))?;
+    if bytes.len() > 5 * 1024 * 1024 {
+        return Err(Failure::new(FailureKind::OutputTooLarge));
+    }
+    Ok(json!({"kind":"history","encoding":"ansi","full":true,
+        "sequence":window.sequence.to_string(),"generation":window.generation.to_string(),"revision":window.revision.to_string(),
+        "width":columns,"height":rows,"startRow":window.start_row.to_string(),"totalRows":window.total_rows.to_string(),
+        "bytes":base64::engine::general_purpose::STANDARD.encode(bytes)}))
+}
+
 pub(super) fn record(frame: &TerminalTextFrame, columns: u16, rows: u16) -> Result<Value, Failure> {
     let bytes = output::render_text(|out| {
         let base = orchbee_terminal_protocol::TerminalTextStyle {

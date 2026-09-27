@@ -18,12 +18,12 @@ use std::{
     sync::atomic::{AtomicBool, Ordering},
 };
 
-const SNAPSHOT: &[u8] =
+pub(super) const SNAPSHOT: &[u8] =
     include_bytes!("../../../../../packages/terminal-protocol/fixtures/ghostty-surface-v0.0.3.bin");
-const COHORT: &str = "terminal-stream-test";
+pub(super) const COHORT: &str = "terminal-stream-test";
 type TestResult = Result<(), Box<dyn std::error::Error>>;
 
-fn handshake(stream: &mut LocalStream) -> io::Result<()> {
+pub(super) fn handshake(stream: &mut LocalStream) -> io::Result<()> {
     assert!(matches!(
         read_message(stream).map_err(io::Error::other)?,
         LocalClientMessage::ClientHello(_)
@@ -36,7 +36,7 @@ fn handshake(stream: &mut LocalStream) -> io::Result<()> {
     )
     .map_err(io::Error::other)
 }
-fn request(stream: &mut LocalStream) -> io::Result<TerminalViewerRequest> {
+pub(super) fn request(stream: &mut LocalStream) -> io::Result<TerminalViewerRequest> {
     let ClientMessage::TerminalViewer(request) =
         read_client_message(stream).map_err(io::Error::other)?
     else {
@@ -55,7 +55,7 @@ fn request(stream: &mut LocalStream) -> io::Result<TerminalViewerRequest> {
     );
     Ok(request)
 }
-fn reply(
+pub(super) fn reply(
     stream: &mut LocalStream,
     request: TerminalViewerRequest,
     outcome: Outcome,
@@ -69,7 +69,7 @@ fn reply(
     )
     .map_err(io::Error::other)
 }
-fn record(sequence: u64, revision: u64, invalid_cells: bool) -> io::Result<Vec<u8>> {
+pub(super) fn record(sequence: u64, revision: u64, invalid_cells: bool) -> io::Result<Vec<u8>> {
     let mut bytes = SNAPSHOT.to_vec();
     bytes[48..56].copy_from_slice(&sequence.to_le_bytes());
     bytes[64..72].copy_from_slice(&revision.to_le_bytes());
@@ -91,7 +91,7 @@ fn record(sequence: u64, revision: u64, invalid_cells: bool) -> io::Result<Vec<u
     })
     .map_err(io::Error::other)
 }
-fn line(output: &mut ChildOutputReader) -> io::Result<Value> {
+pub(super) fn line(output: &mut ChildOutputReader) -> io::Result<Value> {
     let mut line = Vec::new();
     loop {
         let mut byte = [0];
@@ -136,7 +136,7 @@ fn observe_repeated_frames_flush_before_ack_reset_and_detach_once() -> TestResul
                 .validate(&emitted)
                 .map_err(|error| io::Error::other(error.to_string()))?;
             assert_eq!(emitted["schema"], SCHEMA);
-            assert_eq!(emitted["version"], 1);
+            assert_eq!(emitted["version"], 2);
             if invalid {
                 assert!(matches!(
                     feedback.action(),

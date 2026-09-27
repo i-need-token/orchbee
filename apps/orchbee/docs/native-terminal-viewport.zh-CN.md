@@ -15,6 +15,11 @@ demand 双腿、行窗口 read/acknowledge 握手、导航意图、恢复，以�
 本切片刻意不实现历史上的复制/搜索/选择、样式渲染、剪贴板集成或持久化——这些是另行
 接受的决策。
 
+同一应用内核心也通过 `cli/terminal_stream/history.rs` 服务 Windows CLI 控制流。每个
+已附着的 control 调用拥有一个核心、读取水位及严格历史事件序号。CLI 的 demand/行交换
+使用相同协议；完整 ANSI 历史输出刷新后才发送 RowsApplied。适配器的 NDJSON 契约归
+[Windows 终端流](windows-terminal-streams.zh-CN.md)所有；TUI 通知文案仍由 TUI 拥有。
+
 ## 状态机
 
 每个窗格拥有独立的 viewport 核心（`TerminalViewport`，每 `PaneRef` 一个；隐藏或后台

@@ -10,13 +10,13 @@
 					"const": "orchbee.terminal.stream"
 				},
 				"version": {
-					"const": 1
+					"const": 2
 				},
 				"kind": {
 					"const": "opened"
 				},
 				"mode": {
-					"const": "observe"
+					"enum": ["observe", "control"]
 				},
 				"source": {
 					"type": "object",
@@ -70,10 +70,33 @@
 					"type": "integer",
 					"minimum": 1,
 					"maximum": 4096
+				},
+				"controllerId": {
+					"type": "string",
+					"pattern": "^[0-9a-f]{32}$"
 				}
 			},
 			"required": ["schema", "version", "kind", "mode", "source", "width", "height"],
-			"additionalProperties": false
+			"additionalProperties": false,
+			"allOf": [
+				{
+					"if": {
+						"properties": {
+							"mode": {
+								"const": "control"
+							}
+						}
+					},
+					"then": {
+						"required": ["controllerId"]
+					},
+					"else": {
+						"not": {
+							"required": ["controllerId"]
+						}
+					}
+				}
+			]
 		},
 		{
 			"type": "object",
@@ -82,7 +105,7 @@
 					"const": "orchbee.terminal.stream"
 				},
 				"version": {
-					"const": 1
+					"const": 2
 				},
 				"kind": {
 					"const": "frame"
@@ -155,7 +178,7 @@
 					"const": "orchbee.terminal.stream"
 				},
 				"version": {
-					"const": 1
+					"const": 2
 				},
 				"kind": {
 					"const": "reset"
@@ -170,7 +193,10 @@
 						"generation-mismatch",
 						"identity-mismatch",
 						"sequence-gap",
-						"store-reset"
+						"store-reset",
+						"history-pending",
+						"history-recovering",
+						"resynchronize"
 					]
 				}
 			},
@@ -184,7 +210,7 @@
 					"const": "orchbee.terminal.stream"
 				},
 				"version": {
-					"const": 1
+					"const": 2
 				},
 				"kind": {
 					"const": "closed"
@@ -207,7 +233,9 @@
 						"service-unavailable",
 						"session-capacity",
 						"timeout",
-						"transport-loss"
+						"transport-loss",
+						"stdin-eof",
+						"released"
 					]
 				},
 				"cleanup": {
@@ -215,6 +243,229 @@
 				}
 			},
 			"required": ["schema", "version", "kind", "reason", "cleanup"],
+			"additionalProperties": false
+		},
+		{
+			"type": "object",
+			"properties": {
+				"schema": {
+					"const": "orchbee.terminal.stream"
+				},
+				"version": {
+					"const": 2
+				},
+				"kind": {
+					"const": "control"
+				},
+				"ordinal": {
+					"type": "string",
+					"pattern": "^(0|[1-9][0-9]*)$"
+				},
+				"operation": {
+					"enum": ["acquire", "parse", "input", "resize", "scroll"]
+				},
+				"outcome": {
+					"oneOf": [
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "input-accepted"
+								},
+								"acceptedBytes": {
+									"type": "integer",
+									"minimum": 0,
+									"maximum": 262144
+								}
+							},
+							"required": ["kind", "acceptedBytes"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "scroll-accepted"
+								}
+							},
+							"required": ["kind"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "rejected"
+								},
+								"reason": {
+									"type": "string",
+									"minLength": 1,
+									"maxLength": 80
+								}
+							},
+							"required": ["kind", "reason"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "unavailable"
+								},
+								"reason": {
+									"type": "string",
+									"minLength": 1,
+									"maxLength": 80
+								}
+							},
+							"required": ["kind", "reason"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "outcome-unknown"
+								}
+							},
+							"required": ["kind"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "failed"
+								},
+								"reason": {
+									"type": "string",
+									"minLength": 1,
+									"maxLength": 80
+								},
+								"acceptedBytes": {
+									"type": "integer",
+									"minimum": 0,
+									"maximum": 262144
+								},
+								"deliveryMayBeUnknown": {
+									"const": true
+								}
+							},
+							"required": ["kind", "reason", "acceptedBytes", "deliveryMayBeUnknown"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "resized"
+								},
+								"geometry": {
+									"type": "object",
+									"properties": {
+										"columns": {
+											"type": "integer",
+											"minimum": 1,
+											"maximum": 4096
+										},
+										"rows": {
+											"type": "integer",
+											"minimum": 1,
+											"maximum": 4096
+										},
+										"cellPixelWidth": {
+											"type": "integer",
+											"minimum": 0,
+											"maximum": 4096
+										},
+										"cellPixelHeight": {
+											"type": "integer",
+											"minimum": 0,
+											"maximum": 4096
+										}
+									},
+									"required": ["columns", "rows", "cellPixelWidth", "cellPixelHeight"],
+									"additionalProperties": false
+								}
+							},
+							"required": ["kind", "geometry"],
+							"additionalProperties": false
+						}
+					]
+				}
+			},
+			"required": ["schema", "version", "kind", "ordinal", "operation", "outcome"],
+			"additionalProperties": false
+		},
+		{
+			"type": "object",
+			"properties": {
+				"schema": {
+					"const": "orchbee.terminal.stream"
+				},
+				"version": {
+					"const": 2
+				},
+				"kind": {
+					"const": "history"
+				},
+				"encoding": {
+					"const": "ansi"
+				},
+				"full": {
+					"const": true
+				},
+				"sequence": {
+					"type": "string",
+					"pattern": "^[1-9][0-9]*$"
+				},
+				"generation": {
+					"type": "string",
+					"pattern": "^[1-9][0-9]*$"
+				},
+				"revision": {
+					"type": "string",
+					"pattern": "^(0|[1-9][0-9]*)$"
+				},
+				"width": {
+					"type": "integer",
+					"minimum": 1,
+					"maximum": 4096
+				},
+				"height": {
+					"type": "integer",
+					"minimum": 1,
+					"maximum": 4096
+				},
+				"bytes": {
+					"type": "string",
+					"maxLength": 6990508,
+					"pattern": "^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$"
+				},
+				"startRow": {
+					"type": "string",
+					"pattern": "^(0|[1-9][0-9]*)$"
+				},
+				"totalRows": {
+					"type": "string",
+					"pattern": "^(0|[1-9][0-9]*)$"
+				}
+			},
+			"required": [
+				"schema",
+				"version",
+				"kind",
+				"encoding",
+				"full",
+				"sequence",
+				"generation",
+				"revision",
+				"width",
+				"height",
+				"bytes",
+				"startRow",
+				"totalRows"
+			],
 			"additionalProperties": false
 		}
 	]

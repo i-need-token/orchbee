@@ -321,6 +321,14 @@ check() {
  for candidate in "${COMPREPLY[@]}"; do [[ "$candidate" == "$expected" ]] && found=1; done
  if [[ "$found" != "$present" ]]; then printf '%s\n' "completion failed: $* -> ${COMPREPLY[*]} expected $expected = $present"; exit 1; fi
 }
+check control 1 orchbee terminal session c
+check --format 0 orchbee --takeover terminal session observe target --f
+check --format 0 orchbee terminal session observe target --takeover --f
+check --takeover 1 orchbee terminal session control target --ta
+check --takeover 0 orchbee terminal session observe target --ta
+check control 1 orchbee --takeover terminal session ''
+check observe 0 orchbee --takeover terminal session ''
+check --takeover 0 orchbee terminal session control target --takeover --ta
 check --output 1 orchbee api schema --o
 check --output 0 orchbee api snapshot --o
 check schema 1 orchbee --output file.json api ''

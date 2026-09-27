@@ -251,6 +251,7 @@ const BUSINESS_FLAGS: &[&str] = &[
     "--branch",
     "--base",
     "--force",
+    "--takeover",
     "--trust-repository",
     "--request-id",
     "--retry",
@@ -334,10 +335,12 @@ const REPEATABLE_FLAGS: &[&str] = &[
 
 /// `<family>:<verb>` (or `agent:integration:<verb>`) → the business flags
 /// that command admits. Commands not listed here admit none.
+const CONTROL_FLAGS: &[&str] = &["--cols", "--rows", "--timeout", "--takeover"];
 const OBSERVE_FLAGS: &[&str] = &["--cols", "--rows", "--timeout"];
 const COMMAND_FLAGS: &[(&str, &[&str])] = &[
-    ("terminal:session", OBSERVE_FLAGS),
+    ("terminal:session", CONTROL_FLAGS),
     ("terminal:session:observe", OBSERVE_FLAGS),
+    ("terminal:session:control", CONTROL_FLAGS),
     (
         "panel:resize",
         &[
@@ -862,6 +865,7 @@ const PROVIDER_VALUES: &[&str] = &[
 /// `<family>:<verb>` paths that consume one positional operand.
 const OPERAND_PATHS: &[&str] = &[
     "terminal:session:observe",
+    "terminal:session:control",
     "panel:input",
     "panel:resize",
     "panel:swap",
@@ -1027,7 +1031,7 @@ const HELP_CHILDREN: &[(&str, &[&str])] = &[
 /// reach a third help level.
 const HELP_LEVEL3: &[(&str, &[&str])] = &[
     ("agent:integration", INTEGRATION_VERBS),
-    ("terminal:session", &["observe"]),
+    ("terminal:session", &["observe", "control"]),
 ];
 
 const SHELLS: &[&str] = &["bash", "elvish", "fish", "powershell", "zsh"];
@@ -1056,6 +1060,7 @@ fn flag_bit(flag: &str) -> &'static str {
         "--focus" => "seen_focus",
         "--no-focus" => "seen_no_focus",
         "--force" => "seen_force",
+        "--takeover" => "seen_takeover",
         "--trust-repository" => "seen_trust_repository",
         "--group" => "seen_group",
         "--kind" => "seen_kind",
@@ -1142,7 +1147,7 @@ fn flag_value(flag: &str) -> Option<&'static str> {
         "--standalone" | "--confirm" | "--new-tab" | "--history" | "--enter" | "--stdin"
         | "--outdated-only" | "--include-ended" | "--unwrap" | "--paste" | "--current"
         | "--clear" | "--wait" | "--forever" | "--retry" | "--detach" | "--force"
-        | "--trust-repository" | "--group" => None,
+        | "--takeover" | "--trust-repository" | "--group" => None,
         _ => Some("filter"),
     }
 }
@@ -1965,7 +1970,7 @@ fn bash() -> String {
             "                        esac ;;\n",
             "                    sub)\n",
             "                        case \"$family:$word\" in\n",
-            "                            terminal:session) sub=session; state=deep; admit '--cols --rows --timeout' \"${{seen_flags[@]}}\" || done=1 ;;\n",
+            "                            terminal:session) sub=session; state=deep; admit '--cols --rows --timeout --takeover' \"${{seen_flags[@]}}\" || done=1 ;;\n",
             "                            agent:integration)\n",
             "                                sub=integration; state=deep\n",
             "                                # The sub-family's union scope must cover\n",
@@ -1986,7 +1991,7 @@ fn bash() -> String {
             "                                sub=\"$sub:$word\"; state=after\n",
             "                                # Every `agent integration` verb shares the\n",
             "                                # same flag scope — the union check.\n",
-            "                                if [[ $family == agent ]]; then (({integration_bad})) && done=1; fi ;;\n",
+            "                                if [[ $family == agent ]]; then (({integration_bad})) && done=1; elif [[ $sub == session:observe ]] && ((seen_takeover)); then done=1; fi ;;\n",
             "                            *) done=1 ;;\n",
             "                        esac ;;\n",
             "                    after)\n",
@@ -2034,7 +2039,7 @@ fn bash() -> String {
             "        esac\n",
             "        [[ -z $verbs ]] && dead=1\n",
             "    elif [[ $state == deep ]]; then\n",
-            "        if [[ $family == terminal ]]; then verbs=observe; else (({integration_bad})) || verbs=\"{integration_verb_words}\"; fi\n",
+            "        if [[ $family == terminal ]]; then verbs=control; ((seen_takeover == 0)) && verbs=\"$verbs observe\"; else (({integration_bad})) || verbs=\"{integration_verb_words}\"; fi\n",
             "        [[ -z $verbs ]] && dead=1\n",
             "    fi\n",
             "    if ((done || ended || dead || seen_zoom_on + seen_zoom_off + seen_zoom_toggle > 1)); then candidates=\"\"\n",
@@ -2334,7 +2339,7 @@ fn zsh() -> String {
             "                        esac ;;\n",
             "                    sub)\n",
             "                        case \"$family:$word\" in\n",
-            "                            terminal:session) sub=session; state=deep; admit '--cols --rows --timeout' \"${{seen_flags[@]}}\" || done=1 ;;\n",
+            "                            terminal:session) sub=session; state=deep; admit '--cols --rows --timeout --takeover' \"${{seen_flags[@]}}\" || done=1 ;;\n",
             "                            agent:integration)\n",
             "                                sub=integration; state=deep\n",
             "                                (({integration_bad})) && done=1 ;;\n",
@@ -2349,7 +2354,7 @@ fn zsh() -> String {
             "                        case \"$family:$sub:$word\" in\n",
             "                            {deep_verb_patterns})\n",
             "                                sub=\"$sub:$word\"; state=after\n",
-            "                                if [[ $family == agent ]]; then (({integration_bad})) && done=1; fi ;;\n",
+            "                                if [[ $family == agent ]]; then (({integration_bad})) && done=1; elif [[ $sub == session:observe ]] && ((seen_takeover)); then done=1; fi ;;\n",
             "                            *) done=1 ;;\n",
             "                        esac ;;\n",
             "                    after)\n",
@@ -2393,7 +2398,7 @@ fn zsh() -> String {
             "        esac\n",
             "        [[ -z $verbs ]] && dead=1\n",
             "    elif [[ $state == deep ]]; then\n",
-            "        if [[ $family == terminal ]]; then verbs=observe; else (({integration_bad})) || verbs=\"{integration_verb_words}\"; fi\n",
+            "        if [[ $family == terminal ]]; then verbs=control; ((seen_takeover == 0)) && verbs=\"$verbs observe\"; else (({integration_bad})) || verbs=\"{integration_verb_words}\"; fi\n",
             "        [[ -z $verbs ]] && dead=1\n",
             "    fi\n",
             "    if ((done || ended || dead || seen_zoom_on + seen_zoom_off + seen_zoom_toggle > 1)); then candidates=\"\"\n",
@@ -3156,7 +3161,7 @@ fn fish() -> String {
             "                    case sub\n",
             "                        switch \"$family:$word\"\n",
             "                            case 'terminal:session'\n",
-            "                                set sub session; set state deep; __orchbee_admit '--cols --rows --timeout' $seen_flags; or set done 1\n",
+            "                                set sub session; set state deep; __orchbee_admit '--cols --rows --timeout --takeover' $seen_flags; or set done 1\n",
             "                            case 'agent:integration'\n",
             "                                set sub integration; set state deep\n",
             "                                if test $family = agent; and begin; test $seen_provider2 -eq 1; or not __orchbee_admit '{integration_allowed}' $seen_flags; end; set done 1; end\n",
@@ -3171,7 +3176,7 @@ fn fish() -> String {
             "                        switch \"$family:$sub:$word\"\n",
             "                            case {deep_verb_cases}\n",
             "                                set sub \"$sub:$word\"; set state after\n",
-            "                                if test $seen_provider2 -eq 1; or not __orchbee_admit '{integration_allowed}' $seen_flags; set done 1; end\n",
+            "                                if test $family = agent; if test $seen_provider2 -eq 1; or not __orchbee_admit '{integration_allowed}' $seen_flags; set done 1; end; else if test $sub = session:observe; and test $seen_takeover -eq 1; set done 1; end\n",
             "                            case '*'; set done 1\n",
             "                        end\n",
             "                    case after\n",
@@ -3217,7 +3222,7 @@ fn fish() -> String {
             "        end\n",
             "        if test (count $verbs) -eq 0; set dead 1; end\n",
             "    else if test \"$state\" = deep\n",
-            "        if test $family = terminal; set verbs observe; else if test $seen_provider2 -eq 0; and __orchbee_admit '{integration_allowed}' $seen_flags; set verbs {integration_verb_words}; end\n",
+            "        if test $family = terminal; set verbs control; if test $seen_takeover -eq 0; set -a verbs observe; end; else if test $seen_provider2 -eq 0; and __orchbee_admit '{integration_allowed}' $seen_flags; set verbs {integration_verb_words}; end\n",
             "        if test (count $verbs) -eq 0; set dead 1; end\n",
             "    end\n",
             "    set -l candidates\n",

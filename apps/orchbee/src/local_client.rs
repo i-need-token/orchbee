@@ -421,13 +421,19 @@ impl LocalClient {
         request: TerminalControlRequest,
         deadline: Option<Instant>,
     ) -> Result<TerminalControlResult, SubmissionError> {
+        self.submit_terminal_control_cancellable(request, deadline, None)
+    }
+
+    pub(crate) fn submit_terminal_control_cancellable(
+        &mut self,
+        request: TerminalControlRequest,
+        deadline: Option<Instant>,
+        wake: Option<BorrowedFd<'_>>,
+    ) -> Result<TerminalControlResult, SubmissionError> {
         let request_id = request.request_id().clone();
         let action = request.action().clone();
         let message = ClientMessage::TerminalControl(request);
-        let result = match deadline {
-            Some(deadline) => self.exchange_before(message, &request_id, deadline)?,
-            None => self.exchange(message, &request_id)?,
-        };
+        let result = self.exchange_with_wake(message, &request_id, deadline, wake)?;
         let ServerMessage::TerminalControlResult(result) = result else {
             return self.retire_with_unknown(
                 request_id,

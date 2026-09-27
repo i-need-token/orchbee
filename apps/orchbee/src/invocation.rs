@@ -15,7 +15,7 @@ pub(crate) use client_control::{
     PanelSwapDestination, ZoomMode,
 };
 pub(crate) use terminal_output::{OutputSelection, OutputSource, OutputTarget};
-pub(crate) use terminal_stream::TerminalObserveCommand;
+pub(crate) use terminal_stream::{TerminalControlCommand, TerminalObserveCommand};
 mod workspace_group_close;
 pub(crate) use workspace_group_close::WorkspaceGroupCloseCommand;
 #[cfg(windows)]
@@ -261,6 +261,7 @@ pub(crate) enum CommandPath {
     TerminalList,
     TerminalGet,
     TerminalObserve,
+    TerminalControl,
     TerminalRead,
     TerminalWaitOutput,
     TerminalSend,
@@ -356,6 +357,7 @@ impl CommandPath {
             Self::TerminalList => "terminal list",
             Self::TerminalGet => "terminal get",
             Self::TerminalObserve => "terminal session observe",
+            Self::TerminalControl => "terminal session control",
             Self::TerminalRead => "terminal read",
             Self::TerminalWaitOutput => "terminal wait-output",
             Self::TerminalSend => "terminal send",
@@ -1078,6 +1080,9 @@ pub(crate) enum Request {
     TerminalObserve {
         command: TerminalObserveCommand,
     },
+    TerminalControl {
+        command: TerminalControlCommand,
+    },
     #[cfg(windows)]
     WorkspaceCreation {
         command: WorkspaceCreationCommand,
@@ -1421,6 +1426,7 @@ struct Options {
     branch: Option<String>,
     base: Option<String>,
     force: bool,
+    takeover: bool,
     trust_repository: bool,
     request_id: Option<String>,
     detach: bool,
@@ -1857,8 +1863,8 @@ fn scan(tokens: Vec<String>) -> Result<Request, ParseFailure> {
             "--group" | "--standalone" | "--confirm" | "--history" | "--enter" | "--stdin"
             | "--outdated-only" | "--include-ended" | "--new-tab" | "--paste" | "--unwrap"
             | "--current" | "--plain" | "--ansi" | "--clear" | "--wait" | "--forever"
-            | "--detach" | "--retry" | "--force" | "--trust-repository" | "--on" | "--off"
-            | "--toggle" | "--focus" | "--no-focus" => {
+            | "--detach" | "--retry" | "--force" | "--takeover" | "--trust-repository" | "--on"
+            | "--off" | "--toggle" | "--focus" | "--no-focus" => {
                 let (seen, option) = if token == "--plain" {
                     (&mut options.plain, "--plain")
                 } else if token == "--ansi" {
@@ -1873,6 +1879,8 @@ fn scan(tokens: Vec<String>) -> Result<Request, ParseFailure> {
                     (&mut options.zoom_off, "--off")
                 } else if token == "--toggle" {
                     (&mut options.zoom_toggle, "--toggle")
+                } else if token == "--takeover" {
+                    (&mut options.takeover, "--takeover")
                 } else if token == "--force" {
                     (&mut options.force, "--force")
                 } else if token == "--trust-repository" {
@@ -3132,6 +3140,9 @@ fn resolve_words(
                 options,
             ))
         }
+        ["terminal", "session", "control", operands @ ..] => {
+            terminal_stream::control(operands, options, envelope)
+        }
         ["terminal", "session", "observe", operands @ ..] => {
             terminal_stream::observe(operands, options, envelope)
         }
@@ -3896,6 +3907,7 @@ fn help_topic(path: &[&str]) -> Option<HelpTopic> {
         ["terminal"] => HelpTopic::Family(Family::Terminal),
         ["terminal", "session"] => HelpTopic::Family(Family::TerminalSession),
         ["terminal", "session", "observe"] => HelpTopic::Command(CommandPath::TerminalObserve),
+        ["terminal", "session", "control"] => HelpTopic::Command(CommandPath::TerminalControl),
         ["api"] => HelpTopic::Family(Family::Api),
         ["site"] => HelpTopic::Family(Family::Site),
         ["config"] => HelpTopic::Family(Family::Config),
@@ -4015,6 +4027,7 @@ struct Scope {
     branch: bool,
     base: bool,
     force: bool,
+    takeover: bool,
     trust_repository: bool,
     request_id: bool,
     detach: bool,
@@ -4137,6 +4150,7 @@ const NO_OPTIONS: Scope = Scope {
     branch: false,
     base: false,
     force: false,
+    takeover: false,
     trust_repository: false,
     request_id: false,
     detach: false,
@@ -4520,6 +4534,9 @@ fn first_out_of_scope(options: &Options, scope: Scope) -> Option<&'static str> {
     }
     if options.base.is_some() && !scope.base {
         return Some("--base");
+    }
+    if options.takeover && !scope.takeover {
+        return Some("--takeover");
     }
     if options.force && !scope.force {
         return Some("--force");

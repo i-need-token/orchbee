@@ -1,4 +1,4 @@
-//! Invocation-owned read-only terminal stream. The transport and Viewer remain single owners.
+//! Invocation-owned terminal observation and control streams. The transport and Viewer remain single owners.
 use super::{Failure, FailureKind, Output, output, query};
 use crate::{
     invocation::TerminalObserveCommand, local_client::LocalClient, localization::Locale,
@@ -10,7 +10,11 @@ use orchbee_client_server_protocol::{
 };
 use serde_json::{Value, json};
 use std::time::{Duration, Instant};
+mod control;
 mod frame;
+mod history;
+mod input;
+pub(crate) use control::run as run_control;
 mod relay;
 const STEP: Duration = Duration::from_secs(5);
 const CLEANUP: Duration = Duration::from_secs(2);
@@ -250,7 +254,7 @@ fn emit(
     cancelled: &dyn Fn() -> bool,
 ) -> Result<(), Failure> {
     record["schema"] = json!(SCHEMA);
-    record["version"] = json!(1);
+    record["version"] = json!(2);
     let bytes =
         output::encode_record(&record).map_err(|_| Failure::new(FailureKind::OutputTooLarge))?;
     relay.record(&bytes, deadline, cancelled).map_err(|error| {

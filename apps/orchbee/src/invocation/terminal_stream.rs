@@ -6,15 +6,47 @@ pub(crate) struct TerminalObserveCommand {
     pub(crate) rows: u16,
     pub(crate) timeout_ms: Option<u32>,
 }
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct TerminalControlCommand {
+    pub(crate) stream: TerminalObserveCommand,
+    pub(crate) takeover: bool,
+}
+pub(super) fn control(
+    operands: &[&str],
+    options: &Options,
+    envelope: FailureEnvelope,
+) -> Result<Request, ParseFailure> {
+    Ok(Request::TerminalControl {
+        command: TerminalControlCommand {
+            stream: stream(operands, options, envelope, true)?,
+            takeover: options.takeover,
+        },
+    })
+}
 pub(super) fn observe(
     operands: &[&str],
     options: &Options,
     envelope: FailureEnvelope,
 ) -> Result<Request, ParseFailure> {
-    let context = UsageContext::Path("terminal session observe");
+    Ok(Request::TerminalObserve {
+        command: stream(operands, options, envelope, false)?,
+    })
+}
+fn stream(
+    operands: &[&str],
+    options: &Options,
+    envelope: FailureEnvelope,
+    control: bool,
+) -> Result<TerminalObserveCommand, ParseFailure> {
+    let context = UsageContext::Path(if control {
+        "terminal session control"
+    } else {
+        "terminal session observe"
+    });
     check_scope(
         options,
         Scope {
+            takeover: control,
             geometry: true,
             timeout: true,
             ..NO_OPTIONS
@@ -81,13 +113,11 @@ pub(super) fn observe(
     } else {
         None
     };
-    Ok(Request::TerminalObserve {
-        command: TerminalObserveCommand {
-            target: target((*value).to_owned(), Resource::Terminal, envelope)?,
-            columns,
-            rows,
-            timeout_ms,
-        },
+    Ok(TerminalObserveCommand {
+        target: target((*value).to_owned(), Resource::Terminal, envelope)?,
+        columns,
+        rows,
+        timeout_ms,
     })
 }
 
@@ -101,6 +131,44 @@ mod tests {
                 .chain(extra.iter().copied())
                 .map(OsString::from),
         )
+    }
+    #[test]
+    fn terminal_control_scopes_takeover_and_reuses_checked_dimensions() {
+        let parse = |words: &[&str]| parse_request(words.iter().map(OsString::from));
+        let Request::TerminalControl { command } = parse(&[
+            "terminal",
+            "session",
+            "control",
+            "@terminal:ab",
+            "--takeover",
+            "--cols=100",
+        ])
+        .unwrap() else {
+            panic!("control")
+        };
+        assert!(command.takeover);
+        assert_eq!((command.stream.columns, command.stream.rows), (100, 40));
+        for words in [
+            vec![
+                "terminal",
+                "session",
+                "observe",
+                "@terminal:ab",
+                "--takeover",
+            ],
+            vec![
+                "terminal",
+                "session",
+                "control",
+                "@terminal:ab",
+                "--takeover",
+                "--takeover",
+            ],
+            vec!["terminal", "session", "control", "@terminal:ab", "--cols=0"],
+            vec!["terminal", "session", "control", "@terminal:ab", "--stdin"],
+        ] {
+            assert!(parse(&words).is_err());
+        }
     }
     #[test]
     fn terminal_observe_defaults_and_scoped_options() {

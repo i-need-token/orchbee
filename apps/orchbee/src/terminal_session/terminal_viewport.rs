@@ -30,7 +30,7 @@ const HISTORY_CHANGED_KIND: u16 = 53;
 /// Decode and route-validate a `HistoryChanged` record for `attachment`/`epoch`.
 /// `Ok(None)` means the record is not a kind-53 event at all; `Err` is a
 /// protocol violation the caller retires.
-pub(super) fn decode_history_changed(
+pub(crate) fn decode_history_changed(
     record: &[u8],
     attachment: &AttachmentId,
     epoch: &HostEpoch,
@@ -67,7 +67,7 @@ const READ_MAXIMUM_BYTES: u32 = 8 * 1024 * 1024;
 const MAXIMUM_READ_ROWS: u16 = 4096;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(super) enum ViewportMode {
+pub(crate) enum ViewportMode {
     Entering,
     Viewing,
     Recovering,
@@ -106,7 +106,7 @@ enum InflightNav {
 /// protocol seam. `Enter` is staged by `enter_history` itself (its admission
 /// gates installing the core); the other steps ride `pending_commands`.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(super) enum ViewportStep {
+pub(crate) enum ViewportStep {
     Enter,
     Read {
         origin: ViewportRowOrigin,
@@ -127,14 +127,14 @@ pub(super) enum ViewportStep {
 /// Typed host rejection for an in-flight read; `Host` is the opaque
 /// `Rejected{HostRejected}` form that also covers pending-pin blockages.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(super) enum ViewportReadRejection {
+pub(crate) enum ViewportReadRejection {
     Typed(ViewerRowsRejectedReason),
     Host,
 }
 
 /// Local navigation intent admitted by `nav`.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(super) enum ViewportNav {
+pub(crate) enum ViewportNav {
     /// Signed lines: positive toward older rows, negative toward the tail.
     Lines(i64),
     Oldest,
@@ -145,7 +145,7 @@ pub(super) enum ViewportNav {
 /// What the renderer may paint for this pane at `columns` right now. Every
 /// access re-validates generation and columns so stale data can never paint.
 #[derive(Clone, Copy, Debug)]
-pub(super) enum ViewportSurface<'a> {
+pub(crate) enum ViewportSurface<'a> {
     /// A current, gate-passing window: paint its plain-text rows.
     Window(&'a TerminalTextRowWindow),
     /// Entering with no window yet: the last verified live frame may show
@@ -160,8 +160,8 @@ pub(super) enum ViewportSurface<'a> {
 /// Side effects a core transition asks the owner to perform. Commands stay
 /// inside `pending_commands`; `live` drops the core entirely.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
-pub(super) struct ViewportEffect {
-    pub notice: Option<SessionNotice>,
+pub(crate) struct ViewportEffect {
+    pub(in crate::terminal_session) notice: Option<SessionNotice>,
     /// Drop the core: the pane returns to Live.
     pub live: bool,
     /// A wire-level violation (undecodable or foreign-route window): the
@@ -169,7 +169,7 @@ pub(super) struct ViewportEffect {
     pub protocol_error: bool,
 }
 
-pub(super) struct TerminalViewport {
+pub(crate) struct TerminalViewport {
     mode: ViewportMode,
     attachment: AttachmentId,
     epoch: HostEpoch,
@@ -208,7 +208,7 @@ impl TerminalViewport {
     /// read watermark — the host's `last_row_request_sequence` outlives a
     /// single history episode, so a re-entered episode must resume above the
     /// last issued value, never restart at 1.
-    pub(super) fn entering(
+    pub(crate) fn entering(
         attachment: AttachmentId,
         epoch: HostEpoch,
         columns: u16,
@@ -245,26 +245,26 @@ impl TerminalViewport {
     }
 
     /// The geometry the core was last resized to — `(columns, row_count)`.
-    pub(super) const fn geometry(&self) -> (u16, u16) {
+    pub(crate) const fn geometry(&self) -> (u16, u16) {
         (self.columns, self.row_count)
     }
 
     #[cfg(test)]
-    pub(super) const fn mode(&self) -> ViewportMode {
+    pub(crate) const fn mode(&self) -> ViewportMode {
         self.mode
     }
 
-    pub(super) const fn recovering(&self) -> bool {
+    pub(crate) const fn recovering(&self) -> bool {
         matches!(self.mode, ViewportMode::Recovering)
     }
 
     /// The next unadmitted command the owner should try to enqueue.
-    pub(super) fn peek_command(&self) -> Option<ViewportStep> {
+    pub(crate) fn peek_command(&self) -> Option<ViewportStep> {
         self.pending_commands.front().copied()
     }
 
     /// The owner admitted the head command onto the wire queue.
-    pub(super) fn command_admitted(&mut self) {
+    pub(crate) fn command_admitted(&mut self) {
         match self.pending_commands.pop_front() {
             Some(ViewportStep::Read {
                 request_sequence, ..
@@ -303,7 +303,7 @@ impl TerminalViewport {
     /// A validated `HistoryChanged` event for this attachment. The caller has
     /// already enforced route and strict-sequence checks; every such event is
     /// acknowledged once through the causal lane regardless of adoption.
-    pub(super) fn facts(&mut self, changed: HistoryChanged) -> ViewportEffect {
+    pub(crate) fn facts(&mut self, changed: HistoryChanged) -> ViewportEffect {
         self.facts = Some(changed);
         self.needs_facts = false;
         let mut effect = ViewportEffect::default();
@@ -333,7 +333,7 @@ impl TerminalViewport {
     /// no pending and no in-flight intent starts a fresh intent — the
     /// retry/halving budget is per intent, so only then is it re-armed;
     /// merges and replacements inside an ongoing intent share its budget.
-    pub(super) fn nav(&mut self, nav: ViewportNav) -> ViewportEffect {
+    pub(crate) fn nav(&mut self, nav: ViewportNav) -> ViewportEffect {
         if self.recovery_pending() {
             // Recovery decided: further navigation — Exit included — is
             // absorbed without minting a second Recover.
@@ -375,7 +375,7 @@ impl TerminalViewport {
     /// owner forwards the byte only after `recovering()` reports the command
     /// was admitted. A Recover already staged counts as decided — typing
     /// again must not mint a second one.
-    pub(super) fn typed(&mut self) {
+    pub(crate) fn typed(&mut self) {
         if !self.recovery_pending() {
             self.queue_recover();
         }
@@ -383,7 +383,7 @@ impl TerminalViewport {
 
     /// `ViewportEnterOutcome`: an applied entry keeps waiting for facts; a
     /// rejected (already reset) entry drops the core back to Live.
-    pub(super) fn enter_outcome(&mut self, applied: bool) -> ViewportEffect {
+    pub(crate) fn enter_outcome(&mut self, applied: bool) -> ViewportEffect {
         if applied {
             ViewportEffect::default()
         } else {
@@ -399,7 +399,7 @@ impl TerminalViewport {
     /// order; anything that cannot prove which pending it settled enters
     /// recovery. (Decode failures never reach here: the caller retires them
     /// as protocol faults.)
-    pub(super) fn window(&mut self, window: TerminalTextRowWindow, now: Instant) -> ViewportEffect {
+    pub(crate) fn window(&mut self, window: TerminalTextRowWindow, now: Instant) -> ViewportEffect {
         if self.recovery_pending() {
             // A demand transition — applied or already staged — cleared the
             // host pin this window came from; discarding it is provably
@@ -470,7 +470,7 @@ impl TerminalViewport {
     }
 
     /// A read outcome for the in-flight sequence.
-    pub(super) fn read_outcome(
+    pub(crate) fn read_outcome(
         &mut self,
         request_sequence: NonZeroU64,
         rejection: ViewportReadRejection,
@@ -522,7 +522,7 @@ impl TerminalViewport {
 
     /// The acknowledgement outcome for the installed window. Only an exact
     /// accepted match promotes the pending anchor to committed.
-    pub(super) fn ack_outcome(
+    pub(crate) fn ack_outcome(
         &mut self,
         request_sequence: NonZeroU64,
         accepted: bool,
@@ -557,13 +557,13 @@ impl TerminalViewport {
 
     /// `ViewportRecovered`: recovery demands were applied; the next frame
     /// that arrives afterwards ends Recovering.
-    pub(super) fn recovered(&mut self) {
+    pub(crate) fn recovered(&mut self) {
         self.recover_applied = true;
     }
 
     /// A projection frame settled for this pane. Frames that were already in
     /// flight before the recovery demands cannot end Recovering early.
-    pub(super) fn frame_applied(&mut self) -> ViewportEffect {
+    pub(crate) fn frame_applied(&mut self) -> ViewportEffect {
         if self.recovering() && self.recover_applied {
             ViewportEffect {
                 live: true,
@@ -578,7 +578,7 @@ impl TerminalViewport {
     /// fresh facts are awaited before the next read. The committed anchor is
     /// tracked by the host across resizes, so it survives. A repeated report
     /// of unchanged geometry is a no-op — it must not reset a wait episode.
-    pub(super) fn resize(&mut self, columns: u16, row_count: u16, now: Instant) -> ViewportEffect {
+    pub(crate) fn resize(&mut self, columns: u16, row_count: u16, now: Instant) -> ViewportEffect {
         if self.columns == columns && self.row_count == row_count {
             return ViewportEffect::default();
         }
@@ -612,7 +612,7 @@ impl TerminalViewport {
     }
 
     /// Facts deadline: one bounded budget per wait episode; expiry recovers.
-    pub(super) fn tick(&mut self, now: Instant) -> ViewportEffect {
+    pub(crate) fn tick(&mut self, now: Instant) -> ViewportEffect {
         if self.facts_deadline.is_some_and(|deadline| now >= deadline)
             && matches!(self.mode, ViewportMode::Entering | ViewportMode::Viewing)
         {
@@ -629,7 +629,7 @@ impl TerminalViewport {
     /// What the renderer may paint right now. Stale-generation or
     /// stale-column data is never handed out: the window re-validates
     /// against the tracked geometry and facts on every call.
-    pub(super) fn surface(&self) -> ViewportSurface<'_> {
+    pub(crate) fn surface(&self) -> ViewportSurface<'_> {
         match self.mode {
             ViewportMode::Recovering => ViewportSurface::Recovering,
             ViewportMode::Entering => {
@@ -652,7 +652,7 @@ impl TerminalViewport {
     /// The visible position for the indicator: `start_row` and `total_rows`
     /// of the currently painted window — only while that window still
     /// passes the live generation/columns validation the painter relies on.
-    pub(super) fn position(&self) -> Option<(u64, u64)> {
+    pub(crate) fn position(&self) -> Option<(u64, u64)> {
         if self.recovering() {
             return None;
         }

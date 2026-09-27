@@ -82,6 +82,11 @@ impl TerminalInteraction {
         }
     }
 
+    /// Bracketed paste (wire bit 2), captured with the same screen revision.
+    pub const fn bracketed_paste(self) -> bool {
+        self.0 & (1 << 2) != 0
+    }
+
     /// Application cursor keys (wire bit 0): when set, cursor-key output
     /// uses SS3 (`ESC O`) instead of CSI (`ESC [`).
     pub const fn application_cursor_keys(self) -> bool {

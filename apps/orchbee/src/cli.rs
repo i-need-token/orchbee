@@ -74,6 +74,27 @@ pub(crate) fn terminal_observe(
     }
 }
 
+pub(crate) fn terminal_control(
+    command: &crate::invocation::TerminalControlCommand,
+    locale: Locale,
+) -> Output {
+    #[cfg(windows)]
+    {
+        terminal_stream::run_control(command, locale)
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = command;
+        let failure = Failure::new(FailureKind::ServiceUnavailable);
+        Output {
+            status: failure.kind.exit_code(),
+            stdout: Vec::new(),
+            stderr: locale.cli_failure(&failure),
+            finalization: None,
+        }
+    }
+}
+
 mod text;
 #[cfg(any(target_os = "linux", windows))]
 mod wait_deadline;

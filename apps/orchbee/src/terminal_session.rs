@@ -33,7 +33,7 @@ mod mailbox;
 pub(crate) mod state;
 #[cfg(any(target_os = "linux", windows))]
 mod status_recovery;
-mod terminal_viewport;
+pub(crate) mod terminal_viewport;
 mod ui;
 mod workbench_projection;
 
