@@ -135,6 +135,49 @@ process witness `real_workspace_panel_move_relocates_a_leaf_without_touching_eit
 exercises the same commit through the Workspace tree-membership path with both retained shells
 proven alive.
 
+## Accepted Panel relocation model
+
+`panel.relocate` moves an existing terminal Panel into another Tab, a new Tab in an existing
+context, or a new Workspace in an existing Project. The reference is Herdr
+`e0507237ad8d41f60aece10d00ef29ce2339ca34`, `pane.move` (H066/R049). Workbench owns topology;
+Site owns the standalone Open reference; Client view authority owns ratios, zoom and focus.
+Relocation never launches, stops or rebinds a terminal, and never deletes a directory or Git tree.
+
+The source tuple and expected revision are exact. Existing destination forms retain their
+source-context default. An explicit destination context enables cross-context moves, and an
+optional target Panel selects the graft leaf; absence retains the existing root-graft contract.
+A new Workspace specifies its Project, optional Project-owned directory and labels. Only new
+structural identities are allocated. A moved leaf retains its Panel, Presentation, binding,
+custom label and input policy. Existing child-Presentation, grouped and pinned tree admission
+restrictions remain explicit; this operation does not establish their complete lifecycle support.
+
+| Guard or transition                                                               | Observable result                                                                                              |
+| --------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| Missing source/destination, foreign directory, stale revision or exhausted bounds | Refuse before any topology or identity allocation is published.                                                |
+| Destination is the source Tab                                                     | Existing typed same-Tab refusal; the CLI workflow owns the reference no-op projection.                         |
+| Source has another leaf                                                           | Detach the leaf and collapse its parent Split.                                                                 |
+| Source has only that leaf                                                         | Remove the source Tab, without disposing its terminal.                                                         |
+| Cross-context move empties a source Workspace                                     | Remove that Workspace/context and its display-order entry; keep Project/directories and all terminal bindings. |
+| Same-context move or empty standalone source                                      | Retain the context; a new Tab may replace the removed last Tab at the collection bound.                        |
+| Existing target Tab                                                               | Graft at the requested leaf or root with a fresh Split and two slots; enforce depth and resulting node bounds. |
+| New Tab or Workspace                                                              | Append the new Tab; append a new Workspace to explicit display order, preserving ownership.                    |
+| Lifecycle operation overlaps source/destination or a moved pending terminal       | Transient terminal-busy; no retained success or partial move.                                                  |
+
+One cloned candidate is validated and encoded before ledger admission. One commit publishes the
+snapshot, structural identity high-water and exact result. Retained replay returns that result;
+request conflict and publication failure cannot allocate a second move. Transfer facts identify
+the destination context and any removed source Tab/Workspace or created Workspace. Standalone
+before/after membership is prepared with the Site reference under the same gate: departure retargets
+or empties Open, arrival binds Open to an already retained terminal. Composition failure retires
+before publication. The binding multiset across the Site is conserved.
+
+Public Windows integration must additionally resolve the selected Client's target leaf, enforce
+zoom/no-op behavior and apply requested ratio/focus through that Client. These are separately
+acknowledged phases; a later failure preserves the known topology commit. Structural tests cover
+the decision table, conservation, replay and bounded exchange; shared wire fixtures cover both
+language bindings. Real multi-Client Windows movement, shell survival, refresh and restart are
+required for complete user acceptance. Generic semantic events remain a separate event contract.
+
 ## Accepted Workspace ordering model
 
 Users reorder a Site-wide Workspace list without moving Projects, directories, terminal contexts,

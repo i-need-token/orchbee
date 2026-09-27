@@ -1498,3 +1498,5 @@ fn tab_create_wake_after_submission_retires_unknown_without_replay() -> TestResu
     server.finish()?;
     Ok(())
 }
+
+mod panel_relocate;

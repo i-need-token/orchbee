@@ -115,6 +115,51 @@ pub(super) fn prepare_standalone_close_settlement_members<'site>(
     Ok(PreparedStandaloneRetarget { slot, next })
 }
 
+/// Prepare Open against an admitted relocation candidate. Workbench proves the
+/// transfer; Site proves that every resulting member still has a retained runtime.
+pub(super) fn prepare_standalone_relocation<'site>(
+    slot: &'site mut StandaloneTerminal,
+    terminals: &TerminalCoordinator,
+    before: &WorkbenchTerminalMembership,
+    after: &WorkbenchTerminalMembership,
+) -> Result<PreparedStandaloneRetarget<'site>, PostcommitCoordinationError> {
+    if !before.is_standalone()
+        || !after.is_standalone()
+        || before.terminal_context_id() != after.terminal_context_id()
+        || !composition_matches(before, slot, terminals)
+        || before
+            .members()
+            .iter()
+            .chain(after.members())
+            .any(|member| !terminals.has_retained_binding(member.binding()))
+    {
+        return Err(PostcommitCoordinationError);
+    }
+    let current = match &*slot {
+        StandaloneTerminal::Empty => None,
+        StandaloneTerminal::Creating(reference) | StandaloneTerminal::Settled { reference, .. } => {
+            terminals
+                .retained_authorization(reference)
+                .and_then(presentation_binding)
+        }
+    };
+    let binding = current
+        .as_ref()
+        .filter(|binding| {
+            after
+                .members()
+                .iter()
+                .any(|member| member.binding() == *binding)
+        })
+        .or_else(|| after.members().first().map(WorkbenchTerminalTab::binding));
+    let target = match binding {
+        Some(binding) => standalone_for_binding(terminals, binding)?,
+        None => StandaloneTerminal::Empty,
+    };
+    let next = (&target != slot).then_some(target);
+    Ok(PreparedStandaloneRetarget { slot, next })
+}
+
 fn standalone_for_binding(
     terminals: &TerminalCoordinator,
     binding: &PresentationBinding,

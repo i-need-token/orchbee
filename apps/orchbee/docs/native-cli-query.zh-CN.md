@@ -1951,3 +1951,12 @@ Hermes 新增 Windows 插件激活及不含内容的会话观察。其离线 doc
 ## Windows 终端观察流
 
 `terminal session observe <terminal> [--cols <n>] [--rows <n>] [--timeout <ms>]` 从一个已有绑定输出 NDJSON，不获取控制权，也不改变 Host 尺寸。[流契约](windows-terminal-streams.zh-CN.md) 拥有完整安全 ANSI 帧、重置、先刷新后确认、期限和清理规则。默认视口为 120×40，默认不限时。两种输出格式均产生 `orchbee.terminal.stream` v2 记录。目录 v69 含 78 个 schema、94 条原生命令路径。机器控制现通过 `terminal session control` 接收 NDJSON 输入；交互式 terminal/Agent attach 已实现，仍有保真与验收义务。
+
+### Panel 迁移事实回执
+
+Panel 迁移将共享变更封装推进到 v5，其他共享操作保留 v4。迁移可选提供 `transfer` 事实：`targetTerminalContextId`、
+`closedSourceTab`，以及可选 `closedSourceWorkspaceId` 和 `createdWorkspaceId`。移入现有 Tab
+也保留返回的 Split 和 slot 身份。移走 Tab 最后叶子时移除该 Tab，但不释放终端，结果明确报告移除。
+本地传输在确认提交前检查目标种类／上下文、新 Workspace 字段、源移除的一致性及结果关联。
+目录 v71 包含 80 份内嵌 schema。完整 H066/R049 用户流程仍要求跨 Workspace 命令语法及
+Client 比例／焦点集成。

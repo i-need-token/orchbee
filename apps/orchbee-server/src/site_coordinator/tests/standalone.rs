@@ -50,6 +50,138 @@ fn immediate_completion(pending: &PendingOperation) -> Completion {
 }
 
 #[test]
+fn relocation_departure_and_arrival_reconcile_open_without_relaunch() {
+    use orchbee_workbench_protocol::{
+        WorkbenchAction, WorkbenchCommand, WorkbenchCommandOutcome, WorkbenchLabel,
+        WorkbenchPanelRelocateDestination,
+    };
+    let mut coordinator = site();
+    let first = pending(prepare(&mut coordinator, 1, Some(101)));
+    let authorization = launch_authorization(&first);
+    let completion = immediate_completion(&first);
+    coordinator
+        .complete(first, completion, Some(worker(1)))
+        .unwrap();
+    let initial = snapshot(&mut coordinator);
+    let project_request = WorkbenchCommand {
+        protocol_version: ProtocolVersion,
+        request_id: orchbee_workbench_protocol::WorkbenchRequestId::parse(&format!("{:032x}", 200))
+            .unwrap(),
+        site_id: initial.site_id.clone(),
+        expected_revision: initial.revision,
+        action: WorkbenchAction::ProjectCreate {
+            label: WorkbenchLabel::parse("transfer").unwrap(),
+        },
+    };
+    let WorkbenchResponse::Command(project_result) = coordinator
+        .execute_workbench(
+            WorkbenchRequest::Command(project_request)
+                .try_into()
+                .unwrap(),
+            true,
+        )
+        .unwrap()
+    else {
+        panic!("project result")
+    };
+    let WorkbenchCommandOutcome::ProjectCreated { project_id, .. } = project_result.outcome else {
+        panic!("project")
+    };
+    let source_tab = &initial.terminal_contexts[0].tabs[0];
+    let PanelNode::Panel {
+        panel_id,
+        primary_presentation,
+        ..
+    } = &source_tab.root
+    else {
+        panic!("leaf")
+    };
+    let current = snapshot(&mut coordinator);
+    let moved = coordinator
+        .execute_terminal_panel_relocate(WorkbenchCommand {
+            protocol_version: ProtocolVersion,
+            request_id: orchbee_workbench_protocol::WorkbenchRequestId::parse(&format!(
+                "{:032x}",
+                201
+            ))
+            .unwrap(),
+            site_id: initial.site_id.clone(),
+            expected_revision: current.revision,
+            action: WorkbenchAction::PanelRelocate {
+                terminal_context_id: initial.navigation.standalone_terminal_context_id.clone(),
+                tab_id: source_tab.tab_id.clone(),
+                panel_id: panel_id.clone(),
+                destination: WorkbenchPanelRelocateDestination::NewWorkspace {
+                    project_id,
+                    primary_directory_id: None,
+                    label: WorkbenchLabel::parse("retained").unwrap(),
+                    tab_label: None,
+                },
+            },
+        })
+        .unwrap();
+    let WorkbenchCommandOutcome::PanelRelocatedToNewTab {
+        new_tab_id,
+        transfer: Some(transfer),
+        revision,
+        ..
+    } = moved.outcome
+    else {
+        panic!("transfer")
+    };
+    assert!(matches!(coordinator.standalone, StandaloneTerminal::Empty));
+    assert!(
+        coordinator
+            .terminals
+            .has_retained_binding(primary_presentation.binding.as_ref().unwrap())
+    );
+    assert_eq!(
+        coordinator.terminals.retained_authorization(&id(101)),
+        Some(authorization)
+    );
+    let returned = coordinator
+        .execute_terminal_panel_relocate(WorkbenchCommand {
+            protocol_version: ProtocolVersion,
+            request_id: orchbee_workbench_protocol::WorkbenchRequestId::parse(&format!(
+                "{:032x}",
+                202
+            ))
+            .unwrap(),
+            site_id: initial.site_id.clone(),
+            expected_revision: revision,
+            action: WorkbenchAction::PanelRelocate {
+                terminal_context_id: transfer.target_terminal_context_id,
+                tab_id: new_tab_id,
+                panel_id: panel_id.clone(),
+                destination: WorkbenchPanelRelocateDestination::NewTab {
+                    terminal_context_id: Some(
+                        initial.navigation.standalone_terminal_context_id.clone(),
+                    ),
+                    label: None,
+                },
+            },
+        })
+        .unwrap();
+    assert!(
+        matches!(returned.outcome, WorkbenchCommandOutcome::PanelRelocatedToNewTab { transfer: Some(transfer), .. }
+        if transfer.closed_source_workspace_id.is_some())
+    );
+    assert_eq!(
+        opened(&mut coordinator, 203),
+        OpenOutcome::Opened {
+            terminal_create_request_id: id(101)
+        }
+    );
+    let final_snapshot = snapshot(&mut coordinator);
+    assert_eq!(final_snapshot.terminal_contexts.len(), 1);
+    assert!(final_snapshot.navigation.projects[0].workspaces.is_empty());
+    assert_eq!(
+        final_snapshot.terminal_contexts[0].tabs[0].root,
+        source_tab.root
+    );
+}
+
+#[test]
 fn concurrent_standalone_opens_share_one_committed_reference_and_preserve_geometry() {
     let mut coordinator = site();
     let first = pending(prepare(&mut coordinator, 1, Some(101)));

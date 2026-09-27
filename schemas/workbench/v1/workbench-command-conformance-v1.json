@@ -3907,6 +3907,162 @@
 					]
 				}
 			}
+		},
+		{
+			"name": "panel-relocate-cross-context-leaf",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "panel.relocate",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"panelId": "00000000000000000000000000000006",
+					"destination": {
+						"kind": "tab",
+						"terminalContextId": "00000000000000000000000000000037",
+						"tabId": "00000000000000000000000000000038",
+						"targetPanelId": "00000000000000000000000000000039",
+						"direction": "left"
+					}
+				}
+			}
+		},
+		{
+			"name": "panel-relocate-new-tab-default",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "panel.relocate",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"panelId": "00000000000000000000000000000006",
+					"destination": {
+						"kind": "new-tab"
+					}
+				}
+			}
+		},
+		{
+			"name": "panel-relocate-new-tab-cross-context",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "panel.relocate",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"panelId": "00000000000000000000000000000006",
+					"destination": {
+						"kind": "new-tab",
+						"terminalContextId": "00000000000000000000000000000037",
+						"label": "logs"
+					}
+				}
+			}
+		},
+		{
+			"name": "panel-relocate-new-workspace",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "panel.relocate",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"panelId": "00000000000000000000000000000006",
+					"destination": {
+						"kind": "new-workspace",
+						"projectId": "00000000000000000000000000000014",
+						"primaryDirectoryId": "00000000000000000000000000000015",
+						"label": "moved",
+						"tabLabel": "logs"
+					}
+				}
+			}
+		},
+		{
+			"name": "panel-relocate-new-workspace-default-tab",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "panel.relocate",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"panelId": "00000000000000000000000000000006",
+					"destination": {
+						"kind": "new-workspace",
+						"projectId": "00000000000000000000000000000014",
+						"label": "moved"
+					}
+				}
+			}
+		},
+		{
+			"name": "panel-relocated-transfer-departed",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "panel-relocated-to-new-tab",
+					"revision": "8",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"panelId": "00000000000000000000000000000006",
+					"newTabId": "00000000000000000000000000000007",
+					"transfer": {
+						"targetTerminalContextId": "00000000000000000000000000000037",
+						"closedSourceTab": true,
+						"closedSourceWorkspaceId": "0000000000000000000000000000002d"
+					}
+				}
+			}
+		},
+		{
+			"name": "panel-relocated-transfer-new-workspace",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "panel-relocated-to-new-tab",
+					"revision": "8",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"panelId": "00000000000000000000000000000006",
+					"newTabId": "00000000000000000000000000000007",
+					"transfer": {
+						"targetTerminalContextId": "00000000000000000000000000000037",
+						"closedSourceTab": false,
+						"createdWorkspaceId": "00000000000000000000000000000036"
+					}
+				}
+			}
 		}
 	],
 	"invalid": [
@@ -12051,6 +12207,286 @@
 						"000000000000000000000000000003ff",
 						"00000000000000000000000000000400"
 					]
+				}
+			}
+		},
+		{
+			"name": "panel-relocate-invalid-terminalContextId-None",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "panel.relocate",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"panelId": "00000000000000000000000000000006",
+					"destination": {
+						"kind": "tab",
+						"tabId": "00000000000000000000000000000007",
+						"direction": "below",
+						"terminalContextId": null
+					}
+				}
+			}
+		},
+		{
+			"name": "panel-relocate-invalid-terminalContextId-bad",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "panel.relocate",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"panelId": "00000000000000000000000000000006",
+					"destination": {
+						"kind": "tab",
+						"tabId": "00000000000000000000000000000007",
+						"direction": "below",
+						"terminalContextId": "bad"
+					}
+				}
+			}
+		},
+		{
+			"name": "panel-relocate-invalid-targetPanelId-None",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "panel.relocate",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"panelId": "00000000000000000000000000000006",
+					"destination": {
+						"kind": "tab",
+						"tabId": "00000000000000000000000000000007",
+						"direction": "below",
+						"targetPanelId": null
+					}
+				}
+			}
+		},
+		{
+			"name": "panel-relocate-invalid-targetPanelId-00000000000000000000000000000000",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "panel.relocate",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"panelId": "00000000000000000000000000000006",
+					"destination": {
+						"kind": "tab",
+						"tabId": "00000000000000000000000000000007",
+						"direction": "below",
+						"targetPanelId": "00000000000000000000000000000000"
+					}
+				}
+			}
+		},
+		{
+			"name": "panel-relocate-invalid-destination-310",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "panel.relocate",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"panelId": "00000000000000000000000000000006",
+					"destination": {
+						"kind": "new-tab",
+						"label": null
+					}
+				}
+			}
+		},
+		{
+			"name": "panel-relocate-invalid-destination-311",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "panel.relocate",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"panelId": "00000000000000000000000000000006",
+					"destination": {
+						"kind": "new-tab",
+						"terminalContextId": null
+					}
+				}
+			}
+		},
+		{
+			"name": "panel-relocate-invalid-destination-312",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "panel.relocate",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"panelId": "00000000000000000000000000000006",
+					"destination": {
+						"kind": "new-workspace",
+						"label": "x"
+					}
+				}
+			}
+		},
+		{
+			"name": "panel-relocate-invalid-destination-313",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "panel.relocate",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"panelId": "00000000000000000000000000000006",
+					"destination": {
+						"kind": "new-workspace",
+						"projectId": "00000000000000000000000000000014",
+						"label": "x",
+						"primaryDirectoryId": null
+					}
+				}
+			}
+		},
+		{
+			"name": "panel-relocate-invalid-destination-314",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "panel.relocate",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"panelId": "00000000000000000000000000000006",
+					"destination": {
+						"kind": "new-workspace",
+						"projectId": "00000000000000000000000000000014",
+						"label": "x",
+						"tabLabel": null
+					}
+				}
+			}
+		},
+		{
+			"name": "panel-relocate-invalid-transfer-315",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "panel-relocated-to-new-tab",
+					"revision": "8",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"panelId": "00000000000000000000000000000006",
+					"newTabId": "00000000000000000000000000000007",
+					"transfer": null
+				}
+			}
+		},
+		{
+			"name": "panel-relocate-invalid-transfer-316",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "panel-relocated-to-new-tab",
+					"revision": "8",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"panelId": "00000000000000000000000000000006",
+					"newTabId": "00000000000000000000000000000007",
+					"transfer": {}
+				}
+			}
+		},
+		{
+			"name": "panel-relocate-invalid-transfer-317",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "panel-relocated-to-new-tab",
+					"revision": "8",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"panelId": "00000000000000000000000000000006",
+					"newTabId": "00000000000000000000000000000007",
+					"transfer": {
+						"targetTerminalContextId": "00000000000000000000000000000037",
+						"closedSourceTab": 1
+					}
+				}
+			}
+		},
+		{
+			"name": "panel-relocate-invalid-transfer-318",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "panel-relocated-to-new-tab",
+					"revision": "8",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"panelId": "00000000000000000000000000000006",
+					"newTabId": "00000000000000000000000000000007",
+					"transfer": {
+						"targetTerminalContextId": "00000000000000000000000000000037",
+						"closedSourceTab": true,
+						"createdWorkspaceId": null
+					}
 				}
 			}
 		}

@@ -1,14 +1,16 @@
+//! Atomic retained-Panel relocation admission and lifecycle fencing. Candidate
+//! topology planning is independent of Site composition and Client view effects.
+
 use super::{
     CommitPlan, PlanFailure, PreparedCommandCommit, RetainedRequest, WorkbenchAuthority,
     WorkbenchGrant, WorkbenchTerminalMembership, allocate, identity, result, unavailable,
 };
 use orchbee_workbench_protocol::{
-    ContractError, MAXIMUM_PANEL_NODE_DEPTH, MAXIMUM_TABS_PER_CONTEXT, PanelNode, PanelOrientation,
-    PanelSlot, Tab, WorkbenchAction, WorkbenchCommand, WorkbenchCommandOutcome,
-    WorkbenchCommandResult, WorkbenchCommandUnavailableReason, WorkbenchPanelId,
-    WorkbenchPanelRelocateDestination, WorkbenchPanelSlotId, WorkbenchPanelSplitDirection,
-    WorkbenchProtocolDocument, WorkbenchRejectionReason, WorkbenchSplitId, WorkbenchTabId,
-    WorkbenchTerminalContextId, serialize_document,
+    PanelNode, PanelOrientation, PanelSlot, WorkbenchAction, WorkbenchCommand,
+    WorkbenchCommandOutcome, WorkbenchCommandResult, WorkbenchCommandUnavailableReason,
+    WorkbenchPanelId, WorkbenchPanelRelocateDestination, WorkbenchPanelSlotId,
+    WorkbenchPanelSplitDirection, WorkbenchRejectionReason, WorkbenchSplitId, WorkbenchTabId,
+    WorkbenchTerminalContextId,
 };
 
 #[allow(clippy::large_enum_variant)]
@@ -33,17 +35,41 @@ pub enum WorkbenchPanelRelocatePreparation<'a> {
     Prepared(Box<PreparedWorkbenchPanelRelocate<'a>>),
 }
 
-pub struct PreparedWorkbenchPanelRelocate<'a>(PreparedCommandCommit<'a>);
+pub struct PreparedWorkbenchPanelRelocate<'a> {
+    commit: PreparedCommandCommit<'a>,
+    standalone: Option<(WorkbenchTerminalMembership, WorkbenchTerminalMembership)>,
+}
+
+struct RelocationPlan {
+    commit: CommitPlan,
+    standalone: Option<(WorkbenchTerminalMembership, WorkbenchTerminalMembership)>,
+}
 
 impl PreparedWorkbenchPanelRelocate<'_> {
     #[must_use]
     pub fn result(&self) -> &WorkbenchCommandResult {
-        &self.0.response
+        &self.commit.response
+    }
+
+    /// Before/after standalone membership for Site's atomic Open-reference reconciliation.
+    #[must_use]
+    pub fn standalone_transition(
+        &self,
+    ) -> Option<(&WorkbenchTerminalMembership, &WorkbenchTerminalMembership)> {
+        self.standalone
+            .as_ref()
+            .map(|(before, after)| (before, after))
+    }
+
+    /// Retire a composition failure before publishing any topology or retained success.
+    #[must_use]
+    pub fn retire_composition_failure(self) -> WorkbenchCommandResult {
+        self.commit.authority.retire(&self.commit.retained.command)
     }
 
     #[must_use]
     pub fn commit(self) -> WorkbenchCommandResult {
-        self.0.commit()
+        self.commit.commit()
     }
 }
 
@@ -60,18 +86,20 @@ impl<'a> WorkbenchPanelRelocateAdmission<'a> {
         self.authority.retire(&self.command)
     }
 
-    /// Site validates standalone bootstrap composition before the plan is
-    /// resolved; relocation keeps the context's binding multiset identical,
-    /// so the pre-checked composition stays valid through the commit.
+    /// Prepare topology and exact standalone membership without publishing either.
+    /// Site must reconcile Open before committing a cross-context move.
     #[must_use]
     pub fn finish(self) -> WorkbenchPanelRelocatePreparation<'a> {
         let plan = match self.plan() {
             Ok(plan) => plan,
-            Err(PlanFailure::Rejected(reason)) => CommitPlan {
-                projection: None,
-                last_identity: None,
-                catalog_next: None,
-                outcome: self.authority.rejected(reason),
+            Err(PlanFailure::Rejected(reason)) => RelocationPlan {
+                commit: CommitPlan {
+                    projection: None,
+                    last_identity: None,
+                    catalog_next: None,
+                    outcome: self.authority.rejected(reason),
+                },
+                standalone: None,
             },
             Err(PlanFailure::Internal) => {
                 return WorkbenchPanelRelocatePreparation::Ready(
@@ -82,7 +110,7 @@ impl<'a> WorkbenchPanelRelocateAdmission<'a> {
         // Lifecycle fences are transient and keep rejection precedence: they
         // only fire on a committed relocation, never on a typed refusal.
         if matches!(
-            plan.outcome,
+            plan.commit.outcome,
             WorkbenchCommandOutcome::PanelRelocated { .. }
                 | WorkbenchCommandOutcome::PanelRelocatedToNewTab { .. }
         ) && self.lifecycle_fenced()
@@ -92,9 +120,15 @@ impl<'a> WorkbenchPanelRelocateAdmission<'a> {
                 unavailable(WorkbenchCommandUnavailableReason::TerminalBusy),
             ));
         }
-        match self.authority.prepare_command_commit(self.command, plan) {
-            Ok(prepared) => WorkbenchPanelRelocatePreparation::Prepared(Box::new(
-                PreparedWorkbenchPanelRelocate(prepared),
+        match self
+            .authority
+            .prepare_command_commit(self.command, plan.commit)
+        {
+            Ok(commit) => WorkbenchPanelRelocatePreparation::Prepared(Box::new(
+                PreparedWorkbenchPanelRelocate {
+                    commit,
+                    standalone: plan.standalone,
+                },
             )),
             Err(result) => WorkbenchPanelRelocatePreparation::Ready(*result),
         }
@@ -108,15 +142,40 @@ impl<'a> WorkbenchPanelRelocateAdmission<'a> {
     /// terminal settlement — all transient `terminal-busy` refusals that
     /// retain nothing.
     fn lifecycle_fenced(&self) -> bool {
-        let target_tab = match &self.destination {
-            WorkbenchPanelRelocateDestination::Tab { tab_id, .. } => Some(tab_id.clone()),
-            WorkbenchPanelRelocateDestination::NewTab { .. } => None,
+        let (target_context, target_tab) = match &self.destination {
+            WorkbenchPanelRelocateDestination::Tab {
+                terminal_context_id,
+                tab_id,
+                ..
+            } => (
+                Some(
+                    terminal_context_id
+                        .as_ref()
+                        .unwrap_or(&self.terminal_context_id),
+                ),
+                Some(tab_id),
+            ),
+            WorkbenchPanelRelocateDestination::NewTab {
+                terminal_context_id,
+                ..
+            } => (
+                Some(
+                    terminal_context_id
+                        .as_ref()
+                        .unwrap_or(&self.terminal_context_id),
+                ),
+                None,
+            ),
+            WorkbenchPanelRelocateDestination::NewWorkspace { .. } => (None, None),
         };
         self.authority
             .aggregate_close_fences_tab(&self.terminal_context_id, &self.tab_id)
-            || target_tab.is_some_and(|tab_id| {
-                self.authority
-                    .aggregate_close_fences_tab(&self.terminal_context_id, &tab_id)
+            || target_context.is_some_and(|context| {
+                self.authority.open_close_fences_context(context)
+                    || target_tab.is_some_and(|tab| {
+                        self.authority.aggregate_close_fences_tab(context, tab)
+                            || self.authority.pending_terminal_covers_tab(context, tab)
+                    })
             })
             || self
                 .membership
@@ -125,191 +184,6 @@ impl<'a> WorkbenchPanelRelocateAdmission<'a> {
             || self
                 .authority
                 .pending_terminal_covers_panel(&self.terminal_context_id, &self.panel_id)
-    }
-
-    fn plan(&self) -> Result<CommitPlan, PlanFailure> {
-        let snapshot = self.authority.projection.snapshot();
-        let context = snapshot
-            .terminal_contexts
-            .iter()
-            .find(|context| context.terminal_context_id == self.terminal_context_id)
-            .ok_or(PlanFailure::Internal)?;
-        let tab = context
-            .tabs
-            .iter()
-            .find(|tab| tab.tab_id == self.tab_id)
-            .ok_or(PlanFailure::Rejected(
-                WorkbenchRejectionReason::TabUnavailable,
-            ))?;
-        // Leaf-ness is distinguished from absence: a stacked Panel answers
-        // `panel-not-leaf`, never `panel-unavailable`.
-        match find_panel(&tab.root, &self.panel_id) {
-            None => {
-                return Err(PlanFailure::Rejected(
-                    WorkbenchRejectionReason::PanelUnavailable,
-                ));
-            }
-            Some(PanelNode::Panel {
-                child_presentations,
-                ..
-            }) if !child_presentations.is_empty() => {
-                return Err(PlanFailure::Rejected(
-                    WorkbenchRejectionReason::PanelNotLeaf,
-                ));
-            }
-            Some(PanelNode::Panel { .. }) => {}
-            Some(PanelNode::Split { .. }) => return Err(PlanFailure::Internal),
-        }
-        // The destination Tab resolves inside the source context only;
-        // naming the source Tab is a typed refusal, not a degenerate move.
-        let target = match &self.destination {
-            WorkbenchPanelRelocateDestination::Tab { tab_id, direction } => {
-                if tab_id == &self.tab_id {
-                    return Err(PlanFailure::Rejected(WorkbenchRejectionReason::SameTab));
-                }
-                let tab = context
-                    .tabs
-                    .iter()
-                    .find(|tab| &tab.tab_id == tab_id)
-                    .ok_or(PlanFailure::Rejected(
-                        WorkbenchRejectionReason::TabUnavailable,
-                    ))?;
-                // Wrapping the destination root in a fresh Split deepens its
-                // tree by one; the node count is unchanged overall (the
-                // collapsed source Split balances the fresh root Split).
-                if tree_depth(&tab.root) + 1 > MAXIMUM_PANEL_NODE_DEPTH {
-                    return Err(PlanFailure::Rejected(
-                        WorkbenchRejectionReason::ResourceLimit,
-                    ));
-                }
-                RelocateTarget::Existing {
-                    direction: *direction,
-                }
-            }
-            WorkbenchPanelRelocateDestination::NewTab { label } => {
-                if context.tabs.len() + 1 > MAXIMUM_TABS_PER_CONTEXT {
-                    return Err(PlanFailure::Rejected(
-                        WorkbenchRejectionReason::ResourceLimit,
-                    ));
-                }
-                RelocateTarget::NewTab {
-                    label: label.as_str().to_owned(),
-                }
-            }
-        };
-        if leaf_count(&tab.root) <= 1 {
-            return Err(PlanFailure::Rejected(
-                WorkbenchRejectionReason::LastPanelInTab,
-            ));
-        }
-        // Fresh identities only for structurally new entities: a root Split
-        // plus two Slots for an existing-Tab insert, or just the Tab identity
-        // for a new Tab — the moved leaf keeps its Panel/Presentation.
-        let identity_count = match &target {
-            RelocateTarget::Existing { .. } => 3,
-            RelocateTarget::NewTab { .. } => 1,
-        };
-        let last_identity = allocate(self.authority.last_identity, identity_count)?;
-        let minted = match &target {
-            RelocateTarget::Existing { .. } => Minted::Split {
-                split_id: WorkbenchSplitId::parse(&identity(last_identity - 2))
-                    .map_err(|_error| PlanFailure::Internal)?,
-                first_slot_id: WorkbenchPanelSlotId::parse(&identity(last_identity - 1))
-                    .map_err(|_error| PlanFailure::Internal)?,
-                second_slot_id: WorkbenchPanelSlotId::parse(&identity(last_identity))
-                    .map_err(|_error| PlanFailure::Internal)?,
-            },
-            RelocateTarget::NewTab { .. } => Minted::Tab {
-                tab_id: WorkbenchTabId::parse(&identity(last_identity))
-                    .map_err(|_error| PlanFailure::Internal)?,
-            },
-        };
-        let mut candidate = snapshot.clone();
-        let revision = self.authority.next_revision()?;
-        let context = candidate
-            .terminal_contexts
-            .iter_mut()
-            .find(|context| context.terminal_context_id == self.terminal_context_id)
-            .ok_or(PlanFailure::Internal)?;
-        let tab = context
-            .tabs
-            .iter_mut()
-            .find(|tab| tab.tab_id == self.tab_id)
-            .ok_or(PlanFailure::Internal)?;
-        // The source leaf is retained whole: identity, Presentation, and
-        // binding move with it; nothing is launched, stopped, or rebound.
-        let moved = take_leaf_panel(&mut tab.root, &self.panel_id).ok_or(PlanFailure::Internal)?;
-        let outcome = match (&target, &minted) {
-            (
-                RelocateTarget::Existing { direction },
-                Minted::Split {
-                    split_id,
-                    first_slot_id,
-                    second_slot_id,
-                },
-            ) => {
-                let target_tab_id = match &self.destination {
-                    WorkbenchPanelRelocateDestination::Tab { tab_id, .. } => tab_id.clone(),
-                    WorkbenchPanelRelocateDestination::NewTab { .. } => {
-                        return Err(PlanFailure::Internal);
-                    }
-                };
-                let target_tab = context
-                    .tabs
-                    .iter_mut()
-                    .find(|tab| tab.tab_id == target_tab_id)
-                    .ok_or(PlanFailure::Internal)?;
-                insert_at_root(&mut target_tab.root, moved, *direction, &minted);
-                WorkbenchCommandOutcome::PanelRelocated {
-                    revision,
-                    terminal_context_id: self.terminal_context_id.clone(),
-                    tab_id: self.tab_id.clone(),
-                    panel_id: self.panel_id.clone(),
-                    target_tab_id,
-                    split_id: split_id.clone(),
-                    first_slot_id: first_slot_id.clone(),
-                    second_slot_id: second_slot_id.clone(),
-                }
-            }
-            (RelocateTarget::NewTab { label }, Minted::Tab { tab_id }) => {
-                context.tabs.push(Tab {
-                    automatic_label: false,
-                    tab_id: tab_id.clone(),
-                    label: label.clone(),
-                    group_id: None,
-                    pinned: false,
-                    root: moved,
-                });
-                WorkbenchCommandOutcome::PanelRelocatedToNewTab {
-                    revision,
-                    terminal_context_id: self.terminal_context_id.clone(),
-                    tab_id: self.tab_id.clone(),
-                    panel_id: self.panel_id.clone(),
-                    new_tab_id: tab_id.clone(),
-                }
-            }
-            _ => return Err(PlanFailure::Internal),
-        };
-        candidate.revision = revision;
-        let encoded = serialize_document(&WorkbenchProtocolDocument::Snapshot(candidate)).map_err(
-            |error| match error {
-                ContractError::EncodedValueTooLarge { .. } => {
-                    PlanFailure::Rejected(WorkbenchRejectionReason::ResourceLimit)
-                }
-                _ => PlanFailure::Internal,
-            },
-        )?;
-        let projection = self
-            .authority
-            .projection
-            .prepare_advance(&encoded)
-            .map_err(|_error| PlanFailure::Internal)?;
-        Ok(CommitPlan {
-            projection: Some(projection),
-            last_identity: Some(last_identity),
-            catalog_next: None,
-            outcome,
-        })
     }
 }
 
@@ -414,6 +288,24 @@ impl WorkbenchAuthority {
         }))
     }
 
+    fn pending_terminal_covers_tab(
+        &self,
+        context: &WorkbenchTerminalContextId,
+        tab: &WorkbenchTabId,
+    ) -> bool {
+        self.ledger.values().any(|entry| match entry {
+            RetainedRequest::PendingTabCreate(entry) => {
+                entry.metadata().terminal_context_id() == context
+                    && entry.metadata().tab_id() == tab
+            }
+            RetainedRequest::PendingPanelSplit(entry) => {
+                entry.metadata().terminal_context_id() == context
+                    && entry.metadata().tab_id() == tab
+            }
+            _ => false,
+        })
+    }
+
     /// Whether an unsettled terminal-create settlement minted this Panel —
     /// the pending Tab-create mints `panel_id`, the pending Panel-split mints
     /// `new_panel_id`; relocating either while its terminal outcome is
@@ -435,15 +327,6 @@ impl WorkbenchAuthority {
             _ => false,
         })
     }
-}
-
-enum RelocateTarget {
-    Existing {
-        direction: WorkbenchPanelSplitDirection,
-    },
-    NewTab {
-        label: String,
-    },
 }
 
 enum Minted {
@@ -468,15 +351,6 @@ fn find_panel<'a>(node: &'a PanelNode, panel_id: &WorkbenchPanelId) -> Option<&'
         PanelNode::Split { children, .. } => children
             .iter()
             .find_map(|slot| find_panel(&slot.node, panel_id)),
-    }
-}
-
-fn leaf_count(node: &PanelNode) -> usize {
-    match node {
-        PanelNode::Panel { .. } => 1,
-        PanelNode::Split { children, .. } => {
-            children.iter().map(|child| leaf_count(&child.node)).sum()
-        }
     }
 }
 
@@ -513,7 +387,7 @@ const fn move_inserts_before(direction: WorkbenchPanelSplitDirection) -> bool {
 
 /// Detaches the leaf Panel `panel_id`, replacing its parent Split with the
 /// sibling subtree, and returns the retained node. The caller guarantees the
-/// leaf is not the Tab root (the last-leaf refusal precedes this call).
+/// leaf is not the Tab root; a root move removes its source Tab instead.
 fn take_leaf_panel(node: &mut PanelNode, panel_id: &WorkbenchPanelId) -> Option<PanelNode> {
     let PanelNode::Split { children, .. } = node else {
         return None;
@@ -576,6 +450,8 @@ fn insert_at_root(
         split_id: split_id.clone(),
     };
 }
+
+mod plan;
 
 #[cfg(test)]
 mod tests;

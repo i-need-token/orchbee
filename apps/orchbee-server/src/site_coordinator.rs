@@ -188,9 +188,8 @@ impl SiteCoordinator {
         })
     }
 
-    /// `panel.relocate`: same-context leaf relocation keeps the context's
-    /// binding multiset identical, so the same standalone composition check
-    /// `panel move` runs holds through the single atomic commit.
+    /// Commit retained-Panel topology together with the prepared standalone
+    /// Open reference, without creating or disposing a terminal.
     pub(crate) fn execute_terminal_panel_relocate(
         &mut self,
         command: orchbee_workbench_protocol::WorkbenchCommand,
@@ -215,7 +214,22 @@ impl SiteCoordinator {
         }
         Some(match admission.finish() {
             WorkbenchPanelRelocatePreparation::Ready(result) => result,
-            WorkbenchPanelRelocatePreparation::Prepared(prepared) => prepared.commit(),
+            WorkbenchPanelRelocatePreparation::Prepared(prepared) => {
+                let retarget = match prepared.standalone_transition() {
+                    Some((before, after)) => match standalone::prepare_standalone_relocation(
+                        standalone, terminals, before, after,
+                    ) {
+                        Ok(retarget) => Some(retarget),
+                        Err(_) => return Some(prepared.retire_composition_failure()),
+                    },
+                    None => None,
+                };
+                let result = prepared.commit();
+                if let Some(retarget) = retarget {
+                    retarget.commit();
+                }
+                result
+            }
         })
     }
 

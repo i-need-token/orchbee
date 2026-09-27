@@ -16,8 +16,9 @@ use orchbee_capability_node_protocol::{
     TerminalFence, TerminalId as RuntimeTerminalId, WorkerGeneration, WorkerId as RuntimeWorkerId,
 };
 use orchbee_workbench_protocol::{
-    Presentation, PresentationBinding, ProtocolVersion, SiteId, TerminalId, WorkbenchLabel,
-    WorkbenchRequestId, WorkbenchTerminalGeometry, WorkbenchTerminalOutcome, WorkerId,
+    MAXIMUM_PANEL_NODE_DEPTH, Presentation, PresentationBinding, ProtocolVersion, SiteId,
+    TerminalId, WorkbenchLabel, WorkbenchProtocolDocument, WorkbenchRequestId,
+    WorkbenchTerminalGeometry, WorkbenchTerminalOutcome, WorkerId, serialize_document,
 };
 
 fn authority() -> (WorkbenchAuthority, WorkbenchGrant) {
@@ -250,6 +251,8 @@ fn relocate_leaf_into_existing_tab_preserves_identity_and_mints_only_the_graft()
         &source_tab,
         &panel_b,
         WorkbenchPanelRelocateDestination::Tab {
+            terminal_context_id: None,
+            target_panel_id: None,
             tab_id: target_tab.clone(),
             direction: WorkbenchPanelSplitDirection::Below,
         },
@@ -264,6 +267,7 @@ fn relocate_leaf_into_existing_tab_preserves_identity_and_mints_only_the_graft()
         split_id,
         first_slot_id,
         second_slot_id,
+        transfer: None,
     } = &result.outcome
     else {
         panic!("expected panel-relocated: {:?}", result.outcome)
@@ -345,7 +349,8 @@ fn relocate_leaf_into_new_tab_appends_a_single_leaf_tab() {
         &source_tab,
         &panel_b,
         WorkbenchPanelRelocateDestination::NewTab {
-            label: WorkbenchLabel::parse("logs").unwrap(),
+            terminal_context_id: None,
+            label: Some(WorkbenchLabel::parse("logs").unwrap()),
         },
     );
     let result = submit(&mut authority, &grant, request.clone());
@@ -422,6 +427,8 @@ fn relocate_direction_places_the_moved_leaf_first_for_above_and_left() {
         &source_tab,
         &panel_b,
         WorkbenchPanelRelocateDestination::Tab {
+            terminal_context_id: None,
+            target_panel_id: None,
             tab_id: target_tab.clone(),
             direction: WorkbenchPanelSplitDirection::Left,
         },
@@ -466,12 +473,6 @@ fn relocate_rejections_are_typed_retained_and_leave_the_projection_untouched() {
         .unwrap()
         .panel_id()
         .clone();
-    let target_leaf = membership
-        .members_for_tab(&target_tab)
-        .next()
-        .unwrap()
-        .panel_id()
-        .clone();
 
     let cases: Vec<(u128, WorkbenchAction, WorkbenchRejectionReason)> = vec![
         (
@@ -481,6 +482,8 @@ fn relocate_rejections_are_typed_retained_and_leave_the_projection_untouched() {
                 tab_id: WorkbenchTabId::parse(&identity(888_888)).unwrap(),
                 panel_id: panel_b.clone(),
                 destination: WorkbenchPanelRelocateDestination::Tab {
+                    terminal_context_id: None,
+                    target_panel_id: None,
                     tab_id: target_tab.clone(),
                     direction: WorkbenchPanelSplitDirection::Below,
                 },
@@ -494,6 +497,8 @@ fn relocate_rejections_are_typed_retained_and_leave_the_projection_untouched() {
                 tab_id: source_tab.clone(),
                 panel_id: WorkbenchPanelId::parse(&identity(999_999)).unwrap(),
                 destination: WorkbenchPanelRelocateDestination::Tab {
+                    terminal_context_id: None,
+                    target_panel_id: None,
                     tab_id: target_tab.clone(),
                     direction: WorkbenchPanelSplitDirection::Below,
                 },
@@ -507,6 +512,8 @@ fn relocate_rejections_are_typed_retained_and_leave_the_projection_untouched() {
                 tab_id: source_tab.clone(),
                 panel_id: panel_b.clone(),
                 destination: WorkbenchPanelRelocateDestination::Tab {
+                    terminal_context_id: None,
+                    target_panel_id: None,
                     tab_id: source_tab.clone(),
                     direction: WorkbenchPanelSplitDirection::Below,
                 },
@@ -520,26 +527,13 @@ fn relocate_rejections_are_typed_retained_and_leave_the_projection_untouched() {
                 tab_id: source_tab.clone(),
                 panel_id: panel_b.clone(),
                 destination: WorkbenchPanelRelocateDestination::Tab {
+                    terminal_context_id: None,
+                    target_panel_id: None,
                     tab_id: WorkbenchTabId::parse(&identity(777_777)).unwrap(),
                     direction: WorkbenchPanelSplitDirection::Below,
                 },
             },
             WorkbenchRejectionReason::TabUnavailable,
-        ),
-        // The destination Tab's only leaf cannot move out — its Tab would be
-        // emptied, and teardown belongs to the Close lifecycle alone.
-        (
-            15,
-            WorkbenchAction::PanelRelocate {
-                terminal_context_id: standalone_context(&authority),
-                tab_id: target_tab.clone(),
-                panel_id: target_leaf.clone(),
-                destination: WorkbenchPanelRelocateDestination::Tab {
-                    tab_id: source_tab.clone(),
-                    direction: WorkbenchPanelSplitDirection::Below,
-                },
-            },
-            WorkbenchRejectionReason::LastPanelInTab,
         ),
     ];
     for (id, action, reason) in cases {
@@ -634,6 +628,8 @@ fn relocate_names_a_stacked_panel_with_panel_not_leaf_instead_of_retiring() {
         &source_tab,
         &panel_b,
         WorkbenchPanelRelocateDestination::Tab {
+            terminal_context_id: None,
+            target_panel_id: None,
             tab_id: target_tab.clone(),
             direction: WorkbenchPanelSplitDirection::Below,
         },
@@ -677,6 +673,8 @@ fn relocate_without_navigation_grant_is_denied() {
         &source_tab,
         &panel_a,
         WorkbenchPanelRelocateDestination::Tab {
+            terminal_context_id: None,
+            target_panel_id: None,
             tab_id: target_tab.clone(),
             direction: WorkbenchPanelSplitDirection::Below,
         },
@@ -763,7 +761,14 @@ fn open_aggregate_close(
             authority,
             command_id,
             WorkbenchAction::TabClose {
-                terminal_context_id: standalone_context(authority),
+                terminal_context_id: authority
+                    .snapshot()
+                    .terminal_contexts
+                    .iter()
+                    .find(|context| context.tabs.iter().any(|tab| &tab.tab_id == tab_id))
+                    .unwrap()
+                    .terminal_context_id
+                    .clone(),
                 tab_id: tab_id.clone(),
             },
         ),
@@ -826,6 +831,8 @@ fn an_open_leaf_close_on_the_moved_member_fences_relocate() {
         &source_tab,
         &panel_b,
         WorkbenchPanelRelocateDestination::Tab {
+            terminal_context_id: None,
+            target_panel_id: None,
             tab_id: target_tab.clone(),
             direction: WorkbenchPanelSplitDirection::Below,
         },
@@ -878,6 +885,8 @@ fn an_open_aggregate_close_on_either_endpoint_fences_relocate() {
         &source_tab,
         &panel_b,
         WorkbenchPanelRelocateDestination::Tab {
+            terminal_context_id: None,
+            target_panel_id: None,
             tab_id: target_tab.clone(),
             direction: WorkbenchPanelSplitDirection::Below,
         },
@@ -900,7 +909,8 @@ fn an_open_aggregate_close_on_either_endpoint_fences_relocate() {
         &source_tab,
         &panel_b,
         WorkbenchPanelRelocateDestination::NewTab {
-            label: WorkbenchLabel::parse("logs").unwrap(),
+            terminal_context_id: None,
+            label: Some(WorkbenchLabel::parse("logs").unwrap()),
         },
     );
     let result = submit(&mut authority, &grant, request);
@@ -965,6 +975,8 @@ fn a_pending_split_settlement_on_the_moved_leaf_fences_relocate() {
         &source_tab,
         &pending_leaf,
         WorkbenchPanelRelocateDestination::Tab {
+            terminal_context_id: None,
+            target_panel_id: None,
             tab_id: target_tab.clone(),
             direction: WorkbenchPanelSplitDirection::Below,
         },
@@ -1071,6 +1083,8 @@ fn relocate_into_a_maximum_depth_destination_is_a_resource_limit() {
         &source_tab,
         &panel_b,
         WorkbenchPanelRelocateDestination::Tab {
+            terminal_context_id: None,
+            target_panel_id: None,
             tab_id: target_tab.clone(),
             direction: WorkbenchPanelSplitDirection::Below,
         },
@@ -1086,3 +1100,5 @@ fn relocate_into_a_maximum_depth_destination_is_a_resource_limit() {
     assert_eq!(authority.projection.snapshot(), &snapshot);
     assert!(!authority.retired);
 }
+
+mod transfer;

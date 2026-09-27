@@ -2276,3 +2276,15 @@ Hermes adds Windows plugin activation and content-free session observation. Its 
 ## Windows terminal observation stream
 
 `terminal session observe <terminal> [--cols <n>] [--rows <n>] [--timeout <ms>]` emits NDJSON from one existing binding without control or Host resizing. The [stream contract](windows-terminal-streams.md) owns full safe ANSI frames, resets, flush-before-ACK, deadlines and cleanup. Default viewport: 120×40; default duration: unlimited. Both output formats emit `orchbee.terminal.stream` v2 records. Catalog v69 has 78 schemas and 94 native command paths. Machine control now accepts NDJSON input through `terminal session control`; interactive terminal/Agent attach is implemented with remaining fidelity and acceptance obligations.
+
+### Panel relocation transfer receipts
+
+Panel relocation advances the shared mutation envelope to v5; other shared actions retain v4.
+Relocation includes optional `transfer` facts:
+`targetTerminalContextId`, `closedSourceTab`, optional `closedSourceWorkspaceId` and
+`createdWorkspaceId`. Existing-Tab moves also preserve the returned Split and slot identities.
+Moving a Tab's final leaf removes that Tab without disposing its terminal; the result reports
+that removal. The local carrier checks destination kind/context, created-Workspace presence,
+source-removal consistency and result correlation before acknowledging a commit. Catalog v71
+contains 80 embedded schemas. Cross-Workspace grammar and Client ratio/focus integration remain
+required before claiming the full H066/R049 user workflow.

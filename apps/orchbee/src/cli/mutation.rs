@@ -43,6 +43,7 @@ pub(super) struct Receipt {
     workspace_insert_index: Option<orchbee_workbench_protocol::WorkbenchWorkspaceInsertIndex>,
     workspace_order: Option<orchbee_workbench_protocol::WorkbenchWorkspaceList>,
     workspace_sources: Option<orchbee_workbench_protocol::WorkbenchWorkspaceList>,
+    panel_transfer: Option<orchbee_workbench_protocol::WorkbenchPanelTransfer>,
     label: Option<String>,
     custom_label: Option<orchbee_workbench_protocol::PanelLabelUpdate>,
     right_click: Option<orchbee_workbench_protocol::PanelRightClickTarget>,
@@ -122,6 +123,9 @@ impl Receipt {
         if let Some(sources) = &self.workspace_sources {
             result.insert("workspaceIds".to_owned(), json!(sources));
         }
+        if let Some(transfer) = &self.panel_transfer {
+            result.insert("transfer".to_owned(), json!(transfer));
+        }
         if let Some(direction) = self.direction {
             result.insert("direction".to_owned(), json!(direction));
         }
@@ -151,14 +155,12 @@ impl Receipt {
         }
         json!({
             "schema": self.schema_id,
-            // Envelope v4: `workspace.close`/`workspace.close-resume`, the
-            // `resumed` outcome, `attemptGeneration`, and the resume source
-            // echo extend the closed result shape past v3's `panel.relocate`
-            // additions; version-3 validators stay behind. `project rename`
-            // keeps its dedicated v1 document — the shared action enum stays
-            // closed.
+            // Relocation v5 adds transfer facts. Other shared actions retain
+            // v4, including those embedded in existing creation workflows.
             "version": if matches!(self.schema_id, super::schema::PROJECT_RENAME_RESULT_ID | super::schema::PANEL_RENAME_RESULT_ID | super::schema::PANEL_INPUT_RESULT_ID | super::schema::TAB_MOVE_RESULT_ID | super::schema::WORKSPACE_MOVE_RESULT_ID) {
                 1
+            } else if self.action == "panel.relocate" {
+                5
             } else {
                 4
             },
@@ -275,6 +277,19 @@ impl Receipt {
                     .collect::<Vec<_>>()
                     .join(" "),
             ));
+        }
+        if let Some(transfer) = &self.panel_transfer {
+            rows.push((
+                "targetTerminalContextId",
+                transfer.target_terminal_context_id.as_str().to_owned(),
+            ));
+            rows.push(("closedSourceTab", transfer.closed_source_tab.to_string()));
+            if let Some(workspace) = &transfer.closed_source_workspace_id {
+                rows.push(("closedSourceWorkspaceId", workspace.as_str().to_owned()));
+            }
+            if let Some(workspace) = &transfer.created_workspace_id {
+                rows.push(("createdWorkspaceId", workspace.as_str().to_owned()));
+            }
         }
         if let Some(direction) = self.direction {
             rows.push(("direction", direction.to_owned()));
@@ -953,6 +968,8 @@ mod linux {
                             tab_id: tab.tab_id.clone(),
                             panel_id,
                             destination: WorkbenchPanelRelocateDestination::Tab {
+                                terminal_context_id: None,
+                                target_panel_id: None,
                                 tab_id: destination_tab.tab_id.clone(),
                                 direction: *direction,
                             },
@@ -963,7 +980,8 @@ mod linux {
                         tab_id: tab.tab_id.clone(),
                         panel_id,
                         destination: WorkbenchPanelRelocateDestination::NewTab {
-                            label: label.clone(),
+                            terminal_context_id: None,
+                            label: Some(label.clone()),
                         },
                     }),
                 }
@@ -1814,21 +1832,35 @@ mod linux {
                         revision,
                         target_tab_id,
                         split,
+                        transfer,
                         ..
                     }) => {
                         // The receipt echoes the direction only for the
                         // existing-Tab form; `new-tab` has no direction and
                         // reports its Server-minted Tab identity.
-                        let receipt = base
+                        let mut receipt = base
                             .revision(revision)
                             .id("targetTabId", target_tab_id.as_str());
+                        receipt.panel_transfer = transfer;
+                        if let Some(split) = &split {
+                            receipt = receipt
+                                .id("splitId", split.split_id.as_str())
+                                .id("firstSlotId", split.first_slot_id.as_str())
+                                .id("secondSlotId", split.second_slot_id.as_str());
+                        }
                         Ok(match destination {
                             WorkbenchPanelRelocateDestination::Tab { direction, .. } => {
                                 receipt.direction(panel_direction(*direction))
                             }
-                            WorkbenchPanelRelocateDestination::NewTab { label } => {
-                                let _ = split;
-                                receipt.label(label.as_str())
+                            WorkbenchPanelRelocateDestination::NewTab { label, .. }
+                            | WorkbenchPanelRelocateDestination::NewWorkspace {
+                                tab_label: label,
+                                ..
+                            } => {
+                                match label {
+                                    Some(label) => receipt.label(label.as_str()),
+                                    None => receipt,
+                                }
                             }
                         })
                     }
@@ -1949,6 +1981,7 @@ mod linux {
                 workspace_insert_index: None,
                 workspace_order: None,
                 workspace_sources: None,
+                panel_transfer: None,
                 label: None,
                 custom_label: None,
                 right_click: None,
@@ -2038,6 +2071,7 @@ mod linux {
             workspace_insert_index: None,
             workspace_order: None,
             workspace_sources: None,
+            panel_transfer: None,
             label: None,
             custom_label: None,
             right_click: None,

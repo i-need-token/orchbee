@@ -429,3 +429,22 @@ belongs to the Server/native CLI tests; the TLA asset is not executed in this pa
 The [Tab label contract](../../apps/orchbee/docs/native-tab-labels.md) owns optional `automaticLabel` metadata. New Tabs without a supplied label use their current context position; explicit numeric names and legacy Tabs remain fixed. CLI queries, label selectors and TUI display agree after move or close, and rename chooses a fixed name. Native `api snapshot` v4 exposes canonical metadata; catalog v34 contains 68 schemas. Shared protocol consumers require a matching cohort.
 
 Client-owned Agent attention reads name 1–100 unique canonical Agent session IDs. `agent-attention` submissions and `attention-read` completions use kind 29 with a 64 KiB pre-allocation limit; responses remain kind 26. Entries preserve request order, nullable missing-session state, observation generation/sequence, semantic-change revision and seen, together with a boot-authenticatable changes cursor and nullable host focus. Workbench binds the lightweight Agent protocol DTOs without owning Agent state. The [Client attention owner](../../apps/orchbee/docs/native-client-attention.md) defines read availability, unchanged acknowledgement, bounded receipt storage and CLI cursor authentication.
+
+## Retained Panel relocation
+
+`panel.relocate` retains the exact source context/Tab/Panel tuple. Its `tab` destination accepts
+optional `terminalContextId` and `targetPanelId`; absent context means the source context, and
+absent Panel retains root grafting. `new-tab` accepts optional `terminalContextId` and `label`;
+absent label creates an automatically numbered Tab. `new-workspace` requires `projectId` and
+`label`, with optional `primaryDirectoryId` and `tabLabel`. Optional fields are omitted; explicit
+null is invalid. The directory must belong to the Project. Existing encoded destinations remain valid.
+
+`panel-relocated` and `panel-relocated-to-new-tab` retain their existing identity fields and
+optionally carry `transfer`: required `targetTerminalContextId` and `closedSourceTab`, optional
+`closedSourceWorkspaceId` and `createdWorkspaceId`. It is present for a cross-context move or
+source-Tab removal. New Workspace relocation uses the new-Tab result and includes its created
+Workspace identity. Legacy same-context nonclosing results omit transfer. All terminal bindings
+survive. The [Server relocation model](../../apps/orchbee-server/docs/workbench-authority.md#accepted-panel-relocation-model)
+owns source removal, candidate bounds, publication and standalone composition; Client ratios and
+focus remain outside this atomic structural result. Shared command fixtures cover the new forms,
+legacy forms, omitted labels and invalid/null optional values.

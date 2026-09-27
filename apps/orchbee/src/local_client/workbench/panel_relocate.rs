@@ -36,10 +36,7 @@ impl LocalClient {
         let expected_context = terminal_context_id.clone();
         let expected_tab = tab_id.clone();
         let expected_panel = panel_id.clone();
-        let expected_target_tab = match destination {
-            WorkbenchPanelRelocateDestination::Tab { tab_id, .. } => Some(tab_id.clone()),
-            WorkbenchPanelRelocateDestination::NewTab { .. } => None,
-        };
+        let expected_destination = destination.clone();
         let mut frame = Vec::new();
         if let Err(error) = write_workbench_request(&mut frame, &WorkbenchRequest::Command(command))
         {
@@ -115,7 +112,7 @@ impl LocalClient {
             &expected_context,
             &expected_tab,
             &expected_panel,
-            expected_target_tab.as_ref(),
+            &expected_destination,
             result.outcome,
         ) {
             Ok(submission) => submission,
@@ -160,8 +157,8 @@ pub(crate) enum WorkbenchPanelRelocatePrecommit {
 }
 
 /// A committed relocation: `target_tab_id` names the destination Tab — the
-/// fresh identity under `new-tab`, the resolved sibling under `tab`.
-/// `split` carries the minted root Split identities only for an
+/// fresh identity under `new-tab`/`new-workspace`, the resolved Tab under `tab`.
+/// `split` carries the minted graft Split identities only for an
 /// existing-Tab insert.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct WorkbenchPanelRelocateCommit {
@@ -171,6 +168,7 @@ pub(crate) struct WorkbenchPanelRelocateCommit {
     pub(crate) panel_id: WorkbenchPanelId,
     pub(crate) target_tab_id: WorkbenchTabId,
     pub(crate) split: Option<RelocatedSplitIds>,
+    pub(crate) transfer: Option<orchbee_workbench_protocol::WorkbenchPanelTransfer>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -323,7 +321,7 @@ fn classify_outcome(
     expected_context: &WorkbenchTerminalContextId,
     expected_tab: &WorkbenchTabId,
     expected_panel: &WorkbenchPanelId,
-    expected_target_tab: Option<&WorkbenchTabId>,
+    expected_destination: &WorkbenchPanelRelocateDestination,
     outcome: WorkbenchCommandOutcome,
 ) -> Result<WorkbenchPanelRelocateSubmission, WorkbenchPanelRelocateOutcomeUnknownReason> {
     match outcome {
@@ -333,6 +331,8 @@ fn classify_outcome(
                 WorkbenchRejectionReason::SiteMismatch
                     | WorkbenchRejectionReason::RevisionMismatch
                     | WorkbenchRejectionReason::TerminalContextUnavailable
+                    | WorkbenchRejectionReason::ProjectUnavailable
+                    | WorkbenchRejectionReason::WorkspaceDirectoryUnavailable
                     | WorkbenchRejectionReason::TabUnavailable
                     | WorkbenchRejectionReason::PanelUnavailable
                     | WorkbenchRejectionReason::PanelNotLeaf
@@ -374,6 +374,7 @@ fn classify_outcome(
             split_id,
             first_slot_id,
             second_slot_id,
+            transfer,
         } => {
             let split = RelocatedSplitIds {
                 split_id,
@@ -385,13 +386,14 @@ fn classify_outcome(
                 expected_context,
                 expected_tab,
                 expected_panel,
-                expected_target_tab,
+                expected_destination,
                 revision,
                 terminal_context_id,
                 tab_id,
                 panel_id,
                 target_tab_id,
                 Some(split),
+                transfer,
             )
         }
         WorkbenchCommandOutcome::PanelRelocatedToNewTab {
@@ -400,18 +402,20 @@ fn classify_outcome(
             tab_id,
             panel_id,
             new_tab_id,
+            transfer,
         } => classify_committed(
             expected_revision,
             expected_context,
             expected_tab,
             expected_panel,
-            expected_target_tab,
+            expected_destination,
             revision,
             terminal_context_id,
             tab_id,
             panel_id,
             new_tab_id,
             None,
+            transfer,
         ),
         _ => Err(WorkbenchPanelRelocateOutcomeUnknownReason::ActionIncompatible),
     }
@@ -423,13 +427,14 @@ fn classify_committed(
     expected_context: &WorkbenchTerminalContextId,
     expected_tab: &WorkbenchTabId,
     expected_panel: &WorkbenchPanelId,
-    expected_target_tab: Option<&WorkbenchTabId>,
+    expected_destination: &WorkbenchPanelRelocateDestination,
     revision: WorkbenchRevision,
     terminal_context_id: WorkbenchTerminalContextId,
     tab_id: WorkbenchTabId,
     panel_id: WorkbenchPanelId,
     target_tab_id: WorkbenchTabId,
     split: Option<RelocatedSplitIds>,
+    transfer: Option<orchbee_workbench_protocol::WorkbenchPanelTransfer>,
 ) -> Result<WorkbenchPanelRelocateSubmission, WorkbenchPanelRelocateOutcomeUnknownReason> {
     let successor = expected_revision.value().checked_add(1).ok_or(
         WorkbenchPanelRelocateOutcomeUnknownReason::ExpectedRevisionOverflow {
@@ -465,9 +470,46 @@ fn classify_committed(
             received: panel_id,
         });
     }
-    // The destination Tab is only knowable client-side for an existing-Tab
-    // destination; a new Tab's identity is Server-minted at commit.
-    if let Some(expected) = expected_target_tab
+    let (target_context, target_tab, created_workspace) = match expected_destination {
+        WorkbenchPanelRelocateDestination::Tab {
+            terminal_context_id,
+            tab_id,
+            ..
+        } => (
+            Some(terminal_context_id.as_ref().unwrap_or(expected_context)),
+            Some(tab_id),
+            false,
+        ),
+        WorkbenchPanelRelocateDestination::NewTab {
+            terminal_context_id,
+            ..
+        } => (
+            Some(terminal_context_id.as_ref().unwrap_or(expected_context)),
+            None,
+            false,
+        ),
+        WorkbenchPanelRelocateDestination::NewWorkspace { .. } => (None, None, true),
+    };
+    let received_context = transfer.as_ref().map_or(&terminal_context_id, |transfer| {
+        &transfer.target_terminal_context_id
+    });
+    if target_context.is_some_and(|expected| expected != received_context)
+        || (created_workspace && received_context == expected_context)
+        || transfer
+            .as_ref()
+            .and_then(|transfer| transfer.created_workspace_id.as_ref())
+            .is_some()
+            != created_workspace
+        || transfer.as_ref().is_some_and(|transfer| {
+            transfer.closed_source_workspace_id.is_some()
+                && (!transfer.closed_source_tab || received_context == expected_context)
+        })
+        || split.is_some() != target_tab.is_some()
+        || target_tab_id == tab_id
+    {
+        return Err(WorkbenchPanelRelocateOutcomeUnknownReason::ActionIncompatible);
+    }
+    if let Some(expected) = target_tab
         && expected != &target_tab_id
     {
         return Err(
@@ -485,6 +527,7 @@ fn classify_committed(
             panel_id,
             target_tab_id,
             split,
+            transfer,
         },
     ))
 }

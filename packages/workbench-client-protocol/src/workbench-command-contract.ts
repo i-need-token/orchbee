@@ -250,11 +250,28 @@ export const WorkbenchActionSchema = z.discriminatedUnion('kind', [
 				z
 					.strictObject({
 						kind: z.literal('tab'),
+						terminalContextId: WorkbenchTerminalContextIdSchema.optional(),
 						tabId: WorkbenchTabIdSchema,
+						targetPanelId: WorkbenchPanelIdSchema.optional(),
 						direction: WorkbenchPanelSplitDirectionSchema,
 					})
 					.readonly(),
-				z.strictObject({ kind: z.literal('new-tab'), label: WorkbenchLabelSchema }).readonly(),
+				z
+					.strictObject({
+						kind: z.literal('new-tab'),
+						terminalContextId: WorkbenchTerminalContextIdSchema.optional(),
+						label: WorkbenchLabelSchema.optional(),
+					})
+					.readonly(),
+				z
+					.strictObject({
+						kind: z.literal('new-workspace'),
+						projectId: WorkbenchProjectIdSchema,
+						primaryDirectoryId: WorkbenchDirectoryIdSchema.optional(),
+						label: WorkbenchLabelSchema,
+						tabLabel: WorkbenchLabelSchema.optional(),
+					})
+					.readonly(),
 			]),
 		})
 		.readonly(),
@@ -355,6 +372,15 @@ export const WorkbenchSnapshotUnavailableReasonSchema = z.enum(['service-unavail
 const deniedSchema = z.strictObject({ kind: z.literal('denied') }).readonly();
 const commandUnavailableSchema = z
 	.strictObject({ kind: z.literal('unavailable'), reason: WorkbenchCommandUnavailableReasonSchema })
+	.readonly();
+
+const WorkbenchPanelTransferSchema = z
+	.strictObject({
+		targetTerminalContextId: WorkbenchTerminalContextIdSchema,
+		closedSourceTab: z.boolean(),
+		closedSourceWorkspaceId: WorkbenchWorkspaceIdSchema.optional(),
+		createdWorkspaceId: WorkbenchWorkspaceIdSchema.optional(),
+	})
 	.readonly();
 
 export const WorkbenchCommandOutcomeSchema = z.discriminatedUnion('kind', [
@@ -503,6 +529,7 @@ export const WorkbenchCommandOutcomeSchema = z.discriminatedUnion('kind', [
 	z
 		.strictObject({
 			kind: z.literal('panel-relocated'),
+			transfer: WorkbenchPanelTransferSchema.optional(),
 			revision: WorkbenchRevisionSchema,
 			terminalContextId: WorkbenchTerminalContextIdSchema,
 			tabId: WorkbenchTabIdSchema,
@@ -516,6 +543,7 @@ export const WorkbenchCommandOutcomeSchema = z.discriminatedUnion('kind', [
 	z
 		.strictObject({
 			kind: z.literal('panel-relocated-to-new-tab'),
+			transfer: WorkbenchPanelTransferSchema.optional(),
 			revision: WorkbenchRevisionSchema,
 			terminalContextId: WorkbenchTerminalContextIdSchema,
 			tabId: WorkbenchTabIdSchema,

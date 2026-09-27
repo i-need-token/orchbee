@@ -385,3 +385,19 @@ Panel swap 使用共享结构 placement 权威，在同一 Tab 中原子交换�
 [Tab 标签契约](../../apps/orchbee/docs/native-tab-labels.zh-CN.md) 拥有可选 `automaticLabel` 元数据。省略标签的新建 Tab 按当前上下文位置编号；显式数字名称及旧 Tab 保留固定名称。移动或关闭后 CLI 查询、标签选择器和 TUI 显示保持一致，重命名切换为固定名称。原生 `api snapshot` v4 暴露规范元数据；目录 v34 包含 68 份 schema。共享协议需要匹配 cohort。
 
 Client 所有的 Agent 提示状态读取指定 1–100 个唯一规范 Agent 会话 ID。`agent-attention` 提交及 `attention-read` 完成使用类型 29，分配前限制为 64 KiB；响应仍使用类型 26。条目保留请求顺序、可空的不存在会话状态、观察 generation/sequence、语义变化版本及 seen，同时包含可认证启动周期的 changes 游标和可空宿主焦点。Workbench 绑定轻量 Agent 协议 DTO，不拥有 Agent 状态。[Client 提示状态所有者](../../apps/orchbee/docs/native-client-attention.zh-CN.md) 定义读取可用性、不改变确认、有界回执存储及 CLI 游标认证。
+
+## 保留终端的 Panel 迁移
+
+`panel.relocate` 保留精确的源上下文／Tab／Panel 元组。`tab` 目标接受可选 `terminalContextId` 和
+`targetPanelId`：上下文缺省使用源上下文，Panel 缺省保留根部嫁接。`new-tab` 接受可选
+`terminalContextId` 和 `label`，标签缺省创建自动编号 Tab。`new-workspace` 要求 `projectId` 和
+`label`，可选 `primaryDirectoryId` 与 `tabLabel`。可选字段缺省时省略，显式 null 非法；目录必须
+属于所选 Project。现有编码目标继续有效。
+
+`panel-relocated` 和 `panel-relocated-to-new-tab` 保留原有身份字段，可选携带 `transfer`：
+必填 `targetTerminalContextId`、`closedSourceTab`，可选 `closedSourceWorkspaceId`、
+`createdWorkspaceId`。跨上下文移动或移除源 Tab 时提供该对象；新 Workspace 迁移使用 new-Tab
+结果并提供新 Workspace 身份。原有同上下文且不移除源 Tab 的结果省略 transfer。全部终端绑定保留。
+[Server 迁移模型](../../apps/orchbee-server/docs/workbench-authority.zh-CN.md#已接受的-panel-迁移模型)
+拥有源移除、候选容量、发布和 standalone 组合；Client 比例与焦点不属于此次原子结构结果。
+共享命令夹具覆盖新旧形式、缺省标签及非法／null 可选值。

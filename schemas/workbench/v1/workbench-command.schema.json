@@ -351,7 +351,7 @@
 							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/panelId"
 						},
 						"destination": {
-							"$comment": "panel.relocate destination: `tab` inserts the moved leaf and the destination Tab's previous root as the children of a fresh root Split; `new-tab` appends a fresh Tab whose root is the moved leaf.",
+							"$comment": "Retained Panel relocation to a source or explicit target context, or a new Workspace; optional targetPanelId selects the graft leaf.",
 							"oneOf": [
 								{
 									"type": "object",
@@ -364,6 +364,12 @@
 										},
 										"direction": {
 											"enum": ["above", "below", "left", "right"]
+										},
+										"terminalContextId": {
+											"$ref": "urn:orchbee:schema:workbench:v1#/$defs/terminalContextId"
+										},
+										"targetPanelId": {
+											"$ref": "urn:orchbee:schema:workbench:v1#/$defs/panelId"
 										}
 									},
 									"required": ["kind", "tabId", "direction"],
@@ -377,9 +383,34 @@
 										},
 										"label": {
 											"$ref": "urn:orchbee:schema:workbench:v1#/$defs/label"
+										},
+										"terminalContextId": {
+											"$ref": "urn:orchbee:schema:workbench:v1#/$defs/terminalContextId"
 										}
 									},
-									"required": ["kind", "label"],
+									"required": ["kind"],
+									"additionalProperties": false
+								},
+								{
+									"type": "object",
+									"properties": {
+										"kind": {
+											"const": "new-workspace"
+										},
+										"projectId": {
+											"$ref": "urn:orchbee:schema:workbench:v1#/$defs/projectId"
+										},
+										"primaryDirectoryId": {
+											"$ref": "urn:orchbee:schema:workbench:v1#/$defs/directoryId"
+										},
+										"label": {
+											"$ref": "urn:orchbee:schema:workbench:v1#/$defs/label"
+										},
+										"tabLabel": {
+											"$ref": "urn:orchbee:schema:workbench:v1#/$defs/label"
+										}
+									},
+									"required": ["kind", "projectId", "label"],
 									"additionalProperties": false
 								}
 							]
@@ -1109,6 +1140,9 @@
 						},
 						"secondSlotId": {
 							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/panelSlotId"
+						},
+						"transfer": {
+							"$ref": "#/$defs/panelTransfer"
 						}
 					},
 					"required": [
@@ -1144,6 +1178,9 @@
 						},
 						"newTabId": {
 							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/tabId"
+						},
+						"transfer": {
+							"$ref": "#/$defs/panelTransfer"
 						}
 					},
 					"required": ["kind", "revision", "terminalContextId", "tabId", "panelId", "newTabId"],
@@ -2173,6 +2210,25 @@
 				}
 			},
 			"required": ["kind", "protocolVersion", "requestId", "outcome"],
+			"additionalProperties": false
+		},
+		"panelTransfer": {
+			"type": "object",
+			"properties": {
+				"targetTerminalContextId": {
+					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/terminalContextId"
+				},
+				"closedSourceTab": {
+					"type": "boolean"
+				},
+				"closedSourceWorkspaceId": {
+					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/workspaceId"
+				},
+				"createdWorkspaceId": {
+					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/workspaceId"
+				}
+			},
+			"required": ["targetTerminalContextId", "closedSourceTab"],
 			"additionalProperties": false
 		}
 	}
