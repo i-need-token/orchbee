@@ -1214,6 +1214,12 @@ pub(crate) enum Request {
     RootHelp,
     Help(HelpTopic),
     Completion(CompletionShell),
+    #[cfg(windows)]
+    ClientQuery {
+        command: QueryCommand,
+        client: WorkbenchClientId,
+        format: OutputFormat,
+    },
     Query {
         command: QueryCommand,
         format: OutputFormat,
@@ -2877,18 +2883,33 @@ fn resolve_words(
                 .clone()
                 .map(|value| target(value, Resource::Project, envelope))
                 .transpose()?;
-            Ok(query(QueryCommand::WorkspaceList { project }, options))
+            client_query(
+                QueryCommand::WorkspaceList { project },
+                options,
+                UsageContext::Path("workspace list"),
+                envelope,
+            )
         }
         ["workspace", "get", value] => {
-            reject_filters(options, UsageContext::Path("workspace get"), envelope)?;
-            Ok(query(
+            check_scope(
+                options,
+                Scope {
+                    client: cfg!(windows),
+                    ..NO_OPTIONS
+                },
+                UsageContext::Path("workspace get"),
+                envelope,
+            )?;
+            client_query(
                 QueryCommand::WorkspaceGet(target(
                     (*value).to_owned(),
                     Resource::Workspace,
                     envelope,
                 )?),
                 options,
-            ))
+                UsageContext::Path("workspace get"),
+                envelope,
+            )
         }
         ["workspace", "create"] => {
             #[cfg(windows)]
@@ -3136,20 +3157,32 @@ fn resolve_words(
                 .clone()
                 .map(|value| target(value, Resource::Workspace, envelope))
                 .transpose()?;
-            Ok(query(
+            client_query(
                 QueryCommand::TabList {
                     workspace,
                     standalone: options.standalone,
                 },
                 options,
-            ))
+                UsageContext::Path("tab list"),
+                envelope,
+            )
         }
         ["tab", "get", value] => {
-            reject_filters(options, UsageContext::Path("tab get"), envelope)?;
-            Ok(query(
+            check_scope(
+                options,
+                Scope {
+                    client: cfg!(windows),
+                    ..NO_OPTIONS
+                },
+                UsageContext::Path("tab get"),
+                envelope,
+            )?;
+            client_query(
                 QueryCommand::TabGet(target((*value).to_owned(), Resource::Tab, envelope)?),
                 options,
-            ))
+                UsageContext::Path("tab get"),
+                envelope,
+            )
         }
         ["tab", "create"] => creation::parse(None, options, envelope),
         ["panel", "input", operands @ ..] => panel_input::parse(operands, options, envelope),
@@ -3253,7 +3286,12 @@ fn resolve_words(
                 .clone()
                 .map(|value| target(value, Resource::Tab, envelope))
                 .transpose()?;
-            Ok(query(QueryCommand::PanelList { tab }, options))
+            client_query(
+                QueryCommand::PanelList { tab },
+                options,
+                UsageContext::Path("panel list"),
+                envelope,
+            )
         }
         ["panel", "process-info", operands @ ..] => {
             let context = UsageContext::Path("panel process-info");
@@ -3317,11 +3355,21 @@ fn resolve_words(
             envelope,
         )),
         ["panel", "get", value] => {
-            reject_filters(options, UsageContext::Path("panel get"), envelope)?;
-            Ok(query(
+            check_scope(
+                options,
+                Scope {
+                    client: cfg!(windows),
+                    ..NO_OPTIONS
+                },
+                UsageContext::Path("panel get"),
+                envelope,
+            )?;
+            client_query(
                 QueryCommand::PanelGet(target((*value).to_owned(), Resource::Panel, envelope)?),
                 options,
-            ))
+                UsageContext::Path("panel get"),
+                envelope,
+            )
         }
         ["panel", "split", rest @ ..] => creation::parse(Some(rest), options, envelope),
         ["panel", "close", value] => {
@@ -4202,6 +4250,25 @@ fn help_topic(path: &[&str]) -> Option<HelpTopic> {
     })
 }
 
+fn client_query(
+    command: QueryCommand,
+    options: &Options,
+    context: UsageContext,
+    envelope: FailureEnvelope,
+) -> Result<Request, ParseFailure> {
+    #[cfg(windows)]
+    if let Some(client) = client_control::client_id(options, context, envelope)? {
+        return Ok(Request::ClientQuery {
+            command,
+            client,
+            format: options.format.unwrap_or(OutputFormat::Text),
+        });
+    }
+    #[cfg(not(windows))]
+    let _ = (context, envelope);
+    Ok(query(command, options))
+}
+
 fn query(command: QueryCommand, options: &Options) -> Request {
     Request::Query {
         command,
@@ -4501,11 +4568,13 @@ const AGENT_DOCTOR_SCOPE: Scope = Scope {
 };
 
 const WORKSPACE_LIST_SCOPE: Scope = Scope {
+    client: cfg!(windows),
     project: true,
     ..NO_OPTIONS
 };
 
 const TAB_LIST_SCOPE: Scope = Scope {
+    client: cfg!(windows),
     workspace: true,
     standalone: true,
     ..NO_OPTIONS
@@ -4519,6 +4588,7 @@ const PANEL_CURRENT_SCOPE: Scope = Scope {
 };
 
 const PANEL_LIST_SCOPE: Scope = Scope {
+    client: cfg!(windows),
     tab: true,
     ..NO_OPTIONS
 };

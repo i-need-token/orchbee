@@ -116,7 +116,41 @@ export const ClientAgentAttentionSnapshotSchema = z
 		}
 	})
 	.readonly();
+const selectionContexts = z
+	.array(WorkbenchTerminalContextIdSchema)
+	.min(1)
+	.max(128)
+	.refine((ids) => new Set(ids).size === ids.length)
+	.readonly();
+const clientNavigation = z
+	.strictObject({
+		workbenchRevision: WorkbenchRevisionSchema,
+		contexts: z
+			.array(
+				z
+					.strictObject({
+						terminalContextId: WorkbenchTerminalContextIdSchema,
+						activeTabId: WorkbenchTabIdSchema.nullable(),
+					})
+					.readonly(),
+			)
+			.min(1)
+			.max(128)
+			.readonly(),
+	})
+	.superRefine((value, context) => {
+		const ids = value.contexts.map((entry) => entry.terminalContextId);
+		const tabs = value.contexts.flatMap((entry) =>
+			entry.activeTabId === null ? [] : [entry.activeTabId],
+		);
+		if (new Set(ids).size !== ids.length || new Set(tabs).size !== tabs.length)
+			context.addIssue({ code: 'custom', message: 'Duplicate Client navigation identity' });
+	})
+	.readonly();
 export const ClientViewIntentSchema = z.discriminatedUnion('kind', [
+	z
+		.strictObject({ kind: z.literal('selections'), terminalContextIds: selectionContexts })
+		.readonly(),
 	z.strictObject({ kind: z.literal('agent-attention'), sessionIds: attentionSessions }).readonly(),
 	z
 		.strictObject({
@@ -173,6 +207,9 @@ export const ClientViewCompletionSchema = z
 		operationId: WorkbenchRequestIdSchema,
 		outcome: z.discriminatedUnion('kind', [
 			z
+				.strictObject({ kind: z.literal('navigation-read'), navigation: clientNavigation })
+				.readonly(),
+			z
 				.strictObject({
 					kind: z.literal('attention-read'),
 					attention: ClientAgentAttentionSnapshotSchema,
@@ -208,6 +245,13 @@ export const ClientViewCompletionSchema = z
 	})
 	.readonly();
 export const ClientViewControlStatusSchema = z.discriminatedUnion('kind', [
+	z
+		.strictObject({
+			kind: z.literal('navigation-read'),
+			navigation: clientNavigation,
+			view: ClientViewObservationSchema,
+		})
+		.readonly(),
 	z
 		.strictObject({
 			kind: z.literal('attention-read'),
@@ -355,6 +399,29 @@ export const ClientViewOperationSchema = z
 				});
 			return;
 		}
+		if (status.kind === 'navigation-read') {
+			const { intent } = command;
+			const { navigation, view } = status;
+			if (
+				intent.kind !== 'selections' ||
+				view.phase !== 'ready' ||
+				BigInt(navigation.workbenchRevision) < BigInt(command.minimumWorkbenchRevision) ||
+				BigInt(navigation.workbenchRevision) < BigInt(view.workbenchRevision) ||
+				navigation.contexts.length !== intent.terminalContextIds.length ||
+				navigation.contexts.some(
+					(entry, index) =>
+						entry.terminalContextId !== intent.terminalContextIds[index] ||
+						(view.selection?.terminalContextId === entry.terminalContextId &&
+							view.selection.tabId !== entry.activeTabId),
+				)
+			) {
+				context.addIssue({
+					code: 'custom',
+					message: 'Navigation receipt does not match requested contexts or view',
+				});
+			}
+			return;
+		}
 		if (status.kind === 'attention-read') {
 			const intent = command.intent;
 			if (
@@ -435,8 +502,8 @@ export const ClientViewOperationSchema = z
 				break;
 		}
 
-		if (intent.kind === 'agent-attention') {
-			context.addIssue({ code: 'custom', message: 'Attention read cannot acknowledge navigation' });
+		if (intent.kind === 'agent-attention' || intent.kind === 'selections') {
+			context.addIssue({ code: 'custom', message: 'Read cannot acknowledge navigation' });
 			return;
 		}
 		const observed =

@@ -617,7 +617,12 @@ const COMMAND_FLAGS: &[(&str, &[&str])] = &[
     ("project:create", &["--label"]),
     ("project:rename", &["--label"]),
     ("workspace:accept-directory", &["--path"]),
+    #[cfg(not(windows))]
     ("workspace:list", &["--project"]),
+    #[cfg(windows)]
+    ("workspace:list", &["--project", "--client"]),
+    #[cfg(windows)]
+    ("workspace:get", &["--client"]),
     (
         "workspace:create",
         &[
@@ -669,7 +674,12 @@ const COMMAND_FLAGS: &[(&str, &[&str])] = &[
             "--confirm",
         ],
     ),
+    #[cfg(not(windows))]
     ("tab:list", &["--workspace", "--standalone"]),
+    #[cfg(windows)]
+    ("tab:list", &["--workspace", "--standalone", "--client"]),
+    #[cfg(windows)]
+    ("tab:get", &["--client"]),
     (
         "tab:create",
         &[
@@ -709,7 +719,12 @@ const COMMAND_FLAGS: &[(&str, &[&str])] = &[
     ("tab:close", &["--confirm"]),
     ("panel:current", &["--panel", "--current", "--client"]),
     ("panel:process-info", &["--panel", "--current", "--client"]),
+    #[cfg(not(windows))]
     ("panel:list", &["--tab"]),
+    #[cfg(windows)]
+    ("panel:list", &["--tab", "--client"]),
+    #[cfg(windows)]
+    ("panel:get", &["--client"]),
     (
         "panel:split",
         &[

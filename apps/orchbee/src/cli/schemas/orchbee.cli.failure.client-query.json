@@ -1,0 +1,60 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "orchbee.cli.failure.client-query",
+	"type": "object",
+	"properties": {
+		"schema": {
+			"const": "orchbee.cli.failure.client-query"
+		},
+		"version": {
+			"const": 1
+		},
+		"failure": {
+			"type": "object",
+			"properties": {
+				"kind": {
+					"enum": [
+						"ambiguous",
+						"cancelled",
+						"check-failed",
+						"denied",
+						"incompatible",
+						"internal-failure",
+						"invalid-identifier",
+						"invalid-usage",
+						"not-found",
+						"outcome-unknown",
+						"output-too-large",
+						"protocol-invalid",
+						"rejected",
+						"service-unavailable",
+						"session-capacity",
+						"timeout",
+						"transport-loss"
+					]
+				},
+				"details": {
+					"type": "object",
+					"properties": {
+						"stage": {
+							"const": "client-query"
+						},
+						"clientId": {
+							"type": "string",
+							"pattern": "^[0-9a-f]{32}$",
+							"not": {
+								"const": "00000000000000000000000000000000"
+							}
+						}
+					},
+					"required": ["stage", "clientId"],
+					"additionalProperties": false
+				}
+			},
+			"required": ["kind", "details"],
+			"additionalProperties": false
+		}
+	},
+	"required": ["schema", "version", "failure"],
+	"additionalProperties": false
+}

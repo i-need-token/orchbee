@@ -64,7 +64,12 @@ impl Answer {
         } else {
             json!({"kind": if self.status_only { "unobserved" } else { "not-submitted" }})
         };
-        json!({"schema":"orchbee.client.control","version":1,"siteId":self.site_id,
+        let selection_read = self.reply.as_ref().is_some_and(|reply| {
+            matches!(&reply.outcome, ClientViewOutcome::Operation { operation }
+                if matches!(operation.command.intent, orchbee_workbench_protocol::ClientViewIntent::Selections { .. }))
+        });
+        let version = if selection_read { 2 } else { 1 };
+        json!({"schema":"orchbee.client.control","version":version,"siteId":self.site_id,
             "operationId":self.operation_id,"observation":observation,"wait":wait})
     }
     pub(super) fn exit_code(&self) -> u8 {
@@ -95,6 +100,7 @@ fn outcome_exit(outcome: &ClientViewOutcome) -> u8 {
             | ClientViewControlStatus::DirectionUnchanged { .. }
             | ClientViewControlStatus::LayoutRead { .. }
             | ClientViewControlStatus::AttentionRead { .. }
+            | ClientViewControlStatus::NavigationRead { .. }
             | ClientViewControlStatus::Applied { .. }
             | ClientViewControlStatus::ZoomUnchanged { .. }
             | ClientViewControlStatus::ZoomToggled { .. } => 0,

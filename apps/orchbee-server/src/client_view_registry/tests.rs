@@ -115,6 +115,92 @@ fn acknowledge(id: u64) -> ClientViewAction {
 }
 
 #[test]
+fn navigation_receipts_validate_owner_and_correlated_memory_without_reexecution() {
+    use orchbee_workbench_protocol::{ClientContextSelection, ClientNavigationSnapshot};
+    let now = Instant::now();
+    let mut registry = ClientViewRegistry::default();
+    execute(&mut registry, 1, sample(), now);
+    let mut command = command(903, 1);
+    let ClientViewIntent::Panel {
+        terminal_context_id,
+        tab_id,
+        ..
+    } = command.intent
+    else {
+        panic!()
+    };
+    command.intent = ClientViewIntent::Selections {
+        terminal_context_ids: vec![terminal_context_id.clone()],
+    };
+    let submit = ClientViewAction::Submit {
+        command: Box::new(command),
+    };
+    assert_eq!(
+        status(execute(&mut registry, 20, submit.clone(), now)),
+        ClientViewControlStatus::Queued {}
+    );
+    assert_eq!(
+        registry.receipts[&operation_id(903)].payload_reservation,
+        orchbee_workbench_protocol::MAXIMUM_ENCODED_CLIENT_NAVIGATION_BYTES
+    );
+    assert!(matches!(
+        execute(&mut registry, 1, sample(), now),
+        ClientViewOutcome::Synchronized {
+            control: Some(_),
+            ..
+        }
+    ));
+    let mut ack = acknowledge(903);
+    let ClientViewAction::Synchronize { completion, .. } = &mut ack else {
+        panic!()
+    };
+    completion.as_mut().unwrap().outcome = ClientViewCompletionOutcome::NavigationRead {
+        navigation: Box::new(ClientNavigationSnapshot {
+            workbench_revision: WorkbenchRevision::new(12),
+            contexts: vec![ClientContextSelection {
+                terminal_context_id,
+                active_tab_id: Some(tab_id),
+            }],
+        }),
+    };
+    let mut invalid = ack.clone();
+    if let ClientViewAction::Synchronize {
+        completion: Some(completion),
+        ..
+    } = &mut invalid
+    {
+        let ClientViewCompletionOutcome::NavigationRead { navigation } = &mut completion.outcome
+        else {
+            panic!()
+        };
+        navigation.contexts[0].active_tab_id = None;
+    }
+    assert!(matches!(
+        execute(&mut registry, 1, invalid, now),
+        ClientViewOutcome::Conflict {}
+    ));
+    assert!(matches!(
+        execute(&mut registry, 2, ack.clone(), now),
+        ClientViewOutcome::Conflict {}
+    ));
+    assert!(matches!(
+        execute(&mut registry, 1, ack, now),
+        ClientViewOutcome::Synchronized { control: None, .. }
+    ));
+    let completed = status(read(&mut registry, 903, now));
+    assert!(matches!(
+        completed,
+        ClientViewControlStatus::NavigationRead { .. }
+    ));
+    assert!(
+        registry.receipts[&operation_id(903)].payload_reservation
+            < orchbee_workbench_protocol::MAXIMUM_ENCODED_CLIENT_NAVIGATION_BYTES
+    );
+    registry.disconnect(owner(1), now);
+    assert_eq!(status(execute(&mut registry, 20, submit, now)), completed);
+}
+
+#[test]
 fn attention_read_is_allowed_while_busy_and_exact_owner_and_sessions_are_required() {
     let now = Instant::now();
     let mut registry = ClientViewRegistry::default();

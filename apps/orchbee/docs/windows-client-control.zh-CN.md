@@ -83,3 +83,27 @@ TUI 退出时控制通道停止、唤醒阻塞 I/O 并 join。Server Session 清
 ## Agent 导航
 
 Windows `agent focus <target> [--client <id>]` 在一次客户端控制提交前，将名称、会话或窗格解析为唯一活动的主窗格。显式 `--session`、`--name` 和 `--panel` 使用现有解析器；`--request-id`、`--detach` 和默认 30000 ms 总期限沿用导航恢复契约。未就绪客户端在 Agent 查询前返回 `client-not-ready`。[Agent 导航契约](native-agent-navigation.zh-CN.md) 定义主呈现绑定、歧义、取消和保留操作查询。成功绘制可见窗格后，Client 提示状态所有者可确认已观察的 Agent 版本；已知宿主失焦时禁止确认。`agent attention <target> [--client <id>]` 独立读取该 Client，不标记已读。
+
+## Client 相对 Workbench 查询
+
+Windows `workspace list/get`、`tab list/get` 和 `panel list/get` 接受可选
+`--client <id>`。省略时保留规范的无界面投影；提供时，由准确指定的当前 Ready Client
+提供全局 `focused` 标记，Workspace 行还包含 `activeTabId`，包括非活动工作区记住的
+选择。null 表示空上下文。焦点指在该 TUI 中被选择，不表示操作系统窗口焦点。
+缺失、忙碌、过期或有歧义的事实明确失败，不替换为其他 Client。
+
+只读 `Selections` 意图携带 1–128 个不重复的 TerminalContext ID。TUI 根据单个新鲜
+规范快照解析当前选择或私有导航记忆：保留仍存在的记忆 Tab，否则使用正常返回上下文时
+相同的首个 Tab 回退规则。不访问该上下文，也不更新记忆。`NavigationRead` 保留请求
+顺序、规范修订号和 Client 观察。载荷限制为 16 KiB，复用现有保留控制操作、64 KiB
+结果封装和 Server 容量核算。
+
+CLI 先解析查询目标，在单个已准入连接上分批读取，检查准确的请求/上下文身份和成员关系，
+并在输出完整结果前确认规范修订号和 Client 视图修订号未改变。统一五秒总期限和信号所有者
+覆盖所有阶段。不产生部分成功、自动重放、导航、已看过确认、终端附着或输入效果。
+指定 Client 的结果包含 Client/操作/视图来源；未指定时不伪造焦点或活动字段。
+取消会关闭连接并退出130；不可用或变化的观察保留类型化失败。
+
+测试覆盖数量边界与重复 ID、响应关联、无效成员与修订号、空/非活动/重排/已删除选择、
+独立 Client、无界面兼容、语法、schema 和双语输出。真实 Windows 验收需比较查询前后的
+两个 Client 和规范状态。进程/Agent/标题/滚动/worktree/元数据增强属于后续所有者关联。

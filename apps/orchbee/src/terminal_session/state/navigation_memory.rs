@@ -112,6 +112,28 @@ impl NavigationMemory {
 }
 
 impl NativeSessionState {
+    /// The same stable-identity preference used by normal context reentry, without a visit.
+    pub(in crate::terminal_session) fn query_active_tab_id(
+        &self,
+        candidate: &NativeContextTabs,
+    ) -> Result<Option<WorkbenchTabId>, ()> {
+        if candidate.location() == self.cache.location() {
+            let selected = self.active().map(|active| active.key().anchor().tab_id());
+            if selected.is_some_and(|id| candidate.tab_index(id).is_none())
+                || (selected.is_none() && !candidate.tabs().is_empty())
+            {
+                return Err(());
+            }
+            return Ok(selected.cloned());
+        }
+        Ok(self
+            .navigation_memory
+            .tab(candidate.location())
+            .filter(|id| candidate.tab_index(id).is_some())
+            .cloned()
+            .or_else(|| candidate.tabs().first().map(|tab| tab.tab_id().clone())))
+    }
+
     /// Resolve a queried inactive Tab without recording a visit or changing selection.
     pub(in crate::terminal_session) fn layout_focus_panel_id(
         &self,

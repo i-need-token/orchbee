@@ -43,6 +43,8 @@ pub(crate) mod send;
 mod site;
 mod site_diagnose;
 mod site_stop;
+#[cfg(windows)]
+pub(crate) mod workbench_client_query;
 pub(crate) use site_stop::run as site_stop;
 mod workspace_group_close;
 mod worktree_operation;

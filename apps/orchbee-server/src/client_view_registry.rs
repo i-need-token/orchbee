@@ -170,7 +170,9 @@ impl ClientViewRegistry {
         else {
             return unavailable(ClientViewUnavailable::ClientUnavailable);
         };
-        let payload_reservation = if command.intent.is_attention_read() {
+        let payload_reservation = if matches!(command.intent, ClientViewIntent::Selections { .. }) {
+            orchbee_workbench_protocol::MAXIMUM_ENCODED_CLIENT_NAVIGATION_BYTES
+        } else if command.intent.is_attention_read() {
             MAXIMUM_ENCODED_CLIENT_ATTENTION_BYTES
         } else if matches!(command.intent, ClientViewIntent::Layout { .. }) {
             MAXIMUM_ENCODED_CLIENT_LAYOUT_BYTES
@@ -266,6 +268,12 @@ impl ClientViewRegistry {
                 return ClientViewOutcome::Conflict {};
             }
             let status = match &completion.outcome {
+                ClientViewCompletionOutcome::NavigationRead { navigation } => {
+                    ClientViewControlStatus::NavigationRead {
+                        navigation: navigation.clone(),
+                        view: view.clone(),
+                    }
+                }
                 ClientViewCompletionOutcome::AttentionRead { attention } => {
                     ClientViewControlStatus::AttentionRead {
                         attention: attention.clone(),

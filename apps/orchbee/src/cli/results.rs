@@ -90,12 +90,13 @@ pub(crate) const fn schema_version(command: &QueryCommand) -> u64 {
         }
         QueryCommand::TerminalSourceWait { .. } => 3,
         QueryCommand::TerminalOutput { ansi: true, .. } => 2,
-        QueryCommand::PanelGet(_) | QueryCommand::PanelCurrent(_) => 3,
+        QueryCommand::PanelGet(_) => 4,
+        QueryCommand::PanelCurrent(_) => 3,
         QueryCommand::ApiSnapshot => 5,
-        QueryCommand::PanelList { .. } | QueryCommand::TabGet(_) => 3,
+        QueryCommand::PanelList { .. } | QueryCommand::TabGet(_) => 4,
         QueryCommand::WorkspaceList { .. }
         | QueryCommand::WorkspaceGet(_)
-        | QueryCommand::TabList { .. } => 2,
+        | QueryCommand::TabList { .. } => 3,
         QueryCommand::TerminalGet(_) => 4,
         #[cfg(windows)]
         QueryCommand::AgentWait { .. } => 3,
@@ -1035,6 +1036,8 @@ pub(crate) fn terminal_select(
 
 #[derive(Debug)]
 pub(crate) enum Projection {
+    #[cfg(windows)]
+    ClientWorkbench(Box<super::workbench_client_query::Document>),
     Status(StatusDoc),
     /// The typed `listed` outcome, verbatim from the wire.
     AgentList(AgentListOutcome),
@@ -1247,6 +1250,8 @@ impl Projection {
     /// The `result` member of the machine envelope.
     pub(crate) fn result(&self) -> Value {
         match self {
+            #[cfg(windows)]
+            Self::ClientWorkbench(doc) => doc.result(),
             // Agent projections serialize the exact wire outcome object —
             // the typed enum is the single serialization truth.
             Self::AgentList(outcome) => json!(outcome),

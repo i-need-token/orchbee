@@ -6,7 +6,7 @@
 
 查询指定精确的 Client、TerminalContext、Tab、源 Panel 及最低 Workbench revision。现有已认证 Client 通道在把请求交给 UI 之前，进行一次可取消的规范 Snapshot 读取。Snapshot 不可用或目标缺失时明确失败。UI 使用该 Snapshot 投影目标，不把它安装为活动上下文；低于请求最低 revision 的 Snapshot 会被拒绝。对于选中 Tab，几何使用当前渲染成员缓存及其 revision；缓存尚未达到请求最低 revision 时明确失败，不通过刷新成员关系引发终端 resize 副作用。非活动目标使用取得的 Snapshot，明确作为未选中的投影。
 
-结果包含目标与规范 revision、采样时的单元格视口与终端区域、目标 Tab 是否选中、本地缩放标志，以及必填但可为 null 的焦点 Panel。未访问及非活动上下文均可读取。Client 没有该目标的本地焦点 Panel 时，焦点为 null；投影使用渲染器的首叶回退，不声称该叶已选中。非活动 Tab 的几何是它在采样视口中的投影，不表示正在绘制。
+结果包含目标与规范 revision、采样时的单元格视口与终端区域、目标 Tab 是否选中、本地缩放标志，以及必填但可为 null 的焦点 Panel。未访问及非活动上下文均可读取。非活动目标使用 Client 仍存在的记忆 Panel，缺失时回退到首个成员，遵循[选择记忆](native-context-selection.zh-CN.md#client-选择记忆)规则。此局部焦点不代表 Tab 被选中，`selected` 标记保留这一区别。非活动 Tab 的几何是它在采样视口中的投影，不表示正在绘制。
 
 每个规范 Panel 都包含必填但可为 null 的未缩放外框、未缩放终端内容及显示终端内容矩形。null 表示渲染器没有在该层放置此 Panel。缩放保留未缩放几何，仅让焦点 Panel 显示完整内容区域。Minimal 视口反映渲染器的单 Panel 回退；过小视口不编造几何。分割记录稳定的 split/slot 身份、方向、渲染比例，以及必填但可为 null 的区域／分隔线矩形。保持规范遍历顺序。
 

@@ -1,5 +1,50 @@
 use super::context_selection::{contexts, finish_selection};
 use super::*;
+use crate::terminal_session::workbench_projection::project_native_context_tabs;
+
+#[test]
+fn query_active_tabs_uses_private_surviving_memory_without_visiting() {
+    let snapshot = contexts(2, 1);
+    let mut state = ready_with_cache(project_native_standalone_tabs(&snapshot).unwrap());
+    let other = ready_with_cache(project_native_standalone_tabs(&snapshot).unwrap());
+    assert!(state.start_context_selection_at(10, 1, deadlines()));
+    finish_selection(&mut state, snapshot.clone(), 10);
+    switch(&mut state, 1, 30);
+    let remembered = state.active().unwrap().key().anchor().tab_id().clone();
+    let location = state.cache.location().clone();
+    assert!(state.start_context_selection_at(40, 0, deadlines()));
+    finish_selection(&mut state, snapshot.clone(), 40);
+    let before = state.active().unwrap().key().clone();
+    let candidate = project_native_context_tabs(&snapshot, &location).unwrap();
+    assert_eq!(
+        state.query_active_tab_id(&candidate),
+        Ok(Some(remembered.clone()))
+    );
+    assert_ne!(
+        other.query_active_tab_id(&candidate),
+        Ok(Some(remembered.clone()))
+    );
+    let mut reordered = snapshot.clone();
+    reordered.terminal_contexts[1].tabs.reverse();
+    let candidate = project_native_context_tabs(&reordered, &location).unwrap();
+    assert_eq!(
+        state.query_active_tab_id(&candidate),
+        Ok(Some(remembered.clone()))
+    );
+    reordered.terminal_contexts[1]
+        .tabs
+        .retain(|tab| tab.tab_id != remembered);
+    let candidate = project_native_context_tabs(&reordered, &location).unwrap();
+    assert_eq!(
+        state.query_active_tab_id(&candidate),
+        Ok(candidate.tabs().first().map(|tab| tab.tab_id().clone()))
+    );
+    reordered.terminal_contexts[1].tabs.clear();
+    let candidate = project_native_context_tabs(&reordered, &location).unwrap();
+    assert_eq!(state.query_active_tab_id(&candidate), Ok(None));
+    assert_eq!(state.active().unwrap().key(), &before);
+    assert_eq!(state.navigation_memory.tab(&location), Some(&remembered));
+}
 
 fn deadlines() -> OperationDeadlines {
     OperationDeadlines::from_sample(Instant::now()).unwrap()

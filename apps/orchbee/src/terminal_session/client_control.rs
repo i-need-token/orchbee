@@ -392,6 +392,19 @@ fn prepare_control(
     snapshot: Option<&orchbee_workbench_protocol::Snapshot>,
     viewport: Option<(ratatui::layout::Rect, crate::client_view::SidebarSurface)>,
 ) -> Result<ClientViewControl, Box<ClientViewCompletionOutcome>> {
+    if matches!(command.intent, ClientViewIntent::Selections { .. }) {
+        return Err(Box::new(
+            snapshot
+                .ok_or(Reason::ProjectionUnavailable)
+                .and_then(|snapshot| native.read_client_selections(command, snapshot))
+                .map_or_else(
+                    |reason| ClientViewCompletionOutcome::Rejected { reason },
+                    |navigation| ClientViewCompletionOutcome::NavigationRead {
+                        navigation: Box::new(navigation),
+                    },
+                ),
+        ));
+    }
     if let ClientViewIntent::AgentAttention { session_ids } = &command.intent {
         return Err(Box::new(native.read_agent_attention(session_ids).map_or(
             ClientViewCompletionOutcome::Rejected {

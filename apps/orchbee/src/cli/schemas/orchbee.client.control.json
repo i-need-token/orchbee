@@ -8,7 +8,7 @@
 			"const": "orchbee.client.control"
 		},
 		"version": {
-			"const": 1
+			"enum": [1, 2]
 		},
 		"siteId": {
 			"anyOf": [
@@ -422,6 +422,25 @@
 					},
 					"required": ["kind", "sessionIds"],
 					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "selections"
+						},
+						"terminalContextIds": {
+							"type": "array",
+							"minItems": 1,
+							"maxItems": 128,
+							"uniqueItems": true,
+							"items": {
+								"$ref": "#/$defs/terminalContextId"
+							}
+						}
+					},
+					"required": ["kind", "terminalContextIds"],
+					"additionalProperties": false
 				}
 			]
 		},
@@ -643,6 +662,22 @@
 						}
 					},
 					"required": ["kind", "attention", "view"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "navigation-read"
+						},
+						"navigation": {
+							"$ref": "#/$defs/navigationSnapshot"
+						},
+						"view": {
+							"$ref": "#/$defs/view"
+						}
+					},
+					"required": ["kind", "navigation", "view"],
 					"additionalProperties": false
 				}
 			]
@@ -1137,6 +1172,41 @@
 				}
 			},
 			"required": ["cursor", "revision", "outerFocused", "entries"],
+			"additionalProperties": false
+		},
+		"navigationSnapshot": {
+			"type": "object",
+			"properties": {
+				"workbenchRevision": {
+					"$ref": "#/$defs/revision"
+				},
+				"contexts": {
+					"type": "array",
+					"minItems": 1,
+					"maxItems": 128,
+					"items": {
+						"type": "object",
+						"properties": {
+							"terminalContextId": {
+								"$ref": "#/$defs/terminalContextId"
+							},
+							"activeTabId": {
+								"anyOf": [
+									{
+										"$ref": "#/$defs/tabId"
+									},
+									{
+										"type": "null"
+									}
+								]
+							}
+						},
+						"required": ["terminalContextId", "activeTabId"],
+						"additionalProperties": false
+					}
+				}
+			},
+			"required": ["workbenchRevision", "contexts"],
 			"additionalProperties": false
 		}
 	}

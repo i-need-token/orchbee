@@ -195,7 +195,8 @@ fn run(
         let delivery = if let Some(control) = control {
             let layout_snapshot = if matches!(
                 control.intent,
-                ClientViewIntent::Layout { .. }
+                ClientViewIntent::Selections { .. }
+                    | ClientViewIntent::Layout { .. }
                     | ClientViewIntent::FocusDirection { .. }
                     | ClientViewIntent::Resize { .. }
                     | ClientViewIntent::SetSplitRatio { .. }

@@ -6,6 +6,7 @@ use super::{
         ClientLayoutAdjustment, ClientLayoutChange, ClientResizeAmount, ClientSplitIdentity,
         ClientSplitPath,
     },
+    client_navigation::{ClientNavigationSnapshot, validate_contexts},
     json_fields::deserialize_nullable,
 };
 use crate::identity::WorkbenchClientId;
@@ -115,6 +116,9 @@ pub struct ClientViewRecord {
     deny_unknown_fields
 )]
 pub enum ClientViewIntent {
+    Selections {
+        terminal_context_ids: Vec<WorkbenchTerminalContextId>,
+    },
     AgentAttention {
         session_ids: Vec<AgentSessionId>,
     },
@@ -267,6 +271,7 @@ impl ClientViewIntent {
         };
         match self {
             Self::AgentAttention { .. }
+            | Self::Selections { .. }
             | Self::ToggleZoom { .. }
             | Self::Layout { .. }
             | Self::FocusDirection { .. }
@@ -317,6 +322,12 @@ pub struct ClientViewControl {
 }
 impl ClientViewControl {
     pub fn validate(&self) -> Result<(), ContractError> {
+        if let ClientViewIntent::Selections {
+            terminal_context_ids,
+        } = &self.intent
+        {
+            validate_contexts(terminal_context_ids)?;
+        }
         if let ClientViewIntent::AgentAttention { session_ids } = &self.intent {
             validate_sessions(session_ids)?;
         }
@@ -359,6 +370,9 @@ pub enum ClientViewControlReason {
     deny_unknown_fields
 )]
 pub enum ClientViewCompletionOutcome {
+    NavigationRead {
+        navigation: Box<ClientNavigationSnapshot>,
+    },
     AttentionRead {
         attention: Box<ClientAgentAttentionSnapshot>,
     },
@@ -400,6 +414,10 @@ pub struct ClientViewCompletion {
     deny_unknown_fields
 )]
 pub enum ClientViewControlStatus {
+    NavigationRead {
+        navigation: Box<ClientNavigationSnapshot>,
+        view: ClientViewObservation,
+    },
     AttentionRead {
         attention: Box<ClientAgentAttentionSnapshot>,
         view: ClientViewObservation,
@@ -457,6 +475,22 @@ impl ClientViewOperation {
     pub fn validate(&self) -> Result<(), ContractError> {
         self.command.validate()?;
         match &self.status {
+            ClientViewControlStatus::NavigationRead { navigation, view } => {
+                view.validate()?;
+                let ClientViewIntent::Selections {
+                    terminal_context_ids,
+                } = &self.command.intent
+                else {
+                    return Err(ContractError::InvalidDocument);
+                };
+                if !navigation.answers(
+                    terminal_context_ids,
+                    view,
+                    self.command.minimum_workbench_revision,
+                ) {
+                    return Err(ContractError::InvalidDocument);
+                }
+            }
             ClientViewControlStatus::AttentionRead { attention, view } => {
                 view.validate()?;
                 let ClientViewIntent::AgentAttention { session_ids } = &self.command.intent else {
@@ -698,6 +732,13 @@ impl WorkbenchClientViewRequest {
         } = &self.action
         {
             view.validate()?;
+            if let Some(ClientViewCompletion {
+                outcome: ClientViewCompletionOutcome::NavigationRead { navigation },
+                ..
+            }) = completion
+            {
+                navigation.validate()?;
+            }
             if let Some(ClientViewCompletion {
                 outcome: ClientViewCompletionOutcome::AttentionRead { attention },
                 ..

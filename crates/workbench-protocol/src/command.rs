@@ -1,3 +1,8 @@
+mod client_navigation;
+pub use client_navigation::{
+    ClientContextSelection, ClientNavigationSnapshot, MAXIMUM_CLIENT_SELECTION_CONTEXTS,
+    MAXIMUM_ENCODED_CLIENT_NAVIGATION_BYTES,
+};
 mod client_attention;
 pub use client_attention::{
     ClientAgentAttentionEntry, ClientAgentAttentionSnapshot, ClientAgentAttentionVersion,

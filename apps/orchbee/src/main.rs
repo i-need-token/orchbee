@@ -116,6 +116,12 @@ fn main() -> ExitCode {
             Ok(invocation::Request::TerminalObserve { command }) => {
                 cli::terminal_observe(&command, locale)
             }
+            #[cfg(windows)]
+            Ok(invocation::Request::ClientQuery {
+                command,
+                client,
+                format,
+            }) => cli::workbench_client_query::run(&command, &client, format, locale),
             Ok(invocation::Request::Query { command, format }) => {
                 cli::query(command, format, locale)
             }

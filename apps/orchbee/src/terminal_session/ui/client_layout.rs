@@ -16,6 +16,62 @@ use orchbee_workbench_protocol::{
 use ratatui::layout::Rect;
 
 impl NativeUi {
+    pub(in crate::terminal_session) fn read_client_selections(
+        &self,
+        command: &ClientViewControl,
+        snapshot: &Snapshot,
+    ) -> Result<orchbee_workbench_protocol::ClientNavigationSnapshot, Reason> {
+        let ClientViewIntent::Selections {
+            terminal_context_ids,
+        } = &command.intent
+        else {
+            return Err(Reason::Unsupported);
+        };
+        command.validate().map_err(|_| Reason::TargetUnavailable)?;
+        let state = self.state.as_ref().ok_or(Reason::ProjectionUnavailable)?;
+        if snapshot.site_id != *state.cache().site_id()
+            || snapshot.revision < command.minimum_workbench_revision
+        {
+            return Err(Reason::ProjectionUnavailable);
+        }
+        let navigation =
+            project_native_standalone_tabs(snapshot).map_err(|_| Reason::ProjectionUnavailable)?;
+        let contexts = terminal_context_ids
+            .iter()
+            .map(|id| {
+                let location = &navigation
+                    .navigation()
+                    .iter()
+                    .find(|entry| entry.location.terminal_context_id() == id)
+                    .ok_or(Reason::TargetUnavailable)?
+                    .location;
+                let candidate = project_native_context_tabs(snapshot, location)
+                    .map_err(|_| Reason::ProjectionUnavailable)?;
+                Ok(orchbee_workbench_protocol::ClientContextSelection {
+                    terminal_context_id: id.clone(),
+                    active_tab_id: state
+                        .query_active_tab_id(&candidate)
+                        .map_err(|_| Reason::ProjectionUnavailable)?,
+                })
+            })
+            .collect::<Result<Vec<_>, Reason>>()?;
+        let result = orchbee_workbench_protocol::ClientNavigationSnapshot {
+            workbench_revision: snapshot.revision,
+            contexts,
+        };
+        let (_, view) = self
+            .control_observation(false)
+            .ok_or(Reason::ProjectionUnavailable)?;
+        if !result.answers(
+            terminal_context_ids,
+            &view,
+            command.minimum_workbench_revision,
+        ) {
+            return Err(Reason::ProjectionUnavailable);
+        }
+        Ok(result)
+    }
+
     pub(in crate::terminal_session) fn read_client_layout(
         &self,
         command: &ClientViewControl,

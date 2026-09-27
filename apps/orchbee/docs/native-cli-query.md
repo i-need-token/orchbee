@@ -34,11 +34,17 @@ JSON preserves labels exactly; text escapes them and bounds list display width.
 
 These projections consume one validated Workbench snapshot and retain its source
 revision, existing-only admission, bounded output, and headless availability. They
-perform no navigation, process inspection or mutation. Schema versions are
-`orchbee.workspace.list/get` 2, `orchbee.tab.list` 2, `orchbee.tab.get` 3,
-and `orchbee.panel.list` 3; the embedded catalog is version 76. Client focus and
-active selections, process/Agent observations, worktree facts and reported metadata
-require their respective owners and are not implied by these topology fields.
+perform no navigation, process inspection or mutation. Windows accepts optional
+`--client <id>` on these six list/get queries to add global focus and the Client's
+remembered active Tab in each Workspace. The [Client query contract](windows-client-control.md#client-relative-workbench-queries)
+owns this bounded, read-only join and its provenance and consistency checks.
+Schema versions are `orchbee.workspace.list/get` 3, `orchbee.tab.list` 3,
+`orchbee.tab.get` 4 and `orchbee.panel.list/get` 4; the embedded catalog is version77
+with86 schemas. Retained selection-read controls use `orchbee.client.control` v2;
+other controls retain v1. `orchbee.cli.failure.client-query` v1 identifies selected
+Client read failures; existing target and admission diagnostics remain intact.
+Process/Agent observations, worktree facts and reported metadata require their
+respective owners and are not implied by these topology fields.
 
 Verification covers global reorder and filtering without renumbering, empty and
 nested trees, child presentations and unbound leaves, list/get agreement, automatic

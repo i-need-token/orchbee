@@ -10,7 +10,7 @@
 			"const": "orchbee.workspace.get"
 		},
 		"version": {
-			"const": 2
+			"const": 3
 		},
 		"source": {
 			"$ref": "#/$defs/snapshotSource"
@@ -84,10 +84,63 @@
 						"tabCount": {
 							"type": "integer",
 							"minimum": 0
+						},
+						"focused": {
+							"type": "boolean"
+						},
+						"activeTabId": {
+							"anyOf": [
+								{
+									"$ref": "#/$defs/id"
+								},
+								{
+									"type": "null"
+								}
+							]
 						}
 					}
+				},
+				"client": {
+					"$ref": "#/$defs/queryClient"
 				}
-			}
+			},
+			"allOf": [
+				{
+					"if": {
+						"required": ["client"],
+						"type": "object"
+					},
+					"then": {
+						"properties": {
+							"workspace": {
+								"required": ["focused", "activeTabId"],
+								"type": "object"
+							}
+						},
+						"type": "object"
+					},
+					"else": {
+						"properties": {
+							"workspace": {
+								"not": {
+									"anyOf": [
+										{
+											"required": ["focused"],
+											"type": "object"
+										},
+										{
+											"required": ["activeTabId"],
+											"type": "object"
+										}
+									]
+								},
+								"type": "object"
+							}
+						},
+						"type": "object"
+					}
+				}
+			]
 		}
 	},
 	"$defs": {
@@ -110,6 +163,133 @@
 					"type": "string",
 					"pattern": "^(0|[1-9][0-9]*)$"
 				}
+			}
+		},
+		"clientId": {
+			"type": "string",
+			"pattern": "^[0-9a-f]{32}$",
+			"not": {
+				"const": "00000000000000000000000000000000"
+			}
+		},
+		"sequence": {
+			"type": "string",
+			"pattern": "^[1-9][0-9]{0,19}$"
+		},
+		"view": {
+			"type": "object",
+			"properties": {
+				"workbenchRevision": {
+					"$ref": "#/$defs/revision"
+				},
+				"phase": {
+					"$ref": "#/$defs/phase"
+				},
+				"selection": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/selection"
+						},
+						{
+							"type": "null"
+						}
+					]
+				}
+			},
+			"required": ["workbenchRevision", "phase", "selection"],
+			"additionalProperties": false
+		},
+		"selection": {
+			"type": "object",
+			"properties": {
+				"terminalContextId": {
+					"$ref": "#/$defs/terminalContextId"
+				},
+				"tabId": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/tabId"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"panelId": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/panelId"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"zoomed": {
+					"type": "boolean"
+				},
+				"panelCount": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 65535
+				}
+			},
+			"required": ["terminalContextId", "tabId", "panelId", "zoomed", "panelCount"],
+			"additionalProperties": false
+		},
+		"phase": {
+			"enum": ["starting", "ready", "busy", "unavailable"]
+		},
+		"revision": {
+			"title": "WorkbenchRevision",
+			"type": "string",
+			"minLength": 1,
+			"maxLength": 20,
+			"pattern": "^(?:0|[1-9][0-9]{0,19})$",
+			"format": "orchbee-uint64"
+		},
+		"terminalContextId": {
+			"title": "WorkbenchTerminalContextId",
+			"$ref": "#/$defs/identity"
+		},
+		"tabId": {
+			"title": "WorkbenchTabId",
+			"$ref": "#/$defs/identity"
+		},
+		"panelId": {
+			"title": "WorkbenchPanelId",
+			"$ref": "#/$defs/identity"
+		},
+		"queryClient": {
+			"type": "object",
+			"properties": {
+				"clientId": {
+					"$ref": "#/$defs/clientId"
+				},
+				"viewRevision": {
+					"$ref": "#/$defs/sequence"
+				},
+				"operationIds": {
+					"type": "array",
+					"minItems": 1,
+					"maxItems": 8,
+					"uniqueItems": true,
+					"items": {
+						"$ref": "#/$defs/id"
+					}
+				},
+				"view": {
+					"$ref": "#/$defs/view"
+				}
+			},
+			"required": ["clientId", "viewRevision", "operationIds", "view"],
+			"additionalProperties": false
+		},
+		"identity": {
+			"type": "string",
+			"pattern": "^[0-9a-f]{32}$",
+			"not": {
+				"const": "00000000000000000000000000000000"
 			}
 		}
 	}

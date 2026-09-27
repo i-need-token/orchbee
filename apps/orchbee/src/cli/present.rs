@@ -335,6 +335,8 @@ pub(crate) fn render(
 ) -> Result<(), TooLarge> {
     let text = locale.cli_labels();
     match projection {
+        #[cfg(windows)]
+        Projection::ClientWorkbench(doc) => doc.render(out, command, locale),
         Projection::Status(doc) => status(out, doc, text),
         Projection::ProjectList(rows) => table(out, &text.project_headers, rows, |row| {
             vec![

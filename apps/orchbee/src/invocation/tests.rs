@@ -3,6 +3,39 @@ use super::PanelQueryTarget;
 use super::{CreationCommand, CreationKind, SiteStopCommand};
 use std::ffi::OsString;
 
+#[cfg(windows)]
+#[test]
+fn client_workbench_queries_route_exact_clients_and_reject_unrelated_options() {
+    for words in [
+        vec!["workspace", "list"],
+        vec!["workspace", "get", "main"],
+        vec!["tab", "list"],
+        vec!["tab", "get", "main"],
+        vec!["panel", "list"],
+        vec!["panel", "get", ID],
+    ] {
+        let mut selected = words.clone();
+        selected.extend(["--client", ID, "--format", "json"]);
+        let Request::ClientQuery { client, format, .. } = parse(&selected).unwrap() else {
+            panic!("selected query");
+        };
+        assert_eq!(client.as_str(), ID);
+        assert_eq!(format, OutputFormat::Json);
+        assert!(matches!(parse(&words), Ok(Request::Query { .. })));
+        for tail in [
+            vec!["--client", "invalid"],
+            vec!["--client", ID, "--client", ID],
+            vec!["--focus"],
+            vec!["--timeout", "10"],
+        ] {
+            let mut invalid = words.clone();
+            invalid.extend(tail);
+            assert!(parse(&invalid).is_err(), "{invalid:?}");
+        }
+    }
+    assert!(parse(&["project", "list", "--client", ID]).is_err());
+}
+
 #[test]
 fn runtime_status_scopes_preserve_bare_status_and_closed_options() {
     for (word, scope) in [

@@ -83,3 +83,36 @@ Both new completion variants use ordinary bounded frames 25/26. Rust, TypeScript
 ## Agent navigation
 
 Windows `agent focus <target> [--client <id>]` resolves a name, session or Panel to its unique live primary Panel before one Client control submission. Explicit `--session`, `--name` and `--panel` selectors use the existing resolver; `--request-id`, `--detach` and the 30000 ms total default timeout retain the common navigation recovery contract. An unready Client fails with `client-not-ready` before Agent reads. The [Agent navigation contract](native-agent-navigation.md) defines primary binding, ambiguity, cancellation and retained operation status. After successful visible paint, the Client attention owner can acknowledge the observed Agent version; known host focus loss prevents acknowledgement. `agent attention <target> [--client <id>]` reads that Client independently without marking it seen.
+
+## Client-relative Workbench queries
+
+Windows `workspace list/get`, `tab list/get` and `panel list/get` accept optional
+`--client <id>`. Without it, queries keep their canonical headless projection.
+With it, one exact current Ready Client supplies global `focused` flags; Workspace
+rows also carry `activeTabId`, including the remembered selection in inactive
+Workspaces. Null means an empty context. Focus means selected in that TUI, not
+operating-system window focus. Missing, busy, stale or ambiguous facts fail; no
+other Client is substituted.
+
+The read-only `Selections` intent carries 1–128 unique TerminalContext IDs. The
+TUI resolves current selection or its private navigation memory against one fresh
+canonical snapshot: keep a surviving remembered Tab, otherwise use the same first
+Tab fallback as normal context reentry. It neither visits the context nor updates
+memory. `NavigationRead` preserves requested order, canonical revision and the
+Client observation. A payload is bounded to 16 KiB and uses the existing retained
+control operation, 64 KiB result envelope and Server capacity accounting.
+
+The CLI resolves query targets first, reads batches on one admitted connection,
+checks exact request/context identities and membership, and verifies an unchanged
+canonical revision and Client view revision before emitting one result. One total
+five-second deadline and signal owner cover every phase. No partial success,
+automatic replay, navigation, acknowledgement, terminal attachment or input effect
+occurs. Selected results include Client/operation/view provenance; unselected
+results never invent focused or active fields. Cancellation closes the connection
+and exits130; unavailable or changed observations retain typed failures.
+
+Tests cover bounds and duplicate IDs, reply correlation, invalid membership and
+revisions, empty/inactive/reordered/removed selections, independent Clients,
+headless compatibility, grammar, schemas and bilingual output. Real Windows
+acceptance must compare both Clients and canonical state before and after reads.
+Process/Agent/title/scroll/worktree/metadata enrichment is a separate owner join.

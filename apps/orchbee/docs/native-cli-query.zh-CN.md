@@ -28,10 +28,14 @@ Windows `workspace list/get` 返回 `number`、`tabCount` 和 `panelCount`；
 并限制列表中的显示宽度。
 
 这些投影消费单个已验证 Workbench 快照，保留其来源修订号、仅连接已有 Site 的准入、
-有界输出和无 TUI 时的可用性。不执行导航、进程检查或变更。Schema 版本为
-`orchbee.workspace.list/get` 2、`orchbee.tab.list` 2、`orchbee.tab.get` 3
-和 `orchbee.panel.list` 3；内嵌目录为版本 76。Client 焦点与活动选择、进程/Agent 观察、
-worktree 事实和上报元数据需要各自的所有者提供，这些拓扑字段不代表已实现它们。
+有界输出和无 TUI 时的可用性。不执行导航、进程检查或变更。Windows 在这六个 list/get
+查询中接受可选 `--client <id>`，补充全局焦点和 Client 在各 Workspace 记住的活动 Tab。
+[Client 查询契约](windows-client-control.zh-CN.md#client-相对-workbench-查询)定义这一有界只读关联、
+来源记录与一致性检查。Schema 版本为 `orchbee.workspace.list/get` 3、`orchbee.tab.list` 3、
+`orchbee.tab.get` 4 和 `orchbee.panel.list/get` 4；内嵌目录为版本77，含86份 schema。
+保留的选择读取控制使用 `orchbee.client.control` v2，其他控制保留 v1。
+`orchbee.cli.failure.client-query` v1 标识指定 Client 的读取失败，既有目标和准入诊断保持完整。
+进程/Agent 观察、worktree 事实和上报元数据仍需要各自的所有者提供，这些拓扑字段不代表已实现它们。
 
 验证覆盖全局重排与筛选后不重新编号、空树与嵌套树、子 presentation 和未绑定叶节点、
 列表/详情一致、自动标签、文本转义，以及真实 Windows 查询文档的 schema 校验。

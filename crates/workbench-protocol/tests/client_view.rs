@@ -127,3 +127,32 @@ fn attention_maximum_batch_fits_and_overflow_is_rejected() {
         .push(extra);
     assert!(parse_workbench_response(&serde_json::to_vec(&doc).unwrap()).is_err());
 }
+
+#[test]
+fn navigation_maximum_batch_fits_and_overflow_is_rejected() {
+    let corpus = corpus();
+    let mut doc = corpus["valid"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|case| case["name"] == "client-navigation-read")
+        .unwrap()["document"]
+        .clone();
+    let contexts: Vec<_> = (1..=128).map(|n| format!("{n:032x}")).collect();
+    let op = &mut doc["outcome"]["operation"];
+    op["command"]["intent"]["terminalContextIds"] = serde_json::json!(contexts);
+    op["status"]["view"]["selection"]["terminalContextId"] = serde_json::json!(contexts[0]);
+    op["status"]["view"]["selection"]["tabId"] = serde_json::json!(format!("{:032x}", 1001));
+    op["status"]["navigation"]["contexts"] = serde_json::json!(contexts.iter().enumerate().map(|(i,id)| serde_json::json!({"terminalContextId":id,"activeTabId":format!("{:032x}",1001+i)})).collect::<Vec<_>>());
+    let encoded = serde_json::to_vec(&doc).unwrap();
+    let response = parse_workbench_response(&encoded).unwrap();
+    let mut frame = vec![];
+    write_workbench_response(&mut frame, &response).unwrap();
+    assert!(frame.len() <= MAXIMUM_ENCODED_CLIENT_VIEW_RESULT_BYTES + 12);
+    let contexts = doc["outcome"]["operation"]["status"]["navigation"]["contexts"]
+        .as_array_mut()
+        .unwrap();
+    contexts
+        .push(serde_json::json!({"terminalContextId":format!("{:032x}",129),"activeTabId":null}));
+    assert!(parse_workbench_response(&serde_json::to_vec(&doc).unwrap()).is_err());
+}

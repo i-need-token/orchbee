@@ -25,6 +25,46 @@ fn query(snapshot: &Snapshot, tab_index: usize) -> ClientViewControl {
 }
 
 #[test]
+fn navigation_read_is_ordered_read_only_and_rejects_missing_membership() {
+    let (native, mailbox, _clock, _elapsed) = ready_ui();
+    let before = native.control_observation(false).unwrap();
+    let snapshot = snapshot(2, 1);
+    let mut command = query(&snapshot, 0);
+    command.intent = ClientViewIntent::Selections {
+        terminal_context_ids: vec![snapshot.terminal_contexts[0].terminal_context_id.clone()],
+    };
+    let result = native.read_client_selections(&command, &snapshot).unwrap();
+    assert_eq!(result.contexts.len(), 1);
+    assert_eq!(
+        result.contexts[0].active_tab_id,
+        before.1.selection.as_ref().unwrap().tab_id
+    );
+    assert_eq!(native.control_observation(false).unwrap(), before);
+    assert!(mailbox.try_recv().unwrap().is_none());
+
+    let mut changed = snapshot.clone();
+    changed.terminal_contexts[0].tabs.remove(0);
+    assert_eq!(
+        native.read_client_selections(&command, &changed),
+        Err(Reason::ProjectionUnavailable)
+    );
+    if let ClientViewIntent::Selections {
+        terminal_context_ids,
+    } = &mut command.intent
+    {
+        terminal_context_ids[0] =
+            orchbee_workbench_protocol::WorkbenchTerminalContextId::parse(&format!("{:032x}", 900))
+                .unwrap();
+    }
+    assert_eq!(
+        native.read_client_selections(&command, &snapshot),
+        Err(Reason::TargetUnavailable)
+    );
+    assert_eq!(native.control_observation(false).unwrap(), before);
+    assert!(mailbox.try_recv().unwrap().is_none());
+}
+
+#[test]
 fn selected_and_inactive_reads_preserve_selection_cache_and_empty_command_queue() {
     let (native, mailbox, _clock, _elapsed) = ready_ui();
     let before = native.control_observation(false).unwrap();
@@ -39,7 +79,10 @@ fn selected_and_inactive_reads_preserve_selection_cache_and_empty_command_queue(
             )
             .unwrap();
         assert_eq!(result.selected, tab == 0);
-        assert_eq!(result.focused_panel_id.is_some(), tab == 0);
+        assert_eq!(
+            result.focused_panel_id.as_ref(),
+            Some(&result.panels[0].panel_id)
+        );
         assert_eq!(result.area, cell(Rect::new(1, 2, 118, 36)));
         assert_eq!(result.panels.len(), 1);
         assert_eq!(result.panels[0].displayed, Some(result.area));
@@ -208,7 +251,10 @@ fn an_unvisited_workspace_is_projected_without_entering_it() {
     assert_eq!(result.workbench_revision, WorkbenchRevision::new(2));
     assert_eq!(result.area, cell(Rect::new(31, 2, 88, 36)));
     assert!(!result.selected);
-    assert!(result.focused_panel_id.is_none());
+    assert_eq!(
+        result.focused_panel_id.as_ref(),
+        Some(&result.panels[0].panel_id)
+    );
     assert_eq!(native.control_observation(false).unwrap(), before);
     assert_eq!(native.state.as_ref().unwrap().cache().navigation().len(), 1);
     assert!(mailbox.try_recv().unwrap().is_none());
