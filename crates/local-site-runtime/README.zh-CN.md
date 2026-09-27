@@ -191,6 +191,10 @@ Primitive 自身不选择应用启动策略、不重试、不移除陈旧端点�
 
 ## Windows 细化
 
+`RetainedChild::terminate_before` 仅显式终止准确持有的进程，并在协作式期限内确认其退出。
+它不终止后代进程。托管启动只在 Worker 尚不能创建 Host 时使用此操作；之后的清理由 Worker
+关闭协议负责。丢弃 `RetainedChild` 仍只释放观察所有权，不终止任何进程。
+
 `WindowsSessionStore` 在 `<LocalAppData>/Orchbee/native-sessions/<canonical-runtime-endpoint-digest>`
 下保留有界检查点字节。调用者传入 LocalAppData 目录及已准入 Site，Server 拥有检查点校验和恢复。
 不同运行基目录及命名作用域各自隔离存储。沿用私有祖先句柄、新目录的受保护 ACL、拒绝重解析点

@@ -24,6 +24,8 @@ use crate::{
 };
 
 mod agent_drain_read;
+#[cfg(windows)]
+mod checkpoint;
 mod close_maintenance;
 mod controller_session;
 mod operation_maintenance;
@@ -83,6 +85,13 @@ impl LocalTerminalService {
         let workbench = identity
             .ok()
             .and_then(|site| orchbee_server::WorkbenchAuthority::new(site).ok());
+        Self::from_workbench(workers, workbench)
+    }
+
+    fn from_workbench(
+        workers: Arc<Mutex<WorkerRegistry>>,
+        workbench: Option<orchbee_server::WorkbenchAuthority>,
+    ) -> Self {
         Self {
             close_maintenance: close_maintenance::CloseMaintenance::default(),
             worktree_maintenance: operation_maintenance::OperationMaintenance::new(

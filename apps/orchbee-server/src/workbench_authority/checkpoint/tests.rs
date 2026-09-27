@@ -8,6 +8,24 @@ use serde_json::{Value, json};
 
 mod restore;
 
+#[test]
+fn admission_validates_the_complete_graph_before_runtime_reconstruction() {
+    let bytes = checkpoint();
+    let admitted = WorkbenchCheckpoint::parse(&bytes).unwrap();
+    let authority = admitted.reconstruct(site(300), &worker(400)).unwrap();
+    assert_eq!(authority.snapshot(), restore(&bytes).unwrap().snapshot());
+    assert_eq!(authority.catalog, restore(&bytes).unwrap().catalog);
+    let invalid_graph =
+        changed(|value| value["terminalContexts"][1]["terminalContextId"] = json!(identity(900)));
+    assert!(WorkbenchCheckpoint::parse(&invalid_graph).is_err());
+    assert!(WorkbenchCheckpoint::parse(b"{}").is_err());
+    let unsupported = changed(|value| value["version"] = json!(2));
+    assert!(matches!(
+        WorkbenchCheckpoint::parse(&unsupported),
+        Err(WorkbenchCheckpointError::UnsupportedVersion(2))
+    ));
+}
+
 fn site(value: u128) -> SiteId {
     SiteId::parse(&identity(value)).unwrap()
 }

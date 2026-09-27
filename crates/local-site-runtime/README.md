@@ -215,6 +215,11 @@ application startup policy, retry, remove stale endpoints, or grant recovery aut
 
 ## Windows refinement
 
+`RetainedChild::terminate_before` explicitly terminates only the exact held process and confirms
+its exit before a cooperative deadline. It does not terminate descendants. Managed startup uses
+it only before the Worker can create a Host; later cleanup belongs to the Worker shutdown protocol.
+Dropping `RetainedChild` continues to release observation ownership without terminating anything.
+
 `WindowsSessionStore` retains bounded checkpoint bytes under
 `<LocalAppData>/Orchbee/native-sessions/<canonical-runtime-endpoint-digest>`. Its caller supplies
 the LocalAppData directory and admitted Site; the Server owns checkpoint validation and recovery.

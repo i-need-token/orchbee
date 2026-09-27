@@ -155,7 +155,7 @@ impl SiteCoordinator {
         let Some(workbench) = workbench.as_mut() else {
             return PreparedOpen::Ready(unavailable(CreateUnavailableReason::ServerBusy));
         };
-        let membership = match workbench.tree_standalone_membership() {
+        let membership = match workbench.standalone_presentation_membership() {
             Ok(membership) => membership,
             Err(_invariant) => {
                 workbench.retire_standalone_composition();

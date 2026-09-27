@@ -18,6 +18,8 @@ use orchbee_workbench_protocol::{
     WorkerId,
 };
 
+#[cfg(any(windows, test))]
+mod checkpoint_restore;
 mod standalone;
 pub(crate) use standalone::PreparedOpen;
 mod tab_close;

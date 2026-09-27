@@ -10,6 +10,41 @@ const ROOT_ENV: &str = "ORCHBEE_RETAINED_CHILD_FIXTURE";
 const ARGUMENTS: [&str; 2] = ["space \"quoted\" slash\\", "中文\\"];
 
 #[test]
+fn exact_termination_confirms_exit_and_preserves_another_process() {
+    let executable = std::env::current_exe().unwrap();
+    let args: Vec<&OsStr> = [
+        "--exact",
+        "retained_child::tests::termination_fixture",
+        "--ignored",
+    ]
+    .into_iter()
+    .map(OsStr::new)
+    .collect();
+    let mut first = RetainedChild::spawn(&executable, &args).unwrap();
+    let second = RetainedChild::spawn(&executable, &args);
+    let expired = first.terminate_before(Instant::now());
+    let first_live = first.try_wait();
+    let ended = first.terminate_before(Instant::now() + Duration::from_secs(3));
+    let repeat = first.terminate_before(Instant::now());
+    let mut second = second.unwrap();
+    let second_live = second.try_wait();
+    let second_ended = second.terminate_before(Instant::now() + Duration::from_secs(3));
+    // Both exact process owners are settled before any assertion can unwind.
+    assert_eq!(expired.unwrap_err().kind(), io::ErrorKind::TimedOut);
+    assert!(first_live.unwrap().is_none());
+    assert_eq!(ended.unwrap().code(), Some(1));
+    assert_eq!(repeat.unwrap().code(), Some(1));
+    assert!(second_live.unwrap().is_none());
+    assert_eq!(second_ended.unwrap().code(), Some(1));
+}
+
+#[test]
+#[ignore = "self-expiring process used by the exact termination test"]
+fn termination_fixture() {
+    thread::sleep(Duration::from_secs(5));
+}
+
+#[test]
 fn detached_launch_preserves_argv_and_does_not_inherit_caller_capture_pipes() {
     let root = std::env::temp_dir().join(format!("orchbee-retained-test-{}", std::process::id()));
     fs::create_dir(&root).unwrap();

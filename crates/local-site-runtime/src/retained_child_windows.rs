@@ -1,10 +1,40 @@
-use std::{ffi::OsStr, io, os::windows::process::ExitStatusExt, path::Path, process::ExitStatus};
+use std::{
+    ffi::OsStr, io, os::windows::process::ExitStatusExt, path::Path, process::ExitStatus,
+    time::Instant,
+};
 use winsafe::{co, guard::CloseHandlePiGuard};
 
 /// Windows reclaims exited processes without a Unix-style reaper. Dropping
 /// this handle releases observation ownership and never terminates the Site.
 pub struct RetainedChild(CloseHandlePiGuard);
 impl RetainedChild {
+    /// Terminates this exact process and waits for exit; descendants remain caller-owned.
+    pub fn terminate_before(&mut self, deadline: Instant) -> io::Result<ExitStatus> {
+        if let Some(status) = self.try_wait()? {
+            return Ok(status);
+        }
+        if Instant::now() >= deadline {
+            return Err(io::ErrorKind::TimedOut.into());
+        }
+        if let Err(error) = self.0.hProcess.TerminateProcess(1) {
+            // The child can exit between the initial wait and termination.
+            return self.try_wait()?.ok_or_else(|| io::Error::other(error));
+        }
+        loop {
+            if let Some(status) = self.try_wait()? {
+                return Ok(status);
+            }
+            let remaining = deadline.saturating_duration_since(Instant::now());
+            if remaining.is_zero() {
+                return Err(io::ErrorKind::TimedOut.into());
+            }
+            self.0
+                .hProcess
+                .WaitForSingleObject(Some(remaining.as_millis().clamp(1, 100) as u32))
+                .map_err(io::Error::other)?;
+        }
+    }
+
     pub(super) fn spawn(executable: &Path, arguments: &[&OsStr]) -> io::Result<Self> {
         if !executable.is_absolute() {
             return Err(io::ErrorKind::InvalidInput.into());

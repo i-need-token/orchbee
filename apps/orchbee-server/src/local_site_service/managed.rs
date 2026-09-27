@@ -19,6 +19,8 @@ use std::{
     time::{Duration, Instant},
 };
 #[cfg(windows)]
+mod checkpoint_windows;
+#[cfg(windows)]
 mod stop_windows;
 
 pub(super) fn run(runtime: &Path) -> io::Result<()> {
@@ -37,6 +39,8 @@ pub(super) fn run(runtime: &Path) -> io::Result<()> {
     };
     #[cfg(windows)]
     let record = site.retain_active_record()?;
+    #[cfg(windows)]
+    let (checkpoint_store, checkpoint) = checkpoint_windows::load(&site)?;
     #[cfg(unix)]
     nix::unistd::setsid()?;
     // The observation endpoint binds and starts before the Worker socket
@@ -71,66 +75,103 @@ pub(super) fn run(runtime: &Path) -> io::Result<()> {
     )?;
     #[cfg(windows)]
     let mut carrier = None;
-    loop {
-        if Instant::now() >= deadline {
-            return Err(io::ErrorKind::TimedOut.into());
-        }
-        if worker.try_wait()?.is_some() {
-            return Err(io::Error::other("local Worker exited before admission"));
-        }
-        match listener.accept() {
-            Ok((stream, _)) => {
-                #[cfg(not(windows))]
-                super::handle_candidate(stream, &registry, cohort.identity(), Some(&agents));
-                #[cfg(windows)]
-                {
-                    carrier =
-                        super::admit_candidate(stream, &registry, cohort.identity(), Some(&agents));
+    let admitted = (|| -> io::Result<()> {
+        loop {
+            if Instant::now() >= deadline {
+                return Err(io::ErrorKind::TimedOut.into());
+            }
+            if worker.try_wait()?.is_some() {
+                return Err(io::Error::other("local Worker exited before admission"));
+            }
+            match listener.accept() {
+                Ok((stream, _)) => {
+                    #[cfg(not(windows))]
+                    super::handle_candidate(stream, &registry, cohort.identity(), Some(&agents));
+                    #[cfg(windows)]
+                    {
+                        carrier = super::admit_candidate(
+                            stream,
+                            &registry,
+                            cohort.identity(),
+                            Some(&agents),
+                        );
+                    }
                 }
+                Err(error) if error.kind() == io::ErrorKind::WouldBlock => {
+                    thread::sleep(Duration::from_millis(10))
+                }
+                Err(error) if error.kind() == io::ErrorKind::Interrupted => {}
+                Err(error) => return Err(error),
             }
-            Err(error) if error.kind() == io::ErrorKind::WouldBlock => {
-                thread::sleep(Duration::from_millis(10))
+            if registry
+                .lock()
+                .map_err(|_| io::Error::other("Worker registry failed"))?
+                .request_handle()
+                .is_some()
+            {
+                break Ok(());
             }
-            Err(error) if error.kind() == io::ErrorKind::Interrupted => {}
-            Err(error) => return Err(error),
         }
-        if registry
-            .lock()
-            .map_err(|_| io::Error::other("Worker registry failed"))?
-            .request_handle()
-            .is_some()
-        {
-            break;
-        }
-    }
+    })();
     // The managed Site never enrolls a replacement Worker, even after this one disappears.
     drop(listener);
+    #[cfg(windows)]
+    if let Err(error) = admitted {
+        return Err(checkpoint_windows::abort_before_launch(
+            worker, carrier, error,
+        ));
+    }
+    #[cfg(not(windows))]
+    admitted?;
     #[cfg(not(windows))]
     drop(worker);
     #[cfg(windows)]
-    let handle = registry
-        .lock()
-        .map_err(|_| io::Error::other("Worker registry failed"))?
-        .request_handle()
-        .ok_or_else(|| io::Error::other("Worker carrier disappeared"))?;
+    let initialized = (|| {
+        let handle = registry
+            .lock()
+            .map_err(|_| io::Error::other("Worker registry failed"))?
+            .request_handle()
+            .ok_or_else(|| io::Error::other("Worker carrier disappeared"))?;
+        let (terminals, pending) = LocalTerminalService::from_checkpoint(registry, checkpoint)?;
+        Ok::<_, io::Error>((handle, Arc::new(terminals), pending))
+    })();
+    #[cfg(not(windows))]
     let terminals = Arc::new(LocalTerminalService::new(registry));
+    #[cfg(not(windows))]
     terminals.start_close_maintenance()?;
     #[cfg(windows)]
     {
+        let (handle, terminals, pending) = match initialized {
+            Ok(initialized) => initialized,
+            Err(error) => {
+                return Err(checkpoint_windows::abort_before_launch(
+                    worker, carrier, error,
+                ));
+            }
+        };
+        let Some(carrier) = carrier else {
+            return Err(checkpoint_windows::abort_before_launch(
+                worker,
+                None,
+                io::Error::other("Worker wire owner did not start"),
+            ));
+        };
         stop_windows::run(
             stop_windows::Owners {
                 site,
                 lifetime: _lifetime,
                 record,
                 worker,
-                carrier: carrier
-                    .ok_or_else(|| io::Error::other("Worker wire owner did not start"))?,
+                carrier,
                 handle,
                 ingress: _endpoint,
                 terminals,
                 agents,
+                checkpoint_store,
             },
             cohort.identity(),
+            pending,
+            deadline,
         )
     }
     #[cfg(not(windows))]

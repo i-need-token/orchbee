@@ -16,7 +16,7 @@ use orchbee_capability_node_protocol::{
 use orchbee_local_client_protocol::{StopFailure, StopPhase};
 use orchbee_local_site_runtime::{
     LockAttempt, ModeCheckedLocalSiteRendezvous, ModeCheckedSiteLock, RetainedActivationRecord,
-    RetainedChild,
+    RetainedChild, WindowsSessionStore,
 };
 use std::{
     io,
@@ -35,6 +35,7 @@ pub(super) struct Owners {
     pub(super) ingress: AgentObservationEndpoint,
     pub(super) terminals: Arc<LocalTerminalService>,
     pub(super) agents: Arc<AgentService>,
+    pub(super) checkpoint_store: WindowsSessionStore,
 }
 
 struct Failure {
@@ -54,16 +55,30 @@ fn failure(phase: StopPhase, error: io::Error) -> Failure {
     }
 }
 
-pub(super) fn run(mut owners: Owners, cohort: &str) -> io::Result<()> {
+pub(super) fn run(
+    mut owners: Owners,
+    cohort: &str,
+    restored: Vec<crate::terminal_coordinator::PendingOperation>,
+    startup_deadline: Instant,
+) -> io::Result<()> {
     let shutdown = Arc::new(SiteShutdown::default());
-    let mut clients: local_client_service::ManagedClients =
+    let started = (|| {
+        owners.terminals.start_close_maintenance()?;
+        owners
+            .terminals
+            .launch_checkpoint_terminals(restored, startup_deadline)?;
         local_client_service::start_managed_windows(
             owners.site.client_socket_path(),
             cohort,
             Arc::clone(&owners.terminals),
             Arc::clone(&owners.agents),
             Arc::clone(&shutdown),
-        )?;
+        )
+    })();
+    let mut clients: local_client_service::ManagedClients = match started {
+        Ok(clients) => clients,
+        Err(error) => return Err(abort_startup(owners, error)),
+    };
     let mut worker_completed = false;
     loop {
         let attempt = shutdown.take();
@@ -148,6 +163,19 @@ fn settle(
         .stop_close_before(deadline)
         .map_err(|error| failure(StopPhase::BackgroundJobs, error))?;
     if !*worker_completed {
+        let worker = orchbee_workbench_protocol::WorkerId::parse(&format!(
+            "{:032x}",
+            u128::from_be_bytes(owners.handle.worker_id().as_bytes()),
+        ))
+        .map_err(|error| failure(StopPhase::BackgroundJobs, io::Error::other(error)))?;
+        let bytes = owners
+            .terminals
+            .checkpoint(&worker)
+            .map_err(|error| failure(StopPhase::BackgroundJobs, error))?;
+        owners
+            .checkpoint_store
+            .publish(&bytes)
+            .map_err(|error| failure(StopPhase::BackgroundJobs, error))?;
         shutdown.phase(attempt, StopPhase::Worker);
         let budget = deadline
             .saturating_duration_since(Instant::now())
@@ -253,6 +281,52 @@ fn worker_phase(stage: ShutdownStage) -> StopPhase {
         ShutdownStage::Force => StopPhase::Force,
         ShutdownStage::Dispose => StopPhase::Dispose,
         ShutdownStage::HostExit => StopPhase::HostExit,
+    }
+}
+
+/// Startup has no Client requests, but restoration may already have created a Host.
+fn abort_startup(mut owners: Owners, startup: io::Error) -> io::Error {
+    let deadline = Instant::now() + Duration::from_secs(30);
+    let cleanup = (|| -> io::Result<()> {
+        owners.terminals.stop_close_before(deadline)?;
+        let mut bytes = [0; 16];
+        getrandom::fill(&mut bytes).map_err(|error| io::Error::other(error.to_string()))?;
+        let operation_id = OperationId::from_bytes(bytes).map_err(io::Error::other)?;
+        let request = WorkerShutdownRequest {
+            operation_id,
+            worker_id: WorkerId::from_bytes(owners.handle.worker_id().as_bytes())
+                .map_err(io::Error::other)?,
+            worker_generation: WorkerGeneration::new(owners.handle.generation()),
+            budget: ShutdownBudget::new(15_000).map_err(io::Error::other)?,
+        };
+        match owners
+            .handle
+            .request(WorkerOperationRequest::Shutdown(request))
+        {
+            Ok(WorkerOperationResult::Shutdown(result))
+                if matches!(
+                    result.outcome,
+                    WorkerShutdownOutcome::NoHost | WorkerShutdownOutcome::Stopped { .. }
+                ) => {}
+            _ => return Err(io::Error::other("startup Worker shutdown unconfirmed")),
+        }
+        while owners.worker.try_wait()?.is_none() || !owners.carrier.is_finished() {
+            if Instant::now() >= deadline {
+                return Err(io::ErrorKind::TimedOut.into());
+            }
+            thread::sleep(Duration::from_millis(10));
+        }
+        owners.ingress.stop_before(deadline)?;
+        Ok(())
+    })();
+    if cleanup.is_ok() && owners.carrier.join().is_err() {
+        return io::Error::other(format!("{startup}; startup Worker carrier panicked"));
+    }
+    match cleanup {
+        Ok(()) => startup,
+        Err(cleanup) => {
+            io::Error::other(format!("{startup}; startup cleanup unconfirmed: {cleanup}"))
+        }
     }
 }
 fn worker_failure(failure: ShutdownFailure) -> StopFailure {

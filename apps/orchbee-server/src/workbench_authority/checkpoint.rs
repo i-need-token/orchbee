@@ -231,15 +231,25 @@ impl WorkbenchAuthority {
         Ok(encoded)
     }
 
-    /// The caller supplies a fresh boot Site and its admitted local Worker. Presentations remain
-    /// unbound until the runtime explicitly establishes new terminal ownership.
+    /// The caller supplies a fresh boot Site and its admitted local Worker.
     pub fn from_checkpoint(
         encoded: &[u8],
         site_id: SiteId,
         local_worker: &WorkerId,
     ) -> Result<Self, WorkbenchCheckpointError> {
+        WorkbenchCheckpoint::parse(encoded)?.reconstruct(site_id, local_worker)
+    }
+}
+
+/// Fully validated retained configuration, admitted before creating runtime processes.
+/// Its private records contain no live Site, Worker, terminal or controller authority.
+pub struct WorkbenchCheckpoint {
+    checkpoint: Checkpoint,
+}
+
+impl WorkbenchCheckpoint {
+    pub fn parse(encoded: &[u8]) -> Result<Self, WorkbenchCheckpointError> {
         enforce_encoded_limit(encoded)?;
-        // Typed records retain duplicate-field errors that a serde_json::Value would erase.
         let checkpoint: Checkpoint = serde_json::from_slice(encoded)
             .map_err(|_error| WorkbenchCheckpointError::InvalidDocument)?;
         if checkpoint.version != 1 {
@@ -247,71 +257,103 @@ impl WorkbenchAuthority {
                 checkpoint.version,
             ));
         }
-        if checkpoint.profiles.len() > MAXIMUM_LAUNCH_PROFILE_ENTRIES {
-            return Err(WorkbenchCheckpointError::InvalidCatalog);
-        }
-        let catalog = checkpoint
-            .profiles
-            .iter()
-            .map(|profile| {
-                Ok(LaunchProfileEntry {
-                    profile_id: LaunchProfileId::parse(&format!(
-                        "{}:{}",
-                        site_id.as_str(),
-                        identity(profile.counter.0)
-                    ))
-                    .map_err(|_error| WorkbenchCheckpointError::InvalidIdentity)?,
-                    name: profile.name.clone(),
-                    launch: profile.launch.clone(),
-                })
-            })
-            .collect::<Result<Vec<_>, WorkbenchCheckpointError>>()?;
-        validate_catalog(&catalog)?;
-        let snapshot = Snapshot {
-            protocol_version: ProtocolVersion,
-            revision: WorkbenchRevision::new(0),
-            site_id: site_id.clone(),
-            navigation: Navigation {
-                standalone_terminal_context_id: checkpoint
-                    .navigation
-                    .standalone_terminal_context_id,
-                projects: checkpoint
-                    .navigation
-                    .projects
-                    .into_iter()
-                    .map(|project| Project {
-                        project_id: project.project_id,
-                        label: project.label,
-                        workspaces: project.workspaces,
-                        directories: project
-                            .directories
-                            .into_iter()
-                            .map(|directory| Directory {
-                                directory_id: directory.directory_id,
-                                path: directory.path,
-                                worker_id: local_worker.clone(),
-                            })
-                            .collect(),
-                    })
-                    .collect(),
-            },
-            terminal_contexts: checkpoint.terminal_contexts,
-        };
-        let projection = validate_projection(snapshot)?;
-        validate_identities(
-            projection.snapshot(),
-            &checkpoint.profiles,
-            checkpoint.last_identity,
-        )?;
-        let mut authority =
-            Self::new(site_id).map_err(WorkbenchCheckpointError::InvalidProjection)?;
-        authority.projection = projection;
-        authority.last_identity = checkpoint.last_identity.0;
-        authority.catalog = catalog;
+        // These values only validate the shared graph shape. No authority is constructed,
+        // retained or published; actual boot identities arrive during reconstruction.
+        let validation_site = SiteId::parse("00000000000000000000000000000001")
+            .expect("canonical nonzero validation identity");
+        let validation_worker = WorkerId::parse("00000000000000000000000000000001")
+            .expect("canonical nonzero validation identity");
+        let _validated = checkpoint_parts(&checkpoint, &validation_site, &validation_worker)?;
+        Ok(Self { checkpoint })
+    }
+
+    pub fn reconstruct(
+        self,
+        site_id: SiteId,
+        local_worker: &WorkerId,
+    ) -> Result<WorkbenchAuthority, WorkbenchCheckpointError> {
+        let parts = checkpoint_parts(&self.checkpoint, &site_id, local_worker)?;
+        let mut authority = WorkbenchAuthority::new(site_id)
+            .map_err(WorkbenchCheckpointError::InvalidProjection)?;
+        authority.projection = parts.projection;
+        authority.last_identity = self.checkpoint.last_identity.0;
+        authority.catalog = parts.catalog;
         Ok(authority)
     }
 }
 
+struct CheckpointParts {
+    projection: WorkbenchProjectionStore,
+    catalog: Vec<LaunchProfileEntry>,
+}
+
+fn checkpoint_parts(
+    checkpoint: &Checkpoint,
+    site_id: &SiteId,
+    local_worker: &WorkerId,
+) -> Result<CheckpointParts, WorkbenchCheckpointError> {
+    if checkpoint.profiles.len() > MAXIMUM_LAUNCH_PROFILE_ENTRIES {
+        return Err(WorkbenchCheckpointError::InvalidCatalog);
+    }
+    let catalog = checkpoint
+        .profiles
+        .iter()
+        .map(|profile| {
+            Ok(LaunchProfileEntry {
+                profile_id: LaunchProfileId::parse(&format!(
+                    "{}:{}",
+                    site_id.as_str(),
+                    identity(profile.counter.0)
+                ))
+                .map_err(|_error| WorkbenchCheckpointError::InvalidIdentity)?,
+                name: profile.name.clone(),
+                launch: profile.launch.clone(),
+            })
+        })
+        .collect::<Result<Vec<_>, WorkbenchCheckpointError>>()?;
+    validate_catalog(&catalog)?;
+    let snapshot = Snapshot {
+        protocol_version: ProtocolVersion,
+        revision: WorkbenchRevision::new(0),
+        site_id: site_id.clone(),
+        navigation: Navigation {
+            standalone_terminal_context_id: checkpoint
+                .navigation
+                .standalone_terminal_context_id
+                .clone(),
+            projects: checkpoint
+                .navigation
+                .projects
+                .iter()
+                .map(|project| Project {
+                    project_id: project.project_id.clone(),
+                    label: project.label.clone(),
+                    workspaces: project.workspaces.clone(),
+                    directories: project
+                        .directories
+                        .iter()
+                        .map(|directory| Directory {
+                            directory_id: directory.directory_id.clone(),
+                            path: directory.path.clone(),
+                            worker_id: local_worker.clone(),
+                        })
+                        .collect(),
+                })
+                .collect(),
+        },
+        terminal_contexts: checkpoint.terminal_contexts.clone(),
+    };
+    let projection = validate_projection(snapshot)?;
+    validate_identities(
+        projection.snapshot(),
+        &checkpoint.profiles,
+        checkpoint.last_identity,
+    )?;
+    Ok(CheckpointParts {
+        projection,
+        catalog,
+    })
+}
 fn enforce_encoded_limit(encoded: &[u8]) -> Result<(), WorkbenchCheckpointError> {
     if encoded.len() > MAXIMUM_WORKBENCH_CHECKPOINT_BYTES {
         return Err(WorkbenchCheckpointError::EncodedTooLarge {

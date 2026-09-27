@@ -201,6 +201,46 @@ impl PreparedStandaloneIntent<'_> {
 }
 
 impl WorkbenchAuthority {
+    /// Read-only Open membership includes every retained primary and child Presentation.
+    pub fn standalone_presentation_membership(
+        &self,
+    ) -> Result<WorkbenchTerminalMembership, WorkbenchTerminalInvariantError> {
+        let snapshot = self.projection.snapshot();
+        let context_id = &snapshot.navigation.standalone_terminal_context_id;
+        let mut matching = snapshot
+            .terminal_contexts
+            .iter()
+            .filter(|context| &context.terminal_context_id == context_id);
+        let context = matching.next().ok_or(WorkbenchTerminalInvariantError)?;
+        if matching.next().is_some() {
+            return Err(WorkbenchTerminalInvariantError);
+        }
+        let mut members = Vec::new();
+        let mut unbound = false;
+        for tab in &context.tabs {
+            visit_panel_presentations(&tab.root, &mut |panel_id, presentation| {
+                if let Some(binding) = &presentation.binding {
+                    members.push(WorkbenchTerminalTab {
+                        tab_id: tab.tab_id.clone(),
+                        panel_id: panel_id.clone(),
+                        presentation_id: presentation.presentation_id.clone(),
+                        binding: binding.clone(),
+                    });
+                } else {
+                    unbound = true;
+                }
+            });
+        }
+        if unbound {
+            return Err(WorkbenchTerminalInvariantError);
+        }
+        Ok(WorkbenchTerminalMembership {
+            terminal_context_id: context_id.clone(),
+            context_kind: ContextKind::Standalone,
+            members,
+        })
+    }
+
     pub fn terminal_membership(
         &self,
         context_id: &WorkbenchTerminalContextId,

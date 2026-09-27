@@ -4,9 +4,9 @@
 
 `workbench_authority/checkpoint.rs` owns the private versioned projection of retained Workbench
 configuration and its reconstruction into a fresh authority. The managed Windows Site is the
-intended storage/startup consumer. The codec is implemented separately from filesystem admission,
-checkpoint publication, terminal relaunch and named-Site CLI routing; those runtime integrations
-remain required before claiming session persistence. No other platform adapter is introduced.
+storage/startup consumer. The domain codec remains separate from Windows filesystem admission,
+checkpoint publication and terminal relaunch. Named-Site routing and the additional recovery owners
+remain separate obligations. No other platform adapter is introduced.
 
 The checkpoint retains Projects, local directory paths, Workspaces, terminal contexts, ordered
 Tabs, groups, pinned state, split structure, Panel input policy and Presentation labels. It also
@@ -72,10 +72,43 @@ prepare a fresh terminal reservation and this binding together, commit both unde
 then dispatch and settle the exact physical request. It must also reconstruct standalone Open
 selection before exposing Clients. Planning and binding tests do not establish that runtime integration.
 
+## Managed Windows startup and clean stop
+
+Managed startup opens the exclusive `WindowsSessionStore` below `LOCALAPPDATA` and parses its
+committed bytes before spawning a Worker. Missing data means a new Workbench; unreadable, malformed
+or unsupported data aborts startup without an empty fallback. `WorkbenchCheckpoint` is an admitted
+configuration value: private graph-validation identities never become a runnable authority. Only
+reconstruction with the fresh Site and admitted Worker creates the new authority.
+
+Before the first launch IPC, the coordinator prepares all fresh default-shell reservations and
+Workbench bindings. Failure at this point leaves no Host or terminal; the creation-owned Worker
+is terminated and its exit confirmed. Each prepared request is then dispatched and settled once;
+launch failure or unknown outcome stays explicit and is never retried automatically. Workspace
+directory defaults and initial geometry of 80x24 at 8x16 cells apply until the Client resizes.
+The first restored standalone primary supplies the retained Open result instead of creating an
+extra Tab. A missing configured directory produces a failed launch, not a different silent cwd.
+Open checks complete primary/child membership, including grouped and pinned Tabs; this read does
+not relax the separate guards on destructive operations. Requests not sent before the startup
+deadline settle as unavailable. A later startup failure stops maintenance and requests Worker-owned
+Host/terminal shutdown, then confirms Worker/carrier exit and stops ingress. Unconfirmed cleanup
+retains recovery-required activation state; terminating a Worker alone is not Host cleanup.
+
+Clean stop saves after request/background quiescence and before Worker disposal. Encoding or
+publication failure prevents disposal and remains a failed stop; the previous committed file is
+preserved. This stage saves layout and Launch Profiles on explicit clean stop. It does not yet
+provide periodic/crash checkpoints, observed per-terminal cwd, Agent/client/history recovery or
+named-session commands. Activation markers retain their existing recovery semantics on failed boot.
+
 ## Evidence
 
 Deterministic tests exercise capture/reconstruct with independent graph expectations, nested
 splits and child Presentations, profile rebasing, allocation after deleted identities, foreign
 ownership, corruption, duplicate/unknown fields, binding injection, graph failures and size limits.
-They establish the codec/reconstruction boundary only. Windows filesystem, clean restart, crash
-recovery, terminal/Agent relaunch and named-Site lifecycle require their own integration evidence.
+Coordinator tests cover joint physical/graph preparation, grouped/pinned/child membership, Open
+reuse and explicit unavailable outcomes without replay. Windows storage/process tests cover private
+replacement, locking and exact-handle termination. Packaged Windows clean-stop/restart acceptance
+compares retained layouts/profiles, fresh runtime identities, shell effects and TUI Open reuse;
+blocked replacement must preserve old bytes and live terminals until an explicit successful retry,
+and corrupt startup must refuse without an empty fallback or surviving cohort processes.
+Periodic/crash recovery, observed per-terminal cwd, Agent/client/history restoration and named-Site
+lifecycle remain separate implementation and acceptance obligations.

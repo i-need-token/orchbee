@@ -22,8 +22,8 @@ use crate::workbench_projection::{
 
 mod checkpoint;
 pub use checkpoint::{
-    MAXIMUM_WORKBENCH_CHECKPOINT_BYTES, PreparedWorkbenchRestoreBinding, WorkbenchCheckpointError,
-    WorkbenchRestoreError, WorkbenchRestoreTarget,
+    MAXIMUM_WORKBENCH_CHECKPOINT_BYTES, PreparedWorkbenchRestoreBinding, WorkbenchCheckpoint,
+    WorkbenchCheckpointError, WorkbenchRestoreError, WorkbenchRestoreTarget,
 };
 mod terminal_membership;
 mod workspace_directory;
