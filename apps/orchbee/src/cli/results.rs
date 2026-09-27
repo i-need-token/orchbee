@@ -92,7 +92,10 @@ pub(crate) const fn schema_version(command: &QueryCommand) -> u64 {
         QueryCommand::TerminalOutput { ansi: true, .. } => 2,
         QueryCommand::PanelGet(_) | QueryCommand::PanelCurrent(_) => 3,
         QueryCommand::ApiSnapshot => 5,
-        QueryCommand::PanelList { .. } | QueryCommand::TabGet(_) => 2,
+        QueryCommand::PanelList { .. } | QueryCommand::TabGet(_) => 3,
+        QueryCommand::WorkspaceList { .. }
+        | QueryCommand::WorkspaceGet(_)
+        | QueryCommand::TabList { .. } => 2,
         QueryCommand::TerminalGet(_) => 4,
         #[cfg(windows)]
         QueryCommand::AgentWait { .. } => 3,
@@ -185,6 +188,9 @@ pub(crate) struct ProjectDoc {
 
 #[derive(Clone, Debug)]
 pub(crate) struct WorkspaceRow {
+    pub(crate) number: usize,
+    pub(crate) tab_count: usize,
+    pub(crate) panel_count: usize,
     pub(crate) workspace_id: String,
     pub(crate) label: String,
     pub(crate) project_id: String,
@@ -213,6 +219,8 @@ pub(crate) struct ContextRef {
 
 #[derive(Clone, Debug)]
 pub(crate) struct TabRow {
+    pub(crate) number: usize,
+    pub(crate) panel_count: usize,
     pub(crate) tab_id: String,
     pub(crate) label: String,
     pub(crate) pinned: bool,
@@ -229,6 +237,10 @@ pub(crate) struct TabDoc {
 
 #[derive(Clone, Debug)]
 pub(crate) struct PanelRow {
+    pub(crate) workspace_id: Option<String>,
+    pub(crate) label: String,
+    pub(crate) custom_label: Option<String>,
+    pub(crate) display_label: String,
     pub(crate) right_click: orchbee_workbench_protocol::PanelRightClickTarget,
     pub(crate) panel_id: String,
     pub(crate) tab_id: String,
@@ -1395,6 +1407,10 @@ impl Projection {
                     .map(|row| {
                         json!({
                             "panelId": row.panel_id,
+                            "workspaceId": row.workspace_id,
+                            "label": row.label,
+                            "customLabel": row.custom_label,
+                            "displayLabel": row.display_label,
                             "rightClick": row.right_click.as_str(),
                             "tabId": row.tab_id,
                             "terminalContextId": row.terminal_context_id,
@@ -1773,6 +1789,9 @@ pub(crate) fn hex_encode(bytes: &[u8]) -> String {
 fn workspace_row_json(row: &WorkspaceRow) -> Value {
     json!({
         "workspaceId": row.workspace_id,
+        "number": row.number,
+        "tabCount": row.tab_count,
+        "panelCount": row.panel_count,
         "label": row.label,
         "projectId": row.project_id,
         "primaryDirectoryId": row.primary_directory_id,
@@ -1804,6 +1823,8 @@ fn context_json(context: &ContextRef) -> Value {
 fn tab_row_json(row: &TabRow) -> Value {
     json!({
         "tabId": row.tab_id,
+        "number": row.number,
+        "panelCount": row.panel_count,
         "label": row.label,
         "pinned": row.pinned,
         "groupId": row.group_id,
@@ -2002,13 +2023,16 @@ pub(crate) fn project(command: &QueryCommand, snapshot: &Snapshot) -> Result<Pro
                     .ordered_workspaces()
                     .map_err(|_| Failure::new(FailureKind::InternalFailure))?
                     .into_iter()
-                    .filter(|(owner, _)| {
+                    .enumerate()
+                    .filter(|(_, (owner, _))| {
                         projects
                             .iter()
                             .any(|project| project.project_id == owner.project_id)
                     })
-                    .map(|(project, workspace)| workspace_row(project, workspace))
-                    .collect(),
+                    .map(|(position, (project, workspace))| {
+                        workspace_row(snapshot, project, workspace, position + 1)
+                    })
+                    .collect::<Result<Vec<_>, _>>()?,
             ))
         }
         QueryCommand::WorkspaceGet(target) => {
@@ -2121,9 +2145,16 @@ pub(crate) fn project(command: &QueryCommand, snapshot: &Snapshot) -> Result<Pro
             let mut rows = Vec::new();
             for (context, tab) in tabs {
                 let mut path = Vec::new();
-                collect_panels(&tab.root, context, tab, &mut path, &mut |row, _path| {
-                    rows.push(row);
-                });
+                collect_panels(
+                    &tab.root,
+                    context,
+                    tab,
+                    index.reference(context).workspace_id.as_deref(),
+                    &mut path,
+                    &mut |row, _path| {
+                        rows.push(row);
+                    },
+                );
             }
             Ok(Projection::PanelList(rows))
         }
@@ -2143,11 +2174,18 @@ pub(crate) fn project(command: &QueryCommand, snapshot: &Snapshot) -> Result<Pro
             )?;
             let mut path = Vec::new();
             let mut found = None;
-            collect_panels(&tab.root, context, tab, &mut path, &mut |row, slot_path| {
-                if row.panel_id == panel_id.as_str() {
-                    found = Some((row, slot_path.to_vec()));
-                }
-            });
+            collect_panels(
+                &tab.root,
+                context,
+                tab,
+                index.reference(context).workspace_id.as_deref(),
+                &mut path,
+                &mut |row, slot_path| {
+                    if row.panel_id == panel_id.as_str() {
+                        found = Some((row, slot_path.to_vec()));
+                    }
+                },
+            );
             let Some((row, slot_path)) = found else {
                 return Err(Failure::new(FailureKind::InternalFailure));
             };
@@ -2275,8 +2313,21 @@ fn project_doc(project: &Project) -> ProjectDoc {
     }
 }
 
-fn workspace_row(project: &Project, workspace: &Workspace) -> WorkspaceRow {
-    WorkspaceRow {
+fn workspace_row(
+    snapshot: &Snapshot,
+    project: &Project,
+    workspace: &Workspace,
+    number: usize,
+) -> Result<WorkspaceRow, Failure> {
+    let context = snapshot
+        .terminal_contexts
+        .iter()
+        .find(|context| context.terminal_context_id == workspace.terminal_context_id)
+        .ok_or_else(|| Failure::new(FailureKind::InternalFailure))?;
+    Ok(WorkspaceRow {
+        number,
+        tab_count: context.tabs.len(),
+        panel_count: context.tabs.iter().map(|tab| panel_count(&tab.root)).sum(),
         workspace_id: workspace.workspace_id.as_str().to_owned(),
         label: workspace.label.clone(),
         project_id: project.project_id.as_str().to_owned(),
@@ -2285,6 +2336,16 @@ fn workspace_row(project: &Project, workspace: &Workspace) -> WorkspaceRow {
             .as_ref()
             .map(|id| id.as_str().to_owned()),
         terminal_context_id: workspace.terminal_context_id.as_str().to_owned(),
+    })
+}
+
+/// Count structural leaves, never presentations or only bound terminals.
+fn panel_count(node: &PanelNode) -> usize {
+    match node {
+        PanelNode::Panel { .. } => 1,
+        PanelNode::Split { children, .. } => {
+            children.iter().map(|slot| panel_count(&slot.node)).sum()
+        }
     }
 }
 
@@ -2300,7 +2361,19 @@ fn workspace_doc(
         .find(|context| context.terminal_context_id.as_str() == context_id)
         .ok_or_else(|| Failure::new(FailureKind::InternalFailure))?;
     Ok(WorkspaceDoc {
-        row: workspace_row(project, workspace),
+        row: workspace_row(
+            snapshot,
+            project,
+            workspace,
+            snapshot
+                .navigation
+                .ordered_workspaces()
+                .map_err(|_| Failure::new(FailureKind::InternalFailure))?
+                .iter()
+                .position(|(_, candidate)| candidate.workspace_id == workspace.workspace_id)
+                .ok_or_else(|| Failure::new(FailureKind::InternalFailure))?
+                + 1,
+        )?,
         tabs: context
             .tabs
             .iter()
@@ -2315,6 +2388,8 @@ fn workspace_doc(
 
 fn tab_row(tab: &Tab, position: usize, context: ContextRef) -> TabRow {
     TabRow {
+        number: position + 1,
+        panel_count: panel_count(&tab.root),
         tab_id: tab.tab_id.as_str().to_owned(),
         label: tab.display_label(position).into_owned(),
         pinned: tab.pinned,
@@ -2365,6 +2440,7 @@ fn collect_panels<'a>(
     node: &'a PanelNode,
     context: &'a TerminalContext,
     tab: &'a Tab,
+    workspace_id: Option<&str>,
     path: &mut Vec<String>,
     visit: &mut impl FnMut(PanelRow, &[String]),
 ) {
@@ -2376,6 +2452,13 @@ fn collect_panels<'a>(
             child_presentations,
         } => visit(
             PanelRow {
+                workspace_id: workspace_id.map(str::to_owned),
+                label: primary_presentation.label.clone(),
+                custom_label: primary_presentation
+                    .custom_label
+                    .as_ref()
+                    .map(|label| label.as_str().to_owned()),
+                display_label: primary_presentation.display_label().to_owned(),
                 right_click: *right_click,
                 panel_id: panel_id.as_str().to_owned(),
                 tab_id: tab.tab_id.as_str().to_owned(),
@@ -2392,7 +2475,7 @@ fn collect_panels<'a>(
         PanelNode::Split { children, .. } => {
             for slot in children.iter() {
                 path.push(slot.slot_id.as_str().to_owned());
-                collect_panels(&slot.node, context, tab, path, visit);
+                collect_panels(&slot.node, context, tab, workspace_id, path, visit);
                 path.pop();
             }
         }
@@ -2477,6 +2560,8 @@ mod tests {
 
     use super::*;
     use orchbee_workbench_protocol::parse_snapshot;
+
+    mod topology;
 
     fn hex(n: u8) -> String {
         format!("{n:032x}")

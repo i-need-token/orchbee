@@ -6,9 +6,15 @@
 	"required": ["schema", "version", "source", "result"],
 	"additionalProperties": false,
 	"properties": {
-		"schema": { "const": "orchbee.tab.list" },
-		"version": { "const": 1 },
-		"source": { "$ref": "#/$defs/snapshotSource" },
+		"schema": {
+			"const": "orchbee.tab.list"
+		},
+		"version": {
+			"const": 2
+		},
+		"source": {
+			"$ref": "#/$defs/snapshotSource"
+		},
 		"result": {
 			"type": "object",
 			"required": ["tabs"],
@@ -16,49 +22,99 @@
 			"properties": {
 				"tabs": {
 					"type": "array",
-					"items": { "$ref": "#/$defs/tab" }
+					"items": {
+						"$ref": "#/$defs/tab"
+					}
 				}
 			}
 		}
 	},
 	"$defs": {
-		"id": { "type": "string", "pattern": "^[0-9a-f]{32}$" },
+		"id": {
+			"type": "string",
+			"pattern": "^[0-9a-f]{32}$"
+		},
 		"context": {
 			"type": "object",
 			"required": ["kind", "terminalContextId"],
 			"additionalProperties": false,
 			"properties": {
-				"kind": { "enum": ["standalone", "workspace"] },
-				"terminalContextId": { "$ref": "#/$defs/id" },
-				"workspaceId": { "$ref": "#/$defs/id" }
+				"kind": {
+					"enum": ["standalone", "workspace"]
+				},
+				"terminalContextId": {
+					"$ref": "#/$defs/id"
+				},
+				"workspaceId": {
+					"$ref": "#/$defs/id"
+				}
 			},
 			"allOf": [
 				{
 					"if": {
-						"properties": { "kind": { "const": "workspace" } },
+						"properties": {
+							"kind": {
+								"const": "workspace"
+							}
+						},
 						"required": ["kind"]
 					},
-					"then": { "required": ["workspaceId"] }
+					"then": {
+						"required": ["workspaceId"]
+					}
 				},
 				{
 					"if": {
-						"properties": { "kind": { "const": "standalone" } },
+						"properties": {
+							"kind": {
+								"const": "standalone"
+							}
+						},
 						"required": ["kind"]
 					},
-					"then": { "not": { "required": ["workspaceId"] } }
+					"then": {
+						"not": {
+							"required": ["workspaceId"]
+						}
+					}
 				}
 			]
 		},
 		"tab": {
 			"type": "object",
-			"required": ["tabId", "label", "pinned", "groupId", "context"],
+			"required": ["tabId", "label", "pinned", "groupId", "context", "number", "panelCount"],
 			"additionalProperties": false,
 			"properties": {
-				"tabId": { "$ref": "#/$defs/id" },
-				"label": { "type": "string" },
-				"pinned": { "type": "boolean" },
-				"groupId": { "anyOf": [{ "$ref": "#/$defs/id" }, { "type": "null" }] },
-				"context": { "$ref": "#/$defs/context" }
+				"tabId": {
+					"$ref": "#/$defs/id"
+				},
+				"label": {
+					"type": "string"
+				},
+				"pinned": {
+					"type": "boolean"
+				},
+				"groupId": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/id"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"context": {
+					"$ref": "#/$defs/context"
+				},
+				"number": {
+					"type": "integer",
+					"minimum": 1
+				},
+				"panelCount": {
+					"type": "integer",
+					"minimum": 0
+				}
 			}
 		},
 		"snapshotSource": {
@@ -66,9 +122,16 @@
 			"required": ["kind", "siteId", "revision"],
 			"additionalProperties": false,
 			"properties": {
-				"kind": { "const": "workbench-snapshot" },
-				"siteId": { "$ref": "#/$defs/id" },
-				"revision": { "type": "string", "pattern": "^(0|[1-9][0-9]*)$" }
+				"kind": {
+					"const": "workbench-snapshot"
+				},
+				"siteId": {
+					"$ref": "#/$defs/id"
+				},
+				"revision": {
+					"type": "string",
+					"pattern": "^(0|[1-9][0-9]*)$"
+				}
 			}
 		}
 	}

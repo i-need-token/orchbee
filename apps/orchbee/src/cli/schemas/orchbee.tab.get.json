@@ -6,9 +6,15 @@
 	"required": ["schema", "version", "source", "result"],
 	"additionalProperties": false,
 	"properties": {
-		"schema": { "const": "orchbee.tab.get" },
-		"version": { "const": 2 },
-		"source": { "$ref": "#/$defs/snapshotSource" },
+		"schema": {
+			"const": "orchbee.tab.get"
+		},
+		"version": {
+			"const": 3
+		},
+		"source": {
+			"$ref": "#/$defs/snapshotSource"
+		},
 		"result": {
 			"type": "object",
 			"required": ["tab"],
@@ -16,47 +22,104 @@
 			"properties": {
 				"tab": {
 					"type": "object",
-					"required": ["tabId", "label", "pinned", "groupId", "context", "root"],
+					"required": [
+						"tabId",
+						"label",
+						"pinned",
+						"groupId",
+						"context",
+						"root",
+						"number",
+						"panelCount"
+					],
 					"additionalProperties": false,
 					"properties": {
-						"tabId": { "$ref": "#/$defs/id" },
-						"label": { "type": "string" },
-						"pinned": { "type": "boolean" },
-						"groupId": {
-							"anyOf": [{ "$ref": "#/$defs/id" }, { "type": "null" }]
+						"tabId": {
+							"$ref": "#/$defs/id"
 						},
-						"context": { "$ref": "#/$defs/context" },
-						"root": { "$ref": "#/$defs/panelNode" }
+						"label": {
+							"type": "string"
+						},
+						"pinned": {
+							"type": "boolean"
+						},
+						"groupId": {
+							"anyOf": [
+								{
+									"$ref": "#/$defs/id"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"context": {
+							"$ref": "#/$defs/context"
+						},
+						"root": {
+							"$ref": "#/$defs/panelNode"
+						},
+						"number": {
+							"type": "integer",
+							"minimum": 1
+						},
+						"panelCount": {
+							"type": "integer",
+							"minimum": 0
+						}
 					}
 				}
 			}
 		}
 	},
 	"$defs": {
-		"id": { "type": "string", "pattern": "^[0-9a-f]{32}$" },
+		"id": {
+			"type": "string",
+			"pattern": "^[0-9a-f]{32}$"
+		},
 		"context": {
 			"type": "object",
 			"required": ["kind", "terminalContextId"],
 			"additionalProperties": false,
 			"properties": {
-				"kind": { "enum": ["standalone", "workspace"] },
-				"terminalContextId": { "$ref": "#/$defs/id" },
-				"workspaceId": { "$ref": "#/$defs/id" }
+				"kind": {
+					"enum": ["standalone", "workspace"]
+				},
+				"terminalContextId": {
+					"$ref": "#/$defs/id"
+				},
+				"workspaceId": {
+					"$ref": "#/$defs/id"
+				}
 			},
 			"allOf": [
 				{
 					"if": {
-						"properties": { "kind": { "const": "workspace" } },
+						"properties": {
+							"kind": {
+								"const": "workspace"
+							}
+						},
 						"required": ["kind"]
 					},
-					"then": { "required": ["workspaceId"] }
+					"then": {
+						"required": ["workspaceId"]
+					}
 				},
 				{
 					"if": {
-						"properties": { "kind": { "const": "standalone" } },
+						"properties": {
+							"kind": {
+								"const": "standalone"
+							}
+						},
 						"required": ["kind"]
 					},
-					"then": { "not": { "required": ["workspaceId"] } }
+					"then": {
+						"not": {
+							"required": ["workspaceId"]
+						}
+					}
 				}
 			]
 		},
@@ -65,8 +128,12 @@
 			"required": ["presentationId", "label", "binding"],
 			"additionalProperties": false,
 			"properties": {
-				"presentationId": { "$ref": "#/$defs/id" },
-				"label": { "type": "string" },
+				"presentationId": {
+					"$ref": "#/$defs/id"
+				},
+				"label": {
+					"type": "string"
+				},
 				"binding": {
 					"anyOf": [
 						{
@@ -74,12 +141,23 @@
 							"required": ["terminalId", "workerId"],
 							"additionalProperties": false,
 							"properties": {
-								"terminalId": { "$ref": "#/$defs/id" },
-								"workerId": { "$ref": "#/$defs/id" }
+								"terminalId": {
+									"$ref": "#/$defs/id"
+								},
+								"workerId": {
+									"$ref": "#/$defs/id"
+								}
 							}
 						},
-						{ "type": "null" }
+						{
+							"type": "null"
+						}
 					]
+				},
+				"customLabel": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 512
 				}
 			}
 		},
@@ -89,13 +167,23 @@
 			"oneOf": [
 				{
 					"properties": {
-						"kind": { "const": "panel" },
-						"rightClick": { "enum": ["orchbee", "panel"] },
-						"panelId": { "$ref": "#/$defs/id" },
-						"primaryPresentation": { "$ref": "#/$defs/presentation" },
+						"kind": {
+							"const": "panel"
+						},
+						"rightClick": {
+							"enum": ["orchbee", "panel"]
+						},
+						"panelId": {
+							"$ref": "#/$defs/id"
+						},
+						"primaryPresentation": {
+							"$ref": "#/$defs/presentation"
+						},
 						"childPresentations": {
 							"type": "array",
-							"items": { "$ref": "#/$defs/presentation" }
+							"items": {
+								"$ref": "#/$defs/presentation"
+							}
 						}
 					},
 					"required": ["panelId", "primaryPresentation", "childPresentations"],
@@ -103,9 +191,15 @@
 				},
 				{
 					"properties": {
-						"kind": { "const": "split" },
-						"splitId": { "$ref": "#/$defs/id" },
-						"orientation": { "enum": ["horizontal", "vertical"] },
+						"kind": {
+							"const": "split"
+						},
+						"splitId": {
+							"$ref": "#/$defs/id"
+						},
+						"orientation": {
+							"enum": ["horizontal", "vertical"]
+						},
 						"children": {
 							"type": "array",
 							"minItems": 2,
@@ -115,8 +209,12 @@
 								"required": ["slotId", "node"],
 								"additionalProperties": false,
 								"properties": {
-									"slotId": { "$ref": "#/$defs/id" },
-									"node": { "$ref": "#/$defs/panelNode" }
+									"slotId": {
+										"$ref": "#/$defs/id"
+									},
+									"node": {
+										"$ref": "#/$defs/panelNode"
+									}
 								}
 							}
 						}
@@ -131,9 +229,16 @@
 			"required": ["kind", "siteId", "revision"],
 			"additionalProperties": false,
 			"properties": {
-				"kind": { "const": "workbench-snapshot" },
-				"siteId": { "$ref": "#/$defs/id" },
-				"revision": { "type": "string", "pattern": "^(0|[1-9][0-9]*)$" }
+				"kind": {
+					"const": "workbench-snapshot"
+				},
+				"siteId": {
+					"$ref": "#/$defs/id"
+				},
+				"revision": {
+					"type": "string",
+					"pattern": "^(0|[1-9][0-9]*)$"
+				}
 			}
 		}
 	}

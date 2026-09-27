@@ -13,6 +13,29 @@ Agent 状态来自 Server 的 canonical Agent 模型，不从终端文字推断�
 归属：本记录拥有 `src/invocation.rs` 与 `src/cli/**` 实现的公共语法、结果信封、失败矩阵、
 预算、交换状态机与输出副作用。文字与实现必须在同一变更中收敛。
 
+## Workbench 拓扑查询
+
+Windows `workspace list/get` 返回 `number`、`tabCount` 和 `panelCount`；
+`tab list/get` 返回 `number` 和 `panelCount`。Workspace 编号是完整规范导航顺序中
+从 1 开始的位置，在 `--project` 筛选之前确定。Tab 编号是所属终端上下文中
+从 1 开始的位置，与手动或自动标签无关。重排改变编号，但不改变身份。
+空上下文的 Tab 和 Panel 数量均为零。Panel 是 Tab 分割树中的一个叶节点；
+子 presentation 和终端绑定都不会增加 Panel 数量。
+
+`panel list` 包含 `workspaceId`（独立上下文为 null），以及主 presentation 的
+`label`、可空 `customLabel` 和 `displayLabel`。这些值与 `panel get` 返回的
+规范值相同，并非推断的进程或 Agent 标题。JSON 原样保留标签；文本输出转义标签，
+并限制列表中的显示宽度。
+
+这些投影消费单个已验证 Workbench 快照，保留其来源修订号、仅连接已有 Site 的准入、
+有界输出和无 TUI 时的可用性。不执行导航、进程检查或变更。Schema 版本为
+`orchbee.workspace.list/get` 2、`orchbee.tab.list` 2、`orchbee.tab.get` 3
+和 `orchbee.panel.list` 3；内嵌目录为版本 76。Client 焦点与活动选择、进程/Agent 观察、
+worktree 事实和上报元数据需要各自的所有者提供，这些拓扑字段不代表已实现它们。
+
+验证覆盖全局重排与筛选后不重新编号、空树与嵌套树、子 presentation 和未绑定叶节点、
+列表/详情一致、自动标签、文本转义，以及真实 Windows 查询文档的 schema 校验。
+
 ## Windows 命名 Site 选择
 
 全局 `--site <name>` / `--site=<name>` 为整个调用选择本地 Windows Site，包括
@@ -1025,7 +1048,7 @@ worker:{status:"unknown",reason:"not-in-workbench-snapshot"}}`。`boundTerminals
 - `orchbee.project.list` → `{projects:[{projectId,label,directoryCount,workspaceCount}]}`；
   `orchbee.project.get` → `{project:{projectId,label,directories:[{directoryId,workerId,path}],
 workspaces:[{workspaceId,label}]}}`。
-- `orchbee.workspace.list` → `{workspaces:[{workspaceId,label,projectId,
+- `orchbee.workspace.list` → `{workspaces:[{workspaceId,label,number,tabCount,panelCount,projectId,
 primaryDirectoryId|null,terminalContextId}]}`，跨 project 展平；`workspace get` 增加经
   `terminalContextId` 反查的 `tabs:[{tabId,label}]`。
 - `orchbee.workspace.close-status` → 逐字的保留 `WorkbenchWorkspaceCloseReadOutcome`：
@@ -1038,11 +1061,11 @@ disposedAwaitingPublication},members:[{tabId,panelId,presentationId,status}…]}
   的 `status` 是捕获时的逐成员 lifecycle 事实、不含 `closed`（closed tombstone 仅属
   scope 级），`attemptGeneration` 是十进制字符串的尝试栅栏；Workspace 离开 active
   projection 后该记录仍可应答。
-- `orchbee.tab.list` → `{tabs:[{tabId,label,pinned,groupId|null,
+- `orchbee.tab.list` → `{tabs:[{tabId,label,number,panelCount,pinned,groupId|null,
 context:{kind:"standalone",terminalContextId}|{kind:"workspace",terminalContextId,
 workspaceId}}]}`；standalone 上 `workspaceId` 键不存在而非 null。`tab get` 增加 `root`——
   typed `PanelNode` 子树的语义化重编码，不丢字段。
-- `orchbee.panel.list` → `{panels:[{panelId,tabId,terminalContextId,primaryPresentationId,
+- `orchbee.panel.list` → `{panels:[{panelId,label,customLabel|null,displayLabel,workspaceId|null,tabId,terminalContextId,primaryPresentationId,
 presentationCount,primaryTerminalId|null}]}`，`primaryTerminalId` 仅反映
   `primaryPresentation.binding`；`panel get` → `{panel:{panelId,tabId,context,slotPath,
 primaryPresentation,childPresentations}}`，`slotPath` 为自 root 至该叶子的 `PanelSlot` ID

@@ -17,6 +17,33 @@ Authority: this record owns the public grammar, result envelopes, failure matrix
 budgets, exchange state machines and output effects implemented under `src/invocation.rs`
 and `src/cli/**`. Prose and implementation must converge in the same change.
 
+## Workbench topology queries
+
+Windows `workspace list/get` return `number`, `tabCount`, and `panelCount`;
+`tab list/get` return `number` and `panelCount`. Workspace numbers are one-based
+positions in the complete canonical navigation order, before `--project` filtering.
+Tab numbers are one-based positions within their terminal context, independent of
+manual or automatic labels. Reordering changes numbers without changing identities.
+Empty contexts have zero Tabs and Panels. A Panel is one leaf of a Tab's split tree;
+child presentations and terminal bindings never increase its count.
+
+`panel list` includes `workspaceId` (null for standalone), plus the primary
+presentation's `label`, nullable `customLabel`, and `displayLabel`. These are the
+same canonical values returned by `panel get`, not inferred process or Agent titles.
+JSON preserves labels exactly; text escapes them and bounds list display width.
+
+These projections consume one validated Workbench snapshot and retain its source
+revision, existing-only admission, bounded output, and headless availability. They
+perform no navigation, process inspection or mutation. Schema versions are
+`orchbee.workspace.list/get` 2, `orchbee.tab.list` 2, `orchbee.tab.get` 3,
+and `orchbee.panel.list` 3; the embedded catalog is version 76. Client focus and
+active selections, process/Agent observations, worktree facts and reported metadata
+require their respective owners and are not implied by these topology fields.
+
+Verification covers global reorder and filtering without renumbering, empty and
+nested trees, child presentations and unbound leaves, list/get agreement, automatic
+labels, escaped text and schema validation of real Windows query documents.
+
 ## Windows named Site selection
 
 The global `--site <name>` / `--site=<name>` selects the local Windows Site for the entire
@@ -1234,7 +1261,7 @@ worker:{status:"unknown",reason:"not-in-workbench-snapshot"}}`. `boundTerminals`
 - `orchbee.project.list` → `{projects:[{projectId,label,directoryCount,workspaceCount}]}`;
   `orchbee.project.get` → `{project:{projectId,label,directories:[{directoryId,workerId,path}],
 workspaces:[{workspaceId,label}]}}`.
-- `orchbee.workspace.list` → `{workspaces:[{workspaceId,label,projectId,
+- `orchbee.workspace.list` → `{workspaces:[{workspaceId,label,number,tabCount,panelCount,projectId,
 primaryDirectoryId|null,terminalContextId}]}` flattened across projects; `workspace get` adds
   `tabs:[{tabId,label}]` resolved through `terminalContextId`.
 - `orchbee.workspace.close-status` → the verbatim retained `WorkbenchWorkspaceCloseReadOutcome`:
@@ -1247,11 +1274,11 @@ disposedAwaitingPublication},members:[{tabId,panelId,presentationId,status}…]}
   `status` is the captured per-member lifecycle truth without `closed` (the closed tombstone
   is scope-level only), `attemptGeneration` is the decimal-string attempt fence, and the
   record stays answerable after the Workspace leaves the active projection.
-- `orchbee.tab.list` → `{tabs:[{tabId,label,pinned,groupId|null,
+- `orchbee.tab.list` → `{tabs:[{tabId,label,number,panelCount,pinned,groupId|null,
 context:{kind:"standalone",terminalContextId}|{kind:"workspace",terminalContextId,
 workspaceId}}]}`; `workspaceId` is absent on standalone, never null. `tab get` adds `root`, the
   typed `PanelNode` subtree re-encoded without losing semantic fields.
-- `orchbee.panel.list` → `{panels:[{panelId,tabId,terminalContextId,primaryPresentationId,
+- `orchbee.panel.list` → `{panels:[{panelId,label,customLabel|null,displayLabel,workspaceId|null,tabId,terminalContextId,primaryPresentationId,
 presentationCount,primaryTerminalId|null}]}` where `primaryTerminalId` reflects only
   `primaryPresentation.binding`; `panel get` → `{panel:{panelId,tabId,context,slotPath,
 primaryPresentation,childPresentations}}` with `slotPath` the `PanelSlot` IDs from root to leaf

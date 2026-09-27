@@ -375,8 +375,11 @@ pub(crate) fn render(
         }
         Projection::WorkspaceList(rows) => table(out, &text.workspace_headers, rows, |row| {
             vec![
+                row.number.to_string(),
                 row.workspace_id.clone(),
                 table_label(&row.label),
+                row.tab_count.to_string(),
+                row.panel_count.to_string(),
                 row.project_id.clone(),
                 row.primary_directory_id
                     .clone()
@@ -386,6 +389,9 @@ pub(crate) fn render(
         }),
         Projection::WorkspaceGet(doc) => {
             field(out, text.workspace, &quoted(&doc.row.label))?;
+            field(out, text.number, &doc.row.number.to_string())?;
+            field(out, text.tabs, &doc.row.tab_count.to_string())?;
+            field(out, text.panels_word, &doc.row.panel_count.to_string())?;
             field(out, text.id, &doc.row.workspace_id)?;
             field(out, text.project_id, &doc.row.project_id)?;
             field(
@@ -401,8 +407,10 @@ pub(crate) fn render(
         }
         Projection::TabList(rows) => table(out, &text.tab_headers, rows, |row| {
             vec![
+                row.number.to_string(),
                 row.tab_id.clone(),
                 table_label(&row.label),
+                row.panel_count.to_string(),
                 row.pinned.to_string(),
                 row.group_id.clone().unwrap_or_else(|| "-".to_owned()),
                 context_text(&row.context),
@@ -411,6 +419,8 @@ pub(crate) fn render(
         }),
         Projection::TabGet(doc) => {
             field(out, text.tab, &quoted(&doc.row.label))?;
+            field(out, text.number, &doc.row.number.to_string())?;
+            field(out, text.panels_word, &doc.row.panel_count.to_string())?;
             field(out, text.id, &doc.row.tab_id)?;
             field(out, text.pinned, &doc.row.pinned.to_string())?;
             field(
@@ -433,6 +443,8 @@ pub(crate) fn render(
         Projection::PanelList(rows) => table(out, &text.panel_headers, rows, |row| {
             vec![
                 row.panel_id.clone(),
+                table_label(&row.display_label),
+                row.workspace_id.clone().unwrap_or_else(|| "-".to_owned()),
                 row.tab_id.clone(),
                 row.terminal_context_id.clone(),
                 row.primary_presentation_id.clone(),
