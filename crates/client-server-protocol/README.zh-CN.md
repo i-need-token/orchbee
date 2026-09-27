@@ -164,6 +164,12 @@ prepare 时冻结的 provenance；其他方式启动的终端该成员整体缺�
 `unavailable{reason:"server-busy"}`；无 Workbench 的 Site 一律回答 `not-found`，包括
 仅存的 orphan retained 记录。
 
+显式程序还会在 `found` 中提供可选的 `launchSelection:{exec,args}`。这是创建时捕获且已校验的
+不可变选择，包括已解析的命名 profile；删除 profile 或移动 Panel 不会改写它。默认 shell 和
+`not-tracked` 事实省略该字段。显式 null、无效选择以及 `not-tracked` 同时携带选择均非法。
+沿用最多128个参数/2,048字节的约束。查询不暴露环境或授权数据，不执行 RPC，不新增持久存储。
+旧消息可省略该字段。
+
 `launch.state` 逐字呈现 retained launch phase——`creating`、`awaiting-start`、
 `starting`、`started`、`unknown` 或 `unavailable`——另加 `not-tracked`：当可见 binding
 没有可唯一归属且一致的 coordinator 记录时使用（缺失、歧义或不一致的记录如实报告，绝不

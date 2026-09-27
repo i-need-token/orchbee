@@ -311,6 +311,8 @@ enum DecodedTerminalLaunchReadOutcome {
         /// tolerant of senders that predate it.
         #[serde(default)]
         launch_profile: Option<crate::LaunchProfileProvenance>,
+        #[serde(default, deserialize_with = "deserialize_launch_selection")]
+        launch_selection: Option<crate::LaunchSelection>,
     },
     NotFound,
     Unavailable {
@@ -535,18 +537,27 @@ pub(crate) fn decode_server_payload(payload: &[u8]) -> Result<ServerMessage, Pro
                     terminal,
                     launch,
                     launch_profile,
-                } => crate::TerminalLaunchReadOutcome::Found {
-                    site_id,
-                    workbench_revision,
-                    terminal,
-                    launch: Box::new(crate::TerminalLaunchFact::new(
-                        launch.state,
-                        launch.worker_generation,
-                        launch.create_outcome.map(Into::into),
-                        launch.geometry,
-                    )?),
-                    launch_profile,
-                },
+                    launch_selection,
+                } => {
+                    if launch.state == crate::TerminalLaunchState::NotTracked
+                        && launch_selection.is_some()
+                    {
+                        return Err(ProtocolError::InvalidPayload);
+                    }
+                    crate::TerminalLaunchReadOutcome::Found {
+                        site_id,
+                        workbench_revision,
+                        terminal,
+                        launch: Box::new(crate::TerminalLaunchFact::new(
+                            launch.state,
+                            launch.worker_generation,
+                            launch.create_outcome.map(Into::into),
+                            launch.geometry,
+                        )?),
+                        launch_profile,
+                        launch_selection: launch_selection.map(Box::new),
+                    }
+                }
                 DecodedTerminalLaunchReadOutcome::NotFound => {
                     crate::TerminalLaunchReadOutcome::NotFound
                 }
@@ -598,8 +609,18 @@ pub(crate) fn encode_server_payload(message: &ServerMessage) -> Result<Vec<u8>, 
             }
         }
         ServerMessage::TerminalLaunchReadResult(result) => {
-            if let crate::TerminalLaunchReadOutcome::Found { launch, .. } = &result.outcome {
+            if let crate::TerminalLaunchReadOutcome::Found {
+                launch,
+                launch_selection,
+                ..
+            } = &result.outcome
+            {
                 launch.validate()?;
+                if launch.state() == crate::TerminalLaunchState::NotTracked
+                    && launch_selection.is_some()
+                {
+                    return Err(ProtocolError::InvalidPayload);
+                }
             }
             EncodedServerMessage::LaunchRead {
                 protocol_version: ProtocolVersion,
@@ -626,6 +647,12 @@ where
     Value: Deserialize<'de>,
 {
     Option::<Value>::deserialize(deserializer)
+}
+
+fn deserialize_launch_selection<'de, D: Deserializer<'de>>(
+    deserializer: D,
+) -> Result<Option<crate::LaunchSelection>, D::Error> {
+    crate::LaunchSelection::deserialize(deserializer).map(Some)
 }
 
 impl From<DecodedStartMode> for StartMode {

@@ -1194,7 +1194,7 @@ Canonical traversal order: `navigation.projects` order; each project's `workspac
 `children[1]`; terminal bindings in that panel order with `primaryPresentation` before
 `childPresentations`. No sorting is added; filtered lists and `ambiguous` candidates preserve it.
 
-Snapshot and one-effect command envelopes use `{schema, version, source, result}`; staged workflows have their own embedded schemas. Every schema defines its emitted version and strict shape. `orchbee.panel.list` and `orchbee.tab.get` are v2; `orchbee.panel.get/current` are v3 after adding Panel input policy; `orchbee.api.snapshot` is v4 with optional automatic Tab naming. `orchbee.terminal.get` is v3 for launch/provenance. `orchbee.terminal.read/history` use v2 with `--unwrap` or `--lines`; `orchbee.terminal.wait-output` uses v2 for regex match details. Their flag-free outputs remain v1. See `api schema <id>` for each command and failure's complete version contract. The catalog is v69 with 76 required documents: registering an ID changes the closed dictionary shape, independently of business document versions. Sources retain their owner's meaning:
+Snapshot and one-effect command envelopes use `{schema, version, source, result}`; staged workflows have their own embedded schemas. Every schema defines its emitted version and strict shape. `orchbee.panel.list` and `orchbee.tab.get` are v2; `orchbee.panel.get/current` are v3 after adding Panel input policy; `orchbee.api.snapshot` is v4 with optional automatic Tab naming. `orchbee.terminal.get` is v4 for the retained launch program/arguments. `orchbee.terminal.read/history` use v2 with `--unwrap` or `--lines`; `orchbee.terminal.wait-output` uses v2 for regex match details. Their flag-free outputs remain v1. See `api schema <id>` for each command and failure's complete version contract. The current catalog is v73 with 81 required documents: registering an ID changes the closed dictionary shape, independently of business document versions. Sources retain their owner's meaning:
 
 - `source.kind="workbench-snapshot"` with `siteId` and decimal-string `revision` from the same
   validated snapshot — present only after a complete valid read.
@@ -1266,7 +1266,7 @@ tabId,terminalContextId}}]}`; `terminal get` returns the same identity facts und
   Unlike `terminal list`, `terminal get` does not answer from the Client-held snapshot: it sends
   a `terminal.launch.read` request on the admitted session and the Server resolves the current
   binding, routing, and retained launch fact under the coordinator lock — the snapshot only
-  supplies the typed target id. Its envelope is `version:3` with
+  supplies the typed target id. Its envelope is `version:4` with
   `source:{kind:"terminal-launch-read",siteId,revision}` where `revision` is the joined
   workbench revision as a decimal string; older `version:1` validators reject it, which is the
   deliberate compatibility boundary. `launch` is
@@ -1278,7 +1278,7 @@ tabId,terminalContextId}}]}`; `terminal get` returns the same identity facts und
   `creating` and `not-tracked`. When the launch named a catalog profile the terminal gains one
   more sibling member `launchProfile:{profileId,catalogRevision}` — the resolved provenance
   verbatim, absent (never `null`) for explicit `--exec` and default-shell launches; the
-  envelope is `version:3`. The state is a retained fact, never process liveness:
+  envelope is `version:4`. The state is a retained fact, never process liveness:
   `creating` records a phase, not proof of dispatch, and a deferred-start failure reads
   `unavailable` without a fabricated start reason. Exit codes stay the query contract —
   `not-found` 3, `server-busy` unavailable 4 — and a `found` answer whose
@@ -1287,6 +1287,7 @@ tabId,terminalContextId}}]}`; `terminal get` returns the same identity facts und
   network budget shared with admission and the snapshot read: a dropped or timed-out exchange
   is `transport-loss` 5, and a correlation mismatch or invalid result is `protocol-invalid` 5 —
   the launch read never reports `timeout`.
+  Explicit programs and named-profile launches also return optional sibling `launchSelection:{exec,args}` with the actual program and arguments frozen at creation. Profile deletion and Panel movement never rewrite it. Default-shell and `not-tracked` facts omit it; environment values are not exposed. Text output uses localized labels for the program and JSON argument array. This read does not guarantee launch-command persistence across restart.
 - `orchbee.terminal.read` → `{terminal,frame,content}`: `terminal` carries the same
   `{terminalId,workerId,boundTo}` identity facts; `frame` carries the applied projection's
   `{revision,generation,sequence}` as decimal strings (u64-safe), `alternateScreen`, `geometry`

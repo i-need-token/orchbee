@@ -988,7 +988,7 @@ Canonical 遍历次序：`navigation.projects` 顺序；各 project 的 `workspa
 terminal 绑定按该 panel 顺序且 `primaryPresentation` 先于 `childPresentations`。不新增排序；
 过滤后的列表与 `ambiguous` 候选都保持该次序。
 
-快照与单效果命令封套使用 `{schema, version, source, result}`；分阶段流程有自己的内嵌 schema。每份 schema 定义发出的版本及严格形状。增加 Panel 输入策略后，`orchbee.panel.list` 与 `orchbee.tab.get` 为 v2，`orchbee.panel.get/current` 为 v3；`orchbee.api.snapshot` 加入可选 Tab 自动命名后为 v4。`orchbee.terminal.get` 因启动与来源信息为 v3。`orchbee.terminal.read/history` 带 `--unwrap` 或 `--lines` 时为 v2，`orchbee.terminal.wait-output` 携带正则匹配细节时为 v2；三者不带这些 flag 时仍为 v1。各命令与失败的完整版本契约见 `api schema <id>`。目录为 v69，包含 76 份必需文档：注册 ID 会改变闭合字典形状，与业务文档版本独立。来源保留各所有者的含义：
+快照与单效果命令封套使用 `{schema, version, source, result}`；分阶段流程有自己的内嵌 schema。每份 schema 定义发出的版本及严格形状。增加 Panel 输入策略后，`orchbee.panel.list` 与 `orchbee.tab.get` 为 v2，`orchbee.panel.get/current` 为 v3；`orchbee.api.snapshot` 加入可选 Tab 自动命名后为 v4。`orchbee.terminal.get` 因保留实际启动程序／参数为 v4。`orchbee.terminal.read/history` 带 `--unwrap` 或 `--lines` 时为 v2，`orchbee.terminal.wait-output` 携带正则匹配细节时为 v2；三者不带这些 flag 时仍为 v1。各命令与失败的完整版本契约见 `api schema <id>`。当前目录为 v73，包含 81 份必需文档：注册 ID 会改变闭合字典形状，与业务文档版本独立。来源保留各所有者的含义：
 
 - `source.kind="workbench-snapshot"`：带同一份已验证快照的 `siteId` 与十进制字符串
   `revision`——仅在完整有效读取之后出现。
@@ -1055,7 +1055,7 @@ tabId,terminalContextId}}]}`；`terminal get` 在 `terminal` 下返回同一身�
   都没有 lifecycle/process/agent 字段。与 `terminal list` 不同，`terminal get` 不从 Client
   持有的快照作答：它在已准入 session 上发送一次 `terminal.launch.read` 请求，由 Server 在
   coordinator 锁内解析当前绑定、路由与 retained launch fact——快照只提供类型化目标 id。
-  其 envelope 为 `version:3`，`source:{kind:"terminal-launch-read",siteId,revision}` 的
+  其 envelope 为 `version:4`，`source:{kind:"terminal-launch-read",siteId,revision}` 的
   `revision` 是 join 所得 workbench 修订的十进制字符串；旧的 `version:1` 校验器会拒绝它，
   这是刻意的兼容性边界。`launch` 为 `{state,workerGeneration,createOutcome,geometry}`：
   `state` 逐字呈现 retained phase——`creating`、`awaiting-start`、`starting`、`started`、
@@ -1064,7 +1064,7 @@ tabId,terminalContextId}}]}`；`terminal get` 在 `terminal` 下返回同一身�
   `started` 时非空；`createOutcome` 照录 retained create outcome，在 `creating` 与
   `not-tracked` 时为 `null`。当启动命名了一个目录 profile 时，终端还多一个兄弟成员
   `launchProfile:{profileId,catalogRevision}`——逐字呈现的已解析 provenance，显式
-  `--exec` 与默认 shell 启动下缺席（绝非 `null`）；envelope 为 `version:3`。state
+  `--exec` 与默认 shell 启动下缺席（绝非 `null`）；envelope 为 `version:4`。state
   是 retained 事实，绝非进程存活：`creating` 只记录
   phase、不证明 dispatch 已发生；deferred-start 失败如实读作 `unavailable`，不虚构 start
   原因。退出码保持查询契约——`not-found` 为 3、`server-busy` unavailable 为
@@ -1072,6 +1072,7 @@ tabId,terminalContextId}}]}`；`terminal get` 在 `terminal` 下返回同一身�
   `failed` 仍退出 0，因为查询本身成功。该交换承载于已准入 session，与准入及快照读取共享
   同一份 5 秒网络预算：断开或耗尽的交换是 `transport-loss` 5，correlation 失配或无效结果是
   `protocol-invalid` 5——launch read 绝不报告 `timeout`。
+  显式程序或命名 profile 启动还返回可选同级 `launchSelection:{exec,args}`，保留创建时冻结的实际程序和参数；profile 删除或 Panel 移动不会重写它。默认 shell 与 `not-tracked` 省略该成员；不暴露环境变量。文本输出用本地化标签显示程序及 JSON 参数数组。此查询不保证跨重启保存启动命令。
 - `orchbee.terminal.read` → `{terminal,frame,content}`：`terminal` 携带同样的
   `{terminalId,workerId,boundTo}` 身份事实；`frame` 携带已应用投影的
   `{revision,generation,sequence}`（十进制字符串，u64 无损）、`alternateScreen`、`geometry`

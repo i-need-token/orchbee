@@ -182,6 +182,13 @@ if the profile was deleted after its selection was captured. `not-found` and
 `unavailable{reason:"server-busy"}` are the only other outcomes; a site without a Workbench
 answers `not-found`, including for orphaned retained records.
 
+An explicit program also contributes optional `launchSelection:{exec,args}` to `found`.
+It is the immutable, validated selection captured at creation, including a resolved named profile;
+profile deletion and Panel movement do not rewrite it. Default-shell and `not-tracked` facts omit
+the member. Present null, malformed selection and `not-tracked` with a selection are invalid.
+The existing 128-argument/2,048-byte bounds apply. This read exposes no environment or authorization
+data, performs no RPC and introduces no durable storage. Older messages may omit the member.
+
 `launch.state` is the retained launch phase verbatim — `creating`, `awaiting-start`,
 `starting`, `started`, `unknown`, or `unavailable` — plus `not-tracked` when no uniquely
 attributable consistent coordinator record exists for the visible binding (a missing,

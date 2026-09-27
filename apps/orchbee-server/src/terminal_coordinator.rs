@@ -226,6 +226,7 @@ struct TerminalBinding {
     /// profile; never part of the Worker-facing request and immutable once
     /// the binding commits.
     profile_provenance: Option<orchbee_client_server_protocol::LaunchProfileProvenance>,
+    launch_selection: Option<orchbee_client_server_protocol::LaunchSelection>,
 }
 
 pub(crate) struct RetainedTerminalCreate<'coordinator> {
@@ -234,6 +235,7 @@ pub(crate) struct RetainedTerminalCreate<'coordinator> {
     pub(crate) phase: TerminalPhase,
     pub(crate) worker_generation: WorkerGeneration,
     pub(crate) profile_provenance: Option<orchbee_client_server_protocol::LaunchProfileProvenance>,
+    pub(crate) launch_selection: Option<orchbee_client_server_protocol::LaunchSelection>,
 }
 
 /// Resolution of a binding identity pair against the retained creates. `Absent` is a
@@ -329,6 +331,7 @@ impl TerminalCoordinator {
             phase: binding.phase,
             worker_generation: binding.authorization.worker_generation(),
             profile_provenance: binding.profile_provenance.clone(),
+            launch_selection: binding.launch_selection.clone(),
         })
     }
 
@@ -645,6 +648,7 @@ impl TerminalCoordinator {
             }));
         };
         let completion_seal = Arc::new(TerminalCompletionSeal);
+        let launch_selection = request.launch().cloned();
         Ok(PlannedCreate {
             coordinator: self,
             pending: Box::new(PendingOperation {
@@ -663,6 +667,7 @@ impl TerminalCoordinator {
                 create_outcome: None,
                 phase: TerminalPhase::Creating,
                 profile_provenance: None,
+                launch_selection,
             },
             next_identity: identity.checked_add(1),
         })

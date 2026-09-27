@@ -921,12 +921,12 @@ fn snapshot_derived_documents_validate_against_schemas() -> TestResult {
     );
 
     // Terminals: both bound ids are listed; `terminal get` answers the
-    // Server's launch-read join — version 3 envelope, its own source kind,
+    // Server's launch-read join — version 4 envelope, its own source kind,
     // the same routing, and the retained launch fact.
     let terminals = documents[11]["result"]["terminals"].as_array().unwrap();
     assert_eq!(terminals.len(), 2);
     let get = &documents[12];
-    assert_eq!(get["version"], 3);
+    assert_eq!(get["version"], 4);
     assert_eq!(
         get["source"],
         serde_json::json!({
@@ -936,6 +936,12 @@ fn snapshot_derived_documents_validate_against_schemas() -> TestResult {
         })
     );
     let terminal = &get["result"]["terminal"];
+    assert_eq!(
+        terminal["launchSelection"],
+        serde_json::json!({
+            "exec": "C:\\shell.exe", "args": ["--login"],
+        })
+    );
     assert_eq!(terminal["terminalId"], id(0x30));
     assert_eq!(terminal["workerId"], "6f7263686265652d6c6f63616c2d7631");
     assert_eq!(
@@ -3234,6 +3240,10 @@ fn launch_read_reply(
                 terminal: Box::new(route),
                 launch: Box::new(launch),
                 launch_profile: None,
+                launch_selection: Some(Box::new(
+                    obcs::LaunchSelection::new("C:\\shell.exe".into(), vec!["--login".into()])
+                        .expect("selection"),
+                )),
             },
         )),
     )

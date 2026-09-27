@@ -67,12 +67,14 @@ fn launch_read_joins_the_committed_route_and_retained_fact() {
         terminal,
         launch,
         launch_profile,
+        launch_selection,
     } = coordinator.terminal_launch_read(&terminal_id)
     else {
         panic!("committed binding expected")
     };
     assert_eq!(site_id.as_str(), format!("{:032x}", 999));
     assert_eq!(launch_profile, None);
+    assert_eq!(launch_selection, None);
     assert_eq!(
         workbench_revision,
         snapshot(&mut coordinator).revision.value()
@@ -131,13 +133,23 @@ fn launch_read_re_resolves_route_and_revision_after_membership_moves() {
     let mut coordinator = site();
     let terminal_a = started_open(&mut coordinator, 3101, 3102);
     let (context, tab, panel_a) = standalone_leaf(&mut coordinator);
-    let split = split_command(
+    let mut split = split_command(
         &mut coordinator,
         3103,
         context.clone(),
         tab.clone(),
         panel_a.clone(),
         WorkbenchPanelSplitDirection::Right,
+    );
+    let WorkbenchAction::PanelSplit { launch, .. } = &mut split.action else {
+        panic!("split action expected")
+    };
+    *launch = Some(
+        orchbee_workbench_protocol::LaunchSelection::new(
+            "C:\\Program Files\\shell.exe".into(),
+            vec!["".into(), "--login".into(), "中文".into()],
+        )
+        .unwrap(),
     );
     let pending_b = dispatch_split(&mut coordinator, split, 3104);
     let CapabilityNodeMessage::AuthorizedTerminalLaunch(launch_b) = pending_b.command() else {
@@ -163,12 +175,16 @@ fn launch_read_re_resolves_route_and_revision_after_membership_moves() {
         workbench_revision: revision_b,
         terminal: route_b,
         launch: launch_fact_b,
+        launch_selection: selection_b,
         ..
     } = coordinator.terminal_launch_read(&terminal_b)
     else {
         panic!("second binding expected")
     };
     assert_eq!(launch_fact_b.state(), TerminalLaunchState::Started);
+    let selection_b = selection_b.expect("direct launch retained without profile");
+    assert_eq!(selection_b.executable(), "C:\\Program Files\\shell.exe");
+    assert_eq!(selection_b.arguments(), &["", "--login", "中文"]);
     assert_eq!(route_a.bound_to().panel_id().as_str(), panel_a.as_str());
     assert_ne!(route_a.bound_to().panel_id(), route_b.bound_to().panel_id());
     assert_ne!(
@@ -214,6 +230,31 @@ fn launch_read_re_resolves_route_and_revision_after_membership_moves() {
     assert!(moved_revision > revision_a);
     assert_eq!(moved_route, route_a);
     assert_eq!(moved_launch.state(), TerminalLaunchState::Started);
+    let Outcome::Found {
+        launch_selection,
+        launch_profile,
+        ..
+    } = coordinator.terminal_launch_read(&terminal_b)
+    else {
+        panic!("explicit binding remains visible after movement")
+    };
+    assert_eq!(launch_selection.as_ref(), Some(&selection_b));
+    assert_eq!(launch_profile, None);
+    let bound = route_b.bound_to();
+    close_leaf(
+        &mut coordinator,
+        orchbee_workbench_protocol::WorkbenchTerminalContextId::parse(
+            bound.terminal_context_id().as_str(),
+        )
+        .unwrap(),
+        orchbee_workbench_protocol::WorkbenchTabId::parse(bound.tab_id().as_str()).unwrap(),
+        WorkbenchPanelId::parse(bound.panel_id().as_str()).unwrap(),
+        3106,
+    );
+    assert_eq!(
+        coordinator.terminal_launch_read(&terminal_b),
+        Outcome::NotFound
+    );
 }
 
 #[test]
@@ -429,12 +470,16 @@ fn profile_launched_tab_retains_frozen_payload_and_provenance_across_interleaved
     let Outcome::Found {
         launch,
         launch_profile,
+        launch_selection,
         ..
     } = coordinator.terminal_launch_read(&terminal_id)
     else {
         panic!("committed binding expected")
     };
     assert_eq!(launch.state(), TerminalLaunchState::Started);
+    let selection = launch_selection.expect("resolved program retained after profile deletion");
+    assert_eq!(selection.executable(), "/bin/zsh");
+    assert_eq!(selection.arguments(), &["--no-globalrcs"]);
     let provenance = launch_profile.expect("profile provenance retained");
     assert_eq!(provenance.profile_id(), profile_id.as_str());
     // The published catalog revision is the one frozen at prepare — not the

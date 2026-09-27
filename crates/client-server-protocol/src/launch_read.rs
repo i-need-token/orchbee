@@ -301,6 +301,10 @@ pub enum TerminalLaunchReadOutcome {
         /// profile. Absent members stay off the wire entirely.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         launch_profile: Option<LaunchProfileProvenance>,
+        /// Immutable program and argv captured at creation after profile resolution.
+        /// Default-shell and untracked bindings omit this member.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        launch_selection: Option<Box<crate::LaunchSelection>>,
     },
     NotFound,
     Unavailable {

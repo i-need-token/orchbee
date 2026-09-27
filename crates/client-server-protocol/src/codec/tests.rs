@@ -221,7 +221,7 @@ fn maximum_launch_read_result_stays_inside_the_frame_bound()
     // The largest legal shape: every 32-hex identity present, u64::MAX for the
     // decimal-string revision and generation, and the `started` fact that
     // carries both a create outcome and a geometry.
-    let message = ServerMessage::TerminalLaunchReadResult(TerminalLaunchReadResult::new(
+    let mut message = ServerMessage::TerminalLaunchReadResult(TerminalLaunchReadResult::new(
         RequestId::parse("ffffffffffffffffffffffffffffffff")?,
         TerminalLaunchReadOutcome::Found {
             site_id: SiteId::parse("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")?,
@@ -247,11 +247,26 @@ fn maximum_launch_read_result_stays_inside_the_frame_bound()
                 Some(Geometry::new(255, 255, 257, 257)?),
             )?),
             launch_profile: Some(LaunchProfileProvenance::new("f".repeat(128), u64::MAX)?),
+            launch_selection: Some(Box::new(crate::LaunchSelection::new(
+                "C:\\shell.exe".into(),
+                vec!["\u{1}".repeat(2048 - "C:\\shell.exe".len())],
+            )?)),
         },
     ));
     let encoded = encode_server_frame(&message)?;
     assert!(encoded.len() - FRAME_HEADER_BYTES <= MAXIMUM_FRAME_PAYLOAD_BYTES);
     assert_eq!(decode_server_frame(&encoded)?, message);
+    let ServerMessage::TerminalLaunchReadResult(result) = &mut message else {
+        panic!("launch result expected")
+    };
+    let TerminalLaunchReadOutcome::Found { launch, .. } = &mut result.outcome else {
+        panic!("found expected")
+    };
+    **launch = TerminalLaunchFact::new(TerminalLaunchState::NotTracked, None, None, None)?;
+    assert_eq!(
+        encode_server_frame(&message),
+        Err(ProtocolError::InvalidPayload)
+    );
     Ok(())
 }
 

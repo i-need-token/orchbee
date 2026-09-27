@@ -93,7 +93,7 @@ pub(crate) const fn schema_version(command: &QueryCommand) -> u64 {
         QueryCommand::PanelGet(_) | QueryCommand::PanelCurrent(_) => 3,
         QueryCommand::ApiSnapshot => 5,
         QueryCommand::PanelList { .. } | QueryCommand::TabGet(_) => 2,
-        QueryCommand::TerminalGet(_) => 3,
+        QueryCommand::TerminalGet(_) => 4,
         #[cfg(windows)]
         QueryCommand::AgentWait { .. } => 3,
         #[cfg(not(windows))]
@@ -283,6 +283,7 @@ pub(crate) struct TerminalGetDoc {
     pub(crate) terminal: TerminalRow,
     pub(crate) launch: TerminalLaunchFact,
     pub(crate) launch_profile: Option<LaunchProfileProvenance>,
+    pub(crate) launch_selection: Option<orchbee_client_server_protocol::LaunchSelection>,
 }
 
 /// Routing metadata of the applied projection, re-encoded as decimal strings
@@ -1431,6 +1432,9 @@ impl Projection {
                 let mut terminal = terminal_row_json(&doc.terminal);
                 if let Value::Object(members) = &mut terminal {
                     members.insert("launch".to_owned(), launch_fact_json(&doc.launch));
+                    if let Some(selection) = &doc.launch_selection {
+                        members.insert("launchSelection".to_owned(), json!(selection));
+                    }
                     if let Some(provenance) = &doc.launch_profile {
                         members.insert(
                             "launchProfile".to_owned(),

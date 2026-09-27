@@ -1708,8 +1708,34 @@
 									"type": "null"
 								}
 							]
+						},
+						"launchSelection": {
+							"$ref": "#/$defs/launchSelection"
 						}
-					}
+					},
+					"allOf": [
+						{
+							"if": {
+								"required": ["launch"],
+								"properties": {
+									"launch": {
+										"type": "object",
+										"required": ["state"],
+										"properties": {
+											"state": {
+												"const": "not-tracked"
+											}
+										}
+									}
+								}
+							},
+							"then": {
+								"properties": {
+									"launchSelection": false
+								}
+							}
+						}
+					]
 				},
 				{
 					"type": "object",

@@ -228,6 +228,7 @@ pub(crate) fn terminal_get(target: &Target) -> Result<(serde_json::Value, Projec
             terminal,
             launch,
             launch_profile,
+            launch_selection,
         } => {
             let bound_to = terminal.bound_to();
             let row = super::results::TerminalRow {
@@ -244,6 +245,7 @@ pub(crate) fn terminal_get(target: &Target) -> Result<(serde_json::Value, Projec
                     terminal: row,
                     launch: (**launch).clone(),
                     launch_profile: launch_profile.clone(),
+                    launch_selection: launch_selection.as_deref().cloned(),
                 }),
             ))
         }

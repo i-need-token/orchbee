@@ -427,7 +427,7 @@ pub(crate) fn answer(schema_id: Option<&str>, format: OutputFormat, locale: Loca
     let document = json!({
         "schema": "orchbee.api.schema",
         // Workspace creation and optional first-Project receipts share this closed catalog.
-        "version": 72,
+        "version": 73,
         "source": embedded_source(),
         "result": result,
     });

@@ -7,7 +7,7 @@
 	"additionalProperties": false,
 	"properties": {
 		"schema": { "const": "orchbee.terminal.get" },
-		"version": { "const": 3 },
+		"version": { "const": 4 },
 		"source": { "$ref": "#/$defs/launchReadSource" },
 		"result": {
 			"type": "object",
@@ -30,6 +30,7 @@
 				"terminalId": { "$ref": "#/$defs/id" },
 				"workerId": { "$ref": "#/$defs/id" },
 				"launch": { "$ref": "#/$defs/launch" },
+				"launchSelection": { "$ref": "#/$defs/launchSelection" },
 				"launchProfile": {
 					"type": "object",
 					"required": ["profileId", "catalogRevision"],
@@ -53,7 +54,55 @@
 						"terminalContextId": { "$ref": "#/$defs/id" }
 					}
 				}
-			}
+			},
+			"allOf": [
+				{
+					"if": {
+						"required": ["launch"],
+						"properties": {
+							"launch": {
+								"type": "object",
+								"required": ["state"],
+								"properties": {
+									"state": {
+										"const": "not-tracked"
+									}
+								}
+							}
+						}
+					},
+					"then": {
+						"properties": {
+							"launchSelection": false
+						}
+					}
+				}
+			]
+		},
+		"launchSelection": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["exec", "args"],
+			"properties": {
+				"exec": {
+					"title": "Absolute local-platform working directory intent",
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 2048,
+					"pattern": "^(?:/|(?:\\\\\\\\\\?\\\\)?[A-Za-z]:[/\\\\])[^\\u0000]*$",
+					"$comment": "The authoritative 4096 limit is UTF-8 encoded bytes; schema maxLength is an additional necessary code-point bound."
+				},
+				"args": {
+					"type": "array",
+					"maxItems": 128,
+					"items": {
+						"type": "string",
+						"pattern": "^[^\\u0000]*$",
+						"maxLength": 2048
+					}
+				}
+			},
+			"$comment": "Executable and arguments together are at most 2048 UTF-8 bytes, enforced by the binding."
 		},
 		"geometry": {
 			"type": "object",

@@ -550,6 +550,11 @@ pub(crate) fn render(
             // The launch fact renders as its own `name  value` block — the
             // same validated projection the machine document carries.
             name_value_block(out, &super::results::launch_fact_json(&doc.launch))?;
+            if let Some(selection) = &doc.launch_selection {
+                field(out, text.launch_program, &quoted(selection.executable()))?;
+                let arguments = serde_json::json!(selection.arguments()).to_string();
+                field(out, text.launch_arguments, &arguments)?;
+            }
             // A profile-launched terminal carries its provenance under the
             // launch block — present exactly when the Server resolved one.
             if let Some(provenance) = &doc.launch_profile {

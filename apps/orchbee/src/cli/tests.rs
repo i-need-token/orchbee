@@ -35,6 +35,76 @@ fn envelope(stdout: &[u8]) -> Value {
 }
 
 #[test]
+fn terminal_get_preserves_launch_arguments_and_omits_unknown_selection_in_all_locales() {
+    use orchbee_client_server_protocol::{
+        LaunchSelection, TerminalLaunchFact, TerminalLaunchState,
+    };
+    let command = QueryCommand::TerminalGet(Target::Id(ID.to_owned()));
+    for explicit in [false, true] {
+        for locale in [Locale::EnUs, Locale::ZhCn] {
+            for format in [OutputFormat::Json, OutputFormat::Text] {
+                let selection = explicit.then(|| {
+                    LaunchSelection::new(
+                        "C:\\Program Files\\shell.exe".into(),
+                        vec!["".into(), "quoted \" text".into(), "中文".into()],
+                    )
+                    .unwrap()
+                });
+                let expected = json!(selection);
+                let projection = Projection::TerminalGet(super::results::TerminalGetDoc {
+                    terminal: TerminalRow {
+                        terminal_id: ID.into(),
+                        worker_id: ID.into(),
+                        presentation_id: ID.into(),
+                        panel_id: ID.into(),
+                        tab_id: ID.into(),
+                        terminal_context_id: ID.into(),
+                    },
+                    launch: TerminalLaunchFact::new(
+                        TerminalLaunchState::Creating,
+                        std::num::NonZeroU64::new(1),
+                        None,
+                        None,
+                    )
+                    .unwrap(),
+                    launch_profile: None,
+                    launch_selection: selection,
+                });
+                let result = super::success_output(
+                    projection,
+                    super::results::launch_read_source(ID, 1),
+                    &command,
+                    format,
+                    locale,
+                );
+                assert_eq!(result.status, 0);
+                assert!(result.stderr.is_empty());
+                match format {
+                    OutputFormat::Json => {
+                        let doc = envelope(&result.stdout);
+                        assert_eq!(doc["version"], 4);
+                        let terminal = &doc["result"]["terminal"];
+                        if explicit {
+                            assert_eq!(terminal["launchSelection"], expected);
+                        } else {
+                            assert!(terminal.get("launchSelection").is_none());
+                        }
+                        assert!(terminal.get("launchProfile").is_none());
+                    }
+                    OutputFormat::Text => {
+                        let text = String::from_utf8(result.stdout).unwrap();
+                        assert_eq!(text.contains(locale.cli_labels().launch_program), explicit);
+                        if explicit {
+                            assert!(text.contains("[\"\",\"quoted \\\" text\",\"中文\"]"));
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[test]
 fn oversized_text_result_stays_silent_and_reports_too_large() {
     let output = super::success_output(
         oversized_terminals(),

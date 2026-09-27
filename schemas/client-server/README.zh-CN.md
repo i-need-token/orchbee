@@ -338,6 +338,8 @@ source contract 与 runtime cohort 一起 rollback。该扩展不增加 persiste
 
 v2 Create 额外接受可选 `launch`（null 或 literal `{exec,args}`）和 `environment`（有序 `[name,value]` pair，空时省略）。Executable 必须绝对，argv 不含 argv0，最多 128 个 argument，合计 2,048 UTF-8 bytes，禁止 NUL。Environment 最多 32 项，name/value 合计最多 1,024 UTF-8 bytes。ASCII identifier name 长 1–128 bytes，忽略 ASCII 大小写唯一，并忽略大小写拒绝 `ORCHBEE_*`、`TERM`、`COLORTERM` 和 `TERM_PROGRAM`。Value 为 literal，可以为空，禁止 NUL。Byte sum 与忽略大小写唯一性由 binding 在 JSON Schema 之外细化。Found launch read 的可选同级 `launchProfile` 携带 opaque `profileId`（1–128 UTF-8 bytes）和规范 unsigned-64 decimal `catalogRevision`；它记录捕获的来源，不授予 launch authority。
 
+Found launch read 还可携带非 null 的 `launchSelection:{exec,args}`，复用上述程序／参数边界，表示创建时经解析后冻结的选择；默认 shell 与 `not-tracked` 时省略。出现 null、非法选择或 `not-tracked` 携带选择均拒绝。旧消息可省略该成员；不导出 environment，不读取当前 profile 目录，也不声明跨重启保存。该未发布的增量字段要求同 cohort 部署／回滚，旧 reader 可能拒绝。
+
 Send result 以 `progress` 替代 `acceptedBytes`：数值 `recordsAccepted`、`firstStoppedRecord`（0–64）和 `acceptedEncodedBytes`（0–67,108,864）。Accepted records 不超过 stopped index。成功 outcome 要求非零且相等的 count/index，以及非 not-needed 的 cleanup；任何非零 accepted count 都禁止 not-needed。Unknown outcome 禁止 confirmed cleanup。Accepted/unknown 或任何非 not-needed cleanup 都要求 physical target。跨字段关系是独立测试的 binding 细化。Unknown frontier 不授权重发。`input-budget-exhausted` 是新增 unavailable reason。仍须按精确 cohort 发布和回滚；不意味着持久化迁移、Desktop 支持或 Workbench schema 等价。
 
 OBSN header 为 magic `OBSN`、big-endian u16 encoding version `1`、零 u16 reserved field 和 u32 body length。Body 依次为 request/Site/Worker/Terminal identity（各 16 bytes）、u8 count（1–64）及有序 record。Body 上限为 `64 + 1 + 64 * 5 + 1,048,576` bytes；分配前拒绝错误 header。每个 record 以 u8 kind 开始：

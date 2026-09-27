@@ -299,8 +299,9 @@ impl SiteCoordinator {
         let Some((route, binding)) = launch_route(snapshot, terminal_id) else {
             return Outcome::NotFound;
         };
-        let (launch, launch_profile) = retained_launch_fact(&self.terminals, &binding)
-            .unwrap_or_else(|| (not_tracked_fact(), None));
+        let (launch, launch_profile, launch_selection) =
+            retained_launch_fact(&self.terminals, &binding)
+                .unwrap_or_else(|| (not_tracked_fact(), None, None));
         let Some(site_id) =
             orchbee_client_server_protocol::SiteId::parse(snapshot.site_id.as_str()).ok()
         else {
@@ -315,6 +316,7 @@ impl SiteCoordinator {
             terminal: Box::new(route),
             launch: Box::new(launch),
             launch_profile,
+            launch_selection: launch_selection.map(Box::new),
         }
     }
 
@@ -508,14 +510,15 @@ fn launch_route_ids(
 /// The retained coordinator fact for a visible binding: exactly one internally
 /// consistent record may answer, otherwise the observation is `not-tracked`.
 /// The returned provenance is the Server-side record frozen at prepare —
-/// `None` both when no record resolves and when the launch never named a
-/// profile.
+/// The profile and explicit program remain independent optional captured facts;
+/// absence of a unique retained record leaves the entire join unavailable.
 fn retained_launch_fact(
     terminals: &TerminalCoordinator,
     binding: &PresentationBinding,
 ) -> Option<(
     orchbee_client_server_protocol::TerminalLaunchFact,
     Option<orchbee_client_server_protocol::LaunchProfileProvenance>,
+    Option<orchbee_client_server_protocol::LaunchSelection>,
 )> {
     let terminal = u128::from_str_radix(binding.terminal_id.as_str(), 16)
         .ok()
@@ -540,7 +543,7 @@ fn retained_launch_fact(
         geometry,
     )
     .ok()?;
-    Some((fact, retained.profile_provenance.clone()))
+    Some((fact, retained.profile_provenance, retained.launch_selection))
 }
 
 fn launch_state(phase: TerminalPhase) -> orchbee_client_server_protocol::TerminalLaunchState {
