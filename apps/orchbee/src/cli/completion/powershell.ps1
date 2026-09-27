@@ -46,6 +46,11 @@ __ORCHBEE_GRAMMAR__
         }
     }
     if ($values.ContainsKey('--site') -and ($values['--site'] -cnotmatch '^[A-Za-z0-9._-]{1,64}$' -or $values['--site'] -cin @('.', '..'))) { return }
+    if ($positionals.Count -gt 2 -and $positionals[0] -ceq 'session' -and $positionals[1] -cin @('attach', 'stop', 'delete')) {
+        $name = $positionals[2]
+        if ($name -cnotmatch '^[A-Za-z0-9._-]{1,64}$' -or $name -cin @('.', '..')) { return }
+        if ($values.ContainsKey('--site') -and $values['--site'] -cne $name) { return }
+    }
     $businessSeen = @($seen | Where-Object { $grammar.globalFlags -cnotcontains $_ })
     $candidates = [System.Collections.Generic.List[string]]::new()
     if ($positionals.Count -gt 0 -and $positionals[0] -cin @('completion', 'help')) {
@@ -75,7 +80,7 @@ __ORCHBEE_GRAMMAR__
         $viable = @($grammar.commands | Where-Object {
             $command = $_
             $allowed = @($command.flags) + @($grammar.globalFlags)
-            if ($command.words[0] -cne 'tui') { $allowed += '--format' }
+            if ($command.format) { $allowed += '--format' }
             $valid = $true
             $commandPath = $command.words -join ':'
             if ($command.words[0] -ceq 'worktree' -and $seen -ccontains '--workspace' -and $seen -ccontains '--cwd') { $valid = $false }
@@ -110,7 +115,7 @@ __ORCHBEE_GRAMMAR__
                 if ($keyCount -ge 0 -and $keyCount -lt 64) { foreach ($key in $grammar.keys) { $candidates.Add($key) } }
             }
             $allowed = @($command.flags) + @($grammar.globalFlags)
-            if ($command.words[0] -cne 'tui') { $allowed += '--format' }
+            if ($command.format) { $allowed += '--format' }
             foreach ($flag in $allowed) {
                 if (($command.words -join ':') -ceq 'panel:process-info' -and $positionals.Count -gt $command.words.Count -and $flag -ceq '--client') { continue }
                 if (($command.words -join ':') -cin @('panel:process-info', 'panel:focus', 'panel:zoom', 'panel:layout', 'panel:neighbor', 'panel:edges', 'panel:resize', 'panel:swap', 'panel:input', 'panel:split') -and $positionals.Count -gt $command.words.Count -and $flag -cin @('--panel', '--current')) { continue }

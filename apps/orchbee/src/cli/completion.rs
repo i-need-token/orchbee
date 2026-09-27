@@ -117,6 +117,8 @@ const ROOT_WORDS: &[&str] = &[
     "help",
     "panel",
     "project",
+    #[cfg(windows)]
+    "session",
     "site",
     "status",
     "tab",
@@ -138,6 +140,8 @@ const FORMAT_ROOT_WORDS: &[&str] = &[
     "config",
     "panel",
     "project",
+    #[cfg(windows)]
+    "session",
     "site",
     "status",
     "tab",
@@ -197,6 +201,8 @@ const FAMILY_VERBS: &[(&str, &[&str])] = &[
         ],
     ),
     ("project", &["create", "get", "list", "rename"]),
+    #[cfg(windows)]
+    ("session", &["list", "attach", "stop", "delete"]),
     ("site", &["diagnose", "start", "stop", "stop-status"]),
     ("status", &["client", "server"]),
     (
@@ -340,6 +346,21 @@ const REPEATABLE_FLAGS: &[&str] = &[
 const CONTROL_FLAGS: &[&str] = &["--cols", "--rows", "--timeout", "--takeover"];
 const OBSERVE_FLAGS: &[&str] = &["--cols", "--rows", "--timeout"];
 const COMMAND_FLAGS: &[(&str, &[&str])] = &[
+    #[cfg(windows)]
+    ("session:attach", &["--mouse"]),
+    #[cfg(windows)]
+    ("session:delete", &["--confirm"]),
+    #[cfg(windows)]
+    (
+        "session:stop",
+        &[
+            "--confirm",
+            "--request-id",
+            "--retry",
+            "--detach",
+            "--timeout",
+        ],
+    ),
     ("terminal:attach", &["--takeover", "--timeout", "--mouse"]),
     (
         "agent:attach",
@@ -896,6 +917,12 @@ const OPERAND_PATHS: &[&str] = &[
     "panel:edges",
     "worktree:resume",
     "worktree:status",
+    #[cfg(windows)]
+    "session:attach",
+    #[cfg(windows)]
+    "session:stop",
+    #[cfg(windows)]
+    "session:delete",
     "site:stop-status",
     "agent:start",
     "agent:explain",
@@ -945,6 +972,8 @@ const HELP_TOPICS: &[&str] = &[
     "config",
     "panel",
     "project",
+    #[cfg(windows)]
+    "session",
     "site",
     "status",
     "tab",
@@ -1006,6 +1035,8 @@ const HELP_CHILDREN: &[(&str, &[&str])] = &[
         ],
     ),
     ("project", &["create", "get", "list", "rename"]),
+    #[cfg(windows)]
+    ("session", &["list", "attach", "stop", "delete"]),
     ("site", &["diagnose", "start", "stop", "stop-status"]),
     ("status", &["client", "server"]),
     (

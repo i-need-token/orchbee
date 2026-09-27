@@ -120,6 +120,19 @@ pub(crate) fn activate_local_site(deadline: Instant) -> Result<StartedSite, Acti
     let scope = SiteScope::parse(&scope_text)
         .map_err(|_| ActivationFailure::bare(StartupFailure::Runtime))?;
     let scope_directory = base.join(&scope_text);
+    #[cfg(windows)]
+    let _named_catalog = if scope_text.starts_with("orchbee-session-") {
+        loop {
+            check_deadline(deadline)?;
+            match orchbee_local_site_runtime::WindowsNamedSiteCatalog::try_lock(&base) {
+                Ok(owner) => break Some(owner),
+                Err(error) if error.kind() == io::ErrorKind::WouldBlock => pause(deadline)?,
+                Err(error) => return Err(runtime_failure(error)),
+            }
+        }
+    } else {
+        None
+    };
     let site =
         ModeCheckedLocalSiteRendezvous::prepare_mode_checked(&base, scope).map_err(|error| {
             ActivationFailure::caused(

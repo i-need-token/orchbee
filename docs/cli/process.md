@@ -52,15 +52,15 @@ later phase:
 
 ## Side effects and request identity
 
-| Rule               | Contract                                                                                                                                                                                                                                                                                                                     |
-| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Reads              | Create no directory, lock, marker, terminal, viewer, or grant. A declared read-side attachment is held minimally, released before output, and named in the owning guide.                                                                                                                                                     |
-| One submission     | An ordinary mutation has one effect phase. A declared workflow names each finite phase in its owning contract; each phase submits at most once under its own identity generated or admitted after grammar validation. A workflow never retries a phase or hides earlier committed effects when a later phase fails.          |
-| No replay          | The invocation never retries, replays, or resubmits an effect. An undetermined result is reported as unknown outcome with the request identity, not guessed or repeated.                                                                                                                                                     |
-| Precommit refusals | A definite precommit refusal means that phase applied nothing. Earlier workflow effects remain independently recorded; a later refusal never authorizes replaying the whole workflow. Transport ambiguity remains unknown, never a guessed refusal.                                                                          |
-| Detachment         | `--detach` returns once the submission is accepted and yields the request identity; a later `get` or `wait` observes it. Detachment never changes what was submitted.                                                                                                                                                        |
-| Reads of output    | Terminal or transcript reads return current content only, are never redacted automatically, and are documented as possibly containing secrets so callers limit what they forward.                                                                                                                                            |
-| Durable state      | The process owns none for reads and mutations: no history, cache, lock file, or PID file; the service is the only durable authority. An activation verb is the declared exception — it may create the runtime directory, hold its locks, commit its marker, and spawn the service, and the owning guide names each artifact. |
+| Rule               | Contract                                                                                                                                                                                                                                                                                                                                                                                                     |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Reads              | Create no directory, lock, marker, terminal, viewer, or grant. A declared read-side attachment is held minimally, released before output, and named in the owning guide.                                                                                                                                                                                                                                     |
+| One submission     | An ordinary mutation has one effect phase. A declared workflow names each finite phase in its owning contract; each phase submits at most once under its own identity generated or admitted after grammar validation. A workflow never retries a phase or hides earlier committed effects when a later phase fails.                                                                                          |
+| No replay          | The invocation never retries, replays, or resubmits an effect. An undetermined result is reported as unknown outcome with the request identity, not guessed or repeated.                                                                                                                                                                                                                                     |
+| Precommit refusals | A definite precommit refusal means that phase applied nothing. Earlier workflow effects remain independently recorded; a later refusal never authorizes replaying the whole workflow. Transport ambiguity remains unknown, never a guessed refusal.                                                                                                                                                          |
+| Detachment         | `--detach` returns once the submission is accepted and yields the request identity; a later `get` or `wait` observes it. Detachment never changes what was submitted.                                                                                                                                                                                                                                        |
+| Reads of output    | Terminal or transcript reads return current content only, are never redacted automatically, and are documented as possibly containing secrets so callers limit what they forward.                                                                                                                                                                                                                            |
+| Durable state      | The process owns none for reads and mutations: no history, cache, lock file, or PID file; the service is the only durable authority. Declared activation and stopped-runtime cleanup are exceptions. Activation may create runtime state and spawn the service; cleanup may serialize against activation and remove only proven-owned stopped state. The owning guide names each artifact and recovery rule. |
 
 A declared workflow records its phase order, authoritative commit points, refusal and unknown
 outcomes, cancellation cuts, and bounded recovery before implementation. Every later phase must
@@ -99,16 +99,22 @@ bounded by the original deadline, and separately reported. No hidden compensatin
   [Rust](../RUST.md#local-process-and-ipc-boundaries). A version or cohort mismatch is an
   incompatible outcome.
 - An invocation never starts, activates, repairs, or locks a service unless its verb declares that
-  effect. A verb that declares activation is the only path that may create the scoped runtime
-  directory, take its locks, commit its marker, or spawn the service; it still validates the cohort
+  effect. A verb that declares activation may create the scoped runtime directory, take its locks,
+  commit its marker, or spawn the service; it still validates the cohort
   before any runtime-directory work, holds one invocation-owned deadline for the whole attempt,
   reports a half-activated state as a refusal, and never repairs, stops, or deletes runtime state.
 
+A declared stopped-runtime cleanup validates ownership and lifecycle evidence before deleting
+exact owned artifacts, serializes against activation, and refuses running or uncertain state.
+If cleanup spans multiple filesystem effects, its durable intent fences admission until bounded,
+explicit recovery completes. Partial deletion is reported as incomplete; cleanup never kills
+processes or silently repairs unrelated state.
+
 ## Concurrency between invocations
 
-- Invocations do not coordinate through files or shared memory, except that activation verbs
-  serialize on the runtime's declared lock files so concurrent activators converge on one
-  service. Two concurrent invocations are otherwise independent sessions to the same authority,
+- Invocations do not coordinate through files or shared memory, except that declared activation and
+  stopped-runtime cleanup serialize on the runtime owner's locks so activation converges on one
+  service and cannot race deletion. Two concurrent invocations are otherwise independent sessions to the same authority,
   and the authority owns ordering.
-- Pagination cursors and request identities are the only state carried between invocations, and
-  both are opaque to the caller.
+- Pagination cursors and request identities are opaque to the caller. Declared lifecycle cleanup
+  may additionally retain its private recovery intent until the cleanup completes.

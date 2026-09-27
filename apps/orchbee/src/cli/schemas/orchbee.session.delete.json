@@ -1,0 +1,105 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "orchbee.session.delete",
+	"title": "orchbee.session.delete envelope",
+	"type": "object",
+	"additionalProperties": false,
+	"required": ["schema", "version", "source", "result"],
+	"properties": {
+		"schema": {
+			"const": "orchbee.session.delete"
+		},
+		"version": {
+			"const": 1
+		},
+		"source": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["kind"],
+			"properties": {
+				"kind": {
+					"const": "local-runtime"
+				}
+			}
+		},
+		"result": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["name", "outcome", "reason", "pending"],
+			"properties": {
+				"name": {
+					"type": "string",
+					"pattern": "^(?!\\.{1,2}$)[A-Za-z0-9._-]{1,64}$"
+				},
+				"outcome": {
+					"enum": ["deleted", "absent", "refused", "incomplete", "interrupted"]
+				},
+				"reason": {
+					"enum": [
+						null,
+						"default-session",
+						"in-use",
+						"recovery-required",
+						"filesystem",
+						"timed-out",
+						"interrupted"
+					]
+				},
+				"pending": {
+					"type": "boolean"
+				}
+			},
+			"oneOf": [
+				{
+					"properties": {
+						"outcome": {
+							"enum": ["deleted", "absent"]
+						},
+						"reason": {
+							"type": "null"
+						},
+						"pending": {
+							"const": false
+						}
+					}
+				},
+				{
+					"properties": {
+						"outcome": {
+							"const": "refused"
+						},
+						"reason": {
+							"type": "string"
+						},
+						"pending": {
+							"const": false
+						}
+					}
+				},
+				{
+					"properties": {
+						"outcome": {
+							"const": "incomplete"
+						},
+						"reason": {
+							"type": "string"
+						},
+						"pending": {
+							"const": true
+						}
+					}
+				},
+				{
+					"properties": {
+						"outcome": {
+							"const": "interrupted"
+						},
+						"reason": {
+							"const": "interrupted"
+						}
+					}
+				}
+			]
+		}
+	}
+}

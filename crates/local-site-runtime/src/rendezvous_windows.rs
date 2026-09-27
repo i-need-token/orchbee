@@ -53,7 +53,26 @@ impl ModeCheckedLocalSiteRendezvous {
         Self::open(base, scope, false)
     }
     fn open(base: &Path, scope: SiteScope, create: bool) -> Result<Self, RendezvousError> {
+        Self::open_with_deletion(base, scope, create, false)
+    }
+    pub(crate) fn for_named_deletion(
+        base: &Path,
+        scope: SiteScope,
+        pending: bool,
+    ) -> Result<Self, RendezvousError> {
+        Self::open_with_deletion(base, scope, false, pending)
+    }
+    fn open_with_deletion(
+        base: &Path,
+        scope: SiteScope,
+        create: bool,
+        deleting: bool,
+    ) -> Result<Self, RendezvousError> {
         let mut directories = permissions::open_tree(base).map_err(|error| failure(base, error))?;
+        if !deleting {
+            crate::named_site_catalog_windows::require_not_deleting(base, scope.as_str())
+                .map_err(|error| failure(base, error))?;
+        }
         let runtime = base.join(scope.as_str());
         let created = if create {
             match std::fs::create_dir(&runtime) {
@@ -82,7 +101,7 @@ impl ModeCheckedLocalSiteRendezvous {
         {
             match crate::site_name_windows::read(&runtime) {
                 Ok(_) => {}
-                Err(error) if create && error.kind() == io::ErrorKind::NotFound => {}
+                Err(error) if (create || deleting) && error.kind() == io::ErrorKind::NotFound => {}
                 Err(error) => return Err(failure(&runtime, error)),
             }
         }

@@ -12,6 +12,7 @@ use std::{
 
 static SERIAL: AtomicU64 = AtomicU64::new(0);
 
+mod named_catalog;
 mod session_store;
 mod site_name;
 

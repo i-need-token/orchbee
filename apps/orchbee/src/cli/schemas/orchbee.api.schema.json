@@ -10,7 +10,7 @@
 			"const": "orchbee.api.schema"
 		},
 		"version": {
-			"const": 68
+			"const": 69
 		},
 		"source": {
 			"type": "object",
@@ -125,7 +125,9 @@
 						"orchbee.agent.changes",
 						"orchbee.workspace.creation",
 						"orchbee.cli.failure.configuration",
-						"orchbee.terminal.control.input"
+						"orchbee.terminal.control.input",
+						"orchbee.session.list",
+						"orchbee.session.delete"
 					],
 					"propertyNames": {
 						"$ref": "#/$defs/schemaId"
@@ -215,7 +217,9 @@
 				"orchbee.agent.changes",
 				"orchbee.workspace.creation",
 				"orchbee.cli.failure.configuration",
-				"orchbee.terminal.control.input"
+				"orchbee.terminal.control.input",
+				"orchbee.session.list",
+				"orchbee.session.delete"
 			]
 		}
 	}

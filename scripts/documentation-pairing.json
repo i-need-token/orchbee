@@ -158,8 +158,8 @@
 			"zhCnSha256": "04231e59a1ced2fd7928f4c5ccb30fd53560152a17526af7e9f377dadbe91c61"
 		},
 		"apps/orchbee/docs/cli-agent-skill.md": {
-			"englishSha256": "65ce2871d029b9c484a245da6c30a6293d3fc7745d605a0f927ab200c941c11c",
-			"zhCnSha256": "8cae87bc456819ccf336319f1dbbda251890ee781de0eff36ab02bea5c792768"
+			"englishSha256": "0968fbf8dd9a3b4203ab8eb6d80cfa5df2918ffb98e2a06ee74ad25b475d944a",
+			"zhCnSha256": "e921f3e0d2189c31aec2dd545fac58c59f4af8bb4109965ca785b3a325a33efd"
 		},
 		"apps/orchbee/docs/cli-workflows.md": {
 			"englishSha256": "62314d1a60eb4c00541d387e7de4dbe65e06dd3266837be2307b3d9b8b07a5f9",
@@ -170,8 +170,8 @@
 			"zhCnSha256": "9b80d76d4fae2eeb18525e39c7fabf303a57bfc24c3120556c4b5da198b8de95"
 		},
 		"apps/orchbee/docs/native-cli-query.md": {
-			"englishSha256": "6f7033bc563f697c8b7b17848b13ccac712e8b5a3c02a7c0e3be39e7c575046d",
-			"zhCnSha256": "6abb3666f2fef5708d26c9ce2a8acf7edd9e3d8a4766cc51cb70dc235de9f76e"
+			"englishSha256": "70a84661b06d5fe0620467099c57ec5341dbd4ef2b1967070f07b38f9eaa0b43",
+			"zhCnSha256": "55ad31e4c9fd250909b0dae7830aeed9e9d5cc4b1cc34eac467484855d6c768a"
 		},
 		"apps/orchbee/docs/native-cli-wait-model.md": {
 			"englishSha256": "2f847c74877ecd971ab0be6f98d8250d2180a427ad26a21fff90d5a14eeaea69",
@@ -362,8 +362,8 @@
 			"zhCnSha256": "da38151de6454db51f806963a3494ddf17cfa0d8d8ecf0fbaf0e5e9643ed7737"
 		},
 		"crates/local-site-runtime/README.md": {
-			"englishSha256": "749d2fef10b8bf8e7bc8976cfd2262a971c23f990435b830295264c4fab9c15a",
-			"zhCnSha256": "d00e1525f576f93aa4bb244477ebd9de9bc9e84443c5d0a1b84a0015e2685052"
+			"englishSha256": "c77971b7ba53c4e32e50db79ed29b43efe21437f5c466053dffaf118f9738a71",
+			"zhCnSha256": "1af15af74cc9be5d362fc39ff69406d49b15aef4758ec568d8238a25c94371b0"
 		},
 		"docs/APPLICATIONS.md": {
 			"englishSha256": "c04e2ffff82703bfdfd8af2ccbdb8e774df26d0c6629bbe928affc84fd713710",
@@ -438,8 +438,8 @@
 			"zhCnSha256": "767dc1c3f1b746ab4cff3d9d5e844589102e7d5eff38fc36b234db26972bd397"
 		},
 		"docs/cli/process.md": {
-			"englishSha256": "45fcee0e66c185a3bac095892a37543ddd6f1c4524f67500ea65a90a86346e33",
-			"zhCnSha256": "22452373d67975cc982ca30dca79988fbe9229f946ccd6a458e2aba451141294"
+			"englishSha256": "a726ba0ed131cb63e30d539e5ab5605e6e71a4f62cfb158dbb6ea9675f069bd1",
+			"zhCnSha256": "bbfdf5f0dfbde0dbd666d18025344ea3336485b3511219f54167369f94e2df7b"
 		},
 		"docs/cli/verification.md": {
 			"englishSha256": "c219d2072fec10f16f4ccd2175ee9911b10aafe9783318558e349bde534717ad",

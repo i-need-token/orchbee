@@ -1,0 +1,145 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "orchbee.session.list",
+	"title": "orchbee.session.list envelope",
+	"type": "object",
+	"additionalProperties": false,
+	"required": ["schema", "version", "source", "result"],
+	"properties": {
+		"schema": {
+			"const": "orchbee.session.list"
+		},
+		"version": {
+			"const": 1
+		},
+		"source": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["kind"],
+			"properties": {
+				"kind": {
+					"const": "local-runtime"
+				}
+			}
+		},
+		"result": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["sessions"],
+			"properties": {
+				"sessions": {
+					"type": "array",
+					"minItems": 1,
+					"maxItems": 256,
+					"items": {
+						"type": "object",
+						"additionalProperties": false,
+						"required": [
+							"name",
+							"default",
+							"state",
+							"running",
+							"pid",
+							"runtimeDirectory",
+							"endpoint"
+						],
+						"properties": {
+							"name": {
+								"type": "string",
+								"pattern": "^(?!\\.{1,2}$)[A-Za-z0-9._-]{1,64}$"
+							},
+							"default": {
+								"type": "boolean"
+							},
+							"state": {
+								"enum": [
+									"running",
+									"stopping",
+									"stopped",
+									"absent",
+									"starting",
+									"deleting",
+									"recovery-required"
+								]
+							},
+							"running": {
+								"type": ["boolean", "null"]
+							},
+							"pid": {
+								"type": ["integer", "null"],
+								"minimum": 1,
+								"maximum": 4294967295
+							},
+							"runtimeDirectory": {
+								"type": "object",
+								"additionalProperties": false,
+								"properties": {
+									"path": {
+										"type": "string",
+										"minLength": 1
+									},
+									"pathBytesHex": {
+										"type": "string",
+										"pattern": "^([0-9a-f]{2})+$"
+									}
+								},
+								"oneOf": [
+									{
+										"required": ["path"]
+									},
+									{
+										"required": ["pathBytesHex"]
+									}
+								]
+							},
+							"endpoint": {
+								"type": ["string", "null"]
+							}
+						},
+						"oneOf": [
+							{
+								"properties": {
+									"state": {
+										"enum": ["running", "stopping"]
+									},
+									"running": {
+										"const": true
+									},
+									"pid": {
+										"type": "integer"
+									}
+								}
+							},
+							{
+								"properties": {
+									"state": {
+										"enum": ["stopped", "absent"]
+									},
+									"running": {
+										"const": false
+									},
+									"pid": {
+										"type": "null"
+									}
+								}
+							},
+							{
+								"properties": {
+									"state": {
+										"enum": ["starting", "deleting", "recovery-required"]
+									},
+									"running": {
+										"type": "null"
+									},
+									"pid": {
+										"type": "null"
+									}
+								}
+							}
+						]
+					}
+				}
+			}
+		}
+	}
+}

@@ -4,6 +4,8 @@ mod activation_record_windows;
 mod cohort;
 #[cfg(windows)]
 pub use activation_record_windows::{ActivationState, RetainedActivationRecord};
+#[cfg(windows)]
+mod named_site_catalog_windows;
 #[cfg_attr(windows, path = "rendezvous_windows.rs")]
 mod rendezvous;
 mod rendezvous_types;
@@ -13,6 +15,11 @@ mod retained_child;
 mod session_store_windows;
 #[cfg(windows)]
 mod site_name_windows;
+#[cfg(windows)]
+pub use named_site_catalog_windows::{
+    WindowsNamedSiteCatalog, WindowsNamedSiteDeleteFailure, WindowsNamedSiteDeleteOutcome,
+    WindowsNamedSiteDeleteReason, WindowsNamedSiteEntry,
+};
 #[cfg(windows)]
 pub use site_name_windows::WindowsSiteName;
 #[cfg(windows)]

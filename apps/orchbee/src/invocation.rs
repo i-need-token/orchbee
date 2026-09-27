@@ -1,4 +1,8 @@
 mod client_control;
+#[cfg(windows)]
+mod named_sessions;
+#[cfg(windows)]
+pub(crate) use named_sessions::NamedSessionCommand;
 mod creation;
 #[cfg(windows)]
 mod workspace_creation;
@@ -151,6 +155,8 @@ pub(crate) enum HelpTopic {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum Family {
+    #[cfg(windows)]
+    Session,
     Client,
     Agent,
     /// `agent integration`: the provider-onboarding sub-family under Agent.
@@ -174,6 +180,8 @@ impl Family {
     /// The family's real help-path spelling, as `help_topic` recognizes it.
     pub(crate) const fn as_str(self) -> &'static str {
         match self {
+            #[cfg(windows)]
+            Self::Session => "session",
             Self::Client => "client",
             Self::Agent => "agent",
             Self::AgentIntegration => "agent integration",
@@ -196,6 +204,14 @@ impl Family {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum CommandPath {
+    #[cfg(windows)]
+    SessionList,
+    #[cfg(windows)]
+    SessionAttach,
+    #[cfg(windows)]
+    SessionStop,
+    #[cfg(windows)]
+    SessionDelete,
     ClientList,
     ClientGet,
     ClientControlStatus,
@@ -297,6 +313,14 @@ impl CommandPath {
             Self::ClientList => "client list",
             Self::ClientGet => "client get",
             Self::ClientControlStatus => "client control-status",
+            #[cfg(windows)]
+            Self::SessionList => "session list",
+            #[cfg(windows)]
+            Self::SessionAttach => "session attach",
+            #[cfg(windows)]
+            Self::SessionStop => "session stop",
+            #[cfg(windows)]
+            Self::SessionDelete => "session delete",
             Self::WorkspaceFocus => "workspace focus",
             Self::TabFocus => "tab focus",
             Self::PanelFocus => "panel focus",
@@ -1083,6 +1107,11 @@ pub(crate) enum RuntimeStatusScope {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum Request {
+    #[cfg(windows)]
+    NamedSession {
+        command: NamedSessionCommand,
+        format: OutputFormat,
+    },
     TerminalAttach {
         command: TerminalAttachCommand,
     },
@@ -1990,7 +2019,7 @@ fn scan(tokens: Vec<String>) -> Result<SelectedRequest, ParseFailure> {
         }
     }
     #[cfg(windows)]
-    let site = options
+    let mut site = options
         .site
         .take()
         .map(|name| {
@@ -2007,8 +2036,25 @@ fn scan(tokens: Vec<String>) -> Result<SelectedRequest, ParseFailure> {
             })
         })
         .transpose()?;
+    let request = resolve(positionals, options)?;
+    #[cfg(windows)]
+    if let Request::NamedSession { command, .. } = &request
+        && let Some(name) = command.name()
+    {
+        if site.as_ref().is_some_and(|selected| selected != name) {
+            return Err(usage_with(
+                UsageReason::ConflictingOptions {
+                    context: UsageContext::Path("session"),
+                    first: "--site",
+                    second: "<name>",
+                },
+                envelope,
+            ));
+        }
+        site = Some(name.clone());
+    }
     Ok(SelectedRequest {
-        request: resolve(positionals, options)?,
+        request,
         #[cfg(windows)]
         site,
     })
@@ -2240,6 +2286,8 @@ fn resolve_words(
     envelope: FailureEnvelope,
 ) -> Result<Request, ParseFailure> {
     match words {
+        #[cfg(windows)]
+        ["session", ..] => named_sessions::parse(words, options, envelope),
         ["client", ..]
         | ["layout", ..]
         | ["agent", "focus" | "attention", ..]
@@ -3377,47 +3425,10 @@ fn resolve_words(
                 format: options.format.unwrap_or(OutputFormat::Text),
             })
         }
-        ["site", "stop"] => {
-            let context = UsageContext::Path("site stop");
-            check_scope(
-                options,
-                Scope {
-                    confirm: true,
-                    request_id: true,
-                    detach: true,
-                    retry: true,
-                    timeout: true,
-                    ..NO_OPTIONS
-                },
-                context,
-                envelope,
-            )?;
-            if !options.confirm {
-                return Err(missing_required(context, "'--confirm'", envelope));
-            }
-            if options.retry && options.request_id.is_none() {
-                return Err(missing_required(context, "'--request-id'", envelope));
-            }
-            let id = options
-                .request_id
-                .as_deref()
-                .map(|value| stop_id(value, context, "--request-id", envelope))
-                .transpose()?;
-            let timeout_ms = if options.timeout.is_some() {
-                wait_timeout_option(options, context, envelope)?
-            } else {
-                65_000
-            };
-            Ok(Request::SiteStop {
-                command: SiteStopCommand::Stop {
-                    id,
-                    retry: options.retry,
-                    detach: options.detach,
-                    timeout_ms,
-                },
-                format: options.format.unwrap_or(OutputFormat::Text),
-            })
-        }
+        ["site", "stop"] => Ok(Request::SiteStop {
+            command: stop_command(options, UsageContext::Path("site stop"), envelope)?,
+            format: options.format.unwrap_or(OutputFormat::Text),
+        }),
         ["site", "stop-status", id] => {
             let context = UsageContext::Path("site stop-status");
             reject_filters(options, context, envelope)?;
@@ -4029,6 +4040,16 @@ fn help_topic(path: &[&str]) -> Option<HelpTopic> {
         ["api", "schema"] => HelpTopic::Command(CommandPath::ApiSchema),
         ["config", "check"] => HelpTopic::Command(CommandPath::ConfigCheck),
         ["site", "start"] => HelpTopic::Command(CommandPath::SiteStart),
+        #[cfg(windows)]
+        ["session"] => HelpTopic::Family(Family::Session),
+        #[cfg(windows)]
+        ["session", "list"] => HelpTopic::Command(CommandPath::SessionList),
+        #[cfg(windows)]
+        ["session", "attach"] => HelpTopic::Command(CommandPath::SessionAttach),
+        #[cfg(windows)]
+        ["session", "stop"] => HelpTopic::Command(CommandPath::SessionStop),
+        #[cfg(windows)]
+        ["session", "delete"] => HelpTopic::Command(CommandPath::SessionDelete),
         ["site", "diagnose"] => HelpTopic::Command(CommandPath::SiteDiagnose),
         ["site", "stop"] => HelpTopic::Command(CommandPath::SiteStop),
         ["site", "stop-status"] => HelpTopic::Command(CommandPath::SiteStopStatus),
@@ -6304,4 +6325,46 @@ fn agent_selector(
         },
         envelope,
     ))
+}
+
+fn stop_command(
+    options: &Options,
+    context: UsageContext,
+    envelope: FailureEnvelope,
+) -> Result<SiteStopCommand, ParseFailure> {
+    check_scope(
+        options,
+        Scope {
+            confirm: true,
+            request_id: true,
+            detach: true,
+            retry: true,
+            timeout: true,
+            ..NO_OPTIONS
+        },
+        context,
+        envelope,
+    )?;
+    if !options.confirm {
+        return Err(missing_required(context, "'--confirm'", envelope));
+    }
+    if options.retry && options.request_id.is_none() {
+        return Err(missing_required(context, "'--request-id'", envelope));
+    }
+    let id = options
+        .request_id
+        .as_deref()
+        .map(|value| stop_id(value, context, "--request-id", envelope))
+        .transpose()?;
+    let timeout_ms = if options.timeout.is_some() {
+        wait_timeout_option(options, context, envelope)?
+    } else {
+        65_000
+    };
+    Ok(SiteStopCommand::Stop {
+        id,
+        retry: options.retry,
+        detach: options.detach,
+        timeout_ms,
+    })
 }

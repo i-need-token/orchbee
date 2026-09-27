@@ -130,6 +130,10 @@ fn main() -> ExitCode {
                 cli::workspace_creation::run(&command, format, locale)
             }
             Ok(invocation::Request::SiteStart { format }) => cli::site_start(format, locale),
+            #[cfg(windows)]
+            Ok(invocation::Request::NamedSession { command, format }) => {
+                cli::named_sessions::run(&command, format, locale)
+            }
             Ok(invocation::Request::RuntimeStatus { scope, format }) => {
                 cli::runtime_status::run(scope, format, locale)
             }

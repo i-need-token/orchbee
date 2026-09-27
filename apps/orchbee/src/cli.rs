@@ -26,6 +26,8 @@ mod configuration;
 pub(crate) mod escape;
 pub(crate) mod integration;
 mod mutation;
+#[cfg(windows)]
+pub(crate) mod named_sessions;
 pub(crate) mod output;
 pub(crate) mod present;
 mod processes;

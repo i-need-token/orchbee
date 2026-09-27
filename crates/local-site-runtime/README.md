@@ -16,6 +16,25 @@ Read-only rendezvous admission requires a valid record for named scopes and veri
 current-user scope derivation. Runtime aliases, unknown fields, duplicate fields and mismatched
 names are rejected. This identity does not grant process control or authorize state deletion.
 
+## Windows named session lifecycle
+
+`WindowsNamedSiteCatalog` serializes named activation and deletion with one private per-user
+namespace lock in the admitted runtime base. Activation holds it from before runtime creation
+through readiness. Read-only enumeration creates nothing, includes default, sorts exact names
+and rejects unsafe or corrupt entries instead of hiding them. Inventory is limited to 256 sessions.
+
+The cleanup owner checks the original deadline and its caller's interruption predicate between filesystem phases. Interruption reports whether a published intent remains; completed removals are not rolled back.
+
+Deletion refuses default, live or uncertain processes, unsafe files and unknown directory content.
+An admitted stopped receipt (or never-activated runtime), free lifetime and absent endpoints are
+required before publishing a bounded, flushed sibling deletion intent. The intent fences normal
+rendezvous admission and survives partial cleanup. The owner removes only known checkpoint and
+runtime files, releases their exact handles before removal, retains ancestor pins and removes the
+intent last. Retrying resumes that deletion; absent state succeeds. It never recursively deletes
+arbitrary trees or stops a process. The shared namespace lock intentionally outlives individual
+sessions. This covers cooperating current-user invocations and ordinary process interruption;
+power-loss durability and inventory recovery after external removal of the runtime base are unclaimed.
+
 ## Local startup model
 
 Bare Linux `orchbee` admits its inherited input/output TTY and validates its geometry before

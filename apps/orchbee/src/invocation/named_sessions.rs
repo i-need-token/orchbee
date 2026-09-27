@@ -1,0 +1,206 @@
+use super::*;
+use orchbee_local_site_runtime::WindowsSiteName;
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) enum NamedSessionCommand {
+    List,
+    Attach {
+        name: WindowsSiteName,
+        mouse: bool,
+    },
+    Stop {
+        name: WindowsSiteName,
+        command: SiteStopCommand,
+    },
+    Delete {
+        name: WindowsSiteName,
+    },
+}
+impl NamedSessionCommand {
+    pub(super) fn name(&self) -> Option<&WindowsSiteName> {
+        match self {
+            Self::List => None,
+            Self::Attach { name, .. } | Self::Stop { name, .. } | Self::Delete { name } => {
+                Some(name)
+            }
+        }
+    }
+}
+
+pub(super) fn parse(
+    words: &[&str],
+    options: &Options,
+    envelope: FailureEnvelope,
+) -> Result<Request, ParseFailure> {
+    let command = match words {
+        ["session"] => return Err(missing_command(UsageContext::Path("session"), envelope)),
+        ["session", "list"] => {
+            reject_filters(options, UsageContext::Path("session list"), envelope)?;
+            NamedSessionCommand::List
+        }
+        ["session", verb @ ("attach" | "stop" | "delete"), rest @ ..] => {
+            let context = UsageContext::Path(match *verb {
+                "attach" => "session attach",
+                "stop" => "session stop",
+                _ => "session delete",
+            });
+            let [value] = rest else {
+                return Err(if rest.is_empty() {
+                    missing_required(context, "<name>", envelope)
+                } else {
+                    unexpected_argument(context, rest[1], envelope)
+                });
+            };
+            let name = WindowsSiteName::parse(value).map_err(|_| {
+                usage_with(
+                    UsageReason::InvalidValue {
+                        context,
+                        option: "<name>",
+                        value: (*value).to_owned(),
+                        expected: ExpectedValue::SiteName,
+                    },
+                    envelope,
+                )
+            })?;
+            match *verb {
+                "attach" => {
+                    reject_extras_scope(options, TUI_SCOPE, context, envelope)?;
+                    NamedSessionCommand::Attach {
+                        name,
+                        mouse: options.mouse.unwrap_or(true),
+                    }
+                }
+                "stop" => NamedSessionCommand::Stop {
+                    name,
+                    command: stop_command(options, context, envelope)?,
+                },
+                _ => {
+                    check_scope(
+                        options,
+                        Scope {
+                            confirm: true,
+                            ..NO_OPTIONS
+                        },
+                        context,
+                        envelope,
+                    )?;
+                    if !options.confirm {
+                        return Err(missing_required(context, "'--confirm'", envelope));
+                    }
+                    NamedSessionCommand::Delete { name }
+                }
+            }
+        }
+        ["session", word, ..] => {
+            return Err(unexpected_argument(
+                UsageContext::Path("session"),
+                word,
+                envelope,
+            ));
+        }
+        _ => return Err(missing_command(UsageContext::Path("session"), envelope)),
+    };
+    Ok(Request::NamedSession {
+        command,
+        format: options.format.unwrap_or(OutputFormat::Text),
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::ffi::OsString;
+
+    fn selected(words: &[&str]) -> Result<SelectedRequest, ParseFailure> {
+        parse_selected_request(words.iter().map(OsString::from))
+    }
+
+    #[test]
+    fn named_lifecycle_selects_one_exact_site_and_preserves_stop_options() {
+        for verb in ["attach", "stop", "delete"] {
+            let mut words = vec!["--site=Work", "session", verb, "Work"];
+            if verb != "attach" {
+                words.push("--confirm");
+            }
+            let result = selected(&words).unwrap();
+            assert_eq!(result.site.unwrap().as_str(), "Work");
+            assert!(matches!(result.request, Request::NamedSession { .. }));
+        }
+        let result = selected(&["session", "attach", "work", "--mouse=off"]).unwrap();
+        assert_eq!(result.site.unwrap().as_str(), "work");
+        assert!(matches!(
+            result.request,
+            Request::NamedSession {
+                command: NamedSessionCommand::Attach { mouse: false, .. },
+                ..
+            }
+        ));
+        let result = selected(&[
+            "session",
+            "stop",
+            "work",
+            "--confirm",
+            "--detach",
+            "--timeout=1234",
+            "--retry",
+            "--request-id=11111111111111111111111111111111",
+            "--format=json",
+        ])
+        .unwrap();
+        assert!(matches!(
+            result.request,
+            Request::NamedSession {
+                command: NamedSessionCommand::Stop {
+                    command: SiteStopCommand::Stop {
+                        retry: true,
+                        detach: true,
+                        timeout_ms: 1234,
+                        id: Some(_),
+                        ..
+                    },
+                    ..
+                },
+                format: OutputFormat::Json
+            }
+        ));
+        assert!(matches!(
+            selected(&["session", "list", "--format=json"])
+                .unwrap()
+                .request,
+            Request::NamedSession {
+                command: NamedSessionCommand::List,
+                format: OutputFormat::Json
+            }
+        ));
+    }
+
+    #[test]
+    fn invalid_lifecycle_grammar_fails_before_selection_or_runtime_effects() {
+        for words in [
+            vec!["session"],
+            vec!["session", "attach"],
+            vec!["session", "attach", "work", "--format=json"],
+            vec!["session", "list", "work"],
+            vec!["session", "list", "--mouse=off"],
+            vec!["session", "stop", "work"],
+            vec!["session", "delete", "work"],
+            vec!["session", "delete", "..", "--confirm"],
+            vec!["session", "delete", "work", "extra", "--confirm"],
+            vec!["session", "delete", "work", "--confirm", "--timeout=1"],
+            vec!["session", "stop", "work", "--confirm", "--retry"],
+            vec!["--site=Work", "session", "delete", "work", "--confirm"],
+        ] {
+            assert!(selected(&words).is_err(), "{words:?}");
+        }
+        for verb in ["list", "attach", "stop", "delete"] {
+            assert!(matches!(
+                selected(&["help", "session", verb]).unwrap().request,
+                Request::Help(_)
+            ));
+            assert!(matches!(
+                selected(&["session", verb, "--help"]).unwrap().request,
+                Request::Help(_)
+            ));
+        }
+    }
+}

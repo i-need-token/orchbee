@@ -1,6 +1,7 @@
 # Static Orchbee completion. Evaluate explicitly in an interactive Elvish session.
 {
   use str
+  use re
   var grammar = (print '__ORCHBEE_GRAMMAR__' | from-json)
   var groups = [
     [--timeout --forever] [--session --name --panel] [--panel --current]
@@ -59,10 +60,18 @@
         } elif (== (count $pair) 2) { return }
       } else { set positionals = [$@positionals $word] }
     }
+    fn valid-name {|name| put (and (re:match '^[A-Za-z0-9._-]{1,64}$' $name) (not (has-value [. ..] $name))) }
+    if (and (has-key $values --site) (not (valid-name $values[--site]))) { return }
+    if (and (> (count $positionals) 2) (eq $positionals[0] session) (has-value [attach stop delete] $positionals[1])) {
+      if (not (valid-name $positionals[2])) { return }
+      if (and (has-key $values --site) (not-eq $values[--site] $positionals[2])) { return }
+    }
+    var business-seen = []
+    for flag $seen { if (not (has-value $grammar[globalFlags] $flag)) { set business-seen = [$@business-seen $flag] } }
     var candidates = []
     var n = (count $positionals)
     if (and (> $n 0) (has-value [completion help] $positionals[0])) {
-      if (> (count $seen) 0) { return }
+      if (or (> (count $business-seen) 0) (not-eq $pending '')) { return }
       if (eq $positionals[0] completion) {
         if (!= $n 1) { return }
         var shells = $grammar[shells]
@@ -86,8 +95,10 @@
           if (and (< $index $n) (not-eq $positionals[$index] $command[words][$index])) { set valid = $false; break }
         }
         if (not $valid) { continue }
-        var allowed = $command[flags]
-        if (not-eq $command[words][0] tui) { set allowed = [$@allowed --format] }
+        var global = $grammar[globalFlags]
+        var flags = $command[flags]
+        var allowed = [$@flags $@global]
+        if $command[format] { set allowed = [$@allowed --format] }
         var path = (str:join : $command[words])
         var provider-count = 0
         for flag $seen {
@@ -118,8 +129,10 @@
           var keys = (- $n $width $target)
           if (and (>= $keys 0) (< $keys 64)) { var names = $grammar[keys]; set candidates = [$@candidates $@names] }
         }
-        var allowed = $command[flags]
-        if (not-eq $command[words][0] tui) { set allowed = [$@allowed --format] }
+        var global = $grammar[globalFlags]
+        var flags = $command[flags]
+        var allowed = [$@flags $@global]
+        if $command[format] { set allowed = [$@allowed --format] }
         for flag $allowed {
           if (and (eq $path panel:process-info) (> $n $width) (eq $flag --client)) { continue }
           if (and (has-value $panel-targets $path) (> $n $width) (has-value [--panel --current] $flag)) { continue }

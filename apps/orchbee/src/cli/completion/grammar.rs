@@ -41,10 +41,11 @@ pub(super) fn build() -> serde_json::Value {
     commands
         .push(json!({"words": ["tui"], "flags": ["--mouse"], "conflicts": [], "operand": 0, "directions": []}));
     for command in &mut commands {
-        let words = &command["words"];
-        command["cwdValues"] = json!(if *words == json!(["tab", "create"])
-            || *words == json!(["panel", "split"])
-            || *words == json!(["workspace", "create"])
+        let words = command["words"].clone();
+        command["format"] = json!(words != json!(["tui"]) && words != json!(["session", "attach"]));
+        command["cwdValues"] = json!(if words == json!(["tab", "create"])
+            || words == json!(["panel", "split"])
+            || words == json!(["workspace", "create"])
         {
             super::CWD_VALUES
         } else {
