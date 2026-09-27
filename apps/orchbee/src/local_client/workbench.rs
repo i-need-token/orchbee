@@ -1,5 +1,7 @@
 #[cfg(windows)]
 pub(crate) mod client_view;
+#[cfg(windows)]
+pub(crate) mod workspace_metadata;
 use orchbee_local_ipc::LocalIo as BorrowedFd;
 use std::{fmt, io, time::Instant};
 

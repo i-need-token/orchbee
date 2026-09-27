@@ -29,6 +29,14 @@ workspace report-metadata <workspace> --source <id> [--token <name=value>] [--cl
 省略 TTL 会取消这些键之前的过期时间；未触及的键保留自己的过期时间。
 清除只移除值，不移除来源序号历史。
 
+上报使用既有五秒准入／选择／提交总期限。`orchbee.workspace.metadata` v1 回执包含
+请求、Site 和 Workspace 身份，以及观察结果：关联的 Server 应答，或带封闭传输原因的
+未知结果。传输交接后丢失应答始终表示结果未知（退出 8），取消也不覆盖它；
+已确定应答在迟到的中断后仍保留。交接前适用普通 CLI 失败语义。
+两种路径均不重连或重放上报。必需的 `interrupted` 和 `cleanupFailed` 标志独立记录最终
+信号清理状态。已知应答发生清理失败时退出 1，但清理失败不能覆盖未知结果及其退出 8。
+文本输出经过本地化及转义。
+
 ## 状态与迁移
 
 每个 Workspace 拥有一个 token 映射和最多 32 个带序号的来源。输入包含显式的单调时钟 `now`；
@@ -69,6 +77,11 @@ Workspace list/get 在同一个已准入连接和原有五秒总期限内组合�
 精确 ID 和权威修订必须一致；全部批次及最后一次空读取必须具有相同元数据修订。
 既有最终权威／Client 检查保留。并发变更、过期或目标缺失使查询失败，不发布混合／部分结果。
 取消和传输结果保留原有含义。值和来源在两种语言输出中都进行转义，不解释为终端控制序列。
+
+`orchbee.workspace.list/get` v6 为每行增加 `tokens` 映射；没有保留值时也返回空映射。
+根级 `metadataSource` 携带 Site、Workbench 和元数据修订，以及全部读取请求 ID。
+`orchbee.cli.failure.workbench-query` v2 新增 `metadata-changed`。
+嵌入目录为 v82，共 88 份文档；原生 CLI 有 99 条命令路径。
 
 ## 证据与交付
 

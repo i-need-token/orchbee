@@ -1,0 +1,169 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "orchbee.workspace.metadata",
+	"type": "object",
+	"properties": {
+		"schema": {
+			"const": "orchbee.workspace.metadata"
+		},
+		"version": {
+			"const": 1
+		},
+		"requestId": {
+			"$ref": "#/$defs/identity"
+		},
+		"siteId": {
+			"$ref": "#/$defs/identity"
+		},
+		"workspaceId": {
+			"$ref": "#/$defs/identity"
+		},
+		"interrupted": {
+			"type": "boolean"
+		},
+		"cleanupFailed": {
+			"type": "boolean"
+		},
+		"observation": {
+			"oneOf": [
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "server"
+						},
+						"reply": {
+							"$ref": "#/$defs/result"
+						}
+					},
+					"required": ["kind", "reply"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "unknown"
+						},
+						"reason": {
+							"enum": [
+								"request-write",
+								"response-read",
+								"response-deadline",
+								"response-correlation",
+								"response-protocol"
+							]
+						}
+					},
+					"required": ["kind", "reason"],
+					"additionalProperties": false
+				}
+			]
+		}
+	},
+	"required": [
+		"schema",
+		"version",
+		"requestId",
+		"siteId",
+		"workspaceId",
+		"interrupted",
+		"cleanupFailed",
+		"observation"
+	],
+	"additionalProperties": false,
+	"$defs": {
+		"identity": {
+			"type": "string",
+			"pattern": "^[0-9a-f]{32}$",
+			"not": {
+				"const": "00000000000000000000000000000000"
+			}
+		},
+		"revision": {
+			"type": "string",
+			"pattern": "^(?:0|[1-9][0-9]{0,19})$",
+			"maxLength": 20,
+			"format": "orchbee-uint64"
+		},
+		"outcome": {
+			"oneOf": [
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "reported"
+						},
+						"workbenchRevision": {
+							"$ref": "#/$defs/revision"
+						},
+						"metadataRevision": {
+							"$ref": "#/$defs/revision"
+						},
+						"workspaceId": {
+							"$ref": "#/$defs/identity"
+						},
+						"disposition": {
+							"enum": ["applied", "stale"]
+						}
+					},
+					"required": [
+						"kind",
+						"workbenchRevision",
+						"metadataRevision",
+						"workspaceId",
+						"disposition"
+					],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "failed"
+						},
+						"reason": {
+							"enum": [
+								"invalid-request",
+								"site-mismatch",
+								"not-found",
+								"denied",
+								"unavailable",
+								"token-limit",
+								"sequence-source-limit",
+								"resource-limit",
+								"revision-exhausted",
+								"deadline-overflow",
+								"result-too-large"
+							]
+						}
+					},
+					"required": ["kind", "reason"],
+					"additionalProperties": false
+				}
+			]
+		},
+		"result": {
+			"type": "object",
+			"properties": {
+				"kind": {
+					"const": "workbench.workspace-metadata.result"
+				},
+				"protocolVersion": {
+					"const": 1
+				},
+				"requestId": {
+					"$ref": "#/$defs/identity"
+				},
+				"siteId": {
+					"$ref": "#/$defs/identity"
+				},
+				"outcome": {
+					"$ref": "#/$defs/outcome"
+				}
+			},
+			"required": ["kind", "protocolVersion", "requestId", "siteId", "outcome"],
+			"additionalProperties": false
+		}
+	}
+}

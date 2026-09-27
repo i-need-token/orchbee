@@ -30,6 +30,7 @@ pub(super) fn failure(reason: &'static str) -> Failure {
         FailureKind::Rejected
     })
     .failure_schema("orchbee.cli.failure.workbench-query")
+    .version(2)
     .details(super::stage_reason_details("workbench-query", reason))
 }
 

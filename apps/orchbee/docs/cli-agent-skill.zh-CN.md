@@ -204,3 +204,7 @@ Windows provider 选择还支持 `cursor`、`qodercli` 和 `antigravity-cli`；�
 ## Windows 终端观察流
 
 `terminal session observe <terminal> [--cols <n>] [--rows <n>] [--timeout <ms>]` 从一个已有绑定输出 NDJSON，不获取控制权，也不改变 Host 尺寸。[流契约](windows-terminal-streams.zh-CN.md) 拥有完整安全 ANSI 帧、重置、先刷新后确认、期限和清理规则。默认视口为 120×40，默认不限时。两种输出格式均产生 `orchbee.terminal.stream` v2 记录。目录 v68 含 76 个 schema、90 条原生命令路径。机器控制现通过 `terminal session control` 接收 NDJSON 输入；交互式 `terminal attach <terminal>` 或 `agent attach --name <name>` 要求控制台 stdin/stdout，并采用实际控制台尺寸。二者均支持 `--takeover`、`--mouse on|off` 和可选总时限 `--timeout`。`Ctrl+B` 后按 `q` 脱离；连续两次前缀发送一个字面前缀。粘贴不会触发脱离。任一全局格式下均显示交互画面。不启动 Site、不改变 Workbench 焦点、不重连或重放输入。
+
+## 上报 Workspace 展示数据
+
+`orchbee workspace report-metadata <workspace> --source hook:build --token summary=testing --seq 42 --ttl-ms 60000 --format json` 上报临时值。用 `--clear-token summary` 删除键。各来源共用 Workspace 的一个键值映射；序号新鲜度按来源判断。旧或相等序号成功但不修改值、不刷新 TTL。`workspace list/get` 返回 `tokens` 与 `metadataSource`。Site 重启清空上报数据。结果未知（退出 8）时可能已生效：保留请求身份，检查当前值，不盲目重放以免延长 TTL。边界和规范化见 [Workspace 元数据契约](windows-workspace-metadata.zh-CN.md)。

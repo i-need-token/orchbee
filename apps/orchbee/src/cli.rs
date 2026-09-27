@@ -1,4 +1,5 @@
 mod schema_export;
+pub(crate) mod workspace_metadata;
 pub(crate) use schema_export::run as export_schema;
 mod client_control;
 pub(crate) use client_control::run as run_client_control;
@@ -45,6 +46,8 @@ mod site_diagnose;
 mod site_stop;
 #[cfg(windows)]
 mod workbench_agents;
+#[cfg(windows)]
+mod workbench_metadata;
 #[cfg(windows)]
 pub(crate) mod workbench_query;
 #[cfg(windows)]

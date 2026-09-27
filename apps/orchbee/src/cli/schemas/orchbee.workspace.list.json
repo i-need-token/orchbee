@@ -10,7 +10,7 @@
 			"const": "orchbee.workspace.list"
 		},
 		"version": {
-			"const": 5
+			"const": 6
 		},
 		"source": {
 			"$ref": "#/$defs/snapshotSource"
@@ -31,6 +31,9 @@
 				},
 				"agents": {
 					"$ref": "#/$defs/workbenchAgents"
+				},
+				"metadataSource": {
+					"$ref": "#/$defs/metadataSource"
 				}
 			},
 			"allOf": [
@@ -173,6 +176,48 @@
 							}
 						}
 					}
+				},
+				{
+					"if": {
+						"type": "object",
+						"required": ["agents"]
+					},
+					"then": {
+						"type": "object",
+						"required": ["metadataSource"]
+					}
+				},
+				{
+					"if": {
+						"type": "object",
+						"required": ["metadataSource"]
+					},
+					"then": {
+						"type": "object",
+						"properties": {
+							"workspaces": {
+								"type": "array",
+								"items": {
+									"type": "object",
+									"required": ["tokens"]
+								}
+							}
+						}
+					},
+					"else": {
+						"type": "object",
+						"properties": {
+							"workspaces": {
+								"type": "array",
+								"items": {
+									"type": "object",
+									"not": {
+										"required": ["tokens"]
+									}
+								}
+							}
+						}
+					}
 				}
 			]
 		}
@@ -266,6 +311,9 @@
 				},
 				"worktreeObservation": {
 					"$ref": "#/$defs/worktreeObservation"
+				},
+				"tokens": {
+					"$ref": "#/$defs/metadataTokens"
 				}
 			},
 			"dependentRequired": {
@@ -1062,6 +1110,75 @@
 					"required": ["state", "source"]
 				}
 			]
+		},
+		"metadataKey": {
+			"type": "string",
+			"pattern": "^[a-zA-Z0-9_-]{1,32}$(?![\\s\\S])"
+		},
+		"metadataValue": {
+			"type": "string",
+			"minLength": 1,
+			"maxLength": 80,
+			"allOf": [
+				{
+					"not": {
+						"pattern": "[^\\u0020-\\u007e\\u00a0-\\uD7FF\\uE000-\\uFFFF𐀀-􏿿]"
+					}
+				},
+				{
+					"not": {
+						"pattern": "^[\\u0009-\\u000d\\u0020\\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000]|[\\u0009-\\u000d\\u0020\\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000]$"
+					}
+				}
+			]
+		},
+		"metadataTokens": {
+			"type": "object",
+			"maxProperties": 32,
+			"propertyNames": {
+				"$ref": "#/$defs/metadataKey"
+			},
+			"additionalProperties": {
+				"$ref": "#/$defs/metadataValue"
+			}
+		},
+		"metadataSource": {
+			"type": "object",
+			"properties": {
+				"siteId": {
+					"type": "string",
+					"pattern": "^[0-9a-f]{32}$",
+					"not": {
+						"const": "00000000000000000000000000000000"
+					}
+				},
+				"workbenchRevision": {
+					"type": "string",
+					"pattern": "^(?:0|[1-9][0-9]{0,19})$",
+					"maxLength": 20,
+					"format": "orchbee-uint64"
+				},
+				"metadataRevision": {
+					"type": "string",
+					"pattern": "^(?:0|[1-9][0-9]{0,19})$",
+					"maxLength": 20,
+					"format": "orchbee-uint64"
+				},
+				"requestIds": {
+					"type": "array",
+					"minItems": 1,
+					"uniqueItems": true,
+					"items": {
+						"type": "string",
+						"pattern": "^[0-9a-f]{32}$",
+						"not": {
+							"const": "00000000000000000000000000000000"
+						}
+					}
+				}
+			},
+			"required": ["siteId", "workbenchRevision", "metadataRevision", "requestIds"],
+			"additionalProperties": false
 		}
 	}
 }

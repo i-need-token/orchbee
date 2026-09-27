@@ -65,6 +65,10 @@ fn document(command: &QueryCommand, state: &Snapshot) -> Document {
         client: Some(record()),
         agents: None,
         terminals: None,
+        metadata: super::super::workbench_metadata::empty_fixture(
+            state,
+            &results::project(command, state).unwrap(),
+        ),
         worktrees: super::super::workbench_worktrees::tests::unavailable(
             &results::project(command, state).unwrap(),
         ),

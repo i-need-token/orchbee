@@ -166,6 +166,9 @@ fn main() -> ExitCode {
             Ok(invocation::Request::Client { command, format }) => {
                 cli::run_client_control(&command, format, locale)
             }
+            Ok(invocation::Request::WorkspaceMetadata { command, format }) => {
+                cli::workspace_metadata::run(&command, format, locale)
+            }
             Ok(invocation::Request::WorkspaceGroupClose { command, format }) => {
                 cli::run_workspace_group_close(&command, format, locale)
             }

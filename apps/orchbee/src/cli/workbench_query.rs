@@ -32,6 +32,7 @@ pub(crate) struct Document {
     terminals: Option<super::workbench_terminals::Document>,
     viewports: Option<super::workbench_viewports::Document>,
     worktrees: Option<super::workbench_worktrees::Document>,
+    metadata: Option<super::workbench_metadata::Document>,
     operations: Vec<WorkbenchRequestId>,
     contexts: Vec<ClientContextSelection>,
 }
@@ -222,6 +223,7 @@ fn execute(
         terminals: None,
         viewports: None,
         worktrees: None,
+        metadata: None,
         operations: vec![],
         contexts: vec![],
     };
@@ -288,6 +290,13 @@ fn execute(
         deadline,
         signals,
     )?;
+    document.metadata = super::workbench_metadata::read(
+        &mut client,
+        &snapshot,
+        &document.projection,
+        deadline,
+        signals,
+    )?;
     document.terminals = super::workbench_terminals::read(
         &mut client,
         &snapshot,
@@ -307,6 +316,9 @@ fn execute(
         document
             .operations
             .extend(viewports.operations.iter().cloned());
+    }
+    if let Some(metadata) = &mut document.metadata {
+        metadata.verify(&mut client, &snapshot, deadline, signals)?;
     }
     let final_snapshot = query::refresh_snapshot(
         &mut client,
@@ -397,6 +409,9 @@ impl Document {
         if let Some(terminals) = &self.terminals {
             terminals.enrich(&mut value);
         }
+        if let Some(metadata) = &self.metadata {
+            metadata.enrich(&mut value);
+        }
         if let Some(worktrees) = &self.worktrees {
             worktrees.enrich(&mut value);
         }
@@ -467,6 +482,9 @@ impl Document {
         }
         if let Some(worktrees) = &self.worktrees {
             worktrees.render(out, locale)?;
+        }
+        if let Some(metadata) = &self.metadata {
+            metadata.render(out, locale)?;
         }
         if let Some(viewports) = &self.viewports {
             viewports.render(out, locale)?;

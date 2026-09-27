@@ -1500,3 +1500,6 @@ fn tab_create_wake_after_submission_retires_unknown_without_replay() -> TestResu
 }
 
 mod panel_relocate;
+
+#[cfg(windows)]
+mod workspace_metadata;

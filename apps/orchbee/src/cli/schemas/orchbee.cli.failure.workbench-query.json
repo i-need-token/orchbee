@@ -7,17 +7,23 @@
 			"const": "orchbee.cli.failure.workbench-query"
 		},
 		"version": {
-			"const": 1
+			"const": 2
 		},
 		"failure": {
 			"type": "object",
 			"properties": {
 				"kind": {
-					"enum": ["protocol-invalid", "rejected"]
+					"enum": [
+						"protocol-invalid",
+						"rejected"
+					]
 				},
 				"details": {
 					"type": "object",
-					"required": ["stage", "reason"],
+					"required": [
+						"stage",
+						"reason"
+					],
 					"additionalProperties": false,
 					"properties": {
 						"stage": {
@@ -29,13 +35,17 @@
 								"agent-page-invalid",
 								"agent-revision-changed",
 								"workbench-changed",
-								"client-changed"
+								"client-changed",
+								"metadata-changed"
 							]
 						}
 					}
 				}
 			},
-			"required": ["kind", "details"],
+			"required": [
+				"kind",
+				"details"
+			],
 			"additionalProperties": false,
 			"allOf": [
 				{
@@ -68,6 +78,10 @@
 			]
 		}
 	},
-	"required": ["schema", "version", "failure"],
+	"required": [
+		"schema",
+		"version",
+		"failure"
+	],
 	"additionalProperties": false
 }

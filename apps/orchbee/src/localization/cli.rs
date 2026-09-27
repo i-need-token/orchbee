@@ -12,6 +12,7 @@ mod panel_relocation;
 mod runtime_status;
 #[cfg(windows)]
 mod schema_export;
+mod workspace_metadata;
 use super::Locale;
 use crate::cli::Failure;
 use crate::invocation::HelpTopic;
@@ -639,6 +640,27 @@ impl Locale {
             UsageContext::Root | UsageContext::Literal(_) => "orchbee --help".to_owned(),
         };
         let expected = |expected: ExpectedValue| match (self, expected) {
+            (Self::EnUs, ExpectedValue::MetadataSource) => {
+                "1–80 ASCII letters, digits, colon, dot, underscore or hyphen"
+            }
+            (Self::ZhCn, ExpectedValue::MetadataSource) => {
+                "1–80 个 ASCII 字母、数字、冒号、点、下划线或连字符"
+            }
+            (Self::EnUs, ExpectedValue::MetadataToken) => {
+                "a 1–32 character ASCII token key (letters/digits/_/-), with =VALUE for --token"
+            }
+            (Self::ZhCn, ExpectedValue::MetadataToken) => {
+                "1–32 个 ASCII 字母／数字／下划线／连字符组成的键；--token 需使用 键=值"
+            }
+            (Self::EnUs, ExpectedValue::MetadataPatchSize) => {
+                "at most 16 distinct token keys per report"
+            }
+            (Self::ZhCn, ExpectedValue::MetadataPatchSize) => "每次上报至多 16 个不同 token 键",
+            (Self::EnUs, ExpectedValue::MetadataSequence) => "an unsigned 64-bit decimal sequence",
+            (Self::ZhCn, ExpectedValue::MetadataSequence) => "无符号 64 位十进制序号",
+            (Self::EnUs, ExpectedValue::MetadataTtl) => "a TTL from 1 to 86400000 milliseconds",
+            (Self::ZhCn, ExpectedValue::MetadataTtl) => "1–86400000 毫秒的 TTL",
+
             (Self::EnUs, ExpectedValue::OutputFilePath) => {
                 "a literal file path of 1–4096 UTF-8 bytes"
             }
@@ -2438,6 +2460,8 @@ impl Locale {
             (Self::ZhCn, CommandPath::WorkspaceMove | CommandPath::WorkspaceMoveBlock) => {
                 HELP_WORKSPACE_MOVE_ZH
             }
+            (Self::EnUs, CommandPath::WorkspaceReportMetadata) => workspace_metadata::HELP_EN,
+            (Self::ZhCn, CommandPath::WorkspaceReportMetadata) => workspace_metadata::HELP_ZH,
             (Self::EnUs, CommandPath::WorkspaceRename) => HELP_WORKSPACE_RENAME_EN,
             (Self::ZhCn, CommandPath::WorkspaceRename) => HELP_WORKSPACE_RENAME_ZH,
             (Self::EnUs, CommandPath::WorkspaceAcceptDirectory) => {
@@ -2670,8 +2694,8 @@ const HELP_STATUS_ZH: &str = "orchbee status\n\n从正在运行的本地 Site �
 const HELP_PROJECT_EN: &str = "orchbee project list|get|create|rename\n\nQuery and mutate Project resources in the running local Site.\n  project list                       List every Project\n  project get <target>               Show one Project by exact ID, @project:<suffix>, or exact label\n  project create --label <l>         Create one Project\n  project rename <target> --label <l>  Rename one Project\nTargets are case-sensitive; ambiguous labels or suffixes are rejected, never guessed.\nEvery mutation reads one snapshot, then submits exactly one command.\n";
 const HELP_PROJECT_ZH: &str = "orchbee project list|get|create|rename\n\n查询并修改本地 Site 中的 Project 资源。\n  project list                       列出所有 Project\n  project get <target>               按精确 ID、@project:<suffix> 或精确 label 显示一个 Project\n  project create --label <l>         创建一个 Project\n  project rename <target> --label <l>  重命名一个 Project\ntarget 区分大小写；歧义 label 或后缀会被拒绝而非猜测。\n每个修改命令先读取一次快照，然后只提交一个命令。\n";
 
-const HELP_WORKSPACE_EN: &str = "orchbee workspace list|get|create|rename|move|move-block|accept-directory|close|close-status|close-resume|focus\n\nQuery and mutate Workspace resources in the running local Site.\n  workspace list [--project <t>]                    List Workspaces, optionally inside one Project\n  workspace get <target>                            Show one Workspace by exact ID, @workspace:<suffix>, or exact label\n  workspace create [--project <t>] [--label <l>]    Create a Workspace (Windows launch defaults)\n  workspace rename <target> --label <l>             Rename one Workspace\n  workspace accept-directory <target> --path <p>    Accept a literal absolute path as the Workspace's primary directory\n  workspace close <target> --confirm                Close every terminal the Workspace's Clients use\n  workspace close-status --project <id> --workspace <id>\n                                                    Read the retained close operation by stable IDs\n  workspace close-resume --project <id> --workspace <id> --request <close-id> --generation <n> --confirm\n                                                    Open one fresh attempt for a resumable close\nEvery mutation reads one snapshot, then submits exactly one command.\nWindows worktree groups: add --group to close; use close-status/close-resume --group --request <operation-id> to observe or resume the retained group.\n\n  workspace focus <target>\n    Navigate one Windows TUI; see command help for --client and receipts.\n";
-const HELP_WORKSPACE_ZH: &str = "orchbee workspace list|get|create|rename|move|move-block|accept-directory|close|close-status|close-resume|focus\n\n查询并修改本地 Site 中的 Workspace 资源。\n  workspace list [--project <t>]                    列出 Workspace，可按某个 Project 过滤\n  workspace get <target>                            按精确 ID、@workspace:<suffix> 或精确 label 显示一个 Workspace\n  workspace create [--project <t>] [--label <l>]    创建工作区（Windows 支持默认启动）\n  workspace rename <target> --label <l>             重命名一个 Workspace\n  workspace accept-directory <target> --path <p>    将一个字面绝对路径接受为 Workspace 的主目录\n  workspace close <target> --confirm                关闭该 Workspace 的 Clients 使用的全部终端\n  workspace close-status --project <id> --workspace <id>\n                                                    按稳定 ID 读取保留的关闭操作\n  workspace close-resume --project <id> --workspace <id> --request <close-id> --generation <n> --confirm\n                                                    为可恢复的关闭开启一次新的尝试\n每个修改命令先读取一次快照，然后只提交一个命令。\nWindows worktree 组：close 添加 --group；使用 close-status/close-resume --group --request <operation-id> 观测或恢复保留组。\n\n  workspace focus <target>\n    导航一个 Windows TUI；--client 及回执规则见命令帮助。\n";
+const HELP_WORKSPACE_EN: &str = "orchbee workspace list|get|create|rename|report-metadata|move|move-block|accept-directory|close|close-status|close-resume|focus\n\nQuery and mutate Workspace resources in the running local Site.\n  workspace list [--project <t>]                    List Workspaces, optionally inside one Project\n  workspace get <target>                            Show one Workspace by exact ID, @workspace:<suffix>, or exact label\n  workspace create [--project <t>] [--label <l>]    Create a Workspace (Windows launch defaults)\n  workspace rename <target> --label <l>             Rename one Workspace\n  workspace report-metadata <target> --source <id> --token <key=value>\n                                                    Report transient display tokens\n  workspace accept-directory <target> --path <p>    Accept a literal absolute path as the Workspace's primary directory\n  workspace close <target> --confirm                Close every terminal the Workspace's Clients use\n  workspace close-status --project <id> --workspace <id>\n                                                    Read the retained close operation by stable IDs\n  workspace close-resume --project <id> --workspace <id> --request <close-id> --generation <n> --confirm\n                                                    Open one fresh attempt for a resumable close\nEvery mutation reads one snapshot, then submits exactly one command.\nWindows worktree groups: add --group to close; use close-status/close-resume --group --request <operation-id> to observe or resume the retained group.\n\n  workspace focus <target>\n    Navigate one Windows TUI; see command help for --client and receipts.\n";
+const HELP_WORKSPACE_ZH: &str = "orchbee workspace list|get|create|rename|report-metadata|move|move-block|accept-directory|close|close-status|close-resume|focus\n\n查询并修改本地 Site 中的 Workspace 资源。\n  workspace list [--project <t>]                    列出 Workspace，可按某个 Project 过滤\n  workspace get <target>                            按精确 ID、@workspace:<suffix> 或精确 label 显示一个 Workspace\n  workspace create [--project <t>] [--label <l>]    创建工作区（Windows 支持默认启动）\n  workspace rename <target> --label <l>             重命名一个 Workspace\n  workspace report-metadata <target> --source <id> --token <key=value>\n                                                    上报临时展示 token\n  workspace accept-directory <target> --path <p>    将一个字面绝对路径接受为 Workspace 的主目录\n  workspace close <target> --confirm                关闭该 Workspace 的 Clients 使用的全部终端\n  workspace close-status --project <id> --workspace <id>\n                                                    按稳定 ID 读取保留的关闭操作\n  workspace close-resume --project <id> --workspace <id> --request <close-id> --generation <n> --confirm\n                                                    为可恢复的关闭开启一次新的尝试\n每个修改命令先读取一次快照，然后只提交一个命令。\nWindows worktree 组：close 添加 --group；使用 close-status/close-resume --group --request <operation-id> 观测或恢复保留组。\n\n  workspace focus <target>\n    导航一个 Windows TUI；--client 及回执规则见命令帮助。\n";
 
 const HELP_TAB_EN: &str = "orchbee tab list|get|create|rename|move|close|focus\n\nQuery and mutate Tab resources in the running local Site.\n  tab list [--workspace <t> | --standalone]  List Tabs, optionally filtered\n  tab get <target>                           Show one Tab by exact ID, @tab:<suffix>, or label\n  tab create [--workspace <t>|--standalone] [--label <l>] [--cols <n> --rows <n> --cell-width <px> --cell-height <px>] [--profile <s> | --exec <abs> [--arg <v>]...]\n                                             Create one Tab in one context\n  tab rename <target> --label <l>            Rename one Tab\n  tab move <target> --direction <d>          Move one Tab within its strip\n  tab close <target> --confirm               Close one Tab\n'--workspace' and '--standalone' are mutually exclusive single-use selectors.\n\n  tab focus <target>\n    Navigate one Windows TUI; see command help for --client and receipts.\n";
 const HELP_TAB_ZH: &str = "orchbee tab list|get|create|rename|move|close|focus\n\n查询并修改本地 Site 中的 Tab 资源。\n  tab list [--workspace <t> | --standalone]  列出 Tab，可按 Workspace 或独立上下文过滤\n  tab get <target>                           按精确 ID、@tab:<suffix> 或 label 显示一个 Tab\n  tab create [--workspace <t>|--standalone] [--label <l>] [--cols <n> --rows <n> --cell-width <px> --cell-height <px>] [--profile <s> | --exec <abs> [--arg <v>]...]\n                                             在某个上下文内创建一个 Tab\n  tab rename <target> --label <l>            重命名一个 Tab\n  tab move <target> --direction <d>          在标签条内移动一个 Tab\n  tab close <target> --confirm               关闭一个 Tab\n'--workspace' 与 '--standalone' 互斥且各只能用一次。\n\n  tab focus <target>\n    导航一个 Windows TUI；--client 及回执规则见命令帮助。\n";
@@ -3808,6 +3832,12 @@ impl Locale {
             }
             (Self::ZhCn, Some("agent-revision-changed")) => {
                 "Agent 状态在分页查询期间发生变化，请重新查询。\n"
+            }
+            (Self::EnUs, Some("metadata-changed")) => {
+                "Workspace metadata changed or expired during the query. Run the query again.\n"
+            }
+            (Self::ZhCn, Some("metadata-changed")) => {
+                "Workspace 元数据在查询期间发生变化或过期，请重新查询。\n"
             }
             (Self::EnUs, Some("workbench-changed")) => {
                 "Workbench membership changed during the query. Run the query again.\n"

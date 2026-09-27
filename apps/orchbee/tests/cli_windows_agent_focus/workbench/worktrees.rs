@@ -1,7 +1,7 @@
 //! Workspace reads preserve one connection, original deadline and exact Git-source membership.
 use super::*;
 
-fn snapshot(stream: &mut LocalStream, count: u64, no_directory: bool) {
+pub(super) fn snapshot(stream: &mut LocalStream, count: u64, no_directory: bool) {
     let WorkbenchRequest::SnapshotRead(request) = read_workbench_request(stream).unwrap() else {
         panic!()
     };
@@ -91,6 +91,9 @@ fn workspace_queries_join_git_without_trust_and_fail_closed_on_changed_or_lost_s
                 assert_closed(&mut stream);
                 return;
             }
+            for _ in 0..2 {
+                super::metadata::read_reply(&mut stream, "stable", 0);
+            }
             snapshot(&mut stream, count, case == "no-directory");
             assert_closed(&mut stream);
         });
@@ -106,7 +109,7 @@ fn workspace_queries_join_git_without_trust_and_fail_closed_on_changed_or_lost_s
                 include_str!("../../../src/cli/schemas/orchbee.workspace.list.json"),
             );
             let row = &doc["result"]["workspaces"][0];
-            assert_eq!(doc["version"], 5);
+            assert_eq!(doc["version"], 6);
             assert_eq!(
                 row["worktreeObservation"]["state"],
                 match case {

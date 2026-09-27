@@ -74,7 +74,7 @@ __ORCHBEE_GRAMMAR__
         foreach ($group in @(@('--timeout', '--forever'), @('--session', '--name', '--panel'), @('--panel', '--current'), @('--workspace', '--standalone'), @('--exec', '--profile'), @('--arg', '--profile'), @('--into-tab', '--new-tab'), @('--target-panel', '--new-tab'), @('--text', '--file', '--stdin', '--key'), @('--key', '--enter'), @('--key', '--paste'), @('--text', '--paste'), @('--match', '--regex'))) {
             if (@($group | Where-Object { $seen -ccontains $_ }).Count -gt 1) { return }
         }
-        foreach ($entry in @(@('--format', $grammar.formats), @('--mouse', @('off', 'on')), @('--until', $grammar.until), @('--right-click', $grammar.rightClick), @('--source', $grammar.outputSources))) {
+        foreach ($entry in @(@('--format', $grammar.formats), @('--mouse', @('off', 'on')), @('--until', $grammar.until), @('--right-click', $grammar.rightClick))) {
             if ($values.ContainsKey($entry[0]) -and $entry[1] -cnotcontains $values[$entry[0]]) { return }
         }
         $viable = @($grammar.commands | Where-Object {
@@ -83,6 +83,12 @@ __ORCHBEE_GRAMMAR__
             if ($command.format) { $allowed += '--format' }
             $valid = $true
             $commandPath = $command.words -join ':'
+            if ($values.ContainsKey('--source')) {
+                if ($commandPath -ceq 'workspace:report-metadata') {
+                    if ($values['--source'].Trim() -cnotmatch '^[A-Za-z0-9:._-]{1,80}$') { $valid = $false }
+                } elseif ($grammar.outputSources -cnotcontains $values['--source']) { $valid = $false }
+            }
+
             if ($command.words[0] -ceq 'worktree' -and $seen -ccontains '--workspace' -and $seen -ccontains '--cwd') { $valid = $false }
             if ($commandPath -ceq 'worktree:open' -and $seen -ccontains '--path' -and $seen -ccontains '--branch') { $valid = $false }
             if ($commandPath -ceq 'worktree:list' -and ($seen -ccontains '--project' -or $seen -ccontains '--directory') -and ($seen -ccontains '--workspace' -or $seen -ccontains '--cwd' -or $seen -ccontains '--trust-repository')) { $valid = $false }
@@ -157,7 +163,7 @@ __ORCHBEE_GRAMMAR__
                 '--cwd' { $viable | ForEach-Object { $_.cwdValues } }
                 '--direction' { $viable | ForEach-Object { $_.directions } }
                 '--right-click' { $grammar.rightClick }
-                '--source' { $grammar.outputSources }
+                '--source' { if (@($viable | Where-Object { ($_.words -join ':') -cne 'workspace:report-metadata' }).Count -gt 0) { $grammar.outputSources } }
                 '--key' { $grammar.keys }
                 '--until' { $grammar.until }
                 '--provider' { $grammar.providers }

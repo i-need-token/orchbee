@@ -1,6 +1,45 @@
 //! Shared observable completion obligations, independent of shell syntax.
 
 pub(super) const CASES: &[(&str, &str, bool)] = &[
+    ("orchbee workspace report-m", "report-metadata", true),
+    (
+        "orchbee workspace report-metadata main --t",
+        "--token",
+        true,
+    ),
+    (
+        "orchbee workspace report-metadata main --source hook:agent --t",
+        "--token",
+        true,
+    ),
+    ("orchbee --source=hook:agent work", "workspace", true),
+    ("orchbee --source=hook:agent ter", "terminal", false),
+    (
+        "orchbee workspace report-metadata main --source ",
+        "visible",
+        false,
+    ),
+    (
+        "orchbee workspace report-metadata main --source=r",
+        "--source=recent",
+        false,
+    ),
+    (
+        "orchbee workspace report-metadata main --token k=v --t",
+        "--token",
+        true,
+    ),
+    (
+        "orchbee workspace report-metadata main --clear-token k --c",
+        "--clear-token",
+        true,
+    ),
+    (
+        "orchbee workspace report-metadata main --seq 1 --s",
+        "--seq",
+        false,
+    ),
+    ("orchbee workspace list --t", "--token", false),
     ("orchbee workspace list --c", "--client", true),
     ("orchbee workspace get --c", "--client", true),
     ("orchbee tab list --c", "--client", true),

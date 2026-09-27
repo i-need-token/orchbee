@@ -33,6 +33,16 @@ Sequence is optional unsigned 64-bit decimal. TTL is optional 1–86400000 milli
 applies only to values set by this patch. Omitted TTL cancels their previous expiry; untouched
 keys keep their own expiry. A clear removes the value, not source sequence history.
 
+The report uses the existing five-second total admission/selection/submission budget. Its
+`orchbee.workspace.metadata` v1 receipt contains request, Site and Workspace identities and
+an observation: either the correlated Server reply or an unknown result with a closed transport
+reason. A reply lost after transport handoff remains unknown (exit 8), including cancellation;
+a settled reply survives a late interrupt. Before handoff, ordinary CLI failure meanings apply.
+Neither path reconnects or replays the report. Required `interrupted` and `cleanupFailed`
+flags record final signal cleanup separately from the observation. Cleanup failure exits 1
+for a known reply, but cannot erase an unknown outcome or its exit 8. Text output is localized
+and escaped.
+
 ## State and transitions
 
 Each Workspace has one token map and at most 32 sequenced sources. Inputs include an explicit
@@ -80,6 +90,11 @@ must have the same metadata revision. Existing final canonical/Client checks rem
 Concurrent mutation, expiry or missing targets fails the query without mixed/partial output.
 Cancel and transport outcomes keep their own meaning. Values and sources are escaped in both
 locales, never interpreted as terminal control sequences.
+
+`orchbee.workspace.list/get` v6 adds a `tokens` map to every row, including an empty map
+when no values remain. Root `metadataSource` carries Site, Workbench and metadata revisions
+and all read request IDs. `orchbee.cli.failure.workbench-query` v2 adds `metadata-changed`.
+The embedded catalog is v82 with 88 documents; the native CLI has 99 command paths.
 
 ## Evidence and delivery
 

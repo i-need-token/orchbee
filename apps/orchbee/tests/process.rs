@@ -321,6 +321,13 @@ check() {
  for candidate in "${COMPREPLY[@]}"; do [[ "$candidate" == "$expected" ]] && found=1; done
  if [[ "$found" != "$present" ]]; then printf '%s\n' "completion failed: $* -> ${COMPREPLY[*]} expected $expected = $present"; exit 1; fi
 }
+check report-metadata 1 orchbee workspace report-m
+check workspace 1 orchbee --source=hook:agent work
+check terminal 0 orchbee --source=hook:agent ter
+check --token 1 orchbee workspace report-metadata target --source hook:agent --t
+check --token 1 orchbee workspace report-metadata target --token k=v --t
+check --token 0 orchbee workspace list --t
+check visible 0 orchbee workspace report-metadata target --source ''
 check attach 1 orchbee terminal a
 check attach 1 orchbee agent a
 check terminal 1 orchbee --mouse off ''

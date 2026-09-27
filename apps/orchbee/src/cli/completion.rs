@@ -229,6 +229,7 @@ const FAMILY_VERBS: &[(&str, &[&str])] = &[
         "workspace",
         &[
             "accept-directory",
+            "report-metadata",
             "move",
             "move-block",
             "close",
@@ -250,6 +251,10 @@ const FAMILY_VERBS: &[(&str, &[&str])] = &[
 /// Every business flag the grammar admits (`--format` is orthogonal), in the
 /// order the state machine records them.
 const BUSINESS_FLAGS: &[&str] = &[
+    "--token",
+    "--clear-token",
+    "--seq",
+    "--ttl-ms",
     "--right-click",
     "--focus",
     "--no-focus",
@@ -341,6 +346,8 @@ const INTEGRATION_VERBS: &[&str] = &["disable", "enable", "explain", "list"];
 /// Business flags whose seen bit never makes a repeat `done` — they stay
 /// offerable and keep consuming values while remaining scope-tracked.
 const REPEATABLE_FLAGS: &[&str] = &[
+    "--token",
+    "--clear-token",
     "--env",
     "--arg",
     "--asset-root",
@@ -645,6 +652,10 @@ const COMMAND_FLAGS: &[(&str, &[&str])] = &[
         ],
     ),
     ("workspace:rename", &["--label"]),
+    (
+        "workspace:report-metadata",
+        &["--source", "--token", "--clear-token", "--seq", "--ttl-ms"],
+    ),
     ("workspace:move", &["--insert-index"]),
     ("workspace:move-block", &["--before"]),
     (
@@ -1016,6 +1027,7 @@ const OPERAND_PATHS: &[&str] = &[
     "workspace:close",
     "workspace:get",
     "workspace:rename",
+    "workspace:report-metadata",
     "workspace:move",
     "workspace:move-block",
 ];
@@ -1187,6 +1199,10 @@ fn flag_bit(flag: &str) -> &'static str {
         "--label" => "seen_label",
         "--right-click" => "seen_right_click",
         "--source" => "seen_output_source",
+        "--token" => "seen_metadata_token",
+        "--clear-token" => "seen_metadata_clear_token",
+        "--seq" => "seen_metadata_sequence",
+        "--ttl-ms" => "seen_metadata_ttl",
         "--plain" => "seen_plain",
         "--ansi" => "seen_ansi",
         "--direction" => "seen_direction",
@@ -1256,6 +1272,7 @@ fn flag_value(flag: &str) -> Option<&'static str> {
         "--cwd" => Some("cwd"),
         "--right-click" => Some("right_click"),
         "--source" => Some("output_source"),
+        "--token" | "--clear-token" | "--seq" | "--ttl-ms" => Some("filter"),
         "--plain" | "--ansi" => None,
         "--direction" => Some("direction"),
         "--key" => Some("key"),
@@ -1788,7 +1805,7 @@ fn extras_cases_bash() -> String {
                         "--provider" if command.starts_with("agent:integration:") => {
                             "seen_provider".to_owned()
                         }
-                        "--provider" | "--asset-root" | "--until" => "0".to_owned(),
+                        "--provider" | "--asset-root" | "--until" | "--token" | "--clear-token" => "0".to_owned(),
                         _ => flag_bit(flag).to_owned(),
                     };
                     let conflicts = command_flag_conflicts(command, flag).iter().map(|flag| flag_bit(flag)).collect::<Vec<_>>();
@@ -1938,7 +1955,7 @@ fn bash() -> String {
             "    local state=verb help_a=\"\" help_b=\"\" help_c=\"\" family=\"\" sub=\"\" leaf=\"\"\n",
             "    local seen_format=0 seen_mouse=0 {seen_decls} seen_provider2=0\n",
             "    local -a seen_flags\n",
-            "    local ended=0 done=0 dead=0 value=\"\"\n",
+            "    local metadata_source_only=0 ended=0 done=0 dead=0 value=\"\"\n",
             "    local i word\n",
             "    # Each consumed business flag narrows the viable root words to the\n",
             "    # families that declare it.\n",
@@ -1967,7 +1984,7 @@ fn bash() -> String {
             "        if [[ -n $value ]]; then\n",
             "            if [[ $value == format && $word != text && $word != json ]]; then done=1; fi\n",
             "            if [[ $value == mouse && $word != off && $word != on ]]; then done=1; fi\n",
-            "            if [[ $value == output_source && $word != visible && $word != recent && $word != recent-unwrapped && $word != detection ]]; then done=1; fi\n",
+            "            if [[ $value == output_source && $word != visible && $word != recent && $word != recent-unwrapped && $word != detection ]]; then metadata_source_only=1; [[ $word =~ ^[[:space:]]*[A-Za-z0-9:._-]{{1,80}}[[:space:]]*$ ]] || done=1; fi\n",
             "            if [[ $value == right_click && $word != orchbee && $word != panel ]]; then done=1; fi\n",
             "            value=\"\"\n",
             "            continue\n",
@@ -2044,7 +2061,7 @@ fn bash() -> String {
             "                # drives the same state admission and bookkeeping as the\n",
             "                # two-token spelling, and the inline value never claims\n",
             "                # the next word. Booleans and unknown names stay dead.\n",
-            "                if [[ $word == --source=* && $word != --source=visible && $word != --source=recent && $word != --source=recent-unwrapped && $word != --source=detection ]]; then done=1; fi\n",
+            "                if [[ $word == --source=* && $word != --source=visible && $word != --source=recent && $word != --source=recent-unwrapped && $word != --source=detection ]]; then metadata_source_only=1; [[ ${{word#*=}} =~ ^[[:space:]]*[A-Za-z0-9:._-]{{1,80}}[[:space:]]*$ ]] || done=1; fi\n",
             "                if [[ $word == --right-click=* && $word != --right-click=orchbee && $word != --right-click=panel ]]; then done=1; fi\n",
             "                flag_name=\"${{word%%=*}}\"\n",
             "                case \"$flag_name\" in\n",
@@ -2151,9 +2168,11 @@ fn bash() -> String {
             "    # verb (sub, deep) is dead: every candidate is suppressed before\n",
             "    # pending values, the --format= override, or any offer can resurrect\n",
             "    # one.\n",
+            "    if ((metadata_source_only)) && [[ $state != verb && $family != workspace ]]; then done=1; fi\n",
             "    if [[ $state == verb ]]; then\n",
             "        possible=\"{roots}\"\n",
             "{narrow_lines}\n",
+            "        ((metadata_source_only)) && narrow \"workspace\"\n",
             "        ((seen_mouse)) && narrow \"tui agent terminal\"\n",
             "        ((seen_format)) && narrow \"{format_roots}\"\n",
             "        [[ -z $possible ]] && dead=1\n",
@@ -2174,7 +2193,7 @@ fn bash() -> String {
             "{direction_cases}\n",
             "        esac\n",
             "    elif [[ $value == cwd ]]; then [[ $family:$sub == tab:create || $family:$sub == panel:split || $family:$sub == workspace:create ]] && candidates=\"{cwd_values}\"\n",
-            "    elif [[ $value == output_source ]]; then candidates=\"{output_source_values}\"\n",
+            "    elif [[ $value == output_source ]]; then [[ $family != workspace ]] && candidates=\"{output_source_values}\"\n",
             "    elif [[ $value == right_click ]]; then candidates=\"{right_click_values}\"\n",
             "    elif [[ $value == key ]]; then candidates=\"{key_values}\"\n",
             "    elif [[ $value == until ]]; then candidates=\"{until_values}\"\n",
@@ -2319,7 +2338,7 @@ fn zsh() -> String {
             "    local state=verb help_a=\"\" help_b=\"\" help_c=\"\" family=\"\" sub=\"\" leaf=\"\"\n",
             "    local seen_format=0 seen_mouse=0 {seen_decls} seen_provider2=0\n",
             "    local -a seen_flags\n",
-            "    local ended=0 done=0 dead=0 value=\"\"\n",
+            "    local metadata_source_only=0 ended=0 done=0 dead=0 value=\"\"\n",
             "    local i word cur flag_name=\"\" cur_name=\"\"\n",
             "    narrow() {{\n",
             "        local keep=\" $1 \" word out=\"\"\n",
@@ -2344,7 +2363,7 @@ fn zsh() -> String {
             "        if [[ -n $value ]]; then\n",
             "            if [[ $value == format && $word != text && $word != json ]]; then done=1; fi\n",
             "            if [[ $value == mouse && $word != off && $word != on ]]; then done=1; fi\n",
-            "            if [[ $value == output_source && $word != visible && $word != recent && $word != recent-unwrapped && $word != detection ]]; then done=1; fi\n",
+            "            if [[ $value == output_source && $word != visible && $word != recent && $word != recent-unwrapped && $word != detection ]]; then metadata_source_only=1; [[ $word =~ ^[[:space:]]*[A-Za-z0-9:._-]{{1,80}}[[:space:]]*$ ]] || done=1; fi\n",
             "            if [[ $value == right_click && $word != orchbee && $word != panel ]]; then done=1; fi\n",
             "            value=\"\"\n",
             "            continue\n",
@@ -2421,7 +2440,7 @@ fn zsh() -> String {
             "                # drives the same state admission and bookkeeping as the\n",
             "                # two-token spelling, and the inline value never claims\n",
             "                # the next word. Booleans and unknown names stay dead.\n",
-            "                if [[ $word == --source=* && $word != --source=visible && $word != --source=recent && $word != --source=recent-unwrapped && $word != --source=detection ]]; then done=1; fi\n",
+            "                if [[ $word == --source=* && $word != --source=visible && $word != --source=recent && $word != --source=recent-unwrapped && $word != --source=detection ]]; then metadata_source_only=1; [[ ${{word#*=}} =~ ^[[:space:]]*[A-Za-z0-9:._-]{{1,80}}[[:space:]]*$ ]] || done=1; fi\n",
             "                if [[ $word == --right-click=* && $word != --right-click=orchbee && $word != --right-click=panel ]]; then done=1; fi\n",
             "                flag_name=\"${{word%%=*}}\"\n",
             "                case \"$flag_name\" in\n",
@@ -2518,9 +2537,11 @@ fn zsh() -> String {
             "                esac ;;\n",
             "        esac\n",
             "    done\n",
+            "    if ((metadata_source_only)) && [[ $state != verb && $family != workspace ]]; then done=1; fi\n",
             "    if [[ $state == verb ]]; then\n",
             "        possible=\"{roots}\"\n",
             "{narrow_lines}\n",
+            "        ((metadata_source_only)) && narrow \"workspace\"\n",
             "        ((seen_mouse)) && narrow \"tui agent terminal\"\n",
             "        ((seen_format)) && narrow \"{format_roots}\"\n",
             "        [[ -z $possible ]] && dead=1\n",
@@ -2541,7 +2562,7 @@ fn zsh() -> String {
             "{direction_cases}\n",
             "        esac\n",
             "    elif [[ $value == cwd ]]; then [[ $family:$sub == tab:create || $family:$sub == panel:split || $family:$sub == workspace:create ]] && candidates=\"{cwd_values}\"\n",
-            "    elif [[ $value == output_source ]]; then candidates=\"{output_source_values}\"\n",
+            "    elif [[ $value == output_source ]]; then [[ $family != workspace ]] && candidates=\"{output_source_values}\"\n",
             "    elif [[ $value == right_click ]]; then candidates=\"{right_click_values}\"\n",
             "    elif [[ $value == key ]]; then candidates=\"{key_values}\"\n",
             "    elif [[ $value == until ]]; then candidates=\"{until_values}\"\n",
@@ -2977,7 +2998,7 @@ fn extras_cases_fish() -> String {
                         "--provider" if command.starts_with("agent:integration:") => {
                             "$seen_provider -eq 0".to_owned()
                         }
-                        "--provider" | "--asset-root" | "--until" => "0 -eq 0".to_owned(),
+                        "--provider" | "--asset-root" | "--until" | "--token" | "--clear-token" => "0 -eq 0".to_owned(),
                         _ => format!("${} -eq 0", flag_bit(flag)),
                     };
                     let conflicts = command_flag_conflicts(command, flag).iter().map(|flag| format!("${} -eq 0", flag_bit(flag))).collect::<Vec<_>>();
@@ -3157,7 +3178,7 @@ fn fish() -> String {
             "    set -l state verb; set -l help_a \"\"; set -l help_b \"\"; set -l help_c \"\"\n",
             "    set -l family \"\"; set -l sub \"\"; set -l leaf \"\"\n",
             "    set -l seen_format 0; set -l seen_mouse 0; {seen_decls}; set -l seen_provider2 0; set -l seen_flags\n",
-            "    set -l ended 0; set -l done 0; set -l value \"\"\n",
+            "    set -l metadata_source_only 0; set -l ended 0; set -l done 0; set -l value \"\"\n",
             "    for word in $words\n",
             "        if string match -q -- \"--\" \"$word\"; set ended 1; continue; end\n",
             "        if test $ended -eq 1 -o $done -eq 1; continue; end\n",
@@ -3167,7 +3188,7 @@ fn fish() -> String {
             // comparisons stay split into standalone `test` job chains.
             "            if test \"$value\" = format; and test \"$word\" != text; and test \"$word\" != json; set done 1; end\n",
             "            if test \"$value\" = mouse; and test \"$word\" != off; and test \"$word\" != on; set done 1; end\n",
-            "            if test \"$value\" = output_source; and not contains -- \"$word\" visible recent recent-unwrapped detection; set done 1; end\n",
+            "            if test \"$value\" = output_source; and not contains -- \"$word\" visible recent recent-unwrapped detection; set metadata_source_only 1; if not string match -rq \"^[[:space:]]*[A-Za-z0-9:._-]{{1,80}}[[:space:]]*$\" -- \"$word\"; set done 1; end; end\n",
             "            if test \"$value\" = right_click; and not contains -- \"$word\" orchbee panel; set done 1; end\n",
             "            set value \"\"\n",
             "            continue\n",
@@ -3244,7 +3265,7 @@ fn fish() -> String {
             "                # drives the same state admission and bookkeeping as the\n",
             "                # two-token spelling, and the inline value never claims\n",
             "                # the next word. Booleans and unknown names stay dead.\n",
-            "                if string match -q -- '--source=*' $word; and not contains -- $word --source=visible --source=recent --source=recent-unwrapped --source=detection; set done 1; end\n",
+            "                if string match -q -- '--source=*' $word; and not contains -- $word --source=visible --source=recent --source=recent-unwrapped --source=detection; set metadata_source_only 1; if not string match -rq '^[[:space:]]*[A-Za-z0-9:._-]{{1,80}}[[:space:]]*$' -- (string sub -s 10 -- $word); set done 1; end; end\n",
             "                if string match -q -- '--right-click=*' $word; and not contains -- $word --right-click=orchbee --right-click=panel; set done 1; end\n",
             "                set -l flag_name (string split -m1 '=' -- $word)[1]\n",
             "                switch \"$flag_name\"\n",
@@ -3349,10 +3370,12 @@ fn fish() -> String {
             "                end\n",
             "        end\n",
             "    end\n",
+            "    if test $metadata_source_only -eq 1; and test \"$state\" != verb; and test \"$family\" != workspace; set done 1; end\n",
             "    set -l possible; set -l verbs; set -l dead 0\n",
             "    if test \"$state\" = verb\n",
             "        set possible {roots}\n",
             "{narrow_lines}\n",
+            "        if test $metadata_source_only -eq 1; set possible (__orchbee_narrow workspace $possible); end\n",
             "        if test $seen_mouse -eq 1; set possible (__orchbee_narrow \"tui agent terminal\" $possible); end\n",
             "        if test $seen_format -eq 1; set possible (__orchbee_narrow \"{format_roots}\" $possible); end\n",
             "        if test (count $possible) -eq 0; set dead 1; end\n",
@@ -3374,7 +3397,7 @@ fn fish() -> String {
             "{direction_cases}\n",
             "        end\n",
             "    else if test \"$value\" = cwd; if contains -- \"$family:$sub\" tab:create panel:split workspace:create; set candidates {cwd_values}; end\n",
-            "    else if test \"$value\" = output_source; set candidates {output_source_values}\n",
+            "    else if test \"$value\" = output_source; if test \"$family\" != workspace; set candidates {output_source_values}; end\n",
             "    else if test \"$value\" = right_click; set candidates {right_click_values}\n",
             "    else if test \"$value\" = key; set candidates {key_values}\n",
             "    else if test \"$value\" = until; set candidates {until_values}\n",

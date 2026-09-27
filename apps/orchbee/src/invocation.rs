@@ -1,3 +1,5 @@
+mod workspace_metadata;
+pub(crate) use workspace_metadata::WorkspaceMetadataCommand;
 mod client_control;
 #[cfg(windows)]
 mod layouts;
@@ -268,6 +270,7 @@ pub(crate) enum CommandPath {
     WorkspaceGet,
     WorkspaceCreate,
     WorkspaceRename,
+    WorkspaceReportMetadata,
     WorkspaceMove,
     WorkspaceMoveBlock,
     WorkspaceAcceptDirectory,
@@ -380,6 +383,7 @@ impl CommandPath {
             Self::WorkspaceGet => "workspace get",
             Self::WorkspaceCreate => "workspace create",
             Self::WorkspaceRename => "workspace rename",
+            Self::WorkspaceReportMetadata => "workspace report-metadata",
             Self::WorkspaceMove => "workspace move",
             Self::WorkspaceMoveBlock => "workspace move-block",
             Self::WorkspaceAcceptDirectory => "workspace accept-directory",
@@ -1135,6 +1139,10 @@ pub(crate) enum RuntimeStatusScope {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum Request {
+    WorkspaceMetadata {
+        command: WorkspaceMetadataCommand,
+        format: OutputFormat,
+    },
     #[cfg(windows)]
     LayoutApply {
         command: LayoutApplyCommand,
@@ -1295,6 +1303,11 @@ pub(crate) enum UsageContext {
 /// expect; rendered per locale, never serialized.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum ExpectedValue {
+    MetadataSource,
+    MetadataToken,
+    MetadataPatchSize,
+    MetadataSequence,
+    MetadataTtl,
     #[cfg(windows)]
     SiteName,
     RightClick,
@@ -1514,6 +1527,7 @@ enum Token {
 
 #[derive(Default)]
 struct Options {
+    metadata: workspace_metadata::Options,
     #[cfg(windows)]
     site: Option<String>,
     output: Option<String>,
@@ -1626,6 +1640,10 @@ struct Options {
 /// both the format-envelope walk and the option scan so ownership is decided
 /// identically in the two passes.
 const VALUE_FLAGS: &[&str] = &[
+    "--token",
+    "--clear-token",
+    "--seq",
+    "--ttl-ms",
     #[cfg(windows)]
     "--site",
     "--output",
@@ -2167,6 +2185,10 @@ fn apply_value_flag(
         }
         return Ok(());
     }
+    if matches!(option, "--token" | "--clear-token") {
+        options.metadata.updates.push((option, value));
+        return Ok(());
+    }
     if option == "--key" {
         options.keys.push(value);
         return Ok(());
@@ -2176,6 +2198,8 @@ fn apply_value_flag(
         return Ok(());
     }
     let slot = match option {
+        "--seq" => &mut options.metadata.sequence,
+        "--ttl-ms" => &mut options.metadata.ttl,
         #[cfg(windows)]
         "--site" => &mut options.site,
         "--output" => &mut options.output,
@@ -3030,6 +3054,9 @@ fn resolve_words(
                 MutationCommand::WorkspaceMoveBlock { targets, before },
                 options,
             ))
+        }
+        ["workspace", "report-metadata", value] => {
+            workspace_metadata::parse(value, options, envelope)
         }
         ["workspace", "rename", value] => {
             check_scope(
@@ -4182,6 +4209,9 @@ fn help_topic(path: &[&str]) -> Option<HelpTopic> {
         ["workspace", "get"] => HelpTopic::Command(CommandPath::WorkspaceGet),
         ["workspace", "create"] => HelpTopic::Command(CommandPath::WorkspaceCreate),
         ["workspace", "rename"] => HelpTopic::Command(CommandPath::WorkspaceRename),
+        ["workspace", "report-metadata"] => {
+            HelpTopic::Command(CommandPath::WorkspaceReportMetadata)
+        }
         ["workspace", "move"] => HelpTopic::Command(CommandPath::WorkspaceMove),
         ["workspace", "move-block"] => HelpTopic::Command(CommandPath::WorkspaceMoveBlock),
         ["workspace", "accept-directory"] => {
@@ -4311,6 +4341,7 @@ fn mutation(command: MutationCommand, options: &Options) -> Request {
 /// is only meaningful whole.
 #[derive(Clone, Copy)]
 struct Scope {
+    metadata: bool,
     output: bool,
     client: bool,
     focus: bool,
@@ -4437,6 +4468,7 @@ struct Scope {
 }
 
 const NO_OPTIONS: Scope = Scope {
+    metadata: false,
     output: false,
     client: false,
     focus: false,
@@ -4757,7 +4789,8 @@ const INTEGRATION_SCOPE: Scope = Scope {
 
 /// Any mutation-only option seen outside a mutation command.
 fn business_options(options: &Options) -> bool {
-    options.output.is_some()
+    options.metadata.first_option().is_some()
+        || options.output.is_some()
         || options.client.is_some()
         || options.focus
         || options.no_focus
@@ -4823,6 +4856,12 @@ fn business_options(options: &Options) -> bool {
 /// The first named option present but outside `scope`, in the fixed `Options`
 /// declaration order — deterministic without any argv-order state.
 fn first_out_of_scope(options: &Options, scope: Scope) -> Option<&'static str> {
+    if !scope.metadata
+        && let Some(option) = options.metadata.first_option()
+    {
+        return Some(option);
+    }
+
     if options.right_click.is_some() && !scope.right_click {
         return Some("--right-click");
     }

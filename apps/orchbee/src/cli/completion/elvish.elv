@@ -83,7 +83,7 @@
         for entry $grammar[helpLevel3] { if (eq $entry[0] $positionals[1]':'$positionals[2]) { set candidates = $entry[1] } }
       }
     } else {
-      for entry [[--format $grammar[formats]] [--mouse [off on]] [--until $grammar[until]] [--right-click $grammar[rightClick]] [--source $grammar[outputSources]]] {
+      for entry [[--format $grammar[formats]] [--mouse [off on]] [--until $grammar[until]] [--right-click $grammar[rightClick]]] {
         if (and (has-key $values $entry[0]) (not (has-value $entry[1] $values[$entry[0]]))) { return }
       }
       var viable = []
@@ -100,6 +100,12 @@
         var allowed = [$@flags $@global]
         if $command[format] { set allowed = [$@allowed --format] }
         var path = (str:join : $command[words])
+        if (has-key $values --source) {
+          if (eq $path workspace:report-metadata) {
+            if (not (re:match '^[A-Za-z0-9:._-]{1,80}$' (str:trim-space $values[--source]))) { set valid = $false }
+          } elif (not (has-value $grammar[outputSources] $values[--source])) { set valid = $false }
+        }
+
         var provider-count = 0
         for flag $seen {
           if (or (not (has-value $allowed $flag)) (conflicts $command $flag $seen)) { set valid = $false }
@@ -156,7 +162,9 @@
       }
       if (not-eq $pending '') {
         set candidates = []
-        var enums = [&--format=$grammar[formats] &--mouse=[off on] &--right-click=$grammar[rightClick] &--source=$grammar[outputSources] &--key=$grammar[keys] &--until=$grammar[until] &--provider=$grammar[providers] &--kind=$grammar[agentKinds]]
+        var source-values = []
+        for command $viable { if (not-eq (str:join : $command[words]) workspace:report-metadata) { set source-values = $grammar[outputSources]; break } }
+        var enums = [&--format=$grammar[formats] &--mouse=[off on] &--right-click=$grammar[rightClick] &--source=$source-values &--key=$grammar[keys] &--until=$grammar[until] &--provider=$grammar[providers] &--kind=$grammar[agentKinds]]
         if (has-key $enums $pending) {
           for value $enums[$pending] { set candidates = [$@candidates $joined$value] }
         } elif (eq $pending --cwd) {
