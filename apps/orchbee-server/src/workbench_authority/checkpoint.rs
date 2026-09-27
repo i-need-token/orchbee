@@ -1,0 +1,457 @@
+//! Private retained configuration. Runtime identities and effects never cross this boundary.
+
+use std::{collections::BTreeSet, fmt};
+
+use orchbee_workbench_protocol::{
+    ContractError, Directory, LaunchProfileEntry, LaunchProfileId, LaunchProfileName,
+    LaunchSelection, MAXIMUM_LAUNCH_PROFILE_CATALOG_BYTES, MAXIMUM_LAUNCH_PROFILE_ENTRIES,
+    Navigation, PanelNode, Presentation, Project, ProtocolVersion, SiteId, Snapshot,
+    TerminalContext, WorkbenchDirectoryId, WorkbenchDirectoryPath, WorkbenchProjectId,
+    WorkbenchProtocolDocument, WorkbenchRevision, WorkbenchTerminalContextId, WorkerId, Workspace,
+    serialize_document,
+};
+use serde::{Deserialize, Serialize};
+
+use super::{WorkbenchAuthority, catalog_serialized_size, identity};
+use crate::workbench_projection::WorkbenchProjectionStore;
+
+pub const MAXIMUM_WORKBENCH_CHECKPOINT_BYTES: usize = 2 * 1024 * 1024;
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum WorkbenchCheckpointError {
+    RetiredAuthority,
+    ForeignWorker,
+    EncodedTooLarge { actual: usize, maximum: usize },
+    InvalidDocument,
+    UnsupportedVersion(u32),
+    InvalidProjection(ContractError),
+    InvalidIdentity,
+    InvalidCatalog,
+    TerminalBinding,
+}
+
+impl fmt::Display for WorkbenchCheckpointError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::RetiredAuthority => formatter.write_str("Workbench authority is retired"),
+            Self::ForeignWorker => formatter.write_str("checkpoint contains a foreign Worker"),
+            Self::EncodedTooLarge { actual, maximum } => write!(
+                formatter,
+                "checkpoint uses {actual} bytes; maximum is {maximum}"
+            ),
+            Self::InvalidDocument => formatter.write_str("invalid Workbench checkpoint document"),
+            Self::UnsupportedVersion(version) => write!(
+                formatter,
+                "unsupported Workbench checkpoint version {version}"
+            ),
+            Self::InvalidProjection(error) => error.fmt(formatter),
+            Self::InvalidIdentity => {
+                formatter.write_str("checkpoint identity allocation is invalid")
+            }
+            Self::InvalidCatalog => {
+                formatter.write_str("checkpoint launch profile catalog is invalid")
+            }
+            Self::TerminalBinding => {
+                formatter.write_str("checkpoint cannot retain terminal bindings")
+            }
+        }
+    }
+}
+
+impl std::error::Error for WorkbenchCheckpointError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::InvalidProjection(error) => Some(error),
+            _ => None,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Serialize, Deserialize)]
+#[serde(try_from = "String", into = "String")]
+struct Counter(u128);
+
+impl TryFrom<String> for Counter {
+    type Error = WorkbenchCheckpointError;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        Self::parse(&value)
+    }
+}
+
+impl From<Counter> for String {
+    fn from(value: Counter) -> Self {
+        identity(value.0)
+    }
+}
+
+impl Counter {
+    fn parse(value: &str) -> Result<Self, WorkbenchCheckpointError> {
+        if value.len() != 32
+            || !value
+                .bytes()
+                .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+        {
+            return Err(WorkbenchCheckpointError::InvalidIdentity);
+        }
+        let counter = u128::from_str_radix(value, 16)
+            .map_err(|_error| WorkbenchCheckpointError::InvalidIdentity)?;
+        if counter == 0 {
+            return Err(WorkbenchCheckpointError::InvalidIdentity);
+        }
+        Ok(Self(counter))
+    }
+}
+
+#[derive(Serialize, Deserialize)]
+enum Schema {
+    #[serde(rename = "orchbee.workbench.checkpoint")]
+    Workbench,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct Checkpoint {
+    schema: Schema,
+    version: u32,
+    last_identity: Counter,
+    navigation: StoredNavigation,
+    terminal_contexts: Vec<TerminalContext>,
+    profiles: Vec<StoredProfile>,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct StoredNavigation {
+    standalone_terminal_context_id: WorkbenchTerminalContextId,
+    projects: Vec<StoredProject>,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct StoredProject {
+    project_id: WorkbenchProjectId,
+    label: String,
+    directories: Vec<StoredDirectory>,
+    workspaces: Vec<Workspace>,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct StoredDirectory {
+    directory_id: WorkbenchDirectoryId,
+    path: WorkbenchDirectoryPath,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct StoredProfile {
+    counter: Counter,
+    name: LaunchProfileName,
+    launch: LaunchSelection,
+}
+
+impl WorkbenchAuthority {
+    /// Captures committed configuration without changing this authority or authorizing effects.
+    pub fn checkpoint(&self, local_worker: &WorkerId) -> Result<Vec<u8>, WorkbenchCheckpointError> {
+        if self.retired {
+            return Err(WorkbenchCheckpointError::RetiredAuthority);
+        }
+        validate_catalog(&self.catalog)?;
+        // Serialization alone does not validate the shared graph. Validate before recursion.
+        let projection = validate_projection(self.snapshot().clone())?;
+        let mut snapshot = projection.snapshot().clone();
+        for context in &mut snapshot.terminal_contexts {
+            for tab in &mut context.tabs {
+                remove_local_bindings(&mut tab.root, local_worker)?;
+            }
+        }
+        let profiles = self
+            .catalog
+            .iter()
+            .map(|entry| {
+                let counter = entry
+                    .profile_id
+                    .as_str()
+                    .strip_prefix(self.site_id().as_str())
+                    .and_then(|suffix| suffix.strip_prefix(':'))
+                    .ok_or(WorkbenchCheckpointError::InvalidIdentity)?;
+                Ok(StoredProfile {
+                    counter: Counter::parse(counter)?,
+                    name: entry.name.clone(),
+                    launch: entry.launch.clone(),
+                })
+            })
+            .collect::<Result<Vec<_>, WorkbenchCheckpointError>>()?;
+        let last_identity = Counter::parse(&identity(self.last_identity))?;
+        validate_identities(&snapshot, &profiles, last_identity)?;
+        let projects = snapshot
+            .navigation
+            .projects
+            .into_iter()
+            .map(|project| {
+                let directories = project
+                    .directories
+                    .into_iter()
+                    .map(|directory| {
+                        if directory.worker_id != *local_worker {
+                            return Err(WorkbenchCheckpointError::ForeignWorker);
+                        }
+                        Ok(StoredDirectory {
+                            directory_id: directory.directory_id,
+                            path: directory.path,
+                        })
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+                Ok(StoredProject {
+                    project_id: project.project_id,
+                    label: project.label,
+                    directories,
+                    workspaces: project.workspaces,
+                })
+            })
+            .collect::<Result<Vec<_>, WorkbenchCheckpointError>>()?;
+        let checkpoint = Checkpoint {
+            schema: Schema::Workbench,
+            version: 1,
+            last_identity,
+            navigation: StoredNavigation {
+                standalone_terminal_context_id: snapshot.navigation.standalone_terminal_context_id,
+                projects,
+            },
+            terminal_contexts: snapshot.terminal_contexts,
+            profiles,
+        };
+        let encoded = serde_json::to_vec(&checkpoint)
+            .map_err(|_error| WorkbenchCheckpointError::InvalidDocument)?;
+        enforce_encoded_limit(&encoded)?;
+        Ok(encoded)
+    }
+
+    /// The caller supplies a fresh boot Site and its admitted local Worker. Presentations remain
+    /// unbound until the runtime explicitly establishes new terminal ownership.
+    pub fn from_checkpoint(
+        encoded: &[u8],
+        site_id: SiteId,
+        local_worker: &WorkerId,
+    ) -> Result<Self, WorkbenchCheckpointError> {
+        enforce_encoded_limit(encoded)?;
+        // Typed records retain duplicate-field errors that a serde_json::Value would erase.
+        let checkpoint: Checkpoint = serde_json::from_slice(encoded)
+            .map_err(|_error| WorkbenchCheckpointError::InvalidDocument)?;
+        if checkpoint.version != 1 {
+            return Err(WorkbenchCheckpointError::UnsupportedVersion(
+                checkpoint.version,
+            ));
+        }
+        if checkpoint.profiles.len() > MAXIMUM_LAUNCH_PROFILE_ENTRIES {
+            return Err(WorkbenchCheckpointError::InvalidCatalog);
+        }
+        let catalog = checkpoint
+            .profiles
+            .iter()
+            .map(|profile| {
+                Ok(LaunchProfileEntry {
+                    profile_id: LaunchProfileId::parse(&format!(
+                        "{}:{}",
+                        site_id.as_str(),
+                        identity(profile.counter.0)
+                    ))
+                    .map_err(|_error| WorkbenchCheckpointError::InvalidIdentity)?,
+                    name: profile.name.clone(),
+                    launch: profile.launch.clone(),
+                })
+            })
+            .collect::<Result<Vec<_>, WorkbenchCheckpointError>>()?;
+        validate_catalog(&catalog)?;
+        let snapshot = Snapshot {
+            protocol_version: ProtocolVersion,
+            revision: WorkbenchRevision::new(0),
+            site_id: site_id.clone(),
+            navigation: Navigation {
+                standalone_terminal_context_id: checkpoint
+                    .navigation
+                    .standalone_terminal_context_id,
+                projects: checkpoint
+                    .navigation
+                    .projects
+                    .into_iter()
+                    .map(|project| Project {
+                        project_id: project.project_id,
+                        label: project.label,
+                        workspaces: project.workspaces,
+                        directories: project
+                            .directories
+                            .into_iter()
+                            .map(|directory| Directory {
+                                directory_id: directory.directory_id,
+                                path: directory.path,
+                                worker_id: local_worker.clone(),
+                            })
+                            .collect(),
+                    })
+                    .collect(),
+            },
+            terminal_contexts: checkpoint.terminal_contexts,
+        };
+        let projection = validate_projection(snapshot)?;
+        validate_identities(
+            projection.snapshot(),
+            &checkpoint.profiles,
+            checkpoint.last_identity,
+        )?;
+        let mut authority =
+            Self::new(site_id).map_err(WorkbenchCheckpointError::InvalidProjection)?;
+        authority.projection = projection;
+        authority.last_identity = checkpoint.last_identity.0;
+        authority.catalog = catalog;
+        Ok(authority)
+    }
+}
+
+fn enforce_encoded_limit(encoded: &[u8]) -> Result<(), WorkbenchCheckpointError> {
+    if encoded.len() > MAXIMUM_WORKBENCH_CHECKPOINT_BYTES {
+        return Err(WorkbenchCheckpointError::EncodedTooLarge {
+            actual: encoded.len(),
+            maximum: MAXIMUM_WORKBENCH_CHECKPOINT_BYTES,
+        });
+    }
+    Ok(())
+}
+
+fn validate_projection(
+    snapshot: Snapshot,
+) -> Result<WorkbenchProjectionStore, WorkbenchCheckpointError> {
+    let encoded = serialize_document(&WorkbenchProtocolDocument::Snapshot(snapshot))
+        .map_err(WorkbenchCheckpointError::InvalidProjection)?;
+    WorkbenchProjectionStore::load(&encoded).map_err(WorkbenchCheckpointError::InvalidProjection)
+}
+
+fn validate_catalog(catalog: &[LaunchProfileEntry]) -> Result<(), WorkbenchCheckpointError> {
+    if catalog.len() > MAXIMUM_LAUNCH_PROFILE_ENTRIES
+        || catalog_serialized_size(catalog)
+            .is_none_or(|size| size > MAXIMUM_LAUNCH_PROFILE_CATALOG_BYTES)
+    {
+        return Err(WorkbenchCheckpointError::InvalidCatalog);
+    }
+    Ok(())
+}
+
+fn remove_local_bindings(
+    node: &mut PanelNode,
+    local_worker: &WorkerId,
+) -> Result<(), WorkbenchCheckpointError> {
+    match node {
+        PanelNode::Split { children, .. } => {
+            for child in children.iter_mut() {
+                remove_local_bindings(&mut child.node, local_worker)?;
+            }
+        }
+        PanelNode::Panel {
+            primary_presentation,
+            child_presentations,
+            ..
+        } => {
+            for presentation in std::iter::once(primary_presentation).chain(child_presentations) {
+                if presentation
+                    .binding
+                    .as_ref()
+                    .is_some_and(|binding| binding.worker_id != *local_worker)
+                {
+                    return Err(WorkbenchCheckpointError::ForeignWorker);
+                }
+                presentation.binding = None;
+            }
+        }
+    }
+    Ok(())
+}
+
+struct Identities {
+    maximum: Counter,
+    seen: BTreeSet<u128>,
+}
+
+impl Identities {
+    fn insert(&mut self, value: &str) -> Result<(), WorkbenchCheckpointError> {
+        let value = Counter::parse(value)?;
+        if value.0 > self.maximum.0 || !self.seen.insert(value.0) {
+            return Err(WorkbenchCheckpointError::InvalidIdentity);
+        }
+        Ok(())
+    }
+
+    fn presentation(
+        &mut self,
+        presentation: &Presentation,
+    ) -> Result<(), WorkbenchCheckpointError> {
+        if presentation.binding.is_some() {
+            return Err(WorkbenchCheckpointError::TerminalBinding);
+        }
+        self.insert(presentation.presentation_id.as_str())
+    }
+
+    fn panel(&mut self, node: &PanelNode) -> Result<(), WorkbenchCheckpointError> {
+        match node {
+            PanelNode::Panel {
+                panel_id,
+                primary_presentation,
+                child_presentations,
+                ..
+            } => {
+                self.insert(panel_id.as_str())?;
+                self.presentation(primary_presentation)?;
+                for presentation in child_presentations {
+                    self.presentation(presentation)?;
+                }
+            }
+            PanelNode::Split {
+                split_id, children, ..
+            } => {
+                self.insert(split_id.as_str())?;
+                for child in children.iter() {
+                    self.insert(child.slot_id.as_str())?;
+                    self.panel(&child.node)?;
+                }
+            }
+        }
+        Ok(())
+    }
+}
+
+fn validate_identities(
+    snapshot: &Snapshot,
+    profiles: &[StoredProfile],
+    last_identity: Counter,
+) -> Result<(), WorkbenchCheckpointError> {
+    let mut ids = Identities {
+        maximum: last_identity,
+        seen: BTreeSet::new(),
+    };
+    for project in &snapshot.navigation.projects {
+        ids.insert(project.project_id.as_str())?;
+        for directory in &project.directories {
+            ids.insert(directory.directory_id.as_str())?;
+        }
+        for workspace in &project.workspaces {
+            ids.insert(workspace.workspace_id.as_str())?;
+        }
+    }
+    for context in &snapshot.terminal_contexts {
+        ids.insert(context.terminal_context_id.as_str())?;
+        for group in &context.groups {
+            ids.insert(group.group_id.as_str())?;
+        }
+        for tab in &context.tabs {
+            ids.insert(tab.tab_id.as_str())?;
+            ids.panel(&tab.root)?;
+        }
+    }
+    for profile in profiles {
+        ids.insert(&identity(profile.counter.0))?;
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests;

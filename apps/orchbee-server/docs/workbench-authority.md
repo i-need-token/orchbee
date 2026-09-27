@@ -1,5 +1,8 @@
 # Native Workbench authority
 
+The [restart checkpoint contract](workbench-checkpoint.md) owns retained configuration and fresh
+authority reconstruction; it does not by itself enable disk persistence or resume terminal processes.
+
 ## Close authority and local integration
 
 [Canonical terminal Tab Close](terminal-tab-close.md) owns the accepted local lifecycle contract:

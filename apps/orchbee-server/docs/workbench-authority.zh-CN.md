@@ -1,5 +1,8 @@
 # 原生 Workbench 权威
 
+[重启检查点契约](workbench-checkpoint.zh-CN.md) 拥有保留配置和新权威重建；它本身不启用磁盘
+持久化，也不恢复终端进程。
+
 ## Close 权威与本地集成
 
 [规范终端 Tab Close](terminal-tab-close.zh-CN.md) 拥有已接受本地生命周期契约：规范移除前须有

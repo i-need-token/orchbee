@@ -904,6 +904,7 @@ dependencies = [
  "orchbee-local-site-runtime",
  "orchbee-terminal-protocol",
  "orchbee-workbench-protocol",
+ "serde",
  "serde_json",
  "sha2",
 ]

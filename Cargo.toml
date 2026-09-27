@@ -27,6 +27,7 @@ process-wrap = { path = "third-party/process-wrap" }
 [workspace.dependencies]
 base64 = { version = "=0.22.1", default-features = false, features = ["alloc"] }
 getrandom = { version = "=0.3.4", default-features = false }
+serde = { version = "=1.0.229", default-features = false, features = ["std", "derive"] }
 sha2 = "0.10.9"
 rustix = { version = "1.1.4", default-features = false, features = ["std"] }
 nix = { version = "0.31.3", default-features = false }

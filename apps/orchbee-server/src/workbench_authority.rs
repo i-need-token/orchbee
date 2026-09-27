@@ -20,6 +20,8 @@ use crate::workbench_projection::{
     PreparedProjectionAdvance, WorkbenchProjectionStore, WorkbenchPublication,
 };
 
+mod checkpoint;
+pub use checkpoint::{MAXIMUM_WORKBENCH_CHECKPOINT_BYTES, WorkbenchCheckpointError};
 mod terminal_membership;
 mod workspace_directory;
 mod workspace_group_close;
