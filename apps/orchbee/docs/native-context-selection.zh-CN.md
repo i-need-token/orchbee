@@ -43,6 +43,9 @@ context 和 Tab 上限约束，只能依据已验证的成员证据修剪。Pend
 
 ## Client 选择记忆
 
+只读布局查询根据本 Client 的 Panel 记忆及当前 canonical 成员解析未激活 Tab 的 `focusedPanelId`，
+无有效记忆时回退首个成员。`selected` 仍为 false；查询不访问目标，不改变导航、附着或终端几何。
+
 `state/navigation_memory.rs` 拥有易失、Client 私有的选择历史。每个确切位置保存上次 Tab ID，
 每个访问过的 Tab 保存上次 Panel ID。标签、序号和终端 binding 都不是键。Site 由所属 Session
 固定；历史既不是 Server 状态，也不是持久化存储。Herdr 的 Workspace 活动 Tab 和 Tab 布局

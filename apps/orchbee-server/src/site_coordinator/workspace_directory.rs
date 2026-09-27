@@ -16,6 +16,12 @@ impl SiteCoordinator {
         let grant = WorkbenchGrant::manage_navigation(authority.site_id().clone())
             .with_directory_association();
         if matches!(
+            &command.action,
+            orchbee_workbench_protocol::WorkbenchAction::PanelRelocate { .. }
+        ) {
+            return authority.preflight_relocation_directory(Some(&grant), command);
+        }
+        if matches!(
             command.action,
             orchbee_workbench_protocol::WorkbenchAction::WorkspaceLaunch { .. }
         ) {
@@ -33,6 +39,15 @@ impl SiteCoordinator {
         command: WorkbenchCommand,
         worker: WorkerId,
     ) -> WorkbenchCommandResult {
+        if matches!(
+            &command.action,
+            orchbee_workbench_protocol::WorkbenchAction::PanelRelocate { .. }
+        ) {
+            let fallback = unavailable(&command);
+            return self
+                .execute_terminal_panel_relocate_validated(command, Some(worker))
+                .unwrap_or(fallback);
+        }
         let Some(authority) = self.workbench.as_mut() else {
             return unavailable(&command);
         };

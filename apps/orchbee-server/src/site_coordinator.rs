@@ -194,6 +194,14 @@ impl SiteCoordinator {
         &mut self,
         command: orchbee_workbench_protocol::WorkbenchCommand,
     ) -> Option<orchbee_workbench_protocol::WorkbenchCommandResult> {
+        self.execute_terminal_panel_relocate_validated(command, None)
+    }
+
+    pub(crate) fn execute_terminal_panel_relocate_validated(
+        &mut self,
+        command: orchbee_workbench_protocol::WorkbenchCommand,
+        directory_worker: Option<orchbee_workbench_protocol::WorkerId>,
+    ) -> Option<orchbee_workbench_protocol::WorkbenchCommandResult> {
         use orchbee_server::{WorkbenchPanelRelocateBegin, WorkbenchPanelRelocatePreparation};
         let Self {
             terminals,
@@ -201,7 +209,8 @@ impl SiteCoordinator {
             standalone,
         } = self;
         let workbench = workbench.as_mut()?;
-        let grant = WorkbenchGrant::manage_navigation(workbench.site_id().clone());
+        let grant = WorkbenchGrant::manage_navigation(workbench.site_id().clone())
+            .with_directory_association();
         let admission = match workbench.begin_terminal_panel_relocate(Some(&grant), command) {
             WorkbenchPanelRelocateBegin::Ready(result) => return Some(result),
             WorkbenchPanelRelocateBegin::Admitted(admission) => admission,
@@ -212,7 +221,11 @@ impl SiteCoordinator {
         {
             return Some(admission.retire_composition_failure());
         }
-        Some(match admission.finish() {
+        let prepared = match directory_worker {
+            Some(worker) => admission.finish_with_directory(worker),
+            None => admission.finish(),
+        };
+        Some(match prepared {
             WorkbenchPanelRelocatePreparation::Ready(result) => result,
             WorkbenchPanelRelocatePreparation::Prepared(prepared) => {
                 let retarget = match prepared.standalone_transition() {

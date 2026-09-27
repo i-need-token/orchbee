@@ -6,7 +6,7 @@
   var groups = [
     [--timeout --forever] [--session --name --panel] [--panel --current]
     [--workspace --standalone] [--exec --profile] [--arg --profile]
-    [--into-tab --new-tab] [--target-panel --into-tab] [--target-panel --new-tab]
+    [--into-tab --new-tab] [--target-panel --new-tab]
     [--text --file --stdin --key] [--key --enter] [--key --paste]
     [--text --paste] [--match --regex]
   ]

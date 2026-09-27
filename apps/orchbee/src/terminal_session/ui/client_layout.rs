@@ -76,7 +76,11 @@ impl NativeUi {
         if tab.panel_index(panel_id).is_none() {
             return Err(Reason::TargetUnavailable);
         }
-        let focused = selected.then(|| state.focus_panel_id().cloned()).flatten();
+        let focused = if selected {
+            state.focus_panel_id().cloned()
+        } else {
+            state.layout_focus_panel_id(&location, tab)
+        };
         let active_panel = focused.as_ref().and_then(|id| tab.panel_index(id));
         let zoomed = state.layout_zoomed(tab);
         let (area, panels, splits) = project_geometry(

@@ -52,6 +52,10 @@ Create/Move/Rename/Close result handling must not silently return to standalone.
 
 ## Client selection memory
 
+Read-only layout queries resolve an inactive Tab's `focusedPanelId` from this Client's remembered
+Panel and current canonical membership, falling back to the first member. `selected` remains false;
+the query neither visits the target nor changes navigation, attachments or terminal geometry.
+
 `state/navigation_memory.rs` owns volatile, Client-private selection history. Each exact location
 holds its last Tab ID and each visited Tab's last Panel ID. Labels, ordinals and terminal bindings
 are not keys. The Site is fixed by the owning Session; this history is neither Server state nor

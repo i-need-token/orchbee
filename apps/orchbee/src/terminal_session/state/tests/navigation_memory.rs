@@ -86,6 +86,11 @@ fn navigation_memory_restores_panel_through_tab_and_context_departure() {
     let mut state = ready_with_cache(project_native_standalone_tabs(&snapshot).unwrap());
     let panel = focus_second_panel(&mut state);
     switch(&mut state, 1, 2);
+    assert_eq!(
+        state.layout_focus_panel_id(state.cache.location(), &state.cache.tabs()[0]),
+        Some(panel.clone())
+    );
+    assert_eq!(state.active().unwrap().index(), 1);
     switch(&mut state, 0, 4);
     assert_eq!(state.desired().unwrap().panel(), &panel);
     assert_eq!(state.active().unwrap().panel_index(), 1);

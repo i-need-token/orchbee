@@ -126,6 +126,10 @@ fn main() -> ExitCode {
                 cli::run_creation(&command, format, locale)
             }
             #[cfg(windows)]
+            Ok(invocation::Request::PanelRelocation { command, format }) => {
+                cli::panel_relocation::run(&command, format, locale)
+            }
+            #[cfg(windows)]
             Ok(invocation::Request::WorkspaceCreation { command, format }) => {
                 cli::workspace_creation::run(&command, format, locale)
             }

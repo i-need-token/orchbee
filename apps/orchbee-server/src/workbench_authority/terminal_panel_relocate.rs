@@ -90,7 +90,36 @@ impl<'a> WorkbenchPanelRelocateAdmission<'a> {
     /// Site must reconcile Open before committing a cross-context move.
     #[must_use]
     pub fn finish(self) -> WorkbenchPanelRelocatePreparation<'a> {
-        let plan = match self.plan() {
+        self.finish_inner(None)
+    }
+
+    /// The local service supplies the Worker only after its cwd probe and generation recheck.
+    #[must_use]
+    pub fn finish_with_directory(
+        self,
+        worker: orchbee_workbench_protocol::WorkerId,
+    ) -> WorkbenchPanelRelocatePreparation<'a> {
+        self.finish_inner(Some(worker))
+    }
+
+    fn finish_inner(
+        self,
+        worker: Option<orchbee_workbench_protocol::WorkerId>,
+    ) -> WorkbenchPanelRelocatePreparation<'a> {
+        if matches!(
+            &self.destination,
+            WorkbenchPanelRelocateDestination::NewWorkspace {
+                primary_directory_path: Some(_),
+                ..
+            }
+        ) && worker.is_none()
+        {
+            return WorkbenchPanelRelocatePreparation::Ready(result(
+                &self.command,
+                unavailable(WorkbenchCommandUnavailableReason::DirectoryUnavailable),
+            ));
+        }
+        let plan = match self.plan(worker.as_ref()) {
             Ok(plan) => plan,
             Err(PlanFailure::Rejected(reason)) => RelocationPlan {
                 commit: CommitPlan {
@@ -188,14 +217,51 @@ impl<'a> WorkbenchPanelRelocateAdmission<'a> {
 }
 
 impl WorkbenchAuthority {
+    /// Read-only admission before the local service releases its gates to probe a new directory.
+    #[must_use]
+    pub fn preflight_relocation_directory(
+        &self,
+        grant: Option<&WorkbenchGrant>,
+        command: &WorkbenchCommand,
+    ) -> Option<WorkbenchCommandResult> {
+        if !grant.is_some_and(|grant| {
+            grant.site_id == *self.site_id() && grant.mutate_navigation && grant.associate_directory
+        }) {
+            return Some(result(command, WorkbenchCommandOutcome::Denied {}));
+        }
+        if let Some(response) = self.command_preflight(command) {
+            return Some(response);
+        }
+        let reason = if command.site_id != *self.site_id() {
+            Some(WorkbenchRejectionReason::SiteMismatch)
+        } else if command.expected_revision != self.projection.snapshot().revision {
+            Some(WorkbenchRejectionReason::RevisionMismatch)
+        } else {
+            None
+        };
+        reason.map(|reason| result(command, self.rejected(reason)))
+    }
+
     pub fn begin_terminal_panel_relocate(
         &mut self,
         grant: Option<&WorkbenchGrant>,
         command: WorkbenchCommand,
     ) -> WorkbenchPanelRelocateBegin<'_> {
         let authorized = matches!(&command.action, WorkbenchAction::PanelRelocate { .. })
-            && grant
-                .is_some_and(|grant| grant.site_id == *self.site_id() && grant.mutate_navigation);
+            && grant.is_some_and(|grant| {
+                grant.site_id == *self.site_id()
+                    && grant.mutate_navigation
+                    && (!matches!(
+                        &command.action,
+                        WorkbenchAction::PanelRelocate {
+                            destination: WorkbenchPanelRelocateDestination::NewWorkspace {
+                                primary_directory_path: Some(_),
+                                ..
+                            },
+                            ..
+                        }
+                    ) || grant.associate_directory)
+            });
         if !authorized {
             return WorkbenchPanelRelocateBegin::Ready(result(
                 &command,

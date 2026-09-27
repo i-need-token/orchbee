@@ -11,10 +11,20 @@ use orchbee_workbench_protocol::{
 use crate::local_client::{ExchangeAttempt, LocalClient, exchange_once};
 
 impl LocalClient {
+    #[cfg(test)]
     pub(crate) fn submit_workbench_panel_relocate(
         &mut self,
         request: WorkbenchPanelRelocateRequest,
         deadline: Instant,
+    ) -> WorkbenchPanelRelocateSubmission {
+        self.submit_workbench_panel_relocate_with_wake(request, deadline, None)
+    }
+
+    pub(crate) fn submit_workbench_panel_relocate_with_wake(
+        &mut self,
+        request: WorkbenchPanelRelocateRequest,
+        deadline: Instant,
+        wake: Option<orchbee_local_ipc::LocalIo<'_>>,
     ) -> WorkbenchPanelRelocateSubmission {
         if self.connection.is_none() {
             return WorkbenchPanelRelocateSubmission::DefinitelyNotSubmitted(
@@ -62,7 +72,7 @@ impl LocalClient {
             &self.clock,
             deadline,
             self.io_chunk_limits,
-            None,
+            wake,
             &frame,
             |io| read_workbench_response(io),
         );
@@ -358,6 +368,9 @@ fn classify_outcome(
                 reason,
                 WorkbenchCommandUnavailableReason::RequestLedgerFull
                     | WorkbenchCommandUnavailableReason::TerminalBusy
+                    | WorkbenchCommandUnavailableReason::DirectoryUnavailable
+                    | WorkbenchCommandUnavailableReason::NoCompatibleWorker
+                    | WorkbenchCommandUnavailableReason::ServerBusy
                     | WorkbenchCommandUnavailableReason::ServiceUnavailable
             ) =>
         {
@@ -493,8 +506,20 @@ fn classify_committed(
     let received_context = transfer.as_ref().map_or(&terminal_context_id, |transfer| {
         &transfer.target_terminal_context_id
     });
+    let created_directory = matches!(
+        expected_destination,
+        WorkbenchPanelRelocateDestination::NewWorkspace {
+            primary_directory_path: Some(_),
+            ..
+        }
+    );
     if target_context.is_some_and(|expected| expected != received_context)
         || (created_workspace && received_context == expected_context)
+        || transfer
+            .as_ref()
+            .and_then(|transfer| transfer.created_directory_id.as_ref())
+            .is_some()
+            != created_directory
         || transfer
             .as_ref()
             .and_then(|transfer| transfer.created_workspace_id.as_ref())

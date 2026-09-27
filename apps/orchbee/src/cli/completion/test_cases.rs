@@ -956,4 +956,26 @@ pub(super) const CASES: &[(&str, &str, bool)] = &[
         "--exec",
         false,
     ),
+    ("orchbee panel move id --new-w", "--new-workspace", true),
+    (
+        "orchbee panel move id --new-workspace --tab-l",
+        "--tab-label",
+        true,
+    ),
+    (
+        "orchbee panel move id --into-tab target --target-p",
+        "--target-panel",
+        true,
+    ),
+    ("orchbee panel move id --new-tab --r", "--ratio", false),
+    (
+        "orchbee panel move id --new-workspace --w",
+        "--workspace",
+        false,
+    ),
+    (
+        "orchbee panel move id --new-tab --no-focus --f",
+        "--focus",
+        false,
+    ),
 ];

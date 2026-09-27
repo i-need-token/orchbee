@@ -286,6 +286,8 @@ const BUSINESS_FLAGS: &[&str] = &[
     "--target-panel",
     "--into-tab",
     "--new-tab",
+    "--new-workspace",
+    "--tab-label",
     "--history",
     "--path",
     "--match",
@@ -714,8 +716,18 @@ const COMMAND_FLAGS: &[(&str, &[&str])] = &[
             "--target-panel",
             "--into-tab",
             "--new-tab",
+            "--new-workspace",
+            "--tab-label",
             "--direction",
             "--label",
+            "--workspace",
+            "--standalone",
+            "--project",
+            "--ratio",
+            "--focus",
+            "--no-focus",
+            "--client",
+            "--timeout",
         ],
     ),
     (
@@ -1148,6 +1160,8 @@ fn flag_bit(flag: &str) -> &'static str {
         "--target-panel" => "seen_target_panel",
         "--into-tab" => "seen_into_tab",
         "--new-tab" => "seen_new_tab",
+        "--new-workspace" => "seen_new_workspace",
+        "--tab-label" => "seen_tab_label",
         "--history" => "seen_history",
         "--path" => "seen_path",
         "--match" => "seen_match",
@@ -1204,10 +1218,10 @@ fn flag_value(flag: &str) -> Option<&'static str> {
         "--key" => Some("key"),
         "--until" => Some("until"),
         "--provider" => Some("provider"),
-        "--standalone" | "--confirm" | "--new-tab" | "--history" | "--enter" | "--stdin"
-        | "--outdated-only" | "--include-ended" | "--unwrap" | "--paste" | "--current"
-        | "--clear" | "--wait" | "--forever" | "--retry" | "--detach" | "--force"
-        | "--takeover" | "--trust-repository" | "--group" => None,
+        "--standalone" | "--confirm" | "--new-tab" | "--new-workspace" | "--history"
+        | "--enter" | "--stdin" | "--outdated-only" | "--include-ended" | "--unwrap"
+        | "--paste" | "--current" | "--clear" | "--wait" | "--forever" | "--retry" | "--detach"
+        | "--force" | "--takeover" | "--trust-repository" | "--group" => None,
         _ => Some("filter"),
     }
 }
@@ -3481,6 +3495,56 @@ fn command_conflict_pairs(
 
 fn command_flag_conflicts(command: &str, flag: &str) -> &'static [&'static str] {
     match (command, flag) {
+        ("panel:move", "--into-tab") => &[
+            "--new-tab",
+            "--new-workspace",
+            "--workspace",
+            "--standalone",
+            "--project",
+            "--label",
+            "--tab-label",
+        ],
+        ("panel:move", "--new-tab") => &[
+            "--into-tab",
+            "--new-workspace",
+            "--target-panel",
+            "--direction",
+            "--ratio",
+            "--project",
+            "--tab-label",
+        ],
+        ("panel:move", "--new-workspace") => &[
+            "--into-tab",
+            "--new-tab",
+            "--target-panel",
+            "--direction",
+            "--ratio",
+            "--workspace",
+            "--standalone",
+        ],
+        ("panel:move", "--target-panel" | "--direction" | "--ratio") => {
+            &["--new-tab", "--new-workspace"]
+        }
+        ("panel:move", "--label") => &["--into-tab"],
+        ("panel:move", "--workspace") => &[
+            "--into-tab",
+            "--new-workspace",
+            "--standalone",
+            "--project",
+            "--tab-label",
+        ],
+        ("panel:move", "--standalone") => &[
+            "--into-tab",
+            "--new-workspace",
+            "--workspace",
+            "--project",
+            "--tab-label",
+        ],
+        ("panel:move", "--project" | "--tab-label") => {
+            &["--into-tab", "--new-tab", "--workspace", "--standalone"]
+        }
+        ("panel:move", "--focus") => &["--no-focus"],
+        ("panel:move", "--no-focus") => &["--focus"],
         ("agent:attach", "--name") => &["--session", "--panel"],
         ("agent:attach", "--session") => &["--name", "--panel"],
         ("agent:attach", "--panel") => &["--name", "--session"],

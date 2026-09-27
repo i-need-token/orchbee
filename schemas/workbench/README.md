@@ -436,7 +436,7 @@ Client-owned Agent attention reads name 1–100 unique canonical Agent session I
 optional `terminalContextId` and `targetPanelId`; absent context means the source context, and
 absent Panel retains root grafting. `new-tab` accepts optional `terminalContextId` and `label`;
 absent label creates an automatically numbered Tab. `new-workspace` requires `projectId` and
-`label`, with optional `primaryDirectoryId` and `tabLabel`. Optional fields are omitted; explicit
+`label`, with optional `primaryDirectoryId`, `primaryDirectoryPath` and `tabLabel`. The directory ID and path are mutually exclusive; a path requires Worker validation and creates the Directory atomically with relocation, returned as optional `transfer.createdDirectoryId`. Optional fields are omitted; explicit
 null is invalid. The directory must belong to the Project. Existing encoded destinations remain valid.
 
 `panel-relocated` and `panel-relocated-to-new-tab` retain their existing identity fields and

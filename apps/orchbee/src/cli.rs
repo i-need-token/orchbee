@@ -29,6 +29,8 @@ mod mutation;
 #[cfg(windows)]
 pub(crate) mod named_sessions;
 pub(crate) mod output;
+#[cfg(windows)]
+pub(crate) mod panel_relocation;
 pub(crate) mod present;
 mod processes;
 mod query;

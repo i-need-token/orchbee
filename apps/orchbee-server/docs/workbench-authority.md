@@ -146,8 +146,7 @@ Relocation never launches, stops or rebinds a terminal, and never deletes a dire
 The source tuple and expected revision are exact. Existing destination forms retain their
 source-context default. An explicit destination context enables cross-context moves, and an
 optional target Panel selects the graft leaf; absence retains the existing root-graft contract.
-A new Workspace specifies its Project, optional Project-owned directory and labels. Only new
-structural identities are allocated. A moved leaf retains its Panel, Presentation, binding,
+A new Workspace specifies its Project, optional Project-owned directory and labels. A new `primaryDirectoryPath` alternatively creates a Directory in that same commit. It is mutually exclusive with an existing directory ID. The local service probes the path through the current Worker, rechecks its generation and requires directory-association authority; the proven Worker must own the retained source terminal. Missing proof, capacity or path failure cannot publish topology. A created Directory adds one allocated identity and `transfer.createdDirectoryId`. Only new structural and directory identities are allocated. A moved leaf retains its Panel, Presentation, binding,
 custom label and input policy. Existing child-Presentation, grouped and pinned tree admission
 restrictions remain explicit; this operation does not establish their complete lifecycle support.
 

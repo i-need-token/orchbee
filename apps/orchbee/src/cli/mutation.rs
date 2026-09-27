@@ -81,6 +81,11 @@ impl Receipt {
             .map(|(_, value)| value.as_str())
     }
 
+    #[cfg(windows)]
+    pub(super) fn transfer(&self) -> Option<&orchbee_workbench_protocol::WorkbenchPanelTransfer> {
+        self.panel_transfer.as_ref()
+    }
+
     fn source(&self) -> Value {
         self.source_override.clone().unwrap_or_else(|| {
             command_source(
@@ -394,7 +399,7 @@ pub(crate) fn run(command: &MutationCommand, format: OutputFormat, locale: Local
 }
 
 #[cfg(windows)]
-pub(super) use linux::submit_creation;
+pub(super) use linux::{submit_action, submit_creation};
 
 #[cfg(any(target_os = "linux", windows))]
 mod linux {
@@ -1137,6 +1142,29 @@ mod linux {
         submit_with_wake(client, deadline, resolved, wake).map_err(|failure| failure.source(source))
     }
 
+    /// Submit an already resolved action from a phased CLI workflow on the same snapshot.
+    #[cfg(windows)]
+    pub(in crate::cli) fn submit_action(
+        client: &mut LocalClient,
+        snapshot: &Snapshot,
+        action: WorkbenchAction,
+        deadline: Instant,
+        wake: Option<orchbee_local_ipc::LocalIo<'_>>,
+    ) -> Result<Receipt, Failure> {
+        let resolved = Resolved {
+            site_id: snapshot.site_id.clone(),
+            expected_revision: snapshot.revision,
+            request_id: crate::cli::query::request_id()?,
+            action,
+        };
+        let source = command_source(
+            resolved.site_id.as_str(),
+            resolved.request_id.as_str(),
+            resolved.expected_revision,
+        );
+        submit_with_wake(client, deadline, resolved, wake).map_err(|failure| failure.source(source))
+    }
+
     fn submit(
         client: &mut LocalClient,
         deadline: Instant,
@@ -1827,7 +1855,7 @@ mod linux {
                     .id("terminalContextId", terminal_context_id.as_str())
                     .id("tabId", tab_id.as_str())
                     .id("panelId", panel_id.as_str());
-                match client.submit_workbench_panel_relocate(request, deadline) {
+                match client.submit_workbench_panel_relocate_with_wake(request, deadline, wake) {
                     WorkbenchPanelRelocateSubmission::Committed(WorkbenchPanelRelocateCommit {
                         revision,
                         target_tab_id,
@@ -1856,12 +1884,10 @@ mod linux {
                             | WorkbenchPanelRelocateDestination::NewWorkspace {
                                 tab_label: label,
                                 ..
-                            } => {
-                                match label {
-                                    Some(label) => receipt.label(label.as_str()),
-                                    None => receipt,
-                                }
-                            }
+                            } => match label {
+                                Some(label) => receipt.label(label.as_str()),
+                                None => receipt,
+                            },
                         })
                     }
                     WorkbenchPanelRelocateSubmission::DefinitePrecommit(precommit) => {

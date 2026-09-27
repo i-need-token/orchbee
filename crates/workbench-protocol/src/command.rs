@@ -632,6 +632,12 @@ pub enum WorkbenchPanelRelocateDestination {
             deserialize_with = "deserialize_present"
         )]
         primary_directory_id: Option<WorkbenchDirectoryId>,
+        #[serde(
+            default,
+            skip_serializing_if = "Option::is_none",
+            deserialize_with = "deserialize_present"
+        )]
+        primary_directory_path: Option<WorkbenchDirectoryPath>,
         label: WorkbenchLabel,
         #[serde(
             default,
@@ -661,6 +667,12 @@ pub struct WorkbenchPanelTransfer {
         deserialize_with = "deserialize_present"
     )]
     pub created_workspace_id: Option<WorkbenchWorkspaceId>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_present"
+    )]
+    pub created_directory_id: Option<WorkbenchDirectoryId>,
 }
 
 fn deserialize_present<'de, D: Deserializer<'de>, T: Deserialize<'de>>(
@@ -1124,6 +1136,19 @@ fn validate_request(request: &WorkbenchRequest) -> Result<(), ContractError> {
     let WorkbenchRequest::Command(command) = request else {
         return Ok(());
     };
+    if matches!(
+        &command.action,
+        WorkbenchAction::PanelRelocate {
+            destination: WorkbenchPanelRelocateDestination::NewWorkspace {
+                primary_directory_id: Some(_),
+                primary_directory_path: Some(_),
+                ..
+            },
+            ..
+        }
+    ) {
+        return Err(ContractError::InvalidDocument);
+    }
     if let WorkbenchAction::WorkspaceLaunch { options, .. } = &command.action
         && options.cwd.is_none()
     {

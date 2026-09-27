@@ -8,6 +8,10 @@ mod creation;
 mod workspace_creation;
 #[cfg(windows)]
 pub(crate) use workspace_creation::WorkspaceCreationCommand;
+#[cfg(windows)]
+mod panel_relocation;
+#[cfg(windows)]
+pub(crate) use panel_relocation::{PanelRelocationCommand, PanelRelocationDestination};
 mod panel_input;
 pub(crate) use creation::{CreationCommand, CreationDirectory, CreationKind};
 mod schema_export;
@@ -1134,6 +1138,11 @@ pub(crate) enum Request {
         command: TerminalControlCommand,
     },
     #[cfg(windows)]
+    PanelRelocation {
+        command: PanelRelocationCommand,
+        format: OutputFormat,
+    },
+    #[cfg(windows)]
     WorkspaceCreation {
         command: WorkspaceCreationCommand,
         format: OutputFormat,
@@ -1521,6 +1530,8 @@ struct Options {
     into_tab: Option<String>,
     /// `panel move --new-tab`: the new-Tab relocation destination flag.
     new_tab: bool,
+    new_workspace: bool,
+    tab_label: Option<String>,
     history: bool,
     /// `terminal read --unwrap`: join verified soft-wrap rows into logical
     /// lines for presentation only.
@@ -1615,6 +1626,7 @@ const VALUE_FLAGS: &[&str] = &[
     "--file",
     "--generation",
     "--into-tab",
+    "--tab-label",
     "--with",
     "--key",
     "--kind",
@@ -1936,10 +1948,10 @@ fn scan(tokens: Vec<String>) -> Result<SelectedRequest, ParseFailure> {
                 index += 1;
             }
             "--group" | "--standalone" | "--confirm" | "--history" | "--enter" | "--stdin"
-            | "--outdated-only" | "--include-ended" | "--new-tab" | "--paste" | "--unwrap"
-            | "--current" | "--plain" | "--ansi" | "--clear" | "--wait" | "--forever"
-            | "--detach" | "--retry" | "--force" | "--takeover" | "--trust-repository" | "--on"
-            | "--off" | "--toggle" | "--focus" | "--no-focus" => {
+            | "--outdated-only" | "--include-ended" | "--new-tab" | "--new-workspace"
+            | "--paste" | "--unwrap" | "--current" | "--plain" | "--ansi" | "--clear"
+            | "--wait" | "--forever" | "--detach" | "--retry" | "--force" | "--takeover"
+            | "--trust-repository" | "--on" | "--off" | "--toggle" | "--focus" | "--no-focus" => {
                 let (seen, option) = if token == "--plain" {
                     (&mut options.plain, "--plain")
                 } else if token == "--ansi" {
@@ -1988,6 +2000,8 @@ fn scan(tokens: Vec<String>) -> Result<SelectedRequest, ParseFailure> {
                     (&mut options.outdated_only, "--outdated-only")
                 } else if token == "--include-ended" {
                     (&mut options.include_ended, "--include-ended")
+                } else if token == "--new-workspace" {
+                    (&mut options.new_workspace, "--new-workspace")
                 } else if token == "--new-tab" {
                     (&mut options.new_tab, "--new-tab")
                 } else if token == "--paste" {
@@ -2179,6 +2193,7 @@ fn apply_value_flag(
         "--panel" => &mut options.panel,
         "--target-panel" => &mut options.target_panel,
         "--into-tab" => &mut options.into_tab,
+        "--tab-label" => &mut options.tab_label,
         "--with" => &mut options.swap_target,
 
         // Every reachable `option` is a `VALUE_FLAGS` member and the match
@@ -3305,6 +3320,10 @@ fn resolve_words(
             ))
         }
         ["panel", "move", value] => {
+            #[cfg(windows)]
+            if options.into_tab.is_some() || options.new_tab || options.new_workspace {
+                return panel_relocation::parse(value, options, envelope);
+            }
             check_scope(
                 options,
                 PANEL_MOVE_SCOPE,
@@ -4235,6 +4254,8 @@ struct Scope {
     /// `panel move --new-tab`: admits the new-Tab relocation destination
     /// flag.
     new_tab: bool,
+    new_workspace: bool,
+    tab_label: bool,
     /// `terminal read --history --rows <n>`: admits the flag and the
     /// history-row meaning of the shared `--rows` value option.
     history: bool,
@@ -4353,6 +4374,8 @@ const NO_OPTIONS: Scope = Scope {
     swap_target: false,
     into_tab: false,
     new_tab: false,
+    new_workspace: false,
+    tab_label: false,
     history: false,
     unwrap: false,
     lines: false,
@@ -4657,6 +4680,8 @@ fn business_options(options: &Options) -> bool {
         || options.swap_target.is_some()
         || options.into_tab.is_some()
         || options.new_tab
+        || options.new_workspace
+        || options.tab_label.is_some()
         || options.history
         || options.unwrap
         || options.output_source.is_some()
@@ -4812,6 +4837,12 @@ fn first_out_of_scope(options: &Options, scope: Scope) -> Option<&'static str> {
     }
     if options.into_tab.is_some() && !scope.into_tab {
         return Some("--into-tab");
+    }
+    if options.new_workspace && !scope.new_workspace {
+        return Some("--new-workspace");
+    }
+    if options.tab_label.is_some() && !scope.tab_label {
+        return Some("--tab-label");
     }
     if options.new_tab && !scope.new_tab {
         return Some("--new-tab");

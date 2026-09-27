@@ -71,6 +71,14 @@ impl LocalTerminalService {
             let path = match &command.action {
                 WorkbenchAction::WorkspacePrimaryDirectoryAccept { path, .. } => Some(path),
                 WorkbenchAction::WorkspaceLaunch { options, .. } => options.cwd.as_ref(),
+                WorkbenchAction::PanelRelocate {
+                    destination:
+                        orchbee_workbench_protocol::WorkbenchPanelRelocateDestination::NewWorkspace {
+                            primary_directory_path,
+                            ..
+                        },
+                    ..
+                } => primary_directory_path.as_ref(),
                 _ => None,
             };
             let Some(path) = path else {

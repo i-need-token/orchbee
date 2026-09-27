@@ -281,8 +281,8 @@ Windows `agent wait --client <id>` 同时固定一个精确 Client 和已解析 
   重复、非数值或越界值均为 `invalid-usage`。
 - `terminal wait-output` 上的 `--rows <n>` 是被搜索的保留行窗口 `1..=1000`（默认
   `1000`），把最近的可见行与历史行作为同一范围覆盖——与同名的几何 flag 无关。
-- `--target-panel <target>`：带值 flag，单次使用，`panel move` 上必填；按 `panel` 的
-  target 规则解析（仅完整 typed ID），并在被移动 panel 自身所在 tab 内解析。
+- `--target-panel <target>`：带值 flag，单次使用，既有同 Tab `panel move` 上必填，`--into-tab` 形式可选；按 `panel` 的
+  target 规则解析（仅完整 typed ID）；既有移动在来源 Tab 内解析，`--into-tab` 形式在目标 Tab 内解析。
 - `--history`：无值 flag，仅 `terminal read` 受理，且必须与 `--rows <n>` 成对——
   在 `terminal read` 上 `--rows` 拼写携带 `1..=1000` 的保留行数，替代其几何含义，
   该含义在 `tab create` 与 `panel split` 上不变。两者缺一、重复、非数值或越界
@@ -1958,5 +1958,41 @@ Panel 迁移将共享变更封装推进到 v5，其他共享操作保留 v4。�
 `closedSourceTab`，以及可选 `closedSourceWorkspaceId` 和 `createdWorkspaceId`。移入现有 Tab
 也保留返回的 Split 和 slot 身份。移走 Tab 最后叶子时移除该 Tab，但不释放终端，结果明确报告移除。
 本地传输在确认提交前检查目标种类／上下文、新 Workspace 字段、源移除的一致性及结果关联。
-目录 v71 包含 80 份内嵌 schema。完整 H066/R049 用户流程仍要求跨 Workspace 命令语法及
-Client 比例／焦点集成。
+目录 v71 在此契约修订时包含 80 份内嵌 schema。
+
+### Windows Panel 迁移流程
+
+```text
+panel move <panel> --into-tab <tab> --direction above|below|left|right [--target-panel <panel>] [--ratio <number>]
+panel move <panel> --new-tab [--workspace <workspace> | --standalone] [--label <text>]
+panel move <panel> --new-workspace [--project <project>] [--label <text>] [--tab-label <text>]
+```
+
+各形式均接受 `--focus|--no-focus`、`--client` 和 `--timeout`。焦点默认为 true，
+与固定 Herdr CLI `e0507237` 一致；其 JSON 方法另行默认为 false。
+既有同 Tab `--target-panel --direction` 形式仍为单次变更。
+比例必须有限并钳制到 0.1–0.9。新 Tab 标签可省略。
+
+解析一次快照，以及显式、关联调用者或唯一当前 Client。歧义在产生效果前拒绝。
+没有 Client 时，仅允许不带显式比例的 `--no-focus`：选择目标首个叶子和原生默认比例，
+不声称已知 Client 几何或缩放状态。有 Client 时，只读来源／目标布局决定缩放状态及默认目标叶子。
+来源／目标 Tab 已缩放及迁入同 Tab 返回未改变，不提交变更。显式目标 Panel 必须属于目标 Tab。
+
+新 Workspace 默认归属来源 Project，可显式覆盖。独立来源采用唯一 Project，没有时准备
+首个 Project；多个 Project 要求选择器。目录采用观察到的终端根进程 cwd；cwd 缺失时回退
+到调用进程 cwd。无效观察拒绝。路径与标签校验先于效果。
+
+阶段：预检 → 可选首个 Project → 权威迁移及新 Workspace 目录 → 可选比例 → 焦点 → 布局观察。整个调用共用一个绝对截止时间与取消信号。
+Server 在 Worker 验证后原子提交拓扑与目录且不重启终端；Project 准备和 Client 效果分别返回回执。
+`orchbee.panel.move` v1 在后续失败、取消或结果不确定时保留全部已知提交。
+不重放结果不确定的命令，不将部分流程报告为完成。
+
+快照刷新后，比例针对返回的 Split／槽位身份。Client 后续操作等待权威状态收敛，
+并保留未受影响的原选择；无关导航拒绝后续操作。所选来源被移除时允许普通选择修复。
+其他 Client 保留独立导航。回执布局仅描述所选 Client。
+未改变的空 Ready 视图可直接进入既有最低修订约束的控制，不等待无关导航心跳；
+已观察修订不得倒退。未激活目标布局返回该 Client 记忆中的有效 Panel，无记忆时采用首个成员。
+语法／决策测试、回执校验、可取消传输检查及真实 Windows 多 Client 活终端／重启验收覆盖这些边界。
+通用事件及既有 child、分组、固定结构限制仍是独立义务。
+
+目录 v72 包含 81 份 schema，命令路径保持 96 条。

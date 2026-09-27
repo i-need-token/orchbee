@@ -117,6 +117,7 @@ impl WorkbenchService {
                 if matches!(
                     &command.action,
                     WorkbenchAction::WorkspacePrimaryDirectoryAccept { .. }
+                        | WorkbenchAction::PanelRelocate { destination: orchbee_workbench_protocol::WorkbenchPanelRelocateDestination::NewWorkspace { primary_directory_path: Some(_), .. }, .. }
                 ) =>
             {
                 self.policy.manage_navigation && self.policy.associate_directory
@@ -158,6 +159,7 @@ impl WorkbenchService {
                 if matches!(
                     &command.action,
                     WorkbenchAction::WorkspacePrimaryDirectoryAccept { .. }
+                        | WorkbenchAction::PanelRelocate { destination: orchbee_workbench_protocol::WorkbenchPanelRelocateDestination::NewWorkspace { primary_directory_path: Some(_), .. }, .. }
                 ) =>
             {
                 return WorkbenchExecution::Response(WorkbenchResponse::Command(

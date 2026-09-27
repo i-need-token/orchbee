@@ -2,7 +2,10 @@ use super::*;
 use crate::local_client::workbench::panel_relocate::{
     WorkbenchPanelRelocateRequest, WorkbenchPanelRelocateSubmission,
 };
-use orchbee_workbench_protocol::{WorkbenchPanelRelocateDestination, WorkbenchPanelTransfer};
+use orchbee_workbench_protocol::{
+    WorkbenchDirectoryId, WorkbenchDirectoryPath, WorkbenchPanelRelocateDestination,
+    WorkbenchPanelTransfer,
+};
 
 fn request(destination: WorkbenchPanelRelocateDestination) -> WorkbenchCommand {
     workbench_command(
@@ -29,6 +32,7 @@ fn outcome() -> WorkbenchCommandOutcome {
             closed_source_tab: true,
             closed_source_workspace_id: Some(WorkbenchWorkspaceId::parse(&id(33)).unwrap()),
             created_workspace_id: None,
+            created_directory_id: None,
         }),
     }
 }
@@ -89,11 +93,15 @@ fn exchange(
 
 #[test]
 fn relocation_transport_preserves_cross_context_and_new_workspace_effects() -> TestResult {
-    for new_workspace in [false, true] {
+    for case in 0..3 {
+        let new_workspace = case != 0;
+        let new_directory = case == 2;
         let destination = if new_workspace {
             WorkbenchPanelRelocateDestination::NewWorkspace {
                 project_id: WorkbenchProjectId::parse(&id(21)).unwrap(),
                 primary_directory_id: None,
+                primary_directory_path: new_directory
+                    .then(|| WorkbenchDirectoryPath::parse("C:/retained/source").unwrap()),
                 label: workbench_label(),
                 tab_label: None,
             }
@@ -113,6 +121,8 @@ fn relocation_transport_preserves_cross_context_and_new_workspace_effects() -> T
         };
         transfer.created_workspace_id =
             new_workspace.then(|| WorkbenchWorkspaceId::parse(&id(42)).unwrap());
+        transfer.created_directory_id =
+            new_directory.then(|| WorkbenchDirectoryId::parse(&id(43)).unwrap());
         let expected = transfer.clone();
         let WorkbenchPanelRelocateSubmission::Committed(commit) =
             exchange(request(destination), response, true)?
@@ -127,7 +137,7 @@ fn relocation_transport_preserves_cross_context_and_new_workspace_effects() -> T
 
 #[test]
 fn relocation_transport_retires_impossible_or_wrong_destination_receipts() -> TestResult {
-    for defect in 0..6 {
+    for defect in 0..7 {
         let destination = WorkbenchPanelRelocateDestination::NewTab {
             terminal_context_id: Some(context_id(40)),
             label: None,
@@ -151,12 +161,106 @@ fn relocation_transport_retires_impossible_or_wrong_destination_receipts() -> Te
             2 => transfer.as_mut().unwrap().closed_source_tab = false,
             3 => *transfer = None,
             4 => *new_tab_id = WorkbenchTabId::parse(&id(31)).unwrap(),
-            _ => *revision = WorkbenchRevision::new(9),
+            5 => *revision = WorkbenchRevision::new(9),
+            _ => {
+                transfer.as_mut().unwrap().created_directory_id =
+                    Some(WorkbenchDirectoryId::parse(&id(43)).unwrap());
+            }
         }
         assert!(matches!(
             exchange(request(destination), response, false)?,
             WorkbenchPanelRelocateSubmission::OutcomeUnknown { .. }
         ));
     }
+    Ok(())
+}
+
+#[test]
+fn relocation_directory_failure_is_precommit_and_missing_creation_is_unknown() -> TestResult {
+    let destination = WorkbenchPanelRelocateDestination::NewWorkspace {
+        project_id: WorkbenchProjectId::parse(&id(21)).unwrap(),
+        primary_directory_id: None,
+        primary_directory_path: Some(WorkbenchDirectoryPath::parse("C:/retained/source").unwrap()),
+        label: workbench_label(),
+        tab_label: None,
+    };
+    for reason in [
+        WorkbenchCommandUnavailableReason::DirectoryUnavailable,
+        WorkbenchCommandUnavailableReason::NoCompatibleWorker,
+        WorkbenchCommandUnavailableReason::ServerBusy,
+    ] {
+        assert!(matches!(
+            exchange(
+                request(destination.clone()),
+                WorkbenchCommandOutcome::Unavailable { reason },
+                true,
+            )?,
+            WorkbenchPanelRelocateSubmission::DefinitePrecommit(_)
+        ));
+    }
+    let mut response = outcome();
+    let WorkbenchCommandOutcome::PanelRelocatedToNewTab {
+        transfer: Some(transfer),
+        ..
+    } = &mut response
+    else {
+        unreachable!()
+    };
+    transfer.created_workspace_id = Some(WorkbenchWorkspaceId::parse(&id(42)).unwrap());
+    assert!(matches!(
+        exchange(request(destination), response, false)?,
+        WorkbenchPanelRelocateSubmission::OutcomeUnknown { .. }
+    ));
+    Ok(())
+}
+
+#[test]
+fn panel_relocation_wake_after_submission_retires_unknown_without_replay() -> TestResult {
+    let (submitted, waiting) = std::sync::mpsc::channel();
+    let (wake_read, mut wake_write) = UnixStream::pair()?;
+    let server = FakeServer::start(move |mut stream| {
+        expect_hello(&mut stream, COHORT)?;
+        admit(&mut stream, 51)?;
+        let WorkbenchRequest::Command(command) =
+            read_workbench_request(&mut stream).map_err(io::Error::other)?
+        else {
+            panic!("command")
+        };
+        assert!(matches!(
+            command.action,
+            WorkbenchAction::PanelRelocate { .. }
+        ));
+        submitted.send(()).map_err(io::Error::other)?;
+        assert_eq!(
+            stream.read(&mut [0])?,
+            0,
+            "cancelled transfer must not replay"
+        );
+        Ok(())
+    })?;
+    let wake = std::thread::spawn(move || -> io::Result<()> {
+        waiting
+            .recv_timeout(Duration::from_secs(5))
+            .map_err(io::Error::other)?;
+        wake_write.write_all(b"x")
+    });
+    let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
+    let command = request(WorkbenchPanelRelocateDestination::NewTab {
+        terminal_context_id: Some(context_id(40)),
+        label: None,
+    });
+    let answer = client.submit_workbench_panel_relocate_with_wake(
+        WorkbenchPanelRelocateRequest::try_from(command).unwrap(),
+        client.operation_clock().now() + Duration::from_secs(5),
+        Some(wake_read.as_local_io()),
+    );
+    assert!(matches!(
+        answer,
+        WorkbenchPanelRelocateSubmission::OutcomeUnknown { .. }
+    ));
+    assert!(client.generation().is_none());
+    wake.join().unwrap()?;
+    drop(client);
+    server.finish()?;
     Ok(())
 }

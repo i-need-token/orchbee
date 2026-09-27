@@ -391,7 +391,7 @@ Client 所有的 Agent 提示状态读取指定 1–100 个唯一规范 Agent �
 `panel.relocate` 保留精确的源上下文／Tab／Panel 元组。`tab` 目标接受可选 `terminalContextId` 和
 `targetPanelId`：上下文缺省使用源上下文，Panel 缺省保留根部嫁接。`new-tab` 接受可选
 `terminalContextId` 和 `label`，标签缺省创建自动编号 Tab。`new-workspace` 要求 `projectId` 和
-`label`，可选 `primaryDirectoryId` 与 `tabLabel`。可选字段缺省时省略，显式 null 非法；目录必须
+`label`，可选 `primaryDirectoryId`、`primaryDirectoryPath` 与 `tabLabel`。目录 ID 与路径互斥；路径要求 Worker 验证，在迁移时原子创建 Directory，并由可选 `transfer.createdDirectoryId` 返回。可选字段缺省时省略，显式 null 非法；目录必须
 属于所选 Project。现有编码目标继续有效。
 
 `panel-relocated` 和 `panel-relocated-to-new-tab` 保留原有身份字段，可选携带 `transfer`：

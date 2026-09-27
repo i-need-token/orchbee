@@ -71,7 +71,7 @@ __ORCHBEE_GRAMMAR__
             }
         }
     } else {
-        foreach ($group in @(@('--timeout', '--forever'), @('--session', '--name', '--panel'), @('--panel', '--current'), @('--workspace', '--standalone'), @('--exec', '--profile'), @('--arg', '--profile'), @('--into-tab', '--new-tab'), @('--target-panel', '--into-tab'), @('--target-panel', '--new-tab'), @('--text', '--file', '--stdin', '--key'), @('--key', '--enter'), @('--key', '--paste'), @('--text', '--paste'), @('--match', '--regex'))) {
+        foreach ($group in @(@('--timeout', '--forever'), @('--session', '--name', '--panel'), @('--panel', '--current'), @('--workspace', '--standalone'), @('--exec', '--profile'), @('--arg', '--profile'), @('--into-tab', '--new-tab'), @('--target-panel', '--new-tab'), @('--text', '--file', '--stdin', '--key'), @('--key', '--enter'), @('--key', '--paste'), @('--text', '--paste'), @('--match', '--regex'))) {
             if (@($group | Where-Object { $seen -ccontains $_ }).Count -gt 1) { return }
         }
         foreach ($entry in @(@('--format', $grammar.formats), @('--mouse', @('off', 'on')), @('--until', $grammar.until), @('--right-click', $grammar.rightClick), @('--source', $grammar.outputSources))) {
@@ -136,7 +136,7 @@ __ORCHBEE_GRAMMAR__
                 }
                 if ($command.words[0] -ceq 'worktree' -and (($flag -ceq '--workspace' -and $seen -ccontains '--cwd') -or ($flag -ceq '--cwd' -and $seen -ccontains '--workspace'))) { $conflict = $true }
                 if (($command.words -join ':') -ceq 'worktree:open' -and (($flag -ceq '--path' -and $seen -ccontains '--branch') -or ($flag -ceq '--branch' -and $seen -ccontains '--path'))) { $conflict = $true }
-                foreach ($group in @(@('--timeout', '--forever'), @('--session', '--name', '--panel'), @('--panel', '--current'), @('--workspace', '--standalone'), @('--exec', '--profile'), @('--arg', '--profile'), @('--into-tab', '--new-tab'), @('--target-panel', '--into-tab'), @('--target-panel', '--new-tab'), @('--text', '--file', '--stdin', '--key'), @('--key', '--enter'), @('--key', '--paste'), @('--text', '--paste'), @('--match', '--regex'))) {
+                foreach ($group in @(@('--timeout', '--forever'), @('--session', '--name', '--panel'), @('--panel', '--current'), @('--workspace', '--standalone'), @('--exec', '--profile'), @('--arg', '--profile'), @('--into-tab', '--new-tab'), @('--target-panel', '--new-tab'), @('--text', '--file', '--stdin', '--key'), @('--key', '--enter'), @('--key', '--paste'), @('--text', '--paste'), @('--match', '--regex'))) {
                     if ($group -ccontains $flag -and @($group | Where-Object { $_ -cne $flag -and $seen -ccontains $_ }).Count -gt 0) { $conflict = $true }
                 }
                 if (-not $conflict) { $offeredFlags.Add($flag) }

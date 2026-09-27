@@ -408,10 +408,23 @@
 										},
 										"tabLabel": {
 											"$ref": "urn:orchbee:schema:workbench:v1#/$defs/label"
+										},
+										"primaryDirectoryPath": {
+											"type": "string",
+											"minLength": 1,
+											"maxLength": 4096,
+											"pattern": "^[^\\u0000]+$"
 										}
 									},
 									"required": ["kind", "projectId", "label"],
-									"additionalProperties": false
+									"additionalProperties": false,
+									"not": {
+										"required": ["primaryDirectoryId", "primaryDirectoryPath"],
+										"properties": {
+											"primaryDirectoryId": {},
+											"primaryDirectoryPath": {}
+										}
+									}
 								}
 							]
 						}
@@ -2225,6 +2238,9 @@
 					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/workspaceId"
 				},
 				"createdWorkspaceId": {
+					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/workspaceId"
+				},
+				"createdDirectoryId": {
 					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/workspaceId"
 				}
 			},

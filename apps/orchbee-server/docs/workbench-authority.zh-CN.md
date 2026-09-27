@@ -113,7 +113,7 @@ Workbench 拥有拓扑，Site 拥有 standalone Open 引用，Client 视图权�
 
 源元组和预期修订必须精确。现有目标形式保留默认源上下文；显式目标上下文支持跨上下文迁移，
 可选目标 Panel 指定嫁接叶子，缺省保留现有根部嫁接契约。新 Workspace 指定 Project、可选的
-Project 所属目录及标签，仅分配新结构身份。移动叶子保留 Panel、Presentation、绑定、自定义标签和
+Project 所属目录及标签。新增 `primaryDirectoryPath` 可在同次提交中创建 Directory，与已有目录 ID 互斥。本地服务通过当前 Worker 探测路径、复核其代次，并要求目录关联权限；已验证 Worker 必须拥有保留的来源终端。缺少证明、容量不足或路径失败均不能发布拓扑。新目录多分配一个身份，并由 `transfer.createdDirectoryId` 返回；仅分配新结构与目录身份。移动叶子保留 Panel、Presentation、绑定、自定义标签和
 输入策略。现有 child Presentation、分组和固定 Tab 的树准入限制仍明确保留；本操作不证明其完整生命周期支持。
 
 | 守卫或转换                                     | 可观察结果                                                             |

@@ -5,6 +5,8 @@ mod client_control;
 mod client_layout;
 #[cfg(windows)]
 mod named_sessions;
+#[cfg(windows)]
+mod panel_relocation;
 mod runtime_status;
 #[cfg(windows)]
 mod schema_export;
@@ -2729,7 +2731,9 @@ const HELP_PANEL_SPLIT_ZH: &str = "orchbee panel split [<panel-id> | --panel <pa
 const HELP_PANEL_CLOSE_EN: &str = "orchbee panel close <panel-id> --confirm [--format text|json]\n\nClose one Panel selected by complete typed ID or @panel:<suffix>.\n'--confirm' is required.\nAn accepted result carries the accepted revision and the close request\nid; the Site finishes the close asynchronously.\n";
 const HELP_PANEL_CLOSE_ZH: &str = "orchbee panel close <panel-id> --confirm [--format text|json]\n\n关闭一个由完整类型化 ID 或 @panel:<suffix> 选择的 Panel。'--confirm' 为必填。accepted\n结果携带已接受修订与关闭请求 ID；Site 异步完成关闭。\n";
 
+#[cfg(not(windows))]
 const HELP_PANEL_MOVE_EN: &str = "orchbee panel move <panel-id> (--target-panel <panel-id> | --into-tab <tab> | --new-tab) [--format text|json]\n\nMove one leaf Panel to one exclusive destination:\n  --target-panel <panel-id> --direction <above|below|left|right>\n        Next to a sibling panel inside the same tab (panel.move).\n        Both panels accept complete typed IDs or @panel:<suffix> selectors.\n  --into-tab <tab> --direction <above|below|left|right>\n        Into an existing sibling Tab of the same TerminalContext,\n        resolved by exact ID or label; ambiguous labels are rejected.\n  --new-tab --label <l>\n        Into a fresh Tab appended to the same TerminalContext.\n\nOnly a leaf Panel relocates: a stacked Panel rejects panel-not-leaf, and\nthe source Tab's last leaf rejects last-panel-in-tab — an emptied Tab is\nnever retired implicitly; close it explicitly. Relocation keeps the\nPanel's identity, Presentation, terminal binding, and process: nothing\nrelaunches and the working directory is unchanged. A committed result\ncarries the new revision; unchanged means the layout already matched.\n";
+#[cfg(not(windows))]
 const HELP_PANEL_MOVE_ZH: &str = "orchbee panel move <panel-id> (--target-panel <panel-id> | --into-tab <tab> | --new-tab) [--format text|json]\n\n将一个叶子 Panel 移动到恰好一种目的地：\n  --target-panel <panel-id> --direction <above|below|left|right>\n        移到同一 Tab 内某个相邻 Panel 的所选侧（panel.move）。\n        两个 Panel 均接受完整类型化 ID 或 @panel:<suffix> 选择器。\n  --into-tab <tab> --direction <above|below|left|right>\n        移入同一 TerminalContext 中已存在的兄弟 Tab，按精确 ID 或\n        label 解析；歧义 label 会被拒绝。\n  --new-tab --label <l>\n        移入追加到同一 TerminalContext 的新建 Tab。\n\n只有叶子 Panel 可迁移：堆叠 Panel 以 panel-not-leaf 拒绝，源 Tab 的\n最后一片叶子以 last-panel-in-tab 拒绝——空 Tab 绝不被隐式回收，需\n显式关闭。迁移保留 Panel 身份、Presentation、终端绑定与进程：不重新\n启动，工作目录不变。committed 结果携带新修订；unchanged 表示布局本已相同。\n";
 
 const HELP_TERMINAL_LIST_EN: &str = "orchbee terminal list [--format text|json]\n\nList every terminal bound by a Presentation. Unbound terminals are not\nvisible; a binding is structural evidence, not proof a process is alive.\n";
@@ -3572,3 +3576,8 @@ Client 的选择。目标支持精确 ID、唯一精确标签或 @workspace:<suf
 全部目标在一次原子提交前解析，无效输入不产生变更，无变化时保留修订。
 使用 workspace list 查看顺序。结果未知时不会自动重试。
 "#;
+
+#[cfg(windows)]
+const HELP_PANEL_MOVE_EN: &str = "orchbee panel move <panel-id> [destination] [--format text|json]\n\nDestinations:\n  --into-tab <tab> --direction above|below|left|right [--target-panel <panel-id>] [--ratio <number>]\n  --new-tab [--workspace <workspace> | --standalone] [--label <text>]\n  --new-workspace [--project <project>] [--label <text>] [--tab-label <text>]\n\nOptions: --focus (default) | --no-focus; --client <id>; --timeout <ms> (30000).\nAn existing Tab can belong to any Workspace. Its target defaults to the selected Client's focused Panel.\nNo Client: use --no-focus without --ratio; the first target leaf and default ratio are used.\nRatios are finite and clamped to 0.1..0.9. Zoomed or same-Tab relocation is unchanged.\nNew Workspace directory follows the terminal cwd, falling back to this process cwd when unavailable.\nMoving the last leaf removes the empty source Tab and, across contexts, its empty Workspace.\nThe terminal and process survive. Directory, ratio and focus acknowledgements are separate from the retained move.\nA partial failure keeps known committed facts; an uncertain submission is never replayed.\n\nLegacy same-Tab placement: --target-panel <panel-id> --direction above|below|left|right.\n";
+#[cfg(windows)]
+const HELP_PANEL_MOVE_ZH: &str = "orchbee panel move <panel-id> [目标] [--format text|json]\n\n目标：\n  --into-tab <tab> --direction above|below|left|right [--target-panel <panel-id>] [--ratio <number>]\n  --new-tab [--workspace <workspace> | --standalone] [--label <text>]\n  --new-workspace [--project <project>] [--label <text>] [--tab-label <text>]\n\n选项：--focus（默认）| --no-focus；--client <id>；--timeout <ms>（30000）。\n现有 Tab 可属于任意工作区；目标默认采用所选客户端记忆的焦点 Panel。\n没有客户端时使用不带 --ratio 的 --no-focus，采用首个目标叶子和默认比例。\n比例必须有限并钳制到 0.1..0.9。已缩放或迁入同 Tab 时保持不变。\n新工作区目录采用终端 cwd，缺失时回退到本进程 cwd。\n移走最后叶子会移除空来源 Tab；跨上下文时还会移除空来源工作区。\n终端和进程保留。目录、比例、焦点确认与迁移提交分别记录。\n部分失败保留已知提交事实；结果不确定的提交不会重放。\n\n既有同 Tab 放置：--target-panel <panel-id> --direction above|below|left|right。\n";

@@ -112,6 +112,16 @@ impl NavigationMemory {
 }
 
 impl NativeSessionState {
+    /// Resolve a queried inactive Tab without recording a visit or changing selection.
+    pub(in crate::terminal_session) fn layout_focus_panel_id(
+        &self,
+        location: &NativeContextLocation,
+        tab: &NativeSimpleTab,
+    ) -> Option<WorkbenchPanelId> {
+        tab.panel(self.navigation_memory.panel_index(location, tab))
+            .map(|panel| panel.panel_id().clone())
+    }
+
     /// Called after navigation or creation admission, before a pending phase
     /// is published. An unsuccessful later result remembers only the departure.
     pub(super) fn remember_current_navigation(&mut self) {

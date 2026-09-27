@@ -1,0 +1,3186 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "orchbee.panel.move",
+	"title": "Windows retained Panel move and independently acknowledged Client effects",
+	"type": "object",
+	"additionalProperties": false,
+	"required": [
+		"schema",
+		"version",
+		"siteId",
+		"baseRevision",
+		"source",
+		"clientId",
+		"requestedFocus",
+		"requestedRatio",
+		"directoryPath",
+		"directorySource",
+		"project",
+		"movement",
+		"directory",
+		"ratio",
+		"focus",
+		"sourceLayout",
+		"targetLayout",
+		"stage",
+		"reason",
+		"failure",
+		"outcome"
+	],
+	"properties": {
+		"schema": {
+			"const": "orchbee.panel.move"
+		},
+		"version": {
+			"const": 1
+		},
+		"siteId": {
+			"$ref": "#/$defs/canonical/$defs/id"
+		},
+		"baseRevision": {
+			"$ref": "#/$defs/canonical/$defs/revision"
+		},
+		"source": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["terminalContextId", "tabId", "panelId"],
+			"properties": {
+				"terminalContextId": {
+					"$ref": "#/$defs/canonical/$defs/id"
+				},
+				"tabId": {
+					"$ref": "#/$defs/canonical/$defs/id"
+				},
+				"panelId": {
+					"$ref": "#/$defs/canonical/$defs/id"
+				}
+			}
+		},
+		"clientId": {
+			"anyOf": [
+				{
+					"$ref": "#/$defs/canonical/$defs/id"
+				},
+				{
+					"type": "null"
+				}
+			]
+		},
+		"requestedFocus": {
+			"type": "boolean"
+		},
+		"requestedRatio": {
+			"anyOf": [
+				{
+					"type": "number",
+					"minimum": 0.1,
+					"maximum": 0.9
+				},
+				{
+					"type": "null"
+				}
+			]
+		},
+		"directoryPath": {
+			"anyOf": [
+				{
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 4096
+				},
+				{
+					"type": "null"
+				}
+			]
+		},
+		"directorySource": {
+			"enum": [null, "terminal-process", "current"]
+		},
+		"project": {
+			"anyOf": [
+				{
+					"allOf": [
+						{
+							"$ref": "#/$defs/canonical"
+						},
+						{
+							"properties": {
+								"version": {
+									"const": 4
+								},
+								"result": {
+									"properties": {
+										"action": {
+											"const": "project.create"
+										}
+									}
+								}
+							}
+						}
+					]
+				},
+				{
+					"type": "null"
+				}
+			]
+		},
+		"movement": {
+			"anyOf": [
+				{
+					"allOf": [
+						{
+							"$ref": "#/$defs/canonical"
+						},
+						{
+							"properties": {
+								"version": {
+									"const": 5
+								},
+								"result": {
+									"properties": {
+										"action": {
+											"const": "panel.relocate"
+										}
+									}
+								}
+							}
+						}
+					]
+				},
+				{
+					"type": "null"
+				}
+			]
+		},
+		"directory": {
+			"anyOf": [
+				{
+					"type": "null"
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["directoryId", "workerId", "path"],
+					"properties": {
+						"directoryId": {
+							"$ref": "#/$defs/canonical/$defs/id"
+						},
+						"workerId": {
+							"$ref": "#/$defs/canonical/$defs/id"
+						},
+						"path": {
+							"type": "string",
+							"minLength": 1,
+							"maxLength": 4096
+						}
+					}
+				}
+			]
+		},
+		"ratio": {
+			"anyOf": [
+				{
+					"$ref": "#/$defs/control"
+				},
+				{
+					"type": "null"
+				}
+			]
+		},
+		"focus": {
+			"anyOf": [
+				{
+					"$ref": "#/$defs/control"
+				},
+				{
+					"type": "null"
+				}
+			]
+		},
+		"sourceLayout": {
+			"anyOf": [
+				{
+					"$ref": "#/$defs/layout/$defs/layout"
+				},
+				{
+					"type": "null"
+				}
+			]
+		},
+		"targetLayout": {
+			"anyOf": [
+				{
+					"$ref": "#/$defs/layout/$defs/layout"
+				},
+				{
+					"type": "null"
+				}
+			]
+		},
+		"stage": {
+			"enum": ["preflight", "project", "move", "ratio", "focus", "layouts", "complete"]
+		},
+		"reason": {
+			"enum": [null, "same-tab", "zoomed-tab"]
+		},
+		"failure": {
+			"anyOf": [
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["kind", "details", "source", "schema", "version"],
+					"properties": {
+						"kind": {
+							"enum": [
+								"ambiguous",
+								"cancelled",
+								"check-failed",
+								"denied",
+								"incompatible",
+								"internal-failure",
+								"invalid-identifier",
+								"invalid-usage",
+								"not-found",
+								"outcome-unknown",
+								"output-too-large",
+								"protocol-invalid",
+								"rejected",
+								"service-unavailable",
+								"session-capacity",
+								"timeout",
+								"transport-loss"
+							]
+						},
+						"details": {
+							"type": ["object", "null"]
+						},
+						"source": {
+							"type": ["object", "null"]
+						},
+						"schema": {
+							"type": "string",
+							"pattern": "^orchbee\\.cli\\.failure(?:\\.[a-z-]+)?$"
+						},
+						"version": {
+							"type": "integer",
+							"minimum": 1
+						}
+					}
+				},
+				{
+					"type": "null"
+				}
+			]
+		},
+		"outcome": {
+			"enum": ["completed", "unchanged", "incomplete", "outcome-unknown"]
+		}
+	},
+	"$defs": {
+		"canonical": {
+			"title": "orchbee workbench mutation result envelope",
+			"type": "object",
+			"required": ["schema", "version", "source", "result"],
+			"additionalProperties": false,
+			"properties": {
+				"schema": {
+					"const": "orchbee.mutation.result"
+				},
+				"version": {
+					"enum": [4, 5]
+				},
+				"source": {
+					"oneOf": [
+						{
+							"$ref": "#/$defs/canonical/$defs/commandSource"
+						},
+						{
+							"$ref": "#/$defs/canonical/$defs/closeResumeSource"
+						}
+					]
+				},
+				"result": {
+					"type": "object",
+					"required": ["action", "outcome"],
+					"additionalProperties": false,
+					"properties": {
+						"action": {
+							"enum": [
+								"launch-profile.create",
+								"launch-profile.delete",
+								"panel.close",
+								"panel.move",
+								"panel.relocate",
+								"panel.split",
+								"project.create",
+								"tab.close",
+								"tab.create",
+								"tab.move",
+								"tab.rename",
+								"workspace.accept-directory",
+								"workspace.close",
+								"workspace.close-resume",
+								"workspace.create",
+								"workspace.rename"
+							]
+						},
+						"outcome": {
+							"enum": ["accepted", "committed", "resumed", "unchanged"]
+						},
+						"revision": {
+							"$ref": "#/$defs/canonical/$defs/revision"
+						},
+						"acceptedRevision": {
+							"$ref": "#/$defs/canonical/$defs/revision"
+						},
+						"closeRequestId": {
+							"$ref": "#/$defs/canonical/$defs/id"
+						},
+						"attemptGeneration": {
+							"$ref": "#/$defs/canonical/$defs/revision"
+						},
+						"projectId": {
+							"$ref": "#/$defs/canonical/$defs/id"
+						},
+						"workspaceId": {
+							"$ref": "#/$defs/canonical/$defs/id"
+						},
+						"terminalContextId": {
+							"$ref": "#/$defs/canonical/$defs/id"
+						},
+						"tabId": {
+							"$ref": "#/$defs/canonical/$defs/id"
+						},
+						"panelId": {
+							"$ref": "#/$defs/canonical/$defs/id"
+						},
+						"newPanelId": {
+							"$ref": "#/$defs/canonical/$defs/id"
+						},
+						"targetPanelId": {
+							"$ref": "#/$defs/canonical/$defs/id"
+						},
+						"targetTabId": {
+							"$ref": "#/$defs/canonical/$defs/id"
+						},
+						"splitId": {
+							"$ref": "#/$defs/canonical/$defs/id"
+						},
+						"firstSlotId": {
+							"$ref": "#/$defs/canonical/$defs/id"
+						},
+						"secondSlotId": {
+							"$ref": "#/$defs/canonical/$defs/id"
+						},
+						"presentationId": {
+							"$ref": "#/$defs/canonical/$defs/id"
+						},
+						"directoryId": {
+							"$ref": "#/$defs/canonical/$defs/id"
+						},
+						"workerId": {
+							"$ref": "#/$defs/canonical/$defs/id"
+						},
+						"direction": {
+							"enum": ["above", "below", "first", "last", "left", "next", "previous", "right"]
+						},
+						"label": {
+							"type": "string"
+						},
+						"path": {
+							"type": "string"
+						},
+						"profileId": {
+							"$ref": "#/$defs/canonical/$defs/profileId"
+						},
+						"catalogRevision": {
+							"$ref": "#/$defs/canonical/$defs/revision"
+						},
+						"name": {
+							"type": "string",
+							"minLength": 1,
+							"maxLength": 512
+						},
+						"terminal": {
+							"type": "object",
+							"required": ["outcome"],
+							"additionalProperties": false,
+							"properties": {
+								"outcome": {
+									"enum": ["failed", "pending", "started", "unavailable", "unknown"]
+								},
+								"reason": {
+									"enum": ["server-busy", "terminal-create-failed", "terminal-runtime-unavailable"]
+								},
+								"geometry": {
+									"$ref": "#/$defs/canonical/$defs/geometry"
+								}
+							}
+						},
+						"transfer": {
+							"type": "object",
+							"properties": {
+								"targetTerminalContextId": {
+									"$ref": "#/$defs/canonical/$defs/id"
+								},
+								"closedSourceTab": {
+									"type": "boolean"
+								},
+								"closedSourceWorkspaceId": {
+									"$ref": "#/$defs/canonical/$defs/id"
+								},
+								"createdWorkspaceId": {
+									"$ref": "#/$defs/canonical/$defs/id"
+								},
+								"createdDirectoryId": {
+									"$ref": "#/$defs/canonical/$defs/id"
+								}
+							},
+							"required": ["targetTerminalContextId", "closedSourceTab"],
+							"additionalProperties": false
+						}
+					},
+					"allOf": [
+						{
+							"if": {
+								"properties": {
+									"outcome": {
+										"enum": ["committed", "unchanged"]
+									}
+								},
+								"required": ["outcome"]
+							},
+							"then": {
+								"required": ["revision"]
+							}
+						},
+						{
+							"if": {
+								"properties": {
+									"outcome": {
+										"const": "accepted"
+									}
+								},
+								"required": ["outcome"]
+							},
+							"then": {
+								"required": ["acceptedRevision", "closeRequestId"]
+							}
+						},
+						{
+							"if": {
+								"properties": {
+									"outcome": {
+										"const": "resumed"
+									}
+								},
+								"required": ["outcome"]
+							},
+							"then": {
+								"required": ["closeRequestId", "attemptGeneration"]
+							}
+						},
+						{
+							"if": {
+								"properties": {
+									"action": {
+										"const": "workspace.close-resume"
+									}
+								},
+								"required": ["action"]
+							},
+							"then": {
+								"required": ["projectId", "workspaceId"]
+							}
+						},
+						{
+							"if": {
+								"properties": {
+									"action": {
+										"const": "workspace.close"
+									}
+								},
+								"required": ["action"]
+							},
+							"then": {
+								"required": ["projectId", "workspaceId", "terminalContextId"]
+							}
+						},
+						{
+							"if": {
+								"properties": {
+									"action": {
+										"enum": ["launch-profile.create", "launch-profile.delete"]
+									}
+								},
+								"required": ["action"]
+							},
+							"then": {
+								"required": ["profileId", "catalogRevision"]
+							}
+						},
+						{
+							"if": {
+								"properties": {
+									"action": {
+										"const": "launch-profile.create"
+									}
+								},
+								"required": ["action"]
+							},
+							"then": {
+								"required": ["name"]
+							}
+						},
+						{
+							"if": {
+								"required": ["transfer"]
+							},
+							"then": {
+								"properties": {
+									"action": {
+										"const": "panel.relocate"
+									},
+									"outcome": {
+										"const": "committed"
+									}
+								}
+							}
+						}
+					]
+				}
+			},
+			"$defs": {
+				"id": {
+					"type": "string",
+					"pattern": "^[0-9a-f]{32}$"
+				},
+				"profileId": {
+					"type": "string",
+					"pattern": "^[0-9A-Za-z][0-9A-Za-z._:-]{0,127}$"
+				},
+				"revision": {
+					"type": "string",
+					"pattern": "^(0|[1-9][0-9]*)$"
+				},
+				"geometry": {
+					"type": "object",
+					"required": ["columns", "rows", "cellPixelWidth", "cellPixelHeight"],
+					"additionalProperties": false,
+					"properties": {
+						"columns": {
+							"type": "integer",
+							"minimum": 1
+						},
+						"rows": {
+							"type": "integer",
+							"minimum": 1
+						},
+						"cellPixelWidth": {
+							"type": "integer",
+							"minimum": 0
+						},
+						"cellPixelHeight": {
+							"type": "integer",
+							"minimum": 0
+						}
+					}
+				},
+				"commandSource": {
+					"type": "object",
+					"required": ["kind", "siteId", "requestId", "expectedRevision"],
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "workbench-command"
+						},
+						"siteId": {
+							"$ref": "#/$defs/canonical/$defs/id"
+						},
+						"requestId": {
+							"$ref": "#/$defs/canonical/$defs/id"
+						},
+						"expectedRevision": {
+							"$ref": "#/$defs/canonical/$defs/revision"
+						}
+					}
+				},
+				"closeResumeSource": {
+					"type": "object",
+					"required": [
+						"kind",
+						"siteId",
+						"requestId",
+						"closeRequestId",
+						"expectedAttemptGeneration"
+					],
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "workspace-close-resume"
+						},
+						"siteId": {
+							"$ref": "#/$defs/canonical/$defs/id"
+						},
+						"requestId": {
+							"$ref": "#/$defs/canonical/$defs/id"
+						},
+						"closeRequestId": {
+							"$ref": "#/$defs/canonical/$defs/id"
+						},
+						"expectedAttemptGeneration": {
+							"$ref": "#/$defs/canonical/$defs/revision"
+						}
+					}
+				}
+			},
+			"allOf": [
+				{
+					"if": {
+						"properties": {
+							"version": {
+								"const": 4
+							}
+						}
+					},
+					"then": {
+						"properties": {
+							"result": {
+								"not": {
+									"required": ["transfer"]
+								}
+							}
+						}
+					}
+				},
+				{
+					"if": {
+						"properties": {
+							"version": {
+								"const": 5
+							}
+						}
+					},
+					"then": {
+						"properties": {
+							"result": {
+								"properties": {
+									"action": {
+										"const": "panel.relocate"
+									}
+								}
+							}
+						}
+					}
+				}
+			]
+		},
+		"control": {
+			"title": "Native Client control observation",
+			"type": "object",
+			"properties": {
+				"schema": {
+					"const": "orchbee.client.control"
+				},
+				"version": {
+					"const": 1
+				},
+				"siteId": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/control/$defs/siteId"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"operationId": {
+					"$ref": "#/$defs/control/$defs/requestId"
+				},
+				"observation": {
+					"oneOf": [
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "server"
+								},
+								"reply": {
+									"type": "object",
+									"properties": {
+										"protocolVersion": {
+											"const": 1
+										},
+										"requestId": {
+											"$ref": "#/$defs/control/$defs/requestId"
+										},
+										"siteId": {
+											"$ref": "#/$defs/control/$defs/siteId"
+										},
+										"outcome": {
+											"$ref": "#/$defs/control/$defs/outcome"
+										}
+									},
+									"required": ["protocolVersion", "requestId", "siteId", "outcome"],
+									"additionalProperties": false
+								}
+							},
+							"required": ["kind", "reply"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "unknown"
+								}
+							},
+							"required": ["kind"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "not-submitted"
+								}
+							},
+							"required": ["kind"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "unobserved"
+								}
+							},
+							"required": ["kind"],
+							"additionalProperties": false
+						}
+					]
+				},
+				"wait": {
+					"anyOf": [
+						{
+							"enum": ["detached", "timed-out", "cancelled", "transport-lost", "observation-failed"]
+						},
+						{
+							"type": "null"
+						}
+					]
+				}
+			},
+			"required": ["schema", "version", "siteId", "operationId", "observation", "wait"],
+			"additionalProperties": false,
+			"$defs": {
+				"siteId": {
+					"title": "SiteId",
+					"$ref": "#/$defs/control/$defs/identity"
+				},
+				"requestId": {
+					"title": "WorkbenchRequestId",
+					"$ref": "#/$defs/control/$defs/identity"
+				},
+				"terminalContextId": {
+					"title": "WorkbenchTerminalContextId",
+					"$ref": "#/$defs/control/$defs/identity"
+				},
+				"tabId": {
+					"title": "WorkbenchTabId",
+					"$ref": "#/$defs/control/$defs/identity"
+				},
+				"panelId": {
+					"title": "WorkbenchPanelId",
+					"$ref": "#/$defs/control/$defs/identity"
+				},
+				"revision": {
+					"title": "WorkbenchRevision",
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 20,
+					"pattern": "^(?:0|[1-9][0-9]{0,19})$",
+					"format": "orchbee-uint64"
+				},
+				"clientId": {
+					"type": "string",
+					"pattern": "^[0-9a-f]{32}$",
+					"not": {
+						"const": "00000000000000000000000000000000"
+					}
+				},
+				"sequence": {
+					"type": "string",
+					"pattern": "^[1-9][0-9]{0,19}$"
+				},
+				"phase": {
+					"enum": ["starting", "ready", "busy", "unavailable"]
+				},
+				"selection": {
+					"type": "object",
+					"properties": {
+						"terminalContextId": {
+							"$ref": "#/$defs/control/$defs/terminalContextId"
+						},
+						"tabId": {
+							"anyOf": [
+								{
+									"$ref": "#/$defs/control/$defs/tabId"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"panelId": {
+							"anyOf": [
+								{
+									"$ref": "#/$defs/control/$defs/panelId"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"zoomed": {
+							"type": "boolean"
+						},
+						"panelCount": {
+							"type": "integer",
+							"minimum": 0,
+							"maximum": 65535
+						}
+					},
+					"required": ["terminalContextId", "tabId", "panelId", "zoomed", "panelCount"],
+					"additionalProperties": false
+				},
+				"view": {
+					"type": "object",
+					"properties": {
+						"workbenchRevision": {
+							"$ref": "#/$defs/control/$defs/revision"
+						},
+						"phase": {
+							"$ref": "#/$defs/control/$defs/phase"
+						},
+						"selection": {
+							"anyOf": [
+								{
+									"$ref": "#/$defs/control/$defs/selection"
+								},
+								{
+									"type": "null"
+								}
+							]
+						}
+					},
+					"required": ["workbenchRevision", "phase", "selection"],
+					"additionalProperties": false
+				},
+				"intent": {
+					"oneOf": [
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "context"
+								},
+								"terminalContextId": {
+									"$ref": "#/$defs/control/$defs/terminalContextId"
+								}
+							},
+							"required": ["kind", "terminalContextId"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "tab"
+								},
+								"terminalContextId": {
+									"$ref": "#/$defs/control/$defs/terminalContextId"
+								},
+								"tabId": {
+									"$ref": "#/$defs/control/$defs/tabId"
+								}
+							},
+							"required": ["kind", "terminalContextId", "tabId"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "panel"
+								},
+								"terminalContextId": {
+									"$ref": "#/$defs/control/$defs/terminalContextId"
+								},
+								"tabId": {
+									"$ref": "#/$defs/control/$defs/tabId"
+								},
+								"panelId": {
+									"$ref": "#/$defs/control/$defs/panelId"
+								}
+							},
+							"required": ["kind", "terminalContextId", "tabId", "panelId"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "zoom"
+								},
+								"terminalContextId": {
+									"$ref": "#/$defs/control/$defs/terminalContextId"
+								},
+								"tabId": {
+									"$ref": "#/$defs/control/$defs/tabId"
+								},
+								"panelId": {
+									"$ref": "#/$defs/control/$defs/panelId"
+								},
+								"enabled": {
+									"type": "boolean"
+								}
+							},
+							"required": ["kind", "terminalContextId", "tabId", "panelId", "enabled"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "toggle-zoom"
+								},
+								"terminalContextId": {
+									"$ref": "#/$defs/control/$defs/terminalContextId"
+								},
+								"tabId": {
+									"$ref": "#/$defs/control/$defs/tabId"
+								},
+								"panelId": {
+									"$ref": "#/$defs/control/$defs/panelId"
+								}
+							},
+							"required": ["kind", "terminalContextId", "tabId", "panelId"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "layout"
+								},
+								"terminalContextId": {
+									"$ref": "#/$defs/control/$defs/terminalContextId"
+								},
+								"tabId": {
+									"$ref": "#/$defs/control/$defs/tabId"
+								},
+								"panelId": {
+									"$ref": "#/$defs/control/$defs/panelId"
+								}
+							},
+							"required": ["kind", "terminalContextId", "tabId", "panelId"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "focus-direction"
+								},
+								"terminalContextId": {
+									"$ref": "#/$defs/control/$defs/terminalContextId"
+								},
+								"tabId": {
+									"$ref": "#/$defs/control/$defs/tabId"
+								},
+								"panelId": {
+									"$ref": "#/$defs/control/$defs/panelId"
+								},
+								"direction": {
+									"enum": ["left", "right", "up", "down"]
+								}
+							},
+							"required": ["kind", "terminalContextId", "tabId", "panelId", "direction"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "resize"
+								},
+								"terminalContextId": {
+									"$ref": "#/$defs/control/$defs/terminalContextId"
+								},
+								"tabId": {
+									"$ref": "#/$defs/control/$defs/tabId"
+								},
+								"panelId": {
+									"$ref": "#/$defs/control/$defs/panelId"
+								},
+								"direction": {
+									"enum": ["left", "right", "up", "down"]
+								},
+								"amount": {
+									"$ref": "#/$defs/control/$defs/resizeAmount"
+								}
+							},
+							"required": ["kind", "terminalContextId", "tabId", "panelId", "direction", "amount"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "set-split-ratio"
+								},
+								"terminalContextId": {
+									"$ref": "#/$defs/control/$defs/terminalContextId"
+								},
+								"tabId": {
+									"$ref": "#/$defs/control/$defs/tabId"
+								},
+								"path": {
+									"$ref": "#/$defs/control/$defs/splitPath"
+								},
+								"ratio": {
+									"$ref": "#/$defs/control/$defs/splitRatio"
+								},
+								"expectedSplit": {
+									"type": "object",
+									"additionalProperties": false,
+									"required": ["splitId", "firstSlotId", "secondSlotId"],
+									"properties": {
+										"splitId": {
+											"type": "string",
+											"pattern": "^[0-9a-f]{32}$"
+										},
+										"firstSlotId": {
+											"type": "string",
+											"pattern": "^[0-9a-f]{32}$"
+										},
+										"secondSlotId": {
+											"type": "string",
+											"pattern": "^[0-9a-f]{32}$"
+										}
+									}
+								}
+							},
+							"required": ["kind", "terminalContextId", "tabId", "path", "ratio"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "agent-attention"
+								},
+								"sessionIds": {
+									"type": "array",
+									"minItems": 1,
+									"maxItems": 100,
+									"uniqueItems": true,
+									"items": {
+										"type": "string",
+										"minLength": 1,
+										"maxLength": 128,
+										"pattern": "^[A-Za-z0-9:._-]+$"
+									}
+								}
+							},
+							"required": ["kind", "sessionIds"],
+							"additionalProperties": false
+						}
+					]
+				},
+				"control": {
+					"type": "object",
+					"properties": {
+						"operationId": {
+							"$ref": "#/$defs/control/$defs/requestId"
+						},
+						"clientId": {
+							"$ref": "#/$defs/control/$defs/clientId"
+						},
+						"expectedViewRevision": {
+							"$ref": "#/$defs/control/$defs/sequence"
+						},
+						"minimumWorkbenchRevision": {
+							"$ref": "#/$defs/control/$defs/revision"
+						},
+						"intent": {
+							"$ref": "#/$defs/control/$defs/intent"
+						}
+					},
+					"required": [
+						"operationId",
+						"clientId",
+						"expectedViewRevision",
+						"minimumWorkbenchRevision",
+						"intent"
+					],
+					"additionalProperties": false
+				},
+				"reason": {
+					"enum": [
+						"busy",
+						"stale-view",
+						"target-unavailable",
+						"projection-unavailable",
+						"interrupted",
+						"client-disconnected",
+						"expired",
+						"unsupported"
+					]
+				},
+				"status": {
+					"oneOf": [
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "queued"
+								}
+							},
+							"required": ["kind"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "delivered"
+								}
+							},
+							"required": ["kind"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "applied"
+								},
+								"view": {
+									"$ref": "#/$defs/control/$defs/view"
+								}
+							},
+							"required": ["kind", "view"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "rejected"
+								},
+								"reason": {
+									"$ref": "#/$defs/control/$defs/reason"
+								}
+							},
+							"required": ["kind", "reason"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "incomplete"
+								},
+								"reason": {
+									"$ref": "#/$defs/control/$defs/reason"
+								},
+								"view": {
+									"anyOf": [
+										{
+											"$ref": "#/$defs/control/$defs/view"
+										},
+										{
+											"type": "null"
+										}
+									]
+								}
+							},
+							"required": ["kind", "reason", "view"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "zoom-unchanged"
+								},
+								"view": {
+									"$ref": "#/$defs/control/$defs/view"
+								}
+							},
+							"required": ["kind", "view"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "zoom-toggled"
+								},
+								"view": {
+									"$ref": "#/$defs/control/$defs/view"
+								},
+								"previouslyZoomed": {
+									"type": "boolean"
+								}
+							},
+							"required": ["kind", "view", "previouslyZoomed"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "layout-read"
+								},
+								"layout": {
+									"$ref": "#/$defs/control/$defs/layout"
+								},
+								"view": {
+									"$ref": "#/$defs/control/$defs/view"
+								}
+							},
+							"required": ["kind", "layout", "view"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "direction-focused"
+								},
+								"panelId": {
+									"$ref": "#/$defs/control/$defs/panelId"
+								},
+								"view": {
+									"$ref": "#/$defs/control/$defs/view"
+								}
+							},
+							"required": ["kind", "panelId", "view"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "direction-unchanged"
+								},
+								"layoutRevision": {
+									"$ref": "#/$defs/control/$defs/revision"
+								},
+								"view": {
+									"$ref": "#/$defs/control/$defs/view"
+								}
+							},
+							"required": ["kind", "layoutRevision", "view"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "layout-adjusted"
+								},
+								"adjustment": {
+									"$ref": "#/$defs/control/$defs/layoutAdjustment"
+								},
+								"view": {
+									"$ref": "#/$defs/control/$defs/view"
+								}
+							},
+							"required": ["kind", "adjustment", "view"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "attention-read"
+								},
+								"attention": {
+									"$ref": "#/$defs/control/$defs/attentionSnapshot"
+								},
+								"view": {
+									"$ref": "#/$defs/control/$defs/view"
+								}
+							},
+							"required": ["kind", "attention", "view"],
+							"additionalProperties": false
+						}
+					]
+				},
+				"operation": {
+					"type": "object",
+					"properties": {
+						"command": {
+							"$ref": "#/$defs/control/$defs/control"
+						},
+						"status": {
+							"$ref": "#/$defs/control/$defs/status"
+						}
+					},
+					"required": ["command", "status"],
+					"additionalProperties": false
+				},
+				"outcome": {
+					"oneOf": [
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "operation"
+								},
+								"operation": {
+									"$ref": "#/$defs/control/$defs/operation"
+								}
+							},
+							"required": ["kind", "operation"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "not-found"
+								}
+							},
+							"required": ["kind"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "conflict"
+								}
+							},
+							"required": ["kind"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "denied"
+								}
+							},
+							"required": ["kind"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "unavailable"
+								},
+								"reason": {
+									"enum": [
+										"client-unavailable",
+										"server-busy",
+										"receipt-capacity",
+										"unsupported",
+										"sequence-exhausted"
+									]
+								}
+							},
+							"required": ["kind", "reason"],
+							"additionalProperties": false
+						}
+					]
+				},
+				"identity": {
+					"type": "string",
+					"pattern": "^[0-9a-f]{32}$",
+					"not": {
+						"const": "00000000000000000000000000000000"
+					}
+				},
+				"cellRect": {
+					"type": "object",
+					"properties": {
+						"x": {
+							"type": "integer",
+							"minimum": 0,
+							"maximum": 65535
+						},
+						"y": {
+							"type": "integer",
+							"minimum": 0,
+							"maximum": 65535
+						},
+						"width": {
+							"type": "integer",
+							"minimum": 0,
+							"maximum": 65535
+						},
+						"height": {
+							"type": "integer",
+							"minimum": 0,
+							"maximum": 65535
+						}
+					},
+					"required": ["x", "y", "width", "height"],
+					"additionalProperties": false
+				},
+				"panelArea": {
+					"type": "object",
+					"properties": {
+						"panelId": {
+							"$ref": "#/$defs/control/$defs/panelId"
+						},
+						"unzoomed": {
+							"anyOf": [
+								{
+									"$ref": "#/$defs/control/$defs/cellRect"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"terminal": {
+							"anyOf": [
+								{
+									"$ref": "#/$defs/control/$defs/cellRect"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"displayed": {
+							"anyOf": [
+								{
+									"$ref": "#/$defs/control/$defs/cellRect"
+								},
+								{
+									"type": "null"
+								}
+							]
+						}
+					},
+					"required": ["panelId", "unzoomed", "terminal", "displayed"],
+					"additionalProperties": false
+				},
+				"splitArea": {
+					"type": "object",
+					"properties": {
+						"splitId": {
+							"$ref": "#/$defs/control/$defs/splitId"
+						},
+						"firstSlotId": {
+							"$ref": "#/$defs/control/$defs/panelSlotId"
+						},
+						"secondSlotId": {
+							"$ref": "#/$defs/control/$defs/panelSlotId"
+						},
+						"orientation": {
+							"enum": ["horizontal", "vertical"]
+						},
+						"ratio": {
+							"type": "number",
+							"minimum": 0.1,
+							"maximum": 0.9
+						},
+						"area": {
+							"anyOf": [
+								{
+									"$ref": "#/$defs/control/$defs/cellRect"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"divider": {
+							"anyOf": [
+								{
+									"$ref": "#/$defs/control/$defs/cellRect"
+								},
+								{
+									"type": "null"
+								}
+							]
+						}
+					},
+					"required": [
+						"splitId",
+						"firstSlotId",
+						"secondSlotId",
+						"orientation",
+						"ratio",
+						"area",
+						"divider"
+					],
+					"additionalProperties": false
+				},
+				"neighbors": {
+					"type": "object",
+					"properties": {
+						"left": {
+							"anyOf": [
+								{
+									"$ref": "#/$defs/control/$defs/panelId"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"right": {
+							"anyOf": [
+								{
+									"$ref": "#/$defs/control/$defs/panelId"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"up": {
+							"anyOf": [
+								{
+									"$ref": "#/$defs/control/$defs/panelId"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"down": {
+							"anyOf": [
+								{
+									"$ref": "#/$defs/control/$defs/panelId"
+								},
+								{
+									"type": "null"
+								}
+							]
+						}
+					},
+					"required": ["left", "right", "up", "down"],
+					"additionalProperties": false
+				},
+				"layout": {
+					"type": "object",
+					"properties": {
+						"terminalContextId": {
+							"$ref": "#/$defs/control/$defs/terminalContextId"
+						},
+						"tabId": {
+							"$ref": "#/$defs/control/$defs/tabId"
+						},
+						"sourcePanelId": {
+							"$ref": "#/$defs/control/$defs/panelId"
+						},
+						"workbenchRevision": {
+							"$ref": "#/$defs/control/$defs/revision"
+						},
+						"viewport": {
+							"$ref": "#/$defs/control/$defs/cellRect"
+						},
+						"area": {
+							"$ref": "#/$defs/control/$defs/cellRect"
+						},
+						"selected": {
+							"type": "boolean"
+						},
+						"zoomed": {
+							"type": "boolean"
+						},
+						"focusedPanelId": {
+							"anyOf": [
+								{
+									"$ref": "#/$defs/control/$defs/panelId"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"sourceAvailable": {
+							"type": "boolean"
+						},
+						"neighbors": {
+							"$ref": "#/$defs/control/$defs/neighbors"
+						},
+						"panels": {
+							"type": "array",
+							"minItems": 1,
+							"maxItems": 4096,
+							"items": {
+								"$ref": "#/$defs/control/$defs/panelArea"
+							}
+						},
+						"splits": {
+							"type": "array",
+							"maxItems": 4096,
+							"items": {
+								"$ref": "#/$defs/control/$defs/splitArea"
+							}
+						}
+					},
+					"required": [
+						"terminalContextId",
+						"tabId",
+						"sourcePanelId",
+						"workbenchRevision",
+						"viewport",
+						"area",
+						"selected",
+						"zoomed",
+						"focusedPanelId",
+						"sourceAvailable",
+						"neighbors",
+						"panels",
+						"splits"
+					],
+					"additionalProperties": false
+				},
+				"splitId": {
+					"$ref": "#/$defs/control/$defs/identity"
+				},
+				"panelSlotId": {
+					"$ref": "#/$defs/control/$defs/identity"
+				},
+				"splitRatio": {
+					"type": "number",
+					"minimum": 0.1,
+					"maximum": 0.9
+				},
+				"resizeAmount": {
+					"type": "number",
+					"minimum": 0,
+					"maximum": 0.5
+				},
+				"splitPath": {
+					"type": "array",
+					"items": {
+						"type": "integer",
+						"enum": [0, 1]
+					},
+					"maxItems": 16
+				},
+				"splitChange": {
+					"type": "object",
+					"properties": {
+						"splitId": {
+							"$ref": "#/$defs/control/$defs/splitId"
+						},
+						"firstSlotId": {
+							"$ref": "#/$defs/control/$defs/panelSlotId"
+						},
+						"secondSlotId": {
+							"$ref": "#/$defs/control/$defs/panelSlotId"
+						},
+						"previousRatio": {
+							"$ref": "#/$defs/control/$defs/splitRatio"
+						},
+						"ratio": {
+							"$ref": "#/$defs/control/$defs/splitRatio"
+						}
+					},
+					"required": ["splitId", "firstSlotId", "secondSlotId", "previousRatio", "ratio"],
+					"additionalProperties": false
+				},
+				"layoutChange": {
+					"oneOf": [
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "no-split"
+								}
+							},
+							"required": ["kind"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "split"
+								},
+								"split": {
+									"$ref": "#/$defs/control/$defs/splitChange"
+								}
+							},
+							"required": ["kind", "split"],
+							"additionalProperties": false
+						}
+					]
+				},
+				"layoutAdjustment": {
+					"type": "object",
+					"properties": {
+						"terminalContextId": {
+							"$ref": "#/$defs/control/$defs/terminalContextId"
+						},
+						"tabId": {
+							"$ref": "#/$defs/control/$defs/tabId"
+						},
+						"workbenchRevision": {
+							"$ref": "#/$defs/control/$defs/revision"
+						},
+						"selected": {
+							"type": "boolean"
+						},
+						"change": {
+							"$ref": "#/$defs/control/$defs/layoutChange"
+						}
+					},
+					"required": ["terminalContextId", "tabId", "workbenchRevision", "selected", "change"],
+					"additionalProperties": false
+				},
+				"attentionSnapshot": {
+					"type": "object",
+					"properties": {
+						"cursor": {
+							"type": "string",
+							"pattern": "^v1\\.[A-Za-z0-9_-]{59}\\.[A-Za-z0-9_-]{43}$"
+						},
+						"revision": {
+							"type": "integer",
+							"minimum": 0,
+							"maximum": 9007199254740991
+						},
+						"outerFocused": {
+							"type": ["boolean", "null"]
+						},
+						"entries": {
+							"type": "array",
+							"minItems": 1,
+							"maxItems": 100,
+							"items": {
+								"type": "object",
+								"properties": {
+									"sessionId": {
+										"type": "string",
+										"minLength": 1,
+										"maxLength": 128,
+										"pattern": "^[A-Za-z0-9:._-]+$"
+									},
+									"state": {
+										"oneOf": [
+											{
+												"type": "null"
+											},
+											{
+												"type": "object",
+												"properties": {
+													"generation": {
+														"type": "integer",
+														"minimum": 0,
+														"maximum": 9007199254740991
+													},
+													"sequence": {
+														"type": "integer",
+														"minimum": 0,
+														"maximum": 9007199254740991
+													},
+													"stateChangeRevision": {
+														"type": "integer",
+														"minimum": 0,
+														"maximum": 9007199254740991
+													},
+													"seen": {
+														"type": "boolean"
+													}
+												},
+												"required": ["generation", "sequence", "stateChangeRevision", "seen"],
+												"additionalProperties": false
+											}
+										]
+									}
+								},
+								"required": ["sessionId", "state"],
+								"additionalProperties": false
+							}
+						}
+					},
+					"required": ["cursor", "revision", "outerFocused", "entries"],
+					"additionalProperties": false
+				}
+			}
+		},
+		"layout": {
+			"title": "Native Client Panel layout observation",
+			"type": "object",
+			"properties": {
+				"schema": {
+					"const": "orchbee.panel.layout"
+				},
+				"version": {
+					"const": 1
+				},
+				"siteId": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/layout/$defs/siteId"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"operationId": {
+					"$ref": "#/$defs/layout/$defs/requestId"
+				},
+				"observation": {
+					"oneOf": [
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "server"
+								},
+								"reply": {
+									"type": "object",
+									"properties": {
+										"protocolVersion": {
+											"const": 1
+										},
+										"requestId": {
+											"$ref": "#/$defs/layout/$defs/requestId"
+										},
+										"siteId": {
+											"$ref": "#/$defs/layout/$defs/siteId"
+										},
+										"outcome": {
+											"$ref": "#/$defs/layout/$defs/outcome"
+										}
+									},
+									"required": ["protocolVersion", "requestId", "siteId", "outcome"],
+									"additionalProperties": false
+								}
+							},
+							"required": ["kind", "reply"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "unknown"
+								}
+							},
+							"required": ["kind"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "not-submitted"
+								}
+							},
+							"required": ["kind"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "unobserved"
+								}
+							},
+							"required": ["kind"],
+							"additionalProperties": false
+						}
+					]
+				},
+				"wait": {
+					"anyOf": [
+						{
+							"enum": ["detached", "timed-out", "cancelled", "transport-lost", "observation-failed"]
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"query": {
+					"oneOf": [
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"enum": ["layout", "edges"]
+								}
+							},
+							"required": ["kind"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "neighbor"
+								},
+								"direction": {
+									"enum": ["left", "right", "up", "down"]
+								}
+							},
+							"required": ["kind", "direction"],
+							"additionalProperties": false
+						}
+					]
+				},
+				"projection": {
+					"oneOf": [
+						{
+							"type": "null"
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "layout"
+								}
+							},
+							"required": ["kind"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "neighbor"
+								},
+								"direction": {
+									"enum": ["left", "right", "up", "down"]
+								},
+								"sourceAvailable": {
+									"type": "boolean"
+								},
+								"neighborPanelId": {
+									"oneOf": [
+										{
+											"type": "null"
+										},
+										{
+											"$ref": "#/$defs/layout/$defs/panelId"
+										}
+									]
+								}
+							},
+							"required": ["kind", "direction", "sourceAvailable", "neighborPanelId"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "edges"
+								},
+								"sourceAvailable": {
+									"type": "boolean"
+								},
+								"left": {
+									"type": ["boolean", "null"]
+								},
+								"right": {
+									"type": ["boolean", "null"]
+								},
+								"up": {
+									"type": ["boolean", "null"]
+								},
+								"down": {
+									"type": ["boolean", "null"]
+								}
+							},
+							"required": ["kind", "sourceAvailable", "left", "right", "up", "down"],
+							"additionalProperties": false
+						}
+					]
+				}
+			},
+			"required": [
+				"schema",
+				"version",
+				"siteId",
+				"operationId",
+				"observation",
+				"wait",
+				"query",
+				"projection"
+			],
+			"additionalProperties": false,
+			"$defs": {
+				"siteId": {
+					"title": "SiteId",
+					"$ref": "#/$defs/layout/$defs/identity"
+				},
+				"requestId": {
+					"title": "WorkbenchRequestId",
+					"$ref": "#/$defs/layout/$defs/identity"
+				},
+				"terminalContextId": {
+					"title": "WorkbenchTerminalContextId",
+					"$ref": "#/$defs/layout/$defs/identity"
+				},
+				"tabId": {
+					"title": "WorkbenchTabId",
+					"$ref": "#/$defs/layout/$defs/identity"
+				},
+				"panelId": {
+					"title": "WorkbenchPanelId",
+					"$ref": "#/$defs/layout/$defs/identity"
+				},
+				"revision": {
+					"title": "WorkbenchRevision",
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 20,
+					"pattern": "^(?:0|[1-9][0-9]{0,19})$",
+					"format": "orchbee-uint64"
+				},
+				"clientId": {
+					"type": "string",
+					"pattern": "^[0-9a-f]{32}$",
+					"not": {
+						"const": "00000000000000000000000000000000"
+					}
+				},
+				"sequence": {
+					"type": "string",
+					"pattern": "^[1-9][0-9]{0,19}$"
+				},
+				"phase": {
+					"enum": ["starting", "ready", "busy", "unavailable"]
+				},
+				"selection": {
+					"type": "object",
+					"properties": {
+						"terminalContextId": {
+							"$ref": "#/$defs/layout/$defs/terminalContextId"
+						},
+						"tabId": {
+							"anyOf": [
+								{
+									"$ref": "#/$defs/layout/$defs/tabId"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"panelId": {
+							"anyOf": [
+								{
+									"$ref": "#/$defs/layout/$defs/panelId"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"zoomed": {
+							"type": "boolean"
+						},
+						"panelCount": {
+							"type": "integer",
+							"minimum": 0,
+							"maximum": 65535
+						}
+					},
+					"required": ["terminalContextId", "tabId", "panelId", "zoomed", "panelCount"],
+					"additionalProperties": false
+				},
+				"view": {
+					"type": "object",
+					"properties": {
+						"workbenchRevision": {
+							"$ref": "#/$defs/layout/$defs/revision"
+						},
+						"phase": {
+							"$ref": "#/$defs/layout/$defs/phase"
+						},
+						"selection": {
+							"anyOf": [
+								{
+									"$ref": "#/$defs/layout/$defs/selection"
+								},
+								{
+									"type": "null"
+								}
+							]
+						}
+					},
+					"required": ["workbenchRevision", "phase", "selection"],
+					"additionalProperties": false
+				},
+				"intent": {
+					"oneOf": [
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "context"
+								},
+								"terminalContextId": {
+									"$ref": "#/$defs/layout/$defs/terminalContextId"
+								}
+							},
+							"required": ["kind", "terminalContextId"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "tab"
+								},
+								"terminalContextId": {
+									"$ref": "#/$defs/layout/$defs/terminalContextId"
+								},
+								"tabId": {
+									"$ref": "#/$defs/layout/$defs/tabId"
+								}
+							},
+							"required": ["kind", "terminalContextId", "tabId"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "panel"
+								},
+								"terminalContextId": {
+									"$ref": "#/$defs/layout/$defs/terminalContextId"
+								},
+								"tabId": {
+									"$ref": "#/$defs/layout/$defs/tabId"
+								},
+								"panelId": {
+									"$ref": "#/$defs/layout/$defs/panelId"
+								}
+							},
+							"required": ["kind", "terminalContextId", "tabId", "panelId"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "zoom"
+								},
+								"terminalContextId": {
+									"$ref": "#/$defs/layout/$defs/terminalContextId"
+								},
+								"tabId": {
+									"$ref": "#/$defs/layout/$defs/tabId"
+								},
+								"panelId": {
+									"$ref": "#/$defs/layout/$defs/panelId"
+								},
+								"enabled": {
+									"type": "boolean"
+								}
+							},
+							"required": ["kind", "terminalContextId", "tabId", "panelId", "enabled"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "toggle-zoom"
+								},
+								"terminalContextId": {
+									"$ref": "#/$defs/layout/$defs/terminalContextId"
+								},
+								"tabId": {
+									"$ref": "#/$defs/layout/$defs/tabId"
+								},
+								"panelId": {
+									"$ref": "#/$defs/layout/$defs/panelId"
+								}
+							},
+							"required": ["kind", "terminalContextId", "tabId", "panelId"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "layout"
+								},
+								"terminalContextId": {
+									"$ref": "#/$defs/layout/$defs/terminalContextId"
+								},
+								"tabId": {
+									"$ref": "#/$defs/layout/$defs/tabId"
+								},
+								"panelId": {
+									"$ref": "#/$defs/layout/$defs/panelId"
+								}
+							},
+							"required": ["kind", "terminalContextId", "tabId", "panelId"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "focus-direction"
+								},
+								"terminalContextId": {
+									"$ref": "#/$defs/layout/$defs/terminalContextId"
+								},
+								"tabId": {
+									"$ref": "#/$defs/layout/$defs/tabId"
+								},
+								"panelId": {
+									"$ref": "#/$defs/layout/$defs/panelId"
+								},
+								"direction": {
+									"enum": ["left", "right", "up", "down"]
+								}
+							},
+							"required": ["kind", "terminalContextId", "tabId", "panelId", "direction"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "resize"
+								},
+								"terminalContextId": {
+									"$ref": "#/$defs/layout/$defs/terminalContextId"
+								},
+								"tabId": {
+									"$ref": "#/$defs/layout/$defs/tabId"
+								},
+								"panelId": {
+									"$ref": "#/$defs/layout/$defs/panelId"
+								},
+								"direction": {
+									"enum": ["left", "right", "up", "down"]
+								},
+								"amount": {
+									"$ref": "#/$defs/layout/$defs/resizeAmount"
+								}
+							},
+							"required": ["kind", "terminalContextId", "tabId", "panelId", "direction", "amount"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "set-split-ratio"
+								},
+								"terminalContextId": {
+									"$ref": "#/$defs/layout/$defs/terminalContextId"
+								},
+								"tabId": {
+									"$ref": "#/$defs/layout/$defs/tabId"
+								},
+								"path": {
+									"$ref": "#/$defs/layout/$defs/splitPath"
+								},
+								"ratio": {
+									"$ref": "#/$defs/layout/$defs/splitRatio"
+								},
+								"expectedSplit": {
+									"type": "object",
+									"additionalProperties": false,
+									"required": ["splitId", "firstSlotId", "secondSlotId"],
+									"properties": {
+										"splitId": {
+											"type": "string",
+											"pattern": "^[0-9a-f]{32}$"
+										},
+										"firstSlotId": {
+											"type": "string",
+											"pattern": "^[0-9a-f]{32}$"
+										},
+										"secondSlotId": {
+											"type": "string",
+											"pattern": "^[0-9a-f]{32}$"
+										}
+									}
+								}
+							},
+							"required": ["kind", "terminalContextId", "tabId", "path", "ratio"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "agent-attention"
+								},
+								"sessionIds": {
+									"type": "array",
+									"minItems": 1,
+									"maxItems": 100,
+									"uniqueItems": true,
+									"items": {
+										"type": "string",
+										"minLength": 1,
+										"maxLength": 128,
+										"pattern": "^[A-Za-z0-9:._-]+$"
+									}
+								}
+							},
+							"required": ["kind", "sessionIds"],
+							"additionalProperties": false
+						}
+					]
+				},
+				"control": {
+					"type": "object",
+					"properties": {
+						"operationId": {
+							"$ref": "#/$defs/layout/$defs/requestId"
+						},
+						"clientId": {
+							"$ref": "#/$defs/layout/$defs/clientId"
+						},
+						"expectedViewRevision": {
+							"$ref": "#/$defs/layout/$defs/sequence"
+						},
+						"minimumWorkbenchRevision": {
+							"$ref": "#/$defs/layout/$defs/revision"
+						},
+						"intent": {
+							"$ref": "#/$defs/layout/$defs/intent"
+						}
+					},
+					"required": [
+						"operationId",
+						"clientId",
+						"expectedViewRevision",
+						"minimumWorkbenchRevision",
+						"intent"
+					],
+					"additionalProperties": false
+				},
+				"reason": {
+					"enum": [
+						"busy",
+						"stale-view",
+						"target-unavailable",
+						"projection-unavailable",
+						"interrupted",
+						"client-disconnected",
+						"expired",
+						"unsupported"
+					]
+				},
+				"status": {
+					"oneOf": [
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "queued"
+								}
+							},
+							"required": ["kind"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "delivered"
+								}
+							},
+							"required": ["kind"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "applied"
+								},
+								"view": {
+									"$ref": "#/$defs/layout/$defs/view"
+								}
+							},
+							"required": ["kind", "view"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "rejected"
+								},
+								"reason": {
+									"$ref": "#/$defs/layout/$defs/reason"
+								}
+							},
+							"required": ["kind", "reason"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "incomplete"
+								},
+								"reason": {
+									"$ref": "#/$defs/layout/$defs/reason"
+								},
+								"view": {
+									"anyOf": [
+										{
+											"$ref": "#/$defs/layout/$defs/view"
+										},
+										{
+											"type": "null"
+										}
+									]
+								}
+							},
+							"required": ["kind", "reason", "view"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "zoom-unchanged"
+								},
+								"view": {
+									"$ref": "#/$defs/layout/$defs/view"
+								}
+							},
+							"required": ["kind", "view"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "zoom-toggled"
+								},
+								"view": {
+									"$ref": "#/$defs/layout/$defs/view"
+								},
+								"previouslyZoomed": {
+									"type": "boolean"
+								}
+							},
+							"required": ["kind", "view", "previouslyZoomed"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "layout-read"
+								},
+								"layout": {
+									"$ref": "#/$defs/layout/$defs/layout"
+								},
+								"view": {
+									"$ref": "#/$defs/layout/$defs/view"
+								}
+							},
+							"required": ["kind", "layout", "view"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "direction-focused"
+								},
+								"panelId": {
+									"$ref": "#/$defs/layout/$defs/panelId"
+								},
+								"view": {
+									"$ref": "#/$defs/layout/$defs/view"
+								}
+							},
+							"required": ["kind", "panelId", "view"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "direction-unchanged"
+								},
+								"layoutRevision": {
+									"$ref": "#/$defs/layout/$defs/revision"
+								},
+								"view": {
+									"$ref": "#/$defs/layout/$defs/view"
+								}
+							},
+							"required": ["kind", "layoutRevision", "view"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "layout-adjusted"
+								},
+								"adjustment": {
+									"$ref": "#/$defs/layout/$defs/layoutAdjustment"
+								},
+								"view": {
+									"$ref": "#/$defs/layout/$defs/view"
+								}
+							},
+							"required": ["kind", "adjustment", "view"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "attention-read"
+								},
+								"attention": {
+									"$ref": "#/$defs/layout/$defs/attentionSnapshot"
+								},
+								"view": {
+									"$ref": "#/$defs/layout/$defs/view"
+								}
+							},
+							"required": ["kind", "attention", "view"],
+							"additionalProperties": false
+						}
+					]
+				},
+				"operation": {
+					"type": "object",
+					"properties": {
+						"command": {
+							"$ref": "#/$defs/layout/$defs/control"
+						},
+						"status": {
+							"$ref": "#/$defs/layout/$defs/status"
+						}
+					},
+					"required": ["command", "status"],
+					"additionalProperties": false
+				},
+				"outcome": {
+					"oneOf": [
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "operation"
+								},
+								"operation": {
+									"$ref": "#/$defs/layout/$defs/operation"
+								}
+							},
+							"required": ["kind", "operation"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "not-found"
+								}
+							},
+							"required": ["kind"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "conflict"
+								}
+							},
+							"required": ["kind"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "denied"
+								}
+							},
+							"required": ["kind"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "unavailable"
+								},
+								"reason": {
+									"enum": [
+										"client-unavailable",
+										"server-busy",
+										"receipt-capacity",
+										"unsupported",
+										"sequence-exhausted"
+									]
+								}
+							},
+							"required": ["kind", "reason"],
+							"additionalProperties": false
+						}
+					]
+				},
+				"identity": {
+					"type": "string",
+					"pattern": "^[0-9a-f]{32}$",
+					"not": {
+						"const": "00000000000000000000000000000000"
+					}
+				},
+				"cellRect": {
+					"type": "object",
+					"properties": {
+						"x": {
+							"type": "integer",
+							"minimum": 0,
+							"maximum": 65535
+						},
+						"y": {
+							"type": "integer",
+							"minimum": 0,
+							"maximum": 65535
+						},
+						"width": {
+							"type": "integer",
+							"minimum": 0,
+							"maximum": 65535
+						},
+						"height": {
+							"type": "integer",
+							"minimum": 0,
+							"maximum": 65535
+						}
+					},
+					"required": ["x", "y", "width", "height"],
+					"additionalProperties": false
+				},
+				"panelArea": {
+					"type": "object",
+					"properties": {
+						"panelId": {
+							"$ref": "#/$defs/layout/$defs/panelId"
+						},
+						"unzoomed": {
+							"anyOf": [
+								{
+									"$ref": "#/$defs/layout/$defs/cellRect"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"terminal": {
+							"anyOf": [
+								{
+									"$ref": "#/$defs/layout/$defs/cellRect"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"displayed": {
+							"anyOf": [
+								{
+									"$ref": "#/$defs/layout/$defs/cellRect"
+								},
+								{
+									"type": "null"
+								}
+							]
+						}
+					},
+					"required": ["panelId", "unzoomed", "terminal", "displayed"],
+					"additionalProperties": false
+				},
+				"splitArea": {
+					"type": "object",
+					"properties": {
+						"splitId": {
+							"$ref": "#/$defs/layout/$defs/splitId"
+						},
+						"firstSlotId": {
+							"$ref": "#/$defs/layout/$defs/panelSlotId"
+						},
+						"secondSlotId": {
+							"$ref": "#/$defs/layout/$defs/panelSlotId"
+						},
+						"orientation": {
+							"enum": ["horizontal", "vertical"]
+						},
+						"ratio": {
+							"type": "number",
+							"minimum": 0.1,
+							"maximum": 0.9
+						},
+						"area": {
+							"anyOf": [
+								{
+									"$ref": "#/$defs/layout/$defs/cellRect"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"divider": {
+							"anyOf": [
+								{
+									"$ref": "#/$defs/layout/$defs/cellRect"
+								},
+								{
+									"type": "null"
+								}
+							]
+						}
+					},
+					"required": [
+						"splitId",
+						"firstSlotId",
+						"secondSlotId",
+						"orientation",
+						"ratio",
+						"area",
+						"divider"
+					],
+					"additionalProperties": false
+				},
+				"neighbors": {
+					"type": "object",
+					"properties": {
+						"left": {
+							"anyOf": [
+								{
+									"$ref": "#/$defs/layout/$defs/panelId"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"right": {
+							"anyOf": [
+								{
+									"$ref": "#/$defs/layout/$defs/panelId"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"up": {
+							"anyOf": [
+								{
+									"$ref": "#/$defs/layout/$defs/panelId"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"down": {
+							"anyOf": [
+								{
+									"$ref": "#/$defs/layout/$defs/panelId"
+								},
+								{
+									"type": "null"
+								}
+							]
+						}
+					},
+					"required": ["left", "right", "up", "down"],
+					"additionalProperties": false
+				},
+				"layout": {
+					"type": "object",
+					"properties": {
+						"terminalContextId": {
+							"$ref": "#/$defs/layout/$defs/terminalContextId"
+						},
+						"tabId": {
+							"$ref": "#/$defs/layout/$defs/tabId"
+						},
+						"sourcePanelId": {
+							"$ref": "#/$defs/layout/$defs/panelId"
+						},
+						"workbenchRevision": {
+							"$ref": "#/$defs/layout/$defs/revision"
+						},
+						"viewport": {
+							"$ref": "#/$defs/layout/$defs/cellRect"
+						},
+						"area": {
+							"$ref": "#/$defs/layout/$defs/cellRect"
+						},
+						"selected": {
+							"type": "boolean"
+						},
+						"zoomed": {
+							"type": "boolean"
+						},
+						"focusedPanelId": {
+							"anyOf": [
+								{
+									"$ref": "#/$defs/layout/$defs/panelId"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"sourceAvailable": {
+							"type": "boolean"
+						},
+						"neighbors": {
+							"$ref": "#/$defs/layout/$defs/neighbors"
+						},
+						"panels": {
+							"type": "array",
+							"minItems": 1,
+							"maxItems": 4096,
+							"items": {
+								"$ref": "#/$defs/layout/$defs/panelArea"
+							}
+						},
+						"splits": {
+							"type": "array",
+							"maxItems": 4096,
+							"items": {
+								"$ref": "#/$defs/layout/$defs/splitArea"
+							}
+						}
+					},
+					"required": [
+						"terminalContextId",
+						"tabId",
+						"sourcePanelId",
+						"workbenchRevision",
+						"viewport",
+						"area",
+						"selected",
+						"zoomed",
+						"focusedPanelId",
+						"sourceAvailable",
+						"neighbors",
+						"panels",
+						"splits"
+					],
+					"additionalProperties": false
+				},
+				"splitId": {
+					"$ref": "#/$defs/layout/$defs/identity"
+				},
+				"panelSlotId": {
+					"$ref": "#/$defs/layout/$defs/identity"
+				},
+				"splitRatio": {
+					"type": "number",
+					"minimum": 0.1,
+					"maximum": 0.9
+				},
+				"resizeAmount": {
+					"type": "number",
+					"minimum": 0,
+					"maximum": 0.5
+				},
+				"splitPath": {
+					"type": "array",
+					"items": {
+						"type": "integer",
+						"enum": [0, 1]
+					},
+					"maxItems": 16
+				},
+				"splitChange": {
+					"type": "object",
+					"properties": {
+						"splitId": {
+							"$ref": "#/$defs/layout/$defs/splitId"
+						},
+						"firstSlotId": {
+							"$ref": "#/$defs/layout/$defs/panelSlotId"
+						},
+						"secondSlotId": {
+							"$ref": "#/$defs/layout/$defs/panelSlotId"
+						},
+						"previousRatio": {
+							"$ref": "#/$defs/layout/$defs/splitRatio"
+						},
+						"ratio": {
+							"$ref": "#/$defs/layout/$defs/splitRatio"
+						}
+					},
+					"required": ["splitId", "firstSlotId", "secondSlotId", "previousRatio", "ratio"],
+					"additionalProperties": false
+				},
+				"layoutChange": {
+					"oneOf": [
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "no-split"
+								}
+							},
+							"required": ["kind"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "split"
+								},
+								"split": {
+									"$ref": "#/$defs/layout/$defs/splitChange"
+								}
+							},
+							"required": ["kind", "split"],
+							"additionalProperties": false
+						}
+					]
+				},
+				"layoutAdjustment": {
+					"type": "object",
+					"properties": {
+						"terminalContextId": {
+							"$ref": "#/$defs/layout/$defs/terminalContextId"
+						},
+						"tabId": {
+							"$ref": "#/$defs/layout/$defs/tabId"
+						},
+						"workbenchRevision": {
+							"$ref": "#/$defs/layout/$defs/revision"
+						},
+						"selected": {
+							"type": "boolean"
+						},
+						"change": {
+							"$ref": "#/$defs/layout/$defs/layoutChange"
+						}
+					},
+					"required": ["terminalContextId", "tabId", "workbenchRevision", "selected", "change"],
+					"additionalProperties": false
+				},
+				"attentionSnapshot": {
+					"type": "object",
+					"properties": {
+						"cursor": {
+							"type": "string",
+							"pattern": "^v1\\.[A-Za-z0-9_-]{59}\\.[A-Za-z0-9_-]{43}$"
+						},
+						"revision": {
+							"type": "integer",
+							"minimum": 0,
+							"maximum": 9007199254740991
+						},
+						"outerFocused": {
+							"type": ["boolean", "null"]
+						},
+						"entries": {
+							"type": "array",
+							"minItems": 1,
+							"maxItems": 100,
+							"items": {
+								"type": "object",
+								"properties": {
+									"sessionId": {
+										"type": "string",
+										"minLength": 1,
+										"maxLength": 128,
+										"pattern": "^[A-Za-z0-9:._-]+$"
+									},
+									"state": {
+										"oneOf": [
+											{
+												"type": "null"
+											},
+											{
+												"type": "object",
+												"properties": {
+													"generation": {
+														"type": "integer",
+														"minimum": 0,
+														"maximum": 9007199254740991
+													},
+													"sequence": {
+														"type": "integer",
+														"minimum": 0,
+														"maximum": 9007199254740991
+													},
+													"stateChangeRevision": {
+														"type": "integer",
+														"minimum": 0,
+														"maximum": 9007199254740991
+													},
+													"seen": {
+														"type": "boolean"
+													}
+												},
+												"required": ["generation", "sequence", "stateChangeRevision", "seen"],
+												"additionalProperties": false
+											}
+										]
+									}
+								},
+								"required": ["sessionId", "state"],
+								"additionalProperties": false
+							}
+						}
+					},
+					"required": ["cursor", "revision", "outerFocused", "entries"],
+					"additionalProperties": false
+				}
+			}
+		}
+	},
+	"allOf": [
+		{
+			"if": {
+				"properties": {
+					"outcome": {
+						"const": "unchanged"
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"stage": {
+						"const": "complete"
+					},
+					"movement": {
+						"type": "null"
+					},
+					"project": {
+						"type": "null"
+					},
+					"directory": {
+						"type": "null"
+					},
+					"failure": {
+						"type": "null"
+					},
+					"reason": {
+						"enum": ["same-tab", "zoomed-tab"]
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"outcome": {
+						"const": "completed"
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"stage": {
+						"const": "complete"
+					},
+					"movement": {
+						"type": "object"
+					},
+					"reason": {
+						"type": "null"
+					},
+					"failure": {
+						"type": "null"
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"outcome": {
+						"const": "completed"
+					},
+					"requestedFocus": {
+						"const": true
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"clientId": {
+						"type": "string"
+					},
+					"focus": {
+						"type": "object"
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"outcome": {
+						"const": "completed"
+					},
+					"requestedRatio": {
+						"type": "number"
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"clientId": {
+						"type": "string"
+					},
+					"ratio": {
+						"type": "object"
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"outcome": {
+						"const": "completed"
+					},
+					"directoryPath": {
+						"type": "string"
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"directory": {
+						"type": "object"
+					}
+				}
+			}
+		}
+	]
+}

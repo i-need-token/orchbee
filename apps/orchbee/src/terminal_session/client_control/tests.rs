@@ -937,7 +937,10 @@ fn inactive_and_unvisited_ratio_changes_store_without_selection_attachment_or_dr
             .unwrap();
         assert_eq!(layout.splits[0].ratio.value(), 0.7);
         assert_eq!(layout.panels[0].unzoomed.unwrap().width, 82);
-        assert!(layout.focused_panel_id.is_none());
+        assert_eq!(layout.focused_panel_id.as_ref(), Some(panel_id));
+        assert!(!layout.selected);
+        assert_eq!(native.control_observation(false).unwrap(), before);
+        assert!(mailbox.try_recv().unwrap().is_none());
     }
 }
 

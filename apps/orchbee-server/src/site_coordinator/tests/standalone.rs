@@ -114,6 +114,7 @@ fn relocation_departure_and_arrival_reconcile_open_without_relaunch() {
                 destination: WorkbenchPanelRelocateDestination::NewWorkspace {
                     project_id,
                     primary_directory_id: None,
+                    primary_directory_path: None,
                     label: WorkbenchLabel::parse("retained").unwrap(),
                     tab_label: None,
                 },

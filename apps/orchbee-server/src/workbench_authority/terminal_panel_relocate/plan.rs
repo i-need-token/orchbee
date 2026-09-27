@@ -16,7 +16,10 @@ use orchbee_workbench_protocol::{
 };
 
 impl WorkbenchPanelRelocateAdmission<'_> {
-    pub(super) fn plan(&self) -> Result<RelocationPlan, PlanFailure> {
+    pub(super) fn plan(
+        &self,
+        directory_worker: Option<&orchbee_workbench_protocol::WorkerId>,
+    ) -> Result<RelocationPlan, PlanFailure> {
         let snapshot = self.authority.projection.snapshot();
         let source = context(snapshot, &self.terminal_context_id)?;
         let source_tab = source
@@ -28,8 +31,17 @@ impl WorkbenchPanelRelocateAdmission<'_> {
             ))?;
         let closed_source_tab = matches!(&source_tab.root, PanelNode::Panel { .. });
         let count = match self.destination {
-            WorkbenchPanelRelocateDestination::Tab { .. }
-            | WorkbenchPanelRelocateDestination::NewWorkspace { .. } => 3,
+            WorkbenchPanelRelocateDestination::Tab { .. } => 3,
+            WorkbenchPanelRelocateDestination::NewWorkspace {
+                ref primary_directory_path,
+                ..
+            } => {
+                if primary_directory_path.is_some() {
+                    4
+                } else {
+                    3
+                }
+            }
             WorkbenchPanelRelocateDestination::NewTab { .. } => 1,
         };
 
@@ -74,6 +86,7 @@ impl WorkbenchPanelRelocateAdmission<'_> {
             WorkbenchPanelRelocateDestination::NewWorkspace {
                 project_id,
                 primary_directory_id,
+                primary_directory_path,
                 ..
             } => {
                 let project = snapshot
@@ -93,6 +106,36 @@ impl WorkbenchPanelRelocateAdmission<'_> {
                     return Err(PlanFailure::Rejected(
                         WorkbenchRejectionReason::WorkspaceDirectoryUnavailable,
                     ));
+                }
+                if primary_directory_path.is_some() {
+                    if primary_directory_id.is_some() {
+                        return Err(PlanFailure::Rejected(
+                            WorkbenchRejectionReason::WorkspaceDirectoryConflict,
+                        ));
+                    }
+                    if project.directories.len()
+                        >= orchbee_workbench_protocol::MAXIMUM_DIRECTORIES_PER_PROJECT
+                    {
+                        return Err(PlanFailure::Rejected(
+                            WorkbenchRejectionReason::ResourceLimit,
+                        ));
+                    }
+                    let Some(PanelNode::Panel {
+                        primary_presentation,
+                        ..
+                    }) = find_panel(&source_tab.root, &self.panel_id)
+                    else {
+                        return Err(PlanFailure::Internal);
+                    };
+                    if primary_presentation
+                        .binding
+                        .as_ref()
+                        .is_none_or(|binding| Some(&binding.worker_id) != directory_worker)
+                    {
+                        return Err(PlanFailure::Rejected(
+                            WorkbenchRejectionReason::WorkspaceDirectoryUnavailable,
+                        ));
+                    }
                 }
             }
         }
@@ -177,9 +220,11 @@ impl WorkbenchPanelRelocateAdmission<'_> {
                 .retain(|context| context.terminal_context_id != self.terminal_context_id);
         }
         let mut created_workspace_id = None;
+        let mut created_directory_id = None;
         if let WorkbenchPanelRelocateDestination::NewWorkspace {
             project_id,
             primary_directory_id,
+            primary_directory_path,
             label,
             ..
         } = &self.destination
@@ -192,9 +237,25 @@ impl WorkbenchPanelRelocateAdmission<'_> {
                 .iter_mut()
                 .find(|project| &project.project_id == project_id)
                 .ok_or(PlanFailure::Internal)?;
+            if let Some(path) = primary_directory_path {
+                let directory_id = orchbee_workbench_protocol::WorkbenchDirectoryId::parse(
+                    &identity(last_identity - 3),
+                )
+                .map_err(|_| PlanFailure::Internal)?;
+                project
+                    .directories
+                    .push(orchbee_workbench_protocol::Directory {
+                        directory_id: directory_id.clone(),
+                        worker_id: directory_worker.ok_or(PlanFailure::Internal)?.clone(),
+                        path: path.clone(),
+                    });
+                created_directory_id = Some(directory_id);
+            }
             project.workspaces.push(Workspace {
                 label: label.as_str().to_owned(),
-                primary_directory_id: primary_directory_id.clone(),
+                primary_directory_id: created_directory_id
+                    .clone()
+                    .or_else(|| primary_directory_id.clone()),
                 terminal_context_id: target_context_id.clone(),
                 workspace_id: workspace_id.clone(),
             });
@@ -218,6 +279,7 @@ impl WorkbenchPanelRelocateAdmission<'_> {
                     closed_source_tab,
                     closed_source_workspace_id,
                     created_workspace_id,
+                    created_directory_id,
                 }
             });
         let target = candidate

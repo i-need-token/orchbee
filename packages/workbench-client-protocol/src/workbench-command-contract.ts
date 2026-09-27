@@ -268,9 +268,14 @@ export const WorkbenchActionSchema = z.discriminatedUnion('kind', [
 						kind: z.literal('new-workspace'),
 						projectId: WorkbenchProjectIdSchema,
 						primaryDirectoryId: WorkbenchDirectoryIdSchema.optional(),
+						primaryDirectoryPath: WorkbenchDirectoryPathSchema.optional(),
 						label: WorkbenchLabelSchema,
 						tabLabel: WorkbenchLabelSchema.optional(),
 					})
+					.refine(
+						(value) =>
+							value.primaryDirectoryId === undefined || value.primaryDirectoryPath === undefined,
+					)
 					.readonly(),
 			]),
 		})
@@ -380,6 +385,7 @@ const WorkbenchPanelTransferSchema = z
 		closedSourceTab: z.boolean(),
 		closedSourceWorkspaceId: WorkbenchWorkspaceIdSchema.optional(),
 		createdWorkspaceId: WorkbenchWorkspaceIdSchema.optional(),
+		createdDirectoryId: WorkbenchDirectoryIdSchema.optional(),
 	})
 	.readonly();
 

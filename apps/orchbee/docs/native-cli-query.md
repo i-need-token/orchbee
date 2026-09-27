@@ -342,9 +342,9 @@ close-status` and `workspace close-resume` both flags are strict stable IDs inst
 - `--rows <n>` on `terminal wait-output` is the searched retained-row window `1..=1000`
   (default `1000`) covering the most recent visible+history rows as one range — unrelated
   to the geometry flag of the same name.
-- `--target-panel <target>`: single-use value flag, required on `panel move`; parsed with
+- `--target-panel <target>`: single-use value flag, required on legacy same-Tab `panel move` and optional with `--into-tab`; parsed with
   the `panel` target rule (a complete typed ID only) and resolved inside the moved panel's
-  own tab.
+  own Tab for legacy moves, or the destination Tab with `--into-tab`.
 - `--history`: valueless flag admitted only on `terminal read`, legal only paired with
   `--rows <n>` — on `terminal read` the `--rows` spelling carries the retained-row count
   `1..=1000` instead of its geometry meaning, which stays the contract on `tab create`
@@ -2286,5 +2286,48 @@ Relocation includes optional `transfer` facts:
 Moving a Tab's final leaf removes that Tab without disposing its terminal; the result reports
 that removal. The local carrier checks destination kind/context, created-Workspace presence,
 source-removal consistency and result correlation before acknowledging a commit. Catalog v71
-contains 80 embedded schemas. Cross-Workspace grammar and Client ratio/focus integration remain
-required before claiming the full H066/R049 user workflow.
+contains 80 embedded schemas at this contract revision.
+
+### Windows Panel relocation workflow
+
+```text
+panel move <panel> --into-tab <tab> --direction above|below|left|right [--target-panel <panel>] [--ratio <number>]
+panel move <panel> --new-tab [--workspace <workspace> | --standalone] [--label <text>]
+panel move <panel> --new-workspace [--project <project>] [--label <text>] [--tab-label <text>]
+```
+
+All forms accept `--focus|--no-focus`, `--client` and `--timeout`. Focus defaults to true,
+matching pinned Herdr CLI `e0507237`; its JSON method separately defaults to false. The legacy
+same-Tab `--target-panel --direction` form remains a one-effect mutation. Ratios must be finite
+and are clamped to 0.1–0.9. New Tab labels are optional.
+
+Resolve one snapshot and an explicit, caller-associated or sole current Client. Ambiguity fails
+before effects. Without a Client, only `--no-focus` without an explicit ratio may proceed: choose
+the first target leaf and native default ratio, without claiming Client geometry or zoom state.
+With a Client, read-only source/target layouts determine zoom and the default target leaf.
+Zoomed source/target Tabs and same-Tab relocation return unchanged without mutation. An explicit
+target Panel must belong to the target Tab.
+
+New Workspace ownership follows the source Project unless overridden. A standalone source uses
+the sole Project, or prepares the first Project when none exists; multiple Projects require a
+selector. Its directory follows the observed terminal root cwd; an absent cwd falls back to the
+invoking process cwd. Invalid observations fail. Validate paths and labels before effects.
+
+Phases: preflight → optional first Project → canonical transfer with new-Workspace directory → optional ratio → focus → observed layouts. One absolute deadline and cancellation
+cover the invocation. The Server commits topology atomically without restarting the terminal;
+Directory creation shares the canonical commit after Worker validation; Project preparation and Client effects have separate receipts.
+`orchbee.panel.move` v1 retains every known commit on later failure, cancellation or unknown
+outcome. Never replay ambiguous commands or report a partial workflow as completed.
+
+Ratio targets the returned Split/slot identities after snapshot refresh. Client follow-up waits
+for canonical convergence and preserves an unaffected prior selection; unrelated navigation
+refuses follow-up. Removal of the selected source permits ordinary selection repair. Other
+Clients keep independent navigation. Receipt layouts describe only the selected Client.
+An unchanged empty Ready view may enter the existing minimum-revision-fenced control without
+waiting for an unrelated navigation heartbeat; its observed revision must not regress. Inactive
+target layouts report that Client's remembered canonical Panel, or the first member when absent.
+Grammar/decision tests, receipt validation, cancellable transport checks and real Windows multiple-Client
+live-terminal/restart acceptance cover these boundaries. Generic events and existing child,
+grouped and pinned structure restrictions remain separate obligations.
+
+Catalog v72 contains 81 schemas and retains 96 command paths.

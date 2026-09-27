@@ -95,6 +95,141 @@ fn transfer_command(
     )
 }
 
+fn relocate_with_directory(
+    owner: &mut WorkbenchAuthority,
+    grant: &WorkbenchGrant,
+    command: WorkbenchCommand,
+    worker: Option<WorkerId>,
+) -> WorkbenchCommandResult {
+    let admission = match owner.begin_terminal_panel_relocate(Some(grant), command) {
+        WorkbenchPanelRelocateBegin::Ready(result) => return result,
+        WorkbenchPanelRelocateBegin::Admitted(admission) => admission,
+    };
+    let prepared = match worker {
+        Some(worker) => admission.finish_with_directory(worker),
+        None => admission.finish(),
+    };
+    match prepared {
+        WorkbenchPanelRelocatePreparation::Ready(result) => result,
+        WorkbenchPanelRelocatePreparation::Prepared(prepared) => prepared.commit(),
+    }
+}
+
+#[test]
+fn relocation_directory_is_worker_proven_atomic_and_replayable() {
+    use orchbee_workbench_protocol::WorkbenchDirectoryPath;
+    for source in [0, 1] {
+        for case in 0..5 {
+            let (mut owner, base_grant) = populated();
+            let grant = if case == 3 {
+                base_grant
+            } else {
+                base_grant.with_directory_association()
+            };
+            let mut before = owner.snapshot().clone();
+            if case == 4 {
+                before.navigation.projects[1].directories = (0
+                    ..orchbee_workbench_protocol::MAXIMUM_DIRECTORIES_PER_PROJECT)
+                    .map(|index| orchbee_workbench_protocol::Directory {
+                        directory_id: WorkbenchDirectoryId::parse(&identity(4000 + index as u128))
+                            .unwrap(),
+                        worker_id: binding(1).worker_id,
+                        path: WorkbenchDirectoryPath::parse(&format!("C:/full/{index}")).unwrap(),
+                    })
+                    .collect();
+                install(&mut owner, before.clone());
+            }
+            let path = WorkbenchDirectoryPath::parse("C:/retained/source").unwrap();
+            let command = transfer_command(
+                &owner,
+                90_000,
+                source,
+                WorkbenchPanelRelocateDestination::NewWorkspace {
+                    project_id: before.navigation.projects[1].project_id.clone(),
+                    primary_directory_id: None,
+                    primary_directory_path: Some(path.clone()),
+                    label: WorkbenchLabel::parse("moved").unwrap(),
+                    tab_label: None,
+                },
+            );
+            let high = owner.last_identity;
+            let worker = match case {
+                0 => None,
+                1 => Some(WorkerId::parse(&identity(9999)).unwrap()),
+                _ => Some(binding(1).worker_id),
+            };
+            let response = relocate_with_directory(&mut owner, &grant, command.clone(), worker);
+            if case != 2 {
+                assert_eq!(owner.snapshot(), &before, "case {case}");
+                assert_eq!(owner.last_identity, high);
+                match case {
+                    0 => assert!(matches!(
+                        response.outcome,
+                        WorkbenchCommandOutcome::Unavailable {
+                            reason: WorkbenchCommandUnavailableReason::DirectoryUnavailable
+                        }
+                    )),
+                    1 => assert!(matches!(
+                        response.outcome,
+                        WorkbenchCommandOutcome::Rejected {
+                            reason: WorkbenchRejectionReason::WorkspaceDirectoryUnavailable,
+                            ..
+                        }
+                    )),
+                    3 => assert!(matches!(
+                        response.outcome,
+                        WorkbenchCommandOutcome::Denied {}
+                    )),
+                    _ => assert!(matches!(
+                        response.outcome,
+                        WorkbenchCommandOutcome::Rejected {
+                            reason: WorkbenchRejectionReason::ResourceLimit,
+                            ..
+                        }
+                    )),
+                }
+                continue;
+            }
+            let WorkbenchCommandOutcome::PanelRelocatedToNewTab {
+                transfer: Some(transfer),
+                ..
+            } = &response.outcome
+            else {
+                panic!("{response:?}")
+            };
+            let directory_id = transfer.created_directory_id.as_ref().unwrap();
+            let project = &owner.snapshot().navigation.projects[1];
+            let directory = project
+                .directories
+                .iter()
+                .find(|directory| &directory.directory_id == directory_id)
+                .unwrap();
+            assert_eq!(directory.path, path);
+            assert_eq!(directory.worker_id, binding(1).worker_id);
+            let workspace = project
+                .workspaces
+                .iter()
+                .find(|workspace| {
+                    Some(&workspace.workspace_id) == transfer.created_workspace_id.as_ref()
+                })
+                .unwrap();
+            assert_eq!(workspace.primary_directory_id.as_ref(), Some(directory_id));
+            assert_eq!(retained(owner.snapshot()), retained(&before));
+            assert_eq!(owner.last_identity, high + 4);
+            assert_eq!(
+                owner.snapshot().revision.value(),
+                before.revision.value() + 1
+            );
+            assert_eq!(project.directories.len(), 1);
+            // Retained result is authoritative even without another Worker probe.
+            assert_eq!(
+                relocate_with_directory(&mut owner, &grant, command, None),
+                response
+            );
+        }
+    }
+}
+
 #[test]
 fn cross_context_reference_matrix_conserves_leaves_and_reports_source_disposal() {
     // Independent reference partitions: standalone/Workspace source, one/many
@@ -154,6 +289,7 @@ fn cross_context_reference_matrix_conserves_leaves_and_reports_source_disposal()
                         _ => WorkbenchPanelRelocateDestination::NewWorkspace {
                             project_id: initial.navigation.projects[1].project_id.clone(),
                             primary_directory_id: None,
+                            primary_directory_path: None,
                             label: WorkbenchLabel::parse("moved").unwrap(),
                             tab_label: None,
                         },
@@ -277,6 +413,7 @@ fn transfer_resolution_refuses_without_allocating_or_removing_source() {
             WorkbenchPanelRelocateDestination::NewWorkspace {
                 project_id: WorkbenchProjectId::parse(&identity(99_000)).unwrap(),
                 primary_directory_id: None,
+                primary_directory_path: None,
                 label: WorkbenchLabel::parse("x").unwrap(),
                 tab_label: None,
             },
@@ -286,6 +423,7 @@ fn transfer_resolution_refuses_without_allocating_or_removing_source() {
             WorkbenchPanelRelocateDestination::NewWorkspace {
                 project_id: project,
                 primary_directory_id: Some(WorkbenchDirectoryId::parse(&identity(99_000)).unwrap()),
+                primary_directory_path: None,
                 label: WorkbenchLabel::parse("x").unwrap(),
                 tab_label: None,
             },
@@ -366,6 +504,7 @@ fn run_transfers(steps: &[(u8, bool)]) -> Result<(), String> {
             WorkbenchPanelRelocateDestination::NewWorkspace {
                 project_id: before.navigation.projects[0].project_id.clone(),
                 primary_directory_id: None,
+                primary_directory_path: None,
                 label: WorkbenchLabel::parse("generated").unwrap(),
                 tab_label: None,
             }
