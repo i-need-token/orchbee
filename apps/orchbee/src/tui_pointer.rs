@@ -892,7 +892,7 @@ impl PointerState {
 
     /// Wheel over a pane region outside any gesture: tracking panes get a
     /// report; a non-reporting alternate-screen pane gets cursor arrows
-    /// through the bounded stream; everything else drops.
+    /// through the bounded stream; untracked primary content uses history.
     fn wheel_on_pane<Port: TerminalInputPort + ?Sized>(
         &mut self,
         view: &mut ClientView,
@@ -907,6 +907,16 @@ impl PointerState {
             // owns the focus. A wheel over an unfocused pane — or over a
             // re-minted record — is a dead notch.
             return PointerOutcome::Ignored;
+        }
+        if event.mods.shift {
+            return PointerOutcome::Ignored;
+        }
+        if !contains(target.content, event.column, event.row) {
+            return if probe.viewport_non_live {
+                PointerOutcome::Handled
+            } else {
+                PointerOutcome::Ignored
+            };
         }
         // A non-Live focus core owns the wheel before any frame contract:
         // each notch scrolls its retained window locally, three rows per
@@ -948,6 +958,10 @@ impl PointerState {
                 } else {
                     PointerOutcome::Ignored
                 }
+            }
+            PointerOwner::Client if !frame.alternate_screen => {
+                port.history_wheel(&target.expected, event.button == MouseButton::WheelUp);
+                PointerOutcome::Handled
             }
             PointerOwner::Client | PointerOwner::Host => PointerOutcome::Ignored,
         }

@@ -2,7 +2,7 @@
 
 ## 范围与归属
 
-本参考规范原生 Client 的保留历史视口：以 `Ctrl+B PageUp` 进入的按窗格滚动回看模式、其
+本参考规范原生 Client 的保留历史视口：以 `Ctrl+B PageUp` 或 primary 屏幕向上滚轮进入的按窗格滚动回看模式、其
 demand 双腿、行窗口 read/acknowledge 握手、导航意图、恢复，以及呈现面如何生成与围栏。
 与 `terminal_session/terminal_viewport.rs`、`terminal_session/mailbox.rs`、
 `terminal_session/connection/native.rs`、`terminal_session/ui.rs`、`terminal_input/dispatcher.rs`、
@@ -42,6 +42,12 @@ demand 双腿、行窗口 read/acknowledge 握手、导航意图、恢复，以�
 屏幕自身行绝不与保留历史混为一谈：`total_rows` 只来自服务过的窗口，不取自
 `scrollback_rows`。
 
+焦点窗格未启用 tracking 的 primary 屏幕内容区内，非 Shift 滚轮从尾部向前回看三行，
+键盘入口仍回看一页。NativeUi 在受理 Enter 前复核精确焦点、当前帧与保留行。Live 状态
+向下滚动、历史缺失/为空、帧缺失或备用屏幕均无效果，不显示不可用提示。后续 notch
+沿用核心的带符号三行导航，包括进入尚未完成时的意图合并及到达实时尾部时的恢复。
+入口拒绝保留 Live，不重放输入。
+
 ## 命令与 demand 双腿
 
 `QueuedCommand::Viewport` 每窗格携带一个逻辑 `ViewportStep`，由 `run_viewport` 依序执行，
@@ -52,8 +58,10 @@ demand 双腿、行窗口 read/acknowledge 握手、导航意图、恢复，以�
   未知 → 执行一次复位腿（`SetHistoryDemand(FollowingBottom)`）；复位失败或不可用 →
   窗格判错。完全受理 → 发布 `ViewportOutcome::Enter{applied:true}`。
 - `Read{origin,row_count,revision,generation,request_sequence,maximum_bytes}` — 租约约束的
-  `ReadViewportRows` 动作。`Record` 载荷发布为
-  `ViewportOutcome::Window{request_sequence,record}`；`RowsRejected{reason}` 发布带类型理由的
+  `ReadViewportRows` 动作。worker 校验完整的 kind-46 Response 封装（当前协议、必需的
+  correlation、非 optional 的 row-window 编码、请求的载荷上限及封装/数据体 epoch 一致），
+  再解码 OBRW 载荷。`ViewportOutcome::Window` 发布装箱的类型化窗口；原始传输字节
+  不进入 UI 的行解码器。CLI 历史使用相同的应用内解码器。畸形/异源响应在安装行前失败；`RowsRejected{reason}` 发布带类型理由的
   `ViewportOutcome::ReadRejected`；不透明宿主拒绝发布同一结果的宿主形态；`Unavailable`
   → 窗格判错。
 - `Ack{request_sequence,generation,revision}` — `RowsApplied`。受理 → 发布
@@ -105,7 +113,9 @@ incarnation 与活动 attachment 的规范记录，且结果的 attachment 与�
   才进入有界等待——generation 值只与发出时的 generation 判等比较，绝不按数值排序。
 - 安装窗口不等于 committed。只有精确受理的 `RowsApplied` 才把 pending 锚点提升为
   committed。应答被拒 → 锚点丢失并带本地化提示进入恢复——绝不以陈旧绝对偏移伪造位置。
-- `Committed{delta}` read 每步界于 ±4096；更大的移动拆分为残量限界步，一次只发一步。
+- 本地行意图以正数表示移向更旧行。进入时将意图加到 `Tail{rows_before}`；committed 导航
+  则对每段意图取反，因为 Host 将 wire `delta` 加到 committed **起始行**。在途与剩余意图
+  保持本地符号。`Committed{delta}` read 每步界于 ±4096；更大的移动拆分为残量限界步，一次只发一步。
   `Tail{rows_before}` read 仅服务首次入场与绝对跳转。
 
 ## 事实期限与恢复
@@ -129,7 +139,8 @@ kind-53 事件仍经其自有通道精确应答一次。`Recovering`
 线路只容得下 Recover，则恢复照常受理而该字节丢弃；若毫无余量，则 Recover 保持暂存而该
 字节丢弃——被丢弃的字节绝不重放。`Recovering` 窗格直接转发该字节（恢复已受理）。非 Live 窗格本地消费历史导航键
 （`PageUp`、`PageDown`、`Home`、`End`、`Esc`）与鼠标滚轮；Live 窗格保留完整的应用输入
-与鼠标跟踪。`Ctrl+B PageUp` 进入历史；help 打开时 `PageUp` 仍归 help。
+与鼠标跟踪，未启用 tracking 的 primary 屏幕滚轮进入历史除外。`Ctrl+B PageUp` 进入历史；
+help 打开时 `PageUp` 仍归 help。
 
 凡以非 Live 窗格为目标的非滚轮指针事件一律由 client 消费——落在焦点窗格上的按下、把
 焦点移入该窗格的按下、排队中的 pending-focus 重放、手势延续，以及手势中途 Live→非 Live
@@ -163,7 +174,8 @@ kind-53 事件仍经其自有通道精确应答一次。`Recovering`
 - `EveryEventAcked`：每个合法 `HistoryChanged` 精确应答一次。
 - `MonotoneEvents`：接受的事件序号严格递增。
 - `BoundedDelta`：每个发出的 `Committed` 步都在 ±4096 内。
-- `HonestModes`：`Live` 模式绝不消费历史键或滚轮；非 Live 绝不转发应用键或跟踪。
+- `HonestModes`：Live 保留普通应用键和 tracking；符合条件的 primary 屏幕向上滚轮
+  可进入历史。非 Live 导航留在本地，普通输入先恢复实时。
 - `PaneIncarnationFence`：每个线上动作与事件都解析精确 `PaneRef` 与 attachment 租约；
   死 incarnation 的结果丢弃。
 

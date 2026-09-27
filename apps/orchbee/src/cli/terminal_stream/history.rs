@@ -3,13 +3,10 @@ use super::display::Display;
 use super::*;
 use crate::terminal_session::terminal_viewport::{
     TerminalViewport, ViewportEffect, ViewportNav, ViewportReadRejection, ViewportStep,
-    ViewportSurface, decode_history_changed,
+    ViewportSurface, decode_history_changed, decode_viewport_window,
 };
 use orchbee_client_server_protocol::{HistoryDemand, ProjectionDemand};
-use orchbee_terminal_protocol::{
-    CURRENT_PROTOCOL_VERSION, MessageRole, PayloadEncoding, TerminalTextFrame,
-    decode_terminal_text_row_window, decode_transport_envelope,
-};
+use orchbee_terminal_protocol::TerminalTextFrame;
 
 #[derive(Default)]
 pub(super) struct History {
@@ -169,23 +166,8 @@ impl History {
                     gate,
                 )? {
                     Outcome::Record(record) => {
-                        let envelope = decode_transport_envelope(&record)
-                            .map_err(|_| Failure::new(FailureKind::ProtocolInvalid))?;
-                        if envelope.protocol != CURRENT_PROTOCOL_VERSION
-                            || envelope.kind != 46
-                            || envelope.role != MessageRole::Response
-                            || envelope.optional_message
-                            || envelope.payload_encoding != PayloadEncoding::RowWindow
-                            || envelope.correlation_id.is_none()
-                            || envelope.payload.len() > maximum_bytes as usize
-                        {
-                            return Err(Failure::new(FailureKind::ProtocolInvalid));
-                        }
-                        let window = decode_terminal_text_row_window(envelope.payload)
-                            .map_err(|_| Failure::new(FailureKind::ProtocolInvalid))?;
-                        if envelope.host_epoch != Some(window.host_epoch) {
-                            return Err(Failure::new(FailureKind::ProtocolInvalid));
-                        }
+                        let window = decode_viewport_window(&record, maximum_bytes)
+                            .map_err(|()| Failure::new(FailureKind::ProtocolInvalid))?;
                         core.window(window, Instant::now())
                     }
                     Outcome::RowsRejected { reason } => core.read_outcome(

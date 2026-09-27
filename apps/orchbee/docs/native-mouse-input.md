@@ -15,7 +15,7 @@ machinery that arming and restoration ride on.
 
 This slice deliberately does not implement divider drag-resize, history selection and clipboard,
 multi-press word/line selection, scroll-indicator jumps, right-button context menus and middle-press surfaces, pixel-format
-reports, or primary-screen wheel history scrolling. Those are separate accepted decisions.
+reports. Those are separate accepted decisions.
 
 ## Capture policy
 
@@ -121,7 +121,11 @@ each flush emits at most one viewport of arrows, and a tick that finds the queue
 stream so the next notch starts fresh. Each flush rechecks eligibility against the newest frame;
 disabling DEC 1007, leaving the alternate screen, enabling tracking or entering history discards
 the queued arrows. With DEC 1007 off, alternate-screen wheel events send no application input.
-Primary-screen wheel history scrolling is a later slice.
+Over untracked primary-screen content, an upward notch enters retained history three rows before
+the tail; subsequent notches move three rows locally. Downward scrolling at the live tail, empty
+history and unavailable frames have no effect or notice. Wheel never changes focus or scrolls
+from the title/border; Shift stays host-owned, including in history. Entry, coalescing and recovery
+use the [retained viewport](native-terminal-viewport.md) owner.
 
 ## Invariants and temporal rules
 

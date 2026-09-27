@@ -764,16 +764,17 @@ pub(super) enum WorkerEvent {
 /// observed it. The core — not the worker — decides what each outcome
 /// means; the worker only guarantees the pane's incarnation was still
 /// admitted when the action ran.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Debug)]
 pub(super) enum ViewportOutcome {
     /// The Enter demand legs settled. `applied:false` means the pane is
     /// back at the live demand pair: the first leg refused, or the second
     /// leg failed and its reset leg succeeded.
     Enter { applied: bool },
-    /// `ReadViewportRows` served an OBRW record for `request_sequence`.
+    /// The worker validated the response envelope and decoded its OBRW
+    /// payload. The UI never interprets transport bytes as bare row data.
     Window {
         request_sequence: std::num::NonZeroU64,
-        record: Vec<u8>,
+        window: Box<orchbee_terminal_protocol::TerminalTextRowWindow>,
     },
     /// The read was refused: a typed `rows-rejected` reason, or the opaque
     /// host rejection that also covers pending-pin blockage.

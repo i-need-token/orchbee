@@ -32,7 +32,7 @@ use crate::{
     terminal_projection::TerminalProjection,
 };
 use orchbee_client_server_protocol::{ControlInput, Geometry, TerminalViewerAction};
-use orchbee_terminal_protocol::{TerminalTextRowWindow, decode_terminal_text_row_window};
+use orchbee_terminal_protocol::TerminalTextRowWindow;
 use orchbee_workbench_protocol::{
     ProtocolVersion, WorkbenchAction, WorkbenchCommand, WorkbenchLabel, WorkbenchPanelId,
     WorkbenchTabId, WorkbenchTabMoveDirection, WorkbenchTerminalGeometry,
@@ -1173,6 +1173,12 @@ impl NativeUi {
     /// — a refused enqueue leaves the pane Live, and no input is ever
     /// replayed on its behalf.
     fn enter_history(&mut self) -> SessionActionDisposition {
+        self.enter_history_rows(None)
+    }
+
+    /// Keyboard entry uses a page; pointer entry supplies its line count.
+    /// Both share the same admission, incarnation and demand ownership.
+    fn enter_history_rows(&mut self, rows_before: Option<u32>) -> SessionActionDisposition {
         let Some(mailbox) = self.mailbox.as_ref().map(Arc::clone) else {
             return SessionActionDisposition::KeepNavigator;
         };
@@ -1217,7 +1223,7 @@ impl NativeUi {
                     *self.projections[index].value.epoch(),
                     columns,
                     row_count,
-                    u32::from(row_count),
+                    rows_before.unwrap_or_else(|| u32::from(row_count)),
                     first_read_sequence,
                     self.clock.now(),
                 ));
@@ -1293,16 +1299,43 @@ impl NativeUi {
         true
     }
 
-    /// A wheel notch over the focus pane while its core is non-Live scrolls
-    /// three rows locally. The pointer layer already proved the gesture
-    /// targets this exact focus incarnation.
+    /// A wheel notch enters eligible Live history or scrolls its existing
+    /// core by three rows. Recheck focus identity at this mutation boundary;
+    /// the pointer layer owns content hit testing and Shift exclusion.
     pub(super) fn history_wheel(&mut self, key: &PaneRef, up: bool) -> bool {
+        if self
+            .state
+            .as_ref()
+            .and_then(|state| state.focus_pane_ref())
+            .as_ref()
+            != Some(key)
+        {
+            return false;
+        }
         let Some(mailbox) = self.mailbox.as_ref().map(Arc::clone) else {
             return false;
         };
         let Some(index) = self.projections.iter().position(|p| &p.key == key) else {
             return false;
         };
+        if self.projections[index].viewport.is_none() {
+            let eligible = up
+                && self.projections[index].value.frame().is_some_and(|frame| {
+                    !frame.alternate_screen
+                        && frame.interaction.mouse_tracking()
+                            == orchbee_terminal_protocol::MouseTracking::None
+                        && frame.scrollback_rows > 0
+                        && !frame.rows.is_empty()
+                });
+            if !eligible {
+                return false;
+            }
+            self.enter_history_rows(Some(3));
+            return self
+                .projections
+                .iter()
+                .any(|projection| &projection.key == key && projection.viewport.is_some());
+        }
         let Some(viewport) = self.projections[index].viewport.as_mut() else {
             return false;
         };
@@ -1425,14 +1458,15 @@ impl NativeUi {
                 .expect("viewport presence checked above");
             match outcome {
                 ViewportOutcome::Enter { applied } => viewport.enter_outcome(applied),
-                ViewportOutcome::Window { record, .. } => {
-                    match decode_terminal_text_row_window(&record) {
-                        Ok(window) => viewport.window(window, now),
-                        Err(_) => {
-                            self.retire(CarrierFailure::Protocol);
-                            return true;
-                        }
+                ViewportOutcome::Window {
+                    request_sequence,
+                    window,
+                } => {
+                    if window.sequence != request_sequence {
+                        self.retire(CarrierFailure::Protocol);
+                        return true;
                     }
+                    viewport.window(*window, now)
                 }
                 ViewportOutcome::ReadRejected {
                     request_sequence,

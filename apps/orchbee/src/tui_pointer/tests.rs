@@ -1552,3 +1552,54 @@ fn queued_right_press_rechecks_policy_before_any_bytes_and_stops_at_its_release(
         assert!(matches!(pointer.gesture, Gesture::Idle));
     }
 }
+
+#[test]
+fn primary_wheel_enters_history_only_over_focused_content_without_shift() {
+    for (history, shift, row, expected) in [
+        (false, false, 2, true),
+        (true, false, 2, true),
+        (false, true, 2, false),
+        (true, true, 2, false),
+        (false, false, 0, false),
+        (true, false, 0, false),
+    ] {
+        let mut pointer = PointerState::default();
+        pointer.set_capture(true);
+        let mut view = ClientView::new(120);
+        let focused = pane_ref(1, 1, 2, 0);
+        let mut port = RecordingPort {
+            probe: PointerProbe {
+                frame: Some(frame_facts(
+                    MouseTracking::None,
+                    MouseFormat::Default,
+                    false,
+                )),
+                viewport_non_live: history,
+                ..active_probe(0, 1, 1, 2)
+            },
+            ..RecordingPort::default()
+        };
+        publish_focused_map(&mut pointer, focused.clone());
+        let mut wheel = event(MouseAction::Press, MouseButton::WheelUp, 2, row);
+        if shift {
+            wheel.mods = Modifiers::NONE.with_shift();
+        }
+        pointer.event(&mut view, &mut port, now(), wheel);
+        assert_eq!(
+            port.wheels,
+            if expected {
+                vec![(focused, true)]
+            } else {
+                vec![]
+            }
+        );
+        assert!(port.forwarded.is_empty());
+        assert!(port.actions.is_empty(), "wheel never changes focus");
+        port.wheels.clear();
+        pointer.event(&mut view, &mut port, now(), press(2, 2));
+        assert!(
+            port.wheels.is_empty(),
+            "ordinary press never enters history"
+        );
+    }
+}

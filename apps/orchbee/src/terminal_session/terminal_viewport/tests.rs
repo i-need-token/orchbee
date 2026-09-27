@@ -126,6 +126,52 @@ fn viewing(columns: u16, row_count: u16) -> TerminalViewport {
     viewport
 }
 
+#[test]
+fn consecutive_scrolls_preserve_direction_across_entry_and_committed_windows() {
+    let (attachment, epoch) = ids();
+    let mut viewport = TerminalViewport::entering(attachment, epoch, 80, 20, 3, 1, Instant::now());
+    let mut facts = facts_event(1, 1, HistoryAnchorStatus::Valid);
+    facts.total_rows = 102;
+    viewport.facts(facts);
+    let mut start = 82;
+    for (intent, expected_start) in [(0, 79), (3, 76), (-3, 79)] {
+        if intent != 0 {
+            viewport.nav(ViewportNav::Lines(intent));
+        }
+        let steps = drain(&mut viewport);
+        let [
+            ViewportStep::Read {
+                origin,
+                request_sequence,
+                ..
+            },
+        ] = steps.as_slice()
+        else {
+            panic!("expected one read, got {steps:?}");
+        };
+        // Host resolveStart measures committed deltas from the start row,
+        // while the entry offset measures distance backwards from the tail.
+        start = match origin {
+            ViewportRowOrigin::Tail { rows_before } => 102 - 20 - i64::from(*rows_before),
+            ViewportRowOrigin::Committed { delta } => start + i64::from(*delta),
+        };
+        assert_eq!(start, expected_start, "intent {intent}: {origin:?}");
+        let sequence = *request_sequence;
+        viewport.window(
+            window(sequence.get(), 1, start as u64, 102, 80, 20),
+            Instant::now(),
+        );
+        assert!(matches!(
+            drain(&mut viewport).as_slice(),
+            [ViewportStep::Ack { .. }]
+        ));
+        viewport.ack_outcome(sequence, true);
+        assert!(drain(&mut viewport).is_empty());
+    }
+    viewport.nav(ViewportNav::Lines(-3));
+    assert_eq!(drain(&mut viewport), [ViewportStep::Recover]);
+}
+
 // T1: while a read flight or an acknowledgement flight is open, no new read
 // is emitted; navigation coalesces and only the install+accepted ack moves
 // the committed anchor.
@@ -133,7 +179,7 @@ fn viewing(columns: u16, row_count: u16) -> TerminalViewport {
 fn t1_no_read_during_flights() {
     let mut viewport = viewing(80, 24);
     // Scroll once: a committed read stages and admits.
-    viewport.nav(ViewportNav::Lines(-10));
+    viewport.nav(ViewportNav::Lines(10));
     let steps = drain(&mut viewport);
     let [
         ViewportStep::Read {
@@ -148,18 +194,19 @@ fn t1_no_read_during_flights() {
     assert_eq!(*delta, -10);
     let request_sequence = *request_sequence;
     // During the read flight more scroll intent coalesces without emitting.
-    viewport.nav(ViewportNav::Lines(-5));
+    viewport.nav(ViewportNav::Lines(5));
     assert!(viewport.peek_command().is_none());
     // The window installs; an ack stages. While it flies, still no read.
     viewport.window(
-        window(request_sequence.get(), 1, 85, 200, 80, 24),
+        window(request_sequence.get(), 1, 80, 200, 80, 24),
         Instant::now(),
     );
     let ack = drain(&mut viewport);
     assert!(matches!(ack.as_slice(), [ViewportStep::Ack { .. }]));
-    viewport.nav(ViewportNav::Lines(-5));
+    viewport.nav(ViewportNav::Lines(5));
     assert!(viewport.peek_command().is_none());
-    // Accepted ack promotes the anchor; the coalesced -10 now emits.
+    // Accepted ack promotes the anchor; the coalesced older-row intent
+    // emits another -10 start-row delta.
     viewport.ack_outcome(request_sequence, true);
     let steps = drain(&mut viewport);
     let [
@@ -236,7 +283,7 @@ fn t3_committed_delta_splits_at_bound() {
         drain(&mut viewport);
         viewport.ack_outcome(request_sequence, true);
     }
-    assert_eq!(deltas, [4096, 4096, 1808]);
+    assert_eq!(deltas, [-4096, -4096, -1808]);
     assert!(viewport.peek_command().is_none());
 }
 
@@ -901,4 +948,44 @@ fn resize_drops_staged_wire_steps() {
     viewport.resize(120, 30, Instant::now());
     // The staged Ack died with the old geometry: it never emits.
     assert_eq!(drain(&mut viewport), Vec::<ViewportStep>::new());
+}
+
+#[test]
+fn row_response_requires_the_transport_envelope_and_matching_bounded_payload() {
+    use orchbee_terminal_protocol::{
+        CURRENT_PROTOCOL_VERSION, CorrelationId, Envelope, MessageRole, PayloadEncoding,
+        decode_terminal_text_row_window, encode_transport_envelope,
+    };
+    const ROWS: &[u8] = include_bytes!(
+        "../../../../../packages/terminal-protocol/fixtures/terminal-row-window-v0.0.3.bin"
+    );
+    let expected = decode_terminal_text_row_window(ROWS).unwrap();
+    let envelope = Envelope {
+        protocol: CURRENT_PROTOCOL_VERSION,
+        role: MessageRole::Response,
+        kind: 46,
+        payload_encoding: PayloadEncoding::RowWindow,
+        host_epoch: Some(expected.host_epoch),
+        correlation_id: Some(CorrelationId::from_bytes([3; 16]).unwrap()),
+        optional_message: false,
+        payload: ROWS,
+    };
+    let encoded = encode_transport_envelope(&envelope).unwrap();
+    let actual = super::decode_viewport_window(&encoded, ROWS.len() as u32).unwrap();
+    assert_eq!(actual.sequence, expected.sequence);
+    assert_eq!(actual.attachment_id, expected.attachment_id);
+    assert_eq!(actual.host_epoch, expected.host_epoch);
+    assert_eq!(actual.rows, expected.rows);
+    assert!(
+        super::decode_viewport_window(ROWS, u32::MAX).is_err(),
+        "bare OBRW is not a transport response"
+    );
+    assert!(super::decode_viewport_window(&encoded, ROWS.len() as u32 - 1).is_err());
+    assert!(super::decode_viewport_window(&encoded[..encoded.len() - 1], u32::MAX).is_err());
+    let mismatched = encode_transport_envelope(&Envelope {
+        host_epoch: Some(HostEpoch::from_bytes([9; 16]).unwrap()),
+        ..envelope
+    })
+    .unwrap();
+    assert!(super::decode_viewport_window(&mismatched, u32::MAX).is_err());
 }

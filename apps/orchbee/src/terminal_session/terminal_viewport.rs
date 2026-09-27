@@ -17,7 +17,7 @@ use orchbee_client_server_protocol::{ViewerRowsRejectedReason, ViewportRowOrigin
 use orchbee_terminal_protocol::{
     AttachmentId, CURRENT_PROTOCOL_VERSION, HistoryAnchorStatus, HistoryChanged, HistoryControl,
     HostEpoch, MessageRole, PayloadEncoding, TerminalTextRowWindow, decode_history_control,
-    decode_transport_envelope,
+    decode_terminal_text_row_window, decode_transport_envelope,
 };
 
 use super::state::SessionNotice;
@@ -54,6 +54,31 @@ pub(crate) fn decode_history_changed(
         }
         _ => Err(()),
     }
+}
+
+/// Validate the transport response before decoding its text row payload.
+/// Both the native worker and CLI history use this boundary; the viewport
+/// core separately fences attachment, read sequence, generation and geometry.
+pub(crate) fn decode_viewport_window(
+    record: &[u8],
+    maximum_bytes: u32,
+) -> Result<TerminalTextRowWindow, ()> {
+    let envelope = decode_transport_envelope(record).map_err(|_| ())?;
+    if envelope.protocol != CURRENT_PROTOCOL_VERSION
+        || envelope.kind != 46
+        || envelope.role != MessageRole::Response
+        || envelope.optional_message
+        || envelope.payload_encoding != PayloadEncoding::RowWindow
+        || envelope.correlation_id.is_none()
+        || envelope.payload.len() > maximum_bytes as usize
+    {
+        return Err(());
+    }
+    let window = decode_terminal_text_row_window(envelope.payload).map_err(|_| ())?;
+    if envelope.host_epoch != Some(window.host_epoch) {
+        return Err(());
+    }
+    Ok(window)
 }
 
 /// Committed reads move at most this many rows per step, matching the wire
@@ -786,11 +811,11 @@ impl TerminalViewport {
                     }
                     let chunk = delta.clamp(-COMMITTED_DELTA_BOUND, COMMITTED_DELTA_BOUND);
                     self.inflight_nav = InflightNav::Delta(chunk);
-                    // The wire delta lives in rows_before space: positive
-                    // scrolls toward older rows, matching the pending intent.
+                    // The Host adds wire delta to the committed start row;
+                    // older-row intent therefore needs a negative delta.
                     (
                         ViewportRowOrigin::Committed {
-                            delta: chunk as i32,
+                            delta: -chunk as i32,
                         },
                         self.read_rows,
                     )

@@ -12,7 +12,7 @@ use crate::client_view::{ClientKey, ClientView, KeyCode, KeyEvent, Modifiers};
 use crate::local_client::test_server::adjustable_operation_clock;
 use crate::terminal_input::{InputDispatcher, TerminalInputPort, TerminalInputUnavailable};
 use crate::terminal_session::mailbox::EventDeadline;
-use orchbee_client_server_protocol::ControllerId;
+use orchbee_client_server_protocol::{ControllerId, ViewportRowOrigin};
 use orchbee_terminal_protocol::{
     AttachmentId, HistoryAnchorStatus, HistoryChanged, HostEpoch, TerminalFrameRoute,
     TerminalInteraction, TerminalPixelGeometry, TerminalRowPromptClass, TerminalTextCell,
@@ -759,4 +759,62 @@ fn dispatcher_consumes_history_keys_and_orders_recovery() {
         ),
         "Recover before the forwarded byte: {commands:?}"
     );
+}
+
+#[test]
+fn wheel_entry_starts_three_rows_back_and_coalesces_before_facts() {
+    for (next, rows_before) in [(None, 3), (Some(true), 6), (Some(false), 0)] {
+        let (mut ui, mailbox, _clock, _elapsed) = ready_ui();
+        let key = install_projection(&mut ui, Some((9, false, 24)), 0);
+        assert!(ui.history_wheel(&key, true));
+        assert_eq!(recv_viewports(&mailbox), [ViewportStep::Enter]);
+        if let Some(up) = next {
+            assert!(ui.history_wheel(&key, up));
+        }
+        assert!(
+            recv_viewports(&mailbox).is_empty(),
+            "wait for real history facts"
+        );
+        let projection = projection_at(&mut ui, &key);
+        let changed = facts(&projection.value, 1, 1);
+        projection.viewport.as_mut().unwrap().facts(changed);
+        ui.admit_viewport_steps(&mailbox, &key);
+        let steps = recv_viewports(&mailbox);
+        if rows_before == 0 {
+            assert_eq!(steps, [ViewportStep::Recover]);
+        } else {
+            assert!(
+                matches!(&steps[..], [ViewportStep::Read {
+                origin: ViewportRowOrigin::Tail { rows_before: actual }, ..
+            }] if *actual == rows_before),
+                "{steps:?}"
+            );
+        }
+    }
+}
+
+#[test]
+fn wheel_entry_empty_down_and_stale_focus_have_no_effect_or_notice() {
+    for (frame, up) in [
+        (None, true),
+        (Some((0, false, 24)), true),
+        (Some((9, true, 24)), true),
+        (Some((9, false, 0)), true),
+        (Some((9, false, 24)), false),
+    ] {
+        let (mut ui, mailbox, _clock, _elapsed) = ready_ui();
+        let key = install_projection(&mut ui, frame, 0);
+        assert!(!ui.history_wheel(&key, up));
+        assert!(recv_viewports(&mailbox).is_empty());
+        assert!(ui.projections.iter().all(|p| p.viewport.is_none()));
+        assert_ne!(
+            ui.view().notice(),
+            Some(NativeSessionNotice::HistoryUnavailable)
+        );
+    }
+    let (mut ui, mailbox, _clock, _elapsed) = ready_ui();
+    let key = install_projection(&mut ui, Some((9, false, 24)), 0);
+    let stale = PaneRef::new(key.pane().clone(), 42);
+    assert!(!ui.history_wheel(&stale, true));
+    assert!(recv_viewports(&mailbox).is_empty());
 }

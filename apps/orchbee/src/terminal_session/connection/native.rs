@@ -23,7 +23,7 @@ use crate::{
             PendingCreateCommit, PendingMoveCommit, ReadyDecision, ReconcileStep, ReconcileTarget,
             RefreshDecision, SetupEventDisposition,
         },
-        terminal_viewport::{ViewportReadRejection, ViewportStep},
+        terminal_viewport::{ViewportReadRejection, ViewportStep, decode_viewport_window},
         workbench_projection::project_native_standalone_tabs,
     },
 };
@@ -942,7 +942,10 @@ impl NativeExecutor {
                 match outcome {
                     TerminalViewerOutcome::Record(record) => ViewportOutcome::Window {
                         request_sequence,
-                        record,
+                        window: Box::new(
+                            decode_viewport_window(&record, maximum_bytes)
+                                .map_err(|()| CarrierFailure::Protocol)?,
+                        ),
                     },
                     TerminalViewerOutcome::RowsRejected { reason } => {
                         ViewportOutcome::ReadRejected {

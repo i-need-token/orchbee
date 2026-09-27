@@ -5,8 +5,9 @@ use crate::{
 };
 use orchbee_local_ipc::ChildOutputReader;
 use orchbee_terminal_protocol::{
-    CorrelationId, Envelope, HistoryAnchorStatus, HistoryChanged, HistoryControl,
-    decode_terminal_text_frame, encode_history_control, encode_transport_envelope,
+    CURRENT_PROTOCOL_VERSION, CorrelationId, Envelope, HistoryAnchorStatus, HistoryChanged,
+    HistoryControl, MessageRole, PayloadEncoding, decode_terminal_text_frame,
+    decode_terminal_text_row_window, encode_history_control, encode_transport_envelope,
 };
 use std::{io, num::NonZeroU64};
 const ROWS: &[u8] = include_bytes!(

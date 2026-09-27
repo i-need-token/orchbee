@@ -3,7 +3,7 @@
 ## Scope and ownership
 
 This reference governs the native Client's retained-history viewport: the per-pane scrollback
-reading mode entered with `Ctrl+B PageUp`, its demand legs, the row-window read/acknowledge
+reading mode entered with `Ctrl+B PageUp` or primary-screen wheel-up, its demand legs, the row-window read/acknowledge
 handshake, navigation intent, recovery, and how the painted surface is produced and fenced.
 Maintain it with `terminal_session/terminal_viewport.rs`, `terminal_session/mailbox.rs`,
 `terminal_session/connection/native.rs`, `terminal_session/ui.rs`, `terminal_input/dispatcher.rs`,
@@ -46,6 +46,13 @@ the alternate screen, and the frame carries at least one readable row. The scree
 never conflated with retained history: `total_rows` comes only from served windows, not from
 `scrollback_rows`.
 
+A non-Shift wheel over focused untracked primary-screen content enters three rows
+before the tail instead of the keyboard entry's one page. NativeUi rechecks exact focus, current
+frame and retained rows before admitting Enter. Downward wheel at Live, missing/empty history,
+missing frame or alternate screen does nothing and emits no unavailable notice. Further wheel
+notches reuse the core's signed three-row navigation, including coalescing while entry is pending
+and recovery on reaching the live tail. Entry refusal leaves the pane Live without replay.
+
 ## Commands and demand legs
 
 `QueuedCommand::Viewport` carries one logical `ViewportStep` per pane, executed in order by
@@ -57,8 +64,12 @@ never conflated with retained history: `total_rows` comes only from served windo
   failure or an unavailable outcome faults the pane. A fully applied entry publishes
   `ViewportOutcome::Enter{applied:true}`.
 - `Read{origin,row_count,revision,generation,request_sequence,maximum_bytes}` — a
-  `ReadViewportRows` lease-bound action. A `Record` payload publishes
-  `ViewportOutcome::Window{request_sequence,record}`; `RowsRejected{reason}` publishes
+  `ReadViewportRows` lease-bound action. The worker validates the complete kind-46 Response
+  envelope (current protocol, required correlation, nonoptional row-window encoding, requested
+  payload bound and matching envelope/body epoch), then decodes the OBRW payload. It publishes
+  a boxed typed window in `ViewportOutcome::Window`; raw transport bytes never reach the UI
+  row decoder. CLI history uses the same app-local decoder. Malformed/foreign responses fail
+  before row installation; `RowsRejected{reason}` publishes
   `ViewportOutcome::ReadRejected` with the typed reason; an opaque host rejection publishes the
   host-shaped variant of the same outcome; `Unavailable` faults the pane.
 - `Ack{request_sequence,generation,revision}` — `RowsApplied`. An accepted outcome publishes
@@ -120,9 +131,11 @@ regression retires the carrier as a protocol fault. Kind-53 records never re-run
 - Installing a window does not commit it. Only an exact accepted `RowsApplied` promotes the
   pending anchor to committed. Acknowledgement rejection loses the anchor and enters recovery
   with a localized notice — the position is never faked from stale absolute offsets.
-- `Committed{delta}` reads are bounded to ±4096 per step; larger movement splits into residual
-  bounded steps emitted one at a time. `Tail{rows_before}` reads serve first entry and absolute
-  jumps only.
+- Local line intent is positive toward older rows. Entry adds that intent to `Tail{rows_before}`;
+  committed navigation negates each intent chunk because the Host adds wire `delta` to the
+  committed **start row**. In-flight and residual intent retain the local sign. `Committed{delta}`
+  reads are bounded to ±4096 per step; larger movement splits into residual bounded steps emitted
+  one at a time. `Tail{rows_before}` reads serve first entry and absolute jumps only.
 
 ## Facts deadlines and recovery
 
@@ -149,7 +162,8 @@ room for the Recover alone the byte drops with the recovery still admitted; with
 the Recover stays staged and the byte drops — a dropped byte is never replayed. `Recovering` panes
 forward the byte immediately (recovery is already admitted). Non-Live panes consume the history
 navigation keys (`PageUp`, `PageDown`, `Home`, `End`, `Esc`) and mouse wheel locally; a Live pane
-keeps full application input and mouse tracking. `Ctrl+B PageUp` enters history while help keeps
+keeps application input and mouse tracking, except for untracked primary-screen wheel history
+entry. `Ctrl+B PageUp` enters history while help keeps
 `PageUp` precedence when open.
 
 Every non-wheel pointer event that targets a non-Live pane is consumed by the client — presses
@@ -190,8 +204,8 @@ returns to live output.
 - `EveryEventAcked`: every valid `HistoryChanged` is acknowledged exactly once.
 - `MonotoneEvents`: accepted event sequences strictly increase.
 - `BoundedDelta`: every emitted `Committed` step is within ±4096.
-- `HonestModes`: `Live` mode never consumes history keys or wheel; non-Live never forwards
-  application keys or tracking.
+- `HonestModes`: Live keeps ordinary application keys and tracking; eligible primary-screen
+  wheel-up may enter history. Non-Live navigation stays local; ordinary input recovers first.
 - `PaneIncarnationFence`: every wire action and applied event resolves the exact `PaneRef` and
   attachment lease; outcomes for a dead incarnation are dropped.
 
