@@ -69,6 +69,7 @@ impl RenameServer {
                             | WorkbenchRequest::WorktreeListRead(_)
                             | WorkbenchRequest::WorktreeOperation(_)
                             | WorkbenchRequest::WorktreeQuery(_)
+                            | WorkbenchRequest::PanelMetadata(_)
                             | WorkbenchRequest::WorkspaceMetadata(_)
                             | WorkbenchRequest::ClientView(_)
                             | WorkbenchRequest::WorkspaceGroupClose(_)

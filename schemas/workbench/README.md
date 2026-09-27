@@ -462,3 +462,5 @@ legacy forms, omitted labels and invalid/null optional values.
 ## Workspace metadata
 
 [`workbench-workspace-metadata.schema.json`](v1/workbench-workspace-metadata.schema.json) defines `workbench.workspace-metadata` and its result, OBWP kinds 31/32. Read accepts 0–8 ordered unique Workspace IDs; Report accepts 1–16 unique token patches with optional uint64 sequence and bounded TTL. Results have a separate 128 KiB pre-allocation cap; requests retain the 16 KiB intent cap. The [shared corpus](v1/workbench-workspace-metadata-conformance-v1.json) checks both language bindings. Bindings additionally enforce uint64 range, unique result identities and encoded byte limits; raw Rust decoding rejects duplicate token keys. The [owning model](../../apps/orchbee/docs/windows-workspace-metadata.md) defines permission, expiry, capacity and query consistency.
+
+[Panel metadata schema](v1/workbench-panel-metadata.schema.json) and [conformance corpus](v1/workbench-panel-metadata-conformance-v1.json) define OBWP 33/34 reports and reads. Rust and TypeScript validate semantic row/source/order invariants beyond JSON Schema; raw Rust decoding also rejects duplicate keys.

@@ -29,6 +29,7 @@ mod checkpoint;
 mod close_maintenance;
 mod controller_session;
 mod operation_maintenance;
+mod panel_metadata;
 mod panel_split;
 mod projection;
 mod send;

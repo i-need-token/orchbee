@@ -66,6 +66,10 @@ impl WorkbenchService {
                 orchbee_workbench_protocol::WorkspaceMetadataAction::Read { .. } => self.policy.read,
                 orchbee_workbench_protocol::WorkspaceMetadataAction::Report { .. } => self.policy.manage_navigation,
             },
+            WorkbenchRequest::PanelMetadata(request) => match request.action {
+                orchbee_workbench_protocol::PanelMetadataAction::Read { .. } => self.policy.read,
+                orchbee_workbench_protocol::PanelMetadataAction::Report { .. } => self.policy.manage_navigation,
+            },
             WorkbenchRequest::ClientView(_) => self.policy.read,
             WorkbenchRequest::WorkspaceGroupClose(request) => {
                 if matches!(
@@ -143,6 +147,11 @@ impl WorkbenchService {
             WorkbenchRequest::WorkspaceMetadata(request) => {
                 return WorkbenchExecution::Response(WorkbenchResponse::WorkspaceMetadata(
                     self.terminals.execute_workspace_metadata(request.clone()),
+                ));
+            }
+            WorkbenchRequest::PanelMetadata(request) => {
+                return WorkbenchExecution::Response(WorkbenchResponse::PanelMetadata(
+                    self.terminals.execute_panel_metadata(request.clone()),
                 ));
             }
             WorkbenchRequest::ClientView(_) => {
@@ -354,6 +363,20 @@ fn unavailable_or_denied(request: WorkbenchRequest, denied: bool) -> WorkbenchRe
                 },
             },
         ),
+        WorkbenchRequest::PanelMetadata(request) => {
+            WorkbenchResponse::PanelMetadata(orchbee_workbench_protocol::PanelMetadataResult {
+                protocol_version: ProtocolVersion,
+                request_id: request.request_id,
+                site_id: request.site_id,
+                outcome: orchbee_workbench_protocol::PanelMetadataOutcome::Failed {
+                    reason: if denied {
+                        orchbee_workbench_protocol::PanelMetadataFailure::Denied
+                    } else {
+                        orchbee_workbench_protocol::PanelMetadataFailure::Unavailable
+                    },
+                },
+            })
+        }
         WorkbenchRequest::ClientView(request) => {
             WorkbenchResponse::ClientView(orchbee_workbench_protocol::WorkbenchClientViewResult {
                 protocol_version: ProtocolVersion,

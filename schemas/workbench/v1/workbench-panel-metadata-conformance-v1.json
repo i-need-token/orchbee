@@ -1,0 +1,1732 @@
+{
+	"contractVersion": 1,
+	"valid": [
+		{
+			"name": "whole-report",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.panel-metadata",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "report",
+					"panelId": "00000000000000000000000000000003",
+					"expectedBinding": {
+						"workerId": "00000000000000000000000000000004",
+						"terminalId": "00000000000000000000000000000005"
+					},
+					"source": "hook:example",
+					"patch": {
+						"title": "标题 😀",
+						"displayAgent": "Agent",
+						"stateLabels": {
+							"working": "忙碌"
+						},
+						"tokens": {
+							"__proto__": "safe",
+							"constructor": "legal",
+							"gone": null
+						}
+					},
+					"sequence": "18446744073709551615",
+					"ttlMilliseconds": 86400000
+				}
+			}
+		},
+		{
+			"name": "read-source-fields",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-metadata.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "read",
+					"workbenchRevision": "5",
+					"metadataRevision": "2",
+					"panels": [
+						{
+							"panelId": "00000000000000000000000000000003",
+							"binding": {
+								"workerId": "00000000000000000000000000000004",
+								"terminalId": "00000000000000000000000000000005"
+							},
+							"tokens": {
+								"__proto__": "safe"
+							},
+							"presentations": [
+								{
+									"source": "hook:example",
+									"agent": null,
+									"appliesToSource": null,
+									"title": {
+										"value": "标题",
+										"order": "2"
+									},
+									"displayAgent": null,
+									"stateLabels": {}
+								}
+							]
+						}
+					]
+				}
+			}
+		},
+		{
+			"name": "clearTitle",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.panel-metadata",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "report",
+					"panelId": "00000000000000000000000000000003",
+					"expectedBinding": {
+						"workerId": "00000000000000000000000000000004",
+						"terminalId": "00000000000000000000000000000005"
+					},
+					"source": "hook:example",
+					"patch": {
+						"clearTitle": true
+					},
+					"sequence": "18446744073709551615",
+					"ttlMilliseconds": 86400000
+				}
+			}
+		},
+		{
+			"name": "clearDisplayAgent",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.panel-metadata",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "report",
+					"panelId": "00000000000000000000000000000003",
+					"expectedBinding": {
+						"workerId": "00000000000000000000000000000004",
+						"terminalId": "00000000000000000000000000000005"
+					},
+					"source": "hook:example",
+					"patch": {
+						"clearDisplayAgent": true
+					},
+					"sequence": "18446744073709551615",
+					"ttlMilliseconds": 86400000
+				}
+			}
+		},
+		{
+			"name": "clearStateLabels",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.panel-metadata",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "report",
+					"panelId": "00000000000000000000000000000003",
+					"expectedBinding": {
+						"workerId": "00000000000000000000000000000004",
+						"terminalId": "00000000000000000000000000000005"
+					},
+					"source": "hook:example",
+					"patch": {
+						"clearStateLabels": true
+					},
+					"sequence": "18446744073709551615",
+					"ttlMilliseconds": 86400000
+				}
+			}
+		},
+		{
+			"name": "patch-with-guard-and-title",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.panel-metadata",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "report",
+					"panelId": "00000000000000000000000000000003",
+					"expectedBinding": {
+						"workerId": "00000000000000000000000000000004",
+						"terminalId": "00000000000000000000000000000005"
+					},
+					"source": "hook:example",
+					"patch": {
+						"clearDisplayAgent": true,
+						"agent": "codex",
+						"appliesToSource": "hook:codex",
+						"title": "新标题"
+					},
+					"sequence": "18446744073709551615",
+					"ttlMilliseconds": 86400000
+				}
+			}
+		},
+		{
+			"name": "empty-read",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.panel-metadata",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "read",
+					"panelIds": []
+				}
+			}
+		},
+		{
+			"name": "empty-result",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-metadata.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "read",
+					"workbenchRevision": "5",
+					"metadataRevision": "2",
+					"panels": []
+				}
+			}
+		},
+		{
+			"name": "unbound-row",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-metadata.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "read",
+					"workbenchRevision": "5",
+					"metadataRevision": "2",
+					"panels": [
+						{
+							"panelId": "00000000000000000000000000000003",
+							"binding": null,
+							"tokens": {},
+							"presentations": []
+						}
+					]
+				}
+			}
+		},
+		{
+			"name": "reported",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-metadata.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "reported",
+					"panelId": "00000000000000000000000000000003",
+					"binding": {
+						"workerId": "00000000000000000000000000000004",
+						"terminalId": "00000000000000000000000000000005"
+					},
+					"workbenchRevision": "5",
+					"metadataRevision": "2",
+					"disposition": "applied"
+				}
+			}
+		},
+		{
+			"name": "failure-invalid-request",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-metadata.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "failed",
+					"reason": "invalid-request"
+				}
+			}
+		},
+		{
+			"name": "failure-site-mismatch",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-metadata.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "failed",
+					"reason": "site-mismatch"
+				}
+			}
+		},
+		{
+			"name": "failure-not-found",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-metadata.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "failed",
+					"reason": "not-found"
+				}
+			}
+		},
+		{
+			"name": "failure-unbound",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-metadata.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "failed",
+					"reason": "unbound"
+				}
+			}
+		},
+		{
+			"name": "failure-binding-changed",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-metadata.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "failed",
+					"reason": "binding-changed"
+				}
+			}
+		},
+		{
+			"name": "failure-denied",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-metadata.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "failed",
+					"reason": "denied"
+				}
+			}
+		},
+		{
+			"name": "failure-unavailable",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-metadata.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "failed",
+					"reason": "unavailable"
+				}
+			}
+		},
+		{
+			"name": "failure-token-limit",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-metadata.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "failed",
+					"reason": "token-limit"
+				}
+			}
+		},
+		{
+			"name": "failure-source-limit",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-metadata.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "failed",
+					"reason": "source-limit"
+				}
+			}
+		},
+		{
+			"name": "failure-resource-limit",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-metadata.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "failed",
+					"reason": "resource-limit"
+				}
+			}
+		},
+		{
+			"name": "failure-revision-exhausted",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-metadata.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "failed",
+					"reason": "revision-exhausted"
+				}
+			}
+		},
+		{
+			"name": "failure-deadline-overflow",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-metadata.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "failed",
+					"reason": "deadline-overflow"
+				}
+			}
+		},
+		{
+			"name": "failure-result-too-large",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-metadata.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "failed",
+					"reason": "result-too-large"
+				}
+			}
+		}
+	],
+	"invalid": [
+		{
+			"name": "source",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.panel-metadata",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "report",
+					"panelId": "00000000000000000000000000000003",
+					"expectedBinding": {
+						"workerId": "00000000000000000000000000000004",
+						"terminalId": "00000000000000000000000000000005"
+					},
+					"source": "bad source",
+					"patch": {
+						"title": "标题 😀",
+						"displayAgent": "Agent",
+						"stateLabels": {
+							"working": "忙碌"
+						},
+						"tokens": {
+							"__proto__": "safe",
+							"constructor": "legal",
+							"gone": null
+						}
+					},
+					"sequence": "18446744073709551615",
+					"ttlMilliseconds": 86400000
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "overflow",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.panel-metadata",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "report",
+					"panelId": "00000000000000000000000000000003",
+					"expectedBinding": {
+						"workerId": "00000000000000000000000000000004",
+						"terminalId": "00000000000000000000000000000005"
+					},
+					"source": "hook:example",
+					"patch": {
+						"title": "标题 😀",
+						"displayAgent": "Agent",
+						"stateLabels": {
+							"working": "忙碌"
+						},
+						"tokens": {
+							"__proto__": "safe",
+							"constructor": "legal",
+							"gone": null
+						}
+					},
+					"sequence": "18446744073709551616",
+					"ttlMilliseconds": 86400000
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "ttl-zero",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.panel-metadata",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "report",
+					"panelId": "00000000000000000000000000000003",
+					"expectedBinding": {
+						"workerId": "00000000000000000000000000000004",
+						"terminalId": "00000000000000000000000000000005"
+					},
+					"source": "hook:example",
+					"patch": {
+						"title": "标题 😀",
+						"displayAgent": "Agent",
+						"stateLabels": {
+							"working": "忙碌"
+						},
+						"tokens": {
+							"__proto__": "safe",
+							"constructor": "legal",
+							"gone": null
+						}
+					},
+					"sequence": "18446744073709551615",
+					"ttlMilliseconds": 0
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "ttl-max",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.panel-metadata",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "report",
+					"panelId": "00000000000000000000000000000003",
+					"expectedBinding": {
+						"workerId": "00000000000000000000000000000004",
+						"terminalId": "00000000000000000000000000000005"
+					},
+					"source": "hook:example",
+					"patch": {
+						"title": "标题 😀",
+						"displayAgent": "Agent",
+						"stateLabels": {
+							"working": "忙碌"
+						},
+						"tokens": {
+							"__proto__": "safe",
+							"constructor": "legal",
+							"gone": null
+						}
+					},
+					"sequence": "18446744073709551615",
+					"ttlMilliseconds": 86400001
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "empty-patch",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.panel-metadata",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "report",
+					"panelId": "00000000000000000000000000000003",
+					"expectedBinding": {
+						"workerId": "00000000000000000000000000000004",
+						"terminalId": "00000000000000000000000000000005"
+					},
+					"source": "hook:example",
+					"patch": {},
+					"sequence": "18446744073709551615",
+					"ttlMilliseconds": 86400000
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "guard-only",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.panel-metadata",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "report",
+					"panelId": "00000000000000000000000000000003",
+					"expectedBinding": {
+						"workerId": "00000000000000000000000000000004",
+						"terminalId": "00000000000000000000000000000005"
+					},
+					"source": "hook:example",
+					"patch": {
+						"agent": "codex"
+					},
+					"sequence": "18446744073709551615",
+					"ttlMilliseconds": 86400000
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "untrimmed",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.panel-metadata",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "report",
+					"panelId": "00000000000000000000000000000003",
+					"expectedBinding": {
+						"workerId": "00000000000000000000000000000004",
+						"terminalId": "00000000000000000000000000000005"
+					},
+					"source": "hook:example",
+					"patch": {
+						"title": " bad ",
+						"displayAgent": "Agent",
+						"stateLabels": {
+							"working": "忙碌"
+						},
+						"tokens": {
+							"__proto__": "safe",
+							"constructor": "legal",
+							"gone": null
+						}
+					},
+					"sequence": "18446744073709551615",
+					"ttlMilliseconds": 86400000
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "control",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.panel-metadata",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "report",
+					"panelId": "00000000000000000000000000000003",
+					"expectedBinding": {
+						"workerId": "00000000000000000000000000000004",
+						"terminalId": "00000000000000000000000000000005"
+					},
+					"source": "hook:example",
+					"patch": {
+						"title": "bad\ntext",
+						"displayAgent": "Agent",
+						"stateLabels": {
+							"working": "忙碌"
+						},
+						"tokens": {
+							"__proto__": "safe",
+							"constructor": "legal",
+							"gone": null
+						}
+					},
+					"sequence": "18446744073709551615",
+					"ttlMilliseconds": 86400000
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "scalar-bound",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.panel-metadata",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "report",
+					"panelId": "00000000000000000000000000000003",
+					"expectedBinding": {
+						"workerId": "00000000000000000000000000000004",
+						"terminalId": "00000000000000000000000000000005"
+					},
+					"source": "hook:example",
+					"patch": {
+						"title": "😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀",
+						"displayAgent": "Agent",
+						"stateLabels": {
+							"working": "忙碌"
+						},
+						"tokens": {
+							"__proto__": "safe",
+							"constructor": "legal",
+							"gone": null
+						}
+					},
+					"sequence": "18446744073709551615",
+					"ttlMilliseconds": 86400000
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "state-name",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.panel-metadata",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "report",
+					"panelId": "00000000000000000000000000000003",
+					"expectedBinding": {
+						"workerId": "00000000000000000000000000000004",
+						"terminalId": "00000000000000000000000000000005"
+					},
+					"source": "hook:example",
+					"patch": {
+						"title": "标题 😀",
+						"displayAgent": "Agent",
+						"stateLabels": {
+							"success": "ok"
+						},
+						"tokens": {
+							"__proto__": "safe",
+							"constructor": "legal",
+							"gone": null
+						}
+					},
+					"sequence": "18446744073709551615",
+					"ttlMilliseconds": 86400000
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "token-empty",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.panel-metadata",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "report",
+					"panelId": "00000000000000000000000000000003",
+					"expectedBinding": {
+						"workerId": "00000000000000000000000000000004",
+						"terminalId": "00000000000000000000000000000005"
+					},
+					"source": "hook:example",
+					"patch": {
+						"title": "标题 😀",
+						"displayAgent": "Agent",
+						"stateLabels": {
+							"working": "忙碌"
+						},
+						"tokens": {}
+					},
+					"sequence": "18446744073709551615",
+					"ttlMilliseconds": 86400000
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "token-patch-bound",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.panel-metadata",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "report",
+					"panelId": "00000000000000000000000000000003",
+					"expectedBinding": {
+						"workerId": "00000000000000000000000000000004",
+						"terminalId": "00000000000000000000000000000005"
+					},
+					"source": "hook:example",
+					"patch": {
+						"title": "标题 😀",
+						"displayAgent": "Agent",
+						"stateLabels": {
+							"working": "忙碌"
+						},
+						"tokens": {
+							"k0": "v",
+							"k1": "v",
+							"k2": "v",
+							"k3": "v",
+							"k4": "v",
+							"k5": "v",
+							"k6": "v",
+							"k7": "v",
+							"k8": "v",
+							"k9": "v",
+							"k10": "v",
+							"k11": "v",
+							"k12": "v",
+							"k13": "v",
+							"k14": "v",
+							"k15": "v",
+							"k16": "v"
+						}
+					},
+					"sequence": "18446744073709551615",
+					"ttlMilliseconds": 86400000
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "title-conflict",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.panel-metadata",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "report",
+					"panelId": "00000000000000000000000000000003",
+					"expectedBinding": {
+						"workerId": "00000000000000000000000000000004",
+						"terminalId": "00000000000000000000000000000005"
+					},
+					"source": "hook:example",
+					"patch": {
+						"title": "标题 😀",
+						"displayAgent": "Agent",
+						"stateLabels": {
+							"working": "忙碌"
+						},
+						"tokens": {
+							"__proto__": "safe",
+							"constructor": "legal",
+							"gone": null
+						},
+						"clearTitle": true
+					},
+					"sequence": "18446744073709551615",
+					"ttlMilliseconds": 86400000
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "display-conflict",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.panel-metadata",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "report",
+					"panelId": "00000000000000000000000000000003",
+					"expectedBinding": {
+						"workerId": "00000000000000000000000000000004",
+						"terminalId": "00000000000000000000000000000005"
+					},
+					"source": "hook:example",
+					"patch": {
+						"title": "标题 😀",
+						"displayAgent": "Agent",
+						"stateLabels": {
+							"working": "忙碌"
+						},
+						"tokens": {
+							"__proto__": "safe",
+							"constructor": "legal",
+							"gone": null
+						},
+						"clearDisplayAgent": true
+					},
+					"sequence": "18446744073709551615",
+					"ttlMilliseconds": 86400000
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "labels-conflict",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.panel-metadata",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "report",
+					"panelId": "00000000000000000000000000000003",
+					"expectedBinding": {
+						"workerId": "00000000000000000000000000000004",
+						"terminalId": "00000000000000000000000000000005"
+					},
+					"source": "hook:example",
+					"patch": {
+						"title": "标题 😀",
+						"displayAgent": "Agent",
+						"stateLabels": {
+							"working": "忙碌"
+						},
+						"tokens": {
+							"__proto__": "safe",
+							"constructor": "legal",
+							"gone": null
+						},
+						"clearStateLabels": true
+					},
+					"sequence": "18446744073709551615",
+					"ttlMilliseconds": 86400000
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "binding-zero",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.panel-metadata",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "report",
+					"panelId": "00000000000000000000000000000003",
+					"expectedBinding": {
+						"workerId": "00000000000000000000000000000004",
+						"terminalId": "00000000000000000000000000000000"
+					},
+					"source": "hook:example",
+					"patch": {
+						"title": "标题 😀",
+						"displayAgent": "Agent",
+						"stateLabels": {
+							"working": "忙碌"
+						},
+						"tokens": {
+							"__proto__": "safe",
+							"constructor": "legal",
+							"gone": null
+						}
+					},
+					"sequence": "18446744073709551615",
+					"ttlMilliseconds": 86400000
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "closed-action",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.panel-metadata",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "report",
+					"panelId": "00000000000000000000000000000003",
+					"expectedBinding": {
+						"workerId": "00000000000000000000000000000004",
+						"terminalId": "00000000000000000000000000000005"
+					},
+					"source": "hook:example",
+					"patch": {
+						"title": "标题 😀",
+						"displayAgent": "Agent",
+						"stateLabels": {
+							"working": "忙碌"
+						},
+						"tokens": {
+							"__proto__": "safe",
+							"constructor": "legal",
+							"gone": null
+						}
+					},
+					"sequence": "18446744073709551615",
+					"ttlMilliseconds": 86400000,
+					"extra": 1
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "duplicate-target",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.panel-metadata",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "read",
+					"panelIds": ["00000000000000000000000000000003", "00000000000000000000000000000003"]
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "target-bound",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.panel-metadata",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "read",
+					"panelIds": [
+						"00000000000000000000000000000003",
+						"00000000000000000000000000000004",
+						"00000000000000000000000000000005",
+						"00000000000000000000000000000006",
+						"00000000000000000000000000000007"
+					]
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "required-nullable-agent",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-metadata.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "read",
+					"workbenchRevision": "5",
+					"metadataRevision": "2",
+					"panels": [
+						{
+							"panelId": "00000000000000000000000000000003",
+							"binding": {
+								"workerId": "00000000000000000000000000000004",
+								"terminalId": "00000000000000000000000000000005"
+							},
+							"tokens": {
+								"__proto__": "safe"
+							},
+							"presentations": [
+								{
+									"source": "hook:example",
+									"appliesToSource": null,
+									"title": {
+										"value": "标题",
+										"order": "2"
+									},
+									"displayAgent": null,
+									"stateLabels": {}
+								}
+							]
+						}
+					]
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "required-nullable-appliesToSource",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-metadata.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "read",
+					"workbenchRevision": "5",
+					"metadataRevision": "2",
+					"panels": [
+						{
+							"panelId": "00000000000000000000000000000003",
+							"binding": {
+								"workerId": "00000000000000000000000000000004",
+								"terminalId": "00000000000000000000000000000005"
+							},
+							"tokens": {
+								"__proto__": "safe"
+							},
+							"presentations": [
+								{
+									"source": "hook:example",
+									"agent": null,
+									"title": {
+										"value": "标题",
+										"order": "2"
+									},
+									"displayAgent": null,
+									"stateLabels": {}
+								}
+							]
+						}
+					]
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "required-nullable-title",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-metadata.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "read",
+					"workbenchRevision": "5",
+					"metadataRevision": "2",
+					"panels": [
+						{
+							"panelId": "00000000000000000000000000000003",
+							"binding": {
+								"workerId": "00000000000000000000000000000004",
+								"terminalId": "00000000000000000000000000000005"
+							},
+							"tokens": {
+								"__proto__": "safe"
+							},
+							"presentations": [
+								{
+									"source": "hook:example",
+									"agent": null,
+									"appliesToSource": null,
+									"displayAgent": null,
+									"stateLabels": {}
+								}
+							]
+						}
+					]
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "required-nullable-displayAgent",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-metadata.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "read",
+					"workbenchRevision": "5",
+					"metadataRevision": "2",
+					"panels": [
+						{
+							"panelId": "00000000000000000000000000000003",
+							"binding": {
+								"workerId": "00000000000000000000000000000004",
+								"terminalId": "00000000000000000000000000000005"
+							},
+							"tokens": {
+								"__proto__": "safe"
+							},
+							"presentations": [
+								{
+									"source": "hook:example",
+									"agent": null,
+									"appliesToSource": null,
+									"title": {
+										"value": "标题",
+										"order": "2"
+									},
+									"stateLabels": {}
+								}
+							]
+						}
+					]
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "unbound-with-data",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-metadata.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "read",
+					"workbenchRevision": "5",
+					"metadataRevision": "2",
+					"panels": [
+						{
+							"panelId": "00000000000000000000000000000003",
+							"binding": null,
+							"tokens": {
+								"__proto__": "safe"
+							},
+							"presentations": [
+								{
+									"source": "hook:example",
+									"agent": null,
+									"appliesToSource": null,
+									"title": {
+										"value": "标题",
+										"order": "2"
+									},
+									"displayAgent": null,
+									"stateLabels": {}
+								}
+							]
+						}
+					]
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "token-read-bound",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-metadata.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "read",
+					"workbenchRevision": "5",
+					"metadataRevision": "2",
+					"panels": [
+						{
+							"panelId": "00000000000000000000000000000003",
+							"binding": {
+								"workerId": "00000000000000000000000000000004",
+								"terminalId": "00000000000000000000000000000005"
+							},
+							"tokens": {
+								"k0": "v",
+								"k1": "v",
+								"k2": "v",
+								"k3": "v",
+								"k4": "v",
+								"k5": "v",
+								"k6": "v",
+								"k7": "v",
+								"k8": "v",
+								"k9": "v",
+								"k10": "v",
+								"k11": "v",
+								"k12": "v",
+								"k13": "v",
+								"k14": "v",
+								"k15": "v",
+								"k16": "v",
+								"k17": "v",
+								"k18": "v",
+								"k19": "v",
+								"k20": "v",
+								"k21": "v",
+								"k22": "v",
+								"k23": "v",
+								"k24": "v",
+								"k25": "v",
+								"k26": "v",
+								"k27": "v",
+								"k28": "v",
+								"k29": "v",
+								"k30": "v",
+								"k31": "v",
+								"k32": "v"
+							},
+							"presentations": [
+								{
+									"source": "hook:example",
+									"agent": null,
+									"appliesToSource": null,
+									"title": {
+										"value": "标题",
+										"order": "2"
+									},
+									"displayAgent": null,
+									"stateLabels": {}
+								}
+							]
+						}
+					]
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "duplicate-source",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-metadata.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "read",
+					"workbenchRevision": "5",
+					"metadataRevision": "2",
+					"panels": [
+						{
+							"panelId": "00000000000000000000000000000003",
+							"binding": {
+								"workerId": "00000000000000000000000000000004",
+								"terminalId": "00000000000000000000000000000005"
+							},
+							"tokens": {
+								"__proto__": "safe"
+							},
+							"presentations": [
+								{
+									"source": "hook:example",
+									"agent": null,
+									"appliesToSource": null,
+									"title": {
+										"value": "标题",
+										"order": "2"
+									},
+									"displayAgent": null,
+									"stateLabels": {}
+								},
+								{
+									"source": "hook:example",
+									"agent": null,
+									"appliesToSource": null,
+									"title": {
+										"value": "标题",
+										"order": "2"
+									},
+									"displayAgent": null,
+									"stateLabels": {}
+								}
+							]
+						}
+					]
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "shared-write-order",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-metadata.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "read",
+					"workbenchRevision": "5",
+					"metadataRevision": "2",
+					"panels": [
+						{
+							"panelId": "00000000000000000000000000000003",
+							"binding": {
+								"workerId": "00000000000000000000000000000004",
+								"terminalId": "00000000000000000000000000000005"
+							},
+							"tokens": {
+								"__proto__": "safe"
+							},
+							"presentations": [
+								{
+									"source": "hook:example",
+									"agent": null,
+									"appliesToSource": null,
+									"title": {
+										"value": "标题",
+										"order": "2"
+									},
+									"displayAgent": null,
+									"stateLabels": {}
+								},
+								{
+									"source": "other",
+									"agent": null,
+									"appliesToSource": null,
+									"title": {
+										"value": "标题",
+										"order": "2"
+									},
+									"displayAgent": null,
+									"stateLabels": {}
+								}
+							]
+						}
+					]
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "empty-presentation",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-metadata.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "read",
+					"workbenchRevision": "5",
+					"metadataRevision": "2",
+					"panels": [
+						{
+							"panelId": "00000000000000000000000000000003",
+							"binding": {
+								"workerId": "00000000000000000000000000000004",
+								"terminalId": "00000000000000000000000000000005"
+							},
+							"tokens": {
+								"__proto__": "safe"
+							},
+							"presentations": [
+								{
+									"source": "hook:example",
+									"agent": null,
+									"appliesToSource": null,
+									"title": null,
+									"displayAgent": null,
+									"stateLabels": {}
+								}
+							]
+						}
+					]
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "zero-order",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-metadata.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "read",
+					"workbenchRevision": "5",
+					"metadataRevision": "2",
+					"panels": [
+						{
+							"panelId": "00000000000000000000000000000003",
+							"binding": {
+								"workerId": "00000000000000000000000000000004",
+								"terminalId": "00000000000000000000000000000005"
+							},
+							"tokens": {
+								"__proto__": "safe"
+							},
+							"presentations": [
+								{
+									"source": "hook:example",
+									"agent": null,
+									"appliesToSource": null,
+									"title": {
+										"value": "x",
+										"order": "0"
+									},
+									"displayAgent": null,
+									"stateLabels": {}
+								}
+							]
+						}
+					]
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "future-order",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-metadata.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "read",
+					"workbenchRevision": "5",
+					"metadataRevision": "2",
+					"panels": [
+						{
+							"panelId": "00000000000000000000000000000003",
+							"binding": {
+								"workerId": "00000000000000000000000000000004",
+								"terminalId": "00000000000000000000000000000005"
+							},
+							"tokens": {
+								"__proto__": "safe"
+							},
+							"presentations": [
+								{
+									"source": "hook:example",
+									"agent": null,
+									"appliesToSource": null,
+									"title": {
+										"value": "x",
+										"order": "3"
+									},
+									"displayAgent": null,
+									"stateLabels": {}
+								}
+							]
+						}
+					]
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "duplicate-panel",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-metadata.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "read",
+					"workbenchRevision": "5",
+					"metadataRevision": "2",
+					"panels": [
+						{
+							"panelId": "00000000000000000000000000000003",
+							"binding": {
+								"workerId": "00000000000000000000000000000004",
+								"terminalId": "00000000000000000000000000000005"
+							},
+							"tokens": {
+								"__proto__": "safe"
+							},
+							"presentations": [
+								{
+									"source": "hook:example",
+									"agent": null,
+									"appliesToSource": null,
+									"title": {
+										"value": "标题",
+										"order": "2"
+									},
+									"displayAgent": null,
+									"stateLabels": {}
+								}
+							]
+						},
+						{
+							"panelId": "00000000000000000000000000000003",
+							"binding": {
+								"workerId": "00000000000000000000000000000004",
+								"terminalId": "00000000000000000000000000000005"
+							},
+							"tokens": {
+								"__proto__": "safe"
+							},
+							"presentations": [
+								{
+									"source": "hook:example",
+									"agent": null,
+									"appliesToSource": null,
+									"title": {
+										"value": "标题",
+										"order": "2"
+									},
+									"displayAgent": null,
+									"stateLabels": {}
+								}
+							]
+						}
+					]
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "result-bound",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-metadata.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "read",
+					"workbenchRevision": "5",
+					"metadataRevision": "2",
+					"panels": [
+						{
+							"panelId": "0000000000000000000000000000000a",
+							"binding": {
+								"workerId": "00000000000000000000000000000004",
+								"terminalId": "00000000000000000000000000000005"
+							},
+							"tokens": {
+								"__proto__": "safe"
+							},
+							"presentations": [
+								{
+									"source": "hook:example",
+									"agent": null,
+									"appliesToSource": null,
+									"title": {
+										"value": "标题",
+										"order": "2"
+									},
+									"displayAgent": null,
+									"stateLabels": {}
+								}
+							]
+						},
+						{
+							"panelId": "0000000000000000000000000000000b",
+							"binding": {
+								"workerId": "00000000000000000000000000000004",
+								"terminalId": "00000000000000000000000000000005"
+							},
+							"tokens": {
+								"__proto__": "safe"
+							},
+							"presentations": [
+								{
+									"source": "hook:example",
+									"agent": null,
+									"appliesToSource": null,
+									"title": {
+										"value": "标题",
+										"order": "2"
+									},
+									"displayAgent": null,
+									"stateLabels": {}
+								}
+							]
+						},
+						{
+							"panelId": "0000000000000000000000000000000c",
+							"binding": {
+								"workerId": "00000000000000000000000000000004",
+								"terminalId": "00000000000000000000000000000005"
+							},
+							"tokens": {
+								"__proto__": "safe"
+							},
+							"presentations": [
+								{
+									"source": "hook:example",
+									"agent": null,
+									"appliesToSource": null,
+									"title": {
+										"value": "标题",
+										"order": "2"
+									},
+									"displayAgent": null,
+									"stateLabels": {}
+								}
+							]
+						},
+						{
+							"panelId": "0000000000000000000000000000000d",
+							"binding": {
+								"workerId": "00000000000000000000000000000004",
+								"terminalId": "00000000000000000000000000000005"
+							},
+							"tokens": {
+								"__proto__": "safe"
+							},
+							"presentations": [
+								{
+									"source": "hook:example",
+									"agent": null,
+									"appliesToSource": null,
+									"title": {
+										"value": "标题",
+										"order": "2"
+									},
+									"displayAgent": null,
+									"stateLabels": {}
+								}
+							]
+						},
+						{
+							"panelId": "0000000000000000000000000000000e",
+							"binding": {
+								"workerId": "00000000000000000000000000000004",
+								"terminalId": "00000000000000000000000000000005"
+							},
+							"tokens": {
+								"__proto__": "safe"
+							},
+							"presentations": [
+								{
+									"source": "hook:example",
+									"agent": null,
+									"appliesToSource": null,
+									"title": {
+										"value": "标题",
+										"order": "2"
+									},
+									"displayAgent": null,
+									"stateLabels": {}
+								}
+							]
+						}
+					]
+				}
+			},
+			"boundary": "schema"
+		}
+	]
+}

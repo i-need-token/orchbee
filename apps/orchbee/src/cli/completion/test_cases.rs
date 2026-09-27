@@ -1,6 +1,32 @@
 //! Shared observable completion obligations, independent of shell syntax.
 
 pub(super) const CASES: &[(&str, &str, bool)] = &[
+    ("orchbee panel report-m", "report-metadata", true),
+    (
+        "orchbee panel report-metadata 000000000000000000000000000000ab --t",
+        "--title",
+        true,
+    ),
+    (
+        "orchbee panel report-metadata 000000000000000000000000000000ab --state-label working=busy --s",
+        "--state-label",
+        true,
+    ),
+    (
+        "orchbee panel report-metadata 000000000000000000000000000000ab --clear-title --t",
+        "--title",
+        false,
+    ),
+    (
+        "orchbee panel report-metadata 000000000000000000000000000000ab --title x --c",
+        "--clear-title",
+        false,
+    ),
+    (
+        "orchbee panel report-metadata 000000000000000000000000000000ab --agent ",
+        "working",
+        false,
+    ),
     (
         "orchbee terminal wait-output target --rows 3 --f",
         "--forever",

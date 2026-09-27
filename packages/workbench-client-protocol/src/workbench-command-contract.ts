@@ -1,4 +1,9 @@
 import {
+	PanelMetadataRequestSchema,
+	PanelMetadataResultSchema,
+	WORKBENCH_MAXIMUM_ENCODED_PANEL_METADATA_RESULT_BYTES,
+} from './workbench-panel-metadata-contract';
+import {
 	WorkspaceMetadataRequestSchema,
 	WorkspaceMetadataResultSchema,
 	WORKBENCH_MAXIMUM_ENCODED_WORKSPACE_METADATA_RESULT_BYTES,
@@ -322,6 +327,7 @@ export const WorkbenchRequestSchema = z
 		WorkbenchWorktreeRequestSchema,
 		WorkbenchWorktreeQuerySchema,
 		WorkspaceMetadataRequestSchema,
+		PanelMetadataRequestSchema,
 		WorkbenchWorkspaceGroupCloseRequestSchema,
 		WorkbenchClientViewRequestSchema,
 	])
@@ -648,6 +654,7 @@ export const WorkbenchResponseSchema = z
 		WorkbenchWorktreeResultSchema,
 		WorkbenchWorktreeQueryResultSchema,
 		WorkspaceMetadataResultSchema,
+		PanelMetadataResultSchema,
 		WorkbenchWorkspaceGroupCloseResultSchema,
 		WorkbenchClientViewResultSchema,
 	])
@@ -665,6 +672,8 @@ export const WorkbenchResponseSchema = z
 					: WORKBENCH_MAXIMUM_ENCODED_CLIENT_VIEW_RESULT_BYTES;
 		} else if (value.kind === 'workbench.workspace-group-close.result') {
 			maximum = WORKBENCH_MAXIMUM_ENCODED_WORKSPACE_GROUP_CLOSE_RESULT_BYTES;
+		} else if (value.kind === 'workbench.panel-metadata.result') {
+			maximum = WORKBENCH_MAXIMUM_ENCODED_PANEL_METADATA_RESULT_BYTES;
 		} else if (value.kind === 'workbench.workspace-metadata.result') {
 			maximum = WORKBENCH_MAXIMUM_ENCODED_WORKSPACE_METADATA_RESULT_BYTES;
 		} else if (value.kind === 'workbench.worktree.query.result') {

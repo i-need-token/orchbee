@@ -190,6 +190,7 @@ const FAMILY_VERBS: &[(&str, &[&str])] = &[
             "get",
             "list",
             "move",
+            "report-metadata",
             "process-info",
             "split",
             "focus",
@@ -251,6 +252,14 @@ const FAMILY_VERBS: &[(&str, &[&str])] = &[
 /// Every business flag the grammar admits (`--format` is orthogonal), in the
 /// order the state machine records them.
 const BUSINESS_FLAGS: &[&str] = &[
+    "--agent",
+    "--applies-to-source",
+    "--title",
+    "--display-agent",
+    "--state-label",
+    "--clear-title",
+    "--clear-display-agent",
+    "--clear-state-labels",
     "--token",
     "--clear-token",
     "--seq",
@@ -346,6 +355,7 @@ const INTEGRATION_VERBS: &[&str] = &["disable", "enable", "explain", "list"];
 /// Business flags whose seen bit never makes a repeat `done` — they stay
 /// offerable and keep consuming values while remaining scope-tracked.
 const REPEATABLE_FLAGS: &[&str] = &[
+    "--state-label",
     "--token",
     "--clear-token",
     "--env",
@@ -714,6 +724,24 @@ const COMMAND_FLAGS: &[(&str, &[&str])] = &[
     ),
     ("tab:rename", &["--label"]),
     ("panel:input", &["--panel", "--current", "--right-click"]),
+    (
+        "panel:report-metadata",
+        &[
+            "--source",
+            "--agent",
+            "--applies-to-source",
+            "--title",
+            "--display-agent",
+            "--state-label",
+            "--clear-title",
+            "--clear-display-agent",
+            "--clear-state-labels",
+            "--token",
+            "--clear-token",
+            "--seq",
+            "--ttl-ms",
+        ],
+    ),
     ("panel:rename", &["--label", "--clear"]),
     (
         "panel:swap",
@@ -1000,6 +1028,7 @@ const PROVIDER_VALUES: &[&str] = &[
 
 /// `<family>:<verb>` paths that consume one positional operand.
 const OPERAND_PATHS: &[&str] = &[
+    "panel:report-metadata",
     "terminal:attach",
     "agent:attach",
     "terminal:session:observe",
@@ -1128,6 +1157,7 @@ const HELP_CHILDREN: &[(&str, &[&str])] = &[
             "get",
             "list",
             "move",
+            "report-metadata",
             "process-info",
             "split",
             "focus",
@@ -1232,6 +1262,14 @@ fn flag_bit(flag: &str) -> &'static str {
         "--label" => "seen_label",
         "--right-click" => "seen_right_click",
         "--source" => "seen_output_source",
+        "--agent" => "seen_panel_metadata_agent",
+        "--applies-to-source" => "seen_panel_metadata_applies_to_source",
+        "--title" => "seen_panel_metadata_title",
+        "--display-agent" => "seen_panel_metadata_display_agent",
+        "--state-label" => "seen_panel_metadata_state_label",
+        "--clear-title" => "seen_panel_metadata_clear_title",
+        "--clear-display-agent" => "seen_panel_metadata_clear_display_agent",
+        "--clear-state-labels" => "seen_panel_metadata_clear_state_labels",
         "--token" => "seen_metadata_token",
         "--clear-token" => "seen_metadata_clear_token",
         "--seq" => "seen_metadata_sequence",
@@ -1306,7 +1344,11 @@ fn flag_value(flag: &str) -> Option<&'static str> {
         "--right-click" => Some("right_click"),
         "--source" => Some("output_source"),
         "--token" | "--clear-token" | "--seq" | "--ttl-ms" => Some("filter"),
-        "--plain" | "--ansi" => None,
+        "--clear-title"
+        | "--clear-display-agent"
+        | "--clear-state-labels"
+        | "--plain"
+        | "--ansi" => None,
         "--direction" => Some("direction"),
         "--key" => Some("key"),
         "--until" => Some("until"),
@@ -1838,7 +1880,7 @@ fn extras_cases_bash() -> String {
                         "--provider" if command.starts_with("agent:integration:") => {
                             "seen_provider".to_owned()
                         }
-                        "--provider" | "--asset-root" | "--until" | "--token" | "--clear-token" => "0".to_owned(),
+                        "--provider" | "--asset-root" | "--until" | "--token" | "--clear-token" | "--state-label" => "0".to_owned(),
                         _ => flag_bit(flag).to_owned(),
                     };
                     let conflicts = command_flag_conflicts(command, flag).iter().map(|flag| flag_bit(flag)).collect::<Vec<_>>();
@@ -3031,7 +3073,7 @@ fn extras_cases_fish() -> String {
                         "--provider" if command.starts_with("agent:integration:") => {
                             "$seen_provider -eq 0".to_owned()
                         }
-                        "--provider" | "--asset-root" | "--until" | "--token" | "--clear-token" => "0 -eq 0".to_owned(),
+                        "--provider" | "--asset-root" | "--until" | "--token" | "--clear-token" | "--state-label" => "0 -eq 0".to_owned(),
                         _ => format!("${} -eq 0", flag_bit(flag)),
                     };
                     let conflicts = command_flag_conflicts(command, flag).iter().map(|flag| format!("${} -eq 0", flag_bit(flag))).collect::<Vec<_>>();
@@ -3594,6 +3636,13 @@ fn command_conflict_pairs(
 
 fn command_flag_conflicts(command: &str, flag: &str) -> &'static [&'static str] {
     match (command, flag) {
+        ("panel:report-metadata", "--title") => &["--clear-title"],
+        ("panel:report-metadata", "--clear-title") => &["--title"],
+        ("panel:report-metadata", "--display-agent") => &["--clear-display-agent"],
+        ("panel:report-metadata", "--clear-display-agent") => &["--display-agent"],
+        ("panel:report-metadata", "--state-label") => &["--clear-state-labels"],
+        ("panel:report-metadata", "--clear-state-labels") => &["--state-label"],
+
         ("layout:apply", "--file") => &["--stdin"],
         ("layout:apply", "--stdin") => &["--file"],
         ("layout:apply", "--tab") => &["--workspace", "--standalone"],

@@ -989,3 +989,45 @@ Panel swap uses the shared structural placement authority for one atomic same-Ta
 ## Automatic Tab naming
 
 The [Tab label contract](../../orchbee/docs/native-tab-labels.md) owns optional canonical mode, compatibility and consumer refinement. Server fingerprints `tab.create` `automaticLabel` and commits it atomically to the Tab; omission is fixed, while the first implicit standalone Tab is automatic. Move and close preserve surviving naming metadata. Rename sets text and fixed mode together; pending creation settlement and replay never restore the previous mode. Abstract label equality includes text and mode, so clearing automatic naming is changed even when text is equal.
+
+## Panel presentation metadata
+
+`WorkbenchAuthority::panel_metadata` owns transient reports for each logical terminal binding
+(`workerId`, `terminalId`). Reports resolve a Panel's current primary binding and require an exact
+`expectedBinding`; a changed, missing or unbound target fails before applying the report. Primary
+and child memberships retain the resource across moves and swaps. An operation prunes bindings
+absent from all committed memberships. Site disposal or restart drops this state.
+
+Inputs are strict `PanelMetadataRequest` values with normalized source, display text, token keys,
+optional sequence and a 1–86,400,000 ms TTL. Read takes 0–4 unique ordered Panel IDs and returns
+binding, tokens and source presentation records. Source and text reuse the Workspace metadata
+canonical forms. Display states are `idle`, `working`, `blocked`, `done`, `unknown`. Guards on
+Agent label and authority source compare exact observed facts; missing context never matches.
+A generic observation category such as `hook` is not an authority-source identity.
+
+| Transition | Guard and result |
+| ---------- | ---------------- |
+| Fresh report with presentation sets and no clears | Replace that source's entire presentation, including guards and omitted fields; assign write order to supplied fields |
+| Report containing a clear flag | Clear only named fields, apply supplied values/guards, preserve untouched field priority; setting and clearing the same field is invalid |
+| Presentation TTL | Sets or explicit TTL refresh the source presentation expiry; clear-only without TTL preserves it |
+| Token patch | Update or remove named global terminal tokens; each value has its own expiry; unrelated keys retain their expiry |
+| Old or equal source sequence | Return `stale` without mutation or expiry refresh; omitted sequence never resets the high-water mark |
+| Read or report time boundary | Expire values at the supplied monotonic time; retain sequence fences until binding disposal |
+| Capacity or checked revision/deadline failure | Reject the whole report without consuming its sequence or partially applying fields |
+
+Effective presentation selects the newest eligible value independently for title, display Agent
+and each state label. A clear of an unrelated field cannot promote an older title. Metadata has
+its own checked revision and never increments canonical Workbench revision. Expiry/pruning is an
+independent maintenance transition before an otherwise valid operation. Limits are 32 sources,
+32 token keys per binding, 4,096 retained bindings and 16 MiB of accounted retained payload; the
+accounting is not a process RSS bound. Sequence-only records count toward the source limit.
+
+The Site gate is the single writer and samples time after admission. This reducer has no I/O,
+background expiry timer, durable storage, canonical topology mutation or notification event.
+Read/report DTOs and the deterministic owner tests cover replacement, selective clearing,
+per-field precedence, guards, sequence replay, TTL boundaries, atomic capacity failures,
+revision exhaustion and primary/child binding lifetime. Compatibility targets Herdr
+`e0507237ad8d41f60aece10d00ef29ce2339ca34` presentation/token behavior; provider state authority,
+resumable sessions and TUI rendering remain separate consumers. A metadata report never creates
+an Agent authority or changes OSC terminal title. Public CLI integration requires the carrier and
+query projection; the owner alone does not establish CLI parity.

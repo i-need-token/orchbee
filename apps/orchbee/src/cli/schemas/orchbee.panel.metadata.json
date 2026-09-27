@@ -1,0 +1,756 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "orchbee.panel.metadata",
+	"type": "object",
+	"properties": {
+		"schema": {
+			"const": "orchbee.panel.metadata"
+		},
+		"version": {
+			"const": 1
+		},
+		"requestId": {
+			"$ref": "#/$defs/identity"
+		},
+		"siteId": {
+			"$ref": "#/$defs/identity"
+		},
+		"panelId": {
+			"$ref": "#/$defs/identity"
+		},
+		"interrupted": {
+			"type": "boolean"
+		},
+		"cleanupFailed": {
+			"type": "boolean"
+		},
+		"observation": {
+			"oneOf": [
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "server"
+						},
+						"reply": {
+							"$ref": "#/$defs/result"
+						}
+					},
+					"required": ["kind", "reply"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "unknown"
+						},
+						"reason": {
+							"enum": [
+								"request-write",
+								"response-read",
+								"response-deadline",
+								"response-correlation",
+								"response-protocol"
+							]
+						}
+					},
+					"required": ["kind", "reason"],
+					"additionalProperties": false
+				}
+			]
+		}
+	},
+	"required": [
+		"schema",
+		"version",
+		"requestId",
+		"siteId",
+		"panelId",
+		"interrupted",
+		"cleanupFailed",
+		"observation"
+	],
+	"additionalProperties": false,
+	"$defs": {
+		"identity": {
+			"type": "string",
+			"pattern": "^[0-9a-f]{32}$",
+			"not": {
+				"const": "00000000000000000000000000000000"
+			}
+		},
+		"revision": {
+			"type": "string",
+			"pattern": "^(?:0|[1-9][0-9]{0,19})$",
+			"maxLength": 20,
+			"format": "orchbee-uint64"
+		},
+		"source": {
+			"type": "string",
+			"pattern": "^[a-zA-Z0-9:._-]{1,80}$(?![\\s\\S])"
+		},
+		"key": {
+			"type": "string",
+			"pattern": "^[a-zA-Z0-9_-]{1,32}$(?![\\s\\S])"
+		},
+		"value": {
+			"type": "string",
+			"minLength": 1,
+			"maxLength": 80,
+			"allOf": [
+				{
+					"not": {
+						"pattern": "[^\\u0020-\\u007e\\u00a0-\\uD7FF\\uE000-\\uFFFF𐀀-􏿿]"
+					}
+				},
+				{
+					"not": {
+						"pattern": "^[\\u0009-\\u000d\\u0020\\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000]|[\\u0009-\\u000d\\u0020\\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000]$"
+					}
+				}
+			]
+		},
+		"tokens": {
+			"type": "object",
+			"maxProperties": 32,
+			"propertyNames": {
+				"$ref": "#/$defs/key"
+			},
+			"additionalProperties": {
+				"$ref": "#/$defs/value"
+			}
+		},
+		"tokenPatch": {
+			"type": "object",
+			"minProperties": 1,
+			"maxProperties": 16,
+			"propertyNames": {
+				"$ref": "#/$defs/key"
+			},
+			"additionalProperties": {
+				"anyOf": [
+					{
+						"$ref": "#/$defs/value"
+					},
+					{
+						"type": "null"
+					}
+				]
+			}
+		},
+		"binding": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["workerId", "terminalId"],
+			"properties": {
+				"workerId": {
+					"$ref": "#/$defs/identity"
+				},
+				"terminalId": {
+					"$ref": "#/$defs/identity"
+				}
+			}
+		},
+		"labels": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": [],
+			"properties": {
+				"idle": {
+					"$ref": "#/$defs/value"
+				},
+				"working": {
+					"$ref": "#/$defs/value"
+				},
+				"blocked": {
+					"$ref": "#/$defs/value"
+				},
+				"done": {
+					"$ref": "#/$defs/value"
+				},
+				"unknown": {
+					"$ref": "#/$defs/value"
+				}
+			}
+		},
+		"field": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["value", "order"],
+			"properties": {
+				"value": {
+					"$ref": "#/$defs/value"
+				},
+				"order": {
+					"allOf": [
+						{
+							"$ref": "#/$defs/revision"
+						},
+						{
+							"not": {
+								"const": "0"
+							}
+						}
+					]
+				}
+			}
+		},
+		"fieldLabels": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": [],
+			"properties": {
+				"idle": {
+					"$ref": "#/$defs/field"
+				},
+				"working": {
+					"$ref": "#/$defs/field"
+				},
+				"blocked": {
+					"$ref": "#/$defs/field"
+				},
+				"done": {
+					"$ref": "#/$defs/field"
+				},
+				"unknown": {
+					"$ref": "#/$defs/field"
+				}
+			}
+		},
+		"patch": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": [],
+			"properties": {
+				"agent": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/value"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"appliesToSource": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/source"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"title": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/value"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"displayAgent": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/value"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"stateLabels": {
+					"$ref": "#/$defs/labels"
+				},
+				"clearTitle": {
+					"type": "boolean"
+				},
+				"clearDisplayAgent": {
+					"type": "boolean"
+				},
+				"clearStateLabels": {
+					"type": "boolean"
+				},
+				"tokens": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/tokenPatch"
+						},
+						{
+							"type": "null"
+						}
+					]
+				}
+			},
+			"allOf": [
+				{
+					"not": {
+						"allOf": [
+							{
+								"required": ["clearTitle"],
+								"properties": {
+									"clearTitle": {
+										"const": true
+									}
+								}
+							},
+							{
+								"required": ["title"],
+								"properties": {
+									"title": {
+										"$ref": "#/$defs/value"
+									}
+								}
+							}
+						]
+					}
+				},
+				{
+					"not": {
+						"allOf": [
+							{
+								"required": ["clearDisplayAgent"],
+								"properties": {
+									"clearDisplayAgent": {
+										"const": true
+									}
+								}
+							},
+							{
+								"required": ["displayAgent"],
+								"properties": {
+									"displayAgent": {
+										"$ref": "#/$defs/value"
+									}
+								}
+							}
+						]
+					}
+				},
+				{
+					"not": {
+						"allOf": [
+							{
+								"required": ["clearStateLabels"],
+								"properties": {
+									"clearStateLabels": {
+										"const": true
+									}
+								}
+							},
+							{
+								"required": ["stateLabels"],
+								"properties": {
+									"stateLabels": {
+										"$ref": "#/$defs/labels",
+										"minProperties": 1,
+										"type": "object"
+									}
+								}
+							}
+						]
+					}
+				}
+			],
+			"anyOf": [
+				{
+					"required": ["clearTitle"],
+					"properties": {
+						"clearTitle": {
+							"const": true
+						}
+					}
+				},
+				{
+					"required": ["clearDisplayAgent"],
+					"properties": {
+						"clearDisplayAgent": {
+							"const": true
+						}
+					}
+				},
+				{
+					"required": ["clearStateLabels"],
+					"properties": {
+						"clearStateLabels": {
+							"const": true
+						}
+					}
+				},
+				{
+					"required": ["title"],
+					"properties": {
+						"title": {
+							"$ref": "#/$defs/value"
+						}
+					}
+				},
+				{
+					"required": ["displayAgent"],
+					"properties": {
+						"displayAgent": {
+							"$ref": "#/$defs/value"
+						}
+					}
+				},
+				{
+					"required": ["stateLabels"],
+					"properties": {
+						"stateLabels": {
+							"type": "object",
+							"minProperties": 1
+						}
+					}
+				},
+				{
+					"required": ["tokens"],
+					"properties": {
+						"tokens": {
+							"$ref": "#/$defs/tokenPatch"
+						}
+					}
+				}
+			]
+		},
+		"read": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["kind", "panelIds"],
+			"properties": {
+				"kind": {
+					"const": "read"
+				},
+				"panelIds": {
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/identity"
+					},
+					"maxItems": 4,
+					"uniqueItems": true
+				}
+			}
+		},
+		"report": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["kind", "panelId", "expectedBinding", "source", "patch"],
+			"properties": {
+				"kind": {
+					"const": "report"
+				},
+				"panelId": {
+					"$ref": "#/$defs/identity"
+				},
+				"expectedBinding": {
+					"$ref": "#/$defs/binding"
+				},
+				"source": {
+					"$ref": "#/$defs/source"
+				},
+				"patch": {
+					"$ref": "#/$defs/patch"
+				},
+				"sequence": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/revision"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"ttlMilliseconds": {
+					"anyOf": [
+						{
+							"type": "integer",
+							"minimum": 1,
+							"maximum": 86400000
+						},
+						{
+							"type": "null"
+						}
+					]
+				}
+			}
+		},
+		"request": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["kind", "protocolVersion", "requestId", "siteId", "action"],
+			"properties": {
+				"kind": {
+					"const": "workbench.panel-metadata"
+				},
+				"protocolVersion": {
+					"const": 1
+				},
+				"requestId": {
+					"$ref": "#/$defs/identity"
+				},
+				"siteId": {
+					"$ref": "#/$defs/identity"
+				},
+				"action": {
+					"oneOf": [
+						{
+							"$ref": "#/$defs/read"
+						},
+						{
+							"$ref": "#/$defs/report"
+						}
+					]
+				}
+			}
+		},
+		"presentation": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["source", "agent", "appliesToSource", "title", "displayAgent", "stateLabels"],
+			"properties": {
+				"source": {
+					"$ref": "#/$defs/source"
+				},
+				"agent": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/value"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"appliesToSource": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/source"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"title": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/field"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"displayAgent": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/field"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"stateLabels": {
+					"$ref": "#/$defs/fieldLabels"
+				}
+			},
+			"anyOf": [
+				{
+					"required": ["title"],
+					"properties": {
+						"title": {
+							"$ref": "#/$defs/field"
+						}
+					}
+				},
+				{
+					"required": ["displayAgent"],
+					"properties": {
+						"displayAgent": {
+							"$ref": "#/$defs/field"
+						}
+					}
+				},
+				{
+					"required": ["stateLabels"],
+					"properties": {
+						"stateLabels": {
+							"type": "object",
+							"minProperties": 1
+						}
+					}
+				}
+			]
+		},
+		"row": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["panelId", "binding", "tokens", "presentations"],
+			"properties": {
+				"panelId": {
+					"$ref": "#/$defs/identity"
+				},
+				"binding": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/binding"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"tokens": {
+					"$ref": "#/$defs/tokens"
+				},
+				"presentations": {
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/presentation"
+					},
+					"maxItems": 32
+				}
+			},
+			"allOf": [
+				{
+					"if": {
+						"required": ["binding"],
+						"properties": {
+							"binding": {
+								"type": "null"
+							}
+						}
+					},
+					"then": {
+						"properties": {
+							"tokens": {
+								"type": "object",
+								"maxProperties": 0
+							},
+							"presentations": {
+								"type": "array",
+								"maxItems": 0
+							}
+						}
+					}
+				}
+			]
+		},
+		"readResult": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["kind", "workbenchRevision", "metadataRevision", "panels"],
+			"properties": {
+				"kind": {
+					"const": "read"
+				},
+				"workbenchRevision": {
+					"$ref": "#/$defs/revision"
+				},
+				"metadataRevision": {
+					"$ref": "#/$defs/revision"
+				},
+				"panels": {
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/row"
+					},
+					"maxItems": 4
+				}
+			}
+		},
+		"reported": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": [
+				"kind",
+				"workbenchRevision",
+				"metadataRevision",
+				"panelId",
+				"binding",
+				"disposition"
+			],
+			"properties": {
+				"kind": {
+					"const": "reported"
+				},
+				"workbenchRevision": {
+					"$ref": "#/$defs/revision"
+				},
+				"metadataRevision": {
+					"$ref": "#/$defs/revision"
+				},
+				"panelId": {
+					"$ref": "#/$defs/identity"
+				},
+				"binding": {
+					"$ref": "#/$defs/binding"
+				},
+				"disposition": {
+					"enum": ["applied", "stale"]
+				}
+			}
+		},
+		"failed": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["kind", "reason"],
+			"properties": {
+				"kind": {
+					"const": "failed"
+				},
+				"reason": {
+					"enum": [
+						"invalid-request",
+						"site-mismatch",
+						"not-found",
+						"unbound",
+						"binding-changed",
+						"denied",
+						"unavailable",
+						"token-limit",
+						"source-limit",
+						"resource-limit",
+						"revision-exhausted",
+						"deadline-overflow",
+						"result-too-large"
+					]
+				}
+			}
+		},
+		"result": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["kind", "protocolVersion", "requestId", "siteId", "outcome"],
+			"properties": {
+				"kind": {
+					"const": "workbench.panel-metadata.result"
+				},
+				"protocolVersion": {
+					"const": 1
+				},
+				"requestId": {
+					"$ref": "#/$defs/identity"
+				},
+				"siteId": {
+					"$ref": "#/$defs/identity"
+				},
+				"outcome": {
+					"oneOf": [
+						{
+							"$ref": "#/$defs/reported"
+						},
+						{
+							"$ref": "#/$defs/failed"
+						}
+					]
+				}
+			}
+		}
+	}
+}

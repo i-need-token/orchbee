@@ -213,3 +213,5 @@ Windows provider 选择还支持 `cursor`、`qodercli` 和 `antigravity-cli`；�
 ## 上报 Workspace 展示数据
 
 `orchbee workspace report-metadata <workspace> --source hook:build --token summary=testing --seq 42 --ttl-ms 60000 --format json` 上报临时值。用 `--clear-token summary` 删除键。各来源共用 Workspace 的一个键值映射；序号新鲜度按来源判断。旧或相等序号成功但不修改值、不刷新 TTL。`workspace list/get` 返回 `tokens` 与 `metadataSource`。Site 重启清空上报数据。结果未知（退出 8）时可能已生效：保留请求身份，检查当前值，不盲目重放以免延长 TTL。边界和规范化见 [Workspace 元数据契约](windows-workspace-metadata.zh-CN.md)。
+
+Windows `panel report-metadata <panel> --source <id>` 上报展示字段和 token 补丁，支持可选序号／TTL。使用 `--title`、`--display-agent`、可重复的 `--state-label STATE=TEXT` 或显式清除标记。上报跟随精确主终端绑定，不赋予 Agent 权威或修改 OSC 标题。保留退出码 8 的未知回执，切勿自动重试。守卫和替换语义见 [Panel 元数据](windows-panel-metadata.zh-CN.md)。Panel／Agent 查询及 TUI 消费仍需独立集成。

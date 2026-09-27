@@ -119,3 +119,10 @@ mod launch_environment;
 pub use launch_environment::{
     LaunchEnvironment, MAXIMUM_LAUNCH_ENVIRONMENT_BYTES, MAXIMUM_LAUNCH_ENVIRONMENT_ENTRIES,
 };
+
+pub use command::{
+    MAXIMUM_ENCODED_PANEL_METADATA_RESULT_BYTES, MAXIMUM_PANEL_METADATA_READ_ROWS,
+    MAXIMUM_PANEL_METADATA_SOURCES, MetadataState, PanelMetadataAction, PanelMetadataEffective,
+    PanelMetadataFailure, PanelMetadataField, PanelMetadataOutcome, PanelMetadataPatch,
+    PanelMetadataPresentation, PanelMetadataRequest, PanelMetadataResult, PanelMetadataRow,
+};

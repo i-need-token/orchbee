@@ -142,3 +142,5 @@ Client 提示状态快照复用 `@orchbee/agent` 会话身份校验。严格形�
 ## Workspace 元数据契约
 
 `workbench-workspace-metadata-contract.ts` 为共享请求／结果联合增加严格的上报／读取信封，请求上限 16 KiB、结果上限 128 KiB。[共享语料](../../schemas/workbench/v1/workbench-workspace-metadata-conformance-v1.json) 和 [JSON Schema](../../schemas/workbench/v1/workbench-workspace-metadata.schema.json) 覆盖 token 规范化、来源／序号／TTL 边界、读取批次及封闭失败类型。Rust 还拒绝原始 JSON 重复键；TypeScript 对象绑定保留合法的 `__proto__` 和 `constructor` token 键。此绑定不暴露 Desktop 命令或事件订阅。运行时归属由 [Workspace 元数据模型](../../apps/orchbee/docs/windows-workspace-metadata.zh-CN.md) 管理。
+
+Panel 元数据新增严格的请求／结果联合成员，请求 16 KiB、结果 512 KiB。[共享用例](../../schemas/workbench/v1/workbench-panel-metadata-conformance-v1.json) 和 [schema](../../schemas/workbench/v1/workbench-panel-metadata.schema.json) 覆盖规范上报及有界来源记录。绑定还检查行／来源唯一性及逐字段写入顺序边界／归属。运行语义见 [Panel 元数据契约](../../apps/orchbee/docs/windows-panel-metadata.zh-CN.md)。

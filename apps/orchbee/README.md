@@ -858,3 +858,5 @@ Windows `workspace create` accepts omitted Project, label and cwd, resolves sour
 ## Workspace metadata integration
 
 The [Workspace metadata contract](docs/windows-workspace-metadata.md) defines report normalization, source sequence fences, TTL and the consistent read join. Its Server and shared wire owners are separate from canonical topology and terminal OSC metadata. `workspace report-metadata` and Workspace list/get consume that owner with bounded, correlated reads and unknown-outcome receipts; general events and configurable TUI token templates require their own integration.
+
+Windows `panel report-metadata` supports source-owned presentation fields, guards, token patches, sequence and TTL with a binding-fenced, once-only receipt. See the [Panel metadata contract](docs/windows-panel-metadata.md).

@@ -890,3 +890,5 @@ Transport admission remains surface-neutral. An admitted Windows Session may add
 ## Workspace metadata reports
 
 The [Workspace metadata model](../orchbee/docs/windows-workspace-metadata.md) owns transient token values, per-source sequence fences and monotonic TTL under the existing Site gate. The separate OBWP 31/32 RPC uses read permission for queries and navigation permission for reports, without creating topology ledger entries, changing canonical revision or requiring a terminal Worker. Reports are atomic across token/source/resource limits; stale sequences do not refresh expiry. State is absent after restart, and closed Workspace identities are pruned at the next metadata operation. Generic metadata events remain a separate integration.
+
+Panel presentation reports use OBWP 33/34 under the Site gate, with read/navigation permissions and exact primary-binding guards. The [state model](docs/workbench-authority.md#panel-presentation-metadata) owns transient per-terminal sources, field priority, tokens and expiry.

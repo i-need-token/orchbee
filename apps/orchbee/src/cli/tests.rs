@@ -415,6 +415,7 @@ fn fixed_outputs_are_far_below_the_bound() {
         CommandPath::WorkspaceList,
         CommandPath::WorkspaceRename,
         CommandPath::WorkspaceReportMetadata,
+        CommandPath::PanelReportMetadata,
         CommandPath::WorkspaceMove,
         CommandPath::WorkspaceMoveBlock,
         CommandPath::WorktreeList,

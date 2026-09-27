@@ -39,6 +39,10 @@ pub(crate) const PROJECT_RENAME_RESULT_ID: &str = "orchbee.project.rename";
 /// `schema` id → embedded document, in dictionary order.
 const DOCUMENTS: &[(&str, &str)] = &[
     (
+        "orchbee.panel.metadata",
+        include_str!("schemas/orchbee.panel.metadata.json"),
+    ),
+    (
         "orchbee.workspace.metadata",
         include_str!("schemas/orchbee.workspace.metadata.json"),
     ),
@@ -454,8 +458,8 @@ pub(crate) fn answer(schema_id: Option<&str>, format: OutputFormat, locale: Loca
     };
     let document = json!({
         "schema": "orchbee.api.schema",
-        // Agent Get includes independently sourced terminal metadata in v7/v8.
-        "version": 84,
+        // Panel report-metadata adds its bounded receipt schema.
+        "version": 85,
         "source": embedded_source(),
         "result": result,
     });

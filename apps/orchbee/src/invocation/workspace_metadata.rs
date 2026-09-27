@@ -47,6 +47,38 @@ pub(super) fn parse(
         context,
         envelope,
     )?;
+    let report = fields(options, context, envelope, true)?;
+    let ReportFields {
+        source,
+        tokens,
+        sequence,
+        ttl_milliseconds,
+    } = report;
+    let tokens = tokens.expect("required token patch");
+    Ok(Request::WorkspaceMetadata {
+        command: WorkspaceMetadataCommand {
+            target: target(value.to_owned(), Resource::Workspace, envelope)?,
+            source,
+            tokens,
+            sequence,
+            ttl_milliseconds,
+        },
+        format: options.format.unwrap_or(OutputFormat::Text),
+    })
+}
+
+pub(super) struct ReportFields {
+    pub(super) source: MetadataSource,
+    pub(super) tokens: Option<MetadataTokenPatch>,
+    pub(super) sequence: Option<WorkbenchRevision>,
+    pub(super) ttl_milliseconds: Option<u32>,
+}
+pub(super) fn fields(
+    options: &super::Options,
+    context: UsageContext,
+    envelope: FailureEnvelope,
+    require_tokens: bool,
+) -> Result<ReportFields, ParseFailure> {
     let invalid = |option, value: &str, expected| {
         usage_with(
             UsageReason::InvalidValue {
@@ -78,20 +110,24 @@ pub(super) fn parse(
             .map_err(|_| invalid(option, raw, ExpectedValue::MetadataToken))?;
         tokens.insert(key, value);
     }
-    if tokens.is_empty() {
+    if tokens.is_empty() && require_tokens {
         return Err(missing_required(
             context,
             "'--token' / '--clear-token'",
             envelope,
         ));
     }
-    let tokens = MetadataTokenPatch::new(tokens).map_err(|_| {
-        invalid(
-            "--token",
-            &options.metadata.updates.len().to_string(),
-            ExpectedValue::MetadataPatchSize,
-        )
-    })?;
+    let tokens = if tokens.is_empty() {
+        None
+    } else {
+        Some(MetadataTokenPatch::new(tokens).map_err(|_| {
+            invalid(
+                "--token",
+                &options.metadata.updates.len().to_string(),
+                ExpectedValue::MetadataPatchSize,
+            )
+        })?)
+    };
     let sequence = options
         .metadata
         .sequence
@@ -113,15 +149,11 @@ pub(super) fn parse(
                 .ok_or_else(|| invalid("--ttl-ms", raw, ExpectedValue::MetadataTtl))
         })
         .transpose()?;
-    Ok(Request::WorkspaceMetadata {
-        command: WorkspaceMetadataCommand {
-            target: target(value.to_owned(), Resource::Workspace, envelope)?,
-            source,
-            tokens,
-            sequence,
-            ttl_milliseconds,
-        },
-        format: options.format.unwrap_or(OutputFormat::Text),
+    Ok(ReportFields {
+        source,
+        tokens,
+        sequence,
+        ttl_milliseconds,
     })
 }
 

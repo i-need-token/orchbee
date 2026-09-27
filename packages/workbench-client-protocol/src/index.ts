@@ -395,3 +395,27 @@ export {
 	WorkspaceMetadataResultSchema,
 	type WorkspaceMetadataResult,
 } from './workbench-workspace-metadata-contract';
+
+export {
+	WORKBENCH_MAXIMUM_ENCODED_PANEL_METADATA_RESULT_BYTES,
+	MetadataStateSchema,
+	type MetadataState,
+	PanelMetadataPatchSchema,
+	type PanelMetadataPatch,
+	PanelMetadataActionSchema,
+	type PanelMetadataAction,
+	PanelMetadataFailureSchema,
+	type PanelMetadataFailure,
+	PanelMetadataFieldSchema,
+	type PanelMetadataField,
+	PanelMetadataPresentationSchema,
+	type PanelMetadataPresentation,
+	PanelMetadataRowSchema,
+	type PanelMetadataRow,
+	PanelMetadataOutcomeSchema,
+	type PanelMetadataOutcome,
+	PanelMetadataRequestSchema,
+	type PanelMetadataRequest,
+	PanelMetadataResultSchema,
+	type PanelMetadataResult,
+} from './workbench-panel-metadata-contract';

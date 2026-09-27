@@ -25,6 +25,7 @@ pub use checkpoint::{
     MAXIMUM_WORKBENCH_CHECKPOINT_BYTES, PreparedWorkbenchRestoreBinding, WorkbenchCheckpoint,
     WorkbenchCheckpointError, WorkbenchRestoreError, WorkbenchRestoreTarget,
 };
+mod panel_metadata;
 mod terminal_membership;
 mod workspace_directory;
 mod workspace_group_close;
@@ -140,6 +141,7 @@ impl TryFrom<WorkbenchRequest> for WorkbenchReadOrNavigationRequest {
             | WorkbenchRequest::WorktreeOperation(_)
             | WorkbenchRequest::WorktreeQuery(_)
             | WorkbenchRequest::WorkspaceGroupClose(_)
+            | WorkbenchRequest::PanelMetadata(_)
             | WorkbenchRequest::WorkspaceMetadata(_)
             | WorkbenchRequest::ClientView(_)) => Err(request),
         }
@@ -259,6 +261,7 @@ pub struct WorkbenchAuthority {
     worktrees: worktree_operation::WorktreeOperations,
     workspace_groups: workspace_group_close::WorkspaceGroupCloses,
     workspace_metadata: workspace_metadata::WorkspaceMetadata,
+    panel_metadata: panel_metadata::PanelMetadata,
 }
 
 impl WorkbenchAuthority {
@@ -288,6 +291,7 @@ impl WorkbenchAuthority {
             worktrees: worktree_operation::WorktreeOperations::default(),
             workspace_groups: workspace_group_close::WorkspaceGroupCloses::default(),
             workspace_metadata: workspace_metadata::WorkspaceMetadata::default(),
+            panel_metadata: panel_metadata::PanelMetadata::default(),
         })
     }
 

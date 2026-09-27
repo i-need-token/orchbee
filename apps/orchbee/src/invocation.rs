@@ -1,4 +1,6 @@
+mod panel_metadata;
 mod workspace_metadata;
+pub(crate) use panel_metadata::PanelMetadataCommand;
 pub(crate) use workspace_metadata::WorkspaceMetadataCommand;
 mod client_control;
 #[cfg(windows)]
@@ -272,6 +274,7 @@ pub(crate) enum CommandPath {
     WorkspaceCreate,
     WorkspaceRename,
     WorkspaceReportMetadata,
+    PanelReportMetadata,
     WorkspaceMove,
     WorkspaceMoveBlock,
     WorkspaceAcceptDirectory,
@@ -384,6 +387,7 @@ impl CommandPath {
             Self::WorkspaceGet => "workspace get",
             Self::WorkspaceCreate => "workspace create",
             Self::WorkspaceRename => "workspace rename",
+            Self::PanelReportMetadata => "panel report-metadata",
             Self::WorkspaceReportMetadata => "workspace report-metadata",
             Self::WorkspaceMove => "workspace move",
             Self::WorkspaceMoveBlock => "workspace move-block",
@@ -1141,6 +1145,10 @@ pub(crate) enum RuntimeStatusScope {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum Request {
+    PanelMetadata {
+        command: PanelMetadataCommand,
+        format: OutputFormat,
+    },
     WorkspaceMetadata {
         command: WorkspaceMetadataCommand,
         format: OutputFormat,
@@ -1305,6 +1313,8 @@ pub(crate) enum UsageContext {
 /// expect; rendered per locale, never serialized.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum ExpectedValue {
+    MetadataStateLabel,
+    MetadataPresentation,
     MetadataSource,
     MetadataToken,
     MetadataPatchSize,
@@ -1530,6 +1540,7 @@ enum Token {
 #[derive(Default)]
 struct Options {
     metadata: workspace_metadata::Options,
+    panel_metadata: panel_metadata::Options,
     #[cfg(windows)]
     site: Option<String>,
     output: Option<String>,
@@ -1642,6 +1653,11 @@ struct Options {
 /// both the format-envelope walk and the option scan so ownership is decided
 /// identically in the two passes.
 const VALUE_FLAGS: &[&str] = &[
+    "--agent",
+    "--applies-to-source",
+    "--title",
+    "--display-agent",
+    "--state-label",
     "--token",
     "--clear-token",
     "--seq",
@@ -1995,12 +2011,50 @@ fn scan(tokens: Vec<String>) -> Result<SelectedRequest, ParseFailure> {
                 apply_value_flag(&mut options, option, value, envelope)?;
                 index += 1;
             }
-            "--group" | "--standalone" | "--confirm" | "--history" | "--enter" | "--stdin"
-            | "--outdated-only" | "--include-ended" | "--new-tab" | "--new-workspace"
-            | "--paste" | "--unwrap" | "--current" | "--plain" | "--ansi" | "--clear"
-            | "--wait" | "--forever" | "--detach" | "--retry" | "--force" | "--takeover"
-            | "--trust-repository" | "--on" | "--off" | "--toggle" | "--focus" | "--no-focus" => {
-                let (seen, option) = if token == "--plain" {
+            "--clear-title"
+            | "--clear-display-agent"
+            | "--clear-state-labels"
+            | "--group"
+            | "--standalone"
+            | "--confirm"
+            | "--history"
+            | "--enter"
+            | "--stdin"
+            | "--outdated-only"
+            | "--include-ended"
+            | "--new-tab"
+            | "--new-workspace"
+            | "--paste"
+            | "--unwrap"
+            | "--current"
+            | "--plain"
+            | "--ansi"
+            | "--clear"
+            | "--wait"
+            | "--forever"
+            | "--detach"
+            | "--retry"
+            | "--force"
+            | "--takeover"
+            | "--trust-repository"
+            | "--on"
+            | "--off"
+            | "--toggle"
+            | "--focus"
+            | "--no-focus" => {
+                let (seen, option) = if token == "--clear-title" {
+                    (&mut options.panel_metadata.clear_title, "--clear-title")
+                } else if token == "--clear-display-agent" {
+                    (
+                        &mut options.panel_metadata.clear_display_agent,
+                        "--clear-display-agent",
+                    )
+                } else if token == "--clear-state-labels" {
+                    (
+                        &mut options.panel_metadata.clear_state_labels,
+                        "--clear-state-labels",
+                    )
+                } else if token == "--plain" {
                     (&mut options.plain, "--plain")
                 } else if token == "--ansi" {
                     (&mut options.ansi, "--ansi")
@@ -2191,6 +2245,10 @@ fn apply_value_flag(
         options.metadata.updates.push((option, value));
         return Ok(());
     }
+    if option == "--state-label" {
+        options.panel_metadata.state_labels.push(value);
+        return Ok(());
+    }
     if option == "--key" {
         options.keys.push(value);
         return Ok(());
@@ -2200,6 +2258,10 @@ fn apply_value_flag(
         return Ok(());
     }
     let slot = match option {
+        "--agent" => &mut options.panel_metadata.agent,
+        "--applies-to-source" => &mut options.panel_metadata.applies_to_source,
+        "--title" => &mut options.panel_metadata.title,
+        "--display-agent" => &mut options.panel_metadata.display_agent,
         "--seq" => &mut options.metadata.sequence,
         "--ttl-ms" => &mut options.metadata.ttl,
         #[cfg(windows)]
@@ -3064,6 +3126,7 @@ fn resolve_words(
                 options,
             ))
         }
+        ["panel", "report-metadata", value] => panel_metadata::parse(value, options, envelope),
         ["workspace", "report-metadata", value] => {
             workspace_metadata::parse(value, options, envelope)
         }
@@ -4226,6 +4289,7 @@ fn help_topic(path: &[&str]) -> Option<HelpTopic> {
         ["workspace", "get"] => HelpTopic::Command(CommandPath::WorkspaceGet),
         ["workspace", "create"] => HelpTopic::Command(CommandPath::WorkspaceCreate),
         ["workspace", "rename"] => HelpTopic::Command(CommandPath::WorkspaceRename),
+        ["panel", "report-metadata"] => HelpTopic::Command(CommandPath::PanelReportMetadata),
         ["workspace", "report-metadata"] => {
             HelpTopic::Command(CommandPath::WorkspaceReportMetadata)
         }
@@ -4359,6 +4423,7 @@ fn mutation(command: MutationCommand, options: &Options) -> Request {
 #[derive(Clone, Copy)]
 struct Scope {
     metadata: bool,
+    panel_metadata: bool,
     output: bool,
     client: bool,
     focus: bool,
@@ -4486,6 +4551,7 @@ struct Scope {
 
 const NO_OPTIONS: Scope = Scope {
     metadata: false,
+    panel_metadata: false,
     output: false,
     client: false,
     focus: false,
@@ -4808,7 +4874,8 @@ const INTEGRATION_SCOPE: Scope = Scope {
 
 /// Any mutation-only option seen outside a mutation command.
 fn business_options(options: &Options) -> bool {
-    options.metadata.first_option().is_some()
+    options.panel_metadata.first_option().is_some()
+        || options.metadata.first_option().is_some()
         || options.output.is_some()
         || options.client.is_some()
         || options.focus
@@ -4875,6 +4942,11 @@ fn business_options(options: &Options) -> bool {
 /// The first named option present but outside `scope`, in the fixed `Options`
 /// declaration order — deterministic without any argv-order state.
 fn first_out_of_scope(options: &Options, scope: Scope) -> Option<&'static str> {
+    if !scope.panel_metadata
+        && let Some(option) = options.panel_metadata.first_option()
+    {
+        return Some(option);
+    }
     if !scope.metadata
         && let Some(option) = options.metadata.first_option()
     {

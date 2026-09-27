@@ -84,6 +84,14 @@ impl SiteCoordinator {
         Some(self.workbench.as_mut()?.workspace_metadata(request, now))
     }
 
+    pub(crate) fn panel_metadata(
+        &mut self,
+        request: orchbee_workbench_protocol::PanelMetadataRequest,
+        now: std::time::Instant,
+    ) -> Option<orchbee_workbench_protocol::PanelMetadataResult> {
+        Some(self.workbench.as_mut()?.panel_metadata(request, now))
+    }
+
     pub(crate) fn worktree_authority(&mut self) -> Option<&mut WorkbenchAuthority> {
         self.workbench.as_mut()
     }

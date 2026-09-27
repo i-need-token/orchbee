@@ -1,3 +1,4 @@
+pub(crate) mod panel_metadata;
 mod schema_export;
 pub(crate) mod workspace_metadata;
 pub(crate) use schema_export::run as export_schema;

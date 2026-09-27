@@ -10,7 +10,7 @@
 			"const": "orchbee.api.schema"
 		},
 		"version": {
-			"const": 84
+			"const": 85
 		},
 		"source": {
 			"type": "object",
@@ -245,7 +245,8 @@
 				"orchbee.cli.failure.layout-apply",
 				"orchbee.cli.failure.client-query",
 				"orchbee.cli.failure.workbench-query",
-				"orchbee.workspace.metadata"
+				"orchbee.workspace.metadata",
+				"orchbee.panel.metadata"
 			]
 		}
 	}
