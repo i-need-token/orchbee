@@ -53,6 +53,25 @@ Startup restoration must establish new physical bindings and account for interru
 returning an unbound authority from this codec is not proof that a usable session has resumed.
 Format changes require an explicit version/migration decision; there is no permissive fallback.
 
+## Terminal rebind preparation
+
+`checkpoint/restore.rs` enumerates every unbound primary and child Presentation in context, Tab
+and depth-first tree order. Each private restore target carries its fresh Site/local Worker and
+exact context/Tab/Panel/Presentation membership. Its cwd default is the owning Workspace's primary
+directory; standalone and unconfigured Workspace targets have no explicit directory. This is not
+a saved observation of each terminal's last cwd; that belongs to runtime checkpoint capture.
+
+`prepare_restored_terminal` rechecks Site, local Worker, membership, unbound status and the cwd
+default, then validates and prepares the entire resulting projection/publication before mutation.
+Dropping preparation changes nothing. Commit sets exactly one binding and advances revision;
+structural identities, allocator high-water, labels, order, groups, input policy and profiles remain
+unchanged. Already-bound targets and duplicate physical terminal bindings are refused.
+
+This preparation does not create a process or replay a command. The managed coordinator must
+prepare a fresh terminal reservation and this binding together, commit both under the same lock,
+then dispatch and settle the exact physical request. It must also reconstruct standalone Open
+selection before exposing Clients. Planning and binding tests do not establish that runtime integration.
+
 ## Evidence
 
 Deterministic tests exercise capture/reconstruct with independent graph expectations, nested

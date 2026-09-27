@@ -6,6 +6,8 @@ use orchbee_workbench_protocol::{
 };
 use serde_json::{Value, json};
 
+mod restore;
+
 fn site(value: u128) -> SiteId {
     SiteId::parse(&identity(value)).unwrap()
 }

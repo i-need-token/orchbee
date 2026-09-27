@@ -1,0 +1,193 @@
+use super::*;
+use orchbee_workbench_protocol::{PresentationBinding, TerminalId, WorkbenchDirectoryPath};
+
+fn binding(id: u128, owner: u128) -> PresentationBinding {
+    PresentationBinding {
+        terminal_id: TerminalId::parse(&identity(id)).unwrap(),
+        worker_id: worker(owner),
+    }
+}
+
+fn replace_snapshot(authority: &mut WorkbenchAuthority, edit: impl FnOnce(&mut Snapshot)) {
+    let mut snapshot = authority.snapshot().clone();
+    edit(&mut snapshot);
+    authority.projection = WorkbenchProjectionStore::load(
+        &serialize_document(&WorkbenchProtocolDocument::Snapshot(snapshot)).unwrap(),
+    )
+    .unwrap();
+}
+
+#[test]
+fn enumerates_every_primary_and_child_with_exact_membership_and_workspace_directory() {
+    let authority = restore(&checkpoint()).unwrap();
+    let targets = authority.restoration_targets(&worker(400)).unwrap();
+    assert_eq!(targets.len(), 5);
+    for ((target, presentation), panel) in targets
+        .iter()
+        .zip([11, 15, 14, 23, 18])
+        .zip([10, 10, 13, 22, 17])
+    {
+        assert_eq!(target.presentation_id().as_str(), identity(presentation));
+        assert_eq!(target.panel_id().as_str(), identity(panel));
+        assert_eq!(target.terminal_context_id().as_str(), identity(5));
+        assert_eq!(
+            target.tab_id().as_str(),
+            identity(if presentation == 18 { 16 } else { 7 })
+        );
+        assert_eq!(
+            target.working_directory().unwrap().as_str(),
+            "C:\\work space\\项目"
+        );
+        assert!(!target.is_standalone());
+    }
+    assert_eq!(
+        authority.restoration_targets(&worker(200)).err(),
+        Some(WorkbenchRestoreError::ForeignWorker)
+    );
+}
+
+#[test]
+fn preparation_is_effect_free_and_all_commits_preserve_retained_configuration() {
+    let mut authority = restore(&checkpoint()).unwrap();
+    let targets = authority.restoration_targets(&worker(400)).unwrap();
+    let before = authority.snapshot().clone();
+    let retained = authority.checkpoint(&worker(400)).unwrap();
+    {
+        let _uncommitted = authority
+            .prepare_restored_terminal(&targets[0], binding(900, 400))
+            .unwrap();
+    }
+    assert_eq!(authority.snapshot(), &before);
+    for (index, target) in targets.iter().enumerate() {
+        let revision = authority
+            .prepare_restored_terminal(target, binding(900 + index as u128, 400))
+            .unwrap()
+            .commit();
+        assert_eq!(revision.value(), index as u64 + 1);
+        assert_eq!(
+            authority.restoration_targets(&worker(400)).unwrap().len(),
+            4 - index
+        );
+    }
+    assert_eq!(authority.checkpoint(&worker(400)).unwrap(), retained);
+    assert_eq!(authority.last_identity, 40);
+    assert!(authority.ledger.is_empty());
+    assert_eq!(authority.catalog_revision, 0);
+    assert_eq!(
+        authority
+            .prepare_restored_terminal(&targets[0], binding(999, 400))
+            .err(),
+        Some(WorkbenchRestoreError::AlreadyBound)
+    );
+}
+
+#[test]
+fn standalone_and_unconfigured_workspaces_keep_the_runtime_default_directory() {
+    let mut source = WorkbenchAuthority::new(site(100)).unwrap();
+    let _membership = source
+        .prepare_standalone_intent(binding(900, 200))
+        .unwrap()
+        .commit();
+    let authority = restore(&source.checkpoint(&worker(200)).unwrap()).unwrap();
+    let targets = authority.restoration_targets(&worker(400)).unwrap();
+    assert_eq!(targets.len(), 1);
+    assert!(targets[0].is_standalone());
+    assert!(targets[0].working_directory().is_none());
+    let unconfigured = restore(&changed(|value| {
+        value["navigation"]["projects"][0]["workspaces"][0]["primaryDirectoryId"] = Value::Null
+    }))
+    .unwrap();
+    assert!(
+        unconfigured
+            .restoration_targets(&worker(400))
+            .unwrap()
+            .iter()
+            .all(|target| target.working_directory().is_none() && !target.is_standalone())
+    );
+}
+
+#[test]
+fn refuses_old_site_foreign_worker_removed_membership_and_changed_directory() {
+    let mut authority = restore(&checkpoint()).unwrap();
+    let target = authority
+        .restoration_targets(&worker(400))
+        .unwrap()
+        .remove(0);
+    let before = authority.snapshot().clone();
+    assert_eq!(
+        authority
+            .prepare_restored_terminal(&target, binding(900, 500))
+            .err(),
+        Some(WorkbenchRestoreError::ForeignWorker)
+    );
+    assert_eq!(authority.snapshot(), &before);
+    let mut another_site =
+        WorkbenchAuthority::from_checkpoint(&checkpoint(), site(301), &worker(400)).unwrap();
+    assert_eq!(
+        another_site
+            .prepare_restored_terminal(&target, binding(900, 400))
+            .err(),
+        Some(WorkbenchRestoreError::TargetChanged)
+    );
+    replace_snapshot(&mut authority, |snapshot| {
+        snapshot.navigation.projects[0].directories[0].path =
+            WorkbenchDirectoryPath::parse("C:\\different").unwrap()
+    });
+    let changed = authority.snapshot().clone();
+    assert_eq!(
+        authority
+            .prepare_restored_terminal(&target, binding(900, 400))
+            .err(),
+        Some(WorkbenchRestoreError::TargetChanged)
+    );
+    assert_eq!(authority.snapshot(), &changed);
+    let mut removed = restore(&checkpoint()).unwrap();
+    replace_snapshot(&mut removed, |snapshot| {
+        snapshot.terminal_contexts[1].tabs[0].tab_id =
+            orchbee_workbench_protocol::WorkbenchTabId::parse(&identity(80)).unwrap()
+    });
+    assert_eq!(
+        removed
+            .prepare_restored_terminal(&target, binding(900, 400))
+            .err(),
+        Some(WorkbenchRestoreError::TargetChanged)
+    );
+}
+
+#[test]
+fn duplicate_physical_binding_retirement_and_revision_exhaustion_do_not_partially_commit() {
+    let mut authority = restore(&checkpoint()).unwrap();
+    let targets = authority.restoration_targets(&worker(400)).unwrap();
+    authority
+        .prepare_restored_terminal(&targets[0], binding(900, 400))
+        .unwrap()
+        .commit();
+    let before = authority.snapshot().clone();
+    assert!(matches!(
+        authority.prepare_restored_terminal(&targets[1], binding(900, 400)),
+        Err(WorkbenchRestoreError::InvalidProjection(_))
+    ));
+    assert_eq!(authority.snapshot(), &before);
+    replace_snapshot(&mut authority, |snapshot| {
+        snapshot.revision = WorkbenchRevision::new(u64::MAX)
+    });
+    let exhausted = authority.snapshot().clone();
+    assert_eq!(
+        authority
+            .prepare_restored_terminal(&targets[1], binding(901, 400))
+            .err(),
+        Some(WorkbenchRestoreError::RevisionExhausted)
+    );
+    assert_eq!(authority.snapshot(), &exhausted);
+    authority.retired = true;
+    assert_eq!(
+        authority.restoration_targets(&worker(400)).err(),
+        Some(WorkbenchRestoreError::Unavailable)
+    );
+    assert_eq!(
+        authority
+            .prepare_restored_terminal(&targets[1], binding(901, 400))
+            .err(),
+        Some(WorkbenchRestoreError::Unavailable)
+    );
+}

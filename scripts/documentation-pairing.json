@@ -126,8 +126,8 @@
 			"zhCnSha256": "f1bd326a23ae52a74749cee7f0d4ea085f72236565307aa29398cd50f1703c43"
 		},
 		"apps/orchbee-server/docs/workbench-checkpoint.md": {
-			"englishSha256": "1b66606bd21b027177987a49ba4d43b3c0fc2b11540d590089a2078b630ad837",
-			"zhCnSha256": "065c1eefb4c811728b51a13c973ee12ff02c61c751ae16085890dc0f6f2eb4aa"
+			"englishSha256": "0ffaa883274641779c0e169e21a26aeec3f9bd5d52b933796d790b6c0b55a33a",
+			"zhCnSha256": "7fce8a13a5a2d5d38e3d0b1057014fb467ff1e2e442f8cb9029c35fe8d85d8a0"
 		},
 		"apps/orchbee-server/docs/worker-carrier-model.md": {
 			"englishSha256": "e19b68407f5a6d717b2dcffc94a8fc40ef19f767d29bfbb965f80acb778a8be8",

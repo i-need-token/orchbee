@@ -15,6 +15,9 @@ use serde::{Deserialize, Serialize};
 use super::{WorkbenchAuthority, catalog_serialized_size, identity};
 use crate::workbench_projection::WorkbenchProjectionStore;
 
+mod restore;
+pub use restore::{PreparedWorkbenchRestoreBinding, WorkbenchRestoreError, WorkbenchRestoreTarget};
+
 pub const MAXIMUM_WORKBENCH_CHECKPOINT_BYTES: usize = 2 * 1024 * 1024;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

@@ -21,7 +21,10 @@ use crate::workbench_projection::{
 };
 
 mod checkpoint;
-pub use checkpoint::{MAXIMUM_WORKBENCH_CHECKPOINT_BYTES, WorkbenchCheckpointError};
+pub use checkpoint::{
+    MAXIMUM_WORKBENCH_CHECKPOINT_BYTES, PreparedWorkbenchRestoreBinding, WorkbenchCheckpointError,
+    WorkbenchRestoreError, WorkbenchRestoreTarget,
+};
 mod terminal_membership;
 mod workspace_directory;
 mod workspace_group_close;
