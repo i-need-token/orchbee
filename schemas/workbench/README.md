@@ -458,3 +458,7 @@ survive. The [Server relocation model](../../apps/orchbee-server/docs/workbench-
 owns source removal, candidate bounds, publication and standalone composition; Client ratios and
 focus remain outside this atomic structural result. Shared command fixtures cover the new forms,
 legacy forms, omitted labels and invalid/null optional values.
+
+## Workspace metadata
+
+[`workbench-workspace-metadata.schema.json`](v1/workbench-workspace-metadata.schema.json) defines `workbench.workspace-metadata` and its result, OBWP kinds 31/32. Read accepts 0–8 ordered unique Workspace IDs; Report accepts 1–16 unique token patches with optional uint64 sequence and bounded TTL. Results have a separate 128 KiB pre-allocation cap; requests retain the 16 KiB intent cap. The [shared corpus](v1/workbench-workspace-metadata-conformance-v1.json) checks both language bindings. Bindings additionally enforce uint64 range, unique result identities and encoded byte limits; raw Rust decoding rejects duplicate token keys. The [owning model](../../apps/orchbee/docs/windows-workspace-metadata.md) defines permission, expiry, capacity and query consistency.

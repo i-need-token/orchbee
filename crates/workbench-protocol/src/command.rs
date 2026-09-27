@@ -48,8 +48,17 @@ pub use worktree_query::{
     WorkbenchWorktreeQueryOutcome, WorkbenchWorktreeQueryResult, WorktreeQueryEntry,
     WorktreeQueryFailure, WorktreeQuerySource, WorktreeWorkspaceAssociation,
 };
+mod workspace_metadata;
 mod worktree_operation;
 use std::fmt;
+pub use workspace_metadata::{
+    MAXIMUM_ENCODED_WORKSPACE_METADATA_RESULT_BYTES, MAXIMUM_METADATA_PATCH_KEYS,
+    MAXIMUM_METADATA_TOKEN_KEYS, MAXIMUM_METADATA_TTL_MILLISECONDS,
+    MAXIMUM_WORKSPACE_METADATA_READ_ROWS, MetadataReportDisposition, MetadataSource,
+    MetadataTokenKey, MetadataTokenPatch, MetadataTokenValue, MetadataTokens,
+    WorkspaceMetadataAction, WorkspaceMetadataFailure, WorkspaceMetadataOutcome,
+    WorkspaceMetadataRequest, WorkspaceMetadataResult, WorkspaceMetadataRow,
+};
 pub use worktree_operation::{
     MAXIMUM_ENCODED_WORKTREE_OPERATION_BYTES, MAXIMUM_WORKTREE_OPERATION_ATTEMPTS,
     WorkbenchWorktreeAction, WorkbenchWorktreeOutcome, WorkbenchWorktreeRequest,
@@ -757,6 +766,8 @@ pub struct WorkbenchCommand {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind")]
 pub enum WorkbenchRequest {
+    #[serde(rename = "workbench.workspace-metadata")]
+    WorkspaceMetadata(WorkspaceMetadataRequest),
     #[serde(rename = "workbench.client-view")]
     ClientView(WorkbenchClientViewRequest),
     #[serde(rename = "workbench.workspace-group-close")]
@@ -1094,6 +1105,8 @@ pub struct WorkbenchSnapshotResult {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind")]
 pub enum WorkbenchResponse {
+    #[serde(rename = "workbench.workspace-metadata.result")]
+    WorkspaceMetadata(WorkspaceMetadataResult),
     #[serde(rename = "workbench.client-view.result")]
     ClientView(WorkbenchClientViewResult),
     #[serde(rename = "workbench.workspace-group-close.result")]
@@ -1135,6 +1148,9 @@ pub fn parse_workbench_request(encoded: &[u8]) -> Result<WorkbenchRequest, Contr
 /// explicit `launch` and a `profile` selector are mutually exclusive on the
 /// terminal-launch actions.
 fn validate_request(request: &WorkbenchRequest) -> Result<(), ContractError> {
+    if let WorkbenchRequest::WorkspaceMetadata(request) = request {
+        return request.validate();
+    }
     if let WorkbenchRequest::ClientView(request) = request {
         return request.validate();
     }
@@ -1255,6 +1271,10 @@ pub fn serialize_workbench_response(
 
 fn validate_response(response: &WorkbenchResponse, encoded: &[u8]) -> Result<(), ContractError> {
     match response {
+        WorkbenchResponse::WorkspaceMetadata(result) => {
+            enforce_encoded_limit(encoded, MAXIMUM_ENCODED_WORKSPACE_METADATA_RESULT_BYTES)?;
+            result.validate()
+        }
         WorkbenchResponse::ClientView(result) => {
             let maximum = if matches!(&result.outcome, ClientViewOutcome::Operation { operation }
                 if matches!(operation.status, ClientViewControlStatus::LayoutRead { .. }))

@@ -1,0 +1,1248 @@
+{
+	"contractVersion": 1,
+	"valid": [
+		{
+			"name": "max-sequence-ttl-report",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.workspace-metadata",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "report",
+					"workspaceId": "00000000000000000000000000000003",
+					"source": "hook:codex",
+					"tokens": {
+						"summary": "中文😀",
+						"clear": null
+					},
+					"sequence": "18446744073709551615",
+					"ttlMilliseconds": 86400000
+				}
+			}
+		},
+		{
+			"name": "read-two",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.workspace-metadata",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "read",
+					"workspaceIds": ["00000000000000000000000000000003", "00000000000000000000000000000004"]
+				}
+			}
+		},
+		{
+			"name": "read-empty-fence",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.workspace-metadata",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "read",
+					"workspaceIds": []
+				}
+			}
+		},
+		{
+			"name": "read-eight",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.workspace-metadata",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "read",
+					"workspaceIds": [
+						"00000000000000000000000000000003",
+						"00000000000000000000000000000004",
+						"00000000000000000000000000000005",
+						"00000000000000000000000000000006",
+						"00000000000000000000000000000007",
+						"00000000000000000000000000000008",
+						"00000000000000000000000000000009",
+						"0000000000000000000000000000000a"
+					]
+				}
+			}
+		},
+		{
+			"name": "tokens-roundtrip",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-metadata.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "read",
+					"workbenchRevision": "5",
+					"metadataRevision": "1",
+					"workspaces": [
+						{
+							"workspaceId": "00000000000000000000000000000003",
+							"tokens": {
+								"summary": "中文😀",
+								"__proto__": "keep",
+								"constructor": "keep"
+							}
+						},
+						{
+							"workspaceId": "00000000000000000000000000000004",
+							"tokens": {}
+						}
+					]
+				}
+			}
+		},
+		{
+			"name": "report-applied",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-metadata.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "reported",
+					"workbenchRevision": "5",
+					"metadataRevision": "1",
+					"workspaceId": "00000000000000000000000000000003",
+					"disposition": "applied"
+				}
+			}
+		},
+		{
+			"name": "report-stale",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-metadata.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "reported",
+					"workbenchRevision": "5",
+					"metadataRevision": "1",
+					"workspaceId": "00000000000000000000000000000003",
+					"disposition": "stale"
+				}
+			}
+		},
+		{
+			"name": "failure-invalid-request",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-metadata.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "failed",
+					"reason": "invalid-request"
+				}
+			}
+		},
+		{
+			"name": "failure-site-mismatch",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-metadata.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "failed",
+					"reason": "site-mismatch"
+				}
+			}
+		},
+		{
+			"name": "failure-not-found",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-metadata.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "failed",
+					"reason": "not-found"
+				}
+			}
+		},
+		{
+			"name": "failure-denied",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-metadata.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "failed",
+					"reason": "denied"
+				}
+			}
+		},
+		{
+			"name": "failure-unavailable",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-metadata.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "failed",
+					"reason": "unavailable"
+				}
+			}
+		},
+		{
+			"name": "failure-token-limit",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-metadata.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "failed",
+					"reason": "token-limit"
+				}
+			}
+		},
+		{
+			"name": "failure-sequence-source-limit",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-metadata.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "failed",
+					"reason": "sequence-source-limit"
+				}
+			}
+		},
+		{
+			"name": "failure-resource-limit",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-metadata.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "failed",
+					"reason": "resource-limit"
+				}
+			}
+		},
+		{
+			"name": "failure-revision-exhausted",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-metadata.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "failed",
+					"reason": "revision-exhausted"
+				}
+			}
+		},
+		{
+			"name": "failure-deadline-overflow",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-metadata.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "failed",
+					"reason": "deadline-overflow"
+				}
+			}
+		},
+		{
+			"name": "failure-result-too-large",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-metadata.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "failed",
+					"reason": "result-too-large"
+				}
+			}
+		},
+		{
+			"name": "value-18",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.workspace-metadata",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "report",
+					"workspaceId": "00000000000000000000000000000003",
+					"source": "hook:codex",
+					"tokens": {
+						"__proto__": "😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀",
+						"constructor": null
+					},
+					"sequence": "18446744073709551615",
+					"ttlMilliseconds": 86400000
+				}
+			}
+		},
+		{
+			"name": "value-19",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.workspace-metadata",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "report",
+					"workspaceId": "00000000000000000000000000000003",
+					"source": "hook:codex",
+					"tokens": {
+						"__proto__": "﻿token",
+						"constructor": null
+					},
+					"sequence": "18446744073709551615",
+					"ttlMilliseconds": 86400000
+				}
+			}
+		},
+		{
+			"name": "value-20",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.workspace-metadata",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "report",
+					"workspaceId": "00000000000000000000000000000003",
+					"source": "hook:codex",
+					"tokens": {
+						"__proto__": "token﻿",
+						"constructor": null
+					},
+					"sequence": "18446744073709551615",
+					"ttlMilliseconds": 86400000
+				}
+			}
+		},
+		{
+			"name": "value-21",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.workspace-metadata",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "report",
+					"workspaceId": "00000000000000000000000000000003",
+					"source": "hook:codex",
+					"tokens": {
+						"__proto__": "a b",
+						"constructor": null
+					},
+					"sequence": "18446744073709551615",
+					"ttlMilliseconds": 86400000
+				}
+			}
+		},
+		{
+			"name": "value-22",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.workspace-metadata",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "report",
+					"workspaceId": "00000000000000000000000000000003",
+					"source": "hook:codex",
+					"tokens": {
+						"__proto__": "x​y",
+						"constructor": null
+					},
+					"sequence": "18446744073709551615",
+					"ttlMilliseconds": 86400000
+				}
+			}
+		},
+		{
+			"name": "optional-omitted",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.workspace-metadata",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "report",
+					"workspaceId": "00000000000000000000000000000003",
+					"source": "hook:codex",
+					"tokens": {
+						"summary": "中文😀",
+						"clear": null
+					}
+				}
+			}
+		},
+		{
+			"name": "optional-null",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.workspace-metadata",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "report",
+					"workspaceId": "00000000000000000000000000000003",
+					"source": "hook:codex",
+					"tokens": {
+						"summary": "中文😀",
+						"clear": null
+					},
+					"sequence": null,
+					"ttlMilliseconds": null
+				}
+			}
+		}
+	],
+	"invalid": [
+		{
+			"name": "reject-0",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.workspace-metadata",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "report",
+					"workspaceId": "00000000000000000000000000000003",
+					"source": "hook:codex",
+					"tokens": {},
+					"sequence": "18446744073709551615",
+					"ttlMilliseconds": 86400000
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "reject-1",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.workspace-metadata",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "report",
+					"workspaceId": "00000000000000000000000000000003",
+					"source": "hook:codex",
+					"tokens": [],
+					"sequence": "18446744073709551615",
+					"ttlMilliseconds": 86400000
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "reject-2",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.workspace-metadata",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "report",
+					"workspaceId": "00000000000000000000000000000003",
+					"source": "hook:codex",
+					"tokens": null,
+					"sequence": "18446744073709551615",
+					"ttlMilliseconds": 86400000
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "reject-3",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.workspace-metadata",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "report",
+					"workspaceId": "00000000000000000000000000000003",
+					"source": "hook:codex",
+					"tokens": {
+						"x": " x"
+					},
+					"sequence": "18446744073709551615",
+					"ttlMilliseconds": 86400000
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "reject-4",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.workspace-metadata",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "report",
+					"workspaceId": "00000000000000000000000000000003",
+					"source": "hook:codex",
+					"tokens": {
+						"x": "x\n"
+					},
+					"sequence": "18446744073709551615",
+					"ttlMilliseconds": 86400000
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "reject-5",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.workspace-metadata",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "report",
+					"workspaceId": "00000000000000000000000000000003",
+					"source": "hook:codex",
+					"tokens": {
+						"x": "a\nb"
+					},
+					"sequence": "18446744073709551615",
+					"ttlMilliseconds": 86400000
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "reject-6",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.workspace-metadata",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "report",
+					"workspaceId": "00000000000000000000000000000003",
+					"source": "hook:codex",
+					"tokens": {
+						"x": ""
+					},
+					"sequence": "18446744073709551615",
+					"ttlMilliseconds": 86400000
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "reject-7",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.workspace-metadata",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "report",
+					"workspaceId": "00000000000000000000000000000003",
+					"source": "hook:codex",
+					"tokens": {
+						"x": "😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀"
+					},
+					"sequence": "18446744073709551615",
+					"ttlMilliseconds": 86400000
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "reject-8",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.workspace-metadata",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "report",
+					"workspaceId": "00000000000000000000000000000003",
+					"source": "hook:codex",
+					"tokens": {
+						"x": "a"
+					},
+					"sequence": "18446744073709551615",
+					"ttlMilliseconds": 86400000
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "reject-9",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.workspace-metadata",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "report",
+					"workspaceId": "00000000000000000000000000000003",
+					"source": "hook:codex",
+					"tokens": {
+						"x": "a　"
+					},
+					"sequence": "18446744073709551615",
+					"ttlMilliseconds": 86400000
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "reject-10",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.workspace-metadata",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "report",
+					"workspaceId": "00000000000000000000000000000003",
+					"source": "hook:codex",
+					"tokens": {
+						"bad.key": "a"
+					},
+					"sequence": "18446744073709551615",
+					"ttlMilliseconds": 86400000
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "reject-11",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.workspace-metadata",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "report",
+					"workspaceId": "00000000000000000000000000000003",
+					"source": "hook:codex",
+					"tokens": {
+						"x\n": "a"
+					},
+					"sequence": "18446744073709551615",
+					"ttlMilliseconds": 86400000
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "reject-12",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.workspace-metadata",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "report",
+					"workspaceId": "00000000000000000000000000000003",
+					"source": "hook:codex",
+					"tokens": {
+						"0": "a",
+						"1": "a",
+						"2": "a",
+						"3": "a",
+						"4": "a",
+						"5": "a",
+						"6": "a",
+						"7": "a",
+						"8": "a",
+						"9": "a",
+						"10": "a",
+						"11": "a",
+						"12": "a",
+						"13": "a",
+						"14": "a",
+						"15": "a",
+						"16": "a"
+					},
+					"sequence": "18446744073709551615",
+					"ttlMilliseconds": 86400000
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "reject-13",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.workspace-metadata",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "report",
+					"workspaceId": "00000000000000000000000000000003",
+					"source": " x",
+					"tokens": {
+						"summary": "中文😀",
+						"clear": null
+					},
+					"sequence": "18446744073709551615",
+					"ttlMilliseconds": 86400000
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "reject-14",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.workspace-metadata",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "report",
+					"workspaceId": "00000000000000000000000000000003",
+					"source": "x\n",
+					"tokens": {
+						"summary": "中文😀",
+						"clear": null
+					},
+					"sequence": "18446744073709551615",
+					"ttlMilliseconds": 86400000
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "reject-15",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.workspace-metadata",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "report",
+					"workspaceId": "00000000000000000000000000000003",
+					"source": "中文",
+					"tokens": {
+						"summary": "中文😀",
+						"clear": null
+					},
+					"sequence": "18446744073709551615",
+					"ttlMilliseconds": 86400000
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "reject-16",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.workspace-metadata",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "report",
+					"workspaceId": "00000000000000000000000000000003",
+					"source": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+					"tokens": {
+						"summary": "中文😀",
+						"clear": null
+					},
+					"sequence": "18446744073709551615",
+					"ttlMilliseconds": 86400000
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "reject-17",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.workspace-metadata",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "report",
+					"workspaceId": "00000000000000000000000000000003",
+					"source": "",
+					"tokens": {
+						"summary": "中文😀",
+						"clear": null
+					},
+					"sequence": "18446744073709551615",
+					"ttlMilliseconds": 86400000
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "reject-18",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.workspace-metadata",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "report",
+					"workspaceId": "00000000000000000000000000000003",
+					"source": "hook:codex",
+					"tokens": {
+						"summary": "中文😀",
+						"clear": null
+					},
+					"sequence": "01",
+					"ttlMilliseconds": 86400000
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "reject-19",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.workspace-metadata",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "report",
+					"workspaceId": "00000000000000000000000000000003",
+					"source": "hook:codex",
+					"tokens": {
+						"summary": "中文😀",
+						"clear": null
+					},
+					"sequence": "-1",
+					"ttlMilliseconds": 86400000
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "reject-20",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.workspace-metadata",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "report",
+					"workspaceId": "00000000000000000000000000000003",
+					"source": "hook:codex",
+					"tokens": {
+						"summary": "中文😀",
+						"clear": null
+					},
+					"sequence": 1,
+					"ttlMilliseconds": 86400000
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "reject-21",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.workspace-metadata",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "report",
+					"workspaceId": "00000000000000000000000000000003",
+					"source": "hook:codex",
+					"tokens": {
+						"summary": "中文😀",
+						"clear": null
+					},
+					"sequence": "18446744073709551615",
+					"ttlMilliseconds": 0
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "reject-22",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.workspace-metadata",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "report",
+					"workspaceId": "00000000000000000000000000000003",
+					"source": "hook:codex",
+					"tokens": {
+						"summary": "中文😀",
+						"clear": null
+					},
+					"sequence": "18446744073709551615",
+					"ttlMilliseconds": -1
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "reject-23",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.workspace-metadata",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "report",
+					"workspaceId": "00000000000000000000000000000003",
+					"source": "hook:codex",
+					"tokens": {
+						"summary": "中文😀",
+						"clear": null
+					},
+					"sequence": "18446744073709551615",
+					"ttlMilliseconds": 86400001
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "reject-24",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.workspace-metadata",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "report",
+					"workspaceId": "00000000000000000000000000000003",
+					"source": "hook:codex",
+					"tokens": {
+						"summary": "中文😀",
+						"clear": null
+					},
+					"sequence": "18446744073709551615",
+					"ttlMilliseconds": 1.5
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "reject-25",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.workspace-metadata",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "report",
+					"workspaceId": "00000000000000000000000000000003",
+					"source": "hook:codex",
+					"tokens": {
+						"summary": "中文😀",
+						"clear": null
+					},
+					"sequence": "18446744073709551615",
+					"ttlMilliseconds": "100"
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "reject-26",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.workspace-metadata",
+				"protocolVersion": 2,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "report",
+					"workspaceId": "00000000000000000000000000000003",
+					"source": "hook:codex",
+					"tokens": {
+						"summary": "中文😀",
+						"clear": null
+					},
+					"sequence": "18446744073709551615",
+					"ttlMilliseconds": 86400000
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "reject-27",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.workspace-metadata",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "report",
+					"workspaceId": "00000000000000000000000000000003",
+					"source": "hook:codex",
+					"tokens": {
+						"summary": "中文😀",
+						"clear": null
+					},
+					"sequence": "18446744073709551615",
+					"ttlMilliseconds": 86400000,
+					"unknown": true
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "overflow-seq",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.workspace-metadata",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "report",
+					"workspaceId": "00000000000000000000000000000003",
+					"source": "hook:codex",
+					"tokens": {
+						"summary": "中文😀",
+						"clear": null
+					},
+					"sequence": "18446744073709551616",
+					"ttlMilliseconds": 86400000
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "duplicate-read",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.workspace-metadata",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "read",
+					"workspaceIds": ["00000000000000000000000000000003", "00000000000000000000000000000003"]
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "nine-read",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.workspace-metadata",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "read",
+					"workspaceIds": [
+						"00000000000000000000000000000003",
+						"00000000000000000000000000000004",
+						"00000000000000000000000000000005",
+						"00000000000000000000000000000006",
+						"00000000000000000000000000000007",
+						"00000000000000000000000000000008",
+						"00000000000000000000000000000009",
+						"0000000000000000000000000000000a",
+						"0000000000000000000000000000000b"
+					]
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "duplicate-row",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-metadata.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "read",
+					"workbenchRevision": "5",
+					"metadataRevision": "1",
+					"workspaces": [
+						{
+							"workspaceId": "00000000000000000000000000000003",
+							"tokens": {}
+						},
+						{
+							"workspaceId": "00000000000000000000000000000003",
+							"tokens": {
+								"x": "y"
+							}
+						}
+					]
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "too-many-tokens",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-metadata.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "read",
+					"workbenchRevision": "5",
+					"metadataRevision": "1",
+					"workspaces": [
+						{
+							"workspaceId": "00000000000000000000000000000003",
+							"tokens": {
+								"0": "x",
+								"1": "x",
+								"2": "x",
+								"3": "x",
+								"4": "x",
+								"5": "x",
+								"6": "x",
+								"7": "x",
+								"8": "x",
+								"9": "x",
+								"10": "x",
+								"11": "x",
+								"12": "x",
+								"13": "x",
+								"14": "x",
+								"15": "x",
+								"16": "x",
+								"17": "x",
+								"18": "x",
+								"19": "x",
+								"20": "x",
+								"21": "x",
+								"22": "x",
+								"23": "x",
+								"24": "x",
+								"25": "x",
+								"26": "x",
+								"27": "x",
+								"28": "x",
+								"29": "x",
+								"30": "x",
+								"31": "x",
+								"32": "x"
+							}
+						},
+						{
+							"workspaceId": "00000000000000000000000000000004",
+							"tokens": {}
+						}
+					]
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "null-result-value",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-metadata.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "read",
+					"workbenchRevision": "5",
+					"metadataRevision": "1",
+					"workspaces": [
+						{
+							"workspaceId": "00000000000000000000000000000003",
+							"tokens": {
+								"x": null
+							}
+						},
+						{
+							"workspaceId": "00000000000000000000000000000004",
+							"tokens": {}
+						}
+					]
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "unknown-failure",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-metadata.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "failed",
+					"reason": "unknown"
+				}
+			},
+			"boundary": "schema"
+		}
+	]
+}

@@ -62,6 +62,10 @@ impl WorkbenchService {
 
     pub(crate) fn execute(&self, request: WorkbenchRequest) -> WorkbenchExecution {
         let permitted = match &request {
+            WorkbenchRequest::WorkspaceMetadata(request) => match request.action {
+                orchbee_workbench_protocol::WorkspaceMetadataAction::Read { .. } => self.policy.read,
+                orchbee_workbench_protocol::WorkspaceMetadataAction::Report { .. } => self.policy.manage_navigation,
+            },
             WorkbenchRequest::ClientView(_) => self.policy.read,
             WorkbenchRequest::WorkspaceGroupClose(request) => {
                 if matches!(
@@ -136,6 +140,11 @@ impl WorkbenchService {
             return WorkbenchExecution::Response(unavailable_or_denied(request, true));
         }
         match &request {
+            WorkbenchRequest::WorkspaceMetadata(request) => {
+                return WorkbenchExecution::Response(WorkbenchResponse::WorkspaceMetadata(
+                    self.terminals.execute_workspace_metadata(request.clone()),
+                ));
+            }
             WorkbenchRequest::ClientView(_) => {
                 return WorkbenchExecution::Response(unavailable_or_denied(request, false));
             }
@@ -331,6 +340,20 @@ impl WorkbenchService {
 
 fn unavailable_or_denied(request: WorkbenchRequest, denied: bool) -> WorkbenchResponse {
     match request {
+        WorkbenchRequest::WorkspaceMetadata(request) => WorkbenchResponse::WorkspaceMetadata(
+            orchbee_workbench_protocol::WorkspaceMetadataResult {
+                protocol_version: ProtocolVersion,
+                request_id: request.request_id,
+                site_id: request.site_id,
+                outcome: orchbee_workbench_protocol::WorkspaceMetadataOutcome::Failed {
+                    reason: if denied {
+                        orchbee_workbench_protocol::WorkspaceMetadataFailure::Denied
+                    } else {
+                        orchbee_workbench_protocol::WorkspaceMetadataFailure::Unavailable
+                    },
+                },
+            },
+        ),
         WorkbenchRequest::ClientView(request) => {
             WorkbenchResponse::ClientView(orchbee_workbench_protocol::WorkbenchClientViewResult {
                 protocol_version: ProtocolVersion,

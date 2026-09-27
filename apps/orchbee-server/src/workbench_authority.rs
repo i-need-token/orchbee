@@ -28,6 +28,7 @@ pub use checkpoint::{
 mod terminal_membership;
 mod workspace_directory;
 mod workspace_group_close;
+mod workspace_metadata;
 mod workspace_order;
 mod worktree_membership;
 mod worktree_operation;
@@ -139,6 +140,7 @@ impl TryFrom<WorkbenchRequest> for WorkbenchReadOrNavigationRequest {
             | WorkbenchRequest::WorktreeOperation(_)
             | WorkbenchRequest::WorktreeQuery(_)
             | WorkbenchRequest::WorkspaceGroupClose(_)
+            | WorkbenchRequest::WorkspaceMetadata(_)
             | WorkbenchRequest::ClientView(_)) => Err(request),
         }
     }
@@ -256,6 +258,7 @@ pub struct WorkbenchAuthority {
     retired: bool,
     worktrees: worktree_operation::WorktreeOperations,
     workspace_groups: workspace_group_close::WorkspaceGroupCloses,
+    workspace_metadata: workspace_metadata::WorkspaceMetadata,
 }
 
 impl WorkbenchAuthority {
@@ -284,6 +287,7 @@ impl WorkbenchAuthority {
             retired: false,
             worktrees: worktree_operation::WorktreeOperations::default(),
             workspace_groups: workspace_group_close::WorkspaceGroupCloses::default(),
+            workspace_metadata: workspace_metadata::WorkspaceMetadata::default(),
         })
     }
 

@@ -38,6 +38,7 @@ mod tab_create;
 mod viewer_session;
 mod workspace_directory;
 mod workspace_group_close;
+mod workspace_metadata;
 mod worktree_list;
 mod worktree_operation;
 mod worktree_query;

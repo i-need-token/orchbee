@@ -1,0 +1,278 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "urn:orchbee:schema:workbench-workspace-metadata:v1",
+	"$comment": "Bindings additionally enforce uint64 bounds, unique result Workspace IDs, and encoded byte budgets. Rust raw JSON decoding rejects duplicate token properties.",
+	"oneOf": [
+		{
+			"$ref": "#/$defs/request"
+		},
+		{
+			"$ref": "#/$defs/result"
+		}
+	],
+	"$defs": {
+		"identity": {
+			"type": "string",
+			"pattern": "^[0-9a-f]{32}$",
+			"not": {
+				"const": "00000000000000000000000000000000"
+			}
+		},
+		"revision": {
+			"type": "string",
+			"pattern": "^(?:0|[1-9][0-9]{0,19})$",
+			"maxLength": 20,
+			"format": "orchbee-uint64"
+		},
+		"source": {
+			"type": "string",
+			"pattern": "^[a-zA-Z0-9:._-]{1,80}$(?![\\s\\S])"
+		},
+		"key": {
+			"type": "string",
+			"pattern": "^[a-zA-Z0-9_-]{1,32}$(?![\\s\\S])"
+		},
+		"value": {
+			"type": "string",
+			"minLength": 1,
+			"maxLength": 80,
+			"allOf": [
+				{
+					"not": {
+						"pattern": "[\\u0000-\\u001f\\u007f-\\u009f\\uD800-\\uDFFF]"
+					}
+				},
+				{
+					"not": {
+						"pattern": "^[\\u0009-\\u000d\\u0020\\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000]|[\\u0009-\\u000d\\u0020\\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000]$"
+					}
+				}
+			]
+		},
+		"patch": {
+			"type": "object",
+			"minProperties": 1,
+			"maxProperties": 16,
+			"propertyNames": {
+				"$ref": "#/$defs/key"
+			},
+			"additionalProperties": {
+				"anyOf": [
+					{
+						"$ref": "#/$defs/value"
+					},
+					{
+						"type": "null"
+					}
+				]
+			}
+		},
+		"tokens": {
+			"type": "object",
+			"maxProperties": 32,
+			"propertyNames": {
+				"$ref": "#/$defs/key"
+			},
+			"additionalProperties": {
+				"$ref": "#/$defs/value"
+			}
+		},
+		"action": {
+			"oneOf": [
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "read"
+						},
+						"workspaceIds": {
+							"type": "array",
+							"items": {
+								"$ref": "#/$defs/identity"
+							},
+							"maxItems": 8,
+							"uniqueItems": true
+						}
+					},
+					"required": ["kind", "workspaceIds"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "report"
+						},
+						"workspaceId": {
+							"$ref": "#/$defs/identity"
+						},
+						"source": {
+							"$ref": "#/$defs/source"
+						},
+						"tokens": {
+							"$ref": "#/$defs/patch"
+						},
+						"sequence": {
+							"anyOf": [
+								{
+									"$ref": "#/$defs/revision"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"ttlMilliseconds": {
+							"anyOf": [
+								{
+									"type": "integer",
+									"minimum": 1,
+									"maximum": 86400000
+								},
+								{
+									"type": "null"
+								}
+							]
+						}
+					},
+					"required": ["kind", "workspaceId", "source", "tokens"],
+					"additionalProperties": false
+				}
+			]
+		},
+		"outcome": {
+			"oneOf": [
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "read"
+						},
+						"workbenchRevision": {
+							"$ref": "#/$defs/revision"
+						},
+						"metadataRevision": {
+							"$ref": "#/$defs/revision"
+						},
+						"workspaces": {
+							"type": "array",
+							"items": {
+								"type": "object",
+								"properties": {
+									"workspaceId": {
+										"$ref": "#/$defs/identity"
+									},
+									"tokens": {
+										"$ref": "#/$defs/tokens"
+									}
+								},
+								"required": ["workspaceId", "tokens"],
+								"additionalProperties": false
+							},
+							"maxItems": 8
+						}
+					},
+					"required": ["kind", "workbenchRevision", "metadataRevision", "workspaces"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "reported"
+						},
+						"workbenchRevision": {
+							"$ref": "#/$defs/revision"
+						},
+						"metadataRevision": {
+							"$ref": "#/$defs/revision"
+						},
+						"workspaceId": {
+							"$ref": "#/$defs/identity"
+						},
+						"disposition": {
+							"enum": ["applied", "stale"]
+						}
+					},
+					"required": [
+						"kind",
+						"workbenchRevision",
+						"metadataRevision",
+						"workspaceId",
+						"disposition"
+					],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "failed"
+						},
+						"reason": {
+							"enum": [
+								"invalid-request",
+								"site-mismatch",
+								"not-found",
+								"denied",
+								"unavailable",
+								"token-limit",
+								"sequence-source-limit",
+								"resource-limit",
+								"revision-exhausted",
+								"deadline-overflow",
+								"result-too-large"
+							]
+						}
+					},
+					"required": ["kind", "reason"],
+					"additionalProperties": false
+				}
+			]
+		},
+		"request": {
+			"type": "object",
+			"properties": {
+				"kind": {
+					"const": "workbench.workspace-metadata"
+				},
+				"protocolVersion": {
+					"const": 1
+				},
+				"requestId": {
+					"$ref": "#/$defs/identity"
+				},
+				"siteId": {
+					"$ref": "#/$defs/identity"
+				},
+				"action": {
+					"$ref": "#/$defs/action"
+				}
+			},
+			"required": ["kind", "protocolVersion", "requestId", "siteId", "action"],
+			"additionalProperties": false
+		},
+		"result": {
+			"type": "object",
+			"properties": {
+				"kind": {
+					"const": "workbench.workspace-metadata.result"
+				},
+				"protocolVersion": {
+					"const": 1
+				},
+				"requestId": {
+					"$ref": "#/$defs/identity"
+				},
+				"siteId": {
+					"$ref": "#/$defs/identity"
+				},
+				"outcome": {
+					"$ref": "#/$defs/outcome"
+				}
+			},
+			"required": ["kind", "protocolVersion", "requestId", "siteId", "outcome"],
+			"additionalProperties": false
+		}
+	}
+}

@@ -85,6 +85,7 @@ pub fn write_workbench_response(
 
 fn request_kind(request: &WorkbenchRequest) -> u16 {
     match request {
+        WorkbenchRequest::WorkspaceMetadata(_) => 31,
         WorkbenchRequest::ClientView(request) if request.carries_attention() => 29,
         WorkbenchRequest::ClientView(request)
             if matches!(
@@ -118,6 +119,7 @@ fn request_kind(request: &WorkbenchRequest) -> u16 {
 
 fn response_kind(response: &WorkbenchResponse) -> u16 {
     match response {
+        WorkbenchResponse::WorkspaceMetadata(_) => 32,
         WorkbenchResponse::ClientView(result)
             if matches!(&result.outcome,
             crate::ClientViewOutcome::Operation { operation } if matches!(operation.status,
@@ -152,19 +154,21 @@ fn read_frame(reader: &mut impl Read, request: bool) -> Result<(u16, Vec<u8>), W
         || (request
             && !matches!(
                 kind,
-                1 | 2 | 5 | 7 | 9 | 11 | 13 | 15 | 17 | 19 | 21 | 23 | 25 | 27 | 29
+                1 | 2 | 5 | 7 | 9 | 11 | 13 | 15 | 17 | 19 | 21 | 23 | 25 | 27 | 29 | 31
             ))
         || (!request
             && !matches!(
                 kind,
-                3 | 4 | 6 | 8 | 10 | 12 | 14 | 16 | 18 | 20 | 22 | 24 | 26 | 28
+                3 | 4 | 6 | 8 | 10 | 12 | 14 | 16 | 18 | 20 | 22 | 24 | 26 | 28 | 32
             ))
     {
         return Err(WorkbenchWireError::InvalidHeader);
     }
     let length = u32::from_be_bytes([header[8], header[9], header[10], header[11]]);
     let actual = usize::try_from(length).map_err(|_error| WorkbenchWireError::InvalidHeader)?;
-    let maximum = if matches!(kind, 19 | 20) {
+    let maximum = if kind == 32 {
+        crate::MAXIMUM_ENCODED_WORKSPACE_METADATA_RESULT_BYTES
+    } else if matches!(kind, 19 | 20) {
         crate::MAXIMUM_ENCODED_WORKTREE_OPERATION_BYTES
     } else if matches!(kind, 3 | 10) {
         MAXIMUM_ENCODED_SNAPSHOT_RESULT_BYTES

@@ -76,6 +76,14 @@ impl SiteCoordinator {
         Some(self.workbench.as_ref()?.site_id() == site)
     }
 
+    pub(crate) fn workspace_metadata(
+        &mut self,
+        request: orchbee_workbench_protocol::WorkspaceMetadataRequest,
+        now: std::time::Instant,
+    ) -> Option<orchbee_workbench_protocol::WorkspaceMetadataResult> {
+        Some(self.workbench.as_mut()?.workspace_metadata(request, now))
+    }
+
     pub(crate) fn worktree_authority(&mut self) -> Option<&mut WorkbenchAuthority> {
         self.workbench.as_mut()
     }

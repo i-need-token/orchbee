@@ -371,3 +371,27 @@ export {
 	WorkbenchClientViewResultSchema,
 	type WorkbenchClientViewResult,
 } from './workbench-client-view-contract';
+
+export {
+	WORKBENCH_MAXIMUM_ENCODED_WORKSPACE_METADATA_RESULT_BYTES,
+	MetadataSourceSchema,
+	type MetadataSource,
+	MetadataTokenKeySchema,
+	type MetadataTokenKey,
+	MetadataTokenValueSchema,
+	type MetadataTokenValue,
+	MetadataTokenPatchSchema,
+	type MetadataTokenPatch,
+	MetadataTokensSchema,
+	type MetadataTokens,
+	WorkspaceMetadataActionSchema,
+	type WorkspaceMetadataAction,
+	WorkspaceMetadataFailureSchema,
+	type WorkspaceMetadataFailure,
+	WorkspaceMetadataOutcomeSchema,
+	type WorkspaceMetadataOutcome,
+	WorkspaceMetadataRequestSchema,
+	type WorkspaceMetadataRequest,
+	WorkspaceMetadataResultSchema,
+	type WorkspaceMetadataResult,
+} from './workbench-workspace-metadata-contract';
