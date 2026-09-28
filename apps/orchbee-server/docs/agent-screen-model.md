@@ -94,3 +94,35 @@ submits once, and retains the operation ID with pending/unknown results after lo
 or interruption. Status recovery never resubmits a mutation. Receipts end with the Site generation;
 this is not durable replay across Server restart. Remote download and automatic-update policy are
 separate remaining capabilities and are not represented as successful updates by this interface.
+
+## Remote update ownership
+
+Remote maintenance uses the real public Herdr feed at `https://herdr.dev/agent-detection/index.toml`,
+with `ORCHBEE_AGENT_DETECTION_MANIFEST_CATALOG_URL` as a validated Server startup override.
+There is no Orchbee-hosted update service implied by this source. A catalog and every manifest are
+bounded to 256 KiB; known-provider duplicate entries, unsupported schema, unsafe relative paths,
+invalid UTF-8/provider/engine/version/complexity are refused before committing executable rules.
+Cached versions never decrease. Equal numeric versions must have identical bytes; changed bytes
+without a version increase fail. Each newer valid manifest commits atomically, so partial provider
+failures retain independent outcomes and never masquerade as a successful whole update.
+
+The Server owns logical cache/update state. The Windows filesystem adapter pins admitted private
+ancestors/files and provides one cross-process writer lock under the shared remote-cache directory.
+It preserves malformed or unsafe user data instead of repairing it. Bounded named pending leaves
+belong to this cache owner; explicit settlement removes them after child/file consumers end and
+later recovery only touches these owned leaves under the same lock. The downloader resolves the
+inbox curl from the Windows System Directory, disables its implicit configuration, uses no shell,
+and owns its bounded HTTP(S) fetch, output and process settlement. Its child environment contains only
+`SystemRoot`, derived from the parent of the OS System Directory for Winsock provider loading.
+URL credentials, query strings, fragments, controls and unsafe catalog-relative paths are refused.
+Each fresh-output attempt is limited to 15 seconds, with at most three fetch attempts and a ten-minute
+overall update budget. Confirmed Job exit and pipe-reader join precede returning fetch results.
+Network work belongs to a
+separate retained worker; the observer remains the sole rule installation point. Download/cache
+completion and activation are distinct facts, including cancellation and partial success.
+
+The first adapter/worker slice is a staged implementation; `site update-agent-manifests`, updater
+status and automatic scheduling are its required real consumers before remote-update parity can
+be claimed. Explicit update and automatic checks must use the same cache/version and cleanup
+rules. Automatic network activity requires the release/background policy and its update setting;
+source/cohort rollback leaves user overrides and committed cache versions intact.

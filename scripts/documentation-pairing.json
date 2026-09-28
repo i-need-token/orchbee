@@ -122,8 +122,8 @@
 			"zhCnSha256": "005fd4833c57a44696672c4cf15e9a5fc39c9a42f6f0dac2b4e4a4004a9cf8d0"
 		},
 		"apps/orchbee-server/docs/agent-screen-model.md": {
-			"englishSha256": "0f753f0cda2d282a79ded3f9705e3eee0340efbdf3d993eed62ac7e7a7a0dd0f",
-			"zhCnSha256": "3e82e25c71568eea40e7d4679c3ea1b03152d5528528bf4a3834b8c1c1d14d23"
+			"englishSha256": "db73590b4c295bc40a6fc6566671ebdcaf317409c5abeef7d6a0175e7bb020bb",
+			"zhCnSha256": "a05acf4c4bd67ef29da846bcf20052e234f9fae8f6ece3eba379da1d974bac12"
 		},
 		"apps/orchbee-server/docs/terminal-controller-takeover.md": {
 			"englishSha256": "d30b30c27f6d64a07517c1490296bce7cf612cdd9bf70ab6c3e0f08f270fa5eb",
@@ -394,8 +394,8 @@
 			"zhCnSha256": "da38151de6454db51f806963a3494ddf17cfa0d8d8ecf0fbaf0e5e9643ed7737"
 		},
 		"crates/local-site-runtime/README.md": {
-			"englishSha256": "3006c6f132e8ef62e858886f64d27778e269c6b0f51c005644e7ae36240beb79",
-			"zhCnSha256": "0cb0f5a1d5a20533282ecece73b7efac78ab200d914aa22f61572eb4bc4c9b39"
+			"englishSha256": "4b13101d15bd84cf7588655c14afbb745bd8394c4bec6f415239e2edc74e1596",
+			"zhCnSha256": "c480a9c57cc554e2210f0ce21b9f96169c7afa01d7ad03020a44be22e36722bb"
 		},
 		"docs/APPLICATIONS.md": {
 			"englishSha256": "c04e2ffff82703bfdfd8af2ccbdb8e774df26d0c6629bbe928affc84fd713710",

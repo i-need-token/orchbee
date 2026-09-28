@@ -1,5 +1,9 @@
 //! Private native development runtime boundaries; applications own startup policy.
 #[cfg(windows)]
+mod private_cache_windows;
+#[cfg(windows)]
+pub use private_cache_windows::WindowsPrivateCache;
+#[cfg(windows)]
 mod windows_user_path;
 #[cfg(windows)]
 pub use windows_user_path::{

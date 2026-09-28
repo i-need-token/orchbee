@@ -309,3 +309,12 @@ Windows 停止细化将仅不可变启动尝试的解释改为同一个已准入
 共享有界设置读取器和纯 Windows 用户路径适配器服务于 CLI 配置、公共 Client 激活和直接托管 Server 启动，负责严格文件／类型／路径准入和恢复策略解析；应用负责协议投影、激活提交和私有子进程参数。参见[配置与优先级](../../apps/orchbee/docs/windows-cli-configuration.zh-CN.md)。仅 Windows 的固定版本 `toml` 依赖在此文件边界解析。不引入可变缓存、写入器或 Workbench 依赖。
 
 纯函数 `windows_user_settings_path` 为伴随资源暴露相同配置文件位置，不打开文件或应用设置。它保留显式 `ORCHBEE_CONFIG_FILE` 优先于 `%APPDATA%/Orchbee/config.toml` 的规则；缺少根目录时仍返回缺失。Server 使用其父目录定位检测规则输入。
+
+## Windows 私有更新缓存
+
+`WindowsPrivateCache` 为 Server 识别缓存更新拥有固定的私有祖先目录、不跟随链接的单硬链接普通文件，
+以及跨进程写入锁。应用仍拥有逻辑文件名、内容校验、版本和策略。仅在已准入私有父目录下创建缺失子目录；
+不安全的已有数据直接拒绝，不修复。有界读取保留不存在的事实。替换先刷盘完整暂存文件，再原子替换准入叶文件。
+保留名 `.orchbee-update.lock` 是持久缓存协调对象；`.orchbee-update.pending` 是唯一自有暂存叶，
+在收尾后删除，或在下一次独占锁下恢复。清理失败向调用者返回，不转为发布成功。
+Server 更新器是真实消费者；此适配器本身不代表已实现远程更新。

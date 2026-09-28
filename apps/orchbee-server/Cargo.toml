@@ -32,6 +32,9 @@ orchbee-workbench-protocol = { path = "../../crates/workbench-protocol" }
 nix = { version = "0.31.3", default-features = false, features = ["fs", "poll", "process"] }
 
 [target.'cfg(windows)'.dependencies]
+# Owned inbox-curl Jobs reuse the workspace-pinned, patched child-settlement adapter.
+process-wrap.workspace = true
+windows.workspace = true
 # Pinned provider screen rules compiled once by the Windows sampler.
 regex = { version = "=1.13.1", default-features = false, features = ["std", "unicode", "perf"] }
 toml = { version = "=1.1.6", default-features = false, features = ["std", "parse", "serde"] }

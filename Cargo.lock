@@ -905,11 +905,13 @@ dependencies = [
  "orchbee-local-site-runtime",
  "orchbee-terminal-protocol",
  "orchbee-workbench-protocol",
+ "process-wrap",
  "regex",
  "serde",
  "serde_json",
  "sha2",
  "toml",
+ "windows",
  "winsafe",
 ]
 
