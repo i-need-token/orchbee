@@ -12,7 +12,7 @@ use orchbee_workbench_protocol::{ClientViewRecord, Snapshot, WorkbenchDirectoryP
 use serde_json::{Value, json};
 use std::{path::Path, time::Instant};
 
-pub(super) struct Resolution {
+pub(in crate::cli) struct Resolution {
     policy: &'static str,
     source: &'static str,
     path: Option<WorkbenchDirectoryPath>,
@@ -20,7 +20,7 @@ pub(super) struct Resolution {
 }
 
 impl Resolution {
-    pub(super) fn document(&self) -> Value {
+    pub(in crate::cli) fn document(&self) -> Value {
         json!({"policy":self.policy,"source":self.source,"path":self.path,"sourcePanelId":self.source_panel_id})
     }
 }
@@ -34,7 +34,40 @@ pub(super) fn resolve(
     deadline: Instant,
     signals: &mut ArmedSignals,
 ) -> Result<Resolution, Failure> {
-    let policy = match command.directory {
+    let panel = if matches!(
+        command.directory,
+        CreationDirectory::Default | CreationDirectory::Follow
+    ) {
+        source(canonical, snapshot, origin.0, origin.1)?
+    } else {
+        None
+    };
+    let options = match canonical {
+        MutationCommand::TabCreate { options, .. }
+        | MutationCommand::PanelSplit { options, .. } => options,
+        _ => return Err(Failure::new(FailureKind::InternalFailure)),
+    };
+    resolve_options(
+        command.directory,
+        options,
+        snapshot,
+        panel.as_ref(),
+        client,
+        deadline,
+        signals,
+    )
+}
+
+pub(in crate::cli) fn resolve_options(
+    directory: CreationDirectory,
+    options: &mut orchbee_workbench_protocol::LaunchOptions,
+    snapshot: &Snapshot,
+    panel: Option<&Target>,
+    client: &mut LocalClient,
+    deadline: Instant,
+    signals: &mut ArmedSignals,
+) -> Result<Resolution, Failure> {
+    let policy = match directory {
         CreationDirectory::Explicit => "explicit",
         CreationDirectory::Default | CreationDirectory::Follow => "follow",
         CreationDirectory::Home => "home",
@@ -47,14 +80,14 @@ pub(super) fn resolve(
         path: None,
         source_panel_id: None,
     };
-    match command.directory {
+    match directory {
         CreationDirectory::Workspace => return Ok(result),
         CreationDirectory::Explicit => {
             result.source = "argument";
-            result.path = command.options.cwd.clone();
+            result.path = options.cwd.clone();
         }
         CreationDirectory::Home | CreationDirectory::Current => {
-            let path = if command.directory == CreationDirectory::Home {
+            let path = if directory == CreationDirectory::Home {
                 std::env::var_os("USERPROFILE")
                     .filter(|value| !value.is_empty())
                     .map(std::path::PathBuf::from)
@@ -67,11 +100,11 @@ pub(super) fn resolve(
                 Some(absolute(path.to_str().ok_or_else(unavailable)?).ok_or_else(unavailable)?);
         }
         CreationDirectory::Default | CreationDirectory::Follow => {
-            let Some(panel) = source(canonical, snapshot, origin.0, origin.1)? else {
+            let Some(panel) = panel else {
                 return Ok(result);
             };
             result.source_panel_id = Some(panel.text().to_owned());
-            let terminal = match query::primary_terminal(snapshot, &panel) {
+            let terminal = match query::primary_terminal(snapshot, panel) {
                 Ok(terminal) => terminal,
                 Err(error) if error.kind == FailureKind::NotFound => return Ok(result),
                 Err(error) => return Err(error),
@@ -97,11 +130,6 @@ pub(super) fn resolve(
             }
         }
     }
-    let options = match canonical {
-        MutationCommand::TabCreate { options, .. }
-        | MutationCommand::PanelSplit { options, .. } => options,
-        _ => return Err(Failure::new(FailureKind::InternalFailure)),
-    };
     options.cwd = result.path.clone();
     Ok(result)
 }

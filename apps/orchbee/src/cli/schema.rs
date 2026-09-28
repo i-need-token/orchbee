@@ -39,6 +39,10 @@ pub(crate) const PROJECT_RENAME_RESULT_ID: &str = "orchbee.project.rename";
 /// `schema` id → embedded document, in dictionary order.
 const DOCUMENTS: &[(&str, &str)] = &[
     (
+        "orchbee.panel.terminal-create",
+        include_str!("schemas/orchbee.panel.terminal-create.json"),
+    ),
+    (
         "orchbee.site.agent-manifests",
         include_str!("schemas/orchbee.site.agent-manifests.json"),
     ),
@@ -466,8 +470,8 @@ pub(crate) fn answer(schema_id: Option<&str>, format: OutputFormat, locale: Loca
     };
     let document = json!({
         "schema": "orchbee.api.schema",
-        // Layout v2 preserves primary/child and unbound members.
-        "version": 98,
+        // Direct member creation adds its retained launch receipt.
+        "version": 99,
         "source": embedded_source(),
         "result": result,
     });

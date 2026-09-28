@@ -1,5 +1,5 @@
 use super::*;
-use crate::local_client::workbench::layout::{LayoutRequest, LayoutSubmission};
+use crate::local_client::workbench::creation::{CreationRequest, CreationSubmission};
 use orchbee_workbench_protocol::WorkbenchPanelTerminalTarget;
 
 fn layout_command() -> WorkbenchCommand {
@@ -25,6 +25,23 @@ fn bind_command() -> WorkbenchCommand {
         },
     )
 }
+fn child_command(profile: bool) -> WorkbenchCommand {
+    let mut command = bind_command();
+    let WorkbenchAction::PanelCreateTerminal {
+        target,
+        profile: selector,
+        ..
+    } = &mut command.action
+    else {
+        panic!()
+    };
+    *target = WorkbenchPanelTerminalTarget::Child {
+        label: workbench_label(),
+    };
+    *selector =
+        profile.then(|| orchbee_workbench_protocol::LaunchProfileSelector::parse("shell").unwrap());
+    command
+}
 fn pending() -> WorkbenchCommandOutcome {
     WorkbenchCommandOutcome::PanelTerminalPending {
         revision: WorkbenchRevision::new(8),
@@ -37,6 +54,27 @@ fn pending() -> WorkbenchCommandOutcome {
 #[test]
 fn layout_transport_preserves_exact_commits_and_definite_rejections() -> TestResult {
     let cases = [
+        (child_command(false), pending()),
+        (
+            child_command(true),
+            WorkbenchCommandOutcome::LaunchProfileUnavailable {},
+        ),
+        (
+            child_command(true),
+            WorkbenchCommandOutcome::LaunchProfileAmbiguous {
+                candidate_ids: vec![
+                    orchbee_workbench_protocol::LaunchProfileId::parse(&id(90)).unwrap(),
+                    orchbee_workbench_protocol::LaunchProfileId::parse(&id(91)).unwrap(),
+                ],
+            },
+        ),
+        (
+            child_command(false),
+            WorkbenchCommandOutcome::Rejected {
+                revision: WorkbenchRevision::new(7),
+                reason: WorkbenchRejectionReason::IdentityExhausted,
+            },
+        ),
         (
             layout_command(),
             WorkbenchCommandOutcome::TabLayoutCreated {
@@ -81,12 +119,12 @@ fn layout_transport_preserves_exact_commits_and_definite_rejections() -> TestRes
             Ok(())
         })?;
         let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
-        let answer = client.submit_workbench_layout(
-            LayoutRequest::try_from(command).unwrap(),
+        let answer = client.submit_workbench_creation(
+            CreationRequest::try_from(command).unwrap(),
             Instant::now() + Duration::from_secs(1),
             None,
         );
-        assert!(matches!(answer,LayoutSubmission::Outcome(value) if *value==outcome));
+        assert!(matches!(answer,CreationSubmission::Outcome(value) if *value==outcome));
         assert!(client.connection.is_some());
         drop(client);
         server.finish()?;
@@ -95,7 +133,7 @@ fn layout_transport_preserves_exact_commits_and_definite_rejections() -> TestRes
 }
 #[test]
 fn layout_transport_retires_mismatched_or_lost_replies_without_replay() -> TestResult {
-    for mode in 0..6 {
+    for mode in 0..7 {
         let server = FakeServer::start(move |mut stream| {
             expect_hello(&mut stream, COHORT)?;
             admit(&mut stream, 61)?;
@@ -108,6 +146,7 @@ fn layout_transport_retires_mismatched_or_lost_replies_without_replay() -> TestR
                 panic!()
             };
             match mode {
+                6 => result.outcome = WorkbenchCommandOutcome::LaunchProfileUnavailable {},
                 0 => result.request_id = WorkbenchRequestId::parse(&id(99)).unwrap(),
                 1 => {
                     if let WorkbenchCommandOutcome::PanelTerminalPending { revision, .. } =
@@ -146,21 +185,21 @@ fn layout_transport_retires_mismatched_or_lost_replies_without_replay() -> TestR
         let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
         let deadline = Instant::now() + Duration::from_secs(1);
         assert!(matches!(
-            client.submit_workbench_layout(
-                LayoutRequest::try_from(bind_command()).unwrap(),
+            client.submit_workbench_creation(
+                CreationRequest::try_from(bind_command()).unwrap(),
                 deadline,
                 None
             ),
-            LayoutSubmission::Unknown { .. }
+            CreationSubmission::Unknown { .. }
         ));
         assert!(client.connection.is_none());
         assert!(matches!(
-            client.submit_workbench_layout(
-                LayoutRequest::try_from(bind_command()).unwrap(),
+            client.submit_workbench_creation(
+                CreationRequest::try_from(bind_command()).unwrap(),
                 deadline,
                 None
             ),
-            LayoutSubmission::NotSubmitted { .. }
+            CreationSubmission::NotSubmitted { .. }
         ));
         drop(client);
         server.finish()?;

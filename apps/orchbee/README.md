@@ -77,6 +77,10 @@ CLI budget cover resolution/read; Server queue/read work has a four-second budge
 context changes refuse without retry. No input, controller acquisition or focus action is performed.
 Windows startup selects local overrides, eligible cached remote rules, then bundled rules. Physical v3 adds actual path, cached version, shadowing and typed warnings; v2 remains closed for legacy/no-manifest/skipped results. Windows `site agent-manifests`, `site reload-agent-manifests` and `site agent-manifests-status` expose the installed snapshot and retained live-reload receipts. Explicit `site update-agent-manifests` downloads and activates validated cached rules, with separate per-provider cache and activation receipts. Managed release Sites check automatically at startup and every thirty minutes when `update.manifest_check` is enabled; debug/test and standalone execution do not schedule checks. See the [screen model](../orchbee-server/docs/agent-screen-model.md).
 
+Windows `panel create-terminal` starts an unbound primary or exact member, or appends a child
+without splitting the Panel. It preserves literal launch options, returns retained pending/final
+receipts and never changes Client focus. See [Panel terminal creation](docs/windows-panel-terminals.md).
+
 Mutation commands against the
 running Site are `project create`/`rename`,
 `workspace create`/`rename`/`accept-directory`/`close`, `tab create`/`rename`/`move`/`close`,

@@ -4,6 +4,8 @@ pub(crate) mod panel_metadata;
 #[cfg(windows)]
 mod panel_metadata_query;
 #[cfg(windows)]
+pub(crate) mod panel_terminal_creation;
+#[cfg(windows)]
 mod report_target;
 mod schema_export;
 pub(crate) mod workspace_metadata;

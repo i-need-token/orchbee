@@ -1,5 +1,7 @@
 mod panel_agent;
 mod panel_metadata;
+#[cfg(windows)]
+pub(crate) mod panel_terminal_creation;
 mod report_target;
 pub(crate) use panel_agent::PanelAgentCommand;
 mod workspace_metadata;
@@ -302,6 +304,8 @@ pub(crate) enum CommandPath {
     PanelCurrent,
     PanelGet,
     PanelProcessInfo,
+    #[cfg(windows)]
+    PanelCreateTerminal,
     PanelSplit,
     PanelClose,
     PanelMove,
@@ -425,6 +429,8 @@ impl CommandPath {
             Self::PanelCurrent => "panel current",
             Self::PanelGet => "panel get",
             Self::PanelProcessInfo => "panel process-info",
+            #[cfg(windows)]
+            Self::PanelCreateTerminal => "panel create-terminal",
             Self::PanelSplit => "panel split",
             Self::PanelClose => "panel close",
             Self::PanelMove => "panel move",
@@ -1229,6 +1235,11 @@ pub(crate) enum Request {
         scope: RuntimeStatusScope,
         format: OutputFormat,
     },
+    #[cfg(windows)]
+    PanelTerminalCreation {
+        command: panel_terminal_creation::PanelTerminalCreationCommand,
+        format: OutputFormat,
+    },
     Creation {
         command: CreationCommand,
         format: OutputFormat,
@@ -1588,6 +1599,7 @@ enum Token {
 
 #[derive(Default)]
 struct Options {
+    child: bool,
     report_presentation: Option<String>,
     panel_agent: panel_agent::Options,
     metadata: workspace_metadata::Options,
@@ -2097,6 +2109,7 @@ fn scan(tokens: Vec<String>) -> Result<SelectedRequest, ParseFailure> {
             | "--on"
             | "--off"
             | "--toggle"
+            | "--child"
             | "--focus"
             | "--no-focus" => {
                 let (seen, option) = if token == "--clear-title" {
@@ -2115,6 +2128,8 @@ fn scan(tokens: Vec<String>) -> Result<SelectedRequest, ParseFailure> {
                     (&mut options.plain, "--plain")
                 } else if token == "--ansi" {
                     (&mut options.ansi, "--ansi")
+                } else if token == "--child" {
+                    (&mut options.child, "--child")
                 } else if token == "--focus" {
                     (&mut options.focus, "--focus")
                 } else if token == "--no-focus" {
@@ -3541,6 +3556,10 @@ fn resolve_words(
                 envelope,
             )
         }
+        #[cfg(windows)]
+        ["panel", "create-terminal", rest @ ..] => {
+            panel_terminal_creation::parse(rest, options, envelope)
+        }
         ["panel", "split", rest @ ..] => creation::parse(Some(rest), options, envelope),
         ["panel", "close", value] => {
             check_scope(
@@ -4453,6 +4472,8 @@ fn help_topic(path: &[&str]) -> Option<HelpTopic> {
         ["panel", "current"] => HelpTopic::Command(CommandPath::PanelCurrent),
         ["panel", "get"] => HelpTopic::Command(CommandPath::PanelGet),
         ["panel", "process-info"] => HelpTopic::Command(CommandPath::PanelProcessInfo),
+        #[cfg(windows)]
+        ["panel", "create-terminal"] => HelpTopic::Command(CommandPath::PanelCreateTerminal),
         ["panel", "split"] => HelpTopic::Command(CommandPath::PanelSplit),
         ["panel", "close"] => HelpTopic::Command(CommandPath::PanelClose),
         ["panel", "move"] => HelpTopic::Command(CommandPath::PanelMove),
@@ -4571,6 +4592,7 @@ fn mutation(command: MutationCommand, options: &Options) -> Request {
 /// is only meaningful whole.
 #[derive(Clone, Copy)]
 struct Scope {
+    panel_terminal: bool,
     metadata: bool,
     panel_metadata: bool,
     panel_agent: bool,
@@ -4700,6 +4722,7 @@ struct Scope {
 }
 
 const NO_OPTIONS: Scope = Scope {
+    panel_terminal: false,
     metadata: false,
     panel_metadata: false,
     panel_agent: false,
@@ -5025,7 +5048,8 @@ const INTEGRATION_SCOPE: Scope = Scope {
 
 /// Any mutation-only option seen outside a mutation command.
 fn business_options(options: &Options) -> bool {
-    options.report_presentation.is_some()
+    options.child
+        || options.report_presentation.is_some()
         || options.panel_agent.first_option().is_some()
         || options.panel_metadata.first_option().is_some()
         || options.metadata.first_option().is_some()
@@ -5095,7 +5119,12 @@ fn business_options(options: &Options) -> bool {
 /// The first named option present but outside `scope`, in the fixed `Options`
 /// declaration order — deterministic without any argv-order state.
 fn first_out_of_scope(options: &Options, scope: Scope) -> Option<&'static str> {
-    if options.report_presentation.is_some() && !(scope.panel_agent || scope.panel_metadata) {
+    if options.child && !scope.panel_terminal {
+        return Some("--child");
+    }
+    if options.report_presentation.is_some()
+        && !(scope.panel_agent || scope.panel_metadata || scope.panel_terminal)
+    {
         return Some("--presentation");
     }
     if !scope.panel_agent

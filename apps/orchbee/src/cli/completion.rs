@@ -185,6 +185,8 @@ const FAMILY_VERBS: &[(&str, &[&str])] = &[
     (
         "panel",
         &[
+            #[cfg(windows)]
+            "create-terminal",
             "report-agent",
             "report-agent-session",
             "clear-agent-authority",
@@ -268,6 +270,8 @@ const FAMILY_VERBS: &[(&str, &[&str])] = &[
 /// Every business flag the grammar admits (`--format` is orthogonal), in the
 /// order the state machine records them.
 const BUSINESS_FLAGS: &[&str] = &[
+    #[cfg(windows)]
+    "--child",
     "--presentation",
     "--agent",
     "--state",
@@ -747,6 +751,28 @@ const COMMAND_FLAGS: &[(&str, &[&str])] = &[
         ],
     ),
     ("tab:rename", &["--label"]),
+    #[cfg(windows)]
+    (
+        "panel:create-terminal",
+        &[
+            "--panel",
+            "--current",
+            "--client",
+            "--child",
+            "--presentation",
+            "--label",
+            "--exec",
+            "--arg",
+            "--profile",
+            "--cwd",
+            "--env",
+            "--cols",
+            "--rows",
+            "--cell-width",
+            "--cell-height",
+            "--timeout",
+        ],
+    ),
     ("panel:input", &["--panel", "--current", "--right-click"]),
     (
         "panel:report-agent",
@@ -1086,6 +1112,8 @@ const PROVIDER_VALUES: &[&str] = &[
 
 /// `<family>:<verb>` paths that consume one positional operand.
 const OPERAND_PATHS: &[&str] = &[
+    #[cfg(windows)]
+    "panel:create-terminal",
     "panel:report-metadata",
     "panel:report-agent",
     "panel:report-agent-session",
@@ -1215,6 +1243,8 @@ const HELP_CHILDREN: &[(&str, &[&str])] = &[
     (
         "panel",
         &[
+            #[cfg(windows)]
+            "create-terminal",
             "report-agent",
             "report-agent-session",
             "clear-agent-authority",
@@ -1317,6 +1347,7 @@ pub(crate) fn render(shell: CompletionShell) -> String {
 /// `flag` → the walker's one-shot seen bit for it.
 fn flag_bit(flag: &str) -> &'static str {
     match flag {
+        "--child" => "seen_child",
         "--mouse" => "seen_mouse",
         "--output" => "seen_output",
         "--client" => "seen_client",
@@ -1708,8 +1739,8 @@ fn after_flag_cases_bash() -> String {
                 "--cwd" => format!("                            {patterns}) if [[ $family == worktree && $seen_workspace == 1 ]] || {{ [[ $family:$sub == worktree:list ]] && ((seen_project || seen_directory)); }}; then done=1; fi ;;"),
                 "--path" => format!("                            {patterns}) if [[ $family:$sub == worktree:open && $seen_branch == 1 ]]; then done=1; fi ;;"),
                 "--branch" => format!("                            {patterns}) if [[ $family:$sub == worktree:open && $seen_path == 1 ]]; then done=1; fi ;;"),
-                "--panel" => format!("                            {patterns}) if ((seen_current)) || [[ ( $family:$sub == panel:process-info || $family:$sub == panel:focus || $family:$sub == panel:zoom || $family:$sub == panel:layout || $family:$sub == panel:neighbor || $family:$sub == panel:edges || $family:$sub == panel:resize || $family:$sub == panel:swap || $family:$sub == panel:input || $family:$sub == panel:split ) && $state == operand ]]; then done=1; fi ;;"),
-                "--current" => format!("                            {patterns}) if ((seen_panel)) || [[ ( $family:$sub == panel:process-info || $family:$sub == panel:focus || $family:$sub == panel:zoom || $family:$sub == panel:layout || $family:$sub == panel:neighbor || $family:$sub == panel:edges || $family:$sub == panel:resize || $family:$sub == panel:swap || $family:$sub == panel:input || $family:$sub == panel:split ) && $state == operand ]]; then done=1; fi ;;"),
+                "--panel" => format!("                            {patterns}) if ((seen_current)) || [[ ( $family:$sub == panel:process-info || $family:$sub == panel:focus || $family:$sub == panel:zoom || $family:$sub == panel:layout || $family:$sub == panel:neighbor || $family:$sub == panel:edges || $family:$sub == panel:resize || $family:$sub == panel:swap || $family:$sub == panel:input || $family:$sub == panel:split || $family:$sub == panel:create-terminal ) && $state == operand ]]; then done=1; fi ;;"),
+                "--current" => format!("                            {patterns}) if ((seen_panel)) || [[ ( $family:$sub == panel:process-info || $family:$sub == panel:focus || $family:$sub == panel:zoom || $family:$sub == panel:layout || $family:$sub == panel:neighbor || $family:$sub == panel:edges || $family:$sub == panel:resize || $family:$sub == panel:swap || $family:$sub == panel:input || $family:$sub == panel:split || $family:$sub == panel:create-terminal ) && $state == operand ]]; then done=1; fi ;;"),
                 "--workspace" => {
                     format!(
                         "                            {patterns}) if ((seen_standalone)) || [[ $family == worktree && $seen_cwd == 1 ]] || {{ [[ $family:$sub == worktree:list ]] && ((seen_project || seen_directory)); }}; then done=1; fi ;;"
@@ -1792,7 +1823,7 @@ fn scope_cases_bash() -> String {
                 for (flag, conflict) in command_conflict_pairs(&command) {
                     exclusive.push_str(&format!("(({} && {})) && done=1\n                                        ", flag_bit(flag), flag_bit(conflict)));
                 }
-                if matches!(command.as_str(), "panel:current" | "panel:process-info" | "panel:focus" | "panel:zoom" | "panel:layout" | "panel:neighbor" | "panel:edges" | "panel:resize" | "panel:swap" | "panel:input" | "panel:split") {
+                if matches!(command.as_str(), "panel:current" | "panel:process-info" | "panel:focus" | "panel:zoom" | "panel:layout" | "panel:neighbor" | "panel:edges" | "panel:resize" | "panel:swap" | "panel:input" | "panel:split" | "panel:create-terminal") {
                     exclusive.push_str("((seen_panel && seen_current)) && done=1\n                                        ");
                 }
                 if *family == "worktree" {
@@ -1838,7 +1869,7 @@ fn verb_cases_bash() -> String {
                         " && ((!seen_workspace || !seen_cwd)) && ((!seen_path || !seen_branch))"
                     } else if *family == "worktree" {
                         " && ((!seen_workspace || !seen_cwd))"
-                    } else if matches!(command.as_str(), "panel:current" | "panel:process-info" | "panel:focus" | "panel:zoom" | "panel:layout" | "panel:neighbor" | "panel:edges" | "panel:resize" | "panel:swap" | "panel:input" | "panel:split") {
+                    } else if matches!(command.as_str(), "panel:current" | "panel:process-info" | "panel:focus" | "panel:zoom" | "panel:layout" | "panel:neighbor" | "panel:edges" | "panel:resize" | "panel:swap" | "panel:input" | "panel:split" | "panel:create-terminal") {
                         " && ((!seen_panel || !seen_current))"
                     } else if command == "tab:create" {
                         " && ((!seen_workspace || !seen_standalone)) && ((!seen_profile || (!seen_exec && !seen_arg)))"
@@ -1970,7 +2001,7 @@ fn extras_cases_bash() -> String {
                     };
                     let conflicts = command_flag_conflicts(command, flag).iter().map(|flag| flag_bit(flag)).collect::<Vec<_>>();
                     let cond = if conflicts.is_empty() { cond } else { format!("{cond} || {}", conflicts.join(" || ")) };
-                    if matches!(*command, "panel:process-info" | "panel:focus" | "panel:zoom" | "panel:layout" | "panel:neighbor" | "panel:edges" | "panel:resize" | "panel:swap" | "panel:input" | "panel:split") && matches!(*flag, "--panel" | "--current") || (*command == "panel:process-info" && *flag == "--client") || (*command == "agent:attach" && matches!(*flag, "--name" | "--session" | "--panel")) {
+                    if matches!(*command, "panel:process-info" | "panel:focus" | "panel:zoom" | "panel:layout" | "panel:neighbor" | "panel:edges" | "panel:resize" | "panel:swap" | "panel:input" | "panel:split" | "panel:create-terminal") && matches!(*flag, "--panel" | "--current") || (*command == "panel:process-info" && *flag == "--client") || (*command == "agent:attach" && matches!(*flag, "--name" | "--session" | "--panel")) {
                         format!("                [[ $state != operand ]] && (( !({cond}) )) && extras=\"$extras {flag}\"")
                     } else { format!("                (({cond})) || extras=\"$extras {flag}\"") }
                 })
@@ -2297,7 +2328,7 @@ fn bash() -> String {
             "                        esac ;;\n",
             "                    after)\n",
             "                        case \"$family:$sub\" in\n",
-            "                            panel:process-info|panel:focus|panel:zoom|panel:layout|panel:neighbor|panel:edges|panel:resize|panel:swap|panel:input|panel:split) if ((seen_panel || seen_current)) || [[ $family:$sub == panel:process-info && $seen_client == 1 ]]; then done=1; else state=operand; fi ;;\n",
+            "                            panel:process-info|panel:focus|panel:zoom|panel:layout|panel:neighbor|panel:edges|panel:resize|panel:swap|panel:input|panel:split|panel:create-terminal) if ((seen_panel || seen_current)) || [[ $family:$sub == panel:process-info && $seen_client == 1 ]]; then done=1; else state=operand; fi ;;\n",
             "                            {operand_paths}) state=operand ;;\n",
             "                            *) done=1 ;;\n",
             "                        esac ;;\n",
@@ -2670,7 +2701,7 @@ fn zsh() -> String {
             "                        esac ;;\n",
             "                    after)\n",
             "                        case \"$family:$sub\" in\n",
-            "                            panel:process-info|panel:focus|panel:zoom|panel:layout|panel:neighbor|panel:edges|panel:resize|panel:swap|panel:input|panel:split) if ((seen_panel || seen_current)) || [[ $family:$sub == panel:process-info && $seen_client == 1 ]]; then done=1; else state=operand; fi ;;\n",
+            "                            panel:process-info|panel:focus|panel:zoom|panel:layout|panel:neighbor|panel:edges|panel:resize|panel:swap|panel:input|panel:split|panel:create-terminal) if ((seen_panel || seen_current)) || [[ $family:$sub == panel:process-info && $seen_client == 1 ]]; then done=1; else state=operand; fi ;;\n",
             "                            {operand_paths}) state=operand ;;\n",
             "                            *) done=1 ;;\n",
             "                        esac ;;\n",
@@ -2939,8 +2970,8 @@ fn after_flag_cases_fish() -> String {
                 "--cwd" => format!("                            case {patterns}; if test $family = worktree; and test $seen_workspace -eq 1; set done 1; end; if test \"$family:$sub\" = worktree:list; and test $seen_project -eq 1 -o $seen_directory -eq 1; set done 1; end"),
                 "--path" => format!("                            case {patterns}; if test \"$family:$sub\" = worktree:open; and test $seen_branch -eq 1; set done 1; end"),
                 "--branch" => format!("                            case {patterns}; if test \"$family:$sub\" = worktree:open; and test $seen_path -eq 1; set done 1; end"),
-                "--panel" => format!("                            case {patterns}; if test $seen_current -eq 1; or begin; contains -- \"$family:$sub\" panel:process-info panel:focus panel:zoom panel:layout panel:neighbor panel:edges panel:resize panel:swap panel:input panel:split; and test $state = operand; end; set done 1; end"),
-                "--current" => format!("                            case {patterns}; if test $seen_panel -eq 1; or begin; contains -- \"$family:$sub\" panel:process-info panel:focus panel:zoom panel:layout panel:neighbor panel:edges panel:resize panel:swap panel:input panel:split; and test $state = operand; end; set done 1; end"),
+                "--panel" => format!("                            case {patterns}; if test $seen_current -eq 1; or begin; contains -- \"$family:$sub\" panel:process-info panel:focus panel:zoom panel:layout panel:neighbor panel:edges panel:resize panel:swap panel:input panel:split panel:create-terminal; and test $state = operand; end; set done 1; end"),
+                "--current" => format!("                            case {patterns}; if test $seen_panel -eq 1; or begin; contains -- \"$family:$sub\" panel:process-info panel:focus panel:zoom panel:layout panel:neighbor panel:edges panel:resize panel:swap panel:input panel:split panel:create-terminal; and test $state = operand; end; set done 1; end"),
                 "--workspace" => {
                     format!("                            case {patterns}; if test $seen_standalone -eq 1; or begin; test $family = worktree; and test $seen_cwd -eq 1; end; set done 1; end; if test \"$family:$sub\" = worktree:list; and test $seen_project -eq 1 -o $seen_directory -eq 1; set done 1; end")
                 }
@@ -2997,7 +3028,7 @@ fn scope_cases_fish() -> String {
                     if command == "worktree:list" { guard.push_str("\n                                        if test $seen_project -eq 1 -o $seen_directory -eq 1; and test $seen_workspace -eq 1 -o $seen_cwd -eq 1 -o $seen_trust_repository -eq 1; set done 1; end"); }
                     if command == "worktree:open" { guard.push_str("\n                                        if test $seen_path -eq 1 -a $seen_branch -eq 1; set done 1; end"); }
                     guard
-                } else if matches!(command.as_str(), "panel:current" | "panel:process-info" | "panel:focus" | "panel:zoom" | "panel:layout" | "panel:neighbor" | "panel:edges" | "panel:resize" | "panel:swap" | "panel:input" | "panel:split") {
+                } else if matches!(command.as_str(), "panel:current" | "panel:process-info" | "panel:focus" | "panel:zoom" | "panel:layout" | "panel:neighbor" | "panel:edges" | "panel:resize" | "panel:swap" | "panel:input" | "panel:split" | "panel:create-terminal") {
                     "\n                                        if test $seen_panel -eq 1 -a $seen_current -eq 1; set done 1; end".to_owned()
                 } else if *family == "tab" {
                     "\n                                        if test $seen_workspace -eq 1 -a $seen_standalone -eq 1; set done 1; end".to_owned()
@@ -3041,7 +3072,7 @@ fn verb_cases_fish() -> String {
                         let selector = if command == "worktree:list" { "if begin; test $seen_project -eq 0 -a $seen_directory -eq 0; or test $seen_workspace -eq 0 -a $seen_cwd -eq 0 -a $seen_trust_repository -eq 0; end; " } else if command == "worktree:open" { "if test $seen_path -eq 0 -o $seen_branch -eq 0; " } else { "" };
                         let close = if matches!(command.as_str(), "worktree:open" | "worktree:list") { " end;" } else { "" };
                         format!("                if __orchbee_admit '{allowed}' $seen_flags\n                    if test $seen_workspace -eq 0 -o $seen_cwd -eq 0; {selector}set -a verbs {verb};{close} end\n                end")
-                    } else if matches!(command.as_str(), "panel:current" | "panel:process-info" | "panel:focus" | "panel:zoom" | "panel:layout" | "panel:neighbor" | "panel:edges" | "panel:resize" | "panel:swap" | "panel:input" | "panel:split") {
+                    } else if matches!(command.as_str(), "panel:current" | "panel:process-info" | "panel:focus" | "panel:zoom" | "panel:layout" | "panel:neighbor" | "panel:edges" | "panel:resize" | "panel:swap" | "panel:input" | "panel:split" | "panel:create-terminal") {
                         format!("                if __orchbee_admit '{allowed}' $seen_flags\n                    if test $seen_panel -eq 0 -o $seen_current -eq 0; set -a verbs {verb}; end\n                end")
                     } else if command == "tab:create" {
                         format!("                if __orchbee_admit '{allowed}' $seen_flags\n                    if test $seen_workspace -eq 0 -o $seen_standalone -eq 0\n                        if test $seen_profile -eq 0 -o $seen_exec -eq 0\n                            if test $seen_profile -eq 0 -o $seen_arg -eq 0; set -a verbs {verb}; end\n                        end\n                    end\n                end")
@@ -3163,7 +3194,7 @@ fn extras_cases_fish() -> String {
                     };
                     let conflicts = command_flag_conflicts(command, flag).iter().map(|flag| format!("${} -eq 0", flag_bit(flag))).collect::<Vec<_>>();
                     let cond = if conflicts.is_empty() { cond } else { format!("{cond} -a {}", conflicts.join(" -a ")) };
-                    if matches!(*command, "panel:process-info" | "panel:focus" | "panel:zoom" | "panel:layout" | "panel:neighbor" | "panel:edges" | "panel:resize" | "panel:swap" | "panel:input" | "panel:split") && matches!(*flag, "--panel" | "--current") || (*command == "panel:process-info" && *flag == "--client") || (*command == "agent:attach" && matches!(*flag, "--name" | "--session" | "--panel")) {
+                    if matches!(*command, "panel:process-info" | "panel:focus" | "panel:zoom" | "panel:layout" | "panel:neighbor" | "panel:edges" | "panel:resize" | "panel:swap" | "panel:input" | "panel:split" | "panel:create-terminal") && matches!(*flag, "--panel" | "--current") || (*command == "panel:process-info" && *flag == "--client") || (*command == "agent:attach" && matches!(*flag, "--name" | "--session" | "--panel")) {
                         format!("                if test $state != operand; and test {cond}; set -a candidates {flag}; end")
                     } else { format!("                if test {cond}; set -a candidates {flag}; end") }
                 })
@@ -3245,7 +3276,7 @@ fn joined_offer_cases_fish() -> String {
     let provider = joined("--provider", PROVIDER_VALUES);
     format!(
         concat!(
-            "            case '--cwd'; if test $seen_cwd -eq 0; and contains -- \"$family:$sub\" tab:create panel:split workspace:create; set candidates {cwd}; end\n",
+            "            case '--cwd'; if test $seen_cwd -eq 0; and contains -- \"$family:$sub\" tab:create panel:split panel:create-terminal workspace:create; set candidates {cwd}; end\n",
             "            case '--source'\n",
             "                if test $seen_output_source -eq 0\n",
             "                    switch \"$state\"\n",
@@ -3259,7 +3290,7 @@ fn joined_offer_cases_fish() -> String {
             "                    switch \"$state\"\n",
             "                        case verb; set candidates {right_click}\n",
             "                        case sub; if test $family = panel; and begin; contains -- input $verbs; or contains -- split $verbs; end; set candidates {right_click}; end\n",
-            "                        case after operand operand2; if contains -- \"$family:$sub\" panel:input panel:split; set candidates {right_click}; end\n",
+            "                        case after operand operand2; if contains -- \"$family:$sub\" panel:input panel:split panel:create-terminal; set candidates {right_click}; end\n",
             "                    end\n",
             "                end\n",
             "            case '--direction'\n",
@@ -3502,7 +3533,7 @@ fn fish() -> String {
             "                        end\n",
             "                    case after\n",
             "                        switch \"$family:$sub\"\n",
-            "                            case panel:process-info panel:focus panel:zoom panel:layout panel:neighbor panel:edges panel:resize panel:swap panel:input panel:split; if test $seen_panel -eq 1 -o $seen_current -eq 1; or begin; test \"$family:$sub\" = panel:process-info; and test $seen_client -eq 1; end; set done 1; else; set state operand; end\n",
+            "                            case panel:process-info panel:focus panel:zoom panel:layout panel:neighbor panel:edges panel:resize panel:swap panel:input panel:split panel:create-terminal; if test $seen_panel -eq 1 -o $seen_current -eq 1; or begin; test \"$family:$sub\" = panel:process-info; and test $seen_client -eq 1; end; set done 1; else; set state operand; end\n",
             "                            case {operand_paths}; set state operand\n",
             "                            case '*'; set done 1\n",
             "                        end\n",
@@ -3556,7 +3587,7 @@ fn fish() -> String {
             "        switch \"$family:$sub\"\n",
             "{direction_cases}\n",
             "        end\n",
-            "    else if test \"$value\" = cwd; if contains -- \"$family:$sub\" tab:create panel:split workspace:create; set candidates {cwd_values}; end\n",
+            "    else if test \"$value\" = cwd; if contains -- \"$family:$sub\" tab:create panel:split panel:create-terminal workspace:create; set candidates {cwd_values}; end\n",
             "    else if test \"$value\" = output_source; if test \"$family\" != workspace; set candidates {output_source_values}; end\n",
             "    else if test \"$value\" = right_click; set candidates {right_click_values}\n",
             "    else if test \"$value\" = key; set candidates {key_values}\n",
@@ -3721,6 +3752,13 @@ fn command_conflict_pairs(
 
 fn command_flag_conflicts(command: &str, flag: &str) -> &'static [&'static str] {
     match (command, flag) {
+        ("panel:create-terminal", "--child") => &["--presentation"],
+        ("panel:create-terminal", "--presentation") => &["--child", "--label"],
+        ("panel:create-terminal", "--label") => &["--presentation"],
+        ("panel:create-terminal", "--panel") => &["--current", "--client"],
+        ("panel:create-terminal", "--current" | "--client") => &["--panel"],
+        ("panel:create-terminal", "--profile") => &["--exec", "--arg"],
+        ("panel:create-terminal", "--exec" | "--arg") => &["--profile"],
         ("panel:report-metadata", "--title") => &["--clear-title"],
         ("panel:report-metadata", "--clear-title") => &["--title"],
         ("panel:report-metadata", "--display-agent") => &["--clear-display-agent"],
@@ -3987,6 +4025,7 @@ mod tests {
             let admits = *command == "workspace:create"
                 || *command == "tab:create"
                 || *command == "panel:split"
+                || *command == "panel:create-terminal"
                 || *command == "launch-profile:create";
             assert_eq!(flags.contains(&"--exec"), admits, "{command} --exec");
             assert_eq!(

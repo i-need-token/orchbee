@@ -72,6 +72,10 @@ Windows `agent explain` 也会将名称和 Panel 解析为精确的物理终端�
 不发送输入、申请控制器或改变焦点。Windows 启动依次选择本地覆盖、符合条件的远程缓存及内置规则。物理 v3 增加实际路径、缓存版本、覆盖状态及类型化警告；v2 对旧版、无清单或跳过结果保持封闭。Windows `site agent-manifests`、`site reload-agent-manifests` 和 `site agent-manifests-status` 暴露已安装快照及保留的热重载回执。显式 `site update-agent-manifests` 下载并启用经过校验的缓存规则，分别保留逐 provider 缓存结果和启用回执。启用 `update.manifest_check` 时，托管发布版 Site 在启动时及每三十分钟自动检查；调试／测试及独立端点不调度。
 参见[屏幕模型](../orchbee-server/docs/agent-screen-model.zh-CN.md)。
 
+Windows `panel create-terminal` 启动未绑定主项或精确成员，或追加子项，不分割 Panel。
+它保留字面启动选项、返回保留的等待／最终回执，不改变 Client 焦点。
+详见 [Panel 终端创建](docs/windows-panel-terminals.zh-CN.md)。
+
 作用于运行中 Site 的修改命令为 `project create`/`rename`、
 `workspace create`/`rename`/`accept-directory`/`close`、`tab create`/`rename`/`move`/`close`、
 `panel split`/`move`/`close` 与 `launch-profile create`/`delete`——

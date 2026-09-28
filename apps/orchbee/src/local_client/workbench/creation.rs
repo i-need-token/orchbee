@@ -1,4 +1,4 @@
-//! Send-once transport for layout structure and exact unbound-member creation.
+//! Send-once transport for unbound layout structure and terminal member creation.
 use crate::local_client::{ExchangeAttempt, LocalClient, exchange_once};
 use orchbee_workbench_protocol::{
     WorkbenchAction, WorkbenchCommand, WorkbenchCommandOutcome as Outcome,
@@ -8,18 +8,13 @@ use orchbee_workbench_protocol::{
 };
 use std::{io, time::Instant};
 
-pub(crate) struct LayoutRequest(WorkbenchCommand);
-impl TryFrom<WorkbenchCommand> for LayoutRequest {
+pub(crate) struct CreationRequest(WorkbenchCommand);
+impl TryFrom<WorkbenchCommand> for CreationRequest {
     type Error = WorkbenchCommand;
     fn try_from(command: WorkbenchCommand) -> Result<Self, Self::Error> {
         if matches!(
             command.action,
-            WorkbenchAction::TabCreateLayout { .. }
-                | WorkbenchAction::PanelCreateTerminal {
-                    target: WorkbenchPanelTerminalTarget::Unbound { .. },
-                    profile: None,
-                    ..
-                }
+            WorkbenchAction::TabCreateLayout { .. } | WorkbenchAction::PanelCreateTerminal { .. }
         ) {
             Ok(Self(command))
         } else {
@@ -28,7 +23,7 @@ impl TryFrom<WorkbenchCommand> for LayoutRequest {
     }
 }
 #[derive(Debug)]
-pub(crate) enum LayoutSubmission {
+pub(crate) enum CreationSubmission {
     Outcome(Box<Outcome>),
     NotSubmitted {
         kind: io::ErrorKind,
@@ -39,14 +34,14 @@ pub(crate) enum LayoutSubmission {
     },
 }
 impl LocalClient {
-    pub(crate) fn submit_workbench_layout(
+    pub(crate) fn submit_workbench_creation(
         &mut self,
-        request: LayoutRequest,
+        request: CreationRequest,
         deadline: Instant,
         wake: Option<orchbee_local_ipc::LocalIo<'_>>,
-    ) -> LayoutSubmission {
-        fn not_submitted(kind: io::ErrorKind, reason: &'static str) -> LayoutSubmission {
-            LayoutSubmission::NotSubmitted { kind, reason }
+    ) -> CreationSubmission {
+        fn not_submitted(kind: io::ErrorKind, reason: &'static str) -> CreationSubmission {
+            CreationSubmission::NotSubmitted { kind, reason }
         }
         let command = request.0;
         if self.connection.is_none() {
@@ -80,7 +75,7 @@ impl LocalClient {
             ExchangeAttempt::Result(response) => match response {
                 WorkbenchResponse::Command(result) if result.request_id == command.request_id => {
                     if compatible(&command, &result.outcome) {
-                        return LayoutSubmission::Outcome(Box::new(result.outcome));
+                        return CreationSubmission::Outcome(Box::new(result.outcome));
                     }
                     "outcome-mismatch"
                 }
@@ -88,13 +83,22 @@ impl LocalClient {
             },
         };
         self.connection.take();
-        LayoutSubmission::Unknown { reason }
+        CreationSubmission::Unknown { reason }
     }
 }
 fn compatible(command: &WorkbenchCommand, outcome: &Outcome) -> bool {
     let structure = matches!(command.action, WorkbenchAction::TabCreateLayout { .. });
     match outcome {
         Outcome::Denied {} => return true,
+        Outcome::LaunchProfileUnavailable {} | Outcome::LaunchProfileAmbiguous { .. } => {
+            return matches!(
+                command.action,
+                WorkbenchAction::PanelCreateTerminal {
+                    profile: Some(_),
+                    ..
+                }
+            );
+        }
         Outcome::Rejected { reason, .. } => {
             return match reason {
                 Rejection::SiteMismatch
@@ -103,7 +107,16 @@ fn compatible(command: &WorkbenchCommand, outcome: &Outcome) -> bool {
                 | Rejection::ResourceLimit
                 | Rejection::RevisionExhausted
                 | Rejection::RequestIdentityConflict => true,
-                Rejection::IdentityExhausted => structure,
+                Rejection::IdentityExhausted => {
+                    structure
+                        || matches!(
+                            command.action,
+                            WorkbenchAction::PanelCreateTerminal {
+                                target: WorkbenchPanelTerminalTarget::Child { .. },
+                                ..
+                            }
+                        )
+                }
                 Rejection::TabUnavailable
                 | Rejection::PanelUnavailable
                 | Rejection::WorkspaceDirectoryUnavailable => !structure,
@@ -143,10 +156,7 @@ fn compatible(command: &WorkbenchCommand, outcome: &Outcome) -> bool {
                 terminal_context_id: context,
                 tab_id: tab,
                 panel_id: panel,
-                target:
-                    WorkbenchPanelTerminalTarget::Unbound {
-                        presentation_id: presentation,
-                    },
+                target,
                 geometry,
                 ..
             },
@@ -170,7 +180,12 @@ fn compatible(command: &WorkbenchCommand, outcome: &Outcome) -> bool {
                 && terminal_context_id == context
                 && tab_id == tab
                 && panel_id == panel
-                && presentation_id == presentation
+                && match target {
+                    WorkbenchPanelTerminalTarget::Unbound {
+                        presentation_id: expected,
+                    } => presentation_id == expected,
+                    WorkbenchPanelTerminalTarget::Child { .. } => true,
+                }
                 && !matches!(outcome,
                     Outcome::PanelTerminalCreated { terminal_outcome: WorkbenchTerminalOutcome::Started { geometry: actual }, .. } if actual != geometry)
         }

@@ -45,6 +45,7 @@ pub(super) fn build() -> serde_json::Value {
         command["format"] = json!(words != json!(["tui"]) && words != json!(["session", "attach"]));
         command["cwdValues"] = json!(if words == json!(["tab", "create"])
             || words == json!(["panel", "split"])
+            || words == json!(["panel", "create-terminal"])
             || words == json!(["workspace", "create"])
         {
             super::CWD_VALUES

@@ -3,7 +3,7 @@ pub(crate) mod agent_manifests;
 #[cfg(windows)]
 pub(crate) mod client_view;
 #[cfg(windows)]
-pub(crate) mod layout;
+pub(crate) mod creation;
 pub(crate) mod panel_agent;
 pub(crate) mod panel_metadata;
 #[cfg(windows)]

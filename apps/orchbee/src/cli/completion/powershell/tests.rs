@@ -9,6 +9,31 @@ use std::{
 fn real_powershell_completes_scoped_grammar_without_runtime() {
     let mut cases = super::super::test_cases::CASES.to_vec();
     cases.extend([
+        ("orchbee panel create-terminal abc --cl", "--client", false),
+        ("orchbee panel create-terminal abc --cu", "--current", false),
+        (
+            "orchbee panel create-terminal --client abc target --ch",
+            "--child",
+            false,
+        ),
+        ("orchbee panel create-t", "create-terminal", true),
+        ("orchbee panel create-terminal --ch", "--child", true),
+        (
+            "orchbee panel create-terminal --child --p",
+            "--presentation",
+            false,
+        ),
+        (
+            "orchbee panel create-terminal --presentation 00000000000000000000000000000009 --ch",
+            "--child",
+            false,
+        ),
+        ("orchbee panel create-terminal --cwd w", "workspace", true),
+        (
+            "orchbee panel create-terminal --profile shell --e",
+            "--exec",
+            false,
+        ),
         ("orchbee site agent-m", "agent-manifests", true),
         (
             "orchbee site reload-agent-manifests --r",

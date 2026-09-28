@@ -4,7 +4,7 @@ use crate::{
     cli::{Failure, FailureKind, query},
     local_client::{
         LocalClient,
-        workbench::layout::{LayoutRequest, LayoutSubmission},
+        workbench::creation::{CreationRequest, CreationSubmission},
     },
 };
 use orchbee_workbench_protocol::{
@@ -26,7 +26,7 @@ pub(super) fn submit(
         _ => return Err(error(FailureKind::InternalFailure, "invalid-receipt")),
     };
     let request_id = query::request_id()?;
-    let request = LayoutRequest::try_from(WorkbenchCommand {
+    let request = CreationRequest::try_from(WorkbenchCommand {
         protocol_version: ProtocolVersion,
         request_id: request_id.clone(),
         site_id: snapshot.site_id.clone(),
@@ -34,8 +34,8 @@ pub(super) fn submit(
         action,
     })
     .map_err(|_| error(FailureKind::InternalFailure, "invalid-receipt"))?;
-    let (result, outcome) = match client.submit_workbench_layout(request, deadline, wake) {
-        LayoutSubmission::Outcome(outcome) => {
+    let (result, outcome) = match client.submit_workbench_creation(request, deadline, wake) {
+        CreationSubmission::Outcome(outcome) => {
             let outcome = *outcome;
             let result = json!(outcome);
             let failure = match &outcome {
@@ -51,7 +51,7 @@ pub(super) fn submit(
                 failure.map_or_else(|| Ok(outcome), |kind| Err(error(kind, "layout-changed"))),
             )
         }
-        LayoutSubmission::NotSubmitted { kind, reason } => {
+        CreationSubmission::NotSubmitted { kind, reason } => {
             let failure = match kind {
                 io::ErrorKind::Interrupted => FailureKind::Cancelled,
                 io::ErrorKind::TimedOut => FailureKind::Timeout,
@@ -63,7 +63,7 @@ pub(super) fn submit(
                 Err(error(failure, "launch-unavailable")),
             )
         }
-        LayoutSubmission::Unknown { reason } => (
+        CreationSubmission::Unknown { reason } => (
             json!({"kind":"outcome-unknown","reason":reason}),
             Err(error(FailureKind::OutcomeUnknown, "launch-unavailable")),
         ),
