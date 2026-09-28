@@ -1,3 +1,4 @@
+pub(crate) mod panel_agent;
 pub(crate) mod panel_metadata;
 #[cfg(windows)]
 mod panel_metadata_query;

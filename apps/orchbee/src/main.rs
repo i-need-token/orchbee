@@ -166,6 +166,9 @@ fn main() -> ExitCode {
             Ok(invocation::Request::Client { command, format }) => {
                 cli::run_client_control(&command, format, locale)
             }
+            Ok(invocation::Request::PanelAgent { command, format }) => {
+                cli::panel_agent::run(&command, format, locale)
+            }
             Ok(invocation::Request::PanelMetadata { command, format }) => {
                 cli::panel_metadata::run(&command, format, locale)
             }

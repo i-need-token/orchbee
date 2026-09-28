@@ -1504,4 +1504,5 @@ mod panel_relocate;
 #[cfg(windows)]
 mod workspace_metadata;
 
+mod panel_agent;
 mod panel_metadata;

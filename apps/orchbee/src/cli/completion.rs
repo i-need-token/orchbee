@@ -185,6 +185,10 @@ const FAMILY_VERBS: &[(&str, &[&str])] = &[
     (
         "panel",
         &[
+            "report-agent",
+            "report-agent-session",
+            "clear-agent-authority",
+            "release-agent",
             "close",
             "current",
             "get",
@@ -253,6 +257,11 @@ const FAMILY_VERBS: &[(&str, &[&str])] = &[
 /// order the state machine records them.
 const BUSINESS_FLAGS: &[&str] = &[
     "--agent",
+    "--state",
+    "--message",
+    "--agent-session-id",
+    "--agent-session-path",
+    "--session-start-source",
     "--applies-to-source",
     "--title",
     "--display-agent",
@@ -725,6 +734,31 @@ const COMMAND_FLAGS: &[(&str, &[&str])] = &[
     ("tab:rename", &["--label"]),
     ("panel:input", &["--panel", "--current", "--right-click"]),
     (
+        "panel:report-agent",
+        &[
+            "--source",
+            "--agent",
+            "--state",
+            "--message",
+            "--seq",
+            "--agent-session-id",
+            "--agent-session-path",
+        ],
+    ),
+    (
+        "panel:report-agent-session",
+        &[
+            "--source",
+            "--agent",
+            "--seq",
+            "--agent-session-id",
+            "--agent-session-path",
+            "--session-start-source",
+        ],
+    ),
+    ("panel:clear-agent-authority", &["--source", "--seq"]),
+    ("panel:release-agent", &["--source", "--agent", "--seq"]),
+    (
         "panel:report-metadata",
         &[
             "--source",
@@ -1029,6 +1063,10 @@ const PROVIDER_VALUES: &[&str] = &[
 /// `<family>:<verb>` paths that consume one positional operand.
 const OPERAND_PATHS: &[&str] = &[
     "panel:report-metadata",
+    "panel:report-agent",
+    "panel:report-agent-session",
+    "panel:clear-agent-authority",
+    "panel:release-agent",
     "terminal:attach",
     "agent:attach",
     "terminal:session:observe",
@@ -1152,6 +1190,10 @@ const HELP_CHILDREN: &[(&str, &[&str])] = &[
     (
         "panel",
         &[
+            "report-agent",
+            "report-agent-session",
+            "clear-agent-authority",
+            "release-agent",
             "close",
             "current",
             "get",
@@ -1262,6 +1304,11 @@ fn flag_bit(flag: &str) -> &'static str {
         "--label" => "seen_label",
         "--right-click" => "seen_right_click",
         "--source" => "seen_output_source",
+        "--state" => "seen_panel_agent_state",
+        "--message" => "seen_panel_agent_message",
+        "--agent-session-id" => "seen_panel_agent_agent_session_id",
+        "--agent-session-path" => "seen_panel_agent_agent_session_path",
+        "--session-start-source" => "seen_panel_agent_session_start_source",
         "--agent" => "seen_panel_metadata_agent",
         "--applies-to-source" => "seen_panel_metadata_applies_to_source",
         "--title" => "seen_panel_metadata_title",

@@ -778,3 +778,5 @@ Windows `workspace create` 可省略项目、名称和目录；按来源终端�
 [Workspace 元数据契约](docs/windows-workspace-metadata.zh-CN.md) 定义上报规范化、来源序号栅栏、TTL 及一致读取组合。其 Server 和共享通信所有者独立于权威拓扑及终端 OSC 元数据。`workspace report-metadata` 和 Workspace list/get 通过有界关联读取及未知结果回执消费该所有者；通用事件与可配置 TUI token 模板需要各自集成。
 
 Windows `panel report-metadata` 支持来源拥有的展示字段、守卫、token 补丁、序号和 TTL，提供绑定校验及单次提交回执。见 [Panel 元数据契约](docs/windows-panel-metadata.zh-CN.md)。
+
+Windows `panel report-agent`、`report-agent-session`、`clear-agent-authority` 和 `release-agent` 提交显式来源上报并返回相关处理结果。参见 [Agent 上报契约](docs/windows-panel-agent-reports.zh-CN.md)。

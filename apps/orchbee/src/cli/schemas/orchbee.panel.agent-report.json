@@ -1,0 +1,321 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "orchbee.panel.agent-report",
+	"type": "object",
+	"properties": {
+		"schema": {
+			"const": "orchbee.panel.agent-report"
+		},
+		"version": {
+			"const": 1
+		},
+		"requestId": {
+			"$ref": "#/$defs/identity"
+		},
+		"siteId": {
+			"$ref": "#/$defs/identity"
+		},
+		"panelId": {
+			"$ref": "#/$defs/identity"
+		},
+		"interrupted": {
+			"type": "boolean"
+		},
+		"cleanupFailed": {
+			"type": "boolean"
+		},
+		"observation": {
+			"oneOf": [
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "server"
+						},
+						"reply": {
+							"$ref": "#/$defs/result"
+						}
+					},
+					"required": ["kind", "reply"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "unknown"
+						},
+						"reason": {
+							"enum": [
+								"request-write",
+								"response-read",
+								"response-deadline",
+								"response-correlation",
+								"response-protocol"
+							]
+						}
+					},
+					"required": ["kind", "reason"],
+					"additionalProperties": false
+				}
+			]
+		}
+	},
+	"required": [
+		"schema",
+		"version",
+		"requestId",
+		"siteId",
+		"panelId",
+		"interrupted",
+		"cleanupFailed",
+		"observation"
+	],
+	"additionalProperties": false,
+	"$defs": {
+		"identity": {
+			"type": "string",
+			"pattern": "^[0-9a-f]{32}$",
+			"not": {
+				"const": "00000000000000000000000000000000"
+			}
+		},
+		"revision": {
+			"type": "string",
+			"pattern": "^(?:0|[1-9][0-9]{0,19})$",
+			"maxLength": 20,
+			"format": "orchbee-uint64"
+		},
+		"binding": {
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+				"workerId": {
+					"$ref": "#/$defs/identity"
+				},
+				"terminalId": {
+					"$ref": "#/$defs/identity"
+				}
+			},
+			"required": ["workerId", "terminalId"]
+		},
+		"normalizedAgent": {
+			"type": "string",
+			"minLength": 1,
+			"not": {
+				"pattern": "^[\\u0009-\\u000d\\u0020\\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000]|[\\u0009-\\u000d\\u0020\\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000]$(?![\\s\\S])"
+			}
+		},
+		"state": {
+			"enum": ["idle", "working", "blocked", "unknown"]
+		},
+		"reference": {
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+				"kind": {
+					"enum": ["id", "path"]
+				},
+				"value": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 4096,
+					"not": {
+						"pattern": "[\\u0000-\\u001f\\u007f-\\u009f]"
+					}
+				}
+			},
+			"required": ["kind", "value"]
+		},
+		"session": {
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+				"source": {
+					"type": "string"
+				},
+				"agent": {
+					"$ref": "#/$defs/normalizedAgent"
+				},
+				"reference": {
+					"$ref": "#/$defs/reference"
+				}
+			},
+			"required": ["source", "agent", "reference"]
+		},
+		"view": {
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+				"agent": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/normalizedAgent"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"state": {
+					"$ref": "#/$defs/state"
+				},
+				"authoritySource": {
+					"anyOf": [
+						{
+							"type": "string"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"message": {
+					"anyOf": [
+						{
+							"type": "string"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"session": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/session"
+						},
+						{
+							"type": "null"
+						}
+					]
+				}
+			},
+			"required": ["agent", "state", "authoritySource", "message", "session"]
+		},
+		"row": {
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+				"panelId": {
+					"$ref": "#/$defs/identity"
+				},
+				"binding": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/binding"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"report": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/view"
+						},
+						{
+							"type": "null"
+						}
+					]
+				}
+			},
+			"required": ["panelId", "binding", "report"]
+		},
+		"outcome": {
+			"oneOf": [
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "reported"
+						},
+						"workbenchRevision": {
+							"$ref": "#/$defs/revision"
+						},
+						"reportRevision": {
+							"$ref": "#/$defs/revision"
+						},
+						"panelId": {
+							"$ref": "#/$defs/identity"
+						},
+						"binding": {
+							"$ref": "#/$defs/binding"
+						},
+						"disposition": {
+							"enum": ["applied", "ignored", "deferred"]
+						},
+						"changed": {
+							"type": "boolean"
+						},
+						"view": {
+							"$ref": "#/$defs/view"
+						}
+					},
+					"required": [
+						"kind",
+						"workbenchRevision",
+						"reportRevision",
+						"panelId",
+						"binding",
+						"disposition",
+						"changed",
+						"view"
+					]
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "failed"
+						},
+						"reason": {
+							"enum": [
+								"denied",
+								"unavailable",
+								"site-mismatch",
+								"invalid-request",
+								"not-found",
+								"unbound",
+								"binding-changed",
+								"source-limit",
+								"history-limit",
+								"resource-limit",
+								"revision-exhausted",
+								"clock-overflow",
+								"result-too-large"
+							]
+						}
+					},
+					"required": ["kind", "reason"]
+				}
+			]
+		},
+		"result": {
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+				"kind": {
+					"const": "workbench.panel-agent.result"
+				},
+				"protocolVersion": {
+					"const": 1
+				},
+				"requestId": {
+					"$ref": "#/$defs/identity"
+				},
+				"siteId": {
+					"$ref": "#/$defs/identity"
+				},
+				"outcome": {
+					"$ref": "#/$defs/outcome"
+				}
+			},
+			"required": ["kind", "protocolVersion", "requestId", "siteId", "outcome"]
+		}
+	},
+	"$comment": "Protocol result definitions follow workbench-panel-agent.schema.json; binding validation also enforces byte limits, official reference eligibility, correlated identities and view consistency."
+}

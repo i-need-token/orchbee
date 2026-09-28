@@ -19,8 +19,11 @@ pub(super) struct Options {
 }
 impl Options {
     pub(super) fn first_option(&self) -> Option<&'static str> {
+        self.first_option_with_agent(true)
+    }
+    pub(super) fn first_option_with_agent(&self, include_agent: bool) -> Option<&'static str> {
         [
-            (self.agent.is_some(), "--agent"),
+            (include_agent && self.agent.is_some(), "--agent"),
             (self.applies_to_source.is_some(), "--applies-to-source"),
             (self.title.is_some(), "--title"),
             (self.display_agent.is_some(), "--display-agent"),

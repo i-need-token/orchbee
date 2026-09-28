@@ -1,4 +1,6 @@
+mod panel_agent;
 mod panel_metadata;
+pub(crate) use panel_agent::PanelAgentCommand;
 mod workspace_metadata;
 pub(crate) use panel_metadata::PanelMetadataCommand;
 pub(crate) use workspace_metadata::WorkspaceMetadataCommand;
@@ -275,6 +277,11 @@ pub(crate) enum CommandPath {
     WorkspaceRename,
     WorkspaceReportMetadata,
     PanelReportMetadata,
+    PanelReportAgent,
+    PanelReportAgentSession,
+    PanelClearAgentAuthority,
+    PanelReleaseAgent,
+
     WorkspaceMove,
     WorkspaceMoveBlock,
     WorkspaceAcceptDirectory,
@@ -388,6 +395,11 @@ impl CommandPath {
             Self::WorkspaceCreate => "workspace create",
             Self::WorkspaceRename => "workspace rename",
             Self::PanelReportMetadata => "panel report-metadata",
+            Self::PanelReportAgent => "panel report-agent",
+            Self::PanelReportAgentSession => "panel report-agent-session",
+            Self::PanelClearAgentAuthority => "panel clear-agent-authority",
+            Self::PanelReleaseAgent => "panel release-agent",
+
             Self::WorkspaceReportMetadata => "workspace report-metadata",
             Self::WorkspaceMove => "workspace move",
             Self::WorkspaceMoveBlock => "workspace move-block",
@@ -1145,6 +1157,10 @@ pub(crate) enum RuntimeStatusScope {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum Request {
+    PanelAgent {
+        command: PanelAgentCommand,
+        format: OutputFormat,
+    },
     PanelMetadata {
         command: PanelMetadataCommand,
         format: OutputFormat,
@@ -1313,6 +1329,10 @@ pub(crate) enum UsageContext {
 /// expect; rendered per locale, never serialized.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum ExpectedValue {
+    ReportAgent,
+    ReportState,
+    ReportSize,
+    ReportSource,
     MetadataAgent,
     MetadataStateLabel,
     MetadataPresentation,
@@ -1540,6 +1560,7 @@ enum Token {
 
 #[derive(Default)]
 struct Options {
+    panel_agent: panel_agent::Options,
     metadata: workspace_metadata::Options,
     panel_metadata: panel_metadata::Options,
     #[cfg(windows)]
@@ -1659,6 +1680,11 @@ const VALUE_FLAGS: &[&str] = &[
     "--title",
     "--display-agent",
     "--state-label",
+    "--state",
+    "--message",
+    "--agent-session-id",
+    "--agent-session-path",
+    "--session-start-source",
     "--token",
     "--clear-token",
     "--seq",
@@ -2260,6 +2286,11 @@ fn apply_value_flag(
     }
     let slot = match option {
         "--agent" => &mut options.panel_metadata.agent,
+        "--state" => &mut options.panel_agent.state,
+        "--message" => &mut options.panel_agent.message,
+        "--agent-session-id" => &mut options.panel_agent.session_id,
+        "--agent-session-path" => &mut options.panel_agent.session_path,
+        "--session-start-source" => &mut options.panel_agent.start,
         "--applies-to-source" => &mut options.panel_metadata.applies_to_source,
         "--title" => &mut options.panel_metadata.title,
         "--display-agent" => &mut options.panel_metadata.display_agent,
@@ -3128,6 +3159,14 @@ fn resolve_words(
             ))
         }
         ["panel", "report-metadata", value] => panel_metadata::parse(value, options, envelope),
+        [
+            "panel",
+            verb @ ("report-agent"
+            | "report-agent-session"
+            | "clear-agent-authority"
+            | "release-agent"),
+            value,
+        ] => panel_agent::parse(verb, value, options, envelope),
         ["workspace", "report-metadata", value] => {
             workspace_metadata::parse(value, options, envelope)
         }
@@ -4291,6 +4330,15 @@ fn help_topic(path: &[&str]) -> Option<HelpTopic> {
         ["workspace", "create"] => HelpTopic::Command(CommandPath::WorkspaceCreate),
         ["workspace", "rename"] => HelpTopic::Command(CommandPath::WorkspaceRename),
         ["panel", "report-metadata"] => HelpTopic::Command(CommandPath::PanelReportMetadata),
+        ["panel", "report-agent"] => HelpTopic::Command(CommandPath::PanelReportAgent),
+        ["panel", "report-agent-session"] => {
+            HelpTopic::Command(CommandPath::PanelReportAgentSession)
+        }
+        ["panel", "clear-agent-authority"] => {
+            HelpTopic::Command(CommandPath::PanelClearAgentAuthority)
+        }
+        ["panel", "release-agent"] => HelpTopic::Command(CommandPath::PanelReleaseAgent),
+
         ["workspace", "report-metadata"] => {
             HelpTopic::Command(CommandPath::WorkspaceReportMetadata)
         }
@@ -4425,6 +4473,7 @@ fn mutation(command: MutationCommand, options: &Options) -> Request {
 struct Scope {
     metadata: bool,
     panel_metadata: bool,
+    panel_agent: bool,
     output: bool,
     client: bool,
     focus: bool,
@@ -4553,6 +4602,7 @@ struct Scope {
 const NO_OPTIONS: Scope = Scope {
     metadata: false,
     panel_metadata: false,
+    panel_agent: false,
     output: false,
     client: false,
     focus: false,
@@ -4875,7 +4925,8 @@ const INTEGRATION_SCOPE: Scope = Scope {
 
 /// Any mutation-only option seen outside a mutation command.
 fn business_options(options: &Options) -> bool {
-    options.panel_metadata.first_option().is_some()
+    options.panel_agent.first_option().is_some()
+        || options.panel_metadata.first_option().is_some()
         || options.metadata.first_option().is_some()
         || options.output.is_some()
         || options.client.is_some()
@@ -4943,13 +4994,22 @@ fn business_options(options: &Options) -> bool {
 /// The first named option present but outside `scope`, in the fixed `Options`
 /// declaration order — deterministic without any argv-order state.
 fn first_out_of_scope(options: &Options, scope: Scope) -> Option<&'static str> {
+    if !scope.panel_agent
+        && let Some(option) = options.panel_agent.first_option()
+    {
+        return Some(option);
+    }
     if !scope.panel_metadata
-        && let Some(option) = options.panel_metadata.first_option()
+        && let Some(option) = options
+            .panel_metadata
+            .first_option_with_agent(!scope.panel_agent)
     {
         return Some(option);
     }
     if !scope.metadata
-        && let Some(option) = options.metadata.first_option()
+        && let Some(option) = options
+            .metadata
+            .first_option_with_sequence(!scope.panel_agent)
     {
         return Some(option);
     }

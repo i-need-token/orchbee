@@ -83,10 +83,13 @@ __ORCHBEE_GRAMMAR__
             if ($command.format) { $allowed += '--format' }
             $valid = $true
             $commandPath = $command.words -join ':'
+            if ($values.ContainsKey('--state') -and $values['--state'] -cnotin @('idle', 'working', 'blocked', 'unknown')) { $valid = $false }
             if ($values.ContainsKey('--source')) {
-                if ($commandPath -ceq 'workspace:report-metadata') {
+                if ($commandPath -cin @('workspace:report-metadata', 'panel:report-metadata')) {
                     if ($values['--source'].Trim() -cnotmatch '^[A-Za-z0-9:._-]{1,80}$') { $valid = $false }
-                } elseif ($grammar.outputSources -cnotcontains $values['--source']) { $valid = $false }
+                } elseif ($commandPath -cin @('panel:report-agent', 'panel:report-agent-session', 'panel:release-agent')) {
+                    if ($values['--source'].Trim().Length -eq 0) { $valid = $false }
+                } elseif ($commandPath -cne 'panel:clear-agent-authority' -and $grammar.outputSources -cnotcontains $values['--source']) { $valid = $false }
             }
 
             if ($command.words[0] -ceq 'worktree' -and $seen -ccontains '--workspace' -and $seen -ccontains '--cwd') { $valid = $false }
@@ -163,7 +166,8 @@ __ORCHBEE_GRAMMAR__
                 '--cwd' { $viable | ForEach-Object { $_.cwdValues } }
                 '--direction' { $viable | ForEach-Object { $_.directions } }
                 '--right-click' { $grammar.rightClick }
-                '--source' { if (@($viable | Where-Object { ($_.words -join ':') -cne 'workspace:report-metadata' }).Count -gt 0) { $grammar.outputSources } }
+                '--source' { if (@($viable | Where-Object { ($_.words -join ':') -cnotin @('workspace:report-metadata', 'panel:report-metadata', 'panel:report-agent', 'panel:report-agent-session', 'panel:release-agent', 'panel:clear-agent-authority') }).Count -gt 0) { $grammar.outputSources } }
+                '--state' { 'idle'; 'working'; 'blocked'; 'unknown' }
                 '--key' { $grammar.keys }
                 '--until' { $grammar.until }
                 '--provider' { $grammar.providers }

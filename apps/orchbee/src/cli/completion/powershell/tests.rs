@@ -9,6 +9,61 @@ use std::{
 fn real_powershell_completes_scoped_grammar_without_runtime() {
     let mut cases = super::super::test_cases::CASES.to_vec();
     cases.extend([
+        (
+            "orchbee panel report-agent abc --state done --m",
+            "--message",
+            false,
+        ),
+        ("orchbee panel report-a", "report-agent-session", true),
+        ("orchbee panel clear-a", "clear-agent-authority", true),
+        (
+            "orchbee panel report-agent abc --source custom --a",
+            "--agent",
+            true,
+        ),
+        (
+            "orchbee panel report-agent abc --source 'custom source' --s",
+            "--state",
+            true,
+        ),
+        ("orchbee panel report-agent abc --source ", "visible", false),
+        (
+            "orchbee panel report-agent abc --source=",
+            "--source=visible",
+            false,
+        ),
+        ("orchbee panel report-agent abc --state b", "blocked", true),
+        (
+            "orchbee panel report-agent abc --state=",
+            "--state=working",
+            true,
+        ),
+        (
+            "orchbee panel report-agent abc --state working --s",
+            "--state",
+            false,
+        ),
+        (
+            "orchbee panel report-agent-session abc --s",
+            "--state",
+            false,
+        ),
+        (
+            "orchbee panel report-agent-session abc --s",
+            "--session-start-source",
+            true,
+        ),
+        (
+            "orchbee panel clear-agent-authority abc --source '' --s",
+            "--seq",
+            true,
+        ),
+        ("orchbee panel release-agent abc --m", "--message", false),
+        (
+            "orchbee panel report-metadata abc --source hook --t",
+            "--title",
+            true,
+        ),
         ("orchbee workspace mo", "move-block", true),
         ("orchbee workspace move alpha --i", "--insert-index", true),
         (

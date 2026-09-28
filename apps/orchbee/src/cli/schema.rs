@@ -39,6 +39,10 @@ pub(crate) const PROJECT_RENAME_RESULT_ID: &str = "orchbee.project.rename";
 /// `schema` id → embedded document, in dictionary order.
 const DOCUMENTS: &[(&str, &str)] = &[
     (
+        "orchbee.panel.agent-report",
+        include_str!("schemas/orchbee.panel.agent-report.json"),
+    ),
+    (
         "orchbee.panel.metadata",
         include_str!("schemas/orchbee.panel.metadata.json"),
     ),
@@ -458,8 +462,8 @@ pub(crate) fn answer(schema_id: Option<&str>, format: OutputFormat, locale: Loca
     };
     let document = json!({
         "schema": "orchbee.api.schema",
-        // Panel report-metadata adds its bounded receipt schema.
-        "version": 86,
+        // Explicit Agent reports add their correlated receipt schema.
+        "version": 87,
         "source": embedded_source(),
         "result": result,
     });
