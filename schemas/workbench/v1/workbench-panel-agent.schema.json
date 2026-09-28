@@ -1,0 +1,526 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "urn:orchbee:schema:workbench-panel-agent:v1",
+	"$comment": "Bindings additionally enforce UTF-8 reference byte bounds, official source/reference eligibility, view consistency, unique Panel IDs and encoded limits. Windows Server validates provider path absoluteness before publication.",
+	"oneOf": [
+		{
+			"$ref": "#/$defs/request"
+		},
+		{
+			"$ref": "#/$defs/result"
+		}
+	],
+	"$defs": {
+		"identity": {
+			"type": "string",
+			"pattern": "^[0-9a-f]{32}$",
+			"not": {
+				"const": "00000000000000000000000000000000"
+			}
+		},
+		"revision": {
+			"type": "string",
+			"pattern": "^(?:0|[1-9][0-9]{0,19})$",
+			"maxLength": 20,
+			"format": "orchbee-uint64"
+		},
+		"binding": {
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+				"workerId": {
+					"$ref": "#/$defs/identity"
+				},
+				"terminalId": {
+					"$ref": "#/$defs/identity"
+				}
+			},
+			"required": ["workerId", "terminalId"]
+		},
+		"agent": {
+			"type": "string",
+			"minLength": 1,
+			"not": {
+				"pattern": "^[\\u0009-\\u000d\\u0020\\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000]*$"
+			}
+		},
+		"normalizedAgent": {
+			"type": "string",
+			"minLength": 1,
+			"not": {
+				"pattern": "^[\\u0009-\\u000d\\u0020\\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000]|[\\u0009-\\u000d\\u0020\\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000]$(?![\\s\\S])"
+			}
+		},
+		"state": {
+			"enum": ["idle", "working", "blocked", "unknown"]
+		},
+		"report": {
+			"oneOf": [
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "state"
+						},
+						"source": {
+							"type": "string"
+						},
+						"agent": {
+							"$ref": "#/$defs/agent"
+						},
+						"state": {
+							"$ref": "#/$defs/state"
+						},
+						"message": {
+							"anyOf": [
+								{
+									"type": "string"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"sequence": {
+							"anyOf": [
+								{
+									"$ref": "#/$defs/revision"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"agentSessionId": {
+							"anyOf": [
+								{
+									"type": "string"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"agentSessionPath": {
+							"anyOf": [
+								{
+									"type": "string"
+								},
+								{
+									"type": "null"
+								}
+							]
+						}
+					},
+					"required": ["kind", "source", "agent", "state"]
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "session"
+						},
+						"source": {
+							"type": "string"
+						},
+						"agent": {
+							"$ref": "#/$defs/agent"
+						},
+						"sequence": {
+							"anyOf": [
+								{
+									"$ref": "#/$defs/revision"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"agentSessionId": {
+							"anyOf": [
+								{
+									"type": "string"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"agentSessionPath": {
+							"anyOf": [
+								{
+									"type": "string"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"sessionStartSource": {
+							"anyOf": [
+								{
+									"type": "string"
+								},
+								{
+									"type": "null"
+								}
+							]
+						}
+					},
+					"required": ["kind", "source", "agent"]
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "clear"
+						},
+						"source": {
+							"anyOf": [
+								{
+									"type": "string"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"sequence": {
+							"anyOf": [
+								{
+									"$ref": "#/$defs/revision"
+								},
+								{
+									"type": "null"
+								}
+							]
+						}
+					},
+					"required": ["kind"]
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "release"
+						},
+						"source": {
+							"type": "string"
+						},
+						"agent": {
+							"$ref": "#/$defs/agent"
+						},
+						"sequence": {
+							"anyOf": [
+								{
+									"$ref": "#/$defs/revision"
+								},
+								{
+									"type": "null"
+								}
+							]
+						}
+					},
+					"required": ["kind", "source", "agent"]
+				}
+			]
+		},
+		"action": {
+			"oneOf": [
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "read"
+						},
+						"panelIds": {
+							"type": "array",
+							"items": {
+								"$ref": "#/$defs/identity"
+							},
+							"maxItems": 4,
+							"uniqueItems": true
+						}
+					},
+					"required": ["kind", "panelIds"]
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "report"
+						},
+						"panelId": {
+							"$ref": "#/$defs/identity"
+						},
+						"expectedBinding": {
+							"$ref": "#/$defs/binding"
+						},
+						"report": {
+							"$ref": "#/$defs/report"
+						}
+					},
+					"required": ["kind", "panelId", "expectedBinding", "report"]
+				}
+			]
+		},
+		"reference": {
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+				"kind": {
+					"enum": ["id", "path"]
+				},
+				"value": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 4096,
+					"not": {
+						"pattern": "[\\u0000-\\u001f\\u007f-\\u009f]"
+					}
+				}
+			},
+			"required": ["kind", "value"]
+		},
+		"session": {
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+				"source": {
+					"type": "string"
+				},
+				"agent": {
+					"$ref": "#/$defs/normalizedAgent"
+				},
+				"reference": {
+					"$ref": "#/$defs/reference"
+				}
+			},
+			"required": ["source", "agent", "reference"]
+		},
+		"view": {
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+				"agent": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/normalizedAgent"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"state": {
+					"$ref": "#/$defs/state"
+				},
+				"authoritySource": {
+					"anyOf": [
+						{
+							"type": "string"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"message": {
+					"anyOf": [
+						{
+							"type": "string"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"session": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/session"
+						},
+						{
+							"type": "null"
+						}
+					]
+				}
+			},
+			"required": ["agent", "state", "authoritySource", "message", "session"]
+		},
+		"row": {
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+				"panelId": {
+					"$ref": "#/$defs/identity"
+				},
+				"binding": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/binding"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"report": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/view"
+						},
+						{
+							"type": "null"
+						}
+					]
+				}
+			},
+			"required": ["panelId", "binding", "report"]
+		},
+		"outcome": {
+			"oneOf": [
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "read"
+						},
+						"workbenchRevision": {
+							"$ref": "#/$defs/revision"
+						},
+						"reportRevision": {
+							"$ref": "#/$defs/revision"
+						},
+						"panels": {
+							"type": "array",
+							"items": {
+								"$ref": "#/$defs/row"
+							},
+							"maxItems": 4
+						}
+					},
+					"required": ["kind", "workbenchRevision", "reportRevision", "panels"]
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "reported"
+						},
+						"workbenchRevision": {
+							"$ref": "#/$defs/revision"
+						},
+						"reportRevision": {
+							"$ref": "#/$defs/revision"
+						},
+						"panelId": {
+							"$ref": "#/$defs/identity"
+						},
+						"binding": {
+							"$ref": "#/$defs/binding"
+						},
+						"disposition": {
+							"enum": ["applied", "ignored", "deferred"]
+						},
+						"changed": {
+							"type": "boolean"
+						},
+						"view": {
+							"$ref": "#/$defs/view"
+						}
+					},
+					"required": [
+						"kind",
+						"workbenchRevision",
+						"reportRevision",
+						"panelId",
+						"binding",
+						"disposition",
+						"changed",
+						"view"
+					]
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "failed"
+						},
+						"reason": {
+							"enum": [
+								"denied",
+								"unavailable",
+								"site-mismatch",
+								"invalid-request",
+								"not-found",
+								"unbound",
+								"binding-changed",
+								"source-limit",
+								"history-limit",
+								"resource-limit",
+								"revision-exhausted",
+								"clock-overflow",
+								"result-too-large"
+							]
+						}
+					},
+					"required": ["kind", "reason"]
+				}
+			]
+		},
+		"request": {
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+				"kind": {
+					"const": "workbench.panel-agent"
+				},
+				"protocolVersion": {
+					"const": 1
+				},
+				"requestId": {
+					"$ref": "#/$defs/identity"
+				},
+				"siteId": {
+					"$ref": "#/$defs/identity"
+				},
+				"action": {
+					"$ref": "#/$defs/action"
+				}
+			},
+			"required": ["kind", "protocolVersion", "requestId", "siteId", "action"]
+		},
+		"result": {
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+				"kind": {
+					"const": "workbench.panel-agent.result"
+				},
+				"protocolVersion": {
+					"const": 1
+				},
+				"requestId": {
+					"$ref": "#/$defs/identity"
+				},
+				"siteId": {
+					"$ref": "#/$defs/identity"
+				},
+				"outcome": {
+					"$ref": "#/$defs/outcome"
+				}
+			},
+			"required": ["kind", "protocolVersion", "requestId", "siteId", "outcome"]
+		}
+	}
+}

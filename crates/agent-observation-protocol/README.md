@@ -124,3 +124,7 @@ identity-only/full-lifecycle distinctions, ID/path precedence and byte/control b
 invalid path fallback, unknown start sources, and full-u64 Serde rejection. The native CLI's
 alias/custom-label and process-recognition checks protect the integrated consumer. These checks
 prove normalization and planning only, not running provider sessions or complete report parity.
+
+The closed provider-reference kind enum also decodes `id`/`path` for the Workbench report result
+binding. This does not add context-free deserialization of `AgentProviderSessionReference`; the
+private validated value still requires its constructor and the caller's platform path predicate.

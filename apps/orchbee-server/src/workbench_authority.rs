@@ -25,8 +25,12 @@ pub use checkpoint::{
     MAXIMUM_WORKBENCH_CHECKPOINT_BYTES, PreparedWorkbenchRestoreBinding, WorkbenchCheckpoint,
     WorkbenchCheckpointError, WorkbenchRestoreError, WorkbenchRestoreTarget,
 };
-#[cfg(test)]
 mod agent_reports;
+mod panel_agent;
+mod report_membership;
+pub use panel_agent::{
+    TerminalAgentBinding, TerminalAgentProcessObservation, TerminalAgentProcessOutcome,
+};
 mod panel_metadata;
 mod terminal_membership;
 mod workspace_directory;
@@ -143,6 +147,7 @@ impl TryFrom<WorkbenchRequest> for WorkbenchReadOrNavigationRequest {
             | WorkbenchRequest::WorktreeOperation(_)
             | WorkbenchRequest::WorktreeQuery(_)
             | WorkbenchRequest::WorkspaceGroupClose(_)
+            | WorkbenchRequest::PanelAgent(_)
             | WorkbenchRequest::PanelMetadata(_)
             | WorkbenchRequest::WorkspaceMetadata(_)
             | WorkbenchRequest::ClientView(_)) => Err(request),
@@ -264,6 +269,7 @@ pub struct WorkbenchAuthority {
     workspace_groups: workspace_group_close::WorkspaceGroupCloses,
     workspace_metadata: workspace_metadata::WorkspaceMetadata,
     panel_metadata: panel_metadata::PanelMetadata,
+    panel_agent: panel_agent::PanelAgents,
 }
 
 impl WorkbenchAuthority {
@@ -294,6 +300,7 @@ impl WorkbenchAuthority {
             workspace_groups: workspace_group_close::WorkspaceGroupCloses::default(),
             workspace_metadata: workspace_metadata::WorkspaceMetadata::default(),
             panel_metadata: panel_metadata::PanelMetadata::default(),
+            panel_agent: panel_agent::PanelAgents::default(),
         })
     }
 

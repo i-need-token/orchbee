@@ -199,3 +199,12 @@ Client attention snapshots reuse `@orchbee/agent` session identity validation. T
 `workbench-workspace-metadata-contract.ts` adds strict report/read envelopes to the shared request/result unions, with 16 KiB requests and 128 KiB results. The [shared corpus](../../schemas/workbench/v1/workbench-workspace-metadata-conformance-v1.json) and [JSON Schema](../../schemas/workbench/v1/workbench-workspace-metadata.schema.json) cover token normalization, source/sequence/TTL bounds, read batches and closed failures. Rust additionally rejects duplicate raw JSON keys; the TypeScript object binding preserves legal `__proto__` and `constructor` token keys. This binding exposes neither Desktop commands nor an event subscription. Runtime ownership belongs to the [Workspace metadata model](../../apps/orchbee/docs/windows-workspace-metadata.md).
 
 Panel metadata adds strict request/result union members, 16 KiB requests and 512 KiB results. The [shared corpus](../../schemas/workbench/v1/workbench-panel-metadata-conformance-v1.json) and [schema](../../schemas/workbench/v1/workbench-panel-metadata.schema.json) cover canonical reports and bounded source records. Bindings additionally check unique rows/sources and per-field write-order bounds/ownership. Runtime semantics belong to the [Panel metadata contract](../../apps/orchbee/docs/windows-panel-metadata.md).
+
+Panel Agent reports add `workbench.panel-agent` / `workbench.panel-agent.result` with 16 KiB
+requests and 512 KiB results. The [shared corpus](../../schemas/workbench/v1/workbench-panel-agent-conformance-v1.json)
+and [schema](../../schemas/workbench/v1/workbench-panel-agent.schema.json) cover four explicit
+report kinds, four report states, full-u64 decimal sequences, ordered reads and closed receipts.
+Rust/TypeScript additionally enforce UTF-8 reference bounds, source/reference eligibility and view
+consistency. The [Server report model](../../apps/orchbee-server/docs/agent-report-model.md) owns
+physical generation, sequencing, suppression and atomic metadata exit cleanup. This decoded binding
+adds no Desktop command or process producer and cannot submit process-existence claims.

@@ -144,3 +144,11 @@ Client 提示状态快照复用 `@orchbee/agent` 会话身份校验。严格形�
 `workbench-workspace-metadata-contract.ts` 为共享请求／结果联合增加严格的上报／读取信封，请求上限 16 KiB、结果上限 128 KiB。[共享语料](../../schemas/workbench/v1/workbench-workspace-metadata-conformance-v1.json) 和 [JSON Schema](../../schemas/workbench/v1/workbench-workspace-metadata.schema.json) 覆盖 token 规范化、来源／序号／TTL 边界、读取批次及封闭失败类型。Rust 还拒绝原始 JSON 重复键；TypeScript 对象绑定保留合法的 `__proto__` 和 `constructor` token 键。此绑定不暴露 Desktop 命令或事件订阅。运行时归属由 [Workspace 元数据模型](../../apps/orchbee/docs/windows-workspace-metadata.zh-CN.md) 管理。
 
 Panel 元数据新增严格的请求／结果联合成员，请求 16 KiB、结果 512 KiB。[共享用例](../../schemas/workbench/v1/workbench-panel-metadata-conformance-v1.json) 和 [schema](../../schemas/workbench/v1/workbench-panel-metadata.schema.json) 覆盖规范上报及有界来源记录。绑定还检查行／来源唯一性及逐字段写入顺序边界／归属。运行语义见 [Panel 元数据契约](../../apps/orchbee/docs/windows-panel-metadata.zh-CN.md)。
+
+Panel Agent 上报新增 `workbench.panel-agent`／`workbench.panel-agent.result`，请求上限为
+16 KiB，结果上限为 512 KiB。[共享语料](../../schemas/workbench/v1/workbench-panel-agent-conformance-v1.json)
+和 [schema](../../schemas/workbench/v1/workbench-panel-agent.schema.json) 覆盖四种显式上报、四种
+上报状态、完整 u64 十进制序号、有序读取及封闭回执。Rust／TypeScript 还校验 UTF-8 引用
+字节上限、来源／引用资格和视图一致性。[Server 上报模型](../../apps/orchbee-server/docs/agent-report-model.zh-CN.md)
+拥有物理代际、序号、抑制和原子元数据退出清理。此解码绑定不新增 Desktop 命令或进程生产者，
+也不能提交进程存在声明。

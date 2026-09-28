@@ -84,11 +84,76 @@ impl SiteCoordinator {
         Some(self.workbench.as_mut()?.workspace_metadata(request, now))
     }
 
+    #[cfg(any(windows, test))]
+    fn terminal_agent_bindings(
+        &self,
+    ) -> Result<
+        Vec<orchbee_server::TerminalAgentBinding>,
+        orchbee_server::WorkbenchTerminalInvariantError,
+    > {
+        Ok(self
+            .agent_registration_snapshot()?
+            .into_iter()
+            .map(|fact| orchbee_server::TerminalAgentBinding {
+                binding: fact.binding().clone(),
+                worker_generation: fact.worker_generation(),
+                identity: fact.identity(),
+            })
+            .collect())
+    }
+
+    #[cfg(any(windows, test))]
+    pub(crate) fn panel_agent(
+        &mut self,
+        request: orchbee_workbench_protocol::PanelAgentRequest,
+        now: std::time::Instant,
+    ) -> Option<orchbee_workbench_protocol::PanelAgentResult> {
+        let facts = match self.terminal_agent_bindings() {
+            Ok(facts) => facts,
+            Err(_) => {
+                return Some(orchbee_workbench_protocol::PanelAgentResult {
+                    protocol_version: orchbee_workbench_protocol::ProtocolVersion,
+                    request_id: request.request_id,
+                    site_id: request.site_id,
+                    outcome: orchbee_workbench_protocol::PanelAgentOutcome::Failed {
+                        reason: orchbee_workbench_protocol::PanelAgentFailure::Unavailable,
+                    },
+                });
+            }
+        };
+        Some(
+            self.workbench
+                .as_mut()?
+                .panel_agent(request, &facts, now, |path| {
+                    std::path::Path::new(path).is_absolute()
+                }),
+        )
+    }
+
     pub(crate) fn panel_metadata(
         &mut self,
         request: orchbee_workbench_protocol::PanelMetadataRequest,
         now: std::time::Instant,
     ) -> Option<orchbee_workbench_protocol::PanelMetadataResult> {
+        #[cfg(any(windows, test))]
+        {
+            let reconciled = self.terminal_agent_bindings().ok().and_then(|facts| {
+                self.workbench
+                    .as_mut()?
+                    .reconcile_terminal_agent_bindings(&facts)
+                    .ok()
+            });
+            if reconciled.is_none() {
+                return Some(orchbee_workbench_protocol::PanelMetadataResult {
+                    protocol_version: orchbee_workbench_protocol::ProtocolVersion,
+                    request_id: request.request_id,
+                    site_id: request.site_id,
+                    outcome: orchbee_workbench_protocol::PanelMetadataOutcome::Failed {
+                        reason: orchbee_workbench_protocol::PanelMetadataFailure::Unavailable,
+                    },
+                });
+            }
+        }
         Some(self.workbench.as_mut()?.panel_metadata(request, now))
     }
 

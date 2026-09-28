@@ -87,7 +87,7 @@ pub fn agent_report_allows_session_replacement(
 }
 
 /// The provider's reference category, never an Orchbee observation Session ID.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum AgentProviderSessionReferenceKind {
     Id,

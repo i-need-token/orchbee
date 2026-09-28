@@ -1032,7 +1032,9 @@ resumable sessions and TUI rendering remain separate consumers. A metadata repor
 an Agent authority or changes OSC terminal title. Public CLI integration requires the carrier and
 query projection; the owner alone does not establish CLI parity.
 
-The [Agent report model](agent-report-model.md) defines the staged explicit report transitions
-that will supply actual authority context and process-exit metadata cleanup under this same
-commit gate. Canonical Agent observations retain their existing owner; the staged core is not a
-public report service and does not yet change metadata queries.
+The [Agent report model](agent-report-model.md) owns explicit report transitions, the bounded
+physical-generation registry and the Windows report/read carrier. Its trusted process operation
+prepares report and metadata cleanup together under this commit gate, preserving tokens and newer
+custom presentation. Later metadata from a retained exited Agent is stale. Canonical observations
+retain their existing owner. Automatic Host process production, names and joined query/TUI context
+remain integration obligations; the report wire cannot assert process existence.

@@ -30,14 +30,8 @@ impl RegistrationFact {
         &self.presentation_id
     }
 
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "canonical fact accessor; this production slice reads other fields only"
-        )
-    )]
     #[must_use]
+    #[cfg(any(windows, test))]
     pub fn binding(&self) -> &PresentationBinding {
         &self.binding
     }

@@ -2,9 +2,9 @@
 
 This model owns explicit terminal report facts: source authority, provider Session references,
 source watermarks and suppression of stale lifecycle reports. It is distinct from canonical
-hook-observation Sessions in `AgentRuntime`. The deterministic core is currently compiled for
-conformance; live registry, physical-binding admission, public commands and query/TUI publication
-remain integration obligations. No public operation returns success from this core alone.
+hook-observation Sessions in `AgentRuntime`. The core now serves a bounded Windows Server registry and the OBWP report/read family.
+The native CLI commands, automatic Host process producer, names and query/TUI publication remain
+integration obligations. The public wire cannot submit process observations.
 
 ## Inputs and ownership
 
@@ -27,12 +27,12 @@ owner time even when a delivered process sample is older; fallback, exit and met
 retain the sample time. State and observations have canonical
 JSON traces. The transition prepares a new state; its caller owns admission and commit.
 
-The eventual registry belongs beside terminal metadata under the Site/Workbench gate. A process
-exit can invalidate both authority and source metadata; these changes must be prepared and
-committed together. The core emits the Agent/time needed for that metadata decision and does not
-mutate another owner. Canonical observation Sessions and their aliases remain with `AgentState`.
-The binary must supply exact retained physical-generation facts before admitting a report or
-process observation; a Client-provided label, PID or generic observation category is insufficient.
+The registry belongs beside terminal metadata under the Site/Workbench gate. A trusted process
+operation prepares both report and metadata exit changes before committing either. Canonical
+observation Sessions and their aliases remain with `AgentState`. The binary supplies the current
+retained Worker generation and Host creation/epoch/terminal identity for each committed binding;
+a Client-provided label, PID or generic observation category is insufficient. The Host sampling
+adapter must still call the trusted operation; this boundary alone does not collect processes.
 
 ## Transition decisions
 
@@ -68,13 +68,46 @@ In particular, an ignored Session report can advance a watermark; a caller must 
 disposition as a substitute for change detection. The previous state remains untouched until
 its owner accepts the complete candidate, metadata effects and encoded result.
 
-The core maps describe an abstract finite trace, not a bounded network service. Live integration
-must add per-source/history/terminal and total-byte admission, checked revisions, exact generation
-reconciliation, permission checks and correlated receipts before exposing writers. It must fail
-closed rather than discard sequence/stale history and resurrect an old report. Unavailable process
-sampling must remain unavailable, never a fabricated exit or fresh-process proof. Report-associated
-name changes, metadata sequence cleanup, public query guard context and TUI projection remain
-required consumers of these transitions.
+The live registry admits at most 128 retained source identities, 256 stale Session identities and
+512 KiB encoded core state per terminal, 4096 logical terminals and 32 MiB accounted aggregate
+state. Failure does not consume the candidate sequence. No-op reports remain valid at capacity.
+An aggregate with no remaining report, process, sequence or history facts is reclaimed.
+Independent report revisions use checked addition. Housekeeping retires absent primary/child
+memberships or positively replaced physical generations; missing Host facts never mean exit.
+Housekeeping has its own checked revision and may settle before a later request refusal. Shared
+Workbench navigation and canonical AgentRuntime revisions are unchanged.
+
+Owner-clock ticks are centered at 2^63 around the first committed admission Instant. Both sample
+and admission time use that same origin, including a sample predating the first admission; checked
+nanosecond conversion refuses overflow. No wall clock, wrapping or saturation defines ordering.
+
+The trusted process commit also clears matching official metadata, older Agent-guarded presentation
+and exited-Agent sequence ownership. It preserves global tokens and newer custom presentation.
+The metadata owner retains presentation report time separately from per-field precedence and records
+the Agent associated with accepted sequences, including token-only reports. Late matching metadata
+is a stale no-op until real process confirmation. Both candidates pass capacity/revision checks
+before either commits, so metadata or report revision exhaustion cannot leave half an exit.
+Report-associated names and joined query/TUI context remain required consumers.
+
+## Windows report carrier
+
+`workbench.panel-agent` uses OBWP kind 35 for requests and kind 36 for results. Read permission
+admits zero to four unique Panel IDs; navigation permission admits the four explicit report kinds.
+Writes require the expected logical primary binding and a currently retained physical fact. Source
+and message remain literal, Agent labels use shared normalization, and sequences are full-u64 decimal
+strings. Invalid provider references and unknown start reasons normalize to absence as in the reference;
+a valid reference remains distinct from canonical observation Session IDs. Windows composition supplies
+path absoluteness without filesystem access or provider execution. Requests are bounded by the existing
+16 KiB envelope; results by 512 KiB. No process-proof field is accepted on the public wire.
+
+A receipt carries Workbench/report revisions, resolved binding, applied/ignored/deferred disposition,
+actual change flag and effective report view. Reads preserve requested order and nullable unbound rows.
+The owner validates the encoded receipt before committing a report candidate. A deferred full-lifecycle
+report stays deferred until trusted process evidence arrives; no readiness is fabricated. Raw references
+in decoded results validate source/kind/value eligibility; their platform absoluteness is a Server
+publication obligation and must be rechecked before any future provider execution. The shared Rust,
+TypeScript and JSON contracts retain older closed variants and are rolled out as a matched private cohort;
+older peers reject the new kinds. State is transient, with source/cohort revert as rollback.
 
 Decision tests and serialized traces cover stale/unsequenced reports, source conflicts, the public
 native/official routing rules, session-only identity, clear/release/process preservation, pending
@@ -82,5 +115,6 @@ full-lifecycle references, old-session suppression, provider-specific replacemen
 observations. Generated custom-source traces check immutable preparation, watermark preservation,
 foreign-clear isolation and absence of invented provider/process facts; failures print a reduced
 replayable trace. Pinned-reference differential traces additionally compare complete report state,
-effective views and release outcomes through the public routing rules. These prove the core only; matched Windows end-to-end reports, process observations,
-query/TUI behavior and bounded registry admission remain required before claiming CLI/API parity.
+effective views and release outcomes through the public routing rules. These cover the core and owner
+admission only; actual Windows carrier/CLI reports, Host observations,
+name/query/TUI behavior and the final full regression remain required before claiming CLI/API parity.

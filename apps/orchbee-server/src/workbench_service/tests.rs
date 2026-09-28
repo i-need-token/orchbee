@@ -330,3 +330,5 @@ mod workspace_metadata;
 
 #[cfg(windows)]
 mod panel_metadata;
+
+mod panel_agent;

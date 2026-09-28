@@ -1,3 +1,10 @@
+mod panel_agent;
+pub use panel_agent::{
+    MAXIMUM_ENCODED_PANEL_AGENT_RESULT_BYTES, MAXIMUM_PANEL_AGENT_READ_ROWS, PanelAgentAction,
+    PanelAgentDisposition, PanelAgentFailure, PanelAgentOutcome, PanelAgentReference,
+    PanelAgentReport, PanelAgentRequest, PanelAgentResult, PanelAgentRow, PanelAgentSession,
+    PanelAgentState, PanelAgentView,
+};
 mod panel_metadata;
 pub use panel_metadata::{
     MAXIMUM_ENCODED_PANEL_METADATA_RESULT_BYTES, MAXIMUM_PANEL_METADATA_READ_ROWS,
@@ -773,6 +780,8 @@ pub struct WorkbenchCommand {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind")]
 pub enum WorkbenchRequest {
+    #[serde(rename = "workbench.panel-agent")]
+    PanelAgent(PanelAgentRequest),
     #[serde(rename = "workbench.panel-metadata")]
     PanelMetadata(PanelMetadataRequest),
     #[serde(rename = "workbench.workspace-metadata")]
@@ -1114,6 +1123,8 @@ pub struct WorkbenchSnapshotResult {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind")]
 pub enum WorkbenchResponse {
+    #[serde(rename = "workbench.panel-agent.result")]
+    PanelAgent(PanelAgentResult),
     #[serde(rename = "workbench.panel-metadata.result")]
     PanelMetadata(PanelMetadataResult),
     #[serde(rename = "workbench.workspace-metadata.result")]
@@ -1159,6 +1170,9 @@ pub fn parse_workbench_request(encoded: &[u8]) -> Result<WorkbenchRequest, Contr
 /// explicit `launch` and a `profile` selector are mutually exclusive on the
 /// terminal-launch actions.
 fn validate_request(request: &WorkbenchRequest) -> Result<(), ContractError> {
+    if let WorkbenchRequest::PanelAgent(request) = request {
+        return request.validate();
+    }
     if let WorkbenchRequest::PanelMetadata(request) = request {
         return request.validate();
     }
@@ -1285,6 +1299,10 @@ pub fn serialize_workbench_response(
 
 fn validate_response(response: &WorkbenchResponse, encoded: &[u8]) -> Result<(), ContractError> {
     match response {
+        WorkbenchResponse::PanelAgent(result) => {
+            enforce_encoded_limit(encoded, MAXIMUM_ENCODED_PANEL_AGENT_RESULT_BYTES)?;
+            result.validate()
+        }
         WorkbenchResponse::PanelMetadata(result) => {
             enforce_encoded_limit(encoded, MAXIMUM_ENCODED_PANEL_METADATA_RESULT_BYTES)?;
             result.validate()

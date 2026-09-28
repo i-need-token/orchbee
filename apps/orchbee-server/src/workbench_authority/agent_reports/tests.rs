@@ -871,3 +871,50 @@ fn delayed_process_clear_uses_current_owner_time_for_future_suppression() {
     assert!(!old.changed);
     assert_eq!(current.detected, Some(Provider::Codex));
 }
+
+#[test]
+fn stale_session_history_limit_refuses_the_candidate_without_forgetting_old_sessions() {
+    let mut current = anchored(Provider::Pi, "initial");
+    for index in 1..=256 {
+        let id = format!("session-{index}");
+        step(
+            &mut current,
+            session(
+                "herdr:pi",
+                "pi",
+                Some(&id),
+                seq(index * 2 + 1),
+                Some(Start::New),
+            ),
+            index * 2 + 100,
+        );
+        step(
+            &mut current,
+            state(
+                "herdr:pi",
+                "pi",
+                Status::Working,
+                seq(index * 2 + 2),
+                Some(&id),
+            ),
+            index * 2 + 101,
+        );
+    }
+    assert!(current.admitted_bytes().is_ok());
+    let next = current.transition(
+        session(
+            "herdr:pi",
+            "pi",
+            Some("overflow"),
+            seq(999),
+            Some(Start::New),
+        ),
+        1000,
+    );
+    assert_eq!(
+        next.next.admitted_bytes(),
+        Err(orchbee_workbench_protocol::PanelAgentFailure::HistoryLimit)
+    );
+    assert_eq!(current.stale["herdr:pi"].len(), 256);
+    assert!(current.admitted_bytes().is_ok());
+}

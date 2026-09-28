@@ -1,0 +1,1224 @@
+{
+	"contractVersion": 1,
+	"valid": [
+		{
+			"name": "literal-custom-state",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.panel-agent",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"action": {
+					"kind": "report",
+					"panelId": "33333333333333333333333333333333",
+					"expectedBinding": {
+						"workerId": "44444444444444444444444444444444",
+						"terminalId": "55555555555555555555555555555555"
+					},
+					"report": {
+						"kind": "state",
+						"source": "",
+						"agent": " 团队 Agent ",
+						"state": "working",
+						"sequence": "18446744073709551615",
+						"message": "ready\t😀"
+					}
+				}
+			}
+		},
+		{
+			"name": "session",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.panel-agent",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"action": {
+					"kind": "report",
+					"panelId": "33333333333333333333333333333333",
+					"expectedBinding": {
+						"workerId": "44444444444444444444444444444444",
+						"terminalId": "55555555555555555555555555555555"
+					},
+					"report": {
+						"kind": "session",
+						"source": "herdr:pi",
+						"agent": "pi",
+						"agentSessionId": "id",
+						"agentSessionPath": "C:\\session.json",
+						"sessionStartSource": " RESUME "
+					}
+				}
+			}
+		},
+		{
+			"name": "clear",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.panel-agent",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"action": {
+					"kind": "report",
+					"panelId": "33333333333333333333333333333333",
+					"expectedBinding": {
+						"workerId": "44444444444444444444444444444444",
+						"terminalId": "55555555555555555555555555555555"
+					},
+					"report": {
+						"kind": "clear"
+					}
+				}
+			}
+		},
+		{
+			"name": "release",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.panel-agent",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"action": {
+					"kind": "report",
+					"panelId": "33333333333333333333333333333333",
+					"expectedBinding": {
+						"workerId": "44444444444444444444444444444444",
+						"terminalId": "55555555555555555555555555555555"
+					},
+					"report": {
+						"kind": "release",
+						"source": "herdr:codex",
+						"agent": "codex",
+						"sequence": "0"
+					}
+				}
+			}
+		},
+		{
+			"name": "read",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.panel-agent",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"action": {
+					"kind": "read",
+					"panelIds": ["33333333333333333333333333333333"]
+				}
+			}
+		},
+		{
+			"name": "read-reference",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-agent.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"outcome": {
+					"kind": "read",
+					"workbenchRevision": "9",
+					"reportRevision": "3",
+					"panels": [
+						{
+							"panelId": "33333333333333333333333333333333",
+							"binding": {
+								"workerId": "44444444444444444444444444444444",
+								"terminalId": "55555555555555555555555555555555"
+							},
+							"report": {
+								"agent": "pi",
+								"state": "working",
+								"authoritySource": "herdr:pi",
+								"message": null,
+								"session": {
+									"source": "herdr:pi",
+									"agent": "pi",
+									"reference": {
+										"kind": "path",
+										"value": "C:\\session.json"
+									}
+								}
+							}
+						}
+					]
+				}
+			}
+		},
+		{
+			"name": "persisted-pi",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-agent.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"outcome": {
+					"kind": "read",
+					"workbenchRevision": "9",
+					"reportRevision": "3",
+					"panels": [
+						{
+							"panelId": "33333333333333333333333333333333",
+							"binding": {
+								"workerId": "44444444444444444444444444444444",
+								"terminalId": "55555555555555555555555555555555"
+							},
+							"report": {
+								"agent": null,
+								"state": "unknown",
+								"authoritySource": null,
+								"message": null,
+								"session": {
+									"source": "herdr:pi",
+									"agent": "pi",
+									"reference": {
+										"kind": "id",
+										"value": "provider-session"
+									}
+								}
+							}
+						}
+					]
+				}
+			}
+		},
+		{
+			"name": "persisted-omp",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-agent.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"outcome": {
+					"kind": "read",
+					"workbenchRevision": "9",
+					"reportRevision": "3",
+					"panels": [
+						{
+							"panelId": "33333333333333333333333333333333",
+							"binding": {
+								"workerId": "44444444444444444444444444444444",
+								"terminalId": "55555555555555555555555555555555"
+							},
+							"report": {
+								"agent": null,
+								"state": "unknown",
+								"authoritySource": null,
+								"message": null,
+								"session": {
+									"source": "herdr:omp",
+									"agent": "omp",
+									"reference": {
+										"kind": "id",
+										"value": "provider-session"
+									}
+								}
+							}
+						}
+					]
+				}
+			}
+		},
+		{
+			"name": "persisted-mastracode",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-agent.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"outcome": {
+					"kind": "read",
+					"workbenchRevision": "9",
+					"reportRevision": "3",
+					"panels": [
+						{
+							"panelId": "33333333333333333333333333333333",
+							"binding": {
+								"workerId": "44444444444444444444444444444444",
+								"terminalId": "55555555555555555555555555555555"
+							},
+							"report": {
+								"agent": null,
+								"state": "unknown",
+								"authoritySource": null,
+								"message": null,
+								"session": {
+									"source": "herdr:mastracode",
+									"agent": "mastracode",
+									"reference": {
+										"kind": "id",
+										"value": "provider-session"
+									}
+								}
+							}
+						}
+					]
+				}
+			}
+		},
+		{
+			"name": "persisted-opencode",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-agent.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"outcome": {
+					"kind": "read",
+					"workbenchRevision": "9",
+					"reportRevision": "3",
+					"panels": [
+						{
+							"panelId": "33333333333333333333333333333333",
+							"binding": {
+								"workerId": "44444444444444444444444444444444",
+								"terminalId": "55555555555555555555555555555555"
+							},
+							"report": {
+								"agent": null,
+								"state": "unknown",
+								"authoritySource": null,
+								"message": null,
+								"session": {
+									"source": "herdr:opencode",
+									"agent": "opencode",
+									"reference": {
+										"kind": "id",
+										"value": "provider-session"
+									}
+								}
+							}
+						}
+					]
+				}
+			}
+		},
+		{
+			"name": "persisted-kilo",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-agent.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"outcome": {
+					"kind": "read",
+					"workbenchRevision": "9",
+					"reportRevision": "3",
+					"panels": [
+						{
+							"panelId": "33333333333333333333333333333333",
+							"binding": {
+								"workerId": "44444444444444444444444444444444",
+								"terminalId": "55555555555555555555555555555555"
+							},
+							"report": {
+								"agent": null,
+								"state": "unknown",
+								"authoritySource": null,
+								"message": null,
+								"session": {
+									"source": "herdr:kilo",
+									"agent": "kilo",
+									"reference": {
+										"kind": "id",
+										"value": "provider-session"
+									}
+								}
+							}
+						}
+					]
+				}
+			}
+		},
+		{
+			"name": "persisted-kimi",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-agent.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"outcome": {
+					"kind": "read",
+					"workbenchRevision": "9",
+					"reportRevision": "3",
+					"panels": [
+						{
+							"panelId": "33333333333333333333333333333333",
+							"binding": {
+								"workerId": "44444444444444444444444444444444",
+								"terminalId": "55555555555555555555555555555555"
+							},
+							"report": {
+								"agent": null,
+								"state": "unknown",
+								"authoritySource": null,
+								"message": null,
+								"session": {
+									"source": "herdr:kimi",
+									"agent": "kimi",
+									"reference": {
+										"kind": "id",
+										"value": "provider-session"
+									}
+								}
+							}
+						}
+					]
+				}
+			}
+		},
+		{
+			"name": "persisted-claude",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-agent.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"outcome": {
+					"kind": "read",
+					"workbenchRevision": "9",
+					"reportRevision": "3",
+					"panels": [
+						{
+							"panelId": "33333333333333333333333333333333",
+							"binding": {
+								"workerId": "44444444444444444444444444444444",
+								"terminalId": "55555555555555555555555555555555"
+							},
+							"report": {
+								"agent": null,
+								"state": "unknown",
+								"authoritySource": null,
+								"message": null,
+								"session": {
+									"source": "herdr:claude",
+									"agent": "claude",
+									"reference": {
+										"kind": "id",
+										"value": "provider-session"
+									}
+								}
+							}
+						}
+					]
+				}
+			}
+		},
+		{
+			"name": "persisted-codex",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-agent.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"outcome": {
+					"kind": "read",
+					"workbenchRevision": "9",
+					"reportRevision": "3",
+					"panels": [
+						{
+							"panelId": "33333333333333333333333333333333",
+							"binding": {
+								"workerId": "44444444444444444444444444444444",
+								"terminalId": "55555555555555555555555555555555"
+							},
+							"report": {
+								"agent": null,
+								"state": "unknown",
+								"authoritySource": null,
+								"message": null,
+								"session": {
+									"source": "herdr:codex",
+									"agent": "codex",
+									"reference": {
+										"kind": "id",
+										"value": "provider-session"
+									}
+								}
+							}
+						}
+					]
+				}
+			}
+		},
+		{
+			"name": "persisted-copilot",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-agent.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"outcome": {
+					"kind": "read",
+					"workbenchRevision": "9",
+					"reportRevision": "3",
+					"panels": [
+						{
+							"panelId": "33333333333333333333333333333333",
+							"binding": {
+								"workerId": "44444444444444444444444444444444",
+								"terminalId": "55555555555555555555555555555555"
+							},
+							"report": {
+								"agent": null,
+								"state": "unknown",
+								"authoritySource": null,
+								"message": null,
+								"session": {
+									"source": "herdr:copilot",
+									"agent": "copilot",
+									"reference": {
+										"kind": "id",
+										"value": "provider-session"
+									}
+								}
+							}
+						}
+					]
+				}
+			}
+		},
+		{
+			"name": "persisted-devin",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-agent.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"outcome": {
+					"kind": "read",
+					"workbenchRevision": "9",
+					"reportRevision": "3",
+					"panels": [
+						{
+							"panelId": "33333333333333333333333333333333",
+							"binding": {
+								"workerId": "44444444444444444444444444444444",
+								"terminalId": "55555555555555555555555555555555"
+							},
+							"report": {
+								"agent": null,
+								"state": "unknown",
+								"authoritySource": null,
+								"message": null,
+								"session": {
+									"source": "herdr:devin",
+									"agent": "devin",
+									"reference": {
+										"kind": "id",
+										"value": "provider-session"
+									}
+								}
+							}
+						}
+					]
+				}
+			}
+		},
+		{
+			"name": "persisted-droid",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-agent.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"outcome": {
+					"kind": "read",
+					"workbenchRevision": "9",
+					"reportRevision": "3",
+					"panels": [
+						{
+							"panelId": "33333333333333333333333333333333",
+							"binding": {
+								"workerId": "44444444444444444444444444444444",
+								"terminalId": "55555555555555555555555555555555"
+							},
+							"report": {
+								"agent": null,
+								"state": "unknown",
+								"authoritySource": null,
+								"message": null,
+								"session": {
+									"source": "herdr:droid",
+									"agent": "droid",
+									"reference": {
+										"kind": "id",
+										"value": "provider-session"
+									}
+								}
+							}
+						}
+					]
+				}
+			}
+		},
+		{
+			"name": "persisted-qodercli",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-agent.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"outcome": {
+					"kind": "read",
+					"workbenchRevision": "9",
+					"reportRevision": "3",
+					"panels": [
+						{
+							"panelId": "33333333333333333333333333333333",
+							"binding": {
+								"workerId": "44444444444444444444444444444444",
+								"terminalId": "55555555555555555555555555555555"
+							},
+							"report": {
+								"agent": null,
+								"state": "unknown",
+								"authoritySource": null,
+								"message": null,
+								"session": {
+									"source": "herdr:qodercli",
+									"agent": "qodercli",
+									"reference": {
+										"kind": "id",
+										"value": "provider-session"
+									}
+								}
+							}
+						}
+					]
+				}
+			}
+		},
+		{
+			"name": "persisted-cursor",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-agent.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"outcome": {
+					"kind": "read",
+					"workbenchRevision": "9",
+					"reportRevision": "3",
+					"panels": [
+						{
+							"panelId": "33333333333333333333333333333333",
+							"binding": {
+								"workerId": "44444444444444444444444444444444",
+								"terminalId": "55555555555555555555555555555555"
+							},
+							"report": {
+								"agent": null,
+								"state": "unknown",
+								"authoritySource": null,
+								"message": null,
+								"session": {
+									"source": "herdr:cursor",
+									"agent": "cursor",
+									"reference": {
+										"kind": "id",
+										"value": "provider-session"
+									}
+								}
+							}
+						}
+					]
+				}
+			}
+		},
+		{
+			"name": "persisted-grok",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-agent.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"outcome": {
+					"kind": "read",
+					"workbenchRevision": "9",
+					"reportRevision": "3",
+					"panels": [
+						{
+							"panelId": "33333333333333333333333333333333",
+							"binding": {
+								"workerId": "44444444444444444444444444444444",
+								"terminalId": "55555555555555555555555555555555"
+							},
+							"report": {
+								"agent": null,
+								"state": "unknown",
+								"authoritySource": null,
+								"message": null,
+								"session": {
+									"source": "herdr:grok",
+									"agent": "grok",
+									"reference": {
+										"kind": "id",
+										"value": "provider-session"
+									}
+								}
+							}
+						}
+					]
+				}
+			}
+		},
+		{
+			"name": "persisted-hermes",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-agent.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"outcome": {
+					"kind": "read",
+					"workbenchRevision": "9",
+					"reportRevision": "3",
+					"panels": [
+						{
+							"panelId": "33333333333333333333333333333333",
+							"binding": {
+								"workerId": "44444444444444444444444444444444",
+								"terminalId": "55555555555555555555555555555555"
+							},
+							"report": {
+								"agent": null,
+								"state": "unknown",
+								"authoritySource": null,
+								"message": null,
+								"session": {
+									"source": "herdr:hermes",
+									"agent": "hermes",
+									"reference": {
+										"kind": "id",
+										"value": "provider-session"
+									}
+								}
+							}
+						}
+					]
+				}
+			}
+		},
+		{
+			"name": "persisted-qwen",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-agent.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"outcome": {
+					"kind": "read",
+					"workbenchRevision": "9",
+					"reportRevision": "3",
+					"panels": [
+						{
+							"panelId": "33333333333333333333333333333333",
+							"binding": {
+								"workerId": "44444444444444444444444444444444",
+								"terminalId": "55555555555555555555555555555555"
+							},
+							"report": {
+								"agent": null,
+								"state": "unknown",
+								"authoritySource": null,
+								"message": null,
+								"session": {
+									"source": "herdr:qwen",
+									"agent": "qwen",
+									"reference": {
+										"kind": "id",
+										"value": "provider-session"
+									}
+								}
+							}
+						}
+					]
+				}
+			}
+		},
+		{
+			"name": "persisted-letta",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-agent.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"outcome": {
+					"kind": "read",
+					"workbenchRevision": "9",
+					"reportRevision": "3",
+					"panels": [
+						{
+							"panelId": "33333333333333333333333333333333",
+							"binding": {
+								"workerId": "44444444444444444444444444444444",
+								"terminalId": "55555555555555555555555555555555"
+							},
+							"report": {
+								"agent": null,
+								"state": "unknown",
+								"authoritySource": null,
+								"message": null,
+								"session": {
+									"source": "herdr:letta",
+									"agent": "letta",
+									"reference": {
+										"kind": "id",
+										"value": "provider-session"
+									}
+								}
+							}
+						}
+					]
+				}
+			}
+		},
+		{
+			"name": "persisted-agy",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-agent.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"outcome": {
+					"kind": "read",
+					"workbenchRevision": "9",
+					"reportRevision": "3",
+					"panels": [
+						{
+							"panelId": "33333333333333333333333333333333",
+							"binding": {
+								"workerId": "44444444444444444444444444444444",
+								"terminalId": "55555555555555555555555555555555"
+							},
+							"report": {
+								"agent": null,
+								"state": "unknown",
+								"authoritySource": null,
+								"message": null,
+								"session": {
+									"source": "herdr:antigravity_cli",
+									"agent": "agy",
+									"reference": {
+										"kind": "id",
+										"value": "provider-session"
+									}
+								}
+							}
+						}
+					]
+				}
+			}
+		}
+	],
+	"invalid": [
+		{
+			"name": "done-is-not-report-state",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.panel-agent",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"action": {
+					"kind": "report",
+					"panelId": "33333333333333333333333333333333",
+					"expectedBinding": {
+						"workerId": "44444444444444444444444444444444",
+						"terminalId": "55555555555555555555555555555555"
+					},
+					"report": {
+						"kind": "state",
+						"source": "",
+						"agent": " 团队 Agent ",
+						"state": "done",
+						"sequence": "18446744073709551615",
+						"message": "ready\t😀"
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "empty-agent",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.panel-agent",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"action": {
+					"kind": "report",
+					"panelId": "33333333333333333333333333333333",
+					"expectedBinding": {
+						"workerId": "44444444444444444444444444444444",
+						"terminalId": "55555555555555555555555555555555"
+					},
+					"report": {
+						"kind": "state",
+						"source": "",
+						"agent": "",
+						"state": "working",
+						"sequence": "18446744073709551615",
+						"message": "ready\t😀"
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "numeric-sequence",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.panel-agent",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"action": {
+					"kind": "report",
+					"panelId": "33333333333333333333333333333333",
+					"expectedBinding": {
+						"workerId": "44444444444444444444444444444444",
+						"terminalId": "55555555555555555555555555555555"
+					},
+					"report": {
+						"kind": "state",
+						"source": "",
+						"agent": " 团队 Agent ",
+						"state": "working",
+						"sequence": 1,
+						"message": "ready\t😀"
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "overflow-sequence",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.panel-agent",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"action": {
+					"kind": "report",
+					"panelId": "33333333333333333333333333333333",
+					"expectedBinding": {
+						"workerId": "44444444444444444444444444444444",
+						"terminalId": "55555555555555555555555555555555"
+					},
+					"report": {
+						"kind": "state",
+						"source": "",
+						"agent": " 团队 Agent ",
+						"state": "working",
+						"sequence": "18446744073709551616",
+						"message": "ready\t😀"
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "unknown-report-field",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.panel-agent",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"action": {
+					"kind": "report",
+					"panelId": "33333333333333333333333333333333",
+					"expectedBinding": {
+						"workerId": "44444444444444444444444444444444",
+						"terminalId": "55555555555555555555555555555555"
+					},
+					"report": {
+						"kind": "state",
+						"source": "",
+						"agent": " 团队 Agent ",
+						"state": "working",
+						"sequence": "18446744073709551615",
+						"message": "ready\t😀",
+						"pid": 123
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "duplicate-read",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.panel-agent",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"action": {
+					"kind": "read",
+					"panelIds": ["33333333333333333333333333333333", "33333333333333333333333333333333"]
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "missing-nullable",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-agent.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"outcome": {
+					"kind": "read",
+					"workbenchRevision": "9",
+					"reportRevision": "3",
+					"panels": [
+						{
+							"panelId": "33333333333333333333333333333333",
+							"binding": {
+								"workerId": "44444444444444444444444444444444",
+								"terminalId": "55555555555555555555555555555555"
+							},
+							"report": {
+								"agent": "pi",
+								"state": "working",
+								"authoritySource": "herdr:pi",
+								"session": {
+									"source": "herdr:pi",
+									"agent": "pi",
+									"reference": {
+										"kind": "path",
+										"value": "C:\\session.json"
+									}
+								}
+							}
+						}
+					]
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "message-without-authority",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-agent.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"outcome": {
+					"kind": "read",
+					"workbenchRevision": "9",
+					"reportRevision": "3",
+					"panels": [
+						{
+							"panelId": "33333333333333333333333333333333",
+							"binding": {
+								"workerId": "44444444444444444444444444444444",
+								"terminalId": "55555555555555555555555555555555"
+							},
+							"report": {
+								"agent": "pi",
+								"state": "working",
+								"authoritySource": null,
+								"message": "hello",
+								"session": {
+									"source": "herdr:pi",
+									"agent": "pi",
+									"reference": {
+										"kind": "path",
+										"value": "C:\\session.json"
+									}
+								}
+							}
+						}
+					]
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "foreign-reference",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-agent.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"outcome": {
+					"kind": "read",
+					"workbenchRevision": "9",
+					"reportRevision": "3",
+					"panels": [
+						{
+							"panelId": "33333333333333333333333333333333",
+							"binding": {
+								"workerId": "44444444444444444444444444444444",
+								"terminalId": "55555555555555555555555555555555"
+							},
+							"report": {
+								"agent": "pi",
+								"state": "working",
+								"authoritySource": "herdr:pi",
+								"message": null,
+								"session": {
+									"source": "custom",
+									"agent": "pi",
+									"reference": {
+										"kind": "path",
+										"value": "C:\\session.json"
+									}
+								}
+							}
+						}
+					]
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "path-for-native-provider",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-agent.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"outcome": {
+					"kind": "read",
+					"workbenchRevision": "9",
+					"reportRevision": "3",
+					"panels": [
+						{
+							"panelId": "33333333333333333333333333333333",
+							"binding": {
+								"workerId": "44444444444444444444444444444444",
+								"terminalId": "55555555555555555555555555555555"
+							},
+							"report": {
+								"agent": "pi",
+								"state": "working",
+								"authoritySource": "herdr:pi",
+								"message": null,
+								"session": {
+									"source": "herdr:codex",
+									"agent": "codex",
+									"reference": {
+										"kind": "path",
+										"value": "C:\\session.json"
+									}
+								}
+							}
+						}
+					]
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "long-id-bytes",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-agent.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"outcome": {
+					"kind": "read",
+					"workbenchRevision": "9",
+					"reportRevision": "3",
+					"panels": [
+						{
+							"panelId": "33333333333333333333333333333333",
+							"binding": {
+								"workerId": "44444444444444444444444444444444",
+								"terminalId": "55555555555555555555555555555555"
+							},
+							"report": {
+								"agent": "pi",
+								"state": "working",
+								"authoritySource": "herdr:pi",
+								"message": null,
+								"session": {
+									"source": "herdr:pi",
+									"agent": "pi",
+									"reference": {
+										"kind": "id",
+										"value": "😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀"
+									}
+								}
+							}
+						}
+					]
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "empty-reference",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-agent.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"outcome": {
+					"kind": "read",
+					"workbenchRevision": "9",
+					"reportRevision": "3",
+					"panels": [
+						{
+							"panelId": "33333333333333333333333333333333",
+							"binding": {
+								"workerId": "44444444444444444444444444444444",
+								"terminalId": "55555555555555555555555555555555"
+							},
+							"report": {
+								"agent": "pi",
+								"state": "working",
+								"authoritySource": "herdr:pi",
+								"message": null,
+								"session": {
+									"source": "herdr:pi",
+									"agent": "pi",
+									"reference": {
+										"kind": "id",
+										"value": ""
+									}
+								}
+							}
+						}
+					]
+				}
+			},
+			"boundary": "schema"
+		}
+	]
+}

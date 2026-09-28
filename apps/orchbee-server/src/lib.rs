@@ -18,6 +18,7 @@ pub use workbench_authority::{
     PreparedWorkbenchTabCloseResume, PreparedWorkbenchTabCreate, PreparedWorkbenchTabMove,
     PreparedWorkbenchTabSettlement, PreparedWorktreeRebind, StagedWorkbenchPanelSplitMetadata,
     StagedWorkbenchTabCreateMetadata, StandaloneIntentError, StandaloneIntentMetadata,
+    TerminalAgentBinding, TerminalAgentProcessObservation, TerminalAgentProcessOutcome,
     WorkbenchAuthority, WorkbenchBindingExposure, WorkbenchCheckpoint, WorkbenchCheckpointError,
     WorkbenchGrant, WorkbenchPanelPlacementAdmission, WorkbenchPanelPlacementBegin,
     WorkbenchPanelPlacementPreparation, WorkbenchPanelRelocateAdmission,

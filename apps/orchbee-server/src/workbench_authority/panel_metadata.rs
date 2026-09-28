@@ -1,25 +1,26 @@
 //! Transient logical-terminal metadata, committed atomically under the Site owner gate.
-use super::WorkbenchAuthority;
+use super::{
+    WorkbenchAuthority,
+    report_membership::{BindingKey, ReportMembership, key},
+};
+use orchbee_agent_observation_protocol::{
+    AgentReportProvider as Provider, AgentReportSourcePolicy, agent_report_source_policy,
+};
 use orchbee_workbench_protocol::{
     MAXIMUM_METADATA_TOKEN_KEYS, MAXIMUM_PANEL_METADATA_SOURCES,
     MetadataReportDisposition as Disposition, MetadataSource, MetadataTokenKey, MetadataTokenValue,
     MetadataTokens, PanelMetadataAction as Action, PanelMetadataFailure as Failure,
     PanelMetadataField as Field, PanelMetadataOutcome as Outcome, PanelMetadataPatch as Patch,
     PanelMetadataPresentation as Presentation, PanelMetadataRequest, PanelMetadataResult,
-    PanelMetadataRow, PanelNode, PresentationBinding, ProtocolVersion, TerminalId,
-    WorkbenchPanelId, WorkbenchRevision, WorkerId,
+    PanelMetadataRow, PresentationBinding, ProtocolVersion, WorkbenchPanelId, WorkbenchRevision,
 };
 use std::{
     collections::{BTreeMap, BTreeSet},
     time::{Duration, Instant},
 };
 
-type BindingKey = (WorkerId, TerminalId);
 const MAXIMUM_RESOURCES: usize = 4096;
 const MAXIMUM_BYTES: usize = 16 * 1024 * 1024;
-fn key(binding: &PresentationBinding) -> BindingKey {
-    (binding.worker_id.clone(), binding.terminal_id.clone())
-}
 #[derive(Clone, Debug, Eq, PartialEq)]
 struct Token {
     value: MetadataTokenValue,
@@ -30,6 +31,8 @@ struct Source {
     sequence: Option<WorkbenchRevision>,
     presentation: Option<Presentation>,
     expires: Option<Instant>,
+    reported_at: Option<Instant>,
+    sequence_agent: Option<Provider>,
 }
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 struct Resource {
@@ -70,6 +73,7 @@ impl Resource {
         self.sources.retain(|_, v| {
             if v.expires.is_some_and(|end| end <= now) {
                 v.presentation = None;
+                v.reported_at = None;
                 v.expires = None;
             }
             v.sequence.is_some() || v.presentation.is_some()
@@ -177,6 +181,13 @@ impl PanelMetadata {
         let mut updated = next.sources.get(source).cloned().unwrap_or_default();
         if let Some(seq) = sequence {
             updated.sequence = Some(seq);
+            if let Some(agent) = metadata_agent(
+                source.as_str(),
+                patch.agent.as_ref().map(|v| v.as_str()),
+                patch.applies_to_source.as_ref().map(|v| v.as_str()),
+            ) {
+                updated.sequence_agent = Some(agent);
+            }
         }
         if patch.sets_presentation() || patch.clears_presentation() {
             let field = |v: &MetadataTokenValue| Field {
@@ -220,6 +231,9 @@ impl PanelMetadata {
             for (state, value) in &patch.state_labels {
                 presentation.state_labels.insert(*state, field(value));
             }
+            if updated.reported_at.is_none() || patch.sets_presentation() || ttl.is_some() {
+                updated.reported_at = Some(now);
+            }
             if patch.sets_presentation() || ttl.is_some() {
                 updated.expires = expires;
             }
@@ -229,6 +243,7 @@ impl PanelMetadata {
             .then_some(presentation);
             if updated.presentation.is_none() {
                 updated.expires = None;
+                updated.reported_at = None;
             }
         }
         if updated.sequence.is_some() || updated.presentation.is_some() {
@@ -276,32 +291,6 @@ impl PanelMetadata {
         }
     }
 }
-fn membership(
-    node: &PanelNode,
-    panels: &mut BTreeMap<WorkbenchPanelId, Option<PresentationBinding>>,
-    live: &mut BTreeSet<BindingKey>,
-) {
-    match node {
-        PanelNode::Panel {
-            panel_id,
-            primary_presentation,
-            child_presentations,
-            ..
-        } => {
-            panels.insert(panel_id.clone(), primary_presentation.binding.clone());
-            for p in std::iter::once(primary_presentation).chain(child_presentations) {
-                if let Some(binding) = &p.binding {
-                    live.insert(key(binding));
-                }
-            }
-        }
-        PanelNode::Split { children, .. } => {
-            for child in children.iter() {
-                membership(&child.node, panels, live);
-            }
-        }
-    }
-}
 impl WorkbenchAuthority {
     /// The caller holds the Site gate; no I/O, canonical topology mutation or persistence occurs.
     pub fn panel_metadata(
@@ -331,13 +320,7 @@ impl WorkbenchAuthority {
         if request.site_id != *self.site_id() {
             return Err(Failure::SiteMismatch);
         }
-        let mut panels = BTreeMap::new();
-        let mut live = BTreeSet::new();
-        for context in &self.snapshot().terminal_contexts {
-            for tab in &context.tabs {
-                membership(&tab.root, &mut panels, &mut live);
-            }
-        }
+        let ReportMembership { panels, live } = ReportMembership::read(self.snapshot());
         self.panel_metadata.maintain(&live, now)?;
         let workbench_revision = self.snapshot().revision;
         match &request.action {
@@ -370,6 +353,18 @@ impl WorkbenchAuthority {
                 if binding != expected_binding {
                     return Err(Failure::BindingChanged);
                 }
+                if self
+                    .panel_agent
+                    .blocks_metadata(binding, source.as_str(), patch)
+                {
+                    return Ok(Outcome::Reported {
+                        workbench_revision,
+                        metadata_revision: WorkbenchRevision::new(self.panel_metadata.revision),
+                        panel_id: panel_id.clone(),
+                        binding: binding.clone(),
+                        disposition: Disposition::Stale,
+                    });
+                }
                 let disposition = self.panel_metadata.report(
                     &key(binding),
                     source,
@@ -391,3 +386,88 @@ impl WorkbenchAuthority {
 }
 #[cfg(test)]
 mod tests;
+
+fn official(source: &str, agent: Provider) -> bool {
+    agent_report_source_policy(source, agent.report_label()) != AgentReportSourcePolicy::Custom
+}
+fn metadata_agent(source: &str, agent: Option<&str>, applies: Option<&str>) -> Option<Provider> {
+    agent.and_then(Provider::lookup).or_else(|| {
+        Provider::ALL.into_iter().find(|agent| {
+            official(source, *agent) || applies.is_some_and(|source| official(source, *agent))
+        })
+    })
+}
+pub(super) struct PreparedMetadataExit {
+    key: BindingKey,
+    next: Resource,
+    bytes: usize,
+    revision: u64,
+}
+impl PanelMetadata {
+    pub(super) fn revision(&self) -> WorkbenchRevision {
+        WorkbenchRevision::new(self.revision)
+    }
+    pub(super) fn prepare_exit(
+        &self,
+        binding: &PresentationBinding,
+        agent: Provider,
+        observed_at: Instant,
+    ) -> Result<Option<PreparedMetadataExit>, Failure> {
+        let key = key(binding);
+        let Some(prior) = self.resources.get(&key) else {
+            return Ok(None);
+        };
+        let mut next = prior.clone();
+        next.sources.retain(|source, record| {
+            let clear = record.presentation.as_ref().is_some_and(|p| {
+                let official = official(source.as_str(), agent)
+                    || p.applies_to_source
+                        .as_ref()
+                        .is_some_and(|s| official(s.as_str(), agent));
+                let matches = official
+                    || p.agent
+                        .as_ref()
+                        .is_some_and(|a| a.as_str() == agent.report_label());
+                matches && (official || record.reported_at.is_some_and(|at| at <= observed_at))
+            });
+            if clear {
+                record.presentation = None;
+                record.expires = None;
+                record.reported_at = None;
+                record.sequence = None;
+                record.sequence_agent = None;
+            } else if record.sequence_agent == Some(agent) {
+                record.sequence = None;
+                record.sequence_agent = None;
+            }
+            record.sequence.is_some() || record.presentation.is_some()
+        });
+        if next == *prior {
+            return Ok(None);
+        }
+        let revision = self
+            .revision
+            .checked_add(1)
+            .ok_or(Failure::RevisionExhausted)?;
+        let bytes = self
+            .bytes
+            .checked_sub(prior.bytes())
+            .and_then(|n| n.checked_add(if next.empty() { 0 } else { next.bytes() }))
+            .ok_or(Failure::ResourceLimit)?;
+        Ok(Some(PreparedMetadataExit {
+            key,
+            next,
+            bytes,
+            revision,
+        }))
+    }
+    pub(super) fn commit_exit(&mut self, prepared: PreparedMetadataExit) {
+        if prepared.next.empty() {
+            self.resources.remove(&prepared.key);
+        } else {
+            self.resources.insert(prepared.key, prepared.next);
+        }
+        self.bytes = prepared.bytes;
+        self.revision = prepared.revision;
+    }
+}

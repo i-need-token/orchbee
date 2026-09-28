@@ -1,7 +1,7 @@
 use super::*;
 use orchbee_workbench_protocol::{
-    MetadataState, MetadataTokenPatch, SiteId, WorkbenchProtocolDocument, WorkbenchRequestId,
-    parse_snapshot, serialize_document,
+    MetadataState, MetadataTokenPatch, SiteId, TerminalId, WorkbenchProtocolDocument,
+    WorkbenchRequestId, WorkerId, parse_snapshot, serialize_document,
 };
 use serde_json::{Value, json};
 fn binding(n: u128) -> PresentationBinding {
@@ -537,4 +537,79 @@ fn authority_resolves_primary_fences_swaps_and_keeps_metadata_while_child_remain
             reason: Failure::NotFound
         }
     ));
+}
+
+#[test]
+fn metadata_revision_failure_prevents_the_companion_agent_exit_commit() {
+    use crate::{TerminalAgentBinding, TerminalAgentProcessObservation};
+    use orchbee_agent_observation_protocol::AgentReportProvider;
+    use orchbee_capability_node_protocol::{
+        HostCreationId, HostEpoch, HostTerminalId, HostTerminalIdentity, WorkerGeneration,
+    };
+    use orchbee_workbench_protocol::{PanelAgentAction, PanelAgentRequest, PanelAgentState};
+    let mut authority =
+        WorkbenchAuthority::new(SiteId::parse(&format!("{:032x}", 80)).unwrap()).unwrap();
+    install(&mut authority, &tree());
+    invoke(
+        &mut authority,
+        Action::Report {
+            panel_id: panel(3),
+            expected_binding: binding(1),
+            source: MetadataSource::parse("herdr:codex").unwrap(),
+            patch: Box::new(title("keep")),
+            sequence: Some(WorkbenchRevision::new(1)),
+            ttl_milliseconds: None,
+        },
+    );
+    let before = authority.panel_metadata.resources.clone();
+    authority.panel_metadata.revision = u64::MAX;
+    let fact = TerminalAgentBinding {
+        binding: binding(1),
+        worker_generation: WorkerGeneration::new(std::num::NonZeroU64::MIN),
+        identity: HostTerminalIdentity::new(
+            HostCreationId::from_bytes([1; 16]).unwrap(),
+            HostEpoch::from_bytes([2; 16]).unwrap(),
+            HostTerminalId::from_bytes([3; 16]).unwrap(),
+        ),
+    };
+    let now = Instant::now();
+    assert_eq!(
+        authority.observe_terminal_agent(
+            &fact,
+            std::slice::from_ref(&fact),
+            TerminalAgentProcessObservation {
+                observed_at: now,
+                agent: Some(AgentReportProvider::Codex),
+                state: PanelAgentState::Unknown,
+                visible_blocker: false,
+                exited: true
+            },
+            now
+        ),
+        Err(orchbee_workbench_protocol::PanelAgentFailure::RevisionExhausted)
+    );
+    assert_eq!(authority.panel_metadata.resources, before);
+    let result = authority.panel_agent(
+        PanelAgentRequest {
+            protocol_version: ProtocolVersion,
+            request_id: WorkbenchRequestId::parse(&"a".repeat(32)).unwrap(),
+            site_id: authority.site_id().clone(),
+            action: PanelAgentAction::Read {
+                panel_ids: vec![panel(3)],
+            },
+        },
+        &[fact],
+        now,
+        |p| std::path::Path::new(p).is_absolute(),
+    );
+    let orchbee_workbench_protocol::PanelAgentOutcome::Read {
+        report_revision,
+        panels,
+        ..
+    } = result.outcome
+    else {
+        panic!("read")
+    };
+    assert_eq!(report_revision, WorkbenchRevision::new(0));
+    assert_eq!(panels[0].report, Some(Default::default()));
 }

@@ -126,3 +126,10 @@ pub use command::{
     PanelMetadataFailure, PanelMetadataField, PanelMetadataOutcome, PanelMetadataPatch,
     PanelMetadataPresentation, PanelMetadataRequest, PanelMetadataResult, PanelMetadataRow,
 };
+
+pub use command::{
+    MAXIMUM_ENCODED_PANEL_AGENT_RESULT_BYTES, MAXIMUM_PANEL_AGENT_READ_ROWS, PanelAgentAction,
+    PanelAgentDisposition, PanelAgentFailure, PanelAgentOutcome, PanelAgentReference,
+    PanelAgentReport, PanelAgentRequest, PanelAgentResult, PanelAgentRow, PanelAgentSession,
+    PanelAgentState, PanelAgentView,
+};

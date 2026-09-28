@@ -17,15 +17,7 @@ use orchbee_agent_observation_protocol::{
 use serde::Serialize;
 use std::collections::BTreeMap;
 
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize)]
-#[serde(rename_all = "lowercase")]
-pub(super) enum Status {
-    Idle,
-    Working,
-    Blocked,
-    #[default]
-    Unknown,
-}
+use orchbee_workbench_protocol::{PanelAgentDisposition as Disposition, PanelAgentState as Status};
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 pub(super) struct Author {
@@ -131,12 +123,6 @@ pub(super) enum Event {
         sequence: Option<Sequence>,
     },
     Process(Process),
-}
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(super) enum Disposition {
-    Applied,
-    Ignored,
-    Deferred,
 }
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 pub(super) struct Effective {
@@ -373,5 +359,65 @@ impl Reports {
                 at,
             );
         }
+    }
+}
+
+impl Reports {
+    pub(super) fn view(&self) -> orchbee_workbench_protocol::PanelAgentView {
+        use orchbee_workbench_protocol::{PanelAgentReference, PanelAgentSession, PanelAgentView};
+        let effective = self.effective();
+        PanelAgentView {
+            agent: effective.agent,
+            state: effective.status,
+            authority_source: effective.authority_source,
+            message: effective.message,
+            session: effective.session.map(|s| PanelAgentSession {
+                source: s.author.source,
+                agent: s.author.agent,
+                reference: PanelAgentReference {
+                    kind: s.reference.kind(),
+                    value: s.reference.value().to_owned(),
+                },
+            }),
+        }
+    }
+    pub(super) fn admitted_bytes(
+        &self,
+    ) -> Result<usize, orchbee_workbench_protocol::PanelAgentFailure> {
+        use orchbee_workbench_protocol::PanelAgentFailure as Failure;
+        let mut sources: std::collections::BTreeSet<&str> = self
+            .sequences
+            .keys()
+            .chain(self.suppressed.keys())
+            .chain(self.stale.keys())
+            .map(String::as_str)
+            .collect();
+        if let Some(a) = &self.authority {
+            sources.insert(&a.author.source);
+        }
+        if let Some(s) = &self.persisted {
+            sources.insert(&s.author.source);
+        }
+        if sources.len() > 128 {
+            return Err(Failure::SourceLimit);
+        }
+        if self.stale.values().map(Vec::len).sum::<usize>() > 256 {
+            return Err(Failure::HistoryLimit);
+        }
+        let bytes = serde_json::to_vec(self)
+            .map_err(|_| Failure::ResourceLimit)?
+            .len();
+        if bytes > 512 * 1024 {
+            return Err(Failure::ResourceLimit);
+        }
+        Ok(bytes)
+    }
+}
+
+impl Reports {
+    pub(super) fn recent_exit_agent(&self) -> Option<Provider> {
+        self.recent_exit
+            .as_ref()
+            .and_then(|(agent, _)| Provider::lookup(agent))
     }
 }

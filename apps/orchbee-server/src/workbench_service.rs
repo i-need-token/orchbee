@@ -62,6 +62,10 @@ impl WorkbenchService {
 
     pub(crate) fn execute(&self, request: WorkbenchRequest) -> WorkbenchExecution {
         let permitted = match &request {
+            WorkbenchRequest::PanelAgent(request) => match request.action {
+                orchbee_workbench_protocol::PanelAgentAction::Read { .. } => self.policy.read,
+                orchbee_workbench_protocol::PanelAgentAction::Report { .. } => self.policy.manage_navigation,
+            },
             WorkbenchRequest::WorkspaceMetadata(request) => match request.action {
                 orchbee_workbench_protocol::WorkspaceMetadataAction::Read { .. } => self.policy.read,
                 orchbee_workbench_protocol::WorkspaceMetadataAction::Report { .. } => self.policy.manage_navigation,
@@ -144,6 +148,12 @@ impl WorkbenchService {
             return WorkbenchExecution::Response(unavailable_or_denied(request, true));
         }
         match &request {
+            WorkbenchRequest::PanelAgent(request) => {
+                return WorkbenchExecution::Response(WorkbenchResponse::PanelAgent(
+                    self.terminals.execute_panel_agent(request.clone()),
+                ));
+            }
+
             WorkbenchRequest::WorkspaceMetadata(request) => {
                 return WorkbenchExecution::Response(WorkbenchResponse::WorkspaceMetadata(
                     self.terminals.execute_workspace_metadata(request.clone()),
@@ -349,6 +359,20 @@ impl WorkbenchService {
 
 fn unavailable_or_denied(request: WorkbenchRequest, denied: bool) -> WorkbenchResponse {
     match request {
+        WorkbenchRequest::PanelAgent(request) => {
+            WorkbenchResponse::PanelAgent(orchbee_workbench_protocol::PanelAgentResult {
+                protocol_version: ProtocolVersion,
+                request_id: request.request_id,
+                site_id: request.site_id,
+                outcome: orchbee_workbench_protocol::PanelAgentOutcome::Failed {
+                    reason: if denied {
+                        orchbee_workbench_protocol::PanelAgentFailure::Denied
+                    } else {
+                        orchbee_workbench_protocol::PanelAgentFailure::Unavailable
+                    },
+                },
+            })
+        }
         WorkbenchRequest::WorkspaceMetadata(request) => WorkbenchResponse::WorkspaceMetadata(
             orchbee_workbench_protocol::WorkspaceMetadataResult {
                 protocol_version: ProtocolVersion,
