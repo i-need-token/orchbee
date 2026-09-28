@@ -10,6 +10,7 @@ mod windows_user_settings;
 #[cfg(windows)]
 pub use windows_user_settings::{
     WindowsDirectoryPolicy, WindowsSettingsError, WindowsUserSettings, read_windows_user_settings,
+    windows_user_settings_path,
 };
 #[cfg(windows)]
 mod windows_directory;

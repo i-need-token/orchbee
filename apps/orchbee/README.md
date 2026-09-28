@@ -75,7 +75,7 @@ the first highest-priority winner, every rule match and bounded region evidence.
 authority returns an explicit screen-skipped result without a Host read. One admission and five-second
 CLI budget cover resolution/read; Server queue/read work has a four-second budget. Binding or report
 context changes refuse without retry. No input, controller acquisition or focus action is performed.
-Override/reload/update maintenance remains open. See the [screen model](../orchbee-server/docs/agent-screen-model.md).
+Windows startup selects local overrides, eligible cached remote rules, then bundled rules. Physical v3 adds actual path, cached version, shadowing and typed warnings; v2 remains closed for legacy/no-manifest/skipped results. Current-manifest queries, live reload and remote updates remain open. See the [screen model](../orchbee-server/docs/agent-screen-model.md).
 
 Mutation commands against the
 running Site are `project create`/`rename`,

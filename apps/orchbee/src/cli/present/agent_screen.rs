@@ -41,6 +41,27 @@ pub(super) fn render(
                 .map_or("—", |r| r.id.as_str()),
         ),
     )?;
+    if let Some(manifest) = &explanation.manifest {
+        let fields = locale.cli_agent_manifest_fields();
+        field(
+            out,
+            fields[0],
+            &escape(manifest.path.as_deref().unwrap_or("—")),
+        )?;
+        field(
+            out,
+            fields[1],
+            &escape(manifest.cached_remote_version.as_deref().unwrap_or("—")),
+        )?;
+        field(
+            out,
+            fields[2],
+            locale.cli_agent_bool(manifest.local_override_shadowing_remote),
+        )?;
+        for warning in &manifest.warnings {
+            field(out, fields[3], &locale.cli_agent_manifest_warning(warning))?;
+        }
+    }
     if explanation.screen_detection_skipped
         || explanation.skip_state_update
         || explanation.fallback_reason.is_some()

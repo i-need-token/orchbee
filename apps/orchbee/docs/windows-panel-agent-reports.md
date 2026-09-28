@@ -53,7 +53,7 @@ revision/clock/result bounds exit 1. Unknown after submission exits 8. Cleanup f
 the submitted outcome is already unknown. Localized text reports disposition and request identity;
 JSON carries the complete view without changing its strings.
 
-Catalog v89 publishes 90 schemas and the native grammar has 104 command paths. OBWP 35/36 uses
+Catalog v90 publishes 90 schemas and the native grammar has 104 command paths. OBWP 35/36 uses
 the existing 16 KiB request and 512 KiB result limits. Deploy a matched private cohort; older peers
 reject these carrier kinds. State is transient and no persistence migration is involved.
 

@@ -25,6 +25,7 @@ impl TerminalAgentExplainContext {
                 view: self.view.clone(),
                 sample: None,
                 explanation: AgentScreenExplanation {
+                    manifest: None,
                     agent: self
                         .view
                         .agent

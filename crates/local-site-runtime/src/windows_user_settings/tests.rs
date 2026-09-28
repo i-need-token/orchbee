@@ -1,6 +1,30 @@
 use super::*;
 use std::sync::atomic::{AtomicU64, Ordering};
 
+#[test]
+fn companion_asset_location_reuses_precedence_without_opening_settings() {
+    let path = windows_user_settings_path(|key| match key {
+        "ORCHBEE_CONFIG_FILE" => Some(OsString::from(
+            "C:\\missing-orchbee-configuration\\settings.toml",
+        )),
+        "APPDATA" => Some(OsString::from("relative-is-ignored")),
+        _ => None,
+    })
+    .unwrap()
+    .unwrap();
+    assert_eq!(
+        path,
+        PathBuf::from("C:\\missing-orchbee-configuration\\settings.toml")
+    );
+    assert!(windows_user_settings_path(|_| None).unwrap().is_none());
+    assert!(
+        windows_user_settings_path(
+            |key| (key == "ORCHBEE_CONFIG_FILE").then(|| OsString::from("relative.toml"))
+        )
+        .is_err()
+    );
+}
+
 struct Fixture(PathBuf);
 impl Fixture {
     fn new() -> Self {

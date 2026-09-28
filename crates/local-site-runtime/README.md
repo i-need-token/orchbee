@@ -369,3 +369,5 @@ The shared pure `windows_reported_directory` decoder preserves valid terminal-re
 ## Windows user settings
 
 The shared bounded settings reader and pure Windows user-path adapter serve CLI configuration, common Client activation and direct managed Server startup. They own strict file/type/path admission and resolved restore policy; applications own wire projection, activation commit and private child arguments. See [configuration and precedence](../../apps/orchbee/docs/windows-cli-configuration.md). The Windows-only pinned `toml` dependency parses at this file boundary. No mutable cache, writer or Workbench dependency is introduced.
+
+The pure `windows_user_settings_path` resolver exposes the same configuration-file location for companion assets without opening the file or applying settings. It preserves explicit `ORCHBEE_CONFIG_FILE` precedence over `%APPDATA%/Orchbee/config.toml`; absent roots remain absent. The Server uses its parent for detection-rule inputs.

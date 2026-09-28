@@ -2,9 +2,11 @@
 use orchbee_agent_observation_protocol::AgentReportProvider;
 use orchbee_workbench_protocol::{AgentScreenExplanation, PanelAgentState};
 
+mod loading;
 mod manifest;
 mod regions;
 mod stability;
+mod version;
 pub(crate) use stability::Stability;
 #[cfg(test)]
 mod tests;
@@ -49,6 +51,7 @@ fn bounded(input: ScreenInput<'_>) -> Result<(), &'static str> {
 }
 fn fallback_explanation(provider: AgentReportProvider) -> AgentScreenExplanation {
     AgentScreenExplanation {
+        manifest: None,
         agent: provider.report_label().into(),
         state: PanelAgentState::Idle,
         manifest_source: None,

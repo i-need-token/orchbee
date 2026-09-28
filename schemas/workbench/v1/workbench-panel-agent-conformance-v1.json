@@ -1178,6 +1178,323 @@
 					}
 				}
 			}
+		},
+		{
+			"name": "explain-manifest-bundled",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-agent.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"outcome": {
+					"kind": "explained",
+					"workbenchRevision": "1",
+					"reportRevision": "2",
+					"explanation": {
+						"binding": {
+							"presentationId": "33333333333333333333333333333333",
+							"generation": "44444444444444444444444444444444",
+							"hostEpoch": "55555555555555555555555555555555",
+							"hostTerminalId": "66666666666666666666666666666666"
+						},
+						"view": {
+							"agent": "codex",
+							"state": "working",
+							"authoritySource": null,
+							"message": null,
+							"session": null
+						},
+						"explanation": {
+							"agent": "codex",
+							"state": "working",
+							"manifestSource": "bundled",
+							"manifestVersion": "1",
+							"matchedRule": {
+								"id": "busy",
+								"priority": 20,
+								"region": "all",
+								"state": "working"
+							},
+							"visibleIdle": false,
+							"visibleBlocker": false,
+							"visibleWorking": true,
+							"screenDetectionSkipped": false,
+							"screenDetectionSkipReason": null,
+							"skipStateUpdate": false,
+							"skippedUpdateReason": null,
+							"fallbackReason": null,
+							"evaluatedRules": [
+								{
+									"rule": {
+										"id": "busy",
+										"priority": 20,
+										"region": "all",
+										"state": "working"
+									},
+									"matched": true,
+									"evidence": {
+										"contains": ["Thinking"],
+										"regex": [],
+										"lineRegex": [],
+										"allCount": 0,
+										"anyCount": 0,
+										"notCount": 0,
+										"regionBytes": 8,
+										"regionPreview": "Thinking"
+									}
+								},
+								{
+									"rule": {
+										"id": "tie",
+										"priority": 20,
+										"region": "all",
+										"state": "working"
+									},
+									"matched": true,
+									"evidence": {
+										"contains": ["Thinking"],
+										"regex": [],
+										"lineRegex": [],
+										"allCount": 0,
+										"anyCount": 0,
+										"notCount": 0,
+										"regionBytes": 8,
+										"regionPreview": "Thinking"
+									}
+								}
+							],
+							"manifest": {
+								"source": "bundled",
+								"path": null,
+								"cachedRemoteVersion": "9999.1",
+								"localOverrideShadowingRemote": false,
+								"warnings": [
+									{
+										"source": "remote-cache",
+										"kind": "older-than-bundled"
+									}
+								]
+							}
+						},
+						"sample": {
+							"frameSequence": "2",
+							"frameGeneration": "1",
+							"frameRevision": "0",
+							"rootPid": 123,
+							"agentPid": 456
+						}
+					}
+				}
+			}
+		},
+		{
+			"name": "explain-manifest-remote-cache",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-agent.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"outcome": {
+					"kind": "explained",
+					"workbenchRevision": "1",
+					"reportRevision": "2",
+					"explanation": {
+						"binding": {
+							"presentationId": "33333333333333333333333333333333",
+							"generation": "44444444444444444444444444444444",
+							"hostEpoch": "55555555555555555555555555555555",
+							"hostTerminalId": "66666666666666666666666666666666"
+						},
+						"view": {
+							"agent": "codex",
+							"state": "working",
+							"authoritySource": null,
+							"message": null,
+							"session": null
+						},
+						"explanation": {
+							"agent": "codex",
+							"state": "working",
+							"manifestSource": "remote-cache",
+							"manifestVersion": "9999.1",
+							"matchedRule": {
+								"id": "busy",
+								"priority": 20,
+								"region": "all",
+								"state": "working"
+							},
+							"visibleIdle": false,
+							"visibleBlocker": false,
+							"visibleWorking": true,
+							"screenDetectionSkipped": false,
+							"screenDetectionSkipReason": null,
+							"skipStateUpdate": false,
+							"skippedUpdateReason": null,
+							"fallbackReason": null,
+							"evaluatedRules": [
+								{
+									"rule": {
+										"id": "busy",
+										"priority": 20,
+										"region": "all",
+										"state": "working"
+									},
+									"matched": true,
+									"evidence": {
+										"contains": ["Thinking"],
+										"regex": [],
+										"lineRegex": [],
+										"allCount": 0,
+										"anyCount": 0,
+										"notCount": 0,
+										"regionBytes": 8,
+										"regionPreview": "Thinking"
+									}
+								},
+								{
+									"rule": {
+										"id": "tie",
+										"priority": 20,
+										"region": "all",
+										"state": "working"
+									},
+									"matched": true,
+									"evidence": {
+										"contains": ["Thinking"],
+										"regex": [],
+										"lineRegex": [],
+										"allCount": 0,
+										"anyCount": 0,
+										"notCount": 0,
+										"regionBytes": 8,
+										"regionPreview": "Thinking"
+									}
+								}
+							],
+							"manifest": {
+								"source": "remote-cache",
+								"path": "C:\\Orchbee\\agent-detection\\remote\\codex.toml",
+								"cachedRemoteVersion": "9999.1",
+								"localOverrideShadowingRemote": false,
+								"warnings": []
+							}
+						},
+						"sample": {
+							"frameSequence": "2",
+							"frameGeneration": "1",
+							"frameRevision": "0",
+							"rootPid": 123,
+							"agentPid": 456
+						}
+					}
+				}
+			}
+		},
+		{
+			"name": "explain-manifest-local-override",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-agent.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"outcome": {
+					"kind": "explained",
+					"workbenchRevision": "1",
+					"reportRevision": "2",
+					"explanation": {
+						"binding": {
+							"presentationId": "33333333333333333333333333333333",
+							"generation": "44444444444444444444444444444444",
+							"hostEpoch": "55555555555555555555555555555555",
+							"hostTerminalId": "66666666666666666666666666666666"
+						},
+						"view": {
+							"agent": "codex",
+							"state": "working",
+							"authoritySource": null,
+							"message": null,
+							"session": null
+						},
+						"explanation": {
+							"agent": "codex",
+							"state": "working",
+							"manifestSource": "local-override",
+							"manifestVersion": "1",
+							"matchedRule": {
+								"id": "busy",
+								"priority": 20,
+								"region": "all",
+								"state": "working"
+							},
+							"visibleIdle": false,
+							"visibleBlocker": false,
+							"visibleWorking": true,
+							"screenDetectionSkipped": false,
+							"screenDetectionSkipReason": null,
+							"skipStateUpdate": false,
+							"skippedUpdateReason": null,
+							"fallbackReason": null,
+							"evaluatedRules": [
+								{
+									"rule": {
+										"id": "busy",
+										"priority": 20,
+										"region": "all",
+										"state": "working"
+									},
+									"matched": true,
+									"evidence": {
+										"contains": ["Thinking"],
+										"regex": [],
+										"lineRegex": [],
+										"allCount": 0,
+										"anyCount": 0,
+										"notCount": 0,
+										"regionBytes": 8,
+										"regionPreview": "Thinking"
+									}
+								},
+								{
+									"rule": {
+										"id": "tie",
+										"priority": 20,
+										"region": "all",
+										"state": "working"
+									},
+									"matched": true,
+									"evidence": {
+										"contains": ["Thinking"],
+										"regex": [],
+										"lineRegex": [],
+										"allCount": 0,
+										"anyCount": 0,
+										"notCount": 0,
+										"regionBytes": 8,
+										"regionPreview": "Thinking"
+									}
+								}
+							],
+							"manifest": {
+								"source": "local-override",
+								"path": "C:\\规则\\agent-detection\\codex.toml",
+								"cachedRemoteVersion": "9999.1",
+								"localOverrideShadowingRemote": true,
+								"warnings": []
+							}
+						},
+						"sample": {
+							"frameSequence": "2",
+							"frameGeneration": "1",
+							"frameRevision": "0",
+							"rootPid": 123,
+							"agentPid": 456
+						}
+					}
+				}
+			}
 		}
 	],
 	"invalid": [
@@ -3216,6 +3533,1064 @@
 				}
 			},
 			"boundary": "schema"
+		},
+		{
+			"name": "explain-manifest-path-null",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-agent.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"outcome": {
+					"kind": "explained",
+					"workbenchRevision": "1",
+					"reportRevision": "2",
+					"explanation": {
+						"binding": {
+							"presentationId": "33333333333333333333333333333333",
+							"generation": "44444444444444444444444444444444",
+							"hostEpoch": "55555555555555555555555555555555",
+							"hostTerminalId": "66666666666666666666666666666666"
+						},
+						"view": {
+							"agent": "codex",
+							"state": "working",
+							"authoritySource": null,
+							"message": null,
+							"session": null
+						},
+						"explanation": {
+							"agent": "codex",
+							"state": "working",
+							"manifestSource": "local-override",
+							"manifestVersion": "1",
+							"matchedRule": {
+								"id": "busy",
+								"priority": 20,
+								"region": "all",
+								"state": "working"
+							},
+							"visibleIdle": false,
+							"visibleBlocker": false,
+							"visibleWorking": true,
+							"screenDetectionSkipped": false,
+							"screenDetectionSkipReason": null,
+							"skipStateUpdate": false,
+							"skippedUpdateReason": null,
+							"fallbackReason": null,
+							"evaluatedRules": [
+								{
+									"rule": {
+										"id": "busy",
+										"priority": 20,
+										"region": "all",
+										"state": "working"
+									},
+									"matched": true,
+									"evidence": {
+										"contains": ["Thinking"],
+										"regex": [],
+										"lineRegex": [],
+										"allCount": 0,
+										"anyCount": 0,
+										"notCount": 0,
+										"regionBytes": 8,
+										"regionPreview": "Thinking"
+									}
+								},
+								{
+									"rule": {
+										"id": "tie",
+										"priority": 20,
+										"region": "all",
+										"state": "working"
+									},
+									"matched": true,
+									"evidence": {
+										"contains": ["Thinking"],
+										"regex": [],
+										"lineRegex": [],
+										"allCount": 0,
+										"anyCount": 0,
+										"notCount": 0,
+										"regionBytes": 8,
+										"regionPreview": "Thinking"
+									}
+								}
+							],
+							"manifest": {
+								"source": "local-override",
+								"path": null,
+								"cachedRemoteVersion": "9999.1",
+								"localOverrideShadowingRemote": true,
+								"warnings": []
+							}
+						},
+						"sample": {
+							"frameSequence": "2",
+							"frameGeneration": "1",
+							"frameRevision": "0",
+							"rootPid": 123,
+							"agentPid": 456
+						}
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "explain-manifest-bad-version",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-agent.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"outcome": {
+					"kind": "explained",
+					"workbenchRevision": "1",
+					"reportRevision": "2",
+					"explanation": {
+						"binding": {
+							"presentationId": "33333333333333333333333333333333",
+							"generation": "44444444444444444444444444444444",
+							"hostEpoch": "55555555555555555555555555555555",
+							"hostTerminalId": "66666666666666666666666666666666"
+						},
+						"view": {
+							"agent": "codex",
+							"state": "working",
+							"authoritySource": null,
+							"message": null,
+							"session": null
+						},
+						"explanation": {
+							"agent": "codex",
+							"state": "working",
+							"manifestSource": "local-override",
+							"manifestVersion": "1",
+							"matchedRule": {
+								"id": "busy",
+								"priority": 20,
+								"region": "all",
+								"state": "working"
+							},
+							"visibleIdle": false,
+							"visibleBlocker": false,
+							"visibleWorking": true,
+							"screenDetectionSkipped": false,
+							"screenDetectionSkipReason": null,
+							"skipStateUpdate": false,
+							"skippedUpdateReason": null,
+							"fallbackReason": null,
+							"evaluatedRules": [
+								{
+									"rule": {
+										"id": "busy",
+										"priority": 20,
+										"region": "all",
+										"state": "working"
+									},
+									"matched": true,
+									"evidence": {
+										"contains": ["Thinking"],
+										"regex": [],
+										"lineRegex": [],
+										"allCount": 0,
+										"anyCount": 0,
+										"notCount": 0,
+										"regionBytes": 8,
+										"regionPreview": "Thinking"
+									}
+								},
+								{
+									"rule": {
+										"id": "tie",
+										"priority": 20,
+										"region": "all",
+										"state": "working"
+									},
+									"matched": true,
+									"evidence": {
+										"contains": ["Thinking"],
+										"regex": [],
+										"lineRegex": [],
+										"allCount": 0,
+										"anyCount": 0,
+										"notCount": 0,
+										"regionBytes": 8,
+										"regionPreview": "Thinking"
+									}
+								}
+							],
+							"manifest": {
+								"source": "local-override",
+								"path": "C:\\规则\\agent-detection\\codex.toml",
+								"cachedRemoteVersion": "v1",
+								"localOverrideShadowingRemote": true,
+								"warnings": []
+							}
+						},
+						"sample": {
+							"frameSequence": "2",
+							"frameGeneration": "1",
+							"frameRevision": "0",
+							"rootPid": 123,
+							"agentPid": 456
+						}
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "explain-manifest-duplicate-warning",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-agent.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"outcome": {
+					"kind": "explained",
+					"workbenchRevision": "1",
+					"reportRevision": "2",
+					"explanation": {
+						"binding": {
+							"presentationId": "33333333333333333333333333333333",
+							"generation": "44444444444444444444444444444444",
+							"hostEpoch": "55555555555555555555555555555555",
+							"hostTerminalId": "66666666666666666666666666666666"
+						},
+						"view": {
+							"agent": "codex",
+							"state": "working",
+							"authoritySource": null,
+							"message": null,
+							"session": null
+						},
+						"explanation": {
+							"agent": "codex",
+							"state": "working",
+							"manifestSource": "local-override",
+							"manifestVersion": "1",
+							"matchedRule": {
+								"id": "busy",
+								"priority": 20,
+								"region": "all",
+								"state": "working"
+							},
+							"visibleIdle": false,
+							"visibleBlocker": false,
+							"visibleWorking": true,
+							"screenDetectionSkipped": false,
+							"screenDetectionSkipReason": null,
+							"skipStateUpdate": false,
+							"skippedUpdateReason": null,
+							"fallbackReason": null,
+							"evaluatedRules": [
+								{
+									"rule": {
+										"id": "busy",
+										"priority": 20,
+										"region": "all",
+										"state": "working"
+									},
+									"matched": true,
+									"evidence": {
+										"contains": ["Thinking"],
+										"regex": [],
+										"lineRegex": [],
+										"allCount": 0,
+										"anyCount": 0,
+										"notCount": 0,
+										"regionBytes": 8,
+										"regionPreview": "Thinking"
+									}
+								},
+								{
+									"rule": {
+										"id": "tie",
+										"priority": 20,
+										"region": "all",
+										"state": "working"
+									},
+									"matched": true,
+									"evidence": {
+										"contains": ["Thinking"],
+										"regex": [],
+										"lineRegex": [],
+										"allCount": 0,
+										"anyCount": 0,
+										"notCount": 0,
+										"regionBytes": 8,
+										"regionPreview": "Thinking"
+									}
+								}
+							],
+							"manifest": {
+								"source": "local-override",
+								"path": "C:\\规则\\agent-detection\\codex.toml",
+								"cachedRemoteVersion": "9999.1",
+								"localOverrideShadowingRemote": true,
+								"warnings": [
+									{
+										"source": "local-override",
+										"kind": "invalid-manifest"
+									},
+									{
+										"source": "local-override",
+										"kind": "invalid-manifest"
+									}
+								]
+							}
+						},
+						"sample": {
+							"frameSequence": "2",
+							"frameGeneration": "1",
+							"frameRevision": "0",
+							"rootPid": 123,
+							"agentPid": 456
+						}
+					}
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "explain-manifest-bundled-warning",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-agent.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"outcome": {
+					"kind": "explained",
+					"workbenchRevision": "1",
+					"reportRevision": "2",
+					"explanation": {
+						"binding": {
+							"presentationId": "33333333333333333333333333333333",
+							"generation": "44444444444444444444444444444444",
+							"hostEpoch": "55555555555555555555555555555555",
+							"hostTerminalId": "66666666666666666666666666666666"
+						},
+						"view": {
+							"agent": "codex",
+							"state": "working",
+							"authoritySource": null,
+							"message": null,
+							"session": null
+						},
+						"explanation": {
+							"agent": "codex",
+							"state": "working",
+							"manifestSource": "local-override",
+							"manifestVersion": "1",
+							"matchedRule": {
+								"id": "busy",
+								"priority": 20,
+								"region": "all",
+								"state": "working"
+							},
+							"visibleIdle": false,
+							"visibleBlocker": false,
+							"visibleWorking": true,
+							"screenDetectionSkipped": false,
+							"screenDetectionSkipReason": null,
+							"skipStateUpdate": false,
+							"skippedUpdateReason": null,
+							"fallbackReason": null,
+							"evaluatedRules": [
+								{
+									"rule": {
+										"id": "busy",
+										"priority": 20,
+										"region": "all",
+										"state": "working"
+									},
+									"matched": true,
+									"evidence": {
+										"contains": ["Thinking"],
+										"regex": [],
+										"lineRegex": [],
+										"allCount": 0,
+										"anyCount": 0,
+										"notCount": 0,
+										"regionBytes": 8,
+										"regionPreview": "Thinking"
+									}
+								},
+								{
+									"rule": {
+										"id": "tie",
+										"priority": 20,
+										"region": "all",
+										"state": "working"
+									},
+									"matched": true,
+									"evidence": {
+										"contains": ["Thinking"],
+										"regex": [],
+										"lineRegex": [],
+										"allCount": 0,
+										"anyCount": 0,
+										"notCount": 0,
+										"regionBytes": 8,
+										"regionPreview": "Thinking"
+									}
+								}
+							],
+							"manifest": {
+								"source": "local-override",
+								"path": "C:\\规则\\agent-detection\\codex.toml",
+								"cachedRemoteVersion": "9999.1",
+								"localOverrideShadowingRemote": true,
+								"warnings": [
+									{
+										"source": "bundled",
+										"kind": "invalid-manifest"
+									}
+								]
+							}
+						},
+						"sample": {
+							"frameSequence": "2",
+							"frameGeneration": "1",
+							"frameRevision": "0",
+							"rootPid": 123,
+							"agentPid": 456
+						}
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "explain-manifest-overlong-version",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-agent.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"outcome": {
+					"kind": "explained",
+					"workbenchRevision": "1",
+					"reportRevision": "2",
+					"explanation": {
+						"binding": {
+							"presentationId": "33333333333333333333333333333333",
+							"generation": "44444444444444444444444444444444",
+							"hostEpoch": "55555555555555555555555555555555",
+							"hostTerminalId": "66666666666666666666666666666666"
+						},
+						"view": {
+							"agent": "codex",
+							"state": "working",
+							"authoritySource": null,
+							"message": null,
+							"session": null
+						},
+						"explanation": {
+							"agent": "codex",
+							"state": "working",
+							"manifestSource": "local-override",
+							"manifestVersion": "1",
+							"matchedRule": {
+								"id": "busy",
+								"priority": 20,
+								"region": "all",
+								"state": "working"
+							},
+							"visibleIdle": false,
+							"visibleBlocker": false,
+							"visibleWorking": true,
+							"screenDetectionSkipped": false,
+							"screenDetectionSkipReason": null,
+							"skipStateUpdate": false,
+							"skippedUpdateReason": null,
+							"fallbackReason": null,
+							"evaluatedRules": [
+								{
+									"rule": {
+										"id": "busy",
+										"priority": 20,
+										"region": "all",
+										"state": "working"
+									},
+									"matched": true,
+									"evidence": {
+										"contains": ["Thinking"],
+										"regex": [],
+										"lineRegex": [],
+										"allCount": 0,
+										"anyCount": 0,
+										"notCount": 0,
+										"regionBytes": 8,
+										"regionPreview": "Thinking"
+									}
+								},
+								{
+									"rule": {
+										"id": "tie",
+										"priority": 20,
+										"region": "all",
+										"state": "working"
+									},
+									"matched": true,
+									"evidence": {
+										"contains": ["Thinking"],
+										"regex": [],
+										"lineRegex": [],
+										"allCount": 0,
+										"anyCount": 0,
+										"notCount": 0,
+										"regionBytes": 8,
+										"regionPreview": "Thinking"
+									}
+								}
+							],
+							"manifest": {
+								"source": "local-override",
+								"path": "C:\\规则\\agent-detection\\codex.toml",
+								"cachedRemoteVersion": "111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111",
+								"localOverrideShadowingRemote": true,
+								"warnings": []
+							}
+						},
+						"sample": {
+							"frameSequence": "2",
+							"frameGeneration": "1",
+							"frameRevision": "0",
+							"rootPid": 123,
+							"agentPid": 456
+						}
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "explain-manifest-version-overflow",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-agent.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"outcome": {
+					"kind": "explained",
+					"workbenchRevision": "1",
+					"reportRevision": "2",
+					"explanation": {
+						"binding": {
+							"presentationId": "33333333333333333333333333333333",
+							"generation": "44444444444444444444444444444444",
+							"hostEpoch": "55555555555555555555555555555555",
+							"hostTerminalId": "66666666666666666666666666666666"
+						},
+						"view": {
+							"agent": "codex",
+							"state": "working",
+							"authoritySource": null,
+							"message": null,
+							"session": null
+						},
+						"explanation": {
+							"agent": "codex",
+							"state": "working",
+							"manifestSource": "local-override",
+							"manifestVersion": "1",
+							"matchedRule": {
+								"id": "busy",
+								"priority": 20,
+								"region": "all",
+								"state": "working"
+							},
+							"visibleIdle": false,
+							"visibleBlocker": false,
+							"visibleWorking": true,
+							"screenDetectionSkipped": false,
+							"screenDetectionSkipReason": null,
+							"skipStateUpdate": false,
+							"skippedUpdateReason": null,
+							"fallbackReason": null,
+							"evaluatedRules": [
+								{
+									"rule": {
+										"id": "busy",
+										"priority": 20,
+										"region": "all",
+										"state": "working"
+									},
+									"matched": true,
+									"evidence": {
+										"contains": ["Thinking"],
+										"regex": [],
+										"lineRegex": [],
+										"allCount": 0,
+										"anyCount": 0,
+										"notCount": 0,
+										"regionBytes": 8,
+										"regionPreview": "Thinking"
+									}
+								},
+								{
+									"rule": {
+										"id": "tie",
+										"priority": 20,
+										"region": "all",
+										"state": "working"
+									},
+									"matched": true,
+									"evidence": {
+										"contains": ["Thinking"],
+										"regex": [],
+										"lineRegex": [],
+										"allCount": 0,
+										"anyCount": 0,
+										"notCount": 0,
+										"regionBytes": 8,
+										"regionPreview": "Thinking"
+									}
+								}
+							],
+							"manifest": {
+								"source": "local-override",
+								"path": "C:\\规则\\agent-detection\\codex.toml",
+								"cachedRemoteVersion": "18446744073709551616",
+								"localOverrideShadowingRemote": true,
+								"warnings": []
+							}
+						},
+						"sample": {
+							"frameSequence": "2",
+							"frameGeneration": "1",
+							"frameRevision": "0",
+							"rootPid": 123,
+							"agentPid": 456
+						}
+					}
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "explain-manifest-source-mismatch",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-agent.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"outcome": {
+					"kind": "explained",
+					"workbenchRevision": "1",
+					"reportRevision": "2",
+					"explanation": {
+						"binding": {
+							"presentationId": "33333333333333333333333333333333",
+							"generation": "44444444444444444444444444444444",
+							"hostEpoch": "55555555555555555555555555555555",
+							"hostTerminalId": "66666666666666666666666666666666"
+						},
+						"view": {
+							"agent": "codex",
+							"state": "working",
+							"authoritySource": null,
+							"message": null,
+							"session": null
+						},
+						"explanation": {
+							"agent": "codex",
+							"state": "working",
+							"manifestSource": "bundled",
+							"manifestVersion": "1",
+							"matchedRule": {
+								"id": "busy",
+								"priority": 20,
+								"region": "all",
+								"state": "working"
+							},
+							"visibleIdle": false,
+							"visibleBlocker": false,
+							"visibleWorking": true,
+							"screenDetectionSkipped": false,
+							"screenDetectionSkipReason": null,
+							"skipStateUpdate": false,
+							"skippedUpdateReason": null,
+							"fallbackReason": null,
+							"evaluatedRules": [
+								{
+									"rule": {
+										"id": "busy",
+										"priority": 20,
+										"region": "all",
+										"state": "working"
+									},
+									"matched": true,
+									"evidence": {
+										"contains": ["Thinking"],
+										"regex": [],
+										"lineRegex": [],
+										"allCount": 0,
+										"anyCount": 0,
+										"notCount": 0,
+										"regionBytes": 8,
+										"regionPreview": "Thinking"
+									}
+								},
+								{
+									"rule": {
+										"id": "tie",
+										"priority": 20,
+										"region": "all",
+										"state": "working"
+									},
+									"matched": true,
+									"evidence": {
+										"contains": ["Thinking"],
+										"regex": [],
+										"lineRegex": [],
+										"allCount": 0,
+										"anyCount": 0,
+										"notCount": 0,
+										"regionBytes": 8,
+										"regionPreview": "Thinking"
+									}
+								}
+							],
+							"manifest": {
+								"source": "local-override",
+								"path": "C:\\规则\\agent-detection\\codex.toml",
+								"cachedRemoteVersion": "9999.1",
+								"localOverrideShadowingRemote": true,
+								"warnings": []
+							}
+						},
+						"sample": {
+							"frameSequence": "2",
+							"frameGeneration": "1",
+							"frameRevision": "0",
+							"rootPid": 123,
+							"agentPid": 456
+						}
+					}
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "explain-manifest-explicit-null",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-agent.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"outcome": {
+					"kind": "explained",
+					"workbenchRevision": "1",
+					"reportRevision": "2",
+					"explanation": {
+						"binding": {
+							"presentationId": "33333333333333333333333333333333",
+							"generation": "44444444444444444444444444444444",
+							"hostEpoch": "55555555555555555555555555555555",
+							"hostTerminalId": "66666666666666666666666666666666"
+						},
+						"view": {
+							"agent": "codex",
+							"state": "working",
+							"authoritySource": null,
+							"message": null,
+							"session": null
+						},
+						"explanation": {
+							"agent": "codex",
+							"state": "working",
+							"manifestSource": "local-override",
+							"manifestVersion": "1",
+							"matchedRule": {
+								"id": "busy",
+								"priority": 20,
+								"region": "all",
+								"state": "working"
+							},
+							"visibleIdle": false,
+							"visibleBlocker": false,
+							"visibleWorking": true,
+							"screenDetectionSkipped": false,
+							"screenDetectionSkipReason": null,
+							"skipStateUpdate": false,
+							"skippedUpdateReason": null,
+							"fallbackReason": null,
+							"evaluatedRules": [
+								{
+									"rule": {
+										"id": "busy",
+										"priority": 20,
+										"region": "all",
+										"state": "working"
+									},
+									"matched": true,
+									"evidence": {
+										"contains": ["Thinking"],
+										"regex": [],
+										"lineRegex": [],
+										"allCount": 0,
+										"anyCount": 0,
+										"notCount": 0,
+										"regionBytes": 8,
+										"regionPreview": "Thinking"
+									}
+								},
+								{
+									"rule": {
+										"id": "tie",
+										"priority": 20,
+										"region": "all",
+										"state": "working"
+									},
+									"matched": true,
+									"evidence": {
+										"contains": ["Thinking"],
+										"regex": [],
+										"lineRegex": [],
+										"allCount": 0,
+										"anyCount": 0,
+										"notCount": 0,
+										"regionBytes": 8,
+										"regionPreview": "Thinking"
+									}
+								}
+							],
+							"manifest": null
+						},
+						"sample": {
+							"frameSequence": "2",
+							"frameGeneration": "1",
+							"frameRevision": "0",
+							"rootPid": 123,
+							"agentPid": 456
+						}
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "explain-manifest-cache-required",
+			"direction": "response",
+			"boundary": "semantic",
+			"document": {
+				"kind": "workbench.panel-agent.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"outcome": {
+					"kind": "explained",
+					"workbenchRevision": "1",
+					"reportRevision": "2",
+					"explanation": {
+						"binding": {
+							"presentationId": "33333333333333333333333333333333",
+							"generation": "44444444444444444444444444444444",
+							"hostEpoch": "55555555555555555555555555555555",
+							"hostTerminalId": "66666666666666666666666666666666"
+						},
+						"view": {
+							"agent": "codex",
+							"state": "working",
+							"authoritySource": null,
+							"message": null,
+							"session": null
+						},
+						"explanation": {
+							"agent": "codex",
+							"state": "working",
+							"manifestSource": "remote-cache",
+							"manifestVersion": "9999.1",
+							"matchedRule": {
+								"id": "busy",
+								"priority": 20,
+								"region": "all",
+								"state": "working"
+							},
+							"visibleIdle": false,
+							"visibleBlocker": false,
+							"visibleWorking": true,
+							"screenDetectionSkipped": false,
+							"screenDetectionSkipReason": null,
+							"skipStateUpdate": false,
+							"skippedUpdateReason": null,
+							"fallbackReason": null,
+							"evaluatedRules": [
+								{
+									"rule": {
+										"id": "busy",
+										"priority": 20,
+										"region": "all",
+										"state": "working"
+									},
+									"matched": true,
+									"evidence": {
+										"contains": ["Thinking"],
+										"regex": [],
+										"lineRegex": [],
+										"allCount": 0,
+										"anyCount": 0,
+										"notCount": 0,
+										"regionBytes": 8,
+										"regionPreview": "Thinking"
+									}
+								},
+								{
+									"rule": {
+										"id": "tie",
+										"priority": 20,
+										"region": "all",
+										"state": "working"
+									},
+									"matched": true,
+									"evidence": {
+										"contains": ["Thinking"],
+										"regex": [],
+										"lineRegex": [],
+										"allCount": 0,
+										"anyCount": 0,
+										"notCount": 0,
+										"regionBytes": 8,
+										"regionPreview": "Thinking"
+									}
+								}
+							],
+							"manifest": {
+								"source": "remote-cache",
+								"path": "C:\\Orchbee\\agent-detection\\remote\\codex.toml",
+								"cachedRemoteVersion": null,
+								"localOverrideShadowingRemote": false,
+								"warnings": []
+							}
+						},
+						"sample": {
+							"frameSequence": "2",
+							"frameGeneration": "1",
+							"frameRevision": "0",
+							"rootPid": 123,
+							"agentPid": 456
+						}
+					}
+				}
+			}
+		},
+		{
+			"name": "explain-manifest-cache-version-correlated",
+			"direction": "response",
+			"boundary": "semantic",
+			"document": {
+				"kind": "workbench.panel-agent.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"outcome": {
+					"kind": "explained",
+					"workbenchRevision": "1",
+					"reportRevision": "2",
+					"explanation": {
+						"binding": {
+							"presentationId": "33333333333333333333333333333333",
+							"generation": "44444444444444444444444444444444",
+							"hostEpoch": "55555555555555555555555555555555",
+							"hostTerminalId": "66666666666666666666666666666666"
+						},
+						"view": {
+							"agent": "codex",
+							"state": "working",
+							"authoritySource": null,
+							"message": null,
+							"session": null
+						},
+						"explanation": {
+							"agent": "codex",
+							"state": "working",
+							"manifestSource": "remote-cache",
+							"manifestVersion": "9999.2",
+							"matchedRule": {
+								"id": "busy",
+								"priority": 20,
+								"region": "all",
+								"state": "working"
+							},
+							"visibleIdle": false,
+							"visibleBlocker": false,
+							"visibleWorking": true,
+							"screenDetectionSkipped": false,
+							"screenDetectionSkipReason": null,
+							"skipStateUpdate": false,
+							"skippedUpdateReason": null,
+							"fallbackReason": null,
+							"evaluatedRules": [
+								{
+									"rule": {
+										"id": "busy",
+										"priority": 20,
+										"region": "all",
+										"state": "working"
+									},
+									"matched": true,
+									"evidence": {
+										"contains": ["Thinking"],
+										"regex": [],
+										"lineRegex": [],
+										"allCount": 0,
+										"anyCount": 0,
+										"notCount": 0,
+										"regionBytes": 8,
+										"regionPreview": "Thinking"
+									}
+								},
+								{
+									"rule": {
+										"id": "tie",
+										"priority": 20,
+										"region": "all",
+										"state": "working"
+									},
+									"matched": true,
+									"evidence": {
+										"contains": ["Thinking"],
+										"regex": [],
+										"lineRegex": [],
+										"allCount": 0,
+										"anyCount": 0,
+										"notCount": 0,
+										"regionBytes": 8,
+										"regionPreview": "Thinking"
+									}
+								}
+							],
+							"manifest": {
+								"source": "remote-cache",
+								"path": "C:\\Orchbee\\agent-detection\\remote\\codex.toml",
+								"cachedRemoteVersion": "9999.1",
+								"localOverrideShadowingRemote": false,
+								"warnings": []
+							}
+						},
+						"sample": {
+							"frameSequence": "2",
+							"frameGeneration": "1",
+							"frameRevision": "0",
+							"rootPid": 123,
+							"agentPid": 456
+						}
+					}
+				}
+			}
 		}
 	]
 }

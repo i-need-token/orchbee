@@ -229,6 +229,12 @@ state/flag coherence, evidence bounds and full-lifecycle skip/source consistency
 refuse; known providers without manifests use explicit idle fallback. The existing 512 KiB result
 limit applies. This unpublished cohort changes together; canonical OBAP explanations remain separate.
 
+Active rule provenance extends physical Explain with an optional `manifest` object: source
+(`bundled`, `local-override`, `remote-cache`), required nullable actual path/cached version,
+shadowing and bounded typed warnings. Missing metadata preserves the earlier shape; explicit null
+is rejected. Remote source/version and warning source uniqueness are checked by both bindings.
+The CLI emits v3 when metadata is present while preserving the closed v1/v2 envelopes.
+
 Compact physical `states` reads accept 0–64 unique presentation IDs and return rows in request order,
 with Workbench/report revisions and a required nullable full binding/sequence/Agent/state snapshot.
 Missing membership refuses the batch; no current physical observation yields null. Empty reads fence

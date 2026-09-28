@@ -1,8 +1,14 @@
 //! Bounded diagnostics from an actual terminal capture, distinct from effective report state.
-use super::{PanelAgentState, PanelAgentView, nullable};
+use super::{AgentDetectionManifest, PanelAgentState, PanelAgentView, nullable};
 use crate::{ContractError, WorkbenchRevision};
 use orchbee_agent_observation_protocol::{AgentLaunchBinding, AgentReportProvider};
 use serde::{Deserialize, Serialize};
+
+fn present_manifest<'de, D: serde::Deserializer<'de>>(
+    d: D,
+) -> Result<Option<AgentDetectionManifest>, D::Error> {
+    AgentDetectionManifest::deserialize(d).map(Some)
+}
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -58,6 +64,12 @@ pub struct AgentDetectionEvaluation {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct AgentScreenExplanation {
+    #[serde(
+        default,
+        deserialize_with = "present_manifest",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub manifest: Option<AgentDetectionManifest>,
     pub agent: String,
     pub state: PanelAgentState,
     #[serde(deserialize_with = "nullable")]
@@ -97,6 +109,7 @@ impl AgentScreenExplanation {
         }
         let valid = if self.screen_detection_skipped {
             self.screen_detection_skip_reason.as_deref() == Some("full-lifecycle-hook-authority")
+                && self.manifest.is_none()
                 && self.manifest_source.is_none()
                 && self.manifest_version.is_none()
                 && self.matched_rule.is_none()
@@ -116,8 +129,15 @@ impl AgentScreenExplanation {
                 }
             }
             self.screen_detection_skip_reason.is_none()
-                && (self.manifest_source.as_deref() == Some("bundled")
+                && (self.manifest.as_ref().is_some_and(|m| {
+                    m.valid()
+                        && self.manifest_source.as_deref() == Some(m.source.as_str())
+                        && (m.source != super::AgentManifestSource::RemoteCache
+                            || self.manifest_version == m.cached_remote_version)
+                }) || (self.manifest.is_none()
+                    && self.manifest_source.as_deref() == Some("bundled"))
                     || (self.manifest_source.is_none()
+                        && self.manifest.is_none()
                         && self.manifest_version.is_none()
                         && self.evaluated_rules.is_empty()))
                 && self.matched_rule.as_ref() == winner

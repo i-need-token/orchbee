@@ -899,7 +899,7 @@
 					"$ref": "#/$defs/state"
 				},
 				"manifestSource": {
-					"enum": ["bundled", null]
+					"enum": ["bundled", "local-override", "remote-cache", null]
 				},
 				"manifestVersion": {
 					"oneOf": [
@@ -973,6 +973,9 @@
 							}
 						}
 					}
+				},
+				"manifest": {
+					"$ref": "#/$defs/manifestInfo"
 				}
 			}
 		},
@@ -1186,6 +1189,117 @@
 							}
 						},
 						"type": "object"
+					}
+				}
+			]
+		},
+		"manifestInfo": {
+			"type": "object",
+			"required": [
+				"source",
+				"path",
+				"cachedRemoteVersion",
+				"localOverrideShadowingRemote",
+				"warnings"
+			],
+			"additionalProperties": false,
+			"properties": {
+				"source": {
+					"enum": ["bundled", "local-override", "remote-cache"]
+				},
+				"path": {
+					"type": ["string", "null"],
+					"minLength": 1,
+					"maxLength": 32768
+				},
+				"cachedRemoteVersion": {
+					"type": ["string", "null"],
+					"maxLength": 128,
+					"pattern": "^[0-9]+(?:\\.[0-9]+)*$"
+				},
+				"localOverrideShadowingRemote": {
+					"type": "boolean"
+				},
+				"warnings": {
+					"type": "array",
+					"maxItems": 2,
+					"items": {
+						"type": "object",
+						"required": ["source", "kind"],
+						"additionalProperties": false,
+						"properties": {
+							"source": {
+								"enum": ["local-override", "remote-cache"]
+							},
+							"kind": {
+								"enum": [
+									"unreadable",
+									"not-regular",
+									"too-large",
+									"invalid-utf8",
+									"invalid-manifest",
+									"invalid-version",
+									"older-than-bundled"
+								]
+							}
+						}
+					}
+				}
+			},
+			"allOf": [
+				{
+					"if": {
+						"properties": {
+							"source": {
+								"const": "bundled"
+							}
+						}
+					},
+					"then": {
+						"properties": {
+							"path": {
+								"type": "null"
+							}
+						}
+					},
+					"else": {
+						"properties": {
+							"path": {
+								"type": "string"
+							}
+						}
+					}
+				},
+				{
+					"if": {
+						"properties": {
+							"localOverrideShadowingRemote": {
+								"const": true
+							}
+						}
+					},
+					"then": {
+						"properties": {
+							"cachedRemoteVersion": {
+								"type": "string"
+							}
+						}
+					}
+				},
+				{
+					"if": {
+						"properties": {
+							"source": {
+								"const": "remote-cache"
+							}
+						}
+					},
+					"then": {
+						"properties": {
+							"cachedRemoteVersion": {
+								"type": "string"
+							}
+						}
 					}
 				}
 			]

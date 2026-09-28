@@ -119,6 +119,14 @@ fn location(
     Ok(Some((path, explicit)))
 }
 
+/// The shared settings location without opening the file or applying runtime settings.
+/// Companion user assets use this parent directory; absence remains explicit.
+pub fn windows_user_settings_path(
+    env: impl Fn(&str) -> Option<OsString>,
+) -> Result<Option<PathBuf>, WindowsSettingsError> {
+    location(&env).map(|location| location.map(|(path, _)| path))
+}
+
 fn read_file(
     env: impl Fn(&str) -> Option<OsString>,
 ) -> Result<WindowsUserSettings, WindowsSettingsError> {

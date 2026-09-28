@@ -1080,6 +1080,464 @@
 					}
 				}
 			]
+		},
+		"manifestInfo": {
+			"type": "object",
+			"required": [
+				"source",
+				"path",
+				"cachedRemoteVersion",
+				"localOverrideShadowingRemote",
+				"warnings"
+			],
+			"additionalProperties": false,
+			"properties": {
+				"source": {
+					"enum": ["bundled", "local-override", "remote-cache"]
+				},
+				"path": {
+					"type": ["string", "null"],
+					"minLength": 1,
+					"maxLength": 32768
+				},
+				"cachedRemoteVersion": {
+					"type": ["string", "null"],
+					"maxLength": 128,
+					"pattern": "^[0-9]+(?:\\.[0-9]+)*$"
+				},
+				"localOverrideShadowingRemote": {
+					"type": "boolean"
+				},
+				"warnings": {
+					"type": "array",
+					"maxItems": 2,
+					"items": {
+						"type": "object",
+						"required": ["source", "kind"],
+						"additionalProperties": false,
+						"properties": {
+							"source": {
+								"enum": ["local-override", "remote-cache"]
+							},
+							"kind": {
+								"enum": [
+									"unreadable",
+									"not-regular",
+									"too-large",
+									"invalid-utf8",
+									"invalid-manifest",
+									"invalid-version",
+									"older-than-bundled"
+								]
+							}
+						}
+					}
+				}
+			},
+			"allOf": [
+				{
+					"if": {
+						"properties": {
+							"source": {
+								"const": "bundled"
+							}
+						}
+					},
+					"then": {
+						"properties": {
+							"path": {
+								"type": "null"
+							}
+						}
+					},
+					"else": {
+						"properties": {
+							"path": {
+								"type": "string"
+							}
+						}
+					}
+				},
+				{
+					"if": {
+						"properties": {
+							"localOverrideShadowingRemote": {
+								"const": true
+							}
+						}
+					},
+					"then": {
+						"properties": {
+							"cachedRemoteVersion": {
+								"type": "string"
+							}
+						}
+					}
+				},
+				{
+					"if": {
+						"properties": {
+							"source": {
+								"const": "remote-cache"
+							}
+						}
+					},
+					"then": {
+						"properties": {
+							"cachedRemoteVersion": {
+								"type": "string"
+							}
+						}
+					}
+				}
+			]
+		},
+		"screenExplanationV3": {
+			"type": "object",
+			"required": [
+				"agent",
+				"state",
+				"manifestSource",
+				"manifestVersion",
+				"matchedRule",
+				"visibleIdle",
+				"visibleBlocker",
+				"visibleWorking",
+				"screenDetectionSkipped",
+				"screenDetectionSkipReason",
+				"skipStateUpdate",
+				"skippedUpdateReason",
+				"fallbackReason",
+				"evaluatedRules",
+				"manifest"
+			],
+			"additionalProperties": false,
+			"properties": {
+				"agent": {
+					"enum": [
+						"pi",
+						"claude",
+						"codex",
+						"gemini",
+						"cursor",
+						"devin",
+						"agy",
+						"cline",
+						"omp",
+						"mastracode",
+						"opencode",
+						"copilot",
+						"kimi",
+						"kiro",
+						"droid",
+						"amp",
+						"grok",
+						"hermes",
+						"kilo",
+						"qodercli",
+						"qwen",
+						"letta",
+						"maki",
+						"muse"
+					]
+				},
+				"state": {
+					"$ref": "#/$defs/physical_state"
+				},
+				"manifestSource": {
+					"enum": ["bundled", "local-override", "remote-cache"]
+				},
+				"manifestVersion": {
+					"oneOf": [
+						{
+							"type": "string",
+							"maxLength": 128
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"matchedRule": {
+					"oneOf": [
+						{
+							"$ref": "#/$defs/screenRule"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"visibleIdle": {
+					"type": "boolean"
+				},
+				"visibleBlocker": {
+					"type": "boolean"
+				},
+				"visibleWorking": {
+					"type": "boolean"
+				},
+				"screenDetectionSkipped": {
+					"const": false
+				},
+				"screenDetectionSkipReason": {
+					"enum": ["full-lifecycle-hook-authority", null]
+				},
+				"skipStateUpdate": {
+					"type": "boolean"
+				},
+				"skippedUpdateReason": {
+					"oneOf": [
+						{
+							"type": "string",
+							"pattern": "^matched-rule:.+"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"fallbackReason": {
+					"enum": ["default-known-agent-idle-fallback", null]
+				},
+				"evaluatedRules": {
+					"type": "array",
+					"maxItems": 128,
+					"items": {
+						"type": "object",
+						"required": ["rule", "matched", "evidence"],
+						"additionalProperties": false,
+						"properties": {
+							"rule": {
+								"$ref": "#/$defs/screenRule"
+							},
+							"matched": {
+								"type": "boolean"
+							},
+							"evidence": {
+								"$ref": "#/$defs/screenEvidence"
+							}
+						}
+					}
+				},
+				"manifest": {
+					"$ref": "#/$defs/manifestInfo"
+				}
+			}
+		},
+		"terminalExplanationV3": {
+			"type": "object",
+			"required": ["binding", "view", "explanation", "sample"],
+			"additionalProperties": false,
+			"properties": {
+				"binding": {
+					"$ref": "#/$defs/physical_terminalBinding"
+				},
+				"view": {
+					"$ref": "#/$defs/physical_view"
+				},
+				"explanation": {
+					"$ref": "#/$defs/screenExplanationV3"
+				},
+				"sample": {
+					"oneOf": [
+						{
+							"type": "object",
+							"required": [
+								"frameSequence",
+								"frameGeneration",
+								"frameRevision",
+								"rootPid",
+								"agentPid"
+							],
+							"additionalProperties": false,
+							"properties": {
+								"frameSequence": {
+									"allOf": [
+										{
+											"$ref": "#/$defs/physical_revision"
+										},
+										{
+											"not": {
+												"const": "0"
+											}
+										}
+									]
+								},
+								"frameGeneration": {
+									"allOf": [
+										{
+											"$ref": "#/$defs/physical_revision"
+										},
+										{
+											"not": {
+												"const": "0"
+											}
+										}
+									]
+								},
+								"frameRevision": {
+									"$ref": "#/$defs/physical_revision"
+								},
+								"rootPid": {
+									"type": "integer",
+									"minimum": 1,
+									"maximum": 4294967295
+								},
+								"agentPid": {
+									"oneOf": [
+										{
+											"type": "integer",
+											"minimum": 1,
+											"maximum": 4294967295
+										},
+										{
+											"type": "null"
+										}
+									]
+								}
+							}
+						},
+						{
+							"type": "null"
+						}
+					]
+				}
+			},
+			"allOf": [
+				{
+					"if": {
+						"properties": {
+							"explanation": {
+								"properties": {
+									"screenDetectionSkipped": {
+										"const": true
+									}
+								},
+								"type": "object"
+							}
+						},
+						"type": "object"
+					},
+					"then": {
+						"properties": {
+							"sample": {
+								"type": "null"
+							},
+							"explanation": {
+								"properties": {
+									"manifestSource": {
+										"type": "null"
+									},
+									"manifestVersion": {
+										"type": "null"
+									},
+									"matchedRule": {
+										"type": "null"
+									},
+									"skippedUpdateReason": {
+										"type": "null"
+									},
+									"fallbackReason": {
+										"type": "null"
+									},
+									"visibleIdle": {
+										"const": false
+									},
+									"visibleBlocker": {
+										"const": false
+									},
+									"visibleWorking": {
+										"const": false
+									},
+									"skipStateUpdate": {
+										"const": false
+									},
+									"screenDetectionSkipReason": {
+										"const": "full-lifecycle-hook-authority"
+									},
+									"evaluatedRules": {
+										"maxItems": 0,
+										"type": "array"
+									}
+								},
+								"type": "object"
+							}
+						},
+						"type": "object"
+					},
+					"else": {
+						"properties": {
+							"sample": {
+								"type": "object",
+								"required": [
+									"frameSequence",
+									"frameGeneration",
+									"frameRevision",
+									"rootPid",
+									"agentPid"
+								],
+								"additionalProperties": false,
+								"properties": {
+									"frameSequence": {
+										"allOf": [
+											{
+												"$ref": "#/$defs/physical_revision"
+											},
+											{
+												"not": {
+													"const": "0"
+												}
+											}
+										]
+									},
+									"frameGeneration": {
+										"allOf": [
+											{
+												"$ref": "#/$defs/physical_revision"
+											},
+											{
+												"not": {
+													"const": "0"
+												}
+											}
+										]
+									},
+									"frameRevision": {
+										"$ref": "#/$defs/physical_revision"
+									},
+									"rootPid": {
+										"type": "integer",
+										"minimum": 1,
+										"maximum": 4294967295
+									},
+									"agentPid": {
+										"oneOf": [
+											{
+												"type": "integer",
+												"minimum": 1,
+												"maximum": 4294967295
+											},
+											{
+												"type": "null"
+											}
+										]
+									}
+								}
+							},
+							"explanation": {
+								"properties": {
+									"screenDetectionSkipReason": {
+										"type": "null"
+									}
+								},
+								"type": "object"
+							}
+						},
+						"type": "object"
+					}
+				}
+			]
 		}
 	},
 	"oneOf": [
@@ -1161,6 +1619,54 @@
 						},
 						"terminal": {
 							"$ref": "#/$defs/terminalExplanation"
+						}
+					}
+				}
+			}
+		},
+		{
+			"type": "object",
+			"required": ["schema", "version", "source", "result"],
+			"additionalProperties": false,
+			"properties": {
+				"schema": {
+					"const": "orchbee.agent.explain"
+				},
+				"version": {
+					"const": 3
+				},
+				"source": {
+					"type": "object",
+					"required": ["kind", "siteId", "workbenchRevision", "reportRevision", "requestId"],
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "panel-agent-explain"
+						},
+						"siteId": {
+							"$ref": "#/$defs/hexId"
+						},
+						"workbenchRevision": {
+							"$ref": "#/$defs/physical_revision"
+						},
+						"reportRevision": {
+							"$ref": "#/$defs/physical_revision"
+						},
+						"requestId": {
+							"$ref": "#/$defs/hexId"
+						}
+					}
+				},
+				"result": {
+					"type": "object",
+					"required": ["kind", "terminal"],
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "terminal-found"
+						},
+						"terminal": {
+							"$ref": "#/$defs/terminalExplanationV3"
 						}
 					}
 				}

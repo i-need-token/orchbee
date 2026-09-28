@@ -14,6 +14,7 @@ fn physical_explanation_pins_binding_preserves_evidence_and_escapes_both_locales
         "rules",
         "full",
         "fallback",
+        "manifest",
         "wrong-binding",
         "changed-workbench",
         "en",
@@ -29,6 +30,7 @@ fn physical_explanation_pins_binding_preserves_evidence_and_escapes_both_locales
             let name = match case {
                 "full" => "explain-full-lifecycle-skips-screen",
                 "fallback" => "explain-detected-provider-behind-custom-label",
+                "manifest" | "en" | "zh" => "explain-manifest-local-override",
                 _ => "explain-first-priority-tie",
             };
             let mut terminal = corpus["valid"]
@@ -58,6 +60,9 @@ fn physical_explanation_pins_binding_preserves_evidence_and_escapes_both_locales
                 terminal["binding"]["generation"] = json!("9".repeat(32));
             }
             if matches!(case, "en" | "zh") {
+                terminal["explanation"]["manifest"]["cachedRemoteVersion"] = json!("0");
+                terminal["explanation"]["manifest"]["warnings"] =
+                    json!([{"source":"remote-cache","kind":"older-than-bundled"}]);
                 terminal["explanation"]["evaluatedRules"][0]["evidence"]["regionPreview"] =
                     json!("\u{1b}[31mThinking");
             }
@@ -118,6 +123,14 @@ fn physical_explanation_pins_binding_preserves_evidence_and_escapes_both_locales
             );
             assert!(output.contains("Thinking"));
             assert!(
+                output.contains(if case == "zh" {
+                    "缓存版本低于内置规则"
+                } else {
+                    "cached version is older than bundled rules"
+                }),
+                "{output}"
+            );
+            assert!(
                 !output.contains('\u{1b}'),
                 "terminal control bytes must be escaped"
             );
@@ -127,7 +140,7 @@ fn physical_explanation_pins_binding_preserves_evidence_and_escapes_both_locales
                 &document,
                 include_str!("../src/cli/schemas/orchbee.agent.explain.json"),
             );
-            assert_eq!(document["version"], 2);
+            assert_eq!(document["version"], if case == "manifest" { 3 } else { 2 });
             assert_eq!(document["source"]["kind"], "panel-agent-explain");
             assert_eq!(document["result"]["kind"], "terminal-found");
             assert_eq!(

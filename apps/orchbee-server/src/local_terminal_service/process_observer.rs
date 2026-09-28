@@ -48,7 +48,11 @@ impl ProcessObserver {
         if handle.is_some() {
             return Err(io::ErrorKind::AlreadyExists.into());
         }
-        let detector = ScreenDetector::bundled().map_err(io::Error::other)?;
+        let config =
+            orchbee_local_site_runtime::windows_user_settings_path(|name| std::env::var_os(name))
+                .map_err(io::Error::other)?;
+        let detector = ScreenDetector::load(config.as_deref().and_then(std::path::Path::parent))
+            .map_err(io::Error::other)?;
         let service = Arc::downgrade(service);
         let wake = Arc::clone(&self.wake);
         *handle = Some(

@@ -1,6 +1,7 @@
 mod panel_agent;
 pub use panel_agent::{
-    AgentDetectionEvaluation, AgentDetectionEvidence, AgentDetectionRule, AgentDetectionSample,
+    AgentDetectionEvaluation, AgentDetectionEvidence, AgentDetectionManifest, AgentDetectionRule,
+    AgentDetectionSample, AgentManifestSource, AgentManifestWarning, AgentManifestWarningKind,
     AgentScreenExplanation, MAXIMUM_ENCODED_PANEL_AGENT_RESULT_BYTES,
     MAXIMUM_PANEL_AGENT_READ_ROWS, MAXIMUM_TERMINAL_AGENT_CHANGES,
     MAXIMUM_TERMINAL_AGENT_STATE_ROWS, PanelAgentAction, PanelAgentDisposition, PanelAgentFailure,

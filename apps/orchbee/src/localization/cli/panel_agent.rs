@@ -4,6 +4,54 @@ use orchbee_workbench_protocol::{
 };
 impl Locale {
     #[cfg(windows)]
+    pub(crate) const fn cli_agent_manifest_fields(self) -> [&'static str; 4] {
+        match self {
+            Self::EnUs => [
+                "Rules file",
+                "Cached version",
+                "Local override shadows cache",
+                "Rules warning",
+            ],
+            Self::ZhCn => ["规则文件", "缓存版本", "本地覆盖遮蔽缓存", "规则告警"],
+        }
+    }
+    #[cfg(windows)]
+    pub(crate) fn cli_agent_manifest_warning(
+        self,
+        warning: &orchbee_workbench_protocol::AgentManifestWarning,
+    ) -> String {
+        use orchbee_workbench_protocol::{
+            AgentManifestSource as Source, AgentManifestWarningKind as Kind,
+        };
+        let source = match (self, warning.source) {
+            (Self::EnUs, Source::Bundled) => "Bundled rules",
+            (Self::ZhCn, Source::Bundled) => "内置规则",
+            (Self::EnUs, Source::LocalOverride) => "Local override",
+            (Self::ZhCn, Source::LocalOverride) => "本地覆盖",
+            (Self::EnUs, Source::RemoteCache) => "Remote cache",
+            (Self::ZhCn, Source::RemoteCache) => "远程缓存",
+        };
+        let reason = match (self, warning.kind) {
+            (Self::EnUs, Kind::Unreadable) => "cannot read file",
+            (Self::ZhCn, Kind::Unreadable) => "无法读取文件",
+            (Self::EnUs, Kind::NotRegular) => "not a regular file",
+            (Self::ZhCn, Kind::NotRegular) => "不是普通文件",
+            (Self::EnUs, Kind::TooLarge) => "file exceeds the size limit",
+            (Self::ZhCn, Kind::TooLarge) => "文件超过大小上限",
+            (Self::EnUs, Kind::InvalidUtf8) => "file is not UTF-8",
+            (Self::ZhCn, Kind::InvalidUtf8) => "文件不是 UTF-8 编码",
+            (Self::EnUs, Kind::InvalidManifest) => {
+                "manifest identity, rules or engine version is invalid"
+            }
+            (Self::ZhCn, Kind::InvalidManifest) => "清单身份、规则或引擎版本无效",
+            (Self::EnUs, Kind::InvalidVersion) => "remote version is not bounded dotted numeric",
+            (Self::ZhCn, Kind::InvalidVersion) => "远程版本不是有界点分数字",
+            (Self::EnUs, Kind::OlderThanBundled) => "cached version is older than bundled rules",
+            (Self::ZhCn, Kind::OlderThanBundled) => "缓存版本低于内置规则",
+        };
+        format!("{source}: {reason}")
+    }
+    #[cfg(windows)]
     pub(crate) const fn cli_agent_screen_fields(self) -> [&'static str; 17] {
         match self {
             Self::EnUs => [

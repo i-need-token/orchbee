@@ -431,6 +431,11 @@ Client 所有的 Agent 提示状态读取指定 1–100 个唯一规范 Agent �
 未知 provider 拒绝；没有清单的已知 provider 明确回退为空闲。沿用 512 KiB 结果上限。
 这份未发布 cohort 一起变更；规范 OBAP 解释保持独立。
 
+生效规则来源为物理 Explain 增加可选 `manifest` 对象：来源（`bundled`、`local-override`、
+`remote-cache`）、必填且可空的实际路径／缓存版本、遮蔽情况及有界类型化告警。
+省略信息保留旧形状，显式 null 拒绝。两个 binding 都校验远程来源／版本及告警来源唯一性。
+CLI 携带来源信息时输出 v3，并保留封闭的 v1/v2 封套。
+
 精简物理 `states` 读取接受 0–64 个唯一展示 ID，按请求顺序返回条目、Workbench／报告修订，
 以及必填可空的完整绑定／序号／Agent／状态快照。成员不存在则拒绝整批；没有当前物理观察
 则返回 null。空读取用于报告修订门槛。Rust／TypeScript 共用严格形状、唯一性／顺序检查和

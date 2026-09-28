@@ -2,8 +2,8 @@
 use super::{Detection, ScreenInput, regions::Region};
 use orchbee_agent_observation_protocol::AgentReportProvider;
 use orchbee_workbench_protocol::{
-    AgentDetectionEvaluation, AgentDetectionEvidence, AgentDetectionRule, AgentScreenExplanation,
-    PanelAgentState,
+    AgentDetectionEvaluation, AgentDetectionEvidence, AgentDetectionManifest, AgentDetectionRule,
+    AgentManifestSource, AgentScreenExplanation, PanelAgentState,
 };
 use regex::{Regex, RegexBuilder};
 use serde::Deserialize;
@@ -16,8 +16,8 @@ struct RawManifest {
     min_engine_version: Option<u32>,
     #[serde(rename = "updated_at")]
     _updated_at: Option<String>,
-    #[serde(default, rename = "aliases")]
-    _aliases: Vec<String>,
+    #[serde(default)]
+    aliases: Vec<String>,
     #[serde(default)]
     rules: Vec<RawRule>,
 }
@@ -88,7 +88,9 @@ struct Rule {
 pub(super) struct Manifest {
     pub(super) provider: AgentReportProvider,
     rules: Vec<Rule>,
-    version: Option<String>,
+    pub(super) version: Option<String>,
+    pub(super) minimum_engine_version: Option<u32>,
+    pub(super) provenance: AgentDetectionManifest,
 }
 #[derive(Default)]
 struct Complexity {
@@ -171,14 +173,18 @@ impl Manifest {
             return Err("Manifest exceeds byte bound".into());
         }
         let raw: RawManifest = toml::from_str(text).map_err(|e| e.to_string())?;
-        if AgentReportProvider::lookup(&raw.id) != Some(provider)
+        let matches_provider = |name: &str| {
+            orchbee_agent_observation_protocol::normalize_agent_report_label(name).as_deref()
+                == Some(provider.report_label())
+        };
+        if !(matches_provider(&raw.id) || raw.aliases.iter().any(|alias| matches_provider(alias)))
             || raw.min_engine_version.is_some_and(|v| v > 3)
             || raw.rules.is_empty()
             || raw.rules.len() > 128
             || raw
                 .version
                 .as_ref()
-                .is_some_and(|v| v.chars().count() > 128)
+                .is_some_and(|v| super::version::Version::parse(v).is_none())
         {
             return Err("Invalid manifest identity, version or rule count".into());
         }
@@ -251,7 +257,15 @@ impl Manifest {
         Ok(Self {
             provider,
             rules,
-            version: raw.version,
+            version: raw.version.map(|v| v.trim().to_owned()),
+            minimum_engine_version: raw.min_engine_version,
+            provenance: AgentDetectionManifest {
+                source: AgentManifestSource::Bundled,
+                path: None,
+                cached_remote_version: None,
+                local_override_shadowing_remote: false,
+                warnings: vec![],
+            },
         })
     }
     pub(super) fn detect(&self, input: ScreenInput<'_>) -> Detection {
@@ -292,7 +306,8 @@ impl Manifest {
             });
         });
         let mut explanation = super::fallback_explanation(self.provider);
-        explanation.manifest_source = Some("bundled".into());
+        explanation.manifest_source = Some(self.provenance.source.as_str().into());
+        explanation.manifest = Some(self.provenance.clone());
         explanation.manifest_version = self.version.clone();
         explanation.state = result.state;
         explanation.matched_rule = winner.map(|r| r.metadata.clone());

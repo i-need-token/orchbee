@@ -11,6 +11,10 @@ use orchbee_agent_observation_protocol::{
 use serde::{Deserialize, Deserializer, Serialize};
 use std::collections::BTreeSet;
 mod explanation;
+mod manifest;
+pub use manifest::{
+    AgentDetectionManifest, AgentManifestSource, AgentManifestWarning, AgentManifestWarningKind,
+};
 mod observation;
 pub use explanation::{
     AgentDetectionEvaluation, AgentDetectionEvidence, AgentDetectionRule, AgentDetectionSample,

@@ -307,3 +307,5 @@ Windows 停止细化将仅不可变启动尝试的解释改为同一个已准入
 ## Windows 用户设置
 
 共享有界设置读取器和纯 Windows 用户路径适配器服务于 CLI 配置、公共 Client 激活和直接托管 Server 启动，负责严格文件／类型／路径准入和恢复策略解析；应用负责协议投影、激活提交和私有子进程参数。参见[配置与优先级](../../apps/orchbee/docs/windows-cli-configuration.zh-CN.md)。仅 Windows 的固定版本 `toml` 依赖在此文件边界解析。不引入可变缓存、写入器或 Workbench 依赖。
+
+纯函数 `windows_user_settings_path` 为伴随资源暴露相同配置文件位置，不打开文件或应用设置。它保留显式 `ORCHBEE_CONFIG_FILE` 优先于 `%APPDATA%/Orchbee/config.toml` 的规则；缺少根目录时仍返回缺失。Server 使用其父目录定位检测规则输入。

@@ -240,6 +240,55 @@ const sameRule = (
 	a === null || b === null
 		? a === b
 		: a.id === b.id && a.priority === b.priority && a.region === b.region && a.state === b.state;
+const manifestSource = z.enum(['bundled', 'local-override', 'remote-cache']);
+const manifestInfo = z
+	.strictObject({
+		source: manifestSource,
+		path: z
+			.string()
+			.refine(
+				(s) =>
+					s.length > 0 && new TextEncoder().encode(s).byteLength <= 32768 && !/\p{Cc}/u.test(s),
+			)
+			.nullable(),
+		cachedRemoteVersion: z
+			.string()
+			.max(128)
+			.refine(
+				(s) =>
+					/^[0-9]+(?:\.[0-9]+)*$/u.test(s) &&
+					s.split('.').every((part) => BigInt(part) <= 18446744073709551615n),
+			)
+			.nullable(),
+		localOverrideShadowingRemote: z.boolean(),
+		warnings: z
+			.array(
+				z
+					.strictObject({
+						source: z.enum(['local-override', 'remote-cache']),
+						kind: z.enum([
+							'unreadable',
+							'not-regular',
+							'too-large',
+							'invalid-utf8',
+							'invalid-manifest',
+							'invalid-version',
+							'older-than-bundled',
+						]),
+					})
+					.readonly(),
+			)
+			.max(2)
+			.readonly(),
+	})
+	.refine(
+		(m) =>
+			(m.source === 'bundled' ? m.path === null : m.path !== null) &&
+			(m.source !== 'remote-cache' || m.cachedRemoteVersion !== null) &&
+			(!m.localOverrideShadowingRemote || m.cachedRemoteVersion !== null) &&
+			new Set(m.warnings.map((w) => w.source)).size === m.warnings.length,
+	)
+	.readonly();
 const screenExplanation = z
 	.strictObject({
 		agent: z.enum([
@@ -270,6 +319,7 @@ const screenExplanation = z
 		]),
 		state: PanelAgentStateSchema,
 		manifestSource: z.string().nullable(),
+		manifest: manifestInfo.optional(),
 		manifestVersion: scalarBound(128).nullable(),
 		matchedRule: detectionRule.nullable(),
 		visibleIdle: z.boolean(),
@@ -293,6 +343,7 @@ const screenExplanation = z
 		const noFlags = !e.visibleIdle && !e.visibleBlocker && !e.visibleWorking;
 		if (e.screenDetectionSkipped) {
 			return (
+				e.manifest === undefined &&
 				e.screenDetectionSkipReason === 'full-lifecycle-hook-authority' &&
 				e.manifestSource === null &&
 				e.manifestVersion === null &&
@@ -312,8 +363,15 @@ const screenExplanation = z
 		if (
 			e.screenDetectionSkipReason !== null ||
 			!(
-				e.manifestSource === 'bundled' ||
-				(e.manifestSource === null && e.manifestVersion === null && e.evaluatedRules.length === 0)
+				(e.manifest !== undefined &&
+					e.manifestSource === e.manifest.source &&
+					(e.manifest.source !== 'remote-cache' ||
+						e.manifestVersion === e.manifest.cachedRemoteVersion)) ||
+				(e.manifest === undefined && e.manifestSource === 'bundled') ||
+				(e.manifest === undefined &&
+					e.manifestSource === null &&
+					e.manifestVersion === null &&
+					e.evaluatedRules.length === 0)
 			) ||
 			!sameRule(e.matchedRule, winner) ||
 			e.state !== (winner?.state ?? 'idle') ||

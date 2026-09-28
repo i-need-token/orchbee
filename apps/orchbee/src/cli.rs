@@ -923,7 +923,13 @@ fn success_output(
             let version = results::schema_version(command);
             #[cfg(windows)]
             let version = match &projection {
-                results::Projection::AgentTerminalExplanation(_) => 2,
+                results::Projection::AgentTerminalExplanation(terminal) => {
+                    if terminal.explanation.manifest.is_some() {
+                        3
+                    } else {
+                        2
+                    }
+                }
                 results::Projection::AgentTerminalInspection { client_view, .. } => {
                     if client_view.is_some() { 16 } else { 15 }
                 }

@@ -1,6 +1,6 @@
 # Agent screen detection model
 
-The Server owns fallback screen interpretation separately from explicit Agent reports and process identity. A successful bounded terminal sample can describe working, idle or blocked UI; it cannot prove which provider owns a process, authenticate it or create a canonical Agent Session. The reference is Herdr `e0507237ad8d41f60aece10d00ef29ce2339ca34`, its 22 bundled detection manifests and `pane/agent_detection.rs`. The Windows periodic sampler compiles the deterministic engine once before startup and publishes admitted screen fallback. Physical explain consumes the same engine through the bounded observer queue. Overrides, reload and updates remain integration obligations.
+The Server owns fallback screen interpretation separately from explicit Agent reports and process identity. A successful bounded terminal sample can describe working, idle or blocked UI; it cannot prove which provider owns a process, authenticate it or create a canonical Agent Session. The reference is Herdr `e0507237ad8d41f60aece10d00ef29ce2339ca34`, its 22 bundled detection manifests and `pane/agent_detection.rs`. The Windows periodic sampler compiles the deterministic engine once before startup and publishes admitted screen fallback. Physical explain consumes the same engine through the bounded observer queue. Startup now loads bounded local overrides and eligible remote cache with typed provenance warnings. Live reload, manifest queries and remote updates remain integration obligations.
 
 ## Inputs and rule ownership
 
@@ -34,6 +34,21 @@ The coordinator retains screen stability and a three-second startup grace per ph
 Working-to-plain-idle transitions hold for three further confirmations or 700 ms; explicit visible idle/blockers, provider change or exit clear that hold. Stable visible blockers refresh at 800 ms so newer weak reports can be challenged without publishing every sampling tick. Startup grace and sampling cadence are adapter responsibilities. Screen and process sampling must retain the existing required-completion and uncertain-viewer-cleanup ownership. No controller/input/focus effect is admitted.
 
 ## Evidence and delivery
+
+The accepted rule-maintenance model gives the Server one immutable compiled ruleset and its
+provenance. Windows startup resolves the shared configuration-file parent without rewriting user
+settings. For each bundled provider, `<config>/agent-detection/<report-label>.toml` overrides
+`<config>/agent-detection/remote/<report-label>.toml`, then bundled rules. Reads admit regular UTF-8
+files of at most 256 KiB with the same provider, engine and complexity validation as bundled rules.
+Present versions must be dotted numeric; remote caches must also declare an engine version and
+be no older than bundled versions. Trailing zero segments compare equally. Normalized manifest
+identifiers or aliases may match the provider. Invalid override/cache inputs produce typed warnings and fall back to the
+next valid source. Providers without bundled rules retain known-idle fallback. The sampler and
+Explain consume the same installed ruleset. Explain provenance identifies the actual path, cached
+version, local shadowing and warnings; it does not manufacture update status. Canonical CLI v1 and
+closed physical v2 remain compatible; enriched physical explanations use v3. The full maintenance
+workflow still requires current-manifest queries, retained bounded reload, stabilization reset and an
+owned real updater with atomic cache commits, truthful origin/status and cancellation/cleanup.
 
 Physical `agent explain` is a read, owned by the same detector and temporary-viewer lifecycle.
 An exact binding and current Workbench/report context are prepared under the Worker/Site fences.
