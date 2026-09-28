@@ -546,6 +546,15 @@ pub fn build(builder: *std.Build) void {
     const run_input_tests = builder.addRunArtifact(input_tests);
     builder.step("test-input-encoding", "Run programmatic key encoding regressions")
         .dependOn(&run_input_tests.step);
+    const platform_filter = builder.option([]const u8, "platform-test-filter", "Run platform tests whose names contain this text");
+    const focused_platform_tests = builder.addTest(.{
+        .name = "terminal-host-platform-tests",
+        .root_module = platform_test_module,
+        .filters = if (platform_filter) |filter| &.{filter} else &.{},
+    });
+    focused_platform_tests.root_module.link_libc = true;
+    builder.step("test-platform", "Run Terminal Host native platform tests")
+        .dependOn(&builder.addRunArtifact(focused_platform_tests).step);
     for ([_]*std.Build.Module{
         cli_test_module,
         benchmark_test_module,

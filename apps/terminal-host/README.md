@@ -300,6 +300,7 @@ The narrower POSIX endpoint-security evidence can be run without the complete Ho
 
 ```sh
 (cd apps/terminal-host && zig build test-cli)
+(cd apps/terminal-host && zig build test-platform -Dplatform-test-filter="Windows executable separator")
 (cd apps/terminal-host && zig build test-transport)
 (cd apps/terminal-host && zig build test-transport-compile -Dtarget=x86_64-linux-gnu)
 (cd apps/terminal-host && zig build test-transport-compile -Dtarget=x86_64-freebsd)

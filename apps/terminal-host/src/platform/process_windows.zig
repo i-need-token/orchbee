@@ -158,7 +158,11 @@ pub const Process = if (builtin.os.tag != .windows) void else struct {
         const arena = arena_state.allocator();
 
         var arguments = try arena.alloc([]const u8, launch.arguments.len + 1);
-        arguments[0] = launch.executable;
+        // cmd.exe parses argv0 itself and mistakes forward-slash path segments
+        // for switches. Keep application selection and caller arguments literal.
+        const executable_argument = try arena.dupe(u8, launch.executable);
+        std.mem.replaceScalar(u8, executable_argument, '/', '\\');
+        arguments[0] = executable_argument;
         @memcpy(arguments[1..], launch.arguments);
         const command_line = try windowsCommandLine(arena, arguments);
         const command_line_template = try std.unicode.utf8ToUtf16LeAllocZ(arena, command_line);

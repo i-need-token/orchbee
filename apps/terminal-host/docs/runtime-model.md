@@ -20,6 +20,20 @@ Authority is divided deliberately:
 An implementation comment, source layout description, or protocol codec must not define a second
 version of a fact owned here.
 
+## Windows executable spelling
+
+The Windows process adapter synthesizes `argv[0]` from the selected executable with backslash
+separators. This prevents `cmd.exe` from interpreting forward slashes in its own executable path
+as switches. Application-name candidate selection and the retained launch fingerprint keep their
+original values; the adapter performs no additional lookup or fallback. Every supplied argument
+in `argv[1..]` retains its original bytes and existing Windows quoting. No other platform changes.
+The spelling conversion uses the spawn arena and finishes before PTY/process acquisition.
+
+The native witness starts real ConPTY commands with backslash, forward-slash and mixed executable
+spellings, requires literal slash-bearing output and exit code 37, and bounds the wait for Job
+containment. The test owns and settles its Job and reader on success and failure. This establishes
+process-adapter behavior, not full CLI/cohort acceptance or UNC/long-directory support.
+
 ## Terminal process queries
 
 A read-capable attachment may request a fresh process sample for its exact retained terminal. The engine owns the process resources; brokers never inspect arbitrary PIDs, infer ownership from hooks, or substitute initial launch parameters for current facts. The query does not mutate terminal state, input, focus, or lifecycle. A disconnected attachment, deferred terminal, unavailable platform, changing process membership, exhausted bound, or OS query failure has an explicit failure result; it is never an empty successful sample.
