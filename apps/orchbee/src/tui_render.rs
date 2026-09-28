@@ -742,7 +742,7 @@ fn render_tab_strip(
         strip,
         native.tab_count(),
         native.active_position(),
-        |index| native_tab(native, index),
+        |index| native_tab(native, index, text.pinned_tab),
         theme,
         &mut |index, x, width| {
             if let Some(tab) = native.tab(index) {
@@ -931,12 +931,20 @@ fn render_dividers(frame: &mut Frame<'_>, dividers: &[Rect], theme: &Theme) {
     }
 }
 
-fn native_tab<'a>(native: &NativeSessionView<'a>, index: usize) -> Option<tabs::TabDisplay<'a>> {
+fn native_tab<'a>(
+    native: &NativeSessionView<'a>,
+    index: usize,
+    pinned_label: &str,
+) -> Option<tabs::TabDisplay<'a>> {
     let tab: NativeTabView<'a> = native.tab(index)?;
     Some(tabs::TabDisplay {
         position: tab.position(),
         active: tab.active(),
-        label: tab.tab_label(),
+        label: tabs::label_with_metadata(
+            tab.tab_label(),
+            tab.pinned().then_some(pinned_label),
+            tab.group_label(),
+        ),
     })
 }
 
@@ -1380,7 +1388,7 @@ fn render_native_workbench_navigator(
         tabs_area,
         native.tab_count(),
         native.active_position(),
-        |index| native_tab(native, index),
+        |index| native_tab(native, index, text.pinned_tab),
         theme,
         &mut |index, offset| {
             if let Some(tab) = native.tab(index) {

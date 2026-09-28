@@ -114,6 +114,7 @@ pub(crate) enum NativeSessionNotice {
     NoTabAtPosition(u8),
     CreateNotCreated,
     MoveNotMoved,
+    MoveOrderConflict,
     PanelNotApplied,
     RenameNotRenamed,
     CloseRequestNotApplied,
@@ -168,6 +169,14 @@ pub(crate) struct NativeTabView<'a> {
 }
 
 impl<'a> NativeTabView<'a> {
+    pub(crate) fn pinned(&self) -> bool {
+        self.inner.pinned()
+    }
+
+    pub(crate) fn group_label(&self) -> Option<&'a str> {
+        self.inner.group_label()
+    }
+
     /// Resolve this Client's split weight against exact ordered slot identities.
     pub(crate) fn split_ratio(
         &self,
@@ -330,6 +339,7 @@ impl<'a> NativeSessionView<'a> {
             }
             SessionNotice::CreateNotCreated => NativeSessionNotice::CreateNotCreated,
             SessionNotice::MoveNotMoved => NativeSessionNotice::MoveNotMoved,
+            SessionNotice::MoveOrderConflict => NativeSessionNotice::MoveOrderConflict,
             SessionNotice::PanelNotApplied => NativeSessionNotice::PanelNotApplied,
             SessionNotice::RenameNotRenamed => NativeSessionNotice::RenameNotRenamed,
             SessionNotice::CloseRequestNotApplied => NativeSessionNotice::CloseRequestNotApplied,

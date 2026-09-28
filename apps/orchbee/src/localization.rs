@@ -177,6 +177,7 @@ pub(crate) struct ShellText {
     pub(crate) terminal_unavailable: &'static str,
     pub(crate) too_small_notice: &'static str,
     pub(crate) workbench_title: &'static str,
+    pub(crate) pinned_tab: &'static str,
     pub(crate) workspaces: &'static str,
     pub(crate) zoom_badge: &'static str,
 }
@@ -268,6 +269,7 @@ const EN_US_SHELL: ShellText = ShellText {
     terminal_unavailable: "Terminal unavailable",
     too_small_notice: "Too small · resize to continue",
     workbench_title: "WORKBENCH",
+    pinned_tab: "Pinned",
     workspaces: "Workspaces",
     zoom_badge: "zoomed · Ctrl+B z restores",
 };
@@ -327,6 +329,7 @@ const ZH_CN_SHELL: ShellText = ShellText {
     terminal_unavailable: "终端不可用",
     too_small_notice: "窗口太小 · 请调整大小后继续",
     workbench_title: "WORKBENCH",
+    pinned_tab: "固定",
     workspaces: "工作区",
     zoom_badge: "已放大 · Ctrl+B z 恢复",
 };
@@ -848,6 +851,12 @@ impl Locale {
             NativeSessionNotice::MoveNotMoved => match self {
                 Self::EnUs => "Tab was not moved".to_owned(),
                 Self::ZhCn => "标签未移动".to_owned(),
+            },
+            NativeSessionNotice::MoveOrderConflict => match self {
+                Self::EnUs => {
+                    "Tab not moved: preserve pinned Tabs and contiguous groups".to_owned()
+                }
+                Self::ZhCn => "标签未移动：需保留固定标签前缀和分组连续性".to_owned(),
             },
             NativeSessionNotice::PanelNotApplied => match self {
                 Self::EnUs => "Panel operation was not applied".to_owned(),

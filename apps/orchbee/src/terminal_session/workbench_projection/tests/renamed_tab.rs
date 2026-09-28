@@ -213,7 +213,7 @@ fn later_history_still_enforces_canonical_identity_and_membership_bounds() {
     wrong.tabs.push(wrong.tabs[0].clone());
     failures.push(wrong);
     let mut wrong = projected(MAXIMUM_TABS_PER_CONTEXT, 12);
-    let extra = project_tab(&tab(MAXIMUM_TABS_PER_CONTEXT)).unwrap();
+    let extra = project_tab(&tab(MAXIMUM_TABS_PER_CONTEXT), &[]).unwrap();
     wrong.tabs.push(extra);
     failures.push(wrong);
     for wrong in failures {

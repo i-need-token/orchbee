@@ -21,6 +21,7 @@ pub(super) struct RetainedContext {
     location: NativeContextLocation,
     revision: WorkbenchRevision,
     tabs: Vec<NativeSimpleTab>,
+    groups: Vec<orchbee_workbench_protocol::TabGroup>,
     provenance: Vec<CreateTerminalProvenance>,
 }
 
@@ -282,6 +283,7 @@ impl NativeSessionState {
             &retained.location,
             retained.revision,
             &retained.tabs,
+            &retained.groups,
             candidate,
         )
         .map_err(|_| CarrierFailure::AuthorityDivergence)?;
@@ -324,6 +326,7 @@ impl NativeSessionState {
             location: self.cache.location().clone(),
             revision: self.cache.revision(),
             tabs: self.cache.tabs().to_vec(),
+            groups: self.cache.groups().to_vec(),
             provenance: self.provenance.clone(),
         };
         if let Some(prior) = retained_contexts

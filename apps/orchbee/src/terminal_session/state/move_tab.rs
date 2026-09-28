@@ -162,6 +162,7 @@ impl PreparedMove {
 
 enum PreparedMoveResult {
     NotMoved,
+    OrderConflict,
     Unchanged,
     Committed {
         pending: PendingMoveCommit,
@@ -245,6 +246,10 @@ impl NativeSessionState {
         result: MoveResult,
     ) -> PreparedMove {
         let result = match result {
+            MoveResult::Precommit(WorkbenchTabMovePrecommit::Rejected {
+                reason: orchbee_workbench_protocol::WorkbenchRejectionReason::TabMoveOrderConflict,
+                ..
+            }) => PreparedMoveResult::OrderConflict,
             MoveResult::NotSubmitted | MoveResult::Precommit(_) => PreparedMoveResult::NotMoved,
             MoveResult::TabUnavailable { revision, outcome } => {
                 if revision.value() < operation.baseline.revision().value() {
@@ -362,6 +367,9 @@ impl NativeSessionState {
         }
         match prepared.result {
             PreparedMoveResult::NotMoved => self.notice = Some(SessionNotice::MoveNotMoved),
+            PreparedMoveResult::OrderConflict => {
+                self.notice = Some(SessionNotice::MoveOrderConflict)
+            }
             PreparedMoveResult::Unchanged => self.notice = None,
             PreparedMoveResult::RefusedProjection(candidate) => {
                 if !self.merge_projection(candidate) {

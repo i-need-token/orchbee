@@ -8,7 +8,17 @@ use orchbee_workbench_protocol::{
 fn snapshot(empty: bool, unsupported: bool) -> Snapshot {
     let mut snapshot = setup::snapshot(3, 2);
     let mut tab = snapshot.terminal_contexts[0].tabs.pop().unwrap();
-    tab.pinned = unsupported;
+    tab.pinned = true;
+    if unsupported {
+        let orchbee_workbench_protocol::PanelNode::Panel {
+            primary_presentation,
+            ..
+        } = &mut tab.root
+        else {
+            panic!("single Panel fixture")
+        };
+        primary_presentation.binding = None;
+    }
     let context = WorkbenchTerminalContextId::parse(&format!("{:032x}", 272)).unwrap();
     snapshot.terminal_contexts.push(TerminalContext {
         terminal_context_id: context.clone(),

@@ -76,16 +76,8 @@ fn requires_one_matching_context_and_ignores_project_workspace_contexts() {
 }
 
 #[test]
-fn rejects_groups_and_each_unsupported_member_without_filtering() {
+fn rejects_malformed_metadata_and_unsupported_members_without_filtering() {
     let mut unsupported = Vec::new();
-
-    let mut groups = snapshot(3, 1);
-    groups.terminal_contexts[0].groups.push(TabGroup {
-        color: TabGroupColor::Cyan,
-        group_id: group_id(20),
-        label: "group".into(),
-    });
-    unsupported.push(groups);
 
     let mut grouped = snapshot(3, 1);
     grouped.terminal_contexts[0].tabs[1].group_id = Some(group_id(21));

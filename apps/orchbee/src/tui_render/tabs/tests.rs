@@ -80,6 +80,78 @@ fn infallible<T>(result: Result<T, Infallible>) -> T {
 }
 
 #[test]
+fn metadata_annotations_are_sanitized_clipped_and_share_drawn_hit_geometry() {
+    use super::label_with_metadata;
+    for pinned in ["Pinned", "固定"] {
+        let decorated = [
+            label_with_metadata("shell".into(), Some(pinned), None),
+            label_with_metadata("中文 shell".into(), None, Some("work\u{001b}[2J\n组")),
+        ];
+        assert_eq!(decorated[0], format!("{pinned} · shell"));
+        for width in [1, 9, 20, 80] {
+            let mut terminal = infallible(Terminal::new(TestBackend::new(width, 1)));
+            let mut hits = Vec::new();
+            infallible(terminal.draw(|frame| {
+                render_compact(
+                    frame,
+                    Rect::new(0, 0, width, 1),
+                    2,
+                    Some(2),
+                    |index| {
+                        Some(TabDisplay {
+                            position: index + 1,
+                            active: index == 1,
+                            label: decorated[index].clone(),
+                        })
+                    },
+                    &crate::tui_theme::Theme::rgb_test_dark(),
+                    &mut |index, x, width| hits.push((index, x, width)),
+                )
+            }));
+            assert!(
+                hits.iter().all(|(index, x, size)| *index < 2
+                    && *size > 0
+                    && x + size <= usize::from(width))
+            );
+            assert!(
+                hits.windows(2)
+                    .all(|pair| pair[0].1 + pair[0].2 < pair[1].1)
+            );
+            let buffer = terminal.backend().buffer();
+            let mut text = String::new();
+            let mut x = 0;
+            while x < width {
+                let symbol = buffer[(x, 0)].symbol();
+                text.push_str(symbol);
+                x += u16::try_from(crate::terminal_text::display_width(symbol).max(1))
+                    .expect("a rendered cell fits the terminal width");
+            }
+            assert!(!text.contains('\u{001b}') && !text.contains('\n'));
+            assert!(
+                hits.iter().any(|(index, _, _)| *index == 1),
+                "active Tab remains reachable"
+            );
+            if width == 80 {
+                assert!(text.contains(pinned));
+                assert!(text.contains(" / 中文 shell"));
+            }
+            let tab = TabDisplay {
+                position: 2,
+                active: true,
+                label: decorated[1].clone(),
+            };
+            assert!(
+                crate::terminal_text::display_width(&navigator_row(
+                    &tab,
+                    usize::from(width),
+                    &crate::tui_theme::Theme::rgb_test_dark()
+                )) <= usize::from(width)
+            );
+        }
+    }
+}
+
+#[test]
 fn compact_strip_formats_boundaries_without_assuming_single_digit_positions() {
     for count in [0, 1, 9, 10, 256] {
         let labels = (1..=count)

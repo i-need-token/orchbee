@@ -9,6 +9,7 @@ use std::collections::HashMap;
 
 mod closed;
 pub(super) mod renamed;
+mod tab_metadata;
 pub(super) use closed::{ClosedTabExpectation, validate_closed_tab};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -16,6 +17,7 @@ pub(super) struct NativeContextTabs {
     site_id: SiteId,
     revision: WorkbenchRevision,
     tabs: Vec<NativeSimpleTab>,
+    groups: Vec<orchbee_workbench_protocol::TabGroup>,
     location: NativeContextLocation,
     navigation: std::sync::Arc<[NativeContext]>,
     projects: std::sync::Arc<[orchbee_workbench_protocol::Project]>,
@@ -51,6 +53,10 @@ pub(super) struct NativeContext {
 }
 
 impl NativeContextTabs {
+    pub(super) fn groups(&self) -> &[orchbee_workbench_protocol::TabGroup] {
+        &self.groups
+    }
+
     pub(super) fn projects(&self) -> &[orchbee_workbench_protocol::Project] {
         &self.projects
     }
@@ -117,6 +123,8 @@ pub(super) struct NativeSimpleTab {
     tab_id: WorkbenchTabId,
     tab_label: WorkbenchLabel,
     automatic_label: bool,
+    pinned: bool,
+    group: Option<orchbee_workbench_protocol::TabGroup>,
     panel_id: WorkbenchPanelId,
     presentation_id: TerminalPresentationId,
     presentation_label: WorkbenchLabel,
@@ -126,6 +134,14 @@ pub(super) struct NativeSimpleTab {
 }
 
 impl NativeSimpleTab {
+    pub(super) const fn pinned(&self) -> bool {
+        self.pinned
+    }
+
+    pub(super) fn group_label(&self) -> Option<&str> {
+        self.group.as_ref().map(|group| group.label.as_str())
+    }
+
     pub(super) fn has_replaced_terminals_from(&self, prior: &Self) -> bool {
         self.panels.iter().any(|panel| {
             prior
@@ -653,17 +669,15 @@ pub(super) fn project_native_context_tabs(
         .iter()
         .filter(|context| &context.terminal_context_id == location.terminal_context_id());
     let context = contexts.next().ok_or(NativeProjectionError)?;
-    if contexts.next().is_some()
-        || !context.groups.is_empty()
-        || context.tabs.len() > MAXIMUM_TABS_PER_CONTEXT
-    {
+    if contexts.next().is_some() || context.tabs.len() > MAXIMUM_TABS_PER_CONTEXT {
         return Err(NativeProjectionError);
     }
+    tab_metadata::validate(context)?;
 
     let tabs = context
         .tabs
         .iter()
-        .map(project_tab)
+        .map(|tab| project_tab(tab, &context.groups))
         .collect::<Result<Vec<_>, _>>()?;
     if !unique_structural_ids(&tabs) {
         return Err(NativeProjectionError);
@@ -672,6 +686,7 @@ pub(super) fn project_native_context_tabs(
         site_id: snapshot.site_id.clone(),
         revision: snapshot.revision,
         tabs,
+        groups: context.groups.clone(),
         location: location.clone(),
         navigation: navigation.into(),
         projects: snapshot.navigation.projects.clone().into(),
@@ -692,6 +707,7 @@ pub(super) fn validate_created_tab(
     candidate: NativeContextTabs,
 ) -> Result<ValidatedCreatedProjection, NativeProjectionDivergence> {
     validate_canonical_candidate(current, &candidate)?;
+    tab_metadata::validate_receipt(current, &candidate, expected.committed_revision)?;
     if current.revision.value().checked_add(1) != Some(expected.committed_revision.value())
         || current.tab_index(&expected.tab_id).is_some()
         || candidate.revision < expected.committed_revision
@@ -727,6 +743,8 @@ pub(super) fn validate_created_tab(
         || created.presentation_label != expected.requested_label
         || (candidate.revision == expected.committed_revision
             && (created.tab_label != expected.requested_label
+                || created.pinned
+                || created.group.is_some()
                 || created.automatic_label != expected.automatic_label))
     {
         return Err(NativeProjectionDivergence);
@@ -743,6 +761,7 @@ pub(super) fn validate_moved_tab(
     candidate: NativeContextTabs,
 ) -> Result<ValidatedMovedProjection, NativeProjectionDivergence> {
     validate_canonical_candidate(baseline, &candidate)?;
+    tab_metadata::validate_receipt(baseline, &candidate, expected.committed_revision)?;
     if baseline.revision.value().checked_add(1) != Some(expected.committed_revision.value())
         || &expected.terminal_context_id != baseline.terminal_context_id()
         || candidate.revision < expected.committed_revision
@@ -782,6 +801,7 @@ pub(super) fn validate_split_panel(
     candidate: NativeContextTabs,
 ) -> Result<NativeContextTabs, NativeProjectionDivergence> {
     validate_canonical_candidate(baseline, &candidate)?;
+    tab_metadata::validate_receipt(baseline, &candidate, expected.committed_revision)?;
     if baseline.revision.value().checked_add(1) != Some(expected.committed_revision.value())
         || &expected.terminal_context_id != baseline.terminal_context_id()
         || candidate.revision < expected.committed_revision
@@ -822,6 +842,7 @@ pub(super) fn validate_moved_panel(
     candidate: NativeContextTabs,
 ) -> Result<NativeContextTabs, NativeProjectionDivergence> {
     validate_canonical_candidate(baseline, &candidate)?;
+    tab_metadata::validate_receipt(baseline, &candidate, expected.committed_revision)?;
     if baseline.revision.value().checked_add(1) != Some(expected.committed_revision.value())
         || &expected.terminal_context_id != baseline.terminal_context_id()
         || candidate.revision < expected.committed_revision
@@ -1193,10 +1214,10 @@ fn find_move_graft<'a>(
     );
 }
 
-fn project_tab(tab: &Tab) -> Result<NativeSimpleTab, NativeProjectionError> {
-    if tab.group_id.is_some() || tab.pinned {
-        return Err(NativeProjectionError);
-    }
+fn project_tab(
+    tab: &Tab,
+    groups: &[orchbee_workbench_protocol::TabGroup],
+) -> Result<NativeSimpleTab, NativeProjectionError> {
     let mut panels = Vec::new();
     let tree = project_panel_tree(&tab.root, &mut panels)?;
     let primary = panels.first().ok_or(NativeProjectionError)?;
@@ -1204,6 +1225,12 @@ fn project_tab(tab: &Tab) -> Result<NativeSimpleTab, NativeProjectionError> {
         tab_id: tab.tab_id.clone(),
         tab_label: WorkbenchLabel::parse(&tab.label).map_err(|_error| NativeProjectionError)?,
         automatic_label: tab.automatic_label,
+        pinned: tab.pinned,
+        group: tab
+            .group_id
+            .as_ref()
+            .and_then(|id| groups.iter().find(|group| &group.group_id == id))
+            .cloned(),
         panel_id: primary.panel_id.clone(),
         presentation_id: primary.presentation_id.clone(),
         presentation_label: primary.presentation_label.clone(),
@@ -1275,6 +1302,7 @@ pub(super) fn validate_canonical_candidate(
         &current.location,
         current.revision,
         &current.tabs,
+        &current.groups,
         candidate,
     )?;
     if candidate.revision == current.revision
@@ -1291,6 +1319,7 @@ pub(super) fn validate_retained_context(
     location: &NativeContextLocation,
     revision: WorkbenchRevision,
     tabs: &[NativeSimpleTab],
+    groups: &[orchbee_workbench_protocol::TabGroup],
     candidate: &NativeContextTabs,
 ) -> Result<(), NativeProjectionDivergence> {
     if &candidate.site_id != site_id
@@ -1300,7 +1329,7 @@ pub(super) fn validate_retained_context(
         return Err(NativeProjectionDivergence);
     }
     if candidate.revision == revision {
-        return (candidate.tabs.as_slice() == tabs)
+        return (candidate.tabs.as_slice() == tabs && candidate.groups.as_slice() == groups)
             .then_some(())
             .ok_or(NativeProjectionDivergence);
     }

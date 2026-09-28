@@ -21,6 +21,46 @@ fn commit(operation: &MoveOperation) -> WorkbenchTabMoveCommit {
 }
 
 #[test]
+fn order_conflict_preserves_the_viewer_and_settles_to_specific_notice() {
+    let mut state = ready(2);
+    let cache = state.cache().clone();
+    let active = state.active().cloned();
+    let attached = state.attached_key().cloned();
+    let mode = state.controller_mode().cloned();
+    let operation = operation(&state, 800);
+    assert!(state.begin_move(operation.clone()));
+    let prepared = state.prepare_move(
+        &operation,
+        MoveResult::Precommit(
+            crate::local_client::workbench::WorkbenchTabMovePrecommit::Rejected {
+                revision: cache.revision(),
+                reason: orchbee_workbench_protocol::WorkbenchRejectionReason::TabMoveOrderConflict,
+            },
+        ),
+    );
+    assert_eq!(state.apply_prepared_move(prepared), MoveDecision::Continue);
+    assert_eq!(state.cache(), &cache);
+    assert_eq!(state.active(), active.as_ref());
+    assert_eq!(state.attached_key(), attached.as_ref());
+    assert_eq!(state.controller_mode(), mode.as_ref());
+    assert!(state.pending_move().is_none());
+    assert_eq!(state.notice, Some(SessionNotice::MoveOrderConflict));
+    assert!(state.invariant_holds());
+    assert!(!matches!(
+        state.plan_selection(ClientAction::SelectNextTab),
+        SelectionPlan::Busy
+    ));
+    for locale in [
+        crate::localization::Locale::EnUs,
+        crate::localization::Locale::ZhCn,
+    ] {
+        let message =
+            locale.native_notice(crate::terminal_session::NativeSessionNotice::MoveOrderConflict);
+        assert!(!message.is_empty());
+    }
+}
+
+#[test]
 fn move_keeps_historical_ready_and_read_only_viewer_through_recovery() {
     for read_only in [false, true] {
         let mut state = ready(3);

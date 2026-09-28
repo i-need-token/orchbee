@@ -319,9 +319,9 @@ fn successor(current: &NativeContextTabs, appended: usize) -> NativeContextTabs 
     candidate.revision = WorkbenchRevision::new(revision);
     if appended > 0 {
         for offset in 0..appended {
-            candidate
-                .tabs
-                .push(project_tab(&tab(usize::try_from(revision).unwrap() * 4 + offset)).unwrap());
+            candidate.tabs.push(
+                project_tab(&tab(usize::try_from(revision).unwrap() * 4 + offset), &[]).unwrap(),
+            );
         }
     }
     candidate

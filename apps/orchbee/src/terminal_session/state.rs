@@ -561,6 +561,7 @@ pub(super) enum SessionNotice {
     NoTabAtPosition(u8),
     CreateNotCreated,
     MoveNotMoved,
+    MoveOrderConflict,
     RenameNotRenamed,
     CloseRequestNotApplied,
     PanelNotApplied,
@@ -3921,6 +3922,14 @@ pub(super) struct NativeTabView<'a> {
 }
 
 impl<'a> NativeTabView<'a> {
+    pub(super) fn pinned(&self) -> bool {
+        self.tab.pinned()
+    }
+
+    pub(super) fn group_label(&self) -> Option<&'a str> {
+        self.tab.group_label()
+    }
+
     pub(super) fn split_ratio(
         &self,
         split: &orchbee_workbench_protocol::WorkbenchSplitId,

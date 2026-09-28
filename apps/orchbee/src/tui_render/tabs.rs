@@ -18,6 +18,22 @@ pub(super) struct TabDisplay<'a> {
     pub(super) label: std::borrow::Cow<'a, str>,
 }
 
+/// Metadata decorates display only. Sanitizing, clipping and hit width still
+/// consume the complete label through the same rendering path as plain Tabs.
+pub(super) fn label_with_metadata<'a>(
+    label: std::borrow::Cow<'a, str>,
+    pinned: Option<&str>,
+    group: Option<&str>,
+) -> std::borrow::Cow<'a, str> {
+    if let Some(pinned) = pinned {
+        format!("{pinned} · {label}").into()
+    } else if let Some(group) = group {
+        format!("{group} / {label}").into()
+    } else {
+        label
+    }
+}
+
 /// Paints the compact tab strip and reports each painted token's
 /// `(tab index, x offset, width)` to `on_token` in the same pass, so a
 /// recorded hit region can never disagree with what was drawn.

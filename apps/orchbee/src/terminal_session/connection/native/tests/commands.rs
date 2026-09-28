@@ -1630,13 +1630,25 @@ fn refresh_uses_one_pending_generation_and_ui_settles_after_transport_deadline()
 }
 
 #[test]
-fn label_only_refresh_preserves_selection_viewer_frame_and_presentation_anchor() -> TestResult {
+fn label_and_tab_metadata_refresh_preserves_selection_viewer_frame_and_presentation_anchor()
+-> TestResult {
     let geometry = fixture_geometry()?;
     let mut initial = snapshot(1, 1);
     set_tab_labels(&mut initial, 0, "old", "creation-anchor")?;
+    initial.terminal_contexts[0].tabs[0].pinned = true;
     let mut refreshed = initial.clone();
     refreshed.revision = WorkbenchRevision::new(2);
     refreshed.terminal_contexts[0].tabs[0].label = "renamed".to_owned();
+    let group = orchbee_workbench_protocol::WorkbenchTabGroupId::parse(&format!("{:032x}", 800))?;
+    refreshed.terminal_contexts[0]
+        .groups
+        .push(orchbee_workbench_protocol::TabGroup {
+            group_id: group.clone(),
+            label: "work".to_owned(),
+            color: orchbee_workbench_protocol::TabGroupColor::Cyan,
+        });
+    refreshed.terminal_contexts[0].tabs[0].pinned = false;
+    refreshed.terminal_contexts[0].tabs[0].group_id = Some(group);
 
     let mut harness = Harness::start(
         vec![
@@ -1725,6 +1737,8 @@ fn label_only_refresh_preserves_selection_viewer_frame_and_presentation_anchor()
         .tab(0)
         .ok_or_else(|| test_error("renamed tab must remain cached"))?;
     assert_eq!(renamed.tab_label().as_str(), "renamed");
+    assert!(!renamed.pinned());
+    assert_eq!(renamed.group_label(), Some("work"));
     assert_eq!(renamed.presentation_label().as_str(), "creation-anchor");
     assert_eq!(renamed.binding(), &binding);
     assert_eq!(harness.ui.state().active(), Some(&selected));

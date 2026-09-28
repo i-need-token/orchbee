@@ -111,3 +111,11 @@ refusal, pane division geometry and the shared divider, plus TestBackend renders
 60x12, 50x10, 15x4 and mixed-axis geometries in `en-US` and `zh-CN` proving the status row is never
 covered, the too-small notice is localized, and active/long-label tab tokens stay visible through
 display-width truncation.
+
+## Tab metadata annotations
+
+The native compact strip and navigator keep one token/row per canonical Tab. Pinned Tabs use the
+localized `Pinned` / `固定` annotation; grouped Tabs show `group label / Tab label`. The full text
+passes the existing sanitizer and cell-width budget, with active/selected styles supplied by the
+ordinary Tab theme roles. Drawn widths alone define the stable Tab-ID pointer regions. Annotations
+never become raw names, automatic ordinals, extra focus stops or synthetic terminal rows.
