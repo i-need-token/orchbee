@@ -22,8 +22,14 @@ pub struct AgentManifestsSnapshot {
     #[serde(deserialize_with = "nullable")]
     pub configuration_root: Option<String>,
     pub manifests: Vec<AgentManifestSummary>,
+    #[serde(
+        default,
+        deserialize_with = "present_maintenance",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub maintenance: Option<crate::AgentManifestMaintenance>,
 }
-fn nullable<'de, D: serde::Deserializer<'de>, T: Deserialize<'de>>(
+pub(super) fn nullable<'de, D: serde::Deserializer<'de>, T: Deserialize<'de>>(
     d: D,
 ) -> Result<Option<T>, D::Error> {
     Option::<T>::deserialize(d)
@@ -40,6 +46,8 @@ pub enum AgentManifestsFailure {
     LoadFailed,
     RevisionExhausted,
     Cancelled,
+    Conflict,
+    UpdateUnavailable,
 }
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(
@@ -51,6 +59,7 @@ pub enum AgentManifestsFailure {
 pub enum AgentManifestsAction {
     Current {},
     Reload { operation_id: WorkbenchRequestId },
+    Update { operation_id: WorkbenchRequestId },
     Operation { operation_id: WorkbenchRequestId },
 }
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -70,8 +79,19 @@ pub struct AgentManifestsRequest {
 )]
 pub enum AgentManifestsOperation {
     Pending {},
-    Applied { revision: WorkbenchRevision },
-    Failed { reason: AgentManifestsFailure },
+    Updated {
+        report: Box<crate::AgentManifestUpdateReport>,
+        activation: AgentManifestActivation,
+    },
+    Unknown {
+        reason: AgentManifestsFailure,
+    },
+    Applied {
+        revision: WorkbenchRevision,
+    },
+    Failed {
+        reason: AgentManifestsFailure,
+    },
 }
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(
@@ -111,11 +131,30 @@ impl AgentManifestsResult {
                     AgentManifestsAction::Reload {
                         operation_id: expected,
                     }
+                    | AgentManifestsAction::Update {
+                        operation_id: expected,
+                    }
                     | AgentManifestsAction::Operation {
                         operation_id: expected,
                     },
-                    AgentManifestsOutcome::Operation { operation_id, .. },
-                ) => expected == operation_id,
+                    AgentManifestsOutcome::Operation {
+                        operation_id,
+                        status,
+                    },
+                ) => {
+                    expected == operation_id
+                        && !matches!(
+                            (&request.action, status),
+                            (
+                                AgentManifestsAction::Reload { .. },
+                                AgentManifestsOperation::Updated { .. }
+                                    | AgentManifestsOperation::Unknown { .. }
+                            ) | (
+                                AgentManifestsAction::Update { .. },
+                                AgentManifestsOperation::Applied { .. }
+                            )
+                        )
+                }
                 _ => false,
             }
     }
@@ -151,6 +190,39 @@ impl AgentManifestsResult {
         {
             return Err(ContractError::InvalidDocument);
         }
+        if let AgentManifestsOutcome::Current { snapshot } = &self.outcome
+            && let Some(maintenance) = &snapshot.maintenance
+        {
+            maintenance.validate()?;
+        }
+        if let AgentManifestsOutcome::Operation {
+            status: AgentManifestsOperation::Updated { report, activation },
+            ..
+        } = &self.outcome
+        {
+            report.validate()?;
+            if matches!(activation,AgentManifestActivation::Applied {revision} if revision.value()==0)
+            {
+                return Err(ContractError::InvalidDocument);
+            }
+        }
         Ok(())
     }
+}
+fn present_maintenance<'de, D: serde::Deserializer<'de>>(
+    d: D,
+) -> Result<Option<crate::AgentManifestMaintenance>, D::Error> {
+    crate::AgentManifestMaintenance::deserialize(d).map(Some)
+}
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(
+    tag = "kind",
+    rename_all = "kebab-case",
+    rename_all_fields = "camelCase",
+    deny_unknown_fields
+)]
+pub enum AgentManifestActivation {
+    NotAttempted {},
+    Applied { revision: WorkbenchRevision },
+    Failed { reason: AgentManifestsFailure },
 }

@@ -458,3 +458,12 @@ export {
 	type AgentManifestsRequest,
 	type AgentManifestsResult,
 } from './workbench-agent-manifests-contract';
+
+export {
+	AgentManifestMaintenanceSchema,
+	AgentManifestUpdateReportSchema,
+	AgentManifestUpdateFailureSchema,
+	type AgentManifestMaintenance,
+	type AgentManifestUpdateReport,
+} from './workbench-agent-manifest-update-contract';
+export { AgentManifestActivationSchema } from './workbench-agent-manifests-contract';

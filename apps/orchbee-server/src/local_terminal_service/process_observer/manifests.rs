@@ -1,12 +1,16 @@
 //! One observer-owned install point and bounded, non-evicting Site-lifetime receipts.
 use super::{LocalTerminalService, ScreenDetector, Wake};
+use crate::agent_screen::updating::{self, CatalogUrl, Failure as UpdateFailure, UpdateReport};
 use orchbee_workbench_protocol::{
+    AgentManifestActivation as Activation, AgentManifestMaintenance,
     AgentManifestsAction as Action, AgentManifestsFailure as Failure,
     AgentManifestsOperation as Operation, AgentManifestsOutcome as Outcome, AgentManifestsRequest,
     AgentManifestsResult, AgentManifestsSnapshot, ProtocolVersion, WorkbenchRequestId,
     WorkbenchRevision,
 };
 use std::{collections::BTreeMap, path::PathBuf, sync::Mutex};
+mod worker;
+pub(super) use worker::Worker;
 pub(super) struct Lifetime<'a>(pub(super) &'a Registry);
 impl Drop for Lifetime<'_> {
     fn drop(&mut self) {
@@ -14,12 +18,29 @@ impl Drop for Lifetime<'_> {
     }
 }
 const RECEIPTS: usize = 1024;
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Kind {
+    Reload,
+    Update,
+}
+struct Receipt {
+    kind: Kind,
+    status: Operation,
+}
+struct Work {
+    id: WorkbenchRequestId,
+    kind: Kind,
+    root: Option<PathBuf>,
+    source: Result<CatalogUrl, UpdateFailure>,
+}
 #[derive(Default)]
 pub(super) struct Registry(Mutex<Option<State>>);
 struct State {
     root: Option<PathBuf>,
+    source: Result<CatalogUrl, UpdateFailure>,
+    update_disabled: bool,
     snapshot: AgentManifestsSnapshot,
-    operations: BTreeMap<WorkbenchRequestId, Operation>,
+    operations: BTreeMap<WorkbenchRequestId, Receipt>,
     active: Option<WorkbenchRequestId>,
     taken: bool,
     stopped: bool,
@@ -30,6 +51,15 @@ impl Registry {
         root: Option<PathBuf>,
         detector: &ScreenDetector,
     ) -> std::io::Result<()> {
+        self.initialize_source(root, detector, updating::configured_source())
+    }
+    fn initialize_source(
+        &self,
+        root: Option<PathBuf>,
+        detector: &ScreenDetector,
+        source: Result<CatalogUrl, UpdateFailure>,
+    ) -> std::io::Result<()> {
+        let maintenance = updating::maintenance(root.as_deref(), &source);
         let snapshot = AgentManifestsSnapshot {
             revision: WorkbenchRevision::new(1),
             engine_version: 3,
@@ -42,12 +72,15 @@ impl Registry {
                 })
                 .transpose()?,
             manifests: detector.summaries(),
+            maintenance: Some(maintenance),
         };
         *self
             .0
             .lock()
             .map_err(|_| std::io::Error::other("Manifest registry poisoned"))? = Some(State {
             root,
+            source,
+            update_disabled: false,
             snapshot,
             operations: BTreeMap::new(),
             active: None,
@@ -61,13 +94,14 @@ impl Registry {
             && let Some(state) = lock.as_mut()
         {
             state.stopped = true;
-            if let Some(id) = state.active.take() {
-                state.operations.insert(
-                    id,
-                    Operation::Failed {
-                        reason: Failure::Cancelled,
-                    },
-                );
+            if let Some(id) = state.active.clone()
+                && let Some(receipt) = state.operations.get_mut(&id)
+                && !(state.taken && receipt.kind == Kind::Update)
+            {
+                receipt.status = Operation::Failed {
+                    reason: Failure::Cancelled,
+                };
+                state.active = None;
             }
         }
     }
@@ -78,56 +112,90 @@ impl Registry {
         let Some(state) = lock.as_mut() else {
             return failed(Failure::Unavailable);
         };
-        match action {
-            Action::Current {} if !state.stopped => Outcome::Current {
-                snapshot: state.snapshot.clone(),
-            },
-            Action::Reload { operation_id } | Action::Operation { operation_id } => {
-                if let Some(status) = state.operations.get(operation_id) {
-                    return Outcome::Operation {
-                        operation_id: operation_id.clone(),
-                        status: status.clone(),
-                    };
-                }
-                if matches!(action, Action::Operation { .. }) {
-                    return failed(Failure::NotFound);
-                }
-                if state.stopped {
-                    return failed(Failure::Unavailable);
-                }
-                if state.active.is_some() {
-                    return failed(Failure::Busy);
-                }
-                if state.operations.len() == RECEIPTS {
-                    return failed(Failure::ResourceLimit);
-                }
-                state.active = Some(operation_id.clone());
-                state.taken = false;
-                state
-                    .operations
-                    .insert(operation_id.clone(), Operation::Pending {});
-                Outcome::Operation {
-                    operation_id: operation_id.clone(),
-                    status: Operation::Pending {},
-                }
+        let (operation_id, kind) = match action {
+            Action::Current {} => {
+                return if state.stopped {
+                    failed(Failure::Unavailable)
+                } else {
+                    Outcome::Current {
+                        snapshot: state.snapshot.clone(),
+                    }
+                };
             }
-            Action::Current {} => failed(Failure::Unavailable),
+            Action::Reload { operation_id } => (operation_id, Some(Kind::Reload)),
+            Action::Update { operation_id } => (operation_id, Some(Kind::Update)),
+            Action::Operation { operation_id } => (operation_id, None),
+        };
+        if let Some(receipt) = state.operations.get(operation_id) {
+            if kind.is_some_and(|k| k != receipt.kind) {
+                return failed(Failure::Conflict);
+            }
+            return Outcome::Operation {
+                operation_id: operation_id.clone(),
+                status: receipt.status.clone(),
+            };
+        }
+        let Some(kind) = kind else {
+            return failed(Failure::NotFound);
+        };
+        if state.stopped {
+            return failed(Failure::Unavailable);
+        }
+        if state.active.is_some() {
+            return failed(Failure::Busy);
+        }
+        if state.operations.len() == RECEIPTS {
+            return failed(Failure::ResourceLimit);
+        }
+        if kind == Kind::Update
+            && (state.source.is_err() || state.root.is_none() || state.update_disabled)
+        {
+            return failed(Failure::UpdateUnavailable);
+        }
+        state.active = Some(operation_id.clone());
+        state.taken = false;
+        state.operations.insert(
+            operation_id.clone(),
+            Receipt {
+                kind,
+                status: Operation::Pending {},
+            },
+        );
+        Outcome::Operation {
+            operation_id: operation_id.clone(),
+            status: Operation::Pending {},
         }
     }
-    fn take(&self) -> Option<(WorkbenchRequestId, Option<PathBuf>)> {
+    fn take(&self) -> Option<Work> {
         let mut lock = self.0.lock().ok()?;
         let state = lock.as_mut()?;
         if state.stopped || state.taken {
             return None;
         }
         let id = state.active.clone()?;
+        let kind = state.operations.get(&id)?.kind;
         state.taken = true;
-        Some((id, state.root.clone()))
+        Some(Work {
+            id,
+            kind,
+            root: state.root.clone(),
+            source: state.source.clone(),
+        })
     }
+    #[cfg(test)]
     fn complete(
         &self,
         id: WorkbenchRequestId,
         loaded: Result<ScreenDetector, String>,
+        install: impl FnOnce(ScreenDetector) -> Result<(), Failure>,
+    ) {
+        self.complete_reload(id, loaded, None, install);
+    }
+    fn complete_reload(
+        &self,
+        id: WorkbenchRequestId,
+        loaded: Result<ScreenDetector, String>,
+        maintenance: Option<AgentManifestMaintenance>,
         install: impl FnOnce(ScreenDetector) -> Result<(), Failure>,
     ) {
         let Ok(mut lock) = self.0.lock() else { return };
@@ -135,46 +203,109 @@ impl Registry {
         if state.stopped || state.active.as_ref() != Some(&id) {
             return;
         }
-        let result = loaded.map_err(|_| Failure::LoadFailed).and_then(|next| {
-            let revision = state
-                .snapshot
-                .revision
-                .value()
-                .checked_add(1)
-                .ok_or(Failure::RevisionExhausted)?;
-            let summaries = next.summaries();
-            install(next)?;
-            state.snapshot.revision = WorkbenchRevision::new(revision);
-            state.snapshot.manifests = summaries;
-            Ok(state.snapshot.revision)
-        });
-        state.active = None;
-        state.operations.insert(
-            id,
-            match result {
-                Ok(revision) => Operation::Applied { revision },
-                Err(reason) => Operation::Failed { reason },
-            },
-        );
+        let status = match activate(state, loaded, install) {
+            Ok(revision) => Operation::Applied { revision },
+            Err(reason) => Operation::Failed { reason },
+        };
+        if let Some(maintenance) = maintenance {
+            state.snapshot.maintenance = Some(maintenance)
+        }
+        settle(state, id, status);
     }
+    fn refuse_work(&self, id: WorkbenchRequestId, reason: Failure) {
+        let Ok(mut lock) = self.0.lock() else { return };
+        let Some(state) = lock.as_mut() else { return };
+        if state.active.as_ref() == Some(&id) {
+            settle(state, id, Operation::Failed { reason });
+        }
+    }
+    fn complete_update(
+        &self,
+        id: WorkbenchRequestId,
+        report: Result<UpdateReport, ()>,
+        loaded: Option<Result<ScreenDetector, String>>,
+        install: impl FnOnce(ScreenDetector) -> Result<(), Failure>,
+    ) {
+        let Ok(mut lock) = self.0.lock() else { return };
+        let Some(state) = lock.as_mut() else { return };
+        if state.active.as_ref() != Some(&id) {
+            return;
+        }
+        let status = match report {
+            Err(()) => {
+                state.update_disabled = true;
+                Operation::Unknown {
+                    reason: Failure::Unavailable,
+                }
+            }
+            Ok(report) => {
+                let activation = if state.stopped {
+                    Activation::NotAttempted {}
+                } else if let Some(loaded) = loaded {
+                    match activate(state, loaded, install) {
+                        Ok(revision) => Activation::Applied { revision },
+                        Err(reason) => Activation::Failed { reason },
+                    }
+                } else {
+                    Activation::NotAttempted {}
+                };
+                if let Some(maintenance) = &mut state.snapshot.maintenance {
+                    maintenance.last_update = Some(report.clone());
+                    maintenance.status_error = if report.status_saved {
+                        None
+                    } else {
+                        report.failure
+                    };
+                }
+                Operation::Updated {
+                    report: Box::new(report),
+                    activation,
+                }
+            }
+        };
+        settle(state, id, status);
+    }
+}
+fn settle(state: &mut State, id: WorkbenchRequestId, status: Operation) {
+    state.active = None;
+    if let Some(receipt) = state.operations.get_mut(&id) {
+        receipt.status = status;
+    }
+}
+fn activate(
+    state: &mut State,
+    loaded: Result<ScreenDetector, String>,
+    install: impl FnOnce(ScreenDetector) -> Result<(), Failure>,
+) -> Result<WorkbenchRevision, Failure> {
+    let next = loaded.map_err(|_| Failure::LoadFailed)?;
+    let revision = state
+        .snapshot
+        .revision
+        .value()
+        .checked_add(1)
+        .ok_or(Failure::RevisionExhausted)?;
+    let summaries = next.summaries();
+    install(next)?;
+    state.snapshot.revision = WorkbenchRevision::new(revision);
+    state.snapshot.manifests = summaries;
+    Ok(state.snapshot.revision)
 }
 fn failed(reason: Failure) -> Outcome {
     Outcome::Failed { reason }
 }
-pub(super) fn serve(service: &LocalTerminalService, wake: &Wake, detector: &mut ScreenDetector) {
-    let Some((id, root)) = wake.manifests.take() else {
-        return;
-    };
-    let next = ScreenDetector::load(root.as_deref());
-    wake.manifests.complete(id, next, |next| {
-        let mut coordinator = service
-            .coordinator
-            .lock()
-            .map_err(|_| Failure::Unavailable)?;
-        coordinator.reset_screen_stabilization();
-        *detector = next;
-        Ok(())
-    });
+fn install(
+    service: Option<&LocalTerminalService>,
+    detector: &mut ScreenDetector,
+    next: ScreenDetector,
+) -> Result<(), Failure> {
+    let service = service.ok_or(Failure::Unavailable)?;
+    let mut coordinator = service
+        .coordinator
+        .lock()
+        .map_err(|_| Failure::Unavailable)?;
+    coordinator.reset_screen_stabilization();
+    *detector = next;
+    Ok(())
 }
 impl LocalTerminalService {
     pub(crate) fn execute_agent_manifests(
@@ -190,7 +321,10 @@ impl LocalTerminalService {
             Some(false) => failed(Failure::SiteMismatch),
             None => failed(Failure::Unavailable),
         };
-        if matches!(&request.action, Action::Reload { .. }) {
+        if matches!(
+            &request.action,
+            Action::Reload { .. } | Action::Update { .. }
+        ) {
             self.process_observer.wake.changed.notify_all();
         }
         AgentManifestsResult {
@@ -302,8 +436,11 @@ mod tests {
             for n in 2..=RECEIPTS as u64 {
                 state.operations.insert(
                     id(n),
-                    Operation::Failed {
-                        reason: Failure::LoadFailed,
+                    Receipt {
+                        kind: Kind::Reload,
+                        status: Operation::Failed {
+                            reason: Failure::LoadFailed,
+                        },
                     },
                 );
             }
@@ -368,10 +505,10 @@ mod tests {
         registry.execute(&Action::Reload {
             operation_id: id(1),
         });
-        let (operation, original_root) = registry.take().unwrap();
+        let work = registry.take().unwrap();
         registry.complete(
-            operation,
-            ScreenDetector::load(original_root.as_deref()),
+            work.id,
+            ScreenDetector::load(work.root.as_deref()),
             |next| {
                 installed = next;
                 Ok(())
@@ -396,5 +533,178 @@ mod tests {
         });
         assert!(registry.take().is_none());
         assert!(installed.summaries().contains(&codex));
+    }
+}
+
+#[cfg(test)]
+mod update_tests {
+    use super::*;
+    use crate::{
+        agent_screen::updating::tests::{Http, INDEX, Root, rules},
+        worker_registry::WorkerRegistry,
+    };
+    use std::{
+        sync::{Arc, atomic::Ordering},
+        thread,
+        time::{Duration, Instant},
+    };
+    fn id(n: u64) -> WorkbenchRequestId {
+        WorkbenchRequestId::parse(&format!("{n:032x}")).unwrap()
+    }
+    #[test]
+    fn live_update_commits_and_activates_without_repeating_downloads() {
+        let root = Root::new();
+        let http = Http::start(vec![
+            INDEX.as_bytes().to_vec(),
+            rules("codex", "2099.1").into_bytes(),
+        ]);
+        let service = LocalTerminalService::new(Arc::new(Mutex::new(WorkerRegistry::new())));
+        let wake = &service.process_observer.wake;
+        let mut detector = ScreenDetector::bundled().unwrap();
+        wake.manifests
+            .initialize_source(Some(root.0.clone()), &detector, Ok(http.url.clone()))
+            .unwrap();
+        assert!(
+            !root.0.join("agent-detection").exists(),
+            "initial status read creates nothing"
+        );
+        let action = Action::Update {
+            operation_id: id(1),
+        };
+        let pending = wake.manifests.execute(&action);
+        assert_eq!(
+            wake.manifests.execute(&Action::Reload {
+                operation_id: id(1)
+            }),
+            failed(Failure::Conflict)
+        );
+        let mut worker = Worker::default();
+        worker.serve(Some(&service), wake, &mut detector);
+        assert!(worker.active());
+        assert_eq!(wake.manifests.execute(&action), pending);
+        let until = Instant::now() + Duration::from_secs(10);
+        while worker.active() && Instant::now() < until {
+            worker.serve(Some(&service), wake, &mut detector);
+            thread::sleep(Duration::from_millis(5));
+        }
+        assert!(!worker.active());
+        let receipt = wake.manifests.execute(&action);
+        assert!(
+            matches!(&receipt,Outcome::Operation {status:Operation::Updated {report,activation:Activation::Applied {revision}},..} if report.successful() && revision.value()==2),
+            "{receipt:?}"
+        );
+        assert!(
+            detector
+                .summaries()
+                .iter()
+                .any(|m| m.agent == "codex" && m.version.as_deref() == Some("2099.1"))
+        );
+        assert_eq!(wake.manifests.execute(&action), receipt);
+        worker.serve(Some(&service), wake, &mut detector);
+        assert!(!worker.active());
+        let current = wake.manifests.execute(&Action::Current {});
+        assert!(
+            matches!(current,Outcome::Current {snapshot} if snapshot.maintenance.as_ref().unwrap().last_update.as_ref().unwrap().successful())
+        );
+    }
+    #[test]
+    fn active_download_keeps_queries_responsive_and_stop_retains_pending_until_join() {
+        let root = Root::new();
+        let http = Http::start(vec![vec![]]);
+        let wake = Arc::new(Wake::default());
+        let mut detector = ScreenDetector::bundled().unwrap();
+        wake.manifests
+            .initialize_source(Some(root.0.clone()), &detector, Ok(http.url.clone()))
+            .unwrap();
+        let action = Action::Update {
+            operation_id: id(1),
+        };
+        let pending = wake.manifests.execute(&action);
+        let mut worker = Worker::default();
+        worker.serve(None, &wake, &mut detector);
+        let until = Instant::now() + Duration::from_secs(5);
+        while !http.ready.load(Ordering::Acquire) && Instant::now() < until {
+            thread::sleep(Duration::from_millis(5));
+        }
+        assert!(http.ready.load(Ordering::Acquire));
+        let query_at = Instant::now();
+        assert!(matches!(
+            wake.manifests.execute(&Action::Current {}),
+            Outcome::Current { .. }
+        ));
+        worker.serve(None, &wake, &mut detector);
+        assert!(query_at.elapsed() < Duration::from_secs(1));
+        wake.stop.store(true, Ordering::Release);
+        wake.manifests.cancel();
+        assert_eq!(wake.manifests.execute(&action), pending);
+        let until = Instant::now() + Duration::from_secs(3);
+        while worker.active() && Instant::now() < until {
+            worker.serve(None, &wake, &mut detector);
+            thread::sleep(Duration::from_millis(5));
+        }
+        assert!(!worker.active());
+        assert!(
+            matches!(wake.manifests.execute(&action),Outcome::Operation {status:Operation::Updated {report,activation:Activation::NotAttempted {}},..} if report.failure==Some(UpdateFailure::Cancelled))
+        );
+    }
+    #[test]
+    fn invalid_source_and_unknown_update_effects_preserve_local_reload() {
+        let root = Root::new();
+        let detector = ScreenDetector::bundled().unwrap();
+        let registry = Registry::default();
+        registry
+            .initialize_source(
+                Some(root.0.clone()),
+                &detector,
+                Err(UpdateFailure::InvalidSource),
+            )
+            .unwrap();
+        assert_eq!(
+            registry.execute(&Action::Update {
+                operation_id: id(1)
+            }),
+            failed(Failure::UpdateUnavailable)
+        );
+        registry.execute(&Action::Reload {
+            operation_id: id(1),
+        });
+        registry.take().unwrap();
+        registry.complete(id(1), Ok(ScreenDetector::bundled().unwrap()), |_| Ok(()));
+        registry
+            .initialize_source(
+                Some(root.0.clone()),
+                &detector,
+                CatalogUrl::parse(updating::DEFAULT_CATALOG),
+            )
+            .unwrap();
+        registry.execute(&Action::Update {
+            operation_id: id(1),
+        });
+        registry.take().unwrap();
+        registry.complete_update(id(1), Err(()), None, |_| panic!("unknown cannot install"));
+        assert!(matches!(
+            registry.execute(&Action::Operation {
+                operation_id: id(1)
+            }),
+            Outcome::Operation {
+                status: Operation::Unknown { .. },
+                ..
+            }
+        ));
+        assert_eq!(
+            registry.execute(&Action::Update {
+                operation_id: id(2)
+            }),
+            failed(Failure::UpdateUnavailable)
+        );
+        assert!(matches!(
+            registry.execute(&Action::Reload {
+                operation_id: id(2)
+            }),
+            Outcome::Operation {
+                status: Operation::Pending {},
+                ..
+            }
+        ));
     }
 }

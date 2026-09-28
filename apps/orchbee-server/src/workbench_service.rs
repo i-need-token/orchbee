@@ -63,7 +63,7 @@ impl WorkbenchService {
     pub(crate) fn execute(&self, request: WorkbenchRequest) -> WorkbenchExecution {
         let permitted = match &request {
             WorkbenchRequest::AgentManifests(request) => match request.action {
-                orchbee_workbench_protocol::AgentManifestsAction::Reload { .. } => self.policy.manage_navigation,
+                orchbee_workbench_protocol::AgentManifestsAction::Reload { .. } | orchbee_workbench_protocol::AgentManifestsAction::Update { .. } => self.policy.manage_navigation,
                 _ => self.policy.read,
             },
             WorkbenchRequest::PanelAgent(request) => match request.action {

@@ -220,6 +220,7 @@ const FAMILY_VERBS: &[(&str, &[&str])] = &[
             "stop-status",
             "agent-manifests",
             "reload-agent-manifests",
+            "update-agent-manifests",
             "agent-manifests-status",
         ],
     ),
@@ -543,6 +544,7 @@ const COMMAND_FLAGS: &[(&str, &[&str])] = &[
         ],
     ),
     ("site:reload-agent-manifests", &["--request-id"]),
+    ("site:update-agent-manifests", &["--request-id"]),
     (
         "site:stop",
         &[
@@ -1238,6 +1240,7 @@ const HELP_CHILDREN: &[(&str, &[&str])] = &[
             "stop-status",
             "agent-manifests",
             "reload-agent-manifests",
+            "update-agent-manifests",
             "agent-manifests-status",
         ],
     ),

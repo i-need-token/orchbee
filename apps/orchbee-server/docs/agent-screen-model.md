@@ -1,6 +1,6 @@
 # Agent screen detection model
 
-The Server owns fallback screen interpretation separately from explicit Agent reports and process identity. A successful bounded terminal sample can describe working, idle or blocked UI; it cannot prove which provider owns a process, authenticate it or create a canonical Agent Session. The reference is Herdr `e0507237ad8d41f60aece10d00ef29ce2339ca34`, its 22 bundled detection manifests and `pane/agent_detection.rs`. The Windows periodic sampler compiles the deterministic engine once before startup and publishes admitted screen fallback. Physical explain consumes the same engine through the bounded observer queue. Startup now loads bounded local overrides and eligible remote cache with typed provenance warnings. Manifest queries and retained live reload now use the observer owner; remote updates remain an integration obligation.
+The Server owns fallback screen interpretation separately from explicit Agent reports and process identity. A successful bounded terminal sample can describe working, idle or blocked UI; it cannot prove which provider owns a process, authenticate it or create a canonical Agent Session. The reference is Herdr `e0507237ad8d41f60aece10d00ef29ce2339ca34`, its 22 bundled detection manifests and `pane/agent_detection.rs`. The Windows periodic sampler compiles the deterministic engine once before startup and publishes admitted screen fallback. Physical explain consumes the same engine through the bounded observer queue. Startup now loads bounded local overrides and eligible remote cache with typed provenance warnings. Manifest queries and retained live reload now use the observer owner; explicit remote updates retain separate cache and activation facts; automatic scheduling remains open.
 
 ## Inputs and rule ownership
 
@@ -70,8 +70,7 @@ region, state, match and top-level matcher evidence, gate counts and region byte
 previews take 240 Unicode scalars and append `...` when longer. First-declared highest-priority
 matching rule wins; fallback and skip reasons describe the same deterministic evaluation. The
 existing input/manifest/complexity limits and 512 KiB PanelAgent result bound apply; over-limit
-results refuse whole. Rule maintenance remains an integration obligation, not invented update
-metadata. Pure rule witnesses, exact-context refusals, queue cancellation/cleanup traces and CLI
+results refuse whole. Update metadata comes from the retained maintenance owner. Pure rule witnesses, exact-context refusals, queue cancellation/cleanup traces and CLI
 transport/schema checks precede final Windows Host/provider acceptance.
 
 Rule, region, bounds, priority and malformed-manifest tests exercise the engine before transport integration. Pinned-reference cases and differential evaluation must cover every bundled provider, nested gates, transcript skip and OSC precedence; a passing static engine does not close the live CLI/TUI requirement. Later Host acceptance must prove real Windows screen changes and report arbitration without user query effects. Source/cohort revert is rollback; no durable state or wire migration is involved. The final full gate remains deferred until all parity implementation is complete.
@@ -85,15 +84,15 @@ configuration parent resolved at startup. It runs between observer turns; sampli
 switch together. Under the maintenance lock and Site gate, installation clears screen stabilization
 without discarding process identity or explicit reports, then publishes the new engine and revision.
 
-Only one reload may be queued or running. Up to 1,024 compact operation receipts are retained for
+Reload shares one queued/running slot with Update. Up to 1,024 operation receipts are retained for
 the Site lifetime without eviction; duplicates return the existing receipt, and busy/capacity
-refusals occur before admission. Operations transition pending -> applied(revision) or failed(reason).
+refusals occur before admission. Reload transitions pending -> applied(revision) or failed(reason).
 Stopping cancels pending operations before installation. A failed load retains the prior engine.
-Read/status use read policy; reload uses navigation-management policy. CLI uses one bounded budget,
+Read/status use read policy; Reload/Update use navigation-management policy. CLI uses one bounded budget,
 submits once, and retains the operation ID with pending/unknown results after lost acknowledgement
 or interruption. Status recovery never resubmits a mutation. Receipts end with the Site generation;
-this is not durable replay across Server restart. Remote download and automatic-update policy are
-separate remaining capabilities and are not represented as successful updates by this interface.
+this is not durable replay across Server restart. Explicit remote Update and its separate cache/activation outcomes are specified below.
+Automatic scheduling remains a required integration.
 
 ## Remote update ownership
 
@@ -121,8 +120,28 @@ Network work belongs to a
 separate retained worker; the observer remains the sole rule installation point. Download/cache
 completion and activation are distinct facts, including cancellation and partial success.
 
-The first adapter/worker slice is a staged implementation; `site update-agent-manifests`, updater
-status and automatic scheduling are its required real consumers before remote-update parity can
-be claimed. Explicit update and automatic checks must use the same cache/version and cleanup
-rules. Automatic network activity requires the release/background policy and its update setting;
-source/cohort rollback leaves user overrides and committed cache versions intact.
+The production `site update-agent-manifests` operation consumes this updater and retains the full
+cache report separately from activation. Explicit updates and future automatic checks use the same
+cache/version and cleanup rules. Automatic network activity still requires the release/background
+policy and update setting integration; source/cohort rollback leaves overrides and committed cache
+versions intact.
+
+## Retained production update operations
+
+Reload and Update share a single active maintenance slot and the bounded Site-lifetime receipt
+ledger. An accepted operation ID is bound to its kind; cross-kind reuse is a conflict, and a repeated
+same-kind request reads the original receipt. Update executes on a separately owned thread. The
+observer polls only finished work, joins it, and installs its validated detector between sampling
+turns. Cache commits and activation have distinct receipts. Partial provider failures remain visible
+and cannot produce a successful whole-update exit. A load/activation failure never erases committed
+cache results. Invalid source configuration disables Update with a typed diagnostic while terminal
+startup and local Reload remain available. Startup and Reload read persisted status without creating
+cache paths; ordinary Current queries read the owner's retained snapshot.
+
+Stop closes admission, cancels network work and drains/joins the update before the observer exits.
+An executing update remains pending until its actual cache report and child cleanup settle; it is
+never installed after Stop. Worker panic yields an unknown effect receipt and disables subsequent
+Update admission for this Site. CLI Update submits once, then reads status within its single budget;
+late cancellation or missing confirmation preserves the ID without resubmitting the mutation.
+Native v1 remains closed; update and maintenance projections use v2. Automatic update scheduling
+and its release/background/configuration policy remain a separate required integration.

@@ -389,6 +389,7 @@ fn fixed_outputs_are_far_below_the_bound() {
         CommandPath::ProjectRename,
         CommandPath::SiteAgentManifests,
         CommandPath::SiteReloadAgentManifests,
+        CommandPath::SiteUpdateAgentManifests,
         CommandPath::SiteAgentManifestsStatus,
         CommandPath::SiteDiagnose,
         CommandPath::SiteStart,
@@ -470,6 +471,10 @@ fn fixed_outputs_are_far_below_the_bound() {
         "worktree",
     ];
     let verbs = [
+        "agent-manifests",
+        "reload-agent-manifests",
+        "update-agent-manifests",
+        "agent-manifests-status",
         "apply",
         "export",
         "move-block",

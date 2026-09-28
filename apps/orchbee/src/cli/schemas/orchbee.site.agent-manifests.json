@@ -1,47 +1,410 @@
 {
 	"$schema": "https://json-schema.org/draft/2020-12/schema",
 	"$id": "orchbee.site.agent-manifests",
-	"title": "Installed detection manifest query and reload receipt",
-	"type": "object",
-	"required": [
-		"schema",
-		"version",
-		"requestId",
-		"siteId",
-		"action",
-		"observation",
-		"interrupted",
-		"cleanupFailed"
+	"title": "Detection manifests, reload and remote update receipts",
+	"oneOf": [
+		{
+			"type": "object",
+			"required": [
+				"schema",
+				"version",
+				"requestId",
+				"siteId",
+				"action",
+				"observation",
+				"interrupted",
+				"cleanupFailed"
+			],
+			"additionalProperties": false,
+			"properties": {
+				"schema": {
+					"const": "orchbee.site.agent-manifests"
+				},
+				"version": {
+					"const": 1
+				},
+				"requestId": {
+					"$ref": "#/$defs/legacy_identity"
+				},
+				"siteId": {
+					"$ref": "#/$defs/legacy_identity"
+				},
+				"action": {
+					"$ref": "#/$defs/legacy_action"
+				},
+				"observation": {
+					"oneOf": [
+						{
+							"type": "object",
+							"required": ["kind", "reply"],
+							"additionalProperties": false,
+							"properties": {
+								"kind": {
+									"const": "server"
+								},
+								"reply": {
+									"$ref": "#/$defs/legacy_result"
+								}
+							}
+						},
+						{
+							"type": "object",
+							"required": ["kind", "reason"],
+							"additionalProperties": false,
+							"properties": {
+								"kind": {
+									"const": "unknown"
+								},
+								"reason": {
+									"type": "string",
+									"minLength": 1
+								}
+							}
+						}
+					]
+				},
+				"interrupted": {
+					"type": "boolean"
+				},
+				"cleanupFailed": {
+					"type": "boolean"
+				}
+			}
+		},
+		{
+			"type": "object",
+			"required": [
+				"schema",
+				"version",
+				"requestId",
+				"siteId",
+				"action",
+				"observation",
+				"interrupted",
+				"cleanupFailed"
+			],
+			"additionalProperties": false,
+			"properties": {
+				"schema": {
+					"const": "orchbee.site.agent-manifests"
+				},
+				"version": {
+					"const": 2
+				},
+				"requestId": {
+					"$ref": "#/$defs/identity"
+				},
+				"siteId": {
+					"$ref": "#/$defs/identity"
+				},
+				"action": {
+					"$ref": "#/$defs/action"
+				},
+				"observation": {
+					"oneOf": [
+						{
+							"type": "object",
+							"required": ["kind", "reply"],
+							"additionalProperties": false,
+							"properties": {
+								"kind": {
+									"const": "server"
+								},
+								"reply": {
+									"$ref": "#/$defs/result"
+								}
+							}
+						},
+						{
+							"type": "object",
+							"required": ["kind", "reason"],
+							"additionalProperties": false,
+							"properties": {
+								"kind": {
+									"const": "unknown"
+								},
+								"reason": {
+									"type": "string",
+									"minLength": 1
+								}
+							}
+						}
+					]
+				},
+				"interrupted": {
+					"type": "boolean"
+				},
+				"cleanupFailed": {
+					"type": "boolean"
+				}
+			}
+		}
 	],
-	"additionalProperties": false,
-	"properties": {
-		"schema": {
-			"const": "orchbee.site.agent-manifests"
+	"$defs": {
+		"legacy_identity": {
+			"type": "string",
+			"pattern": "^[0-9a-f]{32}$",
+			"not": {
+				"const": "00000000000000000000000000000000"
+			}
 		},
-		"version": {
-			"const": 1
+		"legacy_revision": {
+			"type": "string",
+			"pattern": "^(?:0|[1-9][0-9]{0,19})$",
+			"maxLength": 20,
+			"format": "orchbee-uint64",
+			"not": {
+				"const": "0"
+			}
 		},
-		"requestId": {
-			"$ref": "#/$defs/identity"
+		"legacy_manifestInfo": {
+			"type": "object",
+			"required": [
+				"source",
+				"path",
+				"cachedRemoteVersion",
+				"localOverrideShadowingRemote",
+				"warnings"
+			],
+			"additionalProperties": false,
+			"properties": {
+				"source": {
+					"enum": ["bundled", "local-override", "remote-cache"]
+				},
+				"path": {
+					"type": ["string", "null"],
+					"minLength": 1,
+					"maxLength": 32768
+				},
+				"cachedRemoteVersion": {
+					"type": ["string", "null"],
+					"maxLength": 128,
+					"pattern": "^[0-9]+(?:\\.[0-9]+)*$"
+				},
+				"localOverrideShadowingRemote": {
+					"type": "boolean"
+				},
+				"warnings": {
+					"type": "array",
+					"maxItems": 2,
+					"items": {
+						"type": "object",
+						"required": ["source", "kind"],
+						"additionalProperties": false,
+						"properties": {
+							"source": {
+								"enum": ["local-override", "remote-cache"]
+							},
+							"kind": {
+								"enum": [
+									"unreadable",
+									"not-regular",
+									"too-large",
+									"invalid-utf8",
+									"invalid-manifest",
+									"invalid-version",
+									"older-than-bundled"
+								]
+							}
+						}
+					}
+				}
+			},
+			"allOf": [
+				{
+					"if": {
+						"properties": {
+							"source": {
+								"const": "bundled"
+							}
+						}
+					},
+					"then": {
+						"properties": {
+							"path": {
+								"type": "null"
+							}
+						}
+					},
+					"else": {
+						"properties": {
+							"path": {
+								"type": "string"
+							}
+						}
+					}
+				},
+				{
+					"if": {
+						"properties": {
+							"localOverrideShadowingRemote": {
+								"const": true
+							}
+						}
+					},
+					"then": {
+						"properties": {
+							"cachedRemoteVersion": {
+								"type": "string"
+							}
+						}
+					}
+				},
+				{
+					"if": {
+						"properties": {
+							"source": {
+								"const": "remote-cache"
+							}
+						}
+					},
+					"then": {
+						"properties": {
+							"cachedRemoteVersion": {
+								"type": "string"
+							}
+						}
+					}
+				}
+			]
 		},
-		"siteId": {
-			"$ref": "#/$defs/identity"
+		"legacy_failure": {
+			"enum": [
+				"denied",
+				"unavailable",
+				"site-mismatch",
+				"busy",
+				"resource-limit",
+				"not-found",
+				"load-failed",
+				"revision-exhausted",
+				"cancelled"
+			]
 		},
-		"action": {
-			"$ref": "#/$defs/action"
+		"legacy_summary": {
+			"type": "object",
+			"required": ["agent", "version", "manifest"],
+			"additionalProperties": false,
+			"properties": {
+				"agent": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 64,
+					"pattern": "^[a-z0-9-]+$"
+				},
+				"version": {
+					"anyOf": [
+						{
+							"type": "string",
+							"minLength": 1,
+							"maxLength": 128,
+							"pattern": "^[0-9]+(?:\\.[0-9]+)*$"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"manifest": {
+					"$ref": "#/$defs/legacy_manifestInfo"
+				}
+			}
 		},
-		"observation": {
+		"legacy_snapshot": {
+			"type": "object",
+			"required": ["revision", "engineVersion", "configurationRoot", "manifests"],
+			"additionalProperties": false,
+			"properties": {
+				"revision": {
+					"$ref": "#/$defs/legacy_revision"
+				},
+				"engineVersion": {
+					"const": 3
+				},
+				"configurationRoot": {
+					"anyOf": [
+						{
+							"type": "string",
+							"minLength": 1,
+							"maxLength": 32768,
+							"pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]+$"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"manifests": {
+					"type": "array",
+					"maxItems": 24,
+					"items": {
+						"$ref": "#/$defs/legacy_summary"
+					}
+				}
+			}
+		},
+		"legacy_action": {
 			"oneOf": [
 				{
 					"type": "object",
-					"required": ["kind", "reply"],
+					"required": ["kind"],
 					"additionalProperties": false,
 					"properties": {
 						"kind": {
-							"const": "server"
+							"const": "current"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"required": ["kind", "operationId"],
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "reload"
 						},
-						"reply": {
-							"$ref": "#/$defs/result"
+						"operationId": {
+							"$ref": "#/$defs/legacy_identity"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"required": ["kind", "operationId"],
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "operation"
+						},
+						"operationId": {
+							"$ref": "#/$defs/legacy_identity"
+						}
+					}
+				}
+			]
+		},
+		"legacy_operation": {
+			"oneOf": [
+				{
+					"type": "object",
+					"required": ["kind"],
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "pending"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"required": ["kind", "revision"],
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "applied"
+						},
+						"revision": {
+							"$ref": "#/$defs/legacy_revision"
 						}
 					}
 				},
@@ -51,24 +414,105 @@
 					"additionalProperties": false,
 					"properties": {
 						"kind": {
-							"const": "unknown"
+							"const": "failed"
 						},
 						"reason": {
-							"type": "string",
-							"minLength": 1
+							"$ref": "#/$defs/legacy_failure"
 						}
 					}
 				}
 			]
 		},
-		"interrupted": {
-			"type": "boolean"
+		"legacy_outcome": {
+			"oneOf": [
+				{
+					"type": "object",
+					"required": ["kind", "snapshot"],
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "current"
+						},
+						"snapshot": {
+							"$ref": "#/$defs/legacy_snapshot"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"required": ["kind", "operationId", "status"],
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "operation"
+						},
+						"operationId": {
+							"$ref": "#/$defs/legacy_identity"
+						},
+						"status": {
+							"$ref": "#/$defs/legacy_operation"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"required": ["kind", "reason"],
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "failed"
+						},
+						"reason": {
+							"$ref": "#/$defs/legacy_failure"
+						}
+					}
+				}
+			]
 		},
-		"cleanupFailed": {
-			"type": "boolean"
-		}
-	},
-	"$defs": {
+		"legacy_request": {
+			"type": "object",
+			"required": ["kind", "protocolVersion", "requestId", "siteId", "action"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": {
+					"const": "workbench.agent-manifests"
+				},
+				"protocolVersion": {
+					"const": 1
+				},
+				"requestId": {
+					"$ref": "#/$defs/legacy_identity"
+				},
+				"siteId": {
+					"$ref": "#/$defs/legacy_identity"
+				},
+				"action": {
+					"$ref": "#/$defs/legacy_action"
+				}
+			}
+		},
+		"legacy_result": {
+			"type": "object",
+			"required": ["kind", "protocolVersion", "requestId", "siteId", "outcome"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": {
+					"const": "workbench.agent-manifests.result"
+				},
+				"protocolVersion": {
+					"const": 1
+				},
+				"requestId": {
+					"$ref": "#/$defs/legacy_identity"
+				},
+				"siteId": {
+					"$ref": "#/$defs/legacy_identity"
+				},
+				"outcome": {
+					"$ref": "#/$defs/legacy_outcome"
+				}
+			}
+		},
 		"identity": {
 			"type": "string",
 			"pattern": "^[0-9a-f]{32}$",
@@ -206,7 +650,9 @@
 				"not-found",
 				"load-failed",
 				"revision-exhausted",
-				"cancelled"
+				"cancelled",
+				"conflict",
+				"update-unavailable"
 			]
 		},
 		"summary": {
@@ -268,6 +714,9 @@
 					"items": {
 						"$ref": "#/$defs/summary"
 					}
+				},
+				"maintenance": {
+					"$ref": "#/$defs/maintenance"
 				}
 			}
 		},
@@ -308,6 +757,19 @@
 							"$ref": "#/$defs/identity"
 						}
 					}
+				},
+				{
+					"type": "object",
+					"required": ["kind", "operationId"],
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "update"
+						},
+						"operationId": {
+							"$ref": "#/$defs/identity"
+						}
+					}
 				}
 			]
 		},
@@ -343,6 +805,35 @@
 					"properties": {
 						"kind": {
 							"const": "failed"
+						},
+						"reason": {
+							"$ref": "#/$defs/failure"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"required": ["kind", "report", "activation"],
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "updated"
+						},
+						"report": {
+							"$ref": "#/$defs/updateReport"
+						},
+						"activation": {
+							"$ref": "#/$defs/activation"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"required": ["kind", "reason"],
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "unknown"
 						},
 						"reason": {
 							"$ref": "#/$defs/failure"
@@ -440,6 +931,213 @@
 					"$ref": "#/$defs/outcome"
 				}
 			}
+		},
+		"catalogUrl": {
+			"type": "string",
+			"maxLength": 4096,
+			"pattern": "^https?://[A-Za-z0-9.\\[\\]:-]+/[^\\s\\\\#?\\u0000-\\u0020\\u007f-\\uffff]*$"
+		},
+		"updateFailure": {
+			"enum": [
+				"invalid-source",
+				"invalid-catalog",
+				"fetch",
+				"too-large",
+				"invalid-utf8",
+				"invalid-manifest",
+				"cache",
+				"busy",
+				"older-version",
+				"changed-same-version",
+				"cancelled",
+				"deadline",
+				"clock",
+				"process"
+			]
+		},
+		"providerUpdate": {
+			"type": "object",
+			"required": ["agent", "attemptedVersion", "cachedVersion", "result", "error"],
+			"additionalProperties": false,
+			"properties": {
+				"agent": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 64,
+					"pattern": "^[a-z0-9-]+$"
+				},
+				"attemptedVersion": {
+					"anyOf": [
+						{
+							"type": "string",
+							"minLength": 1,
+							"maxLength": 128,
+							"pattern": "^[0-9]+(?:\\.[0-9]+)*$"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"cachedVersion": {
+					"anyOf": [
+						{
+							"type": "string",
+							"minLength": 1,
+							"maxLength": 128,
+							"pattern": "^[0-9]+(?:\\.[0-9]+)*$"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"result": {
+					"enum": ["updated", "current", "failed"]
+				},
+				"error": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/updateFailure"
+						},
+						{
+							"type": "null"
+						}
+					]
+				}
+			}
+		},
+		"updateReport": {
+			"type": "object",
+			"required": [
+				"version",
+				"catalogUrl",
+				"checkedUnixSeconds",
+				"agents",
+				"failure",
+				"statusSaved"
+			],
+			"additionalProperties": false,
+			"properties": {
+				"version": {
+					"const": 1
+				},
+				"catalogUrl": {
+					"$ref": "#/$defs/catalogUrl"
+				},
+				"checkedUnixSeconds": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 9007199254740991
+				},
+				"agents": {
+					"type": "array",
+					"maxItems": 22,
+					"items": {
+						"$ref": "#/$defs/providerUpdate"
+					}
+				},
+				"failure": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/updateFailure"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"statusSaved": {
+					"type": "boolean"
+				}
+			}
+		},
+		"maintenance": {
+			"type": "object",
+			"required": ["sourceUrl", "sourceError", "lastUpdate", "statusError"],
+			"additionalProperties": false,
+			"properties": {
+				"sourceUrl": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/catalogUrl"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"sourceError": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/updateFailure"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"lastUpdate": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/updateReport"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"statusError": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/updateFailure"
+						},
+						{
+							"type": "null"
+						}
+					]
+				}
+			}
+		},
+		"activation": {
+			"oneOf": [
+				{
+					"type": "object",
+					"required": ["kind"],
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "not-attempted"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"required": ["kind", "revision"],
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "applied"
+						},
+						"revision": {
+							"$ref": "#/$defs/revision"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"required": ["kind", "reason"],
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "failed"
+						},
+						"reason": {
+							"$ref": "#/$defs/failure"
+						}
+					}
+				}
+			]
 		}
 	}
 }

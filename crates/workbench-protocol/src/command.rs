@@ -1,3 +1,4 @@
+pub(crate) mod agent_manifest_update;
 pub(crate) mod agent_manifests;
 use agent_manifests::*;
 mod panel_agent;

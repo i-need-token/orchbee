@@ -19,11 +19,17 @@ impl Locale {
             (Self::ZhCn, CommandPath::SiteReloadAgentManifests) => {
                 "orchbee site reload-agent-manifests [--request-id <operation-id>] [--format text|json]\n\n在运行中 Windows Site 重载本地识别规则并重置屏幕稳定状态。最多等待五秒；待处理或结果未知时退出码为 8，并保留操作 ID。中断后使用 site agent-manifests-status <id> 查询。复用已接纳的 ID 不会再次重载。回执保留至此 Site 代次结束（最多 1,024 条）；不会远程下载。\n"
             }
+            (Self::EnUs, CommandPath::SiteUpdateAgentManifests) => {
+                "orchbee site update-agent-manifests [--request-id <operation-id>] [--format text|json]\n\nDownload detection rules from the configured catalog and activate eligible cached rules. Wait up to five seconds; exit 8 retains the operation ID for site agent-manifests-status. Reusing an ID does not repeat the download. Partial failure returns a nonzero exit; cache results and activation are separate.\n"
+            }
+            (Self::ZhCn, CommandPath::SiteUpdateAgentManifests) => {
+                "orchbee site update-agent-manifests [--request-id <operation-id>] [--format text|json]\n\n从配置的目录源下载识别规则并启用符合条件的缓存规则。最多等待五秒；退出码 8 会保留操作 ID，可用 site agent-manifests-status 查询。复用 ID 不会重复下载。部分失败返回非零退出码；缓存结果和启用结果分别显示。\n"
+            }
             (Self::EnUs, _) => {
-                "orchbee site agent-manifests-status <operation-id> [--format text|json]\n\nRead one retained reload receipt from the running Windows Site without resubmitting it. Unknown IDs are not recorded; receipts do not survive Site restart.\n"
+                "orchbee site agent-manifests-status <operation-id> [--format text|json]\n\nRead one retained reload or update receipt from the running Windows Site without resubmitting it. Unknown IDs are not recorded; receipts do not survive Site restart.\n"
             }
             (Self::ZhCn, _) => {
-                "orchbee site agent-manifests-status <operation-id> [--format text|json]\n\n读取运行中 Windows Site 保留的重载回执，不重新提交。未知 ID 表示无记录；回执不跨 Site 重启保留。\n"
+                "orchbee site agent-manifests-status <operation-id> [--format text|json]\n\n读取运行中 Windows Site 保留的重载或更新回执，不重新提交。未知 ID 表示无记录；回执不跨 Site 重启保留。\n"
             }
         }
     }
@@ -62,6 +68,12 @@ impl Locale {
                     },
                     escape(snapshot.configuration_root.as_deref().unwrap_or("-"))
                 ));
+                if let Some(maintenance)=&snapshot.maintenance {
+                    text.push_str(&format!("{}: {}\n",if zh {"更新目录源"} else {"Update catalog"},escape(maintenance.source_url.as_deref().unwrap_or("-"))));
+                    if let Some(error)=maintenance.source_error { text.push_str(&format!("{}: {:?}\n",if zh {"目录源错误"} else {"Catalog error"},error)); }
+                    if let Some(error)=maintenance.status_error { text.push_str(&format!("{}: {:?}\n",if zh {"缓存状态错误"} else {"Cache status error"},error)); }
+                    if let Some(report)=&maintenance.last_update {text.push_str(&self.cli_agent_manifest_update(report));}
+                }
                 for row in &snapshot.manifests {
                     text.push_str(&format!(
                         "{}  {}={}  {}={}  {}={}\n",
@@ -96,6 +108,16 @@ impl Locale {
                     }
                 }
             }
+            Some(AgentManifestsOutcome::Operation {status:AgentManifestsOperation::Updated {report,activation},..})=> {
+                text.push_str(&self.cli_agent_manifest_update(report));
+                use orchbee_workbench_protocol::AgentManifestActivation;
+                match activation {
+                    AgentManifestActivation::Applied {revision}=>text.push_str(&format!("{}: {}\n",if zh {"已启用规则修订"} else {"Activated manifest revision"},revision)),
+                    AgentManifestActivation::NotAttempted {}=>text.push_str(if zh {"未启用缓存规则。\n"} else {"Cached rules were not activated.\n"}),
+                    AgentManifestActivation::Failed {reason}=>text.push_str(&format!("{}: {:?}\n",if zh {"规则启用失败"} else {"Activation failed"},reason)),
+                }
+            },
+            Some(AgentManifestsOutcome::Operation {status:AgentManifestsOperation::Unknown {reason},..})=>text.push_str(&format!("{}: {:?}\n",if zh {"更新结果未知，请检查缓存；本次 Site 已停用后续更新"} else {"Update outcome unknown; inspect the cache. Further updates are disabled for this Site"},reason)),
             Some(AgentManifestsOutcome::Operation {
                 status: AgentManifestsOperation::Applied { revision },
                 ..
@@ -112,9 +134,9 @@ impl Locale {
                 status: AgentManifestsOperation::Pending {},
                 ..
             }) => text.push_str(if zh {
-                "重载待完成；可使用操作 ID 查询状态。\n"
+                "操作待完成；可使用操作 ID 查询状态。\n"
             } else {
-                "Reload pending; query status with the operation ID.\n"
+                "Operation pending; query status with the operation ID.\n"
             }),
             Some(
                 AgentManifestsOutcome::Failed { reason }
@@ -125,9 +147,9 @@ impl Locale {
             ) => text.push_str(&format!(
                 "{}: {:?}\n",
                 if zh {
-                    "重载或查询失败"
+                    "规则操作失败"
                 } else {
-                    "Reload or query failed"
+                    "Manifest operation failed"
                 },
                 reason
             )),
@@ -140,6 +162,83 @@ impl Locale {
                 },
                 escape(unknown.unwrap_or("unknown"))
             )),
+        }
+        text
+    }
+}
+
+#[cfg(windows)]
+impl Locale {
+    fn cli_agent_manifest_update(
+        self,
+        report: &orchbee_workbench_protocol::AgentManifestUpdateReport,
+    ) -> String {
+        let zh = matches!(self, Self::ZhCn);
+        let mut text = format!(
+            "{}: {}  {}: {}\n{}: {}\n",
+            if zh {
+                "检查时间（Unix 秒）"
+            } else {
+                "Checked at (Unix seconds)"
+            },
+            report.checked_unix_seconds,
+            if zh {
+                "状态已保存"
+            } else {
+                "Status saved"
+            },
+            report.status_saved,
+            if zh {
+                "本次目录源"
+            } else {
+                "Checked catalog"
+            },
+            escape(&report.catalog_url)
+        );
+        if let Some(error) = report.failure {
+            text.push_str(&format!(
+                "{}: {:?}\n",
+                if zh { "更新失败" } else { "Update failed" },
+                error
+            ));
+        }
+        for row in &report.agents {
+            let disposition = match (zh, row.result) {
+                (true, orchbee_workbench_protocol::AgentManifestUpdateDisposition::Updated) => {
+                    "已写入缓存"
+                }
+                (false, orchbee_workbench_protocol::AgentManifestUpdateDisposition::Updated) => {
+                    "cached"
+                }
+                (true, orchbee_workbench_protocol::AgentManifestUpdateDisposition::Current) => {
+                    "缓存已是最新"
+                }
+                (false, orchbee_workbench_protocol::AgentManifestUpdateDisposition::Current) => {
+                    "cache current"
+                }
+                (true, orchbee_workbench_protocol::AgentManifestUpdateDisposition::Failed) => {
+                    "失败"
+                }
+                (false, orchbee_workbench_protocol::AgentManifestUpdateDisposition::Failed) => {
+                    "failed"
+                }
+            };
+            text.push_str(&format!(
+                "{}: {}  {}={}  {}={}\n",
+                escape(&row.agent),
+                disposition,
+                if zh { "尝试版本" } else { "attempted" },
+                escape(row.attempted_version.as_deref().unwrap_or("-")),
+                if zh { "缓存版本" } else { "cached" },
+                escape(row.cached_version.as_deref().unwrap_or("-"))
+            ));
+            if let Some(error) = row.error {
+                text.push_str(&format!(
+                    "  {}: {:?}\n",
+                    if zh { "原因" } else { "Reason" },
+                    error
+                ));
+            }
         }
         text
     }

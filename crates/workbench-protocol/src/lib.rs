@@ -141,7 +141,12 @@ pub use command::{
 };
 
 pub use command::agent_manifests::{
-    AgentManifestSummary, AgentManifestsAction, AgentManifestsFailure, AgentManifestsOperation,
-    AgentManifestsOutcome, AgentManifestsRequest, AgentManifestsResult, AgentManifestsSnapshot,
-    MAXIMUM_ENCODED_AGENT_MANIFESTS_BYTES,
+    AgentManifestActivation, AgentManifestSummary, AgentManifestsAction, AgentManifestsFailure,
+    AgentManifestsOperation, AgentManifestsOutcome, AgentManifestsRequest, AgentManifestsResult,
+    AgentManifestsSnapshot, MAXIMUM_ENCODED_AGENT_MANIFESTS_BYTES,
+};
+
+pub use command::agent_manifest_update::{
+    AgentManifestMaintenance, AgentManifestProviderUpdate, AgentManifestUpdateDisposition,
+    AgentManifestUpdateFailure, AgentManifestUpdateReport, valid_agent_manifest_catalog_url,
 };

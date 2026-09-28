@@ -332,6 +332,7 @@ pub(crate) enum CommandPath {
     SiteDiagnose,
     SiteAgentManifests,
     SiteReloadAgentManifests,
+    SiteUpdateAgentManifests,
     SiteAgentManifestsStatus,
     SiteStop,
     SiteStopStatus,
@@ -453,6 +454,7 @@ impl CommandPath {
             Self::SiteStart => "site start",
             Self::SiteDiagnose => "site diagnose",
             Self::SiteAgentManifests => "site agent-manifests",
+            Self::SiteUpdateAgentManifests => "site update-agent-manifests",
             Self::SiteReloadAgentManifests => "site reload-agent-manifests",
             Self::SiteAgentManifestsStatus => "site agent-manifests-status",
             Self::SiteStop => "site stop",
@@ -1118,6 +1120,9 @@ pub(crate) enum AgentNamesCommand {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum ManifestCommand {
     Current,
+    Update {
+        operation_id: Option<WorkbenchRequestId>,
+    },
     Reload {
         operation_id: Option<WorkbenchRequestId>,
     },
@@ -3783,8 +3788,16 @@ fn resolve_words(
                 format: options.format.unwrap_or(OutputFormat::Text),
             })
         }
-        ["site", "reload-agent-manifests"] => {
-            let context = UsageContext::Path("site reload-agent-manifests");
+        [
+            "site",
+            verb @ ("reload-agent-manifests" | "update-agent-manifests"),
+        ] => {
+            let update = *verb == "update-agent-manifests";
+            let context = UsageContext::Path(if update {
+                "site update-agent-manifests"
+            } else {
+                "site reload-agent-manifests"
+            });
             check_scope(
                 options,
                 Scope {
@@ -3800,7 +3813,11 @@ fn resolve_words(
                 .map(|s| manifest_operation_id(s, context, "--request-id", envelope))
                 .transpose()?;
             Ok(Request::AgentManifests {
-                command: ManifestCommand::Reload { operation_id },
+                command: if update {
+                    ManifestCommand::Update { operation_id }
+                } else {
+                    ManifestCommand::Reload { operation_id }
+                },
                 format: options.format.unwrap_or(OutputFormat::Text),
             })
         }
@@ -4472,6 +4489,9 @@ fn help_topic(path: &[&str]) -> Option<HelpTopic> {
         #[cfg(windows)]
         ["session", "delete"] => HelpTopic::Command(CommandPath::SessionDelete),
         ["site", "diagnose"] => HelpTopic::Command(CommandPath::SiteDiagnose),
+        ["site", "update-agent-manifests"] => {
+            HelpTopic::Command(CommandPath::SiteUpdateAgentManifests)
+        }
         ["site", "agent-manifests"] => HelpTopic::Command(CommandPath::SiteAgentManifests),
         ["site", "reload-agent-manifests"] => {
             HelpTopic::Command(CommandPath::SiteReloadAgentManifests)

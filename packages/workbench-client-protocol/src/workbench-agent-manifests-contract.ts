@@ -1,4 +1,8 @@
 import { z } from 'zod';
+import {
+	AgentManifestMaintenanceSchema,
+	AgentManifestUpdateReportSchema,
+} from './workbench-agent-manifest-update-contract';
 import { AgentDetectionManifestSchema } from './workbench-panel-agent-contract';
 import {
 	SiteIdSchema,
@@ -18,6 +22,8 @@ const failure = z.enum([
 	'load-failed',
 	'revision-exhausted',
 	'cancelled',
+	'conflict',
+	'update-unavailable',
 ]);
 const version = z
 	.string()
@@ -46,6 +52,7 @@ export const AgentManifestsSnapshotSchema = z
 	.strictObject({
 		revision,
 		engineVersion: z.literal(3),
+		maintenance: AgentManifestMaintenanceSchema.optional(),
 		configurationRoot: z
 			.string()
 			.refine(
@@ -63,10 +70,22 @@ export const AgentManifestsSnapshotSchema = z
 export const AgentManifestsActionSchema = z.discriminatedUnion('kind', [
 	z.strictObject({ kind: z.literal('current') }),
 	z.strictObject({ kind: z.literal('reload'), operationId: WorkbenchRequestIdSchema }),
+	z.strictObject({ kind: z.literal('update'), operationId: WorkbenchRequestIdSchema }),
 	z.strictObject({ kind: z.literal('operation'), operationId: WorkbenchRequestIdSchema }),
+]);
+export const AgentManifestActivationSchema = z.discriminatedUnion('kind', [
+	z.strictObject({ kind: z.literal('not-attempted') }),
+	z.strictObject({ kind: z.literal('applied'), revision }),
+	z.strictObject({ kind: z.literal('failed'), reason: failure }),
 ]);
 export const AgentManifestsOperationSchema = z.discriminatedUnion('kind', [
 	z.strictObject({ kind: z.literal('pending') }),
+	z.strictObject({
+		kind: z.literal('updated'),
+		report: AgentManifestUpdateReportSchema,
+		activation: AgentManifestActivationSchema,
+	}),
+	z.strictObject({ kind: z.literal('unknown'), reason: failure }),
 	z.strictObject({ kind: z.literal('applied'), revision }),
 	z.strictObject({ kind: z.literal('failed'), reason: failure }),
 ]);

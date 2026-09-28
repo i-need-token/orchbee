@@ -2,7 +2,7 @@
 use super::{ScreenDetector, manifest::Manifest, version::Version};
 use orchbee_agent_observation_protocol::AgentReportProvider;
 use orchbee_local_site_runtime::WindowsPrivateCache;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use std::{
     cmp::Ordering,
     collections::BTreeSet,
@@ -20,28 +20,13 @@ pub(crate) const CATALOG_ENV: &str = "ORCHBEE_AGENT_DETECTION_MANIFEST_CATALOG_U
 pub(crate) struct CatalogUrl(String);
 impl CatalogUrl {
     pub(crate) fn parse(value: &str) -> Result<Self, Failure> {
-        if value.len() > 4096
-            || !value.is_ascii()
-            || value
-                .bytes()
-                .any(|b| b.is_ascii_whitespace() || b.is_ascii_control())
-            || value.contains(['\\', '#', '?'])
-        {
-            return Err(Failure::InvalidSource);
-        }
-        let tail = value
-            .strip_prefix("https://")
-            .or_else(|| value.strip_prefix("http://"))
-            .ok_or(Failure::InvalidSource)?;
-        let (authority, _) = tail.split_once('/').ok_or(Failure::InvalidSource)?;
-        if authority.is_empty()
-            || !authority
-                .bytes()
-                .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'-' | b':' | b'[' | b']'))
-        {
+        if !orchbee_workbench_protocol::valid_agent_manifest_catalog_url(value) {
             return Err(Failure::InvalidSource);
         }
         Ok(Self(value.into()))
+    }
+    pub(crate) fn as_str(&self) -> &str {
+        &self.0
     }
     fn join(&self, path: &str) -> Result<Self, Failure> {
         if path.is_empty()
@@ -60,50 +45,10 @@ impl CatalogUrl {
         Self::parse(&format!("{base}/{path}"))
     }
 }
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
-pub(crate) enum Failure {
-    InvalidSource,
-    InvalidCatalog,
-    Fetch,
-    TooLarge,
-    InvalidUtf8,
-    InvalidManifest,
-    Cache,
-    Busy,
-    OlderVersion,
-    ChangedSameVersion,
-    Cancelled,
-    Deadline,
-    Clock,
-    Process,
-}
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
-pub(crate) enum Disposition {
-    Updated,
-    Current,
-    Failed,
-}
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub(crate) struct ProviderUpdate {
-    pub(crate) agent: String,
-    pub(crate) attempted_version: Option<String>,
-    pub(crate) cached_version: Option<String>,
-    pub(crate) result: Disposition,
-    pub(crate) error: Option<Failure>,
-}
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub(crate) struct UpdateReport {
-    pub(crate) version: u32,
-    pub(crate) catalog_url: String,
-    pub(crate) checked_unix_seconds: u64,
-    pub(crate) agents: Vec<ProviderUpdate>,
-    pub(crate) failure: Option<Failure>,
-    pub(crate) status_saved: bool,
-}
+pub(crate) use orchbee_workbench_protocol::{
+    AgentManifestProviderUpdate as ProviderUpdate, AgentManifestUpdateDisposition as Disposition,
+    AgentManifestUpdateFailure as Failure, AgentManifestUpdateReport as UpdateReport,
+};
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Catalog {
@@ -192,6 +137,44 @@ fn update_provider(
     row.cached_version = Some(display);
     Ok(Disposition::Updated)
 }
+/// Startup and explicit reload inspect existing status without creating the cache.
+pub(crate) fn maintenance(
+    root: Option<&Path>,
+    source: &Result<CatalogUrl, Failure>,
+) -> orchbee_workbench_protocol::AgentManifestMaintenance {
+    let loaded = (|| {
+        let Some(root) = root else { return Ok(None) };
+        let Some(bytes) = WindowsPrivateCache::read_existing(
+            &root.join("agent-detection").join("remote"),
+            "status.json",
+            LIMIT,
+        )
+        .map_err(|_| Failure::Cache)?
+        else {
+            return Ok(None);
+        };
+        let report: UpdateReport = serde_json::from_slice(&bytes).map_err(|_| Failure::Cache)?;
+        report.validate().map_err(|_| Failure::Cache)?;
+        Ok(Some(report))
+    })();
+    let (last_update, status_error) = match loaded {
+        Ok(report) => (report, None),
+        Err(error) => (None, Some(error)),
+    };
+    orchbee_workbench_protocol::AgentManifestMaintenance {
+        source_url: source.as_ref().ok().map(|s| s.as_str().to_owned()),
+        source_error: source.as_ref().err().copied(),
+        last_update,
+        status_error,
+    }
+}
+pub(crate) fn configured_source() -> Result<CatalogUrl, Failure> {
+    match std::env::var(CATALOG_ENV) {
+        Ok(value) => CatalogUrl::parse(&value),
+        Err(std::env::VarError::NotPresent) => CatalogUrl::parse(DEFAULT_CATALOG),
+        Err(std::env::VarError::NotUnicode(_)) => Err(Failure::InvalidSource),
+    }
+}
 /// The retained updater thread calls this once. Every fetch is a real bounded owned curl Job.
 pub(crate) fn run(root: &Path, source: &CatalogUrl, stop: &AtomicBool) -> UpdateReport {
     run_with_fetch(
@@ -244,7 +227,7 @@ fn run_with_fetch(
         {
             let previous: UpdateReport =
                 serde_json::from_slice(&bytes).map_err(|_| Failure::Cache)?;
-            if previous.version != 1 || previous.agents.len() > 22 {
+            if previous.validate().is_err() {
                 return Err(Failure::Cache);
             }
         }
@@ -312,4 +295,4 @@ fn run_with_fetch(
 }
 
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;

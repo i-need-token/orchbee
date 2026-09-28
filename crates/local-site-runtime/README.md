@@ -383,3 +383,5 @@ The reserved `.orchbee-update.lock` is a persistent cache coordination object;
 `.orchbee-update.pending` is the one owned staging leaf, removed after settlement or recovered under
 the next exclusive lock. Cleanup failures are returned, never converted into successful publication.
 The Server updater is the real consumer; this adapter alone does not implement remote updates.
+
+`read_existing` pins and validates an existing private directory tree and performs a bounded leaf read without creating directories, lock files or staging files. It serves startup/reload status inspection; missing cache paths remain absent.

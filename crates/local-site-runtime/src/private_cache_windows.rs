@@ -42,22 +42,17 @@ impl WindowsPrivateCache {
     }
     /// No symlinks/reparse points, hard links, nonregular files or foreign ACLs are followed.
     pub fn read(&self, name: &str, maximum: usize) -> io::Result<Option<Vec<u8>>> {
-        let path = self.leaf(name)?;
-        let file = match permissions::open_file(&path, false, false) {
-            Ok(file) => file,
+        read_leaf(&self.leaf(name)?, maximum)
+    }
+    /// Reads an existing private cache without creating directories or acquiring a writer lock.
+    pub fn read_existing(path: &Path, name: &str, maximum: usize) -> io::Result<Option<Vec<u8>>> {
+        let leaf = cache_leaf(path, name)?;
+        let _pins = match permissions::open_tree(path) {
+            Ok(pins) => pins,
             Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
             Err(error) => return Err(error),
         };
-        let bound = u64::try_from(maximum).map_err(|_| io::ErrorKind::InvalidInput)?;
-        if file.metadata()?.len() > bound {
-            return Err(io::ErrorKind::FileTooLarge.into());
-        }
-        let mut bytes = Vec::new();
-        file.take(bound.saturating_add(1)).read_to_end(&mut bytes)?;
-        if bytes.len() > maximum {
-            return Err(io::ErrorKind::FileTooLarge.into());
-        }
-        Ok(Some(bytes))
+        read_leaf(&leaf, maximum)
     }
     /// Flushes a complete new value before replacing the admitted leaf. No partial target is visible.
     pub fn replace(&mut self, name: &str, bytes: &[u8]) -> io::Result<()> {
@@ -86,16 +81,7 @@ impl WindowsPrivateCache {
         result
     }
     fn leaf(&self, name: &str) -> io::Result<PathBuf> {
-        if name.is_empty()
-            || name.len() > 96
-            || name.starts_with('.')
-            || !name
-                .bytes()
-                .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_' | b'.'))
-        {
-            return Err(io::ErrorKind::InvalidInput.into());
-        }
-        Ok(self.path.join(name))
+        cache_leaf(&self.path, name)
     }
     fn recover_pending(&mut self) -> io::Result<()> {
         let path = self.path.join(PENDING);
@@ -108,6 +94,35 @@ impl WindowsPrivateCache {
             Err(error) => Err(error),
         }
     }
+}
+fn cache_leaf(path: &Path, name: &str) -> io::Result<PathBuf> {
+    if name.is_empty()
+        || name.len() > 96
+        || name.starts_with('.')
+        || !name
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_' | b'.'))
+    {
+        return Err(io::ErrorKind::InvalidInput.into());
+    }
+    Ok(path.join(name))
+}
+fn read_leaf(path: &Path, maximum: usize) -> io::Result<Option<Vec<u8>>> {
+    let file = match permissions::open_file(path, false, false) {
+        Ok(file) => file,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => return Err(error),
+    };
+    let bound = u64::try_from(maximum).map_err(|_| io::ErrorKind::InvalidInput)?;
+    if file.metadata()?.len() > bound {
+        return Err(io::ErrorKind::FileTooLarge.into());
+    }
+    let mut bytes = Vec::new();
+    file.take(bound.saturating_add(1)).read_to_end(&mut bytes)?;
+    if bytes.len() > maximum {
+        return Err(io::ErrorKind::FileTooLarge.into());
+    }
+    Ok(Some(bytes))
 }
 fn create_tree(path: &Path) -> io::Result<Vec<File>> {
     match permissions::open_tree(path) {
@@ -167,6 +182,12 @@ mod tests {
         let root = Root(std::env::temp_dir().join(format!("orchbee-private-cache-{:032x}", nonce)));
         fs::create_dir(&root.0).unwrap();
         let path = root.0.join("nested").join("remote");
+        assert!(
+            WindowsPrivateCache::read_existing(&path, "status.json", 10)
+                .unwrap()
+                .is_none()
+        );
+        assert!(!path.exists());
         let mut cache = WindowsPrivateCache::acquire(&path).unwrap();
         assert!(
             matches!(WindowsPrivateCache::acquire(&path),Err(e) if e.kind()==io::ErrorKind::WouldBlock)

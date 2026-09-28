@@ -3,12 +3,10 @@ use orchbee_agent_observation_protocol::AgentReportProvider;
 use orchbee_workbench_protocol::{AgentScreenExplanation, PanelAgentState};
 
 mod loading;
-// Staged real updater: the observer Update action and automatic policy consume this next.
 mod manifest;
 mod regions;
 mod stability;
 #[cfg(windows)]
-#[allow(dead_code)]
 pub(crate) mod updating;
 mod version;
 pub(crate) use stability::Stability;

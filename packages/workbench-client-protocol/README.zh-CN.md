@@ -187,9 +187,11 @@ CLI 携带来源信息时输出 v3，并保留封闭的 v1/v2 封套。
 
 ## 已安装的 Agent 规则操作
 
-`workbench.agent-manifests` / `.result` 使用 OBWP 37/38，结果上限 512 KiB。
-严格的 Rust、TypeScript 和 JSON 契约覆盖已安装快照及 pending/applied/failed 重载回执。
-当前快照及操作查询只读；重载使用明确的 Site 生命周期操作 ID。
-共享 `workbench-agent-manifests-conformance-v1.json` 语料覆盖接纳与拒绝的形状、可空字段、
-数字版本、来源、修订及重复项。语义字节／版本及跨字段校验补充 JSON Schema。
-这些 DTO 描述实际已安装状态，不声称支持远程下载／更新。Server 屏幕模型拥有安装和回执上限。
+`workbench.agent-manifests` / `.result` 使用 OBWP 37/38，结果上限 512 KiB。严格的 Rust、
+TypeScript 和 JSON 契约覆盖已安装快照、可选维护信息、保留的 Reload／Update 操作，
+以及分开的缓存报告与启用事实。当前快照及状态查询只读。修改使用明确的 Site 生命周期操作 ID；
+相同类型复用 ID 读取保留回执，跨类型复用拒绝。更新报告保留逐 provider 的尝试版本、缓存版本
+和失败原因，以及目录源、时间和持久化事实；效果未知绝不声称成功。
+共享 `workbench-agent-manifests-conformance-v1.json` 语料覆盖接纳／拒绝的形状、可空字段、
+数字版本、来源、修订、重复项和跨字段一致性。语义字节／版本和跨字段校验补充 JSON Schema。
+Server 屏幕模型拥有来源选择、下载、安装、取消和回执上限。

@@ -43,6 +43,7 @@ fn cli_manifest_query_reload_status_and_lost_receipts_are_not_replayed() {
                     serde_json::from_value(outcome).unwrap()
                 }
                 AgentManifestsAction::Reload { operation_id }
+                | AgentManifestsAction::Update { operation_id }
                 | AgentManifestsAction::Operation { operation_id } => {
                     assert_eq!(operation_id.as_str(), "11111111111111111111111111111111");
                     if case == "denied" {
@@ -168,5 +169,133 @@ fn cli_manifest_query_reload_status_and_lost_receipts_are_not_replayed() {
                 );
             }
         }
+    }
+}
+
+#[test]
+fn cli_update_polls_only_status_and_reports_partial_or_unknown_effects() {
+    for case in [
+        "updated-and-activated",
+        "partial-update-with-activation",
+        "cancelled-cache-facts-no-activation",
+        "update-effects-unknown",
+        "wrong-kind",
+    ] {
+        let fixture = Fixture::new();
+        let listener = LocalListener::bind(fixture.rendezvous().client_socket_path()).unwrap();
+        let handler = peer(&fixture, listener, move |mut stream| {
+            bound_snapshot_reply(&mut stream);
+            let WorkbenchRequest::AgentManifests(request) =
+                read_workbench_request(&mut stream).unwrap()
+            else {
+                panic!("manifest update")
+            };
+            let AgentManifestsAction::Update { operation_id } = request.action else {
+                panic!("update action")
+            };
+            write_workbench_response(
+                &mut stream,
+                &WorkbenchResponse::AgentManifests(AgentManifestsResult {
+                    protocol_version: ProtocolVersion,
+                    request_id: request.request_id,
+                    site_id: request.site_id,
+                    outcome: AgentManifestsOutcome::Operation {
+                        operation_id: operation_id.clone(),
+                        status: AgentManifestsOperation::Pending {},
+                    },
+                }),
+            )
+            .unwrap();
+            let WorkbenchRequest::AgentManifests(request) =
+                read_workbench_request(&mut stream).unwrap()
+            else {
+                panic!("status")
+            };
+            assert_eq!(
+                request.action,
+                AgentManifestsAction::Operation {
+                    operation_id: operation_id.clone()
+                }
+            );
+            let corpus: Value = serde_json::from_str(include_str!(
+                "../../../schemas/workbench/v1/workbench-agent-manifests-conformance-v1.json"
+            ))
+            .unwrap();
+            let status = if case == "wrong-kind" {
+                AgentManifestsOperation::Applied {
+                    revision: WorkbenchRevision::new(2),
+                }
+            } else {
+                let row = corpus["valid"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .find(|v| v["name"] == case)
+                    .unwrap();
+                serde_json::from_value(row["document"]["outcome"]["status"].clone()).unwrap()
+            };
+            write_workbench_response(
+                &mut stream,
+                &WorkbenchResponse::AgentManifests(AgentManifestsResult {
+                    protocol_version: ProtocolVersion,
+                    request_id: request.request_id,
+                    site_id: request.site_id,
+                    outcome: AgentManifestsOutcome::Operation {
+                        operation_id,
+                        status,
+                    },
+                }),
+            )
+            .unwrap();
+            assert_closed(&mut stream);
+        });
+        let output = fixture.run_with_env(
+            &[
+                "site",
+                "update-agent-manifests",
+                "--request-id",
+                "11111111111111111111111111111111",
+                "--format",
+                "json",
+            ],
+            None,
+            None,
+            &[],
+        );
+        handler.join().unwrap();
+        assert_eq!(
+            output.status.code(),
+            Some(match case {
+                "updated-and-activated" => 0,
+                "partial-update-with-activation" => 1,
+                "cancelled-cache-facts-no-activation" => 7,
+                _ => 8,
+            }),
+            "{case}: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let document: Value = serde_json::from_slice(&output.stdout).unwrap();
+        assert_eq!(document["version"], 2);
+        if case == "wrong-kind" {
+            assert_eq!(
+                document["observation"]["reply"]["outcome"]["status"]["kind"],
+                "pending"
+            );
+        }
+        validate(
+            &document,
+            include_str!("../src/cli/schemas/orchbee.site.agent-manifests.json"),
+        );
+        let mut legacy = document.clone();
+        legacy["version"] = json!(1);
+        let schema: Value = serde_json::from_str(include_str!(
+            "../src/cli/schemas/orchbee.site.agent-manifests.json"
+        ))
+        .unwrap();
+        assert!(
+            !jsonschema::validator_for(&schema)
+                .unwrap()
+                .is_valid(&legacy)
+        );
     }
 }

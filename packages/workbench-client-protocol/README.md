@@ -250,9 +250,12 @@ owns explicit acknowledgement and rejection after identity loss.
 ## Installed Agent manifest operations
 
 `workbench.agent-manifests` / `.result` use OBWP 37/38 and a 512 KiB result bound. Strict Rust,
-TypeScript and JSON contracts cover installed snapshots and pending/applied/failed reload receipts.
-Current and operation queries are read-only; reload uses an explicit Site-lifetime operation ID.
-The shared `workbench-agent-manifests-conformance-v1.json` corpus covers accepted and refused
-shapes, nullable fields, numeric versions, sources, revisions and duplicates. Semantic byte/version
-and cross-field checks supplement JSON Schema. These DTOs describe actual installed state and do
-not claim remote fetch/update support. The Server screen model owns installation and receipt limits.
+TypeScript and JSON contracts cover installed snapshots, optional maintenance metadata, retained
+Reload/Update operations and separate cache-report/activation facts. Current/status queries are
+read-only. Mutations use explicit Site-lifetime operation IDs; repeated same-kind IDs read the
+retained receipt and cross-kind reuse refuses. Update reports retain per-provider attempted/cached
+versions and failures, catalog/time and persistence facts; unknown effects never claim success.
+The shared `workbench-agent-manifests-conformance-v1.json` corpus covers accepted/refused shapes,
+nullable fields, numeric versions, sources, revisions, duplicates and cross-field consistency.
+Semantic byte/version and cross-field checks supplement JSON Schema. The Server screen model owns
+source selection, downloading, installation, cancellation and receipt limits.

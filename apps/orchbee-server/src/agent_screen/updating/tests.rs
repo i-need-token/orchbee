@@ -7,9 +7,9 @@ use std::{
     sync::{Arc, atomic::Ordering as Order},
     thread,
 };
-struct Root(PathBuf);
+pub(crate) struct Root(pub(crate) PathBuf);
 impl Root {
-    fn new() -> Self {
+    pub(crate) fn new() -> Self {
         let mut nonce = [0; 16];
         getrandom::fill(&mut nonce).unwrap();
         let root = Self(std::env::temp_dir().join(format!(
@@ -37,7 +37,7 @@ impl Drop for Root {
         fs::remove_dir_all(path).unwrap();
     }
 }
-fn rules(provider: &str, version: &str) -> String {
+pub(crate) fn rules(provider: &str, version: &str) -> String {
     include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/resources/agent-detection/codex.toml"
@@ -48,7 +48,7 @@ fn rules(provider: &str, version: &str) -> String {
         &format!("version = \"{version}\""),
     )
 }
-const INDEX: &str = "schema_version=1\n[[agents]]\nid='codex'\npath='codex.toml'\n";
+pub(crate) const INDEX: &str = "schema_version=1\n[[agents]]\nid='codex'\npath='codex.toml'\n";
 fn scripted(root: &Root, content: &str) -> UpdateReport {
     let stop = AtomicBool::new(false);
     run_with_fetch(
@@ -169,14 +169,14 @@ fn catalog_and_cancellation_fail_before_any_manifest_commit() {
     assert_eq!(report.failure, Some(Failure::Cancelled));
     assert!(!root.0.join("agent-detection").exists());
 }
-struct Http {
-    url: CatalogUrl,
+pub(crate) struct Http {
+    pub(crate) url: CatalogUrl,
     stop: Arc<AtomicBool>,
-    ready: Arc<AtomicBool>,
+    pub(crate) ready: Arc<AtomicBool>,
     handle: Option<thread::JoinHandle<()>>,
 }
 impl Http {
-    fn start(responses: Vec<Vec<u8>>) -> Self {
+    pub(crate) fn start(responses: Vec<Vec<u8>>) -> Self {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         listener.set_nonblocking(true).unwrap();
         let url = CatalogUrl::parse(&format!(

@@ -257,25 +257,35 @@ fn turn(
 fn run(service: Weak<LocalTerminalService>, wake: Arc<Wake>, mut detector: ScreenDetector) {
     let _manifest_lifetime = manifests::Lifetime(&wake.manifests);
     let mut cursor = None;
+    let mut updates = manifests::Worker::default();
     loop {
-        if wake.stop.load(Ordering::Acquire) {
-            return;
+        let service = service.upgrade();
+        if service.is_none() {
+            wake.stop.store(true, Ordering::Release);
         }
-        let Some(service) = service.upgrade() else {
-            return;
-        };
-        manifests::serve(&service, &wake, &mut detector);
-        explanation::serve(&service, &wake, &detector);
-        turn(&service, &wake, &mut cursor, &detector);
+        if wake.stop.load(Ordering::Acquire) {
+            wake.manifests.cancel();
+        }
+        updates.serve(service.as_deref(), &wake, &mut detector);
+        if wake.stop.load(Ordering::Acquire) {
+            if !updates.active() {
+                return;
+            }
+        } else if let Some(service) = service.as_deref() {
+            explanation::serve(service, &wake, &detector);
+            turn(service, &wake, &mut cursor, &detector);
+        }
         drop(service);
-        let Ok(guard) = wake.wait.lock() else {
-            return;
-        };
-        if wake.stop.load(Ordering::Acquire) {
-            return;
-        }
-        if wake.changed.wait_timeout(guard, INTERVAL).is_err() {
-            return;
+        match wake.wait.lock() {
+            Ok(guard) => {
+                if wake.changed.wait_timeout(guard, INTERVAL).is_err() {
+                    wake.stop.store(true, Ordering::Release);
+                }
+            }
+            Err(_) => {
+                wake.stop.store(true, Ordering::Release);
+                thread::sleep(Duration::from_millis(10));
+            }
         }
     }
 }

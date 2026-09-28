@@ -34,18 +34,64 @@ impl Answer {
             }
             Observation::Unknown(reason) => serde_json::json!({"kind":"unknown","reason":reason}),
         };
-        serde_json::json!({"schema":"orchbee.site.agent-manifests","version":1,"requestId":self.request_id,"siteId":self.site_id,"action":self.action,"observation":observation,"interrupted":self.interrupted,"cleanupFailed":self.cleanup_failed})
+        let extended = matches!(self.action, AgentManifestsAction::Update { .. })
+            || match &self.observation {
+                Observation::Server(reply) => match &reply.outcome {
+                    AgentManifestsOutcome::Current { snapshot } => snapshot.maintenance.is_some(),
+                    AgentManifestsOutcome::Operation {
+                        status:
+                            AgentManifestsOperation::Updated { .. }
+                            | AgentManifestsOperation::Unknown { .. },
+                        ..
+                    } => true,
+                    AgentManifestsOutcome::Failed {
+                        reason:
+                            AgentManifestsFailure::Conflict | AgentManifestsFailure::UpdateUnavailable,
+                    } => true,
+                    _ => false,
+                },
+                _ => false,
+            };
+        serde_json::json!({"schema":"orchbee.site.agent-manifests","version":if extended {2} else {1},"requestId":self.request_id,"siteId":self.site_id,"action":self.action,"observation":observation,"interrupted":self.interrupted,"cleanupFailed":self.cleanup_failed})
     }
     fn exit_code(&self) -> u8 {
         let failure = match &self.observation {
             Observation::Unknown(_) => {
-                return if matches!(self.action, AgentManifestsAction::Reload { .. }) {
+                return if matches!(
+                    self.action,
+                    AgentManifestsAction::Reload { .. } | AgentManifestsAction::Update { .. }
+                ) {
                     8
                 } else {
                     4
                 };
             }
             Observation::Server(reply) => match &reply.outcome {
+                AgentManifestsOutcome::Operation {
+                    status: AgentManifestsOperation::Unknown { .. },
+                    ..
+                } => return 8,
+                AgentManifestsOutcome::Operation {
+                    status: AgentManifestsOperation::Updated { report, activation },
+                    ..
+                } => {
+                    if self.cleanup_failed {
+                        return 1;
+                    }
+                    return if report.successful()
+                        && matches!(
+                            activation,
+                            orchbee_workbench_protocol::AgentManifestActivation::Applied { .. }
+                        ) {
+                        0
+                    } else if report.failure
+                        == Some(orchbee_workbench_protocol::AgentManifestUpdateFailure::Cancelled)
+                    {
+                        7
+                    } else {
+                        1
+                    };
+                }
                 AgentManifestsOutcome::Current { .. }
                 | AgentManifestsOutcome::Operation {
                     status: AgentManifestsOperation::Applied { .. },
@@ -72,7 +118,9 @@ impl Answer {
                 | AgentManifestsFailure::SiteMismatch
                 | AgentManifestsFailure::Busy
                 | AgentManifestsFailure::ResourceLimit
-                | AgentManifestsFailure::NotFound,
+                | AgentManifestsFailure::NotFound
+                | AgentManifestsFailure::Conflict
+                | AgentManifestsFailure::UpdateUnavailable,
             ) => 3,
             Some(AgentManifestsFailure::Unavailable) => 4,
             Some(AgentManifestsFailure::Cancelled) => 7,
@@ -90,6 +138,7 @@ impl Answer {
                 let id = match &self.action {
                     AgentManifestsAction::Current {} => None,
                     AgentManifestsAction::Reload { operation_id }
+                    | AgentManifestsAction::Update { operation_id }
                     | AgentManifestsAction::Operation { operation_id } => {
                         Some(operation_id.as_str())
                     }

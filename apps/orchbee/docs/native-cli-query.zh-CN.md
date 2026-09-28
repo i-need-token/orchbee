@@ -32,7 +32,7 @@ Windows `workspace list/get` 返回 `number`、`tabCount` 和 `panelCount`；
 查询中接受可选 `--client <id>`，补充全局焦点和 Client 在各 Workspace 记住的活动 Tab。
 [Client 查询契约](windows-client-control.zh-CN.md#client-相对-workbench-查询)定义这一有界只读关联、
 来源记录与一致性检查。Schema 版本为 `orchbee.workspace.list/get` 6、`orchbee.tab.list` 4、
-`orchbee.tab.get` 5 和 `orchbee.panel.list/get` 9；内嵌目录为版本91，含91份 schema。
+`orchbee.tab.get` 5 和 `orchbee.panel.list/get` 9；内嵌目录为版本92，含91份 schema。
 保留的选择读取控制使用 `orchbee.client.control` v2，视口读取使用 v3，其他控制保留 v1。
 `orchbee.cli.failure.client-query` v1 标识指定 Client 的读取失败，既有目标和准入诊断保持完整。
 进程和 worktree 观察使用下文所述的各自所有者；上报元数据仍由独立所有者负责，拓扑字段不代表已实现它。
@@ -107,7 +107,7 @@ Workbench 修订、主 Directory 路径及 Worker 一致，且来源检出项必
 Git 清理仍归既有 Worker 读取任务所有。外部文件系统变化不受栅栏约束：这些是依次进行的
 实时观察，不是原子 Git 快照或 Herdr 的缓存关联。`unavailable` 绝不表示“不是仓库”。
 
-Workspace list/get 使用 schema 版本 6；目录版本 91 仍包含 91 份文档。其他查询版本
+Workspace list/get 使用 schema 版本 6；目录版本 92 仍包含 91 份文档。其他查询版本
 保留既有契约。验证覆盖主／链接检出、检出子目录中的 Workspace、目录缺失、Git 不可用、
 来源事实不匹配、总期限、安全文本，以及拓扑和 Client 视图不变的真实 Windows 读取。
 
@@ -138,7 +138,7 @@ file URI 按严格 UTF-8 解码一次百分号转义（盘符路径或 UNC autho
 既有五秒总期限覆盖所有 Panel 观察、Agent 关联和最终规范/Client 检查。所有结果路径都
 释放 viewer，准入会话销毁作为兜底。不产生输入、resize、焦点、history-demand 或 Client 确认效果。
 独立的帧/进程观察不是原子快照。新 viewer 的实时帧不代表所选 Client 的滚动偏移，后者
-由下述单独的 Client viewport 观察提供。Windows Panel list/get schema 为版本9，目录为版本91，共91份。
+由下述单独的 Client viewport 观察提供。Windows Panel list/get schema 为版本9，目录为版本92，共91份。
 
 ## Panel Client 滚动查询
 
@@ -1189,7 +1189,7 @@ Canonical 遍历次序：`navigation.projects` 顺序；各 project 的 `workspa
 terminal 绑定按该 panel 顺序且 `primaryPresentation` 先于 `childPresentations`。不新增排序；
 过滤后的列表与 `ambiguous` 候选都保持该次序。
 
-快照与单效果命令封套使用 `{schema, version, source, result}`；分阶段流程有自己的内嵌 schema。每份 schema 定义发出的版本及严格形状。Workbench 查询版本见上文；`orchbee.panel.current` 在 Windows 为 v5（其他平台保持 v3），`orchbee.api.snapshot` 因 Workspace 排序为 v5。`orchbee.terminal.get` 因保留实际启动程序／参数为 v4。`orchbee.terminal.read/history` 带 `--unwrap` 或 `--lines` 时为 v2，`orchbee.terminal.wait-output` 携带正则匹配细节时为 v2；三者不带这些 flag 时仍为 v1。各命令与失败的完整版本契约见 `api schema <id>`。当前目录为 v91，包含 91 份必需文档：注册 ID 会改变闭合字典形状，与业务文档版本独立。来源保留各所有者的含义：
+快照与单效果命令封套使用 `{schema, version, source, result}`；分阶段流程有自己的内嵌 schema。每份 schema 定义发出的版本及严格形状。Workbench 查询版本见上文；`orchbee.panel.current` 在 Windows 为 v5（其他平台保持 v3），`orchbee.api.snapshot` 因 Workspace 排序为 v5。`orchbee.terminal.get` 因保留实际启动程序／参数为 v4。`orchbee.terminal.read/history` 带 `--unwrap` 或 `--lines` 时为 v2，`orchbee.terminal.wait-output` 携带正则匹配细节时为 v2；三者不带这些 flag 时仍为 v1。各命令与失败的完整版本契约见 `api schema <id>`。当前目录为 v92，包含 91 份必需文档：注册 ID 会改变闭合字典形状，与业务文档版本独立。来源保留各所有者的含义：
 
 - `source.kind="workbench-snapshot"`：带同一份已验证快照的 `siteId` 与十进制字符串
   `revision`——仅在完整有效读取之后出现。
@@ -1904,7 +1904,7 @@ Windows 当前 Panel 使用 `orchbee.panel.current` v5，补齐与 Panel Get 一
 终端标题／cwd／进程，以及精确所选 Client 的焦点／滚动。显式或调用者 Panel 查询保持
 无界面可用。解析时的 Client 记录固定到最终视图／修订检查；并发选择变化会失败，
 不输出部分结果。五秒期限、取消、只读操作、Viewer 清理和 Windows 证据由所链接
-契约负责。目录 v91 含 91 个 schema。不产生激活、输入、控制权或焦点效果；
+契约负责。目录 v92 含 91 个 schema。不产生激活、输入、控制权或焦点效果；
 非 Windows current 保留 v3。TLA 执行继续延后。
 
 Windows Worker 身份在每次连接 Server 时由已有 OS 随机源重新生成；同一 Worker
@@ -1914,7 +1914,7 @@ Server 发布移除前，查询仍反映成员状态；发布后才找不到旧�
 
 ## 目录工作区创建
 
-Windows `workspace create` 的[工作区创建契约](windows-workspace-creation.zh-CN.md)拥有可选项目、名称、来源、目录及聚焦。所有参数组合均使用同一首终端启动流程，包括显式 `--project <target> --label <label>` 且省略或提供绝对 `--cwd`。`--no-focus` 仅影响聚焦。`orchbee.workspace.creation` v1 分别保留首个 Project 设置、Workspace 与聚焦；资源 ID 和终端状态位于 `workspace.result`。这替代此前空 Workspace／顶层 mutation-v4 分流。目录 v91 含 91 个 schema、107 条命令路径。
+Windows `workspace create` 的[工作区创建契约](windows-workspace-creation.zh-CN.md)拥有可选项目、名称、来源、目录及聚焦。所有参数组合均使用同一首终端启动流程，包括显式 `--project <target> --label <label>` 且省略或提供绝对 `--cwd`。`--no-focus` 仅影响聚焦。`orchbee.workspace.creation` v1 分别保留首个 Project 设置、Workspace 与聚焦；资源 ID 和终端状态位于 `workspace.result`。这替代此前空 Workspace／顶层 mutation-v4 分流。目录 v92 含 91 个 schema、108 条命令路径。
 
 Worker 先探测请求目录，Server 再用一次修订原子登记 Workspace、目录、Terminal Context 及首个 Tab/Panel/Presentation。准入失败时不创建这些资源。提交成功保留嵌套 mutation v4 信封：action 为 `workspace.create`，包含 `projectId`、`workspaceId`、`directoryId`、`terminalContextId`、`tabId`、`panelId`、`presentationId`、字面 `path`、`label` 和 `terminal`。现有 schema 已允许这些字段，版本和目录不变。终端可能在提交后仍待定或启动失败：保留返回 ID，查询 Workspace，不再需要时显式关闭。响应未知时绝不自动重放或回滚。
 
@@ -2117,7 +2117,7 @@ Windows `agent get <target> --client <id>` 在 `orchbee.agent.get` v10 中附加
 
 Windows `agent get` 输出 v9；`--client` 输出 v10。必需但可为 null 的 `terminal` 观察包含 `terminalId`、规范快照 `source`、`cwd`、`cwdSource`、`foregroundCwd`、`terminalTitle`、`terminalTitleStripped` 和 `terminalObservation`，与 Panel 查询共用投影。准入、目标解析、规范 Get、同一个只读 Viewer 的终端帧和 Windows Job 样本、第二次规范 Get、Workbench 修订复核、管理信息及可选 Client 证明共用可取消的五秒总预算。帧 cwd 优先于根进程 cwd；foregroundCwd 使用已公开的进程选择规则，不代表 OS 前台。原始标题与展示标题分开。帧和进程分别标明来源，不宣称原子快照。
 
-唯一活动主 Terminal 绑定和 provider 必须保持一致。已结束、未绑定、绑定歧义或绑定变化时返回 null terminal 及明确的不可用运行时；任何 Workbench 修订变化都会保守丢弃样本。Host 不可用时，帧字段为 null，但保留 Server 所有的 `terminal.metadata`，`terminalObservation.state` 为 unavailable，运行时原因是 `terminal-unavailable`。仅进程样本不可用时保留帧元数据，进程来源明确不可用，运行时原因是 `process-unavailable`。畸形数据、拒绝、传输、取消和截止时间错误使整个命令失败，不输出部分结果。所有 Viewer 附着都会关闭；查询不聚焦、确认已看见、调整大小或发送输入。`runtime` 保留真实进程查询来源、Windows Job DTO 及有边界的 `promptReady` 预检。就绪要求新鲜、已知、未阻塞的 Agent 事实与识别到的 provider 进程链匹配，且没有待处理启动；它不是输入租约或交互 UI 就绪证明。非 Windows Get 保持 v1；嵌入 schema 严格保留 v1-v8，目录 v91 含 91 份 schema。上报的展示字段及 token 通过 `terminal.metadata` 提供；真实 Agent／来源守卫上下文、可恢复 agentSession 及完整 session snapshot 仍是独立待办。
+唯一活动主 Terminal 绑定和 provider 必须保持一致。已结束、未绑定、绑定歧义或绑定变化时返回 null terminal 及明确的不可用运行时；任何 Workbench 修订变化都会保守丢弃样本。Host 不可用时，帧字段为 null，但保留 Server 所有的 `terminal.metadata`，`terminalObservation.state` 为 unavailable，运行时原因是 `terminal-unavailable`。仅进程样本不可用时保留帧元数据，进程来源明确不可用，运行时原因是 `process-unavailable`。畸形数据、拒绝、传输、取消和截止时间错误使整个命令失败，不输出部分结果。所有 Viewer 附着都会关闭；查询不聚焦、确认已看见、调整大小或发送输入。`runtime` 保留真实进程查询来源、Windows Job DTO 及有边界的 `promptReady` 预检。就绪要求新鲜、已知、未阻塞的 Agent 事实与识别到的 provider 进程链匹配，且没有待处理启动；它不是输入租约或交互 UI 就绪证明。非 Windows Get 保持 v1；嵌入 schema 严格保留 v1-v8，目录 v92 含 91 份 schema。上报的展示字段及 token 通过 `terminal.metadata` 提供；真实 Agent／来源守卫上下文、可恢复 agentSession 及完整 session snapshot 仍是独立待办。
 
 Windows `agent list --client <id>` 在 v2 列表封套中加入所选 TUI 的状态。它对有界页批量读取，重读原始游标并检查保留变更后才暴露已读／未读。空页仍验证精确 Client；无此参数的列表保持 v1。[Client 提示状态契约](native-client-attention.zh-CN.md) 拥有一致性与期限规则。
 
@@ -2192,7 +2192,7 @@ Server 在 Worker 验证后原子提交拓扑与目录且不重启终端；Proje
 
 ## 可复用布局导出
 
-Windows `layout export` 输出带比例、手工标签、观测目录及冻结启动命令的可复用 JSON 树。[布局契约](windows-layouts.zh-CN.md)拥有导出目标、Client 选择、边界、取消、无副作用与一致性规则，以及已实现的 `layout apply` 创建／替换流程和效果回执。`orchbee.layout.export` v1 和 `orchbee.cli.failure.layout` v1 包含在当前目录 v91（91 份文档）中。
+Windows `layout export` 输出带比例、手工标签、观测目录及冻结启动命令的可复用 JSON 树。[布局契约](windows-layouts.zh-CN.md)拥有导出目标、Client 选择、边界、取消、无副作用与一致性规则，以及已实现的 `layout apply` 创建／替换流程和效果回执。`orchbee.layout.export` v1 和 `orchbee.cli.failure.layout` v1 包含在当前目录 v92（91 份文档）中。
 
 ## 程序化语义按键
 
@@ -2210,23 +2210,32 @@ Windows `layout export` 输出带比例、手工标签、观测目录及冻结�
 
 Windows Site 重启默认恢复保留的官方 provider 引用，每个不同的来源／Agent／引用种类／值仅尝试一次。激活前设置 ORCHBEE_RESUME_AGENTS_ON_RESTORE=false 可启动普通 shell 并保留引用；仅接受精确 true／false。已运行的 Site 不受影响。Server 读取 SystemRoot 解析系统 Windows PowerShell，并继承 PATH 发现 provider 程序。shell 启动不证明 provider 就绪。失败、去重及其余恢复边界参见 Server 的[重启模型](../../orchbee-server/docs/agent-restart-reference.zh-CN.md)。
 
-## 已安装的 Agent 识别规则
+## 已安装的 Agent 检测清单
 
-Windows `site agent-manifests` 读取运行中 Site 的已安装规则、规则修订号、引擎版本、配置目录，
-以及每个 provider 实际的来源／版本／路径／缓存／告警。
-`site reload-agent-manifests [--request-id <operation-id>]` 重读启动配置目录，
-重置屏幕稳定状态，并让采样和 Explain 一起切换至新检测器。
-`site agent-manifests-status <operation-id>` 读取保留回执，不重新提交。
-这些命令不激活 Site、不下载规则、不聚焦 Client，也不向终端输入。
+Windows `site agent-manifests` 读取运行中 Site 已安装的规则、修订、引擎版本、配置目录及每个
+provider 的实际来源、版本、路径、缓存和警告，也显示启动时冻结的更新目录源、来源错误、最近
+一次更新事实及持久化状态错误。
+`site reload-agent-manifests [--request-id <operation-id>]` 重读启动配置目录及已有状态，
+重置屏幕稳定状态，并同时切换采样和 Explain。
+`site update-agent-manifests [--request-id <operation-id>]` 通过 Server 持有的 Windows curl
+工作线程下载并校验规则，提交符合条件的缓存版本，再启用当前本地覆盖、缓存或内置规则的选择结果。
+本地覆盖继续优先。目录源由 `ORCHBEE_AGENT_DETECTION_MANIFEST_CATALOG_URL` 指定，默认
+`https://herdr.dev/agent-detection/index.toml`；无效覆盖值停用 Update，但本地规则仍可使用。
+来源在 Site 启动时冻结。自动检查尚未调度。
+`site agent-manifests-status <operation-id>` 读取重载或更新回执，不重新提交。
+这些命令要求 Site 已运行，不会聚焦 Client 或发送终端输入。
 
-每次调用共用五秒准入和交换预算。重载只提交一次，之后仅轮询状态；待处理或效果未知时保留操作 ID，
-退出码为 8。只读传输结果未知退出 4。明确拒绝／忙碌／无记录／容量不足退出 3；不可用退出 4；
-已取消操作退出 7；加载／修订耗尽／内部错误退出 1。晚到中断保留已接纳回执。
-查询待处理回执也退出 8。重载操作 ID 是非零的 32 位小写十六进制标识；省略时生成。
-重复已接纳 ID 返回原回执。回执保留至当前 Site 代次结束；最多一个活动重载和 1,024 条保留操作。
-达到容量明确拒绝，不静默淘汰重试责任；重启结束此回执作用域。
+每次调用共用一个五秒接纳及交换预算。Reload 和 Update 只提交一次，之后仅查询状态。
+待处理或效果未知时保留操作 ID 并退出 8；只读传输结果不确定时退出 4。
+拒绝、忙碌、未记录、容量耗尽、操作类型冲突、更新已停用时退出 3；不可用退出 4；
+已取消操作退出 7；加载、修订耗尽或内部错误退出 1。只有全部 provider、状态持久化及规则启用
+均成功时，更新才退出 0。即使部分缓存已写入，部分失败或启用失败、未启用仍退出 1。
+晚到中断保留最后一份已接纳回执。ID 为非零的 32 位小写十六进制值；省略时自动生成。
+相同类型复用已接纳 ID 只读原回执；跨类型复用失败。Reload 与 Update 共用一个活动槽，
+每个 Site 代次最多保留 1,024 条回执，不淘汰。重启结束回执范围；最近缓存报告仍保留在磁盘。
 
-`orchbee.site.agent-manifests` v1 拥有动作、最后请求标识、Site 标识、类型化 Server 回执或未知传输观察，
-以及中断与清理事实。文本本地化并转义。目录 v91 包含 91 个 schema，原生语法包含 107 条命令路径。
-Server [屏幕契约](../../orchbee-server/docs/agent-screen-model.zh-CN.md#已安装规则维护)
-拥有安装与来源判定。真实远程下载和更新策略仍未实现。
+`orchbee.site.agent-manifests` v1 对旧结果保持封闭。v2 增加 Update、维护信息、更新报告及
+效果未知回执。报告将尝试版本、缓存版本、逐 provider 失败与启用修订、失败原因分开呈现。
+文本本地化且转义。目录 v92 包含 91 个 schema；原生命令语法包含 108 个命令路径。
+Server [屏幕契约](../../orchbee-server/docs/agent-screen-model.zh-CN.md#installed-manifest-maintenance)
+拥有缓存安全、安装、取消及回执上限的规则。

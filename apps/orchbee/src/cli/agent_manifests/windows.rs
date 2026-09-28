@@ -57,6 +57,12 @@ fn submit(
     signals.check_before(deadline)?;
     let (mut client, snapshot) = query::stream_snapshot(deadline, signals.poll_fd())?;
     let action = match command {
+        ManifestCommand::Update { operation_id } => AgentManifestsAction::Update {
+            operation_id: match operation_id {
+                Some(id) => id.clone(),
+                None => query::request_id()?,
+            },
+        },
         ManifestCommand::Current => AgentManifestsAction::Current {},
         ManifestCommand::Reload { operation_id } => AgentManifestsAction::Reload {
             operation_id: match operation_id {
@@ -98,8 +104,10 @@ fn submit(
         cleanup_failed: false,
     };
     // Once admitted, cancellation retains the last receipt. Each subsequent exchange is status only.
-    while matches!(answer.action, AgentManifestsAction::Reload { .. })
-        && matches!(&answer.observation, Observation::Server(reply) if matches!(reply.outcome, AgentManifestsOutcome::Operation { status:AgentManifestsOperation::Pending {}, .. }))
+    while matches!(
+        answer.action,
+        AgentManifestsAction::Reload { .. } | AgentManifestsAction::Update { .. }
+    ) && matches!(&answer.observation, Observation::Server(reply) if matches!(reply.outcome, AgentManifestsOutcome::Operation { status:AgentManifestsOperation::Pending {}, .. }))
     {
         if signals.check_before(deadline).is_err() {
             break;
@@ -110,7 +118,9 @@ fn submit(
         if signals.check_before(deadline).is_err() {
             break;
         }
-        let AgentManifestsAction::Reload { operation_id } = &answer.action else {
+        let (AgentManifestsAction::Reload { operation_id }
+        | AgentManifestsAction::Update { operation_id }) = &answer.action
+        else {
             break;
         };
         let Ok(id) = query::request_id() else {
@@ -123,6 +133,14 @@ fn submit(
         };
         match client.agent_manifests(request.clone(), deadline, signals.poll_fd()) {
             Ok(reply) => {
+                // Status queries still belong to the original mutation kind.
+                let expected = AgentManifestsRequest {
+                    action: answer.action.clone(),
+                    ..request.clone()
+                };
+                if !reply.answers(&expected) {
+                    break;
+                }
                 answer.request_id = request.request_id.clone();
                 answer.observation = Observation::Server(reply);
             }
