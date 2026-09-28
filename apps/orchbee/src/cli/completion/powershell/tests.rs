@@ -9,6 +9,18 @@ use std::{
 fn real_powershell_completes_scoped_grammar_without_runtime() {
     let mut cases = super::super::test_cases::CASES.to_vec();
     cases.extend([
+        ("orchbee site agent-m", "agent-manifests", true),
+        (
+            "orchbee site reload-agent-manifests --r",
+            "--request-id",
+            true,
+        ),
+        ("orchbee site agent-manifests --r", "--request-id", false),
+        (
+            "orchbee site agent-manifests-status abc --f",
+            "--format",
+            true,
+        ),
         (
             "orchbee panel report-agent abc --state done --m",
             "--message",

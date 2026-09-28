@@ -39,6 +39,10 @@ pub(crate) const PROJECT_RENAME_RESULT_ID: &str = "orchbee.project.rename";
 /// `schema` id → embedded document, in dictionary order.
 const DOCUMENTS: &[(&str, &str)] = &[
     (
+        "orchbee.site.agent-manifests",
+        include_str!("schemas/orchbee.site.agent-manifests.json"),
+    ),
+    (
         "orchbee.panel.agent-report",
         include_str!("schemas/orchbee.panel.agent-report.json"),
     ),
@@ -463,7 +467,7 @@ pub(crate) fn answer(schema_id: Option<&str>, format: OutputFormat, locale: Loca
     let document = json!({
         "schema": "orchbee.api.schema",
         // Panel and Agent queries now join explicit Agent reports and guarded metadata.
-        "version": 90,
+        "version": 91,
         "source": embedded_source(),
         "result": result,
     });

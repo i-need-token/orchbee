@@ -1,4 +1,9 @@
 import {
+	AgentManifestsRequestSchema,
+	AgentManifestsResultSchema,
+	WORKBENCH_MAXIMUM_ENCODED_AGENT_MANIFESTS_BYTES,
+} from './workbench-agent-manifests-contract';
+import {
 	PanelAgentRequestSchema,
 	PanelAgentResultSchema,
 	WORKBENCH_MAXIMUM_ENCODED_PANEL_AGENT_RESULT_BYTES,
@@ -332,6 +337,7 @@ export const WorkbenchRequestSchema = z
 		WorkbenchWorktreeRequestSchema,
 		WorkbenchWorktreeQuerySchema,
 		WorkspaceMetadataRequestSchema,
+		AgentManifestsRequestSchema,
 		PanelAgentRequestSchema,
 		PanelMetadataRequestSchema,
 		WorkbenchWorkspaceGroupCloseRequestSchema,
@@ -660,6 +666,7 @@ export const WorkbenchResponseSchema = z
 		WorkbenchWorktreeResultSchema,
 		WorkbenchWorktreeQueryResultSchema,
 		WorkspaceMetadataResultSchema,
+		AgentManifestsResultSchema,
 		PanelAgentResultSchema,
 		PanelMetadataResultSchema,
 		WorkbenchWorkspaceGroupCloseResultSchema,
@@ -679,6 +686,8 @@ export const WorkbenchResponseSchema = z
 					: WORKBENCH_MAXIMUM_ENCODED_CLIENT_VIEW_RESULT_BYTES;
 		} else if (value.kind === 'workbench.workspace-group-close.result') {
 			maximum = WORKBENCH_MAXIMUM_ENCODED_WORKSPACE_GROUP_CLOSE_RESULT_BYTES;
+		} else if (value.kind === 'workbench.agent-manifests.result') {
+			maximum = WORKBENCH_MAXIMUM_ENCODED_AGENT_MANIFESTS_BYTES;
 		} else if (value.kind === 'workbench.panel-agent.result') {
 			maximum = WORKBENCH_MAXIMUM_ENCODED_PANEL_AGENT_RESULT_BYTES;
 		} else if (value.kind === 'workbench.panel-metadata.result') {

@@ -69,7 +69,7 @@ Windows `agent explain` 也会将名称和 Panel 解析为精确的物理终端�
 屏幕规则评估。结果包含清单来源/版本、同优先级首条胜出规则、所有规则匹配及有界区域证据。
 生效的完整生命周期权威直接返回明确的屏幕跳过结果，不读取 Host。一次准入与 5 秒 CLI 总预算
 覆盖解析和读取；Server 队列/读取预算为 4 秒。绑定或上报上下文变化时拒绝，不重试。
-不发送输入、申请控制器或改变焦点。Windows 启动依次选择本地覆盖、合格远程缓存与内置规则。物理 v3 增加实际路径、缓存版本、遮蔽与类型化告警；v2 保留旧结果、无清单与跳过情况的封闭形状。当前清单查询、热重载和远程更新仍未补齐。
+不发送输入、申请控制器或改变焦点。Windows 启动依次选择本地覆盖、合格远程缓存与内置规则。物理 v3 增加实际路径、缓存版本、遮蔽与类型化告警；v2 保留旧结果、无清单与跳过情况的封闭形状。Windows `site agent-manifests`、`site reload-agent-manifests` 和 `site agent-manifests-status` 提供已安装快照及保留的实时重载回执；远程更新仍待补齐。
 参见[屏幕模型](../orchbee-server/docs/agent-screen-model.zh-CN.md)。
 
 作用于运行中 Site 的修改命令为 `project create`/`rename`、

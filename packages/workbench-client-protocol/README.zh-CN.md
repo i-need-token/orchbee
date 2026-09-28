@@ -184,3 +184,12 @@ CLI 携带来源信息时输出 v3，并保留封闭的 v1/v2 封套。
 或完整物理 Agent 目标。绑定验证非零物理身份及展示对应；应用回执要求精确 Ready Client
 选择。它复用既有导航帧及保留操作生命周期。[Agent 导航](../../apps/orchbee/docs/native-agent-navigation.zh-CN.md)
 负责显式确认及身份丢失后的拒绝。
+
+## 已安装的 Agent 规则操作
+
+`workbench.agent-manifests` / `.result` 使用 OBWP 37/38，结果上限 512 KiB。
+严格的 Rust、TypeScript 和 JSON 契约覆盖已安装快照及 pending/applied/failed 重载回执。
+当前快照及操作查询只读；重载使用明确的 Site 生命周期操作 ID。
+共享 `workbench-agent-manifests-conformance-v1.json` 语料覆盖接纳与拒绝的形状、可空字段、
+数字版本、来源、修订及重复项。语义字节／版本及跨字段校验补充 JSON Schema。
+这些 DTO 描述实际已安装状态，不声称支持远程下载／更新。Server 屏幕模型拥有安装和回执上限。

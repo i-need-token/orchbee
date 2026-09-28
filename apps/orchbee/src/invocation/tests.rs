@@ -1,6 +1,6 @@
-use super::CreationDirectory;
 use super::PanelQueryTarget;
 use super::{CreationCommand, CreationKind, SiteStopCommand};
+use super::{CreationDirectory, ManifestCommand};
 use std::ffi::OsString;
 
 fn expected_terminal_read(
@@ -7917,5 +7917,46 @@ fn reusable_layout_apply_requires_a_source_and_confirmed_exclusive_destination()
         }
         words.extend(suffix);
         assert!(parse(&words).is_err(), "{words:?}");
+    }
+}
+
+#[test]
+fn manifest_commands_accept_only_their_owned_options() {
+    assert!(matches!(
+        parse(&["site", "agent-manifests"]),
+        Ok(Request::AgentManifests {
+            command: ManifestCommand::Current,
+            ..
+        })
+    ));
+    assert!(
+        parse(&[
+            "site",
+            "reload-agent-manifests",
+            "--request-id",
+            "11111111111111111111111111111111"
+        ])
+        .is_ok()
+    );
+    assert!(
+        parse(&[
+            "site",
+            "agent-manifests-status",
+            "11111111111111111111111111111111"
+        ])
+        .is_ok()
+    );
+    for args in [
+        vec!["site", "agent-manifests-status"],
+        vec!["site", "reload-agent-manifests", "--request-id", "bad"],
+        vec![
+            "site",
+            "agent-manifests",
+            "--request-id",
+            "11111111111111111111111111111111",
+        ],
+        vec!["site", "reload-agent-manifests", "--confirm"],
+    ] {
+        assert!(parse(&args).is_err());
     }
 }

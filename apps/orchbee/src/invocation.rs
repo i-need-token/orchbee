@@ -330,6 +330,9 @@ pub(crate) enum CommandPath {
     ConfigCheck,
     SiteStart,
     SiteDiagnose,
+    SiteAgentManifests,
+    SiteReloadAgentManifests,
+    SiteAgentManifestsStatus,
     SiteStop,
     SiteStopStatus,
 }
@@ -449,6 +452,9 @@ impl CommandPath {
             Self::ConfigCheck => "config check",
             Self::SiteStart => "site start",
             Self::SiteDiagnose => "site diagnose",
+            Self::SiteAgentManifests => "site agent-manifests",
+            Self::SiteReloadAgentManifests => "site reload-agent-manifests",
+            Self::SiteAgentManifestsStatus => "site agent-manifests-status",
             Self::SiteStop => "site stop",
             Self::SiteStopStatus => "site stop-status",
         }
@@ -1110,6 +1116,16 @@ pub(crate) enum AgentNamesCommand {
 
 /// Parsed stop/status intent; destructive confirmation and flag conflicts are checked before use.
 #[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) enum ManifestCommand {
+    Current,
+    Reload {
+        operation_id: Option<WorkbenchRequestId>,
+    },
+    Status {
+        operation_id: WorkbenchRequestId,
+    },
+}
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum SiteStopCommand {
     Stop {
         id: Option<orchbee_local_client_protocol::StopId>,
@@ -1269,6 +1285,10 @@ pub(crate) enum Request {
     },
     /// `site diagnose`: the read-only runtime observation command —
     /// neither a Workbench query nor a mutation; it never connects.
+    AgentManifests {
+        command: ManifestCommand,
+        format: OutputFormat,
+    },
     SiteDiagnose {
         format: OutputFormat,
     },
@@ -1382,6 +1402,7 @@ pub(crate) enum ExpectedValue {
     AgentStartProvider,
     AgentStartArgument,
     SiteStopId,
+    ManifestOperationId,
     SendText,
     SendKey,
     /// The repeatable `--key` sequence bound: at most 64 values per request.
@@ -3751,6 +3772,53 @@ fn resolve_words(
                 format: options.format.unwrap_or(OutputFormat::Text),
             })
         }
+        ["site", "agent-manifests"] => {
+            reject_filters(
+                options,
+                UsageContext::Path("site agent-manifests"),
+                envelope,
+            )?;
+            Ok(Request::AgentManifests {
+                command: ManifestCommand::Current,
+                format: options.format.unwrap_or(OutputFormat::Text),
+            })
+        }
+        ["site", "reload-agent-manifests"] => {
+            let context = UsageContext::Path("site reload-agent-manifests");
+            check_scope(
+                options,
+                Scope {
+                    request_id: true,
+                    ..NO_OPTIONS
+                },
+                context,
+                envelope,
+            )?;
+            let operation_id = options
+                .request_id
+                .as_deref()
+                .map(|s| manifest_operation_id(s, context, "--request-id", envelope))
+                .transpose()?;
+            Ok(Request::AgentManifests {
+                command: ManifestCommand::Reload { operation_id },
+                format: options.format.unwrap_or(OutputFormat::Text),
+            })
+        }
+        ["site", "agent-manifests-status", id] => {
+            let context = UsageContext::Path("site agent-manifests-status");
+            reject_filters(options, context, envelope)?;
+            Ok(Request::AgentManifests {
+                command: ManifestCommand::Status {
+                    operation_id: manifest_operation_id(id, context, "<operation-id>", envelope)?,
+                },
+                format: options.format.unwrap_or(OutputFormat::Text),
+            })
+        }
+        ["site", "agent-manifests-status"] => Err(missing_required(
+            UsageContext::Path("site agent-manifests-status"),
+            "<operation-id>",
+            envelope,
+        )),
         ["site", "diagnose"] => {
             reject_filters(options, UsageContext::Path("site diagnose"), envelope)?;
             Ok(Request::SiteDiagnose {
@@ -4404,6 +4472,13 @@ fn help_topic(path: &[&str]) -> Option<HelpTopic> {
         #[cfg(windows)]
         ["session", "delete"] => HelpTopic::Command(CommandPath::SessionDelete),
         ["site", "diagnose"] => HelpTopic::Command(CommandPath::SiteDiagnose),
+        ["site", "agent-manifests"] => HelpTopic::Command(CommandPath::SiteAgentManifests),
+        ["site", "reload-agent-manifests"] => {
+            HelpTopic::Command(CommandPath::SiteReloadAgentManifests)
+        }
+        ["site", "agent-manifests-status"] => {
+            HelpTopic::Command(CommandPath::SiteAgentManifestsStatus)
+        }
         ["site", "stop"] => HelpTopic::Command(CommandPath::SiteStop),
         ["site", "stop-status"] => HelpTopic::Command(CommandPath::SiteStopStatus),
         _ => return None,
@@ -6790,5 +6865,24 @@ fn stop_command(
         retry: options.retry,
         detach: options.detach,
         timeout_ms,
+    })
+}
+
+fn manifest_operation_id(
+    value: &str,
+    context: UsageContext,
+    option: &'static str,
+    envelope: FailureEnvelope,
+) -> Result<WorkbenchRequestId, ParseFailure> {
+    WorkbenchRequestId::parse(value).map_err(|_| {
+        usage_with(
+            UsageReason::InvalidValue {
+                context,
+                option,
+                value: value.into(),
+                expected: ExpectedValue::ManifestOperationId,
+            },
+            envelope,
+        )
     })
 }

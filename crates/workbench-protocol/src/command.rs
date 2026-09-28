@@ -1,3 +1,5 @@
+pub(crate) mod agent_manifests;
+use agent_manifests::*;
 mod panel_agent;
 pub use panel_agent::{
     AgentDetectionEvaluation, AgentDetectionEvidence, AgentDetectionManifest, AgentDetectionRule,
@@ -800,6 +802,8 @@ pub struct WorkbenchCommand {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind")]
 pub enum WorkbenchRequest {
+    #[serde(rename = "workbench.agent-manifests")]
+    AgentManifests(AgentManifestsRequest),
     #[serde(rename = "workbench.panel-agent")]
     PanelAgent(PanelAgentRequest),
     #[serde(rename = "workbench.panel-metadata")]
@@ -1143,6 +1147,8 @@ pub struct WorkbenchSnapshotResult {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind")]
 pub enum WorkbenchResponse {
+    #[serde(rename = "workbench.agent-manifests.result")]
+    AgentManifests(AgentManifestsResult),
     #[serde(rename = "workbench.panel-agent.result")]
     PanelAgent(PanelAgentResult),
     #[serde(rename = "workbench.panel-metadata.result")]
@@ -1319,6 +1325,10 @@ pub fn serialize_workbench_response(
 
 fn validate_response(response: &WorkbenchResponse, encoded: &[u8]) -> Result<(), ContractError> {
     match response {
+        WorkbenchResponse::AgentManifests(result) => {
+            enforce_encoded_limit(encoded, MAXIMUM_ENCODED_AGENT_MANIFESTS_BYTES)?;
+            result.validate()
+        }
         WorkbenchResponse::PanelAgent(result) => {
             enforce_encoded_limit(encoded, MAXIMUM_ENCODED_PANEL_AGENT_RESULT_BYTES)?;
             result.validate()

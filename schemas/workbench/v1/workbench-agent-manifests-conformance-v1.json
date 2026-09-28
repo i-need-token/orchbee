@@ -1,0 +1,605 @@
+{
+	"contractVersion": 1,
+	"valid": [
+		{
+			"name": "installed",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.agent-manifests.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "current",
+					"snapshot": {
+						"revision": "1",
+						"engineVersion": 3,
+						"configurationRoot": null,
+						"manifests": [
+							{
+								"agent": "codex",
+								"version": "1.0",
+								"manifest": {
+									"source": "bundled",
+									"path": null,
+									"cachedRemoteVersion": null,
+									"localOverrideShadowingRemote": false,
+									"warnings": []
+								}
+							}
+						]
+					}
+				}
+			}
+		},
+		{
+			"name": "current",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.agent-manifests",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "current"
+				}
+			}
+		},
+		{
+			"name": "reload",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.agent-manifests",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "reload",
+					"operationId": "00000000000000000000000000000003"
+				}
+			}
+		},
+		{
+			"name": "operation",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.agent-manifests",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "operation",
+					"operationId": "00000000000000000000000000000003"
+				}
+			}
+		},
+		{
+			"name": "pending",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.agent-manifests.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "operation",
+					"operationId": "00000000000000000000000000000003",
+					"status": {
+						"kind": "pending"
+					}
+				}
+			}
+		},
+		{
+			"name": "applied",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.agent-manifests.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "operation",
+					"operationId": "00000000000000000000000000000003",
+					"status": {
+						"kind": "applied",
+						"revision": "2"
+					}
+				}
+			}
+		},
+		{
+			"name": "failed",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.agent-manifests.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "operation",
+					"operationId": "00000000000000000000000000000003",
+					"status": {
+						"kind": "failed",
+						"reason": "cancelled"
+					}
+				}
+			}
+		},
+		{
+			"name": "denied",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.agent-manifests.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "failed",
+					"reason": "denied"
+				}
+			}
+		},
+		{
+			"name": "unavailable",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.agent-manifests.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "failed",
+					"reason": "unavailable"
+				}
+			}
+		},
+		{
+			"name": "site-mismatch",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.agent-manifests.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "failed",
+					"reason": "site-mismatch"
+				}
+			}
+		},
+		{
+			"name": "busy",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.agent-manifests.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "failed",
+					"reason": "busy"
+				}
+			}
+		},
+		{
+			"name": "resource-limit",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.agent-manifests.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "failed",
+					"reason": "resource-limit"
+				}
+			}
+		},
+		{
+			"name": "not-found",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.agent-manifests.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "failed",
+					"reason": "not-found"
+				}
+			}
+		},
+		{
+			"name": "load-failed",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.agent-manifests.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "failed",
+					"reason": "load-failed"
+				}
+			}
+		},
+		{
+			"name": "revision-exhausted",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.agent-manifests.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "failed",
+					"reason": "revision-exhausted"
+				}
+			}
+		},
+		{
+			"name": "cancelled",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.agent-manifests.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "failed",
+					"reason": "cancelled"
+				}
+			}
+		}
+	],
+	"invalid": [
+		{
+			"name": "unknown-field",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.agent-manifests.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "current",
+					"snapshot": {
+						"revision": "1",
+						"engineVersion": 3,
+						"configurationRoot": null,
+						"manifests": [
+							{
+								"agent": "codex",
+								"version": "1.0",
+								"manifest": {
+									"source": "bundled",
+									"path": null,
+									"cachedRemoteVersion": null,
+									"localOverrideShadowingRemote": false,
+									"warnings": []
+								}
+							}
+						],
+						"extra": true
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "zero-revision",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.agent-manifests.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "current",
+					"snapshot": {
+						"revision": "0",
+						"engineVersion": 3,
+						"configurationRoot": null,
+						"manifests": [
+							{
+								"agent": "codex",
+								"version": "1.0",
+								"manifest": {
+									"source": "bundled",
+									"path": null,
+									"cachedRemoteVersion": null,
+									"localOverrideShadowingRemote": false,
+									"warnings": []
+								}
+							}
+						]
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "missing-root",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.agent-manifests.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "current",
+					"snapshot": {
+						"revision": "1",
+						"engineVersion": 3,
+						"manifests": [
+							{
+								"agent": "codex",
+								"version": "1.0",
+								"manifest": {
+									"source": "bundled",
+									"path": null,
+									"cachedRemoteVersion": null,
+									"localOverrideShadowingRemote": false,
+									"warnings": []
+								}
+							}
+						]
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "duplicate-agent",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.agent-manifests.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "current",
+					"snapshot": {
+						"revision": "1",
+						"engineVersion": 3,
+						"configurationRoot": null,
+						"manifests": [
+							{
+								"agent": "codex",
+								"version": "1.0",
+								"manifest": {
+									"source": "bundled",
+									"path": null,
+									"cachedRemoteVersion": null,
+									"localOverrideShadowingRemote": false,
+									"warnings": []
+								}
+							},
+							{
+								"agent": "codex",
+								"version": "1.0",
+								"manifest": {
+									"source": "bundled",
+									"path": null,
+									"cachedRemoteVersion": null,
+									"localOverrideShadowingRemote": false,
+									"warnings": []
+								}
+							}
+						]
+					}
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "bad-version",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.agent-manifests.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "current",
+					"snapshot": {
+						"revision": "1",
+						"engineVersion": 3,
+						"configurationRoot": null,
+						"manifests": [
+							{
+								"agent": "codex",
+								"version": "1.x",
+								"manifest": {
+									"source": "bundled",
+									"path": null,
+									"cachedRemoteVersion": null,
+									"localOverrideShadowingRemote": false,
+									"warnings": []
+								}
+							}
+						]
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "overflow-version",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.agent-manifests.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "current",
+					"snapshot": {
+						"revision": "1",
+						"engineVersion": 3,
+						"configurationRoot": null,
+						"manifests": [
+							{
+								"agent": "codex",
+								"version": "18446744073709551616",
+								"manifest": {
+									"source": "bundled",
+									"path": null,
+									"cachedRemoteVersion": null,
+									"localOverrideShadowingRemote": false,
+									"warnings": []
+								}
+							}
+						]
+					}
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "engine",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.agent-manifests.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "current",
+					"snapshot": {
+						"revision": "1",
+						"engineVersion": 4,
+						"configurationRoot": null,
+						"manifests": [
+							{
+								"agent": "codex",
+								"version": "1.0",
+								"manifest": {
+									"source": "bundled",
+									"path": null,
+									"cachedRemoteVersion": null,
+									"localOverrideShadowingRemote": false,
+									"warnings": []
+								}
+							}
+						]
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "control-root",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.agent-manifests.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "current",
+					"snapshot": {
+						"revision": "1",
+						"engineVersion": 3,
+						"configurationRoot": "C:\\bad\n",
+						"manifests": [
+							{
+								"agent": "codex",
+								"version": "1.0",
+								"manifest": {
+									"source": "bundled",
+									"path": null,
+									"cachedRemoteVersion": null,
+									"localOverrideShadowingRemote": false,
+									"warnings": []
+								}
+							}
+						]
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "source-path",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.agent-manifests.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "current",
+					"snapshot": {
+						"revision": "1",
+						"engineVersion": 3,
+						"configurationRoot": null,
+						"manifests": [
+							{
+								"agent": "codex",
+								"version": "1.0",
+								"manifest": {
+									"source": "bundled",
+									"path": "C:\\rules",
+									"cachedRemoteVersion": null,
+									"localOverrideShadowingRemote": false,
+									"warnings": []
+								}
+							}
+						]
+					}
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "missing-operation",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.agent-manifests",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "reload"
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "read-extra-operation",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.agent-manifests",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "current",
+					"operationId": "00000000000000000000000000000003"
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "pending-extra-field",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.agent-manifests.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "operation",
+					"operationId": "00000000000000000000000000000003",
+					"status": {
+						"kind": "pending",
+						"extra": true
+					}
+				}
+			},
+			"boundary": "schema"
+		}
+	]
+}

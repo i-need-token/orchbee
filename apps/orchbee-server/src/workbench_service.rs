@@ -62,6 +62,10 @@ impl WorkbenchService {
 
     pub(crate) fn execute(&self, request: WorkbenchRequest) -> WorkbenchExecution {
         let permitted = match &request {
+            WorkbenchRequest::AgentManifests(request) => match request.action {
+                orchbee_workbench_protocol::AgentManifestsAction::Reload { .. } => self.policy.manage_navigation,
+                _ => self.policy.read,
+            },
             WorkbenchRequest::PanelAgent(request) => match request.action {
                 orchbee_workbench_protocol::PanelAgentAction::Read { .. }
                 | orchbee_workbench_protocol::PanelAgentAction::Explain { .. }
@@ -151,6 +155,12 @@ impl WorkbenchService {
             return WorkbenchExecution::Response(unavailable_or_denied(request, true));
         }
         match &request {
+            WorkbenchRequest::AgentManifests(request) => {
+                #[cfg(windows)]
+                return WorkbenchExecution::Response(WorkbenchResponse::AgentManifests(self.terminals.execute_agent_manifests(request.clone())));
+                #[cfg(not(windows))]
+                { let _ = request; return WorkbenchExecution::Response(unavailable_or_denied(WorkbenchRequest::AgentManifests(request.clone()), false)); }
+            }
             WorkbenchRequest::PanelAgent(request) => {
                 return WorkbenchExecution::Response(WorkbenchResponse::PanelAgent(
                     self.terminals.execute_panel_agent(request.clone()),
@@ -362,6 +372,20 @@ impl WorkbenchService {
 
 fn unavailable_or_denied(request: WorkbenchRequest, denied: bool) -> WorkbenchResponse {
     match request {
+        WorkbenchRequest::AgentManifests(request) => {
+            WorkbenchResponse::AgentManifests(orchbee_workbench_protocol::AgentManifestsResult {
+                protocol_version: ProtocolVersion,
+                request_id: request.request_id,
+                site_id: request.site_id,
+                outcome: orchbee_workbench_protocol::AgentManifestsOutcome::Failed {
+                    reason: if denied {
+                        orchbee_workbench_protocol::AgentManifestsFailure::Denied
+                    } else {
+                        orchbee_workbench_protocol::AgentManifestsFailure::Unavailable
+                    },
+                },
+            })
+        }
         WorkbenchRequest::PanelAgent(request) => {
             WorkbenchResponse::PanelAgent(orchbee_workbench_protocol::PanelAgentResult {
                 protocol_version: ProtocolVersion,

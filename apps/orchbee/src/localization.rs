@@ -5,6 +5,7 @@ use crate::client_view::{
     format_binding,
 };
 
+mod agent_manifests;
 mod cli;
 #[cfg(windows)]
 mod panel_reports;

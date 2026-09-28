@@ -85,6 +85,7 @@ pub fn write_workbench_response(
 
 fn request_kind(request: &WorkbenchRequest) -> u16 {
     match request {
+        WorkbenchRequest::AgentManifests(_) => 37,
         WorkbenchRequest::PanelAgent(_) => 35,
         WorkbenchRequest::PanelMetadata(_) => 33,
         WorkbenchRequest::WorkspaceMetadata(_) => 31,
@@ -121,6 +122,7 @@ fn request_kind(request: &WorkbenchRequest) -> u16 {
 
 fn response_kind(response: &WorkbenchResponse) -> u16 {
     match response {
+        WorkbenchResponse::AgentManifests(_) => 38,
         WorkbenchResponse::PanelAgent(_) => 36,
         WorkbenchResponse::PanelMetadata(_) => 34,
         WorkbenchResponse::WorkspaceMetadata(_) => 32,
@@ -158,19 +160,38 @@ fn read_frame(reader: &mut impl Read, request: bool) -> Result<(u16, Vec<u8>), W
         || (request
             && !matches!(
                 kind,
-                1 | 2 | 5 | 7 | 9 | 11 | 13 | 15 | 17 | 19 | 21 | 23 | 25 | 27 | 29 | 31 | 33 | 35
+                1 | 2
+                    | 5
+                    | 7
+                    | 9
+                    | 11
+                    | 13
+                    | 15
+                    | 17
+                    | 19
+                    | 21
+                    | 23
+                    | 25
+                    | 27
+                    | 29
+                    | 31
+                    | 33
+                    | 35
+                    | 37
             ))
         || (!request
             && !matches!(
                 kind,
-                3 | 4 | 6 | 8 | 10 | 12 | 14 | 16 | 18 | 20 | 22 | 24 | 26 | 28 | 32 | 34 | 36
+                3 | 4 | 6 | 8 | 10 | 12 | 14 | 16 | 18 | 20 | 22 | 24 | 26 | 28 | 32 | 34 | 36 | 38
             ))
     {
         return Err(WorkbenchWireError::InvalidHeader);
     }
     let length = u32::from_be_bytes([header[8], header[9], header[10], header[11]]);
     let actual = usize::try_from(length).map_err(|_error| WorkbenchWireError::InvalidHeader)?;
-    let maximum = if kind == 36 {
+    let maximum = if kind == 38 {
+        crate::MAXIMUM_ENCODED_AGENT_MANIFESTS_BYTES
+    } else if kind == 36 {
         crate::MAXIMUM_ENCODED_PANEL_AGENT_RESULT_BYTES
     } else if kind == 34 {
         crate::MAXIMUM_ENCODED_PANEL_METADATA_RESULT_BYTES

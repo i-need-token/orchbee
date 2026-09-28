@@ -501,3 +501,13 @@ Session or full physical Agent target. Bindings validate nonzero physical identi
 correspondence; applied receipts require the exact Ready Client selection. It uses the existing
 navigation frames and retained operation lifecycle. [Agent navigation](../../apps/orchbee/docs/native-agent-navigation.md)
 owns explicit acknowledgement and rejection after identity loss.
+
+## Installed Agent manifest operations
+
+`workbench.agent-manifests` / `.result` use OBWP 37/38 and a 512 KiB result bound. Strict Rust,
+TypeScript and JSON contracts cover installed snapshots and pending/applied/failed reload receipts.
+Current and operation queries are read-only; reload uses an explicit Site-lifetime operation ID.
+The shared `workbench-agent-manifests-conformance-v1.json` corpus covers accepted and refused
+shapes, nullable fields, numeric versions, sources, revisions and duplicates. Semantic byte/version
+and cross-field checks supplement JSON Schema. These DTOs describe actual installed state and do
+not claim remote fetch/update support. The Server screen model owns installation and receipt limits.

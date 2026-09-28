@@ -149,6 +149,7 @@ impl TryFrom<WorkbenchRequest> for WorkbenchReadOrNavigationRequest {
             | WorkbenchRequest::WorktreeOperation(_)
             | WorkbenchRequest::WorktreeQuery(_)
             | WorkbenchRequest::WorkspaceGroupClose(_)
+            | WorkbenchRequest::AgentManifests(_)
             | WorkbenchRequest::PanelAgent(_)
             | WorkbenchRequest::PanelMetadata(_)
             | WorkbenchRequest::WorkspaceMetadata(_)

@@ -1,6 +1,6 @@
 # Agent screen detection model
 
-The Server owns fallback screen interpretation separately from explicit Agent reports and process identity. A successful bounded terminal sample can describe working, idle or blocked UI; it cannot prove which provider owns a process, authenticate it or create a canonical Agent Session. The reference is Herdr `e0507237ad8d41f60aece10d00ef29ce2339ca34`, its 22 bundled detection manifests and `pane/agent_detection.rs`. The Windows periodic sampler compiles the deterministic engine once before startup and publishes admitted screen fallback. Physical explain consumes the same engine through the bounded observer queue. Startup now loads bounded local overrides and eligible remote cache with typed provenance warnings. Live reload, manifest queries and remote updates remain integration obligations.
+The Server owns fallback screen interpretation separately from explicit Agent reports and process identity. A successful bounded terminal sample can describe working, idle or blocked UI; it cannot prove which provider owns a process, authenticate it or create a canonical Agent Session. The reference is Herdr `e0507237ad8d41f60aece10d00ef29ce2339ca34`, its 22 bundled detection manifests and `pane/agent_detection.rs`. The Windows periodic sampler compiles the deterministic engine once before startup and publishes admitted screen fallback. Physical explain consumes the same engine through the bounded observer queue. Startup now loads bounded local overrides and eligible remote cache with typed provenance warnings. Manifest queries and retained live reload now use the observer owner; remote updates remain an integration obligation.
 
 ## Inputs and rule ownership
 
@@ -47,7 +47,7 @@ next valid source. Providers without bundled rules retain known-idle fallback. T
 Explain consume the same installed ruleset. Explain provenance identifies the actual path, cached
 version, local shadowing and warnings; it does not manufacture update status. Canonical CLI v1 and
 closed physical v2 remain compatible; enriched physical explanations use v3. The full maintenance
-workflow still requires current-manifest queries, retained bounded reload, stabilization reset and an
+workflow includes current-manifest queries, retained bounded reload and stabilization reset, but still requires an
 owned real updater with atomic cache commits, truthful origin/status and cancellation/cleanup.
 
 Physical `agent explain` is a read, owned by the same detector and temporary-viewer lifecycle.
@@ -75,3 +75,22 @@ metadata. Pure rule witnesses, exact-context refusals, queue cancellation/cleanu
 transport/schema checks precede final Windows Host/provider acceptance.
 
 Rule, region, bounds, priority and malformed-manifest tests exercise the engine before transport integration. Pinned-reference cases and differential evaluation must cover every bundled provider, nested gates, transcript skip and OSC precedence; a passing static engine does not close the live CLI/TUI requirement. Later Host acceptance must prove real Windows screen changes and report arbitration without user query effects. Source/cohort revert is rollback; no durable state or wire migration is involved. The final full gate remains deferred until all parity implementation is complete.
+
+## Installed manifest maintenance
+
+The Windows process observer owns the installed detector and a Site-lifetime revision starting at 1.
+`workbench.agent-manifests` (OBWP 37/38) reads this snapshot, submits a reload identified by an
+operation ID, or reads that retained operation. Queries never reread files. Reload reads the same
+configuration parent resolved at startup. It runs between observer turns; sampling and Explain
+switch together. Under the maintenance lock and Site gate, installation clears screen stabilization
+without discarding process identity or explicit reports, then publishes the new engine and revision.
+
+Only one reload may be queued or running. Up to 1,024 compact operation receipts are retained for
+the Site lifetime without eviction; duplicates return the existing receipt, and busy/capacity
+refusals occur before admission. Operations transition pending -> applied(revision) or failed(reason).
+Stopping cancels pending operations before installation. A failed load retains the prior engine.
+Read/status use read policy; reload uses navigation-management policy. CLI uses one bounded budget,
+submits once, and retains the operation ID with pending/unknown results after lost acknowledgement
+or interruption. Status recovery never resubmits a mutation. Receipts end with the Site generation;
+this is not durable replay across Server restart. Remote download and automatic-update policy are
+separate remaining capabilities and are not represented as successful updates by this interface.

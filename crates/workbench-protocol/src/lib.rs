@@ -139,3 +139,9 @@ pub use command::{
     TerminalAgentExplanation, TerminalAgentObservation, TerminalAgentStateRow,
     TerminalAgentStateSnapshot,
 };
+
+pub use command::agent_manifests::{
+    AgentManifestSummary, AgentManifestsAction, AgentManifestsFailure, AgentManifestsOperation,
+    AgentManifestsOutcome, AgentManifestsRequest, AgentManifestsResult, AgentManifestsSnapshot,
+    MAXIMUM_ENCODED_AGENT_MANIFESTS_BYTES,
+};

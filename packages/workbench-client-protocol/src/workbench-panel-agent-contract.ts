@@ -241,7 +241,7 @@ const sameRule = (
 		? a === b
 		: a.id === b.id && a.priority === b.priority && a.region === b.region && a.state === b.state;
 const manifestSource = z.enum(['bundled', 'local-override', 'remote-cache']);
-const manifestInfo = z
+export const AgentDetectionManifestSchema = z
 	.strictObject({
 		source: manifestSource,
 		path: z
@@ -319,7 +319,7 @@ const screenExplanation = z
 		]),
 		state: PanelAgentStateSchema,
 		manifestSource: z.string().nullable(),
-		manifest: manifestInfo.optional(),
+		manifest: AgentDetectionManifestSchema.optional(),
 		manifestVersion: scalarBound(128).nullable(),
 		matchedRule: detectionRule.nullable(),
 		visibleIdle: z.boolean(),

@@ -69,6 +69,16 @@ fn fallback_explanation(provider: AgentReportProvider) -> AgentScreenExplanation
     }
 }
 impl ScreenDetector {
+    pub(crate) fn summaries(&self) -> Vec<orchbee_workbench_protocol::AgentManifestSummary> {
+        self.0
+            .iter()
+            .map(|m| orchbee_workbench_protocol::AgentManifestSummary {
+                agent: m.provider.report_label().into(),
+                version: m.version.clone(),
+                manifest: m.provenance.clone(),
+            })
+            .collect()
+    }
     /// Parses all pinned rules atomically; a bad bundled asset fails the entire engine.
     pub(crate) fn bundled() -> Result<Self, String> {
         manifest::bundled().map(Self)

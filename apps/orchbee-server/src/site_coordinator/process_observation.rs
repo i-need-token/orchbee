@@ -240,6 +240,12 @@ impl ProcessObservationTarget {
     }
 }
 impl SiteCoordinator {
+    pub(crate) fn reset_screen_stabilization(&mut self) {
+        for sample in self.process_samples.values_mut() {
+            sample.screen = Stability::new(Detection::fallback(false));
+            sample.screen_input_revision = 0;
+        }
+    }
     /// Returns current unfenced registrations and prunes tracking only after a successful full scan.
     pub(crate) fn process_observation_targets(
         &mut self,

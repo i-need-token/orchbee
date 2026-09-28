@@ -518,6 +518,41 @@ mod process_samples {
         assert_eq!(read(&mut site).1.state, PanelAgentState::Working);
     }
     #[test]
+    fn manifest_reload_resets_screen_hysteresis_without_changing_process_or_report_facts() {
+        use crate::agent_screen::Detection;
+        let (mut site, target, sample) = fixture();
+        let now = Instant::now();
+        let working = Detection {
+            state: PanelAgentState::Working,
+            skip: false,
+            visible_working: true,
+            visible_idle: false,
+            visible_blocker: false,
+        };
+        let idle = Detection {
+            state: PanelAgentState::Idle,
+            visible_working: false,
+            ..working
+        };
+        for ms in [0, 3000] {
+            let at = now + Duration::from_millis(ms);
+            assert!(site.observe_host_screen(target, &sample, Some(working), at, at));
+        }
+        let before = read(&mut site);
+        assert_eq!(before.1.state, PanelAgentState::Working);
+        let at = now + Duration::from_millis(3100);
+        assert!(site.observe_host_screen(target, &sample, Some(idle), at, at));
+        assert_eq!(read(&mut site), before);
+        site.reset_screen_stabilization();
+        assert_eq!(read(&mut site), before);
+        assert_eq!(site.process_samples.len(), 1);
+        let at = now + Duration::from_millis(3200);
+        assert!(site.observe_host_screen(target, &sample, Some(idle), at, at));
+        let after = read(&mut site);
+        assert_eq!(after.1.agent, before.1.agent);
+        assert_eq!(after.1.state, PanelAgentState::Idle);
+    }
+    #[test]
     fn process_only_query_cannot_consume_screen_republication_after_clear() {
         use crate::agent_screen::Detection;
         let (mut site, target, sample) = fixture();

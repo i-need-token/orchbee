@@ -447,3 +447,14 @@ export {
 	PanelAgentResultSchema,
 	type PanelAgentResult,
 } from './workbench-panel-agent-contract';
+
+export {
+	AgentManifestsRequestSchema,
+	AgentManifestsResultSchema,
+	AgentManifestsSnapshotSchema,
+	AgentManifestsActionSchema,
+	AgentManifestsOperationSchema,
+	WORKBENCH_MAXIMUM_ENCODED_AGENT_MANIFESTS_BYTES,
+	type AgentManifestsRequest,
+	type AgentManifestsResult,
+} from './workbench-agent-manifests-contract';

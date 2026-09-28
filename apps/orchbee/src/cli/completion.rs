@@ -211,7 +211,18 @@ const FAMILY_VERBS: &[(&str, &[&str])] = &[
     ("project", &["create", "get", "list", "rename"]),
     #[cfg(windows)]
     ("session", &["list", "attach", "stop", "delete"]),
-    ("site", &["diagnose", "start", "stop", "stop-status"]),
+    (
+        "site",
+        &[
+            "diagnose",
+            "start",
+            "stop",
+            "stop-status",
+            "agent-manifests",
+            "reload-agent-manifests",
+            "agent-manifests-status",
+        ],
+    ),
     ("status", &["client", "server"]),
     (
         "tab",
@@ -531,6 +542,7 @@ const COMMAND_FLAGS: &[(&str, &[&str])] = &[
             "--toggle",
         ],
     ),
+    ("site:reload-agent-manifests", &["--request-id"]),
     (
         "site:stop",
         &[
@@ -1092,6 +1104,7 @@ const OPERAND_PATHS: &[&str] = &[
     #[cfg(windows)]
     "session:delete",
     "site:stop-status",
+    "site:agent-manifests-status",
     "agent:start",
     "agent:explain",
     "agent:get",
@@ -1216,7 +1229,18 @@ const HELP_CHILDREN: &[(&str, &[&str])] = &[
     ("project", &["create", "get", "list", "rename"]),
     #[cfg(windows)]
     ("session", &["list", "attach", "stop", "delete"]),
-    ("site", &["diagnose", "start", "stop", "stop-status"]),
+    (
+        "site",
+        &[
+            "diagnose",
+            "start",
+            "stop",
+            "stop-status",
+            "agent-manifests",
+            "reload-agent-manifests",
+            "agent-manifests-status",
+        ],
+    ),
     ("status", &["client", "server"]),
     (
         "tab",

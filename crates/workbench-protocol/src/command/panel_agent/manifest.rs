@@ -47,7 +47,7 @@ pub struct AgentDetectionManifest {
     pub warnings: Vec<AgentManifestWarning>,
 }
 impl AgentDetectionManifest {
-    pub(super) fn valid(&self) -> bool {
+    pub(crate) fn valid(&self) -> bool {
         (match (&self.path, self.source) {
             (None, AgentManifestSource::Bundled) => true,
             (Some(path), AgentManifestSource::LocalOverride | AgentManifestSource::RemoteCache) => {
@@ -70,7 +70,7 @@ impl AgentDetectionManifest {
             })
     }
 }
-fn numeric_version(value: &str) -> bool {
+pub(crate) fn numeric_version(value: &str) -> bool {
     !value.is_empty()
         && value.len() <= 128
         && value.split('.').all(|part| {

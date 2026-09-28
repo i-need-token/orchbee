@@ -16,6 +16,7 @@ const TURN_BUDGET: Duration = Duration::from_secs(1);
 const TARGETS_PER_TURN: usize = 8;
 type Cursor = (String, String);
 mod explanation;
+mod manifests;
 #[derive(Default)]
 struct Wake {
     stop: AtomicBool,
@@ -23,6 +24,7 @@ struct Wake {
     changed: Condvar,
     pending: Mutex<Option<PendingCleanup>>,
     explanations: explanation::Requests,
+    manifests: manifests::Registry,
 }
 #[derive(Default)]
 pub(super) struct ProcessObserver {
@@ -33,6 +35,7 @@ impl ProcessObserver {
     fn cancel(&self) {
         self.wake.stop.store(true, Ordering::Release);
         self.wake.explanations.cancel();
+        self.wake.manifests.cancel();
         if let Ok(_guard) = self.wake.wait.lock() {
             self.wake.changed.notify_all();
         }
@@ -53,13 +56,25 @@ impl ProcessObserver {
                 .map_err(io::Error::other)?;
         let detector = ScreenDetector::load(config.as_deref().and_then(std::path::Path::parent))
             .map_err(io::Error::other)?;
+        self.wake.manifests.initialize(
+            config
+                .as_deref()
+                .and_then(std::path::Path::parent)
+                .map(std::path::Path::to_path_buf),
+            &detector,
+        )?;
         let service = Arc::downgrade(service);
         let wake = Arc::clone(&self.wake);
-        *handle = Some(
-            thread::Builder::new()
-                .name("orchbee-process-observer".into())
-                .spawn(move || run(service, wake, detector))?,
-        );
+        let spawned = thread::Builder::new()
+            .name("orchbee-process-observer".into())
+            .spawn(move || run(service, wake, detector));
+        match spawned {
+            Ok(thread) => *handle = Some(thread),
+            Err(error) => {
+                self.cancel();
+                return Err(error);
+            }
+        }
         Ok(())
     }
     fn stop_before(&self, deadline: Instant) -> io::Result<()> {
@@ -239,7 +254,8 @@ fn turn(
         }
     }
 }
-fn run(service: Weak<LocalTerminalService>, wake: Arc<Wake>, detector: ScreenDetector) {
+fn run(service: Weak<LocalTerminalService>, wake: Arc<Wake>, mut detector: ScreenDetector) {
+    let _manifest_lifetime = manifests::Lifetime(&wake.manifests);
     let mut cursor = None;
     loop {
         if wake.stop.load(Ordering::Acquire) {
@@ -248,6 +264,7 @@ fn run(service: Weak<LocalTerminalService>, wake: Arc<Wake>, detector: ScreenDet
         let Some(service) = service.upgrade() else {
             return;
         };
+        manifests::serve(&service, &wake, &mut detector);
         explanation::serve(&service, &wake, &detector);
         turn(&service, &wake, &mut cursor, &detector);
         drop(service);

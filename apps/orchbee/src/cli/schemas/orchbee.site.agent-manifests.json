@@ -1,0 +1,445 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "orchbee.site.agent-manifests",
+	"title": "Installed detection manifest query and reload receipt",
+	"type": "object",
+	"required": [
+		"schema",
+		"version",
+		"requestId",
+		"siteId",
+		"action",
+		"observation",
+		"interrupted",
+		"cleanupFailed"
+	],
+	"additionalProperties": false,
+	"properties": {
+		"schema": {
+			"const": "orchbee.site.agent-manifests"
+		},
+		"version": {
+			"const": 1
+		},
+		"requestId": {
+			"$ref": "#/$defs/identity"
+		},
+		"siteId": {
+			"$ref": "#/$defs/identity"
+		},
+		"action": {
+			"$ref": "#/$defs/action"
+		},
+		"observation": {
+			"oneOf": [
+				{
+					"type": "object",
+					"required": ["kind", "reply"],
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "server"
+						},
+						"reply": {
+							"$ref": "#/$defs/result"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"required": ["kind", "reason"],
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "unknown"
+						},
+						"reason": {
+							"type": "string",
+							"minLength": 1
+						}
+					}
+				}
+			]
+		},
+		"interrupted": {
+			"type": "boolean"
+		},
+		"cleanupFailed": {
+			"type": "boolean"
+		}
+	},
+	"$defs": {
+		"identity": {
+			"type": "string",
+			"pattern": "^[0-9a-f]{32}$",
+			"not": {
+				"const": "00000000000000000000000000000000"
+			}
+		},
+		"revision": {
+			"type": "string",
+			"pattern": "^(?:0|[1-9][0-9]{0,19})$",
+			"maxLength": 20,
+			"format": "orchbee-uint64",
+			"not": {
+				"const": "0"
+			}
+		},
+		"manifestInfo": {
+			"type": "object",
+			"required": [
+				"source",
+				"path",
+				"cachedRemoteVersion",
+				"localOverrideShadowingRemote",
+				"warnings"
+			],
+			"additionalProperties": false,
+			"properties": {
+				"source": {
+					"enum": ["bundled", "local-override", "remote-cache"]
+				},
+				"path": {
+					"type": ["string", "null"],
+					"minLength": 1,
+					"maxLength": 32768
+				},
+				"cachedRemoteVersion": {
+					"type": ["string", "null"],
+					"maxLength": 128,
+					"pattern": "^[0-9]+(?:\\.[0-9]+)*$"
+				},
+				"localOverrideShadowingRemote": {
+					"type": "boolean"
+				},
+				"warnings": {
+					"type": "array",
+					"maxItems": 2,
+					"items": {
+						"type": "object",
+						"required": ["source", "kind"],
+						"additionalProperties": false,
+						"properties": {
+							"source": {
+								"enum": ["local-override", "remote-cache"]
+							},
+							"kind": {
+								"enum": [
+									"unreadable",
+									"not-regular",
+									"too-large",
+									"invalid-utf8",
+									"invalid-manifest",
+									"invalid-version",
+									"older-than-bundled"
+								]
+							}
+						}
+					}
+				}
+			},
+			"allOf": [
+				{
+					"if": {
+						"properties": {
+							"source": {
+								"const": "bundled"
+							}
+						}
+					},
+					"then": {
+						"properties": {
+							"path": {
+								"type": "null"
+							}
+						}
+					},
+					"else": {
+						"properties": {
+							"path": {
+								"type": "string"
+							}
+						}
+					}
+				},
+				{
+					"if": {
+						"properties": {
+							"localOverrideShadowingRemote": {
+								"const": true
+							}
+						}
+					},
+					"then": {
+						"properties": {
+							"cachedRemoteVersion": {
+								"type": "string"
+							}
+						}
+					}
+				},
+				{
+					"if": {
+						"properties": {
+							"source": {
+								"const": "remote-cache"
+							}
+						}
+					},
+					"then": {
+						"properties": {
+							"cachedRemoteVersion": {
+								"type": "string"
+							}
+						}
+					}
+				}
+			]
+		},
+		"failure": {
+			"enum": [
+				"denied",
+				"unavailable",
+				"site-mismatch",
+				"busy",
+				"resource-limit",
+				"not-found",
+				"load-failed",
+				"revision-exhausted",
+				"cancelled"
+			]
+		},
+		"summary": {
+			"type": "object",
+			"required": ["agent", "version", "manifest"],
+			"additionalProperties": false,
+			"properties": {
+				"agent": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 64,
+					"pattern": "^[a-z0-9-]+$"
+				},
+				"version": {
+					"anyOf": [
+						{
+							"type": "string",
+							"minLength": 1,
+							"maxLength": 128,
+							"pattern": "^[0-9]+(?:\\.[0-9]+)*$"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"manifest": {
+					"$ref": "#/$defs/manifestInfo"
+				}
+			}
+		},
+		"snapshot": {
+			"type": "object",
+			"required": ["revision", "engineVersion", "configurationRoot", "manifests"],
+			"additionalProperties": false,
+			"properties": {
+				"revision": {
+					"$ref": "#/$defs/revision"
+				},
+				"engineVersion": {
+					"const": 3
+				},
+				"configurationRoot": {
+					"anyOf": [
+						{
+							"type": "string",
+							"minLength": 1,
+							"maxLength": 32768,
+							"pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]+$"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"manifests": {
+					"type": "array",
+					"maxItems": 24,
+					"items": {
+						"$ref": "#/$defs/summary"
+					}
+				}
+			}
+		},
+		"action": {
+			"oneOf": [
+				{
+					"type": "object",
+					"required": ["kind"],
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "current"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"required": ["kind", "operationId"],
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "reload"
+						},
+						"operationId": {
+							"$ref": "#/$defs/identity"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"required": ["kind", "operationId"],
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "operation"
+						},
+						"operationId": {
+							"$ref": "#/$defs/identity"
+						}
+					}
+				}
+			]
+		},
+		"operation": {
+			"oneOf": [
+				{
+					"type": "object",
+					"required": ["kind"],
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "pending"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"required": ["kind", "revision"],
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "applied"
+						},
+						"revision": {
+							"$ref": "#/$defs/revision"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"required": ["kind", "reason"],
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "failed"
+						},
+						"reason": {
+							"$ref": "#/$defs/failure"
+						}
+					}
+				}
+			]
+		},
+		"outcome": {
+			"oneOf": [
+				{
+					"type": "object",
+					"required": ["kind", "snapshot"],
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "current"
+						},
+						"snapshot": {
+							"$ref": "#/$defs/snapshot"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"required": ["kind", "operationId", "status"],
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "operation"
+						},
+						"operationId": {
+							"$ref": "#/$defs/identity"
+						},
+						"status": {
+							"$ref": "#/$defs/operation"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"required": ["kind", "reason"],
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "failed"
+						},
+						"reason": {
+							"$ref": "#/$defs/failure"
+						}
+					}
+				}
+			]
+		},
+		"request": {
+			"type": "object",
+			"required": ["kind", "protocolVersion", "requestId", "siteId", "action"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": {
+					"const": "workbench.agent-manifests"
+				},
+				"protocolVersion": {
+					"const": 1
+				},
+				"requestId": {
+					"$ref": "#/$defs/identity"
+				},
+				"siteId": {
+					"$ref": "#/$defs/identity"
+				},
+				"action": {
+					"$ref": "#/$defs/action"
+				}
+			}
+		},
+		"result": {
+			"type": "object",
+			"required": ["kind", "protocolVersion", "requestId", "siteId", "outcome"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": {
+					"const": "workbench.agent-manifests.result"
+				},
+				"protocolVersion": {
+					"const": 1
+				},
+				"requestId": {
+					"$ref": "#/$defs/identity"
+				},
+				"siteId": {
+					"$ref": "#/$defs/identity"
+				},
+				"outcome": {
+					"$ref": "#/$defs/outcome"
+				}
+			}
+		}
+	}
+}
