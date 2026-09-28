@@ -1,5 +1,9 @@
 //! Private native development runtime boundaries; applications own startup policy.
 #[cfg(windows)]
+mod windows_command;
+#[cfg(windows)]
+pub use windows_command::windows_encoded_command;
+#[cfg(windows)]
 mod activation_record_windows;
 mod cohort;
 #[cfg(windows)]

@@ -3,6 +3,10 @@
 供 Client、Server 和 Worker 共用的私有原生运行时设施。本库负责相对目录描述符的运行时准入、
 锁与标记原语，以及不可变开发 cohort 校验。应用负责进程启动、服务状态和终端授权。
 
+## Windows 字面命令编码
+
+纯 Windows 命令编码器由 CLI Agent 启动和 Server 重启共用。它生成有界 UTF-16LE Base64 脚本，参数仅以一个字面数组保存。原生程序、batch 和 PowerShell 脚本分派保留参数边界，包括空值、引号和百分号。它排除别名／函数、拒绝控制字符、将编码文本限制为 30,000 字符，并拒绝超过 8,000 字符的 batch 命令行。应用选择程序、shell、交互开关及更严格的传输上限；本库不启动进程。调用方保持 PowerShell 打开时，辅助函数及错误首选项仍局限在子作用域中。内嵌 PowerShell 资源与编码器及 CLI 的真实 Windows argv 测试共同维护。
+
 ## Windows 命名运行时身份
 
 `WindowsSiteName` 验证区分大小写的精确名称：1–64 个 ASCII 字母、数字、点、下划线或连字符，

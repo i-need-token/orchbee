@@ -26,6 +26,8 @@ use crate::{
 mod agent_drain_read;
 #[cfg(windows)]
 mod checkpoint;
+#[cfg(windows)]
+pub(crate) use checkpoint::resume_policy;
 mod close_maintenance;
 mod controller_session;
 mod operation_maintenance;

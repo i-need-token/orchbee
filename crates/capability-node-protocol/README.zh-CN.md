@@ -29,7 +29,7 @@ Worker 保留精确生命周期观察，在返回 Disposed 前仅清理已销毁
 Close 共同激活。旧私有 cohort 拒绝新增 tag；不定义混合 cohort 回退。
 
 kind 9 `TerminalLifecycleRequest` 和 kind 10 `TerminalLifecycleResult` 使用帧版本 2 及
-8 KiB payload 上限。整数均为无符号大端，ID 均为非零 16 字节值。请求 kind 后依次为：
+40 KiB payload 上限。整数均为无符号大端，ID 均为非零 16 字节值。请求 kind 后依次为：
 生命周期能力版本（`u16`，当前为 1）、产品 Terminal ID（16）、Worker ID（16）、Worker
 代次（正 `u64`）、保留绑定 fence（正 `u64`）、新 lease ID（16）、lease Unix 毫秒到期值
 （正 `u64`）、Close 操作 ID（16）、步骤请求 ID（16）、尝试代次（正 `u64`）、步骤序号
@@ -109,7 +109,7 @@ kind 11 与 12。
 ## Framing 与 message
 
 一条 canonical frame 包含固定 `OBCN` magic、unsigned big-endian frame version、unsigned
-big-endian payload length，以及最多 8 KiB 的 payload。Frame codec 会拒绝 unknown magic、
+big-endian payload length，以及最多 40 KiB 的 payload。Frame codec 会拒绝 unknown magic、
 version、message 或 enum tag、malformed 或 incomplete value、extra byte 与 oversized payload。
 Frame version 1 与 terminal-launch capability version 2 是彼此独立的 version domain。
 Bounded streaming helper 会先完整读取 8-byte header，在 validation 通过后才按声明长度分配
@@ -158,7 +158,7 @@ adapter 必须显式转换并保留 validation。
 可选 launch selection 是 launch mode 之后的闭合尾块：`u16` executable 长度、executable 字节、
 `u16` argument 计数，然后是若干 `u16` 长度前缀的 argument 字符串。Executable 是不含 NUL 的
 非空 absolute UTF-8 path；argument 是不含 NUL 的 UTF-8 字符串（允许空值与 dash 前导值），最多
-128 项，且 executable 加全部 argument 合计最多 2,048 UTF-8 byte。在 mode block 处结束的
+128 项，且 executable 加全部 argument 合计最多 30,720 UTF-8 byte。在 mode block 处结束的
 payload 解码为默认 launch；存在的尾块按完整消费校验，部分字节或多余尾随字节一律拒绝。尾块
 只承载 `argv[1..]`——`argv[0]` 由 Host 从 executable path 合成——且缺省与显式空 argument
 列表不同。
@@ -203,7 +203,7 @@ reserved field（`u16`）、big-endian payload length（`u32`），随后是 req
 ID（16）和一条未经修改的 OBTP record。对 `Poll` 该 record 是 Host event；对 `ReadRows` 则是
 关联的 Host response。Record 长度为 64 到 `64 + 36 MiB` 字节，与 Host envelope
 加最大 OBTF payload 一致。Codec 在分配 payload 前校验完整的 12 字节 header 和边界；消费者
-校验不透明 record 的 Host envelope、route、role、identity 和 negotiated size。这不扩大 8 KiB
+校验不透明 record 的 Host envelope、route、role、identity 和 negotiated size。这不扩大 40 KiB
 OBCN control 边界，也不解码帧内容。严格的内存 decode 拒绝尾随字节；streaming decode 精确消费
 一条 record，并保留下一 frame 边界。Codec 不隐含 acknowledgement、retry 或 queue policy。
 查看附件 carrier 失败后退役临时 state；调用方绝不自动重放结果不明确的附着或反馈 exchange。
@@ -263,7 +263,7 @@ Release 是内部
 cleanup；对应 viewer 没有 controller 时幂等，存在不同 current grant 时拒绝。Host exchange
 含糊时关闭 Worker carrier，不伪造接受；Server 将完整交付后无结果归类为 unknown。
 
-8 KiB OBCN frame 限制、精确长度解码和方向规则保持不变；`OBNQ` 与 `OBNR` 一样是 frame 流旁
+40 KiB OBCN frame 限制、精确长度解码和方向规则保持不变；`OBNQ` 与 `OBNR` 一样是 frame 流旁
 的原始 record。Codec test 覆盖全部 action/outcome/reason、
 原始字节保留、最大 input 和非法 scope bound。Server 与 Worker 指南拥有单 controller 预留、
 cleanup 和真实 PTY 证据。
@@ -301,7 +301,7 @@ status 存在字节、可选 i32 退出码及同一预算下的一个长度前�
 11 PhysicalUnknown 与 12 RejectedFencing。`RejectedFencing` 结果是类型化帧而非断连：
 钉在另一 Worker 或 generation 上的请求被拒绝且不退役 carrier。
 
-8 KiB OBCN 帧上限不变——7,936 是保守 policy 界，使每个 arm 都低于载荷上限并留有
+40 KiB OBCN 帧上限不变——7,936 是保守 policy 界，使每个 arm 都低于载荷上限并留有
 明示余量。Codec test 覆盖每个 action 与 outcome arm、严格 golden、字段预算边界、
 未知 tag、stage 码与 trailing byte；Server 与 Worker 指南拥有准入、fencing 与 job 证据。
 
@@ -358,7 +358,7 @@ selection-present `u8(0|1)`、可选的既有 selection，再跟 `u16` 条目数
 `[A-Za-z_][A-Za-z0-9_]*`，至多 128 字节，忽略 ASCII 大小写后必须唯一。拒绝含 NUL 的值、
 `ORCHBEE_*`、`TERM`、`COLORTERM` 和 `TERM_PROGRAM`；空值逐字保留。
 准入前完成校验；Debug 不输出值。cwd、selection、参数数量与环境均取最大值时仍满足
-8 KiB 帧上限。不含 Project、Checkout、Worktree、Agent 或 Launch Profile 字段。
+40 KiB 帧上限。不含 Project、Checkout、Worktree、Agent 或 Launch Profile 字段。
 Cohort 校验要求部署匹配的二进制；本扩展不承诺混合版本运行。
 
 ## Carrier 与 ownership 边界
@@ -447,7 +447,7 @@ pnpm lint:projects
 
 ## 托管 Worker 停止
 
-Windows 托管 Site 生命周期在帧版本 2 和既有 8 KiB 上限下增加 kind 19/20。
+Windows 托管 Site 生命周期在帧版本 2 和既有 40 KiB 上限下增加 kind 19/20。
 请求依次包含操作 ID、Worker ID（各 16 字节，整体非零）、正 Worker generation（u64）
 和协作式预算（u32，1..15000 毫秒），整数均为大端。仅精确准入的托管 Worker 可执行；
 非托管或身份不匹配在效果前拒绝。既有 20 秒 carrier 回应窗口不变，响应回显完整请求。
@@ -524,7 +524,7 @@ RepositoryChanged、AmbiguousCheckout。Cancel 标签 1–4 为 Registered、Alr
 PhysicalUnknown；255 为 RejectedFencing。
 
 最大请求是变长字段达到上限的 Create：7988 字节 payload。最大结果是 Checkout
-观测：7982 字节 payload。均低于现有 8192 字节帧 payload 上限。公共一致性测试覆盖
+观测：7982 字节 payload。均低于40,960 字节帧 payload 上限。公共一致性测试覆盖
 手工推导 golden 帧、全部变体、最大长度、严格截断及畸形字段。不证明 Git 行为、
 文件系统身份、所有权、异步推进或关闭。私有 Server/Worker cohort 一起部署；旧 cohort
 拒绝新增标签。回滚替换 cohort，不迁移持久化协议数据。
@@ -552,3 +552,5 @@ Control request action tag 5 表示 Takeover，后接预期旧 controller ID（�
 同一个串行操作内获取替代授权。允许旧控制者已释放，拒绝不同的当前控制者。
 见[交接模型](../../apps/orchbee-server/docs/terminal-controller-takeover.zh-CN.md)。
 既有 tag 不变；不支持混用私有版本。
+
+启动选择另将最坏 JSON 字符串内容限制为 30 KiB：ASCII 控制字符计六字节，引号和反斜杠计两字节，其他 UTF-8 字节计一字节。原有 2 KiB 输入域全部保留，同时约束更大的恢复命令。扩大上限后必须使用匹配 cohort。

@@ -105,6 +105,23 @@ impl PreparedWorkbenchRestoreBinding<'_> {
 }
 
 impl WorkbenchAuthority {
+    /// Suppress a duplicate resume only while its exact restore target is still unbound.
+    /// No published topology or live report is changed.
+    pub fn suppress_duplicate_restore_reference(
+        &mut self,
+        target: &mut WorkbenchRestoreTarget,
+    ) -> Result<(), WorkbenchRestoreError> {
+        if !self
+            .restoration_targets(&target.local_worker)?
+            .contains(target)
+        {
+            return Err(WorkbenchRestoreError::TargetChanged);
+        }
+        self.pending_agent_sessions.remove(&target.presentation_id);
+        target.agent_session = None;
+        Ok(())
+    }
+
     pub fn restoration_targets(
         &self,
         local_worker: &WorkerId,

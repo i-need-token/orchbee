@@ -37,6 +37,8 @@ pub(crate) enum StartupFailure {
     TerminalUnavailable,
     OutcomeUnknown,
     Interface,
+    #[cfg(windows)]
+    ResumePolicy,
 }
 
 /// The shared activation verdict. `failure` is exactly the `StartupFailure`
@@ -226,6 +228,12 @@ fn connect_or_activate(
                     || site.worker_socket_exists().map_err(runtime_failure)?
                 {
                     return Err(ActivationFailure::bare(StartupFailure::RecoveryRequired));
+                }
+                #[cfg(windows)]
+                if !windows_selection::resume_environment_valid(std::env::var_os(
+                    "ORCHBEE_RESUME_AGENTS_ON_RESTORE",
+                )) {
+                    return Err(ActivationFailure::bare(StartupFailure::ResumePolicy));
                 }
                 #[cfg(windows)]
                 if let Some(catalog) = catalog {

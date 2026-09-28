@@ -124,11 +124,15 @@ fn nested_canonical_snapshot_and_raw_outer_result_enforce_distinct_exact_bounds(
 /// The worst legal launch selection: every aggregate byte is a control
 /// character, which serde_json escapes to a six-byte `\uXXXX` sequence.
 fn maximum_escape_launch() -> LaunchSelection {
-    let mut arguments = vec!["\u{1}".repeat(15)];
-    arguments.resize(MAXIMUM_LAUNCH_SELECTION_ARGUMENTS, "\u{1}".repeat(16));
-    // 1-byte executable + 15 + 127×16 = exactly the aggregate bound.
+    let mut arguments = vec!["\u{1}".repeat((MAXIMUM_LAUNCH_SELECTION_BYTES - 1) / 6)];
+    arguments[0].push_str(&"x".repeat((MAXIMUM_LAUNCH_SELECTION_BYTES - 1) % 6));
+    arguments.resize(MAXIMUM_LAUNCH_SELECTION_ARGUMENTS, String::new());
+    // Fill the conservative escaped-content budget, including all argument separators.
     assert_eq!(
-        1 + arguments.iter().map(String::len).sum::<usize>(),
+        1 + arguments[0]
+            .bytes()
+            .map(|b| if b == 1 { 6 } else { 1 })
+            .sum::<usize>(),
         MAXIMUM_LAUNCH_SELECTION_BYTES
     );
     LaunchSelection::new("/".to_owned(), arguments).unwrap()
@@ -147,7 +151,7 @@ fn maximum_command(action: WorkbenchAction) -> WorkbenchRequest {
 #[test]
 fn maximum_legal_launch_commands_fit_the_intent_bound() {
     // Worst legal encoding: a 512-character label of control characters
-    // (six wire bytes each) plus a full 2048-byte launch selection of
+    // (six wire bytes each) plus a full 30-KiB escaped-content launch selection of
     // escapes. Both actions must serialize inside the shared intent bound
     // — a legal typed command may never fail the envelope limit.
     let label = WorkbenchLabel::parse(&"\u{1}".repeat(MAXIMUM_LABEL_LENGTH)).unwrap();
@@ -196,7 +200,7 @@ fn maximum_legal_launch_commands_fit_the_intent_bound() {
         );
         // The case must exercise real pressure, not a small fixture.
         assert!(
-            encoded.len() > MAXIMUM_ENCODED_LAUNCH_COMMAND_BYTES - 4096,
+            encoded.len() > 60 * 1024,
             "maximum fixture encodes to only {} bytes",
             encoded.len()
         );
@@ -249,6 +253,8 @@ fn launch_selection_enforces_its_lexical_bounds() {
     let fit = MAXIMUM_LAUNCH_SELECTION_BYTES - 2;
     assert!(launch("/x", &["a".repeat(fit).as_str()]).is_ok());
     assert!(launch("/x", &["a".repeat(fit + 1).as_str()]).is_err());
+    assert!(launch("/x", &["\u{1}".repeat(fit / 6).as_str()]).is_ok());
+    assert!(launch("/x", &["\u{1}".repeat(fit / 6 + 1).as_str()]).is_err());
 }
 
 #[test]

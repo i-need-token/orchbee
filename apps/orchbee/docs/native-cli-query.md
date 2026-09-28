@@ -473,7 +473,7 @@ close-status` and `workspace close-resume` both flags are strict stable IDs inst
   UTF-8 executable path without NUL. `--arg` is repeatable and each value is appended
   verbatim, in order, as `argv[1..]` — empty and dash-leading values are consumed as
   values under the standard value rule, and `argv[0]` is synthesized from the
-  executable path. At most 128 `--arg` values and at most 2,048 UTF-8 bytes across the
+  executable path. At most 128 `--arg` values and at most 30,720 UTF-8 bytes across the
   executable plus all argument values; `--arg` without `--exec`, a repeated `--exec`,
   or a violated bound is `invalid-usage` before any runtime access. Omitting `--exec`
   keeps the resolved default shell; a selection is part of request identity and is
@@ -2143,14 +2143,14 @@ legacy JSON and binary encoding. Nonempty OBCN environment uses a zero executabl
 sentinel (invalid in the legacy layout), extension version 1, optional explicit selection,
 and bounded length-prefixed pairs. New decoders accept legacy payloads; old decoders reject
 the extension rather than discard it. Rollout uses matching cohort hashes. Combined maximum
-cwd, argv and environment remain within the existing 8192-byte frame bound.
+cwd, argv and environment remain within the 40,960-byte frame bound.
 
 Evidence covers constructor/decoder rejection, legacy and extended roundtrips, combined
 maximum sizes, CLI scope and redaction, Server composition and replay identity, and a
 Windows child observing cwd/environment after public Tab and split commands. No new
 macOS/Linux adapter or execution claim is included; TLA execution remains deferred.
 
-Native launch commands use a dedicated 48 KiB JSON request budget so maximum escaped cwd, argv, label and environment fit together. OBWP command kind 2 admits this bound before allocation; non-launch intents retain 16 KiB and results retain their existing bounds. OBCS v2 frames admit 48 KiB; OBCN remains 8 KiB. The OBCS v2 schema/corpus covers these launch values; shared Workbench schemas and the Desktop binding still do not establish support for the native extensions.
+Native launch commands use a dedicated 96 KiB JSON request budget so maximum escaped cwd, argv, label and environment fit together. OBWP command kind 2 admits this bound before allocation; non-launch intents retain 16 KiB and results retain their existing bounds. OBCS v2 frames admit 63 KiB; OBCN admits 40 KiB. The OBCS v2 schema/corpus covers these launch values; shared Workbench schemas and the Desktop binding still do not establish support for the native extensions.
 
 ## Calling Panel context
 
@@ -2194,7 +2194,7 @@ The Windows `workspace create` [contract](windows-workspace-creation.md) owns op
 
 The Worker probes the requested directory before the Server atomically registers the Workspace, directory, Terminal Context and first Tab/Panel/Presentation at one revision. Failed admission creates none of them. A successful commit retains the nested mutation v4 envelope with action `workspace.create`, `projectId`, `workspaceId`, `directoryId`, `terminalContextId`, `tabId`, `panelId`, `presentationId`, literal `path`, `label`, and `terminal`. The existing schema already admits these fields; its version and catalog are unchanged. Terminal launch can remain pending or fail after commit: keep the returned IDs, inspect the Workspace and explicitly close it if unwanted. An unknown response is never automatically replayed or rolled back.
 
-The unpublished native wire action requires `projectId`, `label`, `geometry`, and `options.cwd`; optional `launch` and `profile` remain mutually exclusive. It uses the existing 48 KiB launch request limit, exact request ledger and terminal settlement. `workspace-launch-pending` and `workspace-launched` echo the committed revision and all seven IDs; only the latter carries `terminalOutcome`. The Server owns all six new structural IDs and the terminal binding. Shared Workbench schemas and Desktop bindings do not establish this native extension's support. Activate and roll back the same complete binary cohort. The Server's [refinement record](../../orchbee-server/README.md#directory-workspace-launch) owns admission, commit and recovery.
+The unpublished native wire action requires `projectId`, `label`, `geometry`, and `options.cwd`; optional `launch` and `profile` remain mutually exclusive. It uses the existing 96 KiB launch request limit, exact request ledger and terminal settlement. `workspace-launch-pending` and `workspace-launched` echo the committed revision and all seven IDs; only the latter carries `terminalOutcome`. The Server owns all six new structural IDs and the terminal binding. Shared Workbench schemas and Desktop bindings do not establish this native extension's support. Activate and roll back the same complete binary cohort. The Server's [refinement record](../../orchbee-server/README.md#directory-workspace-launch) owns admission, commit and recovery.
 
 ## Agent Panel targeting model
 
@@ -2518,3 +2518,7 @@ The same-author regressions cover parser refusal, independent wire goldens, malf
 ## Windows Panel metadata query
 
 The [Panel metadata contract](windows-panel-metadata.md#query-observation-model) owns batched reads, exact primary binding checks and both final revision fences. Panel list/get v9, current v6 and Agent Get v11/v12 expose metadata and source-attributed reportedAgent. Actual report Agent/authority context selects guarded presentation while preserving raw source records and global tokens. Canonical OSC title, names, status and readiness remain distinct. Legacy versions retain their closed previous shapes.
+
+Launch selections additionally cap worst-case JSON string-content bytes at 30 KiB: ASCII controls count as six, quotes and backslashes as two, and other UTF-8 bytes as one. This preserves the previous 2 KiB input domain while bounding the larger resume commands. Matching cohorts are required for the enlarged limits.
+
+Windows Site restart resumes retained official provider references by default, once per distinct source/Agent/reference kind/value. Set ORCHBEE_RESUME_AGENTS_ON_RESTORE=false before activation to start ordinary shells and retain references; only exact true/false values are accepted. Existing Sites are unaffected. The Server reads SystemRoot to resolve system Windows PowerShell and inherits PATH for provider program discovery. Shell launch is not provider readiness. See the Server [restart model](../../orchbee-server/docs/agent-restart-reference.md) for failure, deduplication and remaining restoration boundaries.

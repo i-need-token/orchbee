@@ -59,6 +59,7 @@ impl SiteCoordinator {
         reference: RequestId,
         worker: WorkerPlacement,
         expiry: LeaseExpiresAtUnixMilliseconds,
+        launch: Option<orchbee_client_server_protocol::LaunchSelection>,
     ) -> io::Result<Box<PendingOperation>> {
         let workbench = self
             .workbench
@@ -84,7 +85,7 @@ impl SiteCoordinator {
                     StartMode::Immediate {
                         geometry: Geometry::new(80, 24, 8, 16).map_err(io::Error::other)?,
                     },
-                    None,
+                    launch,
                 ),
                 Some(worker),
                 Some(expiry),

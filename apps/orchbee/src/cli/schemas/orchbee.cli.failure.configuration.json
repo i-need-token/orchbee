@@ -6,6 +6,12 @@
 	"required": ["schema", "version", "failure"],
 	"additionalProperties": false,
 	"properties": {
+		"source": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["kind"],
+			"properties": { "kind": { "const": "local-runtime" } }
+		},
 		"schema": {
 			"const": "orchbee.cli.failure.configuration"
 		},
@@ -37,6 +43,7 @@
 							"enum": [
 								"file",
 								"ORCHBEE_CONFIG_FILE",
+								"ORCHBEE_RESUME_AGENTS_ON_RESTORE",
 								"APPDATA",
 								"terminal.new_cwd",
 								"worktrees.directory"
@@ -45,6 +52,7 @@
 						"reason": {
 							"enum": [
 								"invalid-path",
+								"invalid-boolean",
 								"missing",
 								"io-error",
 								"not-file",

@@ -20,7 +20,26 @@ Windows 干净停止检查点按稳定的 Workbench Presentation 身份保留外
 | 上报所有者已经存在 | 当前物理上报所有者具有权威 | 消费待处理种子，不替换当前状态 |
 | 播种后清除或退出 | 普通上报转换 | 后续捕获反映当前状态，包括缺失 |
 
-播种先准备再修改，遵守上报资源／修订上限，且只推进上报修订。它不设置识别 Agent、回退状态、权威、序号水位、抑制历史或规范 Agent 观察。存储引用不含可执行路径、shell 命令、环境或凭据。运行时启动、provider 恢复请求去重、实际 cwd、名称和托管状态恢复仍是独立的必需消费者。
+播种先准备再修改，遵守上报资源／修订上限，且只推进上报修订。它不设置识别 Agent、回退状态、权威、序号水位、抑制历史或规范 Agent 观察。存储引用不含可执行路径、shell 命令、环境或凭据。
+
+## Windows 恢复启动
+
+尚未发布的 Site 按 Presentation 遍历顺序，为每个不同的官方来源、Agent、引用种类和值准备一次恢复启动。重复 Presentation 启动普通 shell，不保留 provider 引用。禁用恢复时保留引用并启动普通 shell。ORCHBEE_RESUME_AGENTS_ON_RESTORE 只接受精确的 true 或 false，默认为 true。Client 激活在持久 Active 发布或标记提交前拒绝非法值；已有 Site 的准入不受影响。Server 在 Worker 启动前独立验证。修正非法值后可以再次激活，不需要恢复操作，也不丢失检查点。此启动输入不实现独立的 config.toml 会话设置或热重载。
+
+Server 选择当前 Windows provider 命令及字面恢复参数，然后在既有终端创建事务内，用 -NoLogo -NoProfile -NoExit -EncodedCommand 启动系统 Windows PowerShell。共享字面编码支持原生程序、.cmd/.bat 和 .ps1。程序发现仅接受应用程序和外部脚本，不接受函数或别名。provider 退出或解析失败后 shell 仍可用；shell 存在不证明 provider 就绪。
+
+| 阶段 | 守卫与结果 |
+| --- | --- |
+| 规划 | Host 副作用前验证全部启动并保留不同引用 |
+| 分派 | 每个已准备终端在既有创建身份下仅提交一次 |
+| 完成或结果未知 | 结算终端记录，不重放 |
+| 新物理绑定 | 仅播种引用；新观察建立 Agent 状态 |
+| 重复引用 | 保留拓扑，启动 shell 并省略引用 |
+| provider 失败或退出 | 保留终端及其实际错误／输出 |
+
+Workbench/OBCS/OBCN 启动选择接受 executable/argument 合计 30 KiB UTF-8 字节和 128 个参数，另有 30 KiB 最坏 JSON 字符串内容预算：ASCII 控制字符计六字节，引号／反斜杠计两字节，其他 UTF-8 字节计一字节。OBCS JSON 帧在既有 u16 头内允许 63 KiB；OBCN 二进制帧允许 40 KiB，Workbench 启动请求允许 96 KiB。独立的 Host 64 KiB 控制文档及 Windows 命令行限制仍适用。编码后的恢复参数为 ASCII，限制为 30,000 字符；batch 分派拒绝超过 8,000 字符的命令行。旧 peer 拒绝更大的 payload；必须整体启用及回退匹配 cohort。
+
+已知创建失败和结果未知均保守地保留预留。Herdr 在可证明尚未启动进程时尝试另一个重复面板的行为仍未实现。实际 cwd、配置文件恢复开关、名称和托管状态恢复仍是必需集成工作。
 
 ## 证据与兼容性
 

@@ -1790,9 +1790,9 @@
 					"title": "Absolute local-platform working directory intent",
 					"type": "string",
 					"minLength": 1,
-					"maxLength": 2048,
+					"maxLength": 30720,
 					"pattern": "^(?:/|(?:\\\\\\\\\\?\\\\)?[A-Za-z]:[/\\\\])[^\\u0000]*$",
-					"$comment": "The authoritative 4096 limit is UTF-8 encoded bytes; schema maxLength is an additional necessary code-point bound."
+					"$comment": "The combined executable/arguments bound is 30720 UTF-8 bytes and 30720 worst-case escaped JSON string-content bytes; code-point limits are necessary but not sufficient."
 				},
 				"args": {
 					"type": "array",
@@ -1800,11 +1800,11 @@
 					"items": {
 						"type": "string",
 						"pattern": "^[^\\u0000]*$",
-						"maxLength": 2048
+						"maxLength": 30720
 					}
 				}
 			},
-			"$comment": "Executable and arguments together are at most 2048 UTF-8 bytes, enforced by the binding."
+			"$comment": "Executable and arguments together are at most 30720 UTF-8 bytes and worst-case JSON string-content bytes, enforced by the binding."
 		},
 		"launchEnvironment": {
 			"type": "array",

@@ -6,31 +6,56 @@
 	"required": ["schema", "version", "source", "result"],
 	"additionalProperties": false,
 	"properties": {
-		"schema": { "const": "orchbee.terminal.get" },
-		"version": { "const": 4 },
-		"source": { "$ref": "#/$defs/launchReadSource" },
+		"schema": {
+			"const": "orchbee.terminal.get"
+		},
+		"version": {
+			"const": 4
+		},
+		"source": {
+			"$ref": "#/$defs/launchReadSource"
+		},
 		"result": {
 			"type": "object",
 			"required": ["terminal"],
 			"additionalProperties": false,
 			"properties": {
-				"terminal": { "$ref": "#/$defs/terminal" }
+				"terminal": {
+					"$ref": "#/$defs/terminal"
+				}
 			}
 		}
 	},
 	"$defs": {
-		"id": { "type": "string", "pattern": "^[0-9a-f]{32}$" },
-		"decimal": { "type": "string", "pattern": "^(0|[1-9][0-9]*)$" },
-		"positiveDecimal": { "type": "string", "pattern": "^[1-9][0-9]*$" },
+		"id": {
+			"type": "string",
+			"pattern": "^[0-9a-f]{32}$"
+		},
+		"decimal": {
+			"type": "string",
+			"pattern": "^(0|[1-9][0-9]*)$"
+		},
+		"positiveDecimal": {
+			"type": "string",
+			"pattern": "^[1-9][0-9]*$"
+		},
 		"terminal": {
 			"type": "object",
 			"required": ["terminalId", "workerId", "boundTo", "launch"],
 			"additionalProperties": false,
 			"properties": {
-				"terminalId": { "$ref": "#/$defs/id" },
-				"workerId": { "$ref": "#/$defs/id" },
-				"launch": { "$ref": "#/$defs/launch" },
-				"launchSelection": { "$ref": "#/$defs/launchSelection" },
+				"terminalId": {
+					"$ref": "#/$defs/id"
+				},
+				"workerId": {
+					"$ref": "#/$defs/id"
+				},
+				"launch": {
+					"$ref": "#/$defs/launch"
+				},
+				"launchSelection": {
+					"$ref": "#/$defs/launchSelection"
+				},
 				"launchProfile": {
 					"type": "object",
 					"required": ["profileId", "catalogRevision"],
@@ -40,7 +65,9 @@
 							"type": "string",
 							"pattern": "^[0-9A-Za-z][0-9A-Za-z._:-]{0,127}$"
 						},
-						"catalogRevision": { "$ref": "#/$defs/decimal" }
+						"catalogRevision": {
+							"$ref": "#/$defs/decimal"
+						}
 					}
 				},
 				"boundTo": {
@@ -48,10 +75,18 @@
 					"required": ["presentationId", "panelId", "tabId", "terminalContextId"],
 					"additionalProperties": false,
 					"properties": {
-						"presentationId": { "$ref": "#/$defs/id" },
-						"panelId": { "$ref": "#/$defs/id" },
-						"tabId": { "$ref": "#/$defs/id" },
-						"terminalContextId": { "$ref": "#/$defs/id" }
+						"presentationId": {
+							"$ref": "#/$defs/id"
+						},
+						"panelId": {
+							"$ref": "#/$defs/id"
+						},
+						"tabId": {
+							"$ref": "#/$defs/id"
+						},
+						"terminalContextId": {
+							"$ref": "#/$defs/id"
+						}
 					}
 				}
 			},
@@ -88,9 +123,9 @@
 					"title": "Absolute local-platform working directory intent",
 					"type": "string",
 					"minLength": 1,
-					"maxLength": 2048,
+					"maxLength": 30720,
 					"pattern": "^(?:/|(?:\\\\\\\\\\?\\\\)?[A-Za-z]:[/\\\\])[^\\u0000]*$",
-					"$comment": "The authoritative 4096 limit is UTF-8 encoded bytes; schema maxLength is an additional necessary code-point bound."
+					"$comment": "The combined executable/arguments bound is 30720 UTF-8 bytes and 30720 worst-case escaped JSON string-content bytes; code-point limits are necessary but not sufficient."
 				},
 				"args": {
 					"type": "array",
@@ -98,21 +133,37 @@
 					"items": {
 						"type": "string",
 						"pattern": "^[^\\u0000]*$",
-						"maxLength": 2048
+						"maxLength": 30720
 					}
 				}
 			},
-			"$comment": "Executable and arguments together are at most 2048 UTF-8 bytes, enforced by the binding."
+			"$comment": "Executable and arguments together are at most 30720 UTF-8 bytes and worst-case JSON string-content bytes, enforced by the binding."
 		},
 		"geometry": {
 			"type": "object",
 			"required": ["columns", "rows", "cellPixelWidth", "cellPixelHeight"],
 			"additionalProperties": false,
 			"properties": {
-				"columns": { "type": "integer", "minimum": 1, "maximum": 4096 },
-				"rows": { "type": "integer", "minimum": 1, "maximum": 4096 },
-				"cellPixelWidth": { "type": "integer", "minimum": 0, "maximum": 4096 },
-				"cellPixelHeight": { "type": "integer", "minimum": 0, "maximum": 4096 }
+				"columns": {
+					"type": "integer",
+					"minimum": 1,
+					"maximum": 4096
+				},
+				"rows": {
+					"type": "integer",
+					"minimum": 1,
+					"maximum": 4096
+				},
+				"cellPixelWidth": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 4096
+				},
+				"cellPixelHeight": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 4096
+				}
 			}
 		},
 		"createAcceptedState": {
@@ -121,15 +172,23 @@
 					"type": "object",
 					"required": ["kind"],
 					"additionalProperties": false,
-					"properties": { "kind": { "const": "awaiting-start" } }
+					"properties": {
+						"kind": {
+							"const": "awaiting-start"
+						}
+					}
 				},
 				{
 					"type": "object",
 					"required": ["kind", "geometry"],
 					"additionalProperties": false,
 					"properties": {
-						"kind": { "const": "started" },
-						"geometry": { "$ref": "#/$defs/geometry" }
+						"kind": {
+							"const": "started"
+						},
+						"geometry": {
+							"$ref": "#/$defs/geometry"
+						}
 					}
 				}
 			]
@@ -141,8 +200,12 @@
 					"required": ["kind", "state"],
 					"additionalProperties": false,
 					"properties": {
-						"kind": { "const": "accepted" },
-						"state": { "$ref": "#/$defs/createAcceptedState" }
+						"kind": {
+							"const": "accepted"
+						},
+						"state": {
+							"$ref": "#/$defs/createAcceptedState"
+						}
 					}
 				},
 				{
@@ -150,7 +213,9 @@
 					"required": ["kind", "reason"],
 					"additionalProperties": false,
 					"properties": {
-						"kind": { "const": "rejected" },
+						"kind": {
+							"const": "rejected"
+						},
 						"reason": {
 							"enum": ["not-authorized", "worker-constraint-unsatisfied", "cwd-not-accepted"]
 						}
@@ -161,7 +226,9 @@
 					"required": ["kind", "reason"],
 					"additionalProperties": false,
 					"properties": {
-						"kind": { "const": "unavailable" },
+						"kind": {
+							"const": "unavailable"
+						},
 						"reason": {
 							"enum": ["no-compatible-worker", "terminal-runtime-unavailable", "server-busy"]
 						}
@@ -172,15 +239,23 @@
 					"required": ["kind", "reason"],
 					"additionalProperties": false,
 					"properties": {
-						"kind": { "const": "failed" },
-						"reason": { "const": "terminal-create-failed" }
+						"kind": {
+							"const": "failed"
+						},
+						"reason": {
+							"const": "terminal-create-failed"
+						}
 					}
 				},
 				{
 					"type": "object",
 					"required": ["kind"],
 					"additionalProperties": false,
-					"properties": { "kind": { "const": "outcome-unknown" } }
+					"properties": {
+						"kind": {
+							"const": "outcome-unknown"
+						}
+					}
 				}
 			]
 		},
@@ -205,19 +280,43 @@
 					"pattern": "^[1-9][0-9]*$"
 				},
 				"createOutcome": {
-					"oneOf": [{ "$ref": "#/$defs/createOutcome" }, { "type": "null" }]
+					"oneOf": [
+						{
+							"$ref": "#/$defs/createOutcome"
+						},
+						{
+							"type": "null"
+						}
+					]
 				},
 				"geometry": {
-					"oneOf": [{ "$ref": "#/$defs/geometry" }, { "type": "null" }]
+					"oneOf": [
+						{
+							"$ref": "#/$defs/geometry"
+						},
+						{
+							"type": "null"
+						}
+					]
 				}
 			},
 			"allOf": [
 				{
 					"if": {
-						"properties": { "state": { "const": "started" } },
+						"properties": {
+							"state": {
+								"const": "started"
+							}
+						},
 						"required": ["state"]
 					},
-					"then": { "properties": { "geometry": { "type": "object" } } }
+					"then": {
+						"properties": {
+							"geometry": {
+								"type": "object"
+							}
+						}
+					}
 				},
 				{
 					"if": {
@@ -235,17 +334,31 @@
 						},
 						"required": ["state"]
 					},
-					"then": { "properties": { "geometry": { "type": "null" } } }
+					"then": {
+						"properties": {
+							"geometry": {
+								"type": "null"
+							}
+						}
+					}
 				},
 				{
 					"if": {
-						"properties": { "state": { "const": "not-tracked" } },
+						"properties": {
+							"state": {
+								"const": "not-tracked"
+							}
+						},
 						"required": ["state"]
 					},
 					"then": {
 						"properties": {
-							"workerGeneration": { "type": "null" },
-							"createOutcome": { "type": "null" }
+							"workerGeneration": {
+								"type": "null"
+							},
+							"createOutcome": {
+								"type": "null"
+							}
 						}
 					}
 				},
@@ -265,16 +378,30 @@
 						},
 						"required": ["state"]
 					},
-					"then": { "properties": { "workerGeneration": { "type": "string" } } }
+					"then": {
+						"properties": {
+							"workerGeneration": {
+								"type": "string"
+							}
+						}
+					}
 				},
 				{
 					"if": {
 						"properties": {
-							"state": { "enum": ["creating", "not-tracked"] }
+							"state": {
+								"enum": ["creating", "not-tracked"]
+							}
 						},
 						"required": ["state"]
 					},
-					"then": { "properties": { "createOutcome": { "type": "null" } } }
+					"then": {
+						"properties": {
+							"createOutcome": {
+								"type": "null"
+							}
+						}
+					}
 				},
 				{
 					"if": {
@@ -285,7 +412,13 @@
 						},
 						"required": ["state"]
 					},
-					"then": { "properties": { "createOutcome": { "type": "object" } } }
+					"then": {
+						"properties": {
+							"createOutcome": {
+								"type": "object"
+							}
+						}
+					}
 				}
 			]
 		},
@@ -294,9 +427,15 @@
 			"required": ["kind", "siteId", "revision"],
 			"additionalProperties": false,
 			"properties": {
-				"kind": { "const": "terminal-launch-read" },
-				"siteId": { "$ref": "#/$defs/id" },
-				"revision": { "$ref": "#/$defs/decimal" }
+				"kind": {
+					"const": "terminal-launch-read"
+				},
+				"siteId": {
+					"$ref": "#/$defs/id"
+				},
+				"revision": {
+					"$ref": "#/$defs/decimal"
+				}
 			}
 		}
 	}

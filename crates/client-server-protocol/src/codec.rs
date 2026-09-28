@@ -10,7 +10,7 @@ use crate::{
 pub const FRAME_MAGIC: [u8; 4] = *b"OBCS";
 pub const FRAME_VERSION: u16 = 1;
 pub const FRAME_HEADER_BYTES: usize = 8;
-pub const MAXIMUM_FRAME_PAYLOAD_BYTES: usize = 48 * 1024;
+pub const MAXIMUM_FRAME_PAYLOAD_BYTES: usize = 63 * 1024;
 
 pub fn encode_client_frame(message: &ClientMessage) -> Result<Vec<u8>, ProtocolError> {
     if let ClientMessage::TerminalControl(request) = message

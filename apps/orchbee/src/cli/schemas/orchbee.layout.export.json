@@ -130,15 +130,15 @@
 									"title": "Absolute launch executable",
 									"type": "string",
 									"minLength": 1,
-									"maxLength": 2048,
+									"maxLength": 30720,
 									"pattern": "^(?:/|(?:\\\\\\\\\\?\\\\)?[A-Za-z]:[/\\\\])[^\\u0000]*$",
-									"$comment": "The authoritative executable plus arguments bound is 2048 UTF-8 bytes."
+									"$comment": "The authoritative executable plus arguments bound is 30720 UTF-8 bytes and worst-case JSON string-content bytes."
 								}
 							],
 							"items": {
 								"type": "string",
 								"pattern": "^[^\\u0000]*$",
-								"maxLength": 2048
+								"maxLength": 30720
 							},
 							"$comment": "A variadic argv tuple: one absolute executable followed by zero to 128 literal arguments."
 						},
@@ -175,5 +175,5 @@
 			]
 		}
 	},
-	"$comment": "The projector enforces at most24 leaves, depth16, exact canonical identities, 2048 combined UTF-8 command bytes and a1MiB document limit. cwd is a sequential observation; env is always empty."
+	"$comment": "The projector enforces at most24 leaves, depth16, exact canonical identities, 30720 combined UTF-8 and worst-case escaped command bytes and a1MiB document limit. cwd is a sequential observation; env is always empty."
 }

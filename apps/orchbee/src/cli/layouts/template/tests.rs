@@ -138,9 +138,14 @@ fn limits_cover_total_bytes_leaf_count_depth_and_launch_contracts() {
         parse_value(json!({"type":"panel","command":command})),
         Err("invalid-layout")
     );
-    assert!(parse_value(json!({"type":"panel","command":["x".repeat(2048)]})).is_ok());
+    assert!(
+        parse_value(json!({"type":"panel","command":["x".repeat(MAXIMUM_LAUNCH_SELECTION_BYTES)]}))
+            .is_ok()
+    );
     assert_eq!(
-        parse_value(json!({"type":"panel","command":["x".repeat(2049)]})),
+        parse_value(
+            json!({"type":"panel","command":["x".repeat(MAXIMUM_LAUNCH_SELECTION_BYTES + 1)]})
+        ),
         Err("invalid-layout")
     );
 }

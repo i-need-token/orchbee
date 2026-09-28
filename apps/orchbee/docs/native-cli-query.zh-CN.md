@@ -386,7 +386,7 @@ Windows `agent wait --client <id>` 同时固定一个精确 Client 和已解析 
   `--exec` 单次使用，取不含 NUL 的非空绝对 UTF-8 可执行文件路径。`--arg` 可重复，
   每个值按顺序原样追加为 `argv[1..]`——空值与 dash 前导值按标准取值规则被消费为值，
   `argv[0]` 由可执行文件路径合成。至多 128 个 `--arg` 值，且可执行文件加全部参数值合计
-  至多 2,048 UTF-8 字节；无 `--exec` 而带 `--arg`、重复 `--exec`、或越界均在任何运行时
+  至多 30,720 UTF-8 字节；无 `--exec` 而带 `--arg`、重复 `--exec`、或越界均在任何运行时
   访问之前报 `invalid-usage`。省略 `--exec` 保持解析默认 shell；选择属于请求身份，绝不
   持久化为 profile。
 - `--name <name>`：带值 flag，单次使用，`launch-profile create` 上必填、其他任何
@@ -1811,13 +1811,13 @@ Host 校验实际目录并报告既有启动失败结果，不创建目录，也
 cwd 和环境。空选项保留旧 JSON 和二进制编码。非空 OBCN 环境使用旧布局非法的
 零可执行文件长度前缀，随后为扩展版本 1、可选显式程序及有界长度前缀键值组。
 新解码器接受旧载荷；旧解码器拒绝扩展，不会丢弃。交付使用匹配 cohort 哈希。
-最大 cwd、argv 和环境合计保持在现有 8192 字节帧上限内。
+最大 cwd、argv 和环境合计保持在40,960 字节帧上限内。
 
 证据覆盖构造器/解码器拒绝、新旧编码往返、组合上限、CLI 作用域和脱敏、Server
 组合及重放身份，以及公开 Tab 和分屏命令启动的 Windows 子进程观察真实 cwd/环境。
 不新增 macOS/Linux 适配器或运行声明；TLA 执行继续延期。
 
-原生启动命令使用独立的 48 KiB JSON 请求预算，使 cwd、argv、label 和环境的最大转义编码可同时容纳。OBWP command kind 2 在分配前按此上限检查；非启动 intent 仍为 16 KiB，结果沿用既有上限。OBCS v2 帧允许 48 KiB；OBCN 仍为 8 KiB。OBCS v2 schema/corpus 已覆盖这些启动值；共享 Workbench schema 和 Desktop binding 仍不构成对这些原生扩展的支持证据。
+原生启动命令使用独立的 96 KiB JSON 请求预算，使 cwd、argv、label 和环境的最大转义编码可同时容纳。OBWP command kind 2 在分配前按此上限检查；非启动 intent 仍为 16 KiB，结果沿用既有上限。OBCS v2 帧允许 63 KiB；OBCN 允许 40 KiB。OBCS v2 schema/corpus 已覆盖这些启动值；共享 Workbench schema 和 Desktop binding 仍不构成对这些原生扩展的支持证据。
 
 ## 调用者 Panel 上下文
 
@@ -1859,7 +1859,7 @@ Windows `workspace create` 的[工作区创建契约](windows-workspace-creation
 
 Worker 先探测请求目录，Server 再用一次修订原子登记 Workspace、目录、Terminal Context 及首个 Tab/Panel/Presentation。准入失败时不创建这些资源。提交成功保留嵌套 mutation v4 信封：action 为 `workspace.create`，包含 `projectId`、`workspaceId`、`directoryId`、`terminalContextId`、`tabId`、`panelId`、`presentationId`、字面 `path`、`label` 和 `terminal`。现有 schema 已允许这些字段，版本和目录不变。终端可能在提交后仍待定或启动失败：保留返回 ID，查询 Workspace，不再需要时显式关闭。响应未知时绝不自动重放或回滚。
 
-未发布的原生线协议动作要求 `projectId`、`label`、`geometry` 和 `options.cwd`；可选的 `launch` 与 `profile` 仍互斥。复用现有 48 KiB 启动请求上限、精确请求账本和终端结算。`workspace-launch-pending` 与 `workspace-launched` 回显已提交修订和全部七个 ID；只有后者携带 `terminalOutcome`。Server 拥有六个新结构 ID 及终端绑定。共享 Workbench schema 和 Desktop binding 不构成支持此原生扩展的证据。必须整体启用及回退同一构建 cohort。Server 的[细化记录](../../orchbee-server/README.zh-CN.md#目录工作区启动)持有准入、提交和恢复语义。
+未发布的原生线协议动作要求 `projectId`、`label`、`geometry` 和 `options.cwd`；可选的 `launch` 与 `profile` 仍互斥。复用现有 96 KiB 启动请求上限、精确请求账本和终端结算。`workspace-launch-pending` 与 `workspace-launched` 回显已提交修订和全部七个 ID；只有后者携带 `terminalOutcome`。Server 拥有六个新结构 ID 及终端绑定。共享 Workbench schema 和 Desktop binding 不构成支持此原生扩展的证据。必须整体启用及回退同一构建 cohort。Server 的[细化记录](../../orchbee-server/README.zh-CN.md#目录工作区启动)持有准入、提交和恢复语义。
 
 ## Agent Panel 目标模型
 
@@ -2150,3 +2150,7 @@ Windows `layout export` 输出带比例、手工标签、观测目录及冻结�
 ## Windows Panel 元数据查询
 
 [Panel 元数据契约](windows-panel-metadata.zh-CN.md#查询观察模型)负责分批读取、精确主绑定及两类最终修订号校验。Panel list/get v9、current v6 与 Agent Get v11/v12 暴露 metadata 及带来源的 reportedAgent。实际 Agent／权威上下文选择带守卫展示，同时保留原始来源记录与全局 tokens。规范 OSC 标题、名称、状态及就绪性仍独立；旧版本保留原有闭合形状。
+
+启动选择另将最坏 JSON 字符串内容限制为 30 KiB：ASCII 控制字符计六字节，引号和反斜杠计两字节，其他 UTF-8 字节计一字节。原有 2 KiB 输入域全部保留，同时约束更大的恢复命令。扩大上限后必须使用匹配 cohort。
+
+Windows Site 重启默认恢复保留的官方 provider 引用，每个不同的来源／Agent／引用种类／值仅尝试一次。激活前设置 ORCHBEE_RESUME_AGENTS_ON_RESTORE=false 可启动普通 shell 并保留引用；仅接受精确 true／false。已运行的 Site 不受影响。Server 读取 SystemRoot 解析系统 Windows PowerShell，并继承 PATH 发现 provider 程序。shell 启动不证明 provider 就绪。失败、去重及其余恢复边界参见 Server 的[重启模型](../../orchbee-server/docs/agent-restart-reference.zh-CN.md)。

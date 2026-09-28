@@ -27,7 +27,7 @@ Workbench state。
 
 所有 decoded object 与 enum 都是 closed。缺失显式 nullable create field、未知 field 或 tag、重复
 key、BOM、无效 UTF-8、尾随 JSON value、direction mismatch、无效 identity、path 或 geometry，以及
-不符合精确长度或 48 KiB payload bound 的 JSON frame 都会被拒绝。Protocol 与 geometry number 使用
+不符合精确长度或 63 KiB payload bound 的 JSON frame 都会被拒绝。Protocol 与 geometry number 使用
 schema 所有的有限 binary64 safe-integer refinement，因此等价的 integral decimal 与 exponent
 spelling 会 decode 为同一个 value。Canonical encoding 使用带普通 integer token 的 compact
 deterministic JSON。
@@ -92,7 +92,7 @@ generation 使用正 u64 十进制字符串，revision 使用规范 u64 十进�
 读取。这是尚未发布的 OBCS v2 必需字段变更；Client/Server/Worker 必须使用精确匹配的开发 cohort，
 不提供隐式 viewer fallback。
 `ControlInput` 验证 1 至 `MAXIMUM_CONTROL_INPUT_BYTES`（4,096）byte，并序列化为规范小写 hex。
-共用 number adapter 验证正十进制 u64 sequence。Acquire、Input 与 Resize 使用既有 48 KiB OBCS
+共用 number adapter 验证正十进制 u64 sequence。Acquire、Input 与 Resize 使用既有 63 KiB OBCS
 JSON framing。
 
 `Paste` 是语义自动模式粘贴 action。它携带 `PasteContent`——1 至
@@ -167,7 +167,7 @@ prepare 时冻结的 provenance；其他方式启动的终端该成员整体缺�
 显式程序还会在 `found` 中提供可选的 `launchSelection:{exec,args}`。这是创建时捕获且已校验的
 不可变选择，包括已解析的命名 profile；删除 profile 或移动 Panel 不会改写它。默认 shell 和
 `not-tracked` 事实省略该字段。显式 null、无效选择以及 `not-tracked` 同时携带选择均非法。
-沿用最多128个参数/2,048字节的约束。查询不暴露环境或授权数据，不执行 RPC，不新增持久存储。
+沿用最多128个参数/30,720字节的约束。查询不暴露环境或授权数据，不执行 RPC，不新增持久存储。
 旧消息可省略该字段。
 
 `launch.state` 逐字呈现 retained launch phase——`creating`、`awaiting-start`、
@@ -234,7 +234,7 @@ UTF-8 字节，名称为 1..128 字节的 ASCII 标识符，不含 NUL，不允�
 
 v2 schema/corpus 覆盖 launch selection、environment、profile provenance、send sequence progress 及全部六类 OBSN input record（含语义 stroke）。Conformance 验证独立编写的 canonical bytes 与 negative case。这证明原生 OBCS 一致性，不代表 Desktop 或 Workbench schema 对齐。
 
-原生 v2 帧在分配前限制为 48 KiB。组合最大转义 cwd、executable/argv 与环境的测试覆盖请求预算；旧 32 KiB 上限无法容纳该合法组合。
+原生 v2 帧在分配前限制为 63 KiB。组合最大转义 cwd、executable/argv 与环境的测试覆盖请求预算；旧 32 KiB 上限无法容纳该合法组合。
 
 ## 终端进程读取（未发布）
 
@@ -247,3 +247,5 @@ v2 schema/corpus 覆盖 launch selection、environment、profile provenance、se
 [语言无关契约](../../schemas/client-server/README.zh-CN.md#session-controller)拥有语义；
 [Server 交接模型](../../apps/orchbee-server/docs/terminal-controller-takeover.zh-CN.md)拥有
 预留、撤销及清理。此新增 action 要求同一开发版本整体部署。
+
+启动选择另将最坏 JSON 字符串内容限制为 30 KiB：ASCII 控制字符计六字节，引号和反斜杠计两字节，其他 UTF-8 字节计一字节。原有 2 KiB 输入域全部保留，同时约束更大的恢复命令。扩大上限后必须使用匹配 cohort。

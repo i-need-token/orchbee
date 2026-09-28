@@ -29,11 +29,11 @@ policy、Server state store、Worker operation、Host launch 或 Workbench mutat
 | -------------- | ----------------------------------------------------- |
 | Magic          | 四个 byte `OBCS`                                      |
 | Frame version  | unsigned 16-bit big-endian integer `1`                |
-| Payload length | unsigned 16-bit big-endian byte length，至多 48 KiB   |
+| Payload length | unsigned 16-bit big-endian byte length，至多 63 KiB   |
 | Payload        | 带有 `protocolVersion: 2` 的 strict UTF-8 JSON object |
 
 Decoder 在分配 payload storage 之前校验完整的八 byte header，精确读取声明的 payload，并拒绝
-无效 magic、不支持的 frame version、超过 48 KiB 的 payload、truncation，或在解码单个完整
+无效 magic、不支持的 frame version、超过 63 KiB 的 payload、truncation，或在解码单个完整
 in-memory frame 时出现的额外 byte。Stream reader 每次消费一个 frame，因此后面可以跟随另一个
 完整 frame。Reader 与 writer 必须支持 partial I/O；frame writer 不会 flush caller 的 stream。
 
@@ -69,8 +69,8 @@ default；省略该 field 无效。
 | `columns`、`rows`                   | 1 到 4,096，含边界                                                       |
 | `cellPixelWidth`、`cellPixelHeight` | 0 到 4,096，含边界；必须同正（pixel 已知）或同零（pixel 未知），不得混合 |
 | `columns * rows`                    | 至多 262,144                                                             |
-| `columns * cellPixelWidth`          | 至多 65,535                                                              |
-| `rows * cellPixelHeight`            | 至多 65,535                                                              |
+| `columns * cellPixelWidth`          | 至多 64,512                                                              |
+| `rows * cellPixelHeight`            | 至多 64,512                                                              |
 
 ## Client request
 
@@ -217,7 +217,7 @@ Server 签发的 Worker operation identity；Client `requestId` 只存在于该�
 身份等同。
 分配 payload 前校验 12-byte header 和 bound；stream reader 消费一帧，内存 decoder 拒绝截断或
 多余字节。只有 Server-to-Client reader 接受 OBSR。Server 校验 Host epoch、附件、role、frame
-路由元数据和反馈；呈现解码仍由 Client 负责。OBSR 没有 JSON `record` outcome，也不扩大 48 KiB
+路由元数据和反馈；呈现解码仍由 Client 负责。OBSR 没有 JSON `record` outcome，也不扩大 63 KiB
 OBCS JSON 限制。其字节契约由本节定义；JSON corpus 拥有控制消息，binding test 覆盖二进制边界
 和 opaque byte 保留。
 
@@ -249,7 +249,7 @@ u16 version 1、两个零保留 byte，再大端 u32 body 长度。Body 依次�
 request ID、16 byte 的 attachment ID、16 byte 的 controller ID、大端 u64 正 sequence，然后
 是原始内容 byte——总计 57 至 262,200 byte。分配 body 前先校验 12-byte header 与界限；流
 reader 每次消费一个 record，内存 decoder 拒绝截断或尾随 byte。OBCQ 没有对应的 JSON `paste`
-action，也不扩大 48 KiB OBCS JSON 上限；小粘贴同样使用该 record 编码。
+action，也不扩大 63 KiB OBCS JSON 上限；小粘贴同样使用该 record 编码。
 
 `terminal.control.result` 使用普通关联 JSON envelope。Outcome 包括：带 `controllerId` 的
 `acquired`、无其他字段的 `input-accepted`、带精确接受 `geometry` 的 `resized`、带
@@ -334,9 +334,9 @@ source contract 与 runtime cohort 一起 rollback。该扩展不增加 persiste
 
 ## 原生版本 2
 
-原生 cohort 使用 JSON `protocolVersion: 2`、OBCS frame version 1 和 48 KiB JSON payload 上限。[version-1 schema](v1/client-server.schema.json) 与 [corpus](v1/client-server-conformance-v1.json) 保留为冻结参考；当前 [version-2 schema](v2/client-server.schema.json) 与 [corpus](v2/client-server-conformance-v2.json) 约束原生 binding。Version 2 拒绝 version-1 body 和旧版 JSON `terminal.send` 请求。专用 OBSN binary request 保持 encoding version 1；其四个非零 16-byte identity、有序 record sequence 和 progress-result 语义属于原生 v2 契约。Binary framing、聚合 content 上限与词法验证独立于 JSON schema。
+原生 cohort 使用 JSON `protocolVersion: 2`、OBCS frame version 1 和 63 KiB JSON payload 上限。[version-1 schema](v1/client-server.schema.json) 与 [corpus](v1/client-server-conformance-v1.json) 保留为冻结参考；当前 [version-2 schema](v2/client-server.schema.json) 与 [corpus](v2/client-server-conformance-v2.json) 约束原生 binding。Version 2 拒绝 version-1 body 和旧版 JSON `terminal.send` 请求。专用 OBSN binary request 保持 encoding version 1；其四个非零 16-byte identity、有序 record sequence 和 progress-result 语义属于原生 v2 契约。Binary framing、聚合 content 上限与词法验证独立于 JSON schema。
 
-v2 Create 额外接受可选 `launch`（null 或 literal `{exec,args}`）和 `environment`（有序 `[name,value]` pair，空时省略）。Executable 必须绝对，argv 不含 argv0，最多 128 个 argument，合计 2,048 UTF-8 bytes，禁止 NUL。Environment 最多 32 项，name/value 合计最多 1,024 UTF-8 bytes。ASCII identifier name 长 1–128 bytes，忽略 ASCII 大小写唯一，并忽略大小写拒绝 `ORCHBEE_*`、`TERM`、`COLORTERM` 和 `TERM_PROGRAM`。Value 为 literal，可以为空，禁止 NUL。Byte sum 与忽略大小写唯一性由 binding 在 JSON Schema 之外细化。Found launch read 的可选同级 `launchProfile` 携带 opaque `profileId`（1–128 UTF-8 bytes）和规范 unsigned-64 decimal `catalogRevision`；它记录捕获的来源，不授予 launch authority。
+v2 Create 额外接受可选 `launch`（null 或 literal `{exec,args}`）和 `environment`（有序 `[name,value]` pair，空时省略）。Executable 必须绝对，argv 不含 argv0，最多 128 个 argument，合计 30,720 UTF-8 bytes，禁止 NUL。Environment 最多 32 项，name/value 合计最多 1,024 UTF-8 bytes。ASCII identifier name 长 1–128 bytes，忽略 ASCII 大小写唯一，并忽略大小写拒绝 `ORCHBEE_*`、`TERM`、`COLORTERM` 和 `TERM_PROGRAM`。Value 为 literal，可以为空，禁止 NUL。Byte sum 与忽略大小写唯一性由 binding 在 JSON Schema 之外细化。Found launch read 的可选同级 `launchProfile` 携带 opaque `profileId`（1–128 UTF-8 bytes）和规范 unsigned-64 decimal `catalogRevision`；它记录捕获的来源，不授予 launch authority。
 
 Found launch read 还可携带非 null 的 `launchSelection:{exec,args}`，复用上述程序／参数边界，表示创建时经解析后冻结的选择；默认 shell 与 `not-tracked` 时省略。出现 null、非法选择或 `not-tracked` 携带选择均拒绝。旧消息可省略该成员；不导出 environment，不读取当前 profile 目录，也不声明跨重启保存。该未发布的增量字段要求同 cohort 部署／回滚，旧 reader 可能拒绝。
 
@@ -369,3 +369,5 @@ viewport 读取仍为 text。
 必须一起部署或回退。旧读取端拒绝新成员，不新增持久状态或迁移。Windows ANSI CLI 输出是
 具体消费者，wire 保持平台无关。JSON schema 及独立 Rust 用例覆盖默认 text 兼容、render
 选择和非法 detail；运行时 peer 验证精确响应固定。
+
+启动选择另将最坏 JSON 字符串内容限制为 30 KiB：ASCII 控制字符计六字节，引号和反斜杠计两字节，其他 UTF-8 字节计一字节。原有 2 KiB 输入域全部保留，同时约束更大的恢复命令。扩大上限后必须使用匹配 cohort。

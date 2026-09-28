@@ -45,7 +45,7 @@ const AUTHORIZED_TERMINAL_START_KIND: u8 = 3;
 const TERMINAL_START_RESULT_KIND: u8 = 4;
 
 pub const PROTOCOL_VERSION: u16 = 2;
-pub const MAXIMUM_FRAME_PAYLOAD_BYTES: usize = 8 * 1024;
+pub const MAXIMUM_FRAME_PAYLOAD_BYTES: usize = 40 * 1024;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum CapabilityNodeMessage {

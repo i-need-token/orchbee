@@ -253,8 +253,9 @@ pub enum TerminalLaunchMode {
 /// from the executable; argv0 is never transmitted.
 pub const MAXIMUM_LAUNCH_SELECTION_ARGUMENTS: usize = 128;
 /// Maximum combined UTF-8 bytes of the executable path plus every argument
-/// value in one explicit launch selection.
-pub const MAXIMUM_LAUNCH_SELECTION_BYTES: usize = 2048;
+/// value in one explicit launch selection. The same budget also bounds worst-case
+/// JSON string contents: controls cost six bytes, quotes/backslashes two, others one.
+pub const MAXIMUM_LAUNCH_SELECTION_BYTES: usize = 30 * 1024;
 
 /// An explicit terminal launch program authorized end-to-end: one absolute
 /// executable path and its verbatim argument list. Construction enforces
@@ -289,6 +290,18 @@ impl LaunchSelection {
                 .ok_or(ProtocolError::InvalidPayload)?;
         }
         if bytes > MAXIMUM_LAUNCH_SELECTION_BYTES {
+            return Err(ProtocolError::InvalidPayload);
+        }
+        let encoded = std::iter::once(executable.as_str())
+            .chain(arguments.iter().map(String::as_str))
+            .flat_map(str::bytes)
+            .map(|b| match b {
+                0..=31 => 6,
+                b'"' | b'\\' => 2,
+                _ => 1,
+            })
+            .sum::<usize>();
+        if encoded > MAXIMUM_LAUNCH_SELECTION_BYTES {
             return Err(ProtocolError::InvalidPayload);
         }
         Ok(Self {

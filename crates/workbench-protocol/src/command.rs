@@ -139,7 +139,7 @@ use crate::{
 };
 
 /// Worst-case escaped cwd, argv, label and environment for native launch commands.
-pub const MAXIMUM_ENCODED_LAUNCH_COMMAND_BYTES: usize = 48 * 1024;
+pub const MAXIMUM_ENCODED_LAUNCH_COMMAND_BYTES: usize = 96 * 1024;
 
 pub const MAXIMUM_ENCODED_SNAPSHOT_RESULT_BYTES: usize = MAXIMUM_ENCODED_PROJECTION_BYTES + 1024;
 const MAXIMUM_BINARY64_SAFE_INTEGER: u64 = 9_007_199_254_740_991;
@@ -177,8 +177,9 @@ impl<'de> Deserialize<'de> for WorkbenchLabel {
 /// from the executable; argv0 is never transmitted.
 pub const MAXIMUM_LAUNCH_SELECTION_ARGUMENTS: usize = 128;
 /// Maximum combined UTF-8 bytes of the executable path plus every argument
-/// value in one explicit launch selection.
-pub const MAXIMUM_LAUNCH_SELECTION_BYTES: usize = 2048;
+/// value in one explicit launch selection. The same budget also bounds worst-case
+/// JSON string contents: controls cost six bytes, quotes/backslashes two, others one.
+pub const MAXIMUM_LAUNCH_SELECTION_BYTES: usize = 30 * 1024;
 
 /// An explicit terminal launch program: one absolute executable path and its
 /// verbatim argument list. Construction and decode run the same closed
@@ -212,6 +213,18 @@ impl LaunchSelection {
                 .ok_or(ContractError::InvalidDocument)?;
         }
         if bytes > MAXIMUM_LAUNCH_SELECTION_BYTES {
+            return Err(ContractError::InvalidDocument);
+        }
+        let encoded = std::iter::once(executable.as_str())
+            .chain(arguments.iter().map(String::as_str))
+            .flat_map(str::bytes)
+            .map(|b| match b {
+                0..=31 => 6,
+                b'"' | b'\\' => 2,
+                _ => 1,
+            })
+            .sum::<usize>();
+        if encoded > MAXIMUM_LAUNCH_SELECTION_BYTES {
             return Err(ContractError::InvalidDocument);
         }
         Ok(Self {

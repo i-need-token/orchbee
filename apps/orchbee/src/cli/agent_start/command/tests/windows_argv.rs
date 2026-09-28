@@ -89,9 +89,15 @@ fn actual_windows_programs_receive_literal_arguments() {
         } else {
             launch_program(&program, &args).unwrap()
         };
+        // Server retains PowerShell after provider exit. Helpers and error policy
+        // must not leak into that interactive shell's parent scope.
+        let encoded = text.split_whitespace().last().unwrap();
+        let script = format!(
+            "$before=$ErrorActionPreference;& ([ScriptBlock]::Create([Text.Encoding]::Unicode.GetString([Convert]::FromBase64String('{encoded}'))));if($ErrorActionPreference -ne $before -or (Test-Path Function:q)){{throw 'launch scope leaked'}}"
+        );
         let mut command = Command::new("powershell.exe");
         command
-            .args(text.split_whitespace().skip(1))
+            .args(["-NoLogo", "-NoProfile", "-Command", &script])
             .env("ORCHBEE_START_ARGV_FILE", &output)
             .env("PATH", &path)
             .stdin(Stdio::null())

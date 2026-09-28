@@ -58,6 +58,20 @@ fn launch_selection_rejects_byte_overflow() {
             maximum: MAXIMUM_LAUNCH_SELECTION_BYTES,
         })
     );
+    assert!(matches!(
+        LaunchSelection::new(
+            "/bin/zsh".into(),
+            vec!["\u{1}".repeat(MAXIMUM_LAUNCH_SELECTION_BYTES / 6)]
+        ),
+        Err(LaunchSelectionError::EncodedTooLong { .. })
+    ));
+    assert!(
+        LaunchSelection::new(
+            "/bin/zsh".into(),
+            vec!["\u{1}".repeat((MAXIMUM_LAUNCH_SELECTION_BYTES - 8) / 6)]
+        )
+        .is_ok()
+    );
 }
 
 #[test]

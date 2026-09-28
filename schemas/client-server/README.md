@@ -29,11 +29,11 @@ authorization policy, Server state store, Worker operation, Host launch, or Work
 | -------------- | ------------------------------------------------------ |
 | Magic          | Four bytes `OBCS`                                      |
 | Frame version  | Unsigned 16-bit big-endian integer `1`                 |
-| Payload length | Unsigned 16-bit big-endian byte length, at most 48 KiB |
+| Payload length | Unsigned 16-bit big-endian byte length, at most 63 KiB |
 | Payload        | Strict UTF-8 JSON object with `protocolVersion: 2`     |
 
 A decoder validates the complete eight-byte header before allocating payload storage, reads exactly
-the declared payload, and rejects an invalid magic, unsupported frame version, payload over 48 KiB,
+the declared payload, and rejects an invalid magic, unsupported frame version, payload over 63 KiB,
 truncation, or extra bytes when decoding one complete in-memory frame. A stream reader consumes one
 frame at a time so another complete frame may follow. Readers and writers must support partial I/O;
 a frame writer does not flush its caller's stream.
@@ -72,8 +72,8 @@ Every geometry contains all four integer fields and satisfies every invariant:
 | `columns`, `rows`                   | 1 through 4,096 inclusive                                                                                 |
 | `cellPixelWidth`, `cellPixelHeight` | 0 through 4,096 inclusive; either both positive (pixels known) or both zero (pixels unknown), never mixed |
 | `columns * rows`                    | At most 262,144                                                                                           |
-| `columns * cellPixelWidth`          | At most 65,535                                                                                            |
-| `rows * cellPixelHeight`            | At most 65,535                                                                                            |
+| `columns * cellPixelWidth`          | At most 64,512                                                                                            |
+| `rows * cellPixelHeight`            | At most 64,512                                                                                            |
 
 ## Client requests
 
@@ -238,7 +238,7 @@ before payload allocation; stream readers consume
 one frame, and in-memory decoders reject truncation or trailing bytes. Only Server-to-Client readers
 accept OBSR. Server validates Host epoch, attachment, role, frame routing metadata and feedback;
 presentation decoding remains the Client's responsibility. OBSR has no JSON `record` outcome and
-does not enlarge the 48 KiB OBCS JSON limit. Its byte contract is this section; the JSON corpus owns
+does not enlarge the 63 KiB OBCS JSON limit. Its byte contract is this section; the JSON corpus owns
 control messages, while binding tests cover binary boundaries and opaque byte preservation.
 
 ## Session controller
@@ -275,7 +275,7 @@ ID as 16 big-endian bytes, the attachment ID as 16 bytes, the controller ID as 1
 positive sequence as big-endian u64, then the raw content bytes — 57 through 262,200 bytes in total.
 The 12-byte header and bound are checked before body allocation; stream readers consume one record,
 and in-memory decoders reject truncation or trailing bytes. OBCQ has no JSON `paste` action and does
-not enlarge the 48 KiB OBCS JSON limit; a small paste uses the same record encoding.
+not enlarge the 63 KiB OBCS JSON limit; a small paste uses the same record encoding.
 
 `terminal.control.result` uses the ordinary correlated JSON envelope. Outcomes are `acquired`
 with `controllerId`, fieldless `input-accepted`, `resized` with exact accepted `geometry`, `pasted`
@@ -368,9 +368,9 @@ Absolute wire paths accept a POSIX leading slash or an ASCII drive letter follow
 
 ## Native version 2
 
-The native cohort uses JSON `protocolVersion: 2`, OBCS frame version 1 and a 48 KiB JSON payload limit. The [version-1 schema](v1/client-server.schema.json) and [corpus](v1/client-server-conformance-v1.json) remain frozen references; the current [version-2 schema](v2/client-server.schema.json) and [corpus](v2/client-server-conformance-v2.json) govern the native binding. Version 2 rejects version-1 bodies and legacy JSON `terminal.send` requests. The dedicated OBSN binary request retains encoding version 1; its four nonzero 16-byte identities, ordered record sequence and progress-result semantics are native v2 contracts. Binary framing, aggregate content limits and lexical validation are separate from the JSON schema.
+The native cohort uses JSON `protocolVersion: 2`, OBCS frame version 1 and a 63 KiB JSON payload limit. The [version-1 schema](v1/client-server.schema.json) and [corpus](v1/client-server-conformance-v1.json) remain frozen references; the current [version-2 schema](v2/client-server.schema.json) and [corpus](v2/client-server-conformance-v2.json) govern the native binding. Version 2 rejects version-1 bodies and legacy JSON `terminal.send` requests. The dedicated OBSN binary request retains encoding version 1; its four nonzero 16-byte identities, ordered record sequence and progress-result semantics are native v2 contracts. Binary framing, aggregate content limits and lexical validation are separate from the JSON schema.
 
-A v2 Create additionally accepts optional `launch` (null or literal `{exec,args}`) and `environment` (ordered `[name,value]` pairs, omitted when empty). The executable is absolute, argv excludes argv0, at most 128 arguments and 2,048 combined UTF-8 bytes, with no NUL. Environment admits at most 32 entries and 1,024 combined UTF-8 name/value bytes. ASCII identifier names have 1–128 bytes, are unique ignoring ASCII case and exclude `ORCHBEE_*`, `TERM`, `COLORTERM` and `TERM_PROGRAM` ignoring case. Values are literal, may be empty, and exclude NUL. Byte sums and case-folded uniqueness are binding refinements beyond JSON Schema. The optional `launchProfile` sibling in a found launch read carries opaque `profileId` (1–128 UTF-8 bytes) and canonical unsigned-64 decimal `catalogRevision`; it records captured provenance and grants no launch authority.
+A v2 Create additionally accepts optional `launch` (null or literal `{exec,args}`) and `environment` (ordered `[name,value]` pairs, omitted when empty). The executable is absolute, argv excludes argv0, at most 128 arguments and 30,720 combined UTF-8 bytes, with no NUL. Environment admits at most 32 entries and 1,024 combined UTF-8 name/value bytes. ASCII identifier names have 1–128 bytes, are unique ignoring ASCII case and exclude `ORCHBEE_*`, `TERM`, `COLORTERM` and `TERM_PROGRAM` ignoring case. Values are literal, may be empty, and exclude NUL. Byte sums and case-folded uniqueness are binding refinements beyond JSON Schema. The optional `launchProfile` sibling in a found launch read carries opaque `profileId` (1–128 UTF-8 bytes) and canonical unsigned-64 decimal `catalogRevision`; it records captured provenance and grants no launch authority.
 
 A found launch read may also carry non-null `launchSelection:{exec,args}` under the same program/argument bounds. It is the resolved selection frozen at creation; default-shell and `not-tracked` facts omit it. Null, malformed selections and `not-tracked` with a selection are rejected. Older messages may omit the member. It exports no environment, does not read the current profile catalog and does not imply persistence across restart. Deploy/roll back this unpublished additive field with the same cohort; older readers may reject it.
 
@@ -405,3 +405,5 @@ Worker and Host development artifacts roll out or roll back together. Old reader
 member; no durable state or migration is added. Windows ANSI CLI output is the concrete consumer,
 while the wire remains platform-neutral. JSON-schema and independent Rust cases cover default
 text compatibility, render selection and invalid details; runtime peers verify exact response pins.
+
+Launch selections additionally cap worst-case JSON string-content bytes at 30 KiB: ASCII controls count as six, quotes and backslashes as two, and other UTF-8 bytes as one. This preserves the previous 2 KiB input domain while bounding the larger resume commands. Matching cohorts are required for the enlarged limits.

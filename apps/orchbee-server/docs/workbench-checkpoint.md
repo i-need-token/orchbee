@@ -81,7 +81,7 @@ or unsupported data aborts startup without an empty fallback. `WorkbenchCheckpoi
 configuration value: private graph-validation identities never become a runnable authority. Only
 reconstruction with the fresh Site and admitted Worker creates the new authority.
 
-Before the first launch IPC, the coordinator prepares all fresh default-shell reservations and
+Before the first launch IPC, the coordinator prepares all fresh shell/provider reservations and
 Workbench bindings. Failure at this point leaves no Host or terminal; the creation-owned Worker
 is terminated and its exit confirmed. Each prepared request is then dispatched and settled once;
 launch failure or unknown outcome stays explicit and is never retried automatically. Workspace
@@ -97,8 +97,7 @@ retains recovery-required activation state; terminating a Worker alone is not Ho
 Clean stop saves after request/background quiescence and before Worker disposal. Encoding or
 publication failure prevents disposal and remains a failed stop; the previous committed file is
 preserved. This stage saves layout, Launch Profiles and exact-generation provider references on explicit clean stop. Fresh physical creation seeds only the retained provider reference, never live Agent state or source authority. It does not yet
-provide periodic/crash checkpoints, observed per-terminal cwd, Agent/client/history recovery or
-named-session commands. Activation markers retain their existing recovery semantics on failed boot.
+provide periodic/crash checkpoints, observed per-terminal cwd, complete Agent naming/management, Client or history recovery. Activation markers retain their existing recovery semantics on failed boot.
 
 ## Evidence
 
@@ -111,5 +110,4 @@ replacement, locking and exact-handle termination. Packaged Windows clean-stop/r
 compares retained layouts/profiles, fresh runtime identities, shell effects and TUI Open reuse;
 blocked replacement must preserve old bytes and live terminals until an explicit successful retry,
 and corrupt startup must refuse without an empty fallback or surviving cohort processes.
-Periodic/crash recovery, observed per-terminal cwd, Agent/client/history restoration and named-Site
-lifecycle remain separate implementation and acceptance obligations.
+Periodic/crash recovery, observed per-terminal cwd, complete Agent naming/management and Client/history restoration remain separate implementation and acceptance obligations.

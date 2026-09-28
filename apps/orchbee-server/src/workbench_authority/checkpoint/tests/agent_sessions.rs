@@ -21,6 +21,28 @@ fn rows() -> Value {
 fn saved() -> Vec<u8> {
     changed(|v| v["agentSessions"] = rows())
 }
+
+#[test]
+fn duplicate_suppression_requires_exact_unbound_target_and_cannot_change_topology() {
+    let mut a = restore(&saved()).unwrap();
+    let before = a.snapshot().clone();
+    let mut targets = a.restoration_targets(&worker(400)).unwrap();
+    let mut old = targets[0].clone();
+    assert!(old.agent_session().is_some());
+    a.suppress_duplicate_restore_reference(&mut targets[0])
+        .unwrap();
+    assert!(targets[0].agent_session().is_none());
+    assert_eq!(a.snapshot(), &before);
+    assert!(a.suppress_duplicate_restore_reference(&mut old).is_err());
+    a.prepare_restored_terminal(&targets[0], physical(900, 2).binding)
+        .unwrap()
+        .commit();
+    assert!(
+        a.suppress_duplicate_restore_reference(&mut targets[0])
+            .is_err()
+    );
+    assert!(targets[1].agent_session().is_some());
+}
 fn physical(terminal: u128, generation: u64) -> TerminalAgentBinding {
     TerminalAgentBinding {
         binding: PresentationBinding {

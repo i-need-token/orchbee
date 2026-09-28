@@ -28,7 +28,7 @@ project Workbench state.
 
 All decoded objects and enums are closed. Missing explicit nullable create fields, unknown fields or
 tags, duplicate keys, BOM, invalid UTF-8, trailing JSON values, direction mismatches, invalid
-identities, paths, or geometry, and JSON frames outside the exact length or 48 KiB payload bound are
+identities, paths, or geometry, and JSON frames outside the exact length or 63 KiB payload bound are
 rejected. Protocol and geometry numbers use the schema-owned finite binary64 safe-integer
 refinement, so equivalent integral decimal and exponent spellings decode to the same value.
 Canonical encoding uses compact deterministic JSON with ordinary integer tokens.
@@ -102,7 +102,7 @@ all three actions require `attachment_id: ViewerId`, exposed by
 Client/Server/Worker must use an exact development cohort with no implicit-viewer fallback.
 `ControlInput` validates 1 through `MAXIMUM_CONTROL_INPUT_BYTES` (4,096) bytes and serializes canonical
 lowercase hex. Shared number adapters validate positive decimal u64 sequences. Acquire, Input, and
-Resize use the existing 48 KiB OBCS JSON framing.
+Resize use the existing 63 KiB OBCS JSON framing.
 
 `Paste` is the semantic auto-mode paste action. It carries `PasteContent`, an opaque 1 through
 `MAXIMUM_PASTE_CONTENT_BYTES` (262,144) byte body, and never appears in OBCS JSON: the client frame
@@ -186,7 +186,7 @@ An explicit program also contributes optional `launchSelection:{exec,args}` to `
 It is the immutable, validated selection captured at creation, including a resolved named profile;
 profile deletion and Panel movement do not rewrite it. Default-shell and `not-tracked` facts omit
 the member. Present null, malformed selection and `not-tracked` with a selection are invalid.
-The existing 128-argument/2,048-byte bounds apply. This read exposes no environment or authorization
+The existing 128-argument/30,720-byte bounds apply. This read exposes no environment or authorization
 data, performs no RPC and introduces no durable storage. Older messages may omit the member.
 
 `launch.state` is the retained launch phase verbatim — `creating`, `awaiting-start`,
@@ -258,7 +258,7 @@ overlay, participates in request identity. The Server converts it to the indepen
 
 The v2 schema/corpus covers launch selection, environment, profile provenance, send sequence progress and all six OBSN input record kinds (including semantic strokes). Conformance verifies independently authored canonical bytes and negative cases. This establishes native OBCS agreement, not Desktop or Workbench schema parity.
 
-Native v2 frames are bounded at 48 KiB before allocation. A combined maximum escaped cwd, executable/argv and environment test covers the request budget; the older 32 KiB bound cannot contain that valid combination.
+Native v2 frames are bounded at 63 KiB before allocation. A combined maximum escaped cwd, executable/argv and environment test covers the request budget; the older 32 KiB bound cannot contain that valid combination.
 
 ## Terminal process reads (unpublished)
 
@@ -271,3 +271,5 @@ It shares Acquire's Acquired result and rejection/unavailability/unknown classes
 [language-neutral contract](../../schemas/client-server/README.md#session-controller) owns semantics;
 [Server's transfer model](../../apps/orchbee-server/docs/terminal-controller-takeover.md) owns
 reservation, revocation and cleanup. This additive action requires a same-development cohort.
+
+Launch selections additionally cap worst-case JSON string-content bytes at 30 KiB: ASCII controls count as six, quotes and backslashes as two, and other UTF-8 bytes as one. This preserves the previous 2 KiB input domain while bounding the larger resume commands. Matching cohorts are required for the enlarged limits.

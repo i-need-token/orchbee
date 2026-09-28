@@ -177,7 +177,17 @@ fn node(mut fields: Object, depth: usize, count: &mut usize) -> Result<Node, &'s
                 && (argv.first().is_none_or(String::is_empty)
                     || argv.len() > MAXIMUM_LAUNCH_SELECTION_ARGUMENTS + 1
                     || argv.iter().any(|arg| arg.contains('\0'))
-                    || argv.iter().map(String::len).sum::<usize>() > MAXIMUM_LAUNCH_SELECTION_BYTES)
+                    || argv.iter().map(String::len).sum::<usize>() > MAXIMUM_LAUNCH_SELECTION_BYTES
+                    || argv
+                        .iter()
+                        .flat_map(|arg| arg.bytes())
+                        .map(|b| match b {
+                            0..=31 => 6,
+                            b'"' | b'\\' => 2,
+                            _ => 1,
+                        })
+                        .sum::<usize>()
+                        > MAXIMUM_LAUNCH_SELECTION_BYTES)
             {
                 return Err("invalid-layout");
             }

@@ -686,7 +686,7 @@ fn maximum_launch_remains_inside_the_frame_bound() -> Result<(), Box<dyn std::er
         "z".repeat(MAXIMUM_AUTHORIZED_CWD_BYTES - 1)
     ))?;
     // The worst-case payload pairs the maximum cwd with a maximum-size launch
-    // selection: executable plus argument bytes total exactly the 2,048 bound.
+    // selection: executable plus argument bytes total exactly the 30-KiB bound.
     let maximum_selection = LaunchSelection::new("/bin/sh".to_owned(), {
         let mut args = vec![String::new(); 128];
         args[0] = "x".repeat(MAXIMUM_LAUNCH_SELECTION_BYTES - "/bin/sh".len());

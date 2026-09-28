@@ -249,7 +249,7 @@ fn maximum_launch_read_result_stays_inside_the_frame_bound()
             launch_profile: Some(LaunchProfileProvenance::new("f".repeat(128), u64::MAX)?),
             launch_selection: Some(Box::new(crate::LaunchSelection::new(
                 "C:\\shell.exe".into(),
-                vec!["\u{1}".repeat(2048 - "C:\\shell.exe".len())],
+                vec!["\u{1}".repeat((crate::MAXIMUM_LAUNCH_SELECTION_BYTES - 16) / 6)],
             )?)),
         },
     ));
@@ -585,7 +585,7 @@ fn terminal_create_environment_roundtrips_and_validates_at_decode()
 fn maximum_escaped_launch_with_cwd_and_environment_fits_frame()
 -> Result<(), Box<dyn std::error::Error>> {
     let mut args = vec![String::new(); 128];
-    args[0] = "\u{1}".repeat(2047);
+    args[0] = "\u{1}".repeat((crate::MAXIMUM_LAUNCH_SELECTION_BYTES - 1) / 6);
     let mut entries: Vec<_> = (0..32).map(|n| (format!("K{n}"), String::new())).collect();
     let names: usize = entries.iter().map(|(name, _)| name.len()).sum();
     entries[0].1 = "\u{1}".repeat(1024 - names);

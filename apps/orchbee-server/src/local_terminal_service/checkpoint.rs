@@ -12,12 +12,15 @@ use std::{
     sync::{Arc, Mutex},
     time::Instant,
 };
+mod resume;
+pub(crate) use resume::resume_policy;
 
 impl LocalTerminalService {
     /// Reconstructs and reserves every terminal before any request can launch a Host.
     pub(crate) fn from_checkpoint(
         workers: Arc<Mutex<WorkerRegistry>>,
         checkpoint: Option<WorkbenchCheckpoint>,
+        resume_agents: bool,
     ) -> io::Result<(Self, Vec<PendingOperation>)> {
         let handle = workers
             .lock()
@@ -31,27 +34,26 @@ impl LocalTerminalService {
         ))
         .map_err(io::Error::other)?;
         let site = random_site_id()?;
-        let authority = match checkpoint {
+        let mut authority = match checkpoint {
             Some(checkpoint) => checkpoint
                 .reconstruct(site, &owner)
                 .map_err(io::Error::other)?,
             None => WorkbenchAuthority::new(site).map_err(io::Error::other)?,
         };
-        let targets = authority
-            .restoration_targets(&owner)
-            .map_err(io::Error::other)?;
+        let plans = resume::prepare(&mut authority, &owner, resume_agents)?;
         let mut service = Self::from_workbench(workers, Some(authority));
         let coordinator = service
             .coordinator
             .get_mut()
             .map_err(|_| io::Error::other("coordinator failed"))?;
         let expiry = lease_expiry().ok_or_else(|| io::Error::other("restore lease unavailable"))?;
-        let mut pending = Vec::with_capacity(targets.len());
-        for target in targets {
+        let mut pending = Vec::with_capacity(plans.len());
+        for (target, launch) in plans {
             let reference = create_reference()
                 .ok_or_else(|| io::Error::other("restore request identity unavailable"))?;
             pending.push(
-                *coordinator.prepare_checkpoint_terminal(&target, reference, worker, expiry)?,
+                *coordinator
+                    .prepare_checkpoint_terminal(&target, reference, worker, expiry, launch)?,
             );
         }
         Ok((service, pending))

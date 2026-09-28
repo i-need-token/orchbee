@@ -7,8 +7,9 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer, de};
 /// from the executable; argv0 is never transmitted.
 pub const MAXIMUM_LAUNCH_SELECTION_ARGUMENTS: usize = 128;
 /// Maximum combined UTF-8 bytes of the executable path plus every argument
-/// value in one explicit launch selection.
-pub const MAXIMUM_LAUNCH_SELECTION_BYTES: usize = 2048;
+/// value in one explicit launch selection. The same budget also bounds worst-case
+/// JSON string contents: controls cost six bytes, quotes/backslashes two, others one.
+pub const MAXIMUM_LAUNCH_SELECTION_BYTES: usize = 30 * 1024;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum LaunchSelectionError {
@@ -17,6 +18,7 @@ pub enum LaunchSelectionError {
     ContainsNul,
     TooManyArguments { actual: usize, maximum: usize },
     TooLong { actual: usize, maximum: usize },
+    EncodedTooLong { actual: usize, maximum: usize },
 }
 
 impl fmt::Display for LaunchSelectionError {
@@ -36,6 +38,10 @@ impl fmt::Display for LaunchSelectionError {
             Self::TooLong { actual, maximum } => write!(
                 formatter,
                 "launch selection has {actual} UTF-8 bytes; maximum is {maximum}"
+            ),
+            Self::EncodedTooLong { actual, maximum } => write!(
+                formatter,
+                "launch selection requires {actual} escaped JSON bytes; maximum is {maximum}"
             ),
         }
     }
@@ -75,6 +81,16 @@ impl LaunchSelection {
                 maximum: MAXIMUM_LAUNCH_SELECTION_BYTES,
             });
         }
+        let encoded = std::iter::once(executable.as_str())
+            .chain(arguments.iter().map(String::as_str))
+            .map(escaped_bytes)
+            .sum::<usize>();
+        if encoded > MAXIMUM_LAUNCH_SELECTION_BYTES {
+            return Err(LaunchSelectionError::EncodedTooLong {
+                actual: encoded,
+                maximum: MAXIMUM_LAUNCH_SELECTION_BYTES,
+            });
+        }
         Ok(Self {
             executable,
             arguments,
@@ -90,6 +106,17 @@ impl LaunchSelection {
     pub fn arguments(&self) -> &[String] {
         &self.arguments
     }
+}
+
+fn escaped_bytes(value: &str) -> usize {
+    value
+        .bytes()
+        .map(|b| match b {
+            0..=31 => 6,
+            b'"' | b'\\' => 2,
+            _ => 1,
+        })
+        .sum()
 }
 
 #[derive(Serialize)]

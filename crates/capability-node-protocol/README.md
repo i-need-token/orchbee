@@ -33,7 +33,7 @@ admission, cleanup, or a whole inventory walk. Protocol, Server, Worker and nati
 together. Old private cohorts reject the additive tags; no mixed-cohort fallback is defined.
 
 Kind 9 `TerminalLifecycleRequest` and kind 10 `TerminalLifecycleResult` use frame version 2 and
-the 8 KiB payload bound. All integers are unsigned big-endian and IDs are nonzero 16-byte values.
+the 40 KiB payload bound. All integers are unsigned big-endian and IDs are nonzero 16-byte values.
 The request body after its kind is, in order: lifecycle capability version (`u16`, current 1),
 product Terminal ID (16), Worker ID (16), Worker generation (`u64`, positive), retained binding fence
 (`u64`, positive), fresh lease ID (16), lease Unix-millisecond expiry (`u64`, positive), Close
@@ -122,7 +122,7 @@ Server activate kinds 11 and 12 together in the same unpublished local cohort.
 ## Framing and messages
 
 One canonical frame contains the fixed `OBCN` magic, an unsigned big-endian frame version, an
-unsigned big-endian payload length, and at most 8 KiB of payload. The frame codec rejects unknown
+unsigned big-endian payload length, and at most 40 KiB of payload. The frame codec rejects unknown
 magic, version, message or enum tags, malformed or incomplete values, excess bytes, and oversized
 payloads. Frame version 1 and terminal-launch capability version 2 are separate version domains.
 Bounded streaming helpers read the complete eight-byte header before validating it and allocating
@@ -173,7 +173,7 @@ explicitly and preserve validation.
 The optional launch selection is a closed tail after the launch mode: a `u16` executable length,
 the executable bytes, a `u16` argument count, then `u16`-length-prefixed argument strings. The
 executable is a nonempty absolute UTF-8 path without NUL; arguments are NUL-free UTF-8 strings
-(empty and dash-leading values allowed) with at most 128 entries and at most 2,048 UTF-8 bytes
+(empty and dash-leading values allowed) with at most 128 entries and at most 30,720 UTF-8 bytes
 across the executable and all arguments combined. A payload that ends at the mode block decodes as
 the default launch; a present tail is validated with complete consumption, so partial or trailing
 bytes reject. The tail carries `argv[1..]` only — `argv[0]` is the Host's synthesis from the
@@ -222,7 +222,7 @@ ID (16), and one unchanged OBTP record. For `Poll` that record is a Host event; 
 is the correlated Host response. Its record is 64 through `64 + 36 MiB` bytes, matching the
 Host envelope plus maximum OBTF payload. The codec validates the complete 12-byte header and bound
 before allocating payload; consumers validate the opaque record's Host envelope, route, role,
-identity, and negotiated size. This does not enlarge the 8 KiB OBCN control bound or decode frame
+identity, and negotiated size. This does not enlarge the 40 KiB OBCN control bound or decode frame
 content. Strict in-memory decoding rejects trailing bytes; streaming decoding consumes exactly one
 record and preserves the following frame boundary. No acknowledgement, retry, or queue policy is
 hidden in these codecs. Viewer carrier failure retires transient state; callers never replay an
@@ -285,7 +285,7 @@ Resize must echo geometry, and the Server carrier also rejects a `Pasted` result
 a different current grant rejects. An ambiguous Host exchange closes the Worker carrier instead
 of fabricating acceptance, and Server classifies complete delivery without a result as unknown.
 
-The 8 KiB OBCN frame limit, exact-length decoding, and direction rules remain unchanged; `OBNQ`
+The 40 KiB OBCN frame limit, exact-length decoding, and direction rules remain unchanged; `OBNQ`
 is a raw record alongside the frame stream, like `OBNR`. Codec tests cover
 all actions/outcomes/reasons, raw byte preservation, maximum input and invalid scope bounds. The
 Server and Worker guides own single-controller reservation, cleanup and real PTY evidence.
@@ -326,7 +326,7 @@ through Poll until the bounded receipt expires — plus 10 Unknown, 11 PhysicalU
 RejectedFencing. A `RejectedFencing` result is a typed frame, not a disconnect: a request
 pinned to another Worker or generation is refused without retiring the carrier.
 
-The 8 KiB OBCN frame limit is unchanged — 7,936 is a conservative policy bound that keeps
+The 40 KiB OBCN frame limit is unchanged — 7,936 is a conservative policy bound that keeps
 every arm below the payload ceiling with declared headroom. Codec tests cover every action
 and outcome arm, strict goldens, the field-budget boundary, unknown tags, stage codes, and
 trailing bytes; the Server and Worker guides own admission, fencing, and job evidence.
@@ -390,7 +390,7 @@ An environment has at most 32 entries and 1,024 combined UTF-8 name/value bytes.
 `[A-Za-z_][A-Za-z0-9_]*`, are at most 128 bytes, and are unique ignoring ASCII case. NUL values,
 `ORCHBEE_*`, `TERM`, `COLORTERM` and `TERM_PROGRAM` are rejected; empty values are preserved.
 Validation precedes admission; Debug output omits values. The combined maximum cwd, selection,
-argument count and environment still fit the 8 KiB frame. There are no Project, Checkout,
+argument count and environment still fit the 40 KiB frame. There are no Project, Checkout,
 Worktree, Agent or Launch Profile fields. Cohort validation requires matching deployed binaries;
 this extension does not promise mixed-version operation.
 
@@ -486,7 +486,7 @@ pnpm lint:projects
 ## Managed Worker shutdown
 
 The Windows managed Site lifecycle adds kinds 19/20 under frame version 2 and the
-existing 8 KiB bound. The request contains operation ID and Worker ID (16 nonzero
+existing 40 KiB bound. The request contains operation ID and Worker ID (16 nonzero
 bytes each), positive Worker generation (u64), and a cooperative budget (u32,
 1..15000 ms), all integers big-endian. Only the exact admitted managed Worker may
 act; unmanaged or mismatched identity is a pre-effect refusal. The existing 20-second
@@ -574,7 +574,7 @@ Timeout, Cancelled, Io, RepositoryChanged and AmbiguousCheckout. Cancel tags 1�
 AlreadyTerminal, Unknown and PhysicalUnknown; 255 is RejectedFencing.
 
 The largest request is a maximum-field Create: 7988 payload bytes. The largest result
-is a Checkout observation: 7982 payload bytes. Both remain below the existing 8192-byte
+is a Checkout observation: 7982 payload bytes. Both remain below the 40,960-byte
 frame payload cap. Public conformance tests cover hand-derived golden frames, all
 variants, maximum lengths, strict truncations and malformed fields. They do not prove
 Git behavior, filesystem identity, ownership, asynchronous progress or shutdown.
@@ -607,3 +607,5 @@ Worker validates the exact terminal and incumbent, acknowledges old Host detach,
 the replacement within one serialized operation. An already-released incumbent is allowed;
 another live incumbent is refused. See the [transfer model](../../apps/orchbee-server/docs/terminal-controller-takeover.md).
 Existing tags remain unchanged; mixed private cohorts are unsupported.
+
+Launch selections additionally cap worst-case JSON string-content bytes at 30 KiB: ASCII controls count as six, quotes and backslashes as two, and other UTF-8 bytes as one. This preserves the previous 2 KiB input domain while bounding the larger resume commands. Matching cohorts are required for the enlarged limits.

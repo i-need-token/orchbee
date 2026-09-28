@@ -75,7 +75,13 @@ fn restart_rebinds_children_and_grouped_pinned_tabs_before_open_reuses_first_ter
         .enumerate()
         .map(|(index, target)| {
             coordinator
-                .prepare_checkpoint_terminal(target, id(100 + index as u128), worker, expiry())
+                .prepare_checkpoint_terminal(
+                    target,
+                    id(100 + index as u128),
+                    worker,
+                    expiry(),
+                    None,
+                )
                 .unwrap()
         })
         .collect();
@@ -152,17 +158,17 @@ fn restart_rebinds_children_and_grouped_pinned_tabs_before_open_reuses_first_ter
 fn restart_refusal_does_not_commit_a_second_physical_reservation() {
     let (mut coordinator, targets, worker) = restored();
     let pending = coordinator
-        .prepare_checkpoint_terminal(&targets[0], id(100), worker, expiry())
+        .prepare_checkpoint_terminal(&targets[0], id(100), worker, expiry(), None)
         .unwrap();
     let before = coordinator.workbench.as_ref().unwrap().snapshot().clone();
     assert!(
         coordinator
-            .prepare_checkpoint_terminal(&targets[0], id(101), worker, expiry())
+            .prepare_checkpoint_terminal(&targets[0], id(101), worker, expiry(), None)
             .is_err()
     );
     assert_eq!(coordinator.workbench.as_ref().unwrap().snapshot(), &before);
     let next = coordinator
-        .prepare_checkpoint_terminal(&targets[1], id(102), worker, expiry())
+        .prepare_checkpoint_terminal(&targets[1], id(102), worker, expiry(), None)
         .unwrap();
     assert_eq!(
         u128::from_be_bytes(launch_authorization(&next).terminal_id().as_bytes()),
@@ -181,7 +187,7 @@ fn unavailable_restart_is_retained_without_replaying_or_faking_open_success() {
     let (mut coordinator, targets, worker) = restored();
     for (index, target) in targets.iter().enumerate() {
         let pending = coordinator
-            .prepare_checkpoint_terminal(target, id(100 + index as u128), worker, expiry())
+            .prepare_checkpoint_terminal(target, id(100 + index as u128), worker, expiry(), None)
             .unwrap();
         coordinator
             .complete(pending, Completion::Unavailable, Some(worker))
