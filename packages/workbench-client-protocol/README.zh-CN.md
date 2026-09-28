@@ -99,6 +99,11 @@ pnpm --filter @orchbee/workbench-client-protocol test:exports
 
 ## Client 视图绑定
 
+`workbench-client-presentation-contract.ts` 验证标量精确当前成员快照：必须存在但可为 null
+的选择、精确 Presentation／绑定、uint64 附着代次、uint32 窗格实例编号及已安装视口，
+限制为 4 KiB。Client 视图绑定验证意图、Panel、Ready/Busy 视图与最低修订；共享语料
+覆盖 null、子项、边界和不匹配回执。已有 Client 选择及主终端视口形状保持封闭。
+
 `workbench-client-viewport-contract.ts` 校验有序的 1–16 个唯一 Panel 视口观察、十进制 uint64
 位置、来源身份/几何及偏移公式。未知、待处理和实时/历史状态保持独立；接收回执前检查主绑定、
 请求成员及 Ready/Busy 视图约束。快照在现有 Client 控制帧内限制为 12 KiB。

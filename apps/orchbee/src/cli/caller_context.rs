@@ -50,6 +50,19 @@ impl PanelTarget {
         }
     }
 
+    #[cfg(any(windows, test))]
+    pub(super) fn resolve_exact(
+        self,
+        snapshot: &Snapshot,
+    ) -> Result<(Target, Option<TerminalId>), Failure> {
+        match self.0 {
+            PanelTargetKind::Explicit(target) => Ok((target, None)),
+            PanelTargetKind::Caller(caller) => caller
+                .panel(snapshot)
+                .map(|panel| (panel, Some(caller.terminal))),
+        }
+    }
+
     pub(super) fn resolve(self, snapshot: &Snapshot) -> Result<Target, Failure> {
         match self.0 {
             PanelTargetKind::Explicit(target) => Ok(target),

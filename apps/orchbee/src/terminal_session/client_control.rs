@@ -494,6 +494,19 @@ fn prepare_control(
     native
         .agent_focus_source(command)
         .map_err(|reason| Box::new(ClientViewCompletionOutcome::Rejected { reason }))?;
+    if matches!(command.intent, ClientViewIntent::Presentation { .. }) {
+        return Err(Box::new(
+            snapshot
+                .ok_or(Reason::ProjectionUnavailable)
+                .and_then(|snapshot| native.read_client_presentation(command, snapshot))
+                .map_or_else(
+                    |reason| ClientViewCompletionOutcome::Rejected { reason },
+                    |presentation| ClientViewCompletionOutcome::PresentationRead {
+                        presentation: Box::new(presentation),
+                    },
+                ),
+        ));
+    }
     if matches!(command.intent, ClientViewIntent::Viewports { .. }) {
         return Err(Box::new(
             snapshot

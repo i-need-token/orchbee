@@ -86,7 +86,7 @@ impl NativeUi {
     }
 }
 
-fn observe(projection: &KeyedProjection) -> Observation {
+pub(super) fn observe(projection: &KeyedProjection) -> Observation {
     if let Some(viewport) = &projection.viewport {
         let phase = match viewport.surface() {
             ViewportSurface::Entering => ClientViewportPending::Entering,

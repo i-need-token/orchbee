@@ -1,3 +1,4 @@
+import { ClientPresentationSnapshotSchema } from './workbench-client-presentation-contract';
 import { TerminalAgentBindingSchema } from './workbench-panel-agent-contract';
 import {
 	ClientPanelDirectionSchema,
@@ -206,6 +207,7 @@ export const ClientViewIntentSchema = z.discriminatedUnion('kind', [
 	z
 		.strictObject({ kind: z.literal('terminal-agent-attention'), bindings: physicalBindings })
 		.readonly(),
+	z.strictObject({ kind: z.literal('presentation'), panelId: WorkbenchPanelIdSchema }).readonly(),
 	z.strictObject({ kind: z.literal('viewports'), panelIds: ClientViewportPanelsSchema }).readonly(),
 	z
 		.strictObject({ kind: z.literal('selections'), terminalContextIds: selectionContexts })
@@ -266,6 +268,12 @@ export const ClientViewCompletionSchema = z
 		operationId: WorkbenchRequestIdSchema,
 		outcome: z.discriminatedUnion('kind', [
 			z
+				.strictObject({
+					kind: z.literal('presentation-read'),
+					presentation: ClientPresentationSnapshotSchema,
+				})
+				.readonly(),
+			z
 				.strictObject({ kind: z.literal('viewport-read'), viewport: ClientViewportSnapshotSchema })
 				.readonly(),
 			z
@@ -313,6 +321,13 @@ export const ClientViewCompletionSchema = z
 	})
 	.readonly();
 export const ClientViewControlStatusSchema = z.discriminatedUnion('kind', [
+	z
+		.strictObject({
+			kind: z.literal('presentation-read'),
+			presentation: ClientPresentationSnapshotSchema,
+			view: ClientViewObservationSchema,
+		})
+		.readonly(),
 	z
 		.strictObject({
 			kind: z.literal('viewport-read'),
@@ -481,6 +496,23 @@ export const ClientViewOperationSchema = z
 				});
 			return;
 		}
+		if (status.kind === 'presentation-read') {
+			const { intent } = command;
+			const { presentation, view } = status;
+			if (
+				intent.kind !== 'presentation' ||
+				!['ready', 'busy'].includes(view.phase) ||
+				BigInt(presentation.workbenchRevision) < BigInt(command.minimumWorkbenchRevision) ||
+				BigInt(presentation.workbenchRevision) < BigInt(view.workbenchRevision) ||
+				presentation.panelId !== intent.panelId
+			) {
+				context.addIssue({
+					code: 'custom',
+					message: 'Presentation receipt does not match requested Panel or view',
+				});
+			}
+			return;
+		}
 		if (status.kind === 'viewport-read') {
 			const intent = command.intent,
 				viewport = status.viewport,
@@ -626,6 +658,7 @@ export const ClientViewOperationSchema = z
 			intent.kind === 'agent-attention' ||
 			intent.kind === 'terminal-agent-attention' ||
 			intent.kind === 'selections' ||
+			intent.kind === 'presentation' ||
 			intent.kind === 'viewports'
 		) {
 			context.addIssue({ code: 'custom', message: 'Read cannot acknowledge navigation' });

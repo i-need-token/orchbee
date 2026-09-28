@@ -349,6 +349,11 @@ implementation。
 
 ## 易失 Client 视图控制
 
+`presentation` 被动读取一个 Panel 的精确 Client 本地成员。`presentation-read` 回执包含
+规范修订、Panel ID 及必须存在但可为 null 的选择：Presentation ID、绑定、本地附着代次／
+实例编号与已安装视口。载荷限制为 4 KiB。绑定验证精确请求 Panel，以及不早于最低修订的
+Ready/Busy 视图；Applied 不得确认此读取。不改变 Client 选择字段或规范数据。
+
 `viewports` 读取 1–16 个有序唯一 Panel ID；`viewport-read` 返回规范修订号、可空主绑定以及
 不可用、待处理或实时/历史事实。位置计数为十进制 uint64，偏移由总行数、起始行和实际 Client
 视口高度计算。来源保留 Host epoch/attachment/generation/revision 及几何。

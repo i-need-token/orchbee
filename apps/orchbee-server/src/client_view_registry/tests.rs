@@ -1032,3 +1032,86 @@ fn ratio_receipts_require_exact_owner_target_and_value_and_never_reexecute_on_re
         assert_eq!(status(execute(&mut registry, 20, submit, now)), completed);
     }
 }
+
+#[test]
+fn presentation_read_reserves_bounded_memory_and_reads_busy_without_allowing_navigation() {
+    let now = Instant::now();
+    let mut registry = ClientViewRegistry::default();
+    let mut busy = sample();
+    let ClientViewAction::Synchronize { view, .. } = &mut busy else {
+        panic!()
+    };
+    view.phase = ClientViewPhase::Busy;
+    execute(&mut registry, 1, busy.clone(), now);
+    assert!(matches!(
+        status(execute(
+            &mut registry,
+            20,
+            ClientViewAction::Submit {
+                command: Box::new(command(907, 1))
+            },
+            now
+        )),
+        ClientViewControlStatus::Rejected {
+            reason: ClientViewControlReason::Busy
+        }
+    ));
+    let mut target = command(908, 1);
+    let ClientViewIntent::Panel { panel_id, .. } = target.intent else {
+        panic!()
+    };
+    target.intent = ClientViewIntent::Presentation {
+        panel_id: panel_id.clone(),
+    };
+    let submit = ClientViewAction::Submit {
+        command: Box::new(target),
+    };
+    assert!(matches!(
+        status(execute(&mut registry, 20, submit.clone(), now)),
+        ClientViewControlStatus::Queued {}
+    ));
+    assert_eq!(
+        registry.receipts[&operation_id(908)].payload_reservation,
+        orchbee_workbench_protocol::MAXIMUM_ENCODED_CLIENT_PRESENTATION_BYTES
+    );
+    assert!(matches!(
+        execute(&mut registry, 1, busy.clone(), now),
+        ClientViewOutcome::Synchronized {
+            control: Some(_),
+            ..
+        }
+    ));
+    let ClientViewAction::Synchronize {
+        completion,
+        heartbeat,
+        ..
+    } = &mut busy
+    else {
+        panic!()
+    };
+    *heartbeat = ClientViewSequence::new(2).unwrap();
+    *completion = Some(ClientViewCompletion {
+        operation_id: operation_id(908),
+        outcome: ClientViewCompletionOutcome::PresentationRead {
+            presentation: Box::new(orchbee_workbench_protocol::ClientPresentationSnapshot {
+                workbench_revision: WorkbenchRevision::new(12),
+                panel_id,
+                presentation: None,
+            }),
+        },
+    });
+    assert!(matches!(
+        execute(&mut registry, 2, busy.clone(), now),
+        ClientViewOutcome::Conflict {}
+    ));
+    assert!(matches!(
+        execute(&mut registry, 1, busy, now),
+        ClientViewOutcome::Synchronized { control: None, .. }
+    ));
+    let completed = status(read(&mut registry, 908, now));
+    assert!(matches!(
+        completed,
+        ClientViewControlStatus::PresentationRead { .. }
+    ));
+    assert_eq!(status(execute(&mut registry, 20, submit, now)), completed);
+}

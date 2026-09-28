@@ -224,3 +224,24 @@ fn optional_client_caller_requires_both_ids_or_neither_and_reads_each_once() {
         }
     }
 }
+
+#[test]
+fn exact_caller_resolution_keeps_terminal_identity_for_primary_and_child() {
+    for child in [false, true] {
+        for workspace in [false, true] {
+            let (panel, terminal) = PanelTarget::prepare(None, environment)
+                .unwrap()
+                .resolve_exact(&snapshot(child, workspace))
+                .unwrap();
+            assert_eq!(panel, Target::Id(hex(4)));
+            assert_eq!(terminal.unwrap().as_str(), TERMINAL);
+        }
+    }
+    let (_, terminal) = PanelTarget::prepare(Some(&Target::Id(hex(4))), |_| {
+        panic!("explicit does not read env")
+    })
+    .unwrap()
+    .resolve_exact(&snapshot(true, false))
+    .unwrap();
+    assert!(terminal.is_none());
+}

@@ -353,3 +353,135 @@ fn narrow_split_headers_drop_controls_without_covering_title_or_terminal_content
     assert_eq!(buttons, 6, "only the wider sibling retains controls");
     assert!(small_header, "narrow pane header retains its focus region");
 }
+
+#[test]
+fn passive_member_read_tracks_child_attachment_and_never_borrows_primary_frame() {
+    use orchbee_workbench_protocol::*;
+    let source = child_source(false);
+    let (mut ui, mailbox, _, _) =
+        super::super::move_membership_tests::ready_ui_with_snapshot(source.clone());
+    let primary_key =
+        super::super::viewport_tests::install_projection(&mut ui, Some((9, false, 24)), 0);
+    let panel_id = primary_key.pane().panel().clone();
+    let command = ClientViewControl {
+        operation_id: WorkbenchRequestId::parse(&format!("{:032x}", 9900)).unwrap(),
+        client_id: WorkbenchClientId::parse(&format!("{:032x}", 9901)).unwrap(),
+        expected_view_revision: ClientViewSequence::new(1).unwrap(),
+        minimum_workbench_revision: source.revision,
+        intent: ClientViewIntent::Presentation {
+            panel_id: panel_id.clone(),
+        },
+    };
+    let inactive_panel = ui.state.as_ref().unwrap().cache().tabs()[1]
+        .panel(0)
+        .unwrap()
+        .panel_id()
+        .clone();
+    let mut inactive = command.clone();
+    inactive.intent = ClientViewIntent::Presentation {
+        panel_id: inactive_panel,
+    };
+    assert!(
+        ui.read_client_presentation(&inactive, &source)
+            .unwrap()
+            .presentation
+            .is_none()
+    );
+    let primary = ui
+        .read_client_presentation(&command, &source)
+        .unwrap()
+        .presentation
+        .unwrap();
+    assert!(matches!(
+        primary.viewport,
+        ClientViewportObservation::Observed { .. }
+    ));
+    assert!(mailbox.try_recv().unwrap().is_none());
+    // The public state transition installs a new binding only after its existing cleanup owner.
+    let state = ui.state.as_mut().unwrap();
+    let (index, panel, child_id) = state.next_presentation(true).unwrap();
+    let deadlines = OperationDeadlines::from_sample(std::time::Instant::now()).unwrap();
+    let target = state
+        .target_for_presentation(index, &panel, &child_id, 80, deadlines)
+        .unwrap();
+    let marker = target.selected().key().anchor().clone();
+    assert!(state.begin_switch(target));
+    let prepared = state
+        .prepare_membership_candidate(
+            state.cache().clone(),
+            Some(marker.tab_id()),
+            state.active().map(|selected| selected.index()),
+            None,
+            None,
+        )
+        .unwrap();
+    let cleanup = state
+        .stage_switch_membership_cleanup_k(&marker, prepared, deadlines)
+        .unwrap();
+    let prepared = state
+        .prepare_cleaned_membership_candidate(&cleanup, cleanup.old())
+        .unwrap();
+    state
+        .prepare_cleaned_membership_install(
+            &cleanup,
+            prepared,
+            Some(AttachmentKey::new(81, marker.tab_id().clone())),
+        )
+        .unwrap()
+        .commit();
+    let key = state.desired().unwrap().clone();
+    assert!(state.install_projection_t(&key));
+    assert!(state.record_setup_configuration_t(&key, ControllerMode::ReadOnly, None));
+    assert!(state.stage_drawn_frame_t(&key, FrameIdentity::new(2)));
+    assert!(state.mark_feedback_accepted_t(&key, FrameIdentity::new(2)));
+    assert!(state.publish_ready_t(&key, FrameIdentity::new(2), ControllerMode::ReadOnly, None));
+    let child = ui
+        .read_client_presentation(&command, &source)
+        .unwrap()
+        .presentation
+        .unwrap();
+    assert_eq!(child.presentation_id, child_id);
+    assert_eq!(child.binding.terminal_id.as_str(), format!("{:032x}", 9002));
+    assert_eq!(child.attachment_generation.value(), 81);
+    assert!(!primary.same_member(&child));
+    assert_eq!(
+        child.viewport,
+        ClientViewportObservation::Unavailable {
+            reason: ClientViewportUnavailable::FrameUnavailable
+        }
+    );
+    // A stale primary projection still exists, but it is never relabeled as this child.
+    assert!(ui.projections.iter().any(|p| p.key == primary_key));
+    super::super::viewport_tests::install_projection(&mut ui, Some((17, false, 24)), 0);
+    let installed = ui
+        .read_client_presentation(&command, &source)
+        .unwrap()
+        .presentation
+        .unwrap();
+    assert!(child.same_member(&installed));
+    assert!(
+        matches!(installed.viewport, ClientViewportObservation::Observed { scroll, .. } if scroll.max_offset_from_bottom == 17)
+    );
+    assert!(mailbox.try_recv().unwrap().is_none());
+    let mut rebound = source.clone();
+    let PanelNode::Panel {
+        child_presentations,
+        ..
+    } = &mut rebound.terminal_contexts[0].tabs[0].root
+    else {
+        panic!()
+    };
+    child_presentations.clear();
+    assert_eq!(
+        ui.read_client_presentation(&command, &rebound),
+        Err(ClientViewControlReason::ProjectionUnavailable)
+    );
+    let mut missing = command;
+    missing.intent = ClientViewIntent::Presentation {
+        panel_id: WorkbenchPanelId::parse(&format!("{:032x}", 9999)).unwrap(),
+    };
+    assert_eq!(
+        ui.read_client_presentation(&missing, &source),
+        Err(ClientViewControlReason::TargetUnavailable)
+    );
+}

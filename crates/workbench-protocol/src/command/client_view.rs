@@ -126,6 +126,9 @@ pub enum ClientViewIntent {
         presentation_id: crate::TerminalPresentationId,
         target: orchbee_agent_observation_protocol::AgentNameTarget,
     },
+    Presentation {
+        panel_id: WorkbenchPanelId,
+    },
     Viewports {
         panel_ids: Vec<WorkbenchPanelId>,
     },
@@ -207,7 +210,8 @@ impl ClientViewIntent {
     pub fn is_passive_read(&self) -> bool {
         matches!(
             self,
-            Self::Viewports { .. }
+            Self::Presentation { .. }
+                | Self::Viewports { .. }
                 | Self::AgentAttention { .. }
                 | Self::TerminalAgentAttention { .. }
         )
@@ -313,6 +317,7 @@ impl ClientViewIntent {
         match self {
             Self::TerminalAgentAttention { .. }
             | Self::AgentAttention { .. }
+            | Self::Presentation { .. }
             | Self::Viewports { .. }
             | Self::Selections { .. }
             | Self::ToggleZoom { .. }
@@ -436,6 +441,9 @@ pub enum ClientViewControlReason {
     deny_unknown_fields
 )]
 pub enum ClientViewCompletionOutcome {
+    PresentationRead {
+        presentation: Box<super::client_presentation::ClientPresentationSnapshot>,
+    },
     ViewportRead {
         viewport: Box<super::client_viewport::ClientViewportSnapshot>,
     },
@@ -486,6 +494,10 @@ pub struct ClientViewCompletion {
     deny_unknown_fields
 )]
 pub enum ClientViewControlStatus {
+    PresentationRead {
+        presentation: Box<super::client_presentation::ClientPresentationSnapshot>,
+        view: ClientViewObservation,
+    },
     ViewportRead {
         viewport: Box<super::client_viewport::ClientViewportSnapshot>,
         view: ClientViewObservation,
@@ -555,6 +567,15 @@ impl ClientViewOperation {
     pub fn validate(&self) -> Result<(), ContractError> {
         self.command.validate()?;
         match &self.status {
+            ClientViewControlStatus::PresentationRead { presentation, view } => {
+                view.validate()?;
+                let ClientViewIntent::Presentation { panel_id } = &self.command.intent else {
+                    return Err(ContractError::InvalidDocument);
+                };
+                if !presentation.answers(panel_id, view, self.command.minimum_workbench_revision) {
+                    return Err(ContractError::InvalidDocument);
+                }
+            }
             ClientViewControlStatus::ViewportRead { viewport, view } => {
                 view.validate()?;
                 let ClientViewIntent::Viewports { panel_ids } = &self.command.intent else {
@@ -832,6 +853,13 @@ impl WorkbenchClientViewRequest {
         } = &self.action
         {
             view.validate()?;
+            if let Some(ClientViewCompletion {
+                outcome: ClientViewCompletionOutcome::PresentationRead { presentation },
+                ..
+            }) = completion
+            {
+                presentation.validate()?;
+            }
             if let Some(ClientViewCompletion {
                 outcome: ClientViewCompletionOutcome::ViewportRead { viewport },
                 ..

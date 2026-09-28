@@ -1084,3 +1084,34 @@ fn layout_adjustment_receipts_have_closed_json_and_honest_bilingual_text() {
         }
     }
 }
+
+#[test]
+fn presentation_receipt_uses_closed_v6_client_control_schema() {
+    let WorkbenchResponse::ClientView(reply) =
+        serde_json::from_value(sample("presentation-exact-child")).unwrap()
+    else {
+        panic!("Client view response")
+    };
+    let ClientViewOutcome::Operation { operation } = &reply.outcome else {
+        panic!("operation")
+    };
+    let answer = Answer {
+        status_only: false,
+        operation_id: Some(operation.command.operation_id.clone()),
+        site_id: Some(reply.site_id.clone()),
+        reply: Some(reply),
+        unknown: false,
+        wait: None,
+    };
+    assert_eq!(answer.exit_code(), 0);
+    let mut document = answer.document();
+    assert_eq!(document["version"], 6);
+    let schema: Value =
+        serde_json::from_str(include_str!("../schemas/orchbee.client.control.json")).unwrap();
+    let validator = jsonschema::validator_for(&schema).unwrap();
+    validator.validate(&document).unwrap();
+    for version in 1..6 {
+        document["version"] = json!(version);
+        assert!(!validator.is_valid(&document));
+    }
+}

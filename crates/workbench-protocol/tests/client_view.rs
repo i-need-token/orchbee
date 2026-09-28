@@ -156,3 +156,31 @@ fn navigation_maximum_batch_fits_and_overflow_is_rejected() {
         .push(serde_json::json!({"terminalContextId":format!("{:032x}",129),"activeTabId":null}));
     assert!(parse_workbench_response(&serde_json::to_vec(&doc).unwrap()).is_err());
 }
+
+#[test]
+fn current_member_token_ignores_viewport_updates_but_not_away_and_back() {
+    use orchbee_workbench_protocol::*;
+    let original: ClientPresentationSelection = serde_json::from_value(serde_json::json!({
+        "presentationId": "00000000000000000000000000000001",
+        "binding": {"terminalId":"00000000000000000000000000000002", "workerId":"00000000000000000000000000000003"},
+        "attachmentGeneration":"7", "incarnation":0,
+        "viewport":{"state":"unavailable","reason":"frame-unavailable"}
+    })).unwrap();
+    let mut next = original.clone();
+    next.viewport = ClientViewportObservation::Pending {
+        phase: ClientViewportPending::Entering,
+    };
+    assert!(original.same_member(&next));
+    next.attachment_generation = WorkbenchRevision::new(8);
+    assert!(!original.same_member(&next));
+    next = original.clone();
+    next.incarnation = 1;
+    assert!(!original.same_member(&next));
+    next = original.clone();
+    next.binding.terminal_id = TerminalId::parse("00000000000000000000000000000004").unwrap();
+    assert!(!original.same_member(&next));
+    next = original.clone();
+    next.presentation_id =
+        TerminalPresentationId::parse("00000000000000000000000000000005").unwrap();
+    assert!(!original.same_member(&next));
+}

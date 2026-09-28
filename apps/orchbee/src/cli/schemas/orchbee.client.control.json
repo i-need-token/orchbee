@@ -8,7 +8,7 @@
 			"const": "orchbee.client.control"
 		},
 		"version": {
-			"enum": [1, 2, 3, 4, 5]
+			"enum": [1, 2, 3, 4, 5, 6]
 		},
 		"siteId": {
 			"anyOf": [
@@ -538,6 +538,19 @@
 					},
 					"required": ["kind", "terminalContextId", "tabId", "panelId", "presentationId", "target"],
 					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "presentation"
+						},
+						"panelId": {
+							"$ref": "#/$defs/panelId"
+						}
+					},
+					"required": ["kind", "panelId"],
+					"additionalProperties": false
 				}
 			]
 		},
@@ -807,6 +820,22 @@
 						}
 					},
 					"required": ["kind", "attention", "view"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "presentation-read"
+						},
+						"presentation": {
+							"$ref": "#/$defs/presentationSnapshot"
+						},
+						"view": {
+							"$ref": "#/$defs/view"
+						}
+					},
+					"required": ["kind", "presentation", "view"],
 					"additionalProperties": false
 				}
 			]
@@ -1617,6 +1646,71 @@
 				}
 			},
 			"required": ["reportRevision", "outerFocused", "entries"]
+		},
+		"presentationSelection": {
+			"type": "object",
+			"properties": {
+				"presentationId": {
+					"title": "WorkbenchPanelId",
+					"$ref": "#/$defs/identity"
+				},
+				"binding": {
+					"type": "object",
+					"properties": {
+						"workerId": {
+							"title": "WorkbenchPanelId",
+							"$ref": "#/$defs/identity"
+						},
+						"terminalId": {
+							"title": "WorkbenchPanelId",
+							"$ref": "#/$defs/identity"
+						}
+					},
+					"required": ["workerId", "terminalId"],
+					"additionalProperties": false
+				},
+				"attachmentGeneration": {
+					"title": "WorkbenchRevision",
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 20,
+					"pattern": "^(?:0|[1-9][0-9]{0,19})$",
+					"format": "orchbee-uint64"
+				},
+				"incarnation": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 4294967295
+				},
+				"viewport": {
+					"$ref": "#/$defs/viewportObservation"
+				}
+			},
+			"required": ["presentationId", "binding", "attachmentGeneration", "incarnation", "viewport"],
+			"additionalProperties": false
+		},
+		"presentationSnapshot": {
+			"type": "object",
+			"properties": {
+				"workbenchRevision": {
+					"$ref": "#/$defs/revision"
+				},
+				"panelId": {
+					"$ref": "#/$defs/panelId"
+				},
+				"presentation": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/presentationSelection"
+						},
+						{
+							"type": "null"
+						}
+					]
+				}
+			},
+			"required": ["workbenchRevision", "panelId", "presentation"],
+			"additionalProperties": false
 		}
 	},
 	"allOf": [
@@ -1836,6 +1930,135 @@
 						}
 					}
 				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"version": {
+						"const": 6
+					}
+				}
+			},
+			"then": {
+				"type": "object",
+				"properties": {
+					"observation": {
+						"type": "object",
+						"properties": {
+							"reply": {
+								"type": ["object", "null"],
+								"properties": {
+									"outcome": {
+										"type": "object",
+										"properties": {
+											"operation": {
+												"type": "object",
+												"properties": {
+													"command": {
+														"type": "object",
+														"properties": {
+															"intent": {
+																"type": "object",
+																"properties": {
+																	"kind": {
+																		"const": "presentation"
+																	}
+																},
+																"required": ["kind"]
+															}
+														}
+													}
+												}
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			},
+			"else": {
+				"allOf": [
+					{
+						"type": "object",
+						"properties": {
+							"observation": {
+								"type": "object",
+								"properties": {
+									"reply": {
+										"type": ["object", "null"],
+										"properties": {
+											"outcome": {
+												"type": "object",
+												"properties": {
+													"operation": {
+														"type": "object",
+														"properties": {
+															"command": {
+																"type": "object",
+																"properties": {
+																	"intent": {
+																		"not": {
+																			"type": "object",
+																			"properties": {
+																				"kind": {
+																					"const": "presentation"
+																				}
+																			},
+																			"required": ["kind"]
+																		}
+																	}
+																}
+															}
+														}
+													}
+												}
+											}
+										}
+									}
+								}
+							}
+						}
+					},
+					{
+						"type": "object",
+						"properties": {
+							"observation": {
+								"type": "object",
+								"properties": {
+									"reply": {
+										"type": ["object", "null"],
+										"properties": {
+											"outcome": {
+												"type": "object",
+												"properties": {
+													"operation": {
+														"type": "object",
+														"properties": {
+															"status": {
+																"not": {
+																	"type": "object",
+																	"properties": {
+																		"kind": {
+																			"const": "presentation-read"
+																		}
+																	},
+																	"required": ["kind"]
+																}
+															}
+														}
+													}
+												}
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+				]
 			}
 		}
 	]

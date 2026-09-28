@@ -33,12 +33,12 @@ Panel. Before publication, the canonical revision and selected Client view/revis
 match. A move away and back also fails because the view revision advanced. These fences do not
 make Host/process/scroll observations atomic; each retains its own provenance.
 
-Explicit/caller Panel reads remain headless: they receive primary Agent membership, terminal
+Explicit/caller `panel current` reads remain headless: they receive primary Agent membership, terminal
 title, directory and process observations, but no inferred Client focus. `scroll` is null with
 `scrollObservation.state: no-client`. Unique/explicit Client reads include focus, its observed
 live/history scroll or explicit unavailable/pending state, and read-operation provenance.
-`process-info` continues to read only the resolved primary Terminal and does not promise that
-optional OS facts remain current after sampling.
+`process-info` reads the exact caller/Client member as defined below; explicit Panel targets use
+the primary. Optional OS facts are not guaranteed to remain current after sampling.
 
 ## Lifetime and failures
 
@@ -50,7 +50,7 @@ is no second admission, renewed budget or replay. Pending cancellation is settle
 in enriched queries; protocol, permission or transport failures produce no partial success.
 
 Session ownership follows `prepare → admit/snapshot → resolve → enrich/read → fence → drop → emit`.
-Read-only Agent-attention and viewport operations may create bounded Client operation receipts;
+Read-only Agent-attention, Presentation and viewport operations may create bounded Client operation receipts;
 they do not acknowledge attention, focus, scroll, resize or send terminal input. Each Host viewer
 detaches on outcome; retiring the admitted connection is the cleanup fallback. A partial reply
 that times out retires the connection, while actual EOF remains transport loss.
@@ -58,9 +58,9 @@ that times out retires the connection, while actual EOF remains transport loss.
 Routing refusals retain `orchbee.cli.failure.client-control` v1. Enrichment uses the existing
 Workbench-query failures, including `client-changed` and `workbench-changed`, without partial
 results. Generic current-stage failures retain the exact `current-panel` stage. Windows success
-uses `orchbee.panel.current` v4, with the enriched Panel Get v7 shape and its own schema ID.
+uses `orchbee.panel.current` v6, with the enriched Panel Get v9 shape and its own schema ID.
 Non-Windows current retains v3; the embedded schema strictly separates these shapes.
-`orchbee.panel.process-info` remains v2. Catalog v84 contains 88 documents and 99 command paths.
+`orchbee.panel.process-info` remains v2. Catalog v95 contains 91 documents and 108 command paths.
 
 ## Refinement and evidence
 
@@ -74,11 +74,41 @@ Grammar/help/completion evidence covers each selector and conflicting option. Sc
 peers establish explicit/caller paths without Client reads, unique/explicit Client selection,
 ambiguity, invalid caller, stale membership, bounded partial replies, enriched/unavailable
 observations, stable Busy/history reads, unchanged process-query readiness guards, changed Client views (including move-away-and-back), changed snapshots, strict
-v3/v4 schemas, and absence of mutating controls or input requests. Actual Windows PowerShell 5.1/7 and two ConPTY Clients exercise selection and
+legacy/current schemas, and absence of mutating controls or input requests. Actual Windows PowerShell 5.1/7 and two ConPTY Clients exercise selection and
 unchanged focus; a partial reply plus Ctrl+C exercises cancellation and peer teardown. These
 checks do not establish atomic snapshot/Client/OS observations or other-platform support.
 
-No shared wire protocol, dependency, durable state, or migration changes. Existing non-Windows
+The passive Presentation read extends the matched private wire cohort; no dependency, durable state,
+or migration changes. Existing non-Windows
 query behavior remains unchanged; `--client` is Windows-only. Consumers of Windows current v3
-must accept the v4 enrichment contract. Rollout and rollback replace the CLI executable within
+must accept the v6 enrichment contract. Rollout and rollback replace the CLI executable within
 the existing cohort; they do not migrate saved data.
+
+## Exact current Presentation for process information
+
+Windows `panel process-info` resolves an explicit Panel to its primary terminal. With caller
+metadata it retains the exact validated terminal, including a child Presentation. With a Client
+it passively reads `Presentation { panelId }` before querying the Host: the native Session owns
+the selected Presentation, binding, attachment generation and pane incarnation. Missing local
+membership is unavailable, never a fallback to the primary. Existing process-info v2 already
+identifies the exact terminal and Presentation and remains closed.
+
+The workflow is snapshot → exact member read → Host process read/viewer cleanup → canonical
+revision fence → exact member read. Both Client reads require the original view revision and
+matching observed view; their Presentation ID, binding, attachment generation and incarnation
+must agree. Viewport updates alone do not invalidate process information. Canonical change,
+Client selection change, detach/reattach or away-and-back selection fails before publication.
+Explicit/caller reads also fence canonical membership. All phases share the existing session,
+five-second absolute deadline and cancellation owner; reads send no input or focus request.
+
+The passive DTO is bounded to 4 KiB and has a required nullable `presentation` field. A present
+member contains its exact installed viewport observation; an absent member does not manufacture
+viewport facts. Native projection validates canonical owner and binding before exporting the
+existing local generation token. Server retains only a bounded operation receipt. The private
+matched cohort rolls out together and rolls back with source; no durable migration is required.
+Client control receipt v6 admits this new intent while v1–v5 remain closed.
+
+Evidence covers strict contract parsing and reply identity, native child projection without
+primary borrowing, caller child resolution, and controlled Windows CLI request ordering and
+stale-member rejection. Full Windows/provider/multi-Client acceptance remains a final gate.
+Full `panel current` enrichment and report writes still require their own exact-member adapters.

@@ -131,3 +131,16 @@ CLI 先解析查询目标，在单个已准入连接上分批读取，检查准�
 独立 Client、无界面兼容、语法、schema 和双语输出。真实 Windows 验收需比较查询前后的
 两个 Client 和规范状态。Agent 汇总、Panel 进程/标题和 Client 滚动由各自观察所有者提供；
 Workspace worktree 及上报元数据仍属于后续关联。
+
+## 精确 Panel Presentation 观察
+
+标量被动 `presentation` 意图读取一个 Panel 的当前原生成员，不改变焦点或输入所有权。
+`presentation-read` 携带规范修订和 Panel ID，以及必须存在但可为 null 的成员：
+Presentation ID、精确绑定、现有本地附着代次及窗格实例编号和已安装视口观察。
+载荷限制为 4 KiB；Server 接入前预留此容量，并在保留回执前验证 Panel、最低修订
+及 Ready/Busy 完成视图。没有本地成员时返回 null；过时绑定不得借用其他成员的帧。
+此操作不能以已应用导航完成。
+
+[当前 Panel 契约](native-current-panel.zh-CN.md#进程信息的精确当前-presentation)
+负责 Windows process-info 组合及前后成员栅栏。Client control v6 接纳此意图；
+v1–v5 保持封闭。已有主终端 `viewports` 读取保留原有语义。

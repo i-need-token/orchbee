@@ -476,3 +476,10 @@ export {
 	AgentManifestAutomaticSchema,
 	type AgentManifestAutomatic,
 } from './workbench-agent-manifest-update-contract';
+
+export {
+	ClientPresentationSelectionSchema,
+	ClientPresentationSnapshotSchema,
+	type ClientPresentationSelection,
+	type ClientPresentationSnapshot,
+} from './workbench-client-presentation-contract';

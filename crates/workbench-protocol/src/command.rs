@@ -22,10 +22,15 @@ pub use panel_metadata::{
     PresentationMetadataRow,
 };
 mod client_navigation;
+mod client_presentation;
 mod client_viewport;
 pub use client_navigation::{
     ClientContextSelection, ClientNavigationSnapshot, MAXIMUM_CLIENT_SELECTION_CONTEXTS,
     MAXIMUM_ENCODED_CLIENT_NAVIGATION_BYTES,
+};
+pub use client_presentation::{
+    ClientPresentationSelection, ClientPresentationSnapshot,
+    MAXIMUM_ENCODED_CLIENT_PRESENTATION_BYTES,
 };
 pub use client_viewport::{
     ClientPanelViewport, ClientScrollMetrics, ClientViewportMode, ClientViewportObservation,

@@ -624,6 +624,7 @@ mod u7_probe;
 #[cfg(test)]
 mod viewport_tests;
 
+mod client_presentation;
 mod client_viewport;
 #[cfg(test)]
 mod workspace_setup_tests;

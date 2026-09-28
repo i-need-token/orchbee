@@ -176,7 +176,10 @@ impl ClientViewRegistry {
         else {
             return unavailable(ClientViewUnavailable::ClientUnavailable);
         };
-        let payload_reservation = if matches!(command.intent, ClientViewIntent::Viewports { .. }) {
+        let payload_reservation = if matches!(command.intent, ClientViewIntent::Presentation { .. })
+        {
+            orchbee_workbench_protocol::MAXIMUM_ENCODED_CLIENT_PRESENTATION_BYTES
+        } else if matches!(command.intent, ClientViewIntent::Viewports { .. }) {
             orchbee_workbench_protocol::MAXIMUM_ENCODED_CLIENT_VIEWPORT_BYTES
         } else if matches!(command.intent, ClientViewIntent::Selections { .. }) {
             orchbee_workbench_protocol::MAXIMUM_ENCODED_CLIENT_NAVIGATION_BYTES
@@ -272,6 +275,12 @@ impl ClientViewRegistry {
                 return ClientViewOutcome::Conflict {};
             }
             let status = match &completion.outcome {
+                ClientViewCompletionOutcome::PresentationRead { presentation } => {
+                    ClientViewControlStatus::PresentationRead {
+                        presentation: presentation.clone(),
+                        view: view.clone(),
+                    }
+                }
                 ClientViewCompletionOutcome::ViewportRead { viewport } => {
                     ClientViewControlStatus::ViewportRead {
                         viewport: viewport.clone(),

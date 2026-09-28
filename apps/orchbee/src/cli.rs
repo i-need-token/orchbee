@@ -16,6 +16,8 @@ pub(crate) use agent_start::run as run_agent_start;
 mod caller_context;
 mod creation;
 mod current_panel;
+#[cfg(windows)]
+mod current_presentation;
 #[cfg(any(windows, test))]
 mod default_project;
 #[cfg(any(windows, test))]

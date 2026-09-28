@@ -149,6 +149,12 @@ pnpm --filter @orchbee/workbench-client-protocol test:exports
 
 ## Client view binding
 
+`workbench-client-presentation-contract.ts` validates the scalar exact current-member snapshot:
+required nullable selection, exact Presentation/binding, uint64 attachment generation, uint32 pane
+incarnation and installed viewport, bounded to 4 KiB. The Client view binding verifies intent,
+Panel, Ready/Busy view and minimum revision; the shared corpus covers null, child, bounds and
+mismatched receipts. Existing Client selection and primary viewport shapes remain closed.
+
 `workbench-client-viewport-contract.ts` validates ordered batches of 1–16 unique Panel
 viewport observations, decimal uint64 positions, source identity/geometry and the offset
 equations. Unknown, pending and live/history states remain distinct; primary binding,

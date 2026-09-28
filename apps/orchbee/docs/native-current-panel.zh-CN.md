@@ -31,11 +31,11 @@ Ready 或 Busy 观察（历史阅读属于 Busy）；`process-info` 仍只接受
 焦点移走后又移回也会因修订递增而失败。这些检查不使 Host／进程／滚动观察原子化；
 每项观察保留各自来源。
 
-显式／调用者 Panel 查询保持无界面可用：包含主 Agent 归属、终端标题、目录和进程观察，
+显式／调用者 `panel current` 查询保持无界面可用：包含主 Agent 归属、终端标题、目录和进程观察，
 不推断 Client 焦点。`scroll` 为 null，`scrollObservation.state: no-client`。
 唯一／显式 Client 查询包含焦点、其观察到的实时／历史滚动或明确的不可用／等待状态，
-以及读取操作来源。`process-info` 仍只读取解析出的主 Terminal，不承诺可选 OS 信息
-在采样后保持不变。
+以及读取操作来源。`process-info` 按下文读取精确的调用者／Client 成员；显式 Panel
+目标使用主终端。不承诺可选 OS 信息在采样后保持不变。
 
 ## 生命周期与失败
 
@@ -45,16 +45,16 @@ Ready 或 Busy 观察（历史阅读属于 Busy）；`process-info` 仍只接受
 增强查询将终端／进程不可用保留为明确数据；协议、权限或连接失败不输出部分成功。
 
 会话归属遵循 `prepare → admit/snapshot → resolve → enrich/read → fence → drop → emit`。
-只读 Agent 注意力及视口操作可创建有界 Client 操作回执；不确认注意力、不改变焦点、
+只读 Agent 注意力、Presentation 及视口操作可创建有界 Client 操作回执；不确认注意力、不改变焦点、
 滚动或尺寸，也不发送终端输入。每个 Host Viewer 按结果 detach；停用已接入连接是
 清理兜底。部分回包超时会停用连接，真正的 EOF 仍判定为连接丢失。
 
 路由拒绝保留 `orchbee.cli.failure.client-control` v1。信息补充采用现有 Workbench
 查询失败，包括 `client-changed` 与 `workbench-changed`，不输出部分结果。通用当前
 阶段失败保留精确的 `current-panel` 阶段。Windows 成功结果使用 `orchbee.panel.current`
-v4，采用增强 Panel Get v7 形状及独立 schema ID。非 Windows current 保留 v3；
+v6，采用增强 Panel Get v9 形状及独立 schema ID。非 Windows current 保留 v3；
 嵌入 schema 严格区分这两种形状。`orchbee.panel.process-info` 保持 v2。
-目录 v84 包含 88 份文档和 99 条命令路径。
+目录 v95 包含 91 份文档和 108 条命令路径。
 
 ## 细化映射与证据
 
@@ -66,10 +66,34 @@ v4，采用增强 Panel Get v7 形状及独立 schema ID。非 Windows current �
 语法／帮助／补全证据覆盖每种选择器及选项冲突。Windows 脚本化端点验证显式／调用者
 路径不读取 Client、唯一／显式 Client 选择、歧义、无效调用者、过期成员关系、部分
 回包的有界等待、增强／不可用观察、稳定 Busy／历史读取、进程查询就绪限制不变、Client 视图变化（包括移走再移回）、快照变化、
-严格的 v3/v4 schema，以及不发送修改控制或输入请求。实际 Windows PowerShell 5.1/7 和两个
+严格的旧版／当前 schema，以及不发送修改控制或输入请求。实际 Windows PowerShell 5.1/7 和两个
 ConPTY Client 验证选择及焦点不变；部分回包配合 Ctrl+C 验证取消与对端释放。
 这些检查不证明快照／Client／OS 观察的原子性，也不证明其他平台支持。
 
-不改变共享线协议、依赖、持久状态或迁移。已有非 Windows 查询行为保持不变；新增
-`--client` 模式仅支持 Windows。Windows current v3 消费者需接受 v4 增强契约。
+被动 Presentation 读取扩展配套私有线协议 cohort；不改变依赖、持久状态或迁移。
+已有非 Windows 查询行为保持不变；新增
+`--client` 模式仅支持 Windows。Windows current v3 消费者需接受 v6 增强契约。
 发布和回滚在现有 cohort 内替换 CLI 可执行文件，不迁移保存数据。
+
+## 进程信息的精确当前 Presentation
+
+Windows `panel process-info` 对显式 Panel 使用主终端；提供调用者元数据时保留经过验证的
+精确终端，包括子 Presentation。使用 Client 时，先被动读取 `Presentation { panelId }`
+再查询 Host：原生 Session 拥有所选 Presentation、绑定、附着代次和窗格实例编号。
+本地成员不存在时返回不可用，不回退到主终端。现有 process-info v2 已标识精确终端和
+Presentation，其封闭结构保持不变。
+
+流程为快照 → 精确成员读取 → Host 进程读取及查看器清理 → 规范版本栅栏 → 精确成员读取。
+两次 Client 读取都要求原始视图版本和相同的观察视图；Presentation ID、绑定、附着代次
+及窗格实例编号必须一致。仅视口更新不会使进程信息失效。规范状态改变、Client 选择改变、
+分离重附着或切走再切回都会在发布前失败。显式与调用者读取也检查规范成员版本。所有阶段
+共用现有会话、五秒绝对截止时间及取消所有者；读取不发送输入或焦点请求。
+
+被动 DTO 限制为 4 KiB，`presentation` 字段必须存在但可为 null。成员存在时包含其精确
+已安装视口的观察；成员缺席不生成视口事实。原生投影验证规范所有者及绑定后导出现有本地
+代次标识。Server 仅保留有界操作回执。私有配套 cohort 一同发布并通过源码回滚，不需要
+持久化迁移。Client control 回执 v6 接纳此新意图，v1–v5 仍保持封闭。
+
+证据覆盖严格契约解析及回复身份、不会借用主终端的原生子成员投影、调用者子终端解析，
+以及受控 Windows CLI 请求顺序和过时成员拒绝。完整 Windows/provider/多 Client 验收
+仍留到最终阶段。完整 `panel current` 增强及报告写入仍需各自的精确成员适配。

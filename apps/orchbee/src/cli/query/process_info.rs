@@ -1,4 +1,4 @@
-//! One read-only viewer query against a Panel's primary Terminal. Host facts
+//! One read-only viewer query against an exact Terminal. Host facts
 //! remain separate from snapshot routing and never grant input authority.
 
 use super::*;

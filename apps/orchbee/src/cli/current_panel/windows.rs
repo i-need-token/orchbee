@@ -67,13 +67,11 @@ fn collect(
     check_pending(deadline, signals)?;
     let (mut client, snapshot) = snapshot_result?;
     let source = results::snapshot_source(&snapshot);
-    let (panel, selected) = if let Some(prepared) = prepared {
-        (
-            prepared
-                .resolve(&snapshot)
-                .map_err(|error| error.source(source.clone()))?,
-            None,
-        )
+    let (panel, caller_terminal, selected) = if let Some(prepared) = prepared {
+        let (panel, terminal) = prepared
+            .resolve_exact(&snapshot)
+            .map_err(|error| error.source(source.clone()))?;
+        (panel, terminal, None)
     } else {
         let reply = exchange(
             &mut client,
@@ -105,7 +103,7 @@ fn collect(
         } else {
             selection::current_panel(selected, &snapshot)?
         };
-        (panel, Some(selected.clone()))
+        (panel, None, Some(selected.clone()))
     };
     check_pending(deadline, signals)?;
     let result = match command {
@@ -126,27 +124,78 @@ fn collect(
                 )
             })
         }
-        QueryCommand::PanelProcessInfo(_) => {
-            let terminal = query::primary_terminal(&snapshot, &panel)
-                .map_err(|error| error.source(source.clone()))?;
-            query::read_terminal_processes_cancellable(
+        QueryCommand::PanelProcessInfo(_) => (|| {
+            let panel_id = selected
+                .as_ref()
+                .and_then(|record| record.view.selection.as_ref())
+                .and_then(|selection| selection.panel_id.clone());
+            let member = if let (Some(selected), Some(panel_id)) = (&selected, &panel_id) {
+                Some(crate::cli::current_presentation::read(
+                    &mut client,
+                    &snapshot,
+                    selected,
+                    panel_id,
+                    deadline,
+                    signals,
+                )?)
+            } else {
+                None
+            };
+            let terminal = if let Some(terminal) = caller_terminal {
+                crate::invocation::Target::Id(terminal.to_string())
+            } else if let Some(member) = &member {
+                crate::invocation::Target::Id(member.binding.terminal_id.to_string())
+            } else {
+                query::primary_terminal(&snapshot, &panel)
+                    .map_err(|error| error.source(source.clone()))?
+            };
+            let result = query::read_terminal_processes_cancellable(
                 &mut client,
                 deadline,
                 &snapshot,
                 &terminal,
                 signals.poll_fd(),
             )
-            .map(|(source, document)| (source, results::Projection::PanelProcessInfo(document)))
-        }
+            .map(|(source, document)| (source, results::Projection::PanelProcessInfo(document)))?;
+            let final_snapshot = query::refresh_snapshot(
+                &mut client,
+                &snapshot.site_id,
+                snapshot.revision,
+                deadline,
+                signals,
+            )?;
+            if final_snapshot.revision != snapshot.revision {
+                return Err(crate::cli::workbench_agents::failure("workbench-changed"));
+            }
+            if let (Some(selected), Some(panel_id), Some(original)) =
+                (&selected, &panel_id, &member)
+            {
+                let final_member = crate::cli::current_presentation::read(
+                    &mut client,
+                    &snapshot,
+                    selected,
+                    panel_id,
+                    deadline,
+                    signals,
+                )?;
+                if !original.same_member(&final_member) {
+                    return Err(crate::cli::workbench_agents::failure("client-changed"));
+                }
+            }
+            Ok(result)
+        })(),
         _ => Err(Failure::new(FailureKind::InternalFailure)),
     };
     // Cancellation/expiry wins over a provisional transport fault; session drops before output.
     check_pending(deadline, signals)?;
-    result.map_err(|error| {
+    result.map_err(|mut error| {
         // Enrichment failures have their own closed envelopes and provenance contracts.
-        if matches!(command, QueryCommand::PanelCurrent(_)) && error.failure_schema.is_some() {
+        if error.failure_schema.is_some() {
             error
         } else {
+            error
+                .details
+                .get_or_insert_with(|| stage_details("current-panel"));
             error.source(source)
         }
     })

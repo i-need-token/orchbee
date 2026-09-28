@@ -147,3 +147,18 @@ headless compatibility, grammar, schemas and bilingual output. Real Windows
 acceptance must compare both Clients and canonical state before and after reads.
 Agent summaries, Panel process/title and Client scroll use their separate observation owners;
 Workspace worktree and reported metadata remain dependent joins.
+
+## Exact Panel Presentation observation
+
+The scalar passive `presentation` intent reads one Panel's current native member without
+changing focus or input ownership. `presentation-read` carries the canonical revision and
+Panel ID plus a required nullable member: Presentation ID, exact binding, existing local
+attachment generation and pane incarnation, and the installed viewport observation. The
+payload is bounded to 4 KiB; Server reserves this capacity before admission and validates the
+Panel, minimum revision and Ready/Busy completion view before retaining a receipt. No local
+member yields null; a stale binding cannot borrow another member's frame. This operation
+cannot complete as applied navigation.
+
+The [current Panel contract](native-current-panel.md#exact-current-presentation-for-process-information)
+owns Windows process-info composition and its before/after member fence. Client control v6
+admits this intent; v1–v5 remain closed. Existing primary `viewports` reads retain their meaning.

@@ -1301,3 +1301,58 @@ fn ratio_creation_guard_rejects_each_replaced_identity_before_any_effect() {
         assert!(control.pending.is_none());
     }
 }
+
+#[test]
+fn presentation_read_completes_without_draw_or_navigation_in_ready_and_busy() {
+    use crate::terminal_session::ui::publication_hint_tests::split_snapshot;
+    for available in [false, true] {
+        for shell_busy in [false, true] {
+            let (mut native, mailbox, clock, _) = ready_split_ui();
+            let initial = mailbox.try_recv().unwrap().unwrap();
+            assert!(matches!(
+                initial.record(),
+                super::super::mailbox::QueuedCommand::Poll(_)
+            ));
+            mailbox.finish_lease(initial).unwrap();
+            let mut control = controller(clock);
+            assert!(!control.tick(&mut native, shell_busy));
+            let before = native.control_observation(shell_busy).unwrap();
+            let mut command = command(&control, None);
+            let ClientViewIntent::Panel { panel_id, .. } = command.intent else {
+                panic!()
+            };
+            command.intent = ClientViewIntent::Presentation {
+                panel_id: panel_id.clone(),
+            };
+            control
+                .lane
+                .as_ref()
+                .unwrap()
+                .inject_delivery_for_test(lane::Delivery {
+                    command: command.clone(),
+                    layout_snapshot: available.then(|| split_snapshot(1)),
+                });
+            assert!(!control.tick(&mut native, shell_busy));
+            let (sample, completed) = completion(&control).unwrap();
+            let status = match completed.outcome {
+                ClientViewCompletionOutcome::PresentationRead { presentation } if available => {
+                    assert_eq!(presentation.panel_id, panel_id);
+                    assert!(presentation.presentation.is_some());
+                    ClientViewControlStatus::PresentationRead {
+                        presentation,
+                        view: sample.view,
+                    }
+                }
+                ClientViewCompletionOutcome::Rejected { reason } if !available => {
+                    assert_eq!(reason, Reason::ProjectionUnavailable);
+                    ClientViewControlStatus::Rejected { reason }
+                }
+                other => panic!("unexpected completion {other:?}"),
+            };
+            ClientViewOperation { command, status }.validate().unwrap();
+            assert_eq!(native.control_observation(shell_busy).unwrap(), before);
+            assert!(control.pending.is_none());
+            assert!(mailbox.try_recv().unwrap().is_none());
+        }
+    }
+}

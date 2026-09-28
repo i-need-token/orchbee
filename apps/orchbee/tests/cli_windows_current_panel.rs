@@ -20,7 +20,11 @@ fn panel(n: u64) -> Value {
     json!({"kind":"panel","panelId":id(n),"primaryPresentation":{"presentationId":id(n+100),"label":"Agent","binding":{"terminalId":id(n+200),"workerId":"6f7263686265652d6c6f63616c2d7631"}},"childPresentations":[{"presentationId":id(n+300),"label":"child","binding":{"terminalId":id(n+400),"workerId":"6f7263686265652d6c6f63616c2d7631"}}]})
 }
 fn snapshot_reply(stream: &mut LocalStream) {
-    let snapshot:Snapshot=serde_json::from_value(json!({"protocolVersion":1,"siteId":id(2),"revision":"12","navigation":{"projects":[],"standaloneTerminalContextId":id(4)},"terminalContexts":[{"terminalContextId":id(4),"groups":[],"tabs":[{"tabId":id(5),"label":"two","pinned":false,"groupId":null,"root":{"kind":"split","splitId":id(50),"orientation":"horizontal","children":[{"slotId":id(51),"node":panel(6)},{"slotId":id(52),"node":panel(8)}]}}]}]})).unwrap();
+    snapshot_reply_at(stream, 12);
+}
+fn snapshot_reply_at(stream: &mut LocalStream, revision: u64) {
+    let mut snapshot:Snapshot=serde_json::from_value(json!({"protocolVersion":1,"siteId":id(2),"revision":"12","navigation":{"projects":[],"standaloneTerminalContextId":id(4)},"terminalContexts":[{"terminalContextId":id(4),"groups":[],"tabs":[{"tabId":id(5),"label":"two","pinned":false,"groupId":null,"root":{"kind":"split","splitId":id(50),"orientation":"horizontal","children":[{"slotId":id(51),"node":panel(6)},{"slotId":id(52),"node":panel(8)}]}}]}]})).unwrap();
+    snapshot.revision = WorkbenchRevision::new(revision);
     let request = support::snapshot_after_metadata(stream, &snapshot);
     write_workbench_response(
         stream,
@@ -166,7 +170,23 @@ fn caller_explicit_and_client_targets_preserve_precedence_without_mutating_contr
                     list_reply(&mut stream, vec![record(10, 6), record(12, 8)]);
                 }
                 if process {
-                    process_read(&mut stream, selected + 200, false);
+                    let client = match mode {
+                        3 => Some(10),
+                        4 => Some(12),
+                        _ => None,
+                    };
+                    if let Some(client) = client {
+                        presentations::read(&mut stream, client, selected, true, 7, "stable");
+                    }
+                    process_read(
+                        &mut stream,
+                        selected + if mode == 1 || mode >= 3 { 400 } else { 200 },
+                        false,
+                    );
+                    snapshot_reply(&mut stream);
+                    if let Some(client) = client {
+                        presentations::read(&mut stream, client, selected, true, 7, "stable");
+                    }
                 } else {
                     enrichment::read(
                         &mut stream,
@@ -218,7 +238,10 @@ fn caller_explicit_and_client_targets_preserve_precedence_without_mutating_contr
                 },
             );
             if process {
-                assert_eq!(doc["result"]["terminal"]["terminalId"], id(selected + 200));
+                assert_eq!(
+                    doc["result"]["terminal"]["terminalId"],
+                    id(selected + if mode == 1 || mode >= 3 { 400 } else { 200 })
+                );
             } else {
                 assert_eq!(doc["version"], 6);
                 assert_eq!(doc["result"]["panel"]["panelId"], id(selected));
@@ -308,6 +331,7 @@ fn stale_caller_binding_never_falls_back_and_process_failures_detach() {
             snapshot_reply(&mut stream);
             if unavailable {
                 list_reply(&mut stream, vec![record(10, 8)]);
+                presentations::read(&mut stream, 10, 8, false, 7, "stable");
                 process_read(&mut stream, 208, true);
             }
             assert_closed(&mut stream);
@@ -395,3 +419,6 @@ fn client_list_faults_and_partial_reply_have_closed_failures_and_one_total_budge
 
 #[path = "cli_windows_current_panel/enrichment.rs"]
 mod enrichment;
+
+#[path = "cli_windows_current_panel/presentations.rs"]
+mod presentations;

@@ -4114,6 +4114,323 @@
 					}
 				}
 			}
+		},
+		{
+			"name": "presentation-exact-child",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.client-view.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "operation",
+					"operation": {
+						"command": {
+							"operationId": "00000000000000000000000000000003",
+							"clientId": "00000000000000000000000000000007",
+							"expectedViewRevision": "2",
+							"minimumWorkbenchRevision": "12",
+							"intent": {
+								"kind": "presentation",
+								"panelId": "00000000000000000000000000000006"
+							}
+						},
+						"status": {
+							"kind": "presentation-read",
+							"presentation": {
+								"workbenchRevision": "12",
+								"panelId": "00000000000000000000000000000006",
+								"presentation": {
+									"presentationId": "00000000000000000000000000000132",
+									"binding": {
+										"terminalId": "00000000000000000000000000000196",
+										"workerId": "00000000000000000000000000000009"
+									},
+									"attachmentGeneration": "7",
+									"incarnation": 0,
+									"viewport": {
+										"state": "unavailable",
+										"reason": "frame-unavailable"
+									}
+								}
+							},
+							"view": {
+								"workbenchRevision": "12",
+								"phase": "ready",
+								"selection": {
+									"terminalContextId": "00000000000000000000000000000004",
+									"tabId": "00000000000000000000000000000005",
+									"panelId": "00000000000000000000000000000006",
+									"zoomed": false,
+									"panelCount": 2
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"name": "presentation-null",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.client-view.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "operation",
+					"operation": {
+						"command": {
+							"operationId": "00000000000000000000000000000003",
+							"clientId": "00000000000000000000000000000007",
+							"expectedViewRevision": "2",
+							"minimumWorkbenchRevision": "12",
+							"intent": {
+								"kind": "presentation",
+								"panelId": "00000000000000000000000000000006"
+							}
+						},
+						"status": {
+							"kind": "presentation-read",
+							"presentation": {
+								"workbenchRevision": "12",
+								"panelId": "00000000000000000000000000000006",
+								"presentation": null
+							},
+							"view": {
+								"workbenchRevision": "12",
+								"phase": "ready",
+								"selection": {
+									"terminalContextId": "00000000000000000000000000000004",
+									"tabId": "00000000000000000000000000000005",
+									"panelId": "00000000000000000000000000000006",
+									"zoomed": false,
+									"panelCount": 2
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"name": "presentation-generation-maximum",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.client-view.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "operation",
+					"operation": {
+						"command": {
+							"operationId": "00000000000000000000000000000003",
+							"clientId": "00000000000000000000000000000007",
+							"expectedViewRevision": "2",
+							"minimumWorkbenchRevision": "12",
+							"intent": {
+								"kind": "presentation",
+								"panelId": "00000000000000000000000000000006"
+							}
+						},
+						"status": {
+							"kind": "presentation-read",
+							"presentation": {
+								"workbenchRevision": "12",
+								"panelId": "00000000000000000000000000000006",
+								"presentation": {
+									"presentationId": "00000000000000000000000000000132",
+									"binding": {
+										"terminalId": "00000000000000000000000000000196",
+										"workerId": "00000000000000000000000000000009"
+									},
+									"attachmentGeneration": "18446744073709551615",
+									"incarnation": 0,
+									"viewport": {
+										"state": "unavailable",
+										"reason": "frame-unavailable"
+									}
+								}
+							},
+							"view": {
+								"workbenchRevision": "12",
+								"phase": "ready",
+								"selection": {
+									"terminalContextId": "00000000000000000000000000000004",
+									"tabId": "00000000000000000000000000000005",
+									"panelId": "00000000000000000000000000000006",
+									"zoomed": false,
+									"panelCount": 2
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"name": "presentation-incarnation-maximum",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.client-view.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "operation",
+					"operation": {
+						"command": {
+							"operationId": "00000000000000000000000000000003",
+							"clientId": "00000000000000000000000000000007",
+							"expectedViewRevision": "2",
+							"minimumWorkbenchRevision": "12",
+							"intent": {
+								"kind": "presentation",
+								"panelId": "00000000000000000000000000000006"
+							}
+						},
+						"status": {
+							"kind": "presentation-read",
+							"presentation": {
+								"workbenchRevision": "12",
+								"panelId": "00000000000000000000000000000006",
+								"presentation": {
+									"presentationId": "00000000000000000000000000000132",
+									"binding": {
+										"terminalId": "00000000000000000000000000000196",
+										"workerId": "00000000000000000000000000000009"
+									},
+									"attachmentGeneration": "7",
+									"incarnation": 4294967295,
+									"viewport": {
+										"state": "unavailable",
+										"reason": "frame-unavailable"
+									}
+								}
+							},
+							"view": {
+								"workbenchRevision": "12",
+								"phase": "ready",
+								"selection": {
+									"terminalContextId": "00000000000000000000000000000004",
+									"tabId": "00000000000000000000000000000005",
+									"panelId": "00000000000000000000000000000006",
+									"zoomed": false,
+									"panelCount": 2
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"name": "presentation-busy",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.client-view.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "operation",
+					"operation": {
+						"command": {
+							"operationId": "00000000000000000000000000000003",
+							"clientId": "00000000000000000000000000000007",
+							"expectedViewRevision": "2",
+							"minimumWorkbenchRevision": "12",
+							"intent": {
+								"kind": "presentation",
+								"panelId": "00000000000000000000000000000006"
+							}
+						},
+						"status": {
+							"kind": "presentation-read",
+							"presentation": {
+								"workbenchRevision": "12",
+								"panelId": "00000000000000000000000000000006",
+								"presentation": {
+									"presentationId": "00000000000000000000000000000132",
+									"binding": {
+										"terminalId": "00000000000000000000000000000196",
+										"workerId": "00000000000000000000000000000009"
+									},
+									"attachmentGeneration": "7",
+									"incarnation": 0,
+									"viewport": {
+										"state": "unavailable",
+										"reason": "frame-unavailable"
+									}
+								}
+							},
+							"view": {
+								"workbenchRevision": "12",
+								"phase": "busy",
+								"selection": {
+									"terminalContextId": "00000000000000000000000000000004",
+									"tabId": "00000000000000000000000000000005",
+									"panelId": "00000000000000000000000000000006",
+									"zoomed": false,
+									"panelCount": 2
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"name": "presentation-completion",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.client-view",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "synchronize",
+					"heartbeat": "1",
+					"viewRevision": "2",
+					"view": {
+						"workbenchRevision": "12",
+						"phase": "ready",
+						"selection": {
+							"terminalContextId": "00000000000000000000000000000004",
+							"tabId": "00000000000000000000000000000005",
+							"panelId": "00000000000000000000000000000006",
+							"zoomed": false,
+							"panelCount": 2
+						}
+					},
+					"completion": {
+						"operationId": "00000000000000000000000000000003",
+						"outcome": {
+							"kind": "presentation-read",
+							"presentation": {
+								"workbenchRevision": "12",
+								"panelId": "00000000000000000000000000000006",
+								"presentation": {
+									"presentationId": "00000000000000000000000000000132",
+									"binding": {
+										"terminalId": "00000000000000000000000000000196",
+										"workerId": "00000000000000000000000000000009"
+									},
+									"attachmentGeneration": "7",
+									"incarnation": 0,
+									"viewport": {
+										"state": "unavailable",
+										"reason": "frame-unavailable"
+									}
+								}
+							}
+						}
+					}
+				}
+			}
 		}
 	],
 	"invalid": [
@@ -13535,6 +13852,657 @@
 							"view": {
 								"workbenchRevision": "12",
 								"phase": "unavailable",
+								"selection": {
+									"terminalContextId": "00000000000000000000000000000004",
+									"tabId": "00000000000000000000000000000005",
+									"panelId": "00000000000000000000000000000006",
+									"zoomed": false,
+									"panelCount": 2
+								}
+							}
+						}
+					}
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "presentation-wrong-panel",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.client-view.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "operation",
+					"operation": {
+						"command": {
+							"operationId": "00000000000000000000000000000003",
+							"clientId": "00000000000000000000000000000007",
+							"expectedViewRevision": "2",
+							"minimumWorkbenchRevision": "12",
+							"intent": {
+								"kind": "presentation",
+								"panelId": "00000000000000000000000000000006"
+							}
+						},
+						"status": {
+							"kind": "presentation-read",
+							"presentation": {
+								"workbenchRevision": "12",
+								"panelId": "00000000000000000000000000000008",
+								"presentation": {
+									"presentationId": "00000000000000000000000000000132",
+									"binding": {
+										"terminalId": "00000000000000000000000000000196",
+										"workerId": "00000000000000000000000000000009"
+									},
+									"attachmentGeneration": "7",
+									"incarnation": 0,
+									"viewport": {
+										"state": "unavailable",
+										"reason": "frame-unavailable"
+									}
+								}
+							},
+							"view": {
+								"workbenchRevision": "12",
+								"phase": "ready",
+								"selection": {
+									"terminalContextId": "00000000000000000000000000000004",
+									"tabId": "00000000000000000000000000000005",
+									"panelId": "00000000000000000000000000000006",
+									"zoomed": false,
+									"panelCount": 2
+								}
+							}
+						}
+					}
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "presentation-old-revision",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.client-view.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "operation",
+					"operation": {
+						"command": {
+							"operationId": "00000000000000000000000000000003",
+							"clientId": "00000000000000000000000000000007",
+							"expectedViewRevision": "2",
+							"minimumWorkbenchRevision": "12",
+							"intent": {
+								"kind": "presentation",
+								"panelId": "00000000000000000000000000000006"
+							}
+						},
+						"status": {
+							"kind": "presentation-read",
+							"presentation": {
+								"workbenchRevision": "11",
+								"panelId": "00000000000000000000000000000006",
+								"presentation": {
+									"presentationId": "00000000000000000000000000000132",
+									"binding": {
+										"terminalId": "00000000000000000000000000000196",
+										"workerId": "00000000000000000000000000000009"
+									},
+									"attachmentGeneration": "7",
+									"incarnation": 0,
+									"viewport": {
+										"state": "unavailable",
+										"reason": "frame-unavailable"
+									}
+								}
+							},
+							"view": {
+								"workbenchRevision": "12",
+								"phase": "ready",
+								"selection": {
+									"terminalContextId": "00000000000000000000000000000004",
+									"tabId": "00000000000000000000000000000005",
+									"panelId": "00000000000000000000000000000006",
+									"zoomed": false,
+									"panelCount": 2
+								}
+							}
+						}
+					}
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "presentation-starting",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.client-view.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "operation",
+					"operation": {
+						"command": {
+							"operationId": "00000000000000000000000000000003",
+							"clientId": "00000000000000000000000000000007",
+							"expectedViewRevision": "2",
+							"minimumWorkbenchRevision": "12",
+							"intent": {
+								"kind": "presentation",
+								"panelId": "00000000000000000000000000000006"
+							}
+						},
+						"status": {
+							"kind": "presentation-read",
+							"presentation": {
+								"workbenchRevision": "12",
+								"panelId": "00000000000000000000000000000006",
+								"presentation": {
+									"presentationId": "00000000000000000000000000000132",
+									"binding": {
+										"terminalId": "00000000000000000000000000000196",
+										"workerId": "00000000000000000000000000000009"
+									},
+									"attachmentGeneration": "7",
+									"incarnation": 0,
+									"viewport": {
+										"state": "unavailable",
+										"reason": "frame-unavailable"
+									}
+								}
+							},
+							"view": {
+								"workbenchRevision": "12",
+								"phase": "starting",
+								"selection": {
+									"terminalContextId": "00000000000000000000000000000004",
+									"tabId": "00000000000000000000000000000005",
+									"panelId": "00000000000000000000000000000006",
+									"zoomed": false,
+									"panelCount": 2
+								}
+							}
+						}
+					}
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "presentation-bad-generation",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.client-view.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "operation",
+					"operation": {
+						"command": {
+							"operationId": "00000000000000000000000000000003",
+							"clientId": "00000000000000000000000000000007",
+							"expectedViewRevision": "2",
+							"minimumWorkbenchRevision": "12",
+							"intent": {
+								"kind": "presentation",
+								"panelId": "00000000000000000000000000000006"
+							}
+						},
+						"status": {
+							"kind": "presentation-read",
+							"presentation": {
+								"workbenchRevision": "12",
+								"panelId": "00000000000000000000000000000006",
+								"presentation": {
+									"presentationId": "00000000000000000000000000000132",
+									"binding": {
+										"terminalId": "00000000000000000000000000000196",
+										"workerId": "00000000000000000000000000000009"
+									},
+									"attachmentGeneration": "18446744073709551616",
+									"incarnation": 0,
+									"viewport": {
+										"state": "unavailable",
+										"reason": "frame-unavailable"
+									}
+								}
+							},
+							"view": {
+								"workbenchRevision": "12",
+								"phase": "ready",
+								"selection": {
+									"terminalContextId": "00000000000000000000000000000004",
+									"tabId": "00000000000000000000000000000005",
+									"panelId": "00000000000000000000000000000006",
+									"zoomed": false,
+									"panelCount": 2
+								}
+							}
+						}
+					}
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "presentation-negative-incarnation",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.client-view.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "operation",
+					"operation": {
+						"command": {
+							"operationId": "00000000000000000000000000000003",
+							"clientId": "00000000000000000000000000000007",
+							"expectedViewRevision": "2",
+							"minimumWorkbenchRevision": "12",
+							"intent": {
+								"kind": "presentation",
+								"panelId": "00000000000000000000000000000006"
+							}
+						},
+						"status": {
+							"kind": "presentation-read",
+							"presentation": {
+								"workbenchRevision": "12",
+								"panelId": "00000000000000000000000000000006",
+								"presentation": {
+									"presentationId": "00000000000000000000000000000132",
+									"binding": {
+										"terminalId": "00000000000000000000000000000196",
+										"workerId": "00000000000000000000000000000009"
+									},
+									"attachmentGeneration": "7",
+									"incarnation": -1,
+									"viewport": {
+										"state": "unavailable",
+										"reason": "frame-unavailable"
+									}
+								}
+							},
+							"view": {
+								"workbenchRevision": "12",
+								"phase": "ready",
+								"selection": {
+									"terminalContextId": "00000000000000000000000000000004",
+									"tabId": "00000000000000000000000000000005",
+									"panelId": "00000000000000000000000000000006",
+									"zoomed": false,
+									"panelCount": 2
+								}
+							}
+						}
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "presentation-overflow-incarnation",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.client-view.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "operation",
+					"operation": {
+						"command": {
+							"operationId": "00000000000000000000000000000003",
+							"clientId": "00000000000000000000000000000007",
+							"expectedViewRevision": "2",
+							"minimumWorkbenchRevision": "12",
+							"intent": {
+								"kind": "presentation",
+								"panelId": "00000000000000000000000000000006"
+							}
+						},
+						"status": {
+							"kind": "presentation-read",
+							"presentation": {
+								"workbenchRevision": "12",
+								"panelId": "00000000000000000000000000000006",
+								"presentation": {
+									"presentationId": "00000000000000000000000000000132",
+									"binding": {
+										"terminalId": "00000000000000000000000000000196",
+										"workerId": "00000000000000000000000000000009"
+									},
+									"attachmentGeneration": "7",
+									"incarnation": 4294967296,
+									"viewport": {
+										"state": "unavailable",
+										"reason": "frame-unavailable"
+									}
+								}
+							},
+							"view": {
+								"workbenchRevision": "12",
+								"phase": "ready",
+								"selection": {
+									"terminalContextId": "00000000000000000000000000000004",
+									"tabId": "00000000000000000000000000000005",
+									"panelId": "00000000000000000000000000000006",
+									"zoomed": false,
+									"panelCount": 2
+								}
+							}
+						}
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "presentation-unbound-member",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.client-view.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "operation",
+					"operation": {
+						"command": {
+							"operationId": "00000000000000000000000000000003",
+							"clientId": "00000000000000000000000000000007",
+							"expectedViewRevision": "2",
+							"minimumWorkbenchRevision": "12",
+							"intent": {
+								"kind": "presentation",
+								"panelId": "00000000000000000000000000000006"
+							}
+						},
+						"status": {
+							"kind": "presentation-read",
+							"presentation": {
+								"workbenchRevision": "12",
+								"panelId": "00000000000000000000000000000006",
+								"presentation": {
+									"presentationId": "00000000000000000000000000000132",
+									"binding": null,
+									"attachmentGeneration": "7",
+									"incarnation": 0,
+									"viewport": {
+										"state": "unavailable",
+										"reason": "frame-unavailable"
+									}
+								}
+							},
+							"view": {
+								"workbenchRevision": "12",
+								"phase": "ready",
+								"selection": {
+									"terminalContextId": "00000000000000000000000000000004",
+									"tabId": "00000000000000000000000000000005",
+									"panelId": "00000000000000000000000000000006",
+									"zoomed": false,
+									"panelCount": 2
+								}
+							}
+						}
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "presentation-unknown-member-field",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.client-view.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "operation",
+					"operation": {
+						"command": {
+							"operationId": "00000000000000000000000000000003",
+							"clientId": "00000000000000000000000000000007",
+							"expectedViewRevision": "2",
+							"minimumWorkbenchRevision": "12",
+							"intent": {
+								"kind": "presentation",
+								"panelId": "00000000000000000000000000000006"
+							}
+						},
+						"status": {
+							"kind": "presentation-read",
+							"presentation": {
+								"workbenchRevision": "12",
+								"panelId": "00000000000000000000000000000006",
+								"presentation": {
+									"presentationId": "00000000000000000000000000000132",
+									"binding": {
+										"terminalId": "00000000000000000000000000000196",
+										"workerId": "00000000000000000000000000000009"
+									},
+									"attachmentGeneration": "7",
+									"incarnation": 0,
+									"viewport": {
+										"state": "unavailable",
+										"reason": "frame-unavailable"
+									},
+									"unknown": true
+								}
+							},
+							"view": {
+								"workbenchRevision": "12",
+								"phase": "ready",
+								"selection": {
+									"terminalContextId": "00000000000000000000000000000004",
+									"tabId": "00000000000000000000000000000005",
+									"panelId": "00000000000000000000000000000006",
+									"zoomed": false,
+									"panelCount": 2
+								}
+							}
+						}
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "presentation-unknown-viewport",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.client-view.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "operation",
+					"operation": {
+						"command": {
+							"operationId": "00000000000000000000000000000003",
+							"clientId": "00000000000000000000000000000007",
+							"expectedViewRevision": "2",
+							"minimumWorkbenchRevision": "12",
+							"intent": {
+								"kind": "presentation",
+								"panelId": "00000000000000000000000000000006"
+							}
+						},
+						"status": {
+							"kind": "presentation-read",
+							"presentation": {
+								"workbenchRevision": "12",
+								"panelId": "00000000000000000000000000000006",
+								"presentation": {
+									"presentationId": "00000000000000000000000000000132",
+									"binding": {
+										"terminalId": "00000000000000000000000000000196",
+										"workerId": "00000000000000000000000000000009"
+									},
+									"attachmentGeneration": "7",
+									"incarnation": 0,
+									"viewport": {
+										"state": "invented"
+									}
+								}
+							},
+							"view": {
+								"workbenchRevision": "12",
+								"phase": "ready",
+								"selection": {
+									"terminalContextId": "00000000000000000000000000000004",
+									"tabId": "00000000000000000000000000000005",
+									"panelId": "00000000000000000000000000000006",
+									"zoomed": false,
+									"panelCount": 2
+								}
+							}
+						}
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "presentation-required-nullable",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.client-view.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "operation",
+					"operation": {
+						"command": {
+							"operationId": "00000000000000000000000000000003",
+							"clientId": "00000000000000000000000000000007",
+							"expectedViewRevision": "2",
+							"minimumWorkbenchRevision": "12",
+							"intent": {
+								"kind": "presentation",
+								"panelId": "00000000000000000000000000000006"
+							}
+						},
+						"status": {
+							"kind": "presentation-read",
+							"presentation": {
+								"workbenchRevision": "12",
+								"panelId": "00000000000000000000000000000006"
+							},
+							"view": {
+								"workbenchRevision": "12",
+								"phase": "ready",
+								"selection": {
+									"terminalContextId": "00000000000000000000000000000004",
+									"tabId": "00000000000000000000000000000005",
+									"panelId": "00000000000000000000000000000006",
+									"zoomed": false,
+									"panelCount": 2
+								}
+							}
+						}
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "presentation-wrong-intent",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.client-view.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "operation",
+					"operation": {
+						"command": {
+							"operationId": "00000000000000000000000000000003",
+							"clientId": "00000000000000000000000000000007",
+							"expectedViewRevision": "2",
+							"minimumWorkbenchRevision": "12",
+							"intent": {
+								"kind": "viewports",
+								"panelIds": ["00000000000000000000000000000006"]
+							}
+						},
+						"status": {
+							"kind": "presentation-read",
+							"presentation": {
+								"workbenchRevision": "12",
+								"panelId": "00000000000000000000000000000006",
+								"presentation": {
+									"presentationId": "00000000000000000000000000000132",
+									"binding": {
+										"terminalId": "00000000000000000000000000000196",
+										"workerId": "00000000000000000000000000000009"
+									},
+									"attachmentGeneration": "7",
+									"incarnation": 0,
+									"viewport": {
+										"state": "unavailable",
+										"reason": "frame-unavailable"
+									}
+								}
+							},
+							"view": {
+								"workbenchRevision": "12",
+								"phase": "ready",
+								"selection": {
+									"terminalContextId": "00000000000000000000000000000004",
+									"tabId": "00000000000000000000000000000005",
+									"panelId": "00000000000000000000000000000006",
+									"zoomed": false,
+									"panelCount": 2
+								}
+							}
+						}
+					}
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "presentation-cannot-be-applied",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.client-view.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "operation",
+					"operation": {
+						"command": {
+							"operationId": "00000000000000000000000000000003",
+							"clientId": "00000000000000000000000000000007",
+							"expectedViewRevision": "2",
+							"minimumWorkbenchRevision": "12",
+							"intent": {
+								"kind": "presentation",
+								"panelId": "00000000000000000000000000000006"
+							}
+						},
+						"status": {
+							"kind": "applied",
+							"view": {
+								"workbenchRevision": "12",
+								"phase": "ready",
 								"selection": {
 									"terminalContextId": "00000000000000000000000000000004",
 									"tabId": "00000000000000000000000000000005",

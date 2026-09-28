@@ -390,6 +390,12 @@ Absolute wire paths accept a POSIX leading slash or an ASCII drive letter follow
 
 ## Ephemeral Client view control
 
+`presentation` passively reads one Panel's exact Client-local member. Its `presentation-read`
+receipt includes canonical revision, Panel ID and a required nullable selection with Presentation
+ID, binding, local attachment generation/incarnation and installed viewport. Payloads are bounded
+to 4 KiB. Bindings require the exact requested Panel and a Ready/Busy view at or after the minimum
+revision; Applied cannot acknowledge the read. No Client selection fields or canonical data change.
+
 `viewports` reads 1–16 ordered unique Panel IDs; `viewport-read` returns the canonical
 revision and nullable primary bindings with unavailable, pending or live/history facts.
 Position counters are decimal uint64, and offsets derive from total/start rows and the

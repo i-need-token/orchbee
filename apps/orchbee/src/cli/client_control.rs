@@ -78,7 +78,13 @@ impl Answer {
             ClientViewOutcome::Operation { operation } if matches!(operation.command.intent,
                 orchbee_workbench_protocol::ClientViewIntent::AgentFocus { .. }))
         });
-        let version = if agent_focus {
+        let presentation_read = self.reply.as_ref().is_some_and(|reply| {
+            matches!(&reply.outcome, ClientViewOutcome::Operation { operation }
+                if matches!(operation.command.intent, orchbee_workbench_protocol::ClientViewIntent::Presentation { .. }))
+        });
+        let version = if presentation_read {
+            6
+        } else if agent_focus {
             5
         } else if physical_attention {
             4
@@ -122,6 +128,7 @@ fn outcome_exit(outcome: &ClientViewOutcome) -> u8 {
             | ClientViewControlStatus::AttentionRead { .. }
             | ClientViewControlStatus::TerminalAttentionRead { .. }
             | ClientViewControlStatus::NavigationRead { .. }
+            | ClientViewControlStatus::PresentationRead { .. }
             | ClientViewControlStatus::ViewportRead { .. }
             | ClientViewControlStatus::Applied { .. }
             | ClientViewControlStatus::ZoomUnchanged { .. }
