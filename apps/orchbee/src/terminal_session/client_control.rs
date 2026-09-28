@@ -418,6 +418,18 @@ fn prepare_control(
                 ),
         ));
     }
+    if let ClientViewIntent::TerminalAgentAttention { bindings } = &command.intent {
+        return Err(Box::new(
+            native.read_terminal_agent_attention(bindings).map_or(
+                ClientViewCompletionOutcome::Rejected {
+                    reason: Reason::ProjectionUnavailable,
+                },
+                |attention| ClientViewCompletionOutcome::TerminalAttentionRead {
+                    attention: Box::new(attention),
+                },
+            ),
+        ));
+    }
     if let ClientViewIntent::AgentAttention { session_ids } = &command.intent {
         return Err(Box::new(native.read_agent_attention(session_ids).map_or(
             ClientViewCompletionOutcome::Rejected {

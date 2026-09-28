@@ -1,8 +1,6 @@
 //! Join Client-local Agent versions to the exact live panes actually painted.
-use std::collections::BTreeSet;
-
 use super::{NativeProjectionStatus, NativeSessionView, NativeUi, PaneRef};
-use crate::terminal_session::agent_attention::NativeAgentAttentionDraw;
+use crate::terminal_session::agent_attention::{NativeAgentAttentionDraw, PaintedPane};
 use orchbee_workbench_protocol::WorkbenchPanelId;
 
 impl NativeSessionView<'_> {
@@ -31,6 +29,17 @@ impl NativeSessionView<'_> {
             && self.agent_board().is_none()
     }
 
+    fn painted_attention_pane(&self, pane: &PaneRef) -> Option<PaintedPane> {
+        let presentation = self.attention_presentation(pane)?;
+        let projection = self.pane_projection(pane.pane().panel())?;
+        Some(PaintedPane {
+            pane: pane.clone(),
+            presentation,
+            route: projection.frame()?.route,
+            host_terminal_id: projection.host_terminal_id().map(str::to_owned),
+        })
+    }
+
     pub(crate) fn attention_draw<'a>(
         &self,
         panes: impl Iterator<Item = &'a PaneRef>,
@@ -39,10 +48,7 @@ impl NativeSessionView<'_> {
             return None;
         }
         let panes = panes
-            .filter_map(|pane| {
-                self.attention_presentation(pane)
-                    .map(|presentation| (pane.clone(), presentation))
-            })
+            .filter_map(|pane| self.painted_attention_pane(pane))
             .collect();
         self.attention?.paint(panes)
     }
@@ -68,6 +74,12 @@ impl NativeSessionView<'_> {
 }
 
 impl NativeUi {
+    pub(in crate::terminal_session) fn read_terminal_agent_attention(
+        &self,
+        bindings: &[orchbee_agent_observation_protocol::AgentLaunchBinding],
+    ) -> Option<orchbee_workbench_protocol::ClientTerminalAgentAttentionSnapshot> {
+        self.attention.read_physical(bindings, self.outer_focused)
+    }
     pub(in crate::terminal_session) fn read_agent_attention(
         &self,
         sessions: &[orchbee_agent_observation_protocol::AgentSessionId],
@@ -79,13 +91,11 @@ impl NativeUi {
         if !view.attention_uncovered() {
             return;
         }
-        let visible: BTreeSet<_> = draw
+        let visible: Vec<_> = draw
             .panes
             .iter()
-            .filter(|(pane, presentation)| {
-                view.attention_presentation(pane).as_ref() == Some(presentation)
-            })
-            .map(|(_, presentation)| presentation.as_str())
+            .filter(|proof| view.painted_attention_pane(&proof.pane).as_ref() == Some(*proof))
+            .cloned()
             .collect();
         self.attention
             .acknowledge(&draw, self.outer_focused, &visible);

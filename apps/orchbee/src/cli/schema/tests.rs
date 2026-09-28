@@ -159,6 +159,20 @@ fn terminal_agent_inspection_schema_has_closed_target_and_preserves_canonical_ve
         observed["result"]["semantic"] = json!({"source":{"siteId":id,"workbenchRevision":"1","reportRevision":"2","requestId":id},
             "observation":{"binding":binding,"sequence":"0","changes":[],"view":{"agent":null,"state":"unknown","authoritySource":null,"message":null,"session":null}}});
         validator.validate(&observed).unwrap();
+        let mut client = observed.clone();
+        client["version"] = 16.into();
+        client["result"]["clientView"] = json!({"clientId":id,"operationId":id,
+            "view":{"workbenchRevision":"1","phase":"starting","selection":null},
+            "reportRevision":"2","sequence":"0","seen":false,"status":"unknown","outerFocused":null});
+        validator.validate(&client).unwrap();
+        client["version"] = 15.into();
+        assert!(!validator.is_valid(&client));
+        client["version"] = 16.into();
+        client["result"]["clientView"]
+            .as_object_mut()
+            .unwrap()
+            .remove("seen");
+        assert!(!validator.is_valid(&client));
         observed["version"] = 14.into();
         assert!(!validator.is_valid(&observed));
         current["result"]["management"]["state"]["reservationId"] = id.into();

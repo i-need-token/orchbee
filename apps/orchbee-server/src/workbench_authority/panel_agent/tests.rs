@@ -45,6 +45,66 @@ fn observation(presentation: u128, after: Option<u64>) -> Action {
         after_sequence: after.map(WorkbenchRevision::new),
     }
 }
+
+#[test]
+fn compact_states_cover_primary_child_unavailable_and_replaced_physical_generations() {
+    let mut a = owner();
+    let facts = [physical(1, 1), physical(2, 1)];
+    invoke(&mut a, state("custom", "1"), &facts);
+    let action = Action::States {
+        presentation_ids: [4, 5]
+            .into_iter()
+            .map(|id| {
+                orchbee_workbench_protocol::TerminalPresentationId::parse(&format!("{id:032x}"))
+                    .unwrap()
+            })
+            .collect(),
+    };
+    let Outcome::States { presentations, .. } = invoke(&mut a, action.clone(), &facts) else {
+        panic!("states")
+    };
+    assert_eq!(
+        presentations[0].snapshot.as_ref().unwrap().agent.as_deref(),
+        Some("Team Agent")
+    );
+    assert!(presentations[1].snapshot.as_ref().unwrap().agent.is_none());
+    assert_eq!(
+        presentations[0].snapshot.as_ref().unwrap().sequence.value(),
+        1
+    );
+    let Outcome::States { presentations, .. } = invoke(&mut a, action.clone(), &facts[..1]) else {
+        panic!("states")
+    };
+    assert!(presentations[1].snapshot.is_none());
+    let mut changed = physical(1, 2);
+    changed.identity = HostTerminalIdentity::new(
+        HostCreationId::from_bytes([4; 16]).unwrap(),
+        HostEpoch::from_bytes([5; 16]).unwrap(),
+        HostTerminalId::from_bytes([6; 16]).unwrap(),
+    );
+    let Outcome::States { presentations, .. } = invoke(&mut a, action, &[changed]) else {
+        panic!("states")
+    };
+    let current = presentations[0].snapshot.as_ref().unwrap();
+    assert_eq!(current.binding.generation.as_str(), "04".repeat(16));
+    assert_eq!(current.sequence.value(), 0);
+    assert!(current.agent.is_none());
+    assert_eq!(
+        invoke(
+            &mut a,
+            Action::States {
+                presentation_ids: vec![
+                    orchbee_workbench_protocol::TerminalPresentationId::parse(&"7".repeat(32))
+                        .unwrap()
+                ]
+            },
+            &facts
+        ),
+        Outcome::Failed {
+            reason: Failure::NotFound
+        }
+    );
+}
 #[test]
 fn physical_observation_is_contiguous_and_isolates_child_membership() {
     let mut a = owner();

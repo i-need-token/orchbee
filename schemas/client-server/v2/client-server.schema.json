@@ -809,7 +809,7 @@
 				{
 					"type": "object",
 					"additionalProperties": false,
-					"required": ["kind", "attachmentId", "hostEpoch"],
+					"required": ["kind", "attachmentId", "hostEpoch", "hostTerminalId"],
 					"properties": {
 						"kind": {
 							"const": "attached"
@@ -819,6 +819,9 @@
 						},
 						"hostEpoch": {
 							"$ref": "#/$defs/identity"
+						},
+						"hostTerminalId": {
+							"$ref": "#/$defs/hostTerminalId"
 						}
 					}
 				},

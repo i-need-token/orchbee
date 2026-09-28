@@ -2460,6 +2460,7 @@ pub(super) fn attached_outcome_for(viewer_id: &str) -> TestResult<TerminalViewer
     Ok(TerminalViewerOutcome::Attached {
         attachment_id: ViewerId::parse(viewer_id)?,
         host_epoch: ObcsHostEpoch::parse(HOST_EPOCH)?,
+        host_terminal_id: orchbee_client_server_protocol::HostTerminalId::parse(HOST_EPOCH)?,
     })
 }
 

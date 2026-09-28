@@ -427,6 +427,10 @@ pub(super) fn process_sample_for(
             "attach",
             TerminalViewerOutcome::Attached {
                 attachment_id: viewer.clone(),
+                host_terminal_id: orchbee_client_server_protocol::HostTerminalId::parse(
+                    &epoch.to_text(),
+                )
+                .unwrap(),
                 host_epoch: orchbee_client_server_protocol::HostEpoch::parse(&epoch.to_text())
                     .unwrap(),
             },

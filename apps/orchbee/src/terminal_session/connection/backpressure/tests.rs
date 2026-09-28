@@ -84,6 +84,9 @@ fn viewer_busy_reissues_only_identity_and_preserves_exact_feedback() -> TestResu
                             ViewerOutcome::Attached {
                                 attachment_id: ViewerId::parse(ID).unwrap(),
                                 host_epoch: HostEpoch::parse(ID).unwrap(),
+                                host_terminal_id:
+                                    orchbee_client_server_protocol::HostTerminalId::parse(ID)
+                                        .unwrap(),
                             }
                         }
                         Viewer::Poll { .. } => ViewerOutcome::Empty {},

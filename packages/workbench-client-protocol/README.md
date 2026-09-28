@@ -194,6 +194,13 @@ The [Tab label contract](../../apps/orchbee/docs/native-tab-labels.md) owns opti
 
 Client attention snapshots reuse `@orchbee/agent` session identity validation. Their strict shapes and semantics preserve nullable focus/missing state, ordered unique batches, bounded revisions and exact intent correspondence. These wire DTOs describe Client observations; they do not move acknowledgement into canonical Workbench or Agent state.
 
+Physical `terminal-agent-attention` reads instead name 1–100 unique full presentation/creation/Host
+bindings; `terminal-attention-read` preserves ordered nullable sequence/seen entries, report revision
+and nullable outer focus. They use the same kind-29/64-KiB submission/completion envelope and read
+lifecycle. Exact binding/order checks apply to intent/result correlation; no canonical Session is
+synthesized. [Physical acknowledgement ownership](../../apps/orchbee/docs/native-client-attention.md#physical-terminal-observation-and-paint)
+defines the Server/Client join and paint gates.
+
 ## Workspace metadata contract
 
 `workbench-workspace-metadata-contract.ts` adds strict report/read envelopes to the shared request/result unions, with 16 KiB requests and 128 KiB results. The [shared corpus](../../schemas/workbench/v1/workbench-workspace-metadata-conformance-v1.json) and [JSON Schema](../../schemas/workbench/v1/workbench-workspace-metadata.schema.json) cover token normalization, source/sequence/TTL bounds, read batches and closed failures. Rust additionally rejects duplicate raw JSON keys; the TypeScript object binding preserves legal `__proto__` and `constructor` token keys. This binding exposes neither Desktop commands nor an event subscription. Runtime ownership belongs to the [Workspace metadata model](../../apps/orchbee/docs/windows-workspace-metadata.md).
@@ -214,3 +221,9 @@ presentation/Host binding and a required nullable `afterSequence`; `observed` re
 terminal-local sequence and at most 128 contiguous semantic changes. Rust/TypeScript validate the
 last change against the current head/state; Rust correlation additionally proves request cursor
 coverage. This is transient report state, separate from canonical Agent revisions and Client `done`.
+
+Compact physical `states` reads accept 0–64 unique presentation IDs and return rows in request order,
+with Workbench/report revisions and a required nullable full binding/sequence/Agent/state snapshot.
+Missing membership refuses the batch; no current physical observation yields null. Empty reads fence
+the report revision. Rust/TypeScript share strict shapes, unique/order checks and the conformance
+corpus; Server retains current Worker and physical identity admission.

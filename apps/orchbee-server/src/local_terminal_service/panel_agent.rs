@@ -15,9 +15,11 @@ impl LocalTerminalService {
         };
         #[cfg(windows)]
         {
-            if let orchbee_workbench_protocol::PanelAgentAction::Observe { binding, .. } =
-                &request.action
-            {
+            if matches!(
+                &request.action,
+                orchbee_workbench_protocol::PanelAgentAction::Observe { .. }
+                    | orchbee_workbench_protocol::PanelAgentAction::States { .. }
+            ) {
                 let Ok(workers) = self.workers.lock() else {
                     return unavailable;
                 };
@@ -32,11 +34,30 @@ impl LocalTerminalService {
                 let Ok(facts) = coordinator.agent_registration_snapshot() else {
                     return unavailable;
                 };
-                if !facts.iter().any(|fact| {
-                    fact.presentation_id().as_str() == binding.presentation_id.as_str()
-                        && fact.worker_id() == worker.worker_id
-                        && fact.worker_generation() == worker.generation
-                }) {
+                let valid = match &request.action {
+                    orchbee_workbench_protocol::PanelAgentAction::Observe { binding, .. } => {
+                        facts.iter().any(|fact| {
+                            fact.presentation_id().as_str() == binding.presentation_id.as_str()
+                                && fact.worker_id() == worker.worker_id
+                                && fact.worker_generation() == worker.generation
+                        })
+                    }
+                    orchbee_workbench_protocol::PanelAgentAction::States { presentation_ids } => {
+                        facts
+                            .iter()
+                            .filter(|fact| {
+                                presentation_ids
+                                    .iter()
+                                    .any(|id| id.as_str() == fact.presentation_id().as_str())
+                            })
+                            .all(|fact| {
+                                fact.worker_id() == worker.worker_id
+                                    && fact.worker_generation() == worker.generation
+                            })
+                    }
+                    _ => false,
+                };
+                if !valid {
                     return unavailable;
                 }
                 return coordinator

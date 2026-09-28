@@ -299,6 +299,11 @@ impl WorkbenchAuthority {
                 .map_err(|_| Failure::ResultTooLarge)
         };
         match &request.action {
+            Action::States { presentation_ids } => {
+                let outcome = self.agent_states(presentation_ids, &membership, &physical)?;
+                admit_result(&outcome)?;
+                Ok(outcome)
+            }
             Action::Observe {
                 binding,
                 after_sequence,

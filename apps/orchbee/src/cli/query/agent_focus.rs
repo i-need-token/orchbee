@@ -13,9 +13,20 @@ pub(crate) fn agent_attention_target(
     target: &AgentTarget,
     deadline: Instant,
     wake: Option<BorrowedFd<'_>>,
-) -> Result<AgentSessionId, Failure> {
-    agent_target::resolve_on_session(client, target, Some(snapshot), deadline, wake)
-        .map(|resolved| resolved.session_id)
+) -> Result<orchbee_workbench_protocol::ClientViewIntent, Failure> {
+    let resolved = agent_target::resolve_named(client, target, Some(snapshot), deadline, wake)?;
+    Ok(match resolved.target {
+        orchbee_agent_observation_protocol::AgentNameTarget::Session { session_id } => {
+            orchbee_workbench_protocol::ClientViewIntent::AgentAttention {
+                session_ids: vec![session_id],
+            }
+        }
+        orchbee_agent_observation_protocol::AgentNameTarget::Terminal { binding } => {
+            orchbee_workbench_protocol::ClientViewIntent::TerminalAgentAttention {
+                bindings: vec![binding],
+            }
+        }
+    })
 }
 
 /// The Client observation is not a Server-authoritative boot identity. Authenticate

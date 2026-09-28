@@ -923,8 +923,16 @@ fn success_output(
             let version = results::schema_version(command);
             #[cfg(windows)]
             let version = match &projection {
-                results::Projection::AgentTerminalInspection { .. } => 15,
-                results::Projection::AgentTerminalWait(_) => 5,
+                results::Projection::AgentTerminalInspection { client_view, .. } => {
+                    if client_view.is_some() { 16 } else { 15 }
+                }
+                results::Projection::AgentTerminalWait(wait) => {
+                    if wait.client_view.is_some() {
+                        6
+                    } else {
+                        5
+                    }
+                }
                 _ => version,
             };
             let document = json!({

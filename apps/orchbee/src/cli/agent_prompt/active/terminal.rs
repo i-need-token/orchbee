@@ -34,13 +34,31 @@ pub(super) fn span(
         start,
         total,
     } = request;
-    if let Some(options) = wait {
-        terminal_agent_wait::admit(&options.until, options.client.is_some())?;
-    }
     let deadline = total.step(Instant::now(), READ_BUDGET)?;
+    let selected = wait
+        .map(|options| {
+            crate::cli::agent_view::windows::terminal_attention::select_for_wait(
+                client,
+                options.client.as_ref(),
+                &options.until,
+                deadline,
+                signals,
+            )
+        })
+        .transpose()?
+        .flatten();
+    if let Some(options) = wait {
+        terminal_agent_wait::admit(&options.until, selected.is_some())?;
+    }
     let (snapshot, before) =
         terminal_agent_wait::read_pinned(client, target, &binding, None, deadline, signals)?;
     let expected = provider(&before)?;
+    if let Some(selected) = selected.as_ref() {
+        // Selected-Client admission fails before input, even when only later observation needs it.
+        crate::cli::agent_view::windows::terminal_attention::read(
+            client, &snapshot, selected, &binding, deadline, signals,
+        )?;
+    }
     let row = query::named_terminal::terminal_row(&snapshot, &binding)?;
     let terminal = Target::Id(row.terminal_id);
     let (_, sample) = query::read_terminal_processes_cancellable(
@@ -100,6 +118,7 @@ pub(super) fn span(
             terminal_agent_wait::observe(
                 client,
                 terminal_agent_wait::Options {
+                    selected: selected.as_ref(),
                     target,
                     binding: &binding,
                     until: &options.until,
@@ -177,7 +196,15 @@ pub(super) fn success(
     format: OutputFormat,
     locale: Locale,
 ) -> Output {
-    let document = json!({"schema":"orchbee.agent.prompt","version":5,"source":receipt["source"],
+    let version = if matched
+        .as_ref()
+        .is_some_and(|matched| matched.client_view.is_some())
+    {
+        6
+    } else {
+        5
+    };
+    let document = json!({"schema":"orchbee.agent.prompt","version":version,"source":receipt["source"],
         "result":{"target":{"kind":"terminal","binding":binding},"submission":receipt,
             "wait":matched.as_ref().map(Matched::document)}});
     let encoded = match format {

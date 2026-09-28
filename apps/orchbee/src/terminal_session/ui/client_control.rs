@@ -131,6 +131,7 @@ impl NativeUi {
             ClientViewIntent::Selections { .. }
             | ClientViewIntent::Viewports { .. }
             | ClientViewIntent::AgentAttention { .. }
+            | ClientViewIntent::TerminalAgentAttention { .. }
             | ClientViewIntent::Layout { .. }
             | ClientViewIntent::FocusDirection { .. }
             | ClientViewIntent::Resize { .. }

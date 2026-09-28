@@ -1066,6 +1066,7 @@ pub(crate) enum Projection {
     AgentInspection(Box<AgentInspectionDoc>),
     #[cfg(windows)]
     AgentTerminalInspection {
+        client_view: Option<super::agent_view::windows::terminal_attention::Projection>,
         binding: orchbee_agent_observation_protocol::AgentLaunchBinding,
         terminal: Value,
         management: TerminalManagementDoc,
@@ -1303,10 +1304,17 @@ impl Projection {
                 terminal,
                 management,
                 semantic,
-            } => json!({
+                client_view,
+            } => {
+                let mut doc = json!({
                 "kind":"terminal-found", "target":{"kind":"terminal","binding":binding},
                 "terminal":terminal, "management":{"source":management.source,"state":management.state}, "semantic":semantic.document(),
-            }),
+                });
+                if let Some(view) = client_view {
+                    doc["clientView"] = view.document();
+                }
+                doc
+            }
             Self::AgentInspection(doc) => {
                 let mut result = json!({"kind":"found","revision":doc.revision,"session":doc.session,"runtime":doc.runtime.document(),"management":doc.management.document()});
                 #[cfg(windows)]

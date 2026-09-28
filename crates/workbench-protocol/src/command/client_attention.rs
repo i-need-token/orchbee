@@ -73,3 +73,68 @@ impl ClientAgentAttentionSnapshot {
                 .eq(sessions)
     }
 }
+
+pub(super) fn validate_terminal_bindings(
+    bindings: &[orchbee_agent_observation_protocol::AgentLaunchBinding],
+) -> Result<(), ContractError> {
+    if bindings.is_empty()
+        || bindings.len() > MAXIMUM_CLIENT_ATTENTION_SESSIONS
+        || bindings
+            .iter()
+            .map(|b| &b.presentation_id)
+            .collect::<BTreeSet<_>>()
+            .len()
+            != bindings.len()
+        || bindings.iter().any(|b| {
+            orchbee_agent_observation_protocol::AgentHostEpoch::parse(b.generation.as_str())
+                .is_err()
+        })
+    {
+        return Err(ContractError::InvalidDocument);
+    }
+    Ok(())
+}
+
+/// Physical report sequence acknowledgement; it carries no canonical Session revision.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ClientTerminalAgentAttentionVersion {
+    pub sequence: crate::WorkbenchRevision,
+    pub seen: bool,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ClientTerminalAgentAttentionEntry {
+    pub binding: orchbee_agent_observation_protocol::AgentLaunchBinding,
+    #[serde(deserialize_with = "super::json_fields::deserialize_nullable")]
+    pub state: Option<ClientTerminalAgentAttentionVersion>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ClientTerminalAgentAttentionSnapshot {
+    pub report_revision: crate::WorkbenchRevision,
+    #[serde(deserialize_with = "super::json_fields::deserialize_nullable")]
+    pub outer_focused: Option<bool>,
+    pub entries: Vec<ClientTerminalAgentAttentionEntry>,
+}
+
+impl ClientTerminalAgentAttentionSnapshot {
+    pub fn validate(&self) -> Result<(), ContractError> {
+        validate_terminal_bindings(
+            &self
+                .entries
+                .iter()
+                .map(|e| e.binding.clone())
+                .collect::<Vec<_>>(),
+        )
+    }
+    #[must_use]
+    pub fn answers(
+        &self,
+        bindings: &[orchbee_agent_observation_protocol::AgentLaunchBinding],
+    ) -> bool {
+        self.validate().is_ok() && self.entries.iter().map(|e| &e.binding).eq(bindings)
+    }
+}

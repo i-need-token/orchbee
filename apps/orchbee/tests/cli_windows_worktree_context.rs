@@ -181,6 +181,8 @@ fn root_cwd(stream: &mut LocalStream, cwd: Option<&str>) {
         c::TerminalViewerOutcome::Attached {
             attachment_id: c::ViewerId::parse(&id(50)).unwrap(),
             host_epoch: c::HostEpoch::parse(&id(51)).unwrap(),
+            host_terminal_id: orchbee_client_server_protocol::HostTerminalId::parse(&id(51))
+                .unwrap(),
         },
     );
     let request = viewer(stream);

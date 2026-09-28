@@ -189,7 +189,7 @@ OBSR 载体格式不变；`read-rows`/`rows-rejected` 对匹配的 OBCN cohort �
 与 result tag 6），五个 viewport 与 history action 同样新增 OBCN action tag 7 至 11——旧 Worker
 会拒绝新 tag 而非静默忽略。
 
-JSON 查看附件 outcome 包括：带 `attachmentId` 和 `hostEpoch`（非零 32 字符小写 hex）的
+JSON 查看附件 outcome 包括：带 `attachmentId`、`hostEpoch` 和实际 `hostTerminalId`（非零 32 字符小写 hex）的
 `attached`；无其他字段的 `empty`、`feedback-accepted`、`detached`；reason 为 `already-attached`、
 `terminal-unavailable`、`feedback-mismatch` 或 `host-rejected` 的 `rejected`；reason 为 `stale-revision`、
 `stale-generation`、`history-evicted`、`missing-resource`、`invalid-field`、

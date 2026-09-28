@@ -114,6 +114,8 @@ fn attach_outcome() -> io::Result<TerminalViewerOutcome> {
     Ok(TerminalViewerOutcome::Attached {
         attachment_id: ViewerId::parse(ID).map_err(io::Error::other)?,
         host_epoch: HostEpoch::parse(ID).map_err(io::Error::other)?,
+        host_terminal_id: orchbee_client_server_protocol::HostTerminalId::parse(ID)
+            .map_err(io::Error::other)?,
     })
 }
 
@@ -297,6 +299,8 @@ fn binding_attach_outcome() -> io::Result<TerminalViewerOutcome> {
     Ok(TerminalViewerOutcome::Attached {
         attachment_id: ViewerId::parse(SITE_ID).map_err(io::Error::other)?,
         host_epoch: HostEpoch::parse(ID).map_err(io::Error::other)?,
+        host_terminal_id: orchbee_client_server_protocol::HostTerminalId::parse(ID)
+            .map_err(io::Error::other)?,
     })
 }
 

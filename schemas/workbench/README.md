@@ -440,6 +440,13 @@ The [Tab label contract](../../apps/orchbee/docs/native-tab-labels.md) owns opti
 
 Client-owned Agent attention reads name 1–100 unique canonical Agent session IDs. `agent-attention` submissions and `attention-read` completions use kind 29 with a 64 KiB pre-allocation limit; responses remain kind 26. Entries preserve request order, nullable missing-session state, observation generation/sequence, semantic-change revision and seen, together with a boot-authenticatable changes cursor and nullable host focus. Workbench binds the lightweight Agent protocol DTOs without owning Agent state. The [Client attention owner](../../apps/orchbee/docs/native-client-attention.md) defines read availability, unchanged acknowledgement, bounded receipt storage and CLI cursor authentication.
 
+Physical `terminal-agent-attention` reads instead name 1–100 unique full presentation/creation/Host
+bindings; `terminal-attention-read` preserves ordered nullable sequence/seen entries, report revision
+and nullable outer focus. They use the same kind-29/64-KiB submission/completion envelope and read
+lifecycle. Exact binding/order checks apply to intent/result correlation; no canonical Session is
+synthesized. [Physical acknowledgement ownership](../../apps/orchbee/docs/native-client-attention.md#physical-terminal-observation-and-paint)
+defines the Server/Client join and paint gates.
+
 ## Retained Panel relocation
 
 `panel.relocate` retains the exact source context/Tab/Panel tuple. Its `tab` destination accepts
@@ -469,3 +476,9 @@ The [Panel Agent schema](v1/workbench-panel-agent.schema.json) also covers gener
 physical `observe` / `observed` reads. The shared corpus checks required nullable cursors, nonzero
 Host identities and semantic change shapes; language bindings additionally enforce contiguous
 sequence/head/current-state consistency. Exact cursor coverage belongs to request/result correlation.
+
+Compact physical `states` reads accept 0–64 unique presentation IDs and return rows in request order,
+with Workbench/report revisions and a required nullable full binding/sequence/Agent/state snapshot.
+Missing membership refuses the batch; no current physical observation yields null. Empty reads fence
+the report revision. Rust/TypeScript share strict shapes, unique/order checks and the conformance
+corpus; Server retains current Worker and physical identity admission.

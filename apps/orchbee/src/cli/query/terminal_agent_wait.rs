@@ -21,6 +21,8 @@ const READ_BUDGET: Duration = Duration::from_secs(5);
 /// A physical match retains the latest read separately from a transient matched change.
 #[derive(Debug)]
 pub(crate) struct Matched {
+    pub(in crate::cli) client_view:
+        Option<crate::cli::agent_view::windows::terminal_attention::Projection>,
     pub(in crate::cli) read: TerminalAgentRead,
     pub(in crate::cli) conditions: Vec<AgentWaitCondition>,
     pub(in crate::cli) change: Option<TerminalAgentChange>,
@@ -37,13 +39,18 @@ impl Matched {
         if let Some(fence) = self.after_revision {
             wait["afterRevision"] = json!(fence);
         }
-        json!({"kind":"terminal-matched","target":{"kind":"terminal","binding":self.read.observation.binding},
+        let mut result = json!({"kind":"terminal-matched","target":{"kind":"terminal","binding":self.read.observation.binding},
             "semantic":self.read.document(),"matchedConditions":self.conditions.iter().map(|c| c.as_str()).collect::<Vec<_>>(),
-            "matchedChange":self.change,"wait":wait})
+            "matchedChange":self.change,"wait":wait});
+        if let Some(view) = &self.client_view {
+            result["clientView"] = view.document();
+        }
+        result
     }
 }
 
 pub(in crate::cli) struct Options<'a> {
+    pub selected: Option<&'a orchbee_workbench_protocol::WorkbenchClientId>,
     pub target: &'a AgentTarget,
     pub binding: &'a AgentLaunchBinding,
     pub until: &'a [AgentWaitCondition],
@@ -123,7 +130,11 @@ pub(in crate::cli) fn observe(
         return Err(timeout(&options, "wait-deadline", observations));
     }
     let mut state = state::State::new(&first, options.until, options.after_revision, prompt)?;
-    if let Some(matched) = state.initial_match(&first) {
+    // With a selected Client, read its acknowledgement before the next pinned Server sample.
+    // The pre-send checkpoint remains exclusively the prompt activity fence.
+    if options.selected.is_none()
+        && let Some(matched) = state.initial_match(&first)
+    {
         return Ok(matched_result(&options, first, matched, observations));
     }
     let mut backoff = Duration::from_millis(50);
@@ -140,6 +151,22 @@ pub(in crate::cli) fn observe(
         if gated {
             deadline = deadline.min(effect);
         }
+        let attention = options
+            .selected
+            .map(|selected| {
+                let snapshot =
+                    super::agent_target::read_snapshot(client, deadline, signals.poll_fd())?;
+                crate::cli::agent_view::windows::terminal_attention::read(
+                    client,
+                    &snapshot,
+                    selected,
+                    options.binding,
+                    deadline,
+                    signals,
+                )
+            })
+            .transpose()
+            .map_err(|failure| read_failure(failure, &options, gated, effect, observations))?;
         let (_, read) = read_pinned(
             client,
             options.target,
@@ -150,6 +177,10 @@ pub(in crate::cli) fn observe(
         )
         .map_err(|failure| read_failure(failure, &options, gated, effect, observations))?;
         observations = observations.saturating_add(1);
+        let client_view = attention.map(|a| a.corroborate(&read));
+        if let Some(view) = &client_view {
+            state.set_client(read.observation.sequence, view.seen);
+        }
         let now = Instant::now();
         if options.total.expired(now) {
             return Err(timeout(&options, "wait-deadline", observations));
@@ -158,7 +189,9 @@ pub(in crate::cli) fn observe(
             return Err(timeout(&options, "effect-deadline", observations));
         }
         if let Some(matched) = state.observe(&read)? {
-            return Ok(matched_result(&options, read, matched, observations));
+            let mut result = matched_result(&options, read, matched, observations);
+            result.client_view = client_view;
+            return Ok(result);
         }
         let mut pause = options.total.backoff(now, backoff);
         if prompt && !state.active {
@@ -186,6 +219,7 @@ fn matched_result(
     observations: u64,
 ) -> Matched {
     Matched {
+        client_view: None,
         read,
         conditions: matched.conditions,
         change: matched.change,

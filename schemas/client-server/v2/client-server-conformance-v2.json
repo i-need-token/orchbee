@@ -194,7 +194,7 @@
 		{
 			"direction": "server-to-client",
 			"name": "viewer-attached",
-			"payload": "{\"kind\":\"terminal.viewer.result\",\"protocolVersion\":2,\"requestId\":\"11111111111111111111111111111111\",\"outcome\":{\"kind\":\"attached\",\"attachmentId\":\"33333333333333333333333333333333\",\"hostEpoch\":\"44444444444444444444444444444444\"}}"
+			"payload": "{\"kind\":\"terminal.viewer.result\",\"protocolVersion\":2,\"requestId\":\"11111111111111111111111111111111\",\"outcome\":{\"kind\":\"attached\",\"attachmentId\":\"33333333333333333333333333333333\",\"hostEpoch\":\"44444444444444444444444444444444\",\"hostTerminalId\":\"77777777777777777777777777777777\"}}"
 		},
 		{
 			"direction": "server-to-client",

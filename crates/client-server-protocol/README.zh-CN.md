@@ -45,7 +45,9 @@ Poll、FrameApplied、NeedSnapshot 和 Detach 必须携带 typed `attachment_id:
 AttachBinding 不能携带该字段。`TerminalViewerAction::attachment_id()` 返回既有 viewer selector，
 对两种附着 action 返回 `None`。Server 校验提交 Session 内的所有权；binding 只校验身份语法。
 
-`ViewerId` 与 `HostEpoch` 表示 Server 签发的附件 scope。反馈计数器使用规范 u64 十进制字符串；
+`ViewerId` 与 `HostEpoch` 表示 Server 签发的附件 scope。Attached 还要求实际
+`HostTerminalId`；原生投影结合 epoch 与终端身份，拒绝同一 Host 内其他终端的绘制证明。
+要求匹配的开发 cohort。反馈计数器使用规范 u64 十进制字符串；
 JSON corpus 测试每个 action、outcome、reason、closed field set 与 identity boundary。记录结果保留
 schema owner 定义的 OBSR 二进制 framing 和 `MAXIMUM_VIEWER_RECORD_BYTES` bound；同一组 Server
 frame function 可分派 JSON control 或 opaque 二进制记录。Client 方向 reader 拒绝 OBSR。

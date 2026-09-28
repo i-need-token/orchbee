@@ -214,7 +214,6 @@ version 4 的 `conflictTarget`；既有 canonical 回执保持原版本。Window
 普通手工名称和待完成预留不在冷启动恢复。同 provider 换引用或改名保留恢复后的托管身份；
 清名仅清除其仍匹配的自有持久恢复引用。
 
-
 三个命令均接受 `--format text|json`。内嵌成功 schema 为 `orchbee.agent.names`、
 `orchbee.agent.resolve` 与 `orchbee.agent.rename`；names 为 version 2，独立列出预留，另两者为 version 1；接纳后的失败使用
 `orchbee.cli.failure.agent-names` version 1。presentation 解析与 ambiguous-target 失败使用 version 2；launch-pending 失败使用 version 3；原有结果仍为 version 1。相关语义结果携带 `agent-names` source
@@ -236,13 +235,15 @@ version 4 的 `conflictTarget`；既有 canonical 回执保持原版本。Window
 Windows 进程证据覆盖真实管道接纳、名称解析后读取、固定目标轮询、共享五秒截止、
 显式 ID 直读、schema 合规失败、丢失或不匹配的修改回复，以及效果前解析。
 
-Windows 物理 Agent Get 输出 v15，在封闭的 v14 检查形状上增加 `semantic: {source, observation}`。
-来源包含 Site、Workbench／报告修订和实际请求 ID；观察包含精确目标绑定、当前有效报告视图、
-终端局部序号和本次头部读取的空变化列表。主展示与子展示分别读取自己的报告资源。
-主面板元数据／报告投影须与语义报告修订一致。文本按所选语言呈现该有效报告视图。
-v13／v14 和所有规范变体继续保持封闭且可读取，不虚构规范 Session ID、轮次、就绪或
-Client `done`。该读取提供后续 wait／prompt 集成所需的物理状态来源。
-
+Windows 物理 Agent Get 输出 v15，在封闭 v14 形状上包含 `semantic: {source, observation}`。
+来源记录 Site、Workbench／报告修订和请求 ID；观察包含精确绑定、有效报告视图、终端局部
+序号及空变化列表。主展示与子展示读取各自报告资源；主面板元数据／报告投影须与语义报告
+修订一致。文本按所选语言呈现有效报告。带 `--client` 时，v16 还要求 `clientView`：所选
+Client／操作／视图、报告修订、可空 sequence／seen／status 和外层焦点。只有完整绑定和
+语义序号匹配，且 Server 报告修订覆盖 Client 样本时，才核实 seen，并将 idle 投影为
+idle／done。确认缺失或过期时静止状态未知。不虚构规范 Session、轮次或就绪；旧变体保持
+封闭。`agent attention` 将物理目标路由到同一 Client 所有者，输出 v4 Client control 回执，
+且不会确认已看过。
 
 ### 物理 Agent 等待与提示提交
 
@@ -254,9 +255,11 @@ ABA 明确失败；证据丢失后不重连或退化轮询。总期限不续期�
 普通等待可匹配保留的瞬态，当前观察单独报告。此目标的 `--after-revision` 指报告来源修订，
 不是规范 Agent 修订；未来门槛在首次观察时拒绝。此后消费的历史必晚于该检查点报告修订。
 working、idle、blocked、unknown 及 needs-attention 别名使用报告事实；规范结果／新鲜度要求
-规范观察。Client `done` 要求经核对的物理 Client 观察；该后续集成缺失期间，选定 Client 或
-仅 done 的请求在输入前失败。默认混合 idle／done／blocked 可匹配已有报告状态。这些限制
-仍是未完成的对齐义务。
+规范观察。Client `done` 要求经核对的物理 Client 观察。`--client` 固定该 Client；仅 done
+且未指定 Client 时，选择经验证的调用方 Client 或唯一当前 Client，歧义在输入前失败。
+选定 Client 后，idle／done 要求当前匹配序号；保留历史不虚构旧确认。状态缺失／过期时继续
+等待，Client 丢失或读取失败则结束。未选 Client 时，默认混合 idle／done／blocked 匹配
+已有报告状态。
 
 提示预检拒绝 blocked，通过真实前台进程链验证已知 provider，并在提交前重读精确语义／物理
 目标。已知存活 provider 即使报告状态 unknown 也可接收输入，与固定 Herdr 的准入一致。
@@ -266,7 +269,9 @@ working、idle、blocked、unknown 及 needs-attention 别名使用报告事实�
 working／blocked 可匹配这些条件；静止条件要求活动后的当前状态。历史丢失失败且不重发。
 
 Wait v5 返回 `terminal-matched`、物理观察、可空匹配变化、条件与统计。Prompt v5 返回终端
-目标、原始提交及可空语义等待。Agent 读取失败 v4 和提示失败 v2 携带物理失败详情，旧版
+目标、原始提交及可空语义等待。选定 Client 的匹配使用 Wait／Prompt v6，匹配中要求
+`clientView`；Prompt v6 要求已完成等待。预检在输入前检查所选 Client，全部读取共享既有
+五秒评估及绝对总期限，不确认已看过、不重发。Agent 读取失败 v4 和提示失败 v2 携带物理失败详情，旧版
 保持封闭。输入接纳后的取消／失败保留提交回执；部分／不确定交付保留原 send 结果。
 测试覆盖状态门槛、静默更新、瞬态与当前匹配、provider／物理变化、修订门槛、有界超时、
 回执保留和 Windows 实际输入。生成测试含 32 个种子、6,400 个状态页，并在失败时缩减为可重放序列；它只检验保留状态与活动门槛，不证明退出事件或 Client 注意力。范围参照固定 Herdr

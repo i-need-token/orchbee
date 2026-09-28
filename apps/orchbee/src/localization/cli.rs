@@ -1819,6 +1819,21 @@ impl Locale {
         }
     }
 
+    #[cfg(windows)]
+    pub(crate) fn cli_terminal_agent_client_view(
+        self,
+        client: &str,
+        status: Option<&str>,
+        seen: Option<bool>,
+    ) -> String {
+        let status = self.cli_agent_client_status(status);
+        let seen = self.cli_agent_seen(seen);
+        match self {
+            Self::EnUs => format!("Client {client}: status {status}; seen {seen}\n"),
+            Self::ZhCn => format!("Client {client}：状态 {status}；已看见 {seen}\n"),
+        }
+    }
+
     /// The localized text form of one semantic Agent status, including its
     /// structured payload (attention count, active activity, activity hint).
     pub(crate) fn cli_agent_status(

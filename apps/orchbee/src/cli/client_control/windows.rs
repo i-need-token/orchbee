@@ -196,9 +196,7 @@ fn observe(
                 if interrupted(answer, signals, deadline)? {
                     return Ok(());
                 }
-                orchbee_workbench_protocol::ClientViewIntent::AgentAttention {
-                    session_ids: vec![result?],
-                }
+                result?
             } else {
                 selection::intent(target, selected, caller.as_ref(), &snapshot)?
             };
@@ -357,6 +355,29 @@ fn verify_attention(
         && let ClientViewControlStatus::AttentionRead { attention, .. } = &operation.status
     {
         query::authenticate_attention(client, attention, deadline, signals.poll_fd())?;
+    }
+    if let ClientViewOutcome::Operation { operation } = &reply.outcome
+        && let ClientViewControlStatus::TerminalAttentionRead { attention, .. } = &operation.status
+    {
+        let snapshot = query::read_agent_snapshot(client, deadline, signals.poll_fd())?;
+        for entry in &attention.entries {
+            let report = query::terminal_agent::read(
+                client,
+                &snapshot,
+                &entry.binding,
+                None,
+                deadline,
+                signals.poll_fd(),
+            )?;
+            if attention.report_revision > report.report_revision
+                || entry
+                    .state
+                    .as_ref()
+                    .is_some_and(|s| s.sequence > report.observation.sequence)
+            {
+                return Err(Failure::new(FailureKind::ProtocolInvalid));
+            }
+        }
     }
     Ok(())
 }

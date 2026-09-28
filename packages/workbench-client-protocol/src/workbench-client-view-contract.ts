@@ -1,3 +1,4 @@
+import { TerminalAgentBindingSchema } from './workbench-panel-agent-contract';
 import {
 	ClientPanelDirectionSchema,
 	ClientLayoutAdjustmentSchema,
@@ -120,6 +121,34 @@ export const ClientAgentAttentionSnapshotSchema = z
 		}
 	})
 	.readonly();
+const physicalBindings = z
+	.array(TerminalAgentBindingSchema)
+	.min(1)
+	.max(100)
+	.refine((bindings) => new Set(bindings.map((b) => b.presentationId)).size === bindings.length)
+	.readonly();
+export const ClientTerminalAgentAttentionSnapshotSchema = z
+	.strictObject({
+		reportRevision: WorkbenchRevisionSchema,
+		outerFocused: z.boolean().nullable(),
+		entries: z
+			.array(
+				z
+					.strictObject({
+						binding: TerminalAgentBindingSchema,
+						state: z
+							.strictObject({ sequence: WorkbenchRevisionSchema, seen: z.boolean() })
+							.readonly()
+							.nullable(),
+					})
+					.readonly(),
+			)
+			.min(1)
+			.max(100)
+			.refine((rows) => new Set(rows.map((r) => r.binding.presentationId)).size === rows.length)
+			.readonly(),
+	})
+	.readonly();
 const selectionContexts = z
 	.array(WorkbenchTerminalContextIdSchema)
 	.min(1)
@@ -152,6 +181,9 @@ const clientNavigation = z
 	})
 	.readonly();
 export const ClientViewIntentSchema = z.discriminatedUnion('kind', [
+	z
+		.strictObject({ kind: z.literal('terminal-agent-attention'), bindings: physicalBindings })
+		.readonly(),
 	z.strictObject({ kind: z.literal('viewports'), panelIds: ClientViewportPanelsSchema }).readonly(),
 	z
 		.strictObject({ kind: z.literal('selections'), terminalContextIds: selectionContexts })
@@ -219,6 +251,12 @@ export const ClientViewCompletionSchema = z
 				.readonly(),
 			z
 				.strictObject({
+					kind: z.literal('terminal-attention-read'),
+					attention: ClientTerminalAgentAttentionSnapshotSchema,
+				})
+				.readonly(),
+			z
+				.strictObject({
 					kind: z.literal('attention-read'),
 					attention: ClientAgentAttentionSnapshotSchema,
 				})
@@ -264,6 +302,13 @@ export const ClientViewControlStatusSchema = z.discriminatedUnion('kind', [
 		.strictObject({
 			kind: z.literal('navigation-read'),
 			navigation: clientNavigation,
+			view: ClientViewObservationSchema,
+		})
+		.readonly(),
+	z
+		.strictObject({
+			kind: z.literal('terminal-attention-read'),
+			attention: ClientTerminalAgentAttentionSnapshotSchema,
 			view: ClientViewObservationSchema,
 		})
 		.readonly(),
@@ -456,6 +501,25 @@ export const ClientViewOperationSchema = z
 			}
 			return;
 		}
+		if (status.kind === 'terminal-attention-read') {
+			const intent = command.intent;
+			if (
+				intent.kind !== 'terminal-agent-attention' ||
+				status.attention.entries.length !== intent.bindings.length ||
+				status.attention.entries.some((entry, index) => {
+					const expected = intent.bindings[index];
+					return (
+						expected === undefined ||
+						entry.binding.presentationId !== expected.presentationId ||
+						entry.binding.generation !== expected.generation ||
+						entry.binding.hostEpoch !== expected.hostEpoch ||
+						entry.binding.hostTerminalId !== expected.hostTerminalId
+					);
+				})
+			)
+				context.addIssue({ code: 'custom', message: 'Physical Client attention binding mismatch' });
+			return;
+		}
 		if (status.kind === 'attention-read') {
 			const intent = command.intent;
 			if (
@@ -538,6 +602,7 @@ export const ClientViewOperationSchema = z
 
 		if (
 			intent.kind === 'agent-attention' ||
+			intent.kind === 'terminal-agent-attention' ||
 			intent.kind === 'selections' ||
 			intent.kind === 'viewports'
 		) {

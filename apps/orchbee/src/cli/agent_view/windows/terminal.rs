@@ -8,6 +8,7 @@ pub(super) fn read(
     client: &mut crate::local_client::LocalClient,
     snapshot: &Snapshot,
     binding: AgentLaunchBinding,
+    selected: Option<&WorkbenchClientId>,
     deadline: Instant,
     signals: &mut ArmedSignals,
 ) -> Result<(serde_json::Value, results::Projection), Failure> {
@@ -54,6 +55,11 @@ pub(super) fn read(
     }
     let management =
         query::read_terminal_management(client, &binding, deadline, signals.poll_fd())?;
+    let attention = selected
+        .map(|selected| {
+            super::terminal_attention::read(client, snapshot, selected, &binding, deadline, signals)
+        })
+        .transpose()?;
     let semantic = query::terminal_agent::read(
         client,
         snapshot,
@@ -82,6 +88,7 @@ pub(super) fn read(
     Ok((
         results::snapshot_source(snapshot),
         results::Projection::AgentTerminalInspection {
+            client_view: attention.map(|attention| attention.corroborate(&semantic)),
             binding,
             terminal: fields,
             management,

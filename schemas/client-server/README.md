@@ -204,7 +204,7 @@ viewer fallback are unsupported. The OBSR carrier format does not change; `read-
 five viewport and history actions add OBCN action tags 7 through 11 the same way — an
 older Worker rejects the new tags rather than silently ignoring them.
 
-JSON viewer outcomes are `attached` with `attachmentId` and `hostEpoch` (nonzero 32-character
+JSON viewer outcomes are `attached` with `attachmentId`, `hostEpoch` and the actual `hostTerminalId` (nonzero 32-character
 lowercase hex), fieldless `empty`, `feedback-accepted`, or `detached`, `rejected` with reason
 `already-attached`, `terminal-unavailable`, `feedback-mismatch`, or `host-rejected`,
 `rows-rejected` with reason

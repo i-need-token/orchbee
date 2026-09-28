@@ -1,4 +1,6 @@
-use crate::{HostEpoch, ProtocolError, RequestId, SiteId, TerminalId, ViewerId, WorkerId};
+use crate::{
+    HostEpoch, HostTerminalId, ProtocolError, RequestId, SiteId, TerminalId, ViewerId, WorkerId,
+};
 use serde::{Deserialize, Serialize};
 use std::num::NonZeroU64;
 
@@ -283,6 +285,7 @@ pub enum TerminalViewerOutcome {
     Attached {
         attachment_id: ViewerId,
         host_epoch: HostEpoch,
+        host_terminal_id: HostTerminalId,
     },
     Empty {},
     FeedbackAccepted {},

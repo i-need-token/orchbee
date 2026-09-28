@@ -3,6 +3,54 @@ use crate::invocation::AgentTarget;
 use orchbee_workbench_protocol::PanelAgentView;
 use serde_json::json;
 
+#[test]
+fn selected_client_idle_and_done_require_current_corroborated_acknowledgement() {
+    let initial = read(1, 1, Status::Idle, &[]);
+    let mut state = State::new(
+        &initial,
+        &[AgentWaitCondition::Idle, AgentWaitCondition::Done],
+        None,
+        false,
+    )
+    .unwrap();
+    state.set_client(WorkbenchRevision::new(1), None);
+    assert!(state.initial_match(&initial).is_none());
+    state.set_client(WorkbenchRevision::new(1), Some(false));
+    assert_eq!(
+        state.initial_match(&initial).unwrap().conditions,
+        vec![AgentWaitCondition::Done]
+    );
+    state.set_client(WorkbenchRevision::new(1), Some(true));
+    assert_eq!(
+        state.initial_match(&initial).unwrap().conditions,
+        vec![AgentWaitCondition::Idle]
+    );
+    let latest = read(
+        3,
+        3,
+        Status::Working,
+        &[(2, Status::Idle), (3, Status::Working)],
+    );
+    assert!(
+        state.observe(&latest).unwrap().is_none(),
+        "old idle has no historical Client acknowledgement"
+    );
+    let idle = read(4, 4, Status::Idle, &[(4, Status::Idle)]);
+    assert!(
+        state.observe(&idle).unwrap().is_none(),
+        "old seen sequence cannot acknowledge new idle"
+    );
+    state.set_client(WorkbenchRevision::new(4), Some(false));
+    assert_eq!(
+        state
+            .observe(&read(4, 4, Status::Idle, &[]))
+            .unwrap()
+            .unwrap()
+            .conditions,
+        vec![AgentWaitCondition::Done]
+    );
+}
+
 // The report-state projection of fixed Herdr e0507237's wait.rs: ordinary waits retain
 // the last eligible event; prompt settlement requires activity and current resting state.
 // Client done/release events and wall-clock scheduling are outside this pure oracle.
@@ -248,7 +296,8 @@ fn physical_wait_pins_identity_and_rejects_gaps_future_fences_and_provider_aba()
     );
     assert!(admit(&[AgentWaitCondition::Done], false).is_err());
     assert!(admit(&[AgentWaitCondition::Fresh], false).is_err());
-    assert!(admit(&[AgentWaitCondition::Idle], true).is_err());
+    assert!(admit(&[AgentWaitCondition::Idle], true).is_ok());
+    assert!(admit(&[AgentWaitCondition::Done], true).is_ok());
 }
 
 #[test]
@@ -262,6 +311,7 @@ fn physical_wait_documents_reject_fabricated_canonical_fields_and_old_versions()
     };
     let start = std::time::Instant::now();
     let options = super::super::Options {
+        selected: None,
         target: &target,
         binding: &initial.observation.binding.clone(),
         until: &[AgentWaitCondition::Idle],
@@ -283,6 +333,37 @@ fn physical_wait_documents_reject_fabricated_canonical_fields_and_old_versions()
     assert!(errors.is_empty(), "{errors:?}");
     doc["version"] = json!(4);
     assert!(!validator.is_valid(&doc));
+    doc["version"] = json!(5);
+    doc["result"]["clientView"] = json!({"clientId":id,"operationId":id,
+        "view":{"workbenchRevision":"1","phase":"starting","selection":null},
+        "reportRevision":"1","sequence":"1","seen":true,"status":"idle","outerFocused":null});
+    assert!(!validator.is_valid(&doc));
+    doc["version"] = json!(6);
+    validator.validate(&doc).unwrap();
+    let receipt = crate::cli::send::test_receipt(
+        orchbee_client_server_protocol::TerminalSendOutcome::Accepted {
+            progress: orchbee_client_server_protocol::SendProgress::complete(2, 5),
+            cleanup: orchbee_client_server_protocol::SendCleanupStatus::Confirmed,
+        },
+    )
+    .document();
+    let mut prompt = json!({"schema":"orchbee.agent.prompt","version":6,"source":receipt["source"],
+        "result":{"target":doc["result"]["target"],"submission":receipt,"wait":doc["result"]}});
+    let prompt_schema: serde_json::Value =
+        serde_json::from_str(include_str!("../../../schemas/orchbee.agent.prompt.json")).unwrap();
+    let prompt_validator = jsonschema::validator_for(&prompt_schema).unwrap();
+    prompt_validator.validate(&prompt).unwrap();
+    prompt["version"] = json!(5);
+    assert!(!prompt_validator.is_valid(&prompt));
+    prompt["version"] = json!(6);
+    prompt["result"]["wait"] = serde_json::Value::Null;
+    assert!(!prompt_validator.is_valid(&prompt));
+    doc["result"]["clientView"]
+        .as_object_mut()
+        .unwrap()
+        .remove("sequence");
+    assert!(!validator.is_valid(&doc));
+    doc["result"].as_object_mut().unwrap().remove("clientView");
     doc["version"] = json!(5);
     doc["result"]["session"] = json!({});
     assert!(!validator.is_valid(&doc));

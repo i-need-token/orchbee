@@ -48,7 +48,9 @@ AttachBinding cannot carry it. `TerminalViewerAction::attachment_id()` returns t
 selector, or `None` for the two attachment actions. Server validates ownership within the submitting
 Session; the binding only validates identity syntax.
 
-`ViewerId` and `HostEpoch` represent Server-issued attachment scope. Feedback counters use canonical
+`ViewerId` and `HostEpoch` represent Server-issued attachment scope. Attached also requires the
+actual `HostTerminalId`; native projections use epoch plus terminal identity to reject paint proofs
+for another terminal in the same Host. A matched development cohort is required. Feedback counters use canonical
 u64 decimal strings; the JSON corpus tests every action, outcome, reason, closed field set, and
 identity boundary. Record results retain the schema-owner's OBSR binary framing and
 `MAXIMUM_VIEWER_RECORD_BYTES` bound; the same Server frame functions dispatch either JSON control or

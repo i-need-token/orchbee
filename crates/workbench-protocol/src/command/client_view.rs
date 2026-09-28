@@ -1,5 +1,8 @@
 //! Ephemeral Client-owned selection and connection-scoped, acknowledged navigation.
-use super::client_attention::{ClientAgentAttentionSnapshot, validate_sessions};
+use super::client_attention::{
+    ClientAgentAttentionSnapshot, ClientTerminalAgentAttentionSnapshot, validate_sessions,
+    validate_terminal_bindings,
+};
 use super::{
     client_layout::{ClientPanelDirection, ClientPanelLayout, ClientSplitRatio},
     client_layout_adjustment::{
@@ -122,6 +125,9 @@ pub enum ClientViewIntent {
     Selections {
         terminal_context_ids: Vec<WorkbenchTerminalContextId>,
     },
+    TerminalAgentAttention {
+        bindings: Vec<orchbee_agent_observation_protocol::AgentLaunchBinding>,
+    },
     AgentAttention {
         session_ids: Vec<AgentSessionId>,
     },
@@ -182,11 +188,19 @@ pub enum ClientViewIntent {
 impl ClientViewIntent {
     #[must_use]
     pub fn is_passive_read(&self) -> bool {
-        matches!(self, Self::Viewports { .. } | Self::AgentAttention { .. })
+        matches!(
+            self,
+            Self::Viewports { .. }
+                | Self::AgentAttention { .. }
+                | Self::TerminalAgentAttention { .. }
+        )
     }
     #[must_use]
     pub fn is_attention_read(&self) -> bool {
-        matches!(self, Self::AgentAttention { .. })
+        matches!(
+            self,
+            Self::AgentAttention { .. } | Self::TerminalAgentAttention { .. }
+        )
     }
     /// Pin one previously resolved directional neighbor as an exact navigation target.
     #[must_use]
@@ -277,7 +291,8 @@ impl ClientViewIntent {
             return false;
         };
         match self {
-            Self::AgentAttention { .. }
+            Self::TerminalAgentAttention { .. }
+            | Self::AgentAttention { .. }
             | Self::Viewports { .. }
             | Self::Selections { .. }
             | Self::ToggleZoom { .. }
@@ -339,6 +354,9 @@ impl ClientViewControl {
         {
             validate_contexts(terminal_context_ids)?;
         }
+        if let ClientViewIntent::TerminalAgentAttention { bindings } = &self.intent {
+            validate_terminal_bindings(bindings)?;
+        }
         if let ClientViewIntent::AgentAttention { session_ids } = &self.intent {
             validate_sessions(session_ids)?;
         }
@@ -387,6 +405,9 @@ pub enum ClientViewCompletionOutcome {
     NavigationRead {
         navigation: Box<ClientNavigationSnapshot>,
     },
+    TerminalAttentionRead {
+        attention: Box<ClientTerminalAgentAttentionSnapshot>,
+    },
     AttentionRead {
         attention: Box<ClientAgentAttentionSnapshot>,
     },
@@ -434,6 +455,10 @@ pub enum ClientViewControlStatus {
     },
     NavigationRead {
         navigation: Box<ClientNavigationSnapshot>,
+        view: ClientViewObservation,
+    },
+    TerminalAttentionRead {
+        attention: Box<ClientTerminalAgentAttentionSnapshot>,
         view: ClientViewObservation,
     },
     AttentionRead {
@@ -515,6 +540,16 @@ impl ClientViewOperation {
                     view,
                     self.command.minimum_workbench_revision,
                 ) {
+                    return Err(ContractError::InvalidDocument);
+                }
+            }
+            ClientViewControlStatus::TerminalAttentionRead { attention, view } => {
+                view.validate()?;
+                let ClientViewIntent::TerminalAgentAttention { bindings } = &self.command.intent
+                else {
+                    return Err(ContractError::InvalidDocument);
+                };
+                if !attention.answers(bindings) {
                     return Err(ContractError::InvalidDocument);
                 }
             }
@@ -743,7 +778,8 @@ impl WorkbenchClientViewRequest {
                 &self.action,
                 ClientViewAction::Synchronize {
                     completion: Some(ClientViewCompletion {
-                        outcome: ClientViewCompletionOutcome::AttentionRead { .. },
+                        outcome: ClientViewCompletionOutcome::AttentionRead { .. }
+                            | ClientViewCompletionOutcome::TerminalAttentionRead { .. },
                         ..
                     }),
                     ..
@@ -772,6 +808,13 @@ impl WorkbenchClientViewRequest {
             }) = completion
             {
                 navigation.validate()?;
+            }
+            if let Some(ClientViewCompletion {
+                outcome: ClientViewCompletionOutcome::TerminalAttentionRead { attention },
+                ..
+            }) = completion
+            {
+                attention.validate()?;
             }
             if let Some(ClientViewCompletion {
                 outcome: ClientViewCompletionOutcome::AttentionRead { attention },

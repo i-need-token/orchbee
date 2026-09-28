@@ -8,7 +8,7 @@
 			"const": "orchbee.client.control"
 		},
 		"version": {
-			"enum": [1, 2, 3]
+			"enum": [1, 2, 3, 4]
 		},
 		"siteId": {
 			"anyOf": [
@@ -464,6 +464,25 @@
 					},
 					"required": ["kind", "panelIds"],
 					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "terminal-agent-attention"
+						},
+						"bindings": {
+							"type": "array",
+							"minItems": 1,
+							"maxItems": 100,
+							"uniqueItems": true,
+							"items": {
+								"$ref": "#/$defs/physicalBinding"
+							}
+						}
+					},
+					"required": ["kind", "bindings"]
 				}
 			]
 		},
@@ -717,6 +736,22 @@
 						}
 					},
 					"required": ["kind", "viewport", "view"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "terminal-attention-read"
+						},
+						"attention": {
+							"$ref": "#/$defs/physicalAttentionSnapshot"
+						},
+						"view": {
+							"$ref": "#/$defs/view"
+						}
+					},
+					"required": ["kind", "attention", "view"],
 					"additionalProperties": false
 				}
 			]
@@ -1453,6 +1488,211 @@
 			},
 			"required": ["workbenchRevision", "panels"],
 			"additionalProperties": false
+		},
+		"physicalIdentity": {
+			"type": "string",
+			"pattern": "^[0-9a-f]{32}$",
+			"not": {
+				"const": "00000000000000000000000000000000"
+			}
+		},
+		"physicalBinding": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["presentationId", "generation", "hostEpoch", "hostTerminalId"],
+			"properties": {
+				"presentationId": {
+					"$ref": "#/$defs/physicalIdentity"
+				},
+				"generation": {
+					"$ref": "#/$defs/physicalIdentity"
+				},
+				"hostEpoch": {
+					"$ref": "#/$defs/physicalIdentity"
+				},
+				"hostTerminalId": {
+					"$ref": "#/$defs/physicalIdentity"
+				}
+			}
+		},
+		"physicalAttentionSnapshot": {
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+				"reportRevision": {
+					"$ref": "#/$defs/revision"
+				},
+				"outerFocused": {
+					"type": ["boolean", "null"]
+				},
+				"entries": {
+					"type": "array",
+					"minItems": 1,
+					"maxItems": 100,
+					"items": {
+						"type": "object",
+						"additionalProperties": false,
+						"properties": {
+							"binding": {
+								"$ref": "#/$defs/physicalBinding"
+							},
+							"state": {
+								"anyOf": [
+									{
+										"type": "null"
+									},
+									{
+										"type": "object",
+										"additionalProperties": false,
+										"properties": {
+											"sequence": {
+												"$ref": "#/$defs/revision"
+											},
+											"seen": {
+												"type": "boolean"
+											}
+										},
+										"required": ["sequence", "seen"]
+									}
+								]
+							}
+						},
+						"required": ["binding", "state"]
+					}
+				}
+			},
+			"required": ["reportRevision", "outerFocused", "entries"]
 		}
-	}
+	},
+	"allOf": [
+		{
+			"if": {
+				"properties": {
+					"version": {
+						"const": 4
+					}
+				}
+			},
+			"then": {
+				"type": "object",
+				"properties": {
+					"observation": {
+						"type": "object",
+						"properties": {
+							"reply": {
+								"type": ["object", "null"],
+								"properties": {
+									"outcome": {
+										"type": "object",
+										"properties": {
+											"operation": {
+												"type": "object",
+												"properties": {
+													"command": {
+														"type": "object",
+														"properties": {
+															"intent": {
+																"type": "object",
+																"properties": {
+																	"kind": {
+																		"const": "terminal-agent-attention"
+																	}
+																},
+																"required": ["kind"]
+															}
+														}
+													}
+												}
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			},
+			"else": {
+				"allOf": [
+					{
+						"type": "object",
+						"properties": {
+							"observation": {
+								"type": "object",
+								"properties": {
+									"reply": {
+										"type": ["object", "null"],
+										"properties": {
+											"outcome": {
+												"type": "object",
+												"properties": {
+													"operation": {
+														"type": "object",
+														"properties": {
+															"command": {
+																"type": "object",
+																"properties": {
+																	"intent": {
+																		"not": {
+																			"type": "object",
+																			"properties": {
+																				"kind": {
+																					"const": "terminal-agent-attention"
+																				}
+																			},
+																			"required": ["kind"]
+																		}
+																	}
+																}
+															}
+														}
+													}
+												}
+											}
+										}
+									}
+								}
+							}
+						}
+					},
+					{
+						"type": "object",
+						"properties": {
+							"observation": {
+								"type": "object",
+								"properties": {
+									"reply": {
+										"type": ["object", "null"],
+										"properties": {
+											"outcome": {
+												"type": "object",
+												"properties": {
+													"operation": {
+														"type": "object",
+														"properties": {
+															"status": {
+																"not": {
+																	"type": "object",
+																	"properties": {
+																		"kind": {
+																			"const": "terminal-attention-read"
+																		}
+																	},
+																	"required": ["kind"]
+																}
+															}
+														}
+													}
+												}
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+				]
+			}
+		}
+	]
 }

@@ -405,6 +405,7 @@ impl NativeExecutor {
         let TerminalViewerOutcome::Attached {
             attachment_id,
             host_epoch,
+            host_terminal_id,
         } = outcome
         else {
             return match outcome {
@@ -443,6 +444,7 @@ impl NativeExecutor {
             forward_cutoff,
             attachment_id.as_str(),
             host_epoch.as_str(),
+            host_terminal_id,
         );
         match setup {
             Ok(completion) => Ok(completion),
@@ -474,8 +476,16 @@ impl NativeExecutor {
         forward_cutoff: Instant,
         attachment_id: &str,
         host_epoch: &str,
+        host_terminal_id: orchbee_client_server_protocol::HostTerminalId,
     ) -> Result<SetupCompletion> {
-        self.finish_attached_setup_inner(target, owner, forward_cutoff, attachment_id, host_epoch)
+        self.finish_attached_setup_inner(
+            target,
+            owner,
+            forward_cutoff,
+            attachment_id,
+            host_epoch,
+            host_terminal_id,
+        )
     }
 
     fn finish_attached_setup_inner(
@@ -485,11 +495,13 @@ impl NativeExecutor {
         forward_cutoff: Instant,
         attachment_id: &str,
         host_epoch: &str,
+        host_terminal_id: orchbee_client_server_protocol::HostTerminalId,
     ) -> Result<SetupCompletion> {
         let projection = TerminalProjection::new(
             AttachmentId::parse(attachment_id).map_err(|_error| CarrierFailure::Protocol)?,
             HostEpoch::parse(host_epoch).map_err(|_error| CarrierFailure::Protocol)?,
-        );
+        )
+        .with_host_terminal(host_terminal_id);
         if !self.setup_is_current(owner, &target.key)? {
             return Err(CarrierFailure::Deadline);
         }

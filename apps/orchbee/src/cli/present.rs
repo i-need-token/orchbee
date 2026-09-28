@@ -653,6 +653,7 @@ pub(crate) fn render(
             terminal,
             management,
             semantic,
+            client_view,
             ..
         } => {
             super::terminal_observation::render(out, terminal, locale)?;
@@ -662,6 +663,13 @@ pub(crate) fn render(
                 &serde_json::json!({"view":semantic.observation.view}),
                 locale,
             )?;
+            if let Some(client) = client_view {
+                out.push(&locale.cli_terminal_agent_client_view(
+                    client.client_id.as_str(),
+                    client.status,
+                    client.seen,
+                ))?;
+            }
             Ok(())
         }
         Projection::AgentInspection(doc) => {

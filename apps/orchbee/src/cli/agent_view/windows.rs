@@ -1,6 +1,7 @@
 pub(super) mod list;
 mod runtime;
 mod terminal;
+pub(in crate::cli) mod terminal_attention;
 use super::*;
 use crate::cli::{
     Failure, FailureKind,
@@ -54,10 +55,14 @@ pub(super) fn run(
                 session_id
             }
             orchbee_agent_observation_protocol::AgentNameTarget::Terminal { binding } => {
-                if selected.is_some() {
-                    return Err(view_failure(FailureKind::Rejected));
-                }
-                return terminal::read(&mut client, &snapshot, binding, deadline, &mut signals);
+                return terminal::read(
+                    &mut client,
+                    &snapshot,
+                    binding,
+                    selected,
+                    deadline,
+                    &mut signals,
+                );
             }
         };
         let attention = selected
@@ -203,15 +208,42 @@ pub(in crate::cli) fn read_many(
     deadline: Instant,
     signals: &mut ArmedSignals,
 ) -> Result<ClientAgentRead, Failure> {
+    let (operation_id, status) = read_control(
+        client,
+        snapshot,
+        selected,
+        ClientViewIntent::AgentAttention {
+            session_ids: sessions.to_vec(),
+        },
+        deadline,
+        signals,
+    )?;
+    match status {
+        ClientViewControlStatus::AttentionRead { attention, view } => Ok(ClientAgentRead {
+            client_id: selected.clone(),
+            operation_id,
+            view,
+            attention: *attention,
+        }),
+        _ => Err(view_failure(FailureKind::ProtocolInvalid)),
+    }
+}
+
+fn read_control(
+    client: &mut crate::local_client::LocalClient,
+    snapshot: &Snapshot,
+    selected: &WorkbenchClientId,
+    intent: ClientViewIntent,
+    deadline: Instant,
+    signals: &mut ArmedSignals,
+) -> Result<(WorkbenchRequestId, ClientViewControlStatus), Failure> {
     let record = current_client(client, snapshot, selected, deadline, signals)?;
     let command = ClientViewControl {
         operation_id: query::request_id()?,
         client_id: selected.clone(),
         expected_view_revision: record.view_revision,
         minimum_workbench_revision: snapshot.revision,
-        intent: ClientViewIntent::AgentAttention {
-            session_ids: sessions.to_vec(),
-        },
+        intent,
     };
     // This existing owner waits on the retained operation and authenticates the
     // changes cursor before returning any AttentionRead payload.
@@ -251,15 +283,7 @@ pub(in crate::cli) fn read_many(
     if operation.command != command {
         return Err(view_failure(FailureKind::ProtocolInvalid));
     }
-    match operation.status {
-        ClientViewControlStatus::AttentionRead { attention, view } => Ok(ClientAgentRead {
-            client_id: selected.clone(),
-            operation_id: command.operation_id,
-            view,
-            attention: *attention,
-        }),
-        _ => Err(view_failure(FailureKind::ProtocolInvalid)),
-    }
+    Ok((command.operation_id, operation.status))
 }
 
 impl ClientAgentRead {

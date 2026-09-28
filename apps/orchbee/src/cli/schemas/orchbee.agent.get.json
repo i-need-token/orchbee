@@ -10,7 +10,7 @@
 			"const": "orchbee.agent.get"
 		},
 		"version": {
-			"enum": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+			"enum": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]
 		},
 		"source": {
 			"oneOf": [
@@ -35,6 +35,9 @@
 				},
 				{
 					"$ref": "#/$defs/semanticTerminalInspection"
+				},
+				{
+					"$ref": "#/$defs/clientTerminalInspection"
 				}
 			]
 		}
@@ -2843,6 +2846,190 @@
 					"$ref": "#/$defs/terminalSemantic"
 				}
 			}
+		},
+		"physicalClient_revision": {
+			"title": "WorkbenchRevision",
+			"type": "string",
+			"minLength": 1,
+			"maxLength": 20,
+			"pattern": "^(?:0|[1-9][0-9]{0,19})$",
+			"format": "orchbee-uint64"
+		},
+		"physicalClient_phase": {
+			"enum": ["starting", "ready", "busy", "unavailable"]
+		},
+		"physicalClient_terminalContextId": {
+			"$ref": "#/$defs/hexId"
+		},
+		"physicalClient_tabId": {
+			"$ref": "#/$defs/hexId"
+		},
+		"physicalClient_panelId": {
+			"$ref": "#/$defs/hexId"
+		},
+		"physicalClient_selection": {
+			"type": "object",
+			"properties": {
+				"terminalContextId": {
+					"$ref": "#/$defs/physicalClient_terminalContextId"
+				},
+				"tabId": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/physicalClient_tabId"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"panelId": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/physicalClient_panelId"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"zoomed": {
+					"type": "boolean"
+				},
+				"panelCount": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 65535
+				}
+			},
+			"required": ["terminalContextId", "tabId", "panelId", "zoomed", "panelCount"],
+			"additionalProperties": false
+		},
+		"physicalClient_view": {
+			"type": "object",
+			"properties": {
+				"workbenchRevision": {
+					"$ref": "#/$defs/physicalClient_revision"
+				},
+				"phase": {
+					"$ref": "#/$defs/physicalClient_phase"
+				},
+				"selection": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/physicalClient_selection"
+						},
+						{
+							"type": "null"
+						}
+					]
+				}
+			},
+			"required": ["workbenchRevision", "phase", "selection"],
+			"additionalProperties": false
+		},
+		"physicalClient_clientId": {
+			"type": "string",
+			"pattern": "^[0-9a-f]{32}$",
+			"not": {
+				"const": "00000000000000000000000000000000"
+			}
+		},
+		"physicalClient_requestId": {
+			"$ref": "#/$defs/hexId"
+		},
+		"physicalClientView": {
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+				"clientId": {
+					"$ref": "#/$defs/physicalClient_clientId"
+				},
+				"operationId": {
+					"$ref": "#/$defs/physicalClient_requestId"
+				},
+				"view": {
+					"$ref": "#/$defs/physicalClient_view"
+				},
+				"reportRevision": {
+					"$ref": "#/$defs/physicalClient_revision"
+				},
+				"sequence": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/physicalClient_revision"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"seen": {
+					"type": ["boolean", "null"]
+				},
+				"status": {
+					"enum": [null, "idle", "done", "working", "blocked", "unknown"]
+				},
+				"outerFocused": {
+					"type": ["boolean", "null"]
+				}
+			},
+			"required": [
+				"clientId",
+				"operationId",
+				"view",
+				"reportRevision",
+				"sequence",
+				"seen",
+				"status",
+				"outerFocused"
+			]
+		},
+		"clientTerminalInspection": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["kind", "target", "terminal", "management", "semantic", "clientView"],
+			"properties": {
+				"kind": {
+					"const": "terminal-found"
+				},
+				"target": {
+					"allOf": [
+						{
+							"$ref": "#/$defs/nameTarget"
+						},
+						{
+							"properties": {
+								"kind": {
+									"const": "terminal"
+								}
+							}
+						}
+					]
+				},
+				"terminal": {
+					"$ref": "#/$defs/namedTerminal"
+				},
+				"management": {
+					"type": "object",
+					"required": ["source", "state"],
+					"additionalProperties": false,
+					"properties": {
+						"source": {
+							"$ref": "#/$defs/agentReadSource"
+						},
+						"state": {
+							"$ref": "#/$defs/terminalManagementState"
+						}
+					}
+				},
+				"semantic": {
+					"$ref": "#/$defs/terminalSemantic"
+				},
+				"clientView": {
+					"$ref": "#/$defs/physicalClientView"
+				}
+			}
 		}
 	},
 	"allOf": [
@@ -2850,21 +3037,14 @@
 			"if": {
 				"properties": {
 					"version": {
-						"enum": [14, 15]
+						"const": 16
 					}
 				}
 			},
 			"then": {
 				"properties": {
 					"result": {
-						"oneOf": [
-							{
-								"$ref": "#/$defs/managedTerminalInspection"
-							},
-							{
-								"$ref": "#/$defs/semanticTerminalInspection"
-							}
-						]
+						"$ref": "#/$defs/clientTerminalInspection"
 					},
 					"source": {
 						"$ref": "#/$defs/runtimeProcess_snapshotSource"
@@ -2872,457 +3052,487 @@
 				}
 			},
 			"else": {
-				"if": {
-					"properties": {
-						"version": {
-							"const": 13
-						}
-					}
-				},
-				"then": {
-					"properties": {
-						"result": {
-							"$ref": "#/$defs/terminalInspection"
+				"allOf": [
+					{
+						"if": {
+							"properties": {
+								"version": {
+									"enum": [14, 15]
+								}
+							}
 						},
-						"source": {
-							"$ref": "#/$defs/runtimeProcess_snapshotSource"
-						}
-					}
-				},
-				"else": {
-					"properties": {
-						"result": {
-							"$ref": "#/$defs/canonicalInspection"
+						"then": {
+							"properties": {
+								"result": {
+									"oneOf": [
+										{
+											"$ref": "#/$defs/managedTerminalInspection"
+										},
+										{
+											"$ref": "#/$defs/semanticTerminalInspection"
+										}
+									]
+								},
+								"source": {
+									"$ref": "#/$defs/runtimeProcess_snapshotSource"
+								}
+							}
 						},
-						"source": {
-							"$ref": "#/$defs/agentReadSource"
+						"else": {
+							"if": {
+								"properties": {
+									"version": {
+										"const": 13
+									}
+								}
+							},
+							"then": {
+								"properties": {
+									"result": {
+										"$ref": "#/$defs/terminalInspection"
+									},
+									"source": {
+										"$ref": "#/$defs/runtimeProcess_snapshotSource"
+									}
+								}
+							},
+							"else": {
+								"properties": {
+									"result": {
+										"$ref": "#/$defs/canonicalInspection"
+									},
+									"source": {
+										"$ref": "#/$defs/agentReadSource"
+									}
+								},
+								"allOf": [
+									{
+										"if": {
+											"properties": {
+												"version": {
+													"enum": [2, 4, 6, 8, 10, 12]
+												}
+											}
+										},
+										"then": {
+											"properties": {
+												"result": {
+													"required": ["client"],
+													"type": "object"
+												}
+											}
+										},
+										"else": {
+											"properties": {
+												"result": {
+													"not": {
+														"required": ["client"]
+													},
+													"type": "object"
+												}
+											}
+										}
+									},
+									{
+										"if": {
+											"properties": {
+												"version": {
+													"enum": [3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+												}
+											}
+										},
+										"then": {
+											"properties": {
+												"result": {
+													"required": ["runtime"],
+													"type": "object"
+												}
+											}
+										},
+										"else": {
+											"properties": {
+												"result": {
+													"not": {
+														"required": ["runtime"]
+													},
+													"type": "object"
+												}
+											}
+										}
+									},
+									{
+										"if": {
+											"properties": {
+												"version": {
+													"enum": [5, 6, 7, 8, 9, 10, 11, 12]
+												}
+											}
+										},
+										"then": {
+											"properties": {
+												"result": {
+													"required": ["management"],
+													"type": "object"
+												}
+											}
+										},
+										"else": {
+											"properties": {
+												"result": {
+													"not": {
+														"required": ["management"]
+													},
+													"type": "object"
+												}
+											}
+										}
+									},
+									{
+										"if": {
+											"properties": {
+												"version": {
+													"enum": [7, 8, 9, 10, 11, 12]
+												}
+											}
+										},
+										"then": {
+											"properties": {
+												"result": {
+													"required": ["terminal"],
+													"allOf": [
+														{
+															"if": {
+																"properties": {
+																	"runtime": {
+																		"type": "object",
+																		"required": ["reason"],
+																		"properties": {
+																			"kind": {
+																				"const": "unavailable"
+																			},
+																			"reason": {
+																				"enum": [
+																					"session-ended",
+																					"unbound",
+																					"ambiguous-primary",
+																					"binding-changed"
+																				]
+																			}
+																		}
+																	}
+																}
+															},
+															"then": {
+																"properties": {
+																	"terminal": {
+																		"type": "null"
+																	}
+																}
+															}
+														},
+														{
+															"if": {
+																"properties": {
+																	"runtime": {
+																		"type": "object",
+																		"required": ["reason"],
+																		"properties": {
+																			"kind": {
+																				"const": "unavailable"
+																			},
+																			"reason": {
+																				"enum": ["terminal-unavailable"]
+																			}
+																		}
+																	}
+																}
+															},
+															"then": {
+																"properties": {
+																	"terminal": {
+																		"type": "object",
+																		"properties": {
+																			"terminalObservation": {
+																				"type": "object",
+																				"properties": {
+																					"state": {
+																						"const": "unavailable"
+																					}
+																				}
+																			}
+																		}
+																	}
+																}
+															}
+														},
+														{
+															"if": {
+																"properties": {
+																	"runtime": {
+																		"type": "object",
+																		"required": ["reason"],
+																		"properties": {
+																			"kind": {
+																				"const": "unavailable"
+																			},
+																			"reason": {
+																				"enum": ["process-unavailable"]
+																			}
+																		}
+																	}
+																}
+															},
+															"then": {
+																"properties": {
+																	"terminal": {
+																		"type": "object",
+																		"properties": {
+																			"terminalObservation": {
+																				"type": "object",
+																				"properties": {
+																					"state": {
+																						"const": "observed"
+																					},
+																					"processes": {
+																						"type": "object",
+																						"properties": {
+																							"state": {
+																								"const": "unavailable"
+																							}
+																						}
+																					}
+																				}
+																			}
+																		}
+																	}
+																}
+															}
+														},
+														{
+															"if": {
+																"properties": {
+																	"runtime": {
+																		"type": "object",
+																		"properties": {
+																			"kind": {
+																				"const": "observed"
+																			}
+																		}
+																	}
+																}
+															},
+															"then": {
+																"properties": {
+																	"terminal": {
+																		"type": "object",
+																		"properties": {
+																			"terminalObservation": {
+																				"type": "object",
+																				"properties": {
+																					"state": {
+																						"const": "observed"
+																					},
+																					"processes": {
+																						"type": "object",
+																						"properties": {
+																							"state": {
+																								"const": "observed"
+																							}
+																						}
+																					}
+																				}
+																			}
+																		}
+																	}
+																}
+															}
+														}
+													],
+													"type": "object"
+												}
+											}
+										},
+										"else": {
+											"properties": {
+												"result": {
+													"not": {
+														"required": ["terminal"]
+													},
+													"properties": {
+														"runtime": {
+															"$ref": "#/$defs/legacyRuntime"
+														}
+													},
+													"type": "object"
+												}
+											}
+										}
+									},
+									{
+										"if": {
+											"properties": {
+												"version": {
+													"enum": [9, 10, 11, 12]
+												}
+											}
+										},
+										"then": {
+											"properties": {
+												"result": {
+													"type": "object",
+													"properties": {
+														"terminal": {
+															"anyOf": [
+																{
+																	"type": "null"
+																},
+																{
+																	"type": "object",
+																	"properties": {
+																		"metadata": {
+																			"anyOf": [
+																				{
+																					"$ref": "#/$defs/panelMetadata"
+																				},
+																				{
+																					"$ref": "#/$defs/reportedPanelMetadata"
+																				}
+																			]
+																		}
+																	},
+																	"required": ["metadata"]
+																}
+															]
+														}
+													}
+												}
+											}
+										},
+										"else": {
+											"properties": {
+												"result": {
+													"type": "object",
+													"properties": {
+														"terminal": {
+															"anyOf": [
+																{
+																	"type": "null"
+																},
+																{
+																	"type": "object",
+																	"properties": {
+																		"metadata": {
+																			"$ref": "#/$defs/panelMetadata"
+																		}
+																	},
+																	"not": {
+																		"required": ["metadata"]
+																	}
+																}
+															]
+														}
+													}
+												}
+											}
+										}
+									},
+									{
+										"if": {
+											"properties": {
+												"version": {
+													"enum": [11, 12]
+												}
+											}
+										},
+										"then": {
+											"properties": {
+												"result": {
+													"type": "object",
+													"properties": {
+														"terminal": {
+															"anyOf": [
+																{
+																	"type": "null"
+																},
+																{
+																	"type": "object",
+																	"properties": {
+																		"metadata": {
+																			"$ref": "#/$defs/reportedPanelMetadata"
+																		},
+																		"reportedAgent": {
+																			"$ref": "#/$defs/reportedAgent"
+																		}
+																	},
+																	"required": ["metadata", "reportedAgent"]
+																}
+															]
+														}
+													}
+												}
+											}
+										},
+										"else": {
+											"properties": {
+												"result": {
+													"type": "object",
+													"properties": {
+														"terminal": {
+															"anyOf": [
+																{
+																	"type": "null"
+																},
+																{
+																	"type": "object",
+																	"properties": {
+																		"metadata": {
+																			"$ref": "#/$defs/panelMetadata"
+																		},
+																		"reportedAgent": {
+																			"$ref": "#/$defs/reportedAgent"
+																		}
+																	},
+																	"not": {
+																		"required": ["reportedAgent"]
+																	}
+																}
+															]
+														}
+													}
+												}
+											}
+										}
+									}
+								]
+							}
 						}
 					},
-					"allOf": [
-						{
-							"if": {
-								"properties": {
-									"version": {
-										"enum": [2, 4, 6, 8, 10, 12]
-									}
-								}
-							},
-							"then": {
-								"properties": {
-									"result": {
-										"required": ["client"],
-										"type": "object"
-									}
-								}
-							},
-							"else": {
-								"properties": {
-									"result": {
-										"not": {
-											"required": ["client"]
-										},
-										"type": "object"
-									}
+					{
+						"if": {
+							"properties": {
+								"version": {
+									"const": 15
 								}
 							}
 						},
-						{
-							"if": {
-								"properties": {
-									"version": {
-										"enum": [3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
-									}
-								}
-							},
-							"then": {
-								"properties": {
-									"result": {
-										"required": ["runtime"],
-										"type": "object"
-									}
-								}
-							},
-							"else": {
-								"properties": {
-									"result": {
-										"not": {
-											"required": ["runtime"]
-										},
-										"type": "object"
-									}
+						"then": {
+							"properties": {
+								"result": {
+									"$ref": "#/$defs/semanticTerminalInspection"
 								}
 							}
 						},
-						{
-							"if": {
-								"properties": {
-									"version": {
-										"enum": [5, 6, 7, 8, 9, 10, 11, 12]
-									}
-								}
-							},
-							"then": {
-								"properties": {
-									"result": {
-										"required": ["management"],
-										"type": "object"
-									}
-								}
-							},
-							"else": {
-								"properties": {
-									"result": {
-										"not": {
-											"required": ["management"]
-										},
-										"type": "object"
-									}
-								}
-							}
-						},
-						{
-							"if": {
-								"properties": {
-									"version": {
-										"enum": [7, 8, 9, 10, 11, 12]
-									}
-								}
-							},
-							"then": {
-								"properties": {
-									"result": {
-										"required": ["terminal"],
-										"allOf": [
-											{
-												"if": {
-													"properties": {
-														"runtime": {
-															"type": "object",
-															"required": ["reason"],
-															"properties": {
-																"kind": {
-																	"const": "unavailable"
-																},
-																"reason": {
-																	"enum": [
-																		"session-ended",
-																		"unbound",
-																		"ambiguous-primary",
-																		"binding-changed"
-																	]
-																}
-															}
-														}
-													}
-												},
-												"then": {
-													"properties": {
-														"terminal": {
-															"type": "null"
-														}
-													}
-												}
-											},
-											{
-												"if": {
-													"properties": {
-														"runtime": {
-															"type": "object",
-															"required": ["reason"],
-															"properties": {
-																"kind": {
-																	"const": "unavailable"
-																},
-																"reason": {
-																	"enum": ["terminal-unavailable"]
-																}
-															}
-														}
-													}
-												},
-												"then": {
-													"properties": {
-														"terminal": {
-															"type": "object",
-															"properties": {
-																"terminalObservation": {
-																	"type": "object",
-																	"properties": {
-																		"state": {
-																			"const": "unavailable"
-																		}
-																	}
-																}
-															}
-														}
-													}
-												}
-											},
-											{
-												"if": {
-													"properties": {
-														"runtime": {
-															"type": "object",
-															"required": ["reason"],
-															"properties": {
-																"kind": {
-																	"const": "unavailable"
-																},
-																"reason": {
-																	"enum": ["process-unavailable"]
-																}
-															}
-														}
-													}
-												},
-												"then": {
-													"properties": {
-														"terminal": {
-															"type": "object",
-															"properties": {
-																"terminalObservation": {
-																	"type": "object",
-																	"properties": {
-																		"state": {
-																			"const": "observed"
-																		},
-																		"processes": {
-																			"type": "object",
-																			"properties": {
-																				"state": {
-																					"const": "unavailable"
-																				}
-																			}
-																		}
-																	}
-																}
-															}
-														}
-													}
-												}
-											},
-											{
-												"if": {
-													"properties": {
-														"runtime": {
-															"type": "object",
-															"properties": {
-																"kind": {
-																	"const": "observed"
-																}
-															}
-														}
-													}
-												},
-												"then": {
-													"properties": {
-														"terminal": {
-															"type": "object",
-															"properties": {
-																"terminalObservation": {
-																	"type": "object",
-																	"properties": {
-																		"state": {
-																			"const": "observed"
-																		},
-																		"processes": {
-																			"type": "object",
-																			"properties": {
-																				"state": {
-																					"const": "observed"
-																				}
-																			}
-																		}
-																	}
-																}
-															}
-														}
-													}
-												}
-											}
-										],
-										"type": "object"
-									}
-								}
-							},
-							"else": {
-								"properties": {
-									"result": {
-										"not": {
-											"required": ["terminal"]
-										},
-										"properties": {
-											"runtime": {
-												"$ref": "#/$defs/legacyRuntime"
-											}
-										},
-										"type": "object"
-									}
-								}
-							}
-						},
-						{
-							"if": {
-								"properties": {
-									"version": {
-										"enum": [9, 10, 11, 12]
-									}
-								}
-							},
-							"then": {
-								"properties": {
-									"result": {
-										"type": "object",
-										"properties": {
-											"terminal": {
-												"anyOf": [
-													{
-														"type": "null"
-													},
-													{
-														"type": "object",
-														"properties": {
-															"metadata": {
-																"anyOf": [
-																	{
-																		"$ref": "#/$defs/panelMetadata"
-																	},
-																	{
-																		"$ref": "#/$defs/reportedPanelMetadata"
-																	}
-																]
-															}
-														},
-														"required": ["metadata"]
-													}
-												]
-											}
-										}
-									}
-								}
-							},
-							"else": {
-								"properties": {
-									"result": {
-										"type": "object",
-										"properties": {
-											"terminal": {
-												"anyOf": [
-													{
-														"type": "null"
-													},
-													{
-														"type": "object",
-														"properties": {
-															"metadata": {
-																"$ref": "#/$defs/panelMetadata"
-															}
-														},
-														"not": {
-															"required": ["metadata"]
-														}
-													}
-												]
-											}
-										}
-									}
-								}
-							}
-						},
-						{
-							"if": {
-								"properties": {
-									"version": {
-										"enum": [11, 12]
-									}
-								}
-							},
-							"then": {
-								"properties": {
-									"result": {
-										"type": "object",
-										"properties": {
-											"terminal": {
-												"anyOf": [
-													{
-														"type": "null"
-													},
-													{
-														"type": "object",
-														"properties": {
-															"metadata": {
-																"$ref": "#/$defs/reportedPanelMetadata"
-															},
-															"reportedAgent": {
-																"$ref": "#/$defs/reportedAgent"
-															}
-														},
-														"required": ["metadata", "reportedAgent"]
-													}
-												]
-											}
-										}
-									}
-								}
-							},
-							"else": {
-								"properties": {
-									"result": {
-										"type": "object",
-										"properties": {
-											"terminal": {
-												"anyOf": [
-													{
-														"type": "null"
-													},
-													{
-														"type": "object",
-														"properties": {
-															"metadata": {
-																"$ref": "#/$defs/panelMetadata"
-															},
-															"reportedAgent": {
-																"$ref": "#/$defs/reportedAgent"
-															}
-														},
-														"not": {
-															"required": ["reportedAgent"]
-														}
-													}
-												]
-											}
-										}
+						"else": {
+							"properties": {
+								"result": {
+									"not": {
+										"required": ["semantic"]
 									}
 								}
 							}
 						}
-					]
-				}
-			}
-		},
-		{
-			"if": {
-				"properties": {
-					"version": {
-						"const": 15
 					}
-				}
-			},
-			"then": {
-				"properties": {
-					"result": {
-						"$ref": "#/$defs/semanticTerminalInspection"
-					}
-				}
-			},
-			"else": {
-				"properties": {
-					"result": {
-						"not": {
-							"required": ["semantic"]
-						}
-					}
-				}
+				]
 			}
 		}
 	]

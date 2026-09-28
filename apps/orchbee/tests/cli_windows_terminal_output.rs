@@ -74,6 +74,10 @@ fn observed_frame(stream: &mut LocalStream) -> ViewerId {
         Outcome::Attached {
             attachment_id: viewer.clone(),
             host_epoch: obcs::HostEpoch::parse(&route.host_epoch.to_text()).unwrap(),
+            host_terminal_id: orchbee_client_server_protocol::HostTerminalId::parse(
+                &route.host_epoch.to_text(),
+            )
+            .unwrap(),
         },
     );
     next_frame(stream, &viewer, route.sequence.get(), route.revision);

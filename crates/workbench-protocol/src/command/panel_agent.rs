@@ -1,7 +1,7 @@
 //! Explicit terminal Agent reports and reads; process proof is never a public request field.
 use crate::{
-    ContractError, PresentationBinding, ProtocolVersion, SiteId, WorkbenchPanelId,
-    WorkbenchRequestId, WorkbenchRevision,
+    ContractError, PresentationBinding, ProtocolVersion, SiteId, TerminalPresentationId,
+    WorkbenchPanelId, WorkbenchRequestId, WorkbenchRevision,
 };
 use orchbee_agent_observation_protocol::{
     AgentProviderSessionReference as Reference, AgentProviderSessionReferenceKind as ReferenceKind,
@@ -11,8 +11,12 @@ use orchbee_agent_observation_protocol::{
 use serde::{Deserialize, Deserializer, Serialize};
 use std::collections::BTreeSet;
 mod observation;
+mod state_snapshot;
 pub use observation::{
     MAXIMUM_TERMINAL_AGENT_CHANGES, TerminalAgentChange, TerminalAgentObservation,
+};
+pub use state_snapshot::{
+    MAXIMUM_TERMINAL_AGENT_STATE_ROWS, TerminalAgentStateRow, TerminalAgentStateSnapshot,
 };
 
 pub const MAXIMUM_PANEL_AGENT_READ_ROWS: usize = 4;
@@ -103,6 +107,9 @@ impl PanelAgentReport {
     deny_unknown_fields
 )]
 pub enum PanelAgentAction {
+    States {
+        presentation_ids: Vec<TerminalPresentationId>,
+    },
     Observe {
         binding: orchbee_agent_observation_protocol::AgentLaunchBinding,
         #[serde(deserialize_with = "nullable")]
@@ -128,6 +135,16 @@ pub struct PanelAgentRequest {
 impl PanelAgentRequest {
     pub fn validate(&self) -> Result<(), ContractError> {
         match &self.action {
+            PanelAgentAction::States { presentation_ids } => {
+                if presentation_ids.len() <= MAXIMUM_TERMINAL_AGENT_STATE_ROWS
+                    && presentation_ids.iter().collect::<BTreeSet<_>>().len()
+                        == presentation_ids.len()
+                {
+                    Ok(())
+                } else {
+                    Err(ContractError::InvalidDocument)
+                }
+            }
             PanelAgentAction::Observe { binding, .. } => {
                 if orchbee_agent_observation_protocol::AgentHostEpoch::parse(
                     binding.generation.as_str(),
@@ -238,6 +255,11 @@ pub enum PanelAgentFailure {
     deny_unknown_fields
 )]
 pub enum PanelAgentOutcome {
+    States {
+        workbench_revision: WorkbenchRevision,
+        report_revision: WorkbenchRevision,
+        presentations: Vec<TerminalAgentStateRow>,
+    },
     Observed {
         workbench_revision: WorkbenchRevision,
         report_revision: WorkbenchRevision,
@@ -272,6 +294,16 @@ pub struct PanelAgentResult {
 impl PanelAgentResult {
     pub fn validate(&self) -> Result<(), ContractError> {
         let valid = match &self.outcome {
+            PanelAgentOutcome::States { presentations, .. } => {
+                presentations.len() <= MAXIMUM_TERMINAL_AGENT_STATE_ROWS
+                    && presentations
+                        .iter()
+                        .map(|r| &r.presentation_id)
+                        .collect::<BTreeSet<_>>()
+                        .len()
+                        == presentations.len()
+                    && presentations.iter().all(TerminalAgentStateRow::valid)
+            }
             PanelAgentOutcome::Observed { observation, .. } => observation.valid(),
             PanelAgentOutcome::Read { panels, .. } => {
                 panels.len() <= MAXIMUM_PANEL_AGENT_READ_ROWS
@@ -303,6 +335,12 @@ impl PanelAgentResult {
             return false;
         }
         match (&request.action, &self.outcome) {
+            (
+                PanelAgentAction::States { presentation_ids },
+                PanelAgentOutcome::States { presentations, .. },
+            ) => presentation_ids
+                .iter()
+                .eq(presentations.iter().map(|r| &r.presentation_id)),
             (
                 PanelAgentAction::Observe {
                     binding,

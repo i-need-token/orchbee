@@ -247,7 +247,6 @@ required. Names match `[a-z][a-z0-9_-]{0,31}` and are case-sensitive. They are u
 sharing a 512-entry cap across canonical names, terminal names and pending launches, and released when the session ends, is removed, or the
 Site runtime is disposed. Only admitted completed managed names can return after Site restart.
 
-
 Windows terminal-backed names require a reported, detected or retained provider identity; an
 ordinary unnamed shell does not qualify. Their target carries presentation ID, creation generation,
 Host epoch and terminal ID. A first provider reference upgrades ownership; a changed provider or
@@ -298,15 +297,17 @@ Windows process evidence covers real pipe admission, resolved reads, pinned poll
 the shared five-second deadline, explicit-ID reads, schema-valid failures,
 lost/mismatched mutation replies and parse-before-effect.
 
-Windows physical Agent Get emits v15, adding `semantic: {source, observation}` to the closed v14
-inspection shape. The source contains Site, Workbench/report revisions and the actual request ID;
-observation contains the exact target binding, current effective report view, terminal-local sequence
-and an empty change list for this checkpoint read. Primary and child presentations read their own
-report resources. Primary metadata/report projections must agree with the semantic report revision.
-Text output renders that effective report view in the selected locale. v13/v14 and all canonical
-variants remain closed and readable. No canonical Session ID, turn, readiness or Client `done` is
-invented. This read supplies the physical source required by subsequent wait/prompt integration.
-
+Windows physical Agent Get emits v15, with `semantic: {source, observation}` on the closed v14
+inspection shape. The source records Site, Workbench/report revisions and request ID; the observation
+contains the exact binding, effective report view, terminal-local sequence and an empty change list.
+Primary and child presentations read their own report resources; primary metadata/report projections
+agree with the semantic report revision. Text renders the effective report in the selected locale.
+With `--client`, v16 additionally requires `clientView`: selected Client/operation/view, report
+revision, nullable sequence/seen/status and outer focus. Only matching full binding and semantic
+sequence under a covering Server report revision corroborate seen; idle becomes idle/done accordingly.
+Missing or stale acknowledgement leaves resting status unknown. No canonical Session, turn or
+readiness is invented; older variants stay closed. `agent attention` routes physical targets through
+the same Client owner and emits the v4 Client control receipt without marking them seen.
 
 ### Physical Agent wait and prompt
 
@@ -322,9 +323,11 @@ Ordinary waits may match a retained transient; current observation remains separ
 A future fence refuses against the first observation. History consumed after that checkpoint is
 necessarily newer than its report revision. Working, idle, blocked, unknown and the needs-attention
 alias use report facts. Canonical outcomes/freshness require canonical observations. Client `done`
-requires a corroborated physical Client observation; while that dependent integration is absent,
-selected-Client and done-only requests fail before input. Mixed default idle/done/blocked conditions
-can match the available report states. These limitations remain outstanding parity obligations.
+requires a corroborated physical Client observation. `--client` pins that Client; done-only requests
+without it select a validated caller Client or a unique current Client. Ambiguity fails before input.
+With a Client, idle/done require its current matching sequence; retained history never invents old
+acknowledgements. Missing/stale state continues waiting, while Client loss or read failure ends it.
+Without a Client, mixed default idle/done/blocked conditions match the available report states.
 
 Prompt preflight rejects blocked state, verifies a known provider against the actual foreground
 process chain and rereads the exact semantic/physical target before submitting. A known live provider
@@ -337,6 +340,9 @@ resting conditions require the current state after activity. Lost history fails 
 
 Wait v5 returns `terminal-matched` with physical observation, optional matched change, conditions and
 accounting. Prompt v5 returns a terminal target, original submission and optional semantic wait.
+Selected-Client matches use Wait/Prompt v6 with required `clientView` on the match; Prompt v6 requires
+a completed wait. Preflight checks the selected Client before input. All reads share the existing
+five-second evaluation and absolute total deadline, without acknowledging or resending.
 Agent read failure v4 and prompt failure v2 carry physical failure details; old versions remain closed.
 Cancellation or failure after accepted input retains its submission; partial/unknown delivery remains
 the original send result. Tests cover state gates, quiet updates, transient versus current matching,

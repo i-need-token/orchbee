@@ -73,6 +73,14 @@ mod agent_names;
 #[cfg(any(target_os = "linux", windows))]
 mod agent_target;
 #[cfg(windows)]
+pub(in crate::cli) fn read_agent_snapshot(
+    client: &mut LocalClient,
+    deadline: Instant,
+    wake: Option<BorrowedFd<'_>>,
+) -> Result<Snapshot, Failure> {
+    agent_target::read_snapshot(client, deadline, wake)
+}
+#[cfg(windows)]
 pub(crate) use agent_focus::{
     agent_attention_target, agent_focus_target, attention_changed_sessions,
     attention_covers_observation, authenticate_attention,
@@ -1479,6 +1487,7 @@ pub(super) fn attach_viewer_cancellable(
         TerminalViewerOutcome::Attached {
             attachment_id,
             host_epoch,
+            ..
         } => {
             let attachment = AttachmentId::parse(attachment_id.as_str())
                 .map_err(|_| Failure::new(FailureKind::InternalFailure))?;

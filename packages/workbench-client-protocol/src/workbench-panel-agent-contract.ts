@@ -60,7 +60,7 @@ const hostIdentity = z
 	.string()
 	.regex(/^[0-9a-f]{32}$/u)
 	.refine((s) => s !== '00000000000000000000000000000000');
-const terminalBinding = z
+export const TerminalAgentBindingSchema = z
 	.strictObject({
 		presentationId: TerminalPresentationIdSchema,
 		generation: hostIdentity,
@@ -71,8 +71,18 @@ const terminalBinding = z
 export const PanelAgentActionSchema = z.discriminatedUnion('kind', [
 	z
 		.strictObject({
+			kind: z.literal('states'),
+			presentationIds: z
+				.array(TerminalPresentationIdSchema)
+				.max(64)
+				.refine((ids) => new Set(ids).size === ids.length)
+				.readonly(),
+		})
+		.readonly(),
+	z
+		.strictObject({
 			kind: z.literal('observe'),
-			binding: terminalBinding,
+			binding: TerminalAgentBindingSchema,
 			afterSequence: WorkbenchRevisionSchema.nullable(),
 		})
 		.readonly(),
@@ -182,7 +192,7 @@ const semanticChange = z
 	.readonly();
 const semanticObservation = z
 	.strictObject({
-		binding: terminalBinding,
+		binding: TerminalAgentBindingSchema,
 		sequence: WorkbenchRevisionSchema,
 		changes: z.array(semanticChange).max(128).readonly(),
 		view: PanelAgentViewSchema,
@@ -201,6 +211,37 @@ const semanticObservation = z
 	})
 	.readonly();
 export const PanelAgentOutcomeSchema = z.discriminatedUnion('kind', [
+	z
+		.strictObject({
+			kind: z.literal('states'),
+			workbenchRevision: WorkbenchRevisionSchema,
+			reportRevision: WorkbenchRevisionSchema,
+			presentations: z
+				.array(
+					z
+						.strictObject({
+							presentationId: TerminalPresentationIdSchema,
+							snapshot: z
+								.strictObject({
+									binding: TerminalAgentBindingSchema,
+									sequence: WorkbenchRevisionSchema,
+									agent: normalizedLabel.nullable(),
+									state: PanelAgentStateSchema,
+								})
+								.readonly()
+								.nullable(),
+						})
+						.refine(
+							(row) =>
+								row.snapshot === null || row.snapshot.binding.presentationId === row.presentationId,
+						)
+						.readonly(),
+				)
+				.max(64)
+				.refine((rows) => new Set(rows.map((r) => r.presentationId)).size === rows.length)
+				.readonly(),
+		})
+		.readonly(),
 	z
 		.strictObject({
 			kind: z.literal('observed'),

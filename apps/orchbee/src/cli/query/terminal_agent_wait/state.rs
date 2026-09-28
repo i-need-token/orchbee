@@ -16,13 +16,14 @@ pub(super) struct State {
     until: Vec<AgentWaitCondition>,
     prompt: bool,
     pub(super) active: bool,
+    client: Option<(WorkbenchRevision, Option<bool>)>,
 }
 pub(super) struct Match {
     pub(super) conditions: Vec<AgentWaitCondition>,
     pub(super) change: Option<TerminalAgentChange>,
 }
 pub(in crate::cli) fn admit(until: &[AgentWaitCondition], selected: bool) -> Result<(), Failure> {
-    if selected || until.iter().all(|c| *c == AgentWaitCondition::Done) {
+    if !selected && until.iter().all(|c| *c == AgentWaitCondition::Done) {
         return Err(error(
             FailureKind::ServiceUnavailable,
             "client-observation-unavailable",
@@ -43,11 +44,24 @@ pub(in crate::cli) fn admit(until: &[AgentWaitCondition], selected: bool) -> Res
     }
     Ok(())
 }
-fn conditions(until: &[AgentWaitCondition], status: Status) -> Vec<AgentWaitCondition> {
+fn conditions(
+    until: &[AgentWaitCondition],
+    status: Status,
+    client_seen: Option<Option<bool>>,
+) -> Vec<AgentWaitCondition> {
     until
         .iter()
         .copied()
         .filter(|c| {
+            if status == Status::Idle
+                && let Some(seen) = client_seen
+            {
+                return matches!(
+                    (c, seen),
+                    (AgentWaitCondition::Idle, Some(true))
+                        | (AgentWaitCondition::Done, Some(false))
+                );
+            }
             matches!(
                 (c, status),
                 (AgentWaitCondition::Idle, Status::Idle)
@@ -78,6 +92,7 @@ impl State {
             return Err(error(FailureKind::Rejected, "revision-ahead"));
         }
         Ok(Self {
+            client: None,
             binding: initial.observation.binding.clone(),
             agent,
             sequence: initial.observation.sequence,
@@ -87,6 +102,9 @@ impl State {
             prompt,
             active: !prompt || view.state == Status::Working,
         })
+    }
+    pub(super) fn set_client(&mut self, sequence: WorkbenchRevision, seen: Option<bool>) {
+        self.client = Some((sequence, seen));
     }
     pub(super) fn initial_match(&self, read: &TerminalAgentRead) -> Option<Match> {
         (!self.prompt).then(|| self.current_match(read)).flatten()
@@ -99,7 +117,14 @@ impl State {
         {
             return None;
         }
-        let matched = conditions(&self.until, read.observation.view.state);
+        let seen = self.client.map(|(sequence, seen)| {
+            if sequence == read.observation.sequence {
+                seen
+            } else {
+                None
+            }
+        });
+        let matched = conditions(&self.until, read.observation.view.state, seen);
         (!matched.is_empty()).then_some(Match {
             conditions: matched,
             change: None,
@@ -144,7 +169,8 @@ impl State {
             let gate_was_closed = !self.active;
             self.active |= matches!(change.state, Status::Working | Status::Blocked);
             if !self.prompt || gate_was_closed && self.active {
-                let matched = conditions(&self.until, change.state);
+                // A retained idle event cannot carry this Client's current acknowledgement.
+                let matched = conditions(&self.until, change.state, self.client.map(|_| None));
                 if !matched.is_empty() {
                     historical = Some(Match {
                         conditions: matched,

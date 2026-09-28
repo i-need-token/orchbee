@@ -1,10 +1,11 @@
 mod panel_agent;
 pub use panel_agent::{
     MAXIMUM_ENCODED_PANEL_AGENT_RESULT_BYTES, MAXIMUM_PANEL_AGENT_READ_ROWS,
-    MAXIMUM_TERMINAL_AGENT_CHANGES, PanelAgentAction, PanelAgentDisposition, PanelAgentFailure,
-    PanelAgentOutcome, PanelAgentReference, PanelAgentReport, PanelAgentRequest, PanelAgentResult,
-    PanelAgentRow, PanelAgentSession, PanelAgentState, PanelAgentView, TerminalAgentChange,
-    TerminalAgentObservation,
+    MAXIMUM_TERMINAL_AGENT_CHANGES, MAXIMUM_TERMINAL_AGENT_STATE_ROWS, PanelAgentAction,
+    PanelAgentDisposition, PanelAgentFailure, PanelAgentOutcome, PanelAgentReference,
+    PanelAgentReport, PanelAgentRequest, PanelAgentResult, PanelAgentRow, PanelAgentSession,
+    PanelAgentState, PanelAgentView, TerminalAgentChange, TerminalAgentObservation,
+    TerminalAgentStateRow, TerminalAgentStateSnapshot,
 };
 mod panel_metadata;
 pub use panel_metadata::{
@@ -27,7 +28,9 @@ pub use client_viewport::{
 mod client_attention;
 pub use client_attention::{
     ClientAgentAttentionEntry, ClientAgentAttentionSnapshot, ClientAgentAttentionVersion,
-    MAXIMUM_CLIENT_ATTENTION_SESSIONS, MAXIMUM_ENCODED_CLIENT_ATTENTION_BYTES,
+    ClientTerminalAgentAttentionEntry, ClientTerminalAgentAttentionSnapshot,
+    ClientTerminalAgentAttentionVersion, MAXIMUM_CLIENT_ATTENTION_SESSIONS,
+    MAXIMUM_ENCODED_CLIENT_ATTENTION_BYTES,
 };
 mod client_layout;
 mod client_layout_adjustment;

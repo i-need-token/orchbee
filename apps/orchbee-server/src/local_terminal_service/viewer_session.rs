@@ -222,10 +222,17 @@ impl<'service> LocalTerminalSession<'service> {
         let Some(slot) = self.viewers.iter_mut().find(|entry| entry.is_none()) else {
             return unavailable(Unavailable::ServerBusy);
         };
+        let Ok(host_terminal_id) = orchbee_client_server_protocol::HostTerminalId::parse(&format!(
+            "{:032x}",
+            u128::from_be_bytes(viewer.target.identity.terminal_id().as_bytes())
+        )) else {
+            return unavailable(Unavailable::TerminalRuntimeUnavailable);
+        };
         *slot = candidate.take();
         Outcome::Attached {
             attachment_id,
             host_epoch,
+            host_terminal_id,
         }
     }
 }

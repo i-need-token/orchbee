@@ -11,6 +11,13 @@ use super::{
 use crate::local_client::{LocalClientOrigin, LocalOperationClock};
 use orchbee_agent_observation_protocol::AgentChangesCursor;
 
+mod physical;
+mod physical_observer;
+pub(super) use physical::{
+    MAXIMUM_BYTES as MAXIMUM_PHYSICAL_BYTES, MAXIMUM_ENTRIES as MAXIMUM_PHYSICAL_ENTRIES,
+    PhysicalRound,
+};
+use physical_observer::PhysicalObserver;
 mod state;
 use state::{AttentionPaint, AttentionState};
 
@@ -19,12 +26,29 @@ const READ_INTERVAL: Duration = Duration::from_secs(1);
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct NativeAgentAttentionDraw {
-    paint: AttentionPaint,
-    pub(super) panes: Vec<(PaneRef, String)>,
+    paint: Option<AttentionPaint>,
+    physical: Option<physical::PhysicalPaint>,
+    pub(super) panes: Vec<PaintedPane>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(super) struct PaintedPane {
+    pub(super) pane: PaneRef,
+    pub(super) presentation: String,
+    pub(super) route: orchbee_terminal_protocol::TerminalFrameRoute,
+    pub(super) host_terminal_id: Option<String>,
+}
+impl PaintedPane {
+    fn matches(&self, binding: &orchbee_agent_observation_protocol::AgentLaunchBinding) -> bool {
+        self.presentation == binding.presentation_id.as_str()
+            && self.route.host_epoch.to_text() == binding.host_epoch.as_str()
+            && self.host_terminal_id.as_deref() == Some(binding.host_terminal_id.as_str())
+    }
 }
 
 pub(super) struct AgentAttention {
     state: AttentionState,
+    physical: PhysicalObserver,
     clock: LocalOperationClock,
     origin: Option<LocalClientOrigin>,
     lane: Option<AgentReadLane>,
@@ -38,6 +62,17 @@ pub(super) struct AgentAttention {
 }
 
 impl AgentAttention {
+    pub(super) fn read_physical(
+        &self,
+        bindings: &[orchbee_agent_observation_protocol::AgentLaunchBinding],
+        focused: Option<bool>,
+    ) -> Option<orchbee_workbench_protocol::ClientTerminalAgentAttentionSnapshot> {
+        self.physical.state.snapshot(bindings, focused)
+    }
+    #[cfg(test)]
+    pub(in crate::terminal_session) fn publish_physical_for_test(&mut self, round: &PhysicalRound) {
+        self.physical.state.publish(round).unwrap();
+    }
     pub(super) fn read(
         &self,
         sessions: &[orchbee_agent_observation_protocol::AgentSessionId],
@@ -57,6 +92,7 @@ impl AgentAttention {
     pub(super) fn new(clock: LocalOperationClock) -> Self {
         Self {
             state: AttentionState::default(),
+            physical: PhysicalObserver::new(clock.clone()),
             clock,
             origin: None,
             lane: None,
@@ -72,11 +108,13 @@ impl AgentAttention {
 
     pub(super) fn set_origin(&mut self, origin: LocalClientOrigin) {
         self.close();
+        self.physical.set_origin(origin.clone());
         self.origin = Some(origin);
         self.next_read = None;
     }
 
     pub(super) fn close(&mut self) {
+        self.physical.close();
         if let Some(lane) = self.lane.take() {
             lane.close();
         }
@@ -92,7 +130,7 @@ impl AgentAttention {
 
     pub(super) fn tick(&mut self) -> bool {
         let now = self.clock.now();
-        let mut changed = std::mem::take(&mut self.redraw);
+        let mut changed = std::mem::take(&mut self.redraw) | self.physical.tick();
         while let Some(outcome) = self.lane.as_mut().and_then(AgentReadLane::take_outcome) {
             let LaneOutcome::Attention { epoch, result } = outcome else {
                 self.stopping = true;
@@ -183,29 +221,44 @@ impl AgentAttention {
     }
 
     pub(super) fn unseen_in(&self, presentation: &str) -> usize {
-        self.state.unseen_in(presentation)
+        self.state
+            .unseen_in(presentation)
+            .max(self.physical.state.unseen_in(presentation))
     }
 
-    pub(super) fn paint(&self, panes: Vec<(PaneRef, String)>) -> Option<NativeAgentAttentionDraw> {
+    pub(super) fn paint(&self, panes: Vec<PaintedPane>) -> Option<NativeAgentAttentionDraw> {
         let presentations: BTreeSet<_> = panes
             .iter()
-            .map(|(_, presentation)| presentation.as_str())
+            .map(|pane| pane.presentation.as_str())
             .collect();
-        let paint = self.state.paint(&presentations)?;
-        Some(NativeAgentAttentionDraw { paint, panes })
+        let paint = self.state.paint(&presentations);
+        let physical = self
+            .physical
+            .state
+            .paint(|binding| panes.iter().any(|pane| pane.matches(binding)));
+        (paint.is_some() || physical.is_some()).then_some(NativeAgentAttentionDraw {
+            paint,
+            physical,
+            panes,
+        })
     }
 
     pub(super) fn acknowledge(
         &mut self,
         draw: &NativeAgentAttentionDraw,
         focused: Option<bool>,
-        visible: &BTreeSet<&str>,
+        visible: &[PaintedPane],
     ) {
-        self.redraw |= self
-            .state
-            .acknowledge(&draw.paint, focused, |presentation| {
-                visible.contains(presentation)
+        if let Some(paint) = &draw.paint {
+            self.redraw |= self.state.acknowledge(paint, focused, |presentation| {
+                visible.iter().any(|pane| pane.presentation == presentation)
             });
+        }
+        if let Some(paint) = &draw.physical {
+            self.redraw |= self.physical.state.acknowledge(paint, focused, |binding| {
+                visible.iter().any(|pane| pane.matches(binding))
+            });
+        }
     }
 }
 

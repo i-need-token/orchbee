@@ -41,6 +41,61 @@ The renderer returns bounded concrete paint proofs; a receipt for an earlier sna
 
 ## Selected Client query
 
+### Physical terminal observation and paint
+
+Terminal-backed Agents use the report owner's semantic sequence and full physical binding, not a
+canonical Session or provider observation counter. A bounded `states` read names at most 64 unique
+presentations, including children, and returns compact current binding/sequence/Agent/state rows in
+request order. A null row means no current physical observation; a missing presentation refuses the
+read. Site membership, retained Host creation/epoch/terminal identity and the current Worker gate
+are checked together. These reads never change reports or acknowledge user attention.
+
+The Client observes all Site presentations on an isolated background read lane with one outstanding
+round, a five-second read budget, at most 4,096 physical entries and 8 MiB of retained compact data.
+Workbench membership and report revisions must remain coherent across a complete batched round.
+The Client attention owner stores physical acknowledgements separately from canonical versions;
+unavailable canonical observations cannot be used as physical evidence or vice versa.
+
+| Event                                                           | Physical Client transition                                                                                  |
+| --------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| First complete baseline                                         | Seed current physical sequences as seen.                                                                    |
+| Same binding, newer semantic sequence                           | Replace the current state; its new sequence is unseen.                                                      |
+| Message/reference-only update                                   | Preserve acknowledgement because the semantic sequence is unchanged.                                        |
+| New physical binding or reappearing entry                       | Start unseen after the initial baseline.                                                                    |
+| Removed or unavailable binding                                  | Remove its readable entry; no seen/unseen fact is manufactured.                                             |
+| Sequence regression or changed Agent/state at the same sequence | Reject the round before any partial publication.                                                            |
+| Read failure, retirement or shutdown                            | Disable acknowledgement; interrupt and join owned readers.                                                  |
+| Successful visible paint                                        | Acknowledge only the exact binding/sequence, Host frame route and paint serial still current after drawing. |
+
+The existing overlay, scrollback, zoom, geometry and outer-focus gates apply to physical paint too.
+An old Host frame cannot acknowledge a replacement terminal. Canonical and physical observations of
+one presentation do not create duplicate unseen badges. An ordinary terminal without a reported
+Agent does not create an Agent badge. A read never counts as a paint.
+
+Viewer attach returns the actual Host terminal ID together with its epoch and attachment ID. The
+projection retains this identity; frame acceptance already validates epoch/attachment routing.
+Paint joins both epoch and terminal ID to the report binding before and after drawing. Epoch alone
+is insufficient because one Host owns multiple terminals. Host terminal IDs are unique within an
+epoch; the full creation-qualified report binding remains the acknowledgement key. This private
+attach contract requires a matched Client/Server cohort and leaves Host frame encoding unchanged.
+
+`terminal-agent-attention` uses the existing ClientView read lifecycle for 1–100 unique physical
+bindings. Ordered entries contain a nullable current sequence/seen value, the report revision and
+nullable outer-focus observation. CLI joins require the exact selected Client and physical binding,
+an equal semantic sequence, and a Server report revision covering the Client sample. Missing or
+stale Client evidence leaves seen/resting status unknown. Only a corroborated idle report projects
+to Client idle when seen or done when unseen. Working, blocked and unknown retain report meaning.
+Physical Get, attention, wait and prompt consumers share this join; input and focus remain separate
+effects. Wait/prompt idle and done use current Client evidence rather than historical acknowledgements.
+
+Targeted correctness checks cover deterministic baseline/change/replacement/quiet-update traces,
+two independent in-memory Clients, stale and mismatched paint proofs, coherent batch bounds and
+ordered protocol correlation. Two live Windows Clients and process/paint/query integration remain
+part of the final combined acceptance. The fixed reference is Herdr
+`e0507237ad8d41f60aece10d00ef29ce2339ca34`, `client/shell/endpoint_agent_state.rs` and
+`app/api_helpers.rs`; no authenticated-provider, OS foreground, full visual or unbounded proof is
+implied by these bounded witnesses.
+
 The existing connection-scoped ClientView lane routes `agent-attention` reads to one explicit, caller-derived or uniquely discovered Client. An intent names 1–100 unique Agent session IDs. `attention-read` completes immediately from one coherent Client snapshot, without navigation, input, focus changes or acknowledgement. Reads may complete while an overlay makes the Client busy; one-delivery, freshness, exact view revision, deadline and receipt-capacity rules still apply.
 
 The snapshot carries the canonical changes cursor and revision, nullable outer-focus observation, and entries in request order. Each entry has either a current generation, observation sequence, semantic-change revision and seen flag, or a null state when absent. An unreadable Client observation returns `projection-unavailable`. A query is an observation at its recorded revision, not a promise that the Agent cannot subsequently change. CLI consumers authenticate the returned cursor through the live changes service before exposing seen/unseen; canonical detail joins additionally require matching generation and sequence. Foreign-boot cursors and inconsistent joins never manufacture an acknowledgement.

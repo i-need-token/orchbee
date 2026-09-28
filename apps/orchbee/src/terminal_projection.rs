@@ -12,6 +12,7 @@ use std::{collections::HashSet, sync::Arc};
 pub(crate) struct TerminalProjection {
     attachment: AttachmentId,
     epoch: HostEpoch,
+    host_terminal_id: Option<orchbee_client_server_protocol::HostTerminalId>,
     last_sequence: u64,
     last_revision: u64,
     blocked_revision: Option<u64>,
@@ -22,6 +23,7 @@ impl TerminalProjection {
         Self {
             attachment,
             epoch,
+            host_terminal_id: None,
             last_sequence: 0,
             last_revision: 0,
             blocked_revision: None,
@@ -30,6 +32,16 @@ impl TerminalProjection {
     }
     pub(crate) const fn frame(&self) -> Option<&TerminalTextFrame> {
         self.frame.as_ref()
+    }
+    pub(crate) fn with_host_terminal(
+        mut self,
+        terminal: orchbee_client_server_protocol::HostTerminalId,
+    ) -> Self {
+        self.host_terminal_id = Some(terminal);
+        self
+    }
+    pub(crate) fn host_terminal_id(&self) -> Option<&str> {
+        self.host_terminal_id.as_ref().map(|id| id.as_str())
     }
     /// The attachment identity this projection is bound to — the route key
     /// history events and row windows validate against.

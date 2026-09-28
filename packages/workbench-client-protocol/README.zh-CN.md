@@ -139,6 +139,12 @@ Panel swap 使用共享结构 placement 权威，在同一 Tab 中原子交换�
 
 Client 提示状态快照复用 `@orchbee/agent` 会话身份校验。严格形状与语义保留可空焦点/缺失状态、有序唯一批次、有界版本及精确意图对应。这些线 DTO 描述 Client 观察，不把确认转移到规范 Workbench 或 Agent 状态。
 
+物理 `terminal-agent-attention` 读取指定 1–100 个唯一完整展示／创建／Host 绑定；
+`terminal-attention-read` 保留有序的可空序号／seen 条目、报告修订及可空外层焦点。
+它们复用类型 29／64 KiB 的提交／完成封套及读取生命周期。意图／结果关联要求精确绑定
+和顺序，不合成规范 Session。[物理确认所有权](../../apps/orchbee/docs/native-client-attention.zh-CN.md#物理终端观察与绘制)
+定义 Server／Client 合并及绘制门槛。
+
 ## Workspace 元数据契约
 
 `workbench-workspace-metadata-contract.ts` 为共享请求／结果联合增加严格的上报／读取信封，请求上限 16 KiB、结果上限 128 KiB。[共享语料](../../schemas/workbench/v1/workbench-workspace-metadata-conformance-v1.json) 和 [JSON Schema](../../schemas/workbench/v1/workbench-workspace-metadata.schema.json) 覆盖 token 规范化、来源／序号／TTL 边界、读取批次及封闭失败类型。Rust 还拒绝原始 JSON 重复键；TypeScript 对象绑定保留合法的 `__proto__` 和 `constructor` token 键。此绑定不暴露 Desktop 命令或事件订阅。运行时归属由 [Workspace 元数据模型](../../apps/orchbee/docs/windows-workspace-metadata.zh-CN.md) 管理。
@@ -157,3 +163,8 @@ Panel Agent 上报新增 `workbench.panel-agent`／`workbench.panel-agent.result
 null 的 `afterSequence`；`observed` 返回当前视图、终端局部序号和最多 128 条连续语义变化。
 Rust／TypeScript 校验最后变化与当前头部／状态一致，Rust 关联还证明请求游标覆盖。
 这些是瞬态报告状态，与规范 Agent 修订及 Client `done` 分离。
+
+精简物理 `states` 读取接受 0–64 个唯一展示 ID，按请求顺序返回条目、Workbench／报告修订，
+以及必填可空的完整绑定／序号／Agent／状态快照。成员不存在则拒绝整批；没有当前物理观察
+则返回 null。空读取用于报告修订门槛。Rust／TypeScript 共用严格形状、唯一性／顺序检查和
+一致性语料；Server 继续负责当前 Worker 及物理身份准入。

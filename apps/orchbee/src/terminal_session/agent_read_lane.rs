@@ -45,8 +45,15 @@ pub(super) use attention::AttentionRound;
 
 #[cfg(windows)]
 mod panel_reports;
+#[cfg(windows)]
+mod physical_attention;
 
 pub(super) enum LaneCommand {
+    #[cfg(windows)]
+    PhysicalAttention {
+        epoch: u64,
+        deadline: Instant,
+    },
     #[cfg(windows)]
     PanelReports {
         epoch: u64,
@@ -73,6 +80,11 @@ pub(super) enum LaneCommand {
 }
 
 pub(super) enum LaneOutcome {
+    #[cfg(windows)]
+    PhysicalAttention {
+        epoch: u64,
+        result: Result<super::agent_attention::PhysicalRound, LaneFailure>,
+    },
     #[cfg(windows)]
     PanelReports {
         epoch: u64,
@@ -242,6 +254,18 @@ fn run(
             break;
         }
         let outcome = match command {
+            #[cfg(windows)]
+            LaneCommand::PhysicalAttention { epoch, deadline } => LaneOutcome::PhysicalAttention {
+                epoch,
+                result: physical_attention::read_round(
+                    &origin,
+                    &clock,
+                    &mut client,
+                    deadline,
+                    wake_read.as_local_io(),
+                    &shutdown,
+                ),
+            },
             #[cfg(windows)]
             LaneCommand::PanelReports {
                 epoch,

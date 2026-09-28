@@ -290,6 +290,24 @@
 							]
 						}
 					}
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "states"
+						},
+						"presentationIds": {
+							"type": "array",
+							"items": {
+								"$ref": "#/$defs/identity"
+							},
+							"maxItems": 64,
+							"uniqueItems": true
+						}
+					},
+					"required": ["kind", "presentationIds"]
 				}
 			]
 		},
@@ -517,6 +535,30 @@
 							"$ref": "#/$defs/semanticObservation"
 						}
 					}
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "states"
+						},
+						"workbenchRevision": {
+							"$ref": "#/$defs/revision"
+						},
+						"reportRevision": {
+							"$ref": "#/$defs/revision"
+						},
+						"presentations": {
+							"type": "array",
+							"items": {
+								"$ref": "#/$defs/terminalStateRow"
+							},
+							"maxItems": 64,
+							"uniqueItems": true
+						}
+					},
+					"required": ["kind", "workbenchRevision", "reportRevision", "presentations"]
 				}
 			]
 		},
@@ -637,6 +679,52 @@
 					"$ref": "#/$defs/view"
 				}
 			}
+		},
+		"terminalState": {
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+				"binding": {
+					"$ref": "#/$defs/terminalBinding"
+				},
+				"sequence": {
+					"$ref": "#/$defs/revision"
+				},
+				"agent": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/normalizedAgent"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"state": {
+					"$ref": "#/$defs/state"
+				}
+			},
+			"required": ["binding", "sequence", "agent", "state"]
+		},
+		"terminalStateRow": {
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+				"presentationId": {
+					"$ref": "#/$defs/identity"
+				},
+				"snapshot": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/terminalState"
+						},
+						{
+							"type": "null"
+						}
+					]
+				}
+			},
+			"required": ["presentationId", "snapshot"]
 		}
 	}
 }

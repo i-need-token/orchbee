@@ -3805,6 +3805,153 @@
 					}
 				}
 			}
+		},
+		{
+			"name": "submit-physical-agent-attention",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.client-view",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "submit",
+					"command": {
+						"operationId": "00000000000000000000000000000003",
+						"clientId": "00000000000000000000000000000007",
+						"expectedViewRevision": "2",
+						"minimumWorkbenchRevision": "12",
+						"intent": {
+							"kind": "terminal-agent-attention",
+							"bindings": [
+								{
+									"presentationId": "33333333333333333333333333333333",
+									"generation": "44444444444444444444444444444444",
+									"hostEpoch": "55555555555555555555555555555555",
+									"hostTerminalId": "66666666666666666666666666666666"
+								}
+							]
+						}
+					}
+				}
+			},
+			"frameKind": 29
+		},
+		{
+			"name": "client-physical-agent-attention-read",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.client-view.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "operation",
+					"operation": {
+						"command": {
+							"operationId": "00000000000000000000000000000003",
+							"clientId": "00000000000000000000000000000007",
+							"expectedViewRevision": "2",
+							"minimumWorkbenchRevision": "12",
+							"intent": {
+								"kind": "terminal-agent-attention",
+								"bindings": [
+									{
+										"presentationId": "33333333333333333333333333333333",
+										"generation": "44444444444444444444444444444444",
+										"hostEpoch": "55555555555555555555555555555555",
+										"hostTerminalId": "66666666666666666666666666666666"
+									}
+								]
+							}
+						},
+						"status": {
+							"kind": "terminal-attention-read",
+							"attention": {
+								"reportRevision": "7",
+								"outerFocused": null,
+								"entries": [
+									{
+										"binding": {
+											"presentationId": "33333333333333333333333333333333",
+											"generation": "44444444444444444444444444444444",
+											"hostEpoch": "55555555555555555555555555555555",
+											"hostTerminalId": "66666666666666666666666666666666"
+										},
+										"state": {
+											"sequence": "3",
+											"seen": false
+										}
+									}
+								]
+							},
+							"view": {
+								"workbenchRevision": "12",
+								"phase": "busy",
+								"selection": {
+									"terminalContextId": "00000000000000000000000000000004",
+									"tabId": "00000000000000000000000000000005",
+									"panelId": "00000000000000000000000000000006",
+									"zoomed": false,
+									"panelCount": 2
+								}
+							}
+						}
+					}
+				}
+			},
+			"frameKind": 26
+		},
+		{
+			"name": "complete-physical-agent-attention",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.client-view",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "synchronize",
+					"heartbeat": "1",
+					"viewRevision": "2",
+					"view": {
+						"workbenchRevision": "12",
+						"phase": "ready",
+						"selection": {
+							"terminalContextId": "00000000000000000000000000000004",
+							"tabId": "00000000000000000000000000000005",
+							"panelId": "00000000000000000000000000000006",
+							"zoomed": false,
+							"panelCount": 2
+						}
+					},
+					"completion": {
+						"operationId": "00000000000000000000000000000003",
+						"outcome": {
+							"kind": "terminal-attention-read",
+							"attention": {
+								"reportRevision": "7",
+								"outerFocused": null,
+								"entries": [
+									{
+										"binding": {
+											"presentationId": "33333333333333333333333333333333",
+											"generation": "44444444444444444444444444444444",
+											"hostEpoch": "55555555555555555555555555555555",
+											"hostTerminalId": "66666666666666666666666666666666"
+										},
+										"state": {
+											"sequence": "3",
+											"seen": false
+										}
+									}
+								]
+							}
+						}
+					}
+				}
+			},
+			"frameKind": 29
 		}
 	],
 	"invalid": [
@@ -12626,6 +12773,381 @@
 				}
 			},
 			"boundary": "semantic"
+		},
+		{
+			"name": "physical-attention-wrong-binding",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.client-view.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "operation",
+					"operation": {
+						"command": {
+							"operationId": "00000000000000000000000000000003",
+							"clientId": "00000000000000000000000000000007",
+							"expectedViewRevision": "2",
+							"minimumWorkbenchRevision": "12",
+							"intent": {
+								"kind": "terminal-agent-attention",
+								"bindings": [
+									{
+										"presentationId": "33333333333333333333333333333333",
+										"generation": "44444444444444444444444444444444",
+										"hostEpoch": "55555555555555555555555555555555",
+										"hostTerminalId": "66666666666666666666666666666666"
+									}
+								]
+							}
+						},
+						"status": {
+							"kind": "terminal-attention-read",
+							"attention": {
+								"reportRevision": "7",
+								"outerFocused": null,
+								"entries": [
+									{
+										"binding": {
+											"presentationId": "33333333333333333333333333333333",
+											"generation": "44444444444444444444444444444444",
+											"hostEpoch": "55555555555555555555555555555555",
+											"hostTerminalId": "77777777777777777777777777777777"
+										},
+										"state": {
+											"sequence": "3",
+											"seen": false
+										}
+									}
+								]
+							},
+							"view": {
+								"workbenchRevision": "12",
+								"phase": "busy",
+								"selection": {
+									"terminalContextId": "00000000000000000000000000000004",
+									"tabId": "00000000000000000000000000000005",
+									"panelId": "00000000000000000000000000000006",
+									"zoomed": false,
+									"panelCount": 2
+								}
+							}
+						}
+					}
+				}
+			},
+			"frameKind": 26,
+			"boundary": "semantic"
+		},
+		{
+			"name": "physical-attention-duplicate-entry",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.client-view.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "operation",
+					"operation": {
+						"command": {
+							"operationId": "00000000000000000000000000000003",
+							"clientId": "00000000000000000000000000000007",
+							"expectedViewRevision": "2",
+							"minimumWorkbenchRevision": "12",
+							"intent": {
+								"kind": "terminal-agent-attention",
+								"bindings": [
+									{
+										"presentationId": "33333333333333333333333333333333",
+										"generation": "44444444444444444444444444444444",
+										"hostEpoch": "55555555555555555555555555555555",
+										"hostTerminalId": "66666666666666666666666666666666"
+									}
+								]
+							}
+						},
+						"status": {
+							"kind": "terminal-attention-read",
+							"attention": {
+								"reportRevision": "7",
+								"outerFocused": null,
+								"entries": [
+									{
+										"binding": {
+											"presentationId": "33333333333333333333333333333333",
+											"generation": "44444444444444444444444444444444",
+											"hostEpoch": "55555555555555555555555555555555",
+											"hostTerminalId": "66666666666666666666666666666666"
+										},
+										"state": {
+											"sequence": "3",
+											"seen": false
+										}
+									},
+									{
+										"binding": {
+											"presentationId": "33333333333333333333333333333333",
+											"generation": "44444444444444444444444444444444",
+											"hostEpoch": "55555555555555555555555555555555",
+											"hostTerminalId": "66666666666666666666666666666666"
+										},
+										"state": {
+											"sequence": "3",
+											"seen": false
+										}
+									}
+								]
+							},
+							"view": {
+								"workbenchRevision": "12",
+								"phase": "busy",
+								"selection": {
+									"terminalContextId": "00000000000000000000000000000004",
+									"tabId": "00000000000000000000000000000005",
+									"panelId": "00000000000000000000000000000006",
+									"zoomed": false,
+									"panelCount": 2
+								}
+							}
+						}
+					}
+				}
+			},
+			"frameKind": 26,
+			"boundary": "semantic"
+		},
+		{
+			"name": "physical-attention-short-generation",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.client-view.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "operation",
+					"operation": {
+						"command": {
+							"operationId": "00000000000000000000000000000003",
+							"clientId": "00000000000000000000000000000007",
+							"expectedViewRevision": "2",
+							"minimumWorkbenchRevision": "12",
+							"intent": {
+								"kind": "terminal-agent-attention",
+								"bindings": [
+									{
+										"presentationId": "33333333333333333333333333333333",
+										"generation": "44444444444444444444444444444444",
+										"hostEpoch": "55555555555555555555555555555555",
+										"hostTerminalId": "66666666666666666666666666666666"
+									}
+								]
+							}
+						},
+						"status": {
+							"kind": "terminal-attention-read",
+							"attention": {
+								"reportRevision": "7",
+								"outerFocused": null,
+								"entries": [
+									{
+										"binding": {
+											"presentationId": "33333333333333333333333333333333",
+											"generation": "1",
+											"hostEpoch": "55555555555555555555555555555555",
+											"hostTerminalId": "66666666666666666666666666666666"
+										},
+										"state": {
+											"sequence": "3",
+											"seen": false
+										}
+									}
+								]
+							},
+							"view": {
+								"workbenchRevision": "12",
+								"phase": "busy",
+								"selection": {
+									"terminalContextId": "00000000000000000000000000000004",
+									"tabId": "00000000000000000000000000000005",
+									"panelId": "00000000000000000000000000000006",
+									"zoomed": false,
+									"panelCount": 2
+								}
+							}
+						}
+					}
+				}
+			},
+			"frameKind": 26,
+			"boundary": "schema"
+		},
+		{
+			"name": "physical-attention-missing-focus",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.client-view.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "operation",
+					"operation": {
+						"command": {
+							"operationId": "00000000000000000000000000000003",
+							"clientId": "00000000000000000000000000000007",
+							"expectedViewRevision": "2",
+							"minimumWorkbenchRevision": "12",
+							"intent": {
+								"kind": "terminal-agent-attention",
+								"bindings": [
+									{
+										"presentationId": "33333333333333333333333333333333",
+										"generation": "44444444444444444444444444444444",
+										"hostEpoch": "55555555555555555555555555555555",
+										"hostTerminalId": "66666666666666666666666666666666"
+									}
+								]
+							}
+						},
+						"status": {
+							"kind": "terminal-attention-read",
+							"attention": {
+								"reportRevision": "7",
+								"entries": [
+									{
+										"binding": {
+											"presentationId": "33333333333333333333333333333333",
+											"generation": "44444444444444444444444444444444",
+											"hostEpoch": "55555555555555555555555555555555",
+											"hostTerminalId": "66666666666666666666666666666666"
+										},
+										"state": {
+											"sequence": "3",
+											"seen": false
+										}
+									}
+								]
+							},
+							"view": {
+								"workbenchRevision": "12",
+								"phase": "busy",
+								"selection": {
+									"terminalContextId": "00000000000000000000000000000004",
+									"tabId": "00000000000000000000000000000005",
+									"panelId": "00000000000000000000000000000006",
+									"zoomed": false,
+									"panelCount": 2
+								}
+							}
+						}
+					}
+				}
+			},
+			"frameKind": 26,
+			"boundary": "schema"
+		},
+		{
+			"name": "physical-attention-missing-state",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.client-view.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "operation",
+					"operation": {
+						"command": {
+							"operationId": "00000000000000000000000000000003",
+							"clientId": "00000000000000000000000000000007",
+							"expectedViewRevision": "2",
+							"minimumWorkbenchRevision": "12",
+							"intent": {
+								"kind": "terminal-agent-attention",
+								"bindings": [
+									{
+										"presentationId": "33333333333333333333333333333333",
+										"generation": "44444444444444444444444444444444",
+										"hostEpoch": "55555555555555555555555555555555",
+										"hostTerminalId": "66666666666666666666666666666666"
+									}
+								]
+							}
+						},
+						"status": {
+							"kind": "terminal-attention-read",
+							"attention": {
+								"reportRevision": "7",
+								"outerFocused": null,
+								"entries": [
+									{
+										"binding": {
+											"presentationId": "33333333333333333333333333333333",
+											"generation": "44444444444444444444444444444444",
+											"hostEpoch": "55555555555555555555555555555555",
+											"hostTerminalId": "66666666666666666666666666666666"
+										}
+									}
+								]
+							},
+							"view": {
+								"workbenchRevision": "12",
+								"phase": "busy",
+								"selection": {
+									"terminalContextId": "00000000000000000000000000000004",
+									"tabId": "00000000000000000000000000000005",
+									"panelId": "00000000000000000000000000000006",
+									"zoomed": false,
+									"panelCount": 2
+								}
+							}
+						}
+					}
+				}
+			},
+			"frameKind": 26,
+			"boundary": "schema"
+		},
+		{
+			"name": "physical-attention-duplicate-request",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.client-view",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "submit",
+					"command": {
+						"operationId": "00000000000000000000000000000003",
+						"clientId": "00000000000000000000000000000007",
+						"expectedViewRevision": "2",
+						"minimumWorkbenchRevision": "12",
+						"intent": {
+							"kind": "terminal-agent-attention",
+							"bindings": [
+								{
+									"presentationId": "33333333333333333333333333333333",
+									"generation": "44444444444444444444444444444444",
+									"hostEpoch": "55555555555555555555555555555555",
+									"hostTerminalId": "66666666666666666666666666666666"
+								},
+								{
+									"presentationId": "33333333333333333333333333333333",
+									"generation": "44444444444444444444444444444444",
+									"hostEpoch": "55555555555555555555555555555555",
+									"hostTerminalId": "66666666666666666666666666666666"
+								}
+							]
+						}
+					}
+				}
+			},
+			"frameKind": 29,
+			"boundary": "schema"
 		}
 	],
 	"validJson": [

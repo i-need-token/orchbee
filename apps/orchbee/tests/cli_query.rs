@@ -3446,6 +3446,7 @@ fn attach_with_fixture(stream: &UnixStream) -> ViewerId {
         TerminalViewerOutcome::Attached {
             attachment_id: attachment.clone(),
             host_epoch: epoch,
+            host_terminal_id: epoch,
         },
     );
     attachment
@@ -3849,6 +3850,7 @@ fn terminal_read_correlation_mismatch_is_protocol_invalid() -> TestResult {
                 TerminalViewerOutcome::Attached {
                     attachment_id: attachment,
                     host_epoch: epoch,
+                    host_terminal_id: epoch,
                 },
             )),
         )
@@ -6029,6 +6031,7 @@ fn terminal_wait_late_attach_answer_settles_as_timeout() -> TestResult {
                 TerminalViewerOutcome::Attached {
                     attachment_id: attachment,
                     host_epoch: epoch,
+                    host_terminal_id: epoch,
                 },
             )),
         );

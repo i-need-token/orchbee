@@ -43,6 +43,12 @@ struct Receipt {
 impl Receipt {
     fn settle(&mut self, status: ClientViewControlStatus, now: Instant) {
         self.payload_reservation = match &status {
+            ClientViewControlStatus::TerminalAttentionRead { attention, .. } => {
+                serde_json::to_vec(attention)
+                    .map_or(MAXIMUM_ENCODED_CLIENT_ATTENTION_BYTES, |encoded| {
+                        encoded.len()
+                    })
+            }
             ClientViewControlStatus::AttentionRead { attention, .. } => {
                 serde_json::to_vec(attention)
                     .map_or(MAXIMUM_ENCODED_CLIENT_ATTENTION_BYTES, |encoded| {
@@ -279,6 +285,12 @@ impl ClientViewRegistry {
                 ClientViewCompletionOutcome::NavigationRead { navigation } => {
                     ClientViewControlStatus::NavigationRead {
                         navigation: navigation.clone(),
+                        view: view.clone(),
+                    }
+                }
+                ClientViewCompletionOutcome::TerminalAttentionRead { attention } => {
+                    ClientViewControlStatus::TerminalAttentionRead {
+                        attention: attention.clone(),
                         view: view.clone(),
                     }
                 }

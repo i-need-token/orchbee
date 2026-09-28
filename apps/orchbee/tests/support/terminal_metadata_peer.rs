@@ -79,6 +79,10 @@ pub(crate) fn sample(stream: &mut LocalStream, mode: &str, image: &str) {
         "attach",
         TerminalViewerOutcome::Attached {
             attachment_id: ViewerId::parse(&route.attachment_id.to_text()).unwrap(),
+            host_terminal_id: orchbee_client_server_protocol::HostTerminalId::parse(
+                &route.host_epoch.to_text(),
+            )
+            .unwrap(),
             host_epoch: orchbee_client_server_protocol::HostEpoch::parse(
                 &route.host_epoch.to_text(),
             )

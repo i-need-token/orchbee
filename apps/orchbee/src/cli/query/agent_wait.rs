@@ -232,10 +232,19 @@ fn agent_wait_span(
             }
             orchbee_agent_observation_protocol::AgentNameTarget::Terminal { binding } => {
                 return WaitAttempt::TerminalDone(
-                    super::terminal_agent_wait::admit(until, selected.is_some()).and_then(|()| {
+                    crate::cli::agent_view::windows::terminal_attention::select_for_wait(
+                        &mut client,
+                        selected,
+                        until,
+                        resolve_deadline,
+                        signals,
+                    )
+                    .and_then(|selected| {
+                        super::terminal_agent_wait::admit(until, selected.is_some())?;
                         super::terminal_agent_wait::observe(
                             &mut client,
                             super::terminal_agent_wait::Options {
+                                selected: selected.as_ref(),
                                 target,
                                 binding: &binding,
                                 until,

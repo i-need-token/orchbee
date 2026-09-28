@@ -844,7 +844,9 @@ impl AgentBoard {
             changed = true;
             match outcome {
                 #[cfg(windows)]
-                LaneOutcome::Attention { .. } | LaneOutcome::PanelReports { .. } => {
+                LaneOutcome::Attention { .. }
+                | LaneOutcome::PanelReports { .. }
+                | LaneOutcome::PhysicalAttention { .. } => {
                     self.read = AgentBoardRead::Failed(AgentBoardReadFailure::Transport);
                 }
                 LaneOutcome::List { epoch, result } => {

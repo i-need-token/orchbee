@@ -393,6 +393,12 @@ Panel swap 使用共享结构 placement 权威，在同一 Tab 中原子交换�
 
 Client 所有的 Agent 提示状态读取指定 1–100 个唯一规范 Agent 会话 ID。`agent-attention` 提交及 `attention-read` 完成使用类型 29，分配前限制为 64 KiB；响应仍使用类型 26。条目保留请求顺序、可空的不存在会话状态、观察 generation/sequence、语义变化版本及 seen，同时包含可认证启动周期的 changes 游标和可空宿主焦点。Workbench 绑定轻量 Agent 协议 DTO，不拥有 Agent 状态。[Client 提示状态所有者](../../apps/orchbee/docs/native-client-attention.zh-CN.md) 定义读取可用性、不改变确认、有界回执存储及 CLI 游标认证。
 
+物理 `terminal-agent-attention` 读取指定 1–100 个唯一完整展示／创建／Host 绑定；
+`terminal-attention-read` 保留有序的可空序号／seen 条目、报告修订及可空外层焦点。
+它们复用类型 29／64 KiB 的提交／完成封套及读取生命周期。意图／结果关联要求精确绑定
+和顺序，不合成规范 Session。[物理确认所有权](../../apps/orchbee/docs/native-client-attention.zh-CN.md#物理终端观察与绘制)
+定义 Server／Client 合并及绘制门槛。
+
 ## 保留终端的 Panel 迁移
 
 `panel.relocate` 保留精确的源上下文／Tab／Panel 元组。`tab` 目标接受可选 `terminalContextId` 和
@@ -418,3 +424,8 @@ Client 所有的 Agent 提示状态读取指定 1–100 个唯一规范 Agent �
 [Panel Agent schema](v1/workbench-panel-agent.schema.json) 还覆盖固定代际的物理
 `observe`／`observed` 读取。共享语料检查必填可空游标、非零 Host 身份和语义变化形状；
 语言绑定额外约束连续序号、头部和当前状态一致。精确游标覆盖由请求／结果关联负责。
+
+精简物理 `states` 读取接受 0–64 个唯一展示 ID，按请求顺序返回条目、Workbench／报告修订，
+以及必填可空的完整绑定／序号／Agent／状态快照。成员不存在则拒绝整批；没有当前物理观察
+则返回 null。空读取用于报告修订门槛。Rust／TypeScript 共用严格形状、唯一性／顺序检查和
+一致性语料；Server 继续负责当前 Worker 及物理身份准入。

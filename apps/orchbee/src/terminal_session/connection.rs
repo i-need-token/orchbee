@@ -184,6 +184,7 @@ pub(super) fn run_legacy(
     let ViewerOutcome::Attached {
         attachment_id,
         host_epoch,
+        host_terminal_id,
     } = result
     else {
         return Err(TerminalStatus::Unavailable);
@@ -191,7 +192,8 @@ pub(super) fn run_legacy(
     let projection = TerminalProjection::new(
         AttachmentId::parse(attachment_id.as_str()).map_err(|_| TerminalStatus::Unavailable)?,
         HostEpoch::parse(host_epoch.as_str()).map_err(|_| TerminalStatus::Unavailable)?,
-    );
+    )
+    .with_host_terminal(host_terminal_id);
     let mut sequence = 0_u64;
     let result = control(
         &mut client,

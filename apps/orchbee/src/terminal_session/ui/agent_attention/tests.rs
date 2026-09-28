@@ -52,6 +52,110 @@ fn draw(ui: &NativeUi, width: u16, height: u16, shell: &ClientView) -> NativeDra
     receipt
 }
 
+fn physical_fixture() -> (
+    NativeUi,
+    PaneRef,
+    orchbee_workbench_protocol::TerminalAgentStateSnapshot,
+) {
+    let (mut ui, _, _, _) = ready_ui();
+    let pane = install_projection(&mut ui, Some((9, false, 24)), 0);
+    let presentation = ui.view().attention_presentation(&pane).unwrap();
+    let projection = &mut ui.projections[0].value;
+    let frame = projection.take_frame().unwrap();
+    let state:orchbee_workbench_protocol::TerminalAgentStateSnapshot=serde_json::from_value(json!({
+        "binding":{"presentationId":presentation,"generation":"11111111111111111111111111111111",
+        "hostEpoch":projection.epoch().to_text(),"hostTerminalId":"22222222222222222222222222222222"},
+        "sequence":"1","agent":"pi","state":"idle"
+    })).unwrap();
+    *projection = crate::terminal_projection::TerminalProjection::new(
+        *projection.attachment(),
+        *projection.epoch(),
+    )
+    .with_host_terminal(
+        orchbee_client_server_protocol::HostTerminalId::parse(
+            state.binding.host_terminal_id.as_str(),
+        )
+        .unwrap(),
+    );
+    projection.install_frame_for_test(frame);
+    ui.attention.publish_physical_for_test(
+        &crate::terminal_session::agent_attention::PhysicalRound {
+            report_revision: orchbee_workbench_protocol::WorkbenchRevision::new(0),
+            states: vec![],
+        },
+    );
+    publish_physical(&mut ui, &state);
+    (ui, pane, state)
+}
+fn publish_physical(
+    ui: &mut NativeUi,
+    state: &orchbee_workbench_protocol::TerminalAgentStateSnapshot,
+) {
+    ui.attention.publish_physical_for_test(
+        &crate::terminal_session::agent_attention::PhysicalRound {
+            report_revision: state.sequence,
+            states: vec![state.clone()],
+        },
+    );
+}
+fn physical_seen(
+    ui: &NativeUi,
+    state: &orchbee_workbench_protocol::TerminalAgentStateSnapshot,
+) -> bool {
+    ui.read_terminal_agent_attention(std::slice::from_ref(&state.binding))
+        .unwrap()
+        .entries[0]
+        .state
+        .as_ref()
+        .unwrap()
+        .seen
+}
+
+#[test]
+fn physical_paint_requires_exact_terminal_and_current_visible_frame() {
+    let (mut ui, pane, mut state) = physical_fixture();
+    let shell = ClientView::new(120);
+    assert!(!physical_seen(&ui, &state), "reading does not acknowledge");
+    ui.board.open();
+    ui.after_close_draw(draw(&ui, 120, 40, &shell));
+    ui.board.close();
+    assert!(!physical_seen(&ui, &state));
+    let old = draw(&ui, 120, 40, &shell);
+    state.sequence = orchbee_workbench_protocol::WorkbenchRevision::new(2);
+    publish_physical(&mut ui, &state);
+    ui.after_close_draw(old);
+    assert!(!physical_seen(&ui, &state));
+    ui.observe_focus(false);
+    ui.after_close_draw(draw(&ui, 120, 40, &shell));
+    assert!(!physical_seen(&ui, &state));
+    ui.observe_focus(true);
+    ui.enter_history();
+    ui.after_close_draw(draw(&ui, 120, 40, &shell));
+    assert!(!physical_seen(&ui, &state));
+    // Reinstall a live projection without the attach identity: epoch alone is insufficient.
+    install_projection(&mut ui, Some((9, false, 24)), 0);
+    ui.after_close_draw(draw(&ui, 120, 40, &shell));
+    assert!(!physical_seen(&ui, &state));
+    assert_eq!(ui.view().panel_unseen_count(pane.pane().panel()), 1);
+}
+
+#[test]
+fn physical_terminal_replacement_under_same_epoch_cannot_consume_old_frame() {
+    let (mut ui, _, mut state) = physical_fixture();
+    let shell = ClientView::new(120);
+    ui.after_close_draw(draw(&ui, 120, 40, &shell));
+    assert!(physical_seen(&ui, &state));
+    state.sequence = orchbee_workbench_protocol::WorkbenchRevision::new(2);
+    state.binding.host_terminal_id =
+        orchbee_agent_observation_protocol::AgentHostTerminalId::parse(&"3".repeat(32)).unwrap();
+    state.binding.generation =
+        orchbee_agent_observation_protocol::AgentAttachmentGeneration::parse(&"4".repeat(32))
+            .unwrap();
+    publish_physical(&mut ui, &state);
+    ui.after_close_draw(draw(&ui, 120, 40, &shell));
+    assert!(!physical_seen(&ui, &state));
+}
+
 #[test]
 fn attention_render_receipts_only_acknowledge_visible_live_panes_after_success() {
     let (mut ui, pane) = fixture();
