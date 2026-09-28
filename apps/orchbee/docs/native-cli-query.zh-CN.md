@@ -1946,11 +1946,7 @@ Host 的预期拒绝使用 `orchbee.cli.failure.process-info` v1，保留有界�
 
 ## Windows Site 停止
 
-托管 Windows 正常停止会在释放终端前保存 Workbench 配置。后续启动恢复保留的布局和 Launch
-Profile，并按 Workspace 目录默认值启动新的默认 shell。保存失败保留先前检查点和运行中的终端；
-解决故障后显式重试失败的停止。数据损坏时拒绝启动，不替换为空 Workbench。存储及恢复边界由
-[检查点契约](../../orchbee-server/docs/workbench-checkpoint.zh-CN.md) 负责：不恢复进程、Agent 状态、
-Client 视图、终端历史或各 shell 实际观察到的 cwd，也不新增命名会话命令。
+托管 Windows 正常停止在释放终端前保存 Workbench 配置、provider 恢复引用及逐终端实际观察目录。后续启动恢复布局／Launch Profile，并启动新的默认 shell 或所选 provider 恢复。保存的终端 cwd 优先于工作区／home 默认值；保存目录不存在时回退到 Worker home。保存失败保留之前的检查点和运行终端，解决后可显式重试；损坏数据拒绝启动，不回退为空。归属的[检查点契约](../../orchbee-server/docs/workbench-checkpoint.zh-CN.md)定义兼容性与恢复边界。不恢复旧进程、活跃 Agent 状态、Client 视图或终端历史。
 
 `site stop --confirm [--request-id <32-hex>] [--retry] [--detach] [--timeout <ms>]` 停止现有托管 Windows Site，绝不激活新 Site。标识为非零小写 128 位十六进制值，省略时仅生成一次；`--retry` 必须提供标识。CLI 仅发送一次开始或重试请求，之后仅查询状态。`--detach` 立即返回已准入尝试；否则一个绝对截止时间（默认 65000 毫秒，范围 1–3600000 毫秒）覆盖运行时/cohort 准入、请求和轮询。取消或超时仅停止等待，不回滚已准入停止。每个运行时答案均保留请求标识，供 `site stop-status <id>` 查询。状态是事实文档，不是第二次变更。`orchbee.site.stop` v1 封套区分 stopped、pending、failed、busy、not-recorded、unmanaged 及 unavailable/unknown 传输结果；pending 可携带 detached、timed-out 或 cancelled 等待状态。已知 Server 失败保留尝试、阶段、原因及本次释放数量。只有准确匹配的严格已停止激活记录加上空闲的既有生命周期锁才能证明完成；端点消失、非法记录及不同标识均不能证明。后续启动消费该回执，因此未记录不能否定此前停止。Linux/macOS 返回 unsupported-platform，不产生运行时效果。
 

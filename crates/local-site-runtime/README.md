@@ -361,3 +361,7 @@ strict parsing, zero versus malformed data, completion identity and restart cycl
 managed lifecycle and process witnesses must establish the exit precondition before
 the public stop command can claim completion. This record primitive itself does not
 stop processes, acquire lifecycle authority, or perform automatic recovery.
+
+## Windows directory primitives
+
+The shared pure `windows_reported_directory` decoder preserves valid terminal-reported drive/UNC observations; callers separately enforce narrower launch path bounds. `WINDOWS_DIRECTORY_PROMPT` synchronizes PowerShell process cwd after the original prompt, preserving status and leaving non-filesystem providers unchanged. Both ordinary Worker shells and encoded resume shells use this single hook.

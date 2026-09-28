@@ -16,6 +16,7 @@ use super::{WorkbenchAuthority, catalog_serialized_size, identity};
 use crate::workbench_projection::WorkbenchProjectionStore;
 
 mod agent_sessions;
+mod directories;
 mod restore;
 pub use restore::{PreparedWorkbenchRestoreBinding, WorkbenchRestoreError, WorkbenchRestoreTarget};
 
@@ -33,6 +34,7 @@ pub enum WorkbenchCheckpointError {
     InvalidCatalog,
     TerminalBinding,
     InvalidAgentSession,
+    InvalidTerminalDirectory,
 }
 
 impl fmt::Display for WorkbenchCheckpointError {
@@ -58,6 +60,9 @@ impl fmt::Display for WorkbenchCheckpointError {
             }
             Self::TerminalBinding => {
                 formatter.write_str("checkpoint cannot retain terminal bindings")
+            }
+            Self::InvalidTerminalDirectory => {
+                formatter.write_str("invalid checkpoint terminal directory")
             }
             Self::InvalidAgentSession => formatter.write_str("invalid checkpoint Agent session"),
         }
@@ -130,6 +135,12 @@ struct Checkpoint {
         skip_serializing_if = "Option::is_none"
     )]
     agent_sessions: Option<Vec<agent_sessions::StoredAgentSession>>,
+    #[serde(
+        default,
+        deserialize_with = "directories::deserialize",
+        skip_serializing_if = "Option::is_none"
+    )]
+    terminal_directories: Option<Vec<directories::StoredDirectory>>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -177,6 +188,19 @@ impl WorkbenchAuthority {
         local_worker: &WorkerId,
         facts: &[super::TerminalAgentBinding],
     ) -> Result<Vec<u8>, WorkbenchCheckpointError> {
+        self.checkpoint_with_terminal_directories(local_worker, facts, &[])
+    }
+
+    /// The runtime supplies directory observations after exact physical-generation fencing.
+    pub fn checkpoint_with_terminal_directories(
+        &self,
+        local_worker: &WorkerId,
+        facts: &[super::TerminalAgentBinding],
+        observed: &[(
+            orchbee_workbench_protocol::PresentationBinding,
+            WorkbenchDirectoryPath,
+        )],
+    ) -> Result<Vec<u8>, WorkbenchCheckpointError> {
         if self.retired {
             return Err(WorkbenchCheckpointError::RetiredAuthority);
         }
@@ -184,6 +208,7 @@ impl WorkbenchAuthority {
         // Serialization alone does not validate the shared graph. Validate before recursion.
         let projection = validate_projection(self.snapshot().clone())?;
         let agent_sessions = agent_sessions::capture(self, local_worker, facts)?;
+        let terminal_directories = directories::capture(self, local_worker, observed)?;
         let mut snapshot = projection.snapshot().clone();
         for context in &mut snapshot.terminal_contexts {
             for tab in &mut context.tabs {
@@ -237,7 +262,7 @@ impl WorkbenchAuthority {
             .collect::<Result<Vec<_>, WorkbenchCheckpointError>>()?;
         let checkpoint = Checkpoint {
             schema: Schema::Workbench,
-            version: 2,
+            version: 3,
             last_identity,
             navigation: StoredNavigation {
                 workspace_order: snapshot.navigation.workspace_order,
@@ -247,6 +272,7 @@ impl WorkbenchAuthority {
             terminal_contexts: snapshot.terminal_contexts,
             profiles,
             agent_sessions: Some(agent_sessions),
+            terminal_directories: Some(terminal_directories),
         };
         let encoded = serde_json::to_vec(&checkpoint)
             .map_err(|_error| WorkbenchCheckpointError::InvalidDocument)?;
@@ -275,13 +301,16 @@ impl WorkbenchCheckpoint {
         enforce_encoded_limit(encoded)?;
         let checkpoint: Checkpoint = serde_json::from_slice(encoded)
             .map_err(|_error| WorkbenchCheckpointError::InvalidDocument)?;
-        if !matches!(checkpoint.version, 1 | 2) {
+        if !matches!(checkpoint.version, 1..=3) {
             return Err(WorkbenchCheckpointError::UnsupportedVersion(
                 checkpoint.version,
             ));
         }
-        if (checkpoint.version == 2) != checkpoint.agent_sessions.is_some() {
+        if (checkpoint.version >= 2) != checkpoint.agent_sessions.is_some() {
             return Err(WorkbenchCheckpointError::InvalidAgentSession);
+        }
+        if (checkpoint.version == 3) != checkpoint.terminal_directories.is_some() {
+            return Err(WorkbenchCheckpointError::InvalidTerminalDirectory);
         }
         // These values only validate the shared graph shape. No authority is constructed,
         // retained or published; actual boot identities arrive during reconstruction.
@@ -310,6 +339,13 @@ impl WorkbenchCheckpoint {
             .unwrap_or_default()
             .into_iter()
             .map(|row| (row.presentation_id, row.session))
+            .collect();
+        authority.restart_directories = self
+            .checkpoint
+            .terminal_directories
+            .unwrap_or_default()
+            .into_iter()
+            .map(|r| (r.presentation_id, r.path))
             .collect();
         Ok(authority)
     }
@@ -385,6 +421,13 @@ fn checkpoint_parts(
     )?;
     agent_sessions::validate(
         checkpoint.agent_sessions.as_deref().unwrap_or_default(),
+        projection.snapshot(),
+    )?;
+    directories::validate(
+        checkpoint
+            .terminal_directories
+            .as_deref()
+            .unwrap_or_default(),
         projection.snapshot(),
     )?;
     Ok(CheckpointParts {

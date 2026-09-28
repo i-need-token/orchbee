@@ -115,6 +115,31 @@ fn fresh_frame(
     viewer.projection.complete_feedback(&feedback);
     frame(viewer, template, stop)
 }
+pub(super) fn directory(
+    viewer: &mut ViewerAttachment<'_>,
+    template: WorkerRequest,
+    stop: &AtomicBool,
+) -> Option<orchbee_workbench_protocol::WorkbenchDirectoryPath> {
+    let reported = fresh_frame(viewer, template, stop)
+        .and_then(|f| {
+            f.current_directory
+                .as_deref()
+                .and_then(orchbee_local_site_runtime::windows_reported_directory)
+        })
+        .and_then(|p| orchbee_workbench_protocol::WorkbenchDirectoryPath::parse(&p).ok());
+    reported.or_else(|| {
+        let sample = process(viewer, template, stop)?;
+        let path = sample
+            .processes
+            .iter()
+            .find(|p| p.pid == sample.root_pid)?
+            .current_directory
+            .as_deref()?;
+        orchbee_local_site_runtime::windows_reported_directory(path)
+            .and_then(|p| orchbee_workbench_protocol::WorkbenchDirectoryPath::parse(&p).ok())
+    })
+}
+
 fn progress(value: Option<TerminalProgress>) -> String {
     use TerminalProgress::{Error, Indeterminate, Pause, Remove, Set};
     let (tag, value) = match value {

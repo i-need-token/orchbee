@@ -1,5 +1,9 @@
 //! Private native development runtime boundaries; applications own startup policy.
 #[cfg(windows)]
+mod windows_directory;
+#[cfg(windows)]
+pub use windows_directory::{WINDOWS_DIRECTORY_PROMPT, windows_reported_directory};
+#[cfg(windows)]
 mod windows_command;
 #[cfg(windows)]
 pub use windows_command::windows_encoded_command;

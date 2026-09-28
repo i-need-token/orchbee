@@ -47,7 +47,9 @@ fn valid(session: &PanelAgentSession) -> bool {
     }
 }
 
-fn members(snapshot: &Snapshot) -> BTreeMap<TerminalPresentationId, Option<PresentationBinding>> {
+pub(super) fn members(
+    snapshot: &Snapshot,
+) -> BTreeMap<TerminalPresentationId, Option<PresentationBinding>> {
     let mut members = BTreeMap::new();
     for context in &snapshot.terminal_contexts {
         for tab in &context.tabs {

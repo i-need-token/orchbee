@@ -57,6 +57,7 @@ pub struct WorkbenchRestoreTarget {
     presentation_id: TerminalPresentationId,
     standalone: bool,
     working_directory: Option<WorkbenchDirectoryPath>,
+    restored_directory: Option<WorkbenchDirectoryPath>,
     agent_session: Option<orchbee_workbench_protocol::PanelAgentSession>,
 }
 
@@ -87,7 +88,9 @@ impl WorkbenchRestoreTarget {
     }
     #[must_use]
     pub fn working_directory(&self) -> Option<&WorkbenchDirectoryPath> {
-        self.working_directory.as_ref()
+        self.restored_directory
+            .as_ref()
+            .or(self.working_directory.as_ref())
     }
 }
 
@@ -151,6 +154,10 @@ impl WorkbenchAuthority {
                                 standalone: context.terminal_context_id
                                     == snapshot.navigation.standalone_terminal_context_id,
                                 working_directory: working_directory.clone(),
+                                restored_directory: self
+                                    .restart_directories
+                                    .get(&presentation.presentation_id)
+                                    .cloned(),
                                 agent_session: self
                                     .pending_agent_sessions
                                     .get(&presentation.presentation_id)
@@ -181,6 +188,11 @@ impl WorkbenchAuthority {
             return Err(WorkbenchRestoreError::ForeignWorker);
         }
         if self.pending_agent_sessions.get(&target.presentation_id) != target.agent_session.as_ref()
+        {
+            return Err(WorkbenchRestoreError::TargetChanged);
+        }
+        if self.restart_directories.get(&target.presentation_id)
+            != target.restored_directory.as_ref()
         {
             return Err(WorkbenchRestoreError::TargetChanged);
         }

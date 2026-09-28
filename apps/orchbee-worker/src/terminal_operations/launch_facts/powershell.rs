@@ -1,9 +1,6 @@
 //! Process-local cwd synchronization for recognized interactive Windows shells.
 
-// Invoke the original prompt first: preceding statements would overwrite `$?`
-// on Windows PowerShell 5.1. Single-quoted constant text also avoids that shell's
-// command-line quoting differences. No launch argument is interpolated here.
-const PROMPT: &str = r"if ($null -eq $global:__OrchbeeDirectoryPrompt) { $global:__OrchbeeDirectoryPrompt = $function:prompt; function global:prompt { $out = @(& $global:__OrchbeeDirectoryPrompt) -join ' '; $loc = $ExecutionContext.SessionState.Path.CurrentLocation; if ($loc.Provider.Name -eq 'FileSystem') { try { [Environment]::CurrentDirectory = $loc.ProviderPath } catch {} }; $out } }";
+use orchbee_local_site_runtime::WINDOWS_DIRECTORY_PROMPT as PROMPT;
 
 pub(super) fn interactive_arguments(executable: &str, mut arguments: Vec<String>) -> Vec<String> {
     let name = executable.rsplit(['/', '\\']).next().unwrap_or(executable);

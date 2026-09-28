@@ -45,6 +45,32 @@ impl LocalTerminalService {
         stop: &AtomicBool,
         detector: &ScreenDetector,
     ) -> Option<PendingCleanup> {
+        self.with_observation_viewer(target, stop, |viewer, template| {
+            screen::observe(viewer, template, stop, detector);
+        })
+    }
+
+    pub(in crate::local_terminal_service) fn sample_checkpoint_directory(
+        &self,
+        target: &ProcessObservationTarget,
+    ) -> (
+        Option<orchbee_workbench_protocol::WorkbenchDirectoryPath>,
+        Option<PendingCleanup>,
+    ) {
+        let stop = AtomicBool::new(false);
+        let mut directory = None;
+        let pending = self.with_observation_viewer(target, &stop, |viewer, template| {
+            directory = screen::directory(viewer, template, &stop);
+        });
+        (directory, pending)
+    }
+
+    fn with_observation_viewer(
+        &self,
+        target: &ProcessObservationTarget,
+        stop: &AtomicBool,
+        observe: impl FnOnce(&mut super::ViewerAttachment<'_>, WorkerRequest),
+    ) -> Option<PendingCleanup> {
         if stop.load(Ordering::Acquire) {
             return None;
         }
@@ -102,7 +128,7 @@ impl LocalTerminalService {
             && self.viewer_worker_is_current(&issued.viewer.handle)
             && self.target_lifecycle(issued.viewer.target) == Some(TargetLifecycle::Unfenced)
         {
-            screen::observe(&mut issued.viewer, template, stop, detector);
+            observe(&mut issued.viewer, template);
         }
         let pending = PendingCleanup {
             handle: issued.viewer.handle.clone(),

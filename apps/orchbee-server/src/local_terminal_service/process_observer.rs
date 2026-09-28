@@ -85,6 +85,40 @@ impl Drop for ProcessObserver {
     }
 }
 impl LocalTerminalService {
+    /// Clean stop reuses the observer's sole cleanup slot after its sampling thread has joined.
+    pub(super) fn settle_checkpoint_viewer(&self, new: Option<PendingCleanup>) -> io::Result<()> {
+        let observer = &self.process_observer;
+        if !observer.wake.stop.load(Ordering::Acquire)
+            || observer
+                .handle
+                .lock()
+                .map_err(|_| io::Error::other("observer poisoned"))?
+                .is_some()
+        {
+            return Err(io::ErrorKind::WouldBlock.into());
+        }
+        let mut slot = observer
+            .wake
+            .pending
+            .lock()
+            .map_err(|_| io::Error::other("observer cleanup poisoned"))?;
+        if let Some(new) = new {
+            debug_assert!(
+                slot.is_none(),
+                "checkpoint cannot attach before prior cleanup"
+            );
+            *slot = Some(new);
+            return Err(io::Error::other("checkpoint viewer cleanup unconfirmed"));
+        }
+        if let Some(pending) = slot.take()
+            && !pending.settle(self)
+        {
+            *slot = Some(pending);
+            return Err(io::Error::other("checkpoint viewer cleanup unconfirmed"));
+        }
+        Ok(())
+    }
+
     #[cfg(test)]
     pub(super) fn process_observer_turn_for_test(&self, cursor: &mut Option<Cursor>) {
         turn(

@@ -51,10 +51,16 @@ impl LocalTerminalService {
         for (target, launch) in plans {
             let reference = create_reference()
                 .ok_or_else(|| io::Error::other("restore request identity unavailable"))?;
-            pending.push(
-                *coordinator
-                    .prepare_checkpoint_terminal(&target, reference, worker, expiry, launch)?,
-            );
+            let cwd = target
+                .working_directory()
+                .filter(|p| std::path::Path::new(p.as_str()).is_dir())
+                .map(|p| orchbee_client_server_protocol::WorkingDirectory::parse(p.as_str()))
+                .transpose()
+                .map_err(io::Error::other)?;
+            pending
+                .push(*coordinator.prepare_checkpoint_terminal(
+                    &target, reference, worker, expiry, launch, cwd,
+                )?);
         }
         Ok((service, pending))
     }
@@ -98,10 +104,40 @@ impl LocalTerminalService {
         Ok(())
     }
 
-    pub(crate) fn checkpoint(&self, worker: &WorkerId) -> io::Result<Vec<u8>> {
-        self.coordinator
+    pub(crate) fn checkpoint(&self, worker: &WorkerId, deadline: Instant) -> io::Result<Vec<u8>> {
+        let (revision, targets) = self
+            .coordinator
             .lock()
             .map_err(|_| io::Error::other("coordinator failed"))?
-            .checkpoint_with_agent_sessions(worker)
+            .checkpoint_observation_targets()?;
+        self.settle_checkpoint_viewer(None)?;
+        let mut directories = Vec::new();
+        for target in &targets {
+            if Instant::now() >= deadline {
+                return Err(io::ErrorKind::TimedOut.into());
+            }
+            let (directory, pending) = self.sample_checkpoint_directory(target);
+            self.settle_checkpoint_viewer(pending)?;
+            if let Some(directory) = directory {
+                directories.push((target.binding.clone(), directory));
+            }
+        }
+        let workers = self
+            .workers
+            .lock()
+            .map_err(|_| io::Error::other("Worker registry failed"))?;
+        let placement = placement(workers.request_handle().as_ref());
+        if targets.iter().any(|t| Some(t.target.worker) != placement) || Instant::now() >= deadline
+        {
+            return Err(io::Error::other("checkpoint observation expired"));
+        }
+        let coordinator = self
+            .coordinator
+            .lock()
+            .map_err(|_| io::Error::other("coordinator failed"))?;
+        if coordinator.checkpoint_observation_targets()? != (revision, targets) {
+            return Err(io::Error::other("checkpoint physical membership changed"));
+        }
+        coordinator.checkpoint_with_agent_sessions(worker, &directories)
     }
 }

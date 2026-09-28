@@ -179,7 +179,7 @@ fn settle(
         .map_err(|error| failure(StopPhase::BackgroundJobs, io::Error::other(error)))?;
         let bytes = owners
             .terminals
-            .checkpoint(&worker)
+            .checkpoint(&worker, deadline)
             .map_err(|error| failure(StopPhase::BackgroundJobs, error))?;
         owners
             .checkpoint_store

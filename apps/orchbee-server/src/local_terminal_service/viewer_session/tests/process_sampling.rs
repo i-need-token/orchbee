@@ -132,3 +132,47 @@ fn discovered_target_cannot_attach_a_new_worker_generation_or_run_after_cancel()
     );
     assert!(fixture.barrier().unwrap().is_empty());
 }
+
+#[test]
+fn checkpoint_viewer_cleanup_is_owned_after_sampler_join_and_prevents_another_capture() {
+    let fixture = Fixture::new();
+    assert!(fixture.service.settle_checkpoint_viewer(None).is_err());
+    fixture
+        .service
+        .stop_process_observer_before(Instant::now())
+        .unwrap();
+    let (_, targets) = fixture
+        .service
+        .coordinator
+        .lock()
+        .unwrap()
+        .checkpoint_observation_targets()
+        .unwrap();
+    fixture.detach_refusals.store(2, Ordering::Release);
+    let (_, pending) = fixture.service.sample_checkpoint_directory(&targets[0]);
+    assert!(pending.is_some());
+    assert!(fixture.service.settle_checkpoint_viewer(pending).is_err());
+    assert!(fixture.service.settle_checkpoint_viewer(None).is_err());
+    assert!(fixture.service.process_observer_pending_for_test());
+    let effects = fixture.barrier().unwrap();
+    assert_eq!(
+        effects
+            .iter()
+            .filter(|e| matches!(e, Effect::Attach(..)))
+            .count(),
+        1
+    );
+    fixture.service.settle_checkpoint_viewer(None).unwrap();
+    assert!(!fixture.service.process_observer_pending_for_test());
+    let (_, pending) = fixture.service.sample_checkpoint_directory(&targets[1]);
+    assert!(pending.is_none());
+    fixture.service.settle_checkpoint_viewer(pending).unwrap();
+    let effects = fixture.barrier().unwrap();
+    assert_eq!(
+        effects
+            .iter()
+            .filter(|e| matches!(e, Effect::Attach(..)))
+            .count(),
+        2
+    );
+}

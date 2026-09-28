@@ -48,6 +48,15 @@ fn restored() -> (
     tab["root"]["primaryPresentation"]["presentationId"] = json!(format!("{:032x}", 1004));
     tab["root"]["childPresentations"] = json!([]);
     context["tabs"].as_array_mut().unwrap().push(tab);
+    let primary =
+        document["terminalContexts"][0]["tabs"][0]["root"]["primaryPresentation"]["presentationId"]
+            .clone();
+    document["terminalDirectories"] = json!([
+        {"presentationId":primary,"path":"C:/primary"},
+        {"presentationId":format!("{:032x}",1001),"path":"C:/child"}
+    ]);
+    document["agentSessions"] = json!([{"presentationId":primary,"session":{"source":"herdr:grok","agent":"grok","reference":{"kind":"id","value":"resume"}}}]);
+
     let placement = WorkerPlacement {
         worker_id: WorkerId::from_bytes([10; 16]).unwrap(),
         generation: worker(2).generation,
@@ -80,6 +89,7 @@ fn restart_rebinds_children_and_grouped_pinned_tabs_before_open_reuses_first_ter
                     id(100 + index as u128),
                     worker,
                     expiry(),
+                    None,
                     None,
                 )
                 .unwrap()
@@ -134,6 +144,7 @@ fn restart_rebinds_children_and_grouped_pinned_tabs_before_open_reuses_first_ter
         coordinator
             .complete(pending, completion, Some(worker))
             .unwrap();
+        coordinator.seed_checkpoint_agent_sessions().unwrap();
     }
     let opened = coordinator.prepare_open(
         &TerminalOpenRequest::new(id(61), geometry()),
@@ -158,17 +169,17 @@ fn restart_rebinds_children_and_grouped_pinned_tabs_before_open_reuses_first_ter
 fn restart_refusal_does_not_commit_a_second_physical_reservation() {
     let (mut coordinator, targets, worker) = restored();
     let pending = coordinator
-        .prepare_checkpoint_terminal(&targets[0], id(100), worker, expiry(), None)
+        .prepare_checkpoint_terminal(&targets[0], id(100), worker, expiry(), None, None)
         .unwrap();
     let before = coordinator.workbench.as_ref().unwrap().snapshot().clone();
     assert!(
         coordinator
-            .prepare_checkpoint_terminal(&targets[0], id(101), worker, expiry(), None)
+            .prepare_checkpoint_terminal(&targets[0], id(101), worker, expiry(), None, None)
             .is_err()
     );
     assert_eq!(coordinator.workbench.as_ref().unwrap().snapshot(), &before);
     let next = coordinator
-        .prepare_checkpoint_terminal(&targets[1], id(102), worker, expiry(), None)
+        .prepare_checkpoint_terminal(&targets[1], id(102), worker, expiry(), None, None)
         .unwrap();
     assert_eq!(
         u128::from_be_bytes(launch_authorization(&next).terminal_id().as_bytes()),
@@ -187,7 +198,14 @@ fn unavailable_restart_is_retained_without_replaying_or_faking_open_success() {
     let (mut coordinator, targets, worker) = restored();
     for (index, target) in targets.iter().enumerate() {
         let pending = coordinator
-            .prepare_checkpoint_terminal(target, id(100 + index as u128), worker, expiry(), None)
+            .prepare_checkpoint_terminal(
+                target,
+                id(100 + index as u128),
+                worker,
+                expiry(),
+                None,
+                None,
+            )
             .unwrap();
         coordinator
             .complete(pending, Completion::Unavailable, Some(worker))

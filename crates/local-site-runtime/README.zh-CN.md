@@ -299,3 +299,7 @@ Windows 停止细化将仅不可变启动尝试的解释改为同一个已准入
 完成前／后启动。runtime 测试证明严格解析、空与非法数据、完成身份和重启循环；
 托管生命周期与进程证据须先证明退出前置条件，公共停止命令才能宣称完成。此记录原语
 本身不停止进程、不获取生命周期权限，也不自动恢复。
+
+## Windows 目录原语
+
+共享纯函数 `windows_reported_directory` 解码并保留有效终端上报的驱动器／UNC 观察；调用方单独执行更窄的启动路径约束。`WINDOWS_DIRECTORY_PROMPT` 在原提示符之后同步 PowerShell 进程 cwd，保留状态且不改变非文件系统 provider。普通 Worker shell 与编码恢复 shell 使用同一钩子。

@@ -9,15 +9,62 @@ use orchbee_server::WorkbenchRestoreTarget;
 use std::io;
 
 impl SiteCoordinator {
+    #[cfg(windows)]
+    pub(crate) fn checkpoint_observation_targets(
+        &self,
+    ) -> io::Result<(
+        orchbee_workbench_protocol::WorkbenchRevision,
+        Vec<super::ProcessObservationTarget>,
+    )> {
+        use crate::terminal_coordinator::BindingViewerTarget;
+        let workbench = self
+            .workbench
+            .as_ref()
+            .ok_or_else(|| io::Error::other("Workbench unavailable"))?;
+        let bindings = workbench.terminal_restart_bindings();
+        let facts = self
+            .agent_registration_for_bindings(&bindings)
+            .map_err(|_| io::Error::other("checkpoint membership unavailable"))?;
+        let mut targets = Vec::new();
+        for fact in facts {
+            let terminal_id = u128::from_str_radix(fact.binding().terminal_id.as_str(), 16)
+                .ok()
+                .and_then(|id| {
+                    orchbee_capability_node_protocol::TerminalId::from_bytes(id.to_be_bytes()).ok()
+                })
+                .ok_or_else(|| io::Error::other("checkpoint terminal identity invalid"))?;
+            let target = BindingViewerTarget {
+                terminal_id,
+                identity: fact.identity(),
+                worker: WorkerPlacement {
+                    worker_id: fact.worker_id(),
+                    generation: fact.worker_generation(),
+                },
+            };
+            if self.target_lifecycle(target) == super::TargetLifecycle::Unfenced {
+                targets.push(super::ProcessObservationTarget {
+                    site_id: workbench.site_id().clone(),
+                    binding: fact.binding().clone(),
+                    target,
+                });
+            }
+        }
+        Ok((workbench.snapshot().revision, targets))
+    }
+
     pub(crate) fn checkpoint_with_agent_sessions(
         &self,
         worker: &orchbee_workbench_protocol::WorkerId,
+        directories: &[(
+            orchbee_workbench_protocol::PresentationBinding,
+            orchbee_workbench_protocol::WorkbenchDirectoryPath,
+        )],
     ) -> io::Result<Vec<u8>> {
         let facts = self.checkpoint_agent_bindings()?;
         self.workbench
             .as_ref()
             .ok_or_else(|| io::Error::other("Workbench unavailable"))?
-            .checkpoint_with_agents(worker, &facts)
+            .checkpoint_with_terminal_directories(worker, &facts, directories)
             .map_err(io::Error::other)
     }
 
@@ -60,6 +107,7 @@ impl SiteCoordinator {
         worker: WorkerPlacement,
         expiry: LeaseExpiresAtUnixMilliseconds,
         launch: Option<orchbee_client_server_protocol::LaunchSelection>,
+        cwd: Option<WorkingDirectory>,
     ) -> io::Result<Box<PendingOperation>> {
         let workbench = self
             .workbench
@@ -70,11 +118,6 @@ impl SiteCoordinator {
             u128::from_be_bytes(worker.worker_id.as_bytes())
         ))
         .map_err(io::Error::other)?;
-        let cwd = target
-            .working_directory()
-            .map(|path| WorkingDirectory::parse(path.as_str()))
-            .transpose()
-            .map_err(io::Error::other)?;
         let terminal = self
             .terminals
             .plan_create(

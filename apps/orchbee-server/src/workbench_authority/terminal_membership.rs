@@ -205,8 +205,16 @@ impl WorkbenchAuthority {
     pub fn standalone_presentation_membership(
         &self,
     ) -> Result<WorkbenchTerminalMembership, WorkbenchTerminalInvariantError> {
+        self.presentation_membership(&self.snapshot().navigation.standalone_terminal_context_id)
+    }
+
+    /// Complete read-only membership. Destructive tree operations keep their separate guards.
+    pub fn presentation_membership(
+        &self,
+        context_id: &WorkbenchTerminalContextId,
+    ) -> Result<WorkbenchTerminalMembership, WorkbenchTerminalInvariantError> {
         let snapshot = self.projection.snapshot();
-        let context_id = &snapshot.navigation.standalone_terminal_context_id;
+        let context_kind = terminal_context_kind(snapshot, context_id)?;
         let mut matching = snapshot
             .terminal_contexts
             .iter()
@@ -236,7 +244,7 @@ impl WorkbenchAuthority {
         }
         Ok(WorkbenchTerminalMembership {
             terminal_context_id: context_id.clone(),
-            context_kind: ContextKind::Standalone,
+            context_kind,
             members,
         })
     }

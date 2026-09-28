@@ -24,7 +24,7 @@ never authorizes replay of a terminal command or Git operation.
 | Operation              | Preconditions                                                                                                                    | Result and invariant                                                                                                                                           |
 | ---------------------- | -------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Capture                | Authority is not retired; committed graph is valid; every Directory and bound Presentation belongs to the supplied local Worker. | One bounded checkpoint; source authority is unchanged; process bindings and Worker identities are removed.                                                     |
-| Decode                 | Strict version 1 or 2 document, bounded bytes, valid configuration graph, counters and provider references.                                                | Complete retained configuration or a typed rejection; never partial or empty fallback.                                                                         |
+| Decode                 | Strict version 1, 2 or 3 document, bounded bytes, valid configuration graph, counters and provider references.                   | Complete retained configuration or a typed rejection; never partial or empty fallback.                                                                         |
 | Reconstruct            | Caller supplies a fresh boot Site identity and its admitted local Worker.                                                        | Retained structural IDs and local paths, fresh directory ownership, unbound Presentations, fresh profile Site prefixes, revision 0 and empty transient owners. |
 | Allocate after restore | Restored high-water counter permits advancement.                                                                                 | IDs remain above all previously allocated counters; exhaustion keeps the ordinary typed rejection.                                                             |
 
@@ -35,7 +35,17 @@ Names need not be unique; their existing ambiguous-selector semantics remain unc
 
 ## Private format and validation
 
-The schema discriminator is `orchbee.workbench.checkpoint`, with numeric `version: 2`. Version 1 remains readable without Agent references; version 2 requires the `agentSessions` list.
+### Per-terminal directory restoration
+
+Version 3 requires a `terminalDirectories` list of stable `presentationId` and validated `path` pairs. Primary and child Presentations remain independent. Versions 1 and 2 remain readable only without this field; null, duplicate/foreign members and invalid paths reject the entire document. The existing 2 MiB limit remains; older cohorts reject version 3.
+
+After request/background quiescence, the Windows Site takes a fresh bounded observation through the existing private viewer owner before Worker disposal. A valid terminal-reported directory takes precedence over the root process directory; child process directories never substitute for the root. The final physical membership and Worker generation must still match. Unknown detach remains owned by the stopped process observer, fails this stop attempt and preserves the preceding checkpoint; a later stop may settle that exact attachment. No periodic cwd cache or new runtime authority is introduced.
+
+Capture maps admitted observations to current Presentation identities. If observation is unavailable, retained restart intent remains; otherwise ordinary workspace/home defaults apply. Removed members disappear. Fresh launch prefers the retained directory, then workspace default; if that selected path no longer names a directory, Windows restore uses the Worker's home default. This restoration policy does not alter explicit user launch validation. The shared PowerShell prompt synchronization also runs in restored encoded-command shells, so directory changes after a provider exits can be observed.
+
+Evidence must cover exact identity/revision fences, primary/child separation, old-format compatibility, malformed rows, capture/reconstruct without live authority, unresolved viewer cleanup, actual Windows directory changes and a deleted saved directory. A process launch witness alone does not prove this directory lifecycle.
+
+The schema discriminator is `orchbee.workbench.checkpoint`, with numeric `version: 3`. Version 1 remains readable without Agent references; versions 2 and 3 require the `agentSessions` list. Only version 3 requires `terminalDirectories`.
 `lastIdentity` and each profile `counter` are canonical nonzero 32-character lowercase hex.
 Navigation uses local directories containing only `directoryId` and `path`; its other retained
 objects use their shared typed contracts. Terminal contexts require every Presentation binding
@@ -58,9 +68,9 @@ Format changes require an explicit version/migration decision; there is no permi
 
 `checkpoint/restore.rs` enumerates every unbound primary and child Presentation in context, Tab
 and depth-first tree order. Each private restore target carries its fresh Site/local Worker and
-exact context/Tab/Panel/Presentation membership. Its cwd default is the owning Workspace's primary
-directory; standalone and unconfigured Workspace targets have no explicit directory. This is not
-a saved observation of each terminal's last cwd; that belongs to runtime checkpoint capture.
+exact context/Tab/Panel/Presentation membership and separate retained/Workspace directory intent.
+Read-only physical registration visits every primary and child in every context; destructive tree
+guards remain unchanged. Standalone/unconfigured targets without retained cwd use Worker home.
 
 `prepare_restored_terminal` rechecks Site, local Worker, membership, unbound status and the cwd
 default, then validates and prepares the entire resulting projection/publication before mutation.
@@ -84,10 +94,10 @@ reconstruction with the fresh Site and admitted Worker creates the new authority
 Before the first launch IPC, the coordinator prepares all fresh shell/provider reservations and
 Workbench bindings. Failure at this point leaves no Host or terminal; the creation-owned Worker
 is terminated and its exit confirmed. Each prepared request is then dispatched and settled once;
-launch failure or unknown outcome stays explicit and is never retried automatically. Workspace
-directory defaults and initial geometry of 80x24 at 8x16 cells apply until the Client resizes.
+launch failure or unknown outcome stays explicit and is never retried automatically. Retained terminal directories, workspace/home
+defaults and initial geometry of 80x24 at 8x16 cells apply until the Client resizes.
 The first restored standalone primary supplies the retained Open result instead of creating an
-extra Tab. A missing configured directory produces a failed launch, not a different silent cwd.
+extra Tab. A missing saved/configured directory falls back to Worker home during restoration.
 Open checks complete primary/child membership, including grouped and pinned Tabs; this read does
 not relax the separate guards on destructive operations. Requests not sent before the startup
 deadline settle as unavailable. A later startup failure stops maintenance and requests Worker-owned
@@ -97,7 +107,7 @@ retains recovery-required activation state; terminating a Worker alone is not Ho
 Clean stop saves after request/background quiescence and before Worker disposal. Encoding or
 publication failure prevents disposal and remains a failed stop; the previous committed file is
 preserved. This stage saves layout, Launch Profiles and exact-generation provider references on explicit clean stop. Fresh physical creation seeds only the retained provider reference, never live Agent state or source authority. It does not yet
-provide periodic/crash checkpoints, observed per-terminal cwd, complete Agent naming/management, Client or history recovery. Activation markers retain their existing recovery semantics on failed boot.
+provide periodic/crash checkpoints, complete Agent naming/management, Client or history recovery. Activation markers retain their existing recovery semantics on failed boot.
 
 ## Evidence
 
@@ -110,4 +120,4 @@ replacement, locking and exact-handle termination. Packaged Windows clean-stop/r
 compares retained layouts/profiles, fresh runtime identities, shell effects and TUI Open reuse;
 blocked replacement must preserve old bytes and live terminals until an explicit successful retry,
 and corrupt startup must refuse without an empty fallback or surviving cohort processes.
-Periodic/crash recovery, observed per-terminal cwd, complete Agent naming/management and Client/history restoration remain separate implementation and acceptance obligations.
+Periodic/crash recovery, complete Agent naming/management and Client/history restoration remain separate implementation and acceptance obligations.

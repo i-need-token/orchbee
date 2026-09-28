@@ -106,7 +106,7 @@ impl SiteCoordinator {
         };
         let snapshot = workbench.snapshot();
         for context in &snapshot.terminal_contexts {
-            let membership = workbench.terminal_tree_membership(&context.terminal_context_id)?;
+            let membership = workbench.presentation_membership(&context.terminal_context_id)?;
             for member in membership.members() {
                 let binding = member.binding();
                 if !include(binding) {

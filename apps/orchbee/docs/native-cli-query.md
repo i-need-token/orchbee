@@ -2297,13 +2297,7 @@ Expected Host refusals use `orchbee.cli.failure.process-info` v1 with the bounde
 
 ## Windows Site stop
 
-Managed Windows clean stop saves Workbench configuration before disposing terminals. A later start
-restores the retained layout and Launch Profiles and launches fresh default shells using Workspace
-directory defaults. Save failure leaves the previous checkpoint and running terminals intact;
-explicitly retry the failed stop after resolving the failure. Corrupt data refuses startup rather
-than replacing it with an empty Workbench. See the owning [checkpoint contract](../../orchbee-server/docs/workbench-checkpoint.md)
-for storage and recovery limits: this does not restore processes, Agent state, Client views,
-terminal history or each shell's observed cwd, and it does not add named-session commands.
+Managed Windows clean stop saves Workbench configuration, provider restart references and observed per-terminal directories before disposing terminals. A later start restores layout/Launch Profiles and launches fresh default shells or selected provider resumes. Saved terminal cwd precedes workspace/home defaults; a missing saved directory falls back to Worker home. Save failure preserves the previous checkpoint and live terminals; explicitly retry after resolving the failure. Corrupt data refuses startup without an empty fallback. The owning [checkpoint contract](../../orchbee-server/docs/workbench-checkpoint.md) defines compatibility and recovery limits. Old processes, live Agent state, Client views and terminal history are not restored.
 
 `site stop --confirm [--request-id <32-hex>] [--retry] [--detach] [--timeout <ms>]` stops the existing managed Windows Site without activating one. The ID is a nonzero lowercase 128-bit value, generated once if omitted; `--retry` requires it. The CLI issues one start/retry request, then only status reads. `--detach` returns the admitted attempt immediately; otherwise one absolute deadline (65000 ms by default, 1–3600000 ms) covers runtime/cohort admission, request and polling. Cancellation or timeout stops waiting, never rolls back the admitted shutdown. Every runtime answer retains the request ID so `site stop-status <id>` can query it. Status is a fact document, not a second mutation. The `orchbee.site.stop` v1 envelope distinguishes stopped, pending, failed, busy, not-recorded, unmanaged and unavailable/unknown transport outcomes; pending answers may carry detached, timed-out or cancelled wait disposition. Known Server failures preserve attempt, phase, cause and per-attempt disposal count. Only the matching strict stopped activation record plus a free existing lifetime lock proves completion; disappearance, invalid records and a different ID never do. A later start consumes this receipt; not-recorded cannot disprove an earlier stop. Linux/macOS return unsupported-platform without runtime effects.
 
