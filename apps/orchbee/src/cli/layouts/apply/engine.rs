@@ -1,7 +1,7 @@
 //! Compose membership and launch owners under exact snapshots and one recovery budget.
 mod closing;
 mod view;
-use super::{error, ownership, receipt::Receipt, targeting::Destination};
+use super::{error, exchange, ownership, receipt::Receipt, targeting::Destination};
 use crate::{
     cli::{
         Failure, FailureKind,
@@ -16,9 +16,9 @@ use orchbee_client_server_protocol::{
     TerminalId, TerminalLaunchReadOutcome, TerminalLaunchReadRequest, TerminalLaunchState,
 };
 use orchbee_workbench_protocol::{
-    ClientSplitIdentity, ClientViewRecord, PanelNode, Snapshot, Tab, WorkbenchAction,
-    WorkbenchDirectoryPath, WorkbenchLabel, WorkbenchPanelId, WorkbenchPanelSlotId,
-    WorkbenchRevision, WorkbenchSplitId, WorkbenchTabId, WorkbenchTerminalGeometry,
+    ClientSplitIdentity, ClientViewRecord, Snapshot, Tab, WorkbenchAction, WorkbenchCommandOutcome,
+    WorkbenchDirectoryPath, WorkbenchPanelId, WorkbenchPanelTerminalTarget, WorkbenchRevision,
+    WorkbenchTabId, WorkbenchTerminalGeometry, WorkbenchTerminalOutcome,
 };
 use serde_json::json;
 use std::time::{Duration, Instant};
@@ -26,11 +26,12 @@ use std::time::{Duration, Instant};
 pub(super) struct Engine<'a> {
     command: &'a LayoutApplyCommand,
     plan: &'a template::Plan,
-    prepared: Vec<launch::Prepared>,
+    prepared: Vec<Vec<Option<launch::Prepared>>>,
     destination: Destination,
     client: LocalClient,
     snapshot: Snapshot,
     selected: ClientViewRecord,
+    default_directory: Option<WorkbenchDirectoryPath>,
     expected: Option<Tab>,
     panels: Vec<WorkbenchPanelId>,
     splits: Vec<ClientSplitIdentity>,
@@ -44,7 +45,7 @@ impl<'a> Engine<'a> {
     pub(super) fn new(
         command: &'a LayoutApplyCommand,
         plan: &'a template::Plan,
-        prepared: Vec<launch::Prepared>,
+        prepared: Vec<Vec<Option<launch::Prepared>>>,
         destination: Destination,
         client: LocalClient,
         snapshot: Snapshot,
@@ -62,6 +63,7 @@ impl<'a> Engine<'a> {
             client,
             snapshot,
             selected,
+            default_directory: None,
             expected: None,
             panels: vec![],
             splits: vec![],
@@ -117,8 +119,7 @@ impl<'a> Engine<'a> {
         }
         result
     }
-    fn committed(&mut self, receipt: &mutation::Receipt) -> Result<(), Failure> {
-        let revision = receipt.committed_revision().ok_or_else(internal)?;
+    fn committed(&mut self, revision: WorkbenchRevision) -> Result<(), Failure> {
         let fresh = query::refresh_snapshot(
             &mut self.client,
             &self.snapshot.site_id,
@@ -138,8 +139,19 @@ impl<'a> Engine<'a> {
     fn directory(
         &mut self,
         panel: &WorkbenchPanelId,
+        member: usize,
     ) -> Result<Option<WorkbenchDirectoryPath>, Failure> {
-        let target = query::primary_terminal(&self.snapshot, &Target::Id(panel.to_string()))?;
+        let presentation = self
+            .snapshot
+            .terminal_contexts
+            .iter()
+            .flat_map(|context| &context.tabs)
+            .find_map(|tab| ownership::member(&tab.root, panel, member))
+            .ok_or_else(ownership::changed)?;
+        let Some(binding) = &presentation.binding else {
+            return Ok(None);
+        };
+        let target = Target::Id(binding.terminal_id.to_string());
         let result = query::read_terminal_processes_cancellable(
             &mut self.client,
             self.deadline,
@@ -162,7 +174,13 @@ impl<'a> Engine<'a> {
         }
     }
     pub(super) fn prepare_directory(&mut self) -> Result<(), Failure> {
-        if self.prepared[0].options.cwd.is_some() {
+        if self.prepared.iter().flatten().all(Option::is_none) {
+            return Ok(());
+        }
+        if self.prepared[0][0]
+            .as_ref()
+            .is_some_and(|prepared| prepared.options.cwd.is_some())
+        {
             return Ok(());
         }
         let panel = if let Some(old) = self.destination.old.clone() {
@@ -176,7 +194,7 @@ impl<'a> Engine<'a> {
                 .and_then(|selection| selection.panel_id.clone())
         };
         if let Some(panel) = panel {
-            self.prepared[0].options.cwd = self.directory(&panel)?;
+            self.default_directory = self.directory(&panel, 0)?;
         }
         Ok(())
     }
@@ -192,29 +210,86 @@ fn internal() -> Failure {
 fn geometry() -> Result<WorkbenchTerminalGeometry, Failure> {
     WorkbenchTerminalGeometry::new(80, 24, 0, 0).map_err(|_| internal())
 }
-fn id<'a>(receipt: &'a mutation::Receipt, name: &str) -> Result<&'a str, Failure> {
-    receipt.id_value(name).ok_or_else(internal)
+impl Engine<'_> {
+    fn inherited_directory(
+        &mut self,
+        panel: usize,
+        member: usize,
+    ) -> Result<Option<WorkbenchDirectoryPath>, Failure> {
+        if member > 0 {
+            let id = self.panels[panel].clone();
+            if let Some(path) = self.directory(&id, 0)? {
+                return Ok(Some(path));
+            }
+            if let Some(path) = self.prepared[panel][0]
+                .as_ref()
+                .and_then(|prepared| prepared.options.cwd.clone())
+            {
+                return Ok(Some(path));
+            }
+            return self.inherited_directory(panel, 0);
+        }
+        if panel == 0 {
+            return Ok(self.default_directory.clone());
+        }
+        let source = self
+            .plan
+            .splits
+            .iter()
+            .find(|split| split.created == panel)
+            .ok_or_else(internal)?
+            .source;
+        let id = self.panels[source].clone();
+        if let Some(path) = self.directory(&id, 0)? {
+            return Ok(Some(path));
+        }
+        if let Some(path) = self.prepared[source][0]
+            .as_ref()
+            .and_then(|prepared| prepared.options.cwd.clone())
+        {
+            return Ok(Some(path));
+        }
+        self.inherited_directory(source, 0)
+    }
+    fn layout_command(
+        &mut self,
+        phase: &'static str,
+        action: WorkbenchAction,
+    ) -> Result<WorkbenchCommandOutcome, Failure> {
+        self.receipt.stage = phase;
+        self.check()?;
+        self.refresh(self.snapshot.revision)?;
+        let (document, result) = exchange::submit(
+            &mut self.client,
+            &self.snapshot,
+            action,
+            self.deadline,
+            self.signals.poll_fd(),
+        )?;
+        self.receipt.record(phase, document);
+        result
+    }
 }
-
 impl workflow::Port for Engine<'_> {
     fn create(&mut self) -> Result<(), Failure> {
-        let receipt = self.submit(
+        let outcome = self.layout_command(
             "create",
-            WorkbenchAction::TabCreate {
-                automatic_label: self.destination.automatic,
+            WorkbenchAction::TabCreateLayout {
                 terminal_context_id: self.destination.context.clone(),
                 label: self.destination.label.clone(),
-                geometry: geometry()?,
-                launch: self.prepared[0].launch.clone(),
-                profile: None,
-                options: Box::new(self.prepared[0].options.clone()),
+                automatic_label: self.destination.automatic,
+                layout: self.plan.layout.clone(),
             },
         )?;
-        self.receipt.new_tab =
-            Some(WorkbenchTabId::parse(id(&receipt, "tabId")?).map_err(|_| internal())?);
+        let WorkbenchCommandOutcome::TabLayoutCreated {
+            revision, tab_id, ..
+        } = outcome
+        else {
+            return Err(internal());
+        };
+        self.receipt.new_tab = Some(tab_id);
         self.receipt.recovery = json!({"outcome":"preserved"});
-        let panel = WorkbenchPanelId::parse(id(&receipt, "panelId")?).map_err(|_| internal())?;
-        self.committed(&receipt)?;
+        self.committed(revision)?;
         let tab = ownership::tab(&self.snapshot, &self.destination.context, &self.new_tab()?)?;
         if tab.automatic_label != self.destination.automatic
             || tab.label != self.destination.label.as_str()
@@ -223,79 +298,97 @@ impl workflow::Port for Engine<'_> {
         {
             return Err(ownership::changed());
         }
-        ownership::validate_leaf(&tab.root, id(&receipt, "presentationId")?, &panel)?;
+        let (panels, splits) = ownership::materialized(self.plan, &tab.root)?;
+        self.panels = panels;
+        self.splits = splits;
         self.expected = Some(tab.clone());
-        self.panels.push(panel);
-        if let Some(kind) = receipt.launch_failure() {
-            return Err(error(kind, "launch-unavailable"));
-        }
         self.check()
     }
-    fn split(&mut self, index: usize) -> Result<(), Failure> {
-        let split = &self.plan.splits[index];
-        let source = self.panels[split.source].clone();
-        let created = split.created;
-        let direction = split.direction;
-        if self.prepared[created].options.cwd.is_none() {
-            self.settle(split.source)?;
-            self.prepared[created].options.cwd = self.directory(&source)?;
-        }
-        let receipt = self.submit(
-            "split",
-            WorkbenchAction::PanelSplit {
-                terminal_context_id: self.destination.context.clone(),
-                tab_id: self.new_tab()?,
-                panel_id: source.clone(),
-                direction,
-                right_click: Default::default(),
-                label: WorkbenchLabel::parse(&(created + 1).to_string()).map_err(|_| internal())?,
-                geometry: geometry()?,
-                launch: self.prepared[created].launch.clone(),
-                profile: None,
-                options: Box::new(self.prepared[created].options.clone()),
-            },
-        )?;
-        let panel = WorkbenchPanelId::parse(id(&receipt, "newPanelId")?).map_err(|_| internal())?;
-        let identity = ClientSplitIdentity {
-            split_id: WorkbenchSplitId::parse(id(&receipt, "splitId")?).map_err(|_| internal())?,
-            first_slot_id: WorkbenchPanelSlotId::parse(id(&receipt, "firstSlotId")?)
-                .map_err(|_| internal())?,
-            second_slot_id: WorkbenchPanelSlotId::parse(id(&receipt, "secondSlotId")?)
-                .map_err(|_| internal())?,
+    fn launch(&mut self, panel: usize, member: usize) -> Result<(), Failure> {
+        let id = self.panels[panel].clone();
+        let presentation = ownership::member(
+            &self.expected.as_ref().ok_or_else(internal)?.root,
+            &id,
+            member,
+        )
+        .ok_or_else(internal)?
+        .presentation_id
+        .clone();
+        let cwd = if self.prepared[panel][member]
+            .as_ref()
+            .ok_or_else(internal)?
+            .options
+            .cwd
+            .is_none()
+        {
+            self.inherited_directory(panel, member)?
+        } else {
+            None
         };
-        self.committed(&receipt)?;
-        let fresh = ownership::tab(&self.snapshot, &self.destination.context, &self.new_tab()?)?;
-        let mut expected = self.expected.clone().ok_or_else(internal)?;
-        ownership::graft(
-            &mut expected.root,
-            &fresh.root,
-            &source,
-            &panel,
-            &identity,
-            direction,
-            id(&receipt, "presentationId")?,
-        )?;
-        if &expected != fresh {
-            return Err(ownership::changed());
+        let prepared = self.prepared[panel][member].as_mut().ok_or_else(internal)?;
+        if prepared.options.cwd.is_none() {
+            prepared.options.cwd = cwd;
         }
-        self.expected = Some(expected);
-        self.panels.push(panel);
-        self.splits.push(identity);
-        if let Some(kind) = receipt.launch_failure() {
+        let action = WorkbenchAction::PanelCreateTerminal {
+            terminal_context_id: self.destination.context.clone(),
+            tab_id: self.receipt.new_tab.clone().ok_or_else(internal)?,
+            panel_id: id.clone(),
+            target: WorkbenchPanelTerminalTarget::Unbound {
+                presentation_id: presentation.clone(),
+            },
+            geometry: geometry()?,
+            launch: prepared.launch.clone(),
+            profile: None,
+            options: Box::new(prepared.options.clone()),
+        };
+        let outcome = self.layout_command("launch", action)?;
+        let (revision, failure) = match outcome {
+            WorkbenchCommandOutcome::PanelTerminalPending { revision, .. } => (revision, None),
+            WorkbenchCommandOutcome::PanelTerminalCreated {
+                revision,
+                terminal_outcome,
+                ..
+            } => (
+                revision,
+                match terminal_outcome {
+                    WorkbenchTerminalOutcome::Started { .. } => None,
+                    WorkbenchTerminalOutcome::Unavailable { .. } => {
+                        Some(FailureKind::ServiceUnavailable)
+                    }
+                    WorkbenchTerminalOutcome::Failed { .. } => Some(FailureKind::Rejected),
+                    WorkbenchTerminalOutcome::OutcomeUnknown {} => {
+                        Some(FailureKind::OutcomeUnknown)
+                    }
+                },
+            ),
+            _ => return Err(internal()),
+        };
+        let observation = (|| {
+            self.committed(revision)?;
+            let fresh =
+                ownership::tab(&self.snapshot, &self.destination.context, &self.new_tab()?)?;
+            self.expected = Some(ownership::bind(
+                self.expected.as_ref().ok_or_else(internal)?,
+                fresh,
+                &id,
+                &presentation,
+            )?);
+            Ok(())
+        })();
+        if failure == Some(FailureKind::OutcomeUnknown) {
+            return Err(error(FailureKind::OutcomeUnknown, "launch-unavailable"));
+        }
+        observation?;
+        if let Some(kind) = failure {
             return Err(error(kind, "launch-unavailable"));
         }
         self.check()
     }
-    fn settle(&mut self, leaf: usize) -> Result<(), Failure> {
+    fn settle(&mut self, leaf: usize, member: usize) -> Result<(), Failure> {
         self.receipt.stage = "launch";
         let tab = self.expected.as_ref().ok_or_else(internal)?;
-        let PanelNode::Panel {
-            primary_presentation,
-            ..
-        } = ownership::leaf(&tab.root, &self.panels[leaf]).ok_or_else(internal)?
-        else {
-            return Err(internal());
-        };
+        let primary_presentation =
+            ownership::member(&tab.root, &self.panels[leaf], member).ok_or_else(internal)?;
         let binding = primary_presentation.binding.clone().ok_or_else(internal)?;
         let presentation = primary_presentation.presentation_id.clone();
         loop {
@@ -346,28 +439,6 @@ impl workflow::Port for Engine<'_> {
             }
         }
     }
-    fn label(&mut self, leaf: usize) -> Result<(), Failure> {
-        let label = self.plan.leaves[leaf].label.clone();
-        if label.custom_label().is_none() {
-            return Ok(());
-        }
-        let panel = self.panels[leaf].clone();
-        let receipt = self.submit(
-            "label",
-            WorkbenchAction::PanelRename {
-                terminal_context_id: self.destination.context.clone(),
-                tab_id: self.new_tab()?,
-                panel_id: panel.clone(),
-                label: label.clone(),
-            },
-        )?;
-        self.committed(&receipt)?;
-        let mut expected = self.expected.clone().ok_or_else(internal)?;
-        ownership::label(&mut expected.root, &panel, &label)?;
-        ownership::unchanged(&self.snapshot, &self.destination.context, &expected)?;
-        self.expected = Some(expected);
-        self.check()
-    }
     fn ratio(&mut self, split: usize) -> Result<(), Failure> {
         self.set_ratio(split)
     }
@@ -375,7 +446,11 @@ impl workflow::Port for Engine<'_> {
         self.receipt.stage = "ready";
         self.refresh(self.snapshot.revision)?;
         for leaf in 0..self.panels.len() {
-            self.settle(leaf)?;
+            for member in 0..self.prepared[leaf].len() {
+                if self.prepared[leaf][member].is_some() {
+                    self.settle(leaf, member)?;
+                }
+            }
         }
         self.refresh(self.snapshot.revision)?;
         self.receipt.stage = "ready";

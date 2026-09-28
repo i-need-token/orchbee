@@ -1,5 +1,7 @@
 #[cfg(windows)]
 mod client_view;
+#[cfg(windows)]
+mod layout;
 use super::*;
 mod launch_profile;
 mod panel_close;

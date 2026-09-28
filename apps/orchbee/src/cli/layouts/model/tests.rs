@@ -26,7 +26,9 @@ fn balanced(count: usize, next: &mut usize) -> PanelNode {
     let second = balanced(count - count / 2, next);
     branch(first, second, next)
 }
-fn observations(root: &PanelNode) -> (Vec<ClientSplitArea>, BTreeMap<WorkbenchPanelId, Leaf>) {
+fn observations(
+    root: &PanelNode,
+) -> (Vec<ClientSplitArea>, BTreeMap<TerminalPresentationId, Leaf>) {
     fn walk(node: &PanelNode, out: &mut Vec<ClientSplitArea>) {
         if let PanelNode::Split {
             split_id,
@@ -53,9 +55,10 @@ fn observations(root: &PanelNode) -> (Vec<ClientSplitArea>, BTreeMap<WorkbenchPa
     let facts = leaves(root)
         .unwrap()
         .iter()
-        .map(|(id, _)| {
+        .filter(|(_, member)| member.binding.is_some())
+        .map(|(_, member)| {
             (
-                (*id).clone(),
+                member.presentation_id.clone(),
                 Leaf {
                     cwd: None,
                     launch: None,
@@ -80,7 +83,7 @@ fn export_preserves_order_orientation_observed_ratio_manual_label_and_literal_ar
     let (splits, mut facts) = observations(&root);
     let first = leaves(&root).unwrap()[0].0.clone();
     facts.insert(
-        first.clone(),
+        leaves(&root).unwrap()[0].1.presentation_id.clone(),
         Leaf {
             cwd: Some("C:\\目录 空格".into()),
             launch: Some(
@@ -98,12 +101,16 @@ fn export_preserves_order_orientation_observed_ratio_manual_label_and_literal_ar
     assert_eq!(result["second"]["direction"], "down");
     assert_eq!(
         result["first"],
-        json!({"type":"panel","panelId":first,"label":"manual",
-        "cwd":"C:\\目录 空格","command":["C:\\Program Files\\shell.exe","","quoted \" text","中文"],"env":{}})
+        json!({"type":"panel","panelId":first,"rightClick":"orchbee","children":[],"primary":{"presentationId":first,"name":"automatic","start":true,"label":"manual",
+        "cwd":"C:\\目录 空格","command":["C:\\Program Files\\shell.exe","","quoted \" text","中文"],"env":{}}})
     );
-    assert!(result["second"]["first"].get("cwd").is_none());
-    assert!(result["second"]["first"].get("command").is_none());
-    assert_eq!(result["second"]["first"]["env"], json!({}));
+    assert!(result["second"]["first"]["primary"].get("cwd").is_none());
+    assert!(
+        result["second"]["first"]["primary"]
+            .get("command")
+            .is_none()
+    );
+    assert_eq!(result["second"]["first"]["primary"]["env"], json!({}));
 }
 
 #[test]
@@ -123,7 +130,7 @@ fn export_refuses_missing_extra_or_replaced_observations_instead_of_guessing() {
     let (splits, _) = observations(&root);
     let removed = facts.pop_first().unwrap();
     assert_eq!(tree(&root, &splits, &facts), Err("layout-changed"));
-    facts.insert(WorkbenchPanelId::parse(&id(777)).unwrap(), removed.1);
+    facts.insert(TerminalPresentationId::parse(&id(777)).unwrap(), removed.1);
     assert_eq!(tree(&root, &splits, &facts), Err("layout-changed"));
 }
 
@@ -153,6 +160,19 @@ fn portable_bounds_are_checked_before_terminal_reads_and_never_drop_child_presen
     else {
         panic!()
     };
-    child_presentations.push(primary_presentation.clone());
-    assert!(matches!(leaves(&root), Err("unsupported-presentation")));
+    let mut child = primary_presentation.clone();
+    child.presentation_id = TerminalPresentationId::parse(&id(9999)).unwrap();
+    child.binding = None;
+    child_presentations.push(child);
+    assert_eq!(leaves(&root).unwrap().len(), 2);
+    let (splits, facts) = observations(&root);
+    let value = tree(&root, &splits, &facts).unwrap();
+    assert_eq!(value["primary"]["start"], true);
+    assert_eq!(value["children"][0]["start"], false);
+    assert!(value["children"][0].get("command").is_none());
+    let plan = crate::cli::layouts::template::parse(&serde_json::to_vec(&value).unwrap())
+        .unwrap()
+        .plan();
+    assert!(plan.leaves[0].primary.start);
+    assert!(!plan.leaves[0].children[0].start);
 }

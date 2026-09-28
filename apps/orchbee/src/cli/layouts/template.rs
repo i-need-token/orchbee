@@ -1,12 +1,11 @@
 //! Complete portable input admission and deterministic creation order, before capabilities.
+mod member;
 mod object;
+pub(super) use member::Member;
 use object::Object;
-use orchbee_client_server_protocol::{
-    MAXIMUM_LAUNCH_SELECTION_ARGUMENTS, MAXIMUM_LAUNCH_SELECTION_BYTES,
-};
 use orchbee_workbench_protocol::{
-    ClientSplitPath, ClientSplitRatio, LaunchEnvironment, PanelLabelUpdate,
-    WorkbenchPanelSplitDirection,
+    ClientSplitPath, ClientSplitRatio, PanelOrientation, PanelRightClickTarget,
+    WorkbenchLayoutNode, WorkbenchLayoutTemplate, WorkbenchPanelSplitDirection,
 };
 use serde_json::value::RawValue;
 
@@ -14,10 +13,14 @@ pub(super) const MAX_BYTES: usize = 1024 * 1024;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(super) struct Leaf {
-    pub(super) label: PanelLabelUpdate,
-    pub(super) cwd: Option<String>,
-    pub(super) command: Option<Vec<String>>,
-    pub(super) environment: LaunchEnvironment,
+    pub(super) primary: Member,
+    pub(super) children: Vec<Member>,
+    pub(super) right_click: PanelRightClickTarget,
+}
+impl Leaf {
+    pub(super) fn members(&self) -> impl Iterator<Item = &Member> {
+        std::iter::once(&self.primary).chain(&self.children)
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -42,11 +45,35 @@ pub(super) struct Split {
 
 #[derive(Debug, Eq, PartialEq)]
 pub(super) struct Plan {
+    pub(super) layout: WorkbenchLayoutTemplate,
     pub(super) leaves: Vec<Leaf>,
     pub(super) splits: Vec<Split>,
 }
 
 impl Node {
+    fn structural(&self) -> WorkbenchLayoutNode {
+        match self {
+            Self::Panel(leaf) => WorkbenchLayoutNode::Panel {
+                primary: leaf.primary.structural(),
+                children: leaf.children.iter().map(Member::structural).collect(),
+                right_click: leaf.right_click,
+            },
+            Self::Split {
+                direction,
+                first,
+                second,
+                ..
+            } => WorkbenchLayoutNode::Split {
+                orientation: match direction {
+                    WorkbenchPanelSplitDirection::Right => PanelOrientation::Horizontal,
+                    WorkbenchPanelSplitDirection::Below => PanelOrientation::Vertical,
+                    _ => unreachable!("admitted portable direction"),
+                },
+                children: Box::new([first.structural(), second.structural()]),
+            },
+        }
+    }
+
     fn first_leaf(&self) -> &Leaf {
         match self {
             Self::Panel(leaf) => leaf,
@@ -80,11 +107,31 @@ impl Node {
                 path.pop();
             }
         }
+        fn number(node: &mut Node, next: &mut usize) {
+            match node {
+                Node::Panel(leaf) => {
+                    *next += 1;
+                    if leaf.primary.automatic_name {
+                        leaf.primary.name =
+                            orchbee_workbench_protocol::WorkbenchLabel::parse(&next.to_string())
+                                .expect("bounded numeric label");
+                    }
+                }
+                Node::Split { first, second, .. } => {
+                    number(first, next);
+                    number(second, next);
+                }
+            }
+        }
+        let mut normalized = self.clone();
+        number(&mut normalized, &mut 0);
         let mut plan = Plan {
-            leaves: vec![self.first_leaf().clone()],
+            layout: WorkbenchLayoutTemplate::new(normalized.structural())
+                .expect("admitted portable bounds"),
+            leaves: vec![normalized.first_leaf().clone()],
             splits: Vec::new(),
         };
-        walk(self, 0, &mut vec![], &mut plan);
+        walk(&normalized, 0, &mut vec![], &mut plan);
         plan
     }
 }
@@ -97,7 +144,7 @@ pub(super) fn parse(bytes: &[u8]) -> Result<Node, &'static str> {
     let mut fields: Object = serde_json::from_slice(bytes).map_err(|_| "invalid-layout")?;
     let root = if fields.contains("schema") {
         if fields.string("schema")? != "orchbee.layout.export"
-            || fields.decode::<u32>("version")? != 1
+            || !matches!(fields.decode::<u32>("version")?, 1 | 2)
         {
             return Err("invalid-layout");
         }
@@ -158,60 +205,39 @@ fn node(mut fields: Object, depth: usize, count: &mut usize) -> Result<Node, &'s
             }
             fields.optional_string("panelId")?;
             fields.optional_string("pane_id")?;
-            let label = PanelLabelUpdate::parse(fields.optional_string("label")?.as_deref())
-                .map_err(|_| "invalid-layout")?;
-            let cwd = fields.optional_string("cwd")?;
-            if cwd
-                .as_ref()
-                .is_some_and(|path| path.is_empty() || path.len() > 4096)
-            {
-                return Err("invalid-layout");
-            }
-            let command = if let Some(raw) = fields.remove("command") {
-                serde_json::from_str::<Option<Vec<String>>>(raw.get())
-                    .map_err(|_| "invalid-layout")?
+            let right_click = if fields.contains("rightClick") {
+                fields.decode("rightClick")?
             } else {
-                None
+                Default::default()
             };
-            if let Some(argv) = &command
-                && (argv.first().is_none_or(String::is_empty)
-                    || argv.len() > MAXIMUM_LAUNCH_SELECTION_ARGUMENTS + 1
-                    || argv.iter().any(|arg| arg.contains('\0'))
-                    || argv.iter().map(String::len).sum::<usize>() > MAXIMUM_LAUNCH_SELECTION_BYTES
-                    || argv
+            if fields.contains("primary") {
+                let primary = member::parse(Object::parse(&fields.take("primary")?)?, true)?;
+                let children = if fields.contains("children") {
+                    let children: Vec<Box<RawValue>> = fields.decode("children")?;
+                    if children.len() > orchbee_workbench_protocol::MAXIMUM_LAYOUT_CHILDREN {
+                        return Err("layout-too-large");
+                    }
+                    children
                         .iter()
-                        .flat_map(|arg| arg.bytes())
-                        .map(|b| match b {
-                            0..=31 => 6,
-                            b'"' | b'\\' => 2,
-                            _ => 1,
-                        })
-                        .sum::<usize>()
-                        > MAXIMUM_LAUNCH_SELECTION_BYTES)
-            {
-                return Err("invalid-layout");
-            }
-            let environment = if let Some(raw) = fields.remove("env") {
-                let mut env = Object::parse(&raw)?;
-                let names = env.names();
-                let entries = names
-                    .into_iter()
-                    .map(|name| {
-                        let value = env.string(&name)?;
-                        Ok((name, value))
-                    })
-                    .collect::<Result<Vec<_>, &'static str>>()?;
-                LaunchEnvironment::new(entries).map_err(|_| "invalid-layout")?
+                        .map(|raw| member::parse(Object::parse(raw)?, true))
+                        .collect::<Result<Vec<_>, _>>()?
+                } else {
+                    Vec::new()
+                };
+                fields.finish()?;
+                Ok(Node::Panel(Leaf {
+                    primary,
+                    children,
+                    right_click,
+                }))
             } else {
-                LaunchEnvironment::empty()
-            };
-            fields.finish()?;
-            Ok(Node::Panel(Leaf {
-                label,
-                cwd,
-                command,
-                environment,
-            }))
+                let primary = member::parse(fields, false)?;
+                Ok(Node::Panel(Leaf {
+                    primary,
+                    children: Vec::new(),
+                    right_click,
+                }))
+            }
         }
         "split" => {
             let direction = match fields.string("direction")?.as_str() {

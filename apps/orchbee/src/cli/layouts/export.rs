@@ -67,10 +67,9 @@ pub(super) fn execute(
     let mut facts = BTreeMap::new();
     for (panel_id, presentation) in leaves {
         signals.check_before(deadline)?;
-        let binding = presentation
-            .binding
-            .as_ref()
-            .ok_or_else(|| failure(FailureKind::CheckFailed, "unsupported-presentation"))?;
+        let Some(binding) = presentation.binding.as_ref() else {
+            continue;
+        };
         let request = TerminalLaunchReadRequest::new(
             query::obcs_request_id()?,
             TerminalId::parse(binding.terminal_id.as_str())
@@ -129,7 +128,7 @@ pub(super) fn execute(
                 .map_err(|_| failure(FailureKind::ProtocolInvalid, "layout-unavailable"))?;
         }
         facts.insert(
-            panel_id.clone(),
+            presentation.presentation_id.clone(),
             model::Leaf {
                 cwd,
                 launch: launch_selection.as_deref().cloned(),
@@ -154,12 +153,18 @@ pub(super) fn execute(
         .iter()
         .flat_map(|project| &project.workspaces)
         .find(|workspace| workspace.terminal_context_id == context.terminal_context_id);
-    Ok(json!({"schema":"orchbee.layout.export","version":1,
+    let document = json!({"schema":"orchbee.layout.export","version":2,
         "source":{"kind":"layout-observation","siteId":snapshot.site_id,"revision":snapshot.revision,
             "clientId":selected.client_id,"viewRevision":selected.view_revision},
         "result":{"layout":{"workspaceId":workspace.map(|workspace| &workspace.workspace_id),
             "terminalContextId":context.terminal_context_id,"tabId":tab.tab_id,
-            "zoomed":layout.zoomed,"focusedPanelId":layout.focused_panel_id,"root":root}}}))
+            "zoomed":layout.zoomed,"focusedPanelId":layout.focused_panel_id,"root":root}}});
+    if !crate::cli::output::encode_document(&document)
+        .is_ok_and(|bytes| bytes.len() <= super::template::MAX_BYTES)
+    {
+        return Err(Failure::new(FailureKind::OutputTooLarge));
+    }
+    Ok(document)
 }
 
 struct LayoutTarget<'a> {

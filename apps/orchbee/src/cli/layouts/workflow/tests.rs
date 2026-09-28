@@ -19,14 +19,11 @@ impl Port for Trace {
     fn create(&mut self) -> Result<(), Failure> {
         self.event("create".into())
     }
-    fn split(&mut self, index: usize) -> Result<(), Failure> {
-        self.event(format!("split{index}"))
+    fn launch(&mut self, panel: usize, member: usize) -> Result<(), Failure> {
+        self.event(format!("launch{panel}.{member}"))
     }
-    fn settle(&mut self, index: usize) -> Result<(), Failure> {
-        self.event(format!("started{index}"))
-    }
-    fn label(&mut self, index: usize) -> Result<(), Failure> {
-        self.event(format!("label{index}"))
+    fn settle(&mut self, panel: usize, member: usize) -> Result<(), Failure> {
+        self.event(format!("started{panel}.{member}"))
     }
     fn ratio(&mut self, index: usize) -> Result<(), Failure> {
         self.event(format!("ratio{index}"))
@@ -62,8 +59,16 @@ fn replacement_requires_all_started_leaves_labels_ratios_and_a_ready_tree() {
     assert_eq!(
         trace.events,
         [
-            "create", "split0", "started0", "started1", "label0", "label1", "ratio0", "ready",
-            "focus", "closed", "observe"
+            "create",
+            "launch0.0",
+            "started0.0",
+            "launch1.0",
+            "started1.0",
+            "ratio0",
+            "ready",
+            "focus",
+            "closed",
+            "observe"
         ]
     );
 }
@@ -71,8 +76,16 @@ fn replacement_requires_all_started_leaves_labels_ratios_and_a_ready_tree() {
 #[test]
 fn every_phase_failure_stops_later_effects_and_only_definite_pre_ready_failure_compensates() {
     let expected = [
-        "create", "split0", "started0", "started1", "label0", "label1", "ratio0", "ready", "focus",
-        "closed", "observe",
+        "create",
+        "launch0.0",
+        "started0.0",
+        "launch1.0",
+        "started1.0",
+        "ratio0",
+        "ready",
+        "focus",
+        "closed",
+        "observe",
     ];
     for index in 0..expected.len() {
         for kind in [
@@ -91,10 +104,49 @@ fn every_phase_failure_stops_later_effects_and_only_definite_pre_ready_failure_c
                 .iter()
                 .map(|value| (*value).to_owned())
                 .collect::<Vec<_>>();
-            if index <= 7 && kind != FailureKind::OutcomeUnknown {
+            if index <= 6 && kind != FailureKind::OutcomeUnknown {
                 prefix.push("rollback".into());
             }
             assert_eq!(trace.events, prefix, "{kind:?} at {index}");
         }
     }
+}
+
+#[test]
+fn unbound_members_never_launch_and_later_child_failure_stops_replacement() {
+    let plan = super::super::template::parse(br#"{"type":"panel","primary":{"name":"Empty","start":false},"children":[{"name":"First","start":true},{"name":"Empty child","start":false},{"name":"Second","start":true}]}"#).unwrap().plan();
+    let mut trace = Trace {
+        events: vec![],
+        fail: None,
+        kind: FailureKind::Rejected,
+    };
+    execute(&plan, &mut trace).unwrap();
+    assert_eq!(
+        trace.events,
+        [
+            "create",
+            "launch0.1",
+            "started0.1",
+            "launch0.3",
+            "started0.3",
+            "ready",
+            "focus",
+            "closed",
+            "observe"
+        ]
+    );
+    trace.events.clear();
+    trace.fail = Some(4);
+    assert!(execute(&plan, &mut trace).is_err());
+    assert_eq!(
+        trace.events,
+        [
+            "create",
+            "launch0.1",
+            "started0.1",
+            "launch0.3",
+            "started0.3",
+            "rollback"
+        ]
+    );
 }

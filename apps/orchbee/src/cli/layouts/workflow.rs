@@ -4,9 +4,8 @@ use crate::cli::{Failure, FailureKind};
 
 pub(super) trait Port {
     fn create(&mut self) -> Result<(), Failure>;
-    fn split(&mut self, index: usize) -> Result<(), Failure>;
-    fn settle(&mut self, leaf: usize) -> Result<(), Failure>;
-    fn label(&mut self, leaf: usize) -> Result<(), Failure>;
+    fn launch(&mut self, panel: usize, member: usize) -> Result<(), Failure>;
+    fn settle(&mut self, panel: usize, member: usize) -> Result<(), Failure>;
     fn ratio(&mut self, split: usize) -> Result<(), Failure>;
     fn ready(&mut self) -> Result<(), Failure>;
     fn focus(&mut self) -> Result<(), Failure>;
@@ -19,14 +18,13 @@ pub(super) trait Port {
 pub(super) fn execute(plan: &Plan, port: &mut impl Port) -> Result<(), Failure> {
     let before_ready = (|| {
         port.create()?;
-        for index in 0..plan.splits.len() {
-            port.split(index)?;
-        }
-        for index in 0..plan.leaves.len() {
-            port.settle(index)?;
-        }
-        for index in 0..plan.leaves.len() {
-            port.label(index)?;
+        for (panel, leaf) in plan.leaves.iter().enumerate() {
+            for (member, intent) in leaf.members().enumerate() {
+                if intent.start {
+                    port.launch(panel, member)?;
+                    port.settle(panel, member)?;
+                }
+            }
         }
         for index in 0..plan.splits.len() {
             port.ratio(index)?;

@@ -466,8 +466,8 @@ pub(crate) fn answer(schema_id: Option<&str>, format: OutputFormat, locale: Loca
     };
     let document = json!({
         "schema": "orchbee.api.schema",
-        // Exact Presentation report receipts retain their submitted target.
-        "version": 97,
+        // Layout v2 preserves primary/child and unbound members.
+        "version": 98,
         "source": embedded_source(),
         "result": result,
     });

@@ -1,7 +1,8 @@
 //! Pure portable tree projection; canonical identities fence all observed ratios and leaf facts.
 use orchbee_client_server_protocol::LaunchSelection;
 use orchbee_workbench_protocol::{
-    ClientSplitArea, PanelNode, PanelOrientation, Presentation, WorkbenchPanelId,
+    ClientSplitArea, PanelNode, PanelOrientation, Presentation, TerminalPresentationId,
+    WorkbenchPanelId,
 };
 use serde_json::{Value, json};
 use std::collections::{BTreeMap, BTreeSet};
@@ -19,6 +20,7 @@ pub(super) fn leaves(
     fn walk<'a>(
         node: &'a PanelNode,
         depth: usize,
+        panels: &mut usize,
         out: &mut Vec<(&'a WorkbenchPanelId, &'a Presentation)>,
     ) -> Result<(), &'static str> {
         if depth > MAX_DEPTH {
@@ -31,36 +33,49 @@ pub(super) fn leaves(
                 child_presentations,
                 ..
             } => {
-                if !child_presentations.is_empty() || primary_presentation.binding.is_none() {
-                    return Err("unsupported-presentation");
-                }
-                if out.len() == MAX_PANELS {
+                if child_presentations.len() > orchbee_workbench_protocol::MAXIMUM_LAYOUT_CHILDREN {
                     return Err("layout-too-large");
                 }
+                if *panels == MAX_PANELS {
+                    return Err("layout-too-large");
+                }
+                *panels += 1;
                 out.push((panel_id, primary_presentation));
+                out.extend(child_presentations.iter().map(|member| (panel_id, member)));
             }
             PanelNode::Split { children, .. } => {
                 for child in children.iter() {
-                    walk(&child.node, depth + 1, out)?;
+                    walk(&child.node, depth + 1, panels, out)?;
                 }
             }
         }
         Ok(())
     }
     let mut out = Vec::new();
-    walk(root, 1, &mut out)?;
+    walk(root, 1, &mut 0, &mut out)?;
     Ok(out)
 }
 
 pub(super) fn tree(
     root: &PanelNode,
     splits: &[ClientSplitArea],
-    facts: &BTreeMap<WorkbenchPanelId, Leaf>,
+    facts: &BTreeMap<TerminalPresentationId, Leaf>,
 ) -> Result<Value, &'static str> {
     let panels = leaves(root)?;
-    if panels.len() != facts.len()
-        || panels.len() != splits.len() + 1
-        || panels.iter().any(|(id, _)| !facts.contains_key(*id))
+    let panel_count = panels
+        .iter()
+        .map(|(id, _)| *id)
+        .collect::<BTreeSet<_>>()
+        .len();
+    let bound: Vec<_> = panels
+        .iter()
+        .filter(|(_, member)| member.binding.is_some())
+        .collect();
+    if bound.len() != facts.len()
+        || panel_count != splits.len() + 1
+        || bound
+            .iter()
+            .any(|(_, member)| !facts.contains_key(&member.presentation_id))
     {
         return Err("layout-changed");
     }
@@ -68,31 +83,47 @@ pub(super) fn tree(
     fn walk(
         node: &PanelNode,
         splits: &[ClientSplitArea],
-        facts: &BTreeMap<WorkbenchPanelId, Leaf>,
+        facts: &BTreeMap<TerminalPresentationId, Leaf>,
         used: &mut BTreeSet<String>,
     ) -> Result<Value, &'static str> {
         match node {
             PanelNode::Panel {
                 panel_id,
                 primary_presentation,
-                ..
+                child_presentations,
+                right_click,
             } => {
-                let leaf = facts.get(panel_id).ok_or("layout-changed")?;
-                let mut value = json!({"type":"panel","panelId":panel_id,"env":{}});
-                if let Some(label) = &primary_presentation.custom_label {
-                    value["label"] = json!(label);
+                fn member(
+                    presentation: &Presentation,
+                    facts: &BTreeMap<TerminalPresentationId, Leaf>,
+                ) -> Result<Value, &'static str> {
+                    let mut value = json!({"presentationId":presentation.presentation_id,"name":presentation.label,
+                        "start":presentation.binding.is_some(),"env":{}});
+                    if let Some(label) = &presentation.custom_label {
+                        value["label"] = json!(label);
+                    }
+                    if presentation.binding.is_some() {
+                        let leaf = facts
+                            .get(&presentation.presentation_id)
+                            .ok_or("layout-changed")?;
+                        if let Some(cwd) = &leaf.cwd {
+                            value["cwd"] = json!(cwd);
+                        }
+                        if let Some(launch) = &leaf.launch {
+                            value["command"] = json!(
+                                std::iter::once(launch.executable())
+                                    .chain(launch.arguments().iter().map(String::as_str))
+                                    .collect::<Vec<_>>()
+                            );
+                        }
+                    }
+                    Ok(value)
                 }
-                if let Some(cwd) = &leaf.cwd {
-                    value["cwd"] = json!(cwd);
-                }
-                if let Some(launch) = &leaf.launch {
-                    value["command"] = json!(
-                        std::iter::once(launch.executable())
-                            .chain(launch.arguments().iter().map(String::as_str))
-                            .collect::<Vec<_>>()
-                    );
-                }
-                Ok(value)
+                Ok(
+                    json!({"type":"panel","panelId":panel_id,"rightClick":right_click,
+                    "primary":member(primary_presentation,facts)?,
+                    "children":child_presentations.iter().map(|p| member(p,facts)).collect::<Result<Vec<_>,_>>()?}),
+                )
             }
             PanelNode::Split {
                 split_id,

@@ -10,7 +10,7 @@
 			"const": "orchbee.layout.export"
 		},
 		"version": {
-			"const": 1
+			"const": 2
 		},
 		"source": {
 			"type": "object",
@@ -103,7 +103,7 @@
 				{
 					"type": "object",
 					"additionalProperties": false,
-					"required": ["type", "panelId", "env"],
+					"required": ["type", "panelId", "rightClick", "primary", "children"],
 					"properties": {
 						"type": {
 							"const": "panel"
@@ -111,40 +111,18 @@
 						"panelId": {
 							"$ref": "#/$defs/id"
 						},
-						"label": {
-							"type": "string",
-							"minLength": 1,
-							"maxLength": 512
+						"rightClick": {
+							"enum": ["orchbee", "panel"]
 						},
-						"cwd": {
-							"type": "string",
-							"minLength": 1,
-							"maxLength": 4096
+						"primary": {
+							"$ref": "#/$defs/member"
 						},
-						"command": {
+						"children": {
 							"type": "array",
-							"minItems": 1,
-							"maxItems": 129,
-							"prefixItems": [
-								{
-									"title": "Absolute launch executable",
-									"type": "string",
-									"minLength": 1,
-									"maxLength": 30720,
-									"pattern": "^(?:/|(?:\\\\\\\\\\?\\\\)?[A-Za-z]:[/\\\\])[^\\u0000]*$",
-									"$comment": "The authoritative executable plus arguments bound is 30720 UTF-8 bytes and worst-case JSON string-content bytes."
-								}
-							],
+							"maxItems": 16,
 							"items": {
-								"type": "string",
-								"pattern": "^[^\\u0000]*$",
-								"maxLength": 30720
-							},
-							"$comment": "A variadic argv tuple: one absolute executable followed by zero to 128 literal arguments."
-						},
-						"env": {
-							"type": "object",
-							"const": {}
+								"$ref": "#/$defs/member"
+							}
 						}
 					}
 				},
@@ -173,7 +151,83 @@
 					}
 				}
 			]
+		},
+		"member": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["presentationId", "name", "start", "env"],
+			"properties": {
+				"label": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 512
+				},
+				"cwd": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 4096
+				},
+				"command": {
+					"type": "array",
+					"minItems": 1,
+					"maxItems": 129,
+					"prefixItems": [
+						{
+							"title": "Absolute launch executable",
+							"type": "string",
+							"minLength": 1,
+							"maxLength": 30720,
+							"pattern": "^(?:/|(?:\\\\\\\\\\?\\\\)?[A-Za-z]:[/\\\\])[^\\u0000]*$",
+							"$comment": "The authoritative executable plus arguments bound is 30720 UTF-8 bytes and worst-case JSON string-content bytes."
+						}
+					],
+					"items": {
+						"type": "string",
+						"pattern": "^[^\\u0000]*$",
+						"maxLength": 30720
+					},
+					"$comment": "A variadic argv tuple: one absolute executable followed by zero to 128 literal arguments."
+				},
+				"env": {
+					"type": "object",
+					"const": {}
+				},
+				"presentationId": {
+					"$ref": "#/$defs/id"
+				},
+				"name": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 512
+				},
+				"start": {
+					"type": "boolean"
+				}
+			},
+			"allOf": [
+				{
+					"if": {
+						"properties": {
+							"start": {
+								"const": false
+							}
+						}
+					},
+					"then": {
+						"not": {
+							"anyOf": [
+								{
+									"required": ["cwd"]
+								},
+								{
+									"required": ["command"]
+								}
+							]
+						}
+					}
+				}
+			]
 		}
 	},
-	"$comment": "The projector enforces at most24 leaves, depth16, exact canonical identities, 30720 combined UTF-8 and worst-case escaped command bytes and a1MiB document limit. cwd is a sequential observation; env is always empty."
+	"$comment": "Exact primary/child observations preserve unbound start:false members. At most 24 Panels and 16 levels, with 16 children per Panel; total 1 MiB and runtime byte bounds are enforced by the CLI."
 }

@@ -2,7 +2,8 @@
 use super::error;
 use crate::cli::{Failure, FailureKind};
 use orchbee_workbench_protocol::{
-    ClientSplitIdentity, PanelNode, PanelOrientation, Snapshot, Tab, WorkbenchPanelId,
+    ClientSplitIdentity, PanelNode, Presentation, Snapshot, Tab, TerminalPresentationId,
+    WorkbenchLayoutNode, WorkbenchLayoutPresentation, WorkbenchPanelId,
     WorkbenchPanelSplitDirection, WorkbenchTabId, WorkbenchTerminalContextId,
 };
 
@@ -38,28 +39,175 @@ pub(super) fn leaf<'a>(node: &'a PanelNode, id: &WorkbenchPanelId) -> Option<&'a
         PanelNode::Split { children, .. } => children.iter().find_map(|slot| leaf(&slot.node, id)),
     }
 }
-pub(super) fn validate_leaf(
-    node: &PanelNode,
-    presentation: &str,
+pub(super) fn member<'a>(
+    node: &'a PanelNode,
     panel: &WorkbenchPanelId,
-) -> Result<(), Failure> {
-    match node {
-        PanelNode::Panel {
-            right_click,
-            child_presentations,
-            panel_id,
-            primary_presentation,
-        } if right_click.is_default()
-            && child_presentations.is_empty()
-            && panel_id == panel
-            && primary_presentation.custom_label.is_none()
-            && primary_presentation.binding.is_some()
-            && primary_presentation.presentation_id.as_str() == presentation =>
-        {
-            Ok(())
-        }
-        _ => Err(changed()),
+    index: usize,
+) -> Option<&'a Presentation> {
+    let PanelNode::Panel {
+        primary_presentation,
+        child_presentations,
+        ..
+    } = leaf(node, panel)?
+    else {
+        return None;
+    };
+    if index == 0 {
+        Some(primary_presentation)
+    } else {
+        child_presentations.get(index - 1)
     }
+}
+
+/// Prove the complete identity-free skeleton before claiming ownership of any allocated IDs.
+pub(super) fn materialized(
+    plan: &super::super::template::Plan,
+    root: &PanelNode,
+) -> Result<(Vec<WorkbenchPanelId>, Vec<ClientSplitIdentity>), Failure> {
+    fn presentation(expected: &WorkbenchLayoutPresentation, actual: &Presentation) -> bool {
+        actual.binding.is_none()
+            && actual.label == expected.label.as_str()
+            && actual.custom_label == expected.custom_label
+    }
+    fn matches(expected: &WorkbenchLayoutNode, actual: &PanelNode) -> bool {
+        match (expected, actual) {
+            (
+                WorkbenchLayoutNode::Panel {
+                    primary,
+                    children,
+                    right_click,
+                },
+                PanelNode::Panel {
+                    primary_presentation,
+                    child_presentations,
+                    right_click: actual_policy,
+                    ..
+                },
+            ) => {
+                right_click == actual_policy
+                    && presentation(primary, primary_presentation)
+                    && children.len() == child_presentations.len()
+                    && children
+                        .iter()
+                        .zip(child_presentations)
+                        .all(|(e, a)| presentation(e, a))
+            }
+            (
+                WorkbenchLayoutNode::Split {
+                    orientation,
+                    children,
+                },
+                PanelNode::Split {
+                    orientation: actual_orientation,
+                    children: actual_children,
+                    ..
+                },
+            ) => {
+                orientation == actual_orientation
+                    && children
+                        .iter()
+                        .zip(actual_children.iter())
+                        .all(|(e, a)| matches(e, &a.node))
+            }
+            _ => false,
+        }
+    }
+    fn first(node: &PanelNode) -> &WorkbenchPanelId {
+        match node {
+            PanelNode::Panel { panel_id, .. } => panel_id,
+            PanelNode::Split { children, .. } => first(&children[0].node),
+        }
+    }
+    if !matches(plan.layout.root(), root) {
+        return Err(changed());
+    }
+    let mut panels = vec![first(root).clone()];
+    let mut splits = Vec::new();
+    for split in &plan.splits {
+        let mut node = root;
+        for index in split.path.indices() {
+            let PanelNode::Split { children, .. } = node else {
+                return Err(changed());
+            };
+            node = &children[usize::from(*index)].node;
+        }
+        let PanelNode::Split {
+            split_id, children, ..
+        } = node
+        else {
+            return Err(changed());
+        };
+        if split.created != panels.len() || first(&children[0].node) != &panels[split.source] {
+            return Err(changed());
+        }
+        panels.push(first(&children[1].node).clone());
+        splits.push(ClientSplitIdentity {
+            split_id: split_id.clone(),
+            first_slot_id: children[0].slot_id.clone(),
+            second_slot_id: children[1].slot_id.clone(),
+        });
+    }
+    Ok((panels, splits))
+}
+
+/// A launch may change only the acknowledged member's None binding into its first real binding.
+pub(super) fn bind(
+    expected: &Tab,
+    fresh: &Tab,
+    panel: &WorkbenchPanelId,
+    presentation: &TerminalPresentationId,
+) -> Result<Tab, Failure> {
+    fn update(
+        node: &mut PanelNode,
+        fresh: &PanelNode,
+        panel: &WorkbenchPanelId,
+        id: &TerminalPresentationId,
+    ) -> Result<(), Failure> {
+        match node {
+            PanelNode::Panel {
+                panel_id,
+                primary_presentation,
+                child_presentations,
+                ..
+            } if panel_id == panel => {
+                let before = std::iter::once(primary_presentation)
+                    .chain(child_presentations)
+                    .find(|p| &p.presentation_id == id)
+                    .ok_or_else(changed)?;
+                let PanelNode::Panel {
+                    primary_presentation,
+                    child_presentations,
+                    ..
+                } = leaf(fresh, panel).ok_or_else(changed)?
+                else {
+                    return Err(changed());
+                };
+                let after = std::iter::once(primary_presentation)
+                    .chain(child_presentations)
+                    .find(|p| &p.presentation_id == id)
+                    .ok_or_else(changed)?;
+                if before.binding.is_some() || after.binding.is_none() {
+                    return Err(changed());
+                }
+                before.binding = after.binding.clone();
+                Ok(())
+            }
+            PanelNode::Split { children, .. } => {
+                let child = children
+                    .iter_mut()
+                    .find(|slot| leaf(&slot.node, panel).is_some())
+                    .ok_or_else(changed)?;
+                update(&mut child.node, fresh, panel, id)
+            }
+            _ => Err(changed()),
+        }
+    }
+    let mut candidate = expected.clone();
+    update(&mut candidate.root, &fresh.root, panel, presentation)?;
+    if &candidate != fresh {
+        return Err(changed());
+    }
+    Ok(candidate)
 }
 
 pub(super) fn matches_template(
@@ -92,109 +240,33 @@ pub(super) fn matches_template(
             result.push(node);
         }
     }
+    fn member(expected: &super::super::template::Member, actual: &serde_json::Value) -> bool {
+        actual["name"].as_str() == Some(expected.name.as_str())
+            && actual["start"].as_bool() == Some(expected.start)
+            && actual["label"].as_str() == expected.label.custom_label().map(|label| label.as_str())
+    }
     let mut observed = Vec::new();
     leaves(root, &mut observed);
     observed.len() == panels.len()
         && panels.len() == plan.leaves.len()
-        && panels.iter().zip(&plan.leaves).all(|(panel, leaf)| {
-            observed
+        && panels.iter().zip(&plan.leaves).all(|(panel, expected)| {
+            let nodes: Vec<_> = observed
                 .iter()
                 .filter(|node| node["panelId"] == panel.as_str())
-                .count()
-                == 1
-                && observed.iter().any(|node| {
-                    node["panelId"] == panel.as_str()
-                        && node["label"].as_str()
-                            == leaf.label.custom_label().map(|label| label.as_str())
+                .collect();
+            let [actual] = nodes.as_slice() else {
+                return false;
+            };
+            actual["rightClick"].as_str() == Some(expected.right_click.as_str())
+                && member(&expected.primary, &actual["primary"])
+                && actual["children"].as_array().is_some_and(|children| {
+                    children.len() == expected.children.len()
+                        && children
+                            .iter()
+                            .zip(&expected.children)
+                            .all(|(a, e)| member(e, a))
                 })
         })
 }
-
 #[cfg(test)]
 mod tests;
-pub(super) fn graft(
-    expected: &mut PanelNode,
-    fresh: &PanelNode,
-    source: &WorkbenchPanelId,
-    new: &WorkbenchPanelId,
-    identity: &ClientSplitIdentity,
-    direction: WorkbenchPanelSplitDirection,
-    presentation: &str,
-) -> Result<(), Failure> {
-    match expected {
-        PanelNode::Panel { panel_id, .. } if panel_id == source => {
-            let PanelNode::Split {
-                split_id,
-                orientation,
-                children,
-            } = fresh
-            else {
-                return Err(changed());
-            };
-            let expected_orientation = match direction {
-                WorkbenchPanelSplitDirection::Right => PanelOrientation::Horizontal,
-                WorkbenchPanelSplitDirection::Below => PanelOrientation::Vertical,
-                _ => return Err(changed()),
-            };
-            if split_id != &identity.split_id
-                || *orientation != expected_orientation
-                || children[0].slot_id != identity.first_slot_id
-                || children[1].slot_id != identity.second_slot_id
-                || children[0].node != *expected
-            {
-                return Err(changed());
-            }
-            validate_leaf(&children[1].node, presentation, new)?;
-            *expected = fresh.clone();
-            Ok(())
-        }
-        PanelNode::Split { children, .. } => {
-            let PanelNode::Split {
-                children: observed, ..
-            } = fresh
-            else {
-                return Err(changed());
-            };
-            for index in 0..2 {
-                if leaf(&children[index].node, source).is_some() {
-                    return graft(
-                        &mut children[index].node,
-                        &observed[index].node,
-                        source,
-                        new,
-                        identity,
-                        direction,
-                        presentation,
-                    );
-                }
-            }
-            Err(changed())
-        }
-        _ => Err(changed()),
-    }
-}
-pub(super) fn label(
-    node: &mut PanelNode,
-    panel: &WorkbenchPanelId,
-    value: &orchbee_workbench_protocol::PanelLabelUpdate,
-) -> Result<(), Failure> {
-    match node {
-        PanelNode::Panel {
-            panel_id,
-            primary_presentation,
-            ..
-        } if panel_id == panel => {
-            primary_presentation.custom_label = value.custom_label().cloned();
-            Ok(())
-        }
-        PanelNode::Split { children, .. } => {
-            for child in children.iter_mut() {
-                if leaf(&child.node, panel).is_some() {
-                    return label(&mut child.node, panel, value);
-                }
-            }
-            Err(changed())
-        }
-        _ => Err(changed()),
-    }
-}

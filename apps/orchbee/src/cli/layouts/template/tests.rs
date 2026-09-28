@@ -1,4 +1,5 @@
 use super::*;
+use orchbee_client_server_protocol::MAXIMUM_LAUNCH_SELECTION_BYTES;
 use serde_json::{Value, json};
 
 fn leaf(name: &str) -> Value {
@@ -20,9 +21,12 @@ fn export_and_herdr_templates_keep_literal_launch_values_without_reusing_ids() {
     let Node::Panel(leaf) = &node else {
         panic!("leaf")
     };
-    assert_eq!(leaf.label.custom_label().expect("manual").as_str(), "中文");
-    assert_eq!(leaf.command.as_ref().expect("argv")[3], "");
-    assert_eq!(leaf.environment.entries()[1].1, "$(not executed)");
+    assert_eq!(
+        leaf.primary.label.custom_label().expect("manual").as_str(),
+        "中文"
+    );
+    assert_eq!(leaf.primary.command.as_ref().expect("argv")[3], "");
+    assert_eq!(leaf.primary.environment.entries()[1].1, "$(not executed)");
     assert_eq!(
         parse_value(json!({"workspace_id":"old:1", "tab_id":"old:1:2",
         "zoomed":true,"focused_pane_id":"ignored","root":root}))
@@ -49,7 +53,7 @@ fn nested_plan_creates_each_leaf_once_and_preserves_order_paths_and_ratios() {
     assert_eq!(
         plan.leaves
             .iter()
-            .map(|leaf| leaf.label.custom_label().expect("name").as_str())
+            .map(|leaf| leaf.primary.label.custom_label().expect("name").as_str())
             .collect::<Vec<_>>(),
         ["A", "C", "B", "D"]
     );
@@ -148,4 +152,48 @@ fn limits_cover_total_bytes_leaf_count_depth_and_launch_contracts() {
         ),
         Err("invalid-layout")
     );
+}
+
+#[test]
+fn structured_members_preserve_unbound_intent_and_validate_all_children_before_effects() {
+    let member = json!({"name":"Shell","label":"Manual","start":false,"env":{}});
+    let input = json!({"type":"panel","rightClick":"panel","primary":member,
+        "children":[{"name":"Agent","start":true,"command":["pwsh","","literal"],"env":{"CHILD_VALUE":"secret"}}]});
+    let plan = parse_value(input.clone()).unwrap().plan();
+    assert!(!plan.leaves[0].primary.start);
+    assert!(plan.leaves[0].children[0].start);
+    assert_eq!(
+        plan.leaves[0].children[0].environment.entries()[0].1,
+        "secret"
+    );
+    assert_eq!(plan.leaves[0].right_click, PanelRightClickTarget::Panel);
+    for (path, value) in [
+        ("/primary/command", json!(["pwsh"])),
+        ("/primary/cwd", json!("C:\\work")),
+        ("/primary/env", json!({"EXTRA":"value"})),
+        ("/children/0/start", json!(false)),
+        ("/children/0/unknown", json!(true)),
+        ("/command", json!(["pwsh"])),
+        ("/rightClick", json!("both")),
+    ] {
+        let mut bad = input.clone();
+        let (parent, key) = path.rsplit_once('/').unwrap();
+        bad.pointer_mut(parent).unwrap()[key] = value;
+        assert_eq!(parse_value(bad), Err("invalid-layout"), "{path}");
+    }
+    let raw = br#"{"type":"panel","primary":{"name":"x","start":false},"children":[{"name":"x","start":true,"start":false}]}"#;
+    assert_eq!(parse(raw), Err("invalid-layout"));
+    let mut max = input;
+    max["children"] = json!(vec![json!({"name":"Empty","start":false}); 16]);
+    assert_eq!(
+        parse_value(max.clone()).unwrap().plan().leaves[0]
+            .children
+            .len(),
+        16
+    );
+    max["children"]
+        .as_array_mut()
+        .unwrap()
+        .push(json!({"name":"Extra","start":false}));
+    assert_eq!(parse_value(max), Err("layout-too-large"));
 }

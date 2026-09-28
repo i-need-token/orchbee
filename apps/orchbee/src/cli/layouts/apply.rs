@@ -1,5 +1,6 @@
 //! Bounded Windows layout application; retained effects survive incomplete composition.
 mod engine;
+mod exchange;
 mod ownership;
 mod receipt;
 mod targeting;

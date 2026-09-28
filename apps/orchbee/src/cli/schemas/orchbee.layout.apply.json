@@ -10,7 +10,7 @@
 			"const": "orchbee.layout.apply"
 		},
 		"version": {
-			"const": 1
+			"const": 2
 		},
 		"source": {
 			"anyOf": [
@@ -61,9 +61,7 @@
 						"discovery",
 						"directory",
 						"create",
-						"split",
 						"launch",
-						"label",
 						"ratio",
 						"ready",
 						"focus",
@@ -94,7 +92,7 @@
 				},
 				"effects": {
 					"type": "array",
-					"maxItems": 80,
+					"maxItems": 448,
 					"items": {
 						"type": "object",
 						"additionalProperties": false,
@@ -104,13 +102,12 @@
 								"enum": [
 									"directory",
 									"create",
-									"split",
-									"label",
 									"ratio",
 									"focus",
 									"replace",
 									"replace-status",
-									"rollback"
+									"rollback",
+									"launch"
 								]
 							},
 							"document": {
@@ -139,6 +136,9 @@
 												"$ref": "#/$defs/closeStatus"
 											}
 										}
+									},
+									{
+										"$ref": "#/$defs/layoutEffect"
 									}
 								]
 							}
@@ -249,7 +249,7 @@
 					"const": "orchbee.layout.export"
 				},
 				"version": {
-					"const": 1
+					"const": 2
 				},
 				"source": {
 					"type": "object",
@@ -342,7 +342,7 @@
 						{
 							"type": "object",
 							"additionalProperties": false,
-							"required": ["type", "panelId", "env"],
+							"required": ["type", "panelId", "rightClick", "primary", "children"],
 							"properties": {
 								"type": {
 									"const": "panel"
@@ -350,40 +350,18 @@
 								"panelId": {
 									"$ref": "#/$defs/export/$defs/id"
 								},
-								"label": {
-									"type": "string",
-									"minLength": 1,
-									"maxLength": 512
+								"rightClick": {
+									"enum": ["orchbee", "panel"]
 								},
-								"cwd": {
-									"type": "string",
-									"minLength": 1,
-									"maxLength": 4096
+								"primary": {
+									"$ref": "#/$defs/export/$defs/member"
 								},
-								"command": {
+								"children": {
 									"type": "array",
-									"minItems": 1,
-									"maxItems": 129,
-									"prefixItems": [
-										{
-											"title": "Absolute launch executable",
-											"type": "string",
-											"minLength": 1,
-											"maxLength": 30720,
-											"pattern": "^(?:/|(?:\\\\\\\\\\?\\\\)?[A-Za-z]:[/\\\\])[^\\u0000]*$",
-											"$comment": "The authoritative executable plus arguments bound is 30720 UTF-8 bytes and worst-case JSON string-content bytes."
-										}
-									],
+									"maxItems": 16,
 									"items": {
-										"type": "string",
-										"pattern": "^[^\\u0000]*$",
-										"maxLength": 30720
-									},
-									"$comment": "A variadic argv tuple: one absolute executable followed by zero to 128 literal arguments."
-								},
-								"env": {
-									"type": "object",
-									"const": {}
+										"$ref": "#/$defs/export/$defs/member"
+									}
 								}
 							}
 						},
@@ -412,9 +390,85 @@
 							}
 						}
 					]
+				},
+				"member": {
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["presentationId", "name", "start", "env"],
+					"properties": {
+						"label": {
+							"type": "string",
+							"minLength": 1,
+							"maxLength": 512
+						},
+						"cwd": {
+							"type": "string",
+							"minLength": 1,
+							"maxLength": 4096
+						},
+						"command": {
+							"type": "array",
+							"minItems": 1,
+							"maxItems": 129,
+							"prefixItems": [
+								{
+									"title": "Absolute launch executable",
+									"type": "string",
+									"minLength": 1,
+									"maxLength": 30720,
+									"pattern": "^(?:/|(?:\\\\\\\\\\?\\\\)?[A-Za-z]:[/\\\\])[^\\u0000]*$",
+									"$comment": "The authoritative executable plus arguments bound is 30720 UTF-8 bytes and worst-case JSON string-content bytes."
+								}
+							],
+							"items": {
+								"type": "string",
+								"pattern": "^[^\\u0000]*$",
+								"maxLength": 30720
+							},
+							"$comment": "A variadic argv tuple: one absolute executable followed by zero to 128 literal arguments."
+						},
+						"env": {
+							"type": "object",
+							"const": {}
+						},
+						"presentationId": {
+							"$ref": "#/$defs/export/$defs/id"
+						},
+						"name": {
+							"type": "string",
+							"minLength": 1,
+							"maxLength": 512
+						},
+						"start": {
+							"type": "boolean"
+						}
+					},
+					"allOf": [
+						{
+							"if": {
+								"properties": {
+									"start": {
+										"const": false
+									}
+								}
+							},
+							"then": {
+								"not": {
+									"anyOf": [
+										{
+											"required": ["cwd"]
+										},
+										{
+											"required": ["command"]
+										}
+									]
+								}
+							}
+						}
+					]
 				}
 			},
-			"$comment": "The projector enforces at most24 leaves, depth16, exact canonical identities, 30720 combined UTF-8 and worst-case escaped command bytes and a1MiB document limit. cwd is a sequential observation; env is always empty."
+			"$comment": "Exact primary/child observations preserve unbound start:false members. At most 24 Panels and 16 levels, with 16 children per Panel; total 1 MiB and runtime byte bounds are enforced by the CLI."
 		},
 		"failure": {
 			"type": "object",
@@ -2183,6 +2237,352 @@
 					}
 				}
 			]
+		},
+		"layoutEffect": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["action", "siteId", "requestId", "baseRevision", "result"],
+			"properties": {
+				"action": {
+					"enum": ["tab.create-layout", "panel.create-terminal"]
+				},
+				"siteId": {
+					"$ref": "#/$defs/id"
+				},
+				"requestId": {
+					"$ref": "#/$defs/id"
+				},
+				"baseRevision": {
+					"$ref": "#/$defs/revision"
+				},
+				"result": {
+					"oneOf": [
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "denied"
+								}
+							},
+							"required": ["kind"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "rejected"
+								},
+								"revision": {
+									"title": "WorkbenchRevision",
+									"type": "string",
+									"minLength": 1,
+									"maxLength": 20,
+									"pattern": "^(?:0|[1-9][0-9]{0,19})$",
+									"format": "orchbee-uint64"
+								},
+								"reason": {
+									"enum": [
+										"site-mismatch",
+										"revision-mismatch",
+										"project-unavailable",
+										"workspace-unavailable",
+										"workspace-group-close-required",
+										"workspace-directory-unavailable",
+										"workspace-directory-conflict",
+										"terminal-context-unavailable",
+										"tab-unavailable",
+										"panel-unavailable",
+										"panel-not-leaf",
+										"last-panel-in-tab",
+										"same-tab",
+										"resource-limit",
+										"identity-exhausted",
+										"revision-exhausted",
+										"request-identity-conflict",
+										"tab-move-index-out-of-bounds",
+										"tab-move-order-conflict",
+										"workspace-move-index-out-of-bounds",
+										"workspace-move-target-in-block"
+									]
+								}
+							},
+							"required": ["kind", "revision", "reason"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "unavailable"
+								},
+								"reason": {
+									"enum": [
+										"request-ledger-full",
+										"no-compatible-worker",
+										"server-busy",
+										"service-unavailable",
+										"terminal-busy",
+										"terminal-runtime-unavailable",
+										"directory-unavailable"
+									]
+								}
+							},
+							"required": ["kind", "reason"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"additionalProperties": false,
+							"required": ["kind", "reason"],
+							"properties": {
+								"kind": {
+									"const": "outcome-unknown"
+								},
+								"reason": {
+									"enum": [
+										"request-write",
+										"response-read",
+										"response-deadline",
+										"outcome-mismatch",
+										"response-mismatch"
+									]
+								}
+							}
+						},
+						{
+							"type": "object",
+							"additionalProperties": false,
+							"required": ["kind", "reason"],
+							"properties": {
+								"kind": {
+									"const": "not-submitted"
+								},
+								"reason": {
+									"enum": ["session-unavailable", "request-encoding", "request-not-submitted"]
+								}
+							}
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "tab-layout-created"
+								},
+								"revision": {
+									"title": "WorkbenchRevision",
+									"type": "string",
+									"minLength": 1,
+									"maxLength": 20,
+									"pattern": "^(?:0|[1-9][0-9]{0,19})$",
+									"format": "orchbee-uint64"
+								},
+								"terminalContextId": {
+									"type": "string",
+									"pattern": "^[0-9a-f]{32}$",
+									"not": {
+										"const": "00000000000000000000000000000000"
+									}
+								},
+								"tabId": {
+									"type": "string",
+									"pattern": "^[0-9a-f]{32}$",
+									"not": {
+										"const": "00000000000000000000000000000000"
+									}
+								}
+							},
+							"required": ["kind", "revision", "terminalContextId", "tabId"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "panel-terminal-pending"
+								},
+								"revision": {
+									"title": "WorkbenchRevision",
+									"type": "string",
+									"minLength": 1,
+									"maxLength": 20,
+									"pattern": "^(?:0|[1-9][0-9]{0,19})$",
+									"format": "orchbee-uint64"
+								},
+								"terminalContextId": {
+									"type": "string",
+									"pattern": "^[0-9a-f]{32}$",
+									"not": {
+										"const": "00000000000000000000000000000000"
+									}
+								},
+								"tabId": {
+									"type": "string",
+									"pattern": "^[0-9a-f]{32}$",
+									"not": {
+										"const": "00000000000000000000000000000000"
+									}
+								},
+								"panelId": {
+									"type": "string",
+									"pattern": "^[0-9a-f]{32}$",
+									"not": {
+										"const": "00000000000000000000000000000000"
+									}
+								},
+								"presentationId": {
+									"type": "string",
+									"pattern": "^[0-9a-f]{32}$",
+									"not": {
+										"const": "00000000000000000000000000000000"
+									}
+								}
+							},
+							"required": [
+								"kind",
+								"revision",
+								"terminalContextId",
+								"tabId",
+								"panelId",
+								"presentationId"
+							],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "panel-terminal-created"
+								},
+								"revision": {
+									"title": "WorkbenchRevision",
+									"type": "string",
+									"minLength": 1,
+									"maxLength": 20,
+									"pattern": "^(?:0|[1-9][0-9]{0,19})$",
+									"format": "orchbee-uint64"
+								},
+								"terminalContextId": {
+									"type": "string",
+									"pattern": "^[0-9a-f]{32}$",
+									"not": {
+										"const": "00000000000000000000000000000000"
+									}
+								},
+								"tabId": {
+									"type": "string",
+									"pattern": "^[0-9a-f]{32}$",
+									"not": {
+										"const": "00000000000000000000000000000000"
+									}
+								},
+								"panelId": {
+									"type": "string",
+									"pattern": "^[0-9a-f]{32}$",
+									"not": {
+										"const": "00000000000000000000000000000000"
+									}
+								},
+								"presentationId": {
+									"type": "string",
+									"pattern": "^[0-9a-f]{32}$",
+									"not": {
+										"const": "00000000000000000000000000000000"
+									}
+								},
+								"terminalOutcome": {
+									"oneOf": [
+										{
+											"type": "object",
+											"properties": {
+												"kind": {
+													"const": "started"
+												},
+												"geometry": {
+													"$comment": "Semantic validation additionally requires columns * rows <= 262144, columns * cellPixelWidth <= 65535, and rows * cellPixelHeight <= 65535. The cellPixelWidth/cellPixelHeight pair must be either both positive (pixels known) or both zero (pixels unknown); a mixed pair is invalid.",
+													"type": "object",
+													"properties": {
+														"columns": {
+															"type": "integer",
+															"minimum": 1,
+															"maximum": 4096
+														},
+														"rows": {
+															"type": "integer",
+															"minimum": 1,
+															"maximum": 4096
+														},
+														"cellPixelWidth": {
+															"type": "integer",
+															"minimum": 0,
+															"maximum": 4096
+														},
+														"cellPixelHeight": {
+															"type": "integer",
+															"minimum": 0,
+															"maximum": 4096
+														}
+													},
+													"required": ["columns", "rows", "cellPixelWidth", "cellPixelHeight"],
+													"additionalProperties": false
+												}
+											},
+											"required": ["kind", "geometry"],
+											"additionalProperties": false
+										},
+										{
+											"type": "object",
+											"properties": {
+												"kind": {
+													"const": "unavailable"
+												},
+												"reason": {
+													"enum": ["terminal-runtime-unavailable", "server-busy"]
+												}
+											},
+											"required": ["kind", "reason"],
+											"additionalProperties": false
+										},
+										{
+											"type": "object",
+											"properties": {
+												"kind": {
+													"const": "failed"
+												},
+												"reason": {
+													"enum": ["terminal-create-failed"]
+												}
+											},
+											"required": ["kind", "reason"],
+											"additionalProperties": false
+										},
+										{
+											"type": "object",
+											"properties": {
+												"kind": {
+													"const": "outcome-unknown"
+												}
+											},
+											"required": ["kind"],
+											"additionalProperties": false
+										}
+									]
+								}
+							},
+							"required": [
+								"kind",
+								"revision",
+								"terminalContextId",
+								"tabId",
+								"panelId",
+								"presentationId",
+								"terminalOutcome"
+							],
+							"additionalProperties": false
+						}
+					]
+				}
+			}
 		}
 	}
 }
