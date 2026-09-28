@@ -638,6 +638,28 @@ fn presentation_index_resolves_only_live_panel_identities() {
     // An identity the snapshot never painted resolves to nothing — the
     // jump's Gone path, never a guess.
     assert!(index.placement(&attachment(&hex(43), true)).is_none());
+    let mut with_child = snapshot;
+    let PanelNode::Panel {
+        child_presentations,
+        ..
+    } = &mut with_child.terminal_contexts[0].tabs[0].root
+    else {
+        unreachable!()
+    };
+    child_presentations.push(Presentation {
+        presentation_id: TerminalPresentationId::parse(&hex(43)).unwrap(),
+        label: "child".into(),
+        custom_label: None,
+        binding: Some(PresentationBinding {
+            terminal_id: TerminalId::parse(&hex(44)).unwrap(),
+            worker_id: WorkerId::parse(&hex(8)).unwrap(),
+        }),
+    });
+    let index = PresentationIndex::rebuild(&with_child);
+    assert_eq!(index.len(), 2);
+    let child = index.placement(&attachment(&hex(43), true)).unwrap();
+    assert_eq!(child.panel_id, panel_id(6));
+    assert_eq!(child.panel_label, "child");
 }
 
 #[test]

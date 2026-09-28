@@ -529,7 +529,7 @@ fn render_native_workbench(
             let title = format!(
                 "{}{}",
                 panel_reports::title(
-                    panel,
+                    native.selected_presentation(panel),
                     index + 1,
                     text.panel_title,
                     native.panel_report(panel),
@@ -537,6 +537,15 @@ fn render_native_workbench(
                 ),
                 locale.agent_unseen_badge(native.panel_unseen_count(panel.panel_id()))
             );
+            let title = if panel.presentation_count() > 1 {
+                let position = panel
+                    .presentation_index(native.selected_presentation(panel).presentation_id())
+                    .unwrap_or(0)
+                    + 1;
+                format!("{title} [{position}/{}]", panel.presentation_count())
+            } else {
+                title
+            };
             Some(panel_reports::header(
                 title,
                 native.panel_report(panel),
@@ -794,7 +803,7 @@ fn render_leaf(
         || format!(" {} {} ", text.panel_title, panel_index + 1),
         |p| {
             panel_reports::title(
-                p,
+                native.selected_presentation(p),
                 panel_index + 1,
                 text.panel_title,
                 native.panel_report(p),
@@ -806,7 +815,7 @@ fn render_leaf(
     let title = panel.map_or_else(
         || format!(" {} {} ", text.panel_title, panel_index.saturating_add(1)),
         |panel| {
-            let override_title = panel.custom_label();
+            let override_title = native.selected_presentation(panel).custom_label();
             if let Some(title) = override_title {
                 return format!(
                     " {} {} {} ",
@@ -820,10 +829,21 @@ fn render_leaf(
                 text.panel_title,
                 panel_index.saturating_add(1),
                 theme.glyphs.middle_dot,
-                sanitize_terminal_text(panel.display_label())
+                sanitize_terminal_text(native.selected_presentation(panel).display_label())
             )
         },
     );
+    let title = panel.map_or(title.clone(), |panel| {
+        if panel.presentation_count() == 1 {
+            return title.clone();
+        }
+        let member = native.selected_presentation(panel);
+        let position = panel
+            .presentation_index(member.presentation_id())
+            .unwrap_or(0)
+            + 1;
+        format!("{title}[{position}/{}] ", panel.presentation_count())
+    });
     #[cfg(windows)]
     let title = panel.map_or(title.clone(), |panel| {
         format!(

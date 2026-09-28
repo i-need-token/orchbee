@@ -86,3 +86,5 @@ dispatcher 命中表失效、真实 UI 接缝上的受栅栏索引喂入与未�
 重挂至真实存活落定、modal 输入不泄漏、非零 Panel 上的精确跨 context 落定、`TargetGone`
 不误落、有界线程关闭，以及两条已接纳通道各自独立退役。看板字节绝不进入 shell。渲染测试
 覆盖两个语言环境、终端文本消毒与有界视口。
+
+Presentation 索引将每个已绑定子项归于其原 Panel 身份。跳转落定时重新检查精确 Presentation：若 Panel 当前显示其他成员，则调用原生 Presentation 选择；共享 Panel 不足以证明已落定。成员标签各自保留，布局叶子与 Tab 位置不变。

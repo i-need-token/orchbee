@@ -8,9 +8,11 @@ use orchbee_workbench_protocol::{
 use std::collections::HashMap;
 
 mod closed;
+mod presentations;
 pub(super) mod renamed;
 mod tab_metadata;
 pub(super) use closed::{ClosedTabExpectation, validate_closed_tab};
+pub(crate) use presentations::{NativePanel, NativePresentation};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(super) struct NativeContextTabs {
@@ -149,7 +151,13 @@ impl NativeSimpleTab {
                 .iter()
                 .find(|old| old.panel_id == panel.panel_id)
                 .is_some_and(|old| {
-                    old.presentation_id != panel.presentation_id || old.binding != panel.binding
+                    old.presentations()
+                        .map(|p| (p.presentation_id(), p.binding()))
+                        .collect::<Vec<_>>()
+                        != panel
+                            .presentations()
+                            .map(|p| (p.presentation_id(), p.binding()))
+                            .collect::<Vec<_>>()
                 })
         })
     }
@@ -227,50 +235,6 @@ impl NativeSimpleTab {
         direction: crate::client_view::PanelDirection,
     ) -> Option<usize> {
         self.tree.neighbor(panel_index, direction)
-    }
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct NativePanel {
-    right_click: orchbee_workbench_protocol::PanelRightClickTarget,
-    panel_id: WorkbenchPanelId,
-    presentation_id: TerminalPresentationId,
-    presentation_label: WorkbenchLabel,
-    custom_label: Option<orchbee_workbench_protocol::PanelCustomLabel>,
-    binding: NativeTerminalBinding,
-}
-
-impl NativePanel {
-    pub(crate) const fn right_click(&self) -> orchbee_workbench_protocol::PanelRightClickTarget {
-        self.right_click
-    }
-
-    pub(crate) fn panel_id(&self) -> &WorkbenchPanelId {
-        &self.panel_id
-    }
-
-    /// The panel's stable presentation identity — the join key the Agent
-    /// board's presentation index resolves `AgentPresentationId` against.
-    pub(super) fn presentation_id(&self) -> &TerminalPresentationId {
-        &self.presentation_id
-    }
-
-    pub(crate) fn presentation_label(&self) -> &WorkbenchLabel {
-        &self.presentation_label
-    }
-
-    pub(crate) fn custom_label(&self) -> Option<&str> {
-        self.custom_label.as_ref().map(|label| label.as_str())
-    }
-
-    pub(crate) fn display_label(&self) -> &str {
-        self.custom_label
-            .as_ref()
-            .map_or(self.presentation_label.as_str(), |label| label.as_str())
-    }
-
-    pub(super) fn binding(&self) -> &NativeTerminalBinding {
-        &self.binding
     }
 }
 
@@ -745,6 +709,10 @@ pub(super) fn validate_created_tab(
             && (created.tab_label != expected.requested_label
                 || created.pinned
                 || created.group.is_some()
+                || created
+                    .panels
+                    .iter()
+                    .any(|panel| panel.presentation_count() != 1)
                 || created.automatic_label != expected.automatic_label))
     {
         return Err(NativeProjectionDivergence);
@@ -1081,8 +1049,9 @@ fn split_graft_matches(
         return false;
     };
     if added_panel.0 != &expected.new_panel_id
-        || added_panel.1.presentation_id != expected.presentation_id
-        || added_panel.1.presentation_label != expected.requested_label
+        || added_panel.1.presentation_count() != 1
+        || added_panel.1.primary.presentation_id != expected.presentation_id
+        || added_panel.1.primary.presentation_label != expected.requested_label
     {
         return false;
     }
@@ -1232,9 +1201,9 @@ fn project_tab(
             .and_then(|id| groups.iter().find(|group| &group.group_id == id))
             .cloned(),
         panel_id: primary.panel_id.clone(),
-        presentation_id: primary.presentation_id.clone(),
-        presentation_label: primary.presentation_label.clone(),
-        binding: primary.binding.clone(),
+        presentation_id: primary.primary.presentation_id.clone(),
+        presentation_label: primary.primary.presentation_label.clone(),
+        binding: primary.primary.binding.clone(),
         panels: panels.into_boxed_slice(),
         tree,
     })
@@ -1251,25 +1220,21 @@ fn project_panel_tree(
             panel_id,
             primary_presentation,
         } => {
-            if !child_presentations.is_empty() {
+            if child_presentations.len()
+                > orchbee_workbench_protocol::MAXIMUM_CHILD_PRESENTATIONS_PER_PANEL
+            {
                 return Err(NativeProjectionError);
             }
-            let binding = primary_presentation
-                .binding
-                .as_ref()
-                .ok_or(NativeProjectionError)?;
             let panel_index = panels.len();
             panels.push(NativePanel {
                 right_click: *right_click,
                 panel_id: panel_id.clone(),
-                presentation_id: primary_presentation.presentation_id.clone(),
-                custom_label: primary_presentation.custom_label.clone(),
-                presentation_label: WorkbenchLabel::parse(&primary_presentation.label)
-                    .map_err(|_error| NativeProjectionError)?,
-                binding: NativeTerminalBinding {
-                    worker_id: binding.worker_id.clone(),
-                    terminal_id: binding.terminal_id.clone(),
-                },
+                primary: NativePresentation::project(primary_presentation)?,
+                children: child_presentations
+                    .iter()
+                    .map(NativePresentation::project)
+                    .collect::<Result<Vec<_>, _>>()?
+                    .into_boxed_slice(),
             });
             Ok(NativePanelTree::Panel { panel_index })
         }
@@ -1349,55 +1314,32 @@ pub(super) fn validate_retained_context(
 }
 
 fn unique_structural_ids(tabs: &[NativeSimpleTab]) -> bool {
-    tabs.iter().enumerate().all(|(index, tab)| {
-        tab.panels.iter().enumerate().all(|(panel_index, panel)| {
-            tab.panels[..panel_index].iter().all(|prior| {
-                prior.panel_id != panel.panel_id
-                    && prior.presentation_id != panel.presentation_id
-                    && prior.binding.terminal_id != panel.binding.terminal_id
-            })
-        }) && {
-            let mut split_ids = Vec::new();
-            tab.tree.split_ids(&mut split_ids);
-            split_ids
-                .iter()
-                .enumerate()
-                .all(|(id_index, id)| split_ids[..id_index].iter().all(|prior| prior != id))
-        } && {
-            let mut slot_ids = Vec::new();
-            tab.tree.slot_ids(&mut slot_ids);
-            slot_ids
-                .iter()
-                .enumerate()
-                .all(|(id_index, id)| slot_ids[..id_index].iter().all(|prior| prior != id))
-        } && tabs[..index].iter().all(|prior| {
-            prior.tab_id != tab.tab_id
-                && prior.panels.iter().all(|prior_panel| {
-                    tab.panels.iter().all(|panel| {
-                        prior_panel.panel_id != panel.panel_id
-                            && prior_panel.presentation_id != panel.presentation_id
-                            && prior_panel.binding.terminal_id != panel.binding.terminal_id
+    let mut tab_ids = std::collections::HashSet::new();
+    let mut panels = std::collections::HashSet::new();
+    let mut presentations = std::collections::HashSet::new();
+    let mut terminals = std::collections::HashSet::new();
+    let mut splits = std::collections::HashSet::new();
+    let mut slots = std::collections::HashSet::new();
+    tabs.iter().all(|tab| {
+        let mut split_ids = Vec::new();
+        let mut slot_ids = Vec::new();
+        tab.tree.split_ids(&mut split_ids);
+        tab.tree.slot_ids(&mut slot_ids);
+        tab.panels.first().is_some_and(|panel| {
+            tab.panel_id == panel.panel_id
+                && tab.presentation_id == panel.primary.presentation_id
+                && tab.presentation_label == panel.primary.presentation_label
+                && tab.binding == panel.primary.binding
+        }) && tab_ids.insert(&tab.tab_id)
+            && split_ids.into_iter().all(|id| splits.insert(id))
+            && slot_ids.into_iter().all(|id| slots.insert(id))
+            && tab.panels.iter().all(|panel| {
+                panels.insert(&panel.panel_id)
+                    && panel.presentations().all(|member| {
+                        presentations.insert(member.presentation_id())
+                            && terminals.insert(member.binding().terminal_id())
                     })
-                })
-                && {
-                    let mut prior_split_ids = Vec::new();
-                    let mut split_ids = Vec::new();
-                    prior.tree.split_ids(&mut prior_split_ids);
-                    tab.tree.split_ids(&mut split_ids);
-                    prior_split_ids
-                        .iter()
-                        .all(|prior_id| split_ids.iter().all(|id| prior_id != id))
-                }
-                && {
-                    let mut prior_slot_ids = Vec::new();
-                    let mut slot_ids = Vec::new();
-                    prior.tree.slot_ids(&mut prior_slot_ids);
-                    tab.tree.slot_ids(&mut slot_ids);
-                    prior_slot_ids
-                        .iter()
-                        .all(|prior_id| slot_ids.iter().all(|id| prior_id != id))
-                }
-        })
+            })
     })
 }
 
@@ -1434,14 +1376,16 @@ fn member_tuples(tab: &NativeSimpleTab) -> impl Iterator<Item = MemberTuple<'_>>
         &tab.presentation_label,
         &tab.binding,
     ))
-    .chain(tab.panels.iter().map(|panel| {
-        (
-            &tab.tab_id,
-            &panel.panel_id,
-            &panel.presentation_id,
-            &panel.presentation_label,
-            &panel.binding,
-        )
+    .chain(tab.panels.iter().flat_map(move |panel| {
+        panel.presentations().map(move |member| {
+            (
+                &tab.tab_id,
+                &panel.panel_id,
+                &member.presentation_id,
+                &member.presentation_label,
+                &member.binding,
+            )
+        })
     }))
 }
 
@@ -1470,12 +1414,23 @@ fn retained_member_tuples(
         .flat_map(member_tuples)
         .map(|member| &member.4.terminal_id)
         .collect();
-    let mut panels: HashMap<&WorkbenchPanelId, Vec<MemberTuple>> = HashMap::new();
+    let mut primary_panels: HashMap<&WorkbenchPanelId, MemberTuple> = HashMap::new();
     let mut presentations: HashMap<&TerminalPresentationId, Vec<MemberTuple>> = HashMap::new();
     let mut terminals: HashMap<&TerminalId, Vec<MemberTuple>> = HashMap::new();
     for tab in candidate {
+        for panel in &tab.panels {
+            primary_panels.insert(
+                &panel.panel_id,
+                (
+                    &tab.tab_id,
+                    &panel.panel_id,
+                    &panel.primary.presentation_id,
+                    &panel.primary.presentation_label,
+                    &panel.primary.binding,
+                ),
+            );
+        }
         for member in member_tuples(tab) {
-            panels.entry(member.1).or_default().push(member);
             presentations.entry(member.2).or_default().push(member);
             terminals
                 .entry(&member.4.terminal_id)
@@ -1490,10 +1445,14 @@ fn retained_member_tuples(
         // `last-panel-in-tab` move rejection it is often mistaken for.
         let mut retains_member = false;
         for member in member_tuples(tab) {
-            for hit in panels
+            let primary = tab
+                .panels
+                .iter()
+                .any(|panel| panel.primary.presentation_id == *member.2);
+            for hit in primary_panels
                 .get(member.1)
                 .into_iter()
-                .flatten()
+                .filter(|_| primary)
                 .chain(presentations.get(member.2).into_iter().flatten())
                 .chain(terminals.get(&member.4.terminal_id).into_iter().flatten())
             {

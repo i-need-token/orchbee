@@ -14,6 +14,17 @@ pub(in crate::terminal_session) fn ready_ui() -> (
     LocalOperationClock,
     Arc<AtomicU64>,
 ) {
+    ready_ui_with_snapshot(super::membership_tests::snapshot(2, 1))
+}
+
+pub(in crate::terminal_session) fn ready_ui_with_snapshot(
+    source: Snapshot,
+) -> (
+    NativeUi,
+    Arc<CommandMailbox>,
+    LocalOperationClock,
+    Arc<AtomicU64>,
+) {
     let elapsed = Arc::new(AtomicU64::new(0));
     let clock = adjustable_operation_clock(Arc::clone(&elapsed));
     let mailbox = Arc::new(CommandMailbox::new(
@@ -26,7 +37,7 @@ pub(in crate::terminal_session) fn ready_ui() -> (
             WorkerEvent::Bootstrap {
                 cache:
                     crate::terminal_session::workbench_projection::project_native_standalone_tabs(
-                        &super::membership_tests::snapshot(2, 1),
+                        &source,
                     )
                     .unwrap(),
             },

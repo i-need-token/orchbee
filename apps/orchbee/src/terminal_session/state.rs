@@ -27,6 +27,7 @@ mod move_tab;
 mod navigation_memory;
 mod panel;
 mod panel_close;
+mod presentations;
 pub(super) mod rename_draft;
 #[cfg(any(target_os = "linux", windows))]
 pub(super) mod retired_membership;
@@ -1798,11 +1799,9 @@ impl NativeSessionState {
                     let Some(panel) = tab.panel(*panel_index) else {
                         continue;
                     };
-                    let provenance = self
-                        .provenance
-                        .get(tab_index)
-                        .cloned()
-                        .unwrap_or(CreateTerminalProvenance::BindingOnly);
+                    let member = self.selected_presentation(panel);
+                    let binding = member.binding().clone();
+                    let provenance = self.member_provenance(tab_index, panel, member);
                     let incarnation = self.next_incarnation;
                     self.next_incarnation += 1;
                     self.panes.push(PaneRecord::new(
@@ -1810,7 +1809,7 @@ impl NativeSessionState {
                         tab_index,
                         *panel_index,
                         self.cache.site_id().clone(),
-                        panel.binding().clone(),
+                        binding,
                         provenance,
                         *geometry,
                     ));
@@ -2615,8 +2614,8 @@ impl NativeSessionState {
         if self.desired.as_ref() != Some(key.pane()) {
             return (key.anchor().generation() < desired.anchor().generation()
                 && self.cache.tabs().get(target_index)?.tab_id() == key.anchor().tab_id()
-                && self.provenance.get(target_index)? == target_provenance)
-                .then_some(CleanupContinuation::Superseded { desired });
+                && self.pane_provenance_matches(key, target_index, target_provenance))
+            .then_some(CleanupContinuation::Superseded { desired });
         }
         let SessionPhase::Switching(setup) = &self.phase else {
             return None;
@@ -2665,7 +2664,7 @@ impl NativeSessionState {
                 && !self.pane_projected(key)
                 && key.anchor().generation() < self.desired.as_ref()?.anchor().generation()
                 && self.cache.tabs().get(target_index)?.tab_id() == key.anchor().tab_id()
-                && self.provenance.get(target_index)? == target_provenance;
+                && self.pane_provenance_matches(key, target_index, target_provenance);
             if !installed_previous && !uninstalled_setup {
                 return None;
             }
@@ -2697,7 +2696,7 @@ impl NativeSessionState {
                     && (record.staged_frame.is_some() || record.accepted_frame.is_some())
             })
             || self.cache.tabs().get(target_index)?.tab_id() != key.anchor().tab_id()
-            || self.provenance.get(target_index)? != target_provenance
+            || !self.pane_provenance_matches(key, target_index, target_provenance)
         {
             return None;
         }
@@ -2732,7 +2731,7 @@ impl NativeSessionState {
             || setup.target.selected.key != *key.pane()
             || self.pane_attached(key)
             || self.cache.tabs().get(target_index)?.tab_id() != key.anchor().tab_id()
-            || self.provenance.get(target_index)? != target_provenance
+            || !self.pane_provenance_matches(key, target_index, target_provenance)
         {
             return None;
         }
@@ -3173,7 +3172,14 @@ impl NativeSessionState {
         deadlines: OperationDeadlines,
     ) -> Option<AttachTarget> {
         let tab = &self.cache.tabs()[selected.index];
-        let binding = tab.panel(selected.panel_index())?.binding().clone();
+        let panel = tab.panel(selected.panel_index())?;
+        let member = self.selected_presentation(panel);
+        let binding = member.binding().clone();
+        let provenance = if member.presentation_id() == panel.presentation_id() {
+            provenance
+        } else {
+            CreateTerminalProvenance::BindingOnly
+        };
         let incarnation = self.next_incarnation;
         self.next_incarnation += 1;
         Some(AttachTarget {
@@ -3844,6 +3850,12 @@ pub(super) struct NativeSessionView<'a> {
 }
 
 impl<'a> NativeSessionView<'a> {
+    pub(super) fn selected_presentation(
+        &self,
+        panel: &'a super::NativePanel,
+    ) -> &'a super::NativePresentation {
+        self.state.selected_presentation(panel)
+    }
     pub(super) const fn phase(&self) -> SessionPhaseKind {
         self.state.phase_kind()
     }
@@ -3887,8 +3899,13 @@ impl<'a> NativeSessionView<'a> {
 
     pub(super) fn selected_provenance(&self) -> Option<&CreateTerminalProvenance> {
         self.state
-            .active()
-            .and_then(|selected| self.state.provenance(selected.index()))
+            .focus_record()
+            .map(|record| &record.provenance)
+            .or_else(|| {
+                self.state
+                    .active()
+                    .and_then(|selected| self.state.provenance(selected.index()))
+            })
     }
 
     pub(super) const fn notice(&self) -> Option<SessionNotice> {

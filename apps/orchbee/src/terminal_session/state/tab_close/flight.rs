@@ -398,7 +398,7 @@ impl NativeSessionState {
                 || self.cache.terminal_context_id() != selection.target().terminal_context_id()
                 || self.cache.revision() != selection.base_revision()
                 || tab.tab_id() != selection.target().tab_id()
-                || panel.binding() != selection.binding()
+                || self.selected_presentation(panel).binding() != selection.binding()
                 || self
                     .desired
                     .as_ref()

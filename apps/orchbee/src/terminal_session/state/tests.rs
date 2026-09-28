@@ -16,6 +16,7 @@ mod membership;
 mod move_tab;
 mod navigation_memory;
 mod panel;
+mod presentations;
 mod rename_draft;
 mod reorder;
 mod reorder_history;

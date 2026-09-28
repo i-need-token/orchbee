@@ -206,10 +206,10 @@ impl NativeSessionState {
                 .as_ref()
                 .map(|key| key.anchor().clone())
                 .ok_or(PanelCloseStateError::Busy)?,
-            panel.display_label().to_owned(),
+            self.selected_presentation(panel).display_label().to_owned(),
             WorkbenchLabel::parse(&tab.display_label(selected.index()))
                 .map_err(|_| PanelCloseStateError::Busy)?,
-            panel.binding().clone(),
+            self.selected_presentation(panel).binding().clone(),
             tab.panel_count() == 1,
             self.cache.revision(),
         );
@@ -250,7 +250,7 @@ impl NativeSessionState {
             && self.desired.as_ref().map(PaneKey::anchor) == Some(&selection.desired)
             && tab.tab_id() == &selection.target.tab_id
             && panel.panel_id() == &selection.target.panel_id
-            && panel.binding() == &selection.binding
+            && self.selected_presentation(panel).binding() == &selection.binding
             && (tab.panel_count() == 1) == selection.dissolves_tab
     }
 

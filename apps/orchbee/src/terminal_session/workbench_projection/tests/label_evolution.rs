@@ -195,7 +195,7 @@ fn apply(
 
         Action::SetPanelLabel | Action::SameRevisionPanelLabel | Action::OlderPanelLabel => {
             let value = format!("custom-{}", random.next());
-            candidate.tabs[first].panels[0].custom_label =
+            candidate.tabs[first].panels[0].primary.custom_label =
                 Some(orchbee_workbench_protocol::PanelCustomLabel::parse(&value).unwrap());
             if matches!(action, Action::SameRevisionPanelLabel) {
                 candidate.revision = current.revision;
@@ -204,7 +204,7 @@ fn apply(
                 candidate.revision = WorkbenchRevision::new(current.revision.value() - 1);
             }
         }
-        Action::ClearPanelLabel => candidate.tabs[first].panels[0].custom_label = None,
+        Action::ClearPanelLabel => candidate.tabs[first].panels[0].primary.custom_label = None,
         Action::ExactSameRevision | Action::RevisionOnly => {}
         Action::RenameOne => rename(&mut candidate, first, random.next()),
         Action::RenameMany => {
@@ -306,10 +306,11 @@ fn replace_members_with_fresh(tab: &mut NativeSimpleTab, fresh: &mut u128) {
     tab.binding.terminal_id = terminal_id(fresh_id(fresh));
     for panel in tab.panels.iter_mut() {
         panel.panel_id = panel_id(fresh_id(fresh));
-        panel.presentation_id = presentation_id(fresh_id(fresh));
-        panel.presentation_label = generated_label(u64::try_from(*fresh).unwrap_or(u64::MAX));
-        panel.binding.worker_id = worker_id(fresh_id(fresh));
-        panel.binding.terminal_id = terminal_id(fresh_id(fresh));
+        panel.primary.presentation_id = presentation_id(fresh_id(fresh));
+        panel.primary.presentation_label =
+            generated_label(u64::try_from(*fresh).unwrap_or(u64::MAX));
+        panel.primary.binding.worker_id = worker_id(fresh_id(fresh));
+        panel.primary.binding.terminal_id = terminal_id(fresh_id(fresh));
     }
 }
 
@@ -385,11 +386,11 @@ fn reference_accepts(current: &NativeContextTabs, candidate: &NativeContextTabs)
     let unique_presentations: std::collections::BTreeSet<&TerminalPresentationId> =
         candidate_panels
             .iter()
-            .map(|panel| &panel.presentation_id)
+            .map(|panel| &panel.primary.presentation_id)
             .collect();
     let unique_terminals: std::collections::BTreeSet<&TerminalId> = candidate_panels
         .iter()
-        .map(|panel| &panel.binding.terminal_id)
+        .map(|panel| &panel.primary.binding.terminal_id)
         .collect();
     if unique_panels.len() != candidate_panels.len()
         || unique_presentations.len() != candidate_panels.len()

@@ -724,7 +724,7 @@ impl super::NativeSessionState {
             target,
             WorkbenchLabel::parse(&tab.display_label(selected.index()))
                 .map_err(|_| CloseStateError::UnknownTarget)?,
-            panel.binding().clone(),
+            self.selected_presentation(panel).binding().clone(),
             self.desired.as_ref().map(|key| key.anchor().clone()),
             self.cache.revision(),
         );
@@ -781,7 +781,7 @@ impl super::NativeSessionState {
                 || self.cache.terminal_context_id() != selection.target().terminal_context_id()
                 || self.cache.revision() != selection.base_revision()
                 || tab.tab_id() != selection.target().tab_id()
-                || panel.binding() != selection.binding()
+                || self.selected_presentation(panel).binding() != selection.binding()
                 || self.desired.as_ref().map(PaneKey::anchor) != selection.attachment();
         }
         false

@@ -110,3 +110,5 @@ real UI seam, same-Tab dead-viewer reattach to a live landing, modal input no-le
 cross-context landing on a non-zero panel, `TargetGone` without mis-landing, bounded thread close
 and two admitted lanes retiring independently. Board bytes must never reach the shell. Rendering
 tests cover both locales, sanitized terminal text and bounded viewports.
+
+The presentation index includes each bound child under its original Panel identity. A landed jump rechecks the exact Presentation and invokes native Presentation selection if that Panel currently shows another member; sharing a Panel is not sufficient landing evidence. Per-member labels remain distinct while layout leaves and Tab positions are unchanged.

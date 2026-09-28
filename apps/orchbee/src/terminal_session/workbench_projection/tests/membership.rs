@@ -23,6 +23,7 @@ fn removed_member_cannot_disguise_retained_structural_identity_as_a_fresh_add() 
     let mut fresh = projected(2, 11);
     fresh.tabs.remove(0);
     fresh.tabs[0].binding.worker_id = current.tabs[0].binding.worker_id.clone();
+    fresh.tabs[0].panels[0].primary.binding = fresh.tabs[0].binding.clone();
     assert_eq!(
         validate_canonical_refresh(&current, fresh.clone()),
         Ok(fresh)

@@ -18,7 +18,12 @@ impl NativeSessionView<'_> {
         (0..tab.panel_count())
             .filter_map(|index| tab.panel(index))
             .find(|panel| panel.panel_id() == panel_id)
-            .map(|panel| panel.presentation_id().as_str().to_owned())
+            .map(|panel| {
+                self.selected_presentation(panel)
+                    .presentation_id()
+                    .as_str()
+                    .to_owned()
+            })
     }
 
     fn attention_uncovered(&self) -> bool {

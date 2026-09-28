@@ -237,19 +237,21 @@ impl PresentationIndex {
                 let Some(panel) = tab.panel(panel_index) else {
                     continue;
                 };
-                self.placements.insert(
-                    panel.presentation_id().as_str().to_owned(),
-                    PresentationPlacement {
-                        location: tabs.location().clone(),
-                        tab_id: tab.tab_id().clone(),
-                        panel_id: panel.panel_id().clone(),
-                        tab_position: tab_index + 1,
-                        tab_label: tab.display_label(tab_index).into_owned(),
-                        panel_label: panel.display_label().to_owned(),
-                        project_label: project_label.clone(),
-                        workspace_label: workspace_label.clone(),
-                    },
-                );
+                for member in panel.presentations() {
+                    self.placements.insert(
+                        member.presentation_id().as_str().to_owned(),
+                        PresentationPlacement {
+                            location: tabs.location().clone(),
+                            tab_id: tab.tab_id().clone(),
+                            panel_id: panel.panel_id().clone(),
+                            tab_position: tab_index + 1,
+                            tab_label: tab.display_label(tab_index).into_owned(),
+                            panel_label: member.display_label().to_owned(),
+                            project_label: project_label.clone(),
+                            workspace_label: workspace_label.clone(),
+                        },
+                    );
+                }
             }
         }
     }

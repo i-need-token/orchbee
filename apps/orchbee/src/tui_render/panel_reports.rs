@@ -12,7 +12,7 @@ use ratatui::{
 };
 
 pub(super) fn title(
-    panel: &crate::terminal_session::NativePanel,
+    panel: &crate::terminal_session::NativePresentation,
     ordinal: usize,
     prefix: &str,
     view: PanelReportView<'_>,

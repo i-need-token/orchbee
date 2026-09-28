@@ -128,6 +128,36 @@ impl NativeUi {
                 )
             })
         {
+            if let ClientViewIntent::AgentFocus {
+                tab_id,
+                panel_id,
+                presentation_id,
+                ..
+            } = &command.intent
+            {
+                let Some(state) = self.state.as_ref() else {
+                    return ControlStep::Failed(Reason::ProjectionUnavailable);
+                };
+                let Some(index) = state.cache().tab_index(tab_id) else {
+                    return ControlStep::Failed(Reason::TargetUnavailable);
+                };
+                let tab = &state.cache().tabs()[index];
+                let Some(panel) = tab.panel_index(panel_id).and_then(|index| tab.panel(index))
+                else {
+                    return ControlStep::Failed(Reason::TargetUnavailable);
+                };
+                if panel.presentation_index(presentation_id).is_none() {
+                    return ControlStep::Failed(Reason::TargetUnavailable);
+                }
+                if state.selected_presentation(panel).presentation_id() != presentation_id {
+                    return if self.select_presentation(index, panel_id, presentation_id) {
+                        progress.had_effect = true;
+                        ControlStep::Changed
+                    } else {
+                        ControlStep::Failed(Reason::Busy)
+                    };
+                }
+            }
             return match self.agent_focus_ready(command) {
                 Ok(true) => ControlStep::Observed,
                 Ok(false) => ControlStep::Waiting,

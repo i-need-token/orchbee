@@ -1,6 +1,6 @@
 use super::{NativeContextTabs, NativeSessionState, NativeSimpleTab, SelectedTab, SessionPhase};
 use crate::terminal_session::workbench_projection::NativeContextLocation;
-use orchbee_workbench_protocol::{WorkbenchPanelId, WorkbenchTabId};
+use orchbee_workbench_protocol::{TerminalPresentationId, WorkbenchPanelId, WorkbenchTabId};
 use std::collections::BTreeMap;
 
 /// Volatile choices owned by one Session. Membership, bindings and Create
@@ -15,6 +15,7 @@ struct ContextMemory {
     location: NativeContextLocation,
     last_tab: Option<WorkbenchTabId>,
     panels: BTreeMap<WorkbenchTabId, WorkbenchPanelId>,
+    presentations: BTreeMap<WorkbenchPanelId, TerminalPresentationId>,
 }
 
 impl NavigationMemory {
@@ -38,6 +39,7 @@ impl NavigationMemory {
                     location: cache.location().clone(),
                     last_tab: None,
                     panels: BTreeMap::new(),
+                    presentations: BTreeMap::new(),
                 });
                 self.contexts.len() - 1
             });
@@ -46,6 +48,20 @@ impl NavigationMemory {
         entry
             .panels
             .insert(tab.tab_id().clone(), selected.key().panel().clone());
+    }
+
+    pub(super) fn presentation<'a>(
+        &self,
+        location: &NativeContextLocation,
+        panel: &'a super::super::NativePanel,
+    ) -> &'a super::super::NativePresentation {
+        self.contexts
+            .iter()
+            .find(|entry| &entry.location == location)
+            .and_then(|entry| entry.presentations.get(panel.panel_id()))
+            .and_then(|id| panel.presentation_index(id))
+            .and_then(|index| panel.presentation(index))
+            .unwrap_or_else(|| panel.primary())
     }
 
     pub(super) fn tab(&self, location: &NativeContextLocation) -> Option<&WorkbenchTabId> {
@@ -106,6 +122,13 @@ impl NavigationMemory {
                 tabs.iter()
                     .any(|tab| tab.tab_id() == tab_id && tab.panel_index(panel_id).is_some())
             });
+            entry.presentations.retain(|panel, presentation| {
+                tabs.iter().any(|tab| {
+                    tab.panel_index(panel)
+                        .and_then(|index| tab.panel(index))
+                        .is_some_and(|panel| panel.presentation_index(presentation).is_some())
+                })
+            });
             entry.last_tab.is_some() || !entry.panels.is_empty()
         });
     }
@@ -154,6 +177,28 @@ impl NativeSessionState {
             _ => return,
         };
         self.navigation_memory.remember(&self.cache, selected);
+        if let Some(entry) = self
+            .navigation_memory
+            .contexts
+            .iter_mut()
+            .find(|entry| &entry.location == self.cache.location())
+        {
+            let tab = &self.cache.tabs()[selected.index()];
+            for record in &self.panes {
+                if record.key().anchor() != selected.key().anchor() || record.departing {
+                    continue;
+                }
+                if let Some(panel) = tab
+                    .panel_index(record.key().panel())
+                    .and_then(|index| tab.panel(index))
+                    && let Some(member) = panel.bound_presentation(record.binding())
+                {
+                    entry
+                        .presentations
+                        .insert(panel.panel_id().clone(), member.presentation_id().clone());
+                }
+            }
+        }
     }
 
     pub(super) fn prune_navigation_memory(&mut self) {

@@ -107,7 +107,7 @@ impl NativeUi {
             .filter_map(|index| tab.panel(index))
             .find(|panel| panel.panel_id() == panel_id)
             .ok_or(Reason::TargetUnavailable)?;
-        if panel.presentation_id() != presentation_id {
+        if state.selected_presentation(panel).presentation_id() != presentation_id {
             return Err(Reason::TargetUnavailable);
         }
         if let AgentNameTarget::Terminal { binding } = target {
@@ -159,7 +159,11 @@ impl NativeUi {
             .ok_or(Reason::TargetUnavailable)?;
         let presentations: Vec<_> = (0..tab.panel_count())
             .filter_map(|index| tab.panel(index))
-            .map(|panel| panel.presentation_id().as_str().to_owned())
+            .flat_map(|panel| {
+                panel
+                    .presentations()
+                    .map(|member| member.presentation_id().as_str().to_owned())
+            })
             .collect();
         self.attention
             .acknowledge_focused_tab(&presentations.iter().map(String::as_str).collect());

@@ -1,0 +1,111 @@
+//! Client-local Presentation choice, resolved independently of canonical Panel geometry.
+use super::*;
+use crate::terminal_session::{NativePanel, NativePresentation};
+use orchbee_workbench_protocol::TerminalPresentationId;
+
+impl NativeSessionState {
+    pub(in crate::terminal_session) fn selected_presentation<'a>(
+        &self,
+        panel: &'a NativePanel,
+    ) -> &'a NativePresentation {
+        self.pane_by_panel(panel.panel_id())
+            .and_then(|record| panel.bound_presentation(record.binding()))
+            .unwrap_or_else(|| {
+                self.navigation_memory
+                    .presentation(self.cache.location(), panel)
+            })
+    }
+
+    pub(super) fn member_provenance(
+        &self,
+        tab_index: usize,
+        panel: &NativePanel,
+        member: &NativePresentation,
+    ) -> CreateTerminalProvenance {
+        if member.presentation_id() == panel.presentation_id() {
+            self.provenance
+                .get(tab_index)
+                .cloned()
+                .unwrap_or(CreateTerminalProvenance::BindingOnly)
+        } else {
+            CreateTerminalProvenance::BindingOnly
+        }
+    }
+
+    pub(super) fn target_provenance_valid(&self, target: &AttachTarget) -> bool {
+        self.cache
+            .tabs()
+            .get(target.selected.index())
+            .and_then(|tab| tab.panel(target.selected.panel_index()))
+            .filter(|panel| panel.panel_id() == target.selected.key().panel())
+            .and_then(|panel| {
+                panel
+                    .bound_presentation(&target.binding)
+                    .map(|member| (panel, member))
+            })
+            .is_some_and(|(panel, member)| {
+                self.member_provenance(target.selected.index(), panel, member) == target.provenance
+            })
+    }
+
+    pub(super) fn pane_provenance_matches(
+        &self,
+        key: &PaneRef,
+        index: usize,
+        provenance: &CreateTerminalProvenance,
+    ) -> bool {
+        self.live_pane_record(key).map_or_else(
+            || self.provenance.get(index) == Some(provenance),
+            |record| record.index == index && &record.provenance == provenance,
+        )
+    }
+
+    pub(in crate::terminal_session) fn target_for_presentation(
+        &mut self,
+        tab_index: usize,
+        panel_id: &WorkbenchPanelId,
+        presentation_id: &TerminalPresentationId,
+        generation: u64,
+        deadlines: OperationDeadlines,
+    ) -> Option<AttachTarget> {
+        let tab = self.cache.tabs().get(tab_index)?;
+        let panel_index = tab.panel_index(panel_id)?;
+        let panel = tab.panel(panel_index)?;
+        let member = panel.presentation(panel.presentation_index(presentation_id)?)?;
+        let binding = member.binding().clone();
+        let provenance = self.member_provenance(tab_index, panel, member);
+        let key = AttachmentKey::new(generation, tab.tab_id().clone());
+        let mut target = self.target_for_switch_for_panel(tab_index, key, deadlines, panel_id)?;
+        target.binding = binding;
+        target.provenance = provenance;
+        Some(target)
+    }
+
+    pub(in crate::terminal_session) fn next_presentation(
+        &self,
+        forward: bool,
+    ) -> Option<(usize, WorkbenchPanelId, TerminalPresentationId)> {
+        let active = self.active()?;
+        let panel = self
+            .cache
+            .tabs()
+            .get(active.index())?
+            .panel(active.panel_index())?;
+        let count = panel.presentation_count();
+        if count == 1 {
+            return None;
+        }
+        let current =
+            panel.presentation_index(self.selected_presentation(panel).presentation_id())?;
+        let next = if forward {
+            (current + 1) % count
+        } else {
+            (current + count - 1) % count
+        };
+        Some((
+            active.index(),
+            panel.panel_id().clone(),
+            panel.presentation(next)?.presentation_id().clone(),
+        ))
+    }
+}

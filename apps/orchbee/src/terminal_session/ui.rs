@@ -49,6 +49,7 @@ mod membership;
 mod move_membership;
 mod panel;
 mod panel_close;
+mod presentations;
 #[cfg(any(target_os = "linux", windows))]
 mod retired_membership;
 mod tab_close;
@@ -239,7 +240,9 @@ pub(crate) struct NativeSessionView<'a> {
 impl<'a> NativeSessionView<'a> {
     #[cfg(windows)]
     pub(crate) fn panel_report(&self, panel: &super::NativePanel) -> super::PanelReportView<'_> {
-        if self.retirement.is_some() {
+        if self.retirement.is_some()
+            || self.selected_presentation(panel).presentation_id() != panel.presentation_id()
+        {
             return super::PanelReportView::Unavailable;
         }
         self.reports
@@ -1699,6 +1702,8 @@ impl NativeUi {
             | ClientAction::SelectPreviousTab
             | ClientAction::SelectTab(_) => self.select_tab(action),
             ClientAction::EnterHistory => self.enter_history(),
+            ClientAction::PreviousPresentation => self.cycle_presentation(false),
+            ClientAction::NextPresentation => self.cycle_presentation(true),
             ClientAction::MovePanelFocus(direction) => self.move_panel_focus(direction),
             ClientAction::FocusPanel(panel) => self.move_panel_focus_to(&panel),
             ClientAction::ToggleZoom => self.toggle_zoom(),

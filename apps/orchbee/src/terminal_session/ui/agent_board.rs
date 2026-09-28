@@ -59,7 +59,7 @@ impl NativeUi {
     /// Whether a modal surface or armed confirmation currently owns the
     /// input layer — the same surfaces the dispatcher's confirmation and
     /// draft capture arms serve before the board layer is ever reached.
-    fn modal_owns_input(&mut self) -> bool {
+    pub(super) fn modal_owns_input(&mut self) -> bool {
         if self.rename_input_context().is_some()
             || self.setup_input_context().is_some()
             || self.panel_close_confirmation_armed()
@@ -366,6 +366,23 @@ impl NativeUi {
                 true
             }
             JumpStep::Landed => {
+                let Some(index) = target_tab_index else {
+                    return false;
+                };
+                let Some(panel) = state.cache().tabs()[index]
+                    .panel_index(&placement.panel_id)
+                    .and_then(|panel_index| state.cache().tabs()[index].panel(panel_index))
+                else {
+                    return false;
+                };
+                let Ok(presentation) = orchbee_workbench_protocol::TerminalPresentationId::parse(
+                    attachment.presentation_id.as_str(),
+                ) else {
+                    return self.board.advance_jump_candidate();
+                };
+                if state.selected_presentation(panel).presentation_id() != &presentation {
+                    return self.select_presentation(index, &placement.panel_id, &presentation);
+                }
                 self.board.jump_landed();
                 true
             }

@@ -65,6 +65,7 @@ fn created_tab_accepts_later_concurrent_members_and_snapshot_binding() {
         worker_id: worker_id(300),
         terminal_id: terminal_id(301),
     };
+    candidate.tabs[1].panels[0].primary.binding = candidate.tabs[1].binding.clone();
     let expected = expectation_for(&candidate, 1, 6, "created");
     let ValidatedCreatedProjection {
         candidate: accepted,

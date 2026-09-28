@@ -97,10 +97,7 @@ fn rejects_malformed_metadata_and_unsupported_members_without_filtering() {
     };
     child_presentations.push(Presentation {
         custom_label: None,
-        binding: Some(PresentationBinding {
-            terminal_id: terminal_id(42),
-            worker_id: worker_id(41),
-        }),
+        binding: None,
         label: "child".into(),
         presentation_id: presentation_id(43),
     });

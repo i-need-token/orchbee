@@ -90,6 +90,8 @@ pub(crate) enum ClientAction {
     SelectNextContext,
     /// Pointer gesture: select the navigation entry at this 0-based index.
     SelectContextAt(usize),
+    PreviousPresentation,
+    NextPresentation,
     MovePanelFocus(PanelDirection),
     /// Pointer gesture: focus the panel with this stable identity in the
     /// active tab.
@@ -196,7 +198,9 @@ impl ClientAction {
             Self::SelectTab(position) => Some(BackendAction::SelectTab(*position)),
             Self::SelectPreviousContext => Some(BackendAction::SelectPreviousContext),
             Self::SelectNextContext => Some(BackendAction::SelectNextContext),
-            Self::MovePanelFocus(_)
+            Self::PreviousPresentation
+            | Self::NextPresentation
+            | Self::MovePanelFocus(_)
             | Self::FocusPanel(_)
             | Self::ToggleZoom
             | Self::SelectContextAt(_) => None,

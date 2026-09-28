@@ -43,7 +43,9 @@ pub(crate) mod terminal_viewport;
 mod ui;
 mod workbench_projection;
 
-pub(crate) use workbench_projection::{NativeContextLocation, NativePanel, NativePanelTree};
+pub(crate) use workbench_projection::{
+    NativeContextLocation, NativePanel, NativePanelTree, NativePresentation,
+};
 
 pub(crate) use ui::{
     AgentBoardDraw, AgentBoardRead, AgentBoardReadFailure, AgentBoardRow, AgentBoardSummary,

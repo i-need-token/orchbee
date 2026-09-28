@@ -835,6 +835,23 @@ impl UiDriver {
     }
 
     pub(super) fn admit_switch(&mut self, index: usize) -> TestResult<AdmittedSwitch> {
+        self.admit_switch_target(index, None)
+    }
+
+    pub(super) fn admit_presentation(
+        &mut self,
+        index: usize,
+        panel: WorkbenchPanelId,
+        presentation: TerminalPresentationId,
+    ) -> TestResult<AdmittedSwitch> {
+        self.admit_switch_target(index, Some((panel, presentation)))
+    }
+
+    fn admit_switch_target(
+        &mut self,
+        index: usize,
+        presentation: Option<(WorkbenchPanelId, TerminalPresentationId)>,
+    ) -> TestResult<AdmittedSwitch> {
         let sampled_at = self.clock.now();
         let deadlines = OperationDeadlines::from_sample(sampled_at)
             .ok_or_else(|| test_error("Switch deadline overflow"))?;
@@ -850,9 +867,12 @@ impl UiDriver {
                         .tab_id()
                         .clone();
                     let key = AttachmentKey::new(generation, tab_id);
-                    let target = state
-                        .target_for_switch(index, key, deadlines)
-                        .ok_or("invalid Switch target")?;
+                    let target = match &presentation {
+                        Some((panel, member)) => state
+                            .target_for_presentation(index, panel, member, generation, deadlines),
+                        None => state.target_for_switch(index, key, deadlines),
+                    }
+                    .ok_or("invalid Switch target")?;
                     if !state.begin_switch(target.clone()) {
                         return Err("Switch reducer rejected target");
                     }
@@ -2526,6 +2546,13 @@ pub(super) fn drive_open_snapshot_bootstrap(
     harness: &mut Harness,
     tab_count: usize,
 ) -> TestResult<AttachmentKey> {
+    drive_open_snapshot(harness, snapshot(tab_count, 1))
+}
+
+pub(super) fn drive_open_snapshot(
+    harness: &mut Harness,
+    source: Snapshot,
+) -> TestResult<AttachmentKey> {
     let ClientMessage::TerminalOpen(request) = harness.carrier.take_obcs()? else {
         return Err(test_error("startup must begin with terminal.open"));
     };
@@ -2542,9 +2569,7 @@ pub(super) fn drive_open_snapshot_bootstrap(
     let request = harness.carrier.take_read()?;
     harness.carrier.respond_read(
         &request,
-        WorkbenchSnapshotOutcome::Available {
-            snapshot: snapshot(tab_count, 1),
-        },
+        WorkbenchSnapshotOutcome::Available { snapshot: source },
     )?;
     match harness.ui.settle_next(FrameCut::None)? {
         UiEvent::Bootstrap { key } => Ok(key),

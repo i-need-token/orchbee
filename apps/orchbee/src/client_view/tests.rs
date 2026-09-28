@@ -110,6 +110,8 @@ fn decides_each_completed_prefix_without_mutating_the_view() {
         (plain('p'), ClientAction::SelectPreviousTab, None),
         (plain('['), ClientAction::SelectPreviousContext, None),
         (plain(']'), ClientAction::SelectNextContext, None),
+        (plain('('), ClientAction::PreviousPresentation, None),
+        (plain(')'), ClientAction::NextPresentation, None),
         (
             plain('h'),
             ClientAction::MovePanelFocus(PanelDirection::Left),

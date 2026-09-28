@@ -42,6 +42,7 @@ fn en_us_prefix_desc(desc: PrefixDesc) -> &'static str {
         }
         PrefixDesc::SelectTabDigit => "Select ordered Tab (requires Site)",
         PrefixDesc::PanelFocus => "Move between Panels (requires Site)",
+        PrefixDesc::PresentationSelect => "Select previous / next terminal in this Panel",
         PrefixDesc::PanelZoom => "Zoom the focused Panel (requires Site)",
         PrefixDesc::SplitPanel => "Split focused Panel below/above/left/right (requires Site)",
         PrefixDesc::ClosePanel => "Close focused Panel (requires Site)",
@@ -73,6 +74,7 @@ fn zh_cn_prefix_desc(desc: PrefixDesc) -> &'static str {
         PrefixDesc::SelectContext => "选择上一个 / 下一个 Workbench 位置（首尾循环；需要 Site）",
         PrefixDesc::SelectTabDigit => "选择对应顺序的 Tab（需要 Site）",
         PrefixDesc::PanelFocus => "在 Panel 之间移动（需要 Site）",
+        PrefixDesc::PresentationSelect => "选择当前 Panel 中的上一个 / 下一个终端",
         PrefixDesc::PanelZoom => "放大焦点 Panel（需要 Site）",
         PrefixDesc::SplitPanel => "将焦点 Panel 向下/上/左/右分屏（需要 Site）",
         PrefixDesc::ClosePanel => "关闭焦点 Panel（需要 Site）",

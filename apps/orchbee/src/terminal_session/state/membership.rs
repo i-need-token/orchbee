@@ -624,14 +624,23 @@ impl NativeSessionState {
         } else if let Some(pane) = &desired_pane {
             let index = prepared.selected_index.ok_or(CarrierFailure::Protocol)?;
             let selected = SelectedTab::new_panel(pane.clone(), index, selected_panel_index);
-            let provenance = prepared.provenance[index].clone();
+            let tab = &prepared.candidate.tabs()[index];
+            let panel = tab
+                .panel(selected.panel_index())
+                .ok_or(CarrierFailure::Protocol)?;
+            let member = if prepared.candidate.location() == self.cache.location() {
+                self.selected_presentation(panel)
+            } else {
+                self.navigation_memory
+                    .presentation(prepared.candidate.location(), panel)
+            };
+            let provenance = if member.presentation_id() == panel.presentation_id() {
+                prepared.provenance[index].clone()
+            } else {
+                CreateTerminalProvenance::BindingOnly
+            };
             if provenance.attachable() {
-                let tab = &prepared.candidate.tabs()[index];
-                let binding = tab
-                    .panel(selected.panel_index())
-                    .ok_or(CarrierFailure::Protocol)?
-                    .binding()
-                    .clone();
+                let binding = member.binding().clone();
                 // A surviving record reuses its incarnation so a live viewer is
                 // never re-attached; a fresh pane mints the next incarnation.
                 let incarnation = match self.pane_record(pane) {

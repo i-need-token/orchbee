@@ -158,7 +158,7 @@ impl NativeSessionState {
                 .get(target.selected.index())
                 .is_none_or(|tab| tab.tab_id() != target.selected.key().anchor().tab_id())
             || target.site_id() != self.cache.site_id()
-            || self.provenance.get(target.selected.index()) != Some(target.provenance())
+            || !self.target_provenance_valid(&target)
         {
             return false;
         }
