@@ -53,6 +53,41 @@ fn physical_attention_receipt_uses_closed_v4_client_control_schema() {
         assert!(!validator.is_valid(&document));
     }
 }
+
+#[test]
+fn agent_focus_receipts_require_v5_without_widening_older_control_versions() {
+    let schema: Value =
+        serde_json::from_str(include_str!("../schemas/orchbee.client.control.json")).unwrap();
+    let validator = jsonschema::validator_for(&schema).unwrap();
+    for name in [
+        "canonical-agent-focus-applied",
+        "physical-agent-focus-applied",
+    ] {
+        let WorkbenchResponse::ClientView(reply) = serde_json::from_value(sample(name)).unwrap()
+        else {
+            panic!("Client view")
+        };
+        let ClientViewOutcome::Operation { operation } = &reply.outcome else {
+            panic!("operation")
+        };
+        let answer = Answer {
+            status_only: false,
+            operation_id: Some(operation.command.operation_id.clone()),
+            site_id: Some(reply.site_id.clone()),
+            reply: Some(reply),
+            unknown: false,
+            wait: None,
+        };
+        let mut document = answer.document();
+        assert_eq!(answer.exit_code(), 0);
+        assert_eq!(document["version"], 5);
+        validator.validate(&document).unwrap();
+        for version in 1..5 {
+            document["version"] = json!(version);
+            assert!(!validator.is_valid(&document));
+        }
+    }
+}
 fn record() -> ClientViewRecord {
     let WorkbenchResponse::ClientView(result) = serde_json::from_value(sample("found")).unwrap()
     else {

@@ -47,6 +47,25 @@ pub(super) struct AttentionState {
 }
 
 impl AttentionState {
+    pub(super) fn focus_matches(
+        &self,
+        session: &AgentSessionId,
+        presentation: &str,
+    ) -> Option<bool> {
+        self.readable.then(|| {
+            self.entries.get(session).is_some_and(|entry| {
+                entry.summary.lifecycle == orchbee_agent_observation_protocol::AgentLifecycle::Live
+                    && entry
+                        .summary
+                        .presentation_attachments
+                        .iter()
+                        .any(|attachment| {
+                            attachment.navigable
+                                && attachment.presentation_id.as_str() == presentation
+                        })
+            })
+        })
+    }
     pub(super) fn snapshot(
         &self,
         cursor: orchbee_agent_observation_protocol::AgentChangesCursor,

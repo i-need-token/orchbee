@@ -15,6 +15,7 @@ import {
 import { AgentSessionIdSchema } from '@orchbee/agent';
 import {
 	SiteIdSchema,
+	TerminalPresentationIdSchema,
 	WORKBENCH_PROTOCOL_VERSION,
 	WorkbenchRequestIdSchema,
 	WorkbenchTerminalContextIdSchema,
@@ -181,6 +182,27 @@ const clientNavigation = z
 	})
 	.readonly();
 export const ClientViewIntentSchema = z.discriminatedUnion('kind', [
+	z
+		.strictObject({
+			kind: z.literal('agent-focus'),
+			...panelTarget,
+			presentationId: TerminalPresentationIdSchema,
+			target: z.discriminatedUnion('kind', [
+				z.strictObject({ kind: z.literal('session'), sessionId: AgentSessionIdSchema }),
+				z.strictObject({ kind: z.literal('terminal'), binding: TerminalAgentBindingSchema }),
+			]),
+		})
+		.superRefine((value, context) => {
+			if (
+				value.target.kind === 'terminal' &&
+				value.target.binding.presentationId !== value.presentationId
+			)
+				context.addIssue({
+					code: 'custom',
+					message: 'Agent focus presentation does not match its physical binding',
+				});
+		})
+		.readonly(),
 	z
 		.strictObject({ kind: z.literal('terminal-agent-attention'), bindings: physicalBindings })
 		.readonly(),
@@ -610,6 +632,7 @@ export const ClientViewOperationSchema = z
 			return;
 		}
 		const observed =
+			(intent.kind !== 'agent-focus' || view.phase === 'ready') &&
 			BigInt(view.workbenchRevision) >= BigInt(command.minimumWorkbenchRevision) &&
 			view.phase !== 'starting' &&
 			view.phase !== 'busy' &&

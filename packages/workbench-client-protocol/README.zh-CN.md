@@ -168,3 +168,8 @@ Rust／TypeScript 校验最后变化与当前头部／状态一致，Rust 关联
 以及必填可空的完整绑定／序号／Agent／状态快照。成员不存在则拒绝整批；没有当前物理观察
 则返回 null。空读取用于报告修订门槛。Rust／TypeScript 共用严格形状、唯一性／顺序检查和
 一致性语料；Server 继续负责当前 Worker 及物理身份准入。
+
+`agent-focus` ClientView 意图保留精确 context／Tab／Panel／Presentation，以及规范 Session
+或完整物理 Agent 目标。绑定验证非零物理身份及展示对应；应用回执要求精确 Ready Client
+选择。它复用既有导航帧及保留操作生命周期。[Agent 导航](../../apps/orchbee/docs/native-agent-navigation.zh-CN.md)
+负责显式确认及身份丢失后的拒绝。

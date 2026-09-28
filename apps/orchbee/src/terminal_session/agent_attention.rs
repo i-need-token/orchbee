@@ -62,6 +62,41 @@ pub(super) struct AgentAttention {
 }
 
 impl AgentAttention {
+    pub(super) fn focus_matches(
+        &self,
+        target: &orchbee_agent_observation_protocol::AgentNameTarget,
+        presentation: &str,
+    ) -> Option<bool> {
+        match target {
+            orchbee_agent_observation_protocol::AgentNameTarget::Session { session_id } => {
+                self.state.focus_matches(session_id, presentation)
+            }
+            orchbee_agent_observation_protocol::AgentNameTarget::Terminal { binding } => self
+                .physical
+                .state
+                .focus_matches(binding)
+                .map(|matches| matches && binding.presentation_id.as_str() == presentation),
+        }
+    }
+
+    /// Explicit Agent focus marks the selected Tab's current known versions seen, even unfocused.
+    /// This consumes only the current snapshots; no deferred acknowledgement survives this call.
+    pub(super) fn acknowledge_focused_tab(&mut self, presentations: &BTreeSet<&str>) {
+        if let Some(paint) = self.state.paint(presentations) {
+            self.redraw |= self
+                .state
+                .acknowledge(&paint, None, |id| presentations.contains(id));
+        }
+        if let Some(paint) = self
+            .physical
+            .state
+            .paint(|binding| presentations.contains(binding.presentation_id.as_str()))
+        {
+            self.redraw |= self.physical.state.acknowledge(&paint, None, |binding| {
+                presentations.contains(binding.presentation_id.as_str())
+            });
+        }
+    }
     pub(super) fn read_physical(
         &self,
         bindings: &[orchbee_agent_observation_protocol::AgentLaunchBinding],

@@ -482,3 +482,9 @@ with Workbench/report revisions and a required nullable full binding/sequence/Ag
 Missing membership refuses the batch; no current physical observation yields null. Empty reads fence
 the report revision. Rust/TypeScript share strict shapes, unique/order checks and the conformance
 corpus; Server retains current Worker and physical identity admission.
+
+The `agent-focus` ClientView intent retains an exact context/Tab/Panel/Presentation and a canonical
+Session or full physical Agent target. Bindings validate nonzero physical identity and presentation
+correspondence; applied receipts require the exact Ready Client selection. It uses the existing
+navigation frames and retained operation lifecycle. [Agent navigation](../../apps/orchbee/docs/native-agent-navigation.md)
+owns explicit acknowledgement and rejection after identity loss.

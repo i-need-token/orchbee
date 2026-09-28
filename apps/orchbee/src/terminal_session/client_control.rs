@@ -340,7 +340,7 @@ impl ClientControl {
             }
         }
     }
-    pub(super) fn after_draw(&mut self, native: &NativeUi) {
+    pub(super) fn after_draw(&mut self, native: &mut NativeUi) {
         if self.stopped {
             return;
         }
@@ -352,7 +352,21 @@ impl ClientControl {
             .as_ref()
             .filter(|pending| pending.awaiting_draw && !pending.interrupted)
             .and_then(|pending| {
-                let outcome = pending.execution.outcome(native, &pending.command, &view)?;
+                let mut outcome = pending.execution.outcome(native, &pending.command, &view)?;
+                if matches!(pending.command.intent, ClientViewIntent::AgentFocus { .. }) {
+                    let result = if self.clock.now() >= pending.deadline {
+                        Err(Reason::Expired)
+                    } else {
+                        native.finish_agent_focus(&pending.command)
+                    };
+                    if let Err(reason) = result {
+                        outcome = if pending.execution.had_effect() {
+                            ClientViewCompletionOutcome::Incomplete { reason }
+                        } else {
+                            ClientViewCompletionOutcome::Rejected { reason }
+                        };
+                    }
+                }
                 Some(ClientViewCompletion {
                     operation_id: pending.command.operation_id.clone(),
                     outcome,
@@ -392,6 +406,9 @@ fn prepare_control(
     snapshot: Option<&orchbee_workbench_protocol::Snapshot>,
     viewport: Option<(ratatui::layout::Rect, crate::client_view::SidebarSurface)>,
 ) -> Result<ClientViewControl, Box<ClientViewCompletionOutcome>> {
+    native
+        .agent_focus_source(command)
+        .map_err(|reason| Box::new(ClientViewCompletionOutcome::Rejected { reason }))?;
     if matches!(command.intent, ClientViewIntent::Viewports { .. }) {
         return Err(Box::new(
             snapshot

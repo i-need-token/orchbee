@@ -119,6 +119,13 @@ pub struct ClientViewRecord {
     deny_unknown_fields
 )]
 pub enum ClientViewIntent {
+    AgentFocus {
+        terminal_context_id: WorkbenchTerminalContextId,
+        tab_id: WorkbenchTabId,
+        panel_id: WorkbenchPanelId,
+        presentation_id: crate::TerminalPresentationId,
+        target: orchbee_agent_observation_protocol::AgentNameTarget,
+    },
     Viewports {
         panel_ids: Vec<WorkbenchPanelId>,
     },
@@ -279,6 +286,9 @@ impl ClientViewIntent {
     }
     #[must_use]
     pub fn is_observed(&self, view: &ClientViewObservation, minimum: WorkbenchRevision) -> bool {
+        if matches!(self, Self::AgentFocus { .. }) && view.phase != ClientViewPhase::Ready {
+            return false;
+        }
         if view.workbench_revision.value() < minimum.value()
             || matches!(
                 view.phase,
@@ -314,6 +324,12 @@ impl ClientViewIntent {
                 terminal_context_id,
                 tab_id,
                 panel_id,
+            }
+            | Self::AgentFocus {
+                terminal_context_id,
+                tab_id,
+                panel_id,
+                ..
             } => {
                 selection.terminal_context_id == *terminal_context_id
                     && selection.tab_id.as_ref() == Some(tab_id)
@@ -345,6 +361,17 @@ pub struct ClientViewControl {
 }
 impl ClientViewControl {
     pub fn validate(&self) -> Result<(), ContractError> {
+        if let ClientViewIntent::AgentFocus {
+            presentation_id,
+            target: orchbee_agent_observation_protocol::AgentNameTarget::Terminal { binding },
+            ..
+        } = &self.intent
+        {
+            validate_terminal_bindings(std::slice::from_ref(binding))?;
+            if presentation_id.as_str() != binding.presentation_id.as_str() {
+                return Err(ContractError::InvalidDocument);
+            }
+        }
         if let ClientViewIntent::Viewports { panel_ids } = &self.intent {
             super::client_viewport::validate_panels(panel_ids)?;
         }

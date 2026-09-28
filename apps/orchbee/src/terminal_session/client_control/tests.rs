@@ -50,6 +50,82 @@ fn completion(control: &ClientControl) -> Option<(Sample, ClientViewCompletion)>
 }
 
 #[test]
+fn agent_focus_acknowledges_only_after_an_uninterrupted_unexpired_draw() {
+    use orchbee_agent_observation_protocol::AgentNameTarget;
+    for disposition in ["applied", "expired", "interrupted"] {
+        let (mut native, agent, clock) =
+            crate::terminal_session::ui::focused_physical_agent_fixture();
+        native.observe_focus(false);
+        let mut control = controller(clock);
+        control.tick(&mut native, false);
+        let mut command = command(&control, None);
+        let ClientViewIntent::Panel {
+            terminal_context_id,
+            tab_id,
+            panel_id,
+        } = command.intent
+        else {
+            panic!("Panel")
+        };
+        command.intent = ClientViewIntent::AgentFocus {
+            terminal_context_id,
+            tab_id,
+            panel_id,
+            presentation_id: orchbee_workbench_protocol::TerminalPresentationId::parse(
+                agent.binding.presentation_id.as_str(),
+            )
+            .unwrap(),
+            target: AgentNameTarget::Terminal {
+                binding: agent.binding.clone(),
+            },
+        };
+        inject(&control, command);
+        assert!(control.tick(&mut native, false));
+        let seen = |native: &NativeUi| {
+            native
+                .read_terminal_agent_attention(std::slice::from_ref(&agent.binding))
+                .unwrap()
+                .entries[0]
+                .state
+                .as_ref()
+                .unwrap()
+                .seen
+        };
+        assert!(!seen(&native));
+        assert!(completion(&control).is_none());
+        if disposition == "expired" {
+            control.pending.as_mut().unwrap().deadline = control.clock.now();
+        }
+        if disposition == "interrupted" {
+            control.interrupt();
+        }
+        control.after_draw(&mut native);
+        if disposition == "interrupted" {
+            assert!(!seen(&native));
+            assert!(completion(&control).is_none());
+            control.tick(&mut native, false);
+        }
+        let outcome = completion(&control).unwrap().1.outcome;
+        assert_eq!(seen(&native), disposition == "applied");
+        assert_eq!(
+            outcome,
+            match disposition {
+                "applied" => ClientViewCompletionOutcome::Applied {},
+                "expired" => ClientViewCompletionOutcome::Rejected {
+                    reason: Reason::Expired
+                },
+                _ => ClientViewCompletionOutcome::Rejected {
+                    reason: Reason::Interrupted
+                },
+            }
+        );
+        assert!(control.pending.is_none());
+        control.after_draw(&mut native);
+        assert_eq!(seen(&native), disposition == "applied");
+    }
+}
+
+#[test]
 fn an_observed_target_is_not_acknowledged_until_successful_draw() {
     let (mut native, _mailbox, clock, _elapsed) = ready_ui();
     let mut control = controller(clock);
@@ -61,7 +137,7 @@ fn an_observed_target_is_not_acknowledged_until_successful_draw() {
         completion(&control).is_none(),
         "selected or queued is not painted"
     );
-    control.after_draw(&native);
+    control.after_draw(&mut native);
     let (sample, completion) = completion(&control).unwrap();
     assert_eq!(completion.outcome, ClientViewCompletionOutcome::Applied {});
     ClientViewOperation {
@@ -86,7 +162,7 @@ fn zoom_changes_geometry_then_waits_for_paint_and_single_panel_has_explicit_noop
         assert!(completion(&control).is_none());
         assert!(control.tick(&mut native, false));
         assert!(completion(&control).is_none());
-        control.after_draw(&native);
+        control.after_draw(&mut native);
         let (sample, completion) = completion(&control).unwrap();
         assert_eq!(sample.view.selection.as_ref().unwrap().zoomed, !single);
         let status = if single {
@@ -154,7 +230,7 @@ fn completed_draw_sample_cannot_be_replaced_by_later_navigation() {
     control.tick(&mut native, false);
     inject(&control, command(&control, None));
     control.tick(&mut native, false);
-    control.after_draw(&native);
+    control.after_draw(&mut native);
     let (before, completion_before) = completion(&control).unwrap();
     native.apply_client_action(ClientAction::ToggleZoom);
     control.tick(&mut native, false);
@@ -203,7 +279,7 @@ fn targeted_toggle_captures_once_and_only_acknowledges_the_opposite_drawn_state(
             assert!(control.tick(&mut native, false));
         }
         assert!(completion(&control).is_none());
-        control.after_draw(&native);
+        control.after_draw(&mut native);
         let (sample, completion) = completion(&control).unwrap();
         assert_eq!(
             completion.outcome,
@@ -395,7 +471,7 @@ fn directional_focus_pins_one_neighbor_preserves_zoom_and_requires_draw() {
             );
         } else {
             assert!(completion(&control).is_none());
-            control.after_draw(&native);
+            control.after_draw(&mut native);
             let (sample, done) = completion(&control).unwrap();
             assert_eq!(
                 done.outcome,
@@ -694,7 +770,7 @@ fn resize_commits_once_preserves_zoom_and_only_draw_or_interruption_settles_it()
             assert!(completion(&control).is_none());
         }
         if ending == "draw" {
-            control.after_draw(&native);
+            control.after_draw(&mut native);
             let (sample, done) = completion(&control).unwrap();
             let ClientViewCompletionOutcome::LayoutAdjusted { adjustment } = done.outcome else {
                 panic!()

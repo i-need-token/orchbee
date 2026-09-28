@@ -2101,7 +2101,7 @@ Windows `status server` 在 Client Session 准入前读取实际 Server 构建�
 
 ## Agent 导航
 
-Windows `agent focus <target> [--client <id>]` 在一次客户端控制提交前，将名称、会话或窗格解析为唯一活动的主窗格。显式 `--session`、`--name` 和 `--panel` 使用现有解析器；`--request-id`、`--detach` 和默认 30000 ms 总期限沿用导航恢复契约。未就绪客户端在 Agent 查询前返回 `client-not-ready`。[Agent 导航契约](native-agent-navigation.zh-CN.md) 定义主呈现绑定、歧义、取消和保留操作查询。本命令不确认 seen/unseen 状态。
+Windows `agent focus <target> [--client <id>]` 将规范 Session 或终端 Agent 解析为一个可导航主 Panel。一次 `agent-focus` 控制在 Client 导航和完成期间保留精确 Agent 与 Presentation 身份。Client 复核自己的观察；物理目标还要求匹配 Host 帧。显式聚焦成功后，将所选 Tab 的当前已知版本标记已读，包括目标已经聚焦及外层失焦的情况。普通绘制和只读 `agent attention` 保持既有规则。`--request-id`、`--detach`、默认 30000 ms 总期限及保留状态恢复不变。Client 未就绪时在 Agent 读取前拒绝；目标丢失／替换会拒绝或报告导航未完整完成，不改选目标。`orchbee.client.control` v5 携带此操作，不激活操作系统窗口。[Agent 导航契约](native-agent-navigation.zh-CN.md) 负责身份、确认及最终验收。
 
 ## Windows Agent 变更页
 

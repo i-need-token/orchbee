@@ -69,6 +69,9 @@ impl NativeUi {
         command: &ClientViewControl,
         progress: &mut StepProgress,
     ) -> ControlStep {
+        if let Err(reason) = self.agent_focus_source(command) {
+            return ControlStep::Failed(reason);
+        }
         let Some((_, view)) = self.control_observation(false) else {
             return ControlStep::Failed(Reason::ProjectionUnavailable);
         };
@@ -119,7 +122,11 @@ impl NativeUi {
                 )
             })
         {
-            return ControlStep::Observed;
+            return match self.agent_focus_ready(command) {
+                Ok(true) => ControlStep::Observed,
+                Ok(false) => ControlStep::Waiting,
+                Err(reason) => ControlStep::Failed(reason),
+            };
         }
         if command
             .intent
@@ -149,6 +156,12 @@ impl NativeUi {
                 terminal_context_id,
                 tab_id,
                 panel_id,
+            }
+            | ClientViewIntent::AgentFocus {
+                terminal_context_id,
+                tab_id,
+                panel_id,
+                ..
             }
             | ClientViewIntent::ToggleZoom {
                 terminal_context_id,

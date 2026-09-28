@@ -37,6 +37,15 @@ pub(super) struct PhysicalAttentionState {
 }
 
 impl PhysicalAttentionState {
+    pub(super) fn focus_matches(&self, binding: &AgentLaunchBinding) -> Option<bool> {
+        self.readable.then(|| {
+            self.entries
+                .get(binding.presentation_id.as_str())
+                .is_some_and(|entry| {
+                    entry.current.binding == *binding && entry.current.agent.is_some()
+                })
+        })
+    }
     pub(super) fn unavailable(&mut self) -> bool {
         std::mem::replace(&mut self.readable, false)
     }

@@ -3952,6 +3952,168 @@
 				}
 			},
 			"frameKind": 29
+		},
+		{
+			"name": "submit-physical-agent-focus",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.client-view",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "submit",
+					"command": {
+						"operationId": "00000000000000000000000000000003",
+						"clientId": "00000000000000000000000000000007",
+						"expectedViewRevision": "2",
+						"minimumWorkbenchRevision": "12",
+						"intent": {
+							"kind": "agent-focus",
+							"terminalContextId": "00000000000000000000000000000004",
+							"tabId": "00000000000000000000000000000005",
+							"panelId": "00000000000000000000000000000006",
+							"presentationId": "33333333333333333333333333333333",
+							"target": {
+								"kind": "terminal",
+								"binding": {
+									"presentationId": "33333333333333333333333333333333",
+									"generation": "44444444444444444444444444444444",
+									"hostEpoch": "55555555555555555555555555555555",
+									"hostTerminalId": "66666666666666666666666666666666"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"name": "submit-canonical-agent-focus",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.client-view",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "submit",
+					"command": {
+						"operationId": "00000000000000000000000000000003",
+						"clientId": "00000000000000000000000000000007",
+						"expectedViewRevision": "2",
+						"minimumWorkbenchRevision": "12",
+						"intent": {
+							"kind": "agent-focus",
+							"terminalContextId": "00000000000000000000000000000004",
+							"tabId": "00000000000000000000000000000005",
+							"panelId": "00000000000000000000000000000006",
+							"presentationId": "33333333333333333333333333333333",
+							"target": {
+								"kind": "session",
+								"sessionId": "agent-1"
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"name": "physical-agent-focus-applied",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.client-view.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "operation",
+					"operation": {
+						"command": {
+							"operationId": "00000000000000000000000000000003",
+							"clientId": "00000000000000000000000000000007",
+							"expectedViewRevision": "2",
+							"minimumWorkbenchRevision": "12",
+							"intent": {
+								"kind": "agent-focus",
+								"terminalContextId": "00000000000000000000000000000004",
+								"tabId": "00000000000000000000000000000005",
+								"panelId": "00000000000000000000000000000006",
+								"presentationId": "33333333333333333333333333333333",
+								"target": {
+									"kind": "terminal",
+									"binding": {
+										"presentationId": "33333333333333333333333333333333",
+										"generation": "44444444444444444444444444444444",
+										"hostEpoch": "55555555555555555555555555555555",
+										"hostTerminalId": "66666666666666666666666666666666"
+									}
+								}
+							}
+						},
+						"status": {
+							"kind": "applied",
+							"view": {
+								"workbenchRevision": "12",
+								"phase": "ready",
+								"selection": {
+									"terminalContextId": "00000000000000000000000000000004",
+									"tabId": "00000000000000000000000000000005",
+									"panelId": "00000000000000000000000000000006",
+									"zoomed": false,
+									"panelCount": 2
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"name": "canonical-agent-focus-applied",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.client-view.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "operation",
+					"operation": {
+						"command": {
+							"operationId": "00000000000000000000000000000003",
+							"clientId": "00000000000000000000000000000007",
+							"expectedViewRevision": "2",
+							"minimumWorkbenchRevision": "12",
+							"intent": {
+								"kind": "agent-focus",
+								"terminalContextId": "00000000000000000000000000000004",
+								"tabId": "00000000000000000000000000000005",
+								"panelId": "00000000000000000000000000000006",
+								"presentationId": "33333333333333333333333333333333",
+								"target": {
+									"kind": "session",
+									"sessionId": "agent-1"
+								}
+							}
+						},
+						"status": {
+							"kind": "applied",
+							"view": {
+								"workbenchRevision": "12",
+								"phase": "ready",
+								"selection": {
+									"terminalContextId": "00000000000000000000000000000004",
+									"tabId": "00000000000000000000000000000005",
+									"panelId": "00000000000000000000000000000006",
+									"zoomed": false,
+									"panelCount": 2
+								}
+							}
+						}
+					}
+				}
+			}
 		}
 	],
 	"invalid": [
@@ -13148,6 +13310,244 @@
 			},
 			"frameKind": 29,
 			"boundary": "schema"
+		},
+		{
+			"name": "physical-agent-focus-wrong-presentation",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.client-view",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "submit",
+					"command": {
+						"operationId": "00000000000000000000000000000003",
+						"clientId": "00000000000000000000000000000007",
+						"expectedViewRevision": "2",
+						"minimumWorkbenchRevision": "12",
+						"intent": {
+							"kind": "agent-focus",
+							"terminalContextId": "00000000000000000000000000000004",
+							"tabId": "00000000000000000000000000000005",
+							"panelId": "00000000000000000000000000000006",
+							"presentationId": "77777777777777777777777777777777",
+							"target": {
+								"kind": "terminal",
+								"binding": {
+									"presentationId": "33333333333333333333333333333333",
+									"generation": "44444444444444444444444444444444",
+									"hostEpoch": "55555555555555555555555555555555",
+									"hostTerminalId": "66666666666666666666666666666666"
+								}
+							}
+						}
+					}
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "physical-agent-focus-missing-presentation",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.client-view",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "submit",
+					"command": {
+						"operationId": "00000000000000000000000000000003",
+						"clientId": "00000000000000000000000000000007",
+						"expectedViewRevision": "2",
+						"minimumWorkbenchRevision": "12",
+						"intent": {
+							"kind": "agent-focus",
+							"terminalContextId": "00000000000000000000000000000004",
+							"tabId": "00000000000000000000000000000005",
+							"panelId": "00000000000000000000000000000006",
+							"target": {
+								"kind": "terminal",
+								"binding": {
+									"presentationId": "33333333333333333333333333333333",
+									"generation": "44444444444444444444444444444444",
+									"hostEpoch": "55555555555555555555555555555555",
+									"hostTerminalId": "66666666666666666666666666666666"
+								}
+							}
+						}
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "physical-agent-focus-short-generation",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.client-view",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "submit",
+					"command": {
+						"operationId": "00000000000000000000000000000003",
+						"clientId": "00000000000000000000000000000007",
+						"expectedViewRevision": "2",
+						"minimumWorkbenchRevision": "12",
+						"intent": {
+							"kind": "agent-focus",
+							"terminalContextId": "00000000000000000000000000000004",
+							"tabId": "00000000000000000000000000000005",
+							"panelId": "00000000000000000000000000000006",
+							"presentationId": "33333333333333333333333333333333",
+							"target": {
+								"kind": "terminal",
+								"binding": {
+									"presentationId": "33333333333333333333333333333333",
+									"generation": "old",
+									"hostEpoch": "55555555555555555555555555555555",
+									"hostTerminalId": "66666666666666666666666666666666"
+								}
+							}
+						}
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "physical-agent-focus-unknown-target-field",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.client-view",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "submit",
+					"command": {
+						"operationId": "00000000000000000000000000000003",
+						"clientId": "00000000000000000000000000000007",
+						"expectedViewRevision": "2",
+						"minimumWorkbenchRevision": "12",
+						"intent": {
+							"kind": "agent-focus",
+							"terminalContextId": "00000000000000000000000000000004",
+							"tabId": "00000000000000000000000000000005",
+							"panelId": "00000000000000000000000000000006",
+							"presentationId": "33333333333333333333333333333333",
+							"target": {
+								"kind": "terminal",
+								"binding": {
+									"presentationId": "33333333333333333333333333333333",
+									"generation": "44444444444444444444444444444444",
+									"hostEpoch": "55555555555555555555555555555555",
+									"hostTerminalId": "66666666666666666666666666666666"
+								},
+								"extra": true
+							}
+						}
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "agent-focus-wrong-panel",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.client-view.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "operation",
+					"operation": {
+						"command": {
+							"operationId": "00000000000000000000000000000003",
+							"clientId": "00000000000000000000000000000007",
+							"expectedViewRevision": "2",
+							"minimumWorkbenchRevision": "12",
+							"intent": {
+								"kind": "agent-focus",
+								"terminalContextId": "00000000000000000000000000000004",
+								"tabId": "00000000000000000000000000000005",
+								"panelId": "00000000000000000000000000000006",
+								"presentationId": "33333333333333333333333333333333",
+								"target": {
+									"kind": "session",
+									"sessionId": "agent-1"
+								}
+							}
+						},
+						"status": {
+							"kind": "applied",
+							"view": {
+								"workbenchRevision": "12",
+								"phase": "ready",
+								"selection": {
+									"terminalContextId": "00000000000000000000000000000004",
+									"tabId": "00000000000000000000000000000005",
+									"panelId": "77777777777777777777777777777777",
+									"zoomed": false,
+									"panelCount": 2
+								}
+							}
+						}
+					}
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "agent-focus-unavailable-view",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.client-view.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "operation",
+					"operation": {
+						"command": {
+							"operationId": "00000000000000000000000000000003",
+							"clientId": "00000000000000000000000000000007",
+							"expectedViewRevision": "2",
+							"minimumWorkbenchRevision": "12",
+							"intent": {
+								"kind": "agent-focus",
+								"terminalContextId": "00000000000000000000000000000004",
+								"tabId": "00000000000000000000000000000005",
+								"panelId": "00000000000000000000000000000006",
+								"presentationId": "33333333333333333333333333333333",
+								"target": {
+									"kind": "session",
+									"sessionId": "agent-1"
+								}
+							}
+						},
+						"status": {
+							"kind": "applied",
+							"view": {
+								"workbenchRevision": "12",
+								"phase": "unavailable",
+								"selection": {
+									"terminalContextId": "00000000000000000000000000000004",
+									"tabId": "00000000000000000000000000000005",
+									"panelId": "00000000000000000000000000000006",
+									"zoomed": false,
+									"panelCount": 2
+								}
+							}
+						}
+					}
+				}
+			},
+			"boundary": "semantic"
 		}
 	],
 	"validJson": [

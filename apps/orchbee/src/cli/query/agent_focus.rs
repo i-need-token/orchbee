@@ -224,15 +224,60 @@ pub(crate) fn agent_focus_target(
     target: &AgentTarget,
     deadline: Instant,
     wake: Option<BorrowedFd<'_>>,
-) -> Result<Target, Failure> {
-    let resolved =
-        agent_target::resolve_on_session(client, target, Some(snapshot), deadline, wake)?;
-    let observation = read_agent_observation(client, &resolved.session_id, deadline, wake)?;
-    select_primary_panel(
-        snapshot,
-        &observation.session,
-        resolved.presentation.as_deref(),
-    )
+) -> Result<orchbee_workbench_protocol::ClientViewIntent, Failure> {
+    use orchbee_agent_observation_protocol::AgentNameTarget;
+    use orchbee_workbench_protocol::{
+        ClientViewIntent, TerminalPresentationId, WorkbenchPanelId, WorkbenchTabId,
+        WorkbenchTerminalContextId,
+    };
+    let resolved = agent_target::resolve_named(client, target, Some(snapshot), deadline, wake)?;
+    let panel = match &resolved.target {
+        AgentNameTarget::Session { session_id } => {
+            let observation = read_agent_observation(client, session_id, deadline, wake)?;
+            select_primary_panel(
+                snapshot,
+                &observation.session,
+                resolved.presentation.as_deref(),
+            )?
+        }
+        AgentNameTarget::Terminal { binding } => {
+            let read = terminal_agent::read(client, snapshot, binding, None, deadline, wake)?;
+            let row = named_terminal::terminal_row(snapshot, binding)?;
+            if read.observation.view.agent.is_none() {
+                return Err(terminal_agent::failure(
+                    FailureKind::NotFound,
+                    "binding-changed",
+                ));
+            }
+            Target::Id(row.panel_id)
+        }
+    };
+    let Projection::PanelList(rows) =
+        results::project(&QueryCommand::PanelList { tab: None }, snapshot)?
+    else {
+        return Err(Failure::new(FailureKind::InternalFailure));
+    };
+    let row = rows
+        .into_iter()
+        .find(|row| panel == Target::Id(row.panel_id.clone()))
+        .ok_or_else(|| results::not_found(Resource::Panel, &panel))?;
+    if let AgentNameTarget::Terminal { binding } = &resolved.target
+        && row.primary_presentation_id != binding.presentation_id.as_str()
+    {
+        return Err(
+            results::not_found(Resource::Panel, &panel).source(results::snapshot_source(snapshot))
+        );
+    }
+    let invalid = |_| Failure::new(FailureKind::ProtocolInvalid);
+    Ok(ClientViewIntent::AgentFocus {
+        terminal_context_id: WorkbenchTerminalContextId::parse(&row.terminal_context_id)
+            .map_err(invalid)?,
+        tab_id: WorkbenchTabId::parse(&row.tab_id).map_err(invalid)?,
+        panel_id: WorkbenchPanelId::parse(&row.panel_id).map_err(invalid)?,
+        presentation_id: TerminalPresentationId::parse(&row.primary_presentation_id)
+            .map_err(invalid)?,
+        target: resolved.target,
+    })
 }
 
 fn select_primary_panel(

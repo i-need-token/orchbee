@@ -87,6 +87,16 @@ fn physical_fixture() -> (
     publish_physical(&mut ui, &state);
     (ui, pane, state)
 }
+
+pub(in crate::terminal_session) fn focused_physical_agent_fixture() -> (
+    NativeUi,
+    orchbee_workbench_protocol::TerminalAgentStateSnapshot,
+    crate::local_client::LocalOperationClock,
+) {
+    let (ui, _, state) = physical_fixture();
+    let clock = ui.clock.clone();
+    (ui, state, clock)
+}
 fn publish_physical(
     ui: &mut NativeUi,
     state: &orchbee_workbench_protocol::TerminalAgentStateSnapshot,
@@ -109,6 +119,151 @@ fn physical_seen(
         .as_ref()
         .unwrap()
         .seen
+}
+
+fn focus_command(
+    ui: &NativeUi,
+    target: orchbee_agent_observation_protocol::AgentNameTarget,
+    presentation: &str,
+) -> orchbee_workbench_protocol::ClientViewControl {
+    let (_, view) = ui.control_observation(false).unwrap();
+    let selection = view.selection.unwrap();
+    serde_json::from_value(json!({"operationId":"1".repeat(32),"clientId":"2".repeat(32),
+        "expectedViewRevision":"1","minimumWorkbenchRevision":view.workbench_revision,
+        "intent":{"kind":"agent-focus","terminalContextId":selection.terminal_context_id,
+            "tabId":selection.tab_id,"panelId":selection.panel_id,"presentationId":presentation,"target":target}})).unwrap()
+}
+
+#[test]
+fn explicit_agent_focus_acknowledges_an_already_focused_agent_despite_outer_focus_loss() {
+    use crate::terminal_session::client_control::{ControlStep, StepProgress};
+    use orchbee_agent_observation_protocol::AgentNameTarget;
+    let (mut ui, pane) = fixture();
+    let command = focus_command(
+        &ui,
+        AgentNameTarget::Session {
+            session_id: serde_json::from_value(json!("agent-1")).unwrap(),
+        },
+        &ui.view().attention_presentation(&pane).unwrap(),
+    );
+    ui.observe_focus(false);
+    assert!(matches!(
+        ui.control_step(&command, &mut StepProgress::default()),
+        ControlStep::Observed
+    ));
+    let shell = ClientView::new(120);
+    ui.after_close_draw(draw(&ui, 120, 40, &shell));
+    assert_eq!(
+        ui.view().panel_unseen_count(pane.pane().panel()),
+        1,
+        "ordinary unfocused paint never acknowledges"
+    );
+    ui.finish_agent_focus(&command).unwrap();
+    assert_eq!(ui.view().panel_unseen_count(pane.pane().panel()), 0);
+
+    let (mut ui, _, mut state) = physical_fixture();
+    let command = focus_command(
+        &ui,
+        AgentNameTarget::Terminal {
+            binding: state.binding.clone(),
+        },
+        state.binding.presentation_id.as_str(),
+    );
+    ui.observe_focus(false);
+    assert!(matches!(
+        ui.control_step(&command, &mut StepProgress::default()),
+        ControlStep::Observed
+    ));
+    assert!(!physical_seen(&ui, &state));
+    ui.after_close_draw(draw(&ui, 120, 40, &shell));
+    assert!(!physical_seen(&ui, &state));
+    ui.finish_agent_focus(&command).unwrap();
+    assert!(physical_seen(&ui, &state));
+    state.sequence = orchbee_workbench_protocol::WorkbenchRevision::new(2);
+    publish_physical(&mut ui, &state);
+    assert!(
+        !physical_seen(&ui, &state),
+        "explicit focus cannot pre-acknowledge future changes"
+    );
+}
+
+#[test]
+fn agent_focus_refuses_replacement_and_requires_the_matching_live_frame() {
+    use orchbee_agent_observation_protocol::{AgentHostTerminalId, AgentNameTarget};
+    use orchbee_workbench_protocol::ClientViewControlReason as Reason;
+    let (mut ui, _, mut state) = physical_fixture();
+    let command = focus_command(
+        &ui,
+        AgentNameTarget::Terminal {
+            binding: state.binding.clone(),
+        },
+        state.binding.presentation_id.as_str(),
+    );
+    state.binding.host_terminal_id = AgentHostTerminalId::parse(&"3".repeat(32)).unwrap();
+    state.sequence = orchbee_workbench_protocol::WorkbenchRevision::new(2);
+    publish_physical(&mut ui, &state);
+    assert_eq!(
+        ui.finish_agent_focus(&command),
+        Err(Reason::TargetUnavailable)
+    );
+    let replacement = focus_command(
+        &ui,
+        AgentNameTarget::Terminal {
+            binding: state.binding.clone(),
+        },
+        state.binding.presentation_id.as_str(),
+    );
+    assert!(ui.agent_focus_source(&replacement).is_ok());
+    assert_eq!(
+        ui.finish_agent_focus(&replacement),
+        Err(Reason::TargetUnavailable),
+        "old frame belongs to another terminal in the same Host"
+    );
+    assert!(!physical_seen(&ui, &state));
+    ui.projections[0].status = NativeProjectionStatus::Empty;
+    assert_eq!(
+        ui.finish_agent_focus(&replacement),
+        Err(Reason::ProjectionUnavailable)
+    );
+    assert!(!physical_seen(&ui, &state));
+}
+
+#[test]
+fn explicit_agent_focus_marks_only_current_versions_in_the_requested_tab() {
+    use crate::terminal_session::agent_attention::PhysicalRound;
+    use crate::terminal_session::ui::publication_hint_tests::ready_split_ui;
+    use orchbee_workbench_protocol::{TerminalAgentStateSnapshot, WorkbenchRevision};
+    let (mut ui, _, _, _) = ready_split_ui();
+    let view = ui.view();
+    let tab = view.tab(0).unwrap();
+    let mut states: Vec<TerminalAgentStateSnapshot> = (0..tab.panel_count()).map(|index| {
+        serde_json::from_value(json!({"binding":{"presentationId":tab.panel(index).unwrap().presentation_id(),
+            "generation":"1".repeat(32),"hostEpoch":"2".repeat(32),"hostTerminalId":format!("{:032x}",index+1)},
+            "sequence":"1","agent":"pi","state":"idle"})).unwrap()
+    }).collect();
+    let mut outside = states[0].clone();
+    outside.binding.presentation_id = serde_json::from_value(json!("9".repeat(32))).unwrap();
+    states.push(outside.clone());
+    ui.attention.publish_physical_for_test(&PhysicalRound {
+        report_revision: WorkbenchRevision::new(0),
+        states: vec![],
+    });
+    ui.attention.publish_physical_for_test(&PhysicalRound {
+        report_revision: WorkbenchRevision::new(1),
+        states: states.clone(),
+    });
+    let tab_ids: std::collections::BTreeSet<_> = states[..states.len() - 1]
+        .iter()
+        .map(|state| state.binding.presentation_id.as_str())
+        .collect();
+    ui.observe_focus(false);
+    ui.attention.acknowledge_focused_tab(&tab_ids);
+    assert!(
+        states[..states.len() - 1]
+            .iter()
+            .all(|state| physical_seen(&ui, state))
+    );
+    assert!(!physical_seen(&ui, &outside));
 }
 
 #[test]

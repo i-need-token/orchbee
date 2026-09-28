@@ -1,5 +1,9 @@
 #[cfg(windows)]
 mod agent_attention;
+#[cfg(all(windows, test))]
+pub(in crate::terminal_session) use agent_attention::tests::focused_physical_agent_fixture;
+#[cfg(windows)]
+mod agent_focus;
 #[cfg(windows)]
 mod client_control;
 #[cfg(windows)]

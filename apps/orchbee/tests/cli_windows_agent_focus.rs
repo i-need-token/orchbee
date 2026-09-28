@@ -111,7 +111,8 @@ fn submitted(stream: &mut LocalStream) -> (WorkbenchClientViewRequest, Box<Clien
     );
     assert_eq!(
         json!(command.intent),
-        json!({"kind":"panel","terminalContextId":id(4),"tabId":id(5),"panelId":id(8)})
+        json!({"kind":"agent-focus","terminalContextId":id(4),"tabId":id(5),"panelId":id(8),
+            "presentationId":id(108),"target":{"kind":"session","sessionId":"sess-alpha"}})
     );
     let command = command.clone();
     (request, command)
@@ -135,6 +136,63 @@ fn receipt(document: &Value) {
         document,
         include_str!("../src/cli/schemas/orchbee.client.control.json"),
     );
+}
+
+#[test]
+fn physical_agent_focus_pins_the_full_binding_and_never_substitutes_a_childs_parent() {
+    for case in ["primary", "child", "no-agent"] {
+        let fixture = Fixture::new();
+        let rendezvous = fixture.rendezvous();
+        let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
+        let server = peer(&fixture, listener, move |mut stream| {
+            snapshot_reply(&mut stream);
+            list_reply(&mut stream, vec![record(7, 6)]);
+            let binding = json!({"presentationId":id(if case == "child" {308} else {108}),
+                "generation":id(800),"hostEpoch":id(801),"hostTerminalId":id(802)});
+            resolve_reply(
+                &mut stream,
+                json!({"kind":"resolved-target","resolvedBy":"name",
+                "target":{"kind":"terminal","binding":binding}}),
+            );
+            let WorkbenchRequest::PanelAgent(request) =
+                read_workbench_request(&mut stream).unwrap()
+            else {
+                panic!("physical Observe")
+            };
+            assert_eq!(
+                json!(request.action),
+                json!({"kind":"observe","binding":binding,"afterSequence":null})
+            );
+            write_workbench_response(&mut stream,&WorkbenchResponse::PanelAgent(PanelAgentResult {
+                protocol_version:ProtocolVersion, request_id:request.request_id, site_id:request.site_id,
+                outcome:PanelAgentOutcome::Observed {
+                    workbench_revision:WorkbenchRevision::new(12), report_revision:WorkbenchRevision::new(3),
+                    observation:Box::new(serde_json::from_value(json!({"binding":binding,"sequence":"0","changes":[],
+                        "view":{"agent":if case == "no-agent" {Value::Null} else {json!("pi")},"state":"unknown","authoritySource":null,"message":null,"session":null}})).unwrap()),
+                },
+            })).unwrap();
+            if case == "primary" {
+                let request = view_request(&mut stream);
+                let ClientViewAction::Submit { command } = &request.action else {
+                    panic!("single focus Submit")
+                };
+                assert_eq!(
+                    json!(command.intent),
+                    json!({"kind":"agent-focus","terminalContextId":id(4),"tabId":id(5),"panelId":id(8),"presentationId":id(108),"target":{"kind":"terminal","binding":binding}})
+                );
+                settled(&mut stream, &request, command);
+            }
+            assert_closed(&mut stream);
+        });
+        let output = fixture.run(&["agent", "focus", "--name", "physical", "--format=json"]);
+        server.join().unwrap();
+        assert_eq!(output.status.success(), case == "primary", "{output:?}");
+        if case == "primary" {
+            let document = document(&output);
+            assert_eq!(document["version"], 5);
+            receipt(&document);
+        }
+    }
 }
 
 #[test]

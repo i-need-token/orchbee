@@ -103,4 +103,4 @@ impl NativeUi {
 }
 
 #[cfg(test)]
-mod tests;
+pub(super) mod tests;

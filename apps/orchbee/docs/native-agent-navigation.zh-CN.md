@@ -2,15 +2,15 @@
 
 ## 权威与语法
 
-Windows `agent focus` 将存活 Agent 解析为一个可导航的主 Panel，并向一个现有 TUI Client
+Windows `agent focus` 将规范或物理 Agent 解析为一个可导航的主 Panel，并向一个现有 TUI Client
 路由带确认的聚焦请求。支持一个原生 Agent 位置目标，或 `--session`、`--name`、`--panel`，
 沿用既有优先级与互斥规则。`--client`、`--request-id`、`--detach`、`--timeout` 和
 `--format text|json` 沿用 Client 控制契约。默认总时限为 30000 毫秒。帮助、补全和解析
 保持离线。不增加 macOS 或 Linux 运行时。
 
-该命令改变 Client 选择。[Client 提示状态所有者](native-client-attention.zh-CN.md)
-只在成功绘制可见窗格后确认精确 Agent 版本，已知失焦时禁止确认。
-规范 Agent 生命周期、语义状态和新鲜度是观测，不由聚焦操作重写。
+该命令改变 Client 选择，通过 [Client 提示状态所有者](native-client-attention.zh-CN.md)
+显式确认所选 Tab 中当前已知版本。这一显式效果独立于普通可见绘制确认及其外层焦点门槛。
+规范 Agent 生命周期、语义状态和新鲜度仍由 Server 观察负责。
 
 ## 模型与归属
 
@@ -31,14 +31,14 @@ Windows `agent focus` 将存活 Agent 解析为一个可导航的主 Panel，并
 
 解析在运行时影响前拒绝冲突选择器、多余参数与未知选项。显式 Client 绕过调用者元数据；
 否则沿用调用者验证及唯一当前 Client 选择。Server 准入与初始快照共用原始时限。
-选择 Client 后运行有界原生 Agent 解析器及一次 Agent Get。显式 Panel 选择其主
+选择 Client 后运行有界 Agent 解析器及规范 Get 或物理 Observe。显式 Panel 选择其主
 Presentation；Session／名称必须在快照中对应恰好一个当前可导航主 Panel。
 不以仅有的子附件替代主内容。
 
-解析出的 Panel 标识转换为既有 `ClientViewIntent::Panel`，使用选中 Client 视图修订及
-最低 Workbench 修订作为栅栏。共享纯意图构建器不执行 Agent I/O。目标消失或视图变化
-沿用既有 Client 控制拒绝。Agent／Workbench 观测与后续聚焦并非原子；回执确认 Client
-导航，不证明绘制时 Agent 仍运行或已完成一轮。
+解析后的身份形成 `ClientViewIntent::AgentFocus`，同时保留 Agent 目标、主 Presentation、
+Panel、所选 Client 视图修订及最低 Workbench 修订。Client 复核自己的状态来源和物理帧
+身份。目标消失或视图变化沿用既有拒绝。Agent／Workbench 读取与后续导航并非原子：
+回执确认已应用选择及当前 Client 确认，不证明绘制时 provider 存活或轮次完成。
 
 每次解析／Get／控制等待借用同一取消源及原始时限。失败或过期的前置检查不提交控制。
 提交后，已知结果与不确定性在后续读取失败、取消和超时后保留。可以不重新解析 Agent
@@ -46,14 +46,35 @@ Presentation；Session／名称必须在快照中对应恰好一个当前可导�
 
 ## 交付与验证
 
-新增一个命令路径（共 84 个），不新增 schema；内嵌目录保持 v51/72。
-共享 `orchbee.client.control` v1 回执及既有 Agent／Client 选择失败保留来源归属。
-人类输出和帮助本地化，JSON 不依赖语言。
+不增加命令路径或 schema 标识。`orchbee.client.control` v5 携带保留的 Agent-focus 操作，
+旧版本保持封闭。既有 Agent／Client 选择失败保留来源归属。人类输出和帮助本地化，
+JSON 不受语言影响。
 
 验证名称、显式 ID、Panel 选择器、调用者与显式 Client 路由、存活主绑定，以及结束／缺失／
 歧义／仅子附件的拒绝。跟踪单次 Submit 及答复丢失后的保留 Read，验证部分答复取消和
 单一总时限。真实双 TUI Windows 证据检查选中 Panel 以及另一 Client／系统焦点不变，
 之后停止创建的所有 Agent 进程、Site 和控制台。审查由作者完成；不宣称执行 TLA 或
-独立审查。seen/unseen 行为仍是单独、明确的报告义务。
+独立审查。最终真实聚焦／确认验收仍须联合 Windows 验证，不能仅凭定向检查结算。
 
 客户端必须已就绪；否则在 Agent 查询前返回现有客户端选择失败文档中的 `client-not-ready`，保留客户端 ID。目录 v39 已扩充该 v1 原因集合，不新增 schema。
+
+## Agent 身份与显式确认
+
+`agent-focus` 保留解析后的规范 Session 或完整物理绑定，以及精确 TerminalContext、Tab 和
+主 Panel。CLI 只解析一次，并检查所属 Agent 来源；Client 在产生效果和完成前重新验证目标。
+物理目标成功前还要求所选帧的实际 Host epoch／终端身份匹配。旧帧或替换后的终端不能授权
+聚焦确认。不用父内容替代只有子展示的目标；其可导航界面仍属于独立生命周期义务。
+忙碌弹层和历史模式仍沿用既有拒绝；匹配 Herdr 的模式退出行为仍是未完成的交互义务。
+
+Client 执行既有顺序导航，成功绘制后完成，包括目标已经聚焦的情况。显式 Agent 聚焦成功时
+确认所选 Tab 中当前已知的 Agent 版本，包括被缩放隐藏的主面板，即使外层焦点为 false。
+这是与固定 Herdr `app/agents.rs` 的 `mark_active_tab_seen` 一致的显式命令效果，并非自动
+绘制规则。只读 attention 和普通绘制保持既有限制。在同一 UI 边界消费当前快照；之后的
+状态变化仍未读。目标状态不可读时不能宣称成功；无关观察来源不可用时不会提供虚构确认。
+不增加 provider 输入或操作系统窗口激活。
+
+目标丢失、替换、操作被中断或过期均不能确认。导航前失败为 rejected，已执行导航步骤后
+失败为 incomplete。保留操作使用既有结果，状态读取不会重复效果。Client control v5 携带
+这一意图；旧版本保持封闭。匹配的 Client／Server cohort 必须一起更新。纯身份／确认和
+有界控制器／协议检查先于最终 Windows 实机验收；它们本身不证明多 Client 或登录 provider
+行为。

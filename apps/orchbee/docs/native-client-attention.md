@@ -39,6 +39,12 @@ Unknown outer focus follows Herdr's compatibility fallback: a complete valid pai
 
 The renderer returns bounded concrete paint proofs; a receipt for an earlier snapshot cannot acknowledge a newer event. Acknowledgement may request one follow-up redraw to remove the unseen indicator, without starting an unbounded redraw loop. Evidence covers two independent Clients, rapid intervening transitions, metadata-only changes, resets, focus loss, stale receipts, hidden/overlaid panes and reader shutdown. The Client query below exposes this observation without acknowledging it.
 
+Explicit `agent focus` has a separate command effect: after validated navigation and draw it marks
+the selected Tab's current known Agent versions seen, including zoom-hidden primary panes and
+known outer focus loss. It does not weaken ordinary paint gates or make read-only attention
+acknowledge. [Agent navigation](native-agent-navigation.md#agent-identity-and-explicit-acknowledgement)
+owns identity checks, interruption and the post-draw boundary.
+
 ## Selected Client query
 
 ### Physical terminal observation and paint

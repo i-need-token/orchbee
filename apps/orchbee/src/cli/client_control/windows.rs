@@ -156,8 +156,7 @@ fn observe(
                 _ => return Err(Failure::new(FailureKind::ProtocolInvalid)),
             };
             let selected = selection::select(&clients, explicit.as_ref(), caller.as_ref())?;
-            let resolved;
-            let target = if let ClientNavigationTarget::Agent(agent) = target {
+            let intent = if let ClientNavigationTarget::Agent(agent) = target {
                 if selected.view.phase != ClientViewPhase::Ready {
                     return Err(selection::failure(
                         FailureKind::ServiceUnavailable,
@@ -180,12 +179,8 @@ fn observe(
                 if interrupted(answer, signals, deadline)? {
                     return Ok(());
                 }
-                resolved = ClientNavigationTarget::Panel(Some(result?));
-                &resolved
-            } else {
-                target
-            };
-            let intent = if let ClientNavigationTarget::AgentAttention(agent) = target {
+                result?
+            } else if let ClientNavigationTarget::AgentAttention(agent) = target {
                 let result = query::agent_attention_target(
                     &mut client,
                     &snapshot,

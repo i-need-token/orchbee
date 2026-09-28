@@ -406,6 +406,61 @@
 						}
 					},
 					"required": ["kind", "bindings"]
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "agent-focus"
+						},
+						"terminalContextId": {
+							"$ref": "#/$defs/terminalContextId"
+						},
+						"tabId": {
+							"$ref": "#/$defs/tabId"
+						},
+						"panelId": {
+							"$ref": "#/$defs/panelId"
+						},
+						"presentationId": {
+							"$ref": "#/$defs/physicalIdentity"
+						},
+						"target": {
+							"oneOf": [
+								{
+									"type": "object",
+									"properties": {
+										"kind": {
+											"const": "session"
+										},
+										"sessionId": {
+											"type": "string",
+											"minLength": 1,
+											"maxLength": 128,
+											"pattern": "^[A-Za-z0-9:._-]+$"
+										}
+									},
+									"required": ["kind", "sessionId"],
+									"additionalProperties": false
+								},
+								{
+									"type": "object",
+									"properties": {
+										"kind": {
+											"const": "terminal"
+										},
+										"binding": {
+											"$ref": "#/$defs/physicalBinding"
+										}
+									},
+									"required": ["kind", "binding"],
+									"additionalProperties": false
+								}
+							]
+						}
+					},
+					"required": ["kind", "terminalContextId", "tabId", "panelId", "presentationId", "target"],
+					"additionalProperties": false
 				}
 			]
 		},

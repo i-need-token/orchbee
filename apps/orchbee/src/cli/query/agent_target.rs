@@ -22,6 +22,7 @@ pub(in crate::cli) struct NamedTarget {
 
 pub(super) struct ResolvedTarget {
     pub(super) session_id: AgentSessionId,
+    #[cfg(not(windows))]
     pub(in crate::cli) presentation: Option<String>,
 }
 
@@ -117,6 +118,7 @@ pub(super) fn resolve_on_session(
     };
     Ok(ResolvedTarget {
         session_id,
+        #[cfg(not(windows))]
         presentation: resolved.presentation,
     })
 }

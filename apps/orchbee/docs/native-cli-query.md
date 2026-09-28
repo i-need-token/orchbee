@@ -2474,7 +2474,7 @@ Windows `status server` reads actual Server build/protocol/cohort metadata befor
 
 ## Agent navigation
 
-Windows `agent focus <target> [--client <id>]` resolves a name, session or Panel to its unique live primary Panel before one Client control submission. Explicit `--session`, `--name` and `--panel` selectors use the existing resolver; `--request-id`, `--detach` and the 30000 ms total default timeout retain the common navigation recovery contract. An unready Client fails with `client-not-ready` before Agent reads. The [Agent navigation contract](native-agent-navigation.md) defines primary binding, ambiguity, cancellation and retained operation status. It does not acknowledge seen/unseen state.
+Windows `agent focus <target> [--client <id>]` resolves a canonical Session or terminal-backed Agent to one navigable primary Panel. One `agent-focus` control retains the exact Agent and Presentation identity through Client navigation and completion. The Client rechecks its observation; a physical target also requires its matching Host frame. Successful explicit focus marks current known versions in the selected Tab seen, including an already-focused target and outer focus loss. Ordinary paint and read-only `agent attention` keep their existing rules. `--request-id`, `--detach`, the 30000 ms default total deadline and retained status recovery remain unchanged. An unready Client refuses before Agent reads; loss/replacement yields rejection or incomplete navigation, without retargeting. `orchbee.client.control` v5 carries this operation; no OS window activation occurs. The [Agent navigation contract](native-agent-navigation.md) owns identity, acknowledgement and final acceptance.
 
 ## Windows Agent change pages
 

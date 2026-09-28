@@ -73,7 +73,14 @@ impl Answer {
                 if matches!(operation.command.intent, orchbee_workbench_protocol::ClientViewIntent::Viewports { .. }))
         });
         let physical_attention=self.reply.as_ref().is_some_and(|reply|matches!(&reply.outcome,ClientViewOutcome::Operation {operation} if matches!(operation.command.intent,orchbee_workbench_protocol::ClientViewIntent::TerminalAgentAttention {..})));
-        let version = if physical_attention {
+        let agent_focus = self.reply.as_ref().is_some_and(|reply| {
+            matches!(&reply.outcome,
+            ClientViewOutcome::Operation { operation } if matches!(operation.command.intent,
+                orchbee_workbench_protocol::ClientViewIntent::AgentFocus { .. }))
+        });
+        let version = if agent_focus {
+            5
+        } else if physical_attention {
             4
         } else if viewport_read {
             3
