@@ -57,6 +57,8 @@ mod agent_management;
 #[cfg(windows)]
 pub(in crate::cli) mod terminal_agent;
 #[cfg(windows)]
+pub(in crate::cli) mod terminal_agent_wait;
+#[cfg(windows)]
 pub(super) mod terminal_metadata;
 #[cfg(windows)]
 pub(in crate::cli) use agent_management::{read_agent_management, read_terminal_management};
@@ -92,11 +94,15 @@ pub(crate) fn panel_process_info(
 }
 #[cfg(any(target_os = "linux", windows))]
 mod agent_terminal;
+#[cfg(target_os = "linux")]
+pub(crate) use agent_terminal::resolve_agent_terminal;
+#[cfg(windows)]
+pub(in crate::cli) use agent_terminal::resolve_session_terminal;
 #[cfg(windows)]
 pub(crate) use agent_terminal::verify_agent_terminal;
 #[cfg(any(target_os = "linux", windows))]
 pub(crate) use agent_terminal::{
-    AgentObservationRead, read_agent_observation, read_agent_terminal, resolve_agent_terminal,
+    AgentObservationRead, read_agent_observation, read_agent_terminal,
 };
 
 #[cfg(any(target_os = "linux", windows))]

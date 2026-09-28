@@ -703,6 +703,22 @@ pub(crate) fn render(
         }
         Projection::AgentExplain(outcome) => agent_explain(out, outcome, text, locale),
         Projection::AgentWait(doc) => agent_wait(out, doc, locale),
+        #[cfg(windows)]
+        Projection::AgentTerminalWait(doc) => out.push(
+            &locale.cli_agent_terminal_wait_matched(
+                doc.read.observation.binding.presentation_id.as_str(),
+                &doc.conditions
+                    .iter()
+                    .map(|c| c.as_str())
+                    .collect::<Vec<_>>()
+                    .join(","),
+                doc.change
+                    .as_ref()
+                    .map_or(doc.read.observation.sequence, |c| c.sequence)
+                    .value(),
+                doc.elapsed_ms,
+            ),
+        ),
     }
 }
 

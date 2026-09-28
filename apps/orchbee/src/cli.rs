@@ -922,13 +922,10 @@ fn success_output(
         OutputFormat::Json => {
             let version = results::schema_version(command);
             #[cfg(windows)]
-            let version = if matches!(
-                projection,
-                results::Projection::AgentTerminalInspection { .. }
-            ) {
-                15
-            } else {
-                version
+            let version = match &projection {
+                results::Projection::AgentTerminalInspection { .. } => 15,
+                results::Projection::AgentTerminalWait(_) => 5,
+                _ => version,
             };
             let document = json!({
                 "schema": schema_id,

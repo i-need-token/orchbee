@@ -151,6 +151,8 @@ enum WaitAttempt {
     /// A settled outcome: the decisive Get's identity plus the matched
     /// document, or an already-classified wait failure.
     Done(Result<(ObapRequestId, AgentWaitDoc), Failure>),
+    #[cfg(windows)]
+    TerminalDone(Result<super::terminal_agent_wait::Matched, Failure>),
 }
 
 /// Facts the last completed observation carried, for honest timeout
@@ -216,6 +218,42 @@ fn agent_wait_span(
     } else {
         None
     };
+    #[cfg(windows)]
+    let session_id = match super::agent_target::resolve_named(
+        &mut client,
+        target,
+        snapshot.as_ref(),
+        resolve_deadline,
+        signals.poll_fd(),
+    ) {
+        Ok(resolved) => match resolved.target {
+            orchbee_agent_observation_protocol::AgentNameTarget::Session { session_id } => {
+                session_id
+            }
+            orchbee_agent_observation_protocol::AgentNameTarget::Terminal { binding } => {
+                return WaitAttempt::TerminalDone(
+                    super::terminal_agent_wait::admit(until, selected.is_some()).and_then(|()| {
+                        super::terminal_agent_wait::observe(
+                            &mut client,
+                            super::terminal_agent_wait::Options {
+                                target,
+                                binding: &binding,
+                                until,
+                                after_revision,
+                                timeout_ms,
+                                start,
+                                total,
+                            },
+                            None,
+                            signals,
+                        )
+                    }),
+                );
+            }
+        },
+        Err(failure) => return WaitAttempt::Done(Err(failure)),
+    };
+    #[cfg(not(windows))]
     let session_id = match super::agent_target::resolve_on_session(
         &mut client,
         target,
@@ -674,6 +712,15 @@ fn classify_wait_attempt(
         ))),
         WaitAttempt::Done(result) => result
             .map(|(request_id, doc)| (agent_source(&request_id), Projection::AgentWait(doc)))
+            .map_err(AgentQueryError::Read),
+        #[cfg(windows)]
+        WaitAttempt::TerminalDone(result) => result
+            .map(|doc| {
+                (
+                    doc.read.source.clone(),
+                    Projection::AgentTerminalWait(Box::new(doc)),
+                )
+            })
             .map_err(AgentQueryError::Read),
     }
 }

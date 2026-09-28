@@ -10,6 +10,7 @@ use orchbee_workbench_protocol::{
 #[derive(Debug)]
 pub(crate) struct TerminalAgentRead {
     pub source: serde_json::Value,
+    pub report_revision: WorkbenchRevision,
     pub observation: Box<TerminalAgentObservation>,
 }
 impl TerminalAgentRead {
@@ -41,20 +42,23 @@ pub(in crate::cli) fn read(
             wake,
         )
         .map_err(|error| {
-            Failure::new(match error.reason {
-                MetadataExchangeReason::SessionUnavailable => FailureKind::ServiceUnavailable,
-                MetadataExchangeReason::Encoding => FailureKind::InternalFailure,
-                MetadataExchangeReason::Deadline | MetadataExchangeReason::ResponseDeadline => {
-                    FailureKind::Timeout
-                }
-                MetadataExchangeReason::Correlation | MetadataExchangeReason::Protocol => {
-                    FailureKind::ProtocolInvalid
-                }
-                _ => FailureKind::TransportLoss,
-            })
+            failure(
+                match error.reason {
+                    MetadataExchangeReason::SessionUnavailable => FailureKind::ServiceUnavailable,
+                    MetadataExchangeReason::Encoding => FailureKind::InternalFailure,
+                    MetadataExchangeReason::Deadline | MetadataExchangeReason::ResponseDeadline => {
+                        FailureKind::Timeout
+                    }
+                    MetadataExchangeReason::Correlation | MetadataExchangeReason::Protocol => {
+                        FailureKind::ProtocolInvalid
+                    }
+                    _ => FailureKind::TransportLoss,
+                },
+                "read-failed",
+            )
         })?;
     if Instant::now() >= deadline {
-        return Err(Failure::new(FailureKind::Timeout));
+        return Err(failure(FailureKind::Timeout, "read-deadline"));
     }
     match reply.outcome {
         PanelAgentOutcome::Observed {
@@ -66,20 +70,38 @@ pub(in crate::cli) fn read(
                 return Err(crate::cli::workbench_agents::failure("workbench-changed"));
             }
             Ok(TerminalAgentRead {
+                report_revision,
                 source: serde_json::json!({"siteId":snapshot.site_id,"workbenchRevision":workbench_revision,"reportRevision":report_revision,"requestId":id}),
                 observation,
             })
         }
-        PanelAgentOutcome::Failed { reason } => Err(Failure::new(match reason {
-            PanelAgentFailure::Denied => FailureKind::Denied,
-            PanelAgentFailure::Unavailable => FailureKind::ServiceUnavailable,
-            PanelAgentFailure::NotFound
-            | PanelAgentFailure::Unbound
-            | PanelAgentFailure::BindingChanged => FailureKind::NotFound,
-            PanelAgentFailure::HistoryLimit => FailureKind::Rejected,
-            PanelAgentFailure::ResultTooLarge => FailureKind::OutputTooLarge,
-            _ => FailureKind::ProtocolInvalid,
-        })),
-        _ => Err(Failure::new(FailureKind::ProtocolInvalid)),
+        PanelAgentOutcome::Failed { reason } => Err(failure(
+            match reason {
+                PanelAgentFailure::Denied => FailureKind::Denied,
+                PanelAgentFailure::Unavailable => FailureKind::ServiceUnavailable,
+                PanelAgentFailure::NotFound
+                | PanelAgentFailure::Unbound
+                | PanelAgentFailure::BindingChanged => FailureKind::NotFound,
+                PanelAgentFailure::HistoryLimit => FailureKind::Rejected,
+                PanelAgentFailure::ResultTooLarge => FailureKind::OutputTooLarge,
+                _ => FailureKind::ProtocolInvalid,
+            },
+            match reason {
+                PanelAgentFailure::HistoryLimit => "history-lost",
+                PanelAgentFailure::InvalidRequest => "cursor-invalid",
+                PanelAgentFailure::BindingChanged
+                | PanelAgentFailure::NotFound
+                | PanelAgentFailure::Unbound => "binding-changed",
+                _ => "read-failed",
+            },
+        )),
+        _ => Err(failure(FailureKind::ProtocolInvalid, "read-failed")),
     }
+}
+
+pub(in crate::cli) fn failure(kind: FailureKind, reason: &'static str) -> Failure {
+    Failure::new(kind)
+        .version(4)
+        .failure_schema(crate::cli::schema::AGENT_FAILURE_ID)
+        .details(crate::cli::stage_reason_details("agent-terminal", reason))
 }

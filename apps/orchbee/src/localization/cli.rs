@@ -1669,6 +1669,25 @@ impl Locale {
         }
     }
 
+    /// Physical matches identify a presentation and semantic sequence, without a canonical session.
+    #[cfg(windows)]
+    pub(crate) fn cli_agent_terminal_wait_matched(
+        self,
+        presentation: &str,
+        conditions: &str,
+        sequence: u64,
+        elapsed_ms: u64,
+    ) -> String {
+        match self {
+            Self::EnUs => format!(
+                "terminal {presentation} matched {conditions} at state sequence {sequence} after {elapsed_ms}ms\n"
+            ),
+            Self::ZhCn => format!(
+                "终端 {presentation} 命中 {conditions}（状态序号 {sequence}，用时 {elapsed_ms}ms）\n"
+            ),
+        }
+    }
+
     pub(crate) fn cli_agent_list_client_headers(self) -> [&'static str; 2] {
         match self {
             Self::EnUs => ["CLIENT STATUS", "SEEN"],
@@ -3372,6 +3391,18 @@ const HELP_PANEL_CURRENT_ZH: &str = "orchbee panel current [--panel <panel-id> |
 
 impl Locale {
     #[cfg(any(target_os = "linux", windows))]
+    #[cfg(windows)]
+    pub(crate) fn cli_terminal_prompt_submitted(self, presentation: &str, matched: bool) -> String {
+        match (self, matched) {
+            (Self::EnUs, false) => format!("Prompt submitted to terminal {presentation}.\n"),
+            (Self::EnUs, true) => {
+                format!("Prompt submitted to terminal {presentation}; wait conditions matched.\n")
+            }
+            (Self::ZhCn, false) => format!("提示词已提交至终端 {presentation}。\n"),
+            (Self::ZhCn, true) => format!("提示词已提交至终端 {presentation}；等待条件已满足。\n"),
+        }
+    }
+
     pub(crate) fn cli_prompt_submitted(self, session: &str, matched: bool) -> String {
         match (self, matched) {
             (Self::EnUs, false) => {
@@ -3405,10 +3436,10 @@ impl Locale {
             (Self::ZhCn, "agent-not-ready") => {
                 Some("Agent 状态不够新鲜或仍未知。提交前请检查 agent get/explain。")
             }
-            (Self::EnUs, "prompt-stalled") => Some(
+            (Self::EnUs, "prompt-stalled" | "effect-deadline") => Some(
                 "Input was accepted but no new Agent activity was observed. Inspect the terminal; do not blindly resend.",
             ),
-            (Self::ZhCn, "prompt-stalled") => {
+            (Self::ZhCn, "prompt-stalled" | "effect-deadline") => {
                 Some("输入已接受，但尚未观察到新的 Agent 活动。请检查终端，不要盲目重发。")
             }
             (Self::EnUs, "client-read-failed") => Some(

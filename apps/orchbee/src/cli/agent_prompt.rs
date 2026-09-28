@@ -33,6 +33,8 @@ pub(super) fn run(
 
 #[cfg(any(target_os = "linux", windows))]
 mod active {
+    #[cfg(windows)]
+    mod terminal;
     use super::*;
     use crate::cli::source::{ArmedSignals, Finish, SignalWatch};
     use crate::cli::wait_deadline::WaitDeadline;
@@ -48,8 +50,27 @@ mod active {
     const FAILURE_SCHEMA: &str = "orchbee.cli.failure.agent-prompt";
     struct Sent {
         receipt: send::Receipt,
-        session_id: String,
-        waited: Option<Result<Matched, Failure>>,
+        completion: Completion,
+    }
+    enum Completion {
+        Session {
+            session_id: String,
+            waited: Option<Result<Matched, Failure>>,
+        },
+        #[cfg(windows)]
+        Terminal {
+            binding: orchbee_agent_observation_protocol::AgentLaunchBinding,
+            waited: Option<Result<query::terminal_agent_wait::Matched, Failure>>,
+        },
+    }
+    impl Completion {
+        fn waiting(&self) -> bool {
+            match self {
+                Self::Session { waited, .. } => waited.is_some(),
+                #[cfg(windows)]
+                Self::Terminal { waited, .. } => waited.is_some(),
+            }
+        }
     }
     struct Matched {
         observation: query::AgentObservationRead,
@@ -138,25 +159,42 @@ mod active {
             }
             Ok(sent) => {
                 let receipt = sent.receipt.document();
-                let outcome = if fault {
-                    Err(prompt_error(
+                let interrupted = if fault {
+                    Some(prompt_error(
                         FailureKind::InternalFailure,
                         "signal-finalization-failed",
                     ))
-                } else if cancelled && sent.waited.is_some() {
-                    Err(prompt_error(FailureKind::Cancelled, "cancelled"))
+                } else if cancelled && sent.completion.waiting() {
+                    Some(prompt_error(FailureKind::Cancelled, "cancelled"))
                 } else {
-                    sent.waited.transpose()
+                    None
                 };
-                match outcome {
-                    Ok(matched) => success(&sent.session_id, receipt, matched, format, locale),
-                    Err(mut failure) => {
-                        failure.failure_schema = Some(FAILURE_SCHEMA);
-                        let details = failure.details.get_or_insert_with(Map::new);
-                        details.insert("sessionId".to_owned(), json!(sent.session_id));
-                        details.insert("submission".to_owned(), receipt.clone());
-                        failure.source = Some(receipt["source"].clone());
-                        prompt_failure(failure, format, locale)
+                match sent.completion {
+                    Completion::Session { session_id, waited } => {
+                        let outcome = interrupted.map_or_else(|| waited.transpose(), Err);
+                        match outcome {
+                            Ok(matched) => success(&session_id, receipt, matched, format, locale),
+                            Err(mut failure) => {
+                                failure.failure_schema = Some(FAILURE_SCHEMA);
+                                let details = failure.details.get_or_insert_with(Map::new);
+                                details.insert("sessionId".into(), json!(session_id));
+                                details.insert("submission".into(), receipt.clone());
+                                failure.source = Some(receipt["source"].clone());
+                                prompt_failure(failure, format, locale)
+                            }
+                        }
+                    }
+                    #[cfg(windows)]
+                    Completion::Terminal { binding, waited } => {
+                        let outcome = interrupted.map_or_else(|| waited.transpose(), Err);
+                        match outcome {
+                            Ok(matched) => {
+                                terminal::success(binding, receipt, matched, format, locale)
+                            }
+                            Err(failure) => terminal::failed_after_send(
+                                failure, binding, receipt, format, locale,
+                            ),
+                        }
                     }
                 }
             }
@@ -173,6 +211,43 @@ mod active {
     ) -> Result<Sent, Failure> {
         let admission = total.step(Instant::now(), READ_BUDGET)?;
         let (mut client, _, snapshot) = query::snapshot_session_until(admission)?;
+        #[cfg(windows)]
+        let selected = {
+            let resolved = query::named_terminal::resolve_named(
+                &mut client,
+                target,
+                Some(&snapshot),
+                admission,
+                signals.poll_fd(),
+            )?;
+            match resolved.target {
+                orchbee_agent_observation_protocol::AgentNameTarget::Session { session_id } => {
+                    query::resolve_session_terminal(
+                        &mut client,
+                        &snapshot,
+                        &session_id,
+                        resolved.presentation.as_deref(),
+                        admission,
+                        signals.poll_fd(),
+                    )?
+                }
+                orchbee_agent_observation_protocol::AgentNameTarget::Terminal { binding } => {
+                    return terminal::span(
+                        &mut client,
+                        terminal::Request {
+                            target,
+                            binding,
+                            text,
+                            wait,
+                            start,
+                            total,
+                        },
+                        signals,
+                    );
+                }
+            }
+        };
+        #[cfg(not(windows))]
         let selected = query::resolve_agent_terminal(&mut client, &snapshot, target, admission)?;
         #[cfg(windows)]
         let selected = {
@@ -265,8 +340,10 @@ mod active {
         drop(client);
         Ok(Sent {
             receipt,
-            session_id: session_id.as_str().to_owned(),
-            waited,
+            completion: Completion::Session {
+                session_id: session_id.as_str().to_owned(),
+                waited,
+            },
         })
     }
 
@@ -661,9 +738,11 @@ mod active {
         fn sent(outcome: TerminalSendOutcome, waiting: bool) -> Result<Sent, Failure> {
             Ok(Sent {
                 receipt: send::test_receipt(outcome),
-                session_id: "sess-alpha".to_owned(),
-                waited: waiting
-                    .then(|| Err(prompt_error(FailureKind::TransportLoss, "wait-read-failed"))),
+                completion: Completion::Session {
+                    session_id: "sess-alpha".to_owned(),
+                    waited: waiting
+                        .then(|| Err(prompt_error(FailureKind::TransportLoss, "wait-read-failed"))),
+                },
             })
         }
         fn accepted() -> TerminalSendOutcome {

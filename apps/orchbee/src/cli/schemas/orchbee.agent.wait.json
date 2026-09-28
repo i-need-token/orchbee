@@ -10,76 +10,10 @@
 			"const": "orchbee.agent.wait"
 		},
 		"version": {
-			"enum": [2, 3, 4]
+			"enum": [2, 3, 4, 5]
 		},
-		"source": {
-			"$ref": "#/$defs/agentReadSource"
-		},
-		"result": {
-			"type": "object",
-			"required": ["matchedConditions", "revision", "session", "wait"],
-			"additionalProperties": false,
-			"properties": {
-				"matchedConditions": {
-					"type": "array",
-					"minItems": 1,
-					"maxItems": 14,
-					"items": {
-						"$ref": "#/$defs/waitCondition"
-					},
-					"uniqueItems": true
-				},
-				"revision": {
-					"$ref": "#/$defs/safeInteger"
-				},
-				"session": {
-					"$ref": "#/$defs/sessionDetail"
-				},
-				"wait": {
-					"type": "object",
-					"required": ["until", "timeoutMs", "observations", "elapsedMs"],
-					"additionalProperties": false,
-					"properties": {
-						"until": {
-							"type": "array",
-							"minItems": 1,
-							"maxItems": 14,
-							"items": {
-								"$ref": "#/$defs/waitCondition"
-							},
-							"uniqueItems": true
-						},
-						"afterRevision": {
-							"$ref": "#/$defs/safeInteger"
-						},
-						"timeoutMs": {
-							"type": ["integer", "null"],
-							"minimum": 1,
-							"maximum": 3600000
-						},
-						"observations": {
-							"$ref": "#/$defs/positiveInteger"
-						},
-						"elapsedMs": {
-							"$ref": "#/$defs/safeInteger"
-						}
-					}
-				},
-				"matchedChange": {
-					"anyOf": [
-						{
-							"type": "null"
-						},
-						{
-							"$ref": "#/$defs/change"
-						}
-					]
-				},
-				"client": {
-					"$ref": "#/$defs/clientView"
-				}
-			}
-		}
+		"source": {},
+		"result": {}
 	},
 	"$defs": {
 		"agentReadSource": {
@@ -706,6 +640,378 @@
 					}
 				}
 			]
+		},
+		"physical_semanticChange": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["sequence", "agent", "state"],
+			"properties": {
+				"sequence": {
+					"allOf": [
+						{
+							"$ref": "#/$defs/physical_revision"
+						},
+						{
+							"not": {
+								"const": "0"
+							}
+						}
+					]
+				},
+				"agent": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/physical_normalizedAgent"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"state": {
+					"$ref": "#/$defs/physical_state"
+				}
+			}
+		},
+		"physical_state": {
+			"enum": ["idle", "working", "blocked", "unknown"]
+		},
+		"physical_normalizedAgent": {
+			"type": "string",
+			"minLength": 1,
+			"not": {
+				"pattern": "^[\\u0009-\\u000d\\u0020\\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000]|[\\u0009-\\u000d\\u0020\\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000]$(?![\\s\\S])"
+			}
+		},
+		"physical_revision": {
+			"type": "string",
+			"pattern": "^(?:0|[1-9][0-9]{0,19})$",
+			"maxLength": 20,
+			"format": "orchbee-uint64"
+		},
+		"physical_terminalBinding": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["presentationId", "generation", "hostEpoch", "hostTerminalId"],
+			"properties": {
+				"presentationId": {
+					"$ref": "#/$defs/physical_identity"
+				},
+				"generation": {
+					"$ref": "#/$defs/physical_identity"
+				},
+				"hostEpoch": {
+					"$ref": "#/$defs/physical_identity"
+				},
+				"hostTerminalId": {
+					"$ref": "#/$defs/physical_identity"
+				}
+			}
+		},
+		"physical_identity": {
+			"type": "string",
+			"pattern": "^[0-9a-f]{32}$",
+			"not": {
+				"const": "00000000000000000000000000000000"
+			}
+		},
+		"terminalSemantic": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["source", "observation"],
+			"properties": {
+				"source": {
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["siteId", "workbenchRevision", "reportRevision", "requestId"],
+					"properties": {
+						"siteId": {
+							"$ref": "#/$defs/physical_identity"
+						},
+						"workbenchRevision": {
+							"$ref": "#/$defs/physical_revision"
+						},
+						"reportRevision": {
+							"$ref": "#/$defs/physical_revision"
+						},
+						"requestId": {
+							"$ref": "#/$defs/physical_identity"
+						}
+					}
+				},
+				"observation": {
+					"$ref": "#/$defs/physical_semanticObservation"
+				}
+			}
+		},
+		"physical_semanticObservation": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["binding", "sequence", "changes", "view"],
+			"properties": {
+				"binding": {
+					"$ref": "#/$defs/physical_terminalBinding"
+				},
+				"sequence": {
+					"$ref": "#/$defs/physical_revision"
+				},
+				"changes": {
+					"type": "array",
+					"maxItems": 128,
+					"items": {
+						"$ref": "#/$defs/physical_semanticChange"
+					}
+				},
+				"view": {
+					"$ref": "#/$defs/physical_view"
+				}
+			}
+		},
+		"physical_view": {
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+				"agent": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/physical_normalizedAgent"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"state": {
+					"$ref": "#/$defs/physical_state"
+				},
+				"authoritySource": {
+					"anyOf": [
+						{
+							"type": "string"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"message": {
+					"anyOf": [
+						{
+							"type": "string"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"session": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/physical_session"
+						},
+						{
+							"type": "null"
+						}
+					]
+				}
+			},
+			"required": ["agent", "state", "authoritySource", "message", "session"]
+		},
+		"physical_session": {
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+				"source": {
+					"type": "string"
+				},
+				"agent": {
+					"$ref": "#/$defs/physical_normalizedAgent"
+				},
+				"reference": {
+					"$ref": "#/$defs/physical_reference"
+				}
+			},
+			"required": ["source", "agent", "reference"]
+		},
+		"physical_reference": {
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+				"kind": {
+					"enum": ["id", "path"]
+				},
+				"value": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 4096,
+					"not": {
+						"pattern": "[\\u0000-\\u001f\\u007f-\\u009f]"
+					}
+				}
+			},
+			"required": ["kind", "value"]
+		},
+		"terminalTarget": {
+			"type": "object",
+			"required": ["kind", "binding"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": {
+					"const": "terminal"
+				},
+				"binding": {
+					"$ref": "#/$defs/physical_terminalBinding"
+				}
+			}
+		},
+		"terminalSource": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["siteId", "workbenchRevision", "reportRevision", "requestId"],
+			"properties": {
+				"siteId": {
+					"$ref": "#/$defs/physical_identity"
+				},
+				"workbenchRevision": {
+					"$ref": "#/$defs/physical_revision"
+				},
+				"reportRevision": {
+					"$ref": "#/$defs/physical_revision"
+				},
+				"requestId": {
+					"$ref": "#/$defs/physical_identity"
+				}
+			}
+		},
+		"canonicalMatch": {
+			"type": "object",
+			"required": ["matchedConditions", "revision", "session", "wait"],
+			"additionalProperties": false,
+			"properties": {
+				"matchedConditions": {
+					"type": "array",
+					"minItems": 1,
+					"maxItems": 14,
+					"items": {
+						"$ref": "#/$defs/waitCondition"
+					},
+					"uniqueItems": true
+				},
+				"revision": {
+					"$ref": "#/$defs/safeInteger"
+				},
+				"session": {
+					"$ref": "#/$defs/sessionDetail"
+				},
+				"wait": {
+					"type": "object",
+					"required": ["until", "timeoutMs", "observations", "elapsedMs"],
+					"additionalProperties": false,
+					"properties": {
+						"until": {
+							"type": "array",
+							"minItems": 1,
+							"maxItems": 14,
+							"items": {
+								"$ref": "#/$defs/waitCondition"
+							},
+							"uniqueItems": true
+						},
+						"afterRevision": {
+							"$ref": "#/$defs/safeInteger"
+						},
+						"timeoutMs": {
+							"type": ["integer", "null"],
+							"minimum": 1,
+							"maximum": 3600000
+						},
+						"observations": {
+							"$ref": "#/$defs/positiveInteger"
+						},
+						"elapsedMs": {
+							"$ref": "#/$defs/safeInteger"
+						}
+					}
+				},
+				"matchedChange": {
+					"anyOf": [
+						{
+							"type": "null"
+						},
+						{
+							"$ref": "#/$defs/change"
+						}
+					]
+				},
+				"client": {
+					"$ref": "#/$defs/clientView"
+				}
+			}
+		},
+		"terminalMatch": {
+			"type": "object",
+			"required": ["kind", "target", "semantic", "matchedConditions", "matchedChange", "wait"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": {
+					"const": "terminal-matched"
+				},
+				"target": {
+					"$ref": "#/$defs/terminalTarget"
+				},
+				"semantic": {
+					"$ref": "#/$defs/terminalSemantic"
+				},
+				"matchedConditions": {
+					"type": "array",
+					"minItems": 1,
+					"maxItems": 5,
+					"uniqueItems": true,
+					"items": {
+						"enum": ["idle", "working", "blocked", "needs-attention", "unknown"]
+					}
+				},
+				"matchedChange": {
+					"anyOf": [
+						{
+							"type": "null"
+						},
+						{
+							"$ref": "#/$defs/physical_semanticChange"
+						}
+					]
+				},
+				"wait": {
+					"type": "object",
+					"required": ["until", "timeoutMs", "observations", "elapsedMs"],
+					"additionalProperties": false,
+					"properties": {
+						"until": {
+							"type": "array",
+							"minItems": 1,
+							"maxItems": 14,
+							"items": {
+								"$ref": "#/$defs/waitCondition"
+							},
+							"uniqueItems": true
+						},
+						"afterRevision": {
+							"$ref": "#/$defs/safeInteger"
+						},
+						"timeoutMs": {
+							"type": ["integer", "null"],
+							"minimum": 1,
+							"maximum": 3600000
+						},
+						"observations": {
+							"$ref": "#/$defs/positiveInteger"
+						},
+						"elapsedMs": {
+							"$ref": "#/$defs/safeInteger"
+						}
+					}
+				}
+			}
 		}
 	},
 	"allOf": [
@@ -713,50 +1019,81 @@
 			"if": {
 				"properties": {
 					"version": {
-						"enum": [3, 4]
+						"const": 5
 					}
 				}
 			},
 			"then": {
 				"properties": {
 					"result": {
-						"required": ["matchedChange"]
+						"$ref": "#/$defs/terminalMatch"
+					},
+					"source": {
+						"$ref": "#/$defs/terminalSource"
 					}
 				}
 			},
 			"else": {
 				"properties": {
 					"result": {
-						"not": {
-							"required": ["matchedChange"]
+						"$ref": "#/$defs/canonicalMatch"
+					},
+					"source": {
+						"$ref": "#/$defs/agentReadSource"
+					}
+				},
+				"allOf": [
+					{
+						"if": {
+							"properties": {
+								"version": {
+									"enum": [3, 4]
+								}
+							}
+						},
+						"then": {
+							"properties": {
+								"result": {
+									"required": ["matchedChange"]
+								}
+							}
+						},
+						"else": {
+							"properties": {
+								"result": {
+									"not": {
+										"required": ["matchedChange"]
+									}
+								}
+							}
+						}
+					},
+					{
+						"if": {
+							"properties": {
+								"version": {
+									"const": 4
+								}
+							}
+						},
+						"then": {
+							"properties": {
+								"result": {
+									"required": ["client"]
+								}
+							}
+						},
+						"else": {
+							"properties": {
+								"result": {
+									"not": {
+										"required": ["client"]
+									}
+								}
+							}
 						}
 					}
-				}
-			}
-		},
-		{
-			"if": {
-				"properties": {
-					"version": {
-						"const": 4
-					}
-				}
-			},
-			"then": {
-				"properties": {
-					"result": {
-						"required": ["client"]
-					}
-				}
-			},
-			"else": {
-				"properties": {
-					"result": {
-						"not": {
-							"required": ["client"]
-						}
-					}
-				}
+				]
 			}
 		}
 	]

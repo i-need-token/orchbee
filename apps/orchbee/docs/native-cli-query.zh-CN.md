@@ -243,6 +243,36 @@ Windows 物理 Agent Get 输出 v15，在封闭的 v14 检查形状上增加 `se
 v13／v14 和所有规范变体继续保持封闭且可读取，不虚构规范 Session ID、轮次、就绪或
 Client `done`。该读取提供后续 wait／prompt 集成所需的物理状态来源。
 
+
+### 物理 Agent 等待与提示提交
+
+Windows 终端名称使用报告所有者的精确物理绑定和语义历史。CLI 在准入、各次有界读取与
+可中断退避间持有同一个 Client Session，并在信号裁决前释放。每轮刷新 Workbench 成员关系，
+读取连续变化，再验证原始选择器和 provider。替换、历史丢失、未来游标、传输失败和 provider
+ABA 明确失败；证据丢失后不重连或退化轮询。总期限不续期，迟到观察不能成功。
+
+普通等待可匹配保留的瞬态，当前观察单独报告。此目标的 `--after-revision` 指报告来源修订，
+不是规范 Agent 修订；未来门槛在首次观察时拒绝。此后消费的历史必晚于该检查点报告修订。
+working、idle、blocked、unknown 及 needs-attention 别名使用报告事实；规范结果／新鲜度要求
+规范观察。Client `done` 要求经核对的物理 Client 观察；该后续集成缺失期间，选定 Client 或
+仅 done 的请求在输入前失败。默认混合 idle／done／blocked 可匹配已有报告状态。这些限制
+仍是未完成的对齐义务。
+
+提示预检拒绝 blocked，通过真实前台进程链验证已知 provider，并在提交前重读精确语义／物理
+目标。已知存活 provider 即使报告状态 unknown 也可接收输入，与固定 Herdr 的准入一致。
+既有 send 独占 paste／Enter、Windows Codex 边界、输入清理和交付证据，且只调用一次。
+提示等待以提交前序号建立活动门槛：原先 working 或后续 working／blocked 在五秒内
+（或更短总期限）开启门槛；消息／引用变化和原先 idle 均不能开启。短暂开启门槛的
+working／blocked 可匹配这些条件；静止条件要求活动后的当前状态。历史丢失失败且不重发。
+
+Wait v5 返回 `terminal-matched`、物理观察、可空匹配变化、条件与统计。Prompt v5 返回终端
+目标、原始提交及可空语义等待。Agent 读取失败 v4 和提示失败 v2 携带物理失败详情，旧版
+保持封闭。输入接纳后的取消／失败保留提交回执；部分／不确定交付保留原 send 结果。
+测试覆盖状态门槛、静默更新、瞬态与当前匹配、provider／物理变化、修订门槛、有界超时、
+回执保留和 Windows 实际输入。生成测试含 32 个种子、6,400 个状态页，并在失败时缩减为可重放序列；它只检验保留状态与活动门槛，不证明退出事件或 Client 注意力。范围参照固定 Herdr
+`e0507237ad8d41f60aece10d00ef29ce2339ca34` 的 wait 与 prompt 处理器；Client 注意力、
+真实登录 provider 行为和最终全量验收仍需独立证据。
+
 ## Agent 终端操作
 
 `agent read <target>` 和 `agent send-keys <target> <key>...` 接受与 `agent get`
@@ -328,7 +358,7 @@ Windows wait 版本 3 新增可空的 `matchedChange`。空表示当前样本命
 
 `blocked` 匹配 fresh needs-attention；`done` 目前匹配 fresh succeeded/failed/canceled/interrupted。Client 相对的未看见状态合并属于独立后续消费者，变更流本身不代表它已实现。证据覆盖瞬态、其他会话、分页顺序、重置拒绝、固定身份、期限和取消清理。
 
-Windows `agent wait --client <id>` 同时固定一个精确 Client 和已解析 Agent。它使用上述 Client attention 合并：idle/done 只匹配该 Client 当前经核实的投影，其他条件保持规范当前／变更页匹配。缺失／过期 Client 版本不能满足 idle/done。历史规范事件不会虚构历史 Client 确认；指定 Client 的 idle/done 采用采样，不重放。所选 Client 丢失时结束等待，不改选其他 Client。
+对于规范会话目标，Windows `agent wait --client <id>` 同时固定一个精确 Client 和已解析 Agent。它使用上述 Client attention 合并：idle/done 只匹配该 Client 当前经核实的投影，其他条件保持规范当前／变更页匹配。缺失／过期 Client 版本不能满足 idle/done。历史规范事件不会虚构历史 Client 确认；指定 Client 的 idle/done 采用采样，不重放。所选 Client 丢失时结束等待，不改选其他 Client。
 
 所选 Client 等待使用 v4，要求 `client` 投影并保留可空 `matchedChange`；未选 Client 的 Windows 等待保持 v3。每次 Client 读取、游标证明和规范样本共用五秒评估上限，并受原始总期限约束。Busy 时仍可读取，不确认已看见、不导航。有限超时和取消保持既有等待失败／收尾契约。即使当前 Client 状态不同，显式规范状态条件也可以返回历史证据。
 
@@ -1941,7 +1971,7 @@ Agent 状态，也不代表已就绪。
 限制在 Orchbee 保留的 Job 内，不做全局扫描或 Git Bash 环境标记逃逸回退。歧义明确
 返回，不伪装成可用 Shell；不声称存在 POSIX 前台进程组。
 
-Windows 的 `agent send-keys` 和 `agent prompt` 先解析 canonical 会话及其精确终端，
+在规范会话目标上，Windows 的 `agent send-keys` 和 `agent prompt` 先解析 canonical 会话及其精确终端，
 在同一已接纳会话上查询该终端、核对预期 canonical provider ID（非可执行别名），然后在发送前重读固定 Agent。
 第二次读取必须保持 provider、live 生命周期及选中的可导航 presentation 和 generation；prompt 也
 使用最新观察检查 freshness 与 blocker。全部步骤共享原有五秒输入截止；每个 viewer
@@ -2076,9 +2106,9 @@ Windows `agent focus <target> [--client <id>]` 在一次客户端控制提交前
 
 Windows `agent get <target> --client <id>` 在 `orchbee.agent.get` v10 中附加所选 Client 投影；普通 Windows Get 为带终端/运行时信息的 v9。[Client attention 契约](native-client-attention.md) 归属版本合并、聚焦及 idle/done 映射。读取共用五秒总预算，不确认已看见、不导航。缺失／过期观测的 seen 为空；规范状态保持独立。
 
-Windows `agent prompt --wait` 在运行时预检后、单次提交输入前为保留的 Agent 变更日志建立检查点；检查点失败则不提交，其修订必须覆盖预检修订。每个完整验证的后续页保留短暂活动；fresh 且更新的 provider 版本必须显示 working/blocked 或 turn-finished 跃迁，才能打开活动门槛。只有 working/blocked 条件可匹配这个门槛事件；稳定状态条件必须匹配当前样本，因此短暂完成后又 working 时继续等待。单纯元数据或新鲜度变化不构成活动。保留五秒活动门槛、原始总／读取期限、固定身份和取消归属。当前规范样本须覆盖日志头。Windows v3 将可空 `matchedChange` 及其来源与当前观察分开；Linux 保持 v2。历史丢失或跨启动周期游标明确失败，并保留已接受的输入回执。这证明检查点后的已观察活动，不证明所提交回合的因果关系或独占归属。
+对于规范会话目标，Windows `agent prompt --wait` 在运行时预检后、单次提交输入前为保留的 Agent 变更日志建立检查点；检查点失败则不提交，其修订必须覆盖预检修订。每个完整验证的后续页保留短暂活动；fresh 且更新的 provider 版本必须显示 working/blocked 或 turn-finished 跃迁，才能打开活动门槛。只有 working/blocked 条件可匹配这个门槛事件；稳定状态条件必须匹配当前样本，因此短暂完成后又 working 时继续等待。单纯元数据或新鲜度变化不构成活动。保留五秒活动门槛、原始总／读取期限、固定身份和取消归属。当前规范样本须覆盖日志头。Windows v3 将可空 `matchedChange` 及其来源与当前观察分开；Linux 保持 v2。历史丢失或跨启动周期游标明确失败，并保留已接受的输入回执。这证明检查点后的已观察活动，不证明所提交回合的因果关系或独占归属。
 
-Windows `agent prompt <target> <text> --wait --client <id>` 在发送前预检一个精确 Client，之后每次采样读取其 attention。规范活动门槛仍适用。Idle/done 只匹配其当前经核实的静止状态投影；缺失／过期版本继续等待。Client 丢失或读取失败时停止等待，保留已接受的输入回执。Client 读取组合最多两秒，并受既有五秒评估及原始总期限限制。读取不确认已看见、不聚焦、不重发。所选 Client 成功封套为 v4，要求 `client`；普通 Windows prompt 保持 v3，Linux 为 v2。`--client` 要求 `--wait`，不新增 Mac/Linux 实现。
+对于规范会话目标，Windows `agent prompt <target> <text> --wait --client <id>` 在发送前预检一个精确 Client，之后每次采样读取其 attention。规范活动门槛仍适用。Idle/done 只匹配其当前经核实的静止状态投影；缺失／过期版本继续等待。Client 丢失或读取失败时停止等待，保留已接受的输入回执。Client 读取组合最多两秒，并受既有五秒评估及原始总期限限制。读取不确认已看见、不聚焦、不重发。所选 Client 成功封套为 v4，要求 `client`；普通 Windows prompt 保持 v3，Linux 为 v2。`--client` 要求 `--wait`，不新增 Mac/Linux 实现。
 
 Windows `agent get` 输出 v9；`--client` 输出 v10。必需但可为 null 的 `terminal` 观察包含 `terminalId`、规范快照 `source`、`cwd`、`cwdSource`、`foregroundCwd`、`terminalTitle`、`terminalTitleStripped` 和 `terminalObservation`，与 Panel 查询共用投影。准入、目标解析、规范 Get、同一个只读 Viewer 的终端帧和 Windows Job 样本、第二次规范 Get、Workbench 修订复核、管理信息及可选 Client 证明共用可取消的五秒总预算。帧 cwd 优先于根进程 cwd；foregroundCwd 使用已公开的进程选择规则，不代表 OS 前台。原始标题与展示标题分开。帧和进程分别标明来源，不宣称原子快照。
 

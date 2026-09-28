@@ -111,6 +111,7 @@ pub(crate) fn verify_agent_terminal(
     })
 }
 
+#[cfg(not(windows))]
 pub(crate) fn resolve_agent_terminal(
     client: &mut LocalClient,
     snapshot: &Snapshot,
@@ -120,6 +121,7 @@ pub(crate) fn resolve_agent_terminal(
     resolve_agent_terminal_cancellable(client, snapshot, target, deadline, None)
 }
 
+#[cfg(not(windows))]
 pub(crate) fn resolve_agent_terminal_cancellable(
     client: &mut LocalClient,
     snapshot: &Snapshot,
@@ -129,13 +131,26 @@ pub(crate) fn resolve_agent_terminal_cancellable(
 ) -> Result<ResolvedAgentTerminal, Failure> {
     let resolved =
         agent_target::resolve_on_session(client, target, Some(snapshot), deadline, wake)?;
-    let session_id = resolved.session_id;
-    let observation = read_agent_observation(client, &session_id, deadline, wake)?;
-    let terminal = select_terminal_for_presentation(
+    resolve_session_terminal(
+        client,
         snapshot,
-        &observation.session,
+        &resolved.session_id,
         resolved.presentation.as_deref(),
-    )?;
+        deadline,
+        wake,
+    )
+}
+
+pub(in crate::cli) fn resolve_session_terminal(
+    client: &mut LocalClient,
+    snapshot: &Snapshot,
+    session_id: &AgentSessionId,
+    presentation: Option<&str>,
+    deadline: Instant,
+    wake: Option<BorrowedFd<'_>>,
+) -> Result<ResolvedAgentTerminal, Failure> {
+    let observation = read_agent_observation(client, session_id, deadline, wake)?;
+    let terminal = select_terminal_for_presentation(snapshot, &observation.session, presentation)?;
     Ok(ResolvedAgentTerminal {
         terminal,
         observation,

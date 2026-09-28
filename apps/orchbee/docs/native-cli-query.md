@@ -307,6 +307,45 @@ Text output renders that effective report view in the selected locale. v13/v14 a
 variants remain closed and readable. No canonical Session ID, turn, readiness or Client `done` is
 invented. This read supplies the physical source required by subsequent wait/prompt integration.
 
+
+### Physical Agent wait and prompt
+
+Windows terminal-backed names use the report owner's exact physical binding and semantic history.
+The CLI holds one Client Session through admission, every bounded read and private interruptible
+backoff, dropping it before signal arbitration. Each round refreshes Workbench membership, reads
+contiguous changes and revalidates the original selector and provider. Replacement, history loss,
+future cursors, transport loss and provider ABA fail explicitly; there is no reconnect or polling
+fallback after lost evidence. Total deadlines never renew. No late observation produces success.
+
+Ordinary waits may match a retained transient; current observation remains separately reported.
+`--after-revision` on this target means its report-source revision, not a canonical Agent revision.
+A future fence refuses against the first observation. History consumed after that checkpoint is
+necessarily newer than its report revision. Working, idle, blocked, unknown and the needs-attention
+alias use report facts. Canonical outcomes/freshness require canonical observations. Client `done`
+requires a corroborated physical Client observation; while that dependent integration is absent,
+selected-Client and done-only requests fail before input. Mixed default idle/done/blocked conditions
+can match the available report states. These limitations remain outstanding parity obligations.
+
+Prompt preflight rejects blocked state, verifies a known provider against the actual foreground
+process chain and rereads the exact semantic/physical target before submitting. A known live provider
+with unknown report state may receive input, matching fixed Herdr's prompt admission. Existing send
+owns paste/Enter, the Windows Codex boundary, input cleanup and delivery evidence. It is invoked once.
+For prompt waits, the pre-send sequence checkpoints the activity gate. Prior working or a later
+working/blocked change opens it within five seconds (or the shorter total); message/reference changes
+and preexisting idle never do. A transient gate-opening working/blocked may match those conditions;
+resting conditions require the current state after activity. Lost history fails without resending.
+
+Wait v5 returns `terminal-matched` with physical observation, optional matched change, conditions and
+accounting. Prompt v5 returns a terminal target, original submission and optional semantic wait.
+Agent read failure v4 and prompt failure v2 carry physical failure details; old versions remain closed.
+Cancellation or failure after accepted input retains its submission; partial/unknown delivery remains
+the original send result. Tests cover state gates, quiet updates, transient versus current matching,
+provider/physical changes, fences, bounded timeouts, receipt preservation and real Windows input.
+Generated tests cover 32 seeds and 6,400 status pages, shrinking failures to replayable traces;
+this projection checks retained status and activity gating, excluding release events and Client attention.
+The scope follows fixed Herdr `e0507237ad8d41f60aece10d00ef29ce2339ca34` wait and prompt handlers;
+Client attention, authenticated-provider behavior and final full acceptance remain separate evidence.
+
 ## Agent terminal operations
 
 `agent read <target>` and `agent send-keys <target> <key>...` accept the same
@@ -407,7 +446,7 @@ Wait version 3 on Windows adds nullable `matchedChange`. Null means the current 
 
 `blocked` matches fresh needs-attention; `done` currently matches fresh succeeded/failed/canceled/interrupted. Client-relative unseen enrichment is a separate dependent consumer and is not implied by the change feed. Evidence covers transient states, unrelated sessions, ordered pages, reset refusal, retained identity, deadline and cancellation cleanup.
 
-Windows `agent wait --client <id>` pins one exact Client as well as the resolved Agent. It uses the Client attention join above: idle/done match only that Client's current corroborated projection, while other conditions preserve canonical current/change-page matching. A missing/stale Client version cannot satisfy idle/done. Historical canonical events never invent a historical Client acknowledgement; selected-Client idle/done are sampled, not replayed. Loss of the selected Client ends the wait rather than choosing another.
+For canonical session targets, Windows `agent wait --client <id>` pins one exact Client as well as the resolved Agent. It uses the Client attention join above: idle/done match only that Client's current corroborated projection, while other conditions preserve canonical current/change-page matching. A missing/stale Client version cannot satisfy idle/done. Historical canonical events never invent a historical Client acknowledgement; selected-Client idle/done are sampled, not replayed. Loss of the selected Client ends the wait rather than choosing another.
 
 Selected-Client wait uses v4 with a required `client` projection and existing nullable `matchedChange`; unselected Windows wait remains v3. Each Client read, cursor proof and canonical sample shares one five-second evaluation bound within the original total deadline. Reads remain valid under Busy without acknowledging or navigating. Finite expiry and cancellation preserve the existing wait failure/finalization contract. Explicit canonical status conditions may return historical evidence even when current Client status differs.
 
@@ -2293,7 +2332,7 @@ selection intent from `e0507237`, within Orchbee's retained Job, without global 
 or the Git Bash environment-marker escape fallback. Ambiguity stays explicit rather
 than looking like an available shell. No POSIX foreground process group is claimed.
 
-On Windows, `agent send-keys` and `agent prompt` resolve the canonical session and its
+For canonical session targets on Windows, `agent send-keys` and `agent prompt` resolve the canonical session and its
 exact terminal, query this terminal on the same admitted session, check the expected
 canonical provider ID (not an executable alias), then re-read the pinned Agent before sending. The second read must preserve
 provider, live lifecycle, and the selected navigable presentation and its generation. Prompt freshness
@@ -2439,9 +2478,9 @@ The `orchbee.agent.changes` version-1 envelope contains the canonical changes/cu
 
 Windows `agent get <target> --client <id>` adds a selected-Client projection in `orchbee.agent.get` v10; ordinary Windows Get is v9 with terminal/runtime information. The [Client attention contract](native-client-attention.md) owns version joining, focus and idle/done mapping. It uses one five-second total and never acknowledges or navigates. Missing/stale observations expose null seen; canonical status remains separate.
 
-Windows `agent prompt --wait` checkpoints the retained Agent change journal after runtime preflight and before submitting input once. A failed checkpoint prevents submission. The checkpoint must cover the preflight revision. Each later fully validated page preserves transient activity; a fresh newer provider version must show working/blocked or a turn-finished transition to open the activity gate. Only working/blocked conditions can match that gate event; settled conditions must match a current sample, so a transient completion followed by working keeps waiting. Metadata and freshness changes alone do not establish activity. The five-second activity gate, original total/read deadlines, pinned identity and cancellation owner remain. A current canonical sample must cover the journal head. Windows v3 separates nullable `matchedChange` and its source from the current observation; Linux remains v2. History loss or a foreign cursor fails explicitly and preserves the accepted input receipt. This proves observed activity after the checkpoint, not causality or exclusive ownership of the submitted turn.
+For canonical session targets, Windows `agent prompt --wait` checkpoints the retained Agent change journal after runtime preflight and before submitting input once. A failed checkpoint prevents submission. The checkpoint must cover the preflight revision. Each later fully validated page preserves transient activity; a fresh newer provider version must show working/blocked or a turn-finished transition to open the activity gate. Only working/blocked conditions can match that gate event; settled conditions must match a current sample, so a transient completion followed by working keeps waiting. Metadata and freshness changes alone do not establish activity. The five-second activity gate, original total/read deadlines, pinned identity and cancellation owner remain. A current canonical sample must cover the journal head. Windows v3 separates nullable `matchedChange` and its source from the current observation; Linux remains v2. History loss or a foreign cursor fails explicitly and preserves the accepted input receipt. This proves observed activity after the checkpoint, not causality or exclusive ownership of the submitted turn.
 
-Windows `agent prompt <target> <text> --wait --client <id>` preflights one exact Client before sending and reads its attention on each later sample. The canonical activity gate still applies. Idle/done match only its current corroborated resting projection; missing/stale versions keep waiting. A lost Client or read failure stops the wait with the accepted input receipt retained. The Client read bundle is bounded to two seconds inside the existing five-second evaluation and original total deadline. No read acknowledges, focuses or resubmits. Selected-Client success is v4 with required `client`; ordinary Windows prompt remains v3 and Linux v2. `--client` requires `--wait` and has no Mac/Linux implementation.
+For canonical session targets, Windows `agent prompt <target> <text> --wait --client <id>` preflights one exact Client before sending and reads its attention on each later sample. The canonical activity gate still applies. Idle/done match only its current corroborated resting projection; missing/stale versions keep waiting. A lost Client or read failure stops the wait with the accepted input receipt retained. The Client read bundle is bounded to two seconds inside the existing five-second evaluation and original total deadline. No read acknowledges, focuses or resubmits. Selected-Client success is v4 with required `client`; ordinary Windows prompt remains v3 and Linux v2. `--client` requires `--wait` and has no Mac/Linux implementation.
 
 Windows `agent get` emits v9; `--client` emits v10. The required nullable `terminal` observation adds `terminalId`, canonical snapshot `source`, `cwd`, `cwdSource`, `foregroundCwd`, `terminalTitle`, `terminalTitleStripped` and `terminalObservation`, using the same projection as Panel queries. One cancellable five-second total covers admission, target resolution, canonical Get, one read-only Viewer for a terminal frame and Windows Job sample, a second canonical Get, a Workbench revision fence, management and optional Client proof. Frame cwd takes precedence over sampled root-process cwd; foregroundCwd uses the disclosed process-selection policy, not OS foreground. Raw and presentation titles remain separate. Frame and process observations are individually sourced, not an atomic snapshot.
 

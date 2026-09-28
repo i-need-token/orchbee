@@ -1077,6 +1077,8 @@ pub(crate) enum Projection {
     /// verbatim plus the requested-order matched conditions and the
     /// effective wait echo.
     AgentWait(AgentWaitDoc),
+    #[cfg(windows)]
+    AgentTerminalWait(Box<super::query::terminal_agent_wait::Matched>),
     ProjectList(Vec<ProjectRow>),
     ProjectGet(ProjectDoc),
     WorkspaceList(Vec<WorkspaceRow>),
@@ -1358,6 +1360,8 @@ impl Projection {
                 };
                 result
             }
+            #[cfg(windows)]
+            Self::AgentTerminalWait(doc) => doc.document(),
             Self::Status(doc) => json!({
                 "site": {
                     "reachable": true,

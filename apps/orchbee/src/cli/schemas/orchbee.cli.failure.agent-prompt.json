@@ -10,7 +10,7 @@
 			"const": "orchbee.cli.failure.agent-prompt"
 		},
 		"version": {
-			"const": 1
+			"enum": [1, 2]
 		},
 		"source": {
 			"oneOf": [
@@ -22,63 +22,7 @@
 				}
 			]
 		},
-		"failure": {
-			"type": "object",
-			"required": ["kind", "details"],
-			"additionalProperties": false,
-			"properties": {
-				"kind": {
-					"enum": [
-						"rejected",
-						"not-found",
-						"cancelled",
-						"timeout",
-						"service-unavailable",
-						"transport-loss",
-						"protocol-invalid",
-						"internal-failure",
-						"denied"
-					]
-				},
-				"details": {
-					"type": "object",
-					"required": ["stage", "reason"],
-					"additionalProperties": false,
-					"properties": {
-						"stage": {
-							"const": "agent-prompt"
-						},
-						"reason": {
-							"enum": [
-								"agent-blocked",
-								"agent-launch-pending",
-								"agent-not-ready",
-								"cancelled",
-								"signal-finalization-failed",
-								"interrupted",
-								"wait-deadline",
-								"prompt-stalled",
-								"read-deadline",
-								"wait-read-failed",
-								"session-ended",
-								"history-lost",
-								"cursor-invalid",
-								"client-read-failed"
-							]
-						},
-						"sessionId": {
-							"$ref": "#/$defs/opaqueId"
-						},
-						"submission": {
-							"$ref": "#/$defs/sendReceipt"
-						},
-						"clientId": {
-							"$ref": "#/$defs/hexId"
-						}
-					}
-				}
-			}
-		}
+		"failure": {}
 	},
 	"$defs": {
 		"agentReadSource": {
@@ -357,6 +301,193 @@
 					"pattern": "^(0|[1-9][0-9]*)$"
 				}
 			}
+		},
+		"canonicalFailure": {
+			"type": "object",
+			"required": ["kind", "details"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": {
+					"enum": [
+						"rejected",
+						"not-found",
+						"cancelled",
+						"timeout",
+						"service-unavailable",
+						"transport-loss",
+						"protocol-invalid",
+						"internal-failure",
+						"denied"
+					]
+				},
+				"details": {
+					"type": "object",
+					"required": ["stage", "reason"],
+					"additionalProperties": false,
+					"properties": {
+						"stage": {
+							"const": "agent-prompt"
+						},
+						"reason": {
+							"enum": [
+								"agent-blocked",
+								"agent-launch-pending",
+								"agent-not-ready",
+								"cancelled",
+								"signal-finalization-failed",
+								"interrupted",
+								"wait-deadline",
+								"prompt-stalled",
+								"read-deadline",
+								"wait-read-failed",
+								"session-ended",
+								"history-lost",
+								"cursor-invalid",
+								"client-read-failed"
+							]
+						},
+						"sessionId": {
+							"$ref": "#/$defs/opaqueId"
+						},
+						"submission": {
+							"$ref": "#/$defs/sendReceipt"
+						},
+						"clientId": {
+							"$ref": "#/$defs/hexId"
+						}
+					}
+				}
+			}
+		},
+		"physical_terminalBinding": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["presentationId", "generation", "hostEpoch", "hostTerminalId"],
+			"properties": {
+				"presentationId": {
+					"$ref": "#/$defs/physical_identity"
+				},
+				"generation": {
+					"$ref": "#/$defs/physical_identity"
+				},
+				"hostEpoch": {
+					"$ref": "#/$defs/physical_identity"
+				},
+				"hostTerminalId": {
+					"$ref": "#/$defs/physical_identity"
+				}
+			}
+		},
+		"physical_identity": {
+			"type": "string",
+			"pattern": "^[0-9a-f]{32}$",
+			"not": {
+				"const": "00000000000000000000000000000000"
+			}
+		},
+		"terminalTarget": {
+			"type": "object",
+			"required": ["kind", "binding"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": {
+					"const": "terminal"
+				},
+				"binding": {
+					"$ref": "#/$defs/physical_terminalBinding"
+				}
+			}
+		},
+		"terminalFailure": {
+			"type": "object",
+			"required": ["kind", "details"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": {
+					"enum": [
+						"cancelled",
+						"denied",
+						"internal-failure",
+						"not-found",
+						"protocol-invalid",
+						"rejected",
+						"service-unavailable",
+						"timeout",
+						"transport-loss",
+						"output-too-large"
+					]
+				},
+				"details": {
+					"type": "object",
+					"required": ["stage", "reason", "target", "submission"],
+					"additionalProperties": false,
+					"properties": {
+						"stage": {
+							"const": "agent-prompt"
+						},
+						"reason": {
+							"enum": [
+								"history-lost",
+								"cursor-invalid",
+								"binding-changed",
+								"read-failed",
+								"read-deadline",
+								"wait-deadline",
+								"effect-deadline",
+								"interrupted",
+								"client-observation-unavailable",
+								"canonical-condition-required",
+								"agent-not-running",
+								"revision-ahead",
+								"agent-identity-changed",
+								"agent-blocked",
+								"agent-runtime-ambiguous",
+								"agent-provider-mismatch",
+								"agent-provider-unsupported",
+								"output-too-large",
+								"wait-read-failed",
+								"cancelled",
+								"signal-finalization-failed"
+							]
+						},
+						"target": {
+							"$ref": "#/$defs/terminalTarget"
+						},
+						"submission": {
+							"$ref": "#/$defs/sendReceipt"
+						}
+					}
+				}
+			}
 		}
-	}
+	},
+	"allOf": [
+		{
+			"if": {
+				"properties": {
+					"version": {
+						"const": 2
+					}
+				}
+			},
+			"then": {
+				"required": ["source"],
+				"properties": {
+					"failure": {
+						"$ref": "#/$defs/terminalFailure"
+					},
+					"source": {
+						"$ref": "#/$defs/sendSource"
+					}
+				}
+			},
+			"else": {
+				"properties": {
+					"failure": {
+						"$ref": "#/$defs/canonicalFailure"
+					}
+				}
+			}
+		}
+	]
 }
