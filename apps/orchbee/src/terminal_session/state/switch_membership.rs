@@ -1,7 +1,7 @@
 use super::{
     AttachTarget, CarrierFailure, ControllerMode, ExistingAttachment, FrameIdentity, Geometry,
-    NativeSessionState, PaneKey, PreparedMembershipCandidate, ReadyAttachment, SelectedTab,
-    SessionPhase, SwitchSetup, WorkbenchSnapshotOutcome,
+    NativeSessionState, PaneKey, PaneRecord, PreparedMembershipCandidate, ReadyAttachment,
+    SelectedTab, SessionPhase, SwitchSetup, WorkbenchSnapshotOutcome,
 };
 
 /// This record exists only between Switch intent admission and candidate installation.
@@ -19,15 +19,62 @@ enum StableAnchor {
         observed_geometry: Geometry,
         accepted_geometry: Option<Geometry>,
     },
+    Unbound {
+        selected: SelectedTab,
+        siblings: Box<[SiblingProjection]>,
+        observed_geometry: Geometry,
+    },
     Selected(SelectedTab),
     Retryable(SelectedTab),
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct SiblingProjection {
+    pane: super::PaneRef,
+    binding: super::NativeTerminalBinding,
+    mode: ControllerMode,
+    observed_geometry: Geometry,
+    last_admitted_geometry: Option<Geometry>,
+    accepted_geometry: Option<Geometry>,
+    frame: FrameIdentity,
+}
+
+impl SiblingProjection {
+    fn capture(record: &PaneRecord) -> Option<Self> {
+        let mode = record.mode.clone()?;
+        let frame = record.accepted_frame?;
+        if !record.attached
+            || !record.projected
+            || record.departing
+            || record.staged_frame != Some(frame)
+            || match &mode {
+                ControllerMode::ReadOnly => record.last_accepted_geometry.is_some(),
+                ControllerMode::Controlling(_) => {
+                    record.last_accepted_geometry != Some(record.observed_geometry)
+                }
+            }
+        {
+            return None;
+        }
+        Some(Self {
+            pane: record.pane_ref(),
+            binding: record.binding.clone(),
+            mode,
+            observed_geometry: record.observed_geometry,
+            last_admitted_geometry: record.last_admitted_geometry,
+            accepted_geometry: record.last_accepted_geometry,
+            frame,
+        })
+    }
 }
 
 impl StableAnchor {
     fn selected(&self) -> &SelectedTab {
         match self {
             Self::Ready { ready, .. } => ready.selected(),
-            Self::Selected(selected) | Self::Retryable(selected) => selected,
+            Self::Unbound { selected, .. }
+            | Self::Selected(selected)
+            | Self::Retryable(selected) => selected,
         }
     }
 }
@@ -64,6 +111,7 @@ pub(in crate::terminal_session) struct PreparedSwitchRestore<'state> {
     observed_geometry: Geometry,
     frame: Option<FrameIdentity>,
     accepted_geometry: Option<Geometry>,
+    restored_siblings: Box<[SiblingProjection]>,
 }
 
 impl PreparedSwitchRestore<'_> {
@@ -85,6 +133,16 @@ impl PreparedSwitchRestore<'_> {
         for record in &mut self.state.panes {
             if record.key().anchor() == self.desired.anchor() {
                 record.departing = false;
+                if let Some(saved) = self
+                    .restored_siblings
+                    .iter()
+                    .find(|saved| saved.pane == record.pane_ref())
+                {
+                    record.projected = true;
+                    record.staged_frame = Some(saved.frame);
+                    record.accepted_frame = Some(saved.frame);
+                    record.last_accepted_geometry = saved.accepted_geometry;
+                }
             } else if !record.departing {
                 record.departing = true;
                 record.projected = false;
@@ -133,6 +191,23 @@ impl NativeSessionState {
                     accepted_geometry,
                 })
             }
+            SessionPhase::SelectedWithoutAttachment(selected)
+                if self.selected_is_unbound() && self.has_attachments() =>
+            {
+                let siblings = self
+                    .panes
+                    .iter()
+                    .filter(|record| {
+                        record.key.anchor() == selected.key.anchor() && !record.departing
+                    })
+                    .map(SiblingProjection::capture)
+                    .collect::<Option<Box<[_]>>>()?;
+                Some(StableAnchor::Unbound {
+                    selected: selected.clone(),
+                    siblings,
+                    observed_geometry: self.latest_geometry,
+                })
+            }
             SessionPhase::SelectedWithoutAttachment(selected) => {
                 Some(StableAnchor::Selected(selected.clone()))
             }
@@ -176,6 +251,18 @@ impl NativeSessionState {
                         mode: setup.mode.clone(),
                     })
             }),
+            SessionPhase::SelectedWithoutAttachment(selected) if self.selected_is_unbound() => self
+                .panes
+                .iter()
+                .find(|record| record.key.anchor() == selected.key.anchor() && record.attached)
+                .map(|record| ExistingAttachment {
+                    selected: SelectedTab::new_panel(
+                        record.key.clone(),
+                        record.index,
+                        record.panel_index,
+                    ),
+                    mode: record.mode.clone(),
+                }),
             SessionPhase::SelectedWithoutAttachment(_)
             | SessionPhase::RetryableAttachUnavailable(_) => None,
             _ => return false,
@@ -381,6 +468,33 @@ impl NativeSessionState {
                 }
                 *observed_geometry
             }
+            StableAnchor::Unbound {
+                siblings,
+                observed_geometry,
+                ..
+            } => {
+                if self.latest_geometry != *observed_geometry
+                    || setup.previous.as_ref().is_none_or(|previous| {
+                        !siblings.iter().any(|saved| {
+                            saved.pane.pane() == previous.selected.key()
+                                && previous.mode.as_ref() == Some(&saved.mode)
+                        })
+                    })
+                    || siblings.iter().any(|saved| {
+                        !retained_projections.contains(saved.pane.pane())
+                            || self.live_pane_record(&saved.pane).is_none_or(|record| {
+                                !record.attached
+                                    || record.binding != saved.binding
+                                    || record.mode.as_ref() != Some(&saved.mode)
+                                    || record.observed_geometry != saved.observed_geometry
+                                    || record.last_admitted_geometry != saved.last_admitted_geometry
+                            })
+                    })
+                {
+                    return Err(CarrierFailure::Protocol);
+                }
+                *observed_geometry
+            }
             StableAnchor::Selected(_) | StableAnchor::Retryable(_) => {
                 if self
                     .panes
@@ -411,7 +525,7 @@ impl NativeSessionState {
                 Some(*frame),
                 *accepted_geometry,
             ),
-            StableAnchor::Selected(selected) => (
+            StableAnchor::Unbound { selected, .. } | StableAnchor::Selected(selected) => (
                 SessionPhase::SelectedWithoutAttachment(selected.clone()),
                 None,
                 None,
@@ -422,8 +536,13 @@ impl NativeSessionState {
                 None,
             ),
         };
+        let restored_siblings = match anchor {
+            StableAnchor::Unbound { siblings, .. } => siblings.clone(),
+            _ => Box::default(),
+        };
         Ok(PreparedSwitchRestore {
             state: self,
+            restored_siblings,
             authority,
             desired: restored,
             phase,

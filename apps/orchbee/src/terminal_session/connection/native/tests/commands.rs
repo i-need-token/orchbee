@@ -1432,7 +1432,7 @@ fn started_create_accepts_a_later_renamed_snapshot_and_attaches_the_exact_bindin
         .ok_or_else(|| test_error("renamed created tab must be cached"))?;
     assert_eq!(renamed_tab.tab_label().as_str(), "renamed-after-create");
     assert_eq!(renamed_tab.presentation_label().as_str(), "2");
-    let retained_binding = renamed_tab.binding().clone();
+    let retained_binding = renamed_tab.binding().cloned();
 
     assert_eq!(drive_attach(&mut harness, 1)?, new_key);
     let new_controller = drive_controlling_after_attach(&mut harness, &new_key, geometry)?;
@@ -1453,7 +1453,7 @@ fn started_create_accepts_a_later_renamed_snapshot_and_attaches_the_exact_bindin
         .ok_or_else(|| test_error("attached renamed tab must remain cached"))?;
     assert_eq!(renamed_tab.tab_label().as_str(), "renamed-after-create");
     assert_eq!(renamed_tab.presentation_label().as_str(), "2");
-    assert_eq!(renamed_tab.binding(), &retained_binding);
+    assert_eq!(renamed_tab.binding(), retained_binding.as_ref());
     assert_eq!(harness.mailbox.is_closed(), None);
 
     harness.finish()
@@ -1695,7 +1695,7 @@ fn label_and_tab_metadata_refresh_preserves_selection_viewer_frame_and_presentat
         .tab(selected.index())
         .ok_or_else(|| test_error("Ready cache must contain the selected tab"))?
         .binding()
-        .clone();
+        .cloned();
     let projection_frame = harness
         .ui
         .projection_frame()
@@ -1740,7 +1740,7 @@ fn label_and_tab_metadata_refresh_preserves_selection_viewer_frame_and_presentat
     assert!(!renamed.pinned());
     assert_eq!(renamed.group_label(), Some("work"));
     assert_eq!(renamed.presentation_label().as_str(), "creation-anchor");
-    assert_eq!(renamed.binding(), &binding);
+    assert_eq!(renamed.binding(), binding.as_ref());
     assert_eq!(harness.ui.state().active(), Some(&selected));
     assert_eq!(harness.ui.state().desired().unwrap(), &active_key);
     assert_eq!(harness.ui.state().attached_key(), Some(&attached_key));

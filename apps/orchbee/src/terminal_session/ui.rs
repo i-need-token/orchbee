@@ -582,6 +582,7 @@ pub(super) struct NativeUi {
     pending_draws: Vec<PendingDraw>,
     poll_cursor: usize,
     ordinary_poll_serial: Option<u64>,
+    unbound_refresh_at: Option<std::time::Instant>,
     retirement_failure: Option<CarrierFailure>,
     retirement_finalized: bool,
     retirement: Option<NativeDisplayRetirement>,
@@ -646,6 +647,7 @@ impl NativeUi {
             pending_draws: Vec::new(),
             poll_cursor: 0,
             ordinary_poll_serial: None,
+            unbound_refresh_at: None,
             retirement_failure: None,
             retirement_finalized: false,
             retirement: None,
@@ -881,6 +883,7 @@ impl NativeUi {
             self.schedule_close_read(&mailbox);
             self.schedule_pane_reconcile(&mailbox);
             self.schedule_poll(&mailbox);
+            changed |= self.schedule_unbound_refresh(&mailbox);
             // The board lane and the jump stage machine live on the same
             // fair tick as every other scheduled admission.
             changed |= self.drive_agent_board();
@@ -1621,6 +1624,12 @@ impl NativeUi {
                 controlling: mode.map(|mode| matches!(mode, ControllerMode::Controlling(_))),
             })
             .collect();
+        if let Some(tab) = state.active().and_then(|active| view.tab(active.index())) {
+            probe.unbound = (0..tab.panel_count())
+                .filter_map(|index| tab.panel(index))
+                .filter_map(|panel| view.unbound_pane(panel))
+                .collect();
+        }
         probe.tabs = (0..view.tab_count())
             .filter_map(|index| view.tab(index))
             .map(|tab| PointerTab {
@@ -2799,7 +2808,10 @@ impl NativeUi {
         let Some(state) = self.state.as_ref() else {
             return;
         };
-        if state.ready().is_none() {
+        if state.ready().is_none()
+            && !(state.phase_kind() == SessionPhaseKind::SelectedWithoutAttachment
+                && state.selected_is_unbound())
+        {
             return;
         }
         let pollable = state.pollable_panes();

@@ -255,8 +255,12 @@ fn canonical_move_a_settlement_then_b_queued_preserves_exact_a_commit_at_retirem
                         presentation_id: tab.presentation_id().clone(),
                         label: tab.presentation_label().as_str().to_owned(),
                         binding: Some(PresentationBinding {
-                            worker_id: tab.binding().worker_id().clone(),
-                            terminal_id: tab.binding().terminal_id().clone(),
+                            worker_id: tab.binding().expect("bound fixture").worker_id().clone(),
+                            terminal_id: tab
+                                .binding()
+                                .expect("bound fixture")
+                                .terminal_id()
+                                .clone(),
                         }),
                     },
                 },

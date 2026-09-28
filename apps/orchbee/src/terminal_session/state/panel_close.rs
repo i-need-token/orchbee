@@ -44,7 +44,7 @@ pub(in crate::terminal_session) struct PanelCloseSelection {
     desired: AttachmentKey,
     panel_label: String,
     tab_label: WorkbenchLabel,
-    binding: NativeTerminalBinding,
+    binding: Option<NativeTerminalBinding>,
     dissolves_tab: bool,
     base_revision: WorkbenchRevision,
 }
@@ -55,7 +55,7 @@ impl PanelCloseSelection {
         desired: AttachmentKey,
         panel_label: String,
         tab_label: WorkbenchLabel,
-        binding: NativeTerminalBinding,
+        binding: Option<NativeTerminalBinding>,
         dissolves_tab: bool,
         base_revision: WorkbenchRevision,
     ) -> Self {
@@ -209,7 +209,7 @@ impl NativeSessionState {
             self.selected_presentation(panel).display_label().to_owned(),
             WorkbenchLabel::parse(&tab.display_label(selected.index()))
                 .map_err(|_| PanelCloseStateError::Busy)?,
-            self.selected_presentation(panel).binding().clone(),
+            self.selected_presentation(panel).binding().cloned(),
             tab.panel_count() == 1,
             self.cache.revision(),
         );
@@ -250,7 +250,7 @@ impl NativeSessionState {
             && self.desired.as_ref().map(PaneKey::anchor) == Some(&selection.desired)
             && tab.tab_id() == &selection.target.tab_id
             && panel.panel_id() == &selection.target.panel_id
-            && self.selected_presentation(panel).binding() == &selection.binding
+            && self.selected_presentation(panel).binding() == selection.binding.as_ref()
             && (tab.panel_count() == 1) == selection.dissolves_tab
     }
 

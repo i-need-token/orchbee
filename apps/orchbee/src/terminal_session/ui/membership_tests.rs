@@ -500,7 +500,10 @@ fn actual_refresh_reply_installs_empty_and_later_peer_membership_with_one_shared
     assert_eq!(settlement.desired(), Some(target.selected().key()));
     assert_eq!(ui.state.as_ref().unwrap().desired(), settlement.desired());
     assert_eq!(mailbox.cursors().0, target.selected().key().generation());
-    assert_eq!(target.binding().terminal_id(), &snapshot_terminal(2));
+    assert_eq!(
+        target.binding().expect("bound fixture").terminal_id(),
+        &snapshot_terminal(2)
+    );
     assert!(ui.state.as_ref().unwrap().invariant_holds());
     mailbox.finish_lease(lease).unwrap();
     assert!(

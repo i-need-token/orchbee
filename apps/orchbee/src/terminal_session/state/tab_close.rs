@@ -105,23 +105,23 @@ impl CloseFlightKey {
 pub(in crate::terminal_session) struct CloseSelection {
     target: CloseTarget,
     label: WorkbenchLabel,
-    binding: NativeTerminalBinding,
+    binding: Option<NativeTerminalBinding>,
     attachment: Option<AttachmentKey>,
     base_revision: WorkbenchRevision,
 }
 
 impl CloseSelection {
-    pub(in crate::terminal_session) const fn new(
+    pub(in crate::terminal_session) fn new(
         target: CloseTarget,
         label: WorkbenchLabel,
-        binding: NativeTerminalBinding,
+        binding: impl Into<Option<NativeTerminalBinding>>,
         attachment: Option<AttachmentKey>,
         base_revision: WorkbenchRevision,
     ) -> Self {
         Self {
             target,
             label,
-            binding,
+            binding: binding.into(),
             attachment,
             base_revision,
         }
@@ -133,8 +133,8 @@ impl CloseSelection {
         self.base_revision
     }
 
-    pub(in crate::terminal_session) const fn binding(&self) -> &NativeTerminalBinding {
-        &self.binding
+    pub(in crate::terminal_session) const fn binding(&self) -> Option<&NativeTerminalBinding> {
+        self.binding.as_ref()
     }
 
     pub(in crate::terminal_session) const fn attachment(&self) -> Option<&AttachmentKey> {
@@ -724,7 +724,7 @@ impl super::NativeSessionState {
             target,
             WorkbenchLabel::parse(&tab.display_label(selected.index()))
                 .map_err(|_| CloseStateError::UnknownTarget)?,
-            self.selected_presentation(panel).binding().clone(),
+            self.selected_presentation(panel).binding().cloned(),
             self.desired.as_ref().map(|key| key.anchor().clone()),
             self.cache.revision(),
         );

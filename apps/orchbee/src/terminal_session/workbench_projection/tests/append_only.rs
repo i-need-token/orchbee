@@ -262,9 +262,11 @@ fn canonical_refresh_rejects_every_non_tab_label_change_to_existing_members() {
         ("Presentation label", |tab| {
             tab.presentation_label = label("changed presentation");
         }),
-        ("Worker ID", |tab| tab.binding.worker_id = worker_id(203)),
+        ("Worker ID", |tab| {
+            tab.binding.as_mut().unwrap().worker_id = worker_id(203)
+        }),
         ("Terminal ID", |tab| {
-            tab.binding.terminal_id = terminal_id(204);
+            tab.binding.as_mut().unwrap().terminal_id = terminal_id(204);
         }),
     ];
     let current = projected(2, 10);

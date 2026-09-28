@@ -472,7 +472,7 @@ impl NativeSessionState {
         &self,
         origin: &CloseReconciliationOrigin,
         attachment: &AttachmentKey,
-        binding: &NativeTerminalBinding,
+        binding: Option<&NativeTerminalBinding>,
     ) -> Option<DefinitiveClosedAttachment> {
         let retained = self.close_reconciliation_origin(origin.key())?;
         if retained != origin
@@ -492,7 +492,7 @@ impl NativeSessionState {
     pub(in crate::terminal_session) fn definitive_closed_attachment_for(
         &self,
         attachment: &AttachmentKey,
-        binding: &NativeTerminalBinding,
+        binding: Option<&NativeTerminalBinding>,
     ) -> Option<DefinitiveClosedAttachment> {
         self.close
             .records

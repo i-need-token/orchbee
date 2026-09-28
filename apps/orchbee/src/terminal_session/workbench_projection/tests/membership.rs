@@ -11,7 +11,12 @@ fn removed_member_cannot_disguise_retained_structural_identity_as_a_fresh_add() 
             1 => candidate.tabs[0].panel_id = current.tabs[0].panel_id.clone(),
             2 => candidate.tabs[0].presentation_id = current.tabs[0].presentation_id.clone(),
             3 => {
-                candidate.tabs[0].binding.terminal_id = current.tabs[0].binding.terminal_id.clone()
+                candidate.tabs[0].binding.as_mut().unwrap().terminal_id = current.tabs[0]
+                    .binding
+                    .as_ref()
+                    .unwrap()
+                    .terminal_id
+                    .clone()
             }
             _ => unreachable!(),
         }
@@ -22,7 +27,8 @@ fn removed_member_cannot_disguise_retained_structural_identity_as_a_fresh_add() 
     }
     let mut fresh = projected(2, 11);
     fresh.tabs.remove(0);
-    fresh.tabs[0].binding.worker_id = current.tabs[0].binding.worker_id.clone();
+    fresh.tabs[0].binding.as_mut().unwrap().worker_id =
+        current.tabs[0].binding.as_ref().unwrap().worker_id.clone();
     fresh.tabs[0].panels[0].primary.binding = fresh.tabs[0].binding.clone();
     assert_eq!(
         validate_canonical_refresh(&current, fresh.clone()),

@@ -129,7 +129,7 @@ fn moved_projection_rejects_wrong_commit_tuple_revision_and_retained_member_chan
     failures.push((expected.clone(), current.clone()));
     failures.push((expected.clone(), projected(3, 11)));
     candidate.revision = WorkbenchRevision::new(12);
-    candidate.tabs[0].binding.terminal_id = terminal_id(902);
+    candidate.tabs[0].binding.as_mut().unwrap().terminal_id = terminal_id(902);
     failures.push((expected.clone(), candidate));
     for (expected, candidate) in failures {
         assert_eq!(

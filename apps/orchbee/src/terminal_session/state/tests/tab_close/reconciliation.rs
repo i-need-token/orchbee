@@ -160,7 +160,13 @@ fn close_membership_install_and_prune_require_exact_plan_commit_and_finished_sna
 }
 
 fn known_closed(handoff: bool) -> (NativeSessionState, CloseOperation) {
-    let mut state = ready(2);
+    known_closed_from(ready(2), handoff)
+}
+
+fn known_closed_from(
+    mut state: NativeSessionState,
+    handoff: bool,
+) -> (NativeSessionState, CloseOperation) {
     let now = Instant::now();
     let close = admit_close(&mut state, 901, now);
     state
@@ -405,4 +411,79 @@ fn a_closed_operation_cannot_move_to_another_attempt() {
         ),
         Err(CloseStateError::FactRegression)
     );
+}
+
+#[test]
+fn unbound_selected_panel_uses_exact_closed_tab_proof_to_retire_bound_sibling_viewers() {
+    use crate::terminal_session::state::{MembershipInstallDecision, OperationDeadlines};
+    let mut source = super::super::split_panel_baseline();
+    source.terminal_contexts[0]
+        .tabs
+        .push(snapshot(2, 1, None).terminal_contexts[0].tabs[1].clone());
+    let PanelNode::Split { children, .. } = &mut source.terminal_contexts[0].tabs[0].root else {
+        unreachable!()
+    };
+    let PanelNode::Panel {
+        primary_presentation,
+        ..
+    } = &mut children[1].node
+    else {
+        unreachable!()
+    };
+    primary_presentation.binding = None;
+    let cache =
+        crate::terminal_session::workbench_projection::project_native_standalone_tabs(&source)
+            .unwrap();
+    let mut state = super::super::ready_with_cache(cache);
+    let old = state.desired().unwrap().anchor().clone();
+    let empty_panel = state.tab(0).unwrap().panel(1).unwrap().panel_id().clone();
+    assert!(state.move_panel_focus_local(state.plan_panel_focus_local_at(&empty_panel).unwrap()));
+    let (mut state, read) = known_closed_from(state, false);
+    assert!(read.selection().binding().is_none());
+    assert!(state.has_attachments() && state.selected_is_unbound());
+    let marker = state
+        .plan_close_reconciliation(
+            workbench_request_id(903),
+            Instant::now() + Duration::from_secs(50),
+        )
+        .unwrap();
+    state.begin_close_reconciliation(&marker).unwrap();
+    source.revision = WorkbenchRevision::new(2);
+    source.terminal_contexts[0].tabs.remove(0);
+    let prepared = state
+        .prepare_close_membership_candidate(
+            &marker,
+            WorkbenchSnapshotOutcome::Available { snapshot: source },
+        )
+        .unwrap()
+        .unwrap();
+    let deadlines = OperationDeadlines::from_sample(Instant::now()).unwrap();
+    let cleanup = state
+        .stage_close_membership_cleanup(&marker, prepared, deadlines)
+        .unwrap();
+    let proof = cleanup.closed_proof().unwrap();
+    assert!(state.validate_membership_gone(&cleanup, proof));
+    assert_eq!(proof.attachment_key(), &old);
+    assert!(
+        state
+            .definitive_closed_attachment(
+                marker.origin(),
+                &AttachmentKey::new(old.generation() + 1, old.tab_id().clone()),
+                None
+            )
+            .is_none()
+    );
+    let candidate = state
+        .prepare_cleaned_membership_candidate(&cleanup, &old)
+        .unwrap();
+    let desired = AttachmentKey::new(2, candidate.selected_tab_id().unwrap().clone());
+    assert!(matches!(
+        state
+            .prepare_cleaned_membership_install(&cleanup, candidate, Some(desired))
+            .unwrap()
+            .commit(),
+        MembershipInstallDecision::Attach(_)
+    ));
+    assert!(state.invariant_holds());
+    assert!(state.close_reconciliation_origin(read.key()).is_none());
 }

@@ -37,7 +37,12 @@ fn children_preserve_one_layout_leaf_and_complete_ordered_payload() {
         &presentation_id(9000)
     );
     assert_eq!(
-        panel.presentation(2).unwrap().binding().terminal_id(),
+        panel
+            .presentation(2)
+            .unwrap()
+            .binding()
+            .expect("bound fixture")
+            .terminal_id(),
         &terminal_id(9012)
     );
     let mut reordered = source.clone();
@@ -92,4 +97,56 @@ fn child_binding_identity_cannot_be_duplicated_rebound_or_silently_filtered() {
             "case {case}"
         );
     }
+}
+
+#[test]
+fn unbound_members_retain_identity_and_bind_only_at_a_new_revision_to_a_fresh_terminal() {
+    let mut source = snapshot(2, 1);
+    let mut empty_child = child(9000);
+    empty_child.binding = None;
+    children(&mut source).push(empty_child);
+    let PanelNode::Panel {
+        primary_presentation,
+        ..
+    } = &mut source.terminal_contexts[0].tabs[0].root
+    else {
+        unreachable!()
+    };
+    primary_presentation.binding = None;
+    let baseline = project_native_standalone_tabs(&source).unwrap();
+    let panel = baseline.tabs()[0].panel(0).unwrap();
+    assert_eq!(panel.presentation_count(), 2);
+    assert!(panel.binding().is_none() && panel.presentation(1).unwrap().binding().is_none());
+    let mut bound = source.clone();
+    children(&mut bound)[0].binding = child(9000).binding;
+    assert!(
+        validate_canonical_refresh(&baseline, project_native_standalone_tabs(&bound).unwrap())
+            .is_err()
+    );
+    bound.revision = WorkbenchRevision::new(2);
+    let candidate = project_native_standalone_tabs(&bound).unwrap();
+    assert!(validate_canonical_refresh(&baseline, candidate.clone()).is_ok());
+    assert!(
+        candidate.tabs()[0].panel(0).unwrap().binding().is_none(),
+        "primary never borrows child binding"
+    );
+    let mut removed = source.clone();
+    removed.revision = WorkbenchRevision::new(3);
+    assert!(
+        validate_canonical_refresh(
+            &candidate,
+            project_native_standalone_tabs(&removed).unwrap()
+        )
+        .is_err()
+    );
+    let PanelNode::Panel {
+        primary_presentation,
+        ..
+    } = &bound.terminal_contexts[0].tabs[1].root
+    else {
+        unreachable!()
+    };
+    let reused = primary_presentation.binding.clone();
+    children(&mut bound)[0].binding = reused;
+    assert!(project_native_standalone_tabs(&bound).is_err());
 }

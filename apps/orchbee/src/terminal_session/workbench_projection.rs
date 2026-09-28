@@ -130,7 +130,7 @@ pub(super) struct NativeSimpleTab {
     panel_id: WorkbenchPanelId,
     presentation_id: TerminalPresentationId,
     presentation_label: WorkbenchLabel,
-    binding: NativeTerminalBinding,
+    binding: Option<NativeTerminalBinding>,
     panels: Box<[NativePanel]>,
     tree: NativePanelTree,
 }
@@ -197,8 +197,8 @@ impl NativeSimpleTab {
     }
 
     #[cfg(test)]
-    pub(super) fn binding(&self) -> &NativeTerminalBinding {
-        &self.binding
+    pub(super) fn binding(&self) -> Option<&NativeTerminalBinding> {
+        self.binding.as_ref()
     }
 
     pub(super) fn panel_count(&self) -> usize {
@@ -1337,7 +1337,9 @@ fn unique_structural_ids(tabs: &[NativeSimpleTab]) -> bool {
                 panels.insert(&panel.panel_id)
                     && panel.presentations().all(|member| {
                         presentations.insert(member.presentation_id())
-                            && terminals.insert(member.binding().terminal_id())
+                            && member
+                                .binding()
+                                .is_none_or(|binding| terminals.insert(binding.terminal_id()))
                     })
             })
     })
@@ -1365,7 +1367,7 @@ type MemberTuple<'a> = (
     &'a WorkbenchPanelId,
     &'a TerminalPresentationId,
     &'a WorkbenchLabel,
-    &'a NativeTerminalBinding,
+    &'a Option<NativeTerminalBinding>,
 );
 
 fn member_tuples(tab: &NativeSimpleTab) -> impl Iterator<Item = MemberTuple<'_>> {
@@ -1412,7 +1414,7 @@ fn retained_member_tuples(
     let current_terminals: std::collections::HashSet<_> = current
         .iter()
         .flat_map(member_tuples)
-        .map(|member| &member.4.terminal_id)
+        .filter_map(|member| member.4.as_ref().map(|binding| &binding.terminal_id))
         .collect();
     let mut primary_panels: HashMap<&WorkbenchPanelId, MemberTuple> = HashMap::new();
     let mut presentations: HashMap<&TerminalPresentationId, Vec<MemberTuple>> = HashMap::new();
@@ -1432,10 +1434,12 @@ fn retained_member_tuples(
         }
         for member in member_tuples(tab) {
             presentations.entry(member.2).or_default().push(member);
-            terminals
-                .entry(&member.4.terminal_id)
-                .or_default()
-                .push(member);
+            if let Some(binding) = member.4 {
+                terminals
+                    .entry(&binding.terminal_id)
+                    .or_default()
+                    .push(member);
+            }
         }
     }
     current.iter().all(|tab| {
@@ -1454,19 +1458,40 @@ fn retained_member_tuples(
                 .into_iter()
                 .filter(|_| primary)
                 .chain(presentations.get(member.2).into_iter().flatten())
-                .chain(terminals.get(&member.4.terminal_id).into_iter().flatten())
+                .chain(
+                    member
+                        .4
+                        .as_ref()
+                        .and_then(|binding| terminals.get(&binding.terminal_id))
+                        .into_iter()
+                        .flatten(),
+                )
             {
                 let exact = hit.1 == member.1
                     && hit.2 == member.2
                     && hit.3 == member.3
                     && hit.4 == member.4;
+                let newly_bound = member.4.is_none()
+                    && hit.1 == member.1
+                    && hit.2 == member.2
+                    && hit.3 == member.3
+                    && hit
+                        .4
+                        .as_ref()
+                        .is_some_and(|binding| !current_terminals.contains(&binding.terminal_id));
                 let replacement = allow_replacement
                     && hit.1 == member.1
                     && hit.3 == member.3
-                    && hit.4.worker_id == member.4.worker_id
-                    && !current_presentations.contains(hit.2)
-                    && !current_terminals.contains(&hit.4.terminal_id);
-                if !exact && !replacement {
+                    && hit
+                        .4
+                        .as_ref()
+                        .zip(member.4.as_ref())
+                        .is_some_and(|(next, previous)| {
+                            next.worker_id == previous.worker_id
+                                && !current_terminals.contains(&next.terminal_id)
+                        })
+                    && !current_presentations.contains(hit.2);
+                if !exact && !newly_bound && !replacement {
                     return false;
                 }
                 retains_member = retains_member || hit.0 == member.0;

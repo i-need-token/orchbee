@@ -3000,7 +3000,11 @@ impl CommandMailbox {
         state.attachment_generation = generation;
         state.desired = MailboxMembership::Live {
             desired: Some(target.selected().key().clone()),
-            panes: vec![target.pane_ref()],
+            panes: target
+                .binding()
+                .map(|_| target.pane_ref())
+                .into_iter()
+                .collect(),
         };
         state.event = EventCell::Reply(
             wait_key.clone(),

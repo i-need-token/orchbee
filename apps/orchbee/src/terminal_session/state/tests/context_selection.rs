@@ -407,7 +407,10 @@ fn restored_workspace_selected_panel_requires_cleanup_then_fresh_attachment_with
     else {
         panic!("attach replacement")
     };
-    assert_eq!(target.binding().terminal_id(), &terminal_id(9001));
+    assert_eq!(
+        target.binding().expect("bound fixture").terminal_id(),
+        &terminal_id(9001)
+    );
     assert_eq!(target.provenance(), &CreateTerminalProvenance::BindingOnly);
     assert_ne!(target.selected().key(), &old);
     assert_eq!(state.cache().tabs()[0].panel(0).unwrap().panel_id(), &panel);
@@ -436,6 +439,7 @@ fn restored_workspace_reentry_does_not_inherit_failed_launch_from_retained_conte
             .panel(0)
             .unwrap()
             .binding()
+            .expect("bound fixture")
             .terminal_id(),
         &terminal_id(9001)
     );
@@ -473,7 +477,10 @@ fn restored_workspace_background_tab_drops_old_launch_failure_without_detaching_
     let target = state
         .target_for_switch(1, AttachmentKey::new(100, tab), deadlines())
         .unwrap();
-    assert_eq!(target.binding().terminal_id(), &terminal_id(9001));
+    assert_eq!(
+        target.binding().expect("bound fixture").terminal_id(),
+        &terminal_id(9001)
+    );
     assert_eq!(target.provenance(), &CreateTerminalProvenance::BindingOnly);
     assert!(state.invariant_holds());
 }

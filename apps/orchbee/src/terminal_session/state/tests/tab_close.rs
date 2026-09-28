@@ -26,7 +26,7 @@ fn selection(index: usize) -> CloseSelection {
             tab.tab_id().clone(),
         ),
         tab.tab_label().clone(),
-        tab.binding().clone(),
+        tab.binding().unwrap().clone(),
         Some(AttachmentKey::new(1, tab.tab_id().clone())),
         cache.revision(),
     )
@@ -384,11 +384,11 @@ fn split_close_uses_the_attached_leaf_binding_for_confirmation_and_submission() 
         .unwrap();
 
     assert_eq!(
-        operation.selection().binding().terminal_id(),
+        operation.selection().binding().unwrap().terminal_id(),
         &peer_binding.terminal_id
     );
     assert_eq!(
-        operation.selection().binding().worker_id(),
+        operation.selection().binding().unwrap().worker_id(),
         &peer_binding.worker_id
     );
     assert_ne!(
@@ -462,7 +462,7 @@ fn retained_record_capacity_rejects_257_before_opening_or_replacing_an_intent() 
                 super::tab_id(20_000 + index as u128),
             ),
             tab.tab_label().clone(),
-            tab.binding().clone(),
+            tab.binding().unwrap().clone(),
             None,
             cache.revision(),
         )

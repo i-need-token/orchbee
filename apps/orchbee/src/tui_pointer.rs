@@ -85,6 +85,11 @@ pub(crate) enum HitTarget {
         pane: PaneRef,
         presentation: orchbee_workbench_protocol::TerminalPresentationId,
     },
+    /// Empty members carry exact structural identity and no runtime incarnation.
+    Unbound {
+        selected: crate::terminal_input::PointerUnboundPane,
+        presentation: Option<orchbee_workbench_protocol::TerminalPresentationId>,
+    },
     /// Painted overlay body with no action — swallows the click so it
     /// cannot reach the layer beneath.
     OverlaySurface,
@@ -666,6 +671,33 @@ impl PointerState {
                 };
                 let disposition = port.apply_client_action(ClientAction::SelectContextAt(index));
                 if let Some(disposition) = disposition {
+                    view.commit_pointer(disposition);
+                }
+                PointerOutcome::RegionsChanged
+            }
+            HitResolution::Region(HitTarget::Unbound {
+                selected,
+                presentation,
+            }) => {
+                if event.action != MouseAction::Press
+                    || event.button != MouseButton::Left
+                    || event.mods != crate::client_view::Modifiers::NONE
+                    || probe
+                        .desired
+                        .as_ref()
+                        .is_none_or(|desired| desired.anchor() != selected.key.anchor())
+                    || !probe.unbound.contains(selected)
+                {
+                    return PointerOutcome::Ignored;
+                }
+                let action = match presentation {
+                    Some(id) => ClientAction::SelectPresentation {
+                        panel: selected.key.panel().clone(),
+                        presentation: id.clone(),
+                    },
+                    None => ClientAction::FocusPanel(selected.key.panel().clone()),
+                };
+                if let Some(disposition) = port.apply_client_action(action) {
                     view.commit_pointer(disposition);
                 }
                 PointerOutcome::RegionsChanged

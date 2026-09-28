@@ -42,7 +42,7 @@ impl NativeSessionState {
             || self.cache != prepared.baseline
             || self.desired != prepared.baseline_desired
             || prepared.preserves_selection()
-            || !matches!(self.phase, SessionPhase::Ready(_))
+            || !self.membership_cleanup_ready()
         {
             return Err(CarrierFailure::Protocol);
         }

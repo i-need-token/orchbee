@@ -56,6 +56,7 @@ fn panel_focus_switch_keeps_the_tab_and_targets_the_selected_leaf_binding() {
             .panel(1)
             .unwrap()
             .binding()
+            .expect("bound fixture")
             .terminal_id(),
         &TerminalId::parse(&super::id(2_012)).unwrap()
     );

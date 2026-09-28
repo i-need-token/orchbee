@@ -2102,11 +2102,25 @@ impl UiDriver {
                                 prepared,
                             } = prepared
                             {
-                                RefreshDecision::Cleanup(state.stage_refresh_membership_cleanup(
-                                    generation,
-                                    prepared,
-                                    recovery_deadlines.ok_or(CarrierFailure::Deadline)?,
-                                )?)
+                                if state.has_attachments() && !prepared.preserves_selection() {
+                                    RefreshDecision::Cleanup(state.stage_refresh_membership_cleanup(generation, prepared, recovery_deadlines.ok_or(CarrierFailure::Deadline)?)?)
+                                } else {
+                                    use crate::terminal_session::{mailbox::DesiredInstall, state::MembershipInstallDecision};
+                                    let install = if prepared.preserves_selection() { DesiredInstall::Preserve }
+                                        else if let Some(tab) = prepared.selected_tab_id() {
+                                            let panel = prepared.focus_panel_id().ok_or(CarrierFailure::Protocol)?;
+                                            DesiredInstall::Fresh { tab_id: tab.clone(), panel: panel.clone() }
+                                        } else { DesiredInstall::Empty };
+                                    let desired = _transaction.prepare_desired_install(install)?;
+                                    let plan = state.prepare_refresh_membership_install(generation, prepared, desired.desired().map(|key| key.anchor().clone()), recovery_deadlines)?;
+                                    let installed = plan.commit();
+                                    desired.commit();
+                                    match installed {
+                                        MembershipInstallDecision::Attach(target) => RefreshDecision::AttachRecovered(target),
+                                        MembershipInstallDecision::Preserved => RefreshDecision::Continue,
+                                        MembershipInstallDecision::Empty | MembershipInstallDecision::SelectedWithoutAttachment => RefreshDecision::SettledWithoutAttachment,
+                                    }
+                                }
                             } else {
                                 state.apply_prepared_refresh(prepared, _transaction.observed_at())
                             };

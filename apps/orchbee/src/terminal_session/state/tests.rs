@@ -1097,7 +1097,7 @@ fn switching_to_nonfirst_panel() -> (NativeSessionState, PaneRef, CreateTerminal
         0,
         1,
         state.cache().site_id().clone(),
-        target.binding().clone(),
+        target.binding().unwrap().clone(),
         provenance.clone(),
         state.latest_geometry(),
     ));

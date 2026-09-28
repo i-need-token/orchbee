@@ -20,8 +20,14 @@ fn projects_exact_zero_one_and_256_tab_boundaries_in_order() {
             assert_eq!(projected.panel_id(), &panel_id(seed + 1));
             assert_eq!(projected.presentation_id(), &presentation_id(seed + 2));
             assert_eq!(projected.presentation_label().as_str(), expected_label);
-            assert_eq!(projected.binding().worker_id(), &worker_id(seed + 3));
-            assert_eq!(projected.binding().terminal_id(), &terminal_id(seed + 4));
+            assert_eq!(
+                projected.binding().expect("bound fixture").worker_id(),
+                &worker_id(seed + 3)
+            );
+            assert_eq!(
+                projected.binding().expect("bound fixture").terminal_id(),
+                &terminal_id(seed + 4)
+            );
         }
     }
 
@@ -101,7 +107,7 @@ fn rejects_malformed_metadata_and_unsupported_members_without_filtering() {
         label: "child".into(),
         presentation_id: presentation_id(43),
     });
-    unsupported.push(child);
+    assert!(project_native_standalone_tabs(&child).is_ok());
 
     let mut unbound = snapshot(3, 1);
     let PanelNode::Panel {
@@ -112,7 +118,7 @@ fn rejects_malformed_metadata_and_unsupported_members_without_filtering() {
         unreachable!("fixture tab uses one Panel")
     };
     primary_presentation.binding = None;
-    unsupported.push(unbound);
+    assert!(project_native_standalone_tabs(&unbound).is_ok());
 
     for candidate in unsupported {
         assert_eq!(
@@ -260,8 +266,14 @@ fn preserves_exact_duplicate_whitespace_labels_and_separate_identity_domains() {
     assert_eq!(tab.tab_id().as_str(), same);
     assert_eq!(tab.panel_id().as_str(), same);
     assert_eq!(tab.presentation_id().as_str(), same);
-    assert_eq!(tab.binding().worker_id().as_str(), same);
-    assert_eq!(tab.binding().terminal_id().as_str(), same);
+    assert_eq!(
+        tab.binding().expect("bound fixture").worker_id().as_str(),
+        same
+    );
+    assert_eq!(
+        tab.binding().expect("bound fixture").terminal_id().as_str(),
+        same
+    );
 }
 
 #[test]

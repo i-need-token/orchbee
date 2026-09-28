@@ -46,6 +46,9 @@ impl NativeUi {
         } else {
             match state.phase_kind() {
                 SessionPhaseKind::Empty | SessionPhaseKind::Ready => ClientViewPhase::Ready,
+                SessionPhaseKind::SelectedWithoutAttachment if state.selected_is_unbound() => {
+                    ClientViewPhase::Ready
+                }
                 SessionPhaseKind::Starting => ClientViewPhase::Starting,
                 SessionPhaseKind::Creating
                 | SessionPhaseKind::CreateCommittedNeedDetach
@@ -272,7 +275,7 @@ impl NativeUi {
         {
             // A context/Tab can be Ready before its sibling viewers converge.
             // Wait for the existing setup owner, never mint a second attachment.
-            if !state.panel_viewer_live(panel_id) {
+            if !state.panel_viewer_live(panel_id) && !state.panel_is_unbound(panel_id) {
                 return if state
                     .pane_by_panel(panel_id)
                     .is_some_and(|pane| !pane.attachable() || pane.fault().is_some())

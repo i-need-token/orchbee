@@ -485,3 +485,120 @@ fn passive_member_read_tracks_child_attachment_and_never_borrows_primary_frame()
         Err(ClientViewControlReason::TargetUnavailable)
     );
 }
+
+fn empty_ui() -> (
+    NativeUi,
+    Arc<CommandMailbox>,
+    Arc<std::sync::atomic::AtomicU64>,
+) {
+    use crate::terminal_session::mailbox::EventDeadline;
+    let elapsed = Arc::new(std::sync::atomic::AtomicU64::new(0));
+    let clock = crate::local_client::test_server::adjustable_operation_clock(Arc::clone(&elapsed));
+    let mailbox = Arc::new(CommandMailbox::new(
+        10,
+        Geometry::new(80, 24, 8, 16).unwrap(),
+    ));
+    let mut ui = NativeUi::new(Arc::clone(&mailbox), clock.clone());
+    let mut source = child_source(false);
+    let PanelNode::Panel {
+        primary_presentation,
+        child_presentations,
+        ..
+    } = &mut source.terminal_contexts[0].tabs[0].root
+    else {
+        unreachable!()
+    };
+    primary_presentation.binding = None;
+    child_presentations[0].binding = None;
+    let cache =
+        crate::terminal_session::workbench_projection::project_native_standalone_tabs(&source)
+            .unwrap();
+    let wait = mailbox
+        .publish_event_before(
+            WorkerEvent::Bootstrap { cache },
+            EventDeadline::Startup(clock.now() + crate::terminal_session::state::OPERATION_TOTAL),
+            &clock,
+        )
+        .unwrap();
+    ui.tick();
+    assert!(mailbox.take_deposited_reply(&wait).unwrap().is_some());
+    (ui, mailbox, elapsed)
+}
+
+#[test]
+fn unbound_bootstrap_paints_empty_guidance_and_clickable_member_selector_without_viewer() {
+    use crate::terminal_input::{MouseAction, MouseButton, MouseEvent};
+    use crate::tui_pointer::{HitTarget, PointerOutcome, PointerState};
+    let (mut ui, mailbox, _) = empty_ui();
+    assert!(ui.state.as_ref().unwrap().invariant_holds());
+    assert!(ui.pointer_probe().panes.is_empty());
+    assert_eq!(ui.pointer_probe().unbound.len(), 1);
+    assert_eq!(
+        ui.control_observation(false).unwrap().1.phase,
+        orchbee_workbench_protocol::ClientViewPhase::Ready
+    );
+    let (buffer, hits, painted) = painted_selector(&ui, 120, 40);
+    assert_eq!(painted, 0);
+    let text: String = buffer.content.iter().map(|cell| cell.symbol()).collect();
+    assert!(
+        text.contains("Empty terminal slot") && text.contains("[1/3]"),
+        "{text}"
+    );
+    assert!(
+        crate::localization::Locale::ZhCn
+            .native_phase_status(&ui.view())
+            .contains("空终端位")
+    );
+    let (x, y, target) = (0..40)
+        .flat_map(|y| (0..120).map(move |x| (x, y)))
+        .find_map(|(x, y)| match hits.hit_target_at(x, y) {
+            Some(HitTarget::Unbound {
+                presentation: Some(id),
+                ..
+            }) => Some((x, y, id.clone())),
+            _ => None,
+        })
+        .unwrap();
+    let mut pointer = PointerState::default();
+    pointer.set_capture(true);
+    pointer.publish(hits);
+    let result = pointer.event(
+        &mut crate::client_view::ClientView::new(120),
+        &mut PointerUi(&mut ui),
+        std::time::Instant::now(),
+        MouseEvent {
+            action: MouseAction::Press,
+            button: MouseButton::Left,
+            mods: crate::client_view::Modifiers::NONE,
+            column: x,
+            row: y,
+        },
+    );
+    assert_eq!(result, PointerOutcome::RegionsChanged);
+    assert!(matches!(
+        mailbox.try_recv().unwrap().unwrap().record(),
+        crate::terminal_session::mailbox::QueuedCommand::Switch(_)
+    ));
+    let view = ui.view();
+    let panel = view.tab(0).unwrap().panel(0).unwrap();
+    assert_eq!(view.selected_presentation(panel).presentation_id(), &target);
+}
+
+#[test]
+fn unbound_session_schedules_bounded_refresh_without_terminal_poll_or_repeated_admission() {
+    let (mut ui, mailbox, elapsed) = empty_ui();
+    assert!(mailbox.try_recv().unwrap().is_none());
+    elapsed.store(999, std::sync::atomic::Ordering::SeqCst);
+    ui.tick();
+    assert!(mailbox.try_recv().unwrap().is_none());
+    elapsed.store(1000, std::sync::atomic::Ordering::SeqCst);
+    ui.tick();
+    let queued = mailbox.try_recv().unwrap().unwrap();
+    assert!(matches!(
+        queued.record(),
+        crate::terminal_session::mailbox::QueuedCommand::Refresh(_)
+    ));
+    ui.tick();
+    assert!(mailbox.try_recv().unwrap().is_none());
+    assert!(ui.pointer_probe().panes.is_empty());
+}

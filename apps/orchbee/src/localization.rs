@@ -596,6 +596,12 @@ impl Locale {
         self,
         view: &crate::terminal_session::NativeSessionView<'_>,
     ) -> String {
+        if view.phase() == crate::terminal_session::NativeDisplayPhase::SelectedWithoutAttachment
+            && view.selected_is_unbound()
+            && view.retirement().is_none()
+        {
+            return self.native_unbound_terminal().to_owned();
+        }
         self.native_phase_status_values(
             view.phase(),
             view.active_position(),
@@ -604,6 +610,13 @@ impl Locale {
             view.projection_status(),
             view.retirement(),
         )
+    }
+
+    pub(crate) const fn native_unbound_terminal(self) -> &'static str {
+        match self {
+            Self::EnUs => "Empty terminal slot · Use panel create-terminal to start a terminal",
+            Self::ZhCn => "空终端位 · 使用 panel create-terminal 启动终端",
+        }
     }
 
     fn native_phase_status_values(

@@ -173,8 +173,11 @@ impl SetupTarget {
             key: target.pane_ref(),
             index: target.selected().index(),
             provenance: CreateTerminalProvenance::BindingOnly,
-            attach: attach_binding(target.site_id(), target.binding())
-                .map_err(|_status| CarrierFailure::Protocol)?,
+            attach: attach_binding(
+                target.site_id(),
+                target.binding().ok_or(CarrierFailure::Protocol)?,
+            )
+            .map_err(|_status| CarrierFailure::Protocol)?,
             deadlines: None,
             geometry: None,
             fault_on_failure: false,
@@ -186,8 +189,11 @@ impl SetupTarget {
             key: target.pane_ref(),
             index: target.selected().index(),
             provenance: target.provenance().clone(),
-            attach: attach_binding(target.site_id(), target.binding())
-                .map_err(|_status| CarrierFailure::Protocol)?,
+            attach: attach_binding(
+                target.site_id(),
+                target.binding().ok_or(CarrierFailure::Protocol)?,
+            )
+            .map_err(|_status| CarrierFailure::Protocol)?,
             deadlines: Some(target.deadlines()),
             geometry: None,
             fault_on_failure: false,
@@ -312,6 +318,10 @@ impl NativeExecutor {
             .submission_deadline()
             .ok_or(CarrierFailure::Protocol)?;
         let bootstrap = self.bootstrap(initial_geometry, startup_deadline)?;
+        if bootstrap.binding().is_none() {
+            self.client.set_submission_deadline(None);
+            return self.run_ready_queue();
+        }
         let target = SetupTarget::bootstrap(bootstrap)?;
         if !matches!(
             self.setup_target(

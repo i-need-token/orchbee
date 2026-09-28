@@ -50,6 +50,24 @@ impl NavigationMemory {
             .insert(tab.tab_id().clone(), selected.key().panel().clone());
     }
 
+    pub(super) fn remember_presentation(
+        &mut self,
+        cache: &NativeContextTabs,
+        selected: &SelectedTab,
+        id: TerminalPresentationId,
+    ) {
+        self.remember(cache, selected);
+        if let Some(entry) = self
+            .contexts
+            .iter_mut()
+            .find(|entry| &entry.location == cache.location())
+        {
+            entry
+                .presentations
+                .insert(selected.key().panel().clone(), id);
+        }
+    }
+
     pub(super) fn presentation<'a>(
         &self,
         location: &NativeContextLocation,

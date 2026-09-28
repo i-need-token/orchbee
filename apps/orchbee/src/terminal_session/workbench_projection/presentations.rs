@@ -10,21 +10,20 @@ pub(crate) struct NativePresentation {
     pub(super) presentation_id: TerminalPresentationId,
     pub(super) presentation_label: WorkbenchLabel,
     pub(super) custom_label: Option<PanelCustomLabel>,
-    pub(super) binding: NativeTerminalBinding,
+    pub(super) binding: Option<NativeTerminalBinding>,
 }
 
 impl NativePresentation {
     pub(super) fn project(value: &Presentation) -> Result<Self, NativeProjectionError> {
-        let binding = value.binding.as_ref().ok_or(NativeProjectionError)?;
         Ok(Self {
             presentation_id: value.presentation_id.clone(),
             presentation_label: WorkbenchLabel::parse(&value.label)
                 .map_err(|_| NativeProjectionError)?,
             custom_label: value.custom_label.clone(),
-            binding: NativeTerminalBinding {
+            binding: value.binding.as_ref().map(|binding| NativeTerminalBinding {
                 worker_id: binding.worker_id.clone(),
                 terminal_id: binding.terminal_id.clone(),
-            },
+            }),
         })
     }
 
@@ -41,8 +40,8 @@ impl NativePresentation {
         self.custom_label()
             .unwrap_or(self.presentation_label.as_str())
     }
-    pub(in crate::terminal_session) fn binding(&self) -> &NativeTerminalBinding {
-        &self.binding
+    pub(in crate::terminal_session) fn binding(&self) -> Option<&NativeTerminalBinding> {
+        self.binding.as_ref()
     }
 }
 
@@ -70,7 +69,7 @@ impl NativePanel {
     pub(crate) fn presentation_label(&self) -> &WorkbenchLabel {
         self.primary.presentation_label()
     }
-    pub(in crate::terminal_session) fn binding(&self) -> &NativeTerminalBinding {
+    pub(in crate::terminal_session) fn binding(&self) -> Option<&NativeTerminalBinding> {
         self.primary.binding()
     }
     pub(crate) fn presentation_count(&self) -> usize {
@@ -95,6 +94,6 @@ impl NativePanel {
         binding: &NativeTerminalBinding,
     ) -> Option<&NativePresentation> {
         self.presentations()
-            .find(|member| member.binding() == binding)
+            .find(|member| member.binding() == Some(binding))
     }
 }

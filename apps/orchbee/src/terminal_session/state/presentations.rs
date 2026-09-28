@@ -8,12 +8,32 @@ impl NativeSessionState {
         &self,
         panel: &'a NativePanel,
     ) -> &'a NativePresentation {
+        if let SessionPhase::Switching(setup) = &self.phase
+            && setup.target.selected.key().panel() == panel.panel_id()
+            && let Some(member) = panel
+                .presentation_index(&setup.target.presentation_id)
+                .and_then(|i| panel.presentation(i))
+        {
+            return member;
+        }
         self.pane_by_panel(panel.panel_id())
             .and_then(|record| panel.bound_presentation(record.binding()))
             .unwrap_or_else(|| {
                 self.navigation_memory
                     .presentation(self.cache.location(), panel)
             })
+    }
+
+    pub(in crate::terminal_session) fn panel_is_unbound(&self, id: &WorkbenchPanelId) -> bool {
+        self.active()
+            .and_then(|active| self.cache.tabs().get(active.index()))
+            .and_then(|tab| tab.panel_index(id).and_then(|index| tab.panel(index)))
+            .is_some_and(|panel| self.selected_presentation(panel).binding().is_none())
+    }
+
+    pub(in crate::terminal_session) fn selected_is_unbound(&self) -> bool {
+        self.active()
+            .is_some_and(|active| self.panel_is_unbound(active.key().panel()))
     }
 
     pub(super) fn member_provenance(
@@ -40,7 +60,9 @@ impl NativeSessionState {
             .filter(|panel| panel.panel_id() == target.selected.key().panel())
             .and_then(|panel| {
                 panel
-                    .bound_presentation(&target.binding)
+                    .presentation_index(&target.presentation_id)
+                    .and_then(|index| panel.presentation(index))
+                    .filter(|member| member.binding() == target.binding.as_ref())
                     .map(|member| (panel, member))
             })
             .is_some_and(|(panel, member)| {
@@ -72,11 +94,12 @@ impl NativeSessionState {
         let panel_index = tab.panel_index(panel_id)?;
         let panel = tab.panel(panel_index)?;
         let member = panel.presentation(panel.presentation_index(presentation_id)?)?;
-        let binding = member.binding().clone();
+        let binding = member.binding().cloned();
         let provenance = self.member_provenance(tab_index, panel, member);
         let key = AttachmentKey::new(generation, tab.tab_id().clone());
         let mut target = self.target_for_switch_for_panel(tab_index, key, deadlines, panel_id)?;
         target.binding = binding;
+        target.presentation_id = Box::new(presentation_id.clone());
         target.provenance = provenance;
         Some(target)
     }

@@ -61,10 +61,10 @@ fn created_tab_accepts_later_concurrent_members_and_snapshot_binding() {
     let mut candidate = created_candidate(1, 4, 9, "created");
     candidate.tabs[0].tab_label = label("renamed old member");
     candidate.tabs[1].tab_label = label("renamed created member");
-    candidate.tabs[1].binding = NativeTerminalBinding {
+    candidate.tabs[1].binding = Some(NativeTerminalBinding {
         worker_id: worker_id(300),
         terminal_id: terminal_id(301),
-    };
+    });
     candidate.tabs[1].panels[0].primary.binding = candidate.tabs[1].binding.clone();
     let expected = expectation_for(&candidate, 1, 6, "created");
     let ValidatedCreatedProjection {
@@ -88,11 +88,17 @@ fn created_tab_accepts_later_concurrent_members_and_snapshot_binding() {
         "created"
     );
     assert_eq!(
-        accepted.tabs()[index].binding().worker_id(),
+        accepted.tabs()[index]
+            .binding()
+            .expect("bound fixture")
+            .worker_id(),
         &worker_id(300)
     );
     assert_eq!(
-        accepted.tabs()[index].binding().terminal_id(),
+        accepted.tabs()[index]
+            .binding()
+            .expect("bound fixture")
+            .terminal_id(),
         &terminal_id(301)
     );
 }

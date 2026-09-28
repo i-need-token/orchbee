@@ -25,15 +25,16 @@ pub(super) struct SelectedPanel {
     pub(super) binding: PresentationBinding,
 }
 impl SelectedPanel {
-    fn capture(panel: &NativePanel, presentation: &NativePresentation) -> Self {
-        Self {
+    fn capture(panel: &NativePanel, presentation: &NativePresentation) -> Option<Self> {
+        let binding = presentation.binding()?;
+        Some(Self {
             panel_id: panel.panel_id().clone(),
             presentation_id: presentation.presentation_id().clone(),
             binding: PresentationBinding {
-                worker_id: presentation.binding().worker_id().clone(),
-                terminal_id: presentation.binding().terminal_id().clone(),
+                worker_id: binding.worker_id().clone(),
+                terminal_id: binding.terminal_id().clone(),
             },
-        }
+        })
     }
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -55,7 +56,7 @@ impl Scope {
             revision: cache.revision(),
             panels: (0..tab.panel_count())
                 .filter_map(|i| tab.panel(i))
-                .map(|p| SelectedPanel::capture(p, state.selected_presentation(p)))
+                .filter_map(|p| SelectedPanel::capture(p, state.selected_presentation(p)))
                 .collect(),
         })
     }
@@ -135,10 +136,14 @@ impl PanelReports {
         panel: &NativePanel,
         presentation: &NativePresentation,
     ) -> PanelReportView<'_> {
-        if self.scope.as_ref().is_none_or(|s| {
-            !s.panels
-                .contains(&SelectedPanel::capture(panel, presentation))
-        }) {
+        let Some(selected) = SelectedPanel::capture(panel, presentation) else {
+            return PanelReportView::Unavailable;
+        };
+        if self
+            .scope
+            .as_ref()
+            .is_none_or(|s| !s.panels.contains(&selected))
+        {
             return PanelReportView::Pending;
         }
         if self.unavailable {

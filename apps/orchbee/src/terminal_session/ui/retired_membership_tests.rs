@@ -1044,7 +1044,10 @@ fn retired_workspace_replacement_attaches_same_panel_only_with_fresh_physical_id
             let RefreshDecision::AttachRecovered(target) = reply.decision() else {
                 panic!("replacement attach")
             };
-            assert_eq!(target.binding().terminal_id(), &new_terminal);
+            assert_eq!(
+                target.binding().expect("bound fixture").terminal_id(),
+                &new_terminal
+            );
             assert_eq!(target.selected().key().panel(), &old_panel);
             assert_eq!(
                 target.selected().key().generation(),

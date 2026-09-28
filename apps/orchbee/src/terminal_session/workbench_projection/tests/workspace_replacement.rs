@@ -62,6 +62,7 @@ fn workspace_replacement_requires_fresh_presentation_and_terminal_and_retains_wo
                     .panel(0)
                     .unwrap()
                     .binding()
+                    .expect("bound fixture")
                     .terminal_id
                     .clone()
             }
@@ -70,7 +71,7 @@ fn workspace_replacement_requires_fresh_presentation_and_terminal_and_retains_wo
             5 => presentation.presentation_id = other.presentation_id().clone(),
             6 => {
                 presentation.binding.as_mut().unwrap().terminal_id =
-                    other.binding().terminal_id.clone()
+                    other.binding().expect("bound fixture").terminal_id.clone()
             }
             _ => {}
         }

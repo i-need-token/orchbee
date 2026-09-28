@@ -102,7 +102,7 @@ fn exact_commit_rejects_every_change_beyond_target_label() {
     wrong.tabs[1].presentation_label = label("presentation is immutable");
     failures.push(wrong);
     let mut wrong = correct.clone();
-    wrong.tabs[1].binding.worker_id = worker_id(999);
+    wrong.tabs[1].binding.as_mut().unwrap().worker_id = worker_id(999);
     failures.push(wrong);
     for wrong in failures {
         assert_eq!(
@@ -207,7 +207,7 @@ fn later_history_still_enforces_canonical_identity_and_membership_bounds() {
     wrong.tabs[1].presentation_id = presentation_id(999);
     failures.push(wrong);
     let mut wrong = projected(3, 12);
-    wrong.tabs[1].binding.terminal_id = terminal_id(999);
+    wrong.tabs[1].binding.as_mut().unwrap().terminal_id = terminal_id(999);
     failures.push(wrong);
     let mut wrong = projected(3, 12);
     wrong.tabs.push(wrong.tabs[0].clone());

@@ -102,6 +102,7 @@ pub(crate) struct PointerProbe {
     /// Per-leaf live facts for every pane record, keyed by exact
     /// incarnation — the pending settler looks up its recorded target.
     pub(crate) panes: Vec<PointerPane>,
+    pub(crate) unbound: Vec<PointerUnboundPane>,
     /// `forward` would accept input right now: Ready phase under a
     /// Controlling mode with an exact focus incarnation that no close
     /// suppresses. `focus == expected` alone is not this — the phase and
@@ -118,6 +119,12 @@ pub(crate) struct PointerProbe {
     /// wheel gestures over it scroll locally instead of encoding to the
     /// pane. Read fresh per event, like every other probe fact.
     pub(crate) viewport_non_live: bool,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct PointerUnboundPane {
+    pub(crate) key: crate::terminal_session::state::PaneKey,
+    pub(crate) presentation: orchbee_workbench_protocol::TerminalPresentationId,
 }
 
 impl PointerProbe {

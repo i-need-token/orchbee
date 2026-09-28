@@ -861,8 +861,9 @@ impl CommittedTabCreate {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(super) struct AttachTarget {
     selected: SelectedTab,
+    presentation_id: Box<orchbee_workbench_protocol::TerminalPresentationId>,
     site_id: SiteId,
-    binding: NativeTerminalBinding,
+    binding: Option<NativeTerminalBinding>,
     provenance: CreateTerminalProvenance,
     deadlines: OperationDeadlines,
     incarnation: u32,
@@ -872,7 +873,7 @@ pub(super) struct AttachTarget {
 pub(super) struct BootstrapTarget {
     selected: SelectedTab,
     site_id: SiteId,
-    binding: NativeTerminalBinding,
+    binding: Option<NativeTerminalBinding>,
     incarnation: u32,
 }
 
@@ -885,8 +886,8 @@ impl BootstrapTarget {
         &self.site_id
     }
 
-    pub(super) const fn binding(&self) -> &NativeTerminalBinding {
-        &self.binding
+    pub(super) const fn binding(&self) -> Option<&NativeTerminalBinding> {
+        self.binding.as_ref()
     }
 
     pub(super) fn pane_ref(&self) -> PaneRef {
@@ -903,8 +904,8 @@ impl AttachTarget {
         &self.site_id
     }
 
-    pub(super) const fn binding(&self) -> &NativeTerminalBinding {
-        &self.binding
+    pub(super) const fn binding(&self) -> Option<&NativeTerminalBinding> {
+        self.binding.as_ref()
     }
 
     pub(super) const fn provenance(&self) -> &CreateTerminalProvenance {
@@ -1161,19 +1162,21 @@ impl NativeSessionState {
         let panel = first.panel(0)?;
         let key = PaneKey::new(anchor, panel.panel_id().clone());
         let selected = SelectedTab::new(key.clone(), 0);
-        let record = PaneRecord::new(
-            PaneRef::new(key, 1),
-            0,
-            0,
-            cache.site_id().clone(),
-            panel.binding().clone(),
-            CreateTerminalProvenance::BindingOnly,
-            geometry,
-        );
+        let record = panel.binding().map(|binding| {
+            PaneRecord::new(
+                PaneRef::new(key.clone(), 1),
+                0,
+                0,
+                cache.site_id().clone(),
+                binding.clone(),
+                CreateTerminalProvenance::BindingOnly,
+                geometry,
+            )
+        });
         let target = BootstrapTarget {
             selected: selected.clone(),
             site_id: cache.site_id().clone(),
-            binding: panel.binding().clone(),
+            binding: panel.binding().cloned(),
             incarnation: 1,
         };
         let state = Self {
@@ -1182,13 +1185,17 @@ impl NativeSessionState {
             navigation_memory: navigation_memory::NavigationMemory::default(),
             provenance: vec![CreateTerminalProvenance::BindingOnly; cache.tabs().len()],
             cache,
-            phase: SessionPhase::Starting(StartingSetup {
-                selected,
-                mode: None,
-                accepted_geometry: None,
-            }),
-            desired: Some(record.key().clone()),
-            panes: vec![record],
+            phase: if record.is_some() {
+                SessionPhase::Starting(StartingSetup {
+                    selected,
+                    mode: None,
+                    accepted_geometry: None,
+                })
+            } else {
+                SessionPhase::SelectedWithoutAttachment(selected)
+            },
+            desired: Some(key),
+            panes: record.into_iter().collect(),
             next_incarnation: 2,
             reconcile_deadlines: None,
             latest_geometry: geometry,
@@ -1800,7 +1807,9 @@ impl NativeSessionState {
                         continue;
                     };
                     let member = self.selected_presentation(panel);
-                    let binding = member.binding().clone();
+                    let Some(binding) = member.binding().cloned() else {
+                        continue;
+                    };
                     let provenance = self.member_provenance(tab_index, panel, member);
                     let incarnation = self.next_incarnation;
                     self.next_incarnation += 1;
@@ -1954,6 +1963,9 @@ impl NativeSessionState {
     /// Installs the fresh focus record for a newly minted target. The caller
     /// owns incarnation minting (attach_target); this only registers the record.
     pub(super) fn install_pane_record(&mut self, target: &AttachTarget) {
+        let Some(binding) = target.binding.clone() else {
+            return;
+        };
         let pane = target.selected.key.clone();
         if self.pane_record(&pane).is_some() {
             return;
@@ -1963,7 +1975,7 @@ impl NativeSessionState {
             target.selected.index,
             target.selected.panel_index,
             target.site_id.clone(),
-            target.binding.clone(),
+            binding,
             target.provenance.clone(),
             self.latest_geometry,
         ));
@@ -1983,6 +1995,11 @@ impl NativeSessionState {
         let Some(panel) = tab.panel(selected.panel_index) else {
             return;
         };
+        let member = self.selected_presentation(panel);
+        let Some(binding) = member.binding().cloned() else {
+            return;
+        };
+        let provenance = self.member_provenance(selected.index(), panel, member);
         let incarnation = self.next_incarnation;
         self.next_incarnation += 1;
         self.panes.push(PaneRecord::new(
@@ -1990,11 +2007,8 @@ impl NativeSessionState {
             selected.index,
             selected.panel_index,
             self.cache.site_id().clone(),
-            panel.binding().clone(),
-            self.provenance
-                .get(selected.index)
-                .cloned()
-                .unwrap_or(CreateTerminalProvenance::BindingOnly),
+            binding,
+            provenance,
             self.latest_geometry,
         ));
     }
@@ -3174,7 +3188,8 @@ impl NativeSessionState {
         let tab = &self.cache.tabs()[selected.index];
         let panel = tab.panel(selected.panel_index())?;
         let member = self.selected_presentation(panel);
-        let binding = member.binding().clone();
+        let binding = member.binding().cloned();
+        let presentation_id = member.presentation_id().clone();
         let provenance = if member.presentation_id() == panel.presentation_id() {
             provenance
         } else {
@@ -3184,6 +3199,7 @@ impl NativeSessionState {
         self.next_incarnation += 1;
         Some(AttachTarget {
             selected,
+            presentation_id: Box::new(presentation_id),
             site_id: self.cache.site_id().clone(),
             binding,
             provenance,
@@ -3249,53 +3265,36 @@ impl NativeSessionState {
         )
     }
 
-    /// A directional focus move is a pure local transition: the target pane's
-    /// viewer is already live under the same anchor, so no detach/attach round
-    /// trip is minted. Returns the pane to focus, or `None` when the move is
-    /// not currently legal (no live viewer on the neighbour, or the session is
-    /// not Ready).
+    /// A local focus move selects an empty member or a live sibling viewer under
+    /// the same anchor without detach/attach. Pending or unavailable bound panes
+    /// remain ineligible; empty selection owns no runtime input route.
     pub(super) fn plan_panel_focus_local(
         &self,
         direction: crate::client_view::PanelDirection,
     ) -> Option<PaneKey> {
-        if self.mutation_blocks_structure()
-            || self.rename_draft_blocks_structure()
-            || self.pending_refresh.is_some()
-            || !matches!(&self.phase, SessionPhase::Ready(_))
-        {
-            return None;
-        }
         let active = self.active()?;
         let tab = self.cache.tabs().get(active.index())?;
-        let panel_index = tab.panel_focus_target(active.panel_index(), direction)?;
-        if panel_index == active.panel_index() {
+        let index = tab.panel_focus_target(active.panel_index(), direction)?;
+        if index == active.panel_index() {
             return None;
         }
-        let panel_id = tab.panel(panel_index)?.panel_id().clone();
-        let pane = PaneKey::new(active.key().anchor().clone(), panel_id);
-        let record = self.pane_record(&pane)?;
-        (record.attached && record.projected && !record.departing && record.mode.is_some())
-            .then_some(pane)
+        self.plan_panel_focus_local_at(tab.panel(index)?.panel_id())
     }
 
-    /// The pointer's sibling of [`plan_panel_focus_local`]: the hit test
-    /// already resolved a stable panel identity, so the plan names that
-    /// panel's pane under the active anchor instead of a direction. The
-    /// same guards apply — a pure local focus transition over an attached,
-    /// non-departing pane, never a fresh attach round trip.
     pub(super) fn plan_panel_focus_local_at(&self, panel: &WorkbenchPanelId) -> Option<PaneKey> {
         if self.mutation_blocks_structure()
             || self.rename_draft_blocks_structure()
             || self.pending_refresh.is_some()
-            || !matches!(&self.phase, SessionPhase::Ready(_))
+            || !matches!(
+                &self.phase,
+                SessionPhase::Ready(_) | SessionPhase::SelectedWithoutAttachment(_)
+            )
         {
             return None;
         }
         let active = self.active()?;
-        let pane = PaneKey::new(active.key().anchor().clone(), panel.clone());
-        let record = self.pane_record(&pane)?;
-        (record.attached && record.projected && !record.departing && record.mode.is_some())
-            .then_some(pane)
+        (self.panel_is_unbound(panel) || self.panel_viewer_live(panel))
+            .then(|| PaneKey::new(active.key().anchor().clone(), panel.clone()))
     }
 
     /// Whether the named panel's viewer is live under the current desired
@@ -3367,18 +3366,9 @@ impl NativeSessionState {
     /// touching any attachment. Queued input/resize commands keep their frozen
     /// `PaneRef` tags and remain valid — the membership set does not change.
     pub(super) fn move_panel_focus_local(&mut self, pane: PaneKey) -> bool {
-        let Some(record) = self.pane_record(&pane) else {
-            return false;
-        };
-        if !record.attached || !record.projected || record.departing {
+        if self.plan_panel_focus_local_at(pane.panel()).as_ref() != Some(&pane) {
             return false;
         }
-        let Some(mode) = record.mode.clone() else {
-            return false;
-        };
-        let geometry = record.observed_geometry;
-        // Resolve the panel's current index from the cache: a refresh merge may
-        // have reordered panels since the record last observed the leaf set.
         let Some(active) = self.active().cloned() else {
             return false;
         };
@@ -3390,14 +3380,20 @@ impl NativeSessionState {
         else {
             return false;
         };
-        let SessionPhase::Ready(ready) = &mut self.phase else {
-            return false;
-        };
-        ready.selected.key = pane.clone();
-        ready.selected.panel_index = panel_index;
-        ready.mode = mode;
+        let selected = SelectedTab::new_panel(pane.clone(), active.index(), panel_index);
+        if self.panel_is_unbound(pane.panel()) {
+            self.phase = SessionPhase::SelectedWithoutAttachment(selected);
+        } else {
+            let Some(record) = self.pane_record(&pane) else {
+                return false;
+            };
+            let Some(mode) = record.mode.clone() else {
+                return false;
+            };
+            self.latest_geometry = record.observed_geometry;
+            self.phase = SessionPhase::Ready(ReadyAttachment { selected, mode });
+        }
         self.desired = Some(pane);
-        self.latest_geometry = geometry;
         true
     }
 
@@ -3411,7 +3407,10 @@ impl NativeSessionState {
         if self.mutation_blocks_structure()
             || self.rename_draft_blocks_structure()
             || self.pending_refresh.is_some()
-            || !matches!(&self.phase, SessionPhase::Ready(_))
+            || !matches!(
+                &self.phase,
+                SessionPhase::Ready(_) | SessionPhase::SelectedWithoutAttachment(_)
+            )
         {
             return false;
         }
@@ -3747,7 +3746,11 @@ impl NativeSessionState {
         let attachment_shape_valid = match &self.phase {
             SessionPhase::ReconcilingMembership(selected) => {
                 Some(&selected.key) == self.desired.as_ref()
-                    && self.focus_record().is_some_and(|record| record.attached)
+                    && (self.focus_record().is_some_and(|record| record.attached)
+                        || (self.selected_is_unbound()
+                            && self.panes.iter().any(|record| {
+                                record.key.anchor() == selected.key.anchor() && record.attached
+                            })))
             }
             SessionPhase::Empty => {
                 self.cache.tabs().is_empty()
@@ -3797,7 +3800,7 @@ impl NativeSessionState {
                         Some(previous) => self
                             .pane_record(&previous.selected.key)
                             .is_some_and(|record| record.attached),
-                        None => self.focus_record().is_some(),
+                        None => setup.target.binding.is_none() || self.focus_record().is_some(),
                     }
             }
             SessionPhase::SelectedWithoutAttachment(selected)
@@ -3850,6 +3853,23 @@ pub(super) struct NativeSessionView<'a> {
 }
 
 impl<'a> NativeSessionView<'a> {
+    pub(super) fn unbound_panel_key(&self, panel: &super::NativePanel) -> Option<PaneKey> {
+        let active = self.state.active()?;
+        let tab = self.state.cache.tabs().get(active.index())?;
+        if tab.panel_index(panel.panel_id()).is_none()
+            || self.selected_presentation(panel).binding().is_some()
+        {
+            return None;
+        }
+        Some(PaneKey::new(
+            active.key().anchor().clone(),
+            panel.panel_id().clone(),
+        ))
+    }
+    pub(super) fn panel_is_unbound(&self, panel: &WorkbenchPanelId) -> bool {
+        self.state.panel_is_unbound(panel)
+    }
+
     pub(super) fn selected_presentation(
         &self,
         panel: &'a super::NativePanel,

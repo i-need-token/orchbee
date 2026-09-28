@@ -1664,3 +1664,64 @@ fn presentation_click_is_exact_unmodified_left_only_and_never_terminal_input() {
         assert!(port.forwarded.is_empty() && port.wheels.is_empty());
     }
 }
+
+#[test]
+fn unbound_clicks_require_exact_empty_member_and_never_forward_input() {
+    let id = orchbee_workbench_protocol::TerminalPresentationId::parse(&"8".repeat(32)).unwrap();
+    let destination =
+        orchbee_workbench_protocol::TerminalPresentationId::parse(&"9".repeat(32)).unwrap();
+    for member_arrow in [false, true] {
+        for scenario in 0..7 {
+            let selected = crate::terminal_input::PointerUnboundPane {
+                key: pane_key(1, 1, 1),
+                presentation: id.clone(),
+            };
+            let mut builder = HitMapBuilder::new();
+            builder.record(
+                HitLayer::Foreground,
+                Rect::new(0, 0, 4, 4),
+                HitTarget::Unbound {
+                    selected: selected.clone(),
+                    presentation: member_arrow.then(|| destination.clone()),
+                },
+            );
+            let mut pointer = PointerState::default();
+            pointer.set_capture(true);
+            pointer.publish(builder.finish());
+            let mut port = RecordingPort {
+                probe: PointerProbe {
+                    desired: Some(selected.key.clone()),
+                    unbound: vec![selected],
+                    ..PointerProbe::default()
+                },
+                ..RecordingPort::default()
+            };
+            let mut input = press(1, 1);
+            match scenario {
+                1 => port.probe.unbound.clear(),
+                2 => port.probe.unbound[0].presentation = destination.clone(),
+                3 => port.probe.desired = Some(pane_key(2, 1, 1)),
+                4 => input.button = MouseButton::Right,
+                5 => input.mods = Modifiers::NONE.with_shift(),
+                6 => input.action = MouseAction::Release,
+                _ => {}
+            }
+            pointer.event(&mut ClientView::new(120), &mut port, now(), input);
+            assert_eq!(port.actions.len(), usize::from(scenario == 0));
+            if scenario == 0 {
+                assert_eq!(
+                    port.actions[0],
+                    if member_arrow {
+                        ClientAction::SelectPresentation {
+                            panel: panel_id(1),
+                            presentation: destination.clone(),
+                        }
+                    } else {
+                        ClientAction::FocusPanel(panel_id(1))
+                    }
+                );
+            }
+            assert!(port.forwarded.is_empty() && port.wheels.is_empty());
+        }
+    }
+}

@@ -134,6 +134,7 @@ pub(in crate::terminal_session) struct PreparedMembershipInstall<'a> {
     prepared: PreparedMembershipCandidate,
     desired: Option<PaneKey>,
     replacement_phase: SessionPhase,
+    selected_presentation: Option<orchbee_workbench_protocol::TerminalPresentationId>,
     preserve: bool,
     decision: MembershipInstallDecision,
     refresh_generation: Option<u64>,
@@ -200,6 +201,13 @@ impl PreparedMembershipInstall<'_> {
         self.state.provenance = self.prepared.provenance;
         self.state.desired = self.desired.clone();
         self.state.phase = self.replacement_phase;
+        if let Some(id) = self.selected_presentation
+            && let Some(selected) = self.state.active().cloned()
+        {
+            self.state
+                .navigation_memory
+                .remember_presentation(&self.state.cache, &selected, id);
+        }
         self.state.prune_zoomed_tabs();
         self.state.prune_navigation_memory();
         if let Some(completion) = self.prepared.setup_completion {
@@ -267,6 +275,18 @@ impl PreparedMembershipInstall<'_> {
 }
 
 impl NativeSessionState {
+    /// Selection may be empty while this epoch still owns live sibling viewers.
+    pub(super) fn membership_cleanup_ready(&self) -> bool {
+        (matches!(self.phase, SessionPhase::Ready(_))
+            || (matches!(self.phase, SessionPhase::SelectedWithoutAttachment(_))
+                && self.selected_is_unbound()))
+            && self.desired.as_ref().is_some_and(|desired| {
+                self.panes
+                    .iter()
+                    .any(|record| record.key.anchor() == desired.anchor() && record.attached)
+            })
+    }
+
     #[cfg(any(target_os = "linux", windows))]
     pub(super) fn prepare_retired_membership_install_inner(
         &mut self,
@@ -606,6 +626,7 @@ impl NativeSessionState {
                 .map(|panel| PaneKey::new(anchor.clone(), panel.panel_id().clone())),
             None => None,
         };
+        let mut selected_presentation = None;
         let (replacement_phase, decision) = if preserve {
             let mut phase = self.phase.clone();
             match &mut phase {
@@ -639,8 +660,12 @@ impl NativeSessionState {
             } else {
                 CreateTerminalProvenance::BindingOnly
             };
-            if provenance.attachable() {
-                let binding = member.binding().clone();
+            selected_presentation = Some(member.presentation_id().clone());
+            if let Some(binding) = member
+                .binding()
+                .cloned()
+                .filter(|_| provenance.attachable())
+            {
                 // A surviving record reuses its incarnation so a live viewer is
                 // never re-attached; a fresh pane mints the next incarnation.
                 let incarnation = match self.pane_record(pane) {
@@ -652,9 +677,10 @@ impl NativeSessionState {
                     }
                 };
                 let target = AttachTarget {
+                    presentation_id: Box::new(member.presentation_id().clone()),
                     selected,
                     site_id: prepared.candidate.site_id().clone(),
-                    binding,
+                    binding: Some(binding),
                     provenance,
                     deadlines: deadlines.ok_or(CarrierFailure::Deadline)?,
                     incarnation,
@@ -683,6 +709,7 @@ impl NativeSessionState {
             prepared,
             desired: desired_pane,
             replacement_phase,
+            selected_presentation,
             preserve,
             decision,
             refresh_generation: None,
@@ -718,7 +745,7 @@ impl NativeSessionState {
             .map(|key| key.anchor().clone())
             .ok_or(CarrierFailure::Protocol)?;
         let selected = self.active().cloned().ok_or(CarrierFailure::Protocol)?;
-        if selected.key().anchor() != &old || !matches!(self.phase, SessionPhase::Ready(_)) {
+        if selected.key().anchor() != &old || !self.membership_cleanup_ready() {
             return Err(CarrierFailure::Protocol);
         }
         let cleanup = MembershipCleanup {
@@ -758,7 +785,7 @@ impl NativeSessionState {
             .map(|key| key.anchor().clone())
             .ok_or(CarrierFailure::Protocol)?;
         let selected = self.active().cloned().ok_or(CarrierFailure::Protocol)?;
-        if selected.key().anchor() != &old || !matches!(self.phase, SessionPhase::Ready(_)) {
+        if selected.key().anchor() != &old || !self.membership_cleanup_ready() {
             return Err(CarrierFailure::Protocol);
         }
         let cleanup = MembershipCleanup {
@@ -1228,7 +1255,7 @@ impl NativeSessionState {
             || self.cache != prepared.baseline
             || self.desired != prepared.baseline_desired
             || prepared.preserves_selection()
-            || !matches!(self.phase, SessionPhase::Ready(_))
+            || !self.membership_cleanup_ready()
         {
             return Err(CarrierFailure::Protocol);
         }
@@ -1284,7 +1311,7 @@ impl NativeSessionState {
             || self.cache != prepared.baseline
             || self.desired != prepared.baseline_desired
             || prepared.preserves_selection()
-            || !matches!(self.phase, SessionPhase::Ready(_))
+            || !self.membership_cleanup_ready()
         {
             return Err(CarrierFailure::Protocol);
         }

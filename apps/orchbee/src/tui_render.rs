@@ -615,11 +615,24 @@ fn render_native_workbench(
             // The recorded region carries the pane's exact live
             // incarnation — a press resolves it bit for bit, so it can
             // never migrate onto a re-minted record of the same panel.
-            if let Some(pane) = tab
-                .panel(leaf.panel_index)
-                .and_then(|panel| native.pane_ref_for_panel(panel.panel_id()))
-            {
-                presentation_selector::record_leaf(hits, leaf.leaf, leaf.content, pane, selector);
+            if let Some(panel) = tab.panel(leaf.panel_index) {
+                let target = native
+                    .pane_ref_for_panel(panel.panel_id())
+                    .map(|pane| HitTarget::Pane {
+                        pane,
+                        content: leaf.content,
+                    })
+                    .or_else(|| {
+                        native
+                            .unbound_pane(panel)
+                            .map(|selected| HitTarget::Unbound {
+                                selected,
+                                presentation: None,
+                            })
+                    });
+                if let Some(target) = target {
+                    presentation_selector::record_leaf(hits, leaf.leaf, target, selector);
+                }
             }
         }
         render_dividers(frame, &projection.dividers, theme);
@@ -933,7 +946,9 @@ fn render_leaf(
     } else if let Some(terminal) = terminal {
         terminal_cells::render(frame, content, terminal, input_enabled && active);
     } else {
-        let status = if matches!(
+        let status = if panel.is_some_and(|p| native.panel_is_unbound(p.panel_id())) {
+            locale.native_unbound_terminal()
+        } else if matches!(
             native.phase(),
             NativeDisplayPhase::Ready
                 | NativeDisplayPhase::MoveProjectionUnavailable

@@ -1,14 +1,12 @@
 //! Header geometry and exact member targets share one painter; selectors never overlap Pane hits.
 use super::*;
-use crate::terminal_session::{NativePanel, state::PaneRef};
-use orchbee_workbench_protocol::TerminalPresentationId;
+use crate::terminal_session::NativePanel;
 
 pub(super) struct PresentationSelector {
     pub(super) area: Rect,
     count: String,
-    pane: PaneRef,
-    previous: TerminalPresentationId,
-    next: TerminalPresentationId,
+    previous: HitTarget,
+    next: HitTarget,
 }
 impl PresentationSelector {
     pub(super) fn new(
@@ -18,7 +16,10 @@ impl PresentationSelector {
     ) -> Option<Self> {
         if header.is_empty()
             || panel.presentation_count() < 2
-            || native.phase() != NativeDisplayPhase::Ready
+            || !matches!(
+                native.phase(),
+                NativeDisplayPhase::Ready | NativeDisplayPhase::SelectedWithoutAttachment
+            )
             || native.retirement().is_some()
         {
             return None;
@@ -32,20 +33,27 @@ impl PresentationSelector {
             return None;
         }
         let total = panel.presentation_count();
+        let target = |index| {
+            let presentation = panel.presentation(index)?.presentation_id().clone();
+            Some(
+                if let Some(pane) = native.pane_ref_for_panel(panel.panel_id()) {
+                    HitTarget::Presentation { pane, presentation }
+                } else {
+                    HitTarget::Unbound {
+                        selected: native.unbound_pane(panel)?,
+                        presentation: Some(presentation),
+                    }
+                },
+            )
+        };
         Some(Self {
             area: Rect::new(header.right() - width, header.y, width, 1),
             count,
-            pane: native.pane_ref_for_panel(panel.panel_id())?,
-            previous: panel
-                .presentation((selected + total - 1) % total)?
-                .presentation_id()
-                .clone(),
-            next: panel
-                .presentation((selected + 1) % total)?
-                .presentation_id()
-                .clone(),
+            previous: target((selected + total - 1) % total)?,
+            next: target((selected + 1) % total)?,
         })
     }
+
     pub(super) fn title_area(&self, header: Rect) -> Rect {
         Rect::new(
             header.x,
@@ -75,10 +83,7 @@ impl PresentationSelector {
             hits.record(
                 HitLayer::Foreground,
                 Rect::new(x, self.area.y, 3, 1),
-                HitTarget::Presentation {
-                    pane: self.pane.clone(),
-                    presentation: presentation.clone(),
-                },
+                presentation.clone(),
             );
         }
     }
@@ -88,11 +93,9 @@ impl PresentationSelector {
 pub(super) fn record_leaf(
     hits: &mut HitMapBuilder,
     leaf: Rect,
-    content: Rect,
-    pane: PaneRef,
+    target: HitTarget,
     selector: Option<Rect>,
 ) {
-    let target = HitTarget::Pane { pane, content };
     if let Some(selector) = selector {
         hits.record(
             HitLayer::Foreground,

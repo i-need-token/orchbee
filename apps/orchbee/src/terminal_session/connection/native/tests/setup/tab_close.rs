@@ -61,7 +61,7 @@ fn admit(harness: &mut Harness, family: Family) -> TestResult<CloseOperation> {
             selected.key().tab_id().clone(),
         ),
         tab.tab_label().clone(),
-        tab.binding().clone(),
+        tab.binding().unwrap().clone(),
         Some(selected.key().anchor().clone().clone()),
         state.cache().revision(),
     );
