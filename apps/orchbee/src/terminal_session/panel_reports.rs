@@ -1,13 +1,13 @@
-//! Windows primary-Panel presentation observations on an isolated, cancellable read lane.
+//! Windows selected-Presentation observations on an isolated, cancellable read lane.
 use super::{
-    NativePanel,
+    NativePanel, NativePresentation,
     agent_read_lane::{AgentReadLane, LaneCommand, LaneOutcome},
     state::NativeSessionState,
 };
 use crate::local_client::{LocalClientOrigin, LocalOperationClock};
 use orchbee_workbench_protocol::{
     MAXIMUM_PANEL_NODES_PER_CONTEXT, MetadataTokens, PanelAgentView, PanelMetadataEffective,
-    PresentationBinding, SiteId, WorkbenchPanelId, WorkbenchRevision,
+    PresentationBinding, SiteId, TerminalPresentationId, WorkbenchPanelId, WorkbenchRevision,
 };
 use std::{
     collections::BTreeMap,
@@ -19,10 +19,28 @@ const DEADLINE: Duration = Duration::from_secs(5);
 pub(super) const MAXIMUM_BYTES: usize = 8 * 1024 * 1024;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
+pub(super) struct SelectedPanel {
+    pub(super) panel_id: WorkbenchPanelId,
+    pub(super) presentation_id: TerminalPresentationId,
+    pub(super) binding: PresentationBinding,
+}
+impl SelectedPanel {
+    fn capture(panel: &NativePanel, presentation: &NativePresentation) -> Self {
+        Self {
+            panel_id: panel.panel_id().clone(),
+            presentation_id: presentation.presentation_id().clone(),
+            binding: PresentationBinding {
+                worker_id: presentation.binding().worker_id().clone(),
+                terminal_id: presentation.binding().terminal_id().clone(),
+            },
+        }
+    }
+}
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub(super) struct Scope {
     pub(super) site: SiteId,
     pub(super) revision: WorkbenchRevision,
-    pub(super) panels: Vec<(WorkbenchPanelId, PresentationBinding)>,
+    pub(super) panels: Vec<SelectedPanel>,
 }
 impl Scope {
     pub(super) fn capture(state: &NativeSessionState) -> Option<Self> {
@@ -37,15 +55,9 @@ impl Scope {
             revision: cache.revision(),
             panels: (0..tab.panel_count())
                 .filter_map(|i| tab.panel(i))
-                .map(|p| (p.panel_id().clone(), binding(p)))
+                .map(|p| SelectedPanel::capture(p, state.selected_presentation(p)))
                 .collect(),
         })
-    }
-}
-fn binding(panel: &NativePanel) -> PresentationBinding {
-    PresentationBinding {
-        worker_id: panel.binding().worker_id().clone(),
-        terminal_id: panel.binding().terminal_id().clone(),
     }
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -118,10 +130,14 @@ impl PanelReports {
     pub(super) fn matches(&self, state: &NativeSessionState) -> bool {
         self.scope.is_some() && self.scope == Scope::capture(state)
     }
-    pub(super) fn view(&self, panel: &NativePanel) -> PanelReportView<'_> {
+    pub(super) fn view(
+        &self,
+        panel: &NativePanel,
+        presentation: &NativePresentation,
+    ) -> PanelReportView<'_> {
         if self.scope.as_ref().is_none_or(|s| {
             !s.panels
-                .contains(&(panel.panel_id().clone(), binding(panel)))
+                .contains(&SelectedPanel::capture(panel, presentation))
         }) {
             return PanelReportView::Pending;
         }

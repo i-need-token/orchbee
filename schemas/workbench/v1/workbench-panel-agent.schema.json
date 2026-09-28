@@ -321,6 +321,24 @@
 							"$ref": "#/$defs/terminalBinding"
 						}
 					}
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "read-presentations"
+						},
+						"presentationIds": {
+							"type": "array",
+							"items": {
+								"$ref": "#/$defs/identity"
+							},
+							"maxItems": 4,
+							"uniqueItems": true
+						}
+					},
+					"required": ["kind", "presentationIds"]
 				}
 			]
 		},
@@ -591,6 +609,29 @@
 							"$ref": "#/$defs/terminalExplanation"
 						}
 					}
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "presentations-read"
+						},
+						"workbenchRevision": {
+							"$ref": "#/$defs/revision"
+						},
+						"reportRevision": {
+							"$ref": "#/$defs/revision"
+						},
+						"presentations": {
+							"type": "array",
+							"items": {
+								"$ref": "#/$defs/presentationRow"
+							},
+							"maxItems": 4
+						}
+					},
+					"required": ["kind", "workbenchRevision", "reportRevision", "presentations"]
 				}
 			]
 		},
@@ -1303,6 +1344,19 @@
 					}
 				}
 			]
+		},
+		"presentationRow": {
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+				"presentationId": {
+					"$ref": "#/$defs/identity"
+				},
+				"panel": {
+					"$ref": "#/$defs/row"
+				}
+			},
+			"required": ["presentationId", "panel"]
 		}
 	}
 }

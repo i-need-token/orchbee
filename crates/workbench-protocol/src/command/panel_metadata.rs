@@ -2,7 +2,7 @@
 use crate::{
     ContractError, MetadataReportDisposition, MetadataSource, MetadataTokenPatch,
     MetadataTokenValue, MetadataTokens, PresentationBinding, ProtocolVersion, SiteId,
-    WorkbenchPanelId, WorkbenchRequestId, WorkbenchRevision,
+    TerminalPresentationId, WorkbenchPanelId, WorkbenchRequestId, WorkbenchRevision,
 };
 use serde::{
     Deserialize, Deserializer, Serialize,
@@ -109,6 +109,9 @@ impl PanelMetadataPatch {
     deny_unknown_fields
 )]
 pub enum PanelMetadataAction {
+    ReadPresentations {
+        presentation_ids: Vec<TerminalPresentationId>,
+    },
     Read {
         panel_ids: Vec<WorkbenchPanelId>,
     },
@@ -134,6 +137,14 @@ pub struct PanelMetadataRequest {
 impl PanelMetadataRequest {
     pub fn validate(&self) -> Result<(), ContractError> {
         match &self.action {
+            PanelMetadataAction::ReadPresentations { presentation_ids } => {
+                if presentation_ids.len() > MAXIMUM_PANEL_METADATA_READ_ROWS
+                    || presentation_ids.iter().collect::<BTreeSet<_>>().len()
+                        != presentation_ids.len()
+                {
+                    return Err(ContractError::InvalidDocument);
+                }
+            }
             PanelMetadataAction::Read { panel_ids } => {
                 if panel_ids.len() > MAXIMUM_PANEL_METADATA_READ_ROWS
                     || panel_ids.iter().collect::<BTreeSet<_>>().len() != panel_ids.len()
@@ -186,6 +197,13 @@ pub struct PanelMetadataRow {
     pub binding: Option<PresentationBinding>,
     pub tokens: MetadataTokens,
     pub presentations: Vec<PanelMetadataPresentation>,
+}
+/// An exact primary or child member; the nested row describes this member, not its Panel primary.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct PresentationMetadataRow {
+    pub presentation_id: TerminalPresentationId,
+    pub panel: PanelMetadataRow,
 }
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -271,6 +289,11 @@ pub enum PanelMetadataFailure {
     deny_unknown_fields
 )]
 pub enum PanelMetadataOutcome {
+    PresentationsRead {
+        workbench_revision: WorkbenchRevision,
+        metadata_revision: WorkbenchRevision,
+        presentations: Vec<PresentationMetadataRow>,
+    },
     Read {
         workbench_revision: WorkbenchRevision,
         metadata_revision: WorkbenchRevision,
@@ -297,58 +320,46 @@ pub struct PanelMetadataResult {
 }
 impl PanelMetadataResult {
     pub fn validate(&self) -> Result<(), ContractError> {
-        if let PanelMetadataOutcome::Read {
-            metadata_revision,
-            panels,
-            ..
-        } = &self.outcome
-        {
-            if panels.len() > MAXIMUM_PANEL_METADATA_READ_ROWS
-                || panels
-                    .iter()
-                    .map(|p| &p.panel_id)
-                    .collect::<BTreeSet<_>>()
-                    .len()
-                    != panels.len()
-            {
-                return Err(ContractError::InvalidDocument);
-            }
-            for panel in panels {
-                if panel.presentations.len() > MAXIMUM_PANEL_METADATA_SOURCES
-                    || panel
-                        .presentations
+        match &self.outcome {
+            PanelMetadataOutcome::Read {
+                metadata_revision,
+                panels,
+                ..
+            } => {
+                if panels.len() > MAXIMUM_PANEL_METADATA_READ_ROWS
+                    || panels
                         .iter()
-                        .map(|p| &p.source)
+                        .map(|p| &p.panel_id)
                         .collect::<BTreeSet<_>>()
                         .len()
-                        != panel.presentations.len()
-                    || (panel.binding.is_none()
-                        && (!panel.presentations.is_empty() || !panel.tokens.as_map().is_empty()))
+                        != panels.len()
                 {
                     return Err(ContractError::InvalidDocument);
                 }
-                let mut writers = BTreeMap::new();
-                for p in &panel.presentations {
-                    if p.title.is_none() && p.display_agent.is_none() && p.state_labels.is_empty() {
-                        return Err(ContractError::InvalidDocument);
-                    }
-                    for f in p
-                        .title
-                        .iter()
-                        .chain(p.display_agent.iter())
-                        .chain(p.state_labels.values())
-                    {
-                        if writers
-                            .insert(f.order, &p.source)
-                            .is_some_and(|previous| previous != &p.source)
-                            || f.order == WorkbenchRevision::new(0)
-                            || f.order > *metadata_revision
-                        {
-                            return Err(ContractError::InvalidDocument);
-                        }
-                    }
+                for panel in panels {
+                    panel.validate_at(*metadata_revision)?;
                 }
             }
+            PanelMetadataOutcome::PresentationsRead {
+                metadata_revision,
+                presentations,
+                ..
+            } => {
+                if presentations.len() > MAXIMUM_PANEL_METADATA_READ_ROWS
+                    || presentations
+                        .iter()
+                        .map(|p| &p.presentation_id)
+                        .collect::<BTreeSet<_>>()
+                        .len()
+                        != presentations.len()
+                {
+                    return Err(ContractError::InvalidDocument);
+                }
+                for row in presentations {
+                    row.panel.validate_at(*metadata_revision)?;
+                }
+            }
+            PanelMetadataOutcome::Reported { .. } | PanelMetadataOutcome::Failed { .. } => {}
         }
         Ok(())
     }
@@ -358,6 +369,12 @@ impl PanelMetadataResult {
             && self.site_id == request.site_id
             && match (&request.action, &self.outcome) {
                 (_, PanelMetadataOutcome::Failed { .. }) => true,
+                (
+                    PanelMetadataAction::ReadPresentations { presentation_ids },
+                    PanelMetadataOutcome::PresentationsRead { presentations, .. },
+                ) => presentation_ids
+                    .iter()
+                    .eq(presentations.iter().map(|row| &row.presentation_id)),
                 (
                     PanelMetadataAction::Read { panel_ids },
                     PanelMetadataOutcome::Read { panels, .. },
@@ -376,5 +393,44 @@ impl PanelMetadataResult {
                 ) => panel_id == actual && expected_binding == binding,
                 _ => false,
             }
+    }
+}
+impl PanelMetadataRow {
+    fn validate_at(&self, metadata_revision: WorkbenchRevision) -> Result<(), ContractError> {
+        if self.presentations.len() > MAXIMUM_PANEL_METADATA_SOURCES
+            || self
+                .presentations
+                .iter()
+                .map(|p| &p.source)
+                .collect::<BTreeSet<_>>()
+                .len()
+                != self.presentations.len()
+            || (self.binding.is_none()
+                && (!self.presentations.is_empty() || !self.tokens.as_map().is_empty()))
+        {
+            return Err(ContractError::InvalidDocument);
+        }
+        let mut writers = BTreeMap::new();
+        for p in &self.presentations {
+            if p.title.is_none() && p.display_agent.is_none() && p.state_labels.is_empty() {
+                return Err(ContractError::InvalidDocument);
+            }
+            for f in p
+                .title
+                .iter()
+                .chain(p.display_agent.iter())
+                .chain(p.state_labels.values())
+            {
+                if writers
+                    .insert(f.order, &p.source)
+                    .is_some_and(|previous| previous != &p.source)
+                    || f.order == WorkbenchRevision::new(0)
+                    || f.order > metadata_revision
+                {
+                    return Err(ContractError::InvalidDocument);
+                }
+            }
+        }
+        Ok(())
     }
 }

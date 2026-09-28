@@ -134,7 +134,7 @@ mod tests {
         assert_eq!(view.selected_presentation(panel).presentation_id(), &child);
         assert!(matches!(
             view.panel_report(panel),
-            crate::terminal_session::PanelReportView::Unavailable
+            crate::terminal_session::PanelReportView::Pending
         ));
         let mut terminal =
             ratatui::Terminal::new(ratatui::backend::TestBackend::new(120, 40)).unwrap();

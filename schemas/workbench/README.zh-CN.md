@@ -456,3 +456,5 @@ CLI 携带来源信息时输出 v3，并保留封闭的 v1/v2 封套。
 共享 `workbench-agent-manifests-conformance-v1.json` 语料覆盖接纳与拒绝的形状、可空字段、
 数字版本、来源、修订及重复项。语义字节／版本及跨字段校验补充 JSON Schema。
 这些 DTO 描述实际已安装状态，不声称支持远程下载／更新。Server 屏幕模型拥有安装和回执上限。
+
+两个 Panel 载体还支持 `read-presentations` 和 `presentations-read`，用于精确主项或子项报告／元数据观察：四个有序唯一 Presentation ID、空读取修订校验、必需的所属 `panel` 行，以及不同成员共享 Panel ID。Rust／TypeScript 与主项读取同样校验载荷不变量及元数据字段顺序归属。既有主项读写形状不变。共享用例覆盖精确成员数量界限、严格包装、同 Panel 成员和未绑定载荷；原生调用者还关联 Presentation、Panel 和 binding。协议应与其 Server 及原生 TUI 消费者作为匹配 cohort 交付。

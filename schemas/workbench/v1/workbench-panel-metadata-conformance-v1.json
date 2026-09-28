@@ -428,6 +428,150 @@
 					"reason": "result-too-large"
 				}
 			}
+		},
+		{
+			"name": "presentation-read-ordered",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.panel-metadata",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "read-presentations",
+					"presentationIds": [
+						"00000000000000000000000000000001",
+						"00000000000000000000000000000002",
+						"00000000000000000000000000000003",
+						"00000000000000000000000000000004"
+					]
+				}
+			}
+		},
+		{
+			"name": "presentation-empty-fence",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.panel-metadata",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "read-presentations",
+					"presentationIds": []
+				}
+			}
+		},
+		{
+			"name": "presentation-same-panel-different-members",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-metadata.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "presentations-read",
+					"workbenchRevision": "9",
+					"metadataRevision": "3",
+					"presentations": [
+						{
+							"presentationId": "00000000000000000000000000000004",
+							"panel": {
+								"panelId": "00000000000000000000000000000003",
+								"binding": {
+									"workerId": "00000000000000000000000000000005",
+									"terminalId": "00000000000000000000000000000006"
+								},
+								"tokens": {
+									"branch": "child"
+								},
+								"presentations": [
+									{
+										"source": "custom",
+										"agent": null,
+										"appliesToSource": null,
+										"title": {
+											"value": "child title",
+											"order": "2"
+										},
+										"displayAgent": null,
+										"stateLabels": {}
+									}
+								]
+							}
+						},
+						{
+							"presentationId": "00000000000000000000000000000005",
+							"panel": {
+								"panelId": "00000000000000000000000000000003",
+								"binding": {
+									"workerId": "00000000000000000000000000000005",
+									"terminalId": "00000000000000000000000000000001"
+								},
+								"tokens": {
+									"branch": "child"
+								},
+								"presentations": [
+									{
+										"source": "custom",
+										"agent": null,
+										"appliesToSource": null,
+										"title": {
+											"value": "child title",
+											"order": "2"
+										},
+										"displayAgent": null,
+										"stateLabels": {}
+									}
+								]
+							}
+						}
+					]
+				}
+			}
+		},
+		{
+			"name": "presentation-empty-result-fence",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-metadata.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "presentations-read",
+					"workbenchRevision": "9",
+					"metadataRevision": "3",
+					"presentations": []
+				}
+			}
+		},
+		{
+			"name": "presentation-unbound",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-metadata.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "presentations-read",
+					"workbenchRevision": "9",
+					"metadataRevision": "3",
+					"presentations": [
+						{
+							"presentationId": "00000000000000000000000000000004",
+							"panel": {
+								"panelId": "00000000000000000000000000000003",
+								"binding": null,
+								"tokens": {},
+								"presentations": []
+							}
+						}
+					]
+				}
+			}
 		}
 	],
 	"invalid": [
@@ -1727,6 +1871,551 @@
 				}
 			},
 			"boundary": "schema"
+		},
+		{
+			"name": "presentation-duplicate-request",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.panel-metadata",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "read-presentations",
+					"presentationIds": [
+						"00000000000000000000000000000001",
+						"00000000000000000000000000000001"
+					]
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "presentation-excess-request",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.panel-metadata",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "read-presentations",
+					"presentationIds": [
+						"00000000000000000000000000000001",
+						"00000000000000000000000000000002",
+						"00000000000000000000000000000003",
+						"00000000000000000000000000000004",
+						"00000000000000000000000000000005"
+					]
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "presentation-mixed-query",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.panel-metadata",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "read-presentations",
+					"presentationIds": ["00000000000000000000000000000001"],
+					"panelIds": []
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "presentation-duplicate-rows",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-metadata.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "presentations-read",
+					"workbenchRevision": "9",
+					"metadataRevision": "3",
+					"presentations": [
+						{
+							"presentationId": "00000000000000000000000000000004",
+							"panel": {
+								"panelId": "00000000000000000000000000000003",
+								"binding": {
+									"workerId": "00000000000000000000000000000005",
+									"terminalId": "00000000000000000000000000000006"
+								},
+								"tokens": {
+									"branch": "child"
+								},
+								"presentations": [
+									{
+										"source": "custom",
+										"agent": null,
+										"appliesToSource": null,
+										"title": {
+											"value": "child title",
+											"order": "2"
+										},
+										"displayAgent": null,
+										"stateLabels": {}
+									}
+								]
+							}
+						},
+						{
+							"presentationId": "00000000000000000000000000000004",
+							"panel": {
+								"panelId": "00000000000000000000000000000003",
+								"binding": {
+									"workerId": "00000000000000000000000000000005",
+									"terminalId": "00000000000000000000000000000006"
+								},
+								"tokens": {
+									"branch": "child"
+								},
+								"presentations": [
+									{
+										"source": "custom",
+										"agent": null,
+										"appliesToSource": null,
+										"title": {
+											"value": "child title",
+											"order": "2"
+										},
+										"displayAgent": null,
+										"stateLabels": {}
+									}
+								]
+							}
+						}
+					]
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "presentation-excess-rows",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-metadata.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "presentations-read",
+					"workbenchRevision": "9",
+					"metadataRevision": "3",
+					"presentations": [
+						{
+							"presentationId": "00000000000000000000000000000001",
+							"panel": {
+								"panelId": "00000000000000000000000000000003",
+								"binding": {
+									"workerId": "00000000000000000000000000000005",
+									"terminalId": "00000000000000000000000000000006"
+								},
+								"tokens": {
+									"branch": "child"
+								},
+								"presentations": [
+									{
+										"source": "custom",
+										"agent": null,
+										"appliesToSource": null,
+										"title": {
+											"value": "child title",
+											"order": "2"
+										},
+										"displayAgent": null,
+										"stateLabels": {}
+									}
+								]
+							}
+						},
+						{
+							"presentationId": "00000000000000000000000000000002",
+							"panel": {
+								"panelId": "00000000000000000000000000000003",
+								"binding": {
+									"workerId": "00000000000000000000000000000005",
+									"terminalId": "00000000000000000000000000000006"
+								},
+								"tokens": {
+									"branch": "child"
+								},
+								"presentations": [
+									{
+										"source": "custom",
+										"agent": null,
+										"appliesToSource": null,
+										"title": {
+											"value": "child title",
+											"order": "2"
+										},
+										"displayAgent": null,
+										"stateLabels": {}
+									}
+								]
+							}
+						},
+						{
+							"presentationId": "00000000000000000000000000000003",
+							"panel": {
+								"panelId": "00000000000000000000000000000003",
+								"binding": {
+									"workerId": "00000000000000000000000000000005",
+									"terminalId": "00000000000000000000000000000006"
+								},
+								"tokens": {
+									"branch": "child"
+								},
+								"presentations": [
+									{
+										"source": "custom",
+										"agent": null,
+										"appliesToSource": null,
+										"title": {
+											"value": "child title",
+											"order": "2"
+										},
+										"displayAgent": null,
+										"stateLabels": {}
+									}
+								]
+							}
+						},
+						{
+							"presentationId": "00000000000000000000000000000004",
+							"panel": {
+								"panelId": "00000000000000000000000000000003",
+								"binding": {
+									"workerId": "00000000000000000000000000000005",
+									"terminalId": "00000000000000000000000000000006"
+								},
+								"tokens": {
+									"branch": "child"
+								},
+								"presentations": [
+									{
+										"source": "custom",
+										"agent": null,
+										"appliesToSource": null,
+										"title": {
+											"value": "child title",
+											"order": "2"
+										},
+										"displayAgent": null,
+										"stateLabels": {}
+									}
+								]
+							}
+						},
+						{
+							"presentationId": "00000000000000000000000000000005",
+							"panel": {
+								"panelId": "00000000000000000000000000000003",
+								"binding": {
+									"workerId": "00000000000000000000000000000005",
+									"terminalId": "00000000000000000000000000000006"
+								},
+								"tokens": {
+									"branch": "child"
+								},
+								"presentations": [
+									{
+										"source": "custom",
+										"agent": null,
+										"appliesToSource": null,
+										"title": {
+											"value": "child title",
+											"order": "2"
+										},
+										"displayAgent": null,
+										"stateLabels": {}
+									}
+								]
+							}
+						}
+					]
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "presentation-unbound-payload",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-metadata.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "presentations-read",
+					"workbenchRevision": "9",
+					"metadataRevision": "3",
+					"presentations": [
+						{
+							"presentationId": "00000000000000000000000000000004",
+							"panel": {
+								"panelId": "00000000000000000000000000000003",
+								"binding": null,
+								"tokens": {
+									"branch": "child"
+								},
+								"presentations": [
+									{
+										"source": "custom",
+										"agent": null,
+										"appliesToSource": null,
+										"title": {
+											"value": "child title",
+											"order": "2"
+										},
+										"displayAgent": null,
+										"stateLabels": {}
+									}
+								]
+							}
+						}
+					]
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "presentation-missing-member-id",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-metadata.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "presentations-read",
+					"workbenchRevision": "9",
+					"metadataRevision": "3",
+					"presentations": [
+						{
+							"panel": {
+								"panelId": "00000000000000000000000000000003",
+								"binding": {
+									"workerId": "00000000000000000000000000000005",
+									"terminalId": "00000000000000000000000000000006"
+								},
+								"tokens": {
+									"branch": "child"
+								},
+								"presentations": [
+									{
+										"source": "custom",
+										"agent": null,
+										"appliesToSource": null,
+										"title": {
+											"value": "child title",
+											"order": "2"
+										},
+										"displayAgent": null,
+										"stateLabels": {}
+									}
+								]
+							}
+						}
+					]
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "presentation-excess-field",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-metadata.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "presentations-read",
+					"workbenchRevision": "9",
+					"metadataRevision": "3",
+					"presentations": [
+						{
+							"presentationId": "00000000000000000000000000000004",
+							"panel": {
+								"panelId": "00000000000000000000000000000003",
+								"binding": {
+									"workerId": "00000000000000000000000000000005",
+									"terminalId": "00000000000000000000000000000006"
+								},
+								"tokens": {
+									"branch": "child"
+								},
+								"presentations": [
+									{
+										"source": "custom",
+										"agent": null,
+										"appliesToSource": null,
+										"title": {
+											"value": "child title",
+											"order": "2"
+										},
+										"displayAgent": null,
+										"stateLabels": {}
+									}
+								]
+							},
+							"extra": true
+						}
+					]
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "presentation-field-order-0",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-metadata.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "presentations-read",
+					"workbenchRevision": "9",
+					"metadataRevision": "3",
+					"presentations": [
+						{
+							"presentationId": "00000000000000000000000000000004",
+							"panel": {
+								"panelId": "00000000000000000000000000000003",
+								"binding": {
+									"workerId": "00000000000000000000000000000005",
+									"terminalId": "00000000000000000000000000000006"
+								},
+								"tokens": {
+									"branch": "child"
+								},
+								"presentations": [
+									{
+										"source": "custom",
+										"agent": null,
+										"appliesToSource": null,
+										"title": {
+											"value": "child title",
+											"order": "0"
+										},
+										"displayAgent": null,
+										"stateLabels": {}
+									}
+								]
+							}
+						}
+					]
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "presentation-field-order-4",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-metadata.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "presentations-read",
+					"workbenchRevision": "9",
+					"metadataRevision": "3",
+					"presentations": [
+						{
+							"presentationId": "00000000000000000000000000000004",
+							"panel": {
+								"panelId": "00000000000000000000000000000003",
+								"binding": {
+									"workerId": "00000000000000000000000000000005",
+									"terminalId": "00000000000000000000000000000006"
+								},
+								"tokens": {
+									"branch": "child"
+								},
+								"presentations": [
+									{
+										"source": "custom",
+										"agent": null,
+										"appliesToSource": null,
+										"title": {
+											"value": "child title",
+											"order": "4"
+										},
+										"displayAgent": null,
+										"stateLabels": {}
+									}
+								]
+							}
+						}
+					]
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "presentation-different-writers-same-order",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-metadata.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "presentations-read",
+					"workbenchRevision": "9",
+					"metadataRevision": "3",
+					"presentations": [
+						{
+							"presentationId": "00000000000000000000000000000004",
+							"panel": {
+								"panelId": "00000000000000000000000000000003",
+								"binding": {
+									"workerId": "00000000000000000000000000000005",
+									"terminalId": "00000000000000000000000000000006"
+								},
+								"tokens": {
+									"branch": "child"
+								},
+								"presentations": [
+									{
+										"source": "custom",
+										"agent": null,
+										"appliesToSource": null,
+										"title": {
+											"value": "child title",
+											"order": "2"
+										},
+										"displayAgent": null,
+										"stateLabels": {}
+									},
+									{
+										"source": "other",
+										"agent": null,
+										"appliesToSource": null,
+										"title": {
+											"value": "child title",
+											"order": "2"
+										},
+										"displayAgent": null,
+										"stateLabels": {}
+									}
+								]
+							}
+						}
+					]
+				}
+			},
+			"boundary": "semantic"
 		}
 	]
 }

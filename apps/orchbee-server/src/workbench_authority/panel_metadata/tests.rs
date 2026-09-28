@@ -612,3 +612,75 @@ fn metadata_revision_failure_prevents_the_companion_agent_exit_commit() {
     assert_eq!(report_revision, WorkbenchRevision::new(0));
     assert_eq!(panels[0].report, Some(Default::default()));
 }
+
+#[test]
+fn presentation_metadata_reads_exact_binding_without_primary_fallback() {
+    let mut a = WorkbenchAuthority::new(SiteId::parse(&format!("{:032x}", 80)).unwrap()).unwrap();
+    install(&mut a, &tree());
+    let now = Instant::now();
+    for (n, value) in [(1, "primary title"), (2, "child title")] {
+        a.panel_metadata
+            .report(
+                &key(&binding(n)),
+                &source(1),
+                &title(value),
+                None,
+                None,
+                now,
+            )
+            .unwrap();
+    }
+    let before = a.snapshot().clone();
+    let read = |ids: &[u128]| Action::ReadPresentations {
+        presentation_ids: ids
+            .iter()
+            .map(|n| {
+                orchbee_workbench_protocol::TerminalPresentationId::parse(&format!("{n:032x}"))
+                    .unwrap()
+            })
+            .collect(),
+    };
+    let Outcome::PresentationsRead {
+        presentations,
+        metadata_revision,
+        ..
+    } = invoke(&mut a, read(&[5, 4])).outcome
+    else {
+        panic!("read")
+    };
+    for (row, n, value) in [
+        (&presentations[0], 2, "child title"),
+        (&presentations[1], 1, "primary title"),
+    ] {
+        assert_eq!(row.panel.panel_id, panel(3));
+        assert_eq!(row.panel.binding, Some(binding(n)));
+        assert_eq!(row.panel.presentation(None, None).title, Some(text(value)));
+    }
+    assert!(
+        matches!(invoke(&mut a, read(&[])).outcome, Outcome::PresentationsRead { metadata_revision: r, presentations, .. } if r == metadata_revision && presentations.is_empty())
+    );
+    assert_eq!(
+        invoke(&mut a, read(&[4, 99])).outcome,
+        Outcome::Failed {
+            reason: Failure::NotFound
+        }
+    );
+    assert_eq!(a.snapshot(), &before);
+    let mut unbound = tree();
+    unbound["terminalContexts"][0]["tabs"][0]["root"]["childPresentations"][0]["binding"] =
+        Value::Null;
+    install(&mut a, &unbound);
+    let Outcome::PresentationsRead { presentations, .. } = invoke(&mut a, read(&[5, 4])).outcome
+    else {
+        panic!("unbound")
+    };
+    assert!(presentations[0].panel.binding.is_none());
+    assert!(
+        presentations[0].panel.presentations.is_empty()
+            && presentations[0].panel.tokens.as_map().is_empty()
+    );
+    assert_eq!(
+        presentations[1].panel.presentation(None, None).title,
+        Some(text("primary title"))
+    );
+}

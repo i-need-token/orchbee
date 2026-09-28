@@ -699,3 +699,103 @@ fn managed_clear_is_prepared_atomic_exact_and_preserves_independent_reports() {
         .commit();
     assert_eq!(a.terminal_restart_session(&physical), Some(other));
 }
+
+#[test]
+fn presentation_reports_read_exact_primary_child_and_unbound_in_requested_order() {
+    let mut a = owner();
+    let facts = [physical(1, 1), physical(2, 1)];
+    invoke(&mut a, state("custom", "1"), &facts);
+    // Publish terminal two while it is primary, then retain it as a child.
+    let mut swapped = tree();
+    swapped["terminalContexts"][0]["tabs"][0]["root"]["primaryPresentation"]["binding"] =
+        json!(binding(2));
+    swapped["terminalContexts"][0]["tabs"][0]["root"]["childPresentations"][0]["binding"] =
+        json!(binding(1));
+    install(&mut a, &swapped);
+    let mut action = report(
+        json!({"kind":"state","source":"custom","agent":"child-agent","state":"blocked","message":"child approval"}),
+    );
+    if let Action::Report {
+        expected_binding, ..
+    } = &mut action
+    {
+        *expected_binding = binding(2);
+    }
+    invoke(&mut a, action, &facts);
+    install(&mut a, &tree());
+    let before = a.snapshot().clone();
+    let id = |n: u128| {
+        orchbee_workbench_protocol::TerminalPresentationId::parse(&format!("{n:032x}")).unwrap()
+    };
+    let read = |ids: &[u128]| Action::ReadPresentations {
+        presentation_ids: ids.iter().copied().map(id).collect(),
+    };
+    let Outcome::PresentationsRead {
+        presentations,
+        report_revision,
+        ..
+    } = invoke(&mut a, read(&[5, 4]), &facts)
+    else {
+        panic!("read")
+    };
+    assert_eq!(
+        presentations
+            .iter()
+            .map(|r| r.presentation_id.clone())
+            .collect::<Vec<_>>(),
+        vec![id(5), id(4)]
+    );
+    assert!(presentations.iter().all(|r| r.panel.panel_id == panel()));
+    assert_eq!(presentations[0].panel.binding, Some(binding(2)));
+    assert_eq!(
+        presentations[0]
+            .panel
+            .report
+            .as_ref()
+            .unwrap()
+            .message
+            .as_deref(),
+        Some("child approval")
+    );
+    assert_eq!(presentations[1].panel.binding, Some(binding(1)));
+    assert_eq!(
+        presentations[1]
+            .panel
+            .report
+            .as_ref()
+            .unwrap()
+            .agent
+            .as_deref(),
+        Some("Team Agent")
+    );
+    assert!(
+        matches!(invoke(&mut a, read(&[]), &facts), Outcome::PresentationsRead { report_revision: r, presentations, .. } if r == report_revision && presentations.is_empty())
+    );
+    assert_eq!(
+        invoke(&mut a, read(&[4, 99]), &facts),
+        Outcome::Failed {
+            reason: Failure::NotFound
+        }
+    );
+    assert_eq!(a.snapshot(), &before);
+    let mut unbound = tree();
+    unbound["terminalContexts"][0]["tabs"][0]["root"]["childPresentations"][0]["binding"] =
+        Value::Null;
+    install(&mut a, &unbound);
+    let Outcome::PresentationsRead { presentations, .. } =
+        invoke(&mut a, read(&[5, 4]), &facts[..1])
+    else {
+        panic!("unbound")
+    };
+    assert!(presentations[0].panel.binding.is_none() && presentations[0].panel.report.is_none());
+    assert_eq!(
+        presentations[1]
+            .panel
+            .report
+            .as_ref()
+            .unwrap()
+            .agent
+            .as_deref(),
+        Some("Team Agent")
+    );
+}

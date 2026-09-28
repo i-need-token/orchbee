@@ -240,13 +240,12 @@ pub(crate) struct NativeSessionView<'a> {
 impl<'a> NativeSessionView<'a> {
     #[cfg(windows)]
     pub(crate) fn panel_report(&self, panel: &super::NativePanel) -> super::PanelReportView<'_> {
-        if self.retirement.is_some()
-            || self.selected_presentation(panel).presentation_id() != panel.presentation_id()
-        {
+        if self.retirement.is_some() {
             return super::PanelReportView::Unavailable;
         }
-        self.reports
-            .map_or(super::PanelReportView::Pending, |r| r.view(panel))
+        self.reports.map_or(super::PanelReportView::Pending, |r| {
+            r.view(panel, self.selected_presentation(panel))
+        })
     }
     pub(crate) fn context_count(&self) -> usize {
         self.state

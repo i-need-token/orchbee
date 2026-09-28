@@ -50,7 +50,7 @@ fn actual_single_panel_header_paints_reports_and_rejects_stale_workbench_scope()
     let rows = scope
         .panels
         .iter()
-        .map(|(p, _)| (p.clone(), row.clone()))
+        .map(|p| (p.panel_id.clone(), row.clone()))
         .collect();
     ui.reports.publish_for_test(Round {
         scope: scope.clone(),
@@ -94,4 +94,97 @@ fn actual_single_panel_header_paints_reports_and_rejects_stale_workbench_scope()
     assert!(!text.contains("Approval title"));
     assert!(!text.contains("Review needed"));
     assert!(text.contains("loading status"));
+}
+
+#[test]
+fn child_selection_discards_primary_report_and_paints_its_own_exact_observation() {
+    use orchbee_workbench_protocol::{PanelNode, Presentation, TerminalPresentationId};
+    let mut source = super::membership_tests::snapshot(2, 1);
+    let child_id = TerminalPresentationId::parse(&format!("{:032x}", 9000)).unwrap();
+    let PanelNode::Panel {
+        child_presentations,
+        ..
+    } = &mut source.terminal_contexts[0].tabs[0].root
+    else {
+        unreachable!()
+    };
+    child_presentations.push(Presentation {
+        presentation_id: child_id.clone(),
+        label: "child shell".into(),
+        custom_label: None,
+        binding: Some(
+            serde_json::from_value(
+                json!({"workerId":format!("{:032x}",9001),"terminalId":format!("{:032x}",9002)}),
+            )
+            .unwrap(),
+        ),
+    });
+    let (mut ui, _mailbox, _, _) = super::move_membership_tests::ready_ui_with_snapshot(source);
+    let primary_scope = Scope::capture(ui.state.as_ref().unwrap()).unwrap();
+    let row = |title: &str, token: &str| {
+        PanelReport {
+        report: Some(serde_json::from_value(json!({"agent":"grok","state":"blocked","authoritySource":"custom","message":null,"session":null})).unwrap()),
+        metadata: serde_json::from_value(json!({"title":title,"displayAgent":"Child Agent","stateLabels":{"blocked":"Approval"}})).unwrap(),
+        tokens: serde_json::from_value(json!({"branch":token})).unwrap(),
+    }
+    };
+    let primary_round = Round {
+        scope: primary_scope.clone(),
+        rows: std::collections::BTreeMap::from([(
+            primary_scope.panels[0].panel_id.clone(),
+            row("Primary report", "main"),
+        )]),
+    };
+    ui.reports.publish_for_test(primary_round);
+    assert!(matches!(
+        ui.view()
+            .panel_report(ui.view().tab(0).unwrap().panel(0).unwrap()),
+        super::super::PanelReportView::Ready(_)
+    ));
+    ui.apply_client_action(ClientAction::NextPresentation);
+    let child_scope = Scope::capture(ui.state.as_ref().unwrap()).unwrap();
+    assert_eq!(child_scope.revision, primary_scope.revision);
+    assert_eq!(
+        child_scope.panels[0].panel_id,
+        primary_scope.panels[0].panel_id
+    );
+    assert_eq!(child_scope.panels[0].presentation_id, child_id);
+    assert_ne!(
+        child_scope.panels[0].binding,
+        primary_scope.panels[0].binding
+    );
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        let text = paint(
+            &ui,
+            120,
+            40,
+            locale,
+            &crate::tui_theme::Theme::terminal_native(),
+        );
+        assert!(text.contains("child shell"));
+        assert!(!text.contains("Primary report") && !text.contains("branch=main"));
+    }
+    ui.reports.publish_for_test(Round {
+        scope: child_scope.clone(),
+        rows: std::collections::BTreeMap::from([(
+            child_scope.panels[0].panel_id.clone(),
+            row("Child report", "child"),
+        )]),
+    });
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        let text = paint(
+            &ui,
+            120,
+            40,
+            locale,
+            &crate::tui_theme::Theme::terminal_native(),
+        );
+        assert!(
+            text.contains("Child report")
+                && text.contains("Approval")
+                && text.contains("branch=child"),
+            "{text}"
+        );
+        assert!(!text.contains("Primary report"));
+    }
 }

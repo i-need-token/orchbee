@@ -52,3 +52,33 @@ fn stale_epoch_changed_scope_and_expired_completion_never_publish() {
     assert!(state.lane.is_none());
     assert!(state.scope.is_none());
 }
+
+#[test]
+fn changed_presentation_rejects_inflight_round_without_canonical_revision_change() {
+    let (mut reports, _) = fixture(1, 1);
+    let mut primary = scope();
+    primary.panels.push(SelectedPanel {
+        panel_id: WorkbenchPanelId::parse(&"1".repeat(32)).unwrap(),
+        presentation_id: TerminalPresentationId::parse(&"2".repeat(32)).unwrap(),
+        binding: serde_json::from_value(
+            serde_json::json!({"workerId":"3".repeat(32),"terminalId":"4".repeat(32)}),
+        )
+        .unwrap(),
+    });
+    reports.scope = Some(primary.clone());
+    reports.lane = Some(AgentReadLane::for_test(vec![LaneOutcome::PanelReports {
+        epoch: 1,
+        result: Ok(Round {
+            scope: primary.clone(),
+            rows: BTreeMap::new(),
+        }),
+    }]));
+    let mut child = primary;
+    child.panels[0].presentation_id = TerminalPresentationId::parse(&"5".repeat(32)).unwrap();
+    child.panels[0].binding.terminal_id =
+        orchbee_workbench_protocol::TerminalId::parse(&"6".repeat(32)).unwrap();
+    reports.tick(Some(child.clone()));
+    assert_eq!(reports.scope, Some(child));
+    assert!(reports.round.is_none());
+    reports.close();
+}

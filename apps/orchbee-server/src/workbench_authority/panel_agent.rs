@@ -11,8 +11,9 @@ use orchbee_capability_node_protocol::{HostTerminalIdentity, WorkerGeneration};
 use orchbee_workbench_protocol::{
     PanelAgentAction as Action, PanelAgentFailure as Failure, PanelAgentOutcome as Outcome,
     PanelAgentReport as Report, PanelAgentRequest, PanelAgentResult, PanelAgentRow,
-    PresentationBinding, ProtocolVersion, WorkbenchRequest, WorkbenchResponse, WorkbenchRevision,
-    serialize_workbench_request, serialize_workbench_response,
+    PresentationAgentRow, PresentationBinding, ProtocolVersion, WorkbenchRequest,
+    WorkbenchResponse, WorkbenchRevision, serialize_workbench_request,
+    serialize_workbench_response,
 };
 use std::{collections::BTreeMap, time::Instant};
 const MAXIMUM_RESOURCES: usize = 4096;
@@ -314,6 +315,38 @@ impl WorkbenchAuthority {
             } => {
                 let outcome =
                     self.observe_agent(binding, *after_sequence, &membership, &physical)?;
+                admit_result(&outcome)?;
+                Ok(outcome)
+            }
+            Action::ReadPresentations { presentation_ids } => {
+                let mut presentations = Vec::new();
+                for id in presentation_ids {
+                    let panel_id = membership.owners.get(id).ok_or(Failure::NotFound)?.clone();
+                    let binding = membership
+                        .presentations
+                        .get(id.as_str())
+                        .ok_or(Failure::NotFound)?
+                        .clone();
+                    let report = binding.as_ref().map(|b| {
+                        self.panel_agent
+                            .resources
+                            .get(&key(b))
+                            .map_or_else(Default::default, |r| r.reports.view())
+                    });
+                    presentations.push(PresentationAgentRow {
+                        presentation_id: id.clone(),
+                        panel: PanelAgentRow {
+                            panel_id,
+                            binding,
+                            report,
+                        },
+                    });
+                }
+                let outcome = Outcome::PresentationsRead {
+                    workbench_revision,
+                    report_revision: WorkbenchRevision::new(self.panel_agent.revision),
+                    presentations,
+                };
                 admit_result(&outcome)?;
                 Ok(outcome)
             }

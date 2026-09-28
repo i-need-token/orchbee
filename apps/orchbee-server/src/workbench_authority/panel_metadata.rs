@@ -12,7 +12,8 @@ use orchbee_workbench_protocol::{
     MetadataTokens, PanelMetadataAction as Action, PanelMetadataFailure as Failure,
     PanelMetadataField as Field, PanelMetadataOutcome as Outcome, PanelMetadataPatch as Patch,
     PanelMetadataPresentation as Presentation, PanelMetadataRequest, PanelMetadataResult,
-    PanelMetadataRow, PresentationBinding, ProtocolVersion, WorkbenchPanelId, WorkbenchRevision,
+    PanelMetadataRow, PresentationBinding, PresentationMetadataRow, ProtocolVersion,
+    WorkbenchPanelId, WorkbenchRevision,
 };
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -320,10 +321,36 @@ impl WorkbenchAuthority {
         if request.site_id != *self.site_id() {
             return Err(Failure::SiteMismatch);
         }
-        let ReportMembership { panels, live, .. } = ReportMembership::read(self.snapshot());
+        let ReportMembership {
+            panels,
+            presentations,
+            owners,
+            live,
+        } = ReportMembership::read(self.snapshot());
         self.panel_metadata.maintain(&live, now)?;
         let workbench_revision = self.snapshot().revision;
         match &request.action {
+            Action::ReadPresentations { presentation_ids } => {
+                let rows = presentation_ids
+                    .iter()
+                    .map(|id| {
+                        let panel_id = owners.get(id).ok_or(Failure::NotFound)?.clone();
+                        let binding = presentations
+                            .get(id.as_str())
+                            .ok_or(Failure::NotFound)?
+                            .clone();
+                        Ok(PresentationMetadataRow {
+                            presentation_id: id.clone(),
+                            panel: self.panel_metadata.row(panel_id, binding),
+                        })
+                    })
+                    .collect::<Result<Vec<_>, Failure>>()?;
+                Ok(Outcome::PresentationsRead {
+                    workbench_revision,
+                    metadata_revision: WorkbenchRevision::new(self.panel_metadata.revision),
+                    presentations: rows,
+                })
+            }
             Action::Read { panel_ids } => {
                 if panel_ids.iter().any(|id| !panels.contains_key(id)) {
                     return Err(Failure::NotFound);

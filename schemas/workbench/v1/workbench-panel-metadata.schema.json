@@ -440,6 +440,9 @@
 						},
 						{
 							"$ref": "#/$defs/report"
+						},
+						{
+							"$ref": "#/$defs/readPresentations"
 						}
 					]
 				}
@@ -688,8 +691,65 @@
 						},
 						{
 							"$ref": "#/$defs/failed"
+						},
+						{
+							"$ref": "#/$defs/presentationsRead"
 						}
 					]
+				}
+			}
+		},
+		"presentationRow": {
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+				"presentationId": {
+					"$ref": "#/$defs/identity"
+				},
+				"panel": {
+					"$ref": "#/$defs/row"
+				}
+			},
+			"required": ["presentationId", "panel"]
+		},
+		"readPresentations": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["kind", "presentationIds"],
+			"properties": {
+				"kind": {
+					"const": "read-presentations"
+				},
+				"presentationIds": {
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/identity"
+					},
+					"maxItems": 4,
+					"uniqueItems": true
+				}
+			}
+		},
+		"presentationsRead": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["kind", "workbenchRevision", "metadataRevision", "presentations"],
+			"properties": {
+				"kind": {
+					"const": "presentations-read"
+				},
+				"workbenchRevision": {
+					"$ref": "#/$defs/revision"
+				},
+				"metadataRevision": {
+					"$ref": "#/$defs/revision"
+				},
+				"presentations": {
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/presentationRow"
+					},
+					"maxItems": 4
 				}
 			}
 		}

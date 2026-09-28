@@ -249,3 +249,54 @@ fn maximum_unicode_sources_and_rows_fit_the_carrier_budget() {
     assert!(bytes.len() > 128 * 1024 && bytes.len() <= MAXIMUM_ENCODED_PANEL_METADATA_RESULT_BYTES);
     assert_eq!(parse_workbench_response(&bytes).unwrap(), response);
 }
+
+#[test]
+fn presentation_reads_answer_only_exact_order_and_request_site_identity() {
+    let ids: Vec<_> = (1..=2)
+        .map(|n| TerminalPresentationId::parse(&format!("{n:032x}")).unwrap())
+        .collect();
+    let panel = WorkbenchPanelId::parse(&"3".repeat(32)).unwrap();
+    let request = PanelMetadataRequest {
+        protocol_version: ProtocolVersion,
+        request_id: WorkbenchRequestId::parse(&"4".repeat(32)).unwrap(),
+        site_id: SiteId::parse(&"5".repeat(32)).unwrap(),
+        action: PanelMetadataAction::ReadPresentations {
+            presentation_ids: ids.clone(),
+        },
+    };
+    let mut result = PanelMetadataResult {
+        protocol_version: ProtocolVersion,
+        request_id: request.request_id.clone(),
+        site_id: request.site_id.clone(),
+        outcome: PanelMetadataOutcome::PresentationsRead {
+            workbench_revision: WorkbenchRevision::new(9),
+            metadata_revision: WorkbenchRevision::new(0),
+            presentations: ids
+                .iter()
+                .map(|id| PresentationMetadataRow {
+                    presentation_id: id.clone(),
+                    panel: PanelMetadataRow {
+                        panel_id: panel.clone(),
+                        binding: None,
+                        tokens: MetadataTokens::default(),
+                        presentations: vec![],
+                    },
+                })
+                .collect(),
+        },
+    };
+    result.validate().unwrap();
+    assert!(result.answers(&request));
+    if let PanelMetadataOutcome::PresentationsRead { presentations, .. } = &mut result.outcome {
+        presentations.reverse();
+    }
+    assert!(!result.answers(&request));
+    if let PanelMetadataOutcome::PresentationsRead { presentations, .. } = &mut result.outcome {
+        presentations.reverse();
+    }
+    result.site_id = SiteId::parse(&"6".repeat(32)).unwrap();
+    assert!(!result.answers(&request));
+    result.site_id = request.site_id.clone();
+    result.request_id = WorkbenchRequestId::parse(&"7".repeat(32)).unwrap();
+    assert!(!result.answers(&request));
+}

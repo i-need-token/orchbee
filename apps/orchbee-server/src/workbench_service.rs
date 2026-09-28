@@ -68,6 +68,7 @@ impl WorkbenchService {
             },
             WorkbenchRequest::PanelAgent(request) => match request.action {
                 orchbee_workbench_protocol::PanelAgentAction::Read { .. }
+                | orchbee_workbench_protocol::PanelAgentAction::ReadPresentations { .. }
                 | orchbee_workbench_protocol::PanelAgentAction::Explain { .. }
                 | orchbee_workbench_protocol::PanelAgentAction::States { .. }
                 | orchbee_workbench_protocol::PanelAgentAction::Observe { .. } => self.policy.read,
@@ -78,7 +79,8 @@ impl WorkbenchService {
                 orchbee_workbench_protocol::WorkspaceMetadataAction::Report { .. } => self.policy.manage_navigation,
             },
             WorkbenchRequest::PanelMetadata(request) => match request.action {
-                orchbee_workbench_protocol::PanelMetadataAction::Read { .. } => self.policy.read,
+                orchbee_workbench_protocol::PanelMetadataAction::Read { .. }
+                | orchbee_workbench_protocol::PanelMetadataAction::ReadPresentations { .. } => self.policy.read,
                 orchbee_workbench_protocol::PanelMetadataAction::Report { .. } => self.policy.manage_navigation,
             },
             WorkbenchRequest::ClientView(_) => self.policy.read,

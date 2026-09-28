@@ -514,3 +514,5 @@ The shared `workbench-agent-manifests-conformance-v1.json` corpus covers accepte
 shapes, nullable fields, numeric versions, sources, revisions and duplicates. Semantic byte/version
 and cross-field checks supplement JSON Schema. These DTOs describe actual installed state and do
 not claim remote fetch/update support. The Server screen model owns installation and receipt limits.
+
+Both Panel carriers also admit `read-presentations` and `presentations-read` for exact primary or child report/metadata observations: four unique ordered Presentation IDs, empty revision fences, required owning `panel` rows, and shared Panel IDs across different members. Rust/TypeScript enforce payload invariants and metadata field-order ownership identically to primary reads. Existing primary read/write shapes remain unchanged. The shared corpora cover exact-member bounds, strict wrappers, same-Panel members and unbound payloads; native callers additionally correlate Presentation, Panel and binding. Ship the protocol with its Server and native TUI consumers as a matched cohort.

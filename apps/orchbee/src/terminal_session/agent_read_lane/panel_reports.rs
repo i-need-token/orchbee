@@ -3,9 +3,9 @@ use super::*;
 use crate::terminal_session::panel_reports::{MAXIMUM_BYTES, PanelReport, Round, Scope};
 use orchbee_workbench_protocol::{
     MAXIMUM_PANEL_AGENT_READ_ROWS, MAXIMUM_PANEL_METADATA_READ_ROWS, PanelAgentAction,
-    PanelAgentOutcome, PanelAgentRequest, PanelAgentRow, PanelMetadataAction, PanelMetadataOutcome,
-    PanelMetadataRequest, PanelMetadataRow, ProtocolVersion, WorkbenchPanelId, WorkbenchRequestId,
-    WorkbenchRevision,
+    PanelAgentOutcome, PanelAgentRequest, PanelMetadataAction, PanelMetadataOutcome,
+    PanelMetadataRequest, PresentationAgentRow, PresentationMetadataRow, ProtocolVersion,
+    TerminalPresentationId, WorkbenchPanelId, WorkbenchRequestId, WorkbenchRevision,
 };
 use std::collections::BTreeMap;
 
@@ -57,14 +57,14 @@ impl Reader<'_> {
     }
     fn metadata(
         &mut self,
-        ids: &[WorkbenchPanelId],
-    ) -> Result<(WorkbenchRevision, Vec<PanelMetadataRow>), LaneFailure> {
+        ids: &[TerminalPresentationId],
+    ) -> Result<(WorkbenchRevision, Vec<PresentationMetadataRow>), LaneFailure> {
         let request = PanelMetadataRequest {
             protocol_version: ProtocolVersion,
             request_id: self.id()?,
             site_id: self.scope.site.clone(),
-            action: PanelMetadataAction::Read {
-                panel_ids: ids.to_vec(),
+            action: PanelMetadataAction::ReadPresentations {
+                presentation_ids: ids.to_vec(),
             },
         };
         let outcome = self
@@ -73,15 +73,19 @@ impl Reader<'_> {
             .map_err(|_| LaneFailure::Transport)?
             .outcome;
         match outcome {
-            PanelMetadataOutcome::Read {
+            PanelMetadataOutcome::PresentationsRead {
                 workbench_revision,
                 metadata_revision,
-                panels,
+                presentations,
             } if workbench_revision == self.scope.revision => {
-                for row in &panels {
-                    self.binding(&row.panel_id, row.binding.as_ref())?;
+                for row in &presentations {
+                    self.binding(
+                        &row.presentation_id,
+                        &row.panel.panel_id,
+                        row.panel.binding.as_ref(),
+                    )?;
                 }
-                Ok((metadata_revision, panels))
+                Ok((metadata_revision, presentations))
             }
             PanelMetadataOutcome::Failed {
                 reason: orchbee_workbench_protocol::PanelMetadataFailure::Denied,
@@ -91,14 +95,14 @@ impl Reader<'_> {
     }
     fn reports(
         &mut self,
-        ids: &[WorkbenchPanelId],
-    ) -> Result<(WorkbenchRevision, Vec<PanelAgentRow>), LaneFailure> {
+        ids: &[TerminalPresentationId],
+    ) -> Result<(WorkbenchRevision, Vec<PresentationAgentRow>), LaneFailure> {
         let request = PanelAgentRequest {
             protocol_version: ProtocolVersion,
             request_id: self.id()?,
             site_id: self.scope.site.clone(),
-            action: PanelAgentAction::Read {
-                panel_ids: ids.to_vec(),
+            action: PanelAgentAction::ReadPresentations {
+                presentation_ids: ids.to_vec(),
             },
         };
         let outcome = self
@@ -107,15 +111,19 @@ impl Reader<'_> {
             .map_err(|_| LaneFailure::Transport)?
             .outcome;
         match outcome {
-            PanelAgentOutcome::Read {
+            PanelAgentOutcome::PresentationsRead {
                 workbench_revision,
                 report_revision,
-                panels,
+                presentations,
             } if workbench_revision == self.scope.revision => {
-                for row in &panels {
-                    self.binding(&row.panel_id, row.binding.as_ref())?;
+                for row in &presentations {
+                    self.binding(
+                        &row.presentation_id,
+                        &row.panel.panel_id,
+                        row.panel.binding.as_ref(),
+                    )?;
                 }
-                Ok((report_revision, panels))
+                Ok((report_revision, presentations))
             }
             PanelAgentOutcome::Failed {
                 reason: orchbee_workbench_protocol::PanelAgentFailure::Denied,
@@ -125,6 +133,7 @@ impl Reader<'_> {
     }
     fn binding(
         &self,
+        presentation: &TerminalPresentationId,
         panel: &WorkbenchPanelId,
         binding: Option<&orchbee_workbench_protocol::PresentationBinding>,
     ) -> Result<(), LaneFailure> {
@@ -132,8 +141,8 @@ impl Reader<'_> {
             .scope
             .panels
             .iter()
-            .find(|(id, _)| id == panel)
-            .map(|(_, b)| b)
+            .find(|p| &p.presentation_id == presentation && &p.panel_id == panel)
+            .map(|p| &p.binding)
             != binding
             || binding.is_none()
         {
@@ -142,7 +151,12 @@ impl Reader<'_> {
         Ok(())
     }
     fn read(&mut self) -> Result<BTreeMap<WorkbenchPanelId, PanelReport>, LaneFailure> {
-        let ids: Vec<_> = self.scope.panels.iter().map(|(id, _)| id.clone()).collect();
+        let ids: Vec<_> = self
+            .scope
+            .panels
+            .iter()
+            .map(|p| p.presentation_id.clone())
+            .collect();
         let mut metadata = BTreeMap::new();
         let mut reports = BTreeMap::new();
         let mut bytes = 0;
@@ -158,6 +172,7 @@ impl Reader<'_> {
                         .map_err(|_| LaneFailure::Transport)?
                         .len(),
                 )?;
+                let row = row.panel;
                 if metadata.insert(row.panel_id.clone(), row).is_some() {
                     return Err(LaneFailure::Transport);
                 }
@@ -173,6 +188,7 @@ impl Reader<'_> {
                         .map_err(|_| LaneFailure::Transport)?
                         .len(),
                 )?;
+                let row = row.panel;
                 if reports.insert(row.panel_id.clone(), row).is_some() {
                     return Err(LaneFailure::Transport);
                 }
@@ -189,7 +205,8 @@ impl Reader<'_> {
         }
         same_revision(&mut report_revision, revision)?;
         let mut joined = BTreeMap::new();
-        for id in ids {
+        for selected in &self.scope.panels {
+            let id = selected.panel_id.clone();
             let metadata = metadata.remove(&id).ok_or(LaneFailure::Transport)?;
             let report = reports.remove(&id).ok_or(LaneFailure::Transport)?.report;
             let presentation = metadata.presentation(

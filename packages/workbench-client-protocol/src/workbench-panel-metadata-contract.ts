@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import {
 	SiteIdSchema,
+	TerminalPresentationIdSchema,
 	WORKBENCH_PROTOCOL_VERSION,
 	WorkbenchRequestIdSchema,
 	WorkbenchRevisionSchema,
@@ -46,6 +47,16 @@ export const PanelMetadataPatchSchema = z
 	)
 	.readonly();
 export const PanelMetadataActionSchema = z.discriminatedUnion('kind', [
+	z
+		.strictObject({
+			kind: z.literal('read-presentations'),
+			presentationIds: z
+				.array(TerminalPresentationIdSchema)
+				.max(4)
+				.refine((ids) => new Set(ids).size === ids.length)
+				.readonly(),
+		})
+		.readonly(),
 	z
 		.strictObject({
 			kind: z.literal('read'),
@@ -125,7 +136,57 @@ export const PanelMetadataRowSchema = z
 			(Object.keys(row.tokens).length === 0 && row.presentations.length === 0),
 	)
 	.readonly();
+function validateFieldOrders(
+	panels: readonly z.infer<typeof PanelMetadataRowSchema>[],
+	revision: string,
+	context: z.RefinementCtx,
+) {
+	for (const row of panels) {
+		const writers = new Map<string, string>();
+		for (const record of row.presentations) {
+			for (const field of [
+				record.title,
+				record.displayAgent,
+				...Object.values(record.stateLabels),
+			]) {
+				if (field === null || field === undefined) continue;
+				const previous = writers.get(field.order);
+				if (
+					BigInt(field.order) > BigInt(revision) ||
+					(previous !== undefined && previous !== record.source)
+				)
+					context.addIssue({ code: 'custom', message: 'Invalid metadata field write order' });
+				writers.set(field.order, record.source);
+			}
+		}
+	}
+}
+export const PresentationMetadataRowSchema = z
+	.strictObject({
+		presentationId: TerminalPresentationIdSchema,
+		panel: PanelMetadataRowSchema,
+	})
+	.readonly();
 export const PanelMetadataOutcomeSchema = z.discriminatedUnion('kind', [
+	z
+		.strictObject({
+			kind: z.literal('presentations-read'),
+			workbenchRevision: WorkbenchRevisionSchema,
+			metadataRevision: WorkbenchRevisionSchema,
+			presentations: z
+				.array(PresentationMetadataRowSchema)
+				.max(4)
+				.refine((rows) => new Set(rows.map((r) => r.presentationId)).size === rows.length)
+				.readonly(),
+		})
+		.superRefine((read, context) =>
+			validateFieldOrders(
+				read.presentations.map((r) => r.panel),
+				read.metadataRevision,
+				context,
+			),
+		)
+		.readonly(),
 	z
 		.strictObject({
 			kind: z.literal('read'),
@@ -137,27 +198,9 @@ export const PanelMetadataOutcomeSchema = z.discriminatedUnion('kind', [
 				.refine((rows) => new Set(rows.map((row) => row.panelId)).size === rows.length)
 				.readonly(),
 		})
-		.superRefine((read, context) => {
-			for (const row of read.panels) {
-				const writers = new Map<string, string>();
-				for (const record of row.presentations) {
-					for (const field of [
-						record.title,
-						record.displayAgent,
-						...Object.values(record.stateLabels),
-					]) {
-						if (field === null || field === undefined) continue;
-						const previous = writers.get(field.order);
-						if (
-							BigInt(field.order) > BigInt(read.metadataRevision) ||
-							(previous !== undefined && previous !== record.source)
-						)
-							context.addIssue({ code: 'custom', message: 'Invalid metadata field write order' });
-						writers.set(field.order, record.source);
-					}
-				}
-			}
-		})
+		.superRefine((read, context) =>
+			validateFieldOrders(read.panels, read.metadataRevision, context),
+		)
 		.readonly(),
 	z
 		.strictObject({
@@ -199,3 +242,4 @@ export type PanelMetadataRow = z.infer<typeof PanelMetadataRowSchema>;
 export type PanelMetadataOutcome = z.infer<typeof PanelMetadataOutcomeSchema>;
 export type PanelMetadataRequest = z.infer<typeof PanelMetadataRequestSchema>;
 export type PanelMetadataResult = z.infer<typeof PanelMetadataResultSchema>;
+export type PresentationMetadataRow = z.infer<typeof PresentationMetadataRowSchema>;

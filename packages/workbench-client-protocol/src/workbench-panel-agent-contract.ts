@@ -69,6 +69,16 @@ export const TerminalAgentBindingSchema = z
 	})
 	.readonly();
 export const PanelAgentActionSchema = z.discriminatedUnion('kind', [
+	z
+		.strictObject({
+			kind: z.literal('read-presentations'),
+			presentationIds: z
+				.array(TerminalPresentationIdSchema)
+				.max(4)
+				.refine((ids) => new Set(ids).size === ids.length)
+				.readonly(),
+		})
+		.readonly(),
 	z.strictObject({ kind: z.literal('explain'), binding: TerminalAgentBindingSchema }).readonly(),
 	z
 		.strictObject({
@@ -428,7 +438,25 @@ const terminalExplanation = z
 			: t.sample !== null,
 	)
 	.readonly();
+export const PresentationAgentRowSchema = z
+	.strictObject({
+		presentationId: TerminalPresentationIdSchema,
+		panel: PanelAgentRowSchema,
+	})
+	.readonly();
 export const PanelAgentOutcomeSchema = z.discriminatedUnion('kind', [
+	z
+		.strictObject({
+			kind: z.literal('presentations-read'),
+			workbenchRevision: WorkbenchRevisionSchema,
+			reportRevision: WorkbenchRevisionSchema,
+			presentations: z
+				.array(PresentationAgentRowSchema)
+				.max(4)
+				.refine((rows) => new Set(rows.map((r) => r.presentationId)).size === rows.length)
+				.readonly(),
+		})
+		.readonly(),
 	z
 		.strictObject({
 			kind: z.literal('explained'),
@@ -533,3 +561,4 @@ export type PanelAgentFailure = z.infer<typeof PanelAgentFailureSchema>;
 export type PanelAgentOutcome = z.infer<typeof PanelAgentOutcomeSchema>;
 export type PanelAgentRequest = z.infer<typeof PanelAgentRequestSchema>;
 export type PanelAgentResult = z.infer<typeof PanelAgentResultSchema>;
+export type PresentationAgentRow = z.infer<typeof PresentationAgentRowSchema>;

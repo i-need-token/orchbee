@@ -9,8 +9,8 @@ pub use panel_agent::{
     MAXIMUM_PANEL_AGENT_READ_ROWS, MAXIMUM_TERMINAL_AGENT_CHANGES,
     MAXIMUM_TERMINAL_AGENT_STATE_ROWS, PanelAgentAction, PanelAgentDisposition, PanelAgentFailure,
     PanelAgentOutcome, PanelAgentReference, PanelAgentReport, PanelAgentRequest, PanelAgentResult,
-    PanelAgentRow, PanelAgentSession, PanelAgentState, PanelAgentView, TerminalAgentChange,
-    TerminalAgentExplanation, TerminalAgentObservation, TerminalAgentStateRow,
+    PanelAgentRow, PanelAgentSession, PanelAgentState, PanelAgentView, PresentationAgentRow,
+    TerminalAgentChange, TerminalAgentExplanation, TerminalAgentObservation, TerminalAgentStateRow,
     TerminalAgentStateSnapshot,
 };
 mod panel_metadata;
@@ -19,6 +19,7 @@ pub use panel_metadata::{
     MAXIMUM_PANEL_METADATA_SOURCES, MetadataState, PanelMetadataAction, PanelMetadataEffective,
     PanelMetadataFailure, PanelMetadataField, PanelMetadataOutcome, PanelMetadataPatch,
     PanelMetadataPresentation, PanelMetadataRequest, PanelMetadataResult, PanelMetadataRow,
+    PresentationMetadataRow,
 };
 mod client_navigation;
 mod client_viewport;

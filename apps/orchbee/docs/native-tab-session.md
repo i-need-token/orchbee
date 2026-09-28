@@ -2680,9 +2680,9 @@ binding-only provenance and cannot inherit a primary terminal creation outcome.
 
 `Ctrl+B (` / `Ctrl+B )` select previous/next Presentation, wrap in canonical order, and are no-ops with one member. The shared help registry provides both localized descriptions. Stable
 Presentation targeting serves Agent focus. Rendered label/count and attention refer to the
-chosen binding; Panel movement and Close still operate on the complete Panel. The existing primary-only
-report lane is not attributed to a child: child chrome reports unavailable until exact child report
-queries are integrated. Direct pointer selection, child creation, unbound lifecycle and final multi-Client
+chosen binding; Panel movement and Close still operate on the complete Panel. The report lane queries
+the selected Presentation and correlates its owning Panel and binding under both revision fences.
+A local member change discards the old observation before publishing the child's report or metadata. Direct pointer selection, child creation, unbound lifecycle and final multi-Client
 visual acceptance remain open. Focused tests cover full member identity, rollback, stale frames,
 remembered selection, canonical removal, bilingual shortcut decoding, rendered child label/count and
 actual native wire cleanup-before-attach; final full regression remains deferred under the implementation plan.

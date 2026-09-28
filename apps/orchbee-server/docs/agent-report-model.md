@@ -39,17 +39,17 @@ adapter calls the trusted operation only after a fully correlated successful Hos
 
 ## Transition decisions
 
-| Input | Decision and resulting facts |
-| ----- | ---------------------------- |
-| State report from reserved native source | Route to Session-reference reporting without a start reason; requested state and message do not override native observations. |
-| State report from an identity-only source | Ignore state authority; the public session-report operation owns its reference. Qwen first follows the reserved-native route. |
-| Other state report | Check process/owner/session/suppression guards, then source sequence, before replacing authority. Missing reference clears the previous report reference. |
-| Session report without a valid reference | No state or sequence change. |
-| Session report with a valid reference | Apply exact provider/start-source rules; full lifecycle may stage a replacement until process confirmation. Later guards can refuse after consuming sequence, matching the reference. |
-| Clear authority | Only the current matching source (or omitted source) is eligible; sequence gates the clear. Persisted-only identity is not clearable through this operation. |
-| Release an official source/Agent pair | Public routing is an unconditional no-op, including sequence. |
-| Release a custom report | Reject a foreign authority, require matching effective Agent/reference and sequence; preserve independently confirmed live process and foreign persisted identity. |
-| Process observation | Preserve a live full-lifecycle authority against weaker detection; reject observations older than release suppression, reconcile replacement claims, and clean matching exited-generation reports. |
+| Input                                     | Decision and resulting facts                                                                                                                                                                       |
+| ----------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| State report from reserved native source  | Route to Session-reference reporting without a start reason; requested state and message do not override native observations.                                                                      |
+| State report from an identity-only source | Ignore state authority; the public session-report operation owns its reference. Qwen first follows the reserved-native route.                                                                      |
+| Other state report                        | Check process/owner/session/suppression guards, then source sequence, before replacing authority. Missing reference clears the previous report reference.                                          |
+| Session report without a valid reference  | No state or sequence change.                                                                                                                                                                       |
+| Session report with a valid reference     | Apply exact provider/start-source rules; full lifecycle may stage a replacement until process confirmation. Later guards can refuse after consuming sequence, matching the reference.              |
+| Clear authority                           | Only the current matching source (or omitted source) is eligible; sequence gates the clear. Persisted-only identity is not clearable through this operation.                                       |
+| Release an official source/Agent pair     | Public routing is an unconditional no-op, including sequence.                                                                                                                                      |
+| Release a custom report                   | Reject a foreign authority, require matching effective Agent/reference and sequence; preserve independently confirmed live process and foreign persisted identity.                                 |
+| Process observation                       | Preserve a live full-lifecycle authority against weaker detection; reject observations older than release suppression, reconcile replacement claims, and clean matching exited-generation reports. |
 
 Once a source accepts a sequenced report, subsequent unsequenced reports are stale. Equal or
 lower sequence values never advance it. Only the reference's confirmed generation/session
@@ -165,3 +165,7 @@ wait/prompt activity gates and Client attention remain dependent consumers, not 
 of this boundary. Traces cover quiet updates, transients, eviction, overflow, admission rollback,
 generation reset and primary/child isolation. Shared wire vectors check closed shapes and cursor
 coverage. State is transient; rollback replaces the matched cohort, without checkpoint migration.
+
+## Exact Presentation reads
+
+`read-presentations` reads up to four ordered unique primary or child Presentation IDs under the same read policy and Site gate as primary Panel reads. `presentations-read` retains independent Workbench/report revisions and wraps each exact member’s Panel row with its Presentation ID. Shared Panel IDs are valid; unknown members fail the whole batch with `not-found`. Unbound members have null binding/report; bound members without reports have the existing unknown view. Queries reuse binding-owned resources and never borrow the primary report. Empty reads fence report revisions. Existing primary read and write semantics are unchanged; callers must correlate Presentation, Panel, binding and Workbench revision.

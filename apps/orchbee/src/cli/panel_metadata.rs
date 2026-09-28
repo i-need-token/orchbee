@@ -51,7 +51,8 @@ impl Answer {
             Observation::Unknown(_) => 8,
             Observation::Server(reply) => match reply.outcome {
                 PanelMetadataOutcome::Reported { .. } => 0,
-                PanelMetadataOutcome::Read { .. } => 5,
+                PanelMetadataOutcome::Read { .. }
+                | PanelMetadataOutcome::PresentationsRead { .. } => 5,
                 PanelMetadataOutcome::Failed { reason } => match reason {
                     PanelMetadataFailure::Denied
                     | PanelMetadataFailure::NotFound

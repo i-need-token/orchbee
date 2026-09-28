@@ -116,6 +116,9 @@ impl PanelAgentReport {
     deny_unknown_fields
 )]
 pub enum PanelAgentAction {
+    ReadPresentations {
+        presentation_ids: Vec<TerminalPresentationId>,
+    },
     Explain {
         binding: orchbee_agent_observation_protocol::AgentLaunchBinding,
     },
@@ -147,6 +150,15 @@ pub struct PanelAgentRequest {
 impl PanelAgentRequest {
     pub fn validate(&self) -> Result<(), ContractError> {
         match &self.action {
+            PanelAgentAction::ReadPresentations { presentation_ids } => {
+                if presentation_ids.len() > MAXIMUM_PANEL_AGENT_READ_ROWS
+                    || presentation_ids.iter().collect::<BTreeSet<_>>().len()
+                        != presentation_ids.len()
+                {
+                    return Err(ContractError::InvalidDocument);
+                }
+                Ok(())
+            }
             PanelAgentAction::States { presentation_ids } => {
                 if presentation_ids.len() <= MAXIMUM_TERMINAL_AGENT_STATE_ROWS
                     && presentation_ids.iter().collect::<BTreeSet<_>>().len()
@@ -242,6 +254,19 @@ pub struct PanelAgentRow {
     #[serde(deserialize_with = "nullable")]
     pub report: Option<PanelAgentView>,
 }
+impl PanelAgentRow {
+    fn valid(&self) -> bool {
+        self.binding.is_some() == self.report.is_some()
+            && self.report.as_ref().is_none_or(PanelAgentView::valid)
+    }
+}
+/// An exact primary or child member; the nested row describes this member, not its Panel primary.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct PresentationAgentRow {
+    pub presentation_id: TerminalPresentationId,
+    pub panel: PanelAgentRow,
+}
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum PanelAgentFailure {
@@ -267,6 +292,11 @@ pub enum PanelAgentFailure {
     deny_unknown_fields
 )]
 pub enum PanelAgentOutcome {
+    PresentationsRead {
+        workbench_revision: WorkbenchRevision,
+        report_revision: WorkbenchRevision,
+        presentations: Vec<PresentationAgentRow>,
+    },
     Explained {
         workbench_revision: WorkbenchRevision,
         report_revision: WorkbenchRevision,
@@ -311,6 +341,16 @@ pub struct PanelAgentResult {
 impl PanelAgentResult {
     pub fn validate(&self) -> Result<(), ContractError> {
         let valid = match &self.outcome {
+            PanelAgentOutcome::PresentationsRead { presentations, .. } => {
+                presentations.len() <= MAXIMUM_PANEL_AGENT_READ_ROWS
+                    && presentations
+                        .iter()
+                        .map(|r| &r.presentation_id)
+                        .collect::<BTreeSet<_>>()
+                        .len()
+                        == presentations.len()
+                    && presentations.iter().all(|r| r.panel.valid())
+            }
             PanelAgentOutcome::Explained { explanation, .. } => explanation.valid(),
             PanelAgentOutcome::States { presentations, .. } => {
                 presentations.len() <= MAXIMUM_TERMINAL_AGENT_STATE_ROWS
@@ -331,10 +371,7 @@ impl PanelAgentResult {
                         .collect::<BTreeSet<_>>()
                         .len()
                         == panels.len()
-                    && panels.iter().all(|p| {
-                        p.binding.is_some() == p.report.is_some()
-                            && p.report.as_ref().is_none_or(PanelAgentView::valid)
-                    })
+                    && panels.iter().all(PanelAgentRow::valid)
             }
             PanelAgentOutcome::Reported { view, .. } => view.valid(),
             PanelAgentOutcome::Failed { .. } => true,
@@ -371,6 +408,12 @@ impl PanelAgentResult {
                 PanelAgentOutcome::Observed { observation, .. },
             ) => &observation.binding == binding && observation.covers(*after_sequence),
             (_, PanelAgentOutcome::Failed { .. }) => true,
+            (
+                PanelAgentAction::ReadPresentations { presentation_ids },
+                PanelAgentOutcome::PresentationsRead { presentations, .. },
+            ) => presentation_ids
+                .iter()
+                .eq(presentations.iter().map(|row| &row.presentation_id)),
             (PanelAgentAction::Read { panel_ids }, PanelAgentOutcome::Read { panels, .. }) => {
                 panel_ids.iter().eq(panels.iter().map(|p| &p.panel_id))
             }

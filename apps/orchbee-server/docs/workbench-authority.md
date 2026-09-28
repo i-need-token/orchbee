@@ -1090,3 +1090,7 @@ Native indexed failures use v2 while schema v1 remains closed; direction uses th
 envelope only for this new refusal. Matched protocol/Server/Client rollout or source rollback does
 not compensate already committed order. Group/pin creation UI, unbound lifecycle and actual
 Windows multi-Client TUI acceptance remain separate obligations.
+
+## Exact Presentation metadata reads
+
+Panel metadata `read-presentations` accepts at most four unique Presentation IDs in request order, including primary and child members and empty revision fences. Each `presentations-read` row contains `presentationId` and a nested `panel` row with owning Panel ID and the selected member’s binding, tokens and source records. Duplicate Panel IDs across different members are allowed. Unknown members reject the batch; unbound members expose empty metadata. Source uniqueness and nonzero field orders bounded by metadata revision apply identically to both read paths. Membership and binding-owned resources are resolved under the existing Site gate; reads do not mutate topology, selection or input ownership. Existing primary Panel reads and metadata writes retain their scope.

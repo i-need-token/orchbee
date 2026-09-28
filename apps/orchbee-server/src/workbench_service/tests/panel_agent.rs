@@ -57,6 +57,24 @@ fn panel_agent_permissions_are_independent_and_refusals_leave_topology_unchanged
             matches!(execute(grants,&request),Outcome::Read{panels,..} if panels.is_empty())
         });
     }
+    request.action = Action::ReadPresentations {
+        presentation_ids: vec![],
+    };
+    for grants in 0..32 {
+        let outcome = execute(grants, &request);
+        if grants & 1 == 0 {
+            assert_eq!(
+                outcome,
+                Outcome::Failed {
+                    reason: Failure::Denied
+                }
+            );
+        } else {
+            assert!(
+                matches!(outcome, Outcome::PresentationsRead { presentations, .. } if presentations.is_empty())
+            );
+        }
+    }
     request.action=serde_json::from_value(serde_json::json!({"kind":"report","panelId":"2".repeat(32),"expectedBinding":{"workerId":"3".repeat(32),"terminalId":"4".repeat(32)},"report":{"kind":"state","source":"test","agent":"Team Agent","state":"working"}})).unwrap();
     for grants in 0..32 {
         assert_eq!(

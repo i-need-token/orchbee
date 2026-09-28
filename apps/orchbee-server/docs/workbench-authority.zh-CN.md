@@ -884,3 +884,7 @@ Workbench 的已绑定结构操作接受规范分组元数据和固定前缀。T
 Tab Move 先根据原方向或原始插入边界确定精确置换；no-op 在分配修订之前返回不变。候选必须保留固定前缀及每个分组的连续成员，否则保留 `tab-move-order-conflict`，不修改状态或退役权威。这是 Herdr 精确移除／插入语义之上的 Orchbee 元数据约束（固定 `e0507237ad8d41f60aece10d00ef29ce2339ca34`，`workspace.rs::move_tab`）；Herdr 本身不定义这些分组／固定语义。请求重放、上下文 Close 栅栏、Site 完整成员组合、容量及回滚沿用既有所有者，不发生进程操作。
 
 证据通过独立移除／插入及连续区间参考算法比较完整记录，覆盖合法／非法位置、全部方向、所有插入边界、修订耗尽时的 no-op、精确拒绝重放及后续合法操作。恢复后的分组／固定 Site 组合，以及保留子项的创建／分屏／布局／迁移仍是必要集成见证。Rust／TypeScript／线路 schema 和原生失败分类同时接纳新原因。原生索引失败采用 v2，schema v1 保持封闭；方向操作仅针对新拒绝使用专用 v2 信封。匹配协议／Server／Client 的启用或源码回滚不补偿已提交顺序。分组／固定创建 UI、未绑定生命周期及真实 Windows 多 Client TUI 验收仍为独立义务。
+
+## 精确 Presentation 元数据读取
+
+Panel 元数据 `read-presentations` 按请求顺序接受最多四个唯一 Presentation ID，包括主项、子项以及空读取修订校验。每个 `presentations-read` 行包含 `presentationId` 和嵌套 `panel` 行，携带所属 Panel ID、所选成员绑定、tokens 及来源记录。不同成员可共享 Panel ID。未知成员拒绝整批；未绑定成员展示空元数据。两个读取路径同样要求来源唯一、字段次序非零且不超过元数据修订号。成员关系和绑定所属资源均在既有 Site 门内解析；读取不修改拓扑、选择或输入归属。既有主 Panel 读取与元数据写入保留原范围。
