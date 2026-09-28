@@ -2682,7 +2682,7 @@ binding-only provenance and cannot inherit a primary terminal creation outcome.
 Presentation targeting serves Agent focus. Rendered label/count and attention refer to the
 chosen binding; Panel movement and Close still operate on the complete Panel. The report lane queries
 the selected Presentation and correlates its owning Panel and binding under both revision fences.
-A local member change discards the old observation before publishing the child's report or metadata. Direct pointer selection, child creation, unbound lifecycle and final multi-Client
+A local member change discards the old observation before publishing the child's report or metadata. Header arrows provide exact member selection through the [native pointer owner](native-mouse-input.md#presentation-selector). Child creation, unbound lifecycle and final multi-Client
 visual acceptance remain open. Focused tests cover full member identity, rollback, stale frames,
 remembered selection, canonical removal, bilingual shortcut decoding, rendered child label/count and
 actual native wire cleanup-before-attach; final full regression remains deferred under the implementation plan.

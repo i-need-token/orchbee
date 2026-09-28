@@ -32,6 +32,7 @@ mod contexts;
 mod panel_close;
 #[cfg(windows)]
 mod panel_reports;
+mod presentation_selector;
 mod tab_close;
 mod tab_rename;
 mod tabs;
@@ -516,6 +517,22 @@ fn render_native_workbench(
                 locale.agent_unseen_badge(native.panel_unseen_count(panel))
             )
         });
+    let outer_header = Rect::new(
+        panel_area.x.saturating_add(1),
+        panel_area.y,
+        panel_area.width.saturating_sub(2),
+        1.min(panel_area.height),
+    );
+    let selector = active_tab
+        .filter(|tab| framed && (tab.panel_count() == 1 || native.zoom_active()))
+        .and_then(|tab| tab.active_panel().and_then(|index| tab.panel(index)))
+        .and_then(|panel| {
+            presentation_selector::PresentationSelector::new(outer_header, panel, native)
+        });
+    #[cfg(windows)]
+    let outer_title = selector
+        .as_ref()
+        .map_or(outer_header, |s| s.title_area(outer_header));
     let frame_title = Line::from(Span::styled(
         format!(" {panel_title} "),
         theme.style(Role::TextSecondary),
@@ -537,7 +554,7 @@ fn render_native_workbench(
                 ),
                 locale.agent_unseen_badge(native.panel_unseen_count(panel.panel_id()))
             );
-            let title = if panel.presentation_count() > 1 {
+            let title = if panel.presentation_count() > 1 && selector.is_none() {
                 let position = panel
                     .presentation_index(native.selected_presentation(panel).presentation_id())
                     .unwrap_or(0)
@@ -549,7 +566,7 @@ fn render_native_workbench(
             Some(panel_reports::header(
                 title,
                 native.panel_report(panel),
-                usize::from(panel_area.width.saturating_sub(2)),
+                usize::from(outer_title.width),
                 locale,
                 theme,
                 theme.style(Role::AccentFocus).add_modifier(Modifier::BOLD),
@@ -563,6 +580,9 @@ fn render_native_workbench(
             .border_type(theme.corners)
             .title(frame_title);
         frame.render_widget(panel_block, panel_area);
+        if let Some(selector) = &selector {
+            selector.paint(frame, theme, hits);
+        }
     }
     // Under zoom the drawn set narrows to the focused leaf: the single-pane
     // path below paints it across the whole content area and records the
@@ -577,7 +597,7 @@ fn render_native_workbench(
             &|split, first, second| tab.split_ratio(split, first, second),
         );
         for leaf in &projection.leaves {
-            render_leaf(
+            let selector = render_leaf(
                 frame,
                 leaf,
                 tab,
@@ -590,6 +610,7 @@ fn render_native_workbench(
                 locale,
                 native,
                 theme,
+                hits,
             );
             // The recorded region carries the pane's exact live
             // incarnation — a press resolves it bit for bit, so it can
@@ -598,14 +619,7 @@ fn render_native_workbench(
                 .panel(leaf.panel_index)
                 .and_then(|panel| native.pane_ref_for_panel(panel.panel_id()))
             {
-                hits.record(
-                    HitLayer::Foreground,
-                    leaf.leaf,
-                    HitTarget::Pane {
-                        pane,
-                        content: leaf.content,
-                    },
-                );
+                presentation_selector::record_leaf(hits, leaf.leaf, leaf.content, pane, selector);
             }
         }
         render_dividers(frame, &projection.dividers, theme);
@@ -793,11 +807,16 @@ fn render_leaf(
     locale: Locale,
     native: &NativeSessionView<'_>,
     theme: &Theme,
-) {
+    hits: &mut HitMapBuilder,
+) -> Option<Rect> {
     let area = leaf.leaf;
     let panel_index = leaf.panel_index;
     let active = tab.active_panel() == Some(panel_index);
     let panel = tab.panel(panel_index);
+    let header_area = Rect::new(area.x, area.y, area.width, 1.min(area.height));
+    let selector = panel.and_then(|panel| {
+        presentation_selector::PresentationSelector::new(header_area, panel, native)
+    });
     #[cfg(windows)]
     let title = panel.map_or_else(
         || format!(" {} {} ", text.panel_title, panel_index + 1),
@@ -834,7 +853,7 @@ fn render_leaf(
         },
     );
     let title = panel.map_or(title.clone(), |panel| {
-        if panel.presentation_count() == 1 {
+        if panel.presentation_count() == 1 || selector.is_some() {
             return title.clone();
         }
         let member = native.selected_presentation(panel);
@@ -857,24 +876,29 @@ fn render_leaf(
     } else {
         theme.style(Role::TextSecondary)
     };
-    let title_area = Rect::new(area.x, area.y, area.width, 1.min(area.height));
+    let title_area = selector
+        .as_ref()
+        .map_or(header_area, |s| s.title_area(header_area));
     #[cfg(windows)]
     let header = panel_reports::header(
         title,
         panel.map_or(crate::terminal_session::PanelReportView::Pending, |p| {
             native.panel_report(p)
         }),
-        usize::from(area.width),
+        usize::from(title_area.width),
         locale,
         theme,
         title_style,
     );
     #[cfg(not(windows))]
     let header = Line::from(Span::styled(
-        truncate_display(&title, usize::from(area.width), theme.glyphs.ellipsis),
+        truncate_display(&title, usize::from(title_area.width), theme.glyphs.ellipsis),
         title_style,
     ));
     frame.render_widget(Paragraph::new(header), title_area);
+    if let Some(selector) = &selector {
+        selector.paint(frame, theme, hits);
+    }
     let content = leaf.content;
     if !active {
         frame.render_widget(
@@ -927,6 +951,7 @@ fn render_leaf(
             content,
         );
     }
+    selector.map(|s| s.area)
 }
 
 fn render_dividers(frame: &mut Frame<'_>, dividers: &[Rect], theme: &Theme) {

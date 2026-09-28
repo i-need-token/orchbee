@@ -1703,6 +1703,10 @@ impl NativeUi {
             ClientAction::EnterHistory => self.enter_history(),
             ClientAction::PreviousPresentation => self.cycle_presentation(false),
             ClientAction::NextPresentation => self.cycle_presentation(true),
+            ClientAction::SelectPresentation {
+                panel,
+                presentation,
+            } => self.select_presentation_in_active_tab(&panel, &presentation),
             ClientAction::MovePanelFocus(direction) => self.move_panel_focus(direction),
             ClientAction::FocusPanel(panel) => self.move_panel_focus_to(&panel),
             ClientAction::ToggleZoom => self.toggle_zoom(),

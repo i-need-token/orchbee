@@ -3,6 +3,47 @@ use super::*;
 use orchbee_workbench_protocol::TerminalPresentationId;
 
 impl NativeUi {
+    pub(super) fn select_presentation_in_active_tab(
+        &mut self,
+        panel_id: &WorkbenchPanelId,
+        presentation_id: &TerminalPresentationId,
+    ) -> SessionActionDisposition {
+        if self.modal_owns_input() {
+            return SessionActionDisposition::KeepNavigator;
+        }
+        let Some(state) = self.state.as_ref() else {
+            return SessionActionDisposition::KeepNavigator;
+        };
+        let Some(active) = state.active() else {
+            return SessionActionDisposition::KeepNavigator;
+        };
+        let Some(index) = state
+            .cache()
+            .tabs()
+            .iter()
+            .position(|tab| tab.tab_id() == active.key().anchor().tab_id())
+        else {
+            return SessionActionDisposition::KeepNavigator;
+        };
+        let tab = &state.cache().tabs()[index];
+        let Some(panel) = (0..tab.panel_count())
+            .filter_map(|i| tab.panel(i))
+            .find(|p| p.panel_id() == panel_id)
+        else {
+            return SessionActionDisposition::KeepNavigator;
+        };
+        if panel.presentation_index(presentation_id).is_none()
+            || state.selected_presentation(panel).presentation_id() == presentation_id
+        {
+            return SessionActionDisposition::KeepNavigator;
+        }
+        if self.select_presentation(index, panel_id, presentation_id) {
+            SessionActionDisposition::DismissNavigator
+        } else {
+            SessionActionDisposition::KeepNavigator
+        }
+    }
+
     pub(super) fn cycle_presentation(&mut self, forward: bool) -> SessionActionDisposition {
         if self.modal_owns_input() {
             return SessionActionDisposition::KeepNavigator;
@@ -93,75 +134,4 @@ impl<'a> NativeSessionView<'a> {
 }
 
 #[cfg(all(test, windows))]
-mod tests {
-    use super::*;
-    use orchbee_workbench_protocol::{
-        PanelNode, Presentation, PresentationBinding, TerminalId, WorkerId,
-    };
-    #[test]
-    fn prefix_choice_queues_exact_child_and_does_not_display_primary_report() {
-        let mut source = super::super::membership_tests::snapshot(2, 1);
-        let PanelNode::Panel {
-            child_presentations,
-            ..
-        } = &mut source.terminal_contexts[0].tabs[0].root
-        else {
-            unreachable!()
-        };
-        let child = TerminalPresentationId::parse(&format!("{:032x}", 9000)).unwrap();
-        child_presentations.push(Presentation {
-            presentation_id: child.clone(),
-            label: "child shell".into(),
-            custom_label: None,
-            binding: Some(PresentationBinding {
-                worker_id: WorkerId::parse(&format!("{:032x}", 9001)).unwrap(),
-                terminal_id: TerminalId::parse(&format!("{:032x}", 9002)).unwrap(),
-            }),
-        });
-        let (mut ui, mailbox, _, _) =
-            super::super::move_membership_tests::ready_ui_with_snapshot(source);
-        assert_eq!(
-            ui.apply_client_action(ClientAction::NextPresentation),
-            SessionActionDisposition::DismissNavigator
-        );
-        let command = mailbox.try_recv().unwrap().unwrap();
-        assert!(matches!(
-            command.record(),
-            crate::terminal_session::mailbox::QueuedCommand::Switch(_)
-        ));
-        let view = ui.view();
-        let panel = view.tab(0).unwrap().panel(0).unwrap();
-        assert_eq!(view.selected_presentation(panel).presentation_id(), &child);
-        assert!(matches!(
-            view.panel_report(panel),
-            crate::terminal_session::PanelReportView::Pending
-        ));
-        let mut terminal =
-            ratatui::Terminal::new(ratatui::backend::TestBackend::new(120, 40)).unwrap();
-        terminal
-            .draw(|frame| {
-                crate::tui_render::render_terminal_shell(
-                    frame,
-                    &crate::client_view::ClientView::new(120),
-                    crate::localization::Locale::EnUs,
-                    Some(crate::terminal_session::TerminalSessionView::Native(
-                        ui.view(),
-                    )),
-                    &crate::tui_theme::Theme::rgb_test_dark(),
-                    &mut crate::tui_pointer::HitMapBuilder::new(),
-                );
-            })
-            .unwrap();
-        let text: String = terminal
-            .backend()
-            .buffer()
-            .content
-            .iter()
-            .map(|cell| cell.symbol())
-            .collect();
-        assert!(
-            text.contains("child shell") && text.contains("[2/2]"),
-            "{text}"
-        );
-    }
-}
+mod tests;

@@ -2180,4 +2180,4 @@ Panel 始终是一个布局叶子，按主项在先的顺序保留 Presentation�
 
 Native Session 为每个 Panel 持有易失的 Presentation 偏好。活动 PaneRecord binding 决定所显示成员；离开时记录稳定选择，已消失选择退回主项。本地选择不改 Workbench 修订或布局。切换成员使用新 anchor 和既有 Switch 清理／附着所有者，旧输入、画面及控制权不会改投新目标。清理前拒绝恢复原活动成员；附着不可用仍明确呈现。初始完整 anchor 清理可能重新附着兄弟 viewer。子项附着使用仅 binding 来源，不继承主终端的创建结果。
 
-`Ctrl+B (`／`Ctrl+B )` 选择上一个／下一个 Presentation，按规范顺序循环，只有一个成员时无操作。共享帮助注册表提供双语说明。基于稳定 Presentation 的目标支持 Agent 聚焦。渲染标签／数量和 attention 对应选中 binding；Panel 移动与关闭仍操作整个 Panel。报告通道查询所选 Presentation，并在两个修订号校验下关联所属 Panel 与绑定。本地成员变化立即丢弃旧观察，随后才可发布子项的报告或元数据。直接鼠标选择、子项创建、未绑定生命周期和最终多 Client 视觉验收仍未完成。定向测试覆盖完整成员身份、回滚、旧画面、选择记忆、规范移除、双语快捷键解码、子项标签／数量渲染及实际原生线路先清理后附着；按实现计划仍暂缓最终全量回归。
+`Ctrl+B (`／`Ctrl+B )` 选择上一个／下一个 Presentation，按规范顺序循环，只有一个成员时无操作。共享帮助注册表提供双语说明。基于稳定 Presentation 的目标支持 Agent 聚焦。渲染标签／数量和 attention 对应选中 binding；Panel 移动与关闭仍操作整个 Panel。报告通道查询所选 Presentation，并在两个修订号校验下关联所属 Panel 与绑定。本地成员变化立即丢弃旧观察，随后才可发布子项的报告或元数据。标题栏箭头通过[原生指针所有者](native-mouse-input.zh-CN.md#presentation-选择器)精确选择成员。子项创建、未绑定生命周期和最终多 Client 视觉验收仍未完成。定向测试覆盖完整成员身份、回滚、旧画面、选择记忆、规范移除、双语快捷键解码、子项标签／数量渲染及实际原生线路先清理后附着；按实现计划仍暂缓最终全量回归。

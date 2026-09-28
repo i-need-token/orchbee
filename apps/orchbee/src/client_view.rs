@@ -92,6 +92,11 @@ pub(crate) enum ClientAction {
     SelectContextAt(usize),
     PreviousPresentation,
     NextPresentation,
+    /// Pointer destination resolved from the drawn member selector, never a cached ordinal.
+    SelectPresentation {
+        panel: orchbee_workbench_protocol::WorkbenchPanelId,
+        presentation: orchbee_workbench_protocol::TerminalPresentationId,
+    },
     MovePanelFocus(PanelDirection),
     /// Pointer gesture: focus the panel with this stable identity in the
     /// active tab.
@@ -200,6 +205,7 @@ impl ClientAction {
             Self::SelectNextContext => Some(BackendAction::SelectNextContext),
             Self::PreviousPresentation
             | Self::NextPresentation
+            | Self::SelectPresentation { .. }
             | Self::MovePanelFocus(_)
             | Self::FocusPanel(_)
             | Self::ToggleZoom

@@ -1603,3 +1603,64 @@ fn primary_wheel_enters_history_only_over_focused_content_without_shift() {
         );
     }
 }
+
+#[test]
+fn presentation_click_is_exact_unmodified_left_only_and_never_terminal_input() {
+    let presentation =
+        orchbee_workbench_protocol::TerminalPresentationId::parse(&"9".repeat(32)).unwrap();
+    let expected = pane_ref(1, 1, 1, 0);
+    for scenario in 0..12 {
+        let mut builder = HitMapBuilder::new();
+        builder.record(
+            HitLayer::Foreground,
+            Rect::new(4, 2, 3, 1),
+            HitTarget::Presentation {
+                pane: expected.clone(),
+                presentation: presentation.clone(),
+            },
+        );
+        if scenario == 8 {
+            builder.mark_overlay_active();
+        }
+        let mut pointer = PointerState::default();
+        pointer.set_capture(scenario != 9);
+        pointer.publish(builder.finish());
+        let mut port = RecordingPort {
+            probe: active_probe(0, 0, 2, 1),
+            ..Default::default()
+        };
+        let mut input = press(5, 2);
+        match scenario {
+            1 => input.action = MouseAction::Release,
+            2 => input.button = MouseButton::Right,
+            3 => input.button = MouseButton::WheelUp,
+            4 => input.mods.shift = true,
+            5 => port.probe.panes[0].record = pane_ref(1, 1, 1, 1),
+            6 => port.probe.desired = Some(pane_key(2, 1, 1)),
+            7 => port.probe.input_captured = true,
+            10 => port.probe.desired = Some(pane_key(1, 2, 11)),
+            11 => port.probe.panes.clear(),
+            _ => {}
+        }
+        let mut view = ClientView::new(120);
+        pointer.event(&mut view, &mut port, now(), input);
+        if scenario == 0 {
+            assert_eq!(
+                port.actions,
+                vec![ClientAction::SelectPresentation {
+                    panel: panel_id(1),
+                    presentation: presentation.clone()
+                }]
+            );
+            pointer.stale_map();
+            assert_eq!(
+                pointer.event(&mut view, &mut port, now(), input),
+                PointerOutcome::Ignored
+            );
+            assert_eq!(port.actions.len(), 1);
+        } else {
+            assert!(port.actions.is_empty(), "scenario {scenario}");
+        }
+        assert!(port.forwarded.is_empty() && port.wheels.is_empty());
+    }
+}

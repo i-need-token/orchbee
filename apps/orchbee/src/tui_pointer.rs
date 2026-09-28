@@ -80,6 +80,11 @@ pub(crate) enum HitTarget {
     /// owns while it reports the pointer; the title row outside it is
     /// Client chrome.
     Pane { pane: PaneRef, content: Rect },
+    /// Exact painted incarnation and stable destination within that Panel.
+    Presentation {
+        pane: PaneRef,
+        presentation: orchbee_workbench_protocol::TerminalPresentationId,
+    },
     /// Painted overlay body with no action — swallows the click so it
     /// cannot reach the layer beneath.
     OverlaySurface,
@@ -204,7 +209,8 @@ impl HitMapBuilder {
             .iter()
             .filter_map(|region| match &region.target {
                 HitTarget::Pane { pane, content }
-                    if region.layer == HitLayer::Foreground && !content.is_empty() =>
+                    if region.layer == HitLayer::Foreground
+                        && !region.rect.intersection(*content).is_empty() =>
                 {
                     Some(pane)
                 }
@@ -659,6 +665,27 @@ impl PointerState {
                     return PointerOutcome::Ignored;
                 };
                 let disposition = port.apply_client_action(ClientAction::SelectContextAt(index));
+                if let Some(disposition) = disposition {
+                    view.commit_pointer(disposition);
+                }
+                PointerOutcome::RegionsChanged
+            }
+            HitResolution::Region(HitTarget::Presentation { pane, presentation }) => {
+                if event.action != MouseAction::Press
+                    || event.button != MouseButton::Left
+                    || event.mods != crate::client_view::Modifiers::NONE
+                    || probe
+                        .desired
+                        .as_ref()
+                        .is_none_or(|desired| desired.anchor() != pane.pane().anchor())
+                    || !probe.panes.iter().any(|live| &live.record == pane)
+                {
+                    return PointerOutcome::Ignored;
+                }
+                let disposition = port.apply_client_action(ClientAction::SelectPresentation {
+                    panel: pane.pane().panel().clone(),
+                    presentation: presentation.clone(),
+                });
                 if let Some(disposition) = disposition {
                     view.commit_pointer(disposition);
                 }

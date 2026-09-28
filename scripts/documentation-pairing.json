@@ -210,8 +210,8 @@
 			"zhCnSha256": "b5a1dececa17f108826426e617944a5a474b240408c77e881cf2b62427027001"
 		},
 		"apps/orchbee/docs/native-mouse-input.md": {
-			"englishSha256": "bd17c3dfa184ffe059d9678dfc4bf00465edfc8356f74c0c6d2cab5a8cf4ba91",
-			"zhCnSha256": "8cf3deaf2d3fe50c866518f645bd8cbc01f9fbc5295ae5dc4a5ebfe636a2240a"
+			"englishSha256": "3401ab01fd832dd392616523cc437a1a00b2e4bbfe852ca628596d3686c0a260",
+			"zhCnSha256": "a125466a2e10313676f0d8ade9fca82c82f124eb4aacccf42389c5480f21d142"
 		},
 		"apps/orchbee/docs/native-panel-close-confirmation.md": {
 			"englishSha256": "42183a7bf85524f5000ff6a4ba34e607ca07a0337b499083d5213246f944db50",
@@ -246,8 +246,8 @@
 			"zhCnSha256": "4d98f91bd9e54c19f5ad08b26f12b0f233922653c905493eabe6e3a94a7e85fe"
 		},
 		"apps/orchbee/docs/native-tab-session.md": {
-			"englishSha256": "4cfffb33ecf039783fc77f68bb408a228b6596cdbfe9dfe2f520dbc33605fdfb",
-			"zhCnSha256": "be2bdcff6d1380fb2abf790ebd09cd6ddd814580d745758c7c1b730bb55346a5"
+			"englishSha256": "a04bb3905534a8c8ccbd1374146438901e7662f6d7571a4e4b6837d326b48248",
+			"zhCnSha256": "346569ef9ef86f28eebd433ee218e3f3dc71539750e9a03e8954dabd5ef7726c"
 		},
 		"apps/orchbee/docs/native-terminal-creation.md": {
 			"englishSha256": "48a58d0ee1830570897ae1edbcad49d7c9476623572899780afda4e9f87cb3b4",
@@ -310,8 +310,8 @@
 			"zhCnSha256": "097c54256ebe1d6c622dcb51c6fe5afb89f478124ebc4eb7b40a56207041f59c"
 		},
 		"apps/orchbee/docs/windows-panel-report-presentation.md": {
-			"englishSha256": "602979dee43e261adb7665972e704c52fdd6b8821c18b335abb758666904e162",
-			"zhCnSha256": "2f7a5a86fc3d7753874ecaf294a58c5a65204a4beee424601ade11bf852d8ae8"
+			"englishSha256": "dcdc269952459fb9c163082bd4b76a923944cec26c887c2c39b2d3a56137ee12",
+			"zhCnSha256": "a81d40bf4ca6579a0d5979bcc5ca4ecd7b149982bb860689854d0782081baead"
 		},
 		"apps/orchbee/docs/windows-terminal-streams.md": {
 			"englishSha256": "950d8cff21a347bd13700e307e141dec480721857802539ec61bb872912f57e3",
