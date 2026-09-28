@@ -1,0 +1,7 @@
+Bundled Agent screen detection rules from Herdr.
+Source: https://github.com/herdrdev/herdr
+Revision: e0507237ad8d41f60aece10d00ef29ce2339ca34
+Original paths: src/detect/manifests/*.toml
+License: Apache-2.0 (see LICENSE).
+The bundled TOML files are unmodified. Orchbee owns its parser and sampling integration.
+The region matching implementation is adapted from src/detect/manifest.rs, with UTF-8-safe CRLF offsets.
