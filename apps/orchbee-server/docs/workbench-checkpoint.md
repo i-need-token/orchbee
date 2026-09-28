@@ -12,6 +12,7 @@ The checkpoint retains Projects, local directory paths, Workspaces, terminal con
 Tabs, groups, pinned state, split structure, Panel input policy and Presentation labels. It also
 retains Launch Profile definitions and the allocation high-water counter, including deleted IDs.
 All primary and child Presentations survive structurally but carry no terminal binding.
+Version 2 also retains validated external provider references; see [Agent restart references](agent-restart-reference.md).
 
 It does not retain running processes, Site/Worker identities, controller grants, leases, Client
 views/layout overrides, request results, publication cursors, unfinished operations, Agent state
@@ -23,7 +24,7 @@ never authorizes replay of a terminal command or Git operation.
 | Operation              | Preconditions                                                                                                                    | Result and invariant                                                                                                                                           |
 | ---------------------- | -------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Capture                | Authority is not retired; committed graph is valid; every Directory and bound Presentation belongs to the supplied local Worker. | One bounded checkpoint; source authority is unchanged; process bindings and Worker identities are removed.                                                     |
-| Decode                 | Strict version 1 document, bounded bytes, valid configuration graph and counters.                                                | Complete retained configuration or a typed rejection; never partial or empty fallback.                                                                         |
+| Decode                 | Strict version 1 or 2 document, bounded bytes, valid configuration graph, counters and provider references.                                                | Complete retained configuration or a typed rejection; never partial or empty fallback.                                                                         |
 | Reconstruct            | Caller supplies a fresh boot Site identity and its admitted local Worker.                                                        | Retained structural IDs and local paths, fresh directory ownership, unbound Presentations, fresh profile Site prefixes, revision 0 and empty transient owners. |
 | Allocate after restore | Restored high-water counter permits advancement.                                                                                 | IDs remain above all previously allocated counters; exhaustion keeps the ordinary typed rejection.                                                             |
 
@@ -34,7 +35,7 @@ Names need not be unique; their existing ambiguous-selector semantics remain unc
 
 ## Private format and validation
 
-The schema discriminator is `orchbee.workbench.checkpoint`, with numeric `version: 1`.
+The schema discriminator is `orchbee.workbench.checkpoint`, with numeric `version: 2`. Version 1 remains readable without Agent references; version 2 requires the `agentSessions` list.
 `lastIdentity` and each profile `counter` are canonical nonzero 32-character lowercase hex.
 Navigation uses local directories containing only `directoryId` and `path`; its other retained
 objects use their shared typed contracts. Terminal contexts require every Presentation binding
@@ -95,7 +96,7 @@ retains recovery-required activation state; terminating a Worker alone is not Ho
 
 Clean stop saves after request/background quiescence and before Worker disposal. Encoding or
 publication failure prevents disposal and remains a failed stop; the previous committed file is
-preserved. This stage saves layout and Launch Profiles on explicit clean stop. It does not yet
+preserved. This stage saves layout, Launch Profiles and exact-generation provider references on explicit clean stop. Fresh physical creation seeds only the retained provider reference, never live Agent state or source authority. It does not yet
 provide periodic/crash checkpoints, observed per-terminal cwd, Agent/client/history recovery or
 named-session commands. Activation markers retain their existing recovery semantics on failed boot.
 

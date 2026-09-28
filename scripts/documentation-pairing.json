@@ -117,6 +117,10 @@
 			"englishSha256": "26f7950ccfc4824e542e29aee5b4103a56bcf08965035e12a8a5edb129b1e1ea",
 			"zhCnSha256": "2926534c588e3dc7412e4a6bb8d8a5fdfc510f67fb06ad4f07835ef73f16371f"
 		},
+		"apps/orchbee-server/docs/agent-restart-reference.md": {
+			"englishSha256": "31fa5345e1ea0df716377345d3e60c36526814414d525fecdd691fddb38c9e60",
+			"zhCnSha256": "4347673184bdbe7f154a3b70519db5135936a126586b08450dfa12d3571927db"
+		},
 		"apps/orchbee-server/docs/agent-screen-model.md": {
 			"englishSha256": "d6892be3898f71ec95a4ea5a6a8d8103ad81fa7b06c1b51e45bd6b6e14171f57",
 			"zhCnSha256": "559edf5d3f4b4e799446e6374b404d9330cdc55ab9e0a1849e69f5a893c902eb"
@@ -134,8 +138,8 @@
 			"zhCnSha256": "32da50134a7ce53e10ef3269e6d36c268a8d785ee37cabe60d0e706daa1d1e3f"
 		},
 		"apps/orchbee-server/docs/workbench-checkpoint.md": {
-			"englishSha256": "cc29d33992fa18b8b820b2179ebbed23b87899ce4559fc359abce57c5de5f5d5",
-			"zhCnSha256": "bcb4b6bf631906e098a6bce9fc549c92456389729b02bdd0b3d019c14f7067eb"
+			"englishSha256": "c6d92d176d5cbea6aecc5bab714ef5d4e99b59014f0676b05604d9ae49e61291",
+			"zhCnSha256": "ab09ba5c4b183600b94398e41b6520d62ef23f6d38d1cee118948561461da888"
 		},
 		"apps/orchbee-server/docs/worker-carrier-model.md": {
 			"englishSha256": "e19b68407f5a6d717b2dcffc94a8fc40ef19f767d29bfbb965f80acb778a8be8",

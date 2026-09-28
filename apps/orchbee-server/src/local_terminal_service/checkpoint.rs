@@ -90,6 +90,7 @@ impl LocalTerminalService {
                     placement(workers.request_handle().as_ref()),
                 )
                 .map_err(|_| io::Error::other("restore settlement failed"))?;
+            coordinator.seed_checkpoint_agent_sessions()?;
         }
         self.standalone_changed.notify_all();
         Ok(())
@@ -99,9 +100,6 @@ impl LocalTerminalService {
         self.coordinator
             .lock()
             .map_err(|_| io::Error::other("coordinator failed"))?
-            .worktree_authority()
-            .ok_or_else(|| io::Error::other("Workbench unavailable"))?
-            .checkpoint(worker)
-            .map_err(io::Error::other)
+            .checkpoint_with_agent_sessions(worker)
     }
 }

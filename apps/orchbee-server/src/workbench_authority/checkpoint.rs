@@ -1,4 +1,4 @@
-//! Private retained configuration. Runtime identities and effects never cross this boundary.
+//! Private retained configuration and provider restart intent, without physical runtime authority.
 
 use std::{collections::BTreeSet, fmt};
 
@@ -15,6 +15,7 @@ use serde::{Deserialize, Serialize};
 use super::{WorkbenchAuthority, catalog_serialized_size, identity};
 use crate::workbench_projection::WorkbenchProjectionStore;
 
+mod agent_sessions;
 mod restore;
 pub use restore::{PreparedWorkbenchRestoreBinding, WorkbenchRestoreError, WorkbenchRestoreTarget};
 
@@ -31,6 +32,7 @@ pub enum WorkbenchCheckpointError {
     InvalidIdentity,
     InvalidCatalog,
     TerminalBinding,
+    InvalidAgentSession,
 }
 
 impl fmt::Display for WorkbenchCheckpointError {
@@ -57,6 +59,7 @@ impl fmt::Display for WorkbenchCheckpointError {
             Self::TerminalBinding => {
                 formatter.write_str("checkpoint cannot retain terminal bindings")
             }
+            Self::InvalidAgentSession => formatter.write_str("invalid checkpoint Agent session"),
         }
     }
 }
@@ -121,6 +124,12 @@ struct Checkpoint {
     navigation: StoredNavigation,
     terminal_contexts: Vec<TerminalContext>,
     profiles: Vec<StoredProfile>,
+    #[serde(
+        default,
+        deserialize_with = "agent_sessions::deserialize",
+        skip_serializing_if = "Option::is_none"
+    )]
+    agent_sessions: Option<Vec<agent_sessions::StoredAgentSession>>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -159,12 +168,22 @@ struct StoredProfile {
 impl WorkbenchAuthority {
     /// Captures committed configuration without changing this authority or authorizing effects.
     pub fn checkpoint(&self, local_worker: &WorkerId) -> Result<Vec<u8>, WorkbenchCheckpointError> {
+        self.checkpoint_with_agents(local_worker, &[])
+    }
+
+    /// Physical evidence is supplied under the Site gate, never reconstructed from saved data.
+    pub fn checkpoint_with_agents(
+        &self,
+        local_worker: &WorkerId,
+        facts: &[super::TerminalAgentBinding],
+    ) -> Result<Vec<u8>, WorkbenchCheckpointError> {
         if self.retired {
             return Err(WorkbenchCheckpointError::RetiredAuthority);
         }
         validate_catalog(&self.catalog)?;
         // Serialization alone does not validate the shared graph. Validate before recursion.
         let projection = validate_projection(self.snapshot().clone())?;
+        let agent_sessions = agent_sessions::capture(self, local_worker, facts)?;
         let mut snapshot = projection.snapshot().clone();
         for context in &mut snapshot.terminal_contexts {
             for tab in &mut context.tabs {
@@ -218,7 +237,7 @@ impl WorkbenchAuthority {
             .collect::<Result<Vec<_>, WorkbenchCheckpointError>>()?;
         let checkpoint = Checkpoint {
             schema: Schema::Workbench,
-            version: 1,
+            version: 2,
             last_identity,
             navigation: StoredNavigation {
                 workspace_order: snapshot.navigation.workspace_order,
@@ -227,6 +246,7 @@ impl WorkbenchAuthority {
             },
             terminal_contexts: snapshot.terminal_contexts,
             profiles,
+            agent_sessions: Some(agent_sessions),
         };
         let encoded = serde_json::to_vec(&checkpoint)
             .map_err(|_error| WorkbenchCheckpointError::InvalidDocument)?;
@@ -255,10 +275,13 @@ impl WorkbenchCheckpoint {
         enforce_encoded_limit(encoded)?;
         let checkpoint: Checkpoint = serde_json::from_slice(encoded)
             .map_err(|_error| WorkbenchCheckpointError::InvalidDocument)?;
-        if checkpoint.version != 1 {
+        if !matches!(checkpoint.version, 1 | 2) {
             return Err(WorkbenchCheckpointError::UnsupportedVersion(
                 checkpoint.version,
             ));
+        }
+        if (checkpoint.version == 2) != checkpoint.agent_sessions.is_some() {
+            return Err(WorkbenchCheckpointError::InvalidAgentSession);
         }
         // These values only validate the shared graph shape. No authority is constructed,
         // retained or published; actual boot identities arrive during reconstruction.
@@ -281,6 +304,13 @@ impl WorkbenchCheckpoint {
         authority.projection = parts.projection;
         authority.last_identity = self.checkpoint.last_identity.0;
         authority.catalog = parts.catalog;
+        authority.pending_agent_sessions = self
+            .checkpoint
+            .agent_sessions
+            .unwrap_or_default()
+            .into_iter()
+            .map(|row| (row.presentation_id, row.session))
+            .collect();
         Ok(authority)
     }
 }
@@ -352,6 +382,10 @@ fn checkpoint_parts(
         projection.snapshot(),
         &checkpoint.profiles,
         checkpoint.last_identity,
+    )?;
+    agent_sessions::validate(
+        checkpoint.agent_sessions.as_deref().unwrap_or_default(),
+        projection.snapshot(),
     )?;
     Ok(CheckpointParts {
         projection,

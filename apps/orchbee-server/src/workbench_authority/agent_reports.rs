@@ -165,6 +165,23 @@ pub(super) struct Reports {
     recent_exit: Option<(String, u64)>,
 }
 impl Reports {
+    pub(super) fn from_restart_session(
+        session: &orchbee_workbench_protocol::PanelAgentSession,
+    ) -> Option<Self> {
+        let author = Author::new(&session.source, &session.agent)?;
+        let reference = match session.reference.kind {
+            ReferenceKind::Id => Reference::id(&session.reference.value),
+            ReferenceKind::Path => Reference::path(&session.reference.value, |p| {
+                std::path::Path::new(p).is_absolute()
+            }),
+        }?;
+        let reference = author.reference(Some(reference))?;
+        Some(Self {
+            persisted: Some(Session { author, reference }),
+            ..Self::default()
+        })
+    }
+
     pub(super) fn transition(&self, event: Event, at: u64) -> Transition {
         let mut next = self.clone();
         let mut released = false;

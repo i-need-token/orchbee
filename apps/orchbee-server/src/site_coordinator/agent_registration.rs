@@ -83,6 +83,23 @@ impl SiteCoordinator {
     pub(crate) fn agent_registration_snapshot(
         &self,
     ) -> Result<Vec<RegistrationFact>, WorkbenchTerminalInvariantError> {
+        self.agent_registration_filtered(|_| true, MAXIMUM_REGISTRATION_FACTS)
+    }
+
+    /// Checkpoint-owned bounded selection; ordinary canonical registration keeps its own bound.
+    #[cfg(any(windows, test))]
+    pub(crate) fn agent_registration_for_bindings(
+        &self,
+        bindings: &[PresentationBinding],
+    ) -> Result<Vec<RegistrationFact>, WorkbenchTerminalInvariantError> {
+        self.agent_registration_filtered(|binding| bindings.contains(binding), bindings.len())
+    }
+
+    fn agent_registration_filtered(
+        &self,
+        include: impl Fn(&PresentationBinding) -> bool,
+        maximum: usize,
+    ) -> Result<Vec<RegistrationFact>, WorkbenchTerminalInvariantError> {
         let mut facts = Vec::new();
         let Some(workbench) = &self.workbench else {
             return Ok(facts);
@@ -92,6 +109,9 @@ impl SiteCoordinator {
             let membership = workbench.terminal_tree_membership(&context.terminal_context_id)?;
             for member in membership.members() {
                 let binding = member.binding();
+                if !include(binding) {
+                    continue;
+                }
                 let terminal =
                     capability_terminal_id(binding).ok_or(WorkbenchTerminalInvariantError)?;
                 let worker =
@@ -111,7 +131,7 @@ impl SiteCoordinator {
                     .terminals
                     .retained_authorization(retained.reference)
                     .ok_or(WorkbenchTerminalInvariantError)?;
-                if facts.len() == MAXIMUM_REGISTRATION_FACTS {
+                if facts.len() == maximum {
                     return Err(WorkbenchTerminalInvariantError);
                 }
                 facts.push(RegistrationFact {

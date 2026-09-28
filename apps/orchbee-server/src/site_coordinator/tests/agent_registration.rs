@@ -76,6 +76,25 @@ fn accepted_standalone_member_registers_one_typed_fact() {
     assert_eq!(fact.worker_id(), authorization.worker_id());
     assert_eq!(fact.worker_generation(), authorization.worker_generation());
     assert_eq!(fact.identity(), identity());
+    assert_eq!(
+        coordinator.agent_registration_for_bindings(&[]).unwrap(),
+        vec![]
+    );
+    assert_eq!(
+        coordinator
+            .agent_registration_for_bindings(std::slice::from_ref(&binding))
+            .unwrap(),
+        facts
+    );
+    let mut unrelated = binding.clone();
+    unrelated.worker_id =
+        orchbee_workbench_protocol::WorkerId::parse(&format!("{:032x}", 899)).unwrap();
+    assert!(
+        coordinator
+            .agent_registration_for_bindings(&[unrelated])
+            .unwrap()
+            .is_empty()
+    );
 }
 
 #[test]

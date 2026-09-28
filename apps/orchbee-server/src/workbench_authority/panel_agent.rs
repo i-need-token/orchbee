@@ -41,6 +41,78 @@ pub(super) struct PanelAgents {
     origin: Option<Instant>,
 }
 impl PanelAgents {
+    pub(super) fn has_restart_session(&self, binding: &PresentationBinding) -> bool {
+        self.resources
+            .get(&key(binding))
+            .is_some_and(|resource| resource.reports.view().session.is_some())
+    }
+
+    pub(super) fn checkpoint_session(
+        &self,
+        physical: &TerminalAgentBinding,
+    ) -> Option<Option<orchbee_workbench_protocol::PanelAgentSession>> {
+        self.resources
+            .get(&key(&physical.binding))
+            .filter(|resource| &resource.physical == physical)
+            .map(|resource| resource.reports.view().session)
+    }
+
+    pub(super) fn seed_sessions(
+        &mut self,
+        seeds: Vec<(
+            TerminalAgentBinding,
+            orchbee_workbench_protocol::PanelAgentSession,
+        )>,
+        now: Instant,
+    ) -> Result<(), Failure> {
+        let mut prepared = BTreeMap::new();
+        let mut bytes = self.bytes;
+        for (physical, session) in seeds {
+            let id = key(&physical.binding);
+            if let Some(current) = self.resources.get(&id) {
+                if current.physical != physical {
+                    return Err(Failure::BindingChanged);
+                }
+                continue;
+            }
+            let reports = Reports::from_restart_session(&session).ok_or(Failure::InvalidRequest)?;
+            let added = retained_bytes(&reports)?;
+            bytes = bytes
+                .checked_add(added)
+                .filter(|n| *n <= MAXIMUM_BYTES)
+                .ok_or(Failure::ResourceLimit)?;
+            if prepared.insert(id, (physical, reports, added)).is_some() {
+                return Err(Failure::BindingChanged);
+            }
+        }
+        if prepared.is_empty() {
+            return Ok(());
+        }
+        if self.resources.len() + prepared.len() > MAXIMUM_RESOURCES {
+            return Err(Failure::ResourceLimit);
+        }
+        let revision = self
+            .revision
+            .checked_add(1)
+            .ok_or(Failure::RevisionExhausted)?;
+        self.time(now)?;
+        for (id, (physical, reports, bytes)) in prepared {
+            self.resources.insert(
+                id,
+                Resource {
+                    physical,
+                    reports,
+                    explicit_revision: revision,
+                    bytes,
+                },
+            );
+        }
+        self.bytes = bytes;
+        self.revision = revision;
+        self.origin.get_or_insert(now);
+        Ok(())
+    }
+
     fn time(&self, now: Instant) -> Result<u64, Failure> {
         self.time_from(now, now)
     }

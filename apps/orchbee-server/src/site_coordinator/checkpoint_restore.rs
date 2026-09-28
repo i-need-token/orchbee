@@ -9,6 +9,49 @@ use orchbee_server::WorkbenchRestoreTarget;
 use std::io;
 
 impl SiteCoordinator {
+    pub(crate) fn checkpoint_with_agent_sessions(
+        &self,
+        worker: &orchbee_workbench_protocol::WorkerId,
+    ) -> io::Result<Vec<u8>> {
+        let facts = self.checkpoint_agent_bindings()?;
+        self.workbench
+            .as_ref()
+            .ok_or_else(|| io::Error::other("Workbench unavailable"))?
+            .checkpoint_with_agents(worker, &facts)
+            .map_err(io::Error::other)
+    }
+
+    pub(crate) fn seed_checkpoint_agent_sessions(&mut self) -> io::Result<()> {
+        let facts = self.checkpoint_agent_bindings()?;
+        self.workbench
+            .as_mut()
+            .ok_or_else(|| io::Error::other("Workbench unavailable"))?
+            .seed_restored_agent_sessions(&facts, std::time::Instant::now())
+            .map_err(|reason| {
+                io::Error::other(format!("Agent restart reference unavailable: {reason:?}"))
+            })?;
+        Ok(())
+    }
+
+    fn checkpoint_agent_bindings(&self) -> io::Result<Vec<orchbee_server::TerminalAgentBinding>> {
+        let bindings = self
+            .workbench
+            .as_ref()
+            .ok_or_else(|| io::Error::other("Workbench unavailable"))?
+            .agent_restart_bindings()
+            .map_err(io::Error::other)?;
+        Ok(self
+            .agent_registration_for_bindings(&bindings)
+            .map_err(|_| io::Error::other("checkpoint membership unavailable"))?
+            .into_iter()
+            .map(|fact| orchbee_server::TerminalAgentBinding {
+                binding: fact.binding().clone(),
+                worker_generation: fact.worker_generation(),
+                identity: fact.identity(),
+            })
+            .collect())
+    }
+
     /// Only used while this entire coordinator is unpublished; no launch IPC is performed here.
     pub(crate) fn prepare_checkpoint_terminal(
         &mut self,
