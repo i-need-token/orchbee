@@ -463,3 +463,20 @@ CLI 携带来源信息时输出 v3，并保留封闭的 v1/v2 封套。
 这些 DTO 描述实际已安装状态，不声称支持远程下载／更新。Server 屏幕模型拥有安装和回执上限。
 
 两个 Panel 载体还支持 `read-presentations` 和 `presentations-read`，用于精确主项或子项报告／元数据观察：四个有序唯一 Presentation ID、空读取修订校验、必需的所属 `panel` 行，以及不同成员共享 Panel ID。Rust／TypeScript 与主项读取同样校验载荷不变量及元数据字段顺序归属。既有主项读写形状不变。共享用例覆盖精确成员数量界限、严格包装、同 Panel 成员和未绑定载荷；原生调用者还关联 Presentation、Panel 和 binding。协议应与其 Server 及原生 TUI 消费者作为匹配 cohort 交付。
+
+## Panel 终端创建扩展
+
+`panel.create-terminal` 指定 Context／Tab／Panel、必填 geometry 及一个封闭目标：
+`child { label }` 或 `unbound { presentationId }`。可选 `launch { exec, args }` 与 `profile`
+在非 null 时互斥。可选 `options` 提供绝对 `cwd` 及字面值 `environment` 名称／值二元组。
+共享 Rust／TypeScript／JSON 语料覆盖结构、身份、程序选择、字节上限、环境限制及规范化。
+null 选择器和空 options 规范化为省略字段。Launch 最多 128 个参数，UTF-8 总量及最坏转义内容均限
+30 KiB；profile 限 512 UTF-8 字节；环境变量限 32 个 ASCII 大小写不重复项、1024 总字节，
+并排除托管名称。请求使用既有 96 KiB 原生启动信封。JSON Schema 标明由绑定语义层执行的
+聚合字节及唯一性规则。
+
+`panel-terminal-pending` 和 `panel-terminal-created` 携带修订、Context／Tab／Panel／Presentation；
+最终变体包含既有 terminal outcome，均拒绝分屏专用字段。
+[Server 所有者](../../apps/orchbee-server/docs/workbench-authority.zh-CN.md#在既有-panel-内创建终端)
+要求导航及终端创建权限，并负责预备、效果及结算。既有分屏语法／结果字段不变。匹配的私有 cohort
+一起上线；扩展自身不增加持久化迁移或公共 CLI 命令。

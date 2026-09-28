@@ -607,8 +607,8 @@ fn open_context_close_fences_create_move_split_and_member_close() {
         },
     );
     assert!(matches!(
-        authority.begin_terminal_panel_split(Some(&grant), split),
-        crate::workbench_authority::WorkbenchPanelSplitBegin::Ready(WorkbenchCommandResult {
+        authority.begin_terminal_panel_create(Some(&grant), split),
+        crate::workbench_authority::WorkbenchPanelCreateBegin::Ready(WorkbenchCommandResult {
             outcome: WorkbenchCommandOutcome::Unavailable {
                 reason: WorkbenchCommandUnavailableReason::TerminalBusy
             },

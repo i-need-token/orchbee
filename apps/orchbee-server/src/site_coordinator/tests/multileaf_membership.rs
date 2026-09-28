@@ -90,7 +90,7 @@ fn settle_first_then_split(coordinator: &mut SiteCoordinator, base: u128) {
     let pending_s = dispatch_split(coordinator, split, base + 3);
     let completion_s = immediate_completion(pending_s.command());
     coordinator
-        .complete_terminal_panel_split(pending_s, completion_s, Some(worker(1)))
+        .complete_terminal_panel_create(pending_s, completion_s, Some(worker(1)))
         .unwrap();
 }
 
@@ -300,7 +300,7 @@ fn multileaf_standalone_tab_move_reorders_without_retiring() {
     let pending_s = dispatch_split(&mut coordinator, split, 9105);
     let completion_s = immediate_completion(pending_s.command());
     coordinator
-        .complete_terminal_panel_split(pending_s, completion_s, Some(worker(1)))
+        .complete_terminal_panel_create(pending_s, completion_s, Some(worker(1)))
         .unwrap();
     let committed = snapshot(&mut coordinator);
     let tab_b = committed
@@ -381,7 +381,7 @@ fn multileaf_workspace_tab_move_reorders_without_retiring() {
     let pending_s = dispatch_split(&mut coordinator, split, 9205);
     let completion_s = immediate_completion(pending_s.command());
     coordinator
-        .complete_terminal_panel_split(pending_s, completion_s, Some(worker(1)))
+        .complete_terminal_panel_create(pending_s, completion_s, Some(worker(1)))
         .unwrap();
     let committed = snapshot(&mut coordinator);
     let tab_b = committed
@@ -449,7 +449,7 @@ fn create_dispatched_then_split_committed_then_completion_settles() {
     let pending_b = dispatch_split(&mut coordinator, split, 9405);
     let completion_b = immediate_completion(pending_b.command());
     coordinator
-        .complete_terminal_panel_split(pending_b, completion_b, Some(worker(1)))
+        .complete_terminal_panel_create(pending_b, completion_b, Some(worker(1)))
         .unwrap();
     let completion_c = immediate_completion(pending_c.command());
     let completed = coordinator
@@ -553,7 +553,7 @@ fn pending_anchor_split_then_completion_settles_the_slot() {
     // The pending split still completes independently afterwards.
     let completion_s = immediate_completion(pending_s.command());
     let completed_s = coordinator
-        .complete_terminal_panel_split(pending_s, completion_s, Some(worker(1)))
+        .complete_terminal_panel_create(pending_s, completion_s, Some(worker(1)))
         .unwrap();
     assert!(!completed_s.standalone_changed);
 }
@@ -774,7 +774,7 @@ fn an_open_aggregate_close_fences_the_same_tab_split_but_not_a_new_create() {
         panel_id.clone(),
         WorkbenchPanelSplitDirection::Right,
     );
-    let PreparedTerminalPanelSplit::Ready(refused) = coordinator.prepare_terminal_panel_split(
+    let PreparedTerminalPanelCreate::Ready(refused) = coordinator.prepare_terminal_panel_create(
         split,
         Some(id(9986)),
         Some(expiry()),

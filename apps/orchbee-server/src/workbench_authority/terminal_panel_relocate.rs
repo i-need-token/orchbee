@@ -360,7 +360,7 @@ impl WorkbenchAuthority {
                 entry.metadata().terminal_context_id() == context
                     && entry.metadata().tab_id() == tab
             }
-            RetainedRequest::PendingPanelSplit(entry) => {
+            RetainedRequest::PendingPanelCreate(entry) => {
                 entry.metadata().terminal_context_id() == context
                     && entry.metadata().tab_id() == tab
             }
@@ -368,10 +368,9 @@ impl WorkbenchAuthority {
         })
     }
 
-    /// Whether an unsettled terminal-create settlement minted this Panel —
-    /// the pending Tab-create mints `panel_id`, the pending Panel-split mints
-    /// `new_panel_id`; relocating either while its terminal outcome is
-    /// outstanding races the pending record, so the move fences transiently.
+    /// Whether an unsettled terminal creation belongs to this Panel. Tab creation
+    /// and split mint a Panel; child creation and binding retain their existing Panel.
+    /// Relocating that Panel before settlement would invalidate the pending proof.
     pub(super) fn pending_terminal_covers_panel(
         &self,
         terminal_context_id: &WorkbenchTerminalContextId,
@@ -382,9 +381,9 @@ impl WorkbenchAuthority {
                 entry.metadata().terminal_context_id() == terminal_context_id
                     && entry.metadata().panel_id() == panel_id
             }
-            RetainedRequest::PendingPanelSplit(entry) => {
+            RetainedRequest::PendingPanelCreate(entry) => {
                 entry.metadata().terminal_context_id() == terminal_context_id
-                    && entry.metadata().new_panel_id() == panel_id
+                    && entry.metadata().terminal_panel_id() == panel_id
             }
             _ => false,
         })

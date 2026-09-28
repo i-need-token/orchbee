@@ -6,6 +6,139 @@ use orchbee_workbench_protocol::{
 };
 
 #[test]
+fn panel_member_creation_dispatches_literal_launch_and_preserves_original_members() {
+    use orchbee_workbench_protocol::{
+        LaunchEnvironment, LaunchOptions, LaunchSelection, WorkbenchDirectoryPath, WorkbenchLabel,
+        WorkbenchPanelTerminalTarget, WorkbenchTerminalGeometry,
+    };
+    let (mut coordinator, targets, worker) = restored(true);
+    let initial = coordinator.workbench.as_ref().unwrap().snapshot().clone();
+    let context = &initial.terminal_contexts[0];
+    let tab = &context.tabs[0];
+    let PanelNode::Panel { panel_id, .. } = &tab.root else {
+        panic!()
+    };
+    for (index, target) in [
+        WorkbenchPanelTerminalTarget::Child {
+            label: WorkbenchLabel::parse("new child").unwrap(),
+        },
+        WorkbenchPanelTerminalTarget::Unbound {
+            presentation_id: targets[0].presentation_id().clone(),
+        },
+        WorkbenchPanelTerminalTarget::Unbound {
+            presentation_id: targets[1].presentation_id().clone(),
+        },
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let before = coordinator.workbench.as_ref().unwrap().snapshot().clone();
+        let command = WorkbenchCommand {
+            protocol_version: ProtocolVersion,
+            request_id: WorkbenchRequestId::parse(&format!("{:032x}", 4000 + index)).unwrap(),
+            site_id: before.site_id.clone(),
+            expected_revision: before.revision,
+            action: WorkbenchAction::PanelCreateTerminal {
+                terminal_context_id: context.terminal_context_id.clone(),
+                tab_id: tab.tab_id.clone(),
+                panel_id: panel_id.clone(),
+                target,
+                geometry: WorkbenchTerminalGeometry::new(80, 24, 8, 16).unwrap(),
+                launch: Some(
+                    LaunchSelection::new(
+                        "C:/tools/shell.exe".into(),
+                        vec!["literal & $HOME".into()],
+                    )
+                    .unwrap(),
+                ),
+                profile: None,
+                options: Box::new(LaunchOptions {
+                    cwd: Some(WorkbenchDirectoryPath::parse("C:/work").unwrap()),
+                    environment: LaunchEnvironment::new(vec![(
+                        "VALUE".into(),
+                        "literal $HOME".into(),
+                    )])
+                    .unwrap(),
+                }),
+            },
+        };
+        let reference = id(5000 + index as u128);
+        let PreparedTerminalPanelCreate::Dispatch(pending) = coordinator
+            .prepare_terminal_panel_create(
+                command.clone(),
+                Some(reference.clone()),
+                Some(expiry()),
+                Some(worker),
+            )
+        else {
+            panic!()
+        };
+        let CapabilityNodeMessage::AuthorizedTerminalLaunch(launch) = pending.command() else {
+            panic!()
+        };
+        assert_eq!(launch.cwd().unwrap().as_str(), "C:/work");
+        assert_eq!(launch.launch().unwrap().executable(), "C:/tools/shell.exe");
+        assert_eq!(launch.launch().unwrap().arguments(), &["literal & $HOME"]);
+        assert!(
+            launch
+                .environment()
+                .entries()
+                .iter()
+                .any(|(name, value)| name == "VALUE" && value == "literal $HOME")
+        );
+        let result = coordinator
+            .complete_terminal_panel_create(pending, Completion::Unavailable, Some(worker))
+            .unwrap();
+        assert!(matches!(
+            result.result.outcome,
+            WorkbenchCommandOutcome::PanelTerminalCreated {
+                terminal_outcome:
+                    orchbee_workbench_protocol::WorkbenchTerminalOutcome::Unavailable { .. },
+                ..
+            }
+        ));
+        assert_eq!(result.standalone_changed, index == 0);
+        let PreparedTerminalPanelCreate::Ready(replay) = coordinator.prepare_terminal_panel_create(
+            command,
+            Some(id(6000 + index as u128)),
+            Some(expiry()),
+            Some(worker),
+        ) else {
+            panic!()
+        };
+        assert_eq!(replay, result.result);
+        assert!(
+            coordinator
+                .terminals
+                .retained_authorization(&id(6000 + index as u128))
+                .is_none()
+        );
+    }
+    let after = coordinator.workbench.as_ref().unwrap().snapshot();
+    assert_eq!(after.terminal_contexts[0].tabs[1], context.tabs[1]);
+    assert_eq!(after.terminal_contexts[0].groups, context.groups);
+    let PanelNode::Panel {
+        primary_presentation,
+        child_presentations,
+        ..
+    } = &after.terminal_contexts[0].tabs[0].root
+    else {
+        panic!()
+    };
+    assert_eq!(
+        primary_presentation.presentation_id,
+        *targets[0].presentation_id()
+    );
+    assert_eq!(child_presentations.len(), 2);
+    assert_eq!(
+        child_presentations[0].presentation_id,
+        *targets[1].presentation_id()
+    );
+    assert!(primary_presentation.binding.is_some());
+    assert!(child_presentations.iter().all(|p| p.binding.is_some()));
+}
+
+#[test]
 fn unbound_layout_open_is_effect_free_and_explicit_split_establishes_first_reference() {
     let (mut coordinator, _targets, worker) = restored(true);
     let before = coordinator.workbench.as_ref().unwrap().snapshot().clone();
@@ -47,7 +180,7 @@ fn unbound_layout_open_is_effect_free_and_explicit_split_establishes_first_refer
         panel_id.clone(),
         WorkbenchPanelSplitDirection::Right,
     );
-    let PreparedTerminalPanelSplit::Dispatch(pending) = coordinator.prepare_terminal_panel_split(
+    let PreparedTerminalPanelCreate::Dispatch(pending) = coordinator.prepare_terminal_panel_create(
         command,
         Some(id(102)),
         Some(expiry()),
@@ -59,7 +192,7 @@ fn unbound_layout_open_is_effect_free_and_explicit_split_establishes_first_refer
         matches!(&coordinator.standalone, StandaloneTerminal::Creating(reference) if *reference == id(102))
     );
     coordinator
-        .complete_terminal_panel_split(pending, Completion::Unavailable, Some(worker))
+        .complete_terminal_panel_create(pending, Completion::Unavailable, Some(worker))
         .unwrap();
     assert!(
         matches!(&coordinator.standalone, StandaloneTerminal::Settled { reference, .. } if *reference == id(102))

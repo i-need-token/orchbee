@@ -4124,6 +4124,221 @@
 					"reason": "tab-move-order-conflict"
 				}
 			}
+		},
+		{
+			"name": "panel-terminal-child",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000385",
+				"siteId": "00000000000000000000000000000386",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "panel.create-terminal",
+					"terminalContextId": "00000000000000000000000000000387",
+					"tabId": "00000000000000000000000000000388",
+					"panelId": "00000000000000000000000000000389",
+					"target": {
+						"kind": "child",
+						"label": "child"
+					},
+					"geometry": {
+						"columns": 80,
+						"rows": 24,
+						"cellPixelWidth": 0,
+						"cellPixelHeight": 0
+					}
+				}
+			}
+		},
+		{
+			"name": "panel-terminal-unbound",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000385",
+				"siteId": "00000000000000000000000000000386",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "panel.create-terminal",
+					"terminalContextId": "00000000000000000000000000000387",
+					"tabId": "00000000000000000000000000000388",
+					"panelId": "00000000000000000000000000000389",
+					"target": {
+						"kind": "unbound",
+						"presentationId": "0000000000000000000000000000038a"
+					},
+					"geometry": {
+						"columns": 80,
+						"rows": 24,
+						"cellPixelWidth": 0,
+						"cellPixelHeight": 0
+					}
+				}
+			}
+		},
+		{
+			"name": "panel-terminal-explicit-launch",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000385",
+				"siteId": "00000000000000000000000000000386",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "panel.create-terminal",
+					"terminalContextId": "00000000000000000000000000000387",
+					"tabId": "00000000000000000000000000000388",
+					"panelId": "00000000000000000000000000000389",
+					"target": {
+						"kind": "child",
+						"label": "child"
+					},
+					"geometry": {
+						"columns": 80,
+						"rows": 24,
+						"cellPixelWidth": 0,
+						"cellPixelHeight": 0
+					},
+					"launch": {
+						"exec": "C:/Windows/System32/cmd.exe",
+						"args": ["/C", "echo literal & value"]
+					},
+					"options": {
+						"cwd": "C:/work",
+						"environment": [
+							["VALUE", "literal $HOME"],
+							["EMPTY", ""]
+						]
+					}
+				}
+			}
+		},
+		{
+			"name": "panel-terminal-profile",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000385",
+				"siteId": "00000000000000000000000000000386",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "panel.create-terminal",
+					"terminalContextId": "00000000000000000000000000000387",
+					"tabId": "00000000000000000000000000000388",
+					"panelId": "00000000000000000000000000000389",
+					"target": {
+						"kind": "child",
+						"label": "child"
+					},
+					"geometry": {
+						"columns": 80,
+						"rows": 24,
+						"cellPixelWidth": 0,
+						"cellPixelHeight": 0
+					},
+					"profile": "work"
+				}
+			}
+		},
+		{
+			"name": "panel-terminal-large-launch-envelope",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000385",
+				"siteId": "00000000000000000000000000000386",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "panel.create-terminal",
+					"terminalContextId": "00000000000000000000000000000387",
+					"tabId": "00000000000000000000000000000388",
+					"panelId": "00000000000000000000000000000389",
+					"target": {
+						"kind": "child",
+						"label": "child"
+					},
+					"geometry": {
+						"columns": 80,
+						"rows": 24,
+						"cellPixelWidth": 0,
+						"cellPixelHeight": 0
+					},
+					"launch": {
+						"exec": "C:/shell.exe",
+						"args": [
+							"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+						]
+					}
+				}
+			}
+		},
+		{
+			"name": "panel-terminal-panel-terminal-pending",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000385",
+				"outcome": {
+					"kind": "panel-terminal-pending",
+					"revision": "8",
+					"terminalContextId": "00000000000000000000000000000387",
+					"tabId": "00000000000000000000000000000388",
+					"panelId": "00000000000000000000000000000389",
+					"presentationId": "0000000000000000000000000000038a"
+				}
+			}
+		},
+		{
+			"name": "panel-terminal-panel-terminal-created",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000385",
+				"outcome": {
+					"kind": "panel-terminal-created",
+					"revision": "8",
+					"terminalContextId": "00000000000000000000000000000387",
+					"tabId": "00000000000000000000000000000388",
+					"panelId": "00000000000000000000000000000389",
+					"presentationId": "0000000000000000000000000000038a",
+					"terminalOutcome": {
+						"kind": "outcome-unknown"
+					}
+				}
+			}
+		},
+		{
+			"name": "panel-terminal-launch-profile-unavailable",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000385",
+				"outcome": {
+					"kind": "launch-profile-unavailable"
+				}
+			}
+		},
+		{
+			"name": "panel-terminal-launch-profile-ambiguous",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000385",
+				"outcome": {
+					"kind": "launch-profile-ambiguous",
+					"candidateIds": ["site:1", "site:2"]
+				}
+			}
 		}
 	],
 	"invalid": [
@@ -12622,6 +12837,1071 @@
 					}
 				}
 			}
+		},
+		{
+			"name": "panel-terminal-invalid-target-322",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000385",
+				"siteId": "00000000000000000000000000000386",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "panel.create-terminal",
+					"terminalContextId": "00000000000000000000000000000387",
+					"tabId": "00000000000000000000000000000388",
+					"panelId": "00000000000000000000000000000389",
+					"target": {
+						"kind": "child"
+					},
+					"geometry": {
+						"columns": 80,
+						"rows": 24,
+						"cellPixelWidth": 0,
+						"cellPixelHeight": 0
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "panel-terminal-invalid-target-323",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000385",
+				"siteId": "00000000000000000000000000000386",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "panel.create-terminal",
+					"terminalContextId": "00000000000000000000000000000387",
+					"tabId": "00000000000000000000000000000388",
+					"panelId": "00000000000000000000000000000389",
+					"target": {
+						"kind": "child",
+						"label": "x",
+						"presentationId": "0000000000000000000000000000038a"
+					},
+					"geometry": {
+						"columns": 80,
+						"rows": 24,
+						"cellPixelWidth": 0,
+						"cellPixelHeight": 0
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "panel-terminal-invalid-target-324",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000385",
+				"siteId": "00000000000000000000000000000386",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "panel.create-terminal",
+					"terminalContextId": "00000000000000000000000000000387",
+					"tabId": "00000000000000000000000000000388",
+					"panelId": "00000000000000000000000000000389",
+					"target": {
+						"kind": "unbound"
+					},
+					"geometry": {
+						"columns": 80,
+						"rows": 24,
+						"cellPixelWidth": 0,
+						"cellPixelHeight": 0
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "panel-terminal-invalid-target-325",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000385",
+				"siteId": "00000000000000000000000000000386",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "panel.create-terminal",
+					"terminalContextId": "00000000000000000000000000000387",
+					"tabId": "00000000000000000000000000000388",
+					"panelId": "00000000000000000000000000000389",
+					"target": {
+						"kind": "unbound",
+						"presentationId": "0000000000000000000000000000038a",
+						"label": "x"
+					},
+					"geometry": {
+						"columns": 80,
+						"rows": 24,
+						"cellPixelWidth": 0,
+						"cellPixelHeight": 0
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "panel-terminal-invalid-target-326",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000385",
+				"siteId": "00000000000000000000000000000386",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "panel.create-terminal",
+					"terminalContextId": "00000000000000000000000000000387",
+					"tabId": "00000000000000000000000000000388",
+					"panelId": "00000000000000000000000000000389",
+					"target": {
+						"kind": "unbound",
+						"presentationId": "00000000000000000000000000000000"
+					},
+					"geometry": {
+						"columns": 80,
+						"rows": 24,
+						"cellPixelWidth": 0,
+						"cellPixelHeight": 0
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "panel-terminal-invalid-target-327",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000385",
+				"siteId": "00000000000000000000000000000386",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "panel.create-terminal",
+					"terminalContextId": "00000000000000000000000000000387",
+					"tabId": "00000000000000000000000000000388",
+					"panelId": "00000000000000000000000000000389",
+					"target": {
+						"kind": "primary"
+					},
+					"geometry": {
+						"columns": 80,
+						"rows": 24,
+						"cellPixelWidth": 0,
+						"cellPixelHeight": 0
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "panel-terminal-invalid-target-328",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000385",
+				"siteId": "00000000000000000000000000000386",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "panel.create-terminal",
+					"terminalContextId": "00000000000000000000000000000387",
+					"tabId": "00000000000000000000000000000388",
+					"panelId": "00000000000000000000000000000389",
+					"target": null,
+					"geometry": {
+						"columns": 80,
+						"rows": 24,
+						"cellPixelWidth": 0,
+						"cellPixelHeight": 0
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "panel-terminal-missing-target",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000385",
+				"siteId": "00000000000000000000000000000386",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "panel.create-terminal",
+					"terminalContextId": "00000000000000000000000000000387",
+					"tabId": "00000000000000000000000000000388",
+					"panelId": "00000000000000000000000000000389",
+					"geometry": {
+						"columns": 80,
+						"rows": 24,
+						"cellPixelWidth": 0,
+						"cellPixelHeight": 0
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "panel-terminal-missing-geometry",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000385",
+				"siteId": "00000000000000000000000000000386",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "panel.create-terminal",
+					"terminalContextId": "00000000000000000000000000000387",
+					"tabId": "00000000000000000000000000000388",
+					"panelId": "00000000000000000000000000000389",
+					"target": {
+						"kind": "child",
+						"label": "child"
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "panel-terminal-missing-panelId",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000385",
+				"siteId": "00000000000000000000000000000386",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "panel.create-terminal",
+					"terminalContextId": "00000000000000000000000000000387",
+					"tabId": "00000000000000000000000000000388",
+					"target": {
+						"kind": "child",
+						"label": "child"
+					},
+					"geometry": {
+						"columns": 80,
+						"rows": 24,
+						"cellPixelWidth": 0,
+						"cellPixelHeight": 0
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "panel-terminal-missing-tabId",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000385",
+				"siteId": "00000000000000000000000000000386",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "panel.create-terminal",
+					"terminalContextId": "00000000000000000000000000000387",
+					"panelId": "00000000000000000000000000000389",
+					"target": {
+						"kind": "child",
+						"label": "child"
+					},
+					"geometry": {
+						"columns": 80,
+						"rows": 24,
+						"cellPixelWidth": 0,
+						"cellPixelHeight": 0
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "panel-terminal-missing-terminalContextId",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000385",
+				"siteId": "00000000000000000000000000000386",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "panel.create-terminal",
+					"tabId": "00000000000000000000000000000388",
+					"panelId": "00000000000000000000000000000389",
+					"target": {
+						"kind": "child",
+						"label": "child"
+					},
+					"geometry": {
+						"columns": 80,
+						"rows": 24,
+						"cellPixelWidth": 0,
+						"cellPixelHeight": 0
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "panel-terminal-split-only-field",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000385",
+				"siteId": "00000000000000000000000000000386",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "panel.create-terminal",
+					"terminalContextId": "00000000000000000000000000000387",
+					"tabId": "00000000000000000000000000000388",
+					"panelId": "00000000000000000000000000000389",
+					"target": {
+						"kind": "child",
+						"label": "child"
+					},
+					"geometry": {
+						"columns": 80,
+						"rows": 24,
+						"cellPixelWidth": 0,
+						"cellPixelHeight": 0
+					},
+					"direction": "right"
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "panel-terminal-relative",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000385",
+				"siteId": "00000000000000000000000000000386",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "panel.create-terminal",
+					"terminalContextId": "00000000000000000000000000000387",
+					"tabId": "00000000000000000000000000000388",
+					"panelId": "00000000000000000000000000000389",
+					"target": {
+						"kind": "child",
+						"label": "child"
+					},
+					"geometry": {
+						"columns": 80,
+						"rows": 24,
+						"cellPixelWidth": 0,
+						"cellPixelHeight": 0
+					},
+					"launch": {
+						"exec": "shell.exe",
+						"args": []
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "panel-terminal-nul",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000385",
+				"siteId": "00000000000000000000000000000386",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "panel.create-terminal",
+					"terminalContextId": "00000000000000000000000000000387",
+					"tabId": "00000000000000000000000000000388",
+					"panelId": "00000000000000000000000000000389",
+					"target": {
+						"kind": "child",
+						"label": "child"
+					},
+					"geometry": {
+						"columns": 80,
+						"rows": 24,
+						"cellPixelWidth": 0,
+						"cellPixelHeight": 0
+					},
+					"launch": {
+						"exec": "C:/shell.exe",
+						"args": ["\u0000"]
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "panel-terminal-many-args",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000385",
+				"siteId": "00000000000000000000000000000386",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "panel.create-terminal",
+					"terminalContextId": "00000000000000000000000000000387",
+					"tabId": "00000000000000000000000000000388",
+					"panelId": "00000000000000000000000000000389",
+					"target": {
+						"kind": "child",
+						"label": "child"
+					},
+					"geometry": {
+						"columns": 80,
+						"rows": 24,
+						"cellPixelWidth": 0,
+						"cellPixelHeight": 0
+					},
+					"launch": {
+						"exec": "C:/shell.exe",
+						"args": [
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							"",
+							""
+						]
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "panel-terminal-escaped-limit",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000385",
+				"siteId": "00000000000000000000000000000386",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "panel.create-terminal",
+					"terminalContextId": "00000000000000000000000000000387",
+					"tabId": "00000000000000000000000000000388",
+					"panelId": "00000000000000000000000000000389",
+					"target": {
+						"kind": "child",
+						"label": "child"
+					},
+					"geometry": {
+						"columns": 80,
+						"rows": 24,
+						"cellPixelWidth": 0,
+						"cellPixelHeight": 0
+					},
+					"launch": {
+						"exec": "C:/shell.exe",
+						"args": [
+							"\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001"
+						]
+					}
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "panel-terminal-multibyte-limit",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000385",
+				"siteId": "00000000000000000000000000000386",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "panel.create-terminal",
+					"terminalContextId": "00000000000000000000000000000387",
+					"tabId": "00000000000000000000000000000388",
+					"panelId": "00000000000000000000000000000389",
+					"target": {
+						"kind": "child",
+						"label": "child"
+					},
+					"geometry": {
+						"columns": 80,
+						"rows": 24,
+						"cellPixelWidth": 0,
+						"cellPixelHeight": 0
+					},
+					"launch": {
+						"exec": "C:/shell.exe",
+						"args": [
+							"蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂"
+						]
+					}
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "panel-terminal-conflicting-program",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000385",
+				"siteId": "00000000000000000000000000000386",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "panel.create-terminal",
+					"terminalContextId": "00000000000000000000000000000387",
+					"tabId": "00000000000000000000000000000388",
+					"panelId": "00000000000000000000000000000389",
+					"target": {
+						"kind": "child",
+						"label": "child"
+					},
+					"geometry": {
+						"columns": 80,
+						"rows": 24,
+						"cellPixelWidth": 0,
+						"cellPixelHeight": 0
+					},
+					"launch": {
+						"exec": "C:/shell.exe",
+						"args": []
+					},
+					"profile": "work"
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "panel-terminal-reserved",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000385",
+				"siteId": "00000000000000000000000000000386",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "panel.create-terminal",
+					"terminalContextId": "00000000000000000000000000000387",
+					"tabId": "00000000000000000000000000000388",
+					"panelId": "00000000000000000000000000000389",
+					"target": {
+						"kind": "child",
+						"label": "child"
+					},
+					"geometry": {
+						"columns": 80,
+						"rows": 24,
+						"cellPixelWidth": 0,
+						"cellPixelHeight": 0
+					},
+					"options": {
+						"environment": [["Term", "x"]]
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "panel-terminal-managed",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000385",
+				"siteId": "00000000000000000000000000000386",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "panel.create-terminal",
+					"terminalContextId": "00000000000000000000000000000387",
+					"tabId": "00000000000000000000000000000388",
+					"panelId": "00000000000000000000000000000389",
+					"target": {
+						"kind": "child",
+						"label": "child"
+					},
+					"geometry": {
+						"columns": 80,
+						"rows": 24,
+						"cellPixelWidth": 0,
+						"cellPixelHeight": 0
+					},
+					"options": {
+						"environment": [["orchbee_SITE", "x"]]
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "panel-terminal-duplicates",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000385",
+				"siteId": "00000000000000000000000000000386",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "panel.create-terminal",
+					"terminalContextId": "00000000000000000000000000000387",
+					"tabId": "00000000000000000000000000000388",
+					"panelId": "00000000000000000000000000000389",
+					"target": {
+						"kind": "child",
+						"label": "child"
+					},
+					"geometry": {
+						"columns": 80,
+						"rows": 24,
+						"cellPixelWidth": 0,
+						"cellPixelHeight": 0
+					},
+					"options": {
+						"environment": [
+							["Path", "x"],
+							["PATH", "y"]
+						]
+					}
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "panel-terminal-environment-bytes",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000385",
+				"siteId": "00000000000000000000000000000386",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "panel.create-terminal",
+					"terminalContextId": "00000000000000000000000000000387",
+					"tabId": "00000000000000000000000000000388",
+					"panelId": "00000000000000000000000000000389",
+					"target": {
+						"kind": "child",
+						"label": "child"
+					},
+					"geometry": {
+						"columns": 80,
+						"rows": 24,
+						"cellPixelWidth": 0,
+						"cellPixelHeight": 0
+					},
+					"options": {
+						"environment": [
+							[
+								"KEY",
+								"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+							]
+						]
+					}
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "panel-terminal-pair-width",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000385",
+				"siteId": "00000000000000000000000000000386",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "panel.create-terminal",
+					"terminalContextId": "00000000000000000000000000000387",
+					"tabId": "00000000000000000000000000000388",
+					"panelId": "00000000000000000000000000000389",
+					"target": {
+						"kind": "child",
+						"label": "child"
+					},
+					"geometry": {
+						"columns": 80,
+						"rows": 24,
+						"cellPixelWidth": 0,
+						"cellPixelHeight": 0
+					},
+					"options": {
+						"environment": [["KEY", "value", "extra"]]
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "panel-terminal-profile-byte-limit",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000385",
+				"siteId": "00000000000000000000000000000386",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "panel.create-terminal",
+					"terminalContextId": "00000000000000000000000000000387",
+					"tabId": "00000000000000000000000000000388",
+					"panelId": "00000000000000000000000000000389",
+					"target": {
+						"kind": "child",
+						"label": "child"
+					},
+					"geometry": {
+						"columns": 80,
+						"rows": 24,
+						"cellPixelWidth": 0,
+						"cellPixelHeight": 0
+					},
+					"profile": "蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂蜂"
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "panel-terminal-panel-terminal-pending-newPanelId",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000385",
+				"outcome": {
+					"kind": "panel-terminal-pending",
+					"revision": "8",
+					"terminalContextId": "00000000000000000000000000000387",
+					"tabId": "00000000000000000000000000000388",
+					"panelId": "00000000000000000000000000000389",
+					"presentationId": "0000000000000000000000000000038a",
+					"newPanelId": "0000000000000000000000000000038b"
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "panel-terminal-panel-terminal-pending-splitId",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000385",
+				"outcome": {
+					"kind": "panel-terminal-pending",
+					"revision": "8",
+					"terminalContextId": "00000000000000000000000000000387",
+					"tabId": "00000000000000000000000000000388",
+					"panelId": "00000000000000000000000000000389",
+					"presentationId": "0000000000000000000000000000038a",
+					"splitId": "0000000000000000000000000000038b"
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "panel-terminal-panel-terminal-pending-missing-member",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000385",
+				"outcome": {
+					"kind": "panel-terminal-pending",
+					"revision": "8",
+					"terminalContextId": "00000000000000000000000000000387",
+					"tabId": "00000000000000000000000000000388",
+					"panelId": "00000000000000000000000000000389"
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "panel-terminal-panel-terminal-created-newPanelId",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000385",
+				"outcome": {
+					"kind": "panel-terminal-created",
+					"revision": "8",
+					"terminalContextId": "00000000000000000000000000000387",
+					"tabId": "00000000000000000000000000000388",
+					"panelId": "00000000000000000000000000000389",
+					"presentationId": "0000000000000000000000000000038a",
+					"terminalOutcome": {
+						"kind": "outcome-unknown"
+					},
+					"newPanelId": "0000000000000000000000000000038b"
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "panel-terminal-panel-terminal-created-splitId",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000385",
+				"outcome": {
+					"kind": "panel-terminal-created",
+					"revision": "8",
+					"terminalContextId": "00000000000000000000000000000387",
+					"tabId": "00000000000000000000000000000388",
+					"panelId": "00000000000000000000000000000389",
+					"presentationId": "0000000000000000000000000000038a",
+					"terminalOutcome": {
+						"kind": "outcome-unknown"
+					},
+					"splitId": "0000000000000000000000000000038b"
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "panel-terminal-panel-terminal-created-missing-member",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000385",
+				"outcome": {
+					"kind": "panel-terminal-created",
+					"revision": "8",
+					"terminalContextId": "00000000000000000000000000000387",
+					"tabId": "00000000000000000000000000000388",
+					"panelId": "00000000000000000000000000000389",
+					"terminalOutcome": {
+						"kind": "outcome-unknown"
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "panel-terminal-profile-candidate-cap",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000385",
+				"outcome": {
+					"kind": "launch-profile-ambiguous",
+					"candidateIds": [
+						"site:1",
+						"site:1",
+						"site:1",
+						"site:1",
+						"site:1",
+						"site:1",
+						"site:1",
+						"site:1",
+						"site:1",
+						"site:1",
+						"site:1",
+						"site:1",
+						"site:1",
+						"site:1",
+						"site:1",
+						"site:1",
+						"site:1",
+						"site:1",
+						"site:1",
+						"site:1",
+						"site:1",
+						"site:1",
+						"site:1",
+						"site:1",
+						"site:1",
+						"site:1",
+						"site:1",
+						"site:1",
+						"site:1",
+						"site:1",
+						"site:1",
+						"site:1",
+						"site:1",
+						"site:1",
+						"site:1",
+						"site:1",
+						"site:1",
+						"site:1",
+						"site:1",
+						"site:1",
+						"site:1",
+						"site:1",
+						"site:1",
+						"site:1",
+						"site:1",
+						"site:1",
+						"site:1",
+						"site:1",
+						"site:1",
+						"site:1",
+						"site:1",
+						"site:1",
+						"site:1",
+						"site:1",
+						"site:1",
+						"site:1",
+						"site:1",
+						"site:1",
+						"site:1",
+						"site:1",
+						"site:1",
+						"site:1",
+						"site:1",
+						"site:1",
+						"site:1"
+					]
+				}
+			}
 		}
 	],
 	"invalidJson": [
@@ -13328,6 +14608,64 @@
 				"action": {
 					"kind": "workspace.move-block",
 					"workspaceIds": ["00000000000000000000000000000003", "00000000000000000000000000000004"]
+				}
+			}
+		},
+		{
+			"name": "panel-terminal-empty-options",
+			"direction": "request",
+			"json": "{\"kind\":\"workbench.command\",\"protocolVersion\":1,\"requestId\":\"00000000000000000000000000000385\",\"siteId\":\"00000000000000000000000000000386\",\"expectedRevision\":\"7\",\"action\":{\"kind\":\"panel.create-terminal\",\"terminalContextId\":\"00000000000000000000000000000387\",\"tabId\":\"00000000000000000000000000000388\",\"panelId\":\"00000000000000000000000000000389\",\"target\":{\"kind\":\"child\",\"label\":\"child\"},\"geometry\":{\"columns\":80,\"rows\":24,\"cellPixelWidth\":0,\"cellPixelHeight\":0},\"launch\":null,\"profile\":null,\"options\":{}}}",
+			"canonicalJson": "{\"kind\":\"workbench.command\",\"protocolVersion\":1,\"requestId\":\"00000000000000000000000000000385\",\"siteId\":\"00000000000000000000000000000386\",\"expectedRevision\":\"7\",\"action\":{\"kind\":\"panel.create-terminal\",\"terminalContextId\":\"00000000000000000000000000000387\",\"tabId\":\"00000000000000000000000000000388\",\"panelId\":\"00000000000000000000000000000389\",\"target\":{\"kind\":\"child\",\"label\":\"child\"},\"geometry\":{\"columns\":80,\"rows\":24,\"cellPixelWidth\":0,\"cellPixelHeight\":0}}}",
+			"canonical": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000385",
+				"siteId": "00000000000000000000000000000386",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "panel.create-terminal",
+					"terminalContextId": "00000000000000000000000000000387",
+					"tabId": "00000000000000000000000000000388",
+					"panelId": "00000000000000000000000000000389",
+					"target": {
+						"kind": "child",
+						"label": "child"
+					},
+					"geometry": {
+						"columns": 80,
+						"rows": 24,
+						"cellPixelWidth": 0,
+						"cellPixelHeight": 0
+					}
+				}
+			}
+		},
+		{
+			"name": "panel-terminal-null-options",
+			"direction": "request",
+			"json": "{\"kind\":\"workbench.command\",\"protocolVersion\":1,\"requestId\":\"00000000000000000000000000000385\",\"siteId\":\"00000000000000000000000000000386\",\"expectedRevision\":\"7\",\"action\":{\"kind\":\"panel.create-terminal\",\"terminalContextId\":\"00000000000000000000000000000387\",\"tabId\":\"00000000000000000000000000000388\",\"panelId\":\"00000000000000000000000000000389\",\"target\":{\"kind\":\"child\",\"label\":\"child\"},\"geometry\":{\"columns\":80,\"rows\":24,\"cellPixelWidth\":0,\"cellPixelHeight\":0},\"launch\":null,\"profile\":null,\"options\":{\"cwd\":null,\"environment\":[]}}}",
+			"canonicalJson": "{\"kind\":\"workbench.command\",\"protocolVersion\":1,\"requestId\":\"00000000000000000000000000000385\",\"siteId\":\"00000000000000000000000000000386\",\"expectedRevision\":\"7\",\"action\":{\"kind\":\"panel.create-terminal\",\"terminalContextId\":\"00000000000000000000000000000387\",\"tabId\":\"00000000000000000000000000000388\",\"panelId\":\"00000000000000000000000000000389\",\"target\":{\"kind\":\"child\",\"label\":\"child\"},\"geometry\":{\"columns\":80,\"rows\":24,\"cellPixelWidth\":0,\"cellPixelHeight\":0}}}",
+			"canonical": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000385",
+				"siteId": "00000000000000000000000000000386",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "panel.create-terminal",
+					"terminalContextId": "00000000000000000000000000000387",
+					"tabId": "00000000000000000000000000000388",
+					"panelId": "00000000000000000000000000000389",
+					"target": {
+						"kind": "child",
+						"label": "child"
+					},
+					"geometry": {
+						"columns": 80,
+						"rows": 24,
+						"cellPixelWidth": 0,
+						"cellPixelHeight": 0
+					}
 				}
 			}
 		}

@@ -16,6 +16,22 @@ Unbound siblings survive Panel Close. An entirely unbound Panel or Tab uses the 
 publication path without Worker disposal; it is removed only at canonical publication. Scope
 conflicts, revision credit, replay, publication recovery and relocation fences still apply.
 
+## Creating a Panel terminal
+
+The private `panel.create-terminal` action addresses one canonical Context/Tab/Panel. Its closed
+`target` is `child { label }` to append one bound child, or `unbound { presentationId }` to start that
+exact existing primary/child while preserving its ID, label and override. Missing or bound targets
+fail before launch, without primary fallback; child capacity is 16. It creates no Panel or split.
+
+The Server shares terminal creation with split through typed placement. Split allocates five
+identities, child creation one, existing-member binding none. Both navigation and creation grants
+are required. Revision, profile/launch/options, Workspace directory, pending Close and request-ledger
+checks precede prepared canonical/runtime commit and dispatch. Pending/final receipts carry only
+real identities; prebuilt bounded results and settlement seals preserve replay and unknown outcomes.
+The first standalone terminal can use the active Worker without inventing a source binding.
+Creation does not select a Client member or send input. Existing layout export/apply and member
+controls are the intended consumers; private carrier support alone is not user-facing completion.
+
 ## Scope and ownership
 
 The native Client admits at most one structural panel mutation — split, move, or close of the

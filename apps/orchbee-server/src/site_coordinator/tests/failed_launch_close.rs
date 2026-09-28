@@ -174,7 +174,7 @@ fn failed_split_panel_closes_without_disposing_its_running_sibling() {
     let pending = super::panel_split::dispatch_split(&mut coordinator, split, 103);
     let completion = failed_completion(pending.command());
     coordinator
-        .complete_terminal_panel_split(pending, completion, Some(worker(1)))
+        .complete_terminal_panel_create(pending, completion, Some(worker(1)))
         .unwrap();
     let members = coordinator
         .workbench

@@ -1118,3 +1118,24 @@ permission. Shared contract and owner traces cover correlation, isolation, repla
 existing TTL and resource accounting remain authoritative. The native
 [metadata command](../../orchbee/docs/windows-panel-metadata.md#exact-member-targets) owns CLI
 selection and unknown outcomes. Matched cohort deployment introduces no durable migration.
+
+## Terminal creation inside an existing Panel
+
+`panel.create-terminal` appends a child or binds one exact unbound primary/child. The shared
+`terminal_panel_create` authority owns split and member placement; the placement sum stores split
+identities only for a real split. Allocation is five/one/zero identities for split/child/bind.
+The canonical Panel, existing member order, labels and overrides survive. The 16-child bound,
+exact member eligibility, current revision, both navigation/create grants, Workspace Worker/directory,
+Close scope and profile resolution are preconditions. An open leaf Close blocks creation inside
+that Panel; aggregate Close blocks its Tab. Pending creation fences relocation of the actual
+terminal-owning Panel, including a retained Panel receiving a child.
+
+Site freezes cwd/environment/program/provenance, prepares canonical and terminal plans, and checks
+all associations before either commit. It then moves both owners and dispatches; the first bound
+standalone member installs the Creating reference. Existing prebuilt result reservation and opaque
+settlement seals apply unchanged. New pending/final outcomes carry Context/Tab/Panel/Presentation,
+without invented split fields. Unknown launch outcomes remain unknown, exact replay never launches
+again, and known failure retains the committed member. Targeted evidence covers identity budgets,
+limits/refusals, preparation drop, foreign settlement, child/primary binding, literal dispatch,
+first-reference settlement, scope fences and service grants. This private creation path is the
+foundation for layout application and member controls; those consumers remain separate work.

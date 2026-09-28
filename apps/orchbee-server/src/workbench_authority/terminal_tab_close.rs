@@ -715,7 +715,7 @@ impl WorkbenchAuthority {
             RetainedRequest::TabClose(record) => Some(record),
             RetainedRequest::Settled(_)
             | RetainedRequest::PendingTabCreate(_)
-            | RetainedRequest::PendingPanelSplit(_) => None,
+            | RetainedRequest::PendingPanelCreate(_) => None,
         }
     }
 
@@ -724,7 +724,7 @@ impl WorkbenchAuthority {
             RetainedRequest::TabClose(record) => Some(record),
             RetainedRequest::Settled(_)
             | RetainedRequest::PendingTabCreate(_)
-            | RetainedRequest::PendingPanelSplit(_) => None,
+            | RetainedRequest::PendingPanelCreate(_) => None,
         }
     }
 
@@ -791,7 +791,7 @@ impl WorkbenchAuthority {
             RetainedRequest::PendingTabCreate(entry) => {
                 entry.metadata().terminal_context_id() == context_id
             }
-            RetainedRequest::PendingPanelSplit(entry) => {
+            RetainedRequest::PendingPanelCreate(entry) => {
                 entry.metadata().terminal_context_id() == context_id
             }
             _ => false,

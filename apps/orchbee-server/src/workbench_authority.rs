@@ -57,12 +57,12 @@ pub use terminal_tab_create::{
     WorkbenchSettlementTokenMismatch, WorkbenchTabCreateAdmission, WorkbenchTabCreateBegin,
     WorkbenchTabCreatePreparation, WorkbenchTabCreateRuntimeUnavailableReason,
 };
-mod terminal_panel_split;
-pub use terminal_panel_split::{
-    CommittedWorkbenchPanelSplitMetadata, PendingWorkbenchPanelSplit, PreparedWorkbenchPanelSplit,
-    PreparedWorkbenchPanelSplitSettlement, StagedWorkbenchPanelSplitMetadata,
-    WorkbenchPanelSplitAdmission, WorkbenchPanelSplitBegin, WorkbenchPanelSplitPreparation,
-    WorkbenchPanelSplitSettlementTokenMismatch,
+mod terminal_panel_create;
+pub use terminal_panel_create::{
+    CommittedWorkbenchPanelCreateMetadata, PendingWorkbenchPanelCreate,
+    PreparedWorkbenchPanelCreate, PreparedWorkbenchPanelCreateSettlement,
+    StagedWorkbenchPanelCreateMetadata, WorkbenchPanelCreateAdmission, WorkbenchPanelCreateBegin,
+    WorkbenchPanelCreatePreparation, WorkbenchPanelCreateSettlementTokenMismatch,
 };
 mod terminal_binding_selection;
 pub use terminal_binding_selection::WorkbenchBindingExposure;
@@ -231,7 +231,7 @@ struct SettledRequest {
 enum RetainedRequest {
     Settled(Box<SettledRequest>),
     PendingTabCreate(Box<terminal_tab_create::PendingTabCreateEntry>),
-    PendingPanelSplit(Box<terminal_panel_split::PendingPanelSplitEntry>),
+    PendingPanelCreate(Box<terminal_panel_create::PendingPanelCreateEntry>),
     TabClose(Box<terminal_tab_close::CloseRecord>),
 }
 
@@ -240,7 +240,7 @@ impl RetainedRequest {
         match self {
             Self::Settled(entry) => &entry.command,
             Self::PendingTabCreate(entry) => &entry.command,
-            Self::PendingPanelSplit(entry) => &entry.command,
+            Self::PendingPanelCreate(entry) => &entry.command,
             Self::TabClose(entry) => &entry.command,
         }
     }
@@ -249,7 +249,7 @@ impl RetainedRequest {
         match self {
             Self::Settled(entry) => &entry.result,
             Self::PendingTabCreate(entry) => &entry.pending_result,
-            Self::PendingPanelSplit(entry) => &entry.pending_result,
+            Self::PendingPanelCreate(entry) => &entry.pending_result,
             Self::TabClose(entry) => &entry.result,
         }
     }
@@ -1214,6 +1214,7 @@ impl PureWorkbenchAction {
             WorkbenchAction::WorkspaceLaunch { .. }
             | WorkbenchAction::TabCreate { .. }
             | WorkbenchAction::PanelSplit { .. }
+            | WorkbenchAction::PanelCreateTerminal { .. }
             | WorkbenchAction::WorkspacePrimaryDirectoryAccept { .. }
             | WorkbenchAction::TabMove { .. }
             | WorkbenchAction::TabMoveIndex { .. }

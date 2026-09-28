@@ -545,6 +545,66 @@
 					},
 					"required": ["kind", "workspaceIds"],
 					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "panel.create-terminal"
+						},
+						"terminalContextId": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/terminalContextId"
+						},
+						"tabId": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/tabId"
+						},
+						"panelId": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/panelId"
+						},
+						"target": {
+							"$ref": "#/$defs/panelTerminalTarget"
+						},
+						"geometry": {
+							"$ref": "#/$defs/terminalGeometry"
+						},
+						"launch": {
+							"anyOf": [
+								{
+									"$ref": "#/$defs/launchSelection"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"profile": {
+							"anyOf": [
+								{
+									"$ref": "#/$defs/launchProfileSelector"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"options": {
+							"$ref": "#/$defs/launchOptions"
+						}
+					},
+					"required": ["kind", "terminalContextId", "tabId", "panelId", "target", "geometry"],
+					"additionalProperties": false,
+					"not": {
+						"type": "object",
+						"required": ["launch", "profile"],
+						"properties": {
+							"launch": {
+								"type": "object"
+							},
+							"profile": {
+								"type": "string"
+							}
+						}
+					}
 				}
 			]
 		},
@@ -1265,6 +1325,102 @@
 						}
 					},
 					"required": ["kind", "revision", "workspaceOrder"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "panel-terminal-pending"
+						},
+						"revision": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/revision"
+						},
+						"terminalContextId": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/terminalContextId"
+						},
+						"tabId": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/tabId"
+						},
+						"panelId": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/panelId"
+						},
+						"presentationId": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/presentationId"
+						}
+					},
+					"required": [
+						"kind",
+						"revision",
+						"terminalContextId",
+						"tabId",
+						"panelId",
+						"presentationId"
+					],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "panel-terminal-created"
+						},
+						"revision": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/revision"
+						},
+						"terminalContextId": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/terminalContextId"
+						},
+						"tabId": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/tabId"
+						},
+						"panelId": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/panelId"
+						},
+						"presentationId": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/presentationId"
+						},
+						"terminalOutcome": {
+							"$ref": "#/$defs/terminalOutcome"
+						}
+					},
+					"required": [
+						"kind",
+						"revision",
+						"terminalContextId",
+						"tabId",
+						"panelId",
+						"presentationId",
+						"terminalOutcome"
+					],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "launch-profile-unavailable"
+						}
+					},
+					"required": ["kind"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "launch-profile-ambiguous"
+						},
+						"candidateIds": {
+							"type": "array",
+							"maxItems": 64,
+							"items": {
+								"type": "string",
+								"pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+							}
+						}
+					},
+					"required": ["kind", "candidateIds"],
 					"additionalProperties": false
 				}
 			]
@@ -2247,6 +2403,115 @@
 			},
 			"required": ["targetTerminalContextId", "closedSourceTab"],
 			"additionalProperties": false
+		},
+		"launchSelection": {
+			"type": "object",
+			"properties": {
+				"exec": {
+					"$comment": "Rust and TypeScript enforce the combined 30 KiB UTF-8 and worst-case escaped-content budgets.",
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 30720,
+					"pattern": "^(?:/|(?:\\\\\\\\\\?\\\\)?[A-Za-z]:[/\\\\])[^\\u0000\\uD800-\\uDFFF]*$"
+				},
+				"args": {
+					"type": "array",
+					"maxItems": 128,
+					"items": {
+						"type": "string",
+						"pattern": "^[^\\u0000\\uD800-\\uDFFF]*$"
+					}
+				}
+			},
+			"required": ["exec", "args"],
+			"additionalProperties": false
+		},
+		"launchProfileSelector": {
+			"type": "string",
+			"minLength": 1,
+			"maxLength": 512,
+			"pattern": "^[^\\uD800-\\uDFFF]*$",
+			"$comment": "Rust and TypeScript additionally enforce 512 UTF-8 bytes."
+		},
+		"launchOptions": {
+			"type": "object",
+			"properties": {
+				"cwd": {
+					"anyOf": [
+						{
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/directoryPath"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"environment": {
+					"type": "array",
+					"maxItems": 32,
+					"items": {
+						"type": "array",
+						"prefixItems": [
+							{
+								"type": "string",
+								"pattern": "^[A-Za-z_][A-Za-z0-9_]{0,127}$",
+								"allOf": [
+									{
+										"not": {
+											"pattern": "^[Oo][Rr][Cc][Hh][Bb][Ee][Ee]_"
+										}
+									},
+									{
+										"not": {
+											"pattern": "^(?:[Tt][Ee][Rr][Mm]|[Cc][Oo][Ll][Oo][Rr][Tt][Ee][Rr][Mm]|[Tt][Ee][Rr][Mm]_[Pp][Rr][Oo][Gg][Rr][Aa][Mm])$"
+										}
+									}
+								]
+							},
+							{
+								"type": "string",
+								"pattern": "^[^\\u0000\\uD800-\\uDFFF]*$"
+							}
+						],
+						"minItems": 2,
+						"maxItems": 2,
+						"items": false
+					},
+					"$comment": "Rust and TypeScript additionally enforce ASCII-case-unique names and 1024 combined UTF-8 name/value bytes."
+				}
+			},
+			"required": [],
+			"additionalProperties": false
+		},
+		"panelTerminalTarget": {
+			"oneOf": [
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "child"
+						},
+						"label": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/label"
+						}
+					},
+					"required": ["kind", "label"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "unbound"
+						},
+						"presentationId": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/presentationId"
+						}
+					},
+					"required": ["kind", "presentationId"],
+					"additionalProperties": false
+				}
+			]
 		}
 	}
 }

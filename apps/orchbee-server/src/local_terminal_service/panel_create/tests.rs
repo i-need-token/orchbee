@@ -229,7 +229,7 @@ fn retargeted_split_completion_notifies_a_parked_bare_open_waiter() -> TestResul
     let (split_send, split_result) = mpsc::sync_channel(1);
     let splitter = thread::spawn(move || {
         let _ignored = split_send.send(
-            splitter_service.execute_terminal_panel_split_with_candidates(
+            splitter_service.execute_terminal_panel_create_with_candidates(
                 split,
                 Some(request_id(2403)),
                 lease_expiry(),

@@ -144,6 +144,83 @@ fn navigation_permission_admits_move_without_terminal_create_permission() {
     ));
 }
 
+#[test]
+fn panel_terminal_creation_requires_both_grants_and_reaches_the_lifecycle_owner() {
+    use orchbee_workbench_protocol::{
+        WorkbenchPanelId, WorkbenchPanelTerminalTarget, WorkbenchRejectionReason, WorkbenchTabId,
+    };
+    let terminals = Arc::new(LocalTerminalService::new(Arc::new(Mutex::new(
+        WorkerRegistry::new(),
+    ))));
+    let reader = WorkbenchService::new(
+        WorkbenchPolicy {
+            read: true,
+            manage_navigation: false,
+            associate_directory: false,
+            create_terminal: false,
+            manage_terminal_lifecycle: false,
+        },
+        Arc::clone(&terminals),
+    );
+    let WorkbenchResponse::Snapshot(result) = response(reader.execute(
+        WorkbenchRequest::SnapshotRead(SnapshotReadIntent {
+            protocol_version: ProtocolVersion,
+            request_id: WorkbenchRequestId::parse(&format!("{:032x}", 9800)).unwrap(),
+        }),
+    )) else {
+        panic!()
+    };
+    let WorkbenchSnapshotOutcome::Available { snapshot } = result.outcome else {
+        panic!()
+    };
+    let command = WorkbenchCommand {
+        protocol_version: ProtocolVersion,
+        request_id: WorkbenchRequestId::parse(&format!("{:032x}", 9801)).unwrap(),
+        site_id: snapshot.site_id,
+        expected_revision: snapshot.revision,
+        action: WorkbenchAction::PanelCreateTerminal {
+            terminal_context_id: snapshot.navigation.standalone_terminal_context_id,
+            tab_id: WorkbenchTabId::parse(&format!("{:032x}", 9802)).unwrap(),
+            panel_id: WorkbenchPanelId::parse(&format!("{:032x}", 9803)).unwrap(),
+            target: WorkbenchPanelTerminalTarget::Child {
+                label: WorkbenchLabel::parse("child").unwrap(),
+            },
+            geometry: WorkbenchTerminalGeometry::new(80, 24, 0, 0).unwrap(),
+            launch: None,
+            profile: None,
+            options: Default::default(),
+        },
+    };
+    for (navigation, create) in [(false, false), (true, false), (false, true), (true, true)] {
+        let service = WorkbenchService::new(
+            WorkbenchPolicy {
+                read: true,
+                manage_navigation: navigation,
+                associate_directory: false,
+                create_terminal: create,
+                manage_terminal_lifecycle: false,
+            },
+            Arc::clone(&terminals),
+        );
+        let WorkbenchResponse::Command(result) =
+            response(service.execute(WorkbenchRequest::Command(command.clone())))
+        else {
+            panic!()
+        };
+        if navigation && create {
+            assert!(matches!(
+                result.outcome,
+                WorkbenchCommandOutcome::Rejected {
+                    reason: WorkbenchRejectionReason::TabUnavailable,
+                    ..
+                }
+            ));
+        } else {
+            assert!(matches!(result.outcome, WorkbenchCommandOutcome::Denied {}));
+        }
+    }
+}
+
 mod tab_close;
 mod workspace_close;
 

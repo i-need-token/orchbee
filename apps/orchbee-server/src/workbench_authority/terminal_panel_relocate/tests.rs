@@ -6,7 +6,7 @@ use std::time::Instant;
 
 use super::*;
 use crate::workbench_authority::{
-    WorkbenchPanelSplitBegin, WorkbenchPanelSplitPreparation, WorkbenchTabCloseBegin,
+    WorkbenchPanelCreateBegin, WorkbenchPanelCreatePreparation, WorkbenchTabCloseBegin,
     WorkbenchTabClosePreparation, WorkbenchTabCloseResolution, WorkbenchTabCloseRuntimeTarget,
     WorkbenchTabCreateBegin, WorkbenchTabCreatePreparation, WorkbenchTerminalTab,
 };
@@ -127,7 +127,7 @@ fn split(
     panel_id: &WorkbenchPanelId,
     direction: WorkbenchPanelSplitDirection,
 ) {
-    let WorkbenchPanelSplitBegin::Admitted(admission) = authority.begin_terminal_panel_split(
+    let WorkbenchPanelCreateBegin::Admitted(admission) = authority.begin_terminal_panel_create(
         Some(grant),
         command(
             authority,
@@ -148,14 +148,14 @@ fn split(
     ) else {
         panic!("panel split admission")
     };
-    let WorkbenchPanelSplitPreparation::Prepared(prepared) =
+    let WorkbenchPanelCreatePreparation::Prepared(prepared) =
         admission.finish(binding(9000 + command_id))
     else {
         panic!("panel split preparation")
     };
     let pending = prepared.commit_into_pending();
     let _ = authority
-        .prepare_terminal_panel_split_settlement(
+        .prepare_terminal_panel_create_settlement(
             pending,
             WorkbenchTerminalOutcome::Started {
                 geometry: WorkbenchTerminalGeometry::new(80, 24, 8, 16).unwrap(),
@@ -942,7 +942,7 @@ fn a_pending_split_settlement_on_the_moved_leaf_fences_relocate() {
 
     // Commit a split whose terminal settlement is still outstanding: the
     // minted leaf is projected but its pending record still owes a result.
-    let WorkbenchPanelSplitBegin::Admitted(admission) = authority.begin_terminal_panel_split(
+    let WorkbenchPanelCreateBegin::Admitted(admission) = authority.begin_terminal_panel_create(
         Some(&grant),
         command(
             &authority,
@@ -963,7 +963,8 @@ fn a_pending_split_settlement_on_the_moved_leaf_fences_relocate() {
     ) else {
         panic!("panel split admission")
     };
-    let WorkbenchPanelSplitPreparation::Prepared(prepared) = admission.finish(binding(9100)) else {
+    let WorkbenchPanelCreatePreparation::Prepared(prepared) = admission.finish(binding(9100))
+    else {
         panic!("panel split preparation")
     };
     let _pending = prepared.commit_into_pending();

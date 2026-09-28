@@ -1,5 +1,5 @@
 use super::{LocalTerminalService, lease_expiry, placement, submit};
-use crate::site_coordinator::{PostcommitCoordinationError, PreparedTerminalPanelSplit};
+use crate::site_coordinator::{PostcommitCoordinationError, PreparedTerminalPanelCreate};
 use orchbee_capability_node_protocol::LeaseExpiresAtUnixMilliseconds;
 use orchbee_client_server_protocol::RequestId;
 use orchbee_workbench_protocol::{
@@ -8,18 +8,18 @@ use orchbee_workbench_protocol::{
 };
 
 impl LocalTerminalService {
-    pub(crate) fn execute_terminal_panel_split(
+    pub(crate) fn execute_terminal_panel_create(
         &self,
         command: WorkbenchCommand,
     ) -> Result<WorkbenchCommandResult, PostcommitCoordinationError> {
-        self.execute_terminal_panel_split_with_candidates(
+        self.execute_terminal_panel_create_with_candidates(
             command,
             super::create_reference(),
             lease_expiry(),
         )
     }
 
-    fn execute_terminal_panel_split_with_candidates(
+    fn execute_terminal_panel_create_with_candidates(
         &self,
         command: WorkbenchCommand,
         candidate: Option<RequestId>,
@@ -41,12 +41,12 @@ impl LocalTerminalService {
                 ));
             };
             let prepared =
-                coordinator.prepare_terminal_panel_split(command, candidate, expiry, current);
+                coordinator.prepare_terminal_panel_create(command, candidate, expiry, current);
             (prepared, handle)
         };
         let pending = match prepared {
-            PreparedTerminalPanelSplit::Ready(result) => return Ok(result),
-            PreparedTerminalPanelSplit::Dispatch(pending) => pending,
+            PreparedTerminalPanelCreate::Ready(result) => return Ok(result),
+            PreparedTerminalPanelCreate::Dispatch(pending) => pending,
         };
         let completion = handle.map_or(super::Completion::Unavailable, |handle| {
             submit(&handle, pending.command())
@@ -62,7 +62,7 @@ impl LocalTerminalService {
             .coordinator
             .lock()
             .map_err(|_poison| PostcommitCoordinationError)?;
-        let completed = coordinator.complete_terminal_panel_split(pending, completion, current);
+        let completed = coordinator.complete_terminal_panel_create(pending, completion, current);
         drop(coordinator);
         drop(workers);
         let completed = completed?;

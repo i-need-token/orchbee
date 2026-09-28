@@ -158,7 +158,7 @@ fn launch_read_re_resolves_route_and_revision_after_membership_moves() {
     let terminal_b = terminal_hex(launch_b.authorization());
     let completion_b = immediate_completion(pending_b.command());
     coordinator
-        .complete_terminal_panel_split(pending_b, completion_b, Some(worker(1)))
+        .complete_terminal_panel_create(pending_b, completion_b, Some(worker(1)))
         .unwrap();
 
     // Two bindings at two distinct leaves resolve their own routes; both reads

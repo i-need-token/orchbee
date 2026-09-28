@@ -1,4 +1,77 @@
 import { z } from 'zod';
+import { WorkbenchDirectoryPathSchema } from './workbench-semantic-contract';
+
+export const WORKBENCH_MAXIMUM_ENCODED_LAUNCH_COMMAND_BYTES = 96 * 1024;
+
+const literalLaunchStringSchema = z
+	.string()
+	.refine(
+		(value) => !value.includes('\0') && !/[\uD800-\uDFFF]/u.test(value),
+		'Launch text must be NUL-free Unicode scalar text',
+	);
+const utf8 = new TextEncoder();
+export const WorkbenchLaunchSelectionSchema = z
+	.strictObject({
+		exec: literalLaunchStringSchema.refine(
+			(value) => /^(?:\/|(?:\\\\\?\\)?[A-Za-z]:[/\\])/u.test(value),
+			'Launch executable must be an absolute path',
+		),
+		args: z.array(literalLaunchStringSchema).max(128).readonly(),
+	})
+	.refine((value) => {
+		let bytes = 0;
+		let escaped = 0;
+		for (const text of [value.exec, ...value.args]) {
+			for (const byte of utf8.encode(text)) {
+				bytes += 1;
+				if (byte <= 31) escaped += 6;
+				else if (byte === 34 || byte === 92) escaped += 2;
+				else escaped += 1;
+			}
+		}
+		return bytes <= 30 * 1024 && escaped <= 30 * 1024;
+	}, 'Launch selection exceeds its byte budget')
+	.readonly();
+
+export const WorkbenchLaunchProfileSelectorSchema = z
+	.string()
+	.min(1)
+	.max(512)
+	.refine(
+		(value) => !/[\uD800-\uDFFF]/u.test(value) && utf8.encode(value).length <= 512,
+		'Launch profile selector exceeds its UTF-8 bound',
+	);
+
+const environmentNameSchema = z
+	.string()
+	.regex(/^[A-Za-z_][A-Za-z0-9_]{0,127}$/u)
+	.refine(
+		(value) =>
+			!value.toUpperCase().startsWith('ORCHBEE_') &&
+			!['TERM', 'COLORTERM', 'TERM_PROGRAM'].includes(value.toUpperCase()),
+		'Launch environment cannot override a managed name',
+	);
+export const WorkbenchLaunchOptionsSchema = z
+	.strictObject({
+		cwd: WorkbenchDirectoryPathSchema.nullable().optional(),
+		environment: z
+			.array(z.tuple([environmentNameSchema, literalLaunchStringSchema]).readonly())
+			.max(32)
+			.refine((entries) => {
+				const names = new Set<string>();
+				let bytes = 0;
+				for (const [name, value] of entries) {
+					const key = name.toUpperCase();
+					if (names.has(key)) return false;
+					names.add(key);
+					bytes += utf8.encode(name).length + utf8.encode(value).length;
+				}
+				return bytes <= 1024;
+			}, 'Launch environment has duplicate names or exceeds its byte budget')
+			.readonly()
+			.optional(),
+	})
+	.readonly();
 
 const terminalGeometryDimensionSchema = z.number().int().min(1).max(4096);
 const terminalCellPixelDimensionSchema = z.number().int().min(0).max(4096);

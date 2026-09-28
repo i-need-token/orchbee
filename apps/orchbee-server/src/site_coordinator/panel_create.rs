@@ -13,27 +13,27 @@ use orchbee_client_server_protocol::{
     RequestId, StartMode, TerminalCreateRequest, WorkerConstraint, WorkingDirectory,
 };
 use orchbee_server::{
-    PendingWorkbenchPanelSplit, WorkbenchGrant, WorkbenchPanelSplitBegin,
-    WorkbenchPanelSplitPreparation, WorkbenchPanelSplitSettlementTokenMismatch,
+    PendingWorkbenchPanelCreate, WorkbenchGrant, WorkbenchPanelCreateBegin,
+    WorkbenchPanelCreatePreparation, WorkbenchPanelCreateSettlementTokenMismatch,
 };
 use orchbee_workbench_protocol::{
     ProtocolVersion, WorkbenchAction, WorkbenchCommand, WorkbenchCommandOutcome,
     WorkbenchCommandResult, WorkbenchCommandUnavailableReason,
 };
 
-pub(crate) enum PreparedTerminalPanelSplit {
+pub(crate) enum PreparedTerminalPanelCreate {
     Ready(WorkbenchCommandResult),
-    Dispatch(PendingTerminalPanelSplit),
+    Dispatch(PendingTerminalPanelCreate),
 }
 
 #[derive(Debug, Eq, PartialEq)]
-pub(crate) struct CompletedTerminalPanelSplit {
+pub(crate) struct CompletedTerminalPanelCreate {
     pub(crate) result: WorkbenchCommandResult,
     pub(crate) standalone_changed: bool,
 }
 
-pub(crate) struct PendingTerminalPanelSplit {
-    workbench: PendingWorkbenchPanelSplit,
+pub(crate) struct PendingTerminalPanelCreate {
+    workbench: PendingWorkbenchPanelCreate,
     terminal: Box<PendingOperation>,
     reference: RequestId,
     worker: WorkerPlacement,
@@ -42,7 +42,7 @@ pub(crate) struct PendingTerminalPanelSplit {
     launch: Option<orchbee_client_server_protocol::LaunchSelection>,
 }
 
-impl PendingTerminalPanelSplit {
+impl PendingTerminalPanelCreate {
     pub(crate) fn command(&self) -> &CapabilityNodeMessage {
         self.terminal.command()
     }
@@ -63,13 +63,13 @@ impl PendingTerminalPanelSplit {
 }
 
 impl SiteCoordinator {
-    pub(crate) fn prepare_terminal_panel_split(
+    pub(crate) fn prepare_terminal_panel_create(
         &mut self,
         command: WorkbenchCommand,
         candidate: Option<RequestId>,
         expiry: Option<LeaseExpiresAtUnixMilliseconds>,
         worker: Option<WorkerPlacement>,
-    ) -> PreparedTerminalPanelSplit {
+    ) -> PreparedTerminalPanelCreate {
         let Self {
             terminals,
             workbench,
@@ -77,7 +77,7 @@ impl SiteCoordinator {
             ..
         } = self;
         let Some(workbench) = workbench.as_mut() else {
-            return PreparedTerminalPanelSplit::Ready(unavailable(
+            return PreparedTerminalPanelCreate::Ready(unavailable(
                 &command,
                 WorkbenchCommandUnavailableReason::ServiceUnavailable,
             ));
@@ -87,7 +87,8 @@ impl SiteCoordinator {
         // verbatim. A decoded selection already passed the closed lexical
         // contract, so conversion failure is an invariant break.
         let launch = match &command.action {
-            WorkbenchAction::PanelSplit { launch, .. } => launch.clone(),
+            WorkbenchAction::PanelSplit { launch, .. }
+            | WorkbenchAction::PanelCreateTerminal { launch, .. } => launch.clone(),
             _ => None,
         };
         let launch = match launch
@@ -101,23 +102,24 @@ impl SiteCoordinator {
         {
             Ok(launch) => launch,
             Err(_) => {
-                return PreparedTerminalPanelSplit::Ready(unavailable(
+                return PreparedTerminalPanelCreate::Ready(unavailable(
                     &command,
                     WorkbenchCommandUnavailableReason::ServiceUnavailable,
                 ));
             }
         };
         let options = match &command.action {
-            WorkbenchAction::PanelSplit { options, .. } => options.clone(),
+            WorkbenchAction::PanelSplit { options, .. }
+            | WorkbenchAction::PanelCreateTerminal { options, .. } => options.clone(),
             _ => Default::default(),
         };
         let grant =
             WorkbenchGrant::manage_navigation_and_terminal_create(workbench.site_id().clone());
-        let admission = match workbench.begin_terminal_panel_split(Some(&grant), command) {
-            WorkbenchPanelSplitBegin::Ready(result) => {
-                return PreparedTerminalPanelSplit::Ready(result);
+        let admission = match workbench.begin_terminal_panel_create(Some(&grant), command) {
+            WorkbenchPanelCreateBegin::Ready(result) => {
+                return PreparedTerminalPanelCreate::Ready(result);
             }
-            WorkbenchPanelSplitBegin::Admitted(admission) => admission,
+            WorkbenchPanelCreateBegin::Admitted(admission) => admission,
         };
         // A `profile` selector resolved inside admission under the coordinator
         // lock; its frozen stored selection substitutes for the explicit
@@ -130,7 +132,7 @@ impl SiteCoordinator {
                 ) {
                     Ok(launch) => Some(launch),
                     Err(_) => {
-                        return PreparedTerminalPanelSplit::Ready(
+                        return PreparedTerminalPanelCreate::Ready(
                             admission.retire_composition_failure(),
                         );
                     }
@@ -141,7 +143,7 @@ impl SiteCoordinator {
                 ) {
                     Ok(provenance) => Some(provenance),
                     Err(_) => {
-                        return PreparedTerminalPanelSplit::Ready(
+                        return PreparedTerminalPanelCreate::Ready(
                             admission.retire_composition_failure(),
                         );
                     }
@@ -155,7 +157,7 @@ impl SiteCoordinator {
             .standalone_membership()
             .is_some_and(|membership| !tree_composition_matches(membership, standalone, terminals))
         {
-            return PreparedTerminalPanelSplit::Ready(admission.retire_composition_failure());
+            return PreparedTerminalPanelCreate::Ready(admission.retire_composition_failure());
         }
         let settles_first = admission
             .staged_metadata()
@@ -168,14 +170,14 @@ impl SiteCoordinator {
             (None, None)
         } else {
             let Some((worker_id, path)) = admission.staged_metadata().workspace_launch() else {
-                return PreparedTerminalPanelSplit::Ready(admission.retire_composition_failure());
+                return PreparedTerminalPanelCreate::Ready(admission.retire_composition_failure());
             };
             let Ok(worker_id) = orchbee_client_server_protocol::WorkerId::parse(worker_id.as_str())
             else {
-                return PreparedTerminalPanelSplit::Ready(admission.retire_composition_failure());
+                return PreparedTerminalPanelCreate::Ready(admission.retire_composition_failure());
             };
             let Ok(cwd) = WorkingDirectory::parse(path.as_str()) else {
-                return PreparedTerminalPanelSplit::Ready(admission.retire_composition_failure());
+                return PreparedTerminalPanelCreate::Ready(admission.retire_composition_failure());
             };
             (Some(WorkerConstraint::Exact { worker_id }), Some(cwd))
         };
@@ -187,7 +189,7 @@ impl SiteCoordinator {
         {
             Ok(cwd) => cwd.or_else(|| workspace_cwd.clone()),
             Err(_) => {
-                return PreparedTerminalPanelSplit::Ready(admission.retire_composition_failure());
+                return PreparedTerminalPanelCreate::Ready(admission.retire_composition_failure());
             }
         };
         let environment = match orchbee_client_server_protocol::LaunchEnvironment::new(
@@ -195,11 +197,11 @@ impl SiteCoordinator {
         ) {
             Ok(environment) => environment,
             Err(_) => {
-                return PreparedTerminalPanelSplit::Ready(admission.retire_composition_failure());
+                return PreparedTerminalPanelCreate::Ready(admission.retire_composition_failure());
             }
         };
         let Some(worker) = worker else {
-            return PreparedTerminalPanelSplit::Ready(
+            return PreparedTerminalPanelCreate::Ready(
                 admission
                     .runtime_unavailable(WorkbenchCommandUnavailableReason::NoCompatibleWorker),
             );
@@ -207,18 +209,18 @@ impl SiteCoordinator {
         if let Some(WorkerConstraint::Exact { worker_id }) = &worker_constraint
             && !placement_matches_worker(worker, worker_id)
         {
-            return PreparedTerminalPanelSplit::Ready(
+            return PreparedTerminalPanelCreate::Ready(
                 admission
                     .runtime_unavailable(WorkbenchCommandUnavailableReason::NoCompatibleWorker),
             );
         }
         let (Some(reference), Some(expiry)) = (candidate, expiry) else {
-            return PreparedTerminalPanelSplit::Ready(
+            return PreparedTerminalPanelCreate::Ready(
                 admission.runtime_unavailable(WorkbenchCommandUnavailableReason::ServerBusy),
             );
         };
         let Some(geometry) = client_geometry(admission.staged_metadata().geometry()) else {
-            return PreparedTerminalPanelSplit::Ready(
+            return PreparedTerminalPanelCreate::Ready(
                 admission.runtime_unavailable(WorkbenchCommandUnavailableReason::ServerBusy),
             );
         };
@@ -237,7 +239,7 @@ impl SiteCoordinator {
             Ok(plan) => plan,
             Err(result) => {
                 let reason = terminal_preflight_reason(&result);
-                return PreparedTerminalPanelSplit::Ready(
+                return PreparedTerminalPanelCreate::Ready(
                     admission.runtime_unavailable(reason.into()),
                 );
             }
@@ -246,18 +248,17 @@ impl SiteCoordinator {
         let authorization = terminal.authorization();
         let Some(binding) = presentation_binding(authorization) else {
             drop(terminal);
-            return PreparedTerminalPanelSplit::Ready(
+            return PreparedTerminalPanelCreate::Ready(
                 admission.runtime_unavailable(WorkbenchCommandUnavailableReason::ServerBusy),
             );
         };
         let workbench_plan = match admission.finish(binding.clone()) {
-            WorkbenchPanelSplitPreparation::Ready(result) => {
-                return PreparedTerminalPanelSplit::Ready(result);
+            WorkbenchPanelCreatePreparation::Ready(result) => {
+                return PreparedTerminalPanelCreate::Ready(result);
             }
-            WorkbenchPanelSplitPreparation::Prepared(plan) => plan,
+            WorkbenchPanelCreatePreparation::Prepared(plan) => plan,
         };
         let metadata = workbench_plan.metadata().clone();
-        let pending_workbench = workbench_plan.commit_into_pending();
         if terminal.create_reference() != &reference
             || terminal.authorization() != authorization
             || pending_authorization_from_message(terminal.command()) != Some(authorization)
@@ -269,18 +270,21 @@ impl SiteCoordinator {
             || authorization.worker_generation() != worker.generation
             || metadata.is_standalone() != workspace_cwd.is_none()
         {
+            drop(workbench_plan);
             drop(terminal);
             workbench.retire_standalone_composition();
-            return PreparedTerminalPanelSplit::Ready(unavailable_by_id(
+            return PreparedTerminalPanelCreate::Ready(unavailable_by_id(
                 metadata.request_id().clone(),
                 WorkbenchCommandUnavailableReason::ServiceUnavailable,
             ));
         }
+        // Every fallible association check precedes the two infallible owner moves.
         let terminal = terminal.commit();
+        let pending_workbench = workbench_plan.commit_into_pending();
         if settles_first {
             *standalone = StandaloneTerminal::Creating(reference.clone());
         }
-        PreparedTerminalPanelSplit::Dispatch(PendingTerminalPanelSplit {
+        PreparedTerminalPanelCreate::Dispatch(PendingTerminalPanelCreate {
             workbench: pending_workbench,
             terminal,
             reference,
@@ -291,12 +295,12 @@ impl SiteCoordinator {
         })
     }
 
-    pub(crate) fn complete_terminal_panel_split(
+    pub(crate) fn complete_terminal_panel_create(
         &mut self,
-        pending: PendingTerminalPanelSplit,
+        pending: PendingTerminalPanelCreate,
         completion: Completion,
         current_worker: Option<WorkerPlacement>,
-    ) -> Result<CompletedTerminalPanelSplit, PostcommitCoordinationError> {
+    ) -> Result<CompletedTerminalPanelCreate, PostcommitCoordinationError> {
         let Self {
             terminals,
             workbench,
@@ -318,7 +322,7 @@ impl SiteCoordinator {
                 return Err(PostcommitCoordinationError);
             }
         }
-        let PendingTerminalPanelSplit {
+        let PendingTerminalPanelCreate {
             workbench: workbench_pending,
             terminal,
             reference,
@@ -336,8 +340,8 @@ impl SiteCoordinator {
             && matches!(standalone, StandaloneTerminal::Creating(current) if current == &reference);
         let settled_open = standalone_changed.then(|| open_outcome(&reference, terminal.result()));
         let workbench = workbench
-            .prepare_terminal_panel_split_settlement(workbench_pending, terminal_outcome)
-            .map_err(|_mismatch: WorkbenchPanelSplitSettlementTokenMismatch| {
+            .prepare_terminal_panel_create_settlement(workbench_pending, terminal_outcome)
+            .map_err(|_mismatch: WorkbenchPanelCreateSettlementTokenMismatch| {
                 PostcommitCoordinationError
             })?;
         terminal.commit();
@@ -345,7 +349,7 @@ impl SiteCoordinator {
         if let Some(outcome) = settled_open {
             *standalone = StandaloneTerminal::Settled { reference, outcome };
         }
-        Ok(CompletedTerminalPanelSplit {
+        Ok(CompletedTerminalPanelCreate {
             result,
             standalone_changed,
         })

@@ -27,10 +27,10 @@ mod tab_create;
 #[cfg(test)]
 pub(crate) use tab_create::PendingTerminalTabCreate;
 pub(crate) use tab_create::{PostcommitCoordinationError, PreparedTerminalTabCreate};
-mod panel_split;
+mod panel_create;
 #[cfg(test)]
-pub(crate) use panel_split::PendingTerminalPanelSplit;
-pub(crate) use panel_split::PreparedTerminalPanelSplit;
+pub(crate) use panel_create::PendingTerminalPanelCreate;
+pub(crate) use panel_create::PreparedTerminalPanelCreate;
 mod terminal_selection;
 mod workspace_directory;
 mod worktree_restore;

@@ -10,8 +10,8 @@ use orchbee_workbench_protocol::{
 };
 
 use crate::workbench_authority::{
-    WorkbenchPanelPlacementBegin, WorkbenchPanelPlacementPreparation, WorkbenchPanelSplitBegin,
-    WorkbenchPanelSplitPreparation,
+    WorkbenchPanelCreateBegin, WorkbenchPanelCreatePreparation, WorkbenchPanelPlacementBegin,
+    WorkbenchPanelPlacementPreparation,
 };
 
 fn split_authority() -> (WorkbenchAuthority, WorkbenchGrant) {
@@ -438,8 +438,8 @@ fn aggregate_close_fences_same_tab_split_and_move_until_publication() {
             options: Default::default(),
         },
     );
-    let WorkbenchPanelSplitBegin::Ready(fenced) =
-        authority.begin_terminal_panel_split(Some(&grant), split.clone())
+    let WorkbenchPanelCreateBegin::Ready(fenced) =
+        authority.begin_terminal_panel_create(Some(&grant), split.clone())
     else {
         panic!("pending aggregate Close must fence the split before admission")
     };
@@ -450,8 +450,8 @@ fn aggregate_close_fences_same_tab_split_and_move_until_publication() {
         }
     ));
     assert_eq!(authority.ledger.len(), retained);
-    let WorkbenchPanelSplitBegin::Ready(retried) =
-        authority.begin_terminal_panel_split(Some(&grant), split.clone())
+    let WorkbenchPanelCreateBegin::Ready(retried) =
+        authority.begin_terminal_panel_create(Some(&grant), split.clone())
     else {
         panic!("unretained refusal must re-evaluate")
     };
@@ -538,18 +538,18 @@ fn aggregate_close_fences_same_tab_split_and_move_until_publication() {
             options: Default::default(),
         },
     );
-    let WorkbenchPanelSplitBegin::Admitted(other) =
-        authority.begin_terminal_panel_split(Some(&grant), other_split.clone())
+    let WorkbenchPanelCreateBegin::Admitted(other) =
+        authority.begin_terminal_panel_create(Some(&grant), other_split.clone())
     else {
         panic!("unrelated Tab split must remain admissible")
     };
-    let WorkbenchPanelSplitPreparation::Prepared(other_prepared) = other.finish(binding(1703))
+    let WorkbenchPanelCreatePreparation::Prepared(other_prepared) = other.finish(binding(1703))
     else {
         panic!("unrelated Tab split preparation")
     };
     let _pending = other_prepared.commit_into_pending();
-    let WorkbenchPanelSplitBegin::Ready(replayed_split) =
-        authority.begin_terminal_panel_split(Some(&grant), other_split)
+    let WorkbenchPanelCreateBegin::Ready(replayed_split) =
+        authority.begin_terminal_panel_create(Some(&grant), other_split)
     else {
         panic!("pending split replay")
     };
@@ -565,8 +565,8 @@ fn aggregate_close_fences_same_tab_split_and_move_until_publication() {
     let tabs = &authority.projection.snapshot().terminal_contexts[0].tabs;
     assert_eq!(tabs.len(), 1);
     assert_eq!(tabs[0].tab_id, other_tab_id);
-    let WorkbenchPanelSplitBegin::Ready(after) =
-        authority.begin_terminal_panel_split(Some(&grant), split)
+    let WorkbenchPanelCreateBegin::Ready(after) =
+        authority.begin_terminal_panel_create(Some(&grant), split)
     else {
         panic!("post-publication re-evaluation")
     };
@@ -654,12 +654,12 @@ fn leaf_close_leaves_same_tab_split_and_move_admissible() {
             options: Default::default(),
         },
     );
-    let WorkbenchPanelSplitBegin::Admitted(splitting) =
-        authority.begin_terminal_panel_split(Some(&grant), split)
+    let WorkbenchPanelCreateBegin::Admitted(splitting) =
+        authority.begin_terminal_panel_create(Some(&grant), split)
     else {
         panic!("leaf Close must not fence the same-Tab split")
     };
-    let WorkbenchPanelSplitPreparation::Prepared(prepared_split) = splitting.finish(binding(1702))
+    let WorkbenchPanelCreatePreparation::Prepared(prepared_split) = splitting.finish(binding(1702))
     else {
         panic!("same-Tab split preparation")
     };

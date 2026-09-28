@@ -1158,7 +1158,7 @@ fn run_trace(steps: &[TraceStep]) -> Result<(), String> {
                     ledger_size(&entry.command, &entry.result).unwrap()
                 }
                 RetainedRequest::PendingTabCreate(entry) => entry.reserved_bytes,
-                RetainedRequest::PendingPanelSplit(entry) => entry.reserved_bytes,
+                RetainedRequest::PendingPanelCreate(entry) => entry.reserved_bytes,
                 RetainedRequest::TabClose(_) => panic!("Create trace generated Close"),
             })
             .sum::<usize>();

@@ -522,3 +522,22 @@ and cross-field checks supplement JSON Schema. These DTOs describe actual instal
 not claim remote fetch/update support. The Server screen model owns installation and receipt limits.
 
 Both Panel carriers also admit `read-presentations` and `presentations-read` for exact primary or child report/metadata observations: four unique ordered Presentation IDs, empty revision fences, required owning `panel` rows, and shared Panel IDs across different members. Rust/TypeScript enforce payload invariants and metadata field-order ownership identically to primary reads. Existing primary read/write shapes remain unchanged. The shared corpora cover exact-member bounds, strict wrappers, same-Panel members and unbound payloads; native callers additionally correlate Presentation, Panel and binding. Ship the protocol with its Server and native TUI consumers as a matched cohort.
+
+## Panel terminal creation extension
+
+`panel.create-terminal` names Context/Tab/Panel plus required geometry and one closed target:
+`child { label }` or `unbound { presentationId }`. Optional `launch { exec, args }` and `profile`
+are mutually exclusive when non-null. Optional `options` supplies an absolute `cwd` and literal
+`environment` name/value tuples. The shared Rust/TypeScript/JSON corpus covers shape, identity,
+program selection, byte bounds, environment restrictions and normalization. Null selectors and
+empty options normalize to absent fields. Launch has 128 arguments and 30 KiB combined UTF-8 and
+worst-case escaped content; profile is 512 UTF-8 bytes; environment is 32 ASCII-case-unique entries,
+1024 combined bytes, and excludes managed names. This request uses the existing 96 KiB native launch
+envelope. JSON Schema marks aggregate byte/uniqueness rules that bindings enforce semantically.
+
+`panel-terminal-pending` and `panel-terminal-created` carry revision, Context/Tab/Panel/Presentation;
+the final variant includes the existing terminal outcome. They reject split-only fields. The
+[Server owner](../../apps/orchbee-server/docs/workbench-authority.md#terminal-creation-inside-an-existing-panel)
+requires navigation and terminal creation grants and owns preparation, effects and settlement.
+Existing split grammar/result fields are unchanged. Matched private cohorts roll out together;
+this extension adds no persistent migration or public CLI command by itself.

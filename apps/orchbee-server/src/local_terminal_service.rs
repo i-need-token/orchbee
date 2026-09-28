@@ -33,8 +33,8 @@ mod close_maintenance;
 mod controller_session;
 mod operation_maintenance;
 mod panel_agent;
+mod panel_create;
 mod panel_metadata;
-mod panel_split;
 #[cfg(windows)]
 mod process_observer;
 mod projection;

@@ -1,4 +1,4 @@
-use super::super::super::{WorkbenchPanelSplitBegin, WorkbenchPanelSplitPreparation};
+use super::super::super::{WorkbenchPanelCreateBegin, WorkbenchPanelCreatePreparation};
 use super::*;
 use orchbee_workbench_protocol::{
     PanelNode, WorkbenchPanelSplitDirection, WorkbenchTabCloseResume, WorkbenchTabCloseStatus,
@@ -51,7 +51,7 @@ fn split_fixture(
 ) -> (WorkbenchTerminalTab, WorkbenchTerminalTab) {
     let membership = authority.tree_standalone_membership().unwrap();
     let source = membership.members().first().unwrap().clone();
-    let WorkbenchPanelSplitBegin::Admitted(admission) = authority.begin_terminal_panel_split(
+    let WorkbenchPanelCreateBegin::Admitted(admission) = authority.begin_terminal_panel_create(
         Some(grant),
         command(
             authority,
@@ -72,14 +72,14 @@ fn split_fixture(
     ) else {
         panic!("panel split admission")
     };
-    let WorkbenchPanelSplitPreparation::Prepared(prepared) =
+    let WorkbenchPanelCreatePreparation::Prepared(prepared) =
         admission.finish(binding(9000 + command_id))
     else {
         panic!("panel split preparation")
     };
     let pending = prepared.commit_into_pending();
     let _ = authority
-        .prepare_terminal_panel_split_settlement(
+        .prepare_terminal_panel_create_settlement(
             pending,
             WorkbenchTerminalOutcome::Started {
                 geometry: WorkbenchTerminalGeometry::new(80, 24, 8, 16).unwrap(),

@@ -51,8 +51,8 @@ pub(super) fn dispatch_split(
     coordinator: &mut SiteCoordinator,
     command: WorkbenchCommand,
     reference: u128,
-) -> PendingTerminalPanelSplit {
-    let PreparedTerminalPanelSplit::Dispatch(pending) = coordinator.prepare_terminal_panel_split(
+) -> PendingTerminalPanelCreate {
+    let PreparedTerminalPanelCreate::Dispatch(pending) = coordinator.prepare_terminal_panel_create(
         command,
         Some(id(reference)),
         Some(expiry()),
@@ -63,8 +63,8 @@ pub(super) fn dispatch_split(
     pending
 }
 
-fn ready_split(prepared: PreparedTerminalPanelSplit) -> WorkbenchCommandResult {
-    let PreparedTerminalPanelSplit::Ready(result) = prepared else {
+fn ready_split(prepared: PreparedTerminalPanelCreate) -> WorkbenchCommandResult {
+    let PreparedTerminalPanelCreate::Ready(result) = prepared else {
         panic!("ready panel.split result expected")
     };
     result
@@ -344,7 +344,7 @@ fn pending_split_completion_after_close_retarget_settles_and_resolves_bare_open(
 
     let completion_b = immediate_completion(pending_b.command());
     let completed = coordinator
-        .complete_terminal_panel_split(pending_b, completion_b, Some(worker(1)))
+        .complete_terminal_panel_create(pending_b, completion_b, Some(worker(1)))
         .unwrap();
     assert!(completed.standalone_changed);
     assert_eq!(
@@ -370,7 +370,7 @@ fn pending_split_completion_after_close_retarget_settles_and_resolves_bare_open(
         }) if terminal_create_request_id == id(1403)
     ));
     assert_eq!(
-        ready_split(coordinator.prepare_terminal_panel_split(split_b, None, None, None)),
+        ready_split(coordinator.prepare_terminal_panel_create(split_b, None, None, None)),
         completed.result
     );
 }
@@ -397,7 +397,7 @@ fn split_completion_before_close_publication_leaves_the_settled_reference() {
 
     let completion_b = immediate_completion(pending_b.command());
     let completed = coordinator
-        .complete_terminal_panel_split(pending_b, completion_b, Some(worker(1)))
+        .complete_terminal_panel_create(pending_b, completion_b, Some(worker(1)))
         .unwrap();
     assert!(!completed.standalone_changed);
     assert_eq!(
@@ -436,7 +436,7 @@ fn split_completion_before_close_publication_leaves_the_settled_reference() {
         }) if terminal_create_request_id == id(1413)
     ));
     assert_eq!(
-        ready_split(coordinator.prepare_terminal_panel_split(split_b, None, None, None)),
+        ready_split(coordinator.prepare_terminal_panel_create(split_b, None, None, None)),
         completed.result
     );
 }
@@ -480,7 +480,7 @@ fn stale_split_completion_cannot_overwrite_the_newer_current_reference() {
 
     let completion_b = immediate_completion(pending_b.command());
     let completed_b = coordinator
-        .complete_terminal_panel_split(pending_b, completion_b, Some(worker(1)))
+        .complete_terminal_panel_create(pending_b, completion_b, Some(worker(1)))
         .unwrap();
     assert!(!completed_b.standalone_changed);
     assert_eq!(
@@ -497,7 +497,7 @@ fn stale_split_completion_cannot_overwrite_the_newer_current_reference() {
 
     let completion_c = immediate_completion(pending_c.command());
     let completed_c = coordinator
-        .complete_terminal_panel_split(pending_c, completion_c, Some(worker(1)))
+        .complete_terminal_panel_create(pending_c, completion_c, Some(worker(1)))
         .unwrap();
     assert!(completed_c.standalone_changed);
     assert_eq!(
@@ -510,11 +510,11 @@ fn stale_split_completion_cannot_overwrite_the_newer_current_reference() {
         }
     );
     assert_eq!(
-        ready_split(coordinator.prepare_terminal_panel_split(split_b, None, None, None)),
+        ready_split(coordinator.prepare_terminal_panel_create(split_b, None, None, None)),
         completed_b.result
     );
     assert_eq!(
-        ready_split(coordinator.prepare_terminal_panel_split(split_c, None, None, None)),
+        ready_split(coordinator.prepare_terminal_panel_create(split_c, None, None, None)),
         completed_c.result
     );
 }
@@ -564,7 +564,7 @@ fn workspace_split_completion_never_touches_the_standalone_slot() {
 
     let completion_split = immediate_completion(pending_split.command());
     let completed = coordinator
-        .complete_terminal_panel_split(pending_split, completion_split, Some(worker(1)))
+        .complete_terminal_panel_create(pending_split, completion_split, Some(worker(1)))
         .unwrap();
     assert!(!completed.standalone_changed);
     assert!(matches!(
@@ -593,7 +593,7 @@ fn workspace_split_completion_never_touches_the_standalone_slot() {
         } if *reference == id(1431)
     ));
     assert_eq!(
-        ready_split(coordinator.prepare_terminal_panel_split(split, None, None, None)),
+        ready_split(coordinator.prepare_terminal_panel_create(split, None, None, None)),
         completed.result
     );
 }
@@ -658,7 +658,7 @@ fn bare_open_replays_the_settled_reference_across_a_pending_and_settled_split_le
 
     let completion_b = immediate_completion(pending_b.command());
     let completed = coordinator
-        .complete_terminal_panel_split(pending_b, completion_b, Some(worker(1)))
+        .complete_terminal_panel_create(pending_b, completion_b, Some(worker(1)))
         .unwrap();
     assert!(!completed.standalone_changed);
     for request in [1506, 1507] {
@@ -693,7 +693,7 @@ fn bare_open_replay_survives_a_legal_leaf_reorder_and_retargets_only_through_clo
     let pending_b = dispatch_split(&mut coordinator, split_cmd_pending_b, 1523);
     let completion_b = immediate_completion(pending_b.command());
     coordinator
-        .complete_terminal_panel_split(pending_b, completion_b, Some(worker(1)))
+        .complete_terminal_panel_create(pending_b, completion_b, Some(worker(1)))
         .unwrap();
     let (_, _, panels) = standalone_leaf_panels(&mut coordinator);
     let [panel_a_committed, panel_b] = panels.as_slice() else {
@@ -1051,7 +1051,7 @@ fn launch_selection_reaches_the_split_command_and_replay_identity() {
     // An identical replay returns the pending outcome without dispatching a
     // second launch.
     let replay =
-        ready_split(coordinator.prepare_terminal_panel_split(split.clone(), None, None, None));
+        ready_split(coordinator.prepare_terminal_panel_create(split.clone(), None, None, None));
     assert!(matches!(
         replay.outcome,
         WorkbenchCommandOutcome::PanelSplitPending { .. }
@@ -1067,7 +1067,7 @@ fn launch_selection_reaches_the_split_command_and_replay_identity() {
             .unwrap(),
     );
     assert!(matches!(
-        ready_split(coordinator.prepare_terminal_panel_split(conflict, None, None, None)).outcome,
+        ready_split(coordinator.prepare_terminal_panel_create(conflict, None, None, None)).outcome,
         WorkbenchCommandOutcome::Rejected {
             reason: WorkbenchRejectionReason::RequestIdentityConflict,
             ..
@@ -1085,7 +1085,7 @@ fn launch_selection_reaches_the_split_command_and_replay_identity() {
             options.environment = orchbee_workbench_protocol::LaunchEnvironment::empty();
         }
         assert!(matches!(
-            ready_split(coordinator.prepare_terminal_panel_split(changed, None, None, None))
+            ready_split(coordinator.prepare_terminal_panel_create(changed, None, None, None))
                 .outcome,
             WorkbenchCommandOutcome::Rejected {
                 reason: WorkbenchRejectionReason::RequestIdentityConflict,

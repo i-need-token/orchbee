@@ -598,6 +598,20 @@ pub enum WorkbenchAction {
         #[serde(default, skip_serializing_if = "crate::LaunchOptions::is_empty")]
         options: Box<crate::LaunchOptions>,
     },
+    #[serde(rename = "panel.create-terminal")]
+    PanelCreateTerminal {
+        terminal_context_id: WorkbenchTerminalContextId,
+        tab_id: WorkbenchTabId,
+        panel_id: WorkbenchPanelId,
+        target: WorkbenchPanelTerminalTarget,
+        geometry: WorkbenchTerminalGeometry,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        launch: Option<LaunchSelection>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        profile: Option<LaunchProfileSelector>,
+        #[serde(default, skip_serializing_if = "crate::LaunchOptions::is_empty")]
+        options: Box<crate::LaunchOptions>,
+    },
     #[serde(rename = "panel.close")]
     PanelClose {
         terminal_context_id: WorkbenchTerminalContextId,
@@ -785,6 +799,23 @@ pub enum WorkbenchTabMoveDirection {
     Next,
     First,
     Last,
+}
+
+/// A new child or an exact existing unbound member; never a new layout Panel.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(
+    tag = "kind",
+    rename_all = "kebab-case",
+    rename_all_fields = "camelCase",
+    deny_unknown_fields
+)]
+pub enum WorkbenchPanelTerminalTarget {
+    Child {
+        label: WorkbenchLabel,
+    },
+    Unbound {
+        presentation_id: TerminalPresentationId,
+    },
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -1038,6 +1069,21 @@ pub enum WorkbenchCommandOutcome {
         presentation_id: TerminalPresentationId,
         terminal_outcome: WorkbenchTerminalOutcome,
     },
+    PanelTerminalPending {
+        revision: WorkbenchRevision,
+        terminal_context_id: WorkbenchTerminalContextId,
+        tab_id: WorkbenchTabId,
+        panel_id: WorkbenchPanelId,
+        presentation_id: TerminalPresentationId,
+    },
+    PanelTerminalCreated {
+        revision: WorkbenchRevision,
+        terminal_context_id: WorkbenchTerminalContextId,
+        tab_id: WorkbenchTabId,
+        panel_id: WorkbenchPanelId,
+        presentation_id: TerminalPresentationId,
+        terminal_outcome: WorkbenchTerminalOutcome,
+    },
     PanelCloseAccepted {
         close_request_id: WorkbenchRequestId,
         terminal_context_id: WorkbenchTerminalContextId,
@@ -1253,6 +1299,9 @@ fn validate_request(request: &WorkbenchRequest) -> Result<(), ContractError> {
         }
         | WorkbenchAction::PanelSplit {
             launch, profile, ..
+        }
+        | WorkbenchAction::PanelCreateTerminal {
+            launch, profile, ..
         } => launch.is_some() && profile.is_some(),
         _ => false,
     };
@@ -1299,6 +1348,7 @@ fn request_byte_limit(request: &WorkbenchRequest) -> usize {
         WorkbenchRequest::Command(WorkbenchCommand {
             action: WorkbenchAction::TabCreate { .. }
                 | WorkbenchAction::PanelSplit { .. }
+                | WorkbenchAction::PanelCreateTerminal { .. }
                 | WorkbenchAction::WorkspaceLaunch { .. },
             ..
         })
@@ -1333,6 +1383,14 @@ pub fn serialize_workbench_response(
 }
 
 fn validate_response(response: &WorkbenchResponse, encoded: &[u8]) -> Result<(), ContractError> {
+    if let WorkbenchResponse::Command(WorkbenchCommandResult {
+        outcome: WorkbenchCommandOutcome::LaunchProfileAmbiguous { candidate_ids },
+        ..
+    }) = response
+        && candidate_ids.len() > MAXIMUM_LAUNCH_PROFILE_CANDIDATES
+    {
+        return Err(ContractError::InvalidDocument);
+    }
     match response {
         WorkbenchResponse::AgentManifests(result) => {
             enforce_encoded_limit(encoded, MAXIMUM_ENCODED_AGENT_MANIFESTS_BYTES)?;

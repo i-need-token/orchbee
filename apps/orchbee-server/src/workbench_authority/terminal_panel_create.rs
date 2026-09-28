@@ -1,14 +1,16 @@
 use std::sync::Arc;
 
+mod placement;
+use placement::TerminalPlacement;
+
 use orchbee_workbench_protocol::{
-    ContractError, MAXIMUM_PANEL_NODES_PER_CONTEXT, PanelNode, PanelOrientation, PanelSlot,
-    Presentation, PresentationBinding, WorkbenchAction, WorkbenchCommand, WorkbenchCommandOutcome,
-    WorkbenchCommandResult, WorkbenchCommandUnavailableReason, WorkbenchPanelId,
-    WorkbenchPanelSlotId, WorkbenchPanelSplitDirection, WorkbenchProtocolDocument,
-    WorkbenchRejectionReason, WorkbenchRequestId, WorkbenchRevision, WorkbenchSplitId,
-    WorkbenchTabId, WorkbenchTerminalContextId, WorkbenchTerminalFailureReason,
-    WorkbenchTerminalGeometry, WorkbenchTerminalOutcome, WorkbenchTerminalUnavailableReason,
-    WorkerId, serialize_document,
+    ContractError, PanelNode, PanelOrientation, PanelSlot, Presentation, PresentationBinding,
+    WorkbenchAction, WorkbenchCommand, WorkbenchCommandOutcome, WorkbenchCommandResult,
+    WorkbenchCommandUnavailableReason, WorkbenchPanelId, WorkbenchPanelSlotId,
+    WorkbenchPanelSplitDirection, WorkbenchProtocolDocument, WorkbenchRejectionReason,
+    WorkbenchRequestId, WorkbenchRevision, WorkbenchSplitId, WorkbenchTabId,
+    WorkbenchTerminalContextId, WorkbenchTerminalFailureReason, WorkbenchTerminalGeometry,
+    WorkbenchTerminalOutcome, WorkbenchTerminalUnavailableReason, WorkerId, serialize_document,
 };
 
 use super::terminal_membership::{WorkbenchTerminalMembership, tree_terminal_membership};
@@ -19,23 +21,19 @@ use super::{
 use crate::workbench_projection::PreparedProjectionAdvance;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct StagedWorkbenchPanelSplitMetadata {
+pub struct StagedWorkbenchPanelCreateMetadata {
     revision: WorkbenchRevision,
     terminal_context_id: WorkbenchTerminalContextId,
     tab_id: WorkbenchTabId,
     panel_id: WorkbenchPanelId,
-    new_panel_id: WorkbenchPanelId,
-    split_id: WorkbenchSplitId,
-    first_slot_id: WorkbenchPanelSlotId,
-    second_slot_id: WorkbenchPanelSlotId,
+    placement: TerminalPlacement,
     presentation_id: orchbee_workbench_protocol::TerminalPresentationId,
     geometry: WorkbenchTerminalGeometry,
-    direction: WorkbenchPanelSplitDirection,
-    target: WorkbenchPanelSplitTarget,
+    target: WorkbenchPanelCreateTarget,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-enum WorkbenchPanelSplitTarget {
+enum WorkbenchPanelCreateTarget {
     Standalone(WorkbenchTerminalMembership),
     Workspace {
         worker_id: WorkerId,
@@ -43,7 +41,7 @@ enum WorkbenchPanelSplitTarget {
     },
 }
 
-impl StagedWorkbenchPanelSplitMetadata {
+impl StagedWorkbenchPanelCreateMetadata {
     #[must_use]
     pub const fn revision(&self) -> WorkbenchRevision {
         self.revision
@@ -65,23 +63,8 @@ impl StagedWorkbenchPanelSplitMetadata {
     }
 
     #[must_use]
-    pub fn new_panel_id(&self) -> &WorkbenchPanelId {
-        &self.new_panel_id
-    }
-
-    #[must_use]
-    pub fn split_id(&self) -> &WorkbenchSplitId {
-        &self.split_id
-    }
-
-    #[must_use]
-    pub fn first_slot_id(&self) -> &WorkbenchPanelSlotId {
-        &self.first_slot_id
-    }
-
-    #[must_use]
-    pub fn second_slot_id(&self) -> &WorkbenchPanelSlotId {
-        &self.second_slot_id
+    pub fn terminal_panel_id(&self) -> &WorkbenchPanelId {
+        self.placement.terminal_panel(&self.panel_id)
     }
 
     #[must_use]
@@ -95,15 +78,15 @@ impl StagedWorkbenchPanelSplitMetadata {
     }
 
     #[must_use]
-    pub const fn direction(&self) -> WorkbenchPanelSplitDirection {
-        self.direction
+    pub const fn direction(&self) -> Option<WorkbenchPanelSplitDirection> {
+        self.placement.direction()
     }
 
     #[must_use]
     pub fn standalone_membership(&self) -> Option<&WorkbenchTerminalMembership> {
         match &self.target {
-            WorkbenchPanelSplitTarget::Standalone(membership) => Some(membership),
-            WorkbenchPanelSplitTarget::Workspace { .. } => None,
+            WorkbenchPanelCreateTarget::Standalone(membership) => Some(membership),
+            WorkbenchPanelCreateTarget::Workspace { .. } => None,
         }
     }
 
@@ -115,31 +98,27 @@ impl StagedWorkbenchPanelSplitMetadata {
         &orchbee_workbench_protocol::WorkbenchDirectoryPath,
     )> {
         match &self.target {
-            WorkbenchPanelSplitTarget::Standalone(_) => None,
-            WorkbenchPanelSplitTarget::Workspace { worker_id, path } => Some((worker_id, path)),
+            WorkbenchPanelCreateTarget::Standalone(_) => None,
+            WorkbenchPanelCreateTarget::Workspace { worker_id, path } => Some((worker_id, path)),
         }
     }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct CommittedWorkbenchPanelSplitMetadata {
+pub struct CommittedWorkbenchPanelCreateMetadata {
     request_id: WorkbenchRequestId,
     revision: WorkbenchRevision,
     terminal_context_id: WorkbenchTerminalContextId,
     tab_id: WorkbenchTabId,
     panel_id: WorkbenchPanelId,
-    new_panel_id: WorkbenchPanelId,
-    split_id: WorkbenchSplitId,
-    first_slot_id: WorkbenchPanelSlotId,
-    second_slot_id: WorkbenchPanelSlotId,
+    placement: TerminalPlacement,
     presentation_id: orchbee_workbench_protocol::TerminalPresentationId,
     binding: PresentationBinding,
     geometry: WorkbenchTerminalGeometry,
-    direction: WorkbenchPanelSplitDirection,
     standalone: bool,
 }
 
-impl CommittedWorkbenchPanelSplitMetadata {
+impl CommittedWorkbenchPanelCreateMetadata {
     #[must_use]
     pub fn request_id(&self) -> &WorkbenchRequestId {
         &self.request_id
@@ -166,23 +145,8 @@ impl CommittedWorkbenchPanelSplitMetadata {
     }
 
     #[must_use]
-    pub fn new_panel_id(&self) -> &WorkbenchPanelId {
-        &self.new_panel_id
-    }
-
-    #[must_use]
-    pub fn split_id(&self) -> &WorkbenchSplitId {
-        &self.split_id
-    }
-
-    #[must_use]
-    pub fn first_slot_id(&self) -> &WorkbenchPanelSlotId {
-        &self.first_slot_id
-    }
-
-    #[must_use]
-    pub fn second_slot_id(&self) -> &WorkbenchPanelSlotId {
-        &self.second_slot_id
+    pub fn terminal_panel_id(&self) -> &WorkbenchPanelId {
+        self.placement.terminal_panel(&self.panel_id)
     }
 
     #[must_use]
@@ -201,8 +165,8 @@ impl CommittedWorkbenchPanelSplitMetadata {
     }
 
     #[must_use]
-    pub const fn direction(&self) -> WorkbenchPanelSplitDirection {
-        self.direction
+    pub const fn direction(&self) -> Option<WorkbenchPanelSplitDirection> {
+        self.placement.direction()
     }
 
     #[must_use]
@@ -212,30 +176,28 @@ impl CommittedWorkbenchPanelSplitMetadata {
 }
 
 #[allow(clippy::large_enum_variant)]
-pub enum WorkbenchPanelSplitBegin<'a> {
+pub enum WorkbenchPanelCreateBegin<'a> {
     Ready(WorkbenchCommandResult),
-    Admitted(Box<WorkbenchPanelSplitAdmission<'a>>),
+    Admitted(Box<WorkbenchPanelCreateAdmission<'a>>),
 }
 
 #[allow(clippy::large_enum_variant)]
-pub enum WorkbenchPanelSplitPreparation<'a> {
+pub enum WorkbenchPanelCreatePreparation<'a> {
     Ready(WorkbenchCommandResult),
-    Prepared(Box<PreparedWorkbenchPanelSplit<'a>>),
+    Prepared(Box<PreparedWorkbenchPanelCreate<'a>>),
 }
 
-pub struct WorkbenchPanelSplitAdmission<'a> {
+pub struct WorkbenchPanelCreateAdmission<'a> {
     authority: &'a mut WorkbenchAuthority,
     command: WorkbenchCommand,
-    label: String,
-    right_click: orchbee_workbench_protocol::PanelRightClickTarget,
-    staged: StagedWorkbenchPanelSplitMetadata,
+    staged: StagedWorkbenchPanelCreateMetadata,
     last_identity: u128,
     profile_use: Option<super::LaunchProfileUse>,
 }
 
-impl<'a> WorkbenchPanelSplitAdmission<'a> {
+impl<'a> WorkbenchPanelCreateAdmission<'a> {
     #[must_use]
-    pub fn staged_metadata(&self) -> &StagedWorkbenchPanelSplitMetadata {
+    pub fn staged_metadata(&self) -> &StagedWorkbenchPanelCreateMetadata {
         &self.staged
     }
 
@@ -265,12 +227,10 @@ impl<'a> WorkbenchPanelSplitAdmission<'a> {
     }
 
     #[must_use]
-    pub fn finish(self, binding: PresentationBinding) -> WorkbenchPanelSplitPreparation<'a> {
+    pub fn finish(self, binding: PresentationBinding) -> WorkbenchPanelCreatePreparation<'a> {
         let Self {
             authority,
             command,
-            label,
-            right_click,
             staged,
             last_identity,
             profile_use: _,
@@ -281,83 +241,73 @@ impl<'a> WorkbenchPanelSplitAdmission<'a> {
             .iter_mut()
             .find(|context| context.terminal_context_id == staged.terminal_context_id)
         else {
-            return WorkbenchPanelSplitPreparation::Ready(retire(authority, &command));
+            return WorkbenchPanelCreatePreparation::Ready(retire(authority, &command));
         };
         let Some(tab) = context
             .tabs
             .iter_mut()
             .find(|tab| tab.tab_id == staged.tab_id)
         else {
-            return WorkbenchPanelSplitPreparation::Ready(retire(authority, &command));
+            return WorkbenchPanelCreatePreparation::Ready(retire(authority, &command));
         };
-        let replacement = PanelSplitReplacement {
-            target_panel_id: &staged.panel_id,
-            direction: staged.direction,
-            new_panel_id: &staged.new_panel_id,
-            split_id: &staged.split_id,
-            first_slot_id: &staged.first_slot_id,
-            second_slot_id: &staged.second_slot_id,
-            presentation_id: &staged.presentation_id,
-            label: &label,
-            right_click,
-            binding: binding.clone(),
-        };
-        if !replace_panel(&mut tab.root, &replacement) {
-            return WorkbenchPanelSplitPreparation::Ready(retire(authority, &command));
+        if !staged.placement.apply(
+            &mut tab.root,
+            &staged.panel_id,
+            &staged.presentation_id,
+            &command.action,
+            binding.clone(),
+        ) {
+            return WorkbenchPanelCreatePreparation::Ready(retire(authority, &command));
         }
         candidate.revision = staged.revision;
         let encoded = match serialize_document(&WorkbenchProtocolDocument::Snapshot(candidate)) {
             Ok(encoded) => encoded,
             Err(ContractError::EncodedValueTooLarge { .. }) => {
-                return WorkbenchPanelSplitPreparation::Ready(
+                return WorkbenchPanelCreatePreparation::Ready(
                     authority.retain_rejection(command, WorkbenchRejectionReason::ResourceLimit),
                 );
             }
             Err(ContractError::InvalidDocument | ContractError::WrongDocumentKind) => {
-                return WorkbenchPanelSplitPreparation::Ready(retire(authority, &command));
+                return WorkbenchPanelCreatePreparation::Ready(retire(authority, &command));
             }
         };
         let projection = match authority.projection.prepare_advance(&encoded) {
             Ok(projection) => projection,
             Err(_error) => {
-                return WorkbenchPanelSplitPreparation::Ready(retire(authority, &command));
+                return WorkbenchPanelCreatePreparation::Ready(retire(authority, &command));
             }
         };
         let standalone = staged.standalone_membership().is_some();
-        let metadata = CommittedWorkbenchPanelSplitMetadata {
+        let metadata = CommittedWorkbenchPanelCreateMetadata {
             request_id: command.request_id.clone(),
             revision: staged.revision,
             terminal_context_id: staged.terminal_context_id,
             tab_id: staged.tab_id,
             panel_id: staged.panel_id,
-            new_panel_id: staged.new_panel_id,
-            split_id: staged.split_id,
-            first_slot_id: staged.first_slot_id,
-            second_slot_id: staged.second_slot_id,
+            placement: staged.placement,
             presentation_id: staged.presentation_id,
             binding,
             geometry: staged.geometry,
-            direction: staged.direction,
             standalone,
         };
-        let Some(results) = PanelSplitResultTable::new(&command, &metadata) else {
-            return WorkbenchPanelSplitPreparation::Ready(retire(authority, &command));
+        let Some(results) = PanelCreateResultTable::new(&command, &metadata) else {
+            return WorkbenchPanelCreatePreparation::Ready(retire(authority, &command));
         };
         let reserved_bytes = results.maximum_charge();
         let Some(next_ledger_bytes) = authority.ledger_bytes.checked_add(reserved_bytes) else {
-            return WorkbenchPanelSplitPreparation::Ready(retire(authority, &command));
+            return WorkbenchPanelCreatePreparation::Ready(retire(authority, &command));
         };
         if next_ledger_bytes > MAXIMUM_LEDGER_BYTES {
-            return WorkbenchPanelSplitPreparation::Ready(result(
+            return WorkbenchPanelCreatePreparation::Ready(result(
                 &command,
                 unavailable(WorkbenchCommandUnavailableReason::RequestLedgerFull),
             ));
         }
-        let entry_seal = Arc::new(PanelSplitSettlementSeal);
+        let entry_seal = Arc::new(PanelCreateSettlementSeal);
         let token_seal = Arc::clone(&entry_seal);
         let request_id = command.request_id.clone();
         let pending_result = results.pending.result.clone();
-        let entry = Box::new(PendingPanelSplitEntry {
+        let entry = Box::new(PendingPanelCreateEntry {
             command,
             pending_result,
             final_results: results,
@@ -365,11 +315,11 @@ impl<'a> WorkbenchPanelSplitAdmission<'a> {
             metadata: metadata.clone(),
             seal: entry_seal,
         });
-        let pending = PendingWorkbenchPanelSplit {
+        let pending = PendingWorkbenchPanelCreate {
             metadata,
             seal: token_seal,
         };
-        WorkbenchPanelSplitPreparation::Prepared(Box::new(PreparedWorkbenchPanelSplit {
+        WorkbenchPanelCreatePreparation::Prepared(Box::new(PreparedWorkbenchPanelCreate {
             authority,
             projection,
             last_identity,
@@ -381,19 +331,19 @@ impl<'a> WorkbenchPanelSplitAdmission<'a> {
     }
 }
 
-pub struct PreparedWorkbenchPanelSplit<'a> {
+pub struct PreparedWorkbenchPanelCreate<'a> {
     authority: &'a mut WorkbenchAuthority,
     projection: PreparedProjectionAdvance,
     last_identity: u128,
     next_ledger_bytes: usize,
     request_id: WorkbenchRequestId,
-    entry: Box<PendingPanelSplitEntry>,
-    pending: PendingWorkbenchPanelSplit,
+    entry: Box<PendingPanelCreateEntry>,
+    pending: PendingWorkbenchPanelCreate,
 }
 
-impl PreparedWorkbenchPanelSplit<'_> {
+impl PreparedWorkbenchPanelCreate<'_> {
     #[must_use]
-    pub fn metadata(&self) -> &CommittedWorkbenchPanelSplitMetadata {
+    pub fn metadata(&self) -> &CommittedWorkbenchPanelCreateMetadata {
         &self.entry.metadata
     }
 
@@ -403,11 +353,11 @@ impl PreparedWorkbenchPanelSplit<'_> {
     }
 
     #[must_use]
-    pub fn commit_into_pending(self) -> PendingWorkbenchPanelSplit {
+    pub fn commit_into_pending(self) -> PendingWorkbenchPanelCreate {
         self.commit_state().1
     }
 
-    fn commit_state(self) -> (WorkbenchCommandResult, PendingWorkbenchPanelSplit) {
+    fn commit_state(self) -> (WorkbenchCommandResult, PendingWorkbenchPanelCreate) {
         let Self {
             authority,
             projection,
@@ -423,24 +373,24 @@ impl PreparedWorkbenchPanelSplit<'_> {
         let response = entry.pending_result.clone();
         authority
             .ledger
-            .insert(request_id, RetainedRequest::PendingPanelSplit(entry));
+            .insert(request_id, RetainedRequest::PendingPanelCreate(entry));
         (response, pending)
     }
 }
 
-pub struct PendingWorkbenchPanelSplit {
-    metadata: CommittedWorkbenchPanelSplitMetadata,
-    seal: Arc<PanelSplitSettlementSeal>,
+pub struct PendingWorkbenchPanelCreate {
+    metadata: CommittedWorkbenchPanelCreateMetadata,
+    seal: Arc<PanelCreateSettlementSeal>,
 }
 
-impl PendingWorkbenchPanelSplit {
+impl PendingWorkbenchPanelCreate {
     #[must_use]
-    pub fn metadata(&self) -> &CommittedWorkbenchPanelSplitMetadata {
+    pub fn metadata(&self) -> &CommittedWorkbenchPanelCreateMetadata {
         &self.metadata
     }
 }
 
-pub struct PreparedWorkbenchPanelSplitSettlement<'a> {
+pub struct PreparedWorkbenchPanelCreateSettlement<'a> {
     entry: &'a mut RetainedRequest,
     ledger_bytes: &'a mut usize,
     settled: Box<SettledRequest>,
@@ -448,7 +398,7 @@ pub struct PreparedWorkbenchPanelSplitSettlement<'a> {
     next_ledger_bytes: usize,
 }
 
-impl PreparedWorkbenchPanelSplitSettlement<'_> {
+impl PreparedWorkbenchPanelCreateSettlement<'_> {
     #[must_use]
     pub fn result(&self) -> &WorkbenchCommandResult {
         &self.result
@@ -462,22 +412,22 @@ impl PreparedWorkbenchPanelSplitSettlement<'_> {
     }
 }
 
-struct PanelSplitSettlementSeal;
+struct PanelCreateSettlementSeal;
 
 struct PrebuiltResult {
     result: WorkbenchCommandResult,
     charged_bytes: usize,
 }
 
-struct PanelSplitResultTable {
+struct PanelCreateResultTable {
     pending: PrebuiltResult,
     finals: [(WorkbenchTerminalOutcome, PrebuiltResult); 5],
 }
 
-impl PanelSplitResultTable {
+impl PanelCreateResultTable {
     fn new(
         command: &WorkbenchCommand,
-        metadata: &CommittedWorkbenchPanelSplitMetadata,
+        metadata: &CommittedWorkbenchPanelCreateMetadata,
     ) -> Option<Self> {
         let pending = prebuild(command, pending_outcome(metadata))?;
         let outcomes = [
@@ -528,19 +478,19 @@ impl PanelSplitResultTable {
     }
 }
 
-pub(super) struct PendingPanelSplitEntry {
+pub(super) struct PendingPanelCreateEntry {
     pub(super) command: WorkbenchCommand,
     pub(super) pending_result: WorkbenchCommandResult,
-    final_results: PanelSplitResultTable,
+    final_results: PanelCreateResultTable,
     pub(super) reserved_bytes: usize,
-    metadata: CommittedWorkbenchPanelSplitMetadata,
-    seal: Arc<PanelSplitSettlementSeal>,
+    metadata: CommittedWorkbenchPanelCreateMetadata,
+    seal: Arc<PanelCreateSettlementSeal>,
 }
 
-impl PendingPanelSplitEntry {
+impl PendingPanelCreateEntry {
     /// The committed metadata — `panel.relocate` fences the minted leaf while
     /// its terminal settlement is outstanding.
-    pub(super) fn metadata(&self) -> &CommittedWorkbenchPanelSplitMetadata {
+    pub(super) fn metadata(&self) -> &CommittedWorkbenchPanelCreateMetadata {
         &self.metadata
     }
 }
@@ -568,83 +518,122 @@ fn prebuild(
     })
 }
 
-fn pending_outcome(metadata: &CommittedWorkbenchPanelSplitMetadata) -> WorkbenchCommandOutcome {
-    WorkbenchCommandOutcome::PanelSplitPending {
-        revision: metadata.revision,
-        terminal_context_id: metadata.terminal_context_id.clone(),
-        tab_id: metadata.tab_id.clone(),
-        panel_id: metadata.panel_id.clone(),
-        new_panel_id: metadata.new_panel_id.clone(),
-        split_id: metadata.split_id.clone(),
-        first_slot_id: metadata.first_slot_id.clone(),
-        second_slot_id: metadata.second_slot_id.clone(),
-        presentation_id: metadata.presentation_id.clone(),
+fn pending_outcome(metadata: &CommittedWorkbenchPanelCreateMetadata) -> WorkbenchCommandOutcome {
+    match &metadata.placement {
+        TerminalPlacement::Split {
+            new_panel_id,
+            split_id,
+            first_slot_id,
+            second_slot_id,
+            ..
+        } => WorkbenchCommandOutcome::PanelSplitPending {
+            revision: metadata.revision,
+            terminal_context_id: metadata.terminal_context_id.clone(),
+            tab_id: metadata.tab_id.clone(),
+            panel_id: metadata.panel_id.clone(),
+            new_panel_id: new_panel_id.clone(),
+            split_id: split_id.clone(),
+            first_slot_id: first_slot_id.clone(),
+            second_slot_id: second_slot_id.clone(),
+            presentation_id: metadata.presentation_id.clone(),
+        },
+        TerminalPlacement::Child | TerminalPlacement::Unbound => {
+            WorkbenchCommandOutcome::PanelTerminalPending {
+                revision: metadata.revision,
+                terminal_context_id: metadata.terminal_context_id.clone(),
+                tab_id: metadata.tab_id.clone(),
+                panel_id: metadata.panel_id.clone(),
+                presentation_id: metadata.presentation_id.clone(),
+            }
+        }
     }
 }
 
 fn final_outcome(
-    metadata: &CommittedWorkbenchPanelSplitMetadata,
+    metadata: &CommittedWorkbenchPanelCreateMetadata,
     terminal_outcome: WorkbenchTerminalOutcome,
 ) -> WorkbenchCommandOutcome {
-    WorkbenchCommandOutcome::PanelSplitCreated {
-        revision: metadata.revision,
-        terminal_context_id: metadata.terminal_context_id.clone(),
-        tab_id: metadata.tab_id.clone(),
-        panel_id: metadata.panel_id.clone(),
-        new_panel_id: metadata.new_panel_id.clone(),
-        split_id: metadata.split_id.clone(),
-        first_slot_id: metadata.first_slot_id.clone(),
-        second_slot_id: metadata.second_slot_id.clone(),
-        presentation_id: metadata.presentation_id.clone(),
-        terminal_outcome,
+    match &metadata.placement {
+        TerminalPlacement::Split {
+            new_panel_id,
+            split_id,
+            first_slot_id,
+            second_slot_id,
+            ..
+        } => WorkbenchCommandOutcome::PanelSplitCreated {
+            revision: metadata.revision,
+            terminal_context_id: metadata.terminal_context_id.clone(),
+            tab_id: metadata.tab_id.clone(),
+            panel_id: metadata.panel_id.clone(),
+            new_panel_id: new_panel_id.clone(),
+            split_id: split_id.clone(),
+            first_slot_id: first_slot_id.clone(),
+            second_slot_id: second_slot_id.clone(),
+            presentation_id: metadata.presentation_id.clone(),
+            terminal_outcome,
+        },
+        TerminalPlacement::Child | TerminalPlacement::Unbound => {
+            WorkbenchCommandOutcome::PanelTerminalCreated {
+                revision: metadata.revision,
+                terminal_context_id: metadata.terminal_context_id.clone(),
+                tab_id: metadata.tab_id.clone(),
+                panel_id: metadata.panel_id.clone(),
+                presentation_id: metadata.presentation_id.clone(),
+                terminal_outcome,
+            }
+        }
     }
 }
 
 impl WorkbenchAuthority {
-    pub fn begin_terminal_panel_split(
+    pub fn begin_terminal_panel_create(
         &mut self,
         grant: Option<&WorkbenchGrant>,
         command: WorkbenchCommand,
-    ) -> WorkbenchPanelSplitBegin<'_> {
-        let authorized = matches!(&command.action, WorkbenchAction::PanelSplit { .. })
-            && grant.is_some_and(|grant| {
-                grant.site_id == *self.site_id() && grant.mutate_navigation && grant.create_terminal
-            });
+    ) -> WorkbenchPanelCreateBegin<'_> {
+        let authorized = matches!(
+            &command.action,
+            WorkbenchAction::PanelSplit { .. } | WorkbenchAction::PanelCreateTerminal { .. }
+        ) && grant.is_some_and(|grant| {
+            grant.site_id == *self.site_id() && grant.mutate_navigation && grant.create_terminal
+        });
         if !authorized {
-            return WorkbenchPanelSplitBegin::Ready(result(
+            return WorkbenchPanelCreateBegin::Ready(result(
                 &command,
                 WorkbenchCommandOutcome::Denied {},
             ));
         }
         if let Some(result) = self.command_preflight(&command) {
-            return WorkbenchPanelSplitBegin::Ready(result);
+            return WorkbenchPanelCreateBegin::Ready(result);
         }
-        let WorkbenchAction::PanelSplit {
-            terminal_context_id,
-            tab_id,
-            panel_id,
-            direction,
-            right_click,
-            label,
-            geometry,
-            launch: _,
-            profile,
-            ..
-        } = command.action.clone()
-        else {
-            return WorkbenchPanelSplitBegin::Ready(result(
-                &command,
-                unavailable(WorkbenchCommandUnavailableReason::ServiceUnavailable),
-            ));
-        };
+        let (terminal_context_id, tab_id, panel_id, geometry, profile) =
+            match command.action.clone() {
+                WorkbenchAction::PanelSplit {
+                    terminal_context_id,
+                    tab_id,
+                    panel_id,
+                    geometry,
+                    profile,
+                    ..
+                }
+                | WorkbenchAction::PanelCreateTerminal {
+                    terminal_context_id,
+                    tab_id,
+                    panel_id,
+                    geometry,
+                    profile,
+                    ..
+                } => (terminal_context_id, tab_id, panel_id, geometry, profile),
+                _ => return WorkbenchPanelCreateBegin::Ready(retire(self, &command)),
+            };
         let snapshot = self.projection.snapshot();
         if command.site_id != snapshot.site_id {
-            return WorkbenchPanelSplitBegin::Ready(
+            return WorkbenchPanelCreateBegin::Ready(
                 self.retain_rejection(command, WorkbenchRejectionReason::SiteMismatch),
             );
         }
         if command.expected_revision != snapshot.revision {
-            return WorkbenchPanelSplitBegin::Ready(
+            return WorkbenchPanelCreateBegin::Ready(
                 self.retain_rejection(command, WorkbenchRejectionReason::RevisionMismatch),
             );
         }
@@ -653,36 +642,37 @@ impl WorkbenchAuthority {
             .iter()
             .find(|context| context.terminal_context_id == terminal_context_id)
         else {
-            return WorkbenchPanelSplitBegin::Ready(self.retain_rejection(
+            return WorkbenchPanelCreateBegin::Ready(self.retain_rejection(
                 command,
                 WorkbenchRejectionReason::TerminalContextUnavailable,
             ));
         };
         let Some(tab) = context.tabs.iter().find(|tab| tab.tab_id == tab_id) else {
-            return WorkbenchPanelSplitBegin::Ready(
+            return WorkbenchPanelCreateBegin::Ready(
                 self.retain_rejection(command, WorkbenchRejectionReason::TabUnavailable),
             );
         };
-        if !contains_leaf_panel(&tab.root, &panel_id) {
-            return WorkbenchPanelSplitBegin::Ready(
-                self.retain_rejection(command, WorkbenchRejectionReason::PanelUnavailable),
-            );
-        }
-        let node_count = count_panel_nodes(context);
-        if node_count
-            .checked_add(2)
-            .is_none_or(|count| count > MAXIMUM_PANEL_NODES_PER_CONTEXT)
-        {
-            return WorkbenchPanelSplitBegin::Ready(
-                self.retain_rejection(command, WorkbenchRejectionReason::ResourceLimit),
-            );
-        }
+        let placement = match placement::prepare(
+            context,
+            &tab.root,
+            &panel_id,
+            &command.action,
+            self.last_identity,
+        ) {
+            Ok(placement) => placement,
+            Err(PlanFailure::Rejected(reason)) => {
+                return WorkbenchPanelCreateBegin::Ready(self.retain_rejection(command, reason));
+            }
+            Err(PlanFailure::Internal) => {
+                return WorkbenchPanelCreateBegin::Ready(retire(self, &command));
+            }
+        };
         let target = if terminal_context_id == snapshot.navigation.standalone_terminal_context_id {
             let membership = match tree_terminal_membership(snapshot, &terminal_context_id) {
                 Ok(membership) => membership,
-                Err(_error) => return WorkbenchPanelSplitBegin::Ready(retire(self, &command)),
+                Err(_error) => return WorkbenchPanelCreateBegin::Ready(retire(self, &command)),
             };
-            WorkbenchPanelSplitTarget::Standalone(membership)
+            WorkbenchPanelCreateTarget::Standalone(membership)
         } else {
             let Some((project, workspace)) =
                 snapshot.navigation.projects.iter().find_map(|project| {
@@ -693,13 +683,13 @@ impl WorkbenchAuthority {
                         .map(|workspace| (project, workspace))
                 })
             else {
-                return WorkbenchPanelSplitBegin::Ready(self.retain_rejection(
+                return WorkbenchPanelCreateBegin::Ready(self.retain_rejection(
                     command,
                     WorkbenchRejectionReason::TerminalContextUnavailable,
                 ));
             };
             let Some(directory_id) = workspace.primary_directory_id.as_ref() else {
-                return WorkbenchPanelSplitBegin::Ready(self.retain_rejection(
+                return WorkbenchPanelCreateBegin::Ready(self.retain_rejection(
                     command,
                     WorkbenchRejectionReason::WorkspaceDirectoryUnavailable,
                 ));
@@ -709,43 +699,35 @@ impl WorkbenchAuthority {
                 .iter()
                 .find(|directory| &directory.directory_id == directory_id)
             else {
-                return WorkbenchPanelSplitBegin::Ready(self.retain_rejection(
+                return WorkbenchPanelCreateBegin::Ready(self.retain_rejection(
                     command,
                     WorkbenchRejectionReason::WorkspaceDirectoryUnavailable,
                 ));
             };
-            WorkbenchPanelSplitTarget::Workspace {
+            WorkbenchPanelCreateTarget::Workspace {
                 worker_id: directory.worker_id.clone(),
                 path: directory.path.clone(),
             }
         };
-        let last_identity = match allocate(self.last_identity, 5) {
-            Ok(last_identity) => last_identity,
-            Err(PlanFailure::Rejected(reason)) => {
-                return WorkbenchPanelSplitBegin::Ready(self.retain_rejection(command, reason));
-            }
-            Err(PlanFailure::Internal) => {
-                return WorkbenchPanelSplitBegin::Ready(retire(self, &command));
-            }
-        };
-        let Some(ids) = split_ids(last_identity) else {
-            return WorkbenchPanelSplitBegin::Ready(retire(self, &command));
-        };
+        let last_identity = placement.last_identity;
         let revision = match self.next_revision() {
             Ok(revision) => revision,
             Err(PlanFailure::Rejected(reason)) => {
-                return WorkbenchPanelSplitBegin::Ready(self.retain_rejection(command, reason));
+                return WorkbenchPanelCreateBegin::Ready(self.retain_rejection(command, reason));
             }
             Err(PlanFailure::Internal) => {
-                return WorkbenchPanelSplitBegin::Ready(retire(self, &command));
+                return WorkbenchPanelCreateBegin::Ready(retire(self, &command));
             }
         };
         // An open aggregate Close fences the same-Tab split: its publication re-proves the
         // complete captured ordered leaf membership this commit would invalidate. The
         // refusal is transient — nothing is retained and no terminal launch is staged, so
         // the same request can be retried after the Close publishes.
-        if self.aggregate_close_fences_tab(&terminal_context_id, &tab_id) {
-            return WorkbenchPanelSplitBegin::Ready(result(
+        if self.aggregate_close_fences_tab(&terminal_context_id, &tab_id)
+            || (matches!(command.action, WorkbenchAction::PanelCreateTerminal { .. })
+                && self.open_close_covers_panel(&terminal_context_id, &tab_id, &panel_id))
+        {
+            return WorkbenchPanelCreateBegin::Ready(result(
                 &command,
                 unavailable(WorkbenchCommandUnavailableReason::TerminalBusy),
             ));
@@ -766,36 +748,30 @@ impl WorkbenchAuthority {
                     ),
                 }),
                 super::ProfileSelectorResolution::NotFound => {
-                    return WorkbenchPanelSplitBegin::Ready(self.retain_outcome(
+                    return WorkbenchPanelCreateBegin::Ready(self.retain_outcome(
                         command,
                         WorkbenchCommandOutcome::LaunchProfileUnavailable {},
                     ));
                 }
                 super::ProfileSelectorResolution::Ambiguous(candidate_ids) => {
-                    return WorkbenchPanelSplitBegin::Ready(self.retain_outcome(
+                    return WorkbenchPanelCreateBegin::Ready(self.retain_outcome(
                         command,
                         WorkbenchCommandOutcome::LaunchProfileAmbiguous { candidate_ids },
                     ));
                 }
             },
         };
-        WorkbenchPanelSplitBegin::Admitted(Box::new(WorkbenchPanelSplitAdmission {
+        WorkbenchPanelCreateBegin::Admitted(Box::new(WorkbenchPanelCreateAdmission {
             authority: self,
             command,
-            label: label.as_str().to_owned(),
-            right_click,
-            staged: StagedWorkbenchPanelSplitMetadata {
+            staged: StagedWorkbenchPanelCreateMetadata {
                 revision,
                 terminal_context_id,
                 tab_id,
                 panel_id,
-                new_panel_id: ids.new_panel_id,
-                split_id: ids.split_id,
-                first_slot_id: ids.first_slot_id,
-                second_slot_id: ids.second_slot_id,
-                presentation_id: ids.presentation_id,
+                placement: placement.placement,
+                presentation_id: placement.presentation_id,
                 geometry,
-                direction,
                 target,
             },
             last_identity,
@@ -803,26 +779,28 @@ impl WorkbenchAuthority {
         }))
     }
 
-    pub fn prepare_terminal_panel_split_settlement(
+    pub fn prepare_terminal_panel_create_settlement(
         &mut self,
-        pending: PendingWorkbenchPanelSplit,
+        pending: PendingWorkbenchPanelCreate,
         outcome: WorkbenchTerminalOutcome,
-    ) -> Result<PreparedWorkbenchPanelSplitSettlement<'_>, WorkbenchPanelSplitSettlementTokenMismatch>
-    {
+    ) -> Result<
+        PreparedWorkbenchPanelCreateSettlement<'_>,
+        WorkbenchPanelCreateSettlementTokenMismatch,
+    > {
         let entry = self
             .ledger
             .get_mut(pending.metadata.request_id())
-            .ok_or(WorkbenchPanelSplitSettlementTokenMismatch)?;
-        let RetainedRequest::PendingPanelSplit(retained) = entry else {
-            return Err(WorkbenchPanelSplitSettlementTokenMismatch);
+            .ok_or(WorkbenchPanelCreateSettlementTokenMismatch)?;
+        let RetainedRequest::PendingPanelCreate(retained) = entry else {
+            return Err(WorkbenchPanelCreateSettlementTokenMismatch);
         };
         if !Arc::ptr_eq(&retained.seal, &pending.seal) || retained.metadata != pending.metadata {
-            return Err(WorkbenchPanelSplitSettlementTokenMismatch);
+            return Err(WorkbenchPanelCreateSettlementTokenMismatch);
         }
         let selected = retained
             .final_results
             .select(&outcome)
-            .ok_or(WorkbenchPanelSplitSettlementTokenMismatch)?;
+            .ok_or(WorkbenchPanelCreateSettlementTokenMismatch)?;
         let result = selected.result.clone();
         let settled = Box::new(SettledRequest {
             command: retained.command.clone(),
@@ -832,8 +810,8 @@ impl WorkbenchAuthority {
             .ledger_bytes
             .checked_sub(retained.reserved_bytes)
             .and_then(|bytes| bytes.checked_add(selected.charged_bytes))
-            .ok_or(WorkbenchPanelSplitSettlementTokenMismatch)?;
-        Ok(PreparedWorkbenchPanelSplitSettlement {
+            .ok_or(WorkbenchPanelCreateSettlementTokenMismatch)?;
+        Ok(PreparedWorkbenchPanelCreateSettlement {
             entry,
             ledger_bytes: &mut self.ledger_bytes,
             settled,
@@ -844,7 +822,7 @@ impl WorkbenchAuthority {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct WorkbenchPanelSplitSettlementTokenMismatch;
+pub struct WorkbenchPanelCreateSettlementTokenMismatch;
 
 fn retire(
     authority: &mut WorkbenchAuthority,
@@ -903,18 +881,6 @@ fn count_node(node: &PanelNode) -> usize {
                 .map(|child| count_node(&child.node))
                 .sum::<usize>()
         }
-    }
-}
-
-fn contains_leaf_panel(node: &PanelNode, panel_id: &WorkbenchPanelId) -> bool {
-    match node {
-        PanelNode::Panel {
-            panel_id: candidate,
-            ..
-        } => candidate == panel_id,
-        PanelNode::Split { children, .. } => children
-            .iter()
-            .any(|child| contains_leaf_panel(&child.node, panel_id)),
     }
 }
 

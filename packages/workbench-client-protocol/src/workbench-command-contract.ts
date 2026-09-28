@@ -37,6 +37,10 @@ import {
 } from './workbench-worktree-query-contract';
 import { z } from 'zod';
 import {
+	WorkbenchLaunchSelectionSchema,
+	WorkbenchLaunchProfileSelectorSchema,
+	WorkbenchLaunchOptionsSchema,
+	WORKBENCH_MAXIMUM_ENCODED_LAUNCH_COMMAND_BYTES,
 	WorkbenchTerminalGeometrySchema,
 	type WorkbenchTerminalUnavailableReasonSchema,
 	type WorkbenchTerminalFailureReasonSchema,
@@ -108,7 +112,48 @@ export const WORKBENCH_MAXIMUM_RESULT_PUBLICATIONS = 64;
 export const WorkbenchTabMoveDirectionSchema = z.enum(['previous', 'next', 'first', 'last']);
 export const WorkbenchPanelSplitDirectionSchema = z.enum(['above', 'below', 'left', 'right']);
 
+export const WorkbenchPanelTerminalTargetSchema = z.discriminatedUnion('kind', [
+	z.strictObject({ kind: z.literal('child'), label: WorkbenchLabelSchema }).readonly(),
+	z
+		.strictObject({ kind: z.literal('unbound'), presentationId: TerminalPresentationIdSchema })
+		.readonly(),
+]);
+
 export const WorkbenchActionSchema = z.discriminatedUnion('kind', [
+	z
+		.strictObject({
+			kind: z.literal('panel.create-terminal'),
+			terminalContextId: WorkbenchTerminalContextIdSchema,
+			tabId: WorkbenchTabIdSchema,
+			panelId: WorkbenchPanelIdSchema,
+			target: WorkbenchPanelTerminalTargetSchema,
+			geometry: WorkbenchTerminalGeometrySchema,
+			launch: WorkbenchLaunchSelectionSchema.nullable().optional(),
+			profile: WorkbenchLaunchProfileSelectorSchema.nullable().optional(),
+			options: WorkbenchLaunchOptionsSchema.optional(),
+		})
+		.refine(
+			(value) =>
+				value.launch === null ||
+				value.launch === undefined ||
+				value.profile === null ||
+				value.profile === undefined,
+			'Launch and profile are mutually exclusive',
+		)
+		.transform(({ launch, profile, options, ...action }) => ({
+			...action,
+			...(launch ? { launch } : {}),
+			...(profile ? { profile } : {}),
+			...(options && (options.cwd || options.environment?.length)
+				? {
+						options: {
+							...(options.cwd ? { cwd: options.cwd } : {}),
+							...(options.environment?.length ? { environment: options.environment } : {}),
+						},
+					}
+				: {}),
+		}))
+		.readonly(),
 	z
 		.strictObject({
 			kind: z.literal('tab.close'),
@@ -345,6 +390,8 @@ export const WorkbenchRequestSchema = z
 	])
 	.refine((value) => {
 		let maximum = WORKBENCH_MAXIMUM_ENCODED_INTENT_BYTES;
+		if (value.kind === 'workbench.command' && value.action.kind === 'panel.create-terminal')
+			maximum = WORKBENCH_MAXIMUM_ENCODED_LAUNCH_COMMAND_BYTES;
 		if (
 			value.kind === 'workbench.client-view' &&
 			((value.action.kind === 'submit' && value.action.command.intent.kind === 'agent-attention') ||
@@ -415,6 +462,37 @@ const WorkbenchPanelTransferSchema = z
 	.readonly();
 
 export const WorkbenchCommandOutcomeSchema = z.discriminatedUnion('kind', [
+	z.strictObject({ kind: z.literal('launch-profile-unavailable') }).readonly(),
+	z
+		.strictObject({
+			kind: z.literal('launch-profile-ambiguous'),
+			candidateIds: z
+				.array(z.string().regex(/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/u))
+				.max(64)
+				.readonly(),
+		})
+		.readonly(),
+	z
+		.strictObject({
+			kind: z.literal('panel-terminal-pending'),
+			revision: WorkbenchRevisionSchema,
+			terminalContextId: WorkbenchTerminalContextIdSchema,
+			tabId: WorkbenchTabIdSchema,
+			panelId: WorkbenchPanelIdSchema,
+			presentationId: TerminalPresentationIdSchema,
+		})
+		.readonly(),
+	z
+		.strictObject({
+			kind: z.literal('panel-terminal-created'),
+			revision: WorkbenchRevisionSchema,
+			terminalContextId: WorkbenchTerminalContextIdSchema,
+			tabId: WorkbenchTabIdSchema,
+			panelId: WorkbenchPanelIdSchema,
+			presentationId: TerminalPresentationIdSchema,
+			terminalOutcome: WorkbenchTerminalOutcomeSchema,
+		})
+		.readonly(),
 	z
 		.strictObject({
 			kind: z.literal('tab-close-accepted'),
@@ -734,6 +812,7 @@ export type WorkbenchTerminalGeometry = z.infer<typeof WorkbenchTerminalGeometry
 export type WorkbenchAction = z.infer<typeof WorkbenchActionSchema>;
 export type WorkbenchTabMoveDirection = z.infer<typeof WorkbenchTabMoveDirectionSchema>;
 export type WorkbenchPanelSplitDirection = z.infer<typeof WorkbenchPanelSplitDirectionSchema>;
+export type WorkbenchPanelTerminalTarget = z.infer<typeof WorkbenchPanelTerminalTargetSchema>;
 export type WorkbenchCommand = z.infer<typeof WorkbenchCommandSchema>;
 export type WorkbenchRequest = z.infer<typeof WorkbenchRequestSchema>;
 export type WorkbenchCommandOutcome = z.infer<typeof WorkbenchCommandOutcomeSchema>;

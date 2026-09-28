@@ -4,8 +4,8 @@ mod swap;
 
 use super::*;
 use crate::workbench_authority::{
-    CloseContinuationNext, CloseStepObservation, WorkbenchPanelSplitBegin,
-    WorkbenchPanelSplitPreparation, WorkbenchReadOrNavigationRequest, WorkbenchTabCloseBegin,
+    CloseContinuationNext, CloseStepObservation, WorkbenchPanelCreateBegin,
+    WorkbenchPanelCreatePreparation, WorkbenchReadOrNavigationRequest, WorkbenchTabCloseBegin,
     WorkbenchTabClosePreparation, WorkbenchTabCloseResolution, WorkbenchTabCloseRuntimeTarget,
     WorkbenchTerminalTab, identity,
 };
@@ -78,7 +78,7 @@ fn split(
     panel_id: &WorkbenchPanelId,
     direction: WorkbenchPanelSplitDirection,
 ) {
-    let WorkbenchPanelSplitBegin::Admitted(admission) = authority.begin_terminal_panel_split(
+    let WorkbenchPanelCreateBegin::Admitted(admission) = authority.begin_terminal_panel_create(
         Some(grant),
         command(
             authority,
@@ -99,14 +99,14 @@ fn split(
     ) else {
         panic!("panel split admission")
     };
-    let WorkbenchPanelSplitPreparation::Prepared(prepared) =
+    let WorkbenchPanelCreatePreparation::Prepared(prepared) =
         admission.finish(binding(9000 + command_id))
     else {
         panic!("panel split preparation")
     };
     let pending = prepared.commit_into_pending();
     let _ = authority
-        .prepare_terminal_panel_split_settlement(
+        .prepare_terminal_panel_create_settlement(
             pending,
             WorkbenchTerminalOutcome::Started {
                 geometry: WorkbenchTerminalGeometry::new(80, 24, 8, 16).unwrap(),

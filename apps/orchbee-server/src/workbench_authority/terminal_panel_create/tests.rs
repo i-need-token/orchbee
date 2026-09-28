@@ -1,4 +1,5 @@
 use super::*;
+mod members;
 use crate::WorkbenchReadOrNavigationRequest;
 use orchbee_workbench_protocol::{
     PanelNode, PanelOrientation, PresentationBinding, ProtocolVersion, SiteId, TerminalId,
@@ -61,17 +62,20 @@ fn panel_split_commits_one_new_leaf_and_retains_the_source_terminal() {
         panic!("split")
     };
     *right_click = orchbee_workbench_protocol::PanelRightClickTarget::Panel;
-    let WorkbenchPanelSplitBegin::Admitted(admission) =
-        authority.begin_terminal_panel_split(Some(&grant), request)
+    let WorkbenchPanelCreateBegin::Admitted(admission) =
+        authority.begin_terminal_panel_create(Some(&grant), request)
     else {
         panic!("expected panel split admission");
     };
-    let WorkbenchPanelSplitPreparation::Prepared(prepared) = admission.finish(binding(2)) else {
+    let WorkbenchPanelCreatePreparation::Prepared(prepared) = admission.finish(binding(2)) else {
         panic!("expected prepared panel split");
     };
     let metadata = prepared.metadata().clone();
     assert_eq!(metadata.panel_id(), source.panel_id());
-    assert_eq!(metadata.direction(), WorkbenchPanelSplitDirection::Right);
+    assert_eq!(
+        metadata.direction(),
+        Some(WorkbenchPanelSplitDirection::Right)
+    );
     let pending = prepared.commit_into_pending();
     let pending_result = authority
         .ledger
@@ -148,7 +152,7 @@ fn panel_split_commits_one_new_leaf_and_retains_the_source_terminal() {
     }
 
     let prepared = authority
-        .prepare_terminal_panel_split_settlement(
+        .prepare_terminal_panel_create_settlement(
             pending,
             WorkbenchTerminalOutcome::Started {
                 geometry: WorkbenchTerminalGeometry::new(80, 24, 8, 16).unwrap(),
