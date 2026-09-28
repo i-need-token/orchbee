@@ -235,6 +235,18 @@ impl InputDispatcher {
             self.flush_pending(view, port);
             return Ok(DispatchOutcome::Continue);
         }
+        #[cfg(windows)]
+        if match &item.kind {
+            DecodedKind::Key(event) => event.kind != KeyKind::Release,
+            DecodedKind::Paste { .. } => true,
+            DecodedKind::Mouse(event) => {
+                event.action != super::mouse::MouseAction::Release
+                    && event.button != super::mouse::MouseButton::None
+            }
+            _ => false,
+        } {
+            port.observe_input_intent();
+        }
         if self.confirm_packet || port.capture_confirmation_key(client_key(&item)) {
             self.flush_pending(view, port);
             self.confirm_packet = true;

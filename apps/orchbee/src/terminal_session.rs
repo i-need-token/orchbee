@@ -620,6 +620,13 @@ impl TerminalInputPort for TerminalSession {
         }
     }
 
+    #[cfg(windows)]
+    fn observe_input_intent(&mut self) {
+        if let Some(control) = &mut self.client_control {
+            control.interrupt_agent_focus();
+        }
+    }
+
     fn forward(&mut self, input: &[u8]) -> Result<(), TerminalInputUnavailable> {
         let accepted = match &mut self.backend {
             SessionBackend::Native(native) => native.forward(input),

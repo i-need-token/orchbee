@@ -164,6 +164,10 @@ pub(crate) fn legacy_pane_ref() -> crate::terminal_session::state::PaneRef {
 pub(crate) trait TerminalInputPort {
     fn forward(&mut self, input: &[u8]) -> Result<(), TerminalInputUnavailable>;
 
+    /// Decoded human intent, before routing; host metadata and captured tails are excluded.
+    #[cfg(windows)]
+    fn observe_input_intent(&mut self) {}
+
     /// The current pointer-resolution facts. Ports without a session
     /// report the default: nothing captured, nothing attached, no regions
     /// resolvable — every gesture adjudicates as dead space.

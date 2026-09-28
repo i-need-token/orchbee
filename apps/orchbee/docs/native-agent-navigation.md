@@ -108,7 +108,9 @@ Recover queue. No provider input is sent. A recovering viewport remains owned un
 a subsequent live frame complete; focus waits under the original operation deadline. Mode exit
 counts as a partial effect even if later navigation fails. A later local input, new modal, target
 replacement or expiry produces rejected/incomplete as appropriate and never acknowledges the
-Agent. A repeated tick or status read cannot dismiss a newly opened mode.
+Agent. A repeated tick or status read cannot dismiss a newly opened mode. Decoded key presses,
+paste and active pointer input notify the pending Agent-focus owner before input routing; focus
+metadata, key releases, hover and previously captured packet tails do not interrupt it.
 
 After mode exit, ordinary ordered navigation and post-draw identity/acknowledgement apply. Shared
 admission and pure transition checks cover Busy versus Starting, one-shot dismissal, interruption,

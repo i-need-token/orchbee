@@ -50,6 +50,93 @@ fn completion(control: &ClientControl) -> Option<(Sample, ClientViewCompletion)>
 }
 
 #[test]
+fn decoded_local_input_reaches_pending_agent_focus_before_terminal_routing() {
+    use crate::terminal_input::InputDispatcher;
+    use crate::terminal_session::{SessionBackend, TerminalSession};
+    let cases: &[(&[u8], bool)] = &[
+        (b"x", true),
+        (b"\x1b[200~text\x1b[201~", true),
+        (b"\x1b[5~", true),
+        (b"\x02", true),
+        (b"\x1b[<64;1;1M", true),
+        (b"\x1b[<0;1;1M", true),
+        (b"\x1b[<32;1;1M", true),
+        (b"\x1b[<35;1;1M", false),
+        (b"\x1b[<0;1;1m", false),
+        (b"\x1b[97;1:3u", false),
+        (b"\x1b[I\x1b[O", false),
+        (b"\x1b[<0;0;0M", false),
+    ];
+    for agent_focus in [true, false] {
+        for &(packet, intent) in cases {
+            let (mut native, agent, clock) =
+                crate::terminal_session::ui::focused_physical_agent_fixture();
+            let mut control = controller(clock);
+            control.tick(&mut native, false);
+            let mut command = command(&control, None);
+            if agent_focus {
+                let ClientViewIntent::Panel {
+                    terminal_context_id,
+                    tab_id,
+                    panel_id,
+                } = command.intent
+                else {
+                    panic!()
+                };
+                command.intent = serde_json::from_value(serde_json::json!({
+                    "kind":"agent-focus", "terminalContextId": terminal_context_id,
+                    "tabId": tab_id, "panelId": panel_id, "presentationId":agent.binding.presentation_id,
+                    "target":{"kind":"terminal","binding":agent.binding},
+                })).unwrap();
+            }
+            inject(&control, command);
+            control.tick(&mut native, false);
+            assert!(control.pending.as_ref().unwrap().awaiting_draw);
+            let (shutdown, _peer) = orchbee_local_ipc::LocalStream::pair().unwrap();
+            let mut session = TerminalSession {
+                client_control: Some(control),
+                backend: SessionBackend::Native(Box::new(native)),
+                task: None,
+                shutdown: crate::local_client::test_server::shutdown_handle(shutdown),
+                retirement_redraw_pending: false,
+                origin: None,
+                recovery_shutdown: None,
+            };
+            let mut view = crate::client_view::ClientView::new(120);
+            InputDispatcher::default()
+                .dispatch(
+                    &mut view,
+                    packet,
+                    &mut session,
+                    Instant::now(),
+                    |_, _| Ok::<(), std::io::Error>(()),
+                    &mut |_| Ok(()),
+                )
+                .unwrap();
+            assert_eq!(
+                session
+                    .client_control
+                    .as_ref()
+                    .unwrap()
+                    .pending
+                    .as_ref()
+                    .unwrap()
+                    .interrupted,
+                agent_focus && intent,
+                "agent_focus={agent_focus}, packet={packet:?}"
+            );
+            // Even an otherwise complete draw cannot acknowledge after the decoded intent.
+            session.after_draw();
+            if agent_focus && intent {
+                let control = session.client_control.as_ref().unwrap();
+                assert!(completion(control).is_none());
+                assert!(control.pending.as_ref().unwrap().interrupted);
+            }
+        }
+    }
+}
+
+#[test]
 fn agent_focus_mode_decisions_distinguish_owned_recovery_from_new_capture() {
     let mut modes = AgentFocusModes::Unprepared;
     assert_eq!(modes.decide(true, true, true), ModeStep::Prepare);

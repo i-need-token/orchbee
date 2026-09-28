@@ -231,6 +231,13 @@ impl ClientControl {
             pending.interrupted = true;
         }
     }
+    pub(super) fn interrupt_agent_focus(&mut self) {
+        if let Some(pending) = &mut self.pending
+            && matches!(pending.command.intent, ClientViewIntent::AgentFocus { .. })
+        {
+            pending.interrupted = true;
+        }
+    }
     pub(super) fn take_shell_mode_dismissal(&mut self) -> bool {
         std::mem::take(&mut self.dismiss_shell_modes)
     }
