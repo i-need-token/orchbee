@@ -41,9 +41,8 @@ import {
 } from './workbench-worktree-query-contract';
 import { z } from 'zod';
 import {
-	WorkbenchLaunchSelectionSchema,
-	WorkbenchLaunchProfileSelectorSchema,
-	WorkbenchLaunchOptionsSchema,
+	WorkbenchTerminalLaunchFieldsSchema,
+	normalizeWorkbenchTerminalLaunch,
 	WORKBENCH_MAXIMUM_ENCODED_LAUNCH_COMMAND_BYTES,
 	WorkbenchTerminalGeometrySchema,
 	type WorkbenchTerminalUnavailableReasonSchema,
@@ -133,39 +132,15 @@ export const WorkbenchActionSchema = z.discriminatedUnion('kind', [
 			layout: WorkbenchLayoutTemplateSchema,
 		})
 		.readonly(),
-	z
-		.strictObject({
-			kind: z.literal('panel.create-terminal'),
-			terminalContextId: WorkbenchTerminalContextIdSchema,
-			tabId: WorkbenchTabIdSchema,
-			panelId: WorkbenchPanelIdSchema,
-			target: WorkbenchPanelTerminalTargetSchema,
-			geometry: WorkbenchTerminalGeometrySchema,
-			launch: WorkbenchLaunchSelectionSchema.nullable().optional(),
-			profile: WorkbenchLaunchProfileSelectorSchema.nullable().optional(),
-			options: WorkbenchLaunchOptionsSchema.optional(),
-		})
-		.refine(
-			(value) =>
-				value.launch === null ||
-				value.launch === undefined ||
-				value.profile === null ||
-				value.profile === undefined,
-			'Launch and profile are mutually exclusive',
-		)
-		.transform(({ launch, profile, options, ...action }) => ({
-			...action,
-			...(launch ? { launch } : {}),
-			...(profile ? { profile } : {}),
-			...(options && (options.cwd || options.environment?.length)
-				? {
-						options: {
-							...(options.cwd ? { cwd: options.cwd } : {}),
-							...(options.environment?.length ? { environment: options.environment } : {}),
-						},
-					}
-				: {}),
-		}))
+	WorkbenchTerminalLaunchFieldsSchema.safeExtend({
+		kind: z.literal('panel.create-terminal'),
+		terminalContextId: WorkbenchTerminalContextIdSchema,
+		tabId: WorkbenchTabIdSchema,
+		panelId: WorkbenchPanelIdSchema,
+		target: WorkbenchPanelTerminalTargetSchema,
+		geometry: WorkbenchTerminalGeometrySchema,
+	})
+		.transform(normalizeWorkbenchTerminalLaunch)
 		.readonly(),
 	z
 		.strictObject({
@@ -254,26 +229,32 @@ export const WorkbenchActionSchema = z.discriminatedUnion('kind', [
 			label: WorkbenchLabelSchema,
 		})
 		.readonly(),
-	z
-		.strictObject({
-			kind: z.literal('tab.create'),
-			automaticLabel: z.boolean().optional(),
-			terminalContextId: WorkbenchTerminalContextIdSchema,
-			label: WorkbenchLabelSchema,
-			geometry: WorkbenchTerminalGeometrySchema,
-		})
+	WorkbenchTerminalLaunchFieldsSchema.safeExtend({
+		kind: z.literal('tab.create'),
+		automaticLabel: z.boolean().optional(),
+		terminalContextId: WorkbenchTerminalContextIdSchema,
+		label: WorkbenchLabelSchema,
+		geometry: WorkbenchTerminalGeometrySchema,
+	})
+		.transform(({ automaticLabel, ...action }) => ({
+			...normalizeWorkbenchTerminalLaunch(action),
+			...(automaticLabel ? { automaticLabel } : {}),
+		}))
 		.readonly(),
-	z
-		.strictObject({
-			kind: z.literal('panel.split'),
-			rightClick: z.enum(['orchbee', 'panel']).optional(),
-			terminalContextId: WorkbenchTerminalContextIdSchema,
-			tabId: WorkbenchTabIdSchema,
-			panelId: WorkbenchPanelIdSchema,
-			direction: WorkbenchPanelSplitDirectionSchema,
-			label: WorkbenchLabelSchema,
-			geometry: WorkbenchTerminalGeometrySchema,
-		})
+	WorkbenchTerminalLaunchFieldsSchema.safeExtend({
+		kind: z.literal('panel.split'),
+		rightClick: z.enum(['orchbee', 'panel']).optional(),
+		terminalContextId: WorkbenchTerminalContextIdSchema,
+		tabId: WorkbenchTabIdSchema,
+		panelId: WorkbenchPanelIdSchema,
+		direction: WorkbenchPanelSplitDirectionSchema,
+		label: WorkbenchLabelSchema,
+		geometry: WorkbenchTerminalGeometrySchema,
+	})
+		.transform(({ rightClick, ...action }) => ({
+			...normalizeWorkbenchTerminalLaunch(action),
+			...(rightClick === 'panel' ? { rightClick } : {}),
+		}))
 		.readonly(),
 	z
 		.strictObject({
@@ -405,7 +386,12 @@ export const WorkbenchRequestSchema = z
 		let maximum = WORKBENCH_MAXIMUM_ENCODED_INTENT_BYTES;
 		if (value.kind === 'workbench.command' && value.action.kind === 'tab.create-layout')
 			maximum = WORKBENCH_MAXIMUM_ENCODED_LAYOUT_COMMAND_BYTES;
-		if (value.kind === 'workbench.command' && value.action.kind === 'panel.create-terminal')
+		if (
+			value.kind === 'workbench.command' &&
+			(value.action.kind === 'panel.create-terminal' ||
+				value.action.kind === 'tab.create' ||
+				value.action.kind === 'panel.split')
+		)
 			maximum = WORKBENCH_MAXIMUM_ENCODED_LAUNCH_COMMAND_BYTES;
 		if (
 			value.kind === 'workbench.client-view' &&

@@ -73,6 +73,51 @@ export const WorkbenchLaunchOptionsSchema = z
 	})
 	.readonly();
 
+export const WorkbenchTerminalLaunchFieldsSchema = z
+	.strictObject({
+		launch: WorkbenchLaunchSelectionSchema.nullable().optional(),
+		profile: WorkbenchLaunchProfileSelectorSchema.nullable().optional(),
+		options: WorkbenchLaunchOptionsSchema.optional(),
+	})
+	.refine(
+		(value) =>
+			value.launch === null ||
+			value.launch === undefined ||
+			value.profile === null ||
+			value.profile === undefined,
+		'Launch and profile are mutually exclusive',
+	);
+
+type TerminalLaunchFields = z.output<typeof WorkbenchTerminalLaunchFieldsSchema>;
+type CanonicalTerminalLaunchFields = Readonly<{
+	launch?: z.output<typeof WorkbenchLaunchSelectionSchema>;
+	profile?: z.output<typeof WorkbenchLaunchProfileSelectorSchema>;
+	options?: Readonly<{
+		cwd?: z.output<typeof WorkbenchDirectoryPathSchema>;
+		environment?: NonNullable<z.output<typeof WorkbenchLaunchOptionsSchema>['environment']>;
+	}>;
+}>;
+
+/** Normalize optional launch fields exactly as the native serializer does. */
+export function normalizeWorkbenchTerminalLaunch<T extends TerminalLaunchFields>(
+	value: T,
+): Omit<T, keyof TerminalLaunchFields> & CanonicalTerminalLaunchFields {
+	const { launch, profile, options, ...action } = value;
+	return {
+		...action,
+		...(launch ? { launch } : {}),
+		...(profile ? { profile } : {}),
+		...(options && (options.cwd || options.environment?.length)
+			? {
+					options: {
+						...(options.cwd ? { cwd: options.cwd } : {}),
+						...(options.environment?.length ? { environment: options.environment } : {}),
+					},
+				}
+			: {}),
+	};
+}
+
 const terminalGeometryDimensionSchema = z.number().int().min(1).max(4096);
 const terminalCellPixelDimensionSchema = z.number().int().min(0).max(4096);
 

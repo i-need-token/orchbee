@@ -35,6 +35,17 @@ Server consumes the independent Rust binding over OBWP; this package owns decode
 not implement OBWP transport, duplicate-key decoding, retries, shared-state mutation or
 authorization policy.
 
+`tab.create` and `panel.split` use the same optional launch/profile/options fields, closed
+nested shapes, normalization and 96 KiB command envelope as `panel.create-terminal`. All three
+preserve literal arguments and environment values; supplying both a non-null launch and profile
+is invalid. Default `automaticLabel:false` on Tab creation and `rightClick:orchbee` on Split
+normalize to omission, matching Rust serialization. Null `options` and null environment arrays
+are invalid; null cwd and empty environment are omitted. The shared corpus checks these existing
+native launch capabilities across Rust, TypeScript and JSON Schema, including extended requests
+above the ordinary intent limit. This does not add Desktop commands or change Server launch,
+authorization, replay or rollback ownership. Native-only Workspace launch and profile catalog
+operations remain outside this binding extension.
+
 Workspace primary Directory acceptance carries only Project, Workspace, and exact path input.
 Its accepted result carries revision plus the Server-selected Directory and Worker identities.
 The binding keeps `workspace-directory-unavailable` and `workspace-directory-conflict` in the

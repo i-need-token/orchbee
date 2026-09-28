@@ -184,10 +184,45 @@
 						},
 						"automaticLabel": {
 							"type": "boolean"
+						},
+						"launch": {
+							"anyOf": [
+								{
+									"$ref": "#/$defs/launchSelection"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"profile": {
+							"anyOf": [
+								{
+									"$ref": "#/$defs/launchProfileSelector"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"options": {
+							"$ref": "#/$defs/launchOptions"
 						}
 					},
 					"required": ["kind", "terminalContextId", "label", "geometry"],
-					"additionalProperties": false
+					"additionalProperties": false,
+					"not": {
+						"type": "object",
+						"required": ["launch", "profile"],
+						"properties": {
+							"launch": {
+								"type": "object"
+							},
+							"profile": {
+								"type": "string"
+							}
+						}
+					}
 				},
 				{
 					"type": "object",
@@ -215,6 +250,29 @@
 						},
 						"rightClick": {
 							"enum": ["orchbee", "panel"]
+						},
+						"launch": {
+							"anyOf": [
+								{
+									"$ref": "#/$defs/launchSelection"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"profile": {
+							"anyOf": [
+								{
+									"$ref": "#/$defs/launchProfileSelector"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"options": {
+							"$ref": "#/$defs/launchOptions"
 						}
 					},
 					"required": [
@@ -226,7 +284,19 @@
 						"label",
 						"geometry"
 					],
-					"additionalProperties": false
+					"additionalProperties": false,
+					"not": {
+						"type": "object",
+						"required": ["launch", "profile"],
+						"properties": {
+							"launch": {
+								"type": "object"
+							},
+							"profile": {
+								"type": "string"
+							}
+						}
+					}
 				},
 				{
 					"type": "object",

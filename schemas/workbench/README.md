@@ -535,6 +535,17 @@ worst-case escaped content; profile is 512 UTF-8 bytes; environment is 32 ASCII-
 1024 combined bytes, and excludes managed names. This request uses the existing 96 KiB native launch
 envelope. JSON Schema marks aggregate byte/uniqueness rules that bindings enforce semantically.
 
+`tab.create` and `panel.split` use the same optional launch/profile/options fields, closed
+nested shapes, normalization and 96 KiB command envelope as `panel.create-terminal`. All three
+preserve literal arguments and environment values; supplying both a non-null launch and profile
+is invalid. Default `automaticLabel:false` on Tab creation and `rightClick:orchbee` on Split
+normalize to omission, matching Rust serialization. Null `options` and null environment arrays
+are invalid; null cwd and empty environment are omitted. The shared corpus checks these existing
+native launch capabilities across Rust, TypeScript and JSON Schema, including extended requests
+above the ordinary intent limit. This does not add Desktop commands or change Server launch,
+authorization, replay or rollback ownership. Native-only Workspace launch and profile catalog
+operations remain outside this binding extension.
+
 `panel-terminal-pending` and `panel-terminal-created` carry revision, Context/Tab/Panel/Presentation;
 the final variant includes the existing terminal outcome. They reject split-only fields. The
 [Server owner](../../apps/orchbee-server/docs/workbench-authority.md#terminal-creation-inside-an-existing-panel)

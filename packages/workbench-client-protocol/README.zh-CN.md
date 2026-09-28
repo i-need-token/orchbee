@@ -30,6 +30,15 @@ decoder 会拒绝 Move。它复用 projection identity、label、revision 和 sn
 并检查编码请求/结果上限。原生 Server 通过 OBWP 消费独立 Rust binding；本 package 拥有已解码值，
 不实现 OBWP transport、duplicate-key decoding、重试、共享状态 mutation 或授权策略。
 
+`tab.create` 和 `panel.split` 使用与 `panel.create-terminal` 相同的可选 launch／profile／options
+字段、封闭嵌套结构、规范化和 96 KiB 命令信封。三者均保留字面参数和环境变量值；
+同时提供非 null 的 launch 和 profile 无效。Tab 创建的默认 `automaticLabel:false` 与 Split
+的默认 `rightClick:orchbee` 规范化为省略，与 Rust 序列化一致。null `options` 和 null 环境数组
+无效；null cwd 和空环境数组省略。共享语料跨 Rust、TypeScript 和 JSON Schema 检查这些
+既有原生启动能力，包括超过普通意图限额的扩展请求。本扩展不增加 Desktop 命令，
+也不改变 Server 启动、授权、重放或回滚归属。仅原生提供的 Workspace 启动和 profile 目录
+操作仍不在此次绑定扩展范围内。
+
 Workspace primary Directory 接受只携带 Project、Workspace 与确切 path 输入。其 accepted result
 携带 revision，以及 Server 选择的 Directory 与 Worker identity。Binding 将
 `workspace-directory-unavailable` 与 `workspace-directory-conflict` 保留在 rejection domain，
