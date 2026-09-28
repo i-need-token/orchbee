@@ -68,6 +68,7 @@ pub(super) fn run(
         owners
             .terminals
             .launch_checkpoint_terminals(restored, startup_deadline)?;
+        owners.terminals.start_process_observer()?;
         local_client_service::start_managed_windows(
             owners.site.client_socket_path(),
             cohort,
@@ -154,6 +155,10 @@ fn settle(
             io::ErrorKind::TimedOut.into(),
         ));
     }
+    owners
+        .terminals
+        .stop_process_observer_before(deadline)
+        .map_err(|error| failure(StopPhase::BackgroundJobs, error))?;
     owners
         .terminals
         .stop_worktrees_before(deadline)
@@ -269,6 +274,10 @@ fn settle(
         }
         thread::sleep(Duration::from_millis(10));
     }
+    owners
+        .terminals
+        .finish_process_observer_after_worker_exit(&owners.handle)
+        .map_err(|error| failure(StopPhase::WorkerExit, error))?;
     shutdown.phase(attempt, StopPhase::Ingress);
     owners.ingress.stop_before(deadline).map_err(|error| {
         let mut error = failure(StopPhase::Ingress, error);
@@ -292,6 +301,7 @@ fn worker_phase(stage: ShutdownStage) -> StopPhase {
 fn abort_startup(mut owners: Owners, startup: io::Error) -> io::Error {
     let deadline = Instant::now() + Duration::from_secs(30);
     let cleanup = (|| -> io::Result<()> {
+        owners.terminals.stop_process_observer_before(deadline)?;
         owners.terminals.stop_close_before(deadline)?;
         let mut bytes = [0; 16];
         getrandom::fill(&mut bytes).map_err(|error| io::Error::other(error.to_string()))?;
@@ -320,6 +330,9 @@ fn abort_startup(mut owners: Owners, startup: io::Error) -> io::Error {
             }
             thread::sleep(Duration::from_millis(10));
         }
+        owners
+            .terminals
+            .finish_process_observer_after_worker_exit(&owners.handle)?;
         owners.ingress.stop_before(deadline)?;
         Ok(())
     })();

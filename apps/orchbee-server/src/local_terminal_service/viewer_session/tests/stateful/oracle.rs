@@ -634,6 +634,8 @@ fn effect_kind(effect: &Effect) -> &'static str {
         Effect::Paste(..) => "paste",
         Effect::Release(..) => "release",
         Effect::Dispose(..) => "dispose",
+        Effect::ProcessInfo(..) => "process-info",
+        Effect::DetachRefused(..) => "detach-refused",
     }
 }
 fn effect_mismatch(expected: &[Effect], actual: &[Effect]) -> String {

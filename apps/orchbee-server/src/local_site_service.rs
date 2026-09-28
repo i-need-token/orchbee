@@ -65,6 +65,8 @@ pub(crate) fn run(
     let registry = Arc::new(Mutex::new(WorkerRegistry::new()));
     let terminals = Arc::new(LocalTerminalService::new(Arc::clone(&registry)));
     terminals.start_close_maintenance()?;
+    #[cfg(windows)]
+    terminals.start_process_observer()?;
     let _client_service = endpoints
         .client
         .as_deref()

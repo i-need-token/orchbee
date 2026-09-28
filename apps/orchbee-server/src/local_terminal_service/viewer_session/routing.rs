@@ -310,7 +310,7 @@ impl LocalTerminalSession<'_> {
     }
 }
 
-fn valid_process_record(
+pub(super) fn valid_process_record(
     viewer: &ViewerAttachment<'_>,
     operation: OperationId,
     record: &[u8],

@@ -770,3 +770,6 @@ fn explicit_takeover_transfers_cleanup_and_old_session_cannot_dispatch_effects()
         });
     }
 }
+
+#[cfg(windows)]
+mod process_sampling;

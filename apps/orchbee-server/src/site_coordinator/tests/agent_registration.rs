@@ -325,6 +325,42 @@ mod process_samples {
         (report_revision, panels.remove(0).report.unwrap())
     }
     #[test]
+    fn periodic_discovery_retains_physical_identity_and_prunes_empty_membership() {
+        let (mut site, target, sample) = fixture();
+        let targets = site.process_observation_targets().unwrap();
+        assert_eq!(targets.len(), 1);
+        assert_eq!(targets[0].target, target);
+        assert_eq!(
+            targets[0].site_id,
+            *site.workbench.as_ref().unwrap().site_id()
+        );
+        let now = Instant::now();
+        assert!(site.observe_host_process(target, &sample, now, now));
+        assert_eq!(site.process_samples.len(), 1);
+        // An invalid registration scan must not discard earlier tracking.
+        site.terminals
+            .set_phase_for_test(&id(101), TerminalPhase::Creating);
+        assert!(site.process_observation_targets().is_err());
+        assert_eq!(site.process_samples.len(), 1);
+        site.terminals
+            .set_phase_for_test(&id(101), TerminalPhase::Unavailable(None));
+        assert!(site.process_observation_targets().unwrap().is_empty());
+        assert!(site.process_samples.is_empty());
+        // Removing the Workbench owner also releases its retained observations.
+        site.terminals.set_phase_for_test(
+            &id(101),
+            TerminalPhase::Started {
+                identity: identity(),
+                geometry: geometry(),
+            },
+        );
+        let later = now + Duration::from_millis(1);
+        assert!(site.observe_host_process(target, &sample, later, later));
+        site.workbench = None;
+        assert!(site.process_observation_targets().unwrap().is_empty());
+        assert!(site.process_samples.is_empty());
+    }
+    #[test]
     fn complete_samples_confirm_without_revision_churn_then_prove_pid_reuse_exit() {
         let (mut site, target, mut sample) = fixture();
         let now = Instant::now();

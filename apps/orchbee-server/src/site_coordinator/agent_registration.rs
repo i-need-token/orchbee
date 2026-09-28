@@ -77,8 +77,8 @@ fn retained_identity(phase: TerminalPhase) -> Option<HostTerminalIdentity> {
 impl SiteCoordinator {
     /// The Agent registration read the drain pump projects: one pure, bounded,
     /// all-or-nothing snapshot over the committed Workbench membership. It performs
-    /// no I/O, holds no cache, and is invoked only from the terminal service's
-    /// prepared-read provider. A membership or coordinator invariant failure aborts
+    /// no I/O, holds no cache, and supplies both the terminal service's prepared-read
+    /// provider and Windows process observation targets. An invariant failure aborts
     /// the whole snapshot rather than returning a partial vector.
     pub(crate) fn agent_registration_snapshot(
         &self,

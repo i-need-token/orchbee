@@ -32,6 +32,8 @@ mod operation_maintenance;
 mod panel_agent;
 mod panel_metadata;
 mod panel_split;
+#[cfg(windows)]
+mod process_observer;
 mod projection;
 mod send;
 mod standalone;
@@ -61,6 +63,8 @@ const AGENT_DRAIN_READ_WINDOW: Duration = Duration::from_secs(4);
 const AGENT_DRAIN_READ_RETRY: Duration = Duration::from_millis(25);
 
 pub(crate) struct LocalTerminalService {
+    #[cfg(windows)]
+    process_observer: process_observer::ProcessObserver,
     close_maintenance: close_maintenance::CloseMaintenance,
     worktree_maintenance: operation_maintenance::OperationMaintenance,
     group_close_maintenance: operation_maintenance::OperationMaintenance,
@@ -97,6 +101,8 @@ impl LocalTerminalService {
     ) -> Self {
         Self {
             close_maintenance: close_maintenance::CloseMaintenance::default(),
+            #[cfg(windows)]
+            process_observer: process_observer::ProcessObserver::default(),
             worktree_maintenance: operation_maintenance::OperationMaintenance::new(
                 "orchbee-worktree-operations",
                 Self::worktree_turn,

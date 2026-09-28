@@ -163,3 +163,72 @@ impl SiteCoordinator {
         true
     }
 }
+
+/// A committed target captured before sampling; admission must still match this exact physical identity.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct ProcessObservationTarget {
+    pub(crate) site_id: orchbee_workbench_protocol::SiteId,
+    pub(crate) binding: PresentationBinding,
+    pub(crate) target: BindingViewerTarget,
+}
+impl ProcessObservationTarget {
+    /// Stable logical ordering for fair sampling across membership changes.
+    pub(crate) fn key(&self) -> (String, String) {
+        key(&self.binding)
+    }
+}
+impl SiteCoordinator {
+    /// Returns current unfenced registrations and prunes tracking only after a successful full scan.
+    pub(crate) fn process_observation_targets(
+        &mut self,
+    ) -> Result<Vec<ProcessObservationTarget>, orchbee_server::WorkbenchTerminalInvariantError>
+    {
+        use orchbee_server::WorkbenchTerminalInvariantError as Invalid;
+        let Some(workbench) = self.workbench.as_ref() else {
+            self.process_samples.clear();
+            return Ok(vec![]);
+        };
+        let site_id = workbench.site_id().clone();
+        let facts = self.agent_registration_snapshot()?;
+        let mut targets = BTreeMap::new();
+        let mut retained = Vec::new();
+        for fact in facts {
+            let binding = fact.binding().clone();
+            retained.push(TerminalAgentBinding {
+                binding: binding.clone(),
+                worker_generation: fact.worker_generation(),
+                identity: fact.identity(),
+            });
+            let terminal_id = u128::from_str_radix(binding.terminal_id.as_str(), 16)
+                .ok()
+                .and_then(|n| {
+                    orchbee_capability_node_protocol::TerminalId::from_bytes(n.to_be_bytes()).ok()
+                })
+                .ok_or(Invalid)?;
+            let target = BindingViewerTarget {
+                terminal_id,
+                identity: fact.identity(),
+                worker: crate::terminal_coordinator::WorkerPlacement {
+                    worker_id: fact.worker_id(),
+                    generation: fact.worker_generation(),
+                },
+            };
+            if self.target_lifecycle(target) != super::TargetLifecycle::Unfenced {
+                continue;
+            }
+            let candidate = ProcessObservationTarget {
+                site_id: site_id.clone(),
+                binding,
+                target,
+            };
+            if let Some(previous) = targets.insert(candidate.key(), candidate.clone())
+                && previous != candidate
+            {
+                return Err(Invalid);
+            }
+        }
+        self.process_samples
+            .retain(|_, s| retained.contains(&s.target));
+        Ok(targets.into_values().collect())
+    }
+}

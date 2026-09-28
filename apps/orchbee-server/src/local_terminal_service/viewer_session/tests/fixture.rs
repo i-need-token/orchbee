@@ -26,6 +26,7 @@ pub(super) struct Fixture {
     pub(super) service: LocalTerminalService,
     targets: Vec<WorkbenchCommand>,
     pub(super) effects: Arc<Mutex<Vec<Effect>>>,
+    pub(super) detach_refusals: Arc<std::sync::atomic::AtomicUsize>,
     stop: Mutex<UnixStream>,
     marker_sequence: std::sync::atomic::AtomicU64,
     owner: Mutex<Option<thread::JoinHandle<crate::worker_obcn_carrier::WorkerWireExit>>>,
@@ -81,7 +82,9 @@ impl Fixture {
         let owner = thread::spawn(move || owner.run(server));
         let effects = Arc::new(Mutex::new(Vec::new()));
         let observation = Arc::clone(&effects);
-        let peer = thread::spawn(move || worker::run(peer, observation));
+        let detach_refusals = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let refusals = Arc::clone(&detach_refusals);
+        let peer = thread::spawn(move || worker::run(peer, observation, refusals));
         let service = LocalTerminalService::from_identity(
             registry,
             Ok(orchbee_workbench_protocol::SiteId::parse(&format!("{:032x}", 1)).unwrap()),
@@ -90,6 +93,7 @@ impl Fixture {
             service,
             targets: Vec::new(),
             effects,
+            detach_refusals,
             stop: Mutex::new(stop),
             marker_sequence: std::sync::atomic::AtomicU64::new(1),
             owner: Mutex::new(Some(owner)),
@@ -240,7 +244,9 @@ impl Fixture {
         *self.stop.lock().unwrap() = server.try_clone().unwrap();
         *self.owner.lock().unwrap() = Some(thread::spawn(move || owner.run(server)));
         let effects = Arc::clone(&self.effects);
-        *self.peer.lock().unwrap() = Some(thread::spawn(move || worker::run(peer, effects)));
+        let refusals = Arc::clone(&self.detach_refusals);
+        *self.peer.lock().unwrap() =
+            Some(thread::spawn(move || worker::run(peer, effects, refusals)));
     }
 }
 impl Drop for Fixture {

@@ -24,8 +24,8 @@ CLI 行为和证据；[本机 Client 协议](../../crates/local-client-protocol/
 失败绝不重新开放普通准入，也不授权重放不确定的 Host 变更。每次尝试共用 60 秒协作截止时间，不包括不可中断的
 操作系统调用。
 
-所有者保留准确 Worker 子进程，停止 Close 维护，将 Worker carrier 冻结为仅停止流量（排队但未发送的工作结算为
-不可用），并发送一次有界 Worker 停止请求。已知无 Host 或 Host 已停止结果，以及准确 Worker 退出，必须先于
+所有者保留准确 Worker 子进程，join 周期进程采样器，停止 Close 维护，将 Worker carrier 冻结为仅停止流量（排队但未发送的工作结算为
+不可用），并发送一次有界 Worker 停止请求。采样 viewer 的不确定清理责任保留到匹配 Worker／Host 停止及 Worker 实际退出。已知无 Host 或 Host 已停止结果，以及准确 Worker 退出，必须先于
 Agent 观察和 Client 监听器停止、唤醒并 join 保留的 Client 处理线程、发布已停止激活记录。激活锁排除记录发布和
 生命周期锁释放期间的并发重启。管道不存在或响应丢失不能证明完成。控制监听器存活时失败尝试仍可查询；监听器关闭后，
 严格的激活记录仍为肯定回执。此所有者不进行进程发现、接管或路径移除，也不实现 Linux/macOS 停止。

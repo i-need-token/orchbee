@@ -30,9 +30,9 @@ Only explicit retry of the same failed identity starts another attempt, up to 64
 reopens ordinary admission or authorizes an uncertain Host mutation replay. Each attempt has one
 60-second cooperative deadline, excluding uninterruptible operating-system calls.
 
-The owner retains the exact Worker child, stops Close maintenance, freezes the Worker carrier to
+The owner retains the exact Worker child, joins the periodic process sampler, stops Close maintenance, freezes the Worker carrier to
 shutdown-only traffic (settling queued unsent work as unavailable), and sends one bounded Worker
-shutdown request. A known no-Host/Host-stopped result and exact Worker exit must precede stopping
+shutdown request. Uncertain sampler viewer cleanup remains owned until the matching Worker/Host stop and actual Worker exit. A known no-Host/Host-stopped result and exact Worker exit must precede stopping
 Agent observation and Client listeners, waking and joining retained Client handlers, and publishing
 the stopped activation record. An activation guard excludes concurrent restart during publication
 and lifetime-lock release. Pipe absence or lost replies cannot prove completion. Failed attempts

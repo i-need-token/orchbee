@@ -12,6 +12,8 @@ pub(in crate::local_terminal_service::viewer_session::tests) enum Effect {
     Attach([u8; 16], usize),
     Capacity,
     Poll([u8; 16]),
+    ProcessInfo([u8; 16]),
+    DetachRefused([u8; 16]),
     Feedback([u8; 16]),
     Detach([u8; 16]),
     Acquire([u8; 16], [u8; 16]),
@@ -21,7 +23,11 @@ pub(in crate::local_terminal_service::viewer_session::tests) enum Effect {
     Release([u8; 16], [u8; 16]),
     Dispose(usize),
 }
-pub(super) fn run(mut peer: UnixStream, effects: Arc<Mutex<Vec<Effect>>>) {
+pub(super) fn run(
+    mut peer: UnixStream,
+    effects: Arc<Mutex<Vec<Effect>>>,
+    detach_refusals: Arc<std::sync::atomic::AtomicUsize>,
+) {
     let mut viewers: BTreeMap<[u8; 16], (usize, u64, bool)> = BTreeMap::new();
     loop {
         let message = match read_message(&mut peer) {
@@ -62,7 +68,7 @@ pub(super) fn run(mut peer: UnixStream, effects: Arc<Mutex<Vec<Effect>>>) {
                                 WorkerOutcome::Empty
                             }
                         }
-                        WorkerAction::ReadProcessInfo => WorkerOutcome::Rejected(ViewerRejection::HostRejected),
+                        WorkerAction::ReadProcessInfo => {effects.lock().unwrap().push(Effect::ProcessInfo(id));WorkerOutcome::Rejected(ViewerRejection::HostRejected)},
                         WorkerAction::FrameApplied { .. } | WorkerAction::NeedSnapshot { .. } => {
                             effects.lock().unwrap().push(Effect::Feedback(id));
                             if let Some((_, _, flight)) = viewers.get_mut(&id) {
@@ -83,9 +89,15 @@ pub(super) fn run(mut peer: UnixStream, effects: Arc<Mutex<Vec<Effect>>>) {
                             WorkerOutcome::FeedbackAccepted
                         }
                         WorkerAction::Detach => {
-                            effects.lock().unwrap().push(Effect::Detach(id));
-                            viewers.remove(&id);
-                            WorkerOutcome::Detached
+                            use std::sync::atomic::Ordering;
+                            if detach_refusals.fetch_update(Ordering::AcqRel,Ordering::Acquire,|n|n.checked_sub(1)).is_ok() {
+                                effects.lock().unwrap().push(Effect::DetachRefused(id));
+                                WorkerOutcome::Rejected(ViewerRejection::HostRejected)
+                            } else {
+                                effects.lock().unwrap().push(Effect::Detach(id));
+                                viewers.remove(&id);
+                                WorkerOutcome::Detached
+                            }
                         }
                     }
                 };
