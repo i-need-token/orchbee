@@ -32,7 +32,7 @@ Windows `workspace list/get` 返回 `number`、`tabCount` 和 `panelCount`；
 查询中接受可选 `--client <id>`，补充全局焦点和 Client 在各 Workspace 记住的活动 Tab。
 [Client 查询契约](windows-client-control.zh-CN.md#client-相对-workbench-查询)定义这一有界只读关联、
 来源记录与一致性检查。Schema 版本为 `orchbee.workspace.list/get` 6、`orchbee.tab.list` 4、
-`orchbee.tab.get` 5 和 `orchbee.panel.list/get` 9；内嵌目录为版本97，含91份 schema。
+`orchbee.tab.get` 5 和 `orchbee.panel.list/get` 9；内嵌目录为版本100，含92份 schema。
 保留的选择读取控制使用 `orchbee.client.control` v2，视口读取使用 v3，其他控制保留 v1。
 `orchbee.cli.failure.client-query` v1 标识指定 Client 的读取失败，既有目标和准入诊断保持完整。
 进程和 worktree 观察使用下文所述的各自所有者；上报元数据仍由独立所有者负责，拓扑字段不代表已实现它。
@@ -1189,7 +1189,7 @@ Canonical 遍历次序：`navigation.projects` 顺序；各 project 的 `workspa
 terminal 绑定按该 panel 顺序且 `primaryPresentation` 先于 `childPresentations`。不新增排序；
 过滤后的列表与 `ambiguous` 候选都保持该次序。
 
-快照与单效果命令封套使用 `{schema, version, source, result}`；分阶段流程有自己的内嵌 schema。每份 schema 定义发出的版本及严格形状。Workbench 查询版本见上文；`orchbee.panel.current` 在 Windows 为 v7（其他平台保持 v3），`orchbee.api.snapshot` 因 Workspace 排序为 v5。`orchbee.terminal.get` 因保留实际启动程序／参数为 v4。`orchbee.terminal.read/history` 带 `--unwrap` 或 `--lines` 时为 v2，`orchbee.terminal.wait-output` 携带正则匹配细节时为 v2；三者不带这些 flag 时仍为 v1。各命令与失败的完整版本契约见 `api schema <id>`。当前目录为 v97，包含 91 份必需文档：注册 ID 会改变闭合字典形状，与业务文档版本独立。来源保留各所有者的含义：
+快照与单效果命令封套使用 `{schema, version, source, result}`；分阶段流程有自己的内嵌 schema。每份 schema 定义发出的版本及严格形状。Workbench 查询版本见上文；`orchbee.panel.current` 在 Windows 为 v8（其他平台保持 v3），`orchbee.api.snapshot` 因 Workspace 排序为 v5。`orchbee.terminal.get` 因保留实际启动程序／参数为 v4。`orchbee.terminal.read/history` 带 `--unwrap` 或 `--lines` 时为 v2，`orchbee.terminal.wait-output` 携带正则匹配细节时为 v2；三者不带这些 flag 时仍为 v1。各命令与失败的完整版本契约见 `api schema <id>`。当前目录为 v100，包含 92 份必需文档：注册 ID 会改变闭合字典形状，与业务文档版本独立。来源保留各所有者的含义：
 
 - `source.kind="workbench-snapshot"`：带同一份已验证快照的 `siteId` 与十进制字符串
   `revision`——仅在完整有效读取之后出现。
@@ -1900,12 +1900,12 @@ Windows Worker 从已接纳的启动授权写入子进程的 `ORCHBEE_TERMINAL_I
 返回 `not-found`（退出码 3）；身份重复返回 `protocol-invalid`（退出码 5）。
 无效调用者绑定绝不回退。快照与可选 Client 观察并非原子操作，答案受观察时点限定。
 
-Windows 当前 Panel 使用 `orchbee.panel.current` v7，显式携带 `currentPresentation`：
+Windows 当前 Panel 使用 `orchbee.panel.current` v8，显式携带 `currentPresentation`：
 显式 Panel 使用主项，调用者使用精确终端，Client 使用实际所选成员。Agent、终端标题／cwd／
 进程、报告、元数据和滚动共用该成员，同时保留规范主项／子项结构。显式／调用者查询保持
 无界面可用。原始 Client 视图／修订及本地成员标识经过最终校验；变化时不输出部分结果。
 五秒期限、取消、只读操作、Viewer 清理和 Windows 证据由所链接
-契约负责。目录 v97 含 91 个 schema。不产生激活、输入、控制权或焦点效果；
+契约负责。目录 v100 含 92 个 schema。不产生激活、输入、控制权或焦点效果；
 非 Windows current 保留 v3。TLA 执行继续延后。
 
 Windows Worker 身份在每次连接 Server 时由已有 OS 随机源重新生成；同一 Worker
@@ -2203,7 +2203,7 @@ Windows `layout export` 输出带比例、手工标签、观测目录及冻结�
 
 ## Windows Panel 元数据查询
 
-[Panel 元数据契约](windows-panel-metadata.zh-CN.md#查询观察模型)负责分批读取主项及两类最终修订号校验。[当前 Panel](native-current-panel.zh-CN.md#当前成员信息增强)则校验精确解析成员的 ID、Panel 与绑定。Panel list/get v9、current v7 与 Agent Get v11/v12 暴露 metadata 及带来源的 reportedAgent。实际 Agent／权威上下文选择带守卫展示，同时保留原始来源记录与全局 tokens。规范 OSC 标题、名称、状态及就绪性仍独立；旧版本保留原有闭合形状。
+[Panel 元数据契约](windows-panel-metadata.zh-CN.md#查询观察模型)负责分批读取主项及两类最终修订号校验。[当前 Panel](native-current-panel.zh-CN.md#当前成员信息增强)则校验精确解析成员的 ID、Panel 与绑定。Panel list/get v9、current v8 与 Agent Get v11/v12 暴露 metadata 及带来源的 reportedAgent。实际 Agent／权威上下文选择带守卫展示，同时保留原始来源记录与全局 tokens。规范 OSC 标题、名称、状态及就绪性仍独立；旧版本保留原有闭合形状。
 
 启动选择另将最坏 JSON 字符串内容限制为 30 KiB：ASCII 控制字符计六字节，引号和反斜杠计两字节，其他 UTF-8 字节计一字节。原有 2 KiB 输入域全部保留，同时约束更大的恢复命令。扩大上限后必须使用匹配 cohort。
 

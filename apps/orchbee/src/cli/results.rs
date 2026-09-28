@@ -100,7 +100,7 @@ pub(crate) const fn schema_version(command: &QueryCommand) -> u64 {
         }
         QueryCommand::PanelCurrent(_) => {
             if cfg!(windows) {
-                7
+                8
             } else {
                 3
             }

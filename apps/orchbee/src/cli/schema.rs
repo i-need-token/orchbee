@@ -470,8 +470,8 @@ pub(crate) fn answer(schema_id: Option<&str>, format: OutputFormat, locale: Loca
     };
     let document = json!({
         "schema": "orchbee.api.schema",
-        // Direct member creation adds its retained launch receipt.
-        "version": 99,
+        // Current-member reads now distinguish a stable unbound selection.
+        "version": 100,
         "source": embedded_source(),
         "result": result,
     });

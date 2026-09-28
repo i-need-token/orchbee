@@ -8,13 +8,19 @@ import {
 import { ClientViewportObservationSchema } from './workbench-client-viewport-contract';
 
 export const ClientPresentationSelectionSchema = z
-	.strictObject({
-		presentationId: TerminalPresentationIdSchema,
-		binding: WorkbenchPresentationBindingSchema,
-		attachmentGeneration: WorkbenchRevisionSchema,
-		incarnation: z.number().int().min(0).max(4_294_967_295),
-		viewport: ClientViewportObservationSchema,
-	})
+	.union([
+		z.strictObject({
+			presentationId: TerminalPresentationIdSchema,
+			binding: WorkbenchPresentationBindingSchema,
+			attachmentGeneration: WorkbenchRevisionSchema,
+			incarnation: z.number().int().min(0).max(4_294_967_295),
+			viewport: ClientViewportObservationSchema,
+		}),
+		z.strictObject({
+			presentationId: TerminalPresentationIdSchema,
+			selectionGeneration: WorkbenchRevisionSchema.refine((value) => value !== '0'),
+		}),
+	])
 	.readonly();
 export const ClientPresentationSnapshotSchema = z
 	.strictObject({

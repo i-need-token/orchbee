@@ -166,21 +166,34 @@ fn current_member_token_ignores_viewport_updates_but_not_away_and_back() {
         "attachmentGeneration":"7", "incarnation":0,
         "viewport":{"state":"unavailable","reason":"frame-unavailable"}
     })).unwrap();
-    let mut next = original.clone();
-    next.viewport = ClientViewportObservation::Pending {
-        phase: ClientViewportPending::Entering,
+    let mut next = serde_json::to_value(&original).unwrap();
+    next["viewport"] = serde_json::json!({"state":"pending","phase":"entering"});
+    assert!(original.same_member(&serde_json::from_value(next).unwrap()));
+    for (field, value) in [
+        ("attachmentGeneration", serde_json::json!("8")),
+        ("incarnation", serde_json::json!(1)),
+        (
+            "binding",
+            serde_json::json!({"terminalId":"00000000000000000000000000000004","workerId":"00000000000000000000000000000003"}),
+        ),
+        (
+            "presentationId",
+            serde_json::json!("00000000000000000000000000000005"),
+        ),
+    ] {
+        let mut changed = serde_json::to_value(&original).unwrap();
+        changed[field] = value;
+        assert!(!original.same_member(&serde_json::from_value(changed).unwrap()));
+    }
+    let empty = ClientPresentationSelection::Unbound {
+        presentation_id: original.presentation_id().clone(),
+        selection_generation: WorkbenchRevision::new(7),
     };
-    assert!(original.same_member(&next));
-    next.attachment_generation = WorkbenchRevision::new(8);
-    assert!(!original.same_member(&next));
-    next = original.clone();
-    next.incarnation = 1;
-    assert!(!original.same_member(&next));
-    next = original.clone();
-    next.binding.terminal_id = TerminalId::parse("00000000000000000000000000000004").unwrap();
-    assert!(!original.same_member(&next));
-    next = original.clone();
-    next.presentation_id =
-        TerminalPresentationId::parse("00000000000000000000000000000005").unwrap();
-    assert!(!original.same_member(&next));
+    assert!(empty.same_member(&empty));
+    assert!(!original.same_member(&empty));
+    let revisited = ClientPresentationSelection::Unbound {
+        presentation_id: empty.presentation_id().clone(),
+        selection_generation: WorkbenchRevision::new(8),
+    };
+    assert!(!empty.same_member(&revisited));
 }

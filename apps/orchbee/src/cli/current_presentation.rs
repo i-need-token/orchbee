@@ -80,20 +80,42 @@ pub(super) fn read_with_receipt(
             vec![selected.client_id.to_string()],
         )
     })?;
-    let rows = results::terminal_rows(snapshot);
-    if rows
-        .iter()
-        .filter(|row| row.terminal_id == member.binding.terminal_id.as_str())
-        .count()
-        != 1
-        || !rows.iter().any(|row| {
-            row.panel_id == panel_id.as_str()
-                && row.presentation_id == member.presentation_id.as_str()
-                && row.terminal_id == member.binding.terminal_id.as_str()
-                && row.worker_id == member.binding.worker_id.as_str()
-        })
-    {
-        return Err(Failure::new(FailureKind::ProtocolInvalid));
+    if let Some(binding) = member.binding() {
+        let rows = results::terminal_rows(snapshot);
+        if rows
+            .iter()
+            .filter(|row| row.terminal_id == binding.terminal_id.as_str())
+            .count()
+            != 1
+            || !rows.iter().any(|row| {
+                row.panel_id == panel_id.as_str()
+                    && row.presentation_id == member.presentation_id().as_str()
+                    && row.terminal_id == binding.terminal_id.as_str()
+                    && row.worker_id == binding.worker_id.as_str()
+            })
+        {
+            return Err(Failure::new(FailureKind::ProtocolInvalid));
+        }
+    } else {
+        let results::Projection::PanelGet(panel) = results::project(
+            &crate::invocation::QueryCommand::PanelGet(crate::invocation::Target::Id(
+                panel_id.to_string(),
+            )),
+            snapshot,
+        )?
+        else {
+            return Err(Failure::new(FailureKind::InternalFailure));
+        };
+        if !std::iter::once(&panel.primary_presentation)
+            .chain(&panel.child_presentations)
+            .any(|row| {
+                row.presentation_id == member.presentation_id().as_str()
+                    && row.terminal_id.is_none()
+                    && row.worker_id.is_none()
+            })
+        {
+            return Err(Failure::new(FailureKind::ProtocolInvalid));
+        }
     }
     Ok(Read {
         member,
@@ -128,7 +150,7 @@ impl Resolved {
                 .find(|row| row.terminal_id.as_deref() == Some(terminal.as_str()))
                 .ok_or_else(invalid)?,
             Origin::Client(read) => members()
-                .find(|row| row.presentation_id == read.member.presentation_id.as_str())
+                .find(|row| row.presentation_id == read.member.presentation_id().as_str())
                 .ok_or_else(invalid)?,
         };
         let binding = match (&presentation.terminal_id, &presentation.worker_id) {
@@ -140,7 +162,7 @@ impl Resolved {
             _ => return Err(invalid()),
         };
         if let Origin::Client(read) = &origin
-            && binding.as_ref() != Some(&read.member.binding)
+            && binding.as_ref() != read.member.binding()
         {
             return Err(invalid());
         }
@@ -164,8 +186,21 @@ impl Resolved {
         value["source"] = match &self.origin {
             Origin::Primary => serde_json::json!({"kind":"primary"}),
             Origin::Caller(_) => serde_json::json!({"kind":"caller"}),
-            Origin::Client(read) => serde_json::json!({"kind":"client",
-                "attachmentGeneration":read.member.attachment_generation,"incarnation":read.member.incarnation}),
+            Origin::Client(read) => match &read.member {
+                ClientPresentationSelection::Bound {
+                    attachment_generation,
+                    incarnation,
+                    ..
+                } => {
+                    serde_json::json!({"kind":"client", "attachmentGeneration":attachment_generation,"incarnation":incarnation})
+                }
+                ClientPresentationSelection::Unbound {
+                    selection_generation,
+                    ..
+                } => {
+                    serde_json::json!({"kind":"client-unbound", "selectionGeneration":selection_generation})
+                }
+            },
         };
         value
     }

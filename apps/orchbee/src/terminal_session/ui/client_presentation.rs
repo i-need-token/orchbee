@@ -1,4 +1,4 @@
-//! A Panel's non-departing PaneRecord owns the exact current member and local token.
+//! Exact local membership from a live PaneRecord or a stable unbound selection.
 use super::*;
 use orchbee_workbench_protocol::{
     ClientPresentationSelection, ClientPresentationSnapshot, ClientViewControl,
@@ -31,19 +31,32 @@ impl NativeUi {
         {
             return Err(Reason::ProjectionUnavailable);
         }
-        let Some(PanelNode::Panel {
-            primary_presentation,
-            child_presentations,
-            ..
-        }) = snapshot
-            .terminal_contexts
-            .iter()
-            .flat_map(|context| &context.tabs)
-            .find_map(|tab| panel(&tab.root, panel_id))
+        let Some((
+            context,
+            tab,
+            PanelNode::Panel {
+                primary_presentation,
+                child_presentations,
+                ..
+            },
+        )) = snapshot.terminal_contexts.iter().find_map(|context| {
+            context
+                .tabs
+                .iter()
+                .find_map(|tab| panel(&tab.root, panel_id).map(|panel| (context, tab, panel)))
+        })
         else {
             return Err(Reason::TargetUnavailable);
         };
-        let presentation = state
+        if (state.pane_by_panel(panel_id).is_some() || state.panel_is_unbound(panel_id))
+            && (context.terminal_context_id != *state.cache().terminal_context_id()
+                || state
+                    .active()
+                    .is_none_or(|active| active.key().anchor().tab_id() != &tab.tab_id))
+        {
+            return Err(Reason::ProjectionUnavailable);
+        }
+        let mut presentation = state
             .pane_by_panel(panel_id)
             .map(|pane| {
                 let member = std::iter::once(primary_presentation)
@@ -66,7 +79,7 @@ impl NativeUi {
                         },
                         super::client_viewport::observe,
                     );
-                Ok(ClientPresentationSelection {
+                Ok(ClientPresentationSelection::Bound {
                     presentation_id: member.presentation_id.clone(),
                     binding: member.binding.clone().expect("matched bound member"),
                     attachment_generation: WorkbenchRevision::new(key.anchor().generation()),
@@ -75,6 +88,35 @@ impl NativeUi {
                 })
             })
             .transpose()?;
+        if presentation.is_none()
+            && matches!(
+                state.phase_kind(),
+                SessionPhaseKind::Ready | SessionPhaseKind::SelectedWithoutAttachment
+            )
+            && let Some(active) = state.active()
+            && let Some(local_panel) = state
+                .cache()
+                .tabs()
+                .get(active.index())
+                .and_then(|tab| tab.panel_index(panel_id).and_then(|index| tab.panel(index)))
+        {
+            let local = state.selected_presentation(local_panel);
+            if local.binding().is_none() {
+                let canonical = std::iter::once(primary_presentation)
+                    .chain(child_presentations)
+                    .find(|member| &member.presentation_id == local.presentation_id())
+                    .ok_or(Reason::ProjectionUnavailable)?;
+                if canonical.binding.is_some() {
+                    return Err(Reason::ProjectionUnavailable);
+                }
+                presentation = Some(ClientPresentationSelection::Unbound {
+                    presentation_id: canonical.presentation_id.clone(),
+                    selection_generation: WorkbenchRevision::new(
+                        active.key().anchor().generation(),
+                    ),
+                });
+            }
+        }
         let result = ClientPresentationSnapshot {
             workbench_revision: snapshot.revision,
             panel_id: panel_id.clone(),

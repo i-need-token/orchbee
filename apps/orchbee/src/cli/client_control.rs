@@ -82,7 +82,14 @@ impl Answer {
             matches!(&reply.outcome, ClientViewOutcome::Operation { operation }
                 if matches!(operation.command.intent, orchbee_workbench_protocol::ClientViewIntent::Presentation { .. }))
         });
-        let version = if presentation_read {
+        let unbound_read = self.reply.as_ref().is_some_and(|reply| {
+            matches!(&reply.outcome, ClientViewOutcome::Operation { operation }
+                if matches!(&operation.status, ClientViewControlStatus::PresentationRead { presentation, .. }
+                    if matches!(presentation.presentation, Some(orchbee_workbench_protocol::ClientPresentationSelection::Unbound { .. }))))
+        });
+        let version = if unbound_read {
+            7
+        } else if presentation_read {
             6
         } else if agent_focus {
             5

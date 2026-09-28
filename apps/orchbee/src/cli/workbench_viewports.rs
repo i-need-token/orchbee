@@ -183,6 +183,14 @@ pub(super) fn enrich(document: Option<&Document>, result: &mut Value) {
 pub(super) fn from_current(member: &super::current_presentation::Resolved) -> Option<Document> {
     member.client().map(|read| Document {
         operations: vec![],
-        rows: BTreeMap::from([(member.panel_id.to_string(), read.member.viewport.clone())]),
+        rows: BTreeMap::from([(
+            member.panel_id.to_string(),
+            read.member
+                .viewport()
+                .cloned()
+                .unwrap_or(ClientViewportObservation::Unavailable {
+                    reason: ClientViewportUnavailable::NotAttached,
+                }),
+        )]),
     })
 }

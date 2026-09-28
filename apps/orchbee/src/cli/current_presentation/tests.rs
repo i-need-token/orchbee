@@ -19,7 +19,7 @@ fn panel() -> results::PanelDoc {
 }
 fn read() -> Read {
     Read {
-        member: ClientPresentationSelection {
+        member: ClientPresentationSelection::Bound {
             presentation_id: TerminalPresentationId::parse(&id(6)).unwrap(),
             binding: PresentationBinding {
                 terminal_id: TerminalId::parse(&id(7)).unwrap(),
@@ -54,9 +54,39 @@ fn all_current_origins_preserve_canonical_structure_and_exact_member() {
     assert_eq!(panel.child_presentations[0].presentation_id, id(6));
     assert!(Resolved::new(&panel, Origin::Caller(TerminalId::parse(&id(99)).unwrap())).is_err());
     let mut stale = read();
-    stale.member.binding.worker_id = WorkerId::parse(&id(99)).unwrap();
+    let ClientPresentationSelection::Bound { binding, .. } = &mut stale.member else {
+        unreachable!()
+    };
+    binding.worker_id = WorkerId::parse(&id(99)).unwrap();
     assert!(Resolved::new(&panel, Origin::Client(Box::new(stale))).is_err());
     let mut missing = read();
-    missing.member.presentation_id = TerminalPresentationId::parse(&id(99)).unwrap();
+    let ClientPresentationSelection::Bound {
+        presentation_id, ..
+    } = &mut missing.member
+    else {
+        unreachable!()
+    };
+    *presentation_id = TerminalPresentationId::parse(&id(99)).unwrap();
     assert!(Resolved::new(&panel, Origin::Client(Box::new(missing))).is_err());
+}
+
+#[test]
+fn client_empty_member_keeps_its_identity_without_attachment_facts() {
+    let mut read = read();
+    read.member = ClientPresentationSelection::Unbound {
+        presentation_id: TerminalPresentationId::parse(&id(5)).unwrap(),
+        selection_generation: WorkbenchRevision::new(9),
+    };
+    let selected = Resolved::new(&panel(), Origin::Client(Box::new(read.clone()))).unwrap();
+    assert_eq!(selected.value()["binding"], serde_json::Value::Null);
+    assert_eq!(
+        selected.value()["source"],
+        json!({"kind":"client-unbound","selectionGeneration":"9"})
+    );
+    assert!(selected.client().unwrap().member.viewport().is_none());
+    read.member = ClientPresentationSelection::Unbound {
+        presentation_id: TerminalPresentationId::parse(&id(6)).unwrap(),
+        selection_generation: WorkbenchRevision::new(9),
+    };
+    assert!(Resolved::new(&panel(), Origin::Client(Box::new(read))).is_err());
 }

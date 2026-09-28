@@ -144,3 +144,8 @@ Presentation ID、精确绑定、现有本地附着代次及窗格实例编号�
 [当前 Panel 契约](native-current-panel.zh-CN.md#进程信息的精确当前-presentation)
 负责 Windows process-info/current 组合及前后成员栅栏。Client control v6 接纳此意图；
 v1–v5 保持封闭。已有主终端 `viewports` 读取保留原有语义。
+
+未绑定原生成员把被动选择扩展为严格的另一种形状，仅包含 `presentationId` 和非零
+`selectionGeneration`，不含挂接、绑定或 viewport；null 仍表示没有本地成员。发布前验证原生
+稳定状态和规范身份。Control v7 暴露这一形状；既有已绑定／null 回执仍为 v6，旧版本拒绝未绑定
+形状。两种形式都不确认 attention，也不改变焦点。

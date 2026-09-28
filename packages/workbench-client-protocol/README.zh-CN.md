@@ -109,7 +109,7 @@ pnpm --filter @orchbee/workbench-client-protocol test:exports
 ## Client 视图绑定
 
 `workbench-client-presentation-contract.ts` 验证标量精确当前成员快照：必须存在但可为 null
-的选择、精确 Presentation／绑定、uint64 附着代次、uint32 窗格实例编号及已安装视口，
+的选择；已绑定成员携带精确 Presentation／绑定、uint64 附着代次、uint32 窗格实例编号及已安装视口，
 限制为 4 KiB。Client 视图绑定验证意图、Panel、Ready/Busy 视图与最低修订；共享语料
 覆盖 null、子项、边界和不匹配回执。已有 Client 选择及主终端视口形状保持封闭。
 
@@ -222,3 +222,9 @@ Server 屏幕模型拥有来源选择、下载、安装、取消和回执上限�
 原生关联还要求精确请求成员。[Agent 报告目标契约](../../apps/orchbee/docs/windows-panel-agent-reports.zh-CN.md#精确成员目标)
 与[元数据目标契约](../../apps/orchbee/docs/windows-panel-metadata.zh-CN.md#精确成员目标)拥有
 运行时语义、提交回执及配套 cohort 兼容规则。
+
+精确 Presentation 选择也接受严格的未绑定形状 `{presentationId, selectionGeneration}`，
+代次为非零十进制 uint64。它不携带挂接、绑定或 viewport，且与 null 本地选择不同。
+已绑定选择保留原有形状。Rust、TypeScript 和 JSON Schema 共享缺失、混合、多余及无效代次
+字段的正反一致性向量。原生 current-Panel 所有者验证规范绑定缺席，并用既有选择代次围住
+关联读取；读取不分配代次或 viewer。此私有扩展与匹配的原生 cohort 一起发布。

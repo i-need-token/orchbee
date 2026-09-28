@@ -139,6 +139,99 @@ fn report(stream: &mut LocalStream, case: &str, primary: bool, unbound: bool, fe
     )
     .unwrap();
 }
+
+#[test]
+fn client_empty_current_is_observable_and_never_queries_another_terminal() {
+    for case in [
+        "stable",
+        "away-and-back",
+        "wrong-member",
+        "bound-as-empty",
+        "process-info",
+    ] {
+        let fixture = Fixture::new();
+        let listener = LocalListener::bind(fixture.rendezvous().client_socket_path()).unwrap();
+        let server = peer(&fixture, listener, move |mut stream| {
+            snapshot(&mut stream, case != "bound-as-empty", 12);
+            let mut selected = record(10, 6);
+            if case != "bound-as-empty" {
+                selected["view"]["selection"]["panelCount"] = json!(1);
+            }
+            list_reply(&mut stream, vec![selected]);
+            presentations::read(&mut stream, 10, 6, case == "wrong-member", 7, "unbound");
+            if matches!(case, "stable" | "away-and-back") {
+                agents(&mut stream);
+                metadata(&mut stream, "stable", true, true, false);
+                report(&mut stream, "stable", true, true, false);
+                metadata(&mut stream, "stable", true, true, true);
+                report(&mut stream, "stable", true, true, true);
+                snapshot(&mut stream, true, 12);
+                presentations::read(
+                    &mut stream,
+                    10,
+                    6,
+                    false,
+                    if case == "away-and-back" { 8 } else { 7 },
+                    if case == "bound-as-empty" {
+                        "unbound-two-panels"
+                    } else {
+                        "unbound"
+                    },
+                );
+            }
+            // Any Host attach, process read, focus or fallback fails this exact script.
+            assert_closed(&mut stream);
+        });
+        let output = fixture.run(&[
+            "panel",
+            if case == "process-info" {
+                "process-info"
+            } else {
+                "current"
+            },
+            "--format=json",
+        ]);
+        server.join().unwrap();
+        let doc = document(&output);
+        if case == "stable" {
+            assert!(output.status.success(), "{output:?}");
+            assert_eq!(doc["version"], 8);
+            let row = &doc["result"]["panel"];
+            assert_eq!(row["currentPresentation"]["presentationId"], id(106));
+            assert_eq!(row["currentPresentation"]["binding"], Value::Null);
+            assert_eq!(
+                row["currentPresentation"]["source"],
+                json!({"kind":"client-unbound","selectionGeneration":"7"})
+            );
+            assert_eq!(
+                row["scrollObservation"],
+                json!({"state":"unavailable","reason":"not-attached"})
+            );
+            assert_eq!(
+                doc["result"]["client"]["operationIds"]
+                    .as_array()
+                    .unwrap()
+                    .len(),
+                2
+            );
+            let schema: Value = serde_json::from_str(include_str!(
+                "../../src/cli/schemas/orchbee.panel.current.json"
+            ))
+            .unwrap();
+            let validator = jsonschema::validator_for(&schema).unwrap();
+            validator.validate(&doc).unwrap();
+            let mut legacy = doc.clone();
+            legacy["version"] = json!(7);
+            assert!(!validator.is_valid(&legacy));
+        } else {
+            assert!(!output.status.success(), "{case}: {output:?}");
+            assert!(doc.get("result").is_none());
+            if case == "away-and-back" {
+                assert_eq!(doc["failure"]["details"]["reason"], "client-changed");
+            }
+        }
+    }
+}
 #[test]
 fn current_joins_selected_terminal_agent_report_and_metadata_without_rewriting_primary() {
     for case in [
@@ -212,7 +305,7 @@ fn current_joins_selected_terminal_agent_report_and_metadata_without_rewriting_p
                 &doc,
                 include_str!("../../src/cli/schemas/orchbee.panel.current.json"),
             );
-            assert_eq!(doc["version"], 7);
+            assert_eq!(doc["version"], 8);
             let row = &doc["result"]["panel"];
             assert_eq!(row["primaryPresentation"]["presentationId"], id(106));
             assert_eq!(row["childPresentations"][0]["presentationId"], id(306));

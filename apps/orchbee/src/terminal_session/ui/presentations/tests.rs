@@ -393,8 +393,8 @@ fn passive_member_read_tracks_child_attachment_and_never_borrows_primary_frame()
         .presentation
         .unwrap();
     assert!(matches!(
-        primary.viewport,
-        ClientViewportObservation::Observed { .. }
+        primary.viewport(),
+        Some(ClientViewportObservation::Observed { .. })
     ));
     assert!(mailbox.try_recv().unwrap().is_none());
     // The public state transition installs a new binding only after its existing cleanup owner.
@@ -440,15 +440,21 @@ fn passive_member_read_tracks_child_attachment_and_never_borrows_primary_frame()
         .unwrap()
         .presentation
         .unwrap();
-    assert_eq!(child.presentation_id, child_id);
-    assert_eq!(child.binding.terminal_id.as_str(), format!("{:032x}", 9002));
-    assert_eq!(child.attachment_generation.value(), 81);
+    assert_eq!(child.presentation_id(), &child_id);
+    assert_eq!(
+        child.binding().unwrap().terminal_id.as_str(),
+        format!("{:032x}", 9002)
+    );
+    assert_eq!(
+        serde_json::to_value(&child).unwrap()["attachmentGeneration"],
+        "81"
+    );
     assert!(!primary.same_member(&child));
     assert_eq!(
-        child.viewport,
-        ClientViewportObservation::Unavailable {
+        child.viewport(),
+        Some(&ClientViewportObservation::Unavailable {
             reason: ClientViewportUnavailable::FrameUnavailable
-        }
+        })
     );
     // A stale primary projection still exists, but it is never relabeled as this child.
     assert!(ui.projections.iter().any(|p| p.key == primary_key));
@@ -460,7 +466,7 @@ fn passive_member_read_tracks_child_attachment_and_never_borrows_primary_frame()
         .unwrap();
     assert!(child.same_member(&installed));
     assert!(
-        matches!(installed.viewport, ClientViewportObservation::Observed { scroll, .. } if scroll.max_offset_from_bottom == 17)
+        matches!(installed.viewport(), Some(ClientViewportObservation::Observed { scroll, .. }) if scroll.max_offset_from_bottom == 17)
     );
     assert!(mailbox.try_recv().unwrap().is_none());
     let mut rebound = source.clone();
@@ -486,6 +492,21 @@ fn passive_member_read_tracks_child_attachment_and_never_borrows_primary_frame()
     );
 }
 
+fn empty_source() -> orchbee_workbench_protocol::Snapshot {
+    let mut source = child_source(false);
+    let PanelNode::Panel {
+        primary_presentation,
+        child_presentations,
+        ..
+    } = &mut source.terminal_contexts[0].tabs[0].root
+    else {
+        unreachable!()
+    };
+    primary_presentation.binding = None;
+    child_presentations[0].binding = None;
+    source
+}
+
 fn empty_ui() -> (
     NativeUi,
     Arc<CommandMailbox>,
@@ -499,17 +520,7 @@ fn empty_ui() -> (
         Geometry::new(80, 24, 8, 16).unwrap(),
     ));
     let mut ui = NativeUi::new(Arc::clone(&mailbox), clock.clone());
-    let mut source = child_source(false);
-    let PanelNode::Panel {
-        primary_presentation,
-        child_presentations,
-        ..
-    } = &mut source.terminal_contexts[0].tabs[0].root
-    else {
-        unreachable!()
-    };
-    primary_presentation.binding = None;
-    child_presentations[0].binding = None;
+    let source = empty_source();
     let cache =
         crate::terminal_session::workbench_projection::project_native_standalone_tabs(&source)
             .unwrap();
@@ -601,4 +612,106 @@ fn unbound_session_schedules_bounded_refresh_without_terminal_poll_or_repeated_a
     ui.tick();
     assert!(mailbox.try_recv().unwrap().is_none());
     assert!(ui.pointer_probe().panes.is_empty());
+}
+
+#[test]
+fn passive_empty_member_read_keeps_identity_and_never_exports_a_pending_switch() {
+    use orchbee_workbench_protocol::*;
+    let source = empty_source();
+    let (mut ui, mailbox, _) = empty_ui();
+    let state = ui.state.as_ref().unwrap();
+    let panel = state.focus_panel_id().unwrap().clone();
+    let command = ClientViewControl {
+        operation_id: WorkbenchRequestId::parse(&format!("{:032x}", 9200)).unwrap(),
+        client_id: WorkbenchClientId::parse(&format!("{:032x}", 9201)).unwrap(),
+        expected_view_revision: ClientViewSequence::new(1).unwrap(),
+        minimum_workbench_revision: source.revision,
+        intent: ClientViewIntent::Presentation {
+            panel_id: panel.clone(),
+        },
+    };
+    let cursors = mailbox.cursors();
+    let first = ui
+        .read_client_presentation(&command, &source)
+        .unwrap()
+        .presentation
+        .unwrap();
+    let ClientPresentationSelection::Unbound {
+        presentation_id,
+        selection_generation,
+    } = &first
+    else {
+        panic!("empty member")
+    };
+    assert_eq!(
+        presentation_id,
+        state
+            .selected_presentation(state.tab(0).unwrap().panel(0).unwrap())
+            .presentation_id()
+    );
+    assert_eq!(
+        selection_generation.value(),
+        state.desired().unwrap().anchor().generation()
+    );
+    assert_eq!(mailbox.cursors(), cursors);
+    assert!(mailbox.try_recv().unwrap().is_none());
+
+    let mut rebound = source.clone();
+    let PanelNode::Panel {
+        primary_presentation,
+        child_presentations,
+        ..
+    } = &mut rebound.terminal_contexts[0].tabs[0].root
+    else {
+        unreachable!()
+    };
+    primary_presentation.binding = child_presentations[1].binding.take();
+    assert_eq!(
+        ui.read_client_presentation(&command, &rebound),
+        Err(ClientViewControlReason::ProjectionUnavailable)
+    );
+    let mut moved = source.clone();
+    moved.terminal_contexts[0].tabs[0].tab_id =
+        WorkbenchTabId::parse(&format!("{:032x}", 9300)).unwrap();
+    assert_eq!(
+        ui.read_client_presentation(&command, &moved),
+        Err(ClientViewControlReason::ProjectionUnavailable)
+    );
+
+    ui.apply_client_action(ClientAction::NextPresentation);
+    assert!(
+        ui.read_client_presentation(&command, &source)
+            .unwrap()
+            .presentation
+            .is_none()
+    );
+    let state = ui.state.as_mut().unwrap();
+    let marker = state.desired().unwrap().clone();
+    let prepared = state
+        .prepare_switch_candidate(
+            &marker,
+            WorkbenchSnapshotOutcome::Available {
+                snapshot: source.clone(),
+            },
+        )
+        .unwrap();
+    state
+        .prepare_switch_membership_install(
+            &marker,
+            prepared,
+            Some(AttachmentKey::new(
+                marker.anchor().generation() + 1,
+                marker.anchor().tab_id().clone(),
+            )),
+        )
+        .unwrap()
+        .commit();
+    let child = ui
+        .read_client_presentation(&command, &source)
+        .unwrap()
+        .presentation
+        .unwrap();
+    assert!(matches!(child, ClientPresentationSelection::Unbound { .. }));
+    assert!(!child.same_member(&first));
+    assert!(ui.state.as_ref().unwrap().focus_pane_ref().is_none());
 }

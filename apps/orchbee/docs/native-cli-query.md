@@ -39,8 +39,8 @@ perform no navigation or mutation. Runtime observations are described below. Win
 remembered active Tab in each Workspace. The [Client query contract](windows-client-control.md#client-relative-workbench-queries)
 owns this bounded, read-only join and its provenance and consistency checks.
 Schema versions are `orchbee.workspace.list/get` 6, `orchbee.tab.list` 4,
-`orchbee.tab.get` 5 and `orchbee.panel.list/get` 9; the embedded catalog is version 97
-with 91 schemas. Retained selection-read controls use `orchbee.client.control` v2;
+`orchbee.tab.get` 5 and `orchbee.panel.list/get` 9; the embedded catalog is version 100
+with 92 schemas. Retained selection-read controls use `orchbee.client.control` v2;
 viewport reads use v3; other controls retain v1. `orchbee.cli.failure.client-query` v1 identifies selected
 Client read failures; existing target and admission diagnostics remain intact.
 Process and worktree observations use their respective owners as described below;
@@ -1447,7 +1447,7 @@ Canonical traversal order: `navigation.projects` order; each project's `workspac
 `children[1]`; terminal bindings in that panel order with `primaryPresentation` before
 `childPresentations`. No sorting is added; filtered lists and `ambiguous` candidates preserve it.
 
-Snapshot and one-effect command envelopes use `{schema, version, source, result}`; staged workflows have their own embedded schemas. Every schema defines its emitted version and strict shape. Workbench query versions are listed above; `orchbee.panel.current` is v6 on Windows (v3 elsewhere) and `orchbee.api.snapshot` is v5 with Workspace ordering. `orchbee.terminal.get` is v4 for the retained launch program/arguments. `orchbee.terminal.read/history` use v2 with `--unwrap` or `--lines`; `orchbee.terminal.wait-output` uses v2 for regex match details. Their flag-free outputs remain v1. See `api schema <id>` for each command and failure's complete version contract. The current catalog is v97 with 91 required documents: registering an ID changes the closed dictionary shape, independently of business document versions. Sources retain their owner's meaning:
+Snapshot and one-effect command envelopes use `{schema, version, source, result}`; staged workflows have their own embedded schemas. Every schema defines its emitted version and strict shape. Workbench query versions are listed above; `orchbee.panel.current` is v8 on Windows (v3 elsewhere) and `orchbee.api.snapshot` is v5 with Workspace ordering. `orchbee.terminal.get` is v4 for the retained launch program/arguments. `orchbee.terminal.read/history` use v2 with `--unwrap` or `--lines`; `orchbee.terminal.wait-output` uses v2 for regex match details. Their flag-free outputs remain v1. See `api schema <id>` for each command and failure's complete version contract. The current catalog is v100 with 92 required documents: registering an ID changes the closed dictionary shape, independently of business document versions. Sources retain their owner's meaning:
 
 - `source.kind="workbench-snapshot"` with `siteId` and decimal-string `revision` from the same
   validated snapshot — present only after a complete valid read.
@@ -2251,13 +2251,13 @@ An absent or mismatched binding fails `not-found` (exit 3); duplicate identity f
 `protocol-invalid` (exit 5). Invalid caller binding never falls back. Snapshot and optional
 Client observations are not atomic. The answer is bounded by their observation times.
 
-Windows current Panel uses `orchbee.panel.current` v7 with an explicit `currentPresentation`:
+Windows current Panel uses `orchbee.panel.current` v8 with an explicit `currentPresentation`:
 primary for an explicit Panel, exact caller terminal, or the selected Client member. Agent,
 terminal title/cwd/processes, reports, metadata and scroll share this member while canonical
 primary/child structure stays intact. Explicit/caller selection stays headless. The original
 Client view/revision and local member token are fenced; changes fail without a partial result. The
 five-second deadline, cancellation, read-only operations, Viewer cleanup and Windows evidence
-are owned by the linked contract. Catalog v97 contains 91 schemas. No activation, input,
+are owned by the linked contract. Catalog v100 contains 92 schemas. No activation, input,
 control-authority or focus effects; non-Windows current retains v3. TLA execution remains deferred.
 
 Windows Worker identities are fresh per Server connection using the existing OS random source;
@@ -2591,7 +2591,7 @@ The same-author regressions cover parser refusal, independent wire goldens, malf
 
 ## Windows Panel metadata query
 
-The [Panel metadata contract](windows-panel-metadata.md#query-observation-model) owns batched primary reads and both final revision fences. [Current Panel](native-current-panel.md#current-member-enrichment) instead checks the exact resolved member's ID, Panel and binding. Panel list/get v9, current v7 and Agent Get v11/v12 expose metadata and source-attributed reportedAgent. Actual report Agent/authority context selects guarded presentation while preserving raw source records and global tokens. Canonical OSC title, names, status and readiness remain distinct. Legacy versions retain their closed previous shapes.
+The [Panel metadata contract](windows-panel-metadata.md#query-observation-model) owns batched primary reads and both final revision fences. [Current Panel](native-current-panel.md#current-member-enrichment) instead checks the exact resolved member's ID, Panel and binding. Panel list/get v9, current v8 and Agent Get v11/v12 expose metadata and source-attributed reportedAgent. Actual report Agent/authority context selects guarded presentation while preserving raw source records and global tokens. Canonical OSC title, names, status and readiness remain distinct. Legacy versions retain their closed previous shapes.
 
 Launch selections additionally cap worst-case JSON string-content bytes at 30 KiB: ASCII controls count as six, quotes and backslashes as two, and other UTF-8 bytes as one. This preserves the previous 2 KiB input domain while bounding the larger resume commands. Matching cohorts are required for the enlarged limits.
 

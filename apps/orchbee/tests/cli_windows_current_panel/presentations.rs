@@ -32,6 +32,13 @@ pub(super) fn read(
     if case == "missing" {
         member = Value::Null;
     }
+    if case == "unbound" {
+        view["selection"]["panelCount"] = json!(1);
+    }
+    if case.starts_with("unbound") {
+        member = json!({"presentationId":id(member_panel + if child {300} else {100}),
+            "selectionGeneration":generation.to_string()});
+    }
     if case == "incarnation" {
         member["incarnation"] = json!(1);
     }

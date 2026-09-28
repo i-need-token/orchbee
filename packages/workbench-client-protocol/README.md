@@ -161,7 +161,7 @@ pnpm --filter @orchbee/workbench-client-protocol test:exports
 ## Client view binding
 
 `workbench-client-presentation-contract.ts` validates the scalar exact current-member snapshot:
-required nullable selection, exact Presentation/binding, uint64 attachment generation, uint32 pane
+required nullable selection; bound members carry exact Presentation/binding, uint64 attachment generation, uint32 pane
 incarnation and installed viewport, bounded to 4 KiB. The Client view binding verifies intent,
 Panel, Ready/Busy view and minimum revision; the shared corpus covers null, child, bounds and
 mismatched receipts. Existing Client selection and primary viewport shapes remain closed.
@@ -291,3 +291,11 @@ exact requests/replies, required IDs and legacy rejection; native correlation al
 exact requested member. The [Agent report target contract](../../apps/orchbee/docs/windows-panel-agent-reports.md#exact-member-targets)
 and [metadata target contract](../../apps/orchbee/docs/windows-panel-metadata.md#exact-member-targets)
 own runtime semantics, submission receipts and matched-cohort compatibility.
+
+The exact Presentation selection also accepts the strict unbound alternative
+`{presentationId, selectionGeneration}` with a nonzero decimal uint64 generation. It carries no
+attachment, binding or viewport, and remains distinct from a null local selection. Bound selections
+retain their original shape. Rust, TypeScript and JSON Schema share positive/negative conformance
+vectors for missing, mixed, extra and invalid generation fields. The native current-Panel owner
+validates canonical absence of binding and brackets joins with the existing selection generation;
+no read allocates an epoch or viewer. Roll out this private extension with its matched native cohort.

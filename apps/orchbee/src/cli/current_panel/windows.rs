@@ -165,7 +165,10 @@ fn collect(
             let terminal = if let Some(terminal) = caller_terminal {
                 crate::invocation::Target::Id(terminal.to_string())
             } else if let Some(member) = &member {
-                crate::invocation::Target::Id(member.binding.terminal_id.to_string())
+                let binding = member
+                    .binding()
+                    .ok_or_else(|| failure(FailureKind::NotFound))?;
+                crate::invocation::Target::Id(binding.terminal_id.to_string())
             } else {
                 query::primary_terminal(&snapshot, &panel)
                     .map_err(|error| error.source(source.clone()))?

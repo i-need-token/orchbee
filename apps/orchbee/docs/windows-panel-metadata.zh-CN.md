@@ -83,7 +83,7 @@ Agent Get 使用唯一且存活的主绑定；Agent 已结束、未绑定、多�
 引用与规范观察 Session ID 独立，查询不会执行引用。自动 Host 进程生产、关联名称、provider
 恢复／持久化及 TUI 发布仍是独立集成义务。
 
-Windows Panel list/get 输出 v9，current 输出 v7，Agent Get 输出 v11（带 `--client` 时为 v12）。
+Windows Panel list/get 输出 v9，current 输出 v8，Agent Get 输出 v11（带 `--client` 时为 v12）。
 每个 Panel 行和非 null 的 Agent terminal 必须包含 metadata 与 reportedAgent。前序元数据版本
 保留 null 守卫上下文并拒绝 reportedAgent；更早版本同时拒绝 metadata，原有闭合形状仍被接受。
 本地化文本转义有效元数据、上报详情、消息和外部引用。目录 v90 包含 90 份 schema 和 104 条

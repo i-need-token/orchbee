@@ -162,3 +162,9 @@ cannot complete as applied navigation.
 The [current Panel contract](native-current-panel.md#exact-current-presentation-for-process-information)
 owns Windows process-info/current composition and their before/after member fences. Client control v6
 admits this intent; v1–v5 remain closed. Existing primary `viewports` reads retain their meaning.
+
+Unbound native members extend the passive selection as a strict alternative containing only
+`presentationId` and nonzero `selectionGeneration`. They have no attachment, binding or viewport;
+null remains absent local membership. Native stable-state and canonical identity checks precede
+publication. Control v7 exposes this alternative, while existing bound/null receipts remain v6 and
+legacy versions reject the unbound shape. Neither variant acknowledges attention or changes focus.

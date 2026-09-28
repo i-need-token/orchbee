@@ -23,18 +23,36 @@ fn snapshot_reply(stream: &mut LocalStream) {
     snapshot_reply_at(stream, 12);
 }
 fn snapshot_reply_at(stream: &mut LocalStream, revision: u64) {
+    send_snapshot(stream, revision, None);
+}
+fn send_snapshot(
+    stream: &mut LocalStream,
+    revision: u64,
+    delayed: Option<std::sync::mpsc::Sender<Instant>>,
+) -> bool {
     let mut snapshot:Snapshot=serde_json::from_value(json!({"protocolVersion":1,"siteId":id(2),"revision":"12","navigation":{"projects":[],"standaloneTerminalContextId":id(4)},"terminalContexts":[{"terminalContextId":id(4),"groups":[],"tabs":[{"tabId":id(5),"label":"two","pinned":false,"groupId":null,"root":{"kind":"split","splitId":id(50),"orientation":"horizontal","children":[{"slotId":id(51),"node":panel(6)},{"slotId":id(52),"node":panel(8)}]}}]}]})).unwrap();
     snapshot.revision = WorkbenchRevision::new(revision);
     let request = support::snapshot_after_metadata(stream, &snapshot);
-    write_workbench_response(
+    if let Some(started) = &delayed {
+        // Measure the request budget after cohort startup and metadata preflight.
+        started.send(Instant::now()).unwrap();
+        std::thread::sleep(Duration::from_secs(4));
+    }
+    let result = write_workbench_response(
         stream,
         &WorkbenchResponse::Snapshot(WorkbenchSnapshotResult {
             protocol_version: ProtocolVersion,
             request_id: request.request_id,
             outcome: WorkbenchSnapshotOutcome::Available { snapshot },
         }),
-    )
-    .unwrap();
+    );
+    if delayed.is_some() && result.is_err() {
+        // The shared deadline may expire during the delayed snapshot itself.
+        // The caller still requires a timeout receipt within the original budget.
+        return false;
+    }
+    result.unwrap();
+    true
 }
 fn record(client: u64, panel: u64) -> Value {
     json!({"clientId":id(client),"heartbeat":"1","viewRevision":"2","availability":"current","view":{"workbenchRevision":"12","phase":"ready","selection":{"terminalContextId":id(4),"tabId":id(5),"panelId":id(panel),"zoomed":false,"panelCount":2}}})
@@ -243,7 +261,7 @@ fn caller_explicit_and_client_targets_preserve_precedence_without_mutating_contr
                     id(selected + if mode == 1 || mode >= 3 { 400 } else { 200 })
                 );
             } else {
-                assert_eq!(doc["version"], 7);
+                assert_eq!(doc["version"], 8);
                 assert_eq!(doc["result"]["panel"]["panelId"], id(selected));
                 assert_eq!(
                     doc["result"]["panel"]["currentPresentation"]["presentationId"],
@@ -381,12 +399,16 @@ fn client_list_faults_and_partial_reply_have_closed_failures_and_one_total_budge
         let fixture = Fixture::new();
         let rendezvous = fixture.rendezvous();
         let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
+        let (started, request_started) = std::sync::mpsc::channel();
         let server = peer(&fixture, listener, move |mut stream| {
-            if case == 4 {
-                std::thread::sleep(Duration::from_secs(4));
+            if !send_snapshot(&mut stream, 12, (case == 4).then_some(started)) {
+                return;
             }
-            snapshot_reply(&mut stream);
-            let request = view_request(&mut stream);
+            let request = match read_workbench_request(&mut stream) {
+                Ok(WorkbenchRequest::ClientView(request)) => request,
+                Err(_) if case == 4 => return,
+                other => panic!("Client list after snapshot: {other:?}"),
+            };
             assert!(matches!(request.action, ClientViewAction::List {}));
             match case {
                 0 => return,
@@ -400,8 +422,8 @@ fn client_list_faults_and_partial_reply_have_closed_failures_and_one_total_budge
             }
             assert_closed(&mut stream);
         });
-        let started = Instant::now();
         let output = fixture.run(&["panel", "current", "--format=json"]);
+        let finished = Instant::now();
         server.join().unwrap();
         assert!(!output.status.success());
         let doc = document(&output);
@@ -419,11 +441,8 @@ fn client_list_faults_and_partial_reply_have_closed_failures_and_one_total_budge
             }
         );
         if case == 4 {
-            assert!(
-                started.elapsed() < Duration::from_millis(5900),
-                "{:?}",
-                started.elapsed()
-            );
+            let elapsed = finished.duration_since(request_started.recv().unwrap());
+            assert!(elapsed < Duration::from_millis(5900), "{elapsed:?}");
         }
     }
 }

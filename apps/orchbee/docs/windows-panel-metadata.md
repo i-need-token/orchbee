@@ -102,7 +102,7 @@ readiness. External provider references remain separate from canonical observati
 and are not executed by these queries. Automatic Host process production, associated names,
 provider resume/persistence and TUI publication remain separate integration obligations.
 
-Windows Panel list/get emit v9, current emits v7, and Agent Get emits v11 (v12 with `--client`).
+Windows Panel list/get emit v9, current emits v8, and Agent Get emits v11 (v12 with `--client`).
 Every Panel row and non-null Agent terminal requires metadata and reportedAgent. Earlier metadata
 versions retain null guard context and reject reportedAgent; still older versions reject metadata
 as well. Their closed previous shapes remain accepted. Localized text escapes effective metadata,
