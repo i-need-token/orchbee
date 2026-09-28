@@ -40,7 +40,12 @@ impl ProcessObserver {
             self.wake.changed.notify_all();
         }
     }
-    fn start(&self, service: &Arc<LocalTerminalService>) -> io::Result<()> {
+    fn start(
+        &self,
+        service: &Arc<LocalTerminalService>,
+        settings: orchbee_local_site_runtime::WindowsUserSettings,
+        background: bool,
+    ) -> io::Result<()> {
         let mut handle = self
             .handle
             .lock()
@@ -51,17 +56,13 @@ impl ProcessObserver {
         if handle.is_some() {
             return Err(io::ErrorKind::AlreadyExists.into());
         }
-        let config =
-            orchbee_local_site_runtime::windows_user_settings_path(|name| std::env::var_os(name))
-                .map_err(io::Error::other)?;
-        let detector = ScreenDetector::load(config.as_deref().and_then(std::path::Path::parent))
-            .map_err(io::Error::other)?;
-        self.wake.manifests.initialize(
-            config
-                .as_deref()
-                .and_then(std::path::Path::parent)
-                .map(std::path::Path::to_path_buf),
+        let root = settings.path.as_deref().and_then(std::path::Path::parent);
+        let detector = ScreenDetector::load(root).map_err(io::Error::other)?;
+        self.wake.manifests.initialize_settings(
+            &settings,
             &detector,
+            background,
+            !cfg!(debug_assertions) && !cfg!(test),
         )?;
         let service = Arc::downgrade(service);
         let wake = Arc::clone(&self.wake);
@@ -156,7 +157,17 @@ impl LocalTerminalService {
     }
     /// Starts the sole periodic sampler; a stopped or already running owner cannot restart.
     pub(crate) fn start_process_observer(self: &Arc<Self>) -> io::Result<()> {
-        self.process_observer.start(self)
+        let settings =
+            orchbee_local_site_runtime::read_windows_user_settings(|name| std::env::var_os(name))
+                .map_err(io::Error::other)?;
+        self.start_process_observer_with_settings(settings, false)
+    }
+    pub(crate) fn start_process_observer_with_settings(
+        self: &Arc<Self>,
+        settings: orchbee_local_site_runtime::WindowsUserSettings,
+        background: bool,
+    ) -> io::Result<()> {
+        self.process_observer.start(self, settings, background)
     }
     /// Stops new sampling and joins admitted work; unresolved viewer cleanup transfers to Site shutdown.
     pub(crate) fn stop_process_observer_before(&self, deadline: Instant) -> io::Result<()> {
@@ -266,6 +277,7 @@ fn run(service: Weak<LocalTerminalService>, wake: Arc<Wake>, mut detector: Scree
         if wake.stop.load(Ordering::Acquire) {
             wake.manifests.cancel();
         }
+        wake.manifests.schedule(Instant::now());
         updates.serve(service.as_deref(), &wake, &mut detector);
         if wake.stop.load(Ordering::Acquire) {
             if !updates.active() {

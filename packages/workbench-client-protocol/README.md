@@ -259,3 +259,5 @@ The shared `workbench-agent-manifests-conformance-v1.json` corpus covers accepte
 nullable fields, numeric versions, sources, revisions, duplicates and cross-field consistency.
 Semantic byte/version and cross-field checks supplement JSON Schema. The Server screen model owns
 source selection, downloading, installation, cancellation and receipt limits.
+
+Optional `maintenance.automatic` exposes the configured check and provenance, background/release/availability gates, effective enabled state and one latest automatic operation. Required nullable `lastOperation` retains pending, updated, failed or unknown facts; reload-only Applied is refused. Rust/TypeScript validate gate consistency and default provenance. Automatic work never consumes manual receipt IDs; scheduling belongs to the Server.

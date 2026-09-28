@@ -92,6 +92,74 @@
 					"const": 2
 				},
 				"requestId": {
+					"$ref": "#/$defs/v2_identity"
+				},
+				"siteId": {
+					"$ref": "#/$defs/v2_identity"
+				},
+				"action": {
+					"$ref": "#/$defs/v2_action"
+				},
+				"observation": {
+					"oneOf": [
+						{
+							"type": "object",
+							"required": ["kind", "reply"],
+							"additionalProperties": false,
+							"properties": {
+								"kind": {
+									"const": "server"
+								},
+								"reply": {
+									"$ref": "#/$defs/v2_result"
+								}
+							}
+						},
+						{
+							"type": "object",
+							"required": ["kind", "reason"],
+							"additionalProperties": false,
+							"properties": {
+								"kind": {
+									"const": "unknown"
+								},
+								"reason": {
+									"type": "string",
+									"minLength": 1
+								}
+							}
+						}
+					]
+				},
+				"interrupted": {
+					"type": "boolean"
+				},
+				"cleanupFailed": {
+					"type": "boolean"
+				}
+			}
+		},
+		{
+			"type": "object",
+			"required": [
+				"schema",
+				"version",
+				"requestId",
+				"siteId",
+				"action",
+				"observation",
+				"interrupted",
+				"cleanupFailed"
+			],
+			"additionalProperties": false,
+			"properties": {
+				"schema": {
+					"const": "orchbee.site.agent-manifests"
+				},
+				"version": {
+					"const": 3
+				},
+				"requestId": {
 					"$ref": "#/$defs/identity"
 				},
 				"siteId": {
@@ -1096,6 +1164,9 @@
 							"type": "null"
 						}
 					]
+				},
+				"automatic": {
+					"$ref": "#/$defs/automatic"
 				}
 			}
 		},
@@ -1138,6 +1209,675 @@
 					}
 				}
 			]
+		},
+		"v2_identity": {
+			"type": "string",
+			"pattern": "^[0-9a-f]{32}$",
+			"not": {
+				"const": "00000000000000000000000000000000"
+			}
+		},
+		"v2_revision": {
+			"type": "string",
+			"pattern": "^(?:0|[1-9][0-9]{0,19})$",
+			"maxLength": 20,
+			"format": "orchbee-uint64",
+			"not": {
+				"const": "0"
+			}
+		},
+		"v2_manifestInfo": {
+			"type": "object",
+			"required": [
+				"source",
+				"path",
+				"cachedRemoteVersion",
+				"localOverrideShadowingRemote",
+				"warnings"
+			],
+			"additionalProperties": false,
+			"properties": {
+				"source": {
+					"enum": ["bundled", "local-override", "remote-cache"]
+				},
+				"path": {
+					"type": ["string", "null"],
+					"minLength": 1,
+					"maxLength": 32768
+				},
+				"cachedRemoteVersion": {
+					"type": ["string", "null"],
+					"maxLength": 128,
+					"pattern": "^[0-9]+(?:\\.[0-9]+)*$"
+				},
+				"localOverrideShadowingRemote": {
+					"type": "boolean"
+				},
+				"warnings": {
+					"type": "array",
+					"maxItems": 2,
+					"items": {
+						"type": "object",
+						"required": ["source", "kind"],
+						"additionalProperties": false,
+						"properties": {
+							"source": {
+								"enum": ["local-override", "remote-cache"]
+							},
+							"kind": {
+								"enum": [
+									"unreadable",
+									"not-regular",
+									"too-large",
+									"invalid-utf8",
+									"invalid-manifest",
+									"invalid-version",
+									"older-than-bundled"
+								]
+							}
+						}
+					}
+				}
+			},
+			"allOf": [
+				{
+					"if": {
+						"properties": {
+							"source": {
+								"const": "bundled"
+							}
+						}
+					},
+					"then": {
+						"properties": {
+							"path": {
+								"type": "null"
+							}
+						}
+					},
+					"else": {
+						"properties": {
+							"path": {
+								"type": "string"
+							}
+						}
+					}
+				},
+				{
+					"if": {
+						"properties": {
+							"localOverrideShadowingRemote": {
+								"const": true
+							}
+						}
+					},
+					"then": {
+						"properties": {
+							"cachedRemoteVersion": {
+								"type": "string"
+							}
+						}
+					}
+				},
+				{
+					"if": {
+						"properties": {
+							"source": {
+								"const": "remote-cache"
+							}
+						}
+					},
+					"then": {
+						"properties": {
+							"cachedRemoteVersion": {
+								"type": "string"
+							}
+						}
+					}
+				}
+			]
+		},
+		"v2_failure": {
+			"enum": [
+				"denied",
+				"unavailable",
+				"site-mismatch",
+				"busy",
+				"resource-limit",
+				"not-found",
+				"load-failed",
+				"revision-exhausted",
+				"cancelled",
+				"conflict",
+				"update-unavailable"
+			]
+		},
+		"v2_summary": {
+			"type": "object",
+			"required": ["agent", "version", "manifest"],
+			"additionalProperties": false,
+			"properties": {
+				"agent": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 64,
+					"pattern": "^[a-z0-9-]+$"
+				},
+				"version": {
+					"anyOf": [
+						{
+							"type": "string",
+							"minLength": 1,
+							"maxLength": 128,
+							"pattern": "^[0-9]+(?:\\.[0-9]+)*$"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"manifest": {
+					"$ref": "#/$defs/v2_manifestInfo"
+				}
+			}
+		},
+		"v2_snapshot": {
+			"type": "object",
+			"required": ["revision", "engineVersion", "configurationRoot", "manifests"],
+			"additionalProperties": false,
+			"properties": {
+				"revision": {
+					"$ref": "#/$defs/v2_revision"
+				},
+				"engineVersion": {
+					"const": 3
+				},
+				"configurationRoot": {
+					"anyOf": [
+						{
+							"type": "string",
+							"minLength": 1,
+							"maxLength": 32768,
+							"pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]+$"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"manifests": {
+					"type": "array",
+					"maxItems": 24,
+					"items": {
+						"$ref": "#/$defs/v2_summary"
+					}
+				},
+				"maintenance": {
+					"$ref": "#/$defs/v2_maintenance"
+				}
+			}
+		},
+		"v2_action": {
+			"oneOf": [
+				{
+					"type": "object",
+					"required": ["kind"],
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "current"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"required": ["kind", "operationId"],
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "reload"
+						},
+						"operationId": {
+							"$ref": "#/$defs/v2_identity"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"required": ["kind", "operationId"],
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "operation"
+						},
+						"operationId": {
+							"$ref": "#/$defs/v2_identity"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"required": ["kind", "operationId"],
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "update"
+						},
+						"operationId": {
+							"$ref": "#/$defs/v2_identity"
+						}
+					}
+				}
+			]
+		},
+		"v2_operation": {
+			"oneOf": [
+				{
+					"type": "object",
+					"required": ["kind"],
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "pending"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"required": ["kind", "revision"],
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "applied"
+						},
+						"revision": {
+							"$ref": "#/$defs/v2_revision"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"required": ["kind", "reason"],
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "failed"
+						},
+						"reason": {
+							"$ref": "#/$defs/v2_failure"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"required": ["kind", "report", "activation"],
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "updated"
+						},
+						"report": {
+							"$ref": "#/$defs/v2_updateReport"
+						},
+						"activation": {
+							"$ref": "#/$defs/v2_activation"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"required": ["kind", "reason"],
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "unknown"
+						},
+						"reason": {
+							"$ref": "#/$defs/v2_failure"
+						}
+					}
+				}
+			]
+		},
+		"v2_outcome": {
+			"oneOf": [
+				{
+					"type": "object",
+					"required": ["kind", "snapshot"],
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "current"
+						},
+						"snapshot": {
+							"$ref": "#/$defs/v2_snapshot"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"required": ["kind", "operationId", "status"],
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "operation"
+						},
+						"operationId": {
+							"$ref": "#/$defs/v2_identity"
+						},
+						"status": {
+							"$ref": "#/$defs/v2_operation"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"required": ["kind", "reason"],
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "failed"
+						},
+						"reason": {
+							"$ref": "#/$defs/v2_failure"
+						}
+					}
+				}
+			]
+		},
+		"v2_request": {
+			"type": "object",
+			"required": ["kind", "protocolVersion", "requestId", "siteId", "action"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": {
+					"const": "workbench.agent-manifests"
+				},
+				"protocolVersion": {
+					"const": 1
+				},
+				"requestId": {
+					"$ref": "#/$defs/v2_identity"
+				},
+				"siteId": {
+					"$ref": "#/$defs/v2_identity"
+				},
+				"action": {
+					"$ref": "#/$defs/v2_action"
+				}
+			}
+		},
+		"v2_result": {
+			"type": "object",
+			"required": ["kind", "protocolVersion", "requestId", "siteId", "outcome"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": {
+					"const": "workbench.agent-manifests.result"
+				},
+				"protocolVersion": {
+					"const": 1
+				},
+				"requestId": {
+					"$ref": "#/$defs/v2_identity"
+				},
+				"siteId": {
+					"$ref": "#/$defs/v2_identity"
+				},
+				"outcome": {
+					"$ref": "#/$defs/v2_outcome"
+				}
+			}
+		},
+		"v2_catalogUrl": {
+			"type": "string",
+			"maxLength": 4096,
+			"pattern": "^https?://[A-Za-z0-9.\\[\\]:-]+/[^\\s\\\\#?\\u0000-\\u0020\\u007f-\\uffff]*$"
+		},
+		"v2_updateFailure": {
+			"enum": [
+				"invalid-source",
+				"invalid-catalog",
+				"fetch",
+				"too-large",
+				"invalid-utf8",
+				"invalid-manifest",
+				"cache",
+				"busy",
+				"older-version",
+				"changed-same-version",
+				"cancelled",
+				"deadline",
+				"clock",
+				"process"
+			]
+		},
+		"v2_providerUpdate": {
+			"type": "object",
+			"required": ["agent", "attemptedVersion", "cachedVersion", "result", "error"],
+			"additionalProperties": false,
+			"properties": {
+				"agent": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 64,
+					"pattern": "^[a-z0-9-]+$"
+				},
+				"attemptedVersion": {
+					"anyOf": [
+						{
+							"type": "string",
+							"minLength": 1,
+							"maxLength": 128,
+							"pattern": "^[0-9]+(?:\\.[0-9]+)*$"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"cachedVersion": {
+					"anyOf": [
+						{
+							"type": "string",
+							"minLength": 1,
+							"maxLength": 128,
+							"pattern": "^[0-9]+(?:\\.[0-9]+)*$"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"result": {
+					"enum": ["updated", "current", "failed"]
+				},
+				"error": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/v2_updateFailure"
+						},
+						{
+							"type": "null"
+						}
+					]
+				}
+			}
+		},
+		"v2_updateReport": {
+			"type": "object",
+			"required": [
+				"version",
+				"catalogUrl",
+				"checkedUnixSeconds",
+				"agents",
+				"failure",
+				"statusSaved"
+			],
+			"additionalProperties": false,
+			"properties": {
+				"version": {
+					"const": 1
+				},
+				"catalogUrl": {
+					"$ref": "#/$defs/v2_catalogUrl"
+				},
+				"checkedUnixSeconds": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 9007199254740991
+				},
+				"agents": {
+					"type": "array",
+					"maxItems": 22,
+					"items": {
+						"$ref": "#/$defs/v2_providerUpdate"
+					}
+				},
+				"failure": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/v2_updateFailure"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"statusSaved": {
+					"type": "boolean"
+				}
+			}
+		},
+		"v2_maintenance": {
+			"type": "object",
+			"required": ["sourceUrl", "sourceError", "lastUpdate", "statusError"],
+			"additionalProperties": false,
+			"properties": {
+				"sourceUrl": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/v2_catalogUrl"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"sourceError": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/v2_updateFailure"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"lastUpdate": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/v2_updateReport"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"statusError": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/v2_updateFailure"
+						},
+						{
+							"type": "null"
+						}
+					]
+				}
+			}
+		},
+		"v2_activation": {
+			"oneOf": [
+				{
+					"type": "object",
+					"required": ["kind"],
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "not-attempted"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"required": ["kind", "revision"],
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "applied"
+						},
+						"revision": {
+							"$ref": "#/$defs/v2_revision"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"required": ["kind", "reason"],
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "failed"
+						},
+						"reason": {
+							"$ref": "#/$defs/v2_failure"
+						}
+					}
+				}
+			]
+		},
+		"automatic": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": [
+				"manifestCheck",
+				"manifestCheckSource",
+				"backgroundEnabled",
+				"releaseBuild",
+				"updateAvailable",
+				"enabled",
+				"lastOperation"
+			],
+			"properties": {
+				"manifestCheck": {
+					"type": "boolean"
+				},
+				"backgroundEnabled": {
+					"type": "boolean"
+				},
+				"releaseBuild": {
+					"type": "boolean"
+				},
+				"updateAvailable": {
+					"type": "boolean"
+				},
+				"enabled": {
+					"type": "boolean"
+				},
+				"manifestCheckSource": {
+					"enum": ["default", "file"]
+				},
+				"lastOperation": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/operation"
+						},
+						{
+							"type": "null"
+						}
+					]
+				}
+			}
 		}
 	}
 }

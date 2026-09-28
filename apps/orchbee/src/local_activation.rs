@@ -268,6 +268,30 @@ fn connect_or_activate(
                             } else {
                                 "false"
                             }),
+                            #[cfg(windows)]
+                            std::ffi::OsStr::new("--manifest-check"),
+                            #[cfg(windows)]
+                            std::ffi::OsStr::new(if settings.manifest_check {
+                                "true"
+                            } else {
+                                "false"
+                            }),
+                            #[cfg(windows)]
+                            std::ffi::OsStr::new("--manifest-check-source"),
+                            #[cfg(windows)]
+                            std::ffi::OsStr::new(settings.manifest_check_source),
+                            #[cfg(windows)]
+                            std::ffi::OsStr::new("--configuration-file"),
+                            #[cfg(windows)]
+                            settings
+                                .path
+                                .as_deref()
+                                .map(std::path::Path::as_os_str)
+                                .unwrap_or(std::ffi::OsStr::new("")),
+                            #[cfg(windows)]
+                            std::ffi::OsStr::new("--configuration-file-explicit"),
+                            #[cfg(windows)]
+                            std::ffi::OsStr::new(if settings.explicit { "true" } else { "false" }),
                         ],
                     )
                     .map_err(|_| {

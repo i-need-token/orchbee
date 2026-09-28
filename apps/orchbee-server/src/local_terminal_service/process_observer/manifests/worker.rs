@@ -38,6 +38,10 @@ impl Worker {
                                 .iter()
                                 .any(|row| row.result != updating::Disposition::Failed))
                 })
+                .filter(|report| {
+                    running.work.id != Owner::Automatic
+                        || automatic_activation_needed(report, detector)
+                })
                 .filter(|_| !wake.stop.load(Ordering::Acquire))
                 .map(|_| ScreenDetector::load(running.work.root.as_deref()));
             wake.manifests
@@ -52,10 +56,28 @@ impl Worker {
             return;
         };
         if work.kind == Kind::Reload {
+            let settings = work
+                .configuration
+                .as_ref()
+                .map(|(path, explicit)| {
+                    orchbee_local_site_runtime::read_windows_user_settings_at(
+                        path.as_deref(),
+                        *explicit,
+                        |name| std::env::var_os(name),
+                    )
+                })
+                .transpose();
+            let settings = match settings {
+                Ok(settings) => settings,
+                Err(_) => {
+                    wake.manifests.refuse_work(work.id, Failure::LoadFailed);
+                    return;
+                }
+            };
             let next = ScreenDetector::load(work.root.as_deref());
             let maintenance = updating::maintenance(work.root.as_deref(), &work.source);
             wake.manifests
-                .complete_reload(work.id, next, Some(maintenance), |next| {
+                .complete_reload(work.id, next, Some(maintenance), settings, |next| {
                     install(service, detector, next)
                 });
             return;
@@ -98,4 +120,17 @@ impl Drop for Running {
                 });
         }
     }
+}
+
+fn automatic_activation_needed(report: &UpdateReport, detector: &ScreenDetector) -> bool {
+    let loaded = detector.summaries();
+    report.agents.iter().any(|row| {
+        row.result == updating::Disposition::Updated
+            || (row.result == updating::Disposition::Current
+                && loaded
+                    .iter()
+                    .find(|m| m.agent == row.agent)
+                    .and_then(|m| m.manifest.cached_remote_version.as_ref())
+                    != row.cached_version.as_ref())
+    })
 }

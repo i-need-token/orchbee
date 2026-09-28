@@ -13,6 +13,9 @@ const LIMIT: u64 = 64 * 1024;
 pub struct WindowsUserSettings {
     pub path: Option<PathBuf>,
     pub exists: bool,
+    pub explicit: bool,
+    pub manifest_check: bool,
+    pub manifest_check_source: &'static str,
     pub cwd: Option<(WindowsDirectoryPolicy, Option<String>)>,
     pub worktree_root: Option<String>,
     pub resume_agents_on_restore: bool,
@@ -24,6 +27,9 @@ impl Default for WindowsUserSettings {
         Self {
             path: None,
             exists: false,
+            explicit: false,
+            manifest_check: true,
+            manifest_check_source: "default",
             cwd: None,
             worktree_root: None,
             resume_agents_on_restore: true,
@@ -130,9 +136,26 @@ pub fn windows_user_settings_path(
 fn read_file(
     env: impl Fn(&str) -> Option<OsString>,
 ) -> Result<WindowsUserSettings, WindowsSettingsError> {
-    let Some((path, explicit)) = location(&env)? else {
+    let location = location(&env)?;
+    read_windows_user_settings_at(
+        location.as_ref().map(|(path, _)| path.as_path()),
+        location.as_ref().is_some_and(|(_, explicit)| *explicit),
+        env,
+    )
+}
+/// Explicit reload keeps the admitted startup path, including default-file absence semantics.
+pub fn read_windows_user_settings_at(
+    path: Option<&Path>,
+    explicit: bool,
+    env: impl Fn(&str) -> Option<OsString>,
+) -> Result<WindowsUserSettings, WindowsSettingsError> {
+    let Some(path) = path else {
+        if explicit {
+            return Err(WindowsSettingsError::new("file", "invalid-path"));
+        }
         return Ok(WindowsUserSettings::default());
     };
+    let path = path.to_owned();
     let file = match File::open(&path) {
         Ok(file) => file,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound && !explicit => {
@@ -170,7 +193,9 @@ fn read_file(
     }
     let text = std::str::from_utf8(&bytes)
         .map_err(|_| WindowsSettingsError::new("file", "invalid-utf8"))?;
-    parse(text, &path, &env)
+    let mut settings = parse(text, &path, &env)?;
+    settings.explicit = explicit;
+    Ok(settings)
 }
 
 fn parse(
@@ -188,6 +213,7 @@ fn parse(
     for (section, value) in table {
         let (key, field) = match section.as_str() {
             "terminal" => ("new_cwd", "terminal.new_cwd"),
+            "update" => ("manifest_check", "update.manifest_check"),
             "worktrees" => ("directory", "worktrees.directory"),
             "session" => (
                 "resume_agents_on_restore",
@@ -204,6 +230,13 @@ fn parse(
         let Some(value) = table.get(key) else {
             continue;
         };
+        if section == "update" {
+            settings.manifest_check = value
+                .as_bool()
+                .ok_or(WindowsSettingsError::new(field, "wrong-type"))?;
+            settings.manifest_check_source = "file";
+            continue;
+        }
         if section == "session" {
             settings.resume_agents_on_restore = value
                 .as_bool()

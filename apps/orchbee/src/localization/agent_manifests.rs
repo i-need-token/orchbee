@@ -8,16 +8,16 @@ impl Locale {
     pub(crate) fn cli_agent_manifests_help(self, path: CommandPath) -> &'static str {
         match (self, path) {
             (Self::EnUs, CommandPath::SiteAgentManifests) => {
-                "orchbee site agent-manifests [--format text|json]\n\nRead the running Windows Site's installed detection rules, source, version, path and warnings. This does not reread files or fetch updates.\n"
+                "orchbee site agent-manifests [--format text|json]\n\nRead the running Windows Site's installed detection rules, source, version, path and warnings. Includes automatic-check policy and its latest result. This does not reread files or fetch updates.\n"
             }
             (Self::ZhCn, CommandPath::SiteAgentManifests) => {
-                "orchbee site agent-manifests [--format text|json]\n\n读取运行中 Windows Site 已安装的识别规则、来源、版本、路径及警告。不会重新读取文件或下载更新。\n"
+                "orchbee site agent-manifests [--format text|json]\n\n读取运行中 Windows Site 已安装的识别规则、来源、版本、路径及警告。包含自动检查策略及最近结果。不会重新读取文件或下载更新。\n"
             }
             (Self::EnUs, CommandPath::SiteReloadAgentManifests) => {
-                "orchbee site reload-agent-manifests [--request-id <operation-id>] [--format text|json]\n\nReload local detection rules in the running Windows Site and reset screen stabilization. Wait up to five seconds; pending/unknown returns exit 8 and retains the operation ID. Query site agent-manifests-status <id> after interruption. Reusing an accepted ID never reloads again. Receipts last for this Site generation (maximum 1,024); no remote fetch.\n"
+                "orchbee site reload-agent-manifests [--request-id <operation-id>] [--format text|json]\n\nReload local detection rules and update.manifest_check from the frozen configuration path in the running Windows Site; reset screen stabilization. Invalid configuration retains the previous policy and rules. Wait up to five seconds; pending/unknown returns exit 8 and retains the operation ID. Query site agent-manifests-status <id> after interruption. Reusing an accepted ID never reloads again. Receipts last for this Site generation (maximum 1,024); no remote fetch.\n"
             }
             (Self::ZhCn, CommandPath::SiteReloadAgentManifests) => {
-                "orchbee site reload-agent-manifests [--request-id <operation-id>] [--format text|json]\n\n在运行中 Windows Site 重载本地识别规则并重置屏幕稳定状态。最多等待五秒；待处理或结果未知时退出码为 8，并保留操作 ID。中断后使用 site agent-manifests-status <id> 查询。复用已接纳的 ID 不会再次重载。回执保留至此 Site 代次结束（最多 1,024 条）；不会远程下载。\n"
+                "orchbee site reload-agent-manifests [--request-id <operation-id>] [--format text|json]\n\n在运行中 Windows Site 从冻结配置路径重载本地识别规则和 update.manifest_check，并重置屏幕稳定状态。配置无效时保留旧策略和规则。最多等待五秒；待处理或结果未知时退出码为 8，并保留操作 ID。中断后使用 site agent-manifests-status <id> 查询。复用已接纳的 ID 不会再次重载。回执保留至此 Site 代次结束（最多 1,024 条）；不会远程下载。\n"
             }
             (Self::EnUs, CommandPath::SiteUpdateAgentManifests) => {
                 "orchbee site update-agent-manifests [--request-id <operation-id>] [--format text|json]\n\nDownload detection rules from the configured catalog and activate eligible cached rules. Wait up to five seconds; exit 8 retains the operation ID for site agent-manifests-status. Reusing an ID does not repeat the download. Partial failure returns a nonzero exit; cache results and activation are separate.\n"
@@ -72,6 +72,9 @@ impl Locale {
                     text.push_str(&format!("{}: {}\n",if zh {"更新目录源"} else {"Update catalog"},escape(maintenance.source_url.as_deref().unwrap_or("-"))));
                     if let Some(error)=maintenance.source_error { text.push_str(&format!("{}: {:?}\n",if zh {"目录源错误"} else {"Catalog error"},error)); }
                     if let Some(error)=maintenance.status_error { text.push_str(&format!("{}: {:?}\n",if zh {"缓存状态错误"} else {"Cache status error"},error)); }
+                    if let Some(automatic)=&maintenance.automatic {
+                        text.push_str(&self.cli_agent_manifest_automatic(automatic));
+                    }
                     if let Some(report)=&maintenance.last_update {text.push_str(&self.cli_agent_manifest_update(report));}
                 }
                 for row in &snapshot.manifests {
@@ -238,6 +241,92 @@ impl Locale {
                     if zh { "原因" } else { "Reason" },
                     error
                 ));
+            }
+        }
+        text
+    }
+}
+
+#[cfg(windows)]
+impl Locale {
+    fn cli_agent_manifest_automatic(
+        self,
+        automatic: &orchbee_workbench_protocol::AgentManifestAutomatic,
+    ) -> String {
+        let zh = matches!(self, Self::ZhCn);
+        let mut text = format!(
+            "{}: {}  {}={}  {}={:?}  {}={}  {}={}\n",
+            if zh {
+                "自动检查（每 30 分钟）"
+            } else {
+                "Automatic checks (every 30 minutes)"
+            },
+            automatic.enabled,
+            if zh { "配置开关" } else { "configured" },
+            automatic.manifest_check,
+            if zh { "设置来源" } else { "setting source" },
+            automatic.manifest_check_source,
+            if zh { "后台策略" } else { "background" },
+            automatic.background_enabled,
+            if zh { "发布构建" } else { "release build" },
+            automatic.release_build
+        );
+        if let Some(operation) = automatic.last_operation.as_deref() {
+            text.push_str(if zh {
+                "最近自动检查：\n"
+            } else {
+                "Latest automatic check:\n"
+            });
+            match operation {
+                AgentManifestsOperation::Pending {} => text.push_str(if zh {
+                    "检查进行中。\n"
+                } else {
+                    "Check pending.\n"
+                }),
+                AgentManifestsOperation::Updated { report, activation } => {
+                    text.push_str(&self.cli_agent_manifest_update(report));
+                    use orchbee_workbench_protocol::AgentManifestActivation;
+                    match activation {
+                        AgentManifestActivation::Applied { revision } => text.push_str(&format!(
+                            "{}: {}\n",
+                            if zh {
+                                "已启用规则修订"
+                            } else {
+                                "Activated manifest revision"
+                            },
+                            revision
+                        )),
+                        AgentManifestActivation::NotAttempted {} => text.push_str(if zh {
+                            "未启用缓存规则。\n"
+                        } else {
+                            "Cached rules were not activated.\n"
+                        }),
+                        AgentManifestActivation::Failed { reason } => text.push_str(&format!(
+                            "{}: {:?}\n",
+                            if zh {
+                                "规则启用失败"
+                            } else {
+                                "Activation failed"
+                            },
+                            reason
+                        )),
+                    }
+                }
+                AgentManifestsOperation::Unknown { reason } => text.push_str(&format!(
+                    "{}: {:?}\n",
+                    if zh {
+                        "结果未知"
+                    } else {
+                        "Outcome unknown"
+                    },
+                    reason
+                )),
+                AgentManifestsOperation::Failed { reason } => text.push_str(&format!(
+                    "{}: {:?}\n",
+                    if zh { "失败" } else { "Failed" },
+                    reason
+                )),
+                AgentManifestsOperation::Applied { .. } => {}
             }
         }
         text

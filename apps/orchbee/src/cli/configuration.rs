@@ -14,6 +14,8 @@ pub(super) struct Settings {
     pub(super) cwd: Option<(CreationDirectory, Option<WorkbenchDirectoryPath>)>,
     pub(super) worktree_root: Option<WorkbenchDirectoryPath>,
     resume_agents_on_restore: bool,
+    manifest_check: bool,
+    manifest_check_source: &'static str,
     resume_agents_on_restore_source: &'static str,
 }
 
@@ -75,6 +77,8 @@ fn project(raw: WindowsUserSettings) -> Result<Settings, Error> {
             .map(|value| path(value, "worktrees.directory"))
             .transpose()?,
         resume_agents_on_restore: raw.resume_agents_on_restore,
+        manifest_check: raw.manifest_check,
+        manifest_check_source: raw.manifest_check_source,
         resume_agents_on_restore_source: raw.resume_agents_on_restore_source,
     })
 }
@@ -94,6 +98,11 @@ impl Settings {
     }
     pub(super) fn check_details(&self) -> serde_json::Map<String, serde_json::Value> {
         serde_json::Map::from_iter([
+            ("manifestCheck".into(), self.manifest_check.into()),
+            (
+                "manifestCheckSource".into(),
+                self.manifest_check_source.into(),
+            ),
             (
                 "path".into(),
                 serde_json::json!(self.path.as_ref().and_then(|path| path.to_str())),

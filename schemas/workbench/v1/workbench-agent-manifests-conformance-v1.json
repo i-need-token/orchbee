@@ -532,6 +532,335 @@
 					"reason": "update-unavailable"
 				}
 			}
+		},
+		{
+			"name": "automatic-enabled",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.agent-manifests.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "current",
+					"snapshot": {
+						"revision": "1",
+						"engineVersion": 3,
+						"configurationRoot": null,
+						"manifests": [
+							{
+								"agent": "codex",
+								"version": "1.0",
+								"manifest": {
+									"source": "bundled",
+									"path": null,
+									"cachedRemoteVersion": null,
+									"localOverrideShadowingRemote": false,
+									"warnings": []
+								}
+							}
+						],
+						"maintenance": {
+							"sourceUrl": "https://herdr.dev/agent-detection/index.toml",
+							"sourceError": null,
+							"lastUpdate": {
+								"version": 1,
+								"catalogUrl": "https://herdr.dev/agent-detection/index.toml",
+								"checkedUnixSeconds": 1790610000,
+								"agents": [
+									{
+										"agent": "codex",
+										"attemptedVersion": "2099.1",
+										"cachedVersion": "2099.1",
+										"result": "updated",
+										"error": null
+									}
+								],
+								"failure": null,
+								"statusSaved": true
+							},
+							"statusError": null,
+							"automatic": {
+								"manifestCheck": true,
+								"manifestCheckSource": "default",
+								"backgroundEnabled": true,
+								"releaseBuild": true,
+								"updateAvailable": true,
+								"enabled": true,
+								"lastOperation": null
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"name": "automatic-debug-disabled",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.agent-manifests.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "current",
+					"snapshot": {
+						"revision": "1",
+						"engineVersion": 3,
+						"configurationRoot": null,
+						"manifests": [
+							{
+								"agent": "codex",
+								"version": "1.0",
+								"manifest": {
+									"source": "bundled",
+									"path": null,
+									"cachedRemoteVersion": null,
+									"localOverrideShadowingRemote": false,
+									"warnings": []
+								}
+							}
+						],
+						"maintenance": {
+							"sourceUrl": "https://herdr.dev/agent-detection/index.toml",
+							"sourceError": null,
+							"lastUpdate": {
+								"version": 1,
+								"catalogUrl": "https://herdr.dev/agent-detection/index.toml",
+								"checkedUnixSeconds": 1790610000,
+								"agents": [
+									{
+										"agent": "codex",
+										"attemptedVersion": "2099.1",
+										"cachedVersion": "2099.1",
+										"result": "updated",
+										"error": null
+									}
+								],
+								"failure": null,
+								"statusSaved": true
+							},
+							"statusError": null,
+							"automatic": {
+								"manifestCheck": true,
+								"manifestCheckSource": "default",
+								"backgroundEnabled": true,
+								"releaseBuild": false,
+								"updateAvailable": true,
+								"enabled": false,
+								"lastOperation": null
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"name": "automatic-setting-disabled",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.agent-manifests.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "current",
+					"snapshot": {
+						"revision": "1",
+						"engineVersion": 3,
+						"configurationRoot": null,
+						"manifests": [
+							{
+								"agent": "codex",
+								"version": "1.0",
+								"manifest": {
+									"source": "bundled",
+									"path": null,
+									"cachedRemoteVersion": null,
+									"localOverrideShadowingRemote": false,
+									"warnings": []
+								}
+							}
+						],
+						"maintenance": {
+							"sourceUrl": "https://herdr.dev/agent-detection/index.toml",
+							"sourceError": null,
+							"lastUpdate": {
+								"version": 1,
+								"catalogUrl": "https://herdr.dev/agent-detection/index.toml",
+								"checkedUnixSeconds": 1790610000,
+								"agents": [
+									{
+										"agent": "codex",
+										"attemptedVersion": "2099.1",
+										"cachedVersion": "2099.1",
+										"result": "updated",
+										"error": null
+									}
+								],
+								"failure": null,
+								"statusSaved": true
+							},
+							"statusError": null,
+							"automatic": {
+								"manifestCheck": false,
+								"manifestCheckSource": "file",
+								"backgroundEnabled": true,
+								"releaseBuild": true,
+								"updateAvailable": true,
+								"enabled": false,
+								"lastOperation": null
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"name": "automatic-pending",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.agent-manifests.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "current",
+					"snapshot": {
+						"revision": "1",
+						"engineVersion": 3,
+						"configurationRoot": null,
+						"manifests": [
+							{
+								"agent": "codex",
+								"version": "1.0",
+								"manifest": {
+									"source": "bundled",
+									"path": null,
+									"cachedRemoteVersion": null,
+									"localOverrideShadowingRemote": false,
+									"warnings": []
+								}
+							}
+						],
+						"maintenance": {
+							"sourceUrl": "https://herdr.dev/agent-detection/index.toml",
+							"sourceError": null,
+							"lastUpdate": {
+								"version": 1,
+								"catalogUrl": "https://herdr.dev/agent-detection/index.toml",
+								"checkedUnixSeconds": 1790610000,
+								"agents": [
+									{
+										"agent": "codex",
+										"attemptedVersion": "2099.1",
+										"cachedVersion": "2099.1",
+										"result": "updated",
+										"error": null
+									}
+								],
+								"failure": null,
+								"statusSaved": true
+							},
+							"statusError": null,
+							"automatic": {
+								"manifestCheck": true,
+								"manifestCheckSource": "default",
+								"backgroundEnabled": true,
+								"releaseBuild": true,
+								"updateAvailable": true,
+								"enabled": true,
+								"lastOperation": {
+									"kind": "pending"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"name": "automatic-updated",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.agent-manifests.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "current",
+					"snapshot": {
+						"revision": "1",
+						"engineVersion": 3,
+						"configurationRoot": null,
+						"manifests": [
+							{
+								"agent": "codex",
+								"version": "1.0",
+								"manifest": {
+									"source": "bundled",
+									"path": null,
+									"cachedRemoteVersion": null,
+									"localOverrideShadowingRemote": false,
+									"warnings": []
+								}
+							}
+						],
+						"maintenance": {
+							"sourceUrl": "https://herdr.dev/agent-detection/index.toml",
+							"sourceError": null,
+							"lastUpdate": {
+								"version": 1,
+								"catalogUrl": "https://herdr.dev/agent-detection/index.toml",
+								"checkedUnixSeconds": 1790610000,
+								"agents": [
+									{
+										"agent": "codex",
+										"attemptedVersion": "2099.1",
+										"cachedVersion": "2099.1",
+										"result": "updated",
+										"error": null
+									}
+								],
+								"failure": null,
+								"statusSaved": true
+							},
+							"statusError": null,
+							"automatic": {
+								"manifestCheck": true,
+								"manifestCheckSource": "default",
+								"backgroundEnabled": true,
+								"releaseBuild": true,
+								"updateAvailable": true,
+								"enabled": true,
+								"lastOperation": {
+									"kind": "updated",
+									"report": {
+										"version": 1,
+										"catalogUrl": "https://herdr.dev/agent-detection/index.toml",
+										"checkedUnixSeconds": 1790610000,
+										"agents": [
+											{
+												"agent": "codex",
+												"attemptedVersion": "2099.1",
+												"cachedVersion": "2099.1",
+												"result": "updated",
+												"error": null
+											}
+										],
+										"failure": null,
+										"statusSaved": true
+									},
+									"activation": {
+										"kind": "applied",
+										"revision": "2"
+									}
+								}
+							}
+						}
+					}
+				}
+			}
 		}
 	],
 	"invalid": [
@@ -1239,6 +1568,373 @@
 				}
 			},
 			"boundary": "semantic"
+		},
+		{
+			"name": "automatic-invalid-gate",
+			"direction": "response",
+			"boundary": "semantic",
+			"document": {
+				"kind": "workbench.agent-manifests.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "current",
+					"snapshot": {
+						"revision": "1",
+						"engineVersion": 3,
+						"configurationRoot": null,
+						"manifests": [
+							{
+								"agent": "codex",
+								"version": "1.0",
+								"manifest": {
+									"source": "bundled",
+									"path": null,
+									"cachedRemoteVersion": null,
+									"localOverrideShadowingRemote": false,
+									"warnings": []
+								}
+							}
+						],
+						"maintenance": {
+							"sourceUrl": "https://herdr.dev/agent-detection/index.toml",
+							"sourceError": null,
+							"lastUpdate": {
+								"version": 1,
+								"catalogUrl": "https://herdr.dev/agent-detection/index.toml",
+								"checkedUnixSeconds": 1790610000,
+								"agents": [
+									{
+										"agent": "codex",
+										"attemptedVersion": "2099.1",
+										"cachedVersion": "2099.1",
+										"result": "updated",
+										"error": null
+									}
+								],
+								"failure": null,
+								"statusSaved": true
+							},
+							"statusError": null,
+							"automatic": {
+								"manifestCheck": true,
+								"manifestCheckSource": "default",
+								"backgroundEnabled": true,
+								"releaseBuild": false,
+								"updateAvailable": true,
+								"enabled": true,
+								"lastOperation": null
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"name": "automatic-default-false",
+			"direction": "response",
+			"boundary": "semantic",
+			"document": {
+				"kind": "workbench.agent-manifests.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "current",
+					"snapshot": {
+						"revision": "1",
+						"engineVersion": 3,
+						"configurationRoot": null,
+						"manifests": [
+							{
+								"agent": "codex",
+								"version": "1.0",
+								"manifest": {
+									"source": "bundled",
+									"path": null,
+									"cachedRemoteVersion": null,
+									"localOverrideShadowingRemote": false,
+									"warnings": []
+								}
+							}
+						],
+						"maintenance": {
+							"sourceUrl": "https://herdr.dev/agent-detection/index.toml",
+							"sourceError": null,
+							"lastUpdate": {
+								"version": 1,
+								"catalogUrl": "https://herdr.dev/agent-detection/index.toml",
+								"checkedUnixSeconds": 1790610000,
+								"agents": [
+									{
+										"agent": "codex",
+										"attemptedVersion": "2099.1",
+										"cachedVersion": "2099.1",
+										"result": "updated",
+										"error": null
+									}
+								],
+								"failure": null,
+								"statusSaved": true
+							},
+							"statusError": null,
+							"automatic": {
+								"manifestCheck": false,
+								"manifestCheckSource": "default",
+								"backgroundEnabled": true,
+								"releaseBuild": true,
+								"updateAvailable": true,
+								"enabled": false,
+								"lastOperation": null
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"name": "automatic-reload-receipt",
+			"direction": "response",
+			"boundary": "semantic",
+			"document": {
+				"kind": "workbench.agent-manifests.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "current",
+					"snapshot": {
+						"revision": "1",
+						"engineVersion": 3,
+						"configurationRoot": null,
+						"manifests": [
+							{
+								"agent": "codex",
+								"version": "1.0",
+								"manifest": {
+									"source": "bundled",
+									"path": null,
+									"cachedRemoteVersion": null,
+									"localOverrideShadowingRemote": false,
+									"warnings": []
+								}
+							}
+						],
+						"maintenance": {
+							"sourceUrl": "https://herdr.dev/agent-detection/index.toml",
+							"sourceError": null,
+							"lastUpdate": {
+								"version": 1,
+								"catalogUrl": "https://herdr.dev/agent-detection/index.toml",
+								"checkedUnixSeconds": 1790610000,
+								"agents": [
+									{
+										"agent": "codex",
+										"attemptedVersion": "2099.1",
+										"cachedVersion": "2099.1",
+										"result": "updated",
+										"error": null
+									}
+								],
+								"failure": null,
+								"statusSaved": true
+							},
+							"statusError": null,
+							"automatic": {
+								"manifestCheck": true,
+								"manifestCheckSource": "default",
+								"backgroundEnabled": true,
+								"releaseBuild": true,
+								"updateAvailable": true,
+								"enabled": true,
+								"lastOperation": {
+									"kind": "applied",
+									"revision": "1"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"name": "automatic-missing-last",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.agent-manifests.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "current",
+					"snapshot": {
+						"revision": "1",
+						"engineVersion": 3,
+						"configurationRoot": null,
+						"manifests": [
+							{
+								"agent": "codex",
+								"version": "1.0",
+								"manifest": {
+									"source": "bundled",
+									"path": null,
+									"cachedRemoteVersion": null,
+									"localOverrideShadowingRemote": false,
+									"warnings": []
+								}
+							}
+						],
+						"maintenance": {
+							"sourceUrl": "https://herdr.dev/agent-detection/index.toml",
+							"sourceError": null,
+							"lastUpdate": {
+								"version": 1,
+								"catalogUrl": "https://herdr.dev/agent-detection/index.toml",
+								"checkedUnixSeconds": 1790610000,
+								"agents": [
+									{
+										"agent": "codex",
+										"attemptedVersion": "2099.1",
+										"cachedVersion": "2099.1",
+										"result": "updated",
+										"error": null
+									}
+								],
+								"failure": null,
+								"statusSaved": true
+							},
+							"statusError": null,
+							"automatic": {
+								"manifestCheck": true,
+								"manifestCheckSource": "default",
+								"backgroundEnabled": true,
+								"releaseBuild": true,
+								"updateAvailable": true,
+								"enabled": true
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"name": "automatic-extra",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.agent-manifests.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "current",
+					"snapshot": {
+						"revision": "1",
+						"engineVersion": 3,
+						"configurationRoot": null,
+						"manifests": [
+							{
+								"agent": "codex",
+								"version": "1.0",
+								"manifest": {
+									"source": "bundled",
+									"path": null,
+									"cachedRemoteVersion": null,
+									"localOverrideShadowingRemote": false,
+									"warnings": []
+								}
+							}
+						],
+						"maintenance": {
+							"sourceUrl": "https://herdr.dev/agent-detection/index.toml",
+							"sourceError": null,
+							"lastUpdate": {
+								"version": 1,
+								"catalogUrl": "https://herdr.dev/agent-detection/index.toml",
+								"checkedUnixSeconds": 1790610000,
+								"agents": [
+									{
+										"agent": "codex",
+										"attemptedVersion": "2099.1",
+										"cachedVersion": "2099.1",
+										"result": "updated",
+										"error": null
+									}
+								],
+								"failure": null,
+								"statusSaved": true
+							},
+							"statusError": null,
+							"automatic": {
+								"manifestCheck": true,
+								"manifestCheckSource": "default",
+								"backgroundEnabled": true,
+								"releaseBuild": true,
+								"updateAvailable": true,
+								"enabled": true,
+								"lastOperation": null,
+								"extra": 1
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"name": "automatic-null",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.agent-manifests.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "current",
+					"snapshot": {
+						"revision": "1",
+						"engineVersion": 3,
+						"configurationRoot": null,
+						"manifests": [
+							{
+								"agent": "codex",
+								"version": "1.0",
+								"manifest": {
+									"source": "bundled",
+									"path": null,
+									"cachedRemoteVersion": null,
+									"localOverrideShadowingRemote": false,
+									"warnings": []
+								}
+							}
+						],
+						"maintenance": {
+							"sourceUrl": "https://herdr.dev/agent-detection/index.toml",
+							"sourceError": null,
+							"lastUpdate": {
+								"version": 1,
+								"catalogUrl": "https://herdr.dev/agent-detection/index.toml",
+								"checkedUnixSeconds": 1790610000,
+								"agents": [
+									{
+										"agent": "codex",
+										"attemptedVersion": "2099.1",
+										"cachedVersion": "2099.1",
+										"result": "updated",
+										"error": null
+									}
+								],
+								"failure": null,
+								"statusSaved": true
+							},
+							"statusError": null,
+							"automatic": null
+						}
+					}
+				}
+			}
 		}
 	]
 }

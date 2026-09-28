@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import { WorkbenchRevisionSchema } from './workbench-semantic-contract';
+const revision = WorkbenchRevisionSchema.refine((v) => v !== '0');
 export const AgentManifestUpdateFailureSchema = z.enum([
 	'invalid-source',
 	'invalid-catalog',
@@ -76,9 +78,56 @@ export const AgentManifestUpdateReportSchema = z
 		statusSaved: z.boolean(),
 	})
 	.readonly();
+export const AgentManifestsFailureSchema = z.enum([
+	'denied',
+	'unavailable',
+	'site-mismatch',
+	'busy',
+	'resource-limit',
+	'not-found',
+	'load-failed',
+	'revision-exhausted',
+	'cancelled',
+	'conflict',
+	'update-unavailable',
+]);
+export const AgentManifestActivationSchema = z.discriminatedUnion('kind', [
+	z.strictObject({ kind: z.literal('not-attempted') }),
+	z.strictObject({ kind: z.literal('applied'), revision }),
+	z.strictObject({ kind: z.literal('failed'), reason: AgentManifestsFailureSchema }),
+]);
+export const AgentManifestsOperationSchema = z.discriminatedUnion('kind', [
+	z.strictObject({ kind: z.literal('pending') }),
+	z.strictObject({
+		kind: z.literal('updated'),
+		report: AgentManifestUpdateReportSchema,
+		activation: AgentManifestActivationSchema,
+	}),
+	z.strictObject({ kind: z.literal('unknown'), reason: AgentManifestsFailureSchema }),
+	z.strictObject({ kind: z.literal('applied'), revision }),
+	z.strictObject({ kind: z.literal('failed'), reason: AgentManifestsFailureSchema }),
+]);
+export const AgentManifestAutomaticSchema = z
+	.strictObject({
+		manifestCheck: z.boolean(),
+		manifestCheckSource: z.enum(['default', 'file']),
+		backgroundEnabled: z.boolean(),
+		releaseBuild: z.boolean(),
+		updateAvailable: z.boolean(),
+		enabled: z.boolean(),
+		lastOperation: AgentManifestsOperationSchema.refine((o) => o.kind !== 'applied').nullable(),
+	})
+	.refine(
+		(a) =>
+			a.enabled ===
+				(a.manifestCheck && a.backgroundEnabled && a.releaseBuild && a.updateAvailable) &&
+			(a.manifestCheck || a.manifestCheckSource !== 'default'),
+	)
+	.readonly();
 export const AgentManifestMaintenanceSchema = z
 	.strictObject({
 		sourceUrl: source.nullable(),
+		automatic: AgentManifestAutomaticSchema.optional(),
 		sourceError: AgentManifestUpdateFailureSchema.nullable(),
 		lastUpdate: AgentManifestUpdateReportSchema.nullable(),
 		statusError: AgentManifestUpdateFailureSchema.nullable(),
@@ -89,3 +138,5 @@ export const AgentManifestMaintenanceSchema = z
 	.readonly();
 export type AgentManifestUpdateReport = z.infer<typeof AgentManifestUpdateReportSchema>;
 export type AgentManifestMaintenance = z.infer<typeof AgentManifestMaintenanceSchema>;
+
+export type AgentManifestAutomatic = z.infer<typeof AgentManifestAutomaticSchema>;

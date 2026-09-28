@@ -57,7 +57,7 @@ pub(crate) fn run(
             .map(PathBuf::from)
             .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "missing Site runtime"))?;
         #[cfg(windows)]
-        let resume_agents = configuration_windows::resolve(arguments, || {
+        let settings = configuration_windows::resolve(arguments, || {
             orchbee_local_site_runtime::read_windows_user_settings(|name| std::env::var_os(name))
         })?;
         #[cfg(not(windows))]
@@ -67,7 +67,7 @@ pub(crate) fn run(
         return managed::run(
             &runtime,
             #[cfg(windows)]
-            resume_agents,
+            settings,
         );
     }
     let endpoints = parse_endpoints(arguments)?;

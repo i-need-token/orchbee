@@ -186,26 +186,15 @@ impl AgentManifestsResult {
         {
             return Err(ContractError::InvalidDocument);
         }
-        if matches!(&self.outcome, AgentManifestsOutcome::Operation { status: AgentManifestsOperation::Applied { revision }, .. } if revision.value() == 0)
-        {
-            return Err(ContractError::InvalidDocument);
-        }
         if let AgentManifestsOutcome::Current { snapshot } = &self.outcome
             && let Some(maintenance) = &snapshot.maintenance
         {
             maintenance.validate()?;
         }
-        if let AgentManifestsOutcome::Operation {
-            status: AgentManifestsOperation::Updated { report, activation },
-            ..
-        } = &self.outcome
-        {
-            report.validate()?;
-            if matches!(activation,AgentManifestActivation::Applied {revision} if revision.value()==0)
-            {
-                return Err(ContractError::InvalidDocument);
-            }
+        if let AgentManifestsOutcome::Operation { status, .. } = &self.outcome {
+            status.validate()?;
         }
+
         Ok(())
     }
 }
@@ -225,4 +214,20 @@ pub enum AgentManifestActivation {
     NotAttempted {},
     Applied { revision: WorkbenchRevision },
     Failed { reason: AgentManifestsFailure },
+}
+
+impl AgentManifestsOperation {
+    pub fn validate(&self) -> Result<(), ContractError> {
+        if matches!(self,Self::Applied {revision} if revision.value()==0) {
+            return Err(ContractError::InvalidDocument);
+        }
+        if let Self::Updated { report, activation } = self {
+            report.validate()?;
+            if matches!(activation,AgentManifestActivation::Applied {revision} if revision.value()==0)
+            {
+                return Err(ContractError::InvalidDocument);
+            }
+        }
+        Ok(())
+    }
 }

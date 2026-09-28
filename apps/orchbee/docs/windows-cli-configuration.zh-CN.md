@@ -13,19 +13,22 @@ directory = "~/Projects/worktrees"
 
 [session]
 resume_agents_on_restore = true
+
+[update]
+manifest_check = true
 ```
 
-仅接受这三个配置段及对应键。`terminal.new_cwd` 接受 `follow`、`home`、`current`、`workspace` 或路径。空值表示 `follow`。路径使用 Windows CLI 路径适配器：相对路径基于配置文件父目录，波浪线路径使用 Windows 主目录，拒绝有歧义的驱动器相对路径、UNC 和设备路径。缺少 `APPDATA` 时仍可使用默认值；显式值无效时不会静默回退。
+仅接受这四个配置段及对应键。`terminal.new_cwd` 接受 `follow`、`home`、`current`、`workspace` 或路径。空值表示 `follow`。路径使用 Windows CLI 路径适配器：相对路径基于配置文件父目录，波浪线路径使用 Windows 主目录，拒绝有歧义的驱动器相对路径、UNC 和设备路径。缺少 `APPDATA` 时仍可使用默认值；显式值无效时不会静默回退。
 
 ## 创建策略
 
-| 输入                                      | 结果                                                                              |
-| ----------------------------------------- | --------------------------------------------------------------------------------- |
-| 显式 CLI cwd 或 worktree 路径             | 覆盖对应的有效配置                                                                |
+| 输入                                 | 结果                                                                              |
+| ------------------------------------ | --------------------------------------------------------------------------------- |
+| 显式 CLI cwd 或 worktree 路径        | 覆盖对应的有效配置                                                                |
 | Workspace、Tab 或 Panel 创建省略 cwd | 应用 `terminal.new_cwd`，随后执行已有的来源目录策略                               |
-| 已配置根目录且省略 worktree 路径          | 在任何 Project 或 Git 修改前查询来源仓库，选择 `root/repository-name/branch-slug` |
-| 未配置根目录                              | 保持已有的同级检出路径                                                            |
-| Resume                                    | 使用操作已保留的路径和分支，不重新加载配置                                        |
+| 已配置根目录且省略 worktree 路径     | 在任何 Project 或 Git 修改前查询来源仓库，选择 `root/repository-name/branch-slug` |
+| 未配置根目录                         | 保持已有的同级检出路径                                                            |
+| Resume                               | 使用操作已保留的路径和分支，不重新加载配置                                        |
 
 分支目录名将 ASCII 字母转为小写，将连续非字母数字字符压缩为一个连字符，去掉首尾连字符，空结果使用 `worktree`。自动分支仍为 `worktree/<operation-id>`，并固定在提交意图中。只读仓库查询与创建使用相同来源和信任策略。Server 仍复核来源并独占所有 Git 和规范 Workspace 副作用；查询不构成文件系统事务。显式路径省去额外查询。每次调用只读一次配置，并在应用显式覆盖前完成校验。
 
@@ -46,3 +49,20 @@ Windows `config check` 版本 2 在五项运行时检查后增加第六项 `user
 Client 启动在持久 Active 发布或激活标记提交前读取并校验一次，将确定的布尔值作为私有 Server 参数传递；Server 校验该参数，不重新读取可能变化的设置。未携带该参数的直接托管 Server 启动，在 Worker 启动前通过同一所有者读取文件和环境。非法输入保留此前检查点和已停止状态，可修正后重试。私有参数需要匹配 cohort；回退使用此前完整 cohort。
 
 Windows `config check` 版本 3 报告 `resumeAgentsOnRestore` 和 `resumeAgentsOnRestoreSource`（`default`、`file`、`environment`）。保留版本 1、2 的 schema。诊断只报告有界字段和原因。验证须覆盖默认值／文件／环境优先级、非法及非 UTF-8 值、严格类型／键、读取边界、提交前拒绝及修正重试、已有 Site 准入不变和实际禁用／启用恢复。热重载、名称和托管状态恢复仍是独立义务。
+
+## 规则更新策略
+
+`[update] manifest_check` 是 TOML 布尔值，默认 true，来源为 `default`／`file`。
+Windows `config check` v4 增加 `manifestCheck` 和 `manifestCheckSource`，v1-v3 保持封闭。
+Client 激活将已校验的检查值、来源、配置路径和显式文件标志与恢复策略一起传递。
+托管 Server 接纳完整私有快照，不重新读取文件；直接启动只调用一次共享设置读取器。cohort 必须匹配。
+`read_windows_user_settings_at` 在冻结位置支持有界显式重载，保留默认文件缺失与显式文件缺失的
+差别，不创建配置文件。
+
+持久托管发布版 Site 在启动时及每三十分钟检查规则。调试／测试构建和独立端点关闭自动网络任务。
+`site agent-manifests` 暴露实际策略及最近自动结果。`site reload-agent-manifests` 验证完整配置，
+并将规则检查开关与检测器原子刷新；配置无效保留两者。关闭检查停止调度；重新开启立即安排检查。
+活动更新期间重载返回忙碌。此命令不热重载其他运行中设置及键位。自动检查关闭时仍可显式更新。
+参见[屏幕模型](../../orchbee-server/docs/agent-screen-model.zh-CN.md#自动检查与配置快照)。
+发布版验收夹具若不以公开网络访问为测试目标，须显式关闭自动检查。回退到不认识此键的读取器时，
+须先移除 update 配置节；用户覆盖和已提交规则缓存予以保留。

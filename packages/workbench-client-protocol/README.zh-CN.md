@@ -195,3 +195,5 @@ TypeScript 和 JSON 契约覆盖已安装快照、可选维护信息、保留的
 共享 `workbench-agent-manifests-conformance-v1.json` 语料覆盖接纳／拒绝的形状、可空字段、
 数字版本、来源、修订、重复项和跨字段一致性。语义字节／版本和跨字段校验补充 JSON Schema。
 Server 屏幕模型拥有来源选择、下载、安装、取消和回执上限。
+
+可选 `maintenance.automatic` 暴露配置开关及来源、后台／发布版／可用性门控、实际启用状态和最近一次自动操作。必需可空字段 `lastOperation` 保留 pending、updated、failed 或 unknown 事实，拒绝仅用于重载的 Applied。Rust／TypeScript 校验门控一致性与默认来源。自动任务不消耗手动回执 ID；调度由 Server 拥有。

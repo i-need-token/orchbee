@@ -23,7 +23,10 @@ mod checkpoint_windows;
 #[cfg(windows)]
 mod stop_windows;
 
-pub(super) fn run(runtime: &Path, #[cfg(windows)] resume_agents: bool) -> io::Result<()> {
+pub(super) fn run(
+    runtime: &Path,
+    #[cfg(windows)] settings: orchbee_local_site_runtime::WindowsUserSettings,
+) -> io::Result<()> {
     let deadline = Instant::now() + Duration::from_secs(20);
     let cohort = NativeCohort::current(deadline)?;
     let site = ModeCheckedLocalSiteRendezvous::from_runtime_directory(runtime)
@@ -132,8 +135,11 @@ pub(super) fn run(runtime: &Path, #[cfg(windows)] resume_agents: bool) -> io::Re
             .map_err(|_| io::Error::other("Worker registry failed"))?
             .request_handle()
             .ok_or_else(|| io::Error::other("Worker carrier disappeared"))?;
-        let (terminals, pending) =
-            LocalTerminalService::from_checkpoint(registry, checkpoint, resume_agents)?;
+        let (terminals, pending) = LocalTerminalService::from_checkpoint(
+            registry,
+            checkpoint,
+            settings.resume_agents_on_restore,
+        )?;
         Ok::<_, io::Error>((handle, Arc::new(terminals), pending))
     })();
     #[cfg(not(windows))]
@@ -174,6 +180,7 @@ pub(super) fn run(runtime: &Path, #[cfg(windows)] resume_agents: bool) -> io::Re
             cohort.identity(),
             pending,
             deadline,
+            settings,
         )
     }
     #[cfg(not(windows))]

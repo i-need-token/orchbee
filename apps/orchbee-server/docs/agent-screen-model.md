@@ -1,6 +1,6 @@
 # Agent screen detection model
 
-The Server owns fallback screen interpretation separately from explicit Agent reports and process identity. A successful bounded terminal sample can describe working, idle or blocked UI; it cannot prove which provider owns a process, authenticate it or create a canonical Agent Session. The reference is Herdr `e0507237ad8d41f60aece10d00ef29ce2339ca34`, its 22 bundled detection manifests and `pane/agent_detection.rs`. The Windows periodic sampler compiles the deterministic engine once before startup and publishes admitted screen fallback. Physical explain consumes the same engine through the bounded observer queue. Startup now loads bounded local overrides and eligible remote cache with typed provenance warnings. Manifest queries and retained live reload now use the observer owner; explicit remote updates retain separate cache and activation facts; automatic scheduling remains open.
+The Server owns fallback screen interpretation separately from explicit Agent reports and process identity. A successful bounded terminal sample can describe working, idle or blocked UI; it cannot prove which provider owns a process, authenticate it or create a canonical Agent Session. The reference is Herdr `e0507237ad8d41f60aece10d00ef29ce2339ca34`, its 22 bundled detection manifests and `pane/agent_detection.rs`. The Windows periodic sampler compiles the deterministic engine once before startup and publishes admitted screen fallback. Physical explain consumes the same engine through the bounded observer queue. Startup now loads bounded local overrides and eligible remote cache with typed provenance warnings. Manifest queries and retained live reload now use the observer owner; explicit remote updates retain separate cache and activation facts; automatic scheduling follows the policy below.
 
 ## Inputs and rule ownership
 
@@ -92,7 +92,7 @@ Read/status use read policy; Reload/Update use navigation-management policy. CLI
 submits once, and retains the operation ID with pending/unknown results after lost acknowledgement
 or interruption. Status recovery never resubmits a mutation. Receipts end with the Site generation;
 this is not durable replay across Server restart. Explicit remote Update and its separate cache/activation outcomes are specified below.
-Automatic scheduling remains a required integration.
+Automatic scheduling follows the configuration and ownership rules below.
 
 ## Remote update ownership
 
@@ -121,9 +121,8 @@ separate retained worker; the observer remains the sole rule installation point.
 completion and activation are distinct facts, including cancellation and partial success.
 
 The production `site update-agent-manifests` operation consumes this updater and retains the full
-cache report separately from activation. Explicit updates and future automatic checks use the same
-cache/version and cleanup rules. Automatic network activity still requires the release/background
-policy and update setting integration; source/cohort rollback leaves overrides and committed cache
+cache report separately from activation. Explicit and automatic updates use the same cache/version and cleanup rules. Automatic network
+activity requires the release/background policy and update setting; source/cohort rollback leaves overrides and committed cache
 versions intact.
 
 ## Retained production update operations
@@ -143,5 +142,29 @@ An executing update remains pending until its actual cache report and child clea
 never installed after Stop. Worker panic yields an unknown effect receipt and disables subsequent
 Update admission for this Site. CLI Update submits once, then reads status within its single budget;
 late cancellation or missing confirmation preserves the ID without resubmitting the mutation.
-Native v1 remains closed; update and maintenance projections use v2. Automatic update scheduling
-and its release/background/configuration policy remain a separate required integration.
+Native v1/v2 remain closed; automatic policy metadata uses v3. Scheduling and configuration
+ownership are specified below.
+
+## Automatic checks and configuration snapshots
+
+Windows `update.manifest_check` is a strict boolean, default true. Only persistent managed Sites in
+release, non-test builds allow background checks. Standalone, debug and test execution do not
+schedule network work. An enabled owner schedules once at startup, then every thirty minutes by
+monotonic time. Busy maintenance defers the due check until the shared slot is free. Automatic work
+uses the same downloader, cache, activation and Stop lifecycle as explicit Update. It has a distinct
+owner and one retained latest result; it never consumes or evicts the manual operation ledger.
+
+Client activation passes an immutable validated settings snapshot (resume policy, check value and
+provenance, configuration path and explicit-location status). Direct managed startup validates once.
+The observer does not reread mutable configuration during committed startup. Explicit rule Reload
+validates the full bounded configuration at that frozen path, then applies only the manifest-check
+setting together with the loaded detector and status. Failed validation/installation retains the old
+policy and detector. Disabling clears the next check; re-enabling schedules immediately. This is
+rule-maintenance reload, not a general settings or keybinding reload. An active Update owns the slot
+until settled. Current metadata exposes check/provenance, background/build gates, effective enabled
+state and the latest automatic operation; native v3 retains closed v1/v2. Automatic panic disables
+future updates for that Site; known failures retain the next interval. Stop cancels and joins the
+same owned worker before the observer returns. Source/cohort rollback preserves user configuration
+and cache files; older strict settings readers require removal of the newly admitted update section.
+
+Automatic activation follows the pinned cache-reload predicate: a newly committed provider or a successfully checked current cache version different from the loaded cached version requires activation. An unchanged current check records NotAttempted and retains detector revision/stabilization. Explicit Update retains its requested activation behavior.

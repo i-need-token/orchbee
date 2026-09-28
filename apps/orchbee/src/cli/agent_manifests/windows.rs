@@ -83,7 +83,7 @@ fn submit(
     signals.check_before(deadline)?;
     let reply = client.agent_manifests(request.clone(), deadline, signals.poll_fd());
     let observation = match reply {
-        Ok(reply) => Observation::Server(reply),
+        Ok(reply) => Observation::Server(Box::new(reply)),
         Err(error) if error.submitted => Observation::Unknown(error.reason.as_str()),
         Err(error) => {
             signals.check_before(deadline)?;
@@ -142,7 +142,7 @@ fn submit(
                     break;
                 }
                 answer.request_id = request.request_id.clone();
-                answer.observation = Observation::Server(reply);
+                answer.observation = Observation::Server(Box::new(reply));
             }
             Err(_) => break, // The pending receipt remains true even when its status cannot be refreshed.
         }

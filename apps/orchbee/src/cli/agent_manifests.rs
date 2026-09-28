@@ -13,7 +13,7 @@ use orchbee_workbench_protocol::{
 };
 #[cfg(windows)]
 enum Observation {
-    Server(AgentManifestsResult),
+    Server(Box<AgentManifestsResult>),
     Unknown(&'static str),
 }
 #[cfg(windows)]
@@ -30,7 +30,7 @@ impl Answer {
     fn document(&self) -> serde_json::Value {
         let observation = match &self.observation {
             Observation::Server(reply) => {
-                serde_json::json!({"kind":"server","reply":WorkbenchResponse::AgentManifests(reply.clone())})
+                serde_json::json!({"kind":"server","reply":WorkbenchResponse::AgentManifests((**reply).clone())})
             }
             Observation::Unknown(reason) => serde_json::json!({"kind":"unknown","reason":reason}),
         };
@@ -52,7 +52,8 @@ impl Answer {
                 },
                 _ => false,
             };
-        serde_json::json!({"schema":"orchbee.site.agent-manifests","version":if extended {2} else {1},"requestId":self.request_id,"siteId":self.site_id,"action":self.action,"observation":observation,"interrupted":self.interrupted,"cleanupFailed":self.cleanup_failed})
+        let automatic = matches!(&self.observation,Observation::Server(reply) if matches!(&reply.outcome,AgentManifestsOutcome::Current {snapshot} if snapshot.maintenance.as_ref().is_some_and(|m|m.automatic.is_some())));
+        serde_json::json!({"schema":"orchbee.site.agent-manifests","version":if automatic {3} else if extended {2} else {1},"requestId":self.request_id,"siteId":self.site_id,"action":self.action,"observation":observation,"interrupted":self.interrupted,"cleanupFailed":self.cleanup_failed})
     }
     fn exit_code(&self) -> u8 {
         let failure = match &self.observation {

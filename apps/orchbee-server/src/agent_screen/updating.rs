@@ -162,6 +162,7 @@ pub(crate) fn maintenance(
         Err(error) => (None, Some(error)),
     };
     orchbee_workbench_protocol::AgentManifestMaintenance {
+        automatic: None,
         source_url: source.as_ref().ok().map(|s| s.as_str().to_owned()),
         source_error: source.as_ref().err().copied(),
         last_update,

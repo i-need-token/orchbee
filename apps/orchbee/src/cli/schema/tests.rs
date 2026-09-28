@@ -191,3 +191,31 @@ fn terminal_agent_inspection_schema_has_closed_target_and_preserves_canonical_ve
         .remove("generation");
     assert!(!validator.is_valid(&invalid));
 }
+
+#[test]
+fn configuration_v4_requires_update_policy_without_widening_v3() {
+    use serde_json::json;
+    let schema: Value =
+        serde_json::from_str(super::document("orchbee.config.check").unwrap()).unwrap();
+    let mut reduced = schema.clone();
+    reduced["$ref"] = json!("#/$defs/userConfigCheckV4");
+    reduced.as_object_mut().unwrap().remove("required");
+    reduced.as_object_mut().unwrap().remove("properties");
+    reduced
+        .as_object_mut()
+        .unwrap()
+        .remove("additionalProperties");
+    reduced.as_object_mut().unwrap().remove("allOf");
+    let check = json!({"name":"user-config","status":"pass","details":{"path":null,"exists":false,"newCwd":"follow","worktreeDirectory":null,"resumeAgentsOnRestore":true,"resumeAgentsOnRestoreSource":"default","manifestCheck":true,"manifestCheckSource":"default"}});
+    assert!(
+        jsonschema::validator_for(&reduced)
+            .unwrap()
+            .is_valid(&check)
+    );
+    reduced["$ref"] = json!("#/$defs/userConfigCheckV3");
+    assert!(
+        !jsonschema::validator_for(&reduced)
+            .unwrap()
+            .is_valid(&check)
+    );
+}

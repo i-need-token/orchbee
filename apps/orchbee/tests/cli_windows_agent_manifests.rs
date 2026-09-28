@@ -11,6 +11,7 @@ use support::{Fixture, assert_closed, bound_snapshot_reply, peer, validate};
 fn cli_manifest_query_reload_status_and_lost_receipts_are_not_replayed() {
     for case in [
         "current",
+        "automatic",
         "reload",
         "status",
         "lost",
@@ -38,7 +39,17 @@ fn cli_manifest_query_reload_status_and_lost_receipts_are_not_replayed() {
             let outcome = match &request.action {
                 AgentManifestsAction::Current {} => {
                     let corpus: Value = serde_json::from_str(include_str!("../../../schemas/workbench/v1/workbench-agent-manifests-conformance-v1.json")).unwrap();
-                    let mut outcome = corpus["valid"][0]["document"]["outcome"].clone();
+                    let mut outcome = if case == "automatic" {
+                        corpus["valid"]
+                            .as_array()
+                            .unwrap()
+                            .iter()
+                            .find(|c| c["name"] == "automatic-updated")
+                            .unwrap()["document"]["outcome"]
+                            .clone()
+                    } else {
+                        corpus["valid"][0]["document"]["outcome"].clone()
+                    };
                     outcome["snapshot"]["configurationRoot"] = json!("C:\\rules\u{202e}");
                     serde_json::from_value(outcome).unwrap()
                 }
@@ -110,7 +121,7 @@ fn cli_manifest_query_reload_status_and_lost_receipts_are_not_replayed() {
         let text = matches!(case, "en" | "zh");
         let mut args = vec!["site"];
         match case {
-            "current" | "en" | "zh" => args.push("agent-manifests"),
+            "current" | "automatic" | "en" | "zh" => args.push("agent-manifests"),
             "status" => args.extend(["agent-manifests-status", "11111111111111111111111111111111"]),
             _ => args.extend([
                 "reload-agent-manifests",
@@ -157,6 +168,16 @@ fn cli_manifest_query_reload_status_and_lost_receipts_are_not_replayed() {
             assert!(text.contains("\\u{202e}"));
         } else {
             let document: Value = serde_json::from_slice(&output.stdout).unwrap();
+            if case == "automatic" {
+                assert_eq!(document["version"], 3);
+                let schema: Value = serde_json::from_str(include_str!(
+                    "../src/cli/schemas/orchbee.site.agent-manifests.json"
+                ))
+                .unwrap();
+                let mut old = document.clone();
+                old["version"] = json!(2);
+                assert!(!jsonschema::validator_for(&schema).unwrap().is_valid(&old));
+            }
             validate(
                 &document,
                 include_str!("../src/cli/schemas/orchbee.site.agent-manifests.json"),

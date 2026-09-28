@@ -385,3 +385,5 @@ the next exclusive lock. Cleanup failures are returned, never converted into suc
 The Server updater is the real consumer; this adapter alone does not implement remote updates.
 
 `read_existing` pins and validates an existing private directory tree and performs a bounded leaf read without creating directories, lock files or staging files. It serves startup/reload status inspection; missing cache paths remain absent.
+
+Windows settings also admit strict `[update] manifest_check` (default true) and retain default/file provenance plus explicit-location status. `read_windows_user_settings_at` serves explicit reload at a frozen path, preserving missing-default/missing-explicit behavior without creating files. Applications retain startup snapshot transport and automatic scheduling policy.

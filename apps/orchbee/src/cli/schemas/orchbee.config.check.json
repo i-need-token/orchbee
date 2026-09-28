@@ -6,14 +6,20 @@
 	"required": ["schema", "version", "source", "result"],
 	"additionalProperties": false,
 	"properties": {
-		"schema": { "const": "orchbee.config.check" },
-		"version": { "enum": [1, 2, 3] },
+		"schema": {
+			"const": "orchbee.config.check"
+		},
+		"version": {
+			"enum": [1, 2, 3, 4]
+		},
 		"source": {
 			"type": "object",
 			"required": ["kind"],
 			"additionalProperties": false,
 			"properties": {
-				"kind": { "const": "local-runtime" }
+				"kind": {
+					"const": "local-runtime"
+				}
 			}
 		},
 		"result": {
@@ -21,18 +27,42 @@
 			"required": ["ok", "checks"],
 			"additionalProperties": false,
 			"properties": {
-				"ok": { "type": "boolean" },
+				"ok": {
+					"type": "boolean"
+				},
 				"checks": {
 					"type": "array",
 					"minItems": 5,
 					"maxItems": 6,
 					"prefixItems": [
-						{ "$ref": "#/$defs/runtimeBaseCheck" },
-						{ "$ref": "#/$defs/runtimeDirectoryCheck" },
-						{ "$ref": "#/$defs/cohortCheck" },
-						{ "$ref": "#/$defs/localeCheck" },
-						{ "$ref": "#/$defs/socketsCheck" },
-						{ "anyOf": [{ "$ref": "#/$defs/userConfigCheck" }, { "$ref": "#/$defs/userConfigCheckV3" }] }
+						{
+							"$ref": "#/$defs/runtimeBaseCheck"
+						},
+						{
+							"$ref": "#/$defs/runtimeDirectoryCheck"
+						},
+						{
+							"$ref": "#/$defs/cohortCheck"
+						},
+						{
+							"$ref": "#/$defs/localeCheck"
+						},
+						{
+							"$ref": "#/$defs/socketsCheck"
+						},
+						{
+							"anyOf": [
+								{
+									"$ref": "#/$defs/userConfigCheck"
+								},
+								{
+									"$ref": "#/$defs/userConfigCheckV3"
+								},
+								{
+									"$ref": "#/$defs/userConfigCheckV4"
+								}
+							]
+						}
 					],
 					"items": false
 				}
@@ -45,13 +75,23 @@
 								"contains": {
 									"type": "object",
 									"required": ["status"],
-									"properties": { "status": { "const": "fail" } }
+									"properties": {
+										"status": {
+											"const": "fail"
+										}
+									}
 								}
 							}
 						},
 						"required": ["checks"]
 					},
-					"then": { "properties": { "ok": { "const": false } } }
+					"then": {
+						"properties": {
+							"ok": {
+								"const": false
+							}
+						}
+					}
 				},
 				{
 					"if": {
@@ -61,35 +101,141 @@
 									"contains": {
 										"type": "object",
 										"required": ["status"],
-										"properties": { "status": { "const": "fail" } }
+										"properties": {
+											"status": {
+												"const": "fail"
+											}
+										}
 									}
 								}
 							}
 						},
 						"required": ["checks"]
 					},
-					"then": { "properties": { "ok": { "const": true } } }
+					"then": {
+						"properties": {
+							"ok": {
+								"const": true
+							}
+						}
+					}
 				}
 			]
 		}
 	},
 	"allOf": [
 		{
-			"if": { "properties": { "version": { "const": 1 } } },
+			"if": {
+				"properties": {
+					"version": {
+						"const": 1
+					}
+				}
+			},
 			"then": {
-				"properties": { "result": { "properties": { "checks": { "minItems": 5, "maxItems": 5 } } } }
+				"properties": {
+					"result": {
+						"properties": {
+							"checks": {
+								"minItems": 5,
+								"maxItems": 5
+							}
+						}
+					}
+				}
 			}
 		},
 		{
-			"if": { "properties": { "version": { "const": 2 } } },
+			"if": {
+				"properties": {
+					"version": {
+						"const": 2
+					}
+				}
+			},
 			"then": {
-				"properties": { "result": { "properties": { "checks": { "minItems": 6, "maxItems": 6, "prefixItems": [true, true, true, true, true, { "$ref": "#/$defs/userConfigCheck" }] } } } }
+				"properties": {
+					"result": {
+						"properties": {
+							"checks": {
+								"minItems": 6,
+								"maxItems": 6,
+								"prefixItems": [
+									true,
+									true,
+									true,
+									true,
+									true,
+									{
+										"$ref": "#/$defs/userConfigCheck"
+									}
+								]
+							}
+						}
+					}
+				}
 			}
 		},
 		{
-			"if": { "properties": { "version": { "const": 3 } } },
+			"if": {
+				"properties": {
+					"version": {
+						"const": 3
+					}
+				}
+			},
 			"then": {
-				"properties": { "result": { "properties": { "checks": { "minItems": 6, "maxItems": 6, "prefixItems": [true, true, true, true, true, { "$ref": "#/$defs/userConfigCheckV3" }] } } } }
+				"properties": {
+					"result": {
+						"properties": {
+							"checks": {
+								"minItems": 6,
+								"maxItems": 6,
+								"prefixItems": [
+									true,
+									true,
+									true,
+									true,
+									true,
+									{
+										"$ref": "#/$defs/userConfigCheckV3"
+									}
+								]
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"version": {
+						"const": 4
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"result": {
+						"properties": {
+							"checks": {
+								"minItems": 6,
+								"maxItems": 6,
+								"prefixItems": [
+									true,
+									true,
+									true,
+									true,
+									true,
+									{
+										"$ref": "#/$defs/userConfigCheckV4"
+									}
+								]
+							}
+						}
+					}
+				}
 			}
 		}
 	],
@@ -99,13 +245,25 @@
 			"required": ["name", "status", "details"],
 			"additionalProperties": false,
 			"properties": {
-				"name": { "const": "user-config" },
-				"status": { "enum": ["pass", "fail"] },
-				"details": { "type": "object" }
+				"name": {
+					"const": "user-config"
+				},
+				"status": {
+					"enum": ["pass", "fail"]
+				},
+				"details": {
+					"type": "object"
+				}
 			},
 			"allOf": [
 				{
-					"if": { "properties": { "status": { "const": "pass" } } },
+					"if": {
+						"properties": {
+							"status": {
+								"const": "pass"
+							}
+						}
+					},
 					"then": {
 						"properties": {
 							"details": {
@@ -113,9 +271,19 @@
 								"required": ["path", "exists", "newCwd", "worktreeDirectory"],
 								"additionalProperties": false,
 								"properties": {
-									"path": { "type": ["string", "null"], "minLength": 1, "maxLength": 4096 },
-									"exists": { "type": "boolean" },
-									"newCwd": { "type": "string", "minLength": 1, "maxLength": 4096 },
+									"path": {
+										"type": ["string", "null"],
+										"minLength": 1,
+										"maxLength": 4096
+									},
+									"exists": {
+										"type": "boolean"
+									},
+									"newCwd": {
+										"type": "string",
+										"minLength": 1,
+										"maxLength": 4096
+									},
 									"worktreeDirectory": {
 										"type": ["string", "null"],
 										"minLength": 1,
@@ -168,25 +336,58 @@
 			"required": ["name", "status", "details"],
 			"additionalProperties": false,
 			"properties": {
-				"name": { "const": "user-config" },
-				"status": { "enum": ["pass", "fail"] },
-				"details": { "type": "object" }
+				"name": {
+					"const": "user-config"
+				},
+				"status": {
+					"enum": ["pass", "fail"]
+				},
+				"details": {
+					"type": "object"
+				}
 			},
 			"allOf": [
 				{
-					"if": { "properties": { "status": { "const": "pass" } } },
+					"if": {
+						"properties": {
+							"status": {
+								"const": "pass"
+							}
+						}
+					},
 					"then": {
 						"properties": {
 							"details": {
 								"type": "object",
-								"required": ["path", "exists", "newCwd", "worktreeDirectory", "resumeAgentsOnRestore", "resumeAgentsOnRestoreSource"],
+								"required": [
+									"path",
+									"exists",
+									"newCwd",
+									"worktreeDirectory",
+									"resumeAgentsOnRestore",
+									"resumeAgentsOnRestoreSource"
+								],
 								"additionalProperties": false,
 								"properties": {
-									"path": { "type": ["string", "null"], "minLength": 1, "maxLength": 4096 },
-									"exists": { "type": "boolean" },
-									"resumeAgentsOnRestore": { "type": "boolean" },
-									"resumeAgentsOnRestoreSource": { "enum": ["default", "file", "environment"] },
-									"newCwd": { "type": "string", "minLength": 1, "maxLength": 4096 },
+									"path": {
+										"type": ["string", "null"],
+										"minLength": 1,
+										"maxLength": 4096
+									},
+									"exists": {
+										"type": "boolean"
+									},
+									"resumeAgentsOnRestore": {
+										"type": "boolean"
+									},
+									"resumeAgentsOnRestoreSource": {
+										"enum": ["default", "file", "environment"]
+									},
+									"newCwd": {
+										"type": "string",
+										"minLength": 1,
+										"maxLength": 4096
+									},
 									"worktreeDirectory": {
 										"type": ["string", "null"],
 										"minLength": 1,
@@ -239,10 +440,23 @@
 		},
 		"path": {
 			"oneOf": [
-				{ "required": ["path"], "properties": { "path": { "type": "string", "minLength": 1 } } },
+				{
+					"required": ["path"],
+					"properties": {
+						"path": {
+							"type": "string",
+							"minLength": 1
+						}
+					}
+				},
 				{
 					"required": ["pathBytesHex"],
-					"properties": { "pathBytesHex": { "type": "string", "pattern": "^([0-9a-f]{2})+$" } }
+					"properties": {
+						"pathBytesHex": {
+							"type": "string",
+							"pattern": "^([0-9a-f]{2})+$"
+						}
+					}
 				}
 			]
 		},
@@ -251,13 +465,25 @@
 			"required": ["name", "status", "details"],
 			"additionalProperties": false,
 			"properties": {
-				"name": { "const": "runtime-base" },
-				"status": { "enum": ["pass", "fail"] },
-				"details": { "type": "object" }
+				"name": {
+					"const": "runtime-base"
+				},
+				"status": {
+					"enum": ["pass", "fail"]
+				},
+				"details": {
+					"type": "object"
+				}
 			},
 			"allOf": [
 				{
-					"if": { "properties": { "status": { "const": "pass" } } },
+					"if": {
+						"properties": {
+							"status": {
+								"const": "pass"
+							}
+						}
+					},
 					"then": {
 						"properties": {
 							"details": {
@@ -265,17 +491,38 @@
 								"required": ["exists"],
 								"additionalProperties": false,
 								"properties": {
-									"path": { "type": "string", "minLength": 1 },
-									"pathBytesHex": { "type": "string", "pattern": "^([0-9a-f]{2})+$" },
-									"exists": { "const": true }
+									"path": {
+										"type": "string",
+										"minLength": 1
+									},
+									"pathBytesHex": {
+										"type": "string",
+										"pattern": "^([0-9a-f]{2})+$"
+									},
+									"exists": {
+										"const": true
+									}
 								},
-								"oneOf": [{ "required": ["path"] }, { "required": ["pathBytesHex"] }]
+								"oneOf": [
+									{
+										"required": ["path"]
+									},
+									{
+										"required": ["pathBytesHex"]
+									}
+								]
 							}
 						}
 					}
 				},
 				{
-					"if": { "properties": { "status": { "const": "fail" } } },
+					"if": {
+						"properties": {
+							"status": {
+								"const": "fail"
+							}
+						}
+					},
 					"then": {
 						"properties": {
 							"details": {
@@ -283,42 +530,76 @@
 								"additionalProperties": false,
 								"required": ["reason"],
 								"allOf": [
-									{ "$ref": "#/$defs/path" },
+									{
+										"$ref": "#/$defs/path"
+									},
 									{
 										"if": {
-											"properties": { "reason": { "const": "absent" } },
+											"properties": {
+												"reason": {
+													"const": "absent"
+												}
+											},
 											"required": ["reason"]
 										},
 										"then": {
 											"required": ["exists"],
-											"properties": { "exists": { "const": false } }
+											"properties": {
+												"exists": {
+													"const": false
+												}
+											}
 										}
 									},
 									{
 										"if": {
 											"properties": {
-												"reason": { "enum": ["invalid-path", "io-error"] }
+												"reason": {
+													"enum": ["invalid-path", "io-error"]
+												}
 											},
 											"required": ["reason"]
 										},
-										"then": { "not": { "required": ["exists"] } }
+										"then": {
+											"not": {
+												"required": ["exists"]
+											}
+										}
 									},
 									{
 										"if": {
-											"properties": { "reason": { "const": "unsafe" } },
+											"properties": {
+												"reason": {
+													"const": "unsafe"
+												}
+											},
 											"required": ["reason"]
 										},
 										"then": {
 											"required": ["exists"],
-											"properties": { "exists": { "const": true } }
+											"properties": {
+												"exists": {
+													"const": true
+												}
+											}
 										}
 									}
 								],
 								"properties": {
-									"path": { "type": "string", "minLength": 1 },
-									"pathBytesHex": { "type": "string", "pattern": "^([0-9a-f]{2})+$" },
-									"reason": { "enum": ["absent", "invalid-path", "io-error", "unsafe"] },
-									"exists": { "type": "boolean" }
+									"path": {
+										"type": "string",
+										"minLength": 1
+									},
+									"pathBytesHex": {
+										"type": "string",
+										"pattern": "^([0-9a-f]{2})+$"
+									},
+									"reason": {
+										"enum": ["absent", "invalid-path", "io-error", "unsafe"]
+									},
+									"exists": {
+										"type": "boolean"
+									}
 								}
 							}
 						}
@@ -331,13 +612,25 @@
 			"required": ["name", "status", "details"],
 			"additionalProperties": false,
 			"properties": {
-				"name": { "const": "runtime-directory" },
-				"status": { "enum": ["pass", "fail", "not-applicable"] },
-				"details": { "type": "object" }
+				"name": {
+					"const": "runtime-directory"
+				},
+				"status": {
+					"enum": ["pass", "fail", "not-applicable"]
+				},
+				"details": {
+					"type": "object"
+				}
 			},
 			"allOf": [
 				{
-					"if": { "properties": { "status": { "const": "pass" } } },
+					"if": {
+						"properties": {
+							"status": {
+								"const": "pass"
+							}
+						}
+					},
 					"then": {
 						"properties": {
 							"details": {
@@ -345,17 +638,38 @@
 								"required": ["exists"],
 								"additionalProperties": false,
 								"properties": {
-									"path": { "type": "string", "minLength": 1 },
-									"pathBytesHex": { "type": "string", "pattern": "^([0-9a-f]{2})+$" },
-									"exists": { "const": true }
+									"path": {
+										"type": "string",
+										"minLength": 1
+									},
+									"pathBytesHex": {
+										"type": "string",
+										"pattern": "^([0-9a-f]{2})+$"
+									},
+									"exists": {
+										"const": true
+									}
 								},
-								"oneOf": [{ "required": ["path"] }, { "required": ["pathBytesHex"] }]
+								"oneOf": [
+									{
+										"required": ["path"]
+									},
+									{
+										"required": ["pathBytesHex"]
+									}
+								]
 							}
 						}
 					}
 				},
 				{
-					"if": { "properties": { "status": { "const": "fail" } } },
+					"if": {
+						"properties": {
+							"status": {
+								"const": "fail"
+							}
+						}
+					},
 					"then": {
 						"properties": {
 							"details": {
@@ -363,30 +677,58 @@
 								"additionalProperties": false,
 								"required": ["reason"],
 								"allOf": [
-									{ "$ref": "#/$defs/path" },
 									{
-										"if": {
-											"properties": { "reason": { "const": "io-error" } },
-											"required": ["reason"]
-										},
-										"then": { "not": { "required": ["exists"] } }
+										"$ref": "#/$defs/path"
 									},
 									{
 										"if": {
-											"properties": { "reason": { "const": "unsafe" } },
+											"properties": {
+												"reason": {
+													"const": "io-error"
+												}
+											},
+											"required": ["reason"]
+										},
+										"then": {
+											"not": {
+												"required": ["exists"]
+											}
+										}
+									},
+									{
+										"if": {
+											"properties": {
+												"reason": {
+													"const": "unsafe"
+												}
+											},
 											"required": ["reason"]
 										},
 										"then": {
 											"required": ["exists"],
-											"properties": { "exists": { "const": true } }
+											"properties": {
+												"exists": {
+													"const": true
+												}
+											}
 										}
 									}
 								],
 								"properties": {
-									"path": { "type": "string", "minLength": 1 },
-									"pathBytesHex": { "type": "string", "pattern": "^([0-9a-f]{2})+$" },
-									"reason": { "enum": ["io-error", "unsafe"] },
-									"exists": { "type": "boolean" }
+									"path": {
+										"type": "string",
+										"minLength": 1
+									},
+									"pathBytesHex": {
+										"type": "string",
+										"pattern": "^([0-9a-f]{2})+$"
+									},
+									"reason": {
+										"enum": ["io-error", "unsafe"]
+									},
+									"exists": {
+										"type": "boolean"
+									}
 								}
 							}
 						}
@@ -394,27 +736,45 @@
 				},
 				{
 					"if": {
-						"properties": { "status": { "const": "not-applicable" } },
+						"properties": {
+							"status": {
+								"const": "not-applicable"
+							}
+						},
 						"required": ["status"]
 					},
 					"then": {
 						"properties": {
 							"details": {
 								"oneOf": [
-									{ "type": "object", "additionalProperties": false },
+									{
+										"type": "object",
+										"additionalProperties": false
+									},
 									{
 										"type": "object",
 										"required": ["exists", "reason"],
 										"additionalProperties": false,
-										"allOf": [{ "$ref": "#/$defs/path" }],
+										"allOf": [
+											{
+												"$ref": "#/$defs/path"
+											}
+										],
 										"properties": {
-											"path": { "type": "string", "minLength": 1 },
+											"path": {
+												"type": "string",
+												"minLength": 1
+											},
 											"pathBytesHex": {
 												"type": "string",
 												"pattern": "^([0-9a-f]{2})+$"
 											},
-											"reason": { "const": "absent" },
-											"exists": { "const": false }
+											"reason": {
+												"const": "absent"
+											},
+											"exists": {
+												"const": false
+											}
 										}
 									}
 								]
@@ -429,26 +789,48 @@
 			"required": ["name", "status", "details"],
 			"additionalProperties": false,
 			"properties": {
-				"name": { "const": "cohort" },
-				"status": { "enum": ["pass", "fail"] },
-				"details": { "type": "object" }
+				"name": {
+					"const": "cohort"
+				},
+				"status": {
+					"enum": ["pass", "fail"]
+				},
+				"details": {
+					"type": "object"
+				}
 			},
 			"allOf": [
 				{
-					"if": { "properties": { "status": { "const": "pass" } } },
+					"if": {
+						"properties": {
+							"status": {
+								"const": "pass"
+							}
+						}
+					},
 					"then": {
 						"properties": {
 							"details": {
 								"type": "object",
 								"required": ["verified"],
 								"additionalProperties": false,
-								"properties": { "verified": { "const": true } }
+								"properties": {
+									"verified": {
+										"const": true
+									}
+								}
 							}
 						}
 					}
 				},
 				{
-					"if": { "properties": { "status": { "const": "fail" } } },
+					"if": {
+						"properties": {
+							"status": {
+								"const": "fail"
+							}
+						}
+					},
 					"then": {
 						"properties": {
 							"details": {
@@ -456,8 +838,12 @@
 								"required": ["verified", "reason"],
 								"additionalProperties": false,
 								"properties": {
-									"verified": { "const": false },
-									"reason": { "enum": ["deadline", "invalid-cohort"] }
+									"verified": {
+										"const": false
+									},
+									"reason": {
+										"enum": ["deadline", "invalid-cohort"]
+									}
 								}
 							}
 						}
@@ -470,15 +856,23 @@
 			"required": ["name", "status", "details"],
 			"additionalProperties": false,
 			"properties": {
-				"name": { "const": "locale" },
-				"status": { "const": "pass" },
+				"name": {
+					"const": "locale"
+				},
+				"status": {
+					"const": "pass"
+				},
 				"details": {
 					"type": "object",
 					"required": ["locale", "source"],
 					"additionalProperties": false,
 					"properties": {
-						"locale": { "enum": ["en-US", "zh-CN"] },
-						"source": { "enum": ["LC_ALL", "LC_MESSAGES", "LANG", "default"] }
+						"locale": {
+							"enum": ["en-US", "zh-CN"]
+						},
+						"source": {
+							"enum": ["LC_ALL", "LC_MESSAGES", "LANG", "default"]
+						}
 					}
 				}
 			}
@@ -490,8 +884,12 @@
 					"required": ["presence", "status"],
 					"additionalProperties": false,
 					"properties": {
-						"presence": { "const": "present" },
-						"status": { "const": "pass" }
+						"presence": {
+							"const": "present"
+						},
+						"status": {
+							"const": "pass"
+						}
 					}
 				},
 				{
@@ -499,9 +897,15 @@
 					"required": ["presence", "status", "reason"],
 					"additionalProperties": false,
 					"properties": {
-						"presence": { "const": "present" },
-						"status": { "const": "fail" },
-						"reason": { "enum": ["io-error", "unsafe"] }
+						"presence": {
+							"const": "present"
+						},
+						"status": {
+							"const": "fail"
+						},
+						"reason": {
+							"enum": ["io-error", "unsafe"]
+						}
 					}
 				},
 				{
@@ -509,8 +913,12 @@
 					"required": ["presence", "status"],
 					"additionalProperties": false,
 					"properties": {
-						"presence": { "const": "absent" },
-						"status": { "const": "not-applicable" }
+						"presence": {
+							"const": "absent"
+						},
+						"status": {
+							"const": "not-applicable"
+						}
 					}
 				},
 				{
@@ -518,9 +926,15 @@
 					"required": ["presence", "status", "reason"],
 					"additionalProperties": false,
 					"properties": {
-						"presence": { "const": "unchecked" },
-						"status": { "const": "not-applicable" },
-						"reason": { "enum": ["runtime-unavailable", "io-error"] }
+						"presence": {
+							"const": "unchecked"
+						},
+						"status": {
+							"const": "not-applicable"
+						},
+						"reason": {
+							"enum": ["runtime-unavailable", "io-error"]
+						}
 					}
 				},
 				{
@@ -528,18 +942,37 @@
 					"required": ["presence", "status", "reason", "addressBytes", "addressCapacityBytes"],
 					"additionalProperties": false,
 					"properties": {
-						"presence": { "enum": ["present", "absent", "unchecked"] },
-						"status": { "const": "fail" },
-						"reason": { "const": "address-too-long" },
-						"path": { "type": "string", "minLength": 1 },
+						"presence": {
+							"enum": ["present", "absent", "unchecked"]
+						},
+						"status": {
+							"const": "fail"
+						},
+						"reason": {
+							"const": "address-too-long"
+						},
+						"path": {
+							"type": "string",
+							"minLength": 1
+						},
 						"pathBytesHex": {
 							"type": "string",
 							"pattern": "^([0-9a-f]{2})+$"
 						},
-						"addressBytes": { "type": "integer", "minimum": 1 },
-						"addressCapacityBytes": { "type": "integer", "minimum": 1 }
+						"addressBytes": {
+							"type": "integer",
+							"minimum": 1
+						},
+						"addressCapacityBytes": {
+							"type": "integer",
+							"minimum": 1
+						}
 					},
-					"allOf": [{ "$ref": "#/$defs/path" }]
+					"allOf": [
+						{
+							"$ref": "#/$defs/path"
+						}
+					]
 				}
 			]
 		},
@@ -550,65 +983,123 @@
 					"required": ["presence", "status", "reason", "addressBytes", "addressCapacityBytes"],
 					"additionalProperties": false,
 					"properties": {
-						"presence": { "const": "unchecked" },
-						"status": { "const": "not-applicable" },
-						"reason": { "const": "presence-not-inspected" },
-						"path": { "type": "string", "minLength": 1 },
+						"presence": {
+							"const": "unchecked"
+						},
+						"status": {
+							"const": "not-applicable"
+						},
+						"reason": {
+							"const": "presence-not-inspected"
+						},
+						"path": {
+							"type": "string",
+							"minLength": 1
+						},
 						"pathBytesHex": {
 							"type": "string",
 							"pattern": "^([0-9a-f]{2})+$"
 						},
-						"addressBytes": { "type": "integer", "minimum": 1 },
-						"addressCapacityBytes": { "type": "integer", "minimum": 1 }
+						"addressBytes": {
+							"type": "integer",
+							"minimum": 1
+						},
+						"addressCapacityBytes": {
+							"type": "integer",
+							"minimum": 1
+						}
 					},
-					"allOf": [{ "$ref": "#/$defs/path" }]
+					"allOf": [
+						{
+							"$ref": "#/$defs/path"
+						}
+					]
 				},
 				{
 					"type": "object",
 					"required": ["presence", "status", "reason", "addressBytes", "addressCapacityBytes"],
 					"additionalProperties": false,
 					"properties": {
-						"presence": { "const": "unchecked" },
-						"status": { "const": "fail" },
-						"reason": { "const": "address-too-long" },
-						"path": { "type": "string", "minLength": 1 },
+						"presence": {
+							"const": "unchecked"
+						},
+						"status": {
+							"const": "fail"
+						},
+						"reason": {
+							"const": "address-too-long"
+						},
+						"path": {
+							"type": "string",
+							"minLength": 1
+						},
 						"pathBytesHex": {
 							"type": "string",
 							"pattern": "^([0-9a-f]{2})+$"
 						},
-						"addressBytes": { "type": "integer", "minimum": 1 },
-						"addressCapacityBytes": { "type": "integer", "minimum": 1 }
+						"addressBytes": {
+							"type": "integer",
+							"minimum": 1
+						},
+						"addressCapacityBytes": {
+							"type": "integer",
+							"minimum": 1
+						}
 					},
-					"allOf": [{ "$ref": "#/$defs/path" }]
+					"allOf": [
+						{
+							"$ref": "#/$defs/path"
+						}
+					]
 				}
 			]
 		},
 		"socketFail": {
 			"type": "object",
 			"required": ["status"],
-			"properties": { "status": { "const": "fail" } }
+			"properties": {
+				"status": {
+					"const": "fail"
+				}
+			}
 		},
 		"socketPass": {
 			"type": "object",
 			"required": ["status"],
-			"properties": { "status": { "const": "pass" } }
+			"properties": {
+				"status": {
+					"const": "pass"
+				}
+			}
 		},
 		"socketsCheck": {
 			"type": "object",
 			"required": ["name", "status", "details"],
 			"additionalProperties": false,
 			"properties": {
-				"name": { "const": "sockets" },
-				"status": { "enum": ["pass", "fail", "not-applicable"] },
+				"name": {
+					"const": "sockets"
+				},
+				"status": {
+					"enum": ["pass", "fail", "not-applicable"]
+				},
 				"details": {
 					"type": "object",
 					"required": ["client", "worker", "clientPending", "host"],
 					"additionalProperties": false,
 					"properties": {
-						"client": { "$ref": "#/$defs/socketEntry" },
-						"worker": { "$ref": "#/$defs/socketEntry" },
-						"clientPending": { "$ref": "#/$defs/socketBudgetEntry" },
-						"host": { "$ref": "#/$defs/socketBudgetEntry" }
+						"client": {
+							"$ref": "#/$defs/socketEntry"
+						},
+						"worker": {
+							"$ref": "#/$defs/socketEntry"
+						},
+						"clientPending": {
+							"$ref": "#/$defs/socketBudgetEntry"
+						},
+						"host": {
+							"$ref": "#/$defs/socketBudgetEntry"
+						}
 					}
 				}
 			},
@@ -619,21 +1110,35 @@
 							"details": {
 								"anyOf": [
 									{
-										"properties": { "client": { "$ref": "#/$defs/socketFail" } },
+										"properties": {
+											"client": {
+												"$ref": "#/$defs/socketFail"
+											}
+										},
 										"required": ["client"]
 									},
 									{
-										"properties": { "worker": { "$ref": "#/$defs/socketFail" } },
+										"properties": {
+											"worker": {
+												"$ref": "#/$defs/socketFail"
+											}
+										},
 										"required": ["worker"]
 									},
 									{
 										"properties": {
-											"clientPending": { "$ref": "#/$defs/socketFail" }
+											"clientPending": {
+												"$ref": "#/$defs/socketFail"
+											}
 										},
 										"required": ["clientPending"]
 									},
 									{
-										"properties": { "host": { "$ref": "#/$defs/socketFail" } },
+										"properties": {
+											"host": {
+												"$ref": "#/$defs/socketFail"
+											}
+										},
 										"required": ["host"]
 									}
 								]
@@ -641,7 +1146,13 @@
 						},
 						"required": ["details"]
 					},
-					"then": { "properties": { "status": { "const": "fail" } } }
+					"then": {
+						"properties": {
+							"status": {
+								"const": "fail"
+							}
+						}
+					}
 				},
 				{
 					"if": {
@@ -653,13 +1164,17 @@
 											"anyOf": [
 												{
 													"properties": {
-														"client": { "$ref": "#/$defs/socketFail" }
+														"client": {
+															"$ref": "#/$defs/socketFail"
+														}
 													},
 													"required": ["client"]
 												},
 												{
 													"properties": {
-														"worker": { "$ref": "#/$defs/socketFail" }
+														"worker": {
+															"$ref": "#/$defs/socketFail"
+														}
 													},
 													"required": ["worker"]
 												},
@@ -673,7 +1188,9 @@
 												},
 												{
 													"properties": {
-														"host": { "$ref": "#/$defs/socketFail" }
+														"host": {
+															"$ref": "#/$defs/socketFail"
+														}
 													},
 													"required": ["host"]
 												}
@@ -684,13 +1201,17 @@
 										"anyOf": [
 											{
 												"properties": {
-													"client": { "$ref": "#/$defs/socketPass" }
+													"client": {
+														"$ref": "#/$defs/socketPass"
+													}
 												},
 												"required": ["client"]
 											},
 											{
 												"properties": {
-													"worker": { "$ref": "#/$defs/socketPass" }
+													"worker": {
+														"$ref": "#/$defs/socketPass"
+													}
 												},
 												"required": ["worker"]
 											}
@@ -701,7 +1222,13 @@
 						},
 						"required": ["details"]
 					},
-					"then": { "properties": { "status": { "const": "pass" } } }
+					"then": {
+						"properties": {
+							"status": {
+								"const": "pass"
+							}
+						}
+					}
 				},
 				{
 					"if": {
@@ -713,7 +1240,9 @@
 											"properties": {
 												"client": {
 													"properties": {
-														"status": { "enum": ["fail", "pass"] }
+														"status": {
+															"enum": ["fail", "pass"]
+														}
 													},
 													"required": ["status"]
 												}
@@ -724,7 +1253,9 @@
 											"properties": {
 												"worker": {
 													"properties": {
-														"status": { "enum": ["fail", "pass"] }
+														"status": {
+															"enum": ["fail", "pass"]
+														}
 													},
 													"required": ["status"]
 												}
@@ -735,7 +1266,9 @@
 											"properties": {
 												"clientPending": {
 													"properties": {
-														"status": { "enum": ["fail", "pass"] }
+														"status": {
+															"enum": ["fail", "pass"]
+														}
 													},
 													"required": ["status"]
 												}
@@ -746,7 +1279,9 @@
 											"properties": {
 												"host": {
 													"properties": {
-														"status": { "enum": ["fail", "pass"] }
+														"status": {
+															"enum": ["fail", "pass"]
+														}
 													},
 													"required": ["status"]
 												}
@@ -759,7 +1294,129 @@
 						},
 						"required": ["details"]
 					},
-					"then": { "properties": { "status": { "const": "not-applicable" } } }
+					"then": {
+						"properties": {
+							"status": {
+								"const": "not-applicable"
+							}
+						}
+					}
+				}
+			]
+		},
+		"userConfigCheckV4": {
+			"type": "object",
+			"required": ["name", "status", "details"],
+			"additionalProperties": false,
+			"properties": {
+				"name": {
+					"const": "user-config"
+				},
+				"status": {
+					"enum": ["pass", "fail"]
+				},
+				"details": {
+					"type": "object"
+				}
+			},
+			"allOf": [
+				{
+					"if": {
+						"properties": {
+							"status": {
+								"const": "pass"
+							}
+						}
+					},
+					"then": {
+						"properties": {
+							"details": {
+								"type": "object",
+								"required": [
+									"path",
+									"exists",
+									"newCwd",
+									"worktreeDirectory",
+									"resumeAgentsOnRestore",
+									"resumeAgentsOnRestoreSource",
+									"manifestCheck",
+									"manifestCheckSource"
+								],
+								"additionalProperties": false,
+								"properties": {
+									"path": {
+										"type": ["string", "null"],
+										"minLength": 1,
+										"maxLength": 4096
+									},
+									"exists": {
+										"type": "boolean"
+									},
+									"resumeAgentsOnRestore": {
+										"type": "boolean"
+									},
+									"resumeAgentsOnRestoreSource": {
+										"enum": ["default", "file", "environment"]
+									},
+									"newCwd": {
+										"type": "string",
+										"minLength": 1,
+										"maxLength": 4096
+									},
+									"worktreeDirectory": {
+										"type": ["string", "null"],
+										"minLength": 1,
+										"maxLength": 4096
+									},
+									"manifestCheck": {
+										"type": "boolean"
+									},
+									"manifestCheckSource": {
+										"enum": ["default", "file"]
+									}
+								}
+							}
+						}
+					},
+					"else": {
+						"properties": {
+							"details": {
+								"type": "object",
+								"required": ["field", "reason"],
+								"additionalProperties": false,
+								"properties": {
+									"field": {
+										"enum": [
+											"file",
+											"ORCHBEE_CONFIG_FILE",
+											"APPDATA",
+											"terminal.new_cwd",
+											"worktrees.directory",
+											"session.resume_agents_on_restore",
+											"ORCHBEE_RESUME_AGENTS_ON_RESTORE",
+											"update.manifest_check"
+										]
+									},
+									"reason": {
+										"enum": [
+											"invalid-path",
+											"invalid-boolean",
+											"missing",
+											"io-error",
+											"not-file",
+											"too-large",
+											"invalid-utf8",
+											"invalid-toml",
+											"unknown-key",
+											"wrong-type",
+											"source-query-failed",
+											"source-query-interrupted"
+										]
+									}
+								}
+							}
+						}
+					}
 				}
 			]
 		}

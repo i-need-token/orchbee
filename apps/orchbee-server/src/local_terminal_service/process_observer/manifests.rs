@@ -9,7 +9,11 @@ use orchbee_workbench_protocol::{
     WorkbenchRevision,
 };
 use std::{collections::BTreeMap, path::PathBuf, sync::Mutex};
+mod scheduling;
 mod worker;
+use orchbee_local_site_runtime::WindowsUserSettings;
+use scheduling::Schedule;
+use std::time::Instant;
 pub(super) use worker::Worker;
 pub(super) struct Lifetime<'a>(pub(super) &'a Registry);
 impl Drop for Lifetime<'_> {
@@ -27,8 +31,14 @@ struct Receipt {
     kind: Kind,
     status: Operation,
 }
+#[derive(Clone, PartialEq, Eq)]
+enum Owner {
+    Manual(WorkbenchRequestId),
+    Automatic,
+}
 struct Work {
-    id: WorkbenchRequestId,
+    id: Owner,
+    configuration: Option<(Option<PathBuf>, bool)>,
     kind: Kind,
     root: Option<PathBuf>,
     source: Result<CatalogUrl, UpdateFailure>,
@@ -41,17 +51,61 @@ struct State {
     update_disabled: bool,
     snapshot: AgentManifestsSnapshot,
     operations: BTreeMap<WorkbenchRequestId, Receipt>,
-    active: Option<WorkbenchRequestId>,
+    active: Option<Owner>,
+    schedule: Option<Schedule>,
     taken: bool,
     stopped: bool,
 }
 impl Registry {
+    #[cfg(test)]
     pub(super) fn initialize(
         &self,
         root: Option<PathBuf>,
         detector: &ScreenDetector,
     ) -> std::io::Result<()> {
         self.initialize_source(root, detector, updating::configured_source())
+    }
+    pub(super) fn initialize_settings(
+        &self,
+        settings: &WindowsUserSettings,
+        detector: &ScreenDetector,
+        background: bool,
+        release: bool,
+    ) -> std::io::Result<()> {
+        self.initialize_source(
+            settings
+                .path
+                .as_deref()
+                .and_then(std::path::Path::parent)
+                .map(std::path::Path::to_owned),
+            detector,
+            updating::configured_source(),
+        )?;
+        if let Some(state) = self
+            .0
+            .lock()
+            .map_err(|_| std::io::Error::other("Manifest registry poisoned"))?
+            .as_mut()
+        {
+            state.schedule = Some(Schedule::new(settings, background, release, Instant::now()));
+        }
+        Ok(())
+    }
+    pub(super) fn schedule(&self, now: Instant) {
+        let Ok(mut lock) = self.0.lock() else { return };
+        let Some(state) = lock.as_mut() else { return };
+        if state.stopped || state.active.is_some() {
+            return;
+        }
+        let available = available(state);
+        if state
+            .schedule
+            .as_mut()
+            .is_some_and(|s| s.admit(now, available))
+        {
+            state.active = Some(Owner::Automatic);
+            state.taken = false;
+        }
     }
     fn initialize_source(
         &self,
@@ -84,6 +138,7 @@ impl Registry {
             snapshot,
             operations: BTreeMap::new(),
             active: None,
+            schedule: None,
             taken: false,
             stopped: false,
         });
@@ -94,14 +149,23 @@ impl Registry {
             && let Some(state) = lock.as_mut()
         {
             state.stopped = true;
-            if let Some(id) = state.active.clone()
-                && let Some(receipt) = state.operations.get_mut(&id)
-                && !(state.taken && receipt.kind == Kind::Update)
-            {
-                receipt.status = Operation::Failed {
-                    reason: Failure::Cancelled,
+            if let Some(owner) = state.active.clone() {
+                let kind = match &owner {
+                    Owner::Automatic => Kind::Update,
+                    Owner::Manual(id) => match state.operations.get(id) {
+                        Some(receipt) => receipt.kind,
+                        None => return,
+                    },
                 };
-                state.active = None;
+                if !(state.taken && kind == Kind::Update) {
+                    settle(
+                        state,
+                        owner,
+                        Operation::Failed {
+                            reason: Failure::Cancelled,
+                        },
+                    );
+                }
             }
         }
     }
@@ -118,7 +182,7 @@ impl Registry {
                     failed(Failure::Unavailable)
                 } else {
                     Outcome::Current {
-                        snapshot: state.snapshot.clone(),
+                        snapshot: snapshot(state),
                     }
                 };
             }
@@ -152,7 +216,7 @@ impl Registry {
         {
             return failed(Failure::UpdateUnavailable);
         }
-        state.active = Some(operation_id.clone());
+        state.active = Some(Owner::Manual(operation_id.clone()));
         state.taken = false;
         state.operations.insert(
             operation_id.clone(),
@@ -173,10 +237,17 @@ impl Registry {
             return None;
         }
         let id = state.active.clone()?;
-        let kind = state.operations.get(&id)?.kind;
+        let kind = match &id {
+            Owner::Manual(id) => state.operations.get(id)?.kind,
+            Owner::Automatic => Kind::Update,
+        };
         state.taken = true;
         Some(Work {
             id,
+            configuration: state
+                .schedule
+                .as_ref()
+                .map(|s| (s.path.clone(), s.explicit)),
             kind,
             root: state.root.clone(),
             source: state.source.clone(),
@@ -189,13 +260,14 @@ impl Registry {
         loaded: Result<ScreenDetector, String>,
         install: impl FnOnce(ScreenDetector) -> Result<(), Failure>,
     ) {
-        self.complete_reload(id, loaded, None, install);
+        self.complete_reload(Owner::Manual(id), loaded, None, None, install);
     }
     fn complete_reload(
         &self,
-        id: WorkbenchRequestId,
+        id: Owner,
         loaded: Result<ScreenDetector, String>,
         maintenance: Option<AgentManifestMaintenance>,
+        settings: Option<WindowsUserSettings>,
         install: impl FnOnce(ScreenDetector) -> Result<(), Failure>,
     ) {
         let Ok(mut lock) = self.0.lock() else { return };
@@ -204,7 +276,14 @@ impl Registry {
             return;
         }
         let status = match activate(state, loaded, install) {
-            Ok(revision) => Operation::Applied { revision },
+            Ok(revision) => {
+                if let Some(settings) = settings
+                    && let Some(schedule) = &mut state.schedule
+                {
+                    schedule.apply(&settings, Instant::now());
+                }
+                Operation::Applied { revision }
+            }
             Err(reason) => Operation::Failed { reason },
         };
         if let Some(maintenance) = maintenance {
@@ -212,7 +291,7 @@ impl Registry {
         }
         settle(state, id, status);
     }
-    fn refuse_work(&self, id: WorkbenchRequestId, reason: Failure) {
+    fn refuse_work(&self, id: Owner, reason: Failure) {
         let Ok(mut lock) = self.0.lock() else { return };
         let Some(state) = lock.as_mut() else { return };
         if state.active.as_ref() == Some(&id) {
@@ -221,7 +300,7 @@ impl Registry {
     }
     fn complete_update(
         &self,
-        id: WorkbenchRequestId,
+        id: Owner,
         report: Result<UpdateReport, ()>,
         loaded: Option<Result<ScreenDetector, String>>,
         install: impl FnOnce(ScreenDetector) -> Result<(), Failure>,
@@ -266,10 +345,29 @@ impl Registry {
         settle(state, id, status);
     }
 }
-fn settle(state: &mut State, id: WorkbenchRequestId, status: Operation) {
+fn available(state: &State) -> bool {
+    state.source.is_ok() && state.root.is_some() && !state.update_disabled
+}
+fn snapshot(state: &State) -> AgentManifestsSnapshot {
+    let mut snapshot = state.snapshot.clone();
+    if let Some(maintenance) = &mut snapshot.maintenance {
+        maintenance.automatic = state.schedule.as_ref().map(|s| s.project(available(state)));
+    }
+    snapshot
+}
+fn settle(state: &mut State, id: Owner, status: Operation) {
     state.active = None;
-    if let Some(receipt) = state.operations.get_mut(&id) {
-        receipt.status = status;
+    match id {
+        Owner::Manual(id) => {
+            if let Some(receipt) = state.operations.get_mut(&id) {
+                receipt.status = status;
+            }
+        }
+        Owner::Automatic => {
+            if let Some(schedule) = &mut state.schedule {
+                schedule.last = Some(status);
+            }
+        }
     }
 }
 fn activate(
@@ -507,7 +605,10 @@ mod tests {
         });
         let work = registry.take().unwrap();
         registry.complete(
-            work.id,
+            match work.id {
+                Owner::Manual(id) => id,
+                Owner::Automatic => panic!("manual reload"),
+            },
             ScreenDetector::load(work.root.as_deref()),
             |next| {
                 installed = next;
@@ -681,7 +782,9 @@ mod update_tests {
             operation_id: id(1),
         });
         registry.take().unwrap();
-        registry.complete_update(id(1), Err(()), None, |_| panic!("unknown cannot install"));
+        registry.complete_update(Owner::Manual(id(1)), Err(()), None, |_| {
+            panic!("unknown cannot install")
+        });
         assert!(matches!(
             registry.execute(&Action::Operation {
                 operation_id: id(1)
@@ -706,5 +809,137 @@ mod update_tests {
                 ..
             }
         ));
+    }
+}
+
+#[cfg(test)]
+mod automatic_tests {
+    use super::*;
+    use crate::{
+        agent_screen::updating::tests::{Http, INDEX, Root, rules},
+        worker_registry::WorkerRegistry,
+    };
+    use std::{sync::Arc, thread, time::Duration};
+    fn id(n: u64) -> WorkbenchRequestId {
+        WorkbenchRequestId::parse(&format!("{n:032x}")).unwrap()
+    }
+    #[test]
+    fn automatic_real_update_avoids_the_manual_ledger_and_reload_changes_policy_atomically() {
+        let root = Root::new();
+        let path = root.0.join("config.toml");
+        std::fs::write(&path, "[update]\nmanifest_check=true").unwrap();
+        let settings =
+            orchbee_local_site_runtime::read_windows_user_settings_at(Some(&path), true, |_| None)
+                .unwrap();
+        let http = Http::start(vec![
+            INDEX.as_bytes().to_vec(),
+            rules("codex", "2099.2").into_bytes(),
+            INDEX.as_bytes().to_vec(),
+            rules("codex", "2099.2").into_bytes(),
+        ]);
+        let service = LocalTerminalService::new(Arc::new(Mutex::new(WorkerRegistry::new())));
+        let wake = &service.process_observer.wake;
+        let mut detector = ScreenDetector::bundled().unwrap();
+        wake.manifests
+            .initialize_settings(&settings, &detector, true, true)
+            .unwrap();
+        {
+            let mut lock = wake.manifests.0.lock().unwrap();
+            let state = lock.as_mut().unwrap();
+            state.source = Ok(http.url.clone());
+            state.snapshot.maintenance = Some(updating::maintenance(Some(&root.0), &state.source));
+        }
+        let reload = Action::Reload {
+            operation_id: id(1),
+        };
+        wake.manifests.execute(&reload);
+        wake.manifests.schedule(Instant::now());
+        assert!(
+            matches!(
+                wake.manifests.0.lock().unwrap().as_ref().unwrap().active,
+                Some(Owner::Manual(_))
+            ),
+            "due automatic work waits for manual work"
+        );
+        let mut worker = Worker::default();
+        worker.serve(Some(&service), wake, &mut detector);
+        wake.manifests.schedule(Instant::now());
+        worker.serve(Some(&service), wake, &mut detector);
+        assert!(worker.active());
+        let until = Instant::now() + Duration::from_secs(10);
+        while worker.active() && Instant::now() < until {
+            worker.serve(Some(&service), wake, &mut detector);
+            thread::sleep(Duration::from_millis(5));
+        }
+        assert!(!worker.active());
+        let current = wake.manifests.execute(&Action::Current {});
+        assert!(
+            matches!(current,Outcome::Current {ref snapshot} if matches!(snapshot.maintenance.as_ref().unwrap().automatic.as_ref().unwrap().last_operation.as_deref(),Some(Operation::Updated {report,activation:Activation::Applied {..}}) if report.successful()))
+        );
+        assert_eq!(
+            wake.manifests
+                .0
+                .lock()
+                .unwrap()
+                .as_ref()
+                .unwrap()
+                .operations
+                .len(),
+            1
+        );
+        let revision = match &current {
+            Outcome::Current { snapshot } => snapshot.revision,
+            _ => panic!("current snapshot"),
+        };
+        wake.manifests
+            .schedule(Instant::now() + Duration::from_secs(1801));
+        worker.serve(Some(&service), wake, &mut detector);
+        let until = Instant::now() + Duration::from_secs(10);
+        while worker.active() && Instant::now() < until {
+            worker.serve(Some(&service), wake, &mut detector);
+            thread::sleep(Duration::from_millis(5));
+        }
+        assert!(!worker.active());
+        assert!(
+            matches!(wake.manifests.execute(&Action::Current {}),Outcome::Current {snapshot} if snapshot.revision==revision && matches!(snapshot.maintenance.as_ref().unwrap().automatic.as_ref().unwrap().last_operation.as_deref(),Some(Operation::Updated {report,activation:Activation::NotAttempted {}}) if report.successful()))
+        );
+        std::fs::write(&path, "[update]\nmanifest_check=false").unwrap();
+        wake.manifests.execute(&Action::Reload {
+            operation_id: id(2),
+        });
+        worker.serve(Some(&service), wake, &mut detector);
+        assert!(
+            matches!(wake.manifests.execute(&Action::Current {}),Outcome::Current {snapshot} if !snapshot.maintenance.as_ref().unwrap().automatic.as_ref().unwrap().enabled)
+        );
+        let before = wake.manifests.execute(&Action::Current {});
+        std::fs::write(&path, "[update]\nmanifest_check='bad'").unwrap();
+        wake.manifests.execute(&Action::Reload {
+            operation_id: id(3),
+        });
+        worker.serve(Some(&service), wake, &mut detector);
+        assert_eq!(wake.manifests.execute(&Action::Current {}), before);
+        assert!(matches!(
+            wake.manifests.execute(&Action::Operation {
+                operation_id: id(3)
+            }),
+            Outcome::Operation {
+                status: Operation::Failed {
+                    reason: Failure::LoadFailed
+                },
+                ..
+            }
+        ));
+        std::fs::write(&path, "[update]\nmanifest_check=true").unwrap();
+        wake.manifests.execute(&Action::Reload {
+            operation_id: id(4),
+        });
+        worker.serve(Some(&service), wake, &mut detector);
+        // Re-enable becomes due immediately; admission itself performs no network or cache write.
+        wake.manifests.schedule(Instant::now());
+        assert!(matches!(
+            wake.manifests.0.lock().unwrap().as_ref().unwrap().active,
+            Some(Owner::Automatic)
+        ));
+        wake.manifests.cancel();
     }
 }

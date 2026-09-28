@@ -117,13 +117,18 @@ fn config_check_reports_the_actual_file_without_creating_it() {
         !validator.is_valid(&old),
         "v2 must not silently omit user configuration"
     );
-    assert_eq!(doc["version"], 2);
+    assert_eq!(doc["version"], 4);
+    assert_eq!(doc["result"]["checks"][5]["details"]["manifestCheck"], true);
+    assert_eq!(
+        doc["result"]["checks"][5]["details"]["manifestCheckSource"],
+        "default"
+    );
     assert_eq!(doc["result"]["checks"][5]["details"]["exists"], false);
     assert!(!config.exists());
     std::fs::create_dir_all(config.parent().unwrap()).unwrap();
     std::fs::write(
         &config,
-        "[terminal]\nnew_cwd='home'\n[worktrees]\ndirectory='../trees'",
+        "[terminal]\nnew_cwd='home'\n[worktrees]\ndirectory='../trees'\n[update]\nmanifest_check=false",
     )
     .unwrap();
     let doc = document(fixture.run(&["config", "check", "--format=json"]));
@@ -131,6 +136,8 @@ fn config_check_reports_the_actual_file_without_creating_it() {
     let check = &doc["result"]["checks"][5];
     assert_eq!(check["status"], "pass");
     assert_eq!(check["details"]["newCwd"], "home");
+    assert_eq!(check["details"]["manifestCheck"], false);
+    assert_eq!(check["details"]["manifestCheckSource"], "file");
     assert_eq!(
         std::path::Path::new(check["details"]["worktreeDirectory"].as_str().unwrap()),
         fixture.0.join("appdata/Orchbee/../trees")

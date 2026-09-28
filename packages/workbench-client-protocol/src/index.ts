@@ -467,3 +467,8 @@ export {
 	type AgentManifestUpdateReport,
 } from './workbench-agent-manifest-update-contract';
 export { AgentManifestActivationSchema } from './workbench-agent-manifests-contract';
+
+export {
+	AgentManifestAutomaticSchema,
+	type AgentManifestAutomatic,
+} from './workbench-agent-manifest-update-contract';

@@ -1,7 +1,12 @@
 import { z } from 'zod';
 import {
+	AgentManifestsFailureSchema as failure,
 	AgentManifestMaintenanceSchema,
-	AgentManifestUpdateReportSchema,
+	AgentManifestsOperationSchema,
+} from './workbench-agent-manifest-update-contract';
+export {
+	AgentManifestsOperationSchema,
+	AgentManifestActivationSchema,
 } from './workbench-agent-manifest-update-contract';
 import { AgentDetectionManifestSchema } from './workbench-panel-agent-contract';
 import {
@@ -12,19 +17,6 @@ import {
 } from './workbench-semantic-contract';
 export const WORKBENCH_MAXIMUM_ENCODED_AGENT_MANIFESTS_BYTES = 512 * 1024;
 const revision = WorkbenchRevisionSchema.refine((v) => v !== '0');
-const failure = z.enum([
-	'denied',
-	'unavailable',
-	'site-mismatch',
-	'busy',
-	'resource-limit',
-	'not-found',
-	'load-failed',
-	'revision-exhausted',
-	'cancelled',
-	'conflict',
-	'update-unavailable',
-]);
 const version = z
 	.string()
 	.max(128)
@@ -72,22 +64,6 @@ export const AgentManifestsActionSchema = z.discriminatedUnion('kind', [
 	z.strictObject({ kind: z.literal('reload'), operationId: WorkbenchRequestIdSchema }),
 	z.strictObject({ kind: z.literal('update'), operationId: WorkbenchRequestIdSchema }),
 	z.strictObject({ kind: z.literal('operation'), operationId: WorkbenchRequestIdSchema }),
-]);
-export const AgentManifestActivationSchema = z.discriminatedUnion('kind', [
-	z.strictObject({ kind: z.literal('not-attempted') }),
-	z.strictObject({ kind: z.literal('applied'), revision }),
-	z.strictObject({ kind: z.literal('failed'), reason: failure }),
-]);
-export const AgentManifestsOperationSchema = z.discriminatedUnion('kind', [
-	z.strictObject({ kind: z.literal('pending') }),
-	z.strictObject({
-		kind: z.literal('updated'),
-		report: AgentManifestUpdateReportSchema,
-		activation: AgentManifestActivationSchema,
-	}),
-	z.strictObject({ kind: z.literal('unknown'), reason: failure }),
-	z.strictObject({ kind: z.literal('applied'), revision }),
-	z.strictObject({ kind: z.literal('failed'), reason: failure }),
 ]);
 export const AgentManifestsRequestSchema = z
 	.strictObject({

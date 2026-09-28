@@ -127,6 +127,12 @@ pub struct AgentManifestMaintenance {
     pub last_update: Option<AgentManifestUpdateReport>,
     #[serde(deserialize_with = "super::agent_manifests::nullable")]
     pub status_error: Option<AgentManifestUpdateFailure>,
+    #[serde(
+        default,
+        deserialize_with = "present_automatic",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub automatic: Option<AgentManifestAutomatic>,
 }
 impl AgentManifestMaintenance {
     pub fn validate(&self) -> Result<(), crate::ContractError> {
@@ -138,8 +144,57 @@ impl AgentManifestMaintenance {
         {
             return Err(crate::ContractError::InvalidDocument);
         }
+        if let Some(automatic) = &self.automatic {
+            automatic.validate()?;
+        }
         if let Some(report) = &self.last_update {
             report.validate()?;
+        }
+        Ok(())
+    }
+}
+
+fn present_automatic<'de, D: serde::Deserializer<'de>>(
+    d: D,
+) -> Result<Option<AgentManifestAutomatic>, D::Error> {
+    AgentManifestAutomatic::deserialize(d).map(Some)
+}
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum AgentManifestCheckSource {
+    Default,
+    File,
+}
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct AgentManifestAutomatic {
+    pub manifest_check: bool,
+    pub manifest_check_source: AgentManifestCheckSource,
+    pub background_enabled: bool,
+    pub release_build: bool,
+    pub update_available: bool,
+    pub enabled: bool,
+    #[serde(deserialize_with = "super::agent_manifests::nullable")]
+    pub last_operation: Option<Box<crate::AgentManifestsOperation>>,
+}
+impl AgentManifestAutomatic {
+    pub fn validate(&self) -> Result<(), crate::ContractError> {
+        if self.enabled
+            != (self.manifest_check
+                && self.background_enabled
+                && self.release_build
+                && self.update_available)
+            || (!self.manifest_check
+                && self.manifest_check_source == AgentManifestCheckSource::Default)
+            || matches!(
+                self.last_operation.as_deref(),
+                Some(crate::AgentManifestsOperation::Applied { .. })
+            )
+        {
+            return Err(crate::ContractError::InvalidDocument);
+        }
+        if let Some(operation) = &self.last_operation {
+            operation.validate()?;
         }
         Ok(())
     }

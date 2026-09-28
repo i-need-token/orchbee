@@ -61,6 +61,7 @@ pub(super) fn run(
     cohort: &str,
     restored: crate::local_terminal_service::CheckpointRestore,
     startup_deadline: Instant,
+    settings: orchbee_local_site_runtime::WindowsUserSettings,
 ) -> io::Result<()> {
     let shutdown = Arc::new(SiteShutdown::default());
     let started = (|| {
@@ -69,7 +70,9 @@ pub(super) fn run(
         owners
             .terminals
             .launch_checkpoint_terminals(restored, &owners.agents, startup_deadline)?;
-        owners.terminals.start_process_observer()?;
+        owners
+            .terminals
+            .start_process_observer_with_settings(settings, true)?;
         local_client_service::start_managed_windows(
             owners.site.client_socket_path(),
             cohort,

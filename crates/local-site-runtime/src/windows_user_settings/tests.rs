@@ -231,3 +231,33 @@ fn paths_keep_file_parent_home_and_literal_operand_semantics() {
         assert_eq!(settings.cwd, Some((policy, None)));
     }
 }
+
+#[test]
+fn manifest_check_is_strict_defaulted_and_reload_keeps_the_frozen_location() {
+    let fixture = Fixture::new();
+    std::fs::write(fixture.file(), "[update]\nmanifest_check=false\n").unwrap();
+    let initial = fixture.read(None).unwrap();
+    assert!(!initial.manifest_check);
+    assert_eq!(initial.manifest_check_source, "file");
+    assert!(initial.explicit);
+    std::fs::write(fixture.file(), "[update]\nmanifest_check=true\n").unwrap();
+    let next =
+        read_windows_user_settings_at(initial.path.as_deref(), initial.explicit, |_| None).unwrap();
+    assert!(next.manifest_check);
+    assert_eq!(next.manifest_check_source, "file");
+    for text in ["[update]\nmanifest_check='false'", "[update]\nunknown=true"] {
+        std::fs::write(fixture.file(), text).unwrap();
+        let error = fixture.read(None).unwrap_err();
+        assert_eq!(error.field, "update.manifest_check");
+    }
+    std::fs::remove_file(fixture.file()).unwrap();
+    assert_eq!(
+        read_windows_user_settings_at(initial.path.as_deref(), true, |_| None)
+            .unwrap_err()
+            .reason,
+        "missing"
+    );
+    let default = read_windows_user_settings_at(initial.path.as_deref(), false, |_| None).unwrap();
+    assert!(default.manifest_check);
+    assert_eq!(default.manifest_check_source, "default");
+}

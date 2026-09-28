@@ -594,6 +594,9 @@
 							"type": "null"
 						}
 					]
+				},
+				"automatic": {
+					"$ref": "#/$defs/automatic"
 				}
 			}
 		},
@@ -636,6 +639,49 @@
 					}
 				}
 			]
+		},
+		"automatic": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": [
+				"manifestCheck",
+				"manifestCheckSource",
+				"backgroundEnabled",
+				"releaseBuild",
+				"updateAvailable",
+				"enabled",
+				"lastOperation"
+			],
+			"properties": {
+				"manifestCheck": {
+					"type": "boolean"
+				},
+				"backgroundEnabled": {
+					"type": "boolean"
+				},
+				"releaseBuild": {
+					"type": "boolean"
+				},
+				"updateAvailable": {
+					"type": "boolean"
+				},
+				"enabled": {
+					"type": "boolean"
+				},
+				"manifestCheckSource": {
+					"enum": ["default", "file"]
+				},
+				"lastOperation": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/operation"
+						},
+						{
+							"type": "null"
+						}
+					]
+				}
+			}
 		}
 	}
 }
