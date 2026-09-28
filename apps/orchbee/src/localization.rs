@@ -1110,12 +1110,12 @@ impl Locale {
         use crate::local_activation::StartupFailure;
         match (self, failure) {
             #[cfg(windows)]
-            (Self::EnUs, StartupFailure::ResumePolicy) => {
-                "ORCHBEE_RESUME_AGENTS_ON_RESTORE must be true or false. Correct it and start again.\n"
+            (Self::EnUs, StartupFailure::Configuration) => {
+                "Invalid Windows configuration. Run orchbee config check for details, correct the setting and retry.\n"
             }
             #[cfg(windows)]
-            (Self::ZhCn, StartupFailure::ResumePolicy) => {
-                "ORCHBEE_RESUME_AGENTS_ON_RESTORE 必须为 true 或 false。修正后可重新启动。\n"
+            (Self::ZhCn, StartupFailure::Configuration) => {
+                "Windows 配置无效。运行 orchbee config check 查看详情，修正后重试。\n"
             }
             (Self::EnUs, StartupFailure::Interface) => {
                 "The terminal interface failed. Existing Site processes were retained.\n"

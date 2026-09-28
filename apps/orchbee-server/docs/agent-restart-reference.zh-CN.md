@@ -24,7 +24,7 @@ Windows 干净停止检查点按稳定的 Workbench Presentation 身份保留外
 
 ## Windows 恢复启动
 
-尚未发布的 Site 按 Presentation 遍历顺序，为每个不同的官方来源、Agent、引用种类和值准备一次恢复启动。重复 Presentation 启动普通 shell，不保留 provider 引用。禁用恢复时保留引用并启动普通 shell。ORCHBEE_RESUME_AGENTS_ON_RESTORE 只接受精确的 true 或 false，默认为 true。Client 激活在持久 Active 发布或标记提交前拒绝非法值；已有 Site 的准入不受影响。Server 在 Worker 启动前独立验证。修正非法值后可以再次激活，不需要恢复操作，也不丢失检查点。此启动输入不实现独立的 config.toml 会话设置或热重载。
+尚未发布的 Site 按 Presentation 遍历顺序，为每个不同的官方来源、Agent、引用种类和值准备一次恢复启动。重复 Presentation 启动普通 shell，不保留 provider 引用。禁用恢复时保留引用并启动普通 shell。`[session] resume_agents_on_restore` 默认为 true；完整文件校验后，精确 true/false 环境覆盖值优先。共享 Windows 设置所有者在 Client 持久 Active 发布或标记提交前校验；已有 Site 准入不受影响。Client 将确定的不可变布尔值传给 Server，Server 校验私有参数，不重新读取可能变化的配置。未携带该参数的直接 Server 启动，在 Worker 启动前读取相同设置。修正非法配置后可以再次激活，不需要恢复操作，也不丢失检查点。参见[配置与优先级](../../orchbee/docs/windows-cli-configuration.zh-CN.md)。热重载仍是独立能力。
 
 Server 选择当前 Windows provider 命令及字面恢复参数，然后在既有终端创建事务内，用 -NoLogo -NoProfile -NoExit -EncodedCommand 启动系统 Windows PowerShell。共享字面编码支持原生程序、.cmd/.bat 和 .ps1。程序发现仅接受应用程序和外部脚本，不接受函数或别名。provider 退出或解析失败后 shell 仍可用；shell 存在不证明 provider 就绪。
 

@@ -1,22 +1,20 @@
-//! Windows CLI settings: one bounded read, strict typed projection, no writes or cache.
+//! CLI projection of the shared Windows settings owner.
 use super::{Failure, FailureKind};
-use crate::invocation::{CreationDirectory, user_path_windows};
-use orchbee_workbench_protocol::{LaunchOptions, WorkbenchDirectoryPath};
-use std::{
-    ffi::OsString,
-    fs::File,
-    io::Read,
-    path::{Path, PathBuf},
+use crate::invocation::CreationDirectory;
+use orchbee_local_site_runtime::{
+    WindowsDirectoryPolicy, WindowsSettingsError, WindowsUserSettings, read_windows_user_settings,
 };
+use orchbee_workbench_protocol::{LaunchOptions, WorkbenchDirectoryPath};
+use std::path::PathBuf;
 
-const LIMIT: u64 = 64 * 1024;
-
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub(super) struct Settings {
     pub(super) path: Option<PathBuf>,
     pub(super) exists: bool,
     pub(super) cwd: Option<(CreationDirectory, Option<WorkbenchDirectoryPath>)>,
     pub(super) worktree_root: Option<WorkbenchDirectoryPath>,
+    resume_agents_on_restore: bool,
+    resume_agents_on_restore_source: &'static str,
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -38,139 +36,47 @@ impl Error {
     }
 }
 
+impl From<WindowsSettingsError> for Error {
+    fn from(error: WindowsSettingsError) -> Self {
+        Self::new(error.field, error.reason)
+    }
+}
+
 pub(super) fn load() -> Result<Settings, Error> {
-    read(|name| std::env::var_os(name))
+    project(read_windows_user_settings(|name| std::env::var_os(name))?)
 }
 
-fn location(env: &impl Fn(&str) -> Option<OsString>) -> Result<Option<(PathBuf, bool)>, Error> {
-    let (value, field, explicit) = if let Some(value) = env("ORCHBEE_CONFIG_FILE") {
-        (value, "ORCHBEE_CONFIG_FILE", true)
-    } else if let Some(value) = env("APPDATA") {
-        (value, "APPDATA", false)
-    } else {
-        return Ok(None);
+fn project(raw: WindowsUserSettings) -> Result<Settings, Error> {
+    let path = |value: String, field| {
+        WorkbenchDirectoryPath::parse(&value).map_err(|_| Error::new(field, "invalid-path"))
     };
-    let raw = value.to_str().ok_or(Error::new(field, "invalid-path"))?;
-    let path = Path::new(raw);
-    if !path.is_absolute() || raw.is_empty() {
-        return Err(Error::new(field, "invalid-path"));
-    }
-    let checked =
-        user_path_windows::normalize(raw, env, || Err(std::io::ErrorKind::NotFound.into()))
-            .map_err(|_| Error::new(field, "invalid-path"))?;
-    let path = PathBuf::from(checked.as_str());
-    let path = if explicit {
-        path
-    } else {
-        path.join("Orchbee/config.toml")
-    };
-    WorkbenchDirectoryPath::parse(path.to_str().ok_or(Error::new(field, "invalid-path"))?)
-        .map_err(|_| Error::new(field, "invalid-path"))?;
-    Ok(Some((path, explicit)))
-}
-
-fn read(env: impl Fn(&str) -> Option<OsString>) -> Result<Settings, Error> {
-    let Some((path, explicit)) = location(&env)? else {
-        return Ok(Settings::default());
-    };
-    let file = match File::open(&path) {
-        Ok(file) => file,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound && !explicit => {
-            return Ok(Settings {
-                path: Some(path),
-                ..Settings::default()
-            });
-        }
-        Err(error) => {
-            return Err(Error::new(
-                "file",
-                if error.kind() == std::io::ErrorKind::NotFound {
-                    "missing"
-                } else {
-                    "io-error"
-                },
-            ));
-        }
-    };
-    let metadata = file
-        .metadata()
-        .map_err(|_| Error::new("file", "io-error"))?;
-    if !metadata.is_file() {
-        return Err(Error::new("file", "not-file"));
-    }
-    if metadata.len() > LIMIT {
-        return Err(Error::new("file", "too-large"));
-    }
-    let mut bytes = Vec::new();
-    file.take(LIMIT + 1)
-        .read_to_end(&mut bytes)
-        .map_err(|_| Error::new("file", "io-error"))?;
-    if bytes.len() as u64 > LIMIT {
-        return Err(Error::new("file", "too-large"));
-    }
-    let text = std::str::from_utf8(&bytes).map_err(|_| Error::new("file", "invalid-utf8"))?;
-    parse(text, &path, &env)
-}
-
-fn parse(
-    text: &str,
-    path: &Path,
-    env: &impl Fn(&str) -> Option<OsString>,
-) -> Result<Settings, Error> {
-    let table: toml::Table =
-        toml::from_str(text).map_err(|_| Error::new("file", "invalid-toml"))?;
-    let mut settings = Settings {
-        path: Some(path.to_owned()),
-        exists: true,
-        ..Settings::default()
-    };
-    for (section, value) in table {
-        let (key, field) = match section.as_str() {
-            "terminal" => ("new_cwd", "terminal.new_cwd"),
-            "worktrees" => ("directory", "worktrees.directory"),
-            _ => return Err(Error::new("file", "unknown-key")),
-        };
-        let table = value.as_table().ok_or(Error::new(field, "wrong-type"))?;
-        if table.keys().any(|entry| entry != key) {
-            return Err(Error::new(field, "unknown-key"));
-        }
-        let Some(value) = table.get(key) else {
-            continue;
-        };
-        let value = value.as_str().ok_or(Error::new(field, "wrong-type"))?;
-        if section == "terminal" {
-            settings.cwd = Some(match value.trim() {
-                "" | "follow" => (CreationDirectory::Follow, None),
-                "home" => (CreationDirectory::Home, None),
-                "current" => (CreationDirectory::Current, None),
-                "workspace" => (CreationDirectory::Workspace, None),
-                _ => (
-                    CreationDirectory::Explicit,
-                    Some(normalize(value, path, env, field)?),
-                ),
-            });
-        } else {
-            settings.worktree_root = Some(normalize(value, path, env, field)?);
-        }
-    }
-    Ok(settings)
-}
-
-fn normalize(
-    value: &str,
-    file: &Path,
-    env: &impl Fn(&str) -> Option<OsString>,
-    field: &'static str,
-) -> Result<WorkbenchDirectoryPath, Error> {
-    if value.trim().is_empty() {
-        return Err(Error::new(field, "invalid-path"));
-    }
-    user_path_windows::normalize(value, env, || {
-        file.parent()
-            .map(Path::to_owned)
-            .ok_or_else(|| std::io::ErrorKind::NotFound.into())
+    Ok(Settings {
+        path: raw.path,
+        exists: raw.exists,
+        cwd: raw
+            .cwd
+            .map(|(policy, value)| {
+                Ok::<_, Error>((
+                    match policy {
+                        WindowsDirectoryPolicy::Follow => CreationDirectory::Follow,
+                        WindowsDirectoryPolicy::Home => CreationDirectory::Home,
+                        WindowsDirectoryPolicy::Current => CreationDirectory::Current,
+                        WindowsDirectoryPolicy::Workspace => CreationDirectory::Workspace,
+                        WindowsDirectoryPolicy::Explicit => CreationDirectory::Explicit,
+                    },
+                    value
+                        .map(|value| path(value, "terminal.new_cwd"))
+                        .transpose()?,
+                ))
+            })
+            .transpose()?,
+        worktree_root: raw
+            .worktree_root
+            .map(|value| path(value, "worktrees.directory"))
+            .transpose()?,
+        resume_agents_on_restore: raw.resume_agents_on_restore,
+        resume_agents_on_restore_source: raw.resume_agents_on_restore_source,
     })
-    .map_err(|_| Error::new(field, "invalid-path"))
 }
 
 impl Settings {
@@ -193,6 +99,14 @@ impl Settings {
                 serde_json::json!(self.path.as_ref().and_then(|path| path.to_str())),
             ),
             ("exists".into(), self.exists.into()),
+            (
+                "resumeAgentsOnRestore".into(),
+                self.resume_agents_on_restore.into(),
+            ),
+            (
+                "resumeAgentsOnRestoreSource".into(),
+                self.resume_agents_on_restore_source.into(),
+            ),
             (
                 "newCwd".into(),
                 serde_json::json!(

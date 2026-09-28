@@ -62,26 +62,9 @@ fn invalid(variable: &'static str) -> io::Error {
     io::Error::new(io::ErrorKind::InvalidInput, format!("invalid {variable}"))
 }
 
-pub(super) fn resume_environment_valid(value: Option<OsString>) -> bool {
-    value
-        .as_deref()
-        .is_none_or(|value| matches!(value.to_str(), Some("true" | "false")))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn resume_environment_is_closed_before_activation_commit() {
-        assert!(resume_environment_valid(None));
-        for value in ["true", "false"] {
-            assert!(resume_environment_valid(Some(value.into())));
-        }
-        for value in ["", "1", "FALSE", " false "] {
-            assert!(!resume_environment_valid(Some(value.into())));
-        }
-    }
 
     #[test]
     fn explicit_default_overrides_inherited_scope_and_name_without_reading_them() {

@@ -23,11 +23,7 @@ mod checkpoint_windows;
 #[cfg(windows)]
 mod stop_windows;
 
-pub(super) fn run(runtime: &Path) -> io::Result<()> {
-    #[cfg(windows)]
-    let resume_agents = crate::local_terminal_service::resume_policy(std::env::var_os(
-        "ORCHBEE_RESUME_AGENTS_ON_RESTORE",
-    ))?;
+pub(super) fn run(runtime: &Path, #[cfg(windows)] resume_agents: bool) -> io::Result<()> {
     let deadline = Instant::now() + Duration::from_secs(20);
     let cohort = NativeCohort::current(deadline)?;
     let site = ModeCheckedLocalSiteRendezvous::from_runtime_directory(runtime)

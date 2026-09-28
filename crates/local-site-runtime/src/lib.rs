@@ -1,5 +1,17 @@
 //! Private native development runtime boundaries; applications own startup policy.
 #[cfg(windows)]
+mod windows_user_path;
+#[cfg(windows)]
+pub use windows_user_path::{
+    WINDOWS_USER_PATH_LIMIT, WindowsUserPathError, normalize_windows_user_path,
+};
+#[cfg(windows)]
+mod windows_user_settings;
+#[cfg(windows)]
+pub use windows_user_settings::{
+    WindowsDirectoryPolicy, WindowsSettingsError, WindowsUserSettings, read_windows_user_settings,
+};
+#[cfg(windows)]
 mod windows_directory;
 #[cfg(windows)]
 pub use windows_directory::{WINDOWS_DIRECTORY_PROMPT, windows_reported_directory};

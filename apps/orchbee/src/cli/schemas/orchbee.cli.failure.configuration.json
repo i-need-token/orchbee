@@ -46,7 +46,8 @@
 								"ORCHBEE_RESUME_AGENTS_ON_RESTORE",
 								"APPDATA",
 								"terminal.new_cwd",
-								"worktrees.directory"
+								"worktrees.directory",
+								"session.resume_agents_on_restore"
 							]
 						},
 						"reason": {

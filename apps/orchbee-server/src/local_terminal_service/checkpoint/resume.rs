@@ -6,21 +6,9 @@ use orchbee_client_server_protocol::LaunchSelection;
 use orchbee_local_site_runtime::windows_encoded_command;
 use orchbee_server::{WorkbenchAuthority, WorkbenchRestoreTarget};
 use orchbee_workbench_protocol::{PanelAgentSession, WorkerId};
-use std::{collections::BTreeSet, ffi::OsString, io, path::Path};
+use std::{collections::BTreeSet, io, path::Path};
 
 type Plan = (WorkbenchRestoreTarget, Option<LaunchSelection>);
-
-pub(crate) fn resume_policy(value: Option<OsString>) -> io::Result<bool> {
-    match value.as_deref().and_then(std::ffi::OsStr::to_str) {
-        None if value.is_none() => Ok(true),
-        Some("true") => Ok(true),
-        Some("false") => Ok(false),
-        _ => Err(io::Error::new(
-            io::ErrorKind::InvalidInput,
-            "ORCHBEE_RESUME_AGENTS_ON_RESTORE must be true or false",
-        )),
-    }
-}
 
 pub(super) fn prepare(
     authority: &mut WorkbenchAuthority,
@@ -126,15 +114,6 @@ fn launch(shell: &str, argv: &[String]) -> io::Result<LaunchSelection> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    #[test]
-    fn policy_defaults_on_and_invalid_values_fail_closed() {
-        assert!(resume_policy(None).unwrap());
-        assert!(resume_policy(Some("true".into())).unwrap());
-        assert!(!resume_policy(Some("false".into())).unwrap());
-        for value in ["", "1", "FALSE", " false "] {
-            assert!(resume_policy(Some(value.into())).is_err());
-        }
-    }
     #[test]
     fn complete_reference_bounds_fit_the_typed_launch() {
         let shell = r"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe";

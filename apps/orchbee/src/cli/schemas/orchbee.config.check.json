@@ -7,7 +7,7 @@
 	"additionalProperties": false,
 	"properties": {
 		"schema": { "const": "orchbee.config.check" },
-		"version": { "enum": [1, 2] },
+		"version": { "enum": [1, 2, 3] },
 		"source": {
 			"type": "object",
 			"required": ["kind"],
@@ -32,7 +32,7 @@
 						{ "$ref": "#/$defs/cohortCheck" },
 						{ "$ref": "#/$defs/localeCheck" },
 						{ "$ref": "#/$defs/socketsCheck" },
-						{ "$ref": "#/$defs/userConfigCheck" }
+						{ "anyOf": [{ "$ref": "#/$defs/userConfigCheck" }, { "$ref": "#/$defs/userConfigCheckV3" }] }
 					],
 					"items": false
 				}
@@ -83,7 +83,13 @@
 		{
 			"if": { "properties": { "version": { "const": 2 } } },
 			"then": {
-				"properties": { "result": { "properties": { "checks": { "minItems": 6, "maxItems": 6 } } } }
+				"properties": { "result": { "properties": { "checks": { "minItems": 6, "maxItems": 6, "prefixItems": [true, true, true, true, true, { "$ref": "#/$defs/userConfigCheck" }] } } } }
+			}
+		},
+		{
+			"if": { "properties": { "version": { "const": 3 } } },
+			"then": {
+				"properties": { "result": { "properties": { "checks": { "minItems": 6, "maxItems": 6, "prefixItems": [true, true, true, true, true, { "$ref": "#/$defs/userConfigCheckV3" }] } } } }
 			}
 		}
 	],
@@ -138,6 +144,80 @@
 									"reason": {
 										"enum": [
 											"invalid-path",
+											"missing",
+											"io-error",
+											"not-file",
+											"too-large",
+											"invalid-utf8",
+											"invalid-toml",
+											"unknown-key",
+											"wrong-type",
+											"source-query-failed",
+											"source-query-interrupted"
+										]
+									}
+								}
+							}
+						}
+					}
+				}
+			]
+		},
+		"userConfigCheckV3": {
+			"type": "object",
+			"required": ["name", "status", "details"],
+			"additionalProperties": false,
+			"properties": {
+				"name": { "const": "user-config" },
+				"status": { "enum": ["pass", "fail"] },
+				"details": { "type": "object" }
+			},
+			"allOf": [
+				{
+					"if": { "properties": { "status": { "const": "pass" } } },
+					"then": {
+						"properties": {
+							"details": {
+								"type": "object",
+								"required": ["path", "exists", "newCwd", "worktreeDirectory", "resumeAgentsOnRestore", "resumeAgentsOnRestoreSource"],
+								"additionalProperties": false,
+								"properties": {
+									"path": { "type": ["string", "null"], "minLength": 1, "maxLength": 4096 },
+									"exists": { "type": "boolean" },
+									"resumeAgentsOnRestore": { "type": "boolean" },
+									"resumeAgentsOnRestoreSource": { "enum": ["default", "file", "environment"] },
+									"newCwd": { "type": "string", "minLength": 1, "maxLength": 4096 },
+									"worktreeDirectory": {
+										"type": ["string", "null"],
+										"minLength": 1,
+										"maxLength": 4096
+									}
+								}
+							}
+						}
+					},
+					"else": {
+						"properties": {
+							"details": {
+								"type": "object",
+								"required": ["field", "reason"],
+								"additionalProperties": false,
+								"properties": {
+									"field": {
+										"enum": [
+											"file",
+											"ORCHBEE_CONFIG_FILE",
+											"APPDATA",
+											"terminal.new_cwd",
+											"worktrees.directory",
+											"session.resume_agents_on_restore",
+											"ORCHBEE_RESUME_AGENTS_ON_RESTORE"
+										]
+									},
+									"reason": {
+										"enum": [
+											"invalid-path",
+											"invalid-boolean",
 											"missing",
 											"io-error",
 											"not-file",

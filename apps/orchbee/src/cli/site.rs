@@ -137,6 +137,10 @@ fn run() -> Result<StartOutcome, Failure> {
 #[cfg(any(target_os = "linux", windows))]
 fn classify(failure: ActivationFailure) -> Failure {
     match failure.cause {
+        #[cfg(windows)]
+        Some(ActivationCause::Configuration(error)) => {
+            super::configuration::Error::from(error).failure()
+        }
         Some(ActivationCause::Cohort(error)) => classify_cohort(&error),
         Some(ActivationCause::Rendezvous(error, scope_directory)) => {
             super::query::classify_rendezvous(error, &scope_directory)
@@ -173,13 +177,6 @@ fn classify(failure: ActivationFailure) -> Failure {
         // clean timeout claim.
         Some(ActivationCause::SpawnIo) => recovery_required(),
         None => match failure.failure {
-            #[cfg(windows)]
-            StartupFailure::ResumePolicy => Failure::new(FailureKind::CheckFailed)
-                .failure_schema("orchbee.cli.failure.configuration")
-                .details(serde_json::Map::from_iter([
-                    ("field".into(), "ORCHBEE_RESUME_AGENTS_ON_RESTORE".into()),
-                    ("reason".into(), "invalid-boolean".into()),
-                ])),
             StartupFailure::TimedOut => timeout(),
             StartupFailure::RecoveryRequired => recovery_required(),
             StartupFailure::SocketPathTooLong => socket_budget(),

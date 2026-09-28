@@ -13,7 +13,6 @@ use std::{
     time::Instant,
 };
 mod resume;
-pub(crate) use resume::resume_policy;
 
 impl LocalTerminalService {
     /// Reconstructs and reserves every terminal before any request can launch a Host.

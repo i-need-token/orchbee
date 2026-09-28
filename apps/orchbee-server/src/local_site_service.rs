@@ -36,6 +36,9 @@ mod managed;
 #[cfg(any(unix, windows))]
 mod agent_observation_endpoint;
 
+#[cfg(windows)]
+mod configuration_windows;
+
 const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(2);
 
 pub(crate) fn run(
@@ -53,10 +56,19 @@ pub(crate) fn run(
             .next()
             .map(PathBuf::from)
             .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "missing Site runtime"))?;
+        #[cfg(windows)]
+        let resume_agents = configuration_windows::resolve(arguments, || {
+            orchbee_local_site_runtime::read_windows_user_settings(|name| std::env::var_os(name))
+        })?;
+        #[cfg(not(windows))]
         if arguments.next().is_some() {
             return Err(io::ErrorKind::InvalidInput.into());
         }
-        return managed::run(&runtime);
+        return managed::run(
+            &runtime,
+            #[cfg(windows)]
+            resume_agents,
+        );
     }
     let endpoints = parse_endpoints(arguments)?;
     let listener = UnixListener::bind(&endpoints.worker)?;

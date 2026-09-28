@@ -1,114 +1,17 @@
-//! Windows user path operands become absolute before runtime access, without probing filesystem paths.
-use orchbee_workbench_protocol::{MAXIMUM_DIRECTORY_PATH_BYTES, WorkbenchDirectoryPath};
-use std::{
-    ffi::OsString,
-    path::{Component, Path, PathBuf, Prefix},
-};
+//! Project the shared Windows literal path adapter into the Workbench wire type.
+pub(crate) use orchbee_local_site_runtime::WindowsUserPathError as PathFailure;
+#[cfg(test)]
+use orchbee_workbench_protocol::MAXIMUM_DIRECTORY_PATH_BYTES;
+use orchbee_workbench_protocol::WorkbenchDirectoryPath;
+use std::{ffi::OsString, path::PathBuf};
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum PathFailure {
-    Input,
-    Context(&'static str),
-}
-
-/// Preserves literal absolute operands and resolves only explicitly declared caller-relative inputs.
 pub(crate) fn normalize(
     value: &str,
-    mut environment: impl FnMut(&str) -> Option<OsString>,
+    environment: impl FnMut(&str) -> Option<OsString>,
     cwd: impl FnOnce() -> std::io::Result<PathBuf>,
 ) -> Result<WorkbenchDirectoryPath, PathFailure> {
-    if value.is_empty() || value.len() > MAXIMUM_DIRECTORY_PATH_BYTES || value.contains('\0') {
-        return Err(PathFailure::Input);
-    }
-    let path = Path::new(value);
-    if drive_absolute(path) {
-        return WorkbenchDirectoryPath::parse(value).map_err(|_| PathFailure::Input);
-    }
-    if path.has_root() || matches!(path.components().next(), Some(Component::Prefix(_))) {
-        return Err(PathFailure::Input);
-    }
-    let rest = if value == "~" {
-        Some("")
-    } else {
-        value
-            .strip_prefix("~/")
-            .or_else(|| value.strip_prefix(r"~\"))
-    };
-    let absolute = if let Some(rest) = rest {
-        // Split separators so a second slash cannot replace the selected home root.
-        let mut home = home(&mut environment)?;
-        for component in rest.split(['/', '\\']).filter(|part| !part.is_empty()) {
-            if component.contains(':') {
-                return Err(PathFailure::Input);
-            }
-            home.push(component);
-        }
-        home
-    } else {
-        if value.contains(':') {
-            return Err(PathFailure::Input);
-        }
-        let current = cwd().map_err(|_| PathFailure::Context("current-directory"))?;
-        checked_context(&current, "current-directory")?;
-        current.join(path)
-    };
-    if !drive_absolute(&absolute) {
-        return Err(PathFailure::Input);
-    }
-    WorkbenchDirectoryPath::parse(absolute.to_str().ok_or(PathFailure::Input)?)
-        .map_err(|_| PathFailure::Input)
-}
-
-fn drive_absolute(path: &Path) -> bool {
-    path.is_absolute()
-        && matches!(
-            path.components().next(),
-            Some(Component::Prefix(prefix))
-                if matches!(prefix.kind(), Prefix::Disk(_) | Prefix::VerbatimDisk(_))
-        )
-}
-
-fn checked_context(path: &Path, name: &'static str) -> Result<(), PathFailure> {
-    let value = path.to_str().ok_or(PathFailure::Context(name))?;
-    if !drive_absolute(path) || WorkbenchDirectoryPath::parse(value).is_err() {
-        return Err(PathFailure::Context(name));
-    }
-    Ok(())
-}
-
-fn home(environment: &mut impl FnMut(&str) -> Option<OsString>) -> Result<PathBuf, PathFailure> {
-    let nonempty = |value: Option<OsString>| value.filter(|value| !value.is_empty());
-    if let Some(value) = nonempty(environment("USERPROFILE")) {
-        let path = PathBuf::from(value);
-        checked_context(&path, "USERPROFILE")?;
-        return Ok(path);
-    }
-    let drive = nonempty(environment("HOMEDRIVE"));
-    let path = nonempty(environment("HOMEPATH"));
-    match (drive, path) {
-        (Some(drive), Some(path)) => {
-            let drive = drive.to_str().ok_or(PathFailure::Context("HOMEDRIVE"))?;
-            if !matches!(drive.as_bytes(), [letter, b':'] if letter.is_ascii_alphabetic()) {
-                return Err(PathFailure::Context("HOMEDRIVE"));
-            }
-            let path = path.to_str().ok_or(PathFailure::Context("HOMEPATH"))?;
-            if !path.starts_with(['/', '\\']) || path.starts_with("//") || path.starts_with(r"\\") {
-                return Err(PathFailure::Context("HOMEPATH"));
-            }
-            let home = PathBuf::from(format!("{drive}{path}"));
-            checked_context(&home, "HOMEPATH")?;
-            Ok(home)
-        }
-        (Some(_), None) => Err(PathFailure::Context("HOMEPATH")),
-        (None, Some(_)) => Err(PathFailure::Context("HOMEDRIVE")),
-        (None, None) => {
-            let value = nonempty(environment("HOME"))
-                .ok_or(PathFailure::Context("USERPROFILE/HOMEDRIVE/HOMEPATH/HOME"))?;
-            let home = PathBuf::from(value);
-            checked_context(&home, "HOME")?;
-            Ok(home)
-        }
-    }
+    let path = orchbee_local_site_runtime::normalize_windows_user_path(value, environment, cwd)?;
+    WorkbenchDirectoryPath::parse(&path).map_err(|_| PathFailure::Input)
 }
 
 #[cfg(test)]

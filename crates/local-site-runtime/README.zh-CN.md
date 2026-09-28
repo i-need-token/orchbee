@@ -303,3 +303,7 @@ Windows 停止细化将仅不可变启动尝试的解释改为同一个已准入
 ## Windows 目录原语
 
 共享纯函数 `windows_reported_directory` 解码并保留有效终端上报的驱动器／UNC 观察；调用方单独执行更窄的启动路径约束。`WINDOWS_DIRECTORY_PROMPT` 在原提示符之后同步 PowerShell 进程 cwd，保留状态且不改变非文件系统 provider。普通 Worker shell 与编码恢复 shell 使用同一钩子。
+
+## Windows 用户设置
+
+共享有界设置读取器和纯 Windows 用户路径适配器服务于 CLI 配置、公共 Client 激活和直接托管 Server 启动，负责严格文件／类型／路径准入和恢复策略解析；应用负责协议投影、激活提交和私有子进程参数。参见[配置与优先级](../../apps/orchbee/docs/windows-cli-configuration.zh-CN.md)。仅 Windows 的固定版本 `toml` 依赖在此文件边界解析。不引入可变缓存、写入器或 Workbench 依赖。

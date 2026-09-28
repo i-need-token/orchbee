@@ -38,7 +38,7 @@ pub(crate) enum StartupFailure {
     OutcomeUnknown,
     Interface,
     #[cfg(windows)]
-    ResumePolicy,
+    Configuration,
 }
 
 /// The shared activation verdict. `failure` is exactly the `StartupFailure`
@@ -53,6 +53,8 @@ pub(crate) struct ActivationFailure {
 /// The raw cause behind an activation failure, kept for typed CLI
 /// classification only — the TUI adapter never reads it.
 pub(crate) enum ActivationCause {
+    #[cfg(windows)]
+    Configuration(orchbee_local_site_runtime::WindowsSettingsError),
     /// `NativeCohort::current` failure: an io error whose kind selects the
     /// CLI exit class.
     Cohort(io::Error),
@@ -230,11 +232,15 @@ fn connect_or_activate(
                     return Err(ActivationFailure::bare(StartupFailure::RecoveryRequired));
                 }
                 #[cfg(windows)]
-                if !windows_selection::resume_environment_valid(std::env::var_os(
-                    "ORCHBEE_RESUME_AGENTS_ON_RESTORE",
-                )) {
-                    return Err(ActivationFailure::bare(StartupFailure::ResumePolicy));
-                }
+                let settings = orchbee_local_site_runtime::read_windows_user_settings(|name| {
+                    std::env::var_os(name)
+                })
+                .map_err(|error| {
+                    ActivationFailure::caused(
+                        StartupFailure::Configuration,
+                        ActivationCause::Configuration(error),
+                    )
+                })?;
                 #[cfg(windows)]
                 if let Some(catalog) = catalog {
                     let mut activation_id = [0; 16];
@@ -254,6 +260,14 @@ fn connect_or_activate(
                         &[
                             std::ffi::OsStr::new("--local-site"),
                             site.runtime_directory().as_os_str(),
+                            #[cfg(windows)]
+                            std::ffi::OsStr::new("--resume-agents-on-restore"),
+                            #[cfg(windows)]
+                            std::ffi::OsStr::new(if settings.resume_agents_on_restore {
+                                "true"
+                            } else {
+                                "false"
+                            }),
                         ],
                     )
                     .map_err(|_| {

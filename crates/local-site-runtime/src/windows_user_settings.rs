@@ -1,0 +1,245 @@
+//! Shared Windows user settings: bounded strict file admission without writes or caching.
+use crate::windows_user_path::{WINDOWS_USER_PATH_LIMIT, normalize_windows_user_path};
+use std::{
+    ffi::OsString,
+    fs::File,
+    io::Read,
+    path::{Path, PathBuf},
+};
+
+const LIMIT: u64 = 64 * 1024;
+
+#[derive(Debug)]
+pub struct WindowsUserSettings {
+    pub path: Option<PathBuf>,
+    pub exists: bool,
+    pub cwd: Option<(WindowsDirectoryPolicy, Option<String>)>,
+    pub worktree_root: Option<String>,
+    pub resume_agents_on_restore: bool,
+    pub resume_agents_on_restore_source: &'static str,
+}
+
+impl Default for WindowsUserSettings {
+    fn default() -> Self {
+        Self {
+            path: None,
+            exists: false,
+            cwd: None,
+            worktree_root: None,
+            resume_agents_on_restore: true,
+            resume_agents_on_restore_source: "default",
+        }
+    }
+}
+
+/// Resolve once; an environment override never bypasses full-file validation.
+pub fn read_windows_user_settings(
+    env: impl Fn(&str) -> Option<OsString>,
+) -> Result<WindowsUserSettings, WindowsSettingsError> {
+    let mut settings = read_file(&env)?;
+    if let Some(value) = env("ORCHBEE_RESUME_AGENTS_ON_RESTORE") {
+        settings.resume_agents_on_restore = match value.to_str() {
+            Some("true") => true,
+            Some("false") => false,
+            _ => {
+                return Err(WindowsSettingsError::new(
+                    "ORCHBEE_RESUME_AGENTS_ON_RESTORE",
+                    "invalid-boolean",
+                ));
+            }
+        };
+        settings.resume_agents_on_restore_source = "environment";
+    }
+    Ok(settings)
+}
+
+#[derive(Debug, Eq, PartialEq)]
+pub struct WindowsSettingsError {
+    pub field: &'static str,
+    pub reason: &'static str,
+}
+impl WindowsSettingsError {
+    pub const fn new(field: &'static str, reason: &'static str) -> Self {
+        Self { field, reason }
+    }
+}
+
+impl std::fmt::Display for WindowsSettingsError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "invalid Windows configuration: {} ({})",
+            self.field, self.reason
+        )
+    }
+}
+impl std::error::Error for WindowsSettingsError {}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum WindowsDirectoryPolicy {
+    Follow,
+    Home,
+    Current,
+    Workspace,
+    Explicit,
+}
+
+fn location(
+    env: &impl Fn(&str) -> Option<OsString>,
+) -> Result<Option<(PathBuf, bool)>, WindowsSettingsError> {
+    let (value, field, explicit) = if let Some(value) = env("ORCHBEE_CONFIG_FILE") {
+        (value, "ORCHBEE_CONFIG_FILE", true)
+    } else if let Some(value) = env("APPDATA") {
+        (value, "APPDATA", false)
+    } else {
+        return Ok(None);
+    };
+    let raw = value
+        .to_str()
+        .ok_or(WindowsSettingsError::new(field, "invalid-path"))?;
+    let path = Path::new(raw);
+    if !path.is_absolute() || raw.is_empty() {
+        return Err(WindowsSettingsError::new(field, "invalid-path"));
+    }
+    let checked =
+        normalize_windows_user_path(raw, env, || Err(std::io::ErrorKind::NotFound.into()))
+            .map_err(|_| WindowsSettingsError::new(field, "invalid-path"))?;
+    let path = PathBuf::from(checked.as_str());
+    let path = if explicit {
+        path
+    } else {
+        path.join("Orchbee/config.toml")
+    };
+    if path
+        .to_str()
+        .is_none_or(|value| value.len() > WINDOWS_USER_PATH_LIMIT)
+    {
+        return Err(WindowsSettingsError::new(field, "invalid-path"));
+    }
+    Ok(Some((path, explicit)))
+}
+
+fn read_file(
+    env: impl Fn(&str) -> Option<OsString>,
+) -> Result<WindowsUserSettings, WindowsSettingsError> {
+    let Some((path, explicit)) = location(&env)? else {
+        return Ok(WindowsUserSettings::default());
+    };
+    let file = match File::open(&path) {
+        Ok(file) => file,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound && !explicit => {
+            return Ok(WindowsUserSettings {
+                path: Some(path),
+                ..WindowsUserSettings::default()
+            });
+        }
+        Err(error) => {
+            return Err(WindowsSettingsError::new(
+                "file",
+                if error.kind() == std::io::ErrorKind::NotFound {
+                    "missing"
+                } else {
+                    "io-error"
+                },
+            ));
+        }
+    };
+    let metadata = file
+        .metadata()
+        .map_err(|_| WindowsSettingsError::new("file", "io-error"))?;
+    if !metadata.is_file() {
+        return Err(WindowsSettingsError::new("file", "not-file"));
+    }
+    if metadata.len() > LIMIT {
+        return Err(WindowsSettingsError::new("file", "too-large"));
+    }
+    let mut bytes = Vec::new();
+    file.take(LIMIT + 1)
+        .read_to_end(&mut bytes)
+        .map_err(|_| WindowsSettingsError::new("file", "io-error"))?;
+    if bytes.len() as u64 > LIMIT {
+        return Err(WindowsSettingsError::new("file", "too-large"));
+    }
+    let text = std::str::from_utf8(&bytes)
+        .map_err(|_| WindowsSettingsError::new("file", "invalid-utf8"))?;
+    parse(text, &path, &env)
+}
+
+fn parse(
+    text: &str,
+    path: &Path,
+    env: &impl Fn(&str) -> Option<OsString>,
+) -> Result<WindowsUserSettings, WindowsSettingsError> {
+    let table: toml::Table =
+        toml::from_str(text).map_err(|_| WindowsSettingsError::new("file", "invalid-toml"))?;
+    let mut settings = WindowsUserSettings {
+        path: Some(path.to_owned()),
+        exists: true,
+        ..WindowsUserSettings::default()
+    };
+    for (section, value) in table {
+        let (key, field) = match section.as_str() {
+            "terminal" => ("new_cwd", "terminal.new_cwd"),
+            "worktrees" => ("directory", "worktrees.directory"),
+            "session" => (
+                "resume_agents_on_restore",
+                "session.resume_agents_on_restore",
+            ),
+            _ => return Err(WindowsSettingsError::new("file", "unknown-key")),
+        };
+        let table = value
+            .as_table()
+            .ok_or(WindowsSettingsError::new(field, "wrong-type"))?;
+        if table.keys().any(|entry| entry != key) {
+            return Err(WindowsSettingsError::new(field, "unknown-key"));
+        }
+        let Some(value) = table.get(key) else {
+            continue;
+        };
+        if section == "session" {
+            settings.resume_agents_on_restore = value
+                .as_bool()
+                .ok_or(WindowsSettingsError::new(field, "wrong-type"))?;
+            settings.resume_agents_on_restore_source = "file";
+            continue;
+        }
+        let value = value
+            .as_str()
+            .ok_or(WindowsSettingsError::new(field, "wrong-type"))?;
+        if section == "terminal" {
+            settings.cwd = Some(match value.trim() {
+                "" | "follow" => (WindowsDirectoryPolicy::Follow, None),
+                "home" => (WindowsDirectoryPolicy::Home, None),
+                "current" => (WindowsDirectoryPolicy::Current, None),
+                "workspace" => (WindowsDirectoryPolicy::Workspace, None),
+                _ => (
+                    WindowsDirectoryPolicy::Explicit,
+                    Some(normalize(value, path, env, field)?),
+                ),
+            });
+        } else {
+            settings.worktree_root = Some(normalize(value, path, env, field)?);
+        }
+    }
+    Ok(settings)
+}
+
+fn normalize(
+    value: &str,
+    file: &Path,
+    env: &impl Fn(&str) -> Option<OsString>,
+    field: &'static str,
+) -> Result<String, WindowsSettingsError> {
+    if value.trim().is_empty() {
+        return Err(WindowsSettingsError::new(field, "invalid-path"));
+    }
+    normalize_windows_user_path(value, env, || {
+        file.parent()
+            .map(Path::to_owned)
+            .ok_or_else(|| std::io::ErrorKind::NotFound.into())
+    })
+    .map_err(|_| WindowsSettingsError::new(field, "invalid-path"))
+}
+
+#[cfg(test)]
+mod tests;

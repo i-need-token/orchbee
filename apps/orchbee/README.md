@@ -849,7 +849,7 @@ Windows `workspace create` accepts omitted Project, label and cwd, resolves sour
 
 ## Windows CLI configuration
 
-`config check` also validates `APPDATA/Orchbee/config.toml`, with an absolute `ORCHBEE_CONFIG_FILE` override. `[terminal] new_cwd` sets creation cwd defaults; `[worktrees] directory` selects the checkout root. Explicit command arguments override valid settings. See [configuration and precedence](docs/windows-cli-configuration.md). Windows CLI reads each invocation; direct TUI creation and Server reload are separate capabilities.
+`config check` also validates `APPDATA/Orchbee/config.toml`, with an absolute `ORCHBEE_CONFIG_FILE` override. `[terminal] new_cwd` sets creation cwd defaults; `[worktrees] directory` selects the checkout root. `[session] resume_agents_on_restore` controls Agent resume on the next Site start, default true; the exact true/false environment override wins. `config check` JSON v3 reports its effective value and source. Explicit command arguments override valid settings. See [configuration and precedence](docs/windows-cli-configuration.md). Windows CLI reads each invocation; common TUI/CLI activation reads startup policy before commitment. Direct TUI creation and Server reload are separate capabilities.
 
 ## Windows terminal observation stream
 
