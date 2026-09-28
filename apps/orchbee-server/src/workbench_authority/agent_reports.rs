@@ -285,6 +285,21 @@ impl Reports {
             session: self.current_session(),
         }
     }
+    pub(super) fn explanation_owner(&self) -> (Option<Provider>, bool) {
+        (
+            self.effective()
+                .agent
+                .as_deref()
+                .and_then(Provider::lookup)
+                .or_else(|| {
+                    self.recent_exit
+                        .is_none()
+                        .then_some(self.detected)
+                        .flatten()
+                }),
+            self.live_full(),
+        )
+    }
     fn current_session(&self) -> Option<Session> {
         self.authority
             .as_ref()

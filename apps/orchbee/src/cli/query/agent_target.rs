@@ -20,6 +20,7 @@ pub(in crate::cli) struct NamedTarget {
     pub(in crate::cli) presentation: Option<String>,
 }
 
+#[cfg(not(windows))]
 pub(super) struct ResolvedTarget {
     pub(super) session_id: AgentSessionId,
     #[cfg(not(windows))]
@@ -101,6 +102,7 @@ pub(super) fn prepare(
     })
 }
 
+#[cfg(not(windows))]
 pub(super) fn resolve_on_session(
     client: &mut LocalClient,
     target: &AgentTarget,

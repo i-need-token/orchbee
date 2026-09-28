@@ -27,7 +27,7 @@ Agent 守卫不会被截断或移除内部控制字符：超出现有 80 标量�
 退出 5，修订号／期限／结果边界失败退出 1。清理失败退出 1，但提交结果已未知时仍退出 8。
 
 `orchbee.panel.metadata` v1 包含请求／Site／Panel ID、observation（带原始应答的 `server`，
-或带封闭原因的 `unknown`）、`interrupted` 和 `cleanupFailed`。目录 v88 包含 90 个 schema。
+或带封闭原因的 `unknown`）、`interrupted` 和 `cleanupFailed`。目录 v89 包含 90 个 schema。
 OBWP 33/34 承载 `workbench.panel-metadata` 及其结果；请求上限 16 KiB，结果上限 512 KiB。
 Server 在 Site 锁内按读取权限读取、按导航权限上报。读取返回至多四个有序且唯一 Panel 的来源
 记录。元数据与 Workbench 修订号独立。需部署匹配 cohort；旧端拒绝未知通信类型。无持久化
@@ -65,7 +65,7 @@ Agent Get 使用唯一且存活的主绑定；Agent 已结束、未绑定、多�
 Windows Panel list/get 输出 v9，current 输出 v6，Agent Get 输出 v11（带 `--client` 时为 v12）。
 每个 Panel 行和非 null 的 Agent terminal 必须包含 metadata 与 reportedAgent。前序元数据版本
 保留 null 守卫上下文并拒绝 reportedAgent；更早版本同时拒绝 metadata，原有闭合形状仍被接受。
-本地化文本转义有效元数据、上报详情、消息和外部引用。目录 v88 包含 90 份 schema 和 104 条
+本地化文本转义有效元数据、上报详情、消息和外部引用。目录 v89 包含 90 份 schema 和 104 条
 命令路径；此次查询变更不增加命令或 schema 身份。
 
 接纳时将元数据与上报编码行的合计大小限制在既有 CLI 8 MiB 输出预算内。元数据接纳后，上报

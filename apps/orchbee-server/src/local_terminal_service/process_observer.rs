@@ -15,12 +15,14 @@ const INTERVAL: Duration = Duration::from_millis(250);
 const TURN_BUDGET: Duration = Duration::from_secs(1);
 const TARGETS_PER_TURN: usize = 8;
 type Cursor = (String, String);
+mod explanation;
 #[derive(Default)]
 struct Wake {
     stop: AtomicBool,
     wait: Mutex<()>,
     changed: Condvar,
     pending: Mutex<Option<PendingCleanup>>,
+    explanations: explanation::Requests,
 }
 #[derive(Default)]
 pub(super) struct ProcessObserver {
@@ -30,6 +32,7 @@ pub(super) struct ProcessObserver {
 impl ProcessObserver {
     fn cancel(&self) {
         self.wake.stop.store(true, Ordering::Release);
+        self.wake.explanations.cancel();
         if let Ok(_guard) = self.wake.wait.lock() {
             self.wake.changed.notify_all();
         }
@@ -241,6 +244,7 @@ fn run(service: Weak<LocalTerminalService>, wake: Arc<Wake>, detector: ScreenDet
         let Some(service) = service.upgrade() else {
             return;
         };
+        explanation::serve(&service, &wake, &detector);
         turn(&service, &wake, &mut cursor, &detector);
         drop(service);
         let Ok(guard) = wake.wait.lock() else {

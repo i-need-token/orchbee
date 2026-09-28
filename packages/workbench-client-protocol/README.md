@@ -222,6 +222,13 @@ terminal-local sequence and at most 128 contiguous semantic changes. Rust/TypeSc
 last change against the current head/state; Rust correlation additionally proves request cursor
 coverage. This is transient report state, separate from canonical Agent revisions and Client `done`.
 
+Physical `explain` uses the same exact binding and read permission. Its `explained` result keeps
+current report view separate from raw screen-rule prediction, with required nullable manifest,
+winner, skip/fallback and capture fields. Rust/TypeScript enforce first-highest-priority selection,
+state/flag coherence, evidence bounds and full-lifecycle skip/source consistency. Unknown providers
+refuse; known providers without manifests use explicit idle fallback. The existing 512 KiB result
+limit applies. This unpublished cohort changes together; canonical OBAP explanations remain separate.
+
 Compact physical `states` reads accept 0–64 unique presentation IDs and return rows in request order,
 with Workbench/report revisions and a required nullable full binding/sequence/Agent/state snapshot.
 Missing membership refuses the batch; no current physical observation yields null. Empty reads fence

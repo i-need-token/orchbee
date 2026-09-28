@@ -6,6 +6,7 @@ use orchbee_workbench_protocol::{
 };
 use serde_json::{Value, json};
 use std::num::NonZeroU64;
+mod explanation;
 fn binding(n: u128) -> PresentationBinding {
     PresentationBinding {
         terminal_id: TerminalId::parse(&format!("{n:032x}")).unwrap(),

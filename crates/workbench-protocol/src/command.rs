@@ -1,11 +1,13 @@
 mod panel_agent;
 pub use panel_agent::{
-    MAXIMUM_ENCODED_PANEL_AGENT_RESULT_BYTES, MAXIMUM_PANEL_AGENT_READ_ROWS,
-    MAXIMUM_TERMINAL_AGENT_CHANGES, MAXIMUM_TERMINAL_AGENT_STATE_ROWS, PanelAgentAction,
-    PanelAgentDisposition, PanelAgentFailure, PanelAgentOutcome, PanelAgentReference,
-    PanelAgentReport, PanelAgentRequest, PanelAgentResult, PanelAgentRow, PanelAgentSession,
-    PanelAgentState, PanelAgentView, TerminalAgentChange, TerminalAgentObservation,
-    TerminalAgentStateRow, TerminalAgentStateSnapshot,
+    AgentDetectionEvaluation, AgentDetectionEvidence, AgentDetectionRule, AgentDetectionSample,
+    AgentScreenExplanation, MAXIMUM_ENCODED_PANEL_AGENT_RESULT_BYTES,
+    MAXIMUM_PANEL_AGENT_READ_ROWS, MAXIMUM_TERMINAL_AGENT_CHANGES,
+    MAXIMUM_TERMINAL_AGENT_STATE_ROWS, PanelAgentAction, PanelAgentDisposition, PanelAgentFailure,
+    PanelAgentOutcome, PanelAgentReference, PanelAgentReport, PanelAgentRequest, PanelAgentResult,
+    PanelAgentRow, PanelAgentSession, PanelAgentState, PanelAgentView, TerminalAgentChange,
+    TerminalAgentExplanation, TerminalAgentObservation, TerminalAgentStateRow,
+    TerminalAgentStateSnapshot,
 };
 mod panel_metadata;
 pub use panel_metadata::{

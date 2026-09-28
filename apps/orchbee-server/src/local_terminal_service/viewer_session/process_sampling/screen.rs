@@ -152,13 +152,28 @@ fn progress(value: Option<TerminalProgress>) -> String {
     };
     format!("4;{tag};{}", value.map_or(-1, |v| i32::from(v.percent())))
 }
-fn screen(
+struct CapturedScreen {
+    text: String,
+    title: String,
+    progress: String,
+    sequence: u64,
+    generation: u64,
+    revision: u64,
+}
+impl CapturedScreen {
+    fn input(&self) -> ScreenInput<'_> {
+        ScreenInput {
+            screen: &self.text,
+            title: &self.title,
+            progress: &self.progress,
+        }
+    }
+}
+fn capture(
     viewer: &mut ViewerAttachment<'_>,
     template: WorkerRequest,
     stop: &AtomicBool,
-    detector: &ScreenDetector,
-    provider: orchbee_agent_observation_protocol::AgentReportProvider,
-) -> Option<crate::agent_screen::Detection> {
+) -> Option<CapturedScreen> {
     let frame = fresh_frame(viewer, template, stop)?;
     let action = Action::ReadRows {
         attachment_id: viewer.attachment_id.clone(),
@@ -201,16 +216,72 @@ fn screen(
         return None;
     }
     let text = bounded_text(window.rows.iter().map(|r| r.text.as_ref()))?;
+    Some(CapturedScreen {
+        text,
+        title: frame.title.as_deref().unwrap_or("").to_owned(),
+        progress: progress(frame.progress),
+        sequence: frame.route.sequence.get(),
+        generation: frame.route.generation.get(),
+        revision: frame.route.revision,
+    })
+}
+fn screen(
+    viewer: &mut ViewerAttachment<'_>,
+    template: WorkerRequest,
+    stop: &AtomicBool,
+    detector: &ScreenDetector,
+    provider: orchbee_agent_observation_protocol::AgentReportProvider,
+) -> Option<crate::agent_screen::Detection> {
     detector
-        .detect(
-            Some(provider),
-            ScreenInput {
-                screen: &text,
-                title: frame.title.as_deref().unwrap_or(""),
-                progress: &progress(frame.progress),
-            },
-        )
+        .detect(Some(provider), capture(viewer, template, stop)?.input())
         .ok()
+}
+/// A query predicts against the selected report provider; screen text never infers provider identity.
+pub(super) fn explain(
+    viewer: &mut ViewerAttachment<'_>,
+    template: WorkerRequest,
+    stop: &AtomicBool,
+    detector: &ScreenDetector,
+    provider: orchbee_agent_observation_protocol::AgentReportProvider,
+) -> Option<super::CapturedAgentExplanation> {
+    let before = process(viewer, template, stop)?;
+    let screen = capture(viewer, template, stop)?;
+    let after = process(viewer, template, stop)?;
+    let selected = identify_host_agent(&before);
+    let root = |p: &TerminalProcessInfo| {
+        p.processes
+            .iter()
+            .find(|p0| p0.pid == p.root_pid)
+            .map(|p0| (p0.pid, p0.creation_time))
+            .filter(|(_, created)| *created != 0)
+    };
+    if root(&before).is_none()
+        || root(&before) != root(&after)
+        || selected != identify_host_agent(&after)
+    {
+        return None;
+    }
+    if selected.is_none() {
+        let identities = |p: &TerminalProcessInfo| {
+            p.processes
+                .iter()
+                .map(|p0| (p0.pid, p0.creation_time))
+                .collect::<std::collections::BTreeSet<_>>()
+        };
+        if identities(&before) != identities(&after) {
+            return None;
+        }
+    }
+    Some(super::CapturedAgentExplanation {
+        explanation: detector.explain(provider, screen.input()).ok()?,
+        sample: orchbee_workbench_protocol::AgentDetectionSample {
+            frame_sequence: orchbee_workbench_protocol::WorkbenchRevision::new(screen.sequence),
+            frame_generation: orchbee_workbench_protocol::WorkbenchRevision::new(screen.generation),
+            frame_revision: orchbee_workbench_protocol::WorkbenchRevision::new(screen.revision),
+            root_pid: before.root_pid,
+            agent_pid: selected.map(|p| p.pid()),
+        },
+    })
 }
 fn bounded_text<'a>(rows: impl Iterator<Item = &'a str>) -> Option<String> {
     let mut text = String::new();

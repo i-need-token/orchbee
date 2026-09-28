@@ -2,33 +2,18 @@
 	"$schema": "https://json-schema.org/draft/2020-12/schema",
 	"$id": "orchbee.agent.explain",
 	"title": "orchbee agent explain envelope",
-	"type": "object",
-	"required": ["schema", "version", "source", "result"],
-	"additionalProperties": false,
-	"properties": {
-		"schema": { "const": "orchbee.agent.explain" },
-		"version": { "const": 1 },
-		"source": { "$ref": "#/$defs/agentReadSource" },
-		"result": {
-			"type": "object",
-			"required": ["kind", "revision", "session", "explanation"],
-			"additionalProperties": false,
-			"properties": {
-				"kind": { "const": "found" },
-				"revision": { "$ref": "#/$defs/safeInteger" },
-				"session": { "$ref": "#/$defs/sessionDetail" },
-				"explanation": { "$ref": "#/$defs/explanation" }
-			}
-		}
-	},
 	"$defs": {
 		"agentReadSource": {
 			"type": "object",
 			"required": ["kind", "requestId"],
 			"additionalProperties": false,
 			"properties": {
-				"kind": { "const": "agent-read" },
-				"requestId": { "$ref": "#/$defs/hexId" }
+				"kind": {
+					"const": "agent-read"
+				},
+				"requestId": {
+					"$ref": "#/$defs/hexId"
+				}
 			}
 		},
 		"safeInteger": {
@@ -41,11 +26,16 @@
 			"minimum": 1,
 			"maximum": 9007199254740991
 		},
-		"opaqueId": { "type": "string", "pattern": "^[0-9A-Za-z._:-]{1,128}$" },
+		"opaqueId": {
+			"type": "string",
+			"pattern": "^[0-9A-Za-z._:-]{1,128}$"
+		},
 		"hexId": {
 			"type": "string",
 			"pattern": "^[0-9a-f]{32}$",
-			"not": { "const": "00000000000000000000000000000000" }
+			"not": {
+				"const": "00000000000000000000000000000000"
+			}
 		},
 		"providerId": {
 			"type": "string",
@@ -75,20 +65,30 @@
 				"tool"
 			]
 		},
-		"visibility": { "enum": ["hidden", "unknown", "visible"] },
-		"fidelity": { "enum": ["basic", "heuristic", "rich"] },
-		"freshness": { "enum": ["disconnected", "fresh", "stale"] },
+		"visibility": {
+			"enum": ["hidden", "unknown", "visible"]
+		},
+		"fidelity": {
+			"enum": ["basic", "heuristic", "rich"]
+		},
+		"freshness": {
+			"enum": ["disconnected", "fresh", "stale"]
+		},
 		"observationSource": {
 			"enum": ["heuristic", "hook", "native", "terminal"]
 		},
-		"turnPhase": { "enum": ["queued", "waiting-external", "working"] },
+		"turnPhase": {
+			"enum": ["queued", "waiting-external", "working"]
+		},
 		"attentionKind": {
 			"enum": ["approval", "authentication", "question", "unclassified"]
 		},
 		"outcomeKind": {
 			"enum": ["canceled", "failed", "interrupted", "succeeded"]
 		},
-		"lifecycle": { "enum": ["ended", "live"] },
+		"lifecycle": {
+			"enum": ["ended", "live"]
+		},
 		"statusBasis": {
 			"enum": [
 				"active-turn",
@@ -112,7 +112,9 @@
 			"required": ["executionLocationId"],
 			"additionalProperties": false,
 			"properties": {
-				"executionLocationId": { "$ref": "#/$defs/opaqueId" }
+				"executionLocationId": {
+					"$ref": "#/$defs/opaqueId"
+				}
 			}
 		},
 		"presentationAttachment": {
@@ -120,10 +122,18 @@
 			"required": ["generation", "navigable", "presentationId", "visibility"],
 			"additionalProperties": false,
 			"properties": {
-				"generation": { "$ref": "#/$defs/opaqueId" },
-				"navigable": { "type": "boolean" },
-				"presentationId": { "$ref": "#/$defs/hexId" },
-				"visibility": { "$ref": "#/$defs/visibility" }
+				"generation": {
+					"$ref": "#/$defs/opaqueId"
+				},
+				"navigable": {
+					"type": "boolean"
+				},
+				"presentationId": {
+					"$ref": "#/$defs/hexId"
+				},
+				"visibility": {
+					"$ref": "#/$defs/visibility"
+				}
 			}
 		},
 		"observation": {
@@ -131,11 +141,21 @@
 			"required": ["fidelity", "freshness", "generation", "sequence", "source"],
 			"additionalProperties": false,
 			"properties": {
-				"fidelity": { "$ref": "#/$defs/fidelity" },
-				"freshness": { "$ref": "#/$defs/freshness" },
-				"generation": { "$ref": "#/$defs/safeInteger" },
-				"sequence": { "$ref": "#/$defs/safeInteger" },
-				"source": { "$ref": "#/$defs/observationSource" }
+				"fidelity": {
+					"$ref": "#/$defs/fidelity"
+				},
+				"freshness": {
+					"$ref": "#/$defs/freshness"
+				},
+				"generation": {
+					"$ref": "#/$defs/safeInteger"
+				},
+				"sequence": {
+					"$ref": "#/$defs/safeInteger"
+				},
+				"source": {
+					"$ref": "#/$defs/observationSource"
+				}
 			}
 		},
 		"turnState": {
@@ -144,23 +164,47 @@
 			"oneOf": [
 				{
 					"additionalProperties": false,
-					"properties": { "kind": { "const": "unknown" } }
+					"properties": {
+						"kind": {
+							"const": "unknown"
+						}
+					},
+					"type": "object"
 				},
 				{
 					"additionalProperties": false,
-					"properties": { "kind": { "const": "idle" } }
+					"properties": {
+						"kind": {
+							"const": "idle"
+						}
+					},
+					"type": "object"
 				},
 				{
 					"required": ["activity", "phase", "turnId"],
 					"additionalProperties": false,
 					"properties": {
-						"kind": { "const": "active" },
-						"activity": {
-							"oneOf": [{ "$ref": "#/$defs/activity" }, { "type": "null" }]
+						"kind": {
+							"const": "active"
 						},
-						"phase": { "$ref": "#/$defs/turnPhase" },
-						"turnId": { "$ref": "#/$defs/opaqueId" }
-					}
+						"activity": {
+							"oneOf": [
+								{
+									"$ref": "#/$defs/activity"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"phase": {
+							"$ref": "#/$defs/turnPhase"
+						},
+						"turnId": {
+							"$ref": "#/$defs/opaqueId"
+						}
+					},
+					"type": "object"
 				}
 			]
 		},
@@ -169,11 +213,24 @@
 			"required": ["actionPath", "kind", "requestId", "turnId"],
 			"additionalProperties": false,
 			"properties": {
-				"actionPath": { "const": "navigate-only" },
-				"kind": { "$ref": "#/$defs/attentionKind" },
-				"requestId": { "$ref": "#/$defs/opaqueId" },
+				"actionPath": {
+					"const": "navigate-only"
+				},
+				"kind": {
+					"$ref": "#/$defs/attentionKind"
+				},
+				"requestId": {
+					"$ref": "#/$defs/opaqueId"
+				},
 				"turnId": {
-					"oneOf": [{ "$ref": "#/$defs/opaqueId" }, { "type": "null" }]
+					"oneOf": [
+						{
+							"$ref": "#/$defs/opaqueId"
+						},
+						{
+							"type": "null"
+						}
+					]
 				}
 			}
 		},
@@ -182,9 +239,15 @@
 			"required": ["eventId", "kind", "turnId"],
 			"additionalProperties": false,
 			"properties": {
-				"eventId": { "$ref": "#/$defs/opaqueId" },
-				"kind": { "$ref": "#/$defs/outcomeKind" },
-				"turnId": { "$ref": "#/$defs/opaqueId" }
+				"eventId": {
+					"$ref": "#/$defs/opaqueId"
+				},
+				"kind": {
+					"$ref": "#/$defs/outcomeKind"
+				},
+				"turnId": {
+					"$ref": "#/$defs/opaqueId"
+				}
 			}
 		},
 		"semanticStatus": {
@@ -195,54 +258,111 @@
 					"required": ["count"],
 					"additionalProperties": false,
 					"properties": {
-						"kind": { "const": "needs-attention" },
-						"count": { "$ref": "#/$defs/positiveInteger" }
-					}
+						"kind": {
+							"const": "needs-attention"
+						},
+						"count": {
+							"$ref": "#/$defs/positiveInteger"
+						}
+					},
+					"type": "object"
 				},
 				{
 					"additionalProperties": false,
-					"properties": { "kind": { "const": "failed" } }
+					"properties": {
+						"kind": {
+							"const": "failed"
+						}
+					},
+					"type": "object"
 				},
 				{
 					"additionalProperties": false,
-					"properties": { "kind": { "const": "succeeded" } }
+					"properties": {
+						"kind": {
+							"const": "succeeded"
+						}
+					},
+					"type": "object"
 				},
 				{
 					"additionalProperties": false,
-					"properties": { "kind": { "const": "canceled" } }
+					"properties": {
+						"kind": {
+							"const": "canceled"
+						}
+					},
+					"type": "object"
 				},
 				{
 					"additionalProperties": false,
-					"properties": { "kind": { "const": "interrupted" } }
+					"properties": {
+						"kind": {
+							"const": "interrupted"
+						}
+					},
+					"type": "object"
 				},
 				{
 					"required": ["activity", "phase"],
 					"additionalProperties": false,
 					"properties": {
-						"kind": { "const": "working" },
-						"activity": {
-							"oneOf": [{ "$ref": "#/$defs/activity" }, { "type": "null" }]
+						"kind": {
+							"const": "working"
 						},
-						"phase": { "$ref": "#/$defs/turnPhase" }
-					}
+						"activity": {
+							"oneOf": [
+								{
+									"$ref": "#/$defs/activity"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"phase": {
+							"$ref": "#/$defs/turnPhase"
+						}
+					},
+					"type": "object"
 				},
 				{
 					"additionalProperties": false,
-					"properties": { "kind": { "const": "idle" } }
+					"properties": {
+						"kind": {
+							"const": "idle"
+						}
+					},
+					"type": "object"
 				},
 				{
 					"required": ["activityHint"],
 					"additionalProperties": false,
 					"properties": {
-						"kind": { "const": "unknown" },
+						"kind": {
+							"const": "unknown"
+						},
 						"activityHint": {
-							"oneOf": [{ "$ref": "#/$defs/activity" }, { "type": "null" }]
+							"oneOf": [
+								{
+									"$ref": "#/$defs/activity"
+								},
+								{
+									"type": "null"
+								}
+							]
 						}
-					}
+					},
+					"type": "object"
 				},
 				{
 					"additionalProperties": false,
-					"properties": { "kind": { "const": "ended" } }
+					"properties": {
+						"kind": {
+							"const": "ended"
+						}
+					},
+					"type": "object"
 				}
 			]
 		},
@@ -270,39 +390,80 @@
 					"additionalProperties": false,
 					"properties": {
 						"activityHint": {
-							"oneOf": [{ "$ref": "#/$defs/activity" }, { "type": "null" }]
+							"oneOf": [
+								{
+									"$ref": "#/$defs/activity"
+								},
+								{
+									"type": "null"
+								}
+							]
 						},
 						"capabilities": {
 							"type": "array",
 							"maxItems": 10,
-							"items": { "$ref": "#/$defs/capability" },
+							"items": {
+								"$ref": "#/$defs/capability"
+							},
 							"uniqueItems": true
 						},
-						"executionLocation": { "$ref": "#/$defs/executionLocation" },
-						"lastOutcome": {
-							"oneOf": [{ "$ref": "#/$defs/turnOutcome" }, { "type": "null" }]
+						"executionLocation": {
+							"$ref": "#/$defs/executionLocation"
 						},
-						"lifecycle": { "$ref": "#/$defs/lifecycle" },
-						"observation": { "$ref": "#/$defs/observation" },
+						"lastOutcome": {
+							"oneOf": [
+								{
+									"$ref": "#/$defs/turnOutcome"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"lifecycle": {
+							"$ref": "#/$defs/lifecycle"
+						},
+						"observation": {
+							"$ref": "#/$defs/observation"
+						},
 						"parentSessionId": {
-							"oneOf": [{ "$ref": "#/$defs/opaqueId" }, { "type": "null" }]
+							"oneOf": [
+								{
+									"$ref": "#/$defs/opaqueId"
+								},
+								{
+									"type": "null"
+								}
+							]
 						},
 						"pendingRequests": {
 							"type": "array",
 							"maxItems": 128,
-							"items": { "$ref": "#/$defs/attentionRequest" }
+							"items": {
+								"$ref": "#/$defs/attentionRequest"
+							}
 						},
 						"presentationAttachments": {
 							"type": "array",
 							"maxItems": 32,
-							"items": { "$ref": "#/$defs/presentationAttachment" }
+							"items": {
+								"$ref": "#/$defs/presentationAttachment"
+							}
 						},
-						"providerId": { "$ref": "#/$defs/providerId" },
-						"sessionId": { "$ref": "#/$defs/opaqueId" },
-						"turn": { "$ref": "#/$defs/turnState" }
+						"providerId": {
+							"$ref": "#/$defs/providerId"
+						},
+						"sessionId": {
+							"$ref": "#/$defs/opaqueId"
+						},
+						"turn": {
+							"$ref": "#/$defs/turnState"
+						}
 					}
 				},
-				"status": { "$ref": "#/$defs/semanticStatus" }
+				"status": {
+					"$ref": "#/$defs/semanticStatus"
+				}
 			}
 		},
 		"explanation": {
@@ -322,23 +483,688 @@
 			],
 			"additionalProperties": false,
 			"properties": {
-				"actionPath": { "const": "navigate-only" },
+				"actionPath": {
+					"const": "navigate-only"
+				},
 				"capabilityCeiling": {
 					"type": "array",
 					"maxItems": 10,
-					"items": { "$ref": "#/$defs/capability" },
+					"items": {
+						"$ref": "#/$defs/capability"
+					},
 					"uniqueItems": true
 				},
-				"contentAvailable": { "const": false },
-				"fidelity": { "$ref": "#/$defs/fidelity" },
-				"freshness": { "$ref": "#/$defs/freshness" },
-				"freshnessMeaning": { "$ref": "#/$defs/freshnessMeaning" },
-				"generation": { "$ref": "#/$defs/safeInteger" },
-				"sequence": { "$ref": "#/$defs/safeInteger" },
-				"source": { "$ref": "#/$defs/observationSource" },
-				"status": { "$ref": "#/$defs/semanticStatus" },
-				"statusBasis": { "$ref": "#/$defs/statusBasis" }
+				"contentAvailable": {
+					"const": false
+				},
+				"fidelity": {
+					"$ref": "#/$defs/fidelity"
+				},
+				"freshness": {
+					"$ref": "#/$defs/freshness"
+				},
+				"freshnessMeaning": {
+					"$ref": "#/$defs/freshnessMeaning"
+				},
+				"generation": {
+					"$ref": "#/$defs/safeInteger"
+				},
+				"sequence": {
+					"$ref": "#/$defs/safeInteger"
+				},
+				"source": {
+					"$ref": "#/$defs/observationSource"
+				},
+				"status": {
+					"$ref": "#/$defs/semanticStatus"
+				},
+				"statusBasis": {
+					"$ref": "#/$defs/statusBasis"
+				}
+			}
+		},
+		"physical_terminalBinding": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["presentationId", "generation", "hostEpoch", "hostTerminalId"],
+			"properties": {
+				"presentationId": {
+					"$ref": "#/$defs/physical_identity"
+				},
+				"generation": {
+					"$ref": "#/$defs/physical_identity"
+				},
+				"hostEpoch": {
+					"$ref": "#/$defs/physical_identity"
+				},
+				"hostTerminalId": {
+					"$ref": "#/$defs/physical_identity"
+				}
+			}
+		},
+		"physical_identity": {
+			"type": "string",
+			"pattern": "^[0-9a-f]{32}$",
+			"not": {
+				"const": "00000000000000000000000000000000"
+			}
+		},
+		"physical_view": {
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+				"agent": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/physical_normalizedAgent"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"state": {
+					"$ref": "#/$defs/physical_state"
+				},
+				"authoritySource": {
+					"anyOf": [
+						{
+							"type": "string"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"message": {
+					"anyOf": [
+						{
+							"type": "string"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"session": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/physical_session"
+						},
+						{
+							"type": "null"
+						}
+					]
+				}
+			},
+			"required": ["agent", "state", "authoritySource", "message", "session"]
+		},
+		"physical_normalizedAgent": {
+			"type": "string",
+			"minLength": 1,
+			"not": {
+				"pattern": "^[\\u0009-\\u000d\\u0020\\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000]|[\\u0009-\\u000d\\u0020\\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000]$(?![\\s\\S])"
+			}
+		},
+		"physical_state": {
+			"enum": ["idle", "working", "blocked", "unknown"]
+		},
+		"physical_session": {
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+				"source": {
+					"type": "string"
+				},
+				"agent": {
+					"$ref": "#/$defs/physical_normalizedAgent"
+				},
+				"reference": {
+					"$ref": "#/$defs/physical_reference"
+				}
+			},
+			"required": ["source", "agent", "reference"]
+		},
+		"physical_reference": {
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+				"kind": {
+					"enum": ["id", "path"]
+				},
+				"value": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 4096,
+					"not": {
+						"pattern": "[\\u0000-\\u001f\\u007f-\\u009f]"
+					}
+				}
+			},
+			"required": ["kind", "value"]
+		},
+		"physical_revision": {
+			"type": "string",
+			"pattern": "^(?:0|[1-9][0-9]{0,19})$",
+			"maxLength": 20,
+			"format": "orchbee-uint64"
+		},
+		"screenRule": {
+			"type": "object",
+			"required": ["id", "priority", "region", "state"],
+			"additionalProperties": false,
+			"properties": {
+				"id": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 128
+				},
+				"priority": {
+					"type": "integer",
+					"minimum": -2147483648,
+					"maximum": 2147483647
+				},
+				"region": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 128
+				},
+				"state": {
+					"$ref": "#/$defs/physical_state"
+				}
+			}
+		},
+		"screenEvidence": {
+			"type": "object",
+			"required": [
+				"contains",
+				"regex",
+				"lineRegex",
+				"allCount",
+				"anyCount",
+				"notCount",
+				"regionBytes",
+				"regionPreview"
+			],
+			"additionalProperties": false,
+			"properties": {
+				"contains": {
+					"type": "array",
+					"maxItems": 32,
+					"items": {
+						"type": "string",
+						"maxLength": 512
+					}
+				},
+				"regex": {
+					"type": "array",
+					"maxItems": 32,
+					"items": {
+						"type": "string",
+						"maxLength": 512
+					}
+				},
+				"lineRegex": {
+					"type": "array",
+					"maxItems": 32,
+					"items": {
+						"type": "string",
+						"maxLength": 512
+					}
+				},
+				"allCount": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 512
+				},
+				"anyCount": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 512
+				},
+				"notCount": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 512
+				},
+				"regionBytes": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 65536
+				},
+				"regionPreview": {
+					"type": "string",
+					"maxLength": 243
+				}
+			}
+		},
+		"screenExplanation": {
+			"type": "object",
+			"required": [
+				"agent",
+				"state",
+				"manifestSource",
+				"manifestVersion",
+				"matchedRule",
+				"visibleIdle",
+				"visibleBlocker",
+				"visibleWorking",
+				"screenDetectionSkipped",
+				"screenDetectionSkipReason",
+				"skipStateUpdate",
+				"skippedUpdateReason",
+				"fallbackReason",
+				"evaluatedRules"
+			],
+			"additionalProperties": false,
+			"properties": {
+				"agent": {
+					"enum": [
+						"pi",
+						"claude",
+						"codex",
+						"gemini",
+						"cursor",
+						"devin",
+						"agy",
+						"cline",
+						"omp",
+						"mastracode",
+						"opencode",
+						"copilot",
+						"kimi",
+						"kiro",
+						"droid",
+						"amp",
+						"grok",
+						"hermes",
+						"kilo",
+						"qodercli",
+						"qwen",
+						"letta",
+						"maki",
+						"muse"
+					]
+				},
+				"state": {
+					"$ref": "#/$defs/physical_state"
+				},
+				"manifestSource": {
+					"enum": ["bundled", null]
+				},
+				"manifestVersion": {
+					"oneOf": [
+						{
+							"type": "string",
+							"maxLength": 128
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"matchedRule": {
+					"oneOf": [
+						{
+							"$ref": "#/$defs/screenRule"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"visibleIdle": {
+					"type": "boolean"
+				},
+				"visibleBlocker": {
+					"type": "boolean"
+				},
+				"visibleWorking": {
+					"type": "boolean"
+				},
+				"screenDetectionSkipped": {
+					"type": "boolean"
+				},
+				"screenDetectionSkipReason": {
+					"enum": ["full-lifecycle-hook-authority", null]
+				},
+				"skipStateUpdate": {
+					"type": "boolean"
+				},
+				"skippedUpdateReason": {
+					"oneOf": [
+						{
+							"type": "string",
+							"pattern": "^matched-rule:.+"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"fallbackReason": {
+					"enum": ["default-known-agent-idle-fallback", null]
+				},
+				"evaluatedRules": {
+					"type": "array",
+					"maxItems": 128,
+					"items": {
+						"type": "object",
+						"required": ["rule", "matched", "evidence"],
+						"additionalProperties": false,
+						"properties": {
+							"rule": {
+								"$ref": "#/$defs/screenRule"
+							},
+							"matched": {
+								"type": "boolean"
+							},
+							"evidence": {
+								"$ref": "#/$defs/screenEvidence"
+							}
+						}
+					}
+				}
+			}
+		},
+		"terminalExplanation": {
+			"type": "object",
+			"required": ["binding", "view", "explanation", "sample"],
+			"additionalProperties": false,
+			"properties": {
+				"binding": {
+					"$ref": "#/$defs/physical_terminalBinding"
+				},
+				"view": {
+					"$ref": "#/$defs/physical_view"
+				},
+				"explanation": {
+					"$ref": "#/$defs/screenExplanation"
+				},
+				"sample": {
+					"oneOf": [
+						{
+							"type": "object",
+							"required": [
+								"frameSequence",
+								"frameGeneration",
+								"frameRevision",
+								"rootPid",
+								"agentPid"
+							],
+							"additionalProperties": false,
+							"properties": {
+								"frameSequence": {
+									"allOf": [
+										{
+											"$ref": "#/$defs/physical_revision"
+										},
+										{
+											"not": {
+												"const": "0"
+											}
+										}
+									]
+								},
+								"frameGeneration": {
+									"allOf": [
+										{
+											"$ref": "#/$defs/physical_revision"
+										},
+										{
+											"not": {
+												"const": "0"
+											}
+										}
+									]
+								},
+								"frameRevision": {
+									"$ref": "#/$defs/physical_revision"
+								},
+								"rootPid": {
+									"type": "integer",
+									"minimum": 1,
+									"maximum": 4294967295
+								},
+								"agentPid": {
+									"oneOf": [
+										{
+											"type": "integer",
+											"minimum": 1,
+											"maximum": 4294967295
+										},
+										{
+											"type": "null"
+										}
+									]
+								}
+							}
+						},
+						{
+							"type": "null"
+						}
+					]
+				}
+			},
+			"allOf": [
+				{
+					"if": {
+						"properties": {
+							"explanation": {
+								"properties": {
+									"screenDetectionSkipped": {
+										"const": true
+									}
+								},
+								"type": "object"
+							}
+						},
+						"type": "object"
+					},
+					"then": {
+						"properties": {
+							"sample": {
+								"type": "null"
+							},
+							"explanation": {
+								"properties": {
+									"manifestSource": {
+										"type": "null"
+									},
+									"manifestVersion": {
+										"type": "null"
+									},
+									"matchedRule": {
+										"type": "null"
+									},
+									"skippedUpdateReason": {
+										"type": "null"
+									},
+									"fallbackReason": {
+										"type": "null"
+									},
+									"visibleIdle": {
+										"const": false
+									},
+									"visibleBlocker": {
+										"const": false
+									},
+									"visibleWorking": {
+										"const": false
+									},
+									"skipStateUpdate": {
+										"const": false
+									},
+									"screenDetectionSkipReason": {
+										"const": "full-lifecycle-hook-authority"
+									},
+									"evaluatedRules": {
+										"maxItems": 0,
+										"type": "array"
+									}
+								},
+								"type": "object"
+							}
+						},
+						"type": "object"
+					},
+					"else": {
+						"properties": {
+							"sample": {
+								"type": "object",
+								"required": [
+									"frameSequence",
+									"frameGeneration",
+									"frameRevision",
+									"rootPid",
+									"agentPid"
+								],
+								"additionalProperties": false,
+								"properties": {
+									"frameSequence": {
+										"allOf": [
+											{
+												"$ref": "#/$defs/physical_revision"
+											},
+											{
+												"not": {
+													"const": "0"
+												}
+											}
+										]
+									},
+									"frameGeneration": {
+										"allOf": [
+											{
+												"$ref": "#/$defs/physical_revision"
+											},
+											{
+												"not": {
+													"const": "0"
+												}
+											}
+										]
+									},
+									"frameRevision": {
+										"$ref": "#/$defs/physical_revision"
+									},
+									"rootPid": {
+										"type": "integer",
+										"minimum": 1,
+										"maximum": 4294967295
+									},
+									"agentPid": {
+										"oneOf": [
+											{
+												"type": "integer",
+												"minimum": 1,
+												"maximum": 4294967295
+											},
+											{
+												"type": "null"
+											}
+										]
+									}
+								}
+							},
+							"explanation": {
+								"properties": {
+									"screenDetectionSkipReason": {
+										"type": "null"
+									}
+								},
+								"type": "object"
+							}
+						},
+						"type": "object"
+					}
+				}
+			]
+		}
+	},
+	"oneOf": [
+		{
+			"type": "object",
+			"required": ["schema", "version", "source", "result"],
+			"additionalProperties": false,
+			"properties": {
+				"schema": {
+					"const": "orchbee.agent.explain"
+				},
+				"version": {
+					"const": 1
+				},
+				"source": {
+					"$ref": "#/$defs/agentReadSource"
+				},
+				"result": {
+					"type": "object",
+					"required": ["kind", "revision", "session", "explanation"],
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "found"
+						},
+						"revision": {
+							"$ref": "#/$defs/safeInteger"
+						},
+						"session": {
+							"$ref": "#/$defs/sessionDetail"
+						},
+						"explanation": {
+							"$ref": "#/$defs/explanation"
+						}
+					}
+				}
+			}
+		},
+		{
+			"type": "object",
+			"required": ["schema", "version", "source", "result"],
+			"additionalProperties": false,
+			"properties": {
+				"schema": {
+					"const": "orchbee.agent.explain"
+				},
+				"version": {
+					"const": 2
+				},
+				"source": {
+					"type": "object",
+					"required": ["kind", "siteId", "workbenchRevision", "reportRevision", "requestId"],
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "panel-agent-explain"
+						},
+						"siteId": {
+							"$ref": "#/$defs/hexId"
+						},
+						"workbenchRevision": {
+							"$ref": "#/$defs/physical_revision"
+						},
+						"reportRevision": {
+							"$ref": "#/$defs/physical_revision"
+						},
+						"requestId": {
+							"$ref": "#/$defs/hexId"
+						}
+					}
+				},
+				"result": {
+					"type": "object",
+					"required": ["kind", "terminal"],
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "terminal-found"
+						},
+						"terminal": {
+							"$ref": "#/$defs/terminalExplanation"
+						}
+					}
+				}
 			}
 		}
-	}
+	]
 }

@@ -4,6 +4,8 @@
 //! render aborts at the 8 MiB bound instead of assembling the full body.
 
 use serde_json::Value;
+#[cfg(windows)]
+mod agent_screen;
 
 use orchbee_agent_observation_protocol::{
     AgentExplainOutcome, AgentGetOutcome, AgentListOutcome, AgentSessionDetail,
@@ -647,6 +649,7 @@ pub(crate) fn render(
             Ok(())
         }
         Projection::AgentChanges(outcome) => agent_changes(out, outcome, locale),
+        #[cfg(any(not(windows), test))]
         Projection::AgentGet(outcome) => agent_get(out, outcome, text, locale),
         #[cfg(windows)]
         Projection::AgentTerminalInspection {
@@ -710,6 +713,10 @@ pub(crate) fn render(
             }
         }
         Projection::AgentExplain(outcome) => agent_explain(out, outcome, text, locale),
+        #[cfg(windows)]
+        Projection::AgentTerminalExplanation(terminal) => {
+            agent_screen::render(out, terminal, locale)
+        }
         Projection::AgentWait(doc) => agent_wait(out, doc, locale),
         #[cfg(windows)]
         Projection::AgentTerminalWait(doc) => out.push(

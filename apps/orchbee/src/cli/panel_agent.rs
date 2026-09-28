@@ -52,6 +52,7 @@ impl Answer {
             Observation::Server(reply) => match reply.outcome {
                 PanelAgentOutcome::Reported { .. } => 0,
                 PanelAgentOutcome::Read { .. }
+                | PanelAgentOutcome::Explained { .. }
                 | PanelAgentOutcome::Observed { .. }
                 | PanelAgentOutcome::States { .. } => 5,
                 PanelAgentOutcome::Failed { reason } => match reason {

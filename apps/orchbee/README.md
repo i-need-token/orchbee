@@ -68,6 +68,15 @@ never inferred from terminal contents — `wait <session-id> [--until <condition
 retained changes and defaults to no total timeout, with every read still bounded — plus `doctor [--provider <id>]... [--asset-root
 <path>]...`, an offline bounded-filesystem diagnostic that explains from local facts alone
 why Agent observations may not arrive (no provider execution, no socket connect, no writes).
+Windows `agent explain` also resolves names and Panels to exact physical terminal bindings.
+Canonical sessions retain `orchbee.agent.explain` v1; physical terminals use v2 with the effective
+report view and a separate fresh screen-rule evaluation. The result includes manifest source/version,
+the first highest-priority winner, every rule match and bounded region evidence. Live full lifecycle
+authority returns an explicit screen-skipped result without a Host read. One admission and five-second
+CLI budget cover resolution/read; Server queue/read work has a four-second budget. Binding or report
+context changes refuse without retry. No input, controller acquisition or focus action is performed.
+Override/reload/update maintenance remains open. See the [screen model](../orchbee-server/docs/agent-screen-model.md).
+
 Mutation commands against the
 running Site are `project create`/`rename`,
 `workspace create`/`rename`/`accept-directory`/`close`, `tab create`/`rename`/`move`/`close`,

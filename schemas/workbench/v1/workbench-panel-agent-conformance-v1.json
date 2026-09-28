@@ -962,6 +962,222 @@
 					"presentationIds": []
 				}
 			}
+		},
+		{
+			"name": "explain-request",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.panel-agent",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"action": {
+					"kind": "explain",
+					"binding": {
+						"presentationId": "33333333333333333333333333333333",
+						"generation": "44444444444444444444444444444444",
+						"hostEpoch": "55555555555555555555555555555555",
+						"hostTerminalId": "66666666666666666666666666666666"
+					}
+				}
+			}
+		},
+		{
+			"name": "explain-first-priority-tie",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-agent.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"outcome": {
+					"kind": "explained",
+					"workbenchRevision": "1",
+					"reportRevision": "2",
+					"explanation": {
+						"binding": {
+							"presentationId": "33333333333333333333333333333333",
+							"generation": "44444444444444444444444444444444",
+							"hostEpoch": "55555555555555555555555555555555",
+							"hostTerminalId": "66666666666666666666666666666666"
+						},
+						"view": {
+							"agent": "codex",
+							"state": "working",
+							"authoritySource": null,
+							"message": null,
+							"session": null
+						},
+						"explanation": {
+							"agent": "codex",
+							"state": "working",
+							"manifestSource": "bundled",
+							"manifestVersion": "1",
+							"matchedRule": {
+								"id": "busy",
+								"priority": 20,
+								"region": "all",
+								"state": "working"
+							},
+							"visibleIdle": false,
+							"visibleBlocker": false,
+							"visibleWorking": true,
+							"screenDetectionSkipped": false,
+							"screenDetectionSkipReason": null,
+							"skipStateUpdate": false,
+							"skippedUpdateReason": null,
+							"fallbackReason": null,
+							"evaluatedRules": [
+								{
+									"rule": {
+										"id": "busy",
+										"priority": 20,
+										"region": "all",
+										"state": "working"
+									},
+									"matched": true,
+									"evidence": {
+										"contains": ["Thinking"],
+										"regex": [],
+										"lineRegex": [],
+										"allCount": 0,
+										"anyCount": 0,
+										"notCount": 0,
+										"regionBytes": 8,
+										"regionPreview": "Thinking"
+									}
+								},
+								{
+									"rule": {
+										"id": "tie",
+										"priority": 20,
+										"region": "all",
+										"state": "working"
+									},
+									"matched": true,
+									"evidence": {
+										"contains": ["Thinking"],
+										"regex": [],
+										"lineRegex": [],
+										"allCount": 0,
+										"anyCount": 0,
+										"notCount": 0,
+										"regionBytes": 8,
+										"regionPreview": "Thinking"
+									}
+								}
+							]
+						},
+						"sample": {
+							"frameSequence": "2",
+							"frameGeneration": "1",
+							"frameRevision": "0",
+							"rootPid": 123,
+							"agentPid": 456
+						}
+					}
+				}
+			}
+		},
+		{
+			"name": "explain-detected-provider-behind-custom-label",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-agent.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"outcome": {
+					"kind": "explained",
+					"workbenchRevision": "1",
+					"reportRevision": "2",
+					"explanation": {
+						"binding": {
+							"presentationId": "33333333333333333333333333333333",
+							"generation": "44444444444444444444444444444444",
+							"hostEpoch": "55555555555555555555555555555555",
+							"hostTerminalId": "66666666666666666666666666666666"
+						},
+						"view": {
+							"agent": "Custom Team",
+							"state": "working",
+							"authoritySource": null,
+							"message": null,
+							"session": null
+						},
+						"explanation": {
+							"agent": "codex",
+							"state": "idle",
+							"manifestSource": null,
+							"manifestVersion": null,
+							"matchedRule": null,
+							"visibleIdle": false,
+							"visibleBlocker": false,
+							"visibleWorking": false,
+							"screenDetectionSkipped": false,
+							"screenDetectionSkipReason": null,
+							"skipStateUpdate": false,
+							"skippedUpdateReason": null,
+							"fallbackReason": "default-known-agent-idle-fallback",
+							"evaluatedRules": []
+						},
+						"sample": {
+							"frameSequence": "2",
+							"frameGeneration": "1",
+							"frameRevision": "0",
+							"rootPid": 123,
+							"agentPid": 456
+						}
+					}
+				}
+			}
+		},
+		{
+			"name": "explain-full-lifecycle-skips-screen",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-agent.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"outcome": {
+					"kind": "explained",
+					"workbenchRevision": "1",
+					"reportRevision": "2",
+					"explanation": {
+						"binding": {
+							"presentationId": "33333333333333333333333333333333",
+							"generation": "44444444444444444444444444444444",
+							"hostEpoch": "55555555555555555555555555555555",
+							"hostTerminalId": "66666666666666666666666666666666"
+						},
+						"view": {
+							"agent": "pi",
+							"state": "working",
+							"authoritySource": "herdr:pi",
+							"message": null,
+							"session": null
+						},
+						"explanation": {
+							"agent": "pi",
+							"state": "working",
+							"manifestSource": null,
+							"manifestVersion": null,
+							"matchedRule": null,
+							"visibleIdle": false,
+							"visibleBlocker": false,
+							"visibleWorking": false,
+							"screenDetectionSkipped": true,
+							"screenDetectionSkipReason": "full-lifecycle-hook-authority",
+							"skipStateUpdate": false,
+							"skippedUpdateReason": null,
+							"fallbackReason": null,
+							"evaluatedRules": []
+						},
+						"sample": null
+					}
+				}
+			}
 		}
 	],
 	"invalid": [
@@ -1823,6 +2039,1180 @@
 							"snapshot": null
 						}
 					]
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "explain-wrong-tie-winner",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-agent.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"outcome": {
+					"kind": "explained",
+					"workbenchRevision": "1",
+					"reportRevision": "2",
+					"explanation": {
+						"binding": {
+							"presentationId": "33333333333333333333333333333333",
+							"generation": "44444444444444444444444444444444",
+							"hostEpoch": "55555555555555555555555555555555",
+							"hostTerminalId": "66666666666666666666666666666666"
+						},
+						"view": {
+							"agent": "codex",
+							"state": "working",
+							"authoritySource": null,
+							"message": null,
+							"session": null
+						},
+						"explanation": {
+							"agent": "codex",
+							"state": "working",
+							"manifestSource": "bundled",
+							"manifestVersion": "1",
+							"matchedRule": {
+								"id": "tie",
+								"priority": 20,
+								"region": "all",
+								"state": "working"
+							},
+							"visibleIdle": false,
+							"visibleBlocker": false,
+							"visibleWorking": true,
+							"screenDetectionSkipped": false,
+							"screenDetectionSkipReason": null,
+							"skipStateUpdate": false,
+							"skippedUpdateReason": null,
+							"fallbackReason": null,
+							"evaluatedRules": [
+								{
+									"rule": {
+										"id": "busy",
+										"priority": 20,
+										"region": "all",
+										"state": "working"
+									},
+									"matched": true,
+									"evidence": {
+										"contains": ["Thinking"],
+										"regex": [],
+										"lineRegex": [],
+										"allCount": 0,
+										"anyCount": 0,
+										"notCount": 0,
+										"regionBytes": 8,
+										"regionPreview": "Thinking"
+									}
+								},
+								{
+									"rule": {
+										"id": "tie",
+										"priority": 20,
+										"region": "all",
+										"state": "working"
+									},
+									"matched": true,
+									"evidence": {
+										"contains": ["Thinking"],
+										"regex": [],
+										"lineRegex": [],
+										"allCount": 0,
+										"anyCount": 0,
+										"notCount": 0,
+										"regionBytes": 8,
+										"regionPreview": "Thinking"
+									}
+								}
+							]
+						},
+						"sample": {
+							"frameSequence": "2",
+							"frameGeneration": "1",
+							"frameRevision": "0",
+							"rootPid": 123,
+							"agentPid": 456
+						}
+					}
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "explain-missing-nullable",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-agent.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"outcome": {
+					"kind": "explained",
+					"workbenchRevision": "1",
+					"reportRevision": "2",
+					"explanation": {
+						"binding": {
+							"presentationId": "33333333333333333333333333333333",
+							"generation": "44444444444444444444444444444444",
+							"hostEpoch": "55555555555555555555555555555555",
+							"hostTerminalId": "66666666666666666666666666666666"
+						},
+						"view": {
+							"agent": "codex",
+							"state": "working",
+							"authoritySource": null,
+							"message": null,
+							"session": null
+						},
+						"explanation": {
+							"agent": "codex",
+							"state": "working",
+							"manifestSource": "bundled",
+							"manifestVersion": "1",
+							"matchedRule": {
+								"id": "busy",
+								"priority": 20,
+								"region": "all",
+								"state": "working"
+							},
+							"visibleIdle": false,
+							"visibleBlocker": false,
+							"visibleWorking": true,
+							"screenDetectionSkipped": false,
+							"screenDetectionSkipReason": null,
+							"skipStateUpdate": false,
+							"skippedUpdateReason": null,
+							"evaluatedRules": [
+								{
+									"rule": {
+										"id": "busy",
+										"priority": 20,
+										"region": "all",
+										"state": "working"
+									},
+									"matched": true,
+									"evidence": {
+										"contains": ["Thinking"],
+										"regex": [],
+										"lineRegex": [],
+										"allCount": 0,
+										"anyCount": 0,
+										"notCount": 0,
+										"regionBytes": 8,
+										"regionPreview": "Thinking"
+									}
+								},
+								{
+									"rule": {
+										"id": "tie",
+										"priority": 20,
+										"region": "all",
+										"state": "working"
+									},
+									"matched": true,
+									"evidence": {
+										"contains": ["Thinking"],
+										"regex": [],
+										"lineRegex": [],
+										"allCount": 0,
+										"anyCount": 0,
+										"notCount": 0,
+										"regionBytes": 8,
+										"regionPreview": "Thinking"
+									}
+								}
+							]
+						},
+						"sample": {
+							"frameSequence": "2",
+							"frameGeneration": "1",
+							"frameRevision": "0",
+							"rootPid": 123,
+							"agentPid": 456
+						}
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "explain-zero-frame",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-agent.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"outcome": {
+					"kind": "explained",
+					"workbenchRevision": "1",
+					"reportRevision": "2",
+					"explanation": {
+						"binding": {
+							"presentationId": "33333333333333333333333333333333",
+							"generation": "44444444444444444444444444444444",
+							"hostEpoch": "55555555555555555555555555555555",
+							"hostTerminalId": "66666666666666666666666666666666"
+						},
+						"view": {
+							"agent": "codex",
+							"state": "working",
+							"authoritySource": null,
+							"message": null,
+							"session": null
+						},
+						"explanation": {
+							"agent": "codex",
+							"state": "working",
+							"manifestSource": "bundled",
+							"manifestVersion": "1",
+							"matchedRule": {
+								"id": "busy",
+								"priority": 20,
+								"region": "all",
+								"state": "working"
+							},
+							"visibleIdle": false,
+							"visibleBlocker": false,
+							"visibleWorking": true,
+							"screenDetectionSkipped": false,
+							"screenDetectionSkipReason": null,
+							"skipStateUpdate": false,
+							"skippedUpdateReason": null,
+							"fallbackReason": null,
+							"evaluatedRules": [
+								{
+									"rule": {
+										"id": "busy",
+										"priority": 20,
+										"region": "all",
+										"state": "working"
+									},
+									"matched": true,
+									"evidence": {
+										"contains": ["Thinking"],
+										"regex": [],
+										"lineRegex": [],
+										"allCount": 0,
+										"anyCount": 0,
+										"notCount": 0,
+										"regionBytes": 8,
+										"regionPreview": "Thinking"
+									}
+								},
+								{
+									"rule": {
+										"id": "tie",
+										"priority": 20,
+										"region": "all",
+										"state": "working"
+									},
+									"matched": true,
+									"evidence": {
+										"contains": ["Thinking"],
+										"regex": [],
+										"lineRegex": [],
+										"allCount": 0,
+										"anyCount": 0,
+										"notCount": 0,
+										"regionBytes": 8,
+										"regionPreview": "Thinking"
+									}
+								}
+							]
+						},
+						"sample": {
+							"frameSequence": "0",
+							"frameGeneration": "1",
+							"frameRevision": "0",
+							"rootPid": 123,
+							"agentPid": 456
+						}
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "explain-zero-pid",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-agent.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"outcome": {
+					"kind": "explained",
+					"workbenchRevision": "1",
+					"reportRevision": "2",
+					"explanation": {
+						"binding": {
+							"presentationId": "33333333333333333333333333333333",
+							"generation": "44444444444444444444444444444444",
+							"hostEpoch": "55555555555555555555555555555555",
+							"hostTerminalId": "66666666666666666666666666666666"
+						},
+						"view": {
+							"agent": "codex",
+							"state": "working",
+							"authoritySource": null,
+							"message": null,
+							"session": null
+						},
+						"explanation": {
+							"agent": "codex",
+							"state": "working",
+							"manifestSource": "bundled",
+							"manifestVersion": "1",
+							"matchedRule": {
+								"id": "busy",
+								"priority": 20,
+								"region": "all",
+								"state": "working"
+							},
+							"visibleIdle": false,
+							"visibleBlocker": false,
+							"visibleWorking": true,
+							"screenDetectionSkipped": false,
+							"screenDetectionSkipReason": null,
+							"skipStateUpdate": false,
+							"skippedUpdateReason": null,
+							"fallbackReason": null,
+							"evaluatedRules": [
+								{
+									"rule": {
+										"id": "busy",
+										"priority": 20,
+										"region": "all",
+										"state": "working"
+									},
+									"matched": true,
+									"evidence": {
+										"contains": ["Thinking"],
+										"regex": [],
+										"lineRegex": [],
+										"allCount": 0,
+										"anyCount": 0,
+										"notCount": 0,
+										"regionBytes": 8,
+										"regionPreview": "Thinking"
+									}
+								},
+								{
+									"rule": {
+										"id": "tie",
+										"priority": 20,
+										"region": "all",
+										"state": "working"
+									},
+									"matched": true,
+									"evidence": {
+										"contains": ["Thinking"],
+										"regex": [],
+										"lineRegex": [],
+										"allCount": 0,
+										"anyCount": 0,
+										"notCount": 0,
+										"regionBytes": 8,
+										"regionPreview": "Thinking"
+									}
+								}
+							]
+						},
+						"sample": {
+							"frameSequence": "2",
+							"frameGeneration": "1",
+							"frameRevision": "0",
+							"rootPid": 0,
+							"agentPid": 456
+						}
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "explain-provider-alias",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-agent.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"outcome": {
+					"kind": "explained",
+					"workbenchRevision": "1",
+					"reportRevision": "2",
+					"explanation": {
+						"binding": {
+							"presentationId": "33333333333333333333333333333333",
+							"generation": "44444444444444444444444444444444",
+							"hostEpoch": "55555555555555555555555555555555",
+							"hostTerminalId": "66666666666666666666666666666666"
+						},
+						"view": {
+							"agent": "codex",
+							"state": "working",
+							"authoritySource": null,
+							"message": null,
+							"session": null
+						},
+						"explanation": {
+							"agent": "claude-code",
+							"state": "working",
+							"manifestSource": "bundled",
+							"manifestVersion": "1",
+							"matchedRule": {
+								"id": "busy",
+								"priority": 20,
+								"region": "all",
+								"state": "working"
+							},
+							"visibleIdle": false,
+							"visibleBlocker": false,
+							"visibleWorking": true,
+							"screenDetectionSkipped": false,
+							"screenDetectionSkipReason": null,
+							"skipStateUpdate": false,
+							"skippedUpdateReason": null,
+							"fallbackReason": null,
+							"evaluatedRules": [
+								{
+									"rule": {
+										"id": "busy",
+										"priority": 20,
+										"region": "all",
+										"state": "working"
+									},
+									"matched": true,
+									"evidence": {
+										"contains": ["Thinking"],
+										"regex": [],
+										"lineRegex": [],
+										"allCount": 0,
+										"anyCount": 0,
+										"notCount": 0,
+										"regionBytes": 8,
+										"regionPreview": "Thinking"
+									}
+								},
+								{
+									"rule": {
+										"id": "tie",
+										"priority": 20,
+										"region": "all",
+										"state": "working"
+									},
+									"matched": true,
+									"evidence": {
+										"contains": ["Thinking"],
+										"regex": [],
+										"lineRegex": [],
+										"allCount": 0,
+										"anyCount": 0,
+										"notCount": 0,
+										"regionBytes": 8,
+										"regionPreview": "Thinking"
+									}
+								}
+							]
+						},
+						"sample": {
+							"frameSequence": "2",
+							"frameGeneration": "1",
+							"frameRevision": "0",
+							"rootPid": 123,
+							"agentPid": 456
+						}
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "explain-wrong-visible-state",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-agent.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"outcome": {
+					"kind": "explained",
+					"workbenchRevision": "1",
+					"reportRevision": "2",
+					"explanation": {
+						"binding": {
+							"presentationId": "33333333333333333333333333333333",
+							"generation": "44444444444444444444444444444444",
+							"hostEpoch": "55555555555555555555555555555555",
+							"hostTerminalId": "66666666666666666666666666666666"
+						},
+						"view": {
+							"agent": "codex",
+							"state": "working",
+							"authoritySource": null,
+							"message": null,
+							"session": null
+						},
+						"explanation": {
+							"agent": "codex",
+							"state": "working",
+							"manifestSource": "bundled",
+							"manifestVersion": "1",
+							"matchedRule": {
+								"id": "busy",
+								"priority": 20,
+								"region": "all",
+								"state": "working"
+							},
+							"visibleIdle": true,
+							"visibleBlocker": false,
+							"visibleWorking": true,
+							"screenDetectionSkipped": false,
+							"screenDetectionSkipReason": null,
+							"skipStateUpdate": false,
+							"skippedUpdateReason": null,
+							"fallbackReason": null,
+							"evaluatedRules": [
+								{
+									"rule": {
+										"id": "busy",
+										"priority": 20,
+										"region": "all",
+										"state": "working"
+									},
+									"matched": true,
+									"evidence": {
+										"contains": ["Thinking"],
+										"regex": [],
+										"lineRegex": [],
+										"allCount": 0,
+										"anyCount": 0,
+										"notCount": 0,
+										"regionBytes": 8,
+										"regionPreview": "Thinking"
+									}
+								},
+								{
+									"rule": {
+										"id": "tie",
+										"priority": 20,
+										"region": "all",
+										"state": "working"
+									},
+									"matched": true,
+									"evidence": {
+										"contains": ["Thinking"],
+										"regex": [],
+										"lineRegex": [],
+										"allCount": 0,
+										"anyCount": 0,
+										"notCount": 0,
+										"regionBytes": 8,
+										"regionPreview": "Thinking"
+									}
+								}
+							]
+						},
+						"sample": {
+							"frameSequence": "2",
+							"frameGeneration": "1",
+							"frameRevision": "0",
+							"rootPid": 123,
+							"agentPid": 456
+						}
+					}
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "explain-shortened-evidence",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-agent.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"outcome": {
+					"kind": "explained",
+					"workbenchRevision": "1",
+					"reportRevision": "2",
+					"explanation": {
+						"binding": {
+							"presentationId": "33333333333333333333333333333333",
+							"generation": "44444444444444444444444444444444",
+							"hostEpoch": "55555555555555555555555555555555",
+							"hostTerminalId": "66666666666666666666666666666666"
+						},
+						"view": {
+							"agent": "codex",
+							"state": "working",
+							"authoritySource": null,
+							"message": null,
+							"session": null
+						},
+						"explanation": {
+							"agent": "codex",
+							"state": "working",
+							"manifestSource": "bundled",
+							"manifestVersion": "1",
+							"matchedRule": {
+								"id": "busy",
+								"priority": 20,
+								"region": "all",
+								"state": "working"
+							},
+							"visibleIdle": false,
+							"visibleBlocker": false,
+							"visibleWorking": true,
+							"screenDetectionSkipped": false,
+							"screenDetectionSkipReason": null,
+							"skipStateUpdate": false,
+							"skippedUpdateReason": null,
+							"fallbackReason": null,
+							"evaluatedRules": [
+								{
+									"rule": {
+										"id": "busy",
+										"priority": 20,
+										"region": "all",
+										"state": "working"
+									},
+									"matched": true,
+									"evidence": {
+										"contains": ["Thinking"],
+										"regex": [],
+										"lineRegex": [],
+										"allCount": 0,
+										"anyCount": 0,
+										"notCount": 0,
+										"regionBytes": 65537,
+										"regionPreview": "Thinking"
+									}
+								},
+								{
+									"rule": {
+										"id": "tie",
+										"priority": 20,
+										"region": "all",
+										"state": "working"
+									},
+									"matched": true,
+									"evidence": {
+										"contains": ["Thinking"],
+										"regex": [],
+										"lineRegex": [],
+										"allCount": 0,
+										"anyCount": 0,
+										"notCount": 0,
+										"regionBytes": 65537,
+										"regionPreview": "Thinking"
+									}
+								}
+							]
+						},
+						"sample": {
+							"frameSequence": "2",
+							"frameGeneration": "1",
+							"frameRevision": "0",
+							"rootPid": 123,
+							"agentPid": 456
+						}
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "explain-overlong-preview",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-agent.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"outcome": {
+					"kind": "explained",
+					"workbenchRevision": "1",
+					"reportRevision": "2",
+					"explanation": {
+						"binding": {
+							"presentationId": "33333333333333333333333333333333",
+							"generation": "44444444444444444444444444444444",
+							"hostEpoch": "55555555555555555555555555555555",
+							"hostTerminalId": "66666666666666666666666666666666"
+						},
+						"view": {
+							"agent": "codex",
+							"state": "working",
+							"authoritySource": null,
+							"message": null,
+							"session": null
+						},
+						"explanation": {
+							"agent": "codex",
+							"state": "working",
+							"manifestSource": "bundled",
+							"manifestVersion": "1",
+							"matchedRule": {
+								"id": "busy",
+								"priority": 20,
+								"region": "all",
+								"state": "working"
+							},
+							"visibleIdle": false,
+							"visibleBlocker": false,
+							"visibleWorking": true,
+							"screenDetectionSkipped": false,
+							"screenDetectionSkipReason": null,
+							"skipStateUpdate": false,
+							"skippedUpdateReason": null,
+							"fallbackReason": null,
+							"evaluatedRules": [
+								{
+									"rule": {
+										"id": "busy",
+										"priority": 20,
+										"region": "all",
+										"state": "working"
+									},
+									"matched": true,
+									"evidence": {
+										"contains": ["Thinking"],
+										"regex": [],
+										"lineRegex": [],
+										"allCount": 0,
+										"anyCount": 0,
+										"notCount": 0,
+										"regionBytes": 8,
+										"regionPreview": "😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀"
+									}
+								},
+								{
+									"rule": {
+										"id": "tie",
+										"priority": 20,
+										"region": "all",
+										"state": "working"
+									},
+									"matched": true,
+									"evidence": {
+										"contains": ["Thinking"],
+										"regex": [],
+										"lineRegex": [],
+										"allCount": 0,
+										"anyCount": 0,
+										"notCount": 0,
+										"regionBytes": 8,
+										"regionPreview": "😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀"
+									}
+								}
+							]
+						},
+						"sample": {
+							"frameSequence": "2",
+							"frameGeneration": "1",
+							"frameRevision": "0",
+							"rootPid": 123,
+							"agentPid": 456
+						}
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "explain-unowned-full-authority",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-agent.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"outcome": {
+					"kind": "explained",
+					"workbenchRevision": "1",
+					"reportRevision": "2",
+					"explanation": {
+						"binding": {
+							"presentationId": "33333333333333333333333333333333",
+							"generation": "44444444444444444444444444444444",
+							"hostEpoch": "55555555555555555555555555555555",
+							"hostTerminalId": "66666666666666666666666666666666"
+						},
+						"view": {
+							"agent": "pi",
+							"state": "working",
+							"authoritySource": "custom",
+							"message": null,
+							"session": null
+						},
+						"explanation": {
+							"agent": "pi",
+							"state": "working",
+							"manifestSource": null,
+							"manifestVersion": null,
+							"matchedRule": null,
+							"visibleIdle": false,
+							"visibleBlocker": false,
+							"visibleWorking": false,
+							"screenDetectionSkipped": true,
+							"screenDetectionSkipReason": "full-lifecycle-hook-authority",
+							"skipStateUpdate": false,
+							"skippedUpdateReason": null,
+							"fallbackReason": null,
+							"evaluatedRules": []
+						},
+						"sample": null
+					}
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "explain-skipped-with-sample",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-agent.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"outcome": {
+					"kind": "explained",
+					"workbenchRevision": "1",
+					"reportRevision": "2",
+					"explanation": {
+						"binding": {
+							"presentationId": "33333333333333333333333333333333",
+							"generation": "44444444444444444444444444444444",
+							"hostEpoch": "55555555555555555555555555555555",
+							"hostTerminalId": "66666666666666666666666666666666"
+						},
+						"view": {
+							"agent": "pi",
+							"state": "working",
+							"authoritySource": "herdr:pi",
+							"message": null,
+							"session": null
+						},
+						"explanation": {
+							"agent": "pi",
+							"state": "working",
+							"manifestSource": null,
+							"manifestVersion": null,
+							"matchedRule": null,
+							"visibleIdle": false,
+							"visibleBlocker": false,
+							"visibleWorking": false,
+							"screenDetectionSkipped": true,
+							"screenDetectionSkipReason": "full-lifecycle-hook-authority",
+							"skipStateUpdate": false,
+							"skippedUpdateReason": null,
+							"fallbackReason": null,
+							"evaluatedRules": []
+						},
+						"sample": {
+							"frameSequence": "2",
+							"frameGeneration": "1",
+							"frameRevision": "0",
+							"rootPid": 123,
+							"agentPid": 456
+						}
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "explain-no-sample",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-agent.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"outcome": {
+					"kind": "explained",
+					"workbenchRevision": "1",
+					"reportRevision": "2",
+					"explanation": {
+						"binding": {
+							"presentationId": "33333333333333333333333333333333",
+							"generation": "44444444444444444444444444444444",
+							"hostEpoch": "55555555555555555555555555555555",
+							"hostTerminalId": "66666666666666666666666666666666"
+						},
+						"view": {
+							"agent": "codex",
+							"state": "working",
+							"authoritySource": null,
+							"message": null,
+							"session": null
+						},
+						"explanation": {
+							"agent": "codex",
+							"state": "working",
+							"manifestSource": "bundled",
+							"manifestVersion": "1",
+							"matchedRule": {
+								"id": "busy",
+								"priority": 20,
+								"region": "all",
+								"state": "working"
+							},
+							"visibleIdle": false,
+							"visibleBlocker": false,
+							"visibleWorking": true,
+							"screenDetectionSkipped": false,
+							"screenDetectionSkipReason": null,
+							"skipStateUpdate": false,
+							"skippedUpdateReason": null,
+							"fallbackReason": null,
+							"evaluatedRules": [
+								{
+									"rule": {
+										"id": "busy",
+										"priority": 20,
+										"region": "all",
+										"state": "working"
+									},
+									"matched": true,
+									"evidence": {
+										"contains": ["Thinking"],
+										"regex": [],
+										"lineRegex": [],
+										"allCount": 0,
+										"anyCount": 0,
+										"notCount": 0,
+										"regionBytes": 8,
+										"regionPreview": "Thinking"
+									}
+								},
+								{
+									"rule": {
+										"id": "tie",
+										"priority": 20,
+										"region": "all",
+										"state": "working"
+									},
+									"matched": true,
+									"evidence": {
+										"contains": ["Thinking"],
+										"regex": [],
+										"lineRegex": [],
+										"allCount": 0,
+										"anyCount": 0,
+										"notCount": 0,
+										"regionBytes": 8,
+										"regionPreview": "Thinking"
+									}
+								}
+							]
+						},
+						"sample": null
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "explain-extra-field",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-agent.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"outcome": {
+					"kind": "explained",
+					"workbenchRevision": "1",
+					"reportRevision": "2",
+					"explanation": {
+						"binding": {
+							"presentationId": "33333333333333333333333333333333",
+							"generation": "44444444444444444444444444444444",
+							"hostEpoch": "55555555555555555555555555555555",
+							"hostTerminalId": "66666666666666666666666666666666"
+						},
+						"view": {
+							"agent": "codex",
+							"state": "working",
+							"authoritySource": null,
+							"message": null,
+							"session": null
+						},
+						"explanation": {
+							"agent": "codex",
+							"state": "working",
+							"manifestSource": "bundled",
+							"manifestVersion": "1",
+							"matchedRule": {
+								"id": "busy",
+								"priority": 20,
+								"region": "all",
+								"state": "working"
+							},
+							"visibleIdle": false,
+							"visibleBlocker": false,
+							"visibleWorking": true,
+							"screenDetectionSkipped": false,
+							"screenDetectionSkipReason": null,
+							"skipStateUpdate": false,
+							"skippedUpdateReason": null,
+							"fallbackReason": null,
+							"evaluatedRules": [
+								{
+									"rule": {
+										"id": "busy",
+										"priority": 20,
+										"region": "all",
+										"state": "working"
+									},
+									"matched": true,
+									"evidence": {
+										"contains": ["Thinking"],
+										"regex": [],
+										"lineRegex": [],
+										"allCount": 0,
+										"anyCount": 0,
+										"notCount": 0,
+										"regionBytes": 8,
+										"regionPreview": "Thinking"
+									}
+								},
+								{
+									"rule": {
+										"id": "tie",
+										"priority": 20,
+										"region": "all",
+										"state": "working"
+									},
+									"matched": true,
+									"evidence": {
+										"contains": ["Thinking"],
+										"regex": [],
+										"lineRegex": [],
+										"allCount": 0,
+										"anyCount": 0,
+										"notCount": 0,
+										"regionBytes": 8,
+										"regionPreview": "Thinking"
+									}
+								}
+							],
+							"remoteVersion": "2"
+						},
+						"sample": {
+							"frameSequence": "2",
+							"frameGeneration": "1",
+							"frameRevision": "0",
+							"rootPid": 123,
+							"agentPid": 456
+						}
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "explain-zero-binding",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-agent.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"outcome": {
+					"kind": "explained",
+					"workbenchRevision": "1",
+					"reportRevision": "2",
+					"explanation": {
+						"binding": {
+							"presentationId": "33333333333333333333333333333333",
+							"generation": "00000000000000000000000000000000",
+							"hostEpoch": "55555555555555555555555555555555",
+							"hostTerminalId": "66666666666666666666666666666666"
+						},
+						"view": {
+							"agent": "codex",
+							"state": "working",
+							"authoritySource": null,
+							"message": null,
+							"session": null
+						},
+						"explanation": {
+							"agent": "codex",
+							"state": "working",
+							"manifestSource": "bundled",
+							"manifestVersion": "1",
+							"matchedRule": {
+								"id": "busy",
+								"priority": 20,
+								"region": "all",
+								"state": "working"
+							},
+							"visibleIdle": false,
+							"visibleBlocker": false,
+							"visibleWorking": true,
+							"screenDetectionSkipped": false,
+							"screenDetectionSkipReason": null,
+							"skipStateUpdate": false,
+							"skippedUpdateReason": null,
+							"fallbackReason": null,
+							"evaluatedRules": [
+								{
+									"rule": {
+										"id": "busy",
+										"priority": 20,
+										"region": "all",
+										"state": "working"
+									},
+									"matched": true,
+									"evidence": {
+										"contains": ["Thinking"],
+										"regex": [],
+										"lineRegex": [],
+										"allCount": 0,
+										"anyCount": 0,
+										"notCount": 0,
+										"regionBytes": 8,
+										"regionPreview": "Thinking"
+									}
+								},
+								{
+									"rule": {
+										"id": "tie",
+										"priority": 20,
+										"region": "all",
+										"state": "working"
+									},
+									"matched": true,
+									"evidence": {
+										"contains": ["Thinking"],
+										"regex": [],
+										"lineRegex": [],
+										"allCount": 0,
+										"anyCount": 0,
+										"notCount": 0,
+										"regionBytes": 8,
+										"regionPreview": "Thinking"
+									}
+								}
+							]
+						},
+						"sample": {
+							"frameSequence": "2",
+							"frameGeneration": "1",
+							"frameRevision": "0",
+							"rootPid": 123,
+							"agentPid": 456
+						}
+					}
 				}
 			},
 			"boundary": "schema"

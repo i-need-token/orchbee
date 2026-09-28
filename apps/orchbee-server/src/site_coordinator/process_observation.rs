@@ -16,6 +16,11 @@ pub(crate) struct Selected {
     created: u64,
     pub(crate) provider: AgentReportProvider,
 }
+impl Selected {
+    pub(crate) fn pid(self) -> u32 {
+        self.pid
+    }
+}
 pub(super) struct Sample {
     target: TerminalAgentBinding,
     started: Instant,

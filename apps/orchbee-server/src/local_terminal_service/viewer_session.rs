@@ -22,7 +22,7 @@ use orchbee_client_server_protocol::{
 mod process_sampling;
 mod routing;
 #[cfg(windows)]
-pub(super) use process_sampling::PendingCleanup;
+pub(super) use process_sampling::{CapturedAgentExplanation, PendingCleanup};
 
 const MAXIMUM_SESSION_VIEWERS: usize = 8;
 

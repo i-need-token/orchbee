@@ -67,7 +67,11 @@ mod agent_journal;
 #[cfg(windows)]
 pub(crate) use agent_journal::{AgentJournal, JournalError};
 #[cfg(windows)]
+mod agent_explanation;
+#[cfg(windows)]
 mod agent_focus;
+#[cfg(windows)]
+pub(crate) use agent_explanation::agent_explain;
 #[cfg(any(target_os = "linux", windows))]
 mod agent_names;
 #[cfg(any(target_os = "linux", windows))]
@@ -2911,7 +2915,7 @@ pub(crate) fn agent_get(
 }
 
 /// `agent explain`: resolve once and read on the same admitted session.
-#[cfg(any(target_os = "linux", windows))]
+#[cfg(target_os = "linux")]
 pub(crate) fn agent_explain(
     target: &crate::invocation::AgentTarget,
 ) -> Result<(serde_json::Value, Projection), AgentQueryError> {
@@ -2919,7 +2923,7 @@ pub(crate) fn agent_explain(
 }
 
 /// Admission, optional target resolution and the read share one deadline.
-#[cfg(any(target_os = "linux", windows))]
+#[cfg(target_os = "linux")]
 fn agent_session_read(
     operation: AgentReadOperation,
     target: &crate::invocation::AgentTarget,

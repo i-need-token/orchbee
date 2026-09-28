@@ -1,7 +1,10 @@
 //! Strict bundled manifest admission and compiled priority/gate evaluation; no filesystem overrides.
 use super::{Detection, ScreenInput, regions::Region};
 use orchbee_agent_observation_protocol::AgentReportProvider;
-use orchbee_workbench_protocol::PanelAgentState;
+use orchbee_workbench_protocol::{
+    AgentDetectionEvaluation, AgentDetectionEvidence, AgentDetectionRule, AgentScreenExplanation,
+    PanelAgentState,
+};
 use regex::{Regex, RegexBuilder};
 use serde::Deserialize;
 
@@ -9,8 +12,7 @@ use serde::Deserialize;
 #[serde(deny_unknown_fields)]
 struct RawManifest {
     id: String,
-    #[serde(rename = "version")]
-    _version: Option<String>,
+    version: Option<String>,
     min_engine_version: Option<u32>,
     #[serde(rename = "updated_at")]
     _updated_at: Option<String>,
@@ -77,7 +79,8 @@ struct Gate {
     lines: Vec<Regex>,
 }
 struct Rule {
-    priority: i32,
+    metadata: AgentDetectionRule,
+    evidence: AgentDetectionEvidence,
     region: Region,
     gate: Gate,
     result: Detection,
@@ -85,6 +88,7 @@ struct Rule {
 pub(super) struct Manifest {
     pub(super) provider: AgentReportProvider,
     rules: Vec<Rule>,
+    version: Option<String>,
 }
 #[derive(Default)]
 struct Complexity {
@@ -171,6 +175,10 @@ impl Manifest {
             || raw.min_engine_version.is_some_and(|v| v > 3)
             || raw.rules.is_empty()
             || raw.rules.len() > 128
+            || raw
+                .version
+                .as_ref()
+                .is_some_and(|v| v.chars().count() > 128)
         {
             return Err("Invalid manifest identity, version or rule count".into());
         }
@@ -179,6 +187,8 @@ impl Manifest {
         let version = raw.min_engine_version;
         for raw in raw.rules {
             if raw.id.trim().is_empty()
+                || raw.id.chars().count() > 128
+                || raw.region.len() > 128
                 || (raw.skip_state_update
                     && (raw.state != Some(PanelAgentState::Unknown)
                         || raw.visible_idle
@@ -199,6 +209,24 @@ impl Manifest {
                 visible_blocker: raw.visible_blocker && state == PanelAgentState::Blocked,
                 visible_working: raw.visible_working && state == PanelAgentState::Working,
             };
+            let metadata = AgentDetectionRule {
+                id: raw.id.clone(),
+                priority: raw.priority,
+                region: raw.region.clone(),
+                state,
+            };
+            let gate_count =
+                |n: usize| u16::try_from(n).map_err(|_| "Gate count exceeds bound".to_owned());
+            let evidence = AgentDetectionEvidence {
+                contains: raw.contains.clone(),
+                regex: raw.regex.clone(),
+                line_regex: raw.line_regex.clone(),
+                all_count: gate_count(raw.all.len())?,
+                any_count: gate_count(raw.any.len())?,
+                not_count: gate_count(raw.not_gate.len())?,
+                region_bytes: 0,
+                region_preview: String::new(),
+            };
             let gate = Gate::compile(
                 RawGate {
                     all: raw.all,
@@ -213,25 +241,73 @@ impl Manifest {
                 &mut count,
             )?;
             rules.push(Rule {
-                priority: raw.priority,
+                metadata,
+                evidence,
                 region,
                 gate,
                 result,
             });
         }
-        Ok(Self { provider, rules })
+        Ok(Self {
+            provider,
+            rules,
+            version: raw.version,
+        })
     }
     pub(super) fn detect(&self, input: ScreenInput<'_>) -> Detection {
+        self.evaluate(input, |_, _, _| {}).0
+    }
+    fn evaluate(
+        &self,
+        input: ScreenInput<'_>,
+        mut visit: impl FnMut(&Rule, &str, bool),
+    ) -> (Detection, Option<&Rule>) {
         let mut winner: Option<&Rule> = None;
         for rule in &self.rules {
             let text = rule.region.select(input);
-            if winner.is_none_or(|w| rule.priority > w.priority)
-                && rule.gate.matches(text, &text.to_lowercase())
-            {
+            let matched = rule.gate.matches(text, &text.to_lowercase());
+            visit(rule, text, matched);
+            if matched && winner.is_none_or(|w| rule.metadata.priority > w.metadata.priority) {
                 winner = Some(rule);
             }
         }
-        winner.map_or_else(|| Detection::fallback(true), |r| r.result)
+        (
+            winner.map_or_else(|| Detection::fallback(true), |r| r.result),
+            winner,
+        )
+    }
+    pub(super) fn explain(&self, input: ScreenInput<'_>) -> AgentScreenExplanation {
+        let mut evaluated_rules = Vec::with_capacity(self.rules.len());
+        let (result, winner) = self.evaluate(input, |rule, text, matched| {
+            let mut evidence = rule.evidence.clone();
+            evidence.region_bytes = u32::try_from(text.len()).expect("screen input is bounded");
+            evidence.region_preview = text.chars().take(240).collect();
+            if text.chars().count() > 240 {
+                evidence.region_preview.push_str("...");
+            }
+            evaluated_rules.push(AgentDetectionEvaluation {
+                rule: rule.metadata.clone(),
+                matched,
+                evidence,
+            });
+        });
+        let mut explanation = super::fallback_explanation(self.provider);
+        explanation.manifest_source = Some("bundled".into());
+        explanation.manifest_version = self.version.clone();
+        explanation.state = result.state;
+        explanation.matched_rule = winner.map(|r| r.metadata.clone());
+        explanation.visible_idle = result.visible_idle;
+        explanation.visible_blocker = result.visible_blocker;
+        explanation.visible_working = result.visible_working;
+        explanation.skip_state_update = result.skip;
+        explanation.skipped_update_reason = winner
+            .filter(|_| result.skip)
+            .map(|r| format!("matched-rule:{}", r.metadata.id));
+        if winner.is_some() {
+            explanation.fallback_reason = None;
+        }
+        explanation.evaluated_rules = evaluated_rules;
+        explanation
     }
 }
 pub(super) fn bundled() -> Result<Vec<Manifest>, String> {

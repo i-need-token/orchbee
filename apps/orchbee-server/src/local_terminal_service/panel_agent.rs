@@ -3,8 +3,17 @@ use super::LocalTerminalService;
 use orchbee_workbench_protocol::{
     PanelAgentFailure, PanelAgentOutcome, PanelAgentRequest, PanelAgentResult, ProtocolVersion,
 };
+#[cfg(windows)]
+mod explanation;
 impl LocalTerminalService {
     pub(crate) fn execute_panel_agent(&self, request: PanelAgentRequest) -> PanelAgentResult {
+        #[cfg(windows)]
+        if matches!(
+            request.action,
+            orchbee_workbench_protocol::PanelAgentAction::Explain { .. }
+        ) {
+            return self.explain_panel_agent(&request);
+        }
         let unavailable = PanelAgentResult {
             protocol_version: ProtocolVersion,
             request_id: request.request_id.clone(),

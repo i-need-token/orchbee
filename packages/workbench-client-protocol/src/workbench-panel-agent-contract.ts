@@ -69,6 +69,7 @@ export const TerminalAgentBindingSchema = z
 	})
 	.readonly();
 export const PanelAgentActionSchema = z.discriminatedUnion('kind', [
+	z.strictObject({ kind: z.literal('explain'), binding: TerminalAgentBindingSchema }).readonly(),
 	z
 		.strictObject({
 			kind: z.literal('states'),
@@ -210,7 +211,174 @@ const semanticObservation = z
 		);
 	})
 	.readonly();
+const scalarBound = (maximum: number) => z.string().refine((s) => Array.from(s).length <= maximum);
+const detectionRule = z
+	.strictObject({
+		id: scalarBound(128).refine((s) => trim(s).length > 0),
+		priority: z.int().min(-2147483648).max(2147483647),
+		region: label.refine((s) => new TextEncoder().encode(s).byteLength <= 128),
+		state: PanelAgentStateSchema,
+	})
+	.readonly();
+const detectionEvidence = z
+	.strictObject({
+		contains: z.array(scalarBound(512)).readonly(),
+		regex: z.array(scalarBound(512)).readonly(),
+		lineRegex: z.array(scalarBound(512)).readonly(),
+		allCount: z.int().min(0).max(512),
+		anyCount: z.int().min(0).max(512),
+		notCount: z.int().min(0).max(512),
+		regionBytes: z.int().min(0).max(65536),
+		regionPreview: scalarBound(243),
+	})
+	.refine((e) => e.contains.length + e.regex.length + e.lineRegex.length <= 32)
+	.readonly();
+const sameRule = (
+	a: z.infer<typeof detectionRule> | null,
+	b: z.infer<typeof detectionRule> | null,
+) =>
+	a === null || b === null
+		? a === b
+		: a.id === b.id && a.priority === b.priority && a.region === b.region && a.state === b.state;
+const screenExplanation = z
+	.strictObject({
+		agent: z.enum([
+			'pi',
+			'claude',
+			'codex',
+			'gemini',
+			'cursor',
+			'devin',
+			'agy',
+			'cline',
+			'omp',
+			'mastracode',
+			'opencode',
+			'copilot',
+			'kimi',
+			'kiro',
+			'droid',
+			'amp',
+			'grok',
+			'hermes',
+			'kilo',
+			'qodercli',
+			'qwen',
+			'letta',
+			'maki',
+			'muse',
+		]),
+		state: PanelAgentStateSchema,
+		manifestSource: z.string().nullable(),
+		manifestVersion: scalarBound(128).nullable(),
+		matchedRule: detectionRule.nullable(),
+		visibleIdle: z.boolean(),
+		visibleBlocker: z.boolean(),
+		visibleWorking: z.boolean(),
+		screenDetectionSkipped: z.boolean(),
+		screenDetectionSkipReason: z.string().nullable(),
+		skipStateUpdate: z.boolean(),
+		skippedUpdateReason: z.string().nullable(),
+		fallbackReason: z.string().nullable(),
+		evaluatedRules: z
+			.array(
+				z
+					.strictObject({ rule: detectionRule, matched: z.boolean(), evidence: detectionEvidence })
+					.readonly(),
+			)
+			.max(128)
+			.readonly(),
+	})
+	.refine((e) => {
+		const noFlags = !e.visibleIdle && !e.visibleBlocker && !e.visibleWorking;
+		if (e.screenDetectionSkipped) {
+			return (
+				e.screenDetectionSkipReason === 'full-lifecycle-hook-authority' &&
+				e.manifestSource === null &&
+				e.manifestVersion === null &&
+				e.matchedRule === null &&
+				e.evaluatedRules.length === 0 &&
+				noFlags &&
+				!e.skipStateUpdate &&
+				e.skippedUpdateReason === null &&
+				e.fallbackReason === null
+			);
+		}
+		let winner: z.infer<typeof detectionRule> | null = null;
+		for (const evaluated of e.evaluatedRules) {
+			if (evaluated.matched && (winner === null || evaluated.rule.priority > winner.priority))
+				winner = evaluated.rule;
+		}
+		if (
+			e.screenDetectionSkipReason !== null ||
+			!(
+				e.manifestSource === 'bundled' ||
+				(e.manifestSource === null && e.manifestVersion === null && e.evaluatedRules.length === 0)
+			) ||
+			!sameRule(e.matchedRule, winner) ||
+			e.state !== (winner?.state ?? 'idle') ||
+			(e.visibleIdle && e.state !== 'idle') ||
+			(e.visibleBlocker && e.state !== 'blocked') ||
+			(e.visibleWorking && e.state !== 'working')
+		)
+			return false;
+		if (winner === null)
+			return (
+				e.fallbackReason === 'default-known-agent-idle-fallback' &&
+				noFlags &&
+				!e.skipStateUpdate &&
+				e.skippedUpdateReason === null
+			);
+		return (
+			e.fallbackReason === null &&
+			(e.skipStateUpdate
+				? e.state === 'unknown' && noFlags && e.skippedUpdateReason === `matched-rule:${winner.id}`
+				: e.skippedUpdateReason === null)
+		);
+	})
+	.readonly();
+const fullLifecyclePairs: ReadonlySet<string> = new Set([
+	'herdr:pi/pi',
+	'herdr:omp/omp',
+	'herdr:mastracode/mastracode',
+	'herdr:opencode/opencode',
+	'herdr:kilo/kilo',
+	'herdr:kimi/kimi',
+]);
+const terminalExplanation = z
+	.strictObject({
+		binding: TerminalAgentBindingSchema,
+		view: PanelAgentViewSchema,
+		explanation: screenExplanation,
+		sample: z
+			.strictObject({
+				frameSequence: WorkbenchRevisionSchema.refine((s) => s !== '0'),
+				frameGeneration: WorkbenchRevisionSchema.refine((s) => s !== '0'),
+				frameRevision: WorkbenchRevisionSchema,
+				rootPid: z.int().min(1).max(4294967295),
+				agentPid: z.int().min(1).max(4294967295).nullable(),
+			})
+			.readonly()
+			.nullable(),
+	})
+	.refine((t) =>
+		t.explanation.screenDetectionSkipped
+			? t.sample === null &&
+				t.view.agent === t.explanation.agent &&
+				t.view.state === t.explanation.state &&
+				fullLifecyclePairs.has(`${t.view.authoritySource}/${t.explanation.agent}`)
+			: t.sample !== null,
+	)
+	.readonly();
 export const PanelAgentOutcomeSchema = z.discriminatedUnion('kind', [
+	z
+		.strictObject({
+			kind: z.literal('explained'),
+			workbenchRevision: WorkbenchRevisionSchema,
+			reportRevision: WorkbenchRevisionSchema,
+			explanation: terminalExplanation,
+		})
+		.readonly(),
 	z
 		.strictObject({
 			kind: z.literal('states'),

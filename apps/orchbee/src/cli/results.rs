@@ -2,11 +2,12 @@
 //! model. Everything here is total over a snapshot the transport already
 //! verified; no fabricated fields appear where no authoritative source exists.
 
+#[cfg(any(not(windows), test))]
+use orchbee_agent_observation_protocol::AgentGetOutcome;
 use std::collections::HashMap;
 
 use orchbee_agent_observation_protocol::{
-    AgentExplainOutcome, AgentGetOutcome, AgentListOutcome, AgentSafeInteger, AgentSessionDetail,
-    ObapRequestId,
+    AgentExplainOutcome, AgentListOutcome, AgentSafeInteger, AgentSessionDetail, ObapRequestId,
 };
 use orchbee_client_server_protocol::{LaunchProfileProvenance, TerminalLaunchFact};
 use orchbee_terminal_protocol::MAXIMUM_FRAME_ROWS;
@@ -1062,6 +1063,7 @@ pub(crate) enum Projection {
     AgentClientList(Box<AgentClientListDoc>),
     AgentChanges(orchbee_agent_observation_protocol::AgentChangesOutcome),
     /// The typed `found` outcome, verbatim from the wire.
+    #[cfg(any(not(windows), test))]
     AgentGet(AgentGetOutcome),
     AgentInspection(Box<AgentInspectionDoc>),
     #[cfg(windows)]
@@ -1074,6 +1076,8 @@ pub(crate) enum Projection {
     },
     /// The typed `found` outcome carrying session plus explanation.
     AgentExplain(AgentExplainOutcome),
+    #[cfg(windows)]
+    AgentTerminalExplanation(Box<orchbee_workbench_protocol::TerminalAgentExplanation>),
     /// The `agent wait` matched answer: the satisfying session detail
     /// verbatim plus the requested-order matched conditions and the
     /// effective wait echo.
@@ -1297,6 +1301,7 @@ impl Projection {
                 "items":doc.items.iter().map(|(summary,client)| { let mut row=json!(summary);row["client"]=client.document();row }).collect::<Vec<_>>() })
             }
             Self::AgentChanges(outcome) => json!(outcome),
+            #[cfg(any(not(windows), test))]
             Self::AgentGet(outcome) => json!(outcome),
             #[cfg(windows)]
             Self::AgentTerminalInspection {
@@ -1327,6 +1332,10 @@ impl Projection {
                 result
             }
             Self::AgentExplain(outcome) => json!(outcome),
+            #[cfg(windows)]
+            Self::AgentTerminalExplanation(terminal) => {
+                json!({"kind":"terminal-found","terminal":terminal})
+            }
             Self::AgentWait(doc) => {
                 // The wait echo carries every effective parameter the poll
                 // ran under — the condition list in requested order, the

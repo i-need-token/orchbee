@@ -17,7 +17,9 @@ use orchbee_workbench_protocol::{
 use std::{collections::BTreeMap, time::Instant};
 const MAXIMUM_RESOURCES: usize = 4096;
 const MAXIMUM_BYTES: usize = 32 * 1024 * 1024;
+mod explanation;
 mod managed_clear;
+pub use explanation::TerminalAgentExplainContext;
 mod observation;
 mod semantic;
 pub use managed_clear::PreparedManagedAgentClear;
@@ -299,6 +301,8 @@ impl WorkbenchAuthority {
                 .map_err(|_| Failure::ResultTooLarge)
         };
         match &request.action {
+            // Host diagnostics are composed by LocalTerminalService, never by the canonical owner.
+            Action::Explain { .. } => Err(Failure::Unavailable),
             Action::States { presentation_ids } => {
                 let outcome = self.agent_states(presentation_ids, &membership, &physical)?;
                 admit_result(&outcome)?;

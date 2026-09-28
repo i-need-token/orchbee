@@ -477,6 +477,13 @@ physical `observe` / `observed` reads. The shared corpus checks required nullabl
 Host identities and semantic change shapes; language bindings additionally enforce contiguous
 sequence/head/current-state consistency. Exact cursor coverage belongs to request/result correlation.
 
+Physical `explain` uses the same exact binding and read permission. Its `explained` result keeps
+current report view separate from raw screen-rule prediction, with required nullable manifest,
+winner, skip/fallback and capture fields. Rust/TypeScript enforce first-highest-priority selection,
+state/flag coherence, evidence bounds and full-lifecycle skip/source consistency. Unknown providers
+refuse; known providers without manifests use explicit idle fallback. The existing 512 KiB result
+limit applies. This unpublished cohort changes together; canonical OBAP explanations remain separate.
+
 Compact physical `states` reads accept 0–64 unique presentation IDs and return rows in request order,
 with Workbench/report revisions and a required nullable full binding/sequence/Agent/state snapshot.
 Missing membership refuses the batch; no current physical observation yields null. Empty reads fence

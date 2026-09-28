@@ -34,7 +34,7 @@ refusals exit 3, unavailability 4, invalid request 5, revision/deadline/result b
 failure exits 1 unless the submitted result is already unknown.
 
 `orchbee.panel.metadata` v1 contains request/Site/Panel IDs, observation (`server` with the exact
-reply, or `unknown` with a closed reason), `interrupted` and `cleanupFailed`. Catalog v88 includes
+reply, or `unknown` with a closed reason), `interrupted` and `cleanupFailed`. Catalog v89 includes
 90 schemas. OBWP 33/34 carries `workbench.panel-metadata` and its result; request limit is 16 KiB,
 result limit 512 KiB. Server reads use read permission and reports navigation permission under
 the Site gate. Reads expose source records for up to four ordered unique Panels. Metadata and
@@ -82,7 +82,7 @@ Windows Panel list/get emit v9, current emits v6, and Agent Get emits v11 (v12 w
 Every Panel row and non-null Agent terminal requires metadata and reportedAgent. Earlier metadata
 versions retain null guard context and reject reportedAgent; still older versions reject metadata
 as well. Their closed previous shapes remain accepted. Localized text escapes effective metadata,
-report details, messages and external references. Catalog v88 contains 90 schemas and 104 command
+report details, messages and external references. Catalog v89 contains 90 schemas and 104 command
 paths; this query change adds no command or schema identity.
 
 Admission caps combined encoded metadata and report rows at the existing 8 MiB CLI output budget.

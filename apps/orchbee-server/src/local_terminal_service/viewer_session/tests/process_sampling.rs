@@ -1,6 +1,66 @@
 use super::fixture::{Effect, Fixture};
 use std::{sync::atomic::Ordering, time::Instant};
 #[test]
+fn explanation_process_refusal_releases_viewer_and_uncertain_detach_keeps_ownership() {
+    let fixture = Fixture::new();
+    let target = fixture
+        .service
+        .coordinator
+        .lock()
+        .unwrap()
+        .process_observation_targets()
+        .unwrap()
+        .remove(0);
+    let stop = std::sync::atomic::AtomicBool::new(true);
+    let detector = crate::agent_screen::ScreenDetector::bundled().unwrap();
+    let provider = orchbee_agent_observation_protocol::AgentReportProvider::Codex;
+    let (captured, pending) = fixture
+        .service
+        .sample_agent_explanation(&target, &stop, &detector, provider);
+    assert!(captured.is_none() && pending.is_none());
+    assert!(fixture.barrier().unwrap().is_empty());
+    stop.store(false, Ordering::Release);
+    let (captured, pending) = fixture
+        .service
+        .sample_agent_explanation(&target, &stop, &detector, provider);
+    assert!(
+        captured.is_none() && pending.is_none(),
+        "failed process read cannot produce a guessed diagnostic"
+    );
+    let effects = fixture.barrier().unwrap();
+    let [
+        Effect::Attach(a, _),
+        Effect::ProcessInfo(b),
+        Effect::Detach(c),
+    ] = effects.as_slice()
+    else {
+        panic!("{effects:?}")
+    };
+    assert_eq!(a, b);
+    assert_eq!(b, c);
+    fixture.effects.lock().unwrap().clear();
+    fixture.detach_refusals.store(1, Ordering::Release);
+    let (captured, pending) = fixture
+        .service
+        .sample_agent_explanation(&target, &stop, &detector, provider);
+    assert!(captured.is_none());
+    let pending = pending.expect("uncertain detach transfers the exact cleanup obligation");
+    assert!(pending.settle(&fixture.service));
+    let effects = fixture.barrier().unwrap();
+    let [
+        Effect::Attach(a, _),
+        Effect::ProcessInfo(b),
+        Effect::DetachRefused(c),
+        Effect::Detach(d),
+    ] = effects.as_slice()
+    else {
+        panic!("{effects:?}")
+    };
+    assert_eq!(a, b);
+    assert_eq!(b, c);
+    assert_eq!(c, d);
+}
+#[test]
 fn periodic_turns_use_one_process_only_viewer_and_release_before_next_attach() {
     let fixture = Fixture::new();
     let mut cursor = None;

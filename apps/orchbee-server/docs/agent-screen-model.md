@@ -1,6 +1,6 @@
 # Agent screen detection model
 
-The Server owns fallback screen interpretation separately from explicit Agent reports and process identity. A successful bounded terminal sample can describe working, idle or blocked UI; it cannot prove which provider owns a process, authenticate it or create a canonical Agent Session. The reference is Herdr `e0507237ad8d41f60aece10d00ef29ce2339ca34`, its 22 bundled detection manifests and `pane/agent_detection.rs`. The Windows periodic sampler compiles the deterministic engine once before startup and publishes admitted screen fallback. Overrides, reload, updates and explain commands remain integration obligations.
+The Server owns fallback screen interpretation separately from explicit Agent reports and process identity. A successful bounded terminal sample can describe working, idle or blocked UI; it cannot prove which provider owns a process, authenticate it or create a canonical Agent Session. The reference is Herdr `e0507237ad8d41f60aece10d00ef29ce2339ca34`, its 22 bundled detection manifests and `pane/agent_detection.rs`. The Windows periodic sampler compiles the deterministic engine once before startup and publishes admitted screen fallback. Physical explain consumes the same engine through the bounded observer queue. Overrides, reload and updates remain integration obligations.
 
 ## Inputs and rule ownership
 
@@ -10,16 +10,16 @@ Bundled TOML files are retained under `resources/agent-detection` with their Apa
 
 ## Deterministic decisions
 
-| Input or match | Result |
-| --- | --- |
-| No known provider | Unknown, no visible evidence |
-| Multiple matching rules | Highest priority; first declared rule wins equal priority |
-| Contains | All needles, Unicode lowercase comparison |
-| Regex / line regex | All patterns; case-sensitive unless the expression changes flags; line patterns may match different lines |
-| Nested all / any / not | All children / at least one child if present / no child matches |
-| No matching rule for known provider | Idle without visible idle evidence |
-| Transcript/history viewer rule | Skip publication, preserve existing fallback and clear pending idle confirmation |
-| Visibility flag inconsistent with state | Flag is false in the derived result |
+| Input or match                          | Result                                                                                                    |
+| --------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| No known provider                       | Unknown, no visible evidence                                                                              |
+| Multiple matching rules                 | Highest priority; first declared rule wins equal priority                                                 |
+| Contains                                | All needles, Unicode lowercase comparison                                                                 |
+| Regex / line regex                      | All patterns; case-sensitive unless the expression changes flags; line patterns may match different lines |
+| Nested all / any / not                  | All children / at least one child if present / no child matches                                           |
+| No matching rule for known provider     | Idle without visible idle evidence                                                                        |
+| Transcript/history viewer rule          | Skip publication, preserve existing fallback and clear pending idle confirmation                          |
+| Visibility flag inconsistent with state | Flag is false in the derived result                                                                       |
 
 Regions follow the reference's live prompt, response markers, prompt boxes, top/bottom nonempty lines and separate OSC fields. Line boundaries retain correct UTF-8 offsets for LF and CRLF, including blank lines and a final unterminated line; no byte offset may split a Unicode character. All matching is pure and does not access files, processes, clocks or mutable global state. Compiled rules may be retained by the sampling owner and reused.
 
@@ -34,5 +34,29 @@ The coordinator retains screen stability and a three-second startup grace per ph
 Working-to-plain-idle transitions hold for three further confirmations or 700 ms; explicit visible idle/blockers, provider change or exit clear that hold. Stable visible blockers refresh at 800 ms so newer weak reports can be challenged without publishing every sampling tick. Startup grace and sampling cadence are adapter responsibilities. Screen and process sampling must retain the existing required-completion and uncertain-viewer-cleanup ownership. No controller/input/focus effect is admitted.
 
 ## Evidence and delivery
+
+Physical `agent explain` is a read, owned by the same detector and temporary-viewer lifecycle.
+An exact binding and current Workbench/report context are prepared under the Worker/Site fences.
+Live full-lifecycle authority produces an explicit screen-skipped explanation without reading Host
+content. Otherwise the effective known provider, or the detected provider behind a custom label,
+selects the rules. A fresh frame/row/OSC capture is bracketed by stable complete process samples;
+the same binding and report context must still hold before publication. A changed context refuses
+without retry. Raw rule prediction is distinct from the effective, stabilized reported state.
+
+The process-observer thread owns at most one executing and one queued diagnostic request, together
+with its existing sole pending viewer cleanup. CLI cancellation ends the caller wait; it is not a wire cancellation request. The Server gives
+each diagnostic one four-second queue/read budget; timeout and Site shutdown stop new work, while
+admitted Required exchanges still settle. Unconfirmed Detach keeps ownership and blocks
+new attachments. Queued expired work cannot attach. Diagnostics never send input, acquire control,
+change Client focus or publish a new Agent state. Periodic observations keep their existing owner.
+
+Explain exposes the actual manifest source/version, every evaluated rule's identifier, priority,
+region, state, match and top-level matcher evidence, gate counts and region byte count. Region
+previews take 240 Unicode scalars and append `...` when longer. First-declared highest-priority
+matching rule wins; fallback and skip reasons describe the same deterministic evaluation. The
+existing input/manifest/complexity limits and 512 KiB PanelAgent result bound apply; over-limit
+results refuse whole. Rule maintenance remains an integration obligation, not invented update
+metadata. Pure rule witnesses, exact-context refusals, queue cancellation/cleanup traces and CLI
+transport/schema checks precede final Windows Host/provider acceptance.
 
 Rule, region, bounds, priority and malformed-manifest tests exercise the engine before transport integration. Pinned-reference cases and differential evaluation must cover every bundled provider, nested gates, transcript skip and OSC precedence; a passing static engine does not close the live CLI/TUI requirement. Later Host acceptance must prove real Windows screen changes and report arbitration without user query effects. Source/cohort revert is rollback; no durable state or wire migration is involved. The final full gate remains deferred until all parity implementation is complete.

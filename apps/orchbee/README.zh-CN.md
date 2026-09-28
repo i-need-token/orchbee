@@ -64,6 +64,14 @@ Client Session 上等待状态或新鲜度；Windows 跟随保留变更，默认
 `doctor [--provider <id>]... [--asset-root <path>]...`，一个离线有界文件系统
 诊断，仅凭本地事实解释 Agent 观察为何可能无法到达（不执行 provider 命令、不 connect socket、
 不做任何写入）。
+Windows `agent explain` 也会将名称和 Panel 解析为精确的物理终端绑定。
+规范会话保留 `orchbee.agent.explain` v1；物理终端使用 v2，分别返回有效上报视图与一次新鲜的
+屏幕规则评估。结果包含清单来源/版本、同优先级首条胜出规则、所有规则匹配及有界区域证据。
+生效的完整生命周期权威直接返回明确的屏幕跳过结果，不读取 Host。一次准入与 5 秒 CLI 总预算
+覆盖解析和读取；Server 队列/读取预算为 4 秒。绑定或上报上下文变化时拒绝，不重试。
+不发送输入、申请控制器或改变焦点。覆盖/重载/更新维护仍未补齐。
+参见[屏幕模型](../orchbee-server/docs/agent-screen-model.zh-CN.md)。
+
 作用于运行中 Site 的修改命令为 `project create`/`rename`、
 `workspace create`/`rename`/`accept-directory`/`close`、`tab create`/`rename`/`move`/`close`、
 `panel split`/`move`/`close` 与 `launch-profile create`/`delete`——

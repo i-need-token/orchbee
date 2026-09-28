@@ -10,7 +10,12 @@ use orchbee_agent_observation_protocol::{
 };
 use serde::{Deserialize, Deserializer, Serialize};
 use std::collections::BTreeSet;
+mod explanation;
 mod observation;
+pub use explanation::{
+    AgentDetectionEvaluation, AgentDetectionEvidence, AgentDetectionRule, AgentDetectionSample,
+    AgentScreenExplanation, TerminalAgentExplanation,
+};
 mod state_snapshot;
 pub use observation::{
     MAXIMUM_TERMINAL_AGENT_CHANGES, TerminalAgentChange, TerminalAgentObservation,
@@ -107,6 +112,9 @@ impl PanelAgentReport {
     deny_unknown_fields
 )]
 pub enum PanelAgentAction {
+    Explain {
+        binding: orchbee_agent_observation_protocol::AgentLaunchBinding,
+    },
     States {
         presentation_ids: Vec<TerminalPresentationId>,
     },
@@ -145,7 +153,7 @@ impl PanelAgentRequest {
                     Err(ContractError::InvalidDocument)
                 }
             }
-            PanelAgentAction::Observe { binding, .. } => {
+            PanelAgentAction::Observe { binding, .. } | PanelAgentAction::Explain { binding } => {
                 if orchbee_agent_observation_protocol::AgentHostEpoch::parse(
                     binding.generation.as_str(),
                 )
@@ -255,6 +263,11 @@ pub enum PanelAgentFailure {
     deny_unknown_fields
 )]
 pub enum PanelAgentOutcome {
+    Explained {
+        workbench_revision: WorkbenchRevision,
+        report_revision: WorkbenchRevision,
+        explanation: Box<TerminalAgentExplanation>,
+    },
     States {
         workbench_revision: WorkbenchRevision,
         report_revision: WorkbenchRevision,
@@ -294,6 +307,7 @@ pub struct PanelAgentResult {
 impl PanelAgentResult {
     pub fn validate(&self) -> Result<(), ContractError> {
         let valid = match &self.outcome {
+            PanelAgentOutcome::Explained { explanation, .. } => explanation.valid(),
             PanelAgentOutcome::States { presentations, .. } => {
                 presentations.len() <= MAXIMUM_TERMINAL_AGENT_STATE_ROWS
                     && presentations
@@ -335,6 +349,10 @@ impl PanelAgentResult {
             return false;
         }
         match (&request.action, &self.outcome) {
+            (
+                PanelAgentAction::Explain { binding },
+                PanelAgentOutcome::Explained { explanation, .. },
+            ) => &explanation.binding == binding,
             (
                 PanelAgentAction::States { presentation_ids },
                 PanelAgentOutcome::States { presentations, .. },

@@ -12,6 +12,113 @@ fn input(screen: &str) -> ScreenInput<'_> {
 fn one(rules: &str) -> Manifest {
     Manifest::parse(Provider::Codex, &format!("id='codex'\n{rules}")).unwrap()
 }
+
+#[test]
+fn explanations_evaluate_all_rules_with_original_evidence_and_first_highest_priority() {
+    let manifest = one(r#"
+version = "2026.09.28.1"
+[[rules]]
+id = "first"
+priority = 10
+state = "working"
+contains = ["Working"]
+all = [{ contains = ["中文"] }]
+[[rules]]
+id = "equal"
+priority = 10
+state = "blocked"
+regex = ["Working"]
+[[rules]]
+id = "lower"
+priority = 1
+state = "idle"
+line_regex = ["^Working"]
+[[rules]]
+id = "absent"
+priority = 100
+state = "idle"
+region = "osc_title"
+contains = ["finished"]
+"#);
+    let screen = format!("Working 中文 {}", "界".repeat(300));
+    let explanation = manifest.explain(input(&screen));
+    explanation.validate().unwrap();
+    assert_eq!(
+        explanation.manifest_version.as_deref(),
+        Some("2026.09.28.1")
+    );
+    assert_eq!(explanation.matched_rule.as_ref().unwrap().id, "first");
+    assert_eq!(
+        explanation
+            .evaluated_rules
+            .iter()
+            .map(|r| r.matched)
+            .collect::<Vec<_>>(),
+        [true, true, true, false]
+    );
+    let evidence = &explanation.evaluated_rules[0].evidence;
+    assert_eq!(evidence.contains, ["Working"]);
+    assert_eq!(evidence.all_count, 1);
+    assert_eq!(evidence.region_bytes as usize, screen.len());
+    assert_eq!(evidence.region_preview.chars().count(), 243);
+    assert!(evidence.region_preview.ends_with("..."));
+    assert_eq!(explanation.evaluated_rules[3].evidence.region_bytes, 0);
+    let mut invalid = explanation.clone();
+    invalid.matched_rule = Some(invalid.evaluated_rules[1].rule.clone());
+    assert!(
+        invalid.validate().is_err(),
+        "equal-priority later rule cannot claim victory"
+    );
+}
+
+#[test]
+fn explain_and_fallback_detection_agree_for_every_provider_and_bounded_input() {
+    let engine = ScreenDetector::bundled().unwrap();
+    for provider in Provider::ALL {
+        for screen in [
+            "",
+            "Working...",
+            "Action Required",
+            "Thinking",
+            "> prompt",
+            "中文 ✦ 完成",
+            "Press Enter",
+            "tool execution",
+        ] {
+            for title in ["", "Working...", "⠋"] {
+                let input = ScreenInput {
+                    screen,
+                    title,
+                    progress: "4;3;0",
+                };
+                let result = engine.detect(Some(provider), input).unwrap();
+                let explanation = engine.explain(provider, input).unwrap();
+                assert_eq!(
+                    (
+                        explanation.state,
+                        explanation.skip_state_update,
+                        explanation.visible_idle,
+                        explanation.visible_blocker,
+                        explanation.visible_working
+                    ),
+                    (
+                        result.state,
+                        result.skip,
+                        result.visible_idle,
+                        result.visible_blocker,
+                        result.visible_working
+                    ),
+                    "{provider:?}"
+                );
+            }
+        }
+    }
+    assert!(
+        engine
+            .explain(Provider::Pi, input(&"x".repeat(64 * 1024 + 1)))
+            .is_err()
+    );
+}
 #[test]
 fn all_bundled_manifests_compile_and_provider_absence_cannot_infer_identity() {
     let engine = ScreenDetector::bundled().unwrap();

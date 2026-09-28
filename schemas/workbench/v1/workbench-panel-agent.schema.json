@@ -308,6 +308,19 @@
 						}
 					},
 					"required": ["kind", "presentationIds"]
+				},
+				{
+					"type": "object",
+					"required": ["kind", "binding"],
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "explain"
+						},
+						"binding": {
+							"$ref": "#/$defs/terminalBinding"
+						}
+					}
 				}
 			]
 		},
@@ -559,6 +572,25 @@
 						}
 					},
 					"required": ["kind", "workbenchRevision", "reportRevision", "presentations"]
+				},
+				{
+					"type": "object",
+					"required": ["kind", "workbenchRevision", "reportRevision", "explanation"],
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "explained"
+						},
+						"workbenchRevision": {
+							"$ref": "#/$defs/revision"
+						},
+						"reportRevision": {
+							"$ref": "#/$defs/revision"
+						},
+						"explanation": {
+							"$ref": "#/$defs/terminalExplanation"
+						}
+					}
 				}
 			]
 		},
@@ -725,6 +757,438 @@
 				}
 			},
 			"required": ["presentationId", "snapshot"]
+		},
+		"screenRule": {
+			"type": "object",
+			"required": ["id", "priority", "region", "state"],
+			"additionalProperties": false,
+			"properties": {
+				"id": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 128
+				},
+				"priority": {
+					"type": "integer",
+					"minimum": -2147483648,
+					"maximum": 2147483647
+				},
+				"region": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 128
+				},
+				"state": {
+					"$ref": "#/$defs/state"
+				}
+			}
+		},
+		"screenEvidence": {
+			"type": "object",
+			"required": [
+				"contains",
+				"regex",
+				"lineRegex",
+				"allCount",
+				"anyCount",
+				"notCount",
+				"regionBytes",
+				"regionPreview"
+			],
+			"additionalProperties": false,
+			"properties": {
+				"contains": {
+					"type": "array",
+					"maxItems": 32,
+					"items": {
+						"type": "string",
+						"maxLength": 512
+					}
+				},
+				"regex": {
+					"type": "array",
+					"maxItems": 32,
+					"items": {
+						"type": "string",
+						"maxLength": 512
+					}
+				},
+				"lineRegex": {
+					"type": "array",
+					"maxItems": 32,
+					"items": {
+						"type": "string",
+						"maxLength": 512
+					}
+				},
+				"allCount": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 512
+				},
+				"anyCount": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 512
+				},
+				"notCount": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 512
+				},
+				"regionBytes": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 65536
+				},
+				"regionPreview": {
+					"type": "string",
+					"maxLength": 243
+				}
+			}
+		},
+		"screenExplanation": {
+			"type": "object",
+			"required": [
+				"agent",
+				"state",
+				"manifestSource",
+				"manifestVersion",
+				"matchedRule",
+				"visibleIdle",
+				"visibleBlocker",
+				"visibleWorking",
+				"screenDetectionSkipped",
+				"screenDetectionSkipReason",
+				"skipStateUpdate",
+				"skippedUpdateReason",
+				"fallbackReason",
+				"evaluatedRules"
+			],
+			"additionalProperties": false,
+			"properties": {
+				"agent": {
+					"enum": [
+						"pi",
+						"claude",
+						"codex",
+						"gemini",
+						"cursor",
+						"devin",
+						"agy",
+						"cline",
+						"omp",
+						"mastracode",
+						"opencode",
+						"copilot",
+						"kimi",
+						"kiro",
+						"droid",
+						"amp",
+						"grok",
+						"hermes",
+						"kilo",
+						"qodercli",
+						"qwen",
+						"letta",
+						"maki",
+						"muse"
+					]
+				},
+				"state": {
+					"$ref": "#/$defs/state"
+				},
+				"manifestSource": {
+					"enum": ["bundled", null]
+				},
+				"manifestVersion": {
+					"oneOf": [
+						{
+							"type": "string",
+							"maxLength": 128
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"matchedRule": {
+					"oneOf": [
+						{
+							"$ref": "#/$defs/screenRule"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"visibleIdle": {
+					"type": "boolean"
+				},
+				"visibleBlocker": {
+					"type": "boolean"
+				},
+				"visibleWorking": {
+					"type": "boolean"
+				},
+				"screenDetectionSkipped": {
+					"type": "boolean"
+				},
+				"screenDetectionSkipReason": {
+					"enum": ["full-lifecycle-hook-authority", null]
+				},
+				"skipStateUpdate": {
+					"type": "boolean"
+				},
+				"skippedUpdateReason": {
+					"oneOf": [
+						{
+							"type": "string",
+							"pattern": "^matched-rule:.+"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"fallbackReason": {
+					"enum": ["default-known-agent-idle-fallback", null]
+				},
+				"evaluatedRules": {
+					"type": "array",
+					"maxItems": 128,
+					"items": {
+						"type": "object",
+						"required": ["rule", "matched", "evidence"],
+						"additionalProperties": false,
+						"properties": {
+							"rule": {
+								"$ref": "#/$defs/screenRule"
+							},
+							"matched": {
+								"type": "boolean"
+							},
+							"evidence": {
+								"$ref": "#/$defs/screenEvidence"
+							}
+						}
+					}
+				}
+			}
+		},
+		"terminalExplanation": {
+			"type": "object",
+			"required": ["binding", "view", "explanation", "sample"],
+			"additionalProperties": false,
+			"properties": {
+				"binding": {
+					"$ref": "#/$defs/terminalBinding"
+				},
+				"view": {
+					"$ref": "#/$defs/view"
+				},
+				"explanation": {
+					"$ref": "#/$defs/screenExplanation"
+				},
+				"sample": {
+					"oneOf": [
+						{
+							"type": "object",
+							"required": [
+								"frameSequence",
+								"frameGeneration",
+								"frameRevision",
+								"rootPid",
+								"agentPid"
+							],
+							"additionalProperties": false,
+							"properties": {
+								"frameSequence": {
+									"allOf": [
+										{
+											"$ref": "#/$defs/revision"
+										},
+										{
+											"not": {
+												"const": "0"
+											}
+										}
+									]
+								},
+								"frameGeneration": {
+									"allOf": [
+										{
+											"$ref": "#/$defs/revision"
+										},
+										{
+											"not": {
+												"const": "0"
+											}
+										}
+									]
+								},
+								"frameRevision": {
+									"$ref": "#/$defs/revision"
+								},
+								"rootPid": {
+									"type": "integer",
+									"minimum": 1,
+									"maximum": 4294967295
+								},
+								"agentPid": {
+									"oneOf": [
+										{
+											"type": "integer",
+											"minimum": 1,
+											"maximum": 4294967295
+										},
+										{
+											"type": "null"
+										}
+									]
+								}
+							}
+						},
+						{
+							"type": "null"
+						}
+					]
+				}
+			},
+			"allOf": [
+				{
+					"if": {
+						"properties": {
+							"explanation": {
+								"properties": {
+									"screenDetectionSkipped": {
+										"const": true
+									}
+								},
+								"type": "object"
+							}
+						},
+						"type": "object"
+					},
+					"then": {
+						"properties": {
+							"sample": {
+								"type": "null"
+							},
+							"explanation": {
+								"properties": {
+									"manifestSource": {
+										"type": "null"
+									},
+									"manifestVersion": {
+										"type": "null"
+									},
+									"matchedRule": {
+										"type": "null"
+									},
+									"skippedUpdateReason": {
+										"type": "null"
+									},
+									"fallbackReason": {
+										"type": "null"
+									},
+									"visibleIdle": {
+										"const": false
+									},
+									"visibleBlocker": {
+										"const": false
+									},
+									"visibleWorking": {
+										"const": false
+									},
+									"skipStateUpdate": {
+										"const": false
+									},
+									"screenDetectionSkipReason": {
+										"const": "full-lifecycle-hook-authority"
+									},
+									"evaluatedRules": {
+										"maxItems": 0,
+										"type": "array"
+									}
+								},
+								"type": "object"
+							}
+						},
+						"type": "object"
+					},
+					"else": {
+						"properties": {
+							"sample": {
+								"type": "object",
+								"required": [
+									"frameSequence",
+									"frameGeneration",
+									"frameRevision",
+									"rootPid",
+									"agentPid"
+								],
+								"additionalProperties": false,
+								"properties": {
+									"frameSequence": {
+										"allOf": [
+											{
+												"$ref": "#/$defs/revision"
+											},
+											{
+												"not": {
+													"const": "0"
+												}
+											}
+										]
+									},
+									"frameGeneration": {
+										"allOf": [
+											{
+												"$ref": "#/$defs/revision"
+											},
+											{
+												"not": {
+													"const": "0"
+												}
+											}
+										]
+									},
+									"frameRevision": {
+										"$ref": "#/$defs/revision"
+									},
+									"rootPid": {
+										"type": "integer",
+										"minimum": 1,
+										"maximum": 4294967295
+									},
+									"agentPid": {
+										"oneOf": [
+											{
+												"type": "integer",
+												"minimum": 1,
+												"maximum": 4294967295
+											},
+											{
+												"type": "null"
+											}
+										]
+									}
+								}
+							},
+							"explanation": {
+								"properties": {
+									"screenDetectionSkipReason": {
+										"type": "null"
+									}
+								},
+								"type": "object"
+							}
+						},
+						"type": "object"
+					}
+				}
+			]
 		}
 	}
 }

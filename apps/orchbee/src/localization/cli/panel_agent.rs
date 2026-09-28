@@ -3,6 +3,64 @@ use orchbee_workbench_protocol::{
     PanelAgentDisposition, PanelAgentFailure as Failure, PanelAgentOutcome as Outcome,
 };
 impl Locale {
+    #[cfg(windows)]
+    pub(crate) const fn cli_agent_screen_fields(self) -> [&'static str; 17] {
+        match self {
+            Self::EnUs => [
+                "Agent",
+                "Effective state",
+                "Rule state",
+                "Rules source",
+                "Rules version",
+                "Matched rule",
+                "Reason",
+                "Rule",
+                "Matched",
+                "Priority",
+                "Region",
+                "Region bytes",
+                "Region preview",
+                "Contains",
+                "Regex",
+                "Line regex",
+                "Gate counts (all/any/not)",
+            ],
+            Self::ZhCn => [
+                "Agent",
+                "当前有效状态",
+                "规则判断状态",
+                "规则来源",
+                "规则版本",
+                "胜出规则",
+                "原因",
+                "规则",
+                "是否匹配",
+                "优先级",
+                "区域",
+                "区域字节数",
+                "区域预览",
+                "包含文本",
+                "正则表达式",
+                "逐行正则",
+                "组合条件数（all/any/not）",
+            ],
+        }
+    }
+    #[cfg(windows)]
+    pub(crate) const fn cli_agent_screen_reason(
+        self,
+        skipped: bool,
+        unchanged: bool,
+    ) -> &'static str {
+        match (self, skipped, unchanged) {
+            (Self::EnUs, true, _) => "Screen detection skipped: active full lifecycle authority",
+            (Self::ZhCn, true, _) => "已有生效的完整生命周期权威，跳过屏幕检测",
+            (Self::EnUs, false, true) => "Matched rule preserves the previous state",
+            (Self::ZhCn, false, true) => "匹配规则要求保留先前状态",
+            (Self::EnUs, false, false) => "No matching rule: known Agent defaults to idle",
+            (Self::ZhCn, false, false) => "没有匹配规则，已知 Agent 默认空闲",
+        }
+    }
     pub(crate) const fn cli_reported_agent_fields(self) -> [&'static str; 5] {
         match self {
             Self::EnUs => [

@@ -9,6 +9,12 @@ use crate::site_coordinator::ProcessObservationTarget;
 use std::sync::atomic::{AtomicBool, Ordering};
 mod screen;
 
+pub(in crate::local_terminal_service) struct CapturedAgentExplanation {
+    pub(in crate::local_terminal_service) explanation:
+        orchbee_workbench_protocol::AgentScreenExplanation,
+    pub(in crate::local_terminal_service) sample: orchbee_workbench_protocol::AgentDetectionSample,
+}
+
 /// Owned by the periodic sampler until exact Detach/Disposed, or matching Site shutdown proves Worker exit.
 pub(in crate::local_terminal_service) struct PendingCleanup {
     handle: WorkerRequestHandle,
@@ -39,6 +45,19 @@ impl PendingCleanup {
     }
 }
 impl LocalTerminalService {
+    pub(in crate::local_terminal_service) fn sample_agent_explanation(
+        &self,
+        target: &ProcessObservationTarget,
+        stop: &AtomicBool,
+        detector: &ScreenDetector,
+        provider: orchbee_agent_observation_protocol::AgentReportProvider,
+    ) -> (Option<CapturedAgentExplanation>, Option<PendingCleanup>) {
+        let mut explanation = None;
+        let pending = self.with_observation_viewer(target, stop, |viewer, template| {
+            explanation = screen::explain(viewer, template, stop, detector, provider);
+        });
+        (explanation, pending)
+    }
     pub(in crate::local_terminal_service) fn sample_process_target(
         &self,
         target: &ProcessObservationTarget,

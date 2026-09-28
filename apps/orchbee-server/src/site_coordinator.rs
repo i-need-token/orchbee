@@ -160,6 +160,40 @@ impl SiteCoordinator {
         Some(result)
     }
 
+    #[cfg(windows)]
+    pub(crate) fn prepare_agent_explanation(
+        &mut self,
+        request: &orchbee_workbench_protocol::PanelAgentRequest,
+        now: std::time::Instant,
+    ) -> Result<
+        (
+            orchbee_server::TerminalAgentExplainContext,
+            ProcessObservationTarget,
+        ),
+        orchbee_workbench_protocol::PanelAgentFailure,
+    > {
+        use orchbee_workbench_protocol::PanelAgentFailure as Failure;
+        let facts = self
+            .terminal_agent_bindings()
+            .map_err(|_| Failure::Unavailable)?;
+        let context = self
+            .workbench
+            .as_mut()
+            .ok_or(Failure::Unavailable)?
+            .prepare_terminal_agent_explain(request, &facts, now)?;
+        let target = self
+            .process_observation_targets()
+            .map_err(|_| Failure::Unavailable)?
+            .into_iter()
+            .find(|target| {
+                target.binding == context.physical.binding
+                    && target.target.identity == context.physical.identity
+                    && target.target.worker.generation == context.physical.worker_generation
+            })
+            .ok_or(Failure::BindingChanged)?;
+        Ok((context, target))
+    }
+
     pub(crate) fn panel_metadata(
         &mut self,
         request: orchbee_workbench_protocol::PanelMetadataRequest,
