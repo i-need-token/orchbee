@@ -1,6 +1,24 @@
 # Windows Panel 元数据上报
 
-`panel report-metadata <panel> --source <id>` 向 Panel 当前主终端写入临时展示元数据。
+## 精确成员目标
+
+`--presentation <id>` 选择位置参数 Panel 的一个规范成员，ID 为完整、非零、32 位小写十六
+进制。省略时仍指向主项。CLI 在交接前拒绝缺失或未绑定成员；Server 在 Site 门内复核精确
+所属及期望绑定。错误所属或过期绑定的写入不能影响其他成员。已有绑定索引元数据所有者
+保留来源序列、守卫、资源限制与 TTL。
+
+精确请求／回复使用现有载体中的 `report-presentation` / `presentation-reported`；旧
+`report` / `reported` 仍仅针对主项。回复关联请求、Site、Panel、Presentation 和绑定。
+显式成员输出 `orchbee.panel.metadata` v2，必需携带 `presentationId`，包括未知或失败的已
+提交结果；v1 保持封闭。文本标识成员。准入前检查请求边界，绝不重放结果不确定的写入。
+
+[Agent 报告目标模型](windows-panel-agent-reports.zh-CN.md#精确成员目标)拥有共用 CLI 解析及
+证据边界。元数据轨迹另外保留 token／来源隔离、TTL 与重放语义。不新增载体、依赖或持久化
+迁移；配套 cohort 一起发布，通过源码回滚。最终全量验收继续后置。
+
+## 命令与生命周期
+
+`panel report-metadata <panel> --source <id>` 默认向 Panel 当前主终端写入临时展示元数据。
 使用精确 Panel ID 或 `@panel:<suffix>`。选项包括 `--title`、`--display-agent`、可重复的
 `--state-label STATE=TEXT`、`--agent`、`--applies-to-source`、`--clear-title`、
 `--clear-display-agent`、`--clear-state-labels`、可重复的 `--token KEY=VALUE` 和
@@ -19,7 +37,7 @@ Agent 守卫不会被截断或移除内部控制字符：超出现有 80 标量�
 在连接前失败。自定义标签的这一限制仍与 Herdr 的上报输入有差异，需在完整 Agent 上报
 能力中继续补齐。原生进程 provider ID 保留独立的识别契约。
 
-一次已有 Site 准入和快照共享可取消的五秒期限。只解析一次主绑定，并作为 `expectedBinding`
+一次已有 Site 准入和快照共享可取消的五秒期限。只解析一次所请求成员的绑定（默认主项），并作为 `expectedBinding`
 提交；Server 拒绝已变化的绑定。未绑定 Panel 在提交前失败。命令只提交一次，不启动 Site、
 导航 Client、修改拓扑、改变 OSC 标题或自动重试。交接后的信号保留回执并设置 `interrupted`。
 应答丢失、畸形、不匹配或迟到时保留请求 ID，以未知结果和退出码 8 返回。交接前遵循普通 CLI

@@ -88,6 +88,23 @@ fn panel_agent_permissions_are_independent_and_refusals_leave_topology_unchanged
             }
         );
     }
+    let mut exact = request.clone();
+    let mut action = serde_json::to_value(&request.action).unwrap();
+    action["kind"] = serde_json::json!("report-presentation");
+    action["presentationId"] = serde_json::json!("5".repeat(32));
+    exact.action = serde_json::from_value(action).unwrap();
+    for grants in 0..32 {
+        assert_eq!(
+            execute(grants, &exact),
+            Outcome::Failed {
+                reason: if grants & 2 == 0 {
+                    Failure::Denied
+                } else {
+                    Failure::NotFound
+                }
+            }
+        );
+    }
     request.site_id = SiteId::parse(&"f".repeat(32)).unwrap();
     assert_eq!(
         execute(31, &request),

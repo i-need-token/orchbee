@@ -1,7 +1,28 @@
 # Windows Panel metadata reports
 
+## Exact member targets
+
+`--presentation <id>` selects one canonical member of the positional Panel, using a full nonzero
+32-character lowercase hexadecimal ID. Omission retains the primary. The CLI rejects missing or
+unbound members before handoff; the Server rechecks exact ownership and expected binding under
+the Site gate. Wrong-owner and stale-binding writes cannot affect a different member. The existing
+binding-keyed metadata owner preserves source sequencing, guards, resource limits and TTL.
+
+Exact requests/replies use `report-presentation` / `presentation-reported` in the existing carrier;
+legacy `report` / `reported` remain primary-only. Replies correlate request, Site, Panel,
+Presentation and binding. An explicit member emits `orchbee.panel.metadata` v2 with required
+`presentationId`, including unknown or failed submitted outcomes; v1 remains closed. Text identifies
+the member. Request bounds are checked before admission and no ambiguous outcome is replayed.
+
+The [Agent report target model](windows-panel-agent-reports.md#exact-member-targets) owns shared
+CLI resolution and evidence boundaries. Metadata traces additionally preserve token/source
+isolation, TTL and replay. No new carrier, dependency or persistence migration is required;
+matched cohorts roll out together and roll back with source. Final full acceptance remains deferred.
+
+## Commands and lifecycle
+
 `panel report-metadata <panel> --source <id>` writes transient presentation metadata for the
-Panel's current primary terminal. Select an exact Panel ID or `@panel:<suffix>`. Options are
+Panel's primary terminal by default. Select an exact Panel ID or `@panel:<suffix>`. Options are
 `--title`, `--display-agent`, repeated `--state-label STATE=TEXT`, `--agent`, `--applies-to-source`,
 `--clear-title`, `--clear-display-agent`, `--clear-state-labels`, repeated `--token KEY=VALUE` and
 `--clear-token KEY`, `--seq`, `--ttl-ms`, and `--format text|json`. States are `idle`, `working`,
@@ -24,7 +45,7 @@ input and a dependency of complete Agent report support. Native process provider
 separate recognition contract.
 
 One existing-Site admission and snapshot share a cancellable five-second deadline. Resolve the
-primary binding once and include it as `expectedBinding`; the Server rejects a changed binding.
+requested member binding once (primary by default) and include it as `expectedBinding`; the Server rejects a changed binding.
 An unbound Panel fails before submission. The command submits once and never starts a Site,
 navigates a Client, mutates topology, changes OSC title or automatically retries. After handoff,
 a late signal preserves the receipt and sets `interrupted`. A lost, malformed, mismatched or late

@@ -69,6 +69,24 @@ export const PanelMetadataActionSchema = z.discriminatedUnion('kind', [
 		.readonly(),
 	z
 		.strictObject({
+			kind: z.literal('report-presentation'),
+			panelId: WorkbenchPanelIdSchema,
+			presentationId: TerminalPresentationIdSchema,
+			expectedBinding: WorkbenchPresentationBindingSchema,
+			source: MetadataSourceSchema,
+			patch: PanelMetadataPatchSchema,
+			sequence: WorkbenchRevisionSchema.nullish().transform((value) => value ?? undefined),
+			ttlMilliseconds: z
+				.number()
+				.int()
+				.min(1)
+				.max(86_400_000)
+				.nullish()
+				.transform((value) => value ?? undefined),
+		})
+		.readonly(),
+	z
+		.strictObject({
 			kind: z.literal('report'),
 			panelId: WorkbenchPanelIdSchema,
 			expectedBinding: WorkbenchPresentationBindingSchema,
@@ -201,6 +219,17 @@ export const PanelMetadataOutcomeSchema = z.discriminatedUnion('kind', [
 		.superRefine((read, context) =>
 			validateFieldOrders(read.panels, read.metadataRevision, context),
 		)
+		.readonly(),
+	z
+		.strictObject({
+			kind: z.literal('presentation-reported'),
+			workbenchRevision: WorkbenchRevisionSchema,
+			metadataRevision: WorkbenchRevisionSchema,
+			panelId: WorkbenchPanelIdSchema,
+			presentationId: TerminalPresentationIdSchema,
+			binding: WorkbenchPresentationBindingSchema,
+			disposition: z.enum(['applied', 'stale']),
+		})
 		.readonly(),
 	z
 		.strictObject({

@@ -23,6 +23,7 @@ struct Answer {
     request_id: WorkbenchRequestId,
     site_id: SiteId,
     panel_id: WorkbenchPanelId,
+    presentation_id: Option<orchbee_workbench_protocol::TerminalPresentationId>,
     observation: Observation,
     interrupted: bool,
     cleanup_failed: bool,
@@ -36,9 +37,13 @@ impl Answer {
             }
             Observation::Unknown(reason) => serde_json::json!({"kind":"unknown", "reason":reason}),
         };
-        serde_json::json!({"schema":"orchbee.panel.agent-report", "version":1,
+        let mut value = serde_json::json!({"schema":"orchbee.panel.agent-report", "version":if self.presentation_id.is_some() {2} else {1},
             "requestId":self.request_id,"siteId":self.site_id,"panelId":self.panel_id,
-            "observation":observation,"interrupted":self.interrupted,"cleanupFailed":self.cleanup_failed})
+            "observation":observation,"interrupted":self.interrupted,"cleanupFailed":self.cleanup_failed});
+        if let Some(id) = &self.presentation_id {
+            value["presentationId"] = serde_json::json!(id);
+        }
+        value
     }
     fn exit_code(&self) -> u8 {
         if matches!(self.observation, Observation::Unknown(_)) {
@@ -50,7 +55,8 @@ impl Answer {
         match &self.observation {
             Observation::Unknown(_) => 8,
             Observation::Server(reply) => match reply.outcome {
-                PanelAgentOutcome::Reported { .. } => 0,
+                PanelAgentOutcome::Reported { .. }
+                | PanelAgentOutcome::PresentationReported { .. } => 0,
                 PanelAgentOutcome::Read { .. }
                 | PanelAgentOutcome::PresentationsRead { .. }
                 | PanelAgentOutcome::Explained { .. }
@@ -82,12 +88,20 @@ impl Answer {
                     Observation::Server(reply) => (Some(&reply.outcome), None),
                     Observation::Unknown(reason) => (None, Some(*reason)),
                 };
-                output::encode_text(&locale.cli_panel_agent(
+                let mut text = locale.cli_panel_agent(
                     self.request_id.as_str(),
                     self.panel_id.as_str(),
                     outcome,
                     unknown,
-                ))
+                );
+                if let Some(id) = &self.presentation_id {
+                    text.push_str(&format!(
+                        "{}: {}\n",
+                        locale.cli_report_presentation_label(),
+                        id
+                    ));
+                }
+                output::encode_text(&text)
             }
         };
         match encoded {
@@ -132,6 +146,7 @@ mod tests {
     #[test]
     fn panel_agent_receipts_survive_late_interrupt_and_validate_the_public_schema() {
         let mut answer = Answer {
+            presentation_id: None,
             request_id: WorkbenchRequestId::parse(&format!("{:032x}", 1)).unwrap(),
             site_id: SiteId::parse(&format!("{:032x}", 2)).unwrap(),
             panel_id: WorkbenchPanelId::parse(&format!("{:032x}", 3)).unwrap(),

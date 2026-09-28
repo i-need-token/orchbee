@@ -109,6 +109,15 @@ export const PanelAgentActionSchema = z.discriminatedUnion('kind', [
 		.readonly(),
 	z
 		.strictObject({
+			kind: z.literal('report-presentation'),
+			panelId: WorkbenchPanelIdSchema,
+			presentationId: TerminalPresentationIdSchema,
+			expectedBinding: WorkbenchPresentationBindingSchema,
+			report: PanelAgentReportSchema,
+		})
+		.readonly(),
+	z
+		.strictObject({
 			kind: z.literal('report'),
 			panelId: WorkbenchPanelIdSchema,
 			expectedBinding: WorkbenchPresentationBindingSchema,
@@ -514,6 +523,19 @@ export const PanelAgentOutcomeSchema = z.discriminatedUnion('kind', [
 				.max(4)
 				.refine((panels) => new Set(panels.map((p) => p.panelId)).size === panels.length)
 				.readonly(),
+		})
+		.readonly(),
+	z
+		.strictObject({
+			kind: z.literal('presentation-reported'),
+			workbenchRevision: WorkbenchRevisionSchema,
+			reportRevision: WorkbenchRevisionSchema,
+			panelId: WorkbenchPanelIdSchema,
+			presentationId: TerminalPresentationIdSchema,
+			binding: WorkbenchPresentationBindingSchema,
+			disposition: PanelAgentDispositionSchema,
+			changed: z.boolean(),
+			view: PanelAgentViewSchema,
 		})
 		.readonly(),
 	z

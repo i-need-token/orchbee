@@ -466,8 +466,8 @@ pub(crate) fn answer(schema_id: Option<&str>, format: OutputFormat, locale: Loca
     };
     let document = json!({
         "schema": "orchbee.api.schema",
-        // Current Panel enrichment identifies the exact resolved Presentation.
-        "version": 96,
+        // Exact Presentation report receipts retain their submitted target.
+        "version": 97,
         "source": embedded_source(),
         "result": result,
     });

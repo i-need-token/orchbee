@@ -5,9 +5,9 @@ use super::{
 };
 use orchbee_agent_observation_protocol::{AgentReportSequence, normalize_agent_report_label};
 use orchbee_workbench_protocol::{
-    PanelAgentAction, PanelAgentReport, PanelAgentRequest, PanelAgentState, PresentationBinding,
-    ProtocolVersion, SiteId, TerminalId, WorkbenchPanelId, WorkbenchRequest, WorkbenchRequestId,
-    WorkerId, write_workbench_request,
+    PanelAgentReport, PanelAgentRequest, PanelAgentState, PresentationBinding, ProtocolVersion,
+    SiteId, TerminalId, WorkbenchPanelId, WorkbenchRequest, WorkbenchRequestId, WorkerId,
+    write_workbench_request,
 };
 
 #[derive(Default)]
@@ -37,7 +37,30 @@ impl Options {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct PanelAgentCommand {
     pub(crate) target: Target,
+    pub(crate) presentation_id: Option<orchbee_workbench_protocol::TerminalPresentationId>,
     pub(crate) report: PanelAgentReport,
+}
+impl PanelAgentCommand {
+    pub(crate) fn action(
+        &self,
+        panel_id: orchbee_workbench_protocol::WorkbenchPanelId,
+        expected_binding: orchbee_workbench_protocol::PresentationBinding,
+    ) -> orchbee_workbench_protocol::PanelAgentAction {
+        use orchbee_workbench_protocol::PanelAgentAction;
+        match &self.presentation_id {
+            Some(presentation_id) => PanelAgentAction::ReportPresentation {
+                panel_id,
+                presentation_id: presentation_id.clone(),
+                expected_binding,
+                report: Box::new(self.report.clone()),
+            },
+            None => PanelAgentAction::Report {
+                panel_id,
+                expected_binding,
+                report: Box::new(self.report.clone()),
+            },
+        }
+    }
 }
 pub(super) fn parse(
     verb: &str,
@@ -165,17 +188,19 @@ pub(super) fn parse(
             },
         }
     };
-    preflight(&report).map_err(|_| invalid("report", "", ExpectedValue::ReportSize))?;
+    let command = PanelAgentCommand {
+        target: target(value.to_owned(), Resource::Panel, envelope)?,
+        presentation_id: super::report_target::parse(options, context, envelope)?,
+        report,
+    };
+    preflight(&command).map_err(|_| invalid("report", "", ExpectedValue::ReportSize))?;
     Ok(Request::PanelAgent {
-        command: PanelAgentCommand {
-            target: target(value.to_owned(), Resource::Panel, envelope)?,
-            report,
-        },
+        command,
         format: options.format.unwrap_or(OutputFormat::Text),
     })
 }
 fn preflight(
-    report: &PanelAgentReport,
+    command: &PanelAgentCommand,
 ) -> Result<(), orchbee_workbench_protocol::WorkbenchWireError> {
     // Every live identity has this fixed encoded width. Validate the complete frame before connecting.
     const ID: &str = "00000000000000000000000000000001";
@@ -185,14 +210,13 @@ fn preflight(
             protocol_version: ProtocolVersion,
             request_id: WorkbenchRequestId::parse(ID).expect("fixed identity"),
             site_id: SiteId::parse(ID).expect("fixed identity"),
-            action: PanelAgentAction::Report {
-                panel_id: WorkbenchPanelId::parse(ID).expect("fixed identity"),
-                expected_binding: PresentationBinding {
+            action: command.action(
+                WorkbenchPanelId::parse(ID).expect("fixed identity"),
+                PresentationBinding {
                     worker_id: WorkerId::parse(ID).expect("fixed identity"),
                     terminal_id: TerminalId::parse(ID).expect("fixed identity"),
                 },
-                report: Box::new(report.clone()),
-            },
+            ),
         }),
     )
 }

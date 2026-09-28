@@ -1,5 +1,6 @@
 mod panel_agent;
 mod panel_metadata;
+mod report_target;
 pub(crate) use panel_agent::PanelAgentCommand;
 mod workspace_metadata;
 pub(crate) use panel_metadata::PanelMetadataCommand;
@@ -1354,6 +1355,7 @@ pub(crate) enum UsageContext {
 /// expect; rendered per locale, never serialized.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum ExpectedValue {
+    PresentationId,
     ReportAgent,
     ReportState,
     ReportSize,
@@ -1586,6 +1588,7 @@ enum Token {
 
 #[derive(Default)]
 struct Options {
+    report_presentation: Option<String>,
     panel_agent: panel_agent::Options,
     metadata: workspace_metadata::Options,
     panel_metadata: panel_metadata::Options,
@@ -1701,6 +1704,7 @@ struct Options {
 /// both the format-envelope walk and the option scan so ownership is decided
 /// identically in the two passes.
 const VALUE_FLAGS: &[&str] = &[
+    "--presentation",
     "--agent",
     "--applies-to-source",
     "--title",
@@ -2311,6 +2315,7 @@ fn apply_value_flag(
         return Ok(());
     }
     let slot = match option {
+        "--presentation" => &mut options.report_presentation,
         "--agent" => &mut options.panel_metadata.agent,
         "--state" => &mut options.panel_agent.state,
         "--message" => &mut options.panel_agent.message,
@@ -5020,7 +5025,8 @@ const INTEGRATION_SCOPE: Scope = Scope {
 
 /// Any mutation-only option seen outside a mutation command.
 fn business_options(options: &Options) -> bool {
-    options.panel_agent.first_option().is_some()
+    options.report_presentation.is_some()
+        || options.panel_agent.first_option().is_some()
         || options.panel_metadata.first_option().is_some()
         || options.metadata.first_option().is_some()
         || options.output.is_some()
@@ -5089,6 +5095,9 @@ fn business_options(options: &Options) -> bool {
 /// The first named option present but outside `scope`, in the fixed `Options`
 /// declaration order — deterministic without any argv-order state.
 fn first_out_of_scope(options: &Options, scope: Scope) -> Option<&'static str> {
+    if options.report_presentation.is_some() && !(scope.panel_agent || scope.panel_metadata) {
+        return Some("--presentation");
+    }
     if !scope.panel_agent
         && let Some(option) = options.panel_agent.first_option()
     {

@@ -832,7 +832,7 @@ Panel swap 使用共享结构 placement 权威，在同一 Tab 中原子交换�
 ## Panel 展示元数据
 
 `WorkbenchAuthority::panel_metadata` 按逻辑终端绑定（`workerId`、`terminalId`）拥有临时上报。
-上报解析 Panel 当前的主绑定并要求精确匹配 `expectedBinding`；目标已变化、缺失或未绑定时，
+旧上报解析 Panel 当前的主绑定并要求精确匹配 `expectedBinding`；目标已变化、缺失或未绑定时，
 在应用上报前失败。主成员及子成员关系让资源在移动和交换后保留。操作会清理已不属于任何
 已提交成员的绑定。Site 释放或重启后丢弃这些状态。
 
@@ -888,3 +888,14 @@ Tab Move 先根据原方向或原始插入边界确定精确置换；no-op 在�
 ## 精确 Presentation 元数据读取
 
 Panel 元数据 `read-presentations` 按请求顺序接受最多四个唯一 Presentation ID，包括主项、子项以及空读取修订校验。每个 `presentations-read` 行包含 `presentationId` 和嵌套 `panel` 行，携带所属 Panel ID、所选成员绑定、tokens 及来源记录。不同成员可共享 Panel ID。未知成员拒绝整批；未绑定成员展示空元数据。两个读取路径同样要求来源唯一、字段次序非零且不超过元数据修订号。成员关系和绑定所属资源均在既有 Site 门内解析；读取不修改拓扑、选择或输入归属。既有主 Panel 读取与元数据写入保留原范围。
+
+## 精确 Presentation 元数据写入
+
+`report-presentation` 为既有元数据载体增加必需的 Presentation ID。Site 门先证明精确的
+Panel 所属关系及非空、与期望一致的绑定，再应用来源守卫、序列顺序、token 补丁或 TTL。
+流程复用绑定所属资源，主项和子项记录保持隔离，移动后仍保留同一终端数据。错误所属／
+成员、未绑定或过期绑定返回明确失败，绝不重定向写入。`presentation-reported` 回传精确
+身份与两类修订号，包括过期无操作报告。旧 `report` 仍仅针对主项。两种写入均要求导航权限。
+共享契约与所有者轨迹覆盖关联、隔离、重放及拒绝；既有 TTL 和资源计费仍是权威。原生
+[元数据命令](../../orchbee/docs/windows-panel-metadata.zh-CN.md#精确成员目标)拥有 CLI 选择及
+未知结果。配套 cohort 发布不新增持久化迁移。

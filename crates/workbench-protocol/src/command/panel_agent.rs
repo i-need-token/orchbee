@@ -133,6 +133,12 @@ pub enum PanelAgentAction {
     Read {
         panel_ids: Vec<WorkbenchPanelId>,
     },
+    ReportPresentation {
+        panel_id: WorkbenchPanelId,
+        presentation_id: TerminalPresentationId,
+        expected_binding: PresentationBinding,
+        report: Box<PanelAgentReport>,
+    },
     Report {
         panel_id: WorkbenchPanelId,
         expected_binding: PresentationBinding,
@@ -187,7 +193,8 @@ impl PanelAgentRequest {
                 Ok(())
             }
             PanelAgentAction::Read { .. } => Err(ContractError::InvalidDocument),
-            PanelAgentAction::Report { report, .. } => report.validate(),
+            PanelAgentAction::Report { report, .. }
+            | PanelAgentAction::ReportPresentation { report, .. } => report.validate(),
         }
     }
 }
@@ -317,6 +324,16 @@ pub enum PanelAgentOutcome {
         report_revision: WorkbenchRevision,
         panels: Vec<PanelAgentRow>,
     },
+    PresentationReported {
+        workbench_revision: WorkbenchRevision,
+        report_revision: WorkbenchRevision,
+        panel_id: WorkbenchPanelId,
+        presentation_id: TerminalPresentationId,
+        binding: PresentationBinding,
+        disposition: PanelAgentDisposition,
+        changed: bool,
+        view: Box<PanelAgentView>,
+    },
     Reported {
         workbench_revision: WorkbenchRevision,
         report_revision: WorkbenchRevision,
@@ -373,7 +390,8 @@ impl PanelAgentResult {
                         == panels.len()
                     && panels.iter().all(PanelAgentRow::valid)
             }
-            PanelAgentOutcome::Reported { view, .. } => view.valid(),
+            PanelAgentOutcome::Reported { view, .. }
+            | PanelAgentOutcome::PresentationReported { view, .. } => view.valid(),
             PanelAgentOutcome::Failed { .. } => true,
         };
         if valid {
@@ -416,6 +434,24 @@ impl PanelAgentResult {
                 .eq(presentations.iter().map(|row| &row.presentation_id)),
             (PanelAgentAction::Read { panel_ids }, PanelAgentOutcome::Read { panels, .. }) => {
                 panel_ids.iter().eq(panels.iter().map(|p| &p.panel_id))
+            }
+            (
+                PanelAgentAction::ReportPresentation {
+                    panel_id,
+                    presentation_id,
+                    expected_binding,
+                    ..
+                },
+                PanelAgentOutcome::PresentationReported {
+                    panel_id: actual,
+                    presentation_id: actual_presentation,
+                    binding,
+                    ..
+                },
+            ) => {
+                panel_id == actual
+                    && presentation_id == actual_presentation
+                    && expected_binding == binding
             }
             (
                 PanelAgentAction::Report {

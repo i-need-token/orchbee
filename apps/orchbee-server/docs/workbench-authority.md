@@ -997,7 +997,7 @@ The [Tab label contract](../../orchbee/docs/native-tab-labels.md) owns optional 
 ## Panel presentation metadata
 
 `WorkbenchAuthority::panel_metadata` owns transient reports for each logical terminal binding
-(`workerId`, `terminalId`). Reports resolve a Panel's current primary binding and require an exact
+(`workerId`, `terminalId`). Legacy reports resolve a Panel's current primary binding and require an exact
 `expectedBinding`; a changed, missing or unbound target fails before applying the report. Primary
 and child memberships retain the resource across moves and swaps. An operation prunes bindings
 absent from all committed memberships. Site disposal or restart drops this state.
@@ -1094,3 +1094,17 @@ Windows multi-Client TUI acceptance remain separate obligations.
 ## Exact Presentation metadata reads
 
 Panel metadata `read-presentations` accepts at most four unique Presentation IDs in request order, including primary and child members and empty revision fences. Each `presentations-read` row contains `presentationId` and a nested `panel` row with owning Panel ID and the selected member’s binding, tokens and source records. Duplicate Panel IDs across different members are allowed. Unknown members reject the batch; unbound members expose empty metadata. Source uniqueness and nonzero field orders bounded by metadata revision apply identically to both read paths. Membership and binding-owned resources are resolved under the existing Site gate; reads do not mutate topology, selection or input ownership. Existing primary Panel reads and metadata writes retain their scope.
+
+## Exact Presentation metadata writes
+
+`report-presentation` extends the existing metadata carrier with a required Presentation ID. The
+Site gate proves exact Panel ownership and a nonnull matching expected binding before applying
+source guards, sequence ordering, token patches or TTL. It reuses the binding-owned resource;
+primary and child records therefore remain isolated, while moves retain the same terminal data.
+A wrong owner/member, unbound target or stale binding produces a typed failure with no redirected
+write. `presentation-reported` echoes the exact identity and both revisions, including stale
+no-op reports. Legacy `report` remains primary-only. Both write variants require navigation
+permission. Shared contract and owner traces cover correlation, isolation, replay and rejection;
+existing TTL and resource accounting remain authoritative. The native
+[metadata command](../../orchbee/docs/windows-panel-metadata.md#exact-member-targets) owns CLI
+selection and unknown outcomes. Matched cohort deployment introduces no durable migration.

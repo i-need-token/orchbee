@@ -72,7 +72,7 @@ impl WorkbenchService {
                 | orchbee_workbench_protocol::PanelAgentAction::Explain { .. }
                 | orchbee_workbench_protocol::PanelAgentAction::States { .. }
                 | orchbee_workbench_protocol::PanelAgentAction::Observe { .. } => self.policy.read,
-                orchbee_workbench_protocol::PanelAgentAction::Report { .. } => self.policy.manage_navigation,
+                orchbee_workbench_protocol::PanelAgentAction::Report { .. } | orchbee_workbench_protocol::PanelAgentAction::ReportPresentation { .. } => self.policy.manage_navigation,
             },
             WorkbenchRequest::WorkspaceMetadata(request) => match request.action {
                 orchbee_workbench_protocol::WorkspaceMetadataAction::Read { .. } => self.policy.read,
@@ -81,7 +81,7 @@ impl WorkbenchService {
             WorkbenchRequest::PanelMetadata(request) => match request.action {
                 orchbee_workbench_protocol::PanelMetadataAction::Read { .. }
                 | orchbee_workbench_protocol::PanelMetadataAction::ReadPresentations { .. } => self.policy.read,
-                orchbee_workbench_protocol::PanelMetadataAction::Report { .. } => self.policy.manage_navigation,
+                orchbee_workbench_protocol::PanelMetadataAction::Report { .. } | orchbee_workbench_protocol::PanelMetadataAction::ReportPresentation { .. } => self.policy.manage_navigation,
             },
             WorkbenchRequest::ClientView(_) => self.policy.read,
             WorkbenchRequest::WorkspaceGroupClose(request) => {

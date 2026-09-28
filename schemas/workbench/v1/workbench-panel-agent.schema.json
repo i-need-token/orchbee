@@ -339,6 +339,28 @@
 						}
 					},
 					"required": ["kind", "presentationIds"]
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "report-presentation"
+						},
+						"panelId": {
+							"$ref": "#/$defs/identity"
+						},
+						"expectedBinding": {
+							"$ref": "#/$defs/binding"
+						},
+						"report": {
+							"$ref": "#/$defs/report"
+						},
+						"presentationId": {
+							"$ref": "#/$defs/identity"
+						}
+					},
+					"required": ["kind", "panelId", "expectedBinding", "report", "presentationId"]
 				}
 			]
 		},
@@ -632,6 +654,50 @@
 						}
 					},
 					"required": ["kind", "workbenchRevision", "reportRevision", "presentations"]
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "presentation-reported"
+						},
+						"workbenchRevision": {
+							"$ref": "#/$defs/revision"
+						},
+						"reportRevision": {
+							"$ref": "#/$defs/revision"
+						},
+						"panelId": {
+							"$ref": "#/$defs/identity"
+						},
+						"binding": {
+							"$ref": "#/$defs/binding"
+						},
+						"disposition": {
+							"enum": ["applied", "ignored", "deferred"]
+						},
+						"changed": {
+							"type": "boolean"
+						},
+						"view": {
+							"$ref": "#/$defs/view"
+						},
+						"presentationId": {
+							"$ref": "#/$defs/identity"
+						}
+					},
+					"required": [
+						"kind",
+						"workbenchRevision",
+						"reportRevision",
+						"panelId",
+						"binding",
+						"disposition",
+						"changed",
+						"view",
+						"presentationId"
+					]
 				}
 			]
 		},

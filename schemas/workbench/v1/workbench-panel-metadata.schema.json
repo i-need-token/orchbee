@@ -443,6 +443,9 @@
 						},
 						{
 							"$ref": "#/$defs/readPresentations"
+						},
+						{
+							"$ref": "#/$defs/reportPresentation"
 						}
 					]
 				}
@@ -694,6 +697,9 @@
 						},
 						{
 							"$ref": "#/$defs/presentationsRead"
+						},
+						{
+							"$ref": "#/$defs/presentationReported"
 						}
 					]
 				}
@@ -750,6 +756,89 @@
 						"$ref": "#/$defs/presentationRow"
 					},
 					"maxItems": 4
+				}
+			}
+		},
+		"reportPresentation": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["kind", "panelId", "expectedBinding", "source", "patch", "presentationId"],
+			"properties": {
+				"kind": {
+					"const": "report-presentation"
+				},
+				"panelId": {
+					"$ref": "#/$defs/identity"
+				},
+				"expectedBinding": {
+					"$ref": "#/$defs/binding"
+				},
+				"source": {
+					"$ref": "#/$defs/source"
+				},
+				"patch": {
+					"$ref": "#/$defs/patch"
+				},
+				"sequence": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/revision"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"ttlMilliseconds": {
+					"anyOf": [
+						{
+							"type": "integer",
+							"minimum": 1,
+							"maximum": 86400000
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"presentationId": {
+					"$ref": "#/$defs/identity"
+				}
+			}
+		},
+		"presentationReported": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": [
+				"kind",
+				"workbenchRevision",
+				"metadataRevision",
+				"panelId",
+				"binding",
+				"disposition",
+				"presentationId"
+			],
+			"properties": {
+				"kind": {
+					"const": "presentation-reported"
+				},
+				"workbenchRevision": {
+					"$ref": "#/$defs/revision"
+				},
+				"metadataRevision": {
+					"$ref": "#/$defs/revision"
+				},
+				"panelId": {
+					"$ref": "#/$defs/identity"
+				},
+				"binding": {
+					"$ref": "#/$defs/binding"
+				},
+				"disposition": {
+					"enum": ["applied", "stale"]
+				},
+				"presentationId": {
+					"$ref": "#/$defs/identity"
 				}
 			}
 		}

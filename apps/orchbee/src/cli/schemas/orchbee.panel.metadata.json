@@ -7,7 +7,7 @@
 			"const": "orchbee.panel.metadata"
 		},
 		"version": {
-			"const": 1
+			"enum": [1, 2]
 		},
 		"requestId": {
 			"$ref": "#/$defs/identity"
@@ -59,6 +59,9 @@
 					"additionalProperties": false
 				}
 			]
+		},
+		"presentationId": {
+			"$ref": "#/$defs/identity"
 		}
 	},
 	"required": [
@@ -747,10 +750,105 @@
 						},
 						{
 							"$ref": "#/$defs/failed"
+						},
+						{
+							"$ref": "#/$defs/presentationReported"
 						}
 					]
 				}
 			}
+		},
+		"presentationReported": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": [
+				"kind",
+				"workbenchRevision",
+				"metadataRevision",
+				"panelId",
+				"binding",
+				"disposition",
+				"presentationId"
+			],
+			"properties": {
+				"kind": {
+					"const": "presentation-reported"
+				},
+				"workbenchRevision": {
+					"$ref": "#/$defs/revision"
+				},
+				"metadataRevision": {
+					"$ref": "#/$defs/revision"
+				},
+				"panelId": {
+					"$ref": "#/$defs/identity"
+				},
+				"binding": {
+					"$ref": "#/$defs/binding"
+				},
+				"disposition": {
+					"enum": ["applied", "stale"]
+				},
+				"presentationId": {
+					"$ref": "#/$defs/identity"
+				}
+			}
 		}
-	}
+	},
+	"allOf": [
+		{
+			"if": {
+				"properties": {
+					"version": {
+						"const": 2
+					}
+				}
+			},
+			"then": {
+				"required": ["presentationId"],
+				"properties": {
+					"observation": {
+						"properties": {
+							"reply": {
+								"properties": {
+									"outcome": {
+										"properties": {
+											"kind": {
+												"enum": ["presentation-reported", "failed"]
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			},
+			"else": {
+				"not": {
+					"required": ["presentationId"]
+				},
+				"properties": {
+					"observation": {
+						"properties": {
+							"reply": {
+								"properties": {
+									"outcome": {
+										"not": {
+											"properties": {
+												"kind": {
+													"const": "presentation-reported"
+												}
+											},
+											"required": ["kind"]
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	]
 }

@@ -115,6 +115,17 @@ pub enum PanelMetadataAction {
     Read {
         panel_ids: Vec<WorkbenchPanelId>,
     },
+    ReportPresentation {
+        panel_id: WorkbenchPanelId,
+        presentation_id: TerminalPresentationId,
+        expected_binding: PresentationBinding,
+        source: MetadataSource,
+        patch: Box<PanelMetadataPatch>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        sequence: Option<WorkbenchRevision>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        ttl_milliseconds: Option<u32>,
+    },
     Report {
         panel_id: WorkbenchPanelId,
         expected_binding: PresentationBinding,
@@ -153,6 +164,11 @@ impl PanelMetadataRequest {
                 }
             }
             PanelMetadataAction::Report {
+                patch,
+                ttl_milliseconds,
+                ..
+            }
+            | PanelMetadataAction::ReportPresentation {
                 patch,
                 ttl_milliseconds,
                 ..
@@ -299,6 +315,14 @@ pub enum PanelMetadataOutcome {
         metadata_revision: WorkbenchRevision,
         panels: Vec<PanelMetadataRow>,
     },
+    PresentationReported {
+        workbench_revision: WorkbenchRevision,
+        metadata_revision: WorkbenchRevision,
+        panel_id: WorkbenchPanelId,
+        presentation_id: TerminalPresentationId,
+        binding: PresentationBinding,
+        disposition: MetadataReportDisposition,
+    },
     Reported {
         workbench_revision: WorkbenchRevision,
         metadata_revision: WorkbenchRevision,
@@ -359,7 +383,9 @@ impl PanelMetadataResult {
                     row.panel.validate_at(*metadata_revision)?;
                 }
             }
-            PanelMetadataOutcome::Reported { .. } | PanelMetadataOutcome::Failed { .. } => {}
+            PanelMetadataOutcome::Reported { .. }
+            | PanelMetadataOutcome::PresentationReported { .. }
+            | PanelMetadataOutcome::Failed { .. } => {}
         }
         Ok(())
     }
@@ -379,6 +405,24 @@ impl PanelMetadataResult {
                     PanelMetadataAction::Read { panel_ids },
                     PanelMetadataOutcome::Read { panels, .. },
                 ) => panel_ids.iter().eq(panels.iter().map(|p| &p.panel_id)),
+                (
+                    PanelMetadataAction::ReportPresentation {
+                        panel_id,
+                        presentation_id,
+                        expected_binding,
+                        ..
+                    },
+                    PanelMetadataOutcome::PresentationReported {
+                        panel_id: actual,
+                        presentation_id: actual_presentation,
+                        binding,
+                        ..
+                    },
+                ) => {
+                    panel_id == actual
+                        && presentation_id == actual_presentation
+                        && expected_binding == binding
+                }
                 (
                     PanelMetadataAction::Report {
                         panel_id,

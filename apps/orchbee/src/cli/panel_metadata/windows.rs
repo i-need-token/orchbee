@@ -4,11 +4,11 @@ use crate::{
         Failure, FailureKind, Output, failure_output, query,
         source::{ArmedSignals, Finish, SignalWatch},
     },
-    invocation::{OutputFormat, PanelMetadataCommand, Resource},
+    invocation::{OutputFormat, PanelMetadataCommand},
     local_client::workbench::workspace_metadata::MetadataExchangeReason,
     localization::Locale,
 };
-use orchbee_workbench_protocol::{PanelMetadataAction, PanelMetadataRequest};
+use orchbee_workbench_protocol::PanelMetadataRequest;
 use std::time::{Duration, Instant};
 pub(super) fn run(command: &PanelMetadataCommand, format: OutputFormat, locale: Locale) -> Output {
     let deadline = Instant::now() + Duration::from_secs(5);
@@ -55,36 +55,16 @@ fn submit(
     signals.check_before(deadline)?;
     let (mut client, snapshot) = query::stream_snapshot(deadline, signals.poll_fd())?;
     signals.check_before(deadline)?;
-    let mut entries = Vec::new();
-    for context in &snapshot.terminal_contexts {
-        for tab in &context.tabs {
-            collect(&tab.root, &mut entries);
-        }
-    }
-    let (panel_id, binding) = super::super::results::resolve_or_fail(
-        entries
-            .iter()
-            .map(|(id, binding)| (id.as_str(), "", (id, binding))),
+    let (panel_id, binding) = crate::cli::report_target::resolve(
+        &snapshot,
         &command.target,
-        Resource::Panel,
+        command.presentation_id.as_ref(),
     )?;
-    let binding = binding
-        .as_ref()
-        .cloned()
-        .ok_or_else(|| Failure::new(FailureKind::Rejected))?;
-    let panel_id = (*panel_id).clone();
     let request = PanelMetadataRequest {
         protocol_version: snapshot.protocol_version,
         request_id: query::request_id()?,
         site_id: snapshot.site_id,
-        action: PanelMetadataAction::Report {
-            panel_id: panel_id.clone(),
-            source: command.source.clone(),
-            expected_binding: binding,
-            patch: Box::new(command.patch.clone()),
-            sequence: command.sequence,
-            ttl_milliseconds: command.ttl_milliseconds,
-        },
+        action: command.action(panel_id.clone(), binding),
     };
     signals.check_before(deadline)?;
     let result = client.panel_metadata(request.clone(), deadline, signals.poll_fd());
@@ -106,30 +86,9 @@ fn submit(
         request_id: request.request_id,
         site_id: request.site_id,
         panel_id: panel_id.clone(),
+        presentation_id: command.presentation_id.clone(),
         observation,
         interrupted: false,
         cleanup_failed: false,
     })
-}
-
-fn collect<'a>(
-    node: &'a orchbee_workbench_protocol::PanelNode,
-    rows: &mut Vec<(
-        &'a orchbee_workbench_protocol::WorkbenchPanelId,
-        &'a Option<orchbee_workbench_protocol::PresentationBinding>,
-    )>,
-) {
-    use orchbee_workbench_protocol::PanelNode;
-    match node {
-        PanelNode::Panel {
-            panel_id,
-            primary_presentation,
-            ..
-        } => rows.push((panel_id, &primary_presentation.binding)),
-        PanelNode::Split { children, .. } => {
-            for child in children.iter() {
-                collect(&child.node, rows);
-            }
-        }
-    }
 }

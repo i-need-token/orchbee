@@ -7,7 +7,7 @@
 			"const": "orchbee.panel.agent-report"
 		},
 		"version": {
-			"const": 1
+			"enum": [1, 2]
 		},
 		"requestId": {
 			"$ref": "#/$defs/identity"
@@ -59,6 +59,9 @@
 					"additionalProperties": false
 				}
 			]
+		},
+		"presentationId": {
+			"$ref": "#/$defs/identity"
 		}
 	},
 	"required": [
@@ -291,6 +294,50 @@
 						}
 					},
 					"required": ["kind", "reason"]
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "presentation-reported"
+						},
+						"workbenchRevision": {
+							"$ref": "#/$defs/revision"
+						},
+						"reportRevision": {
+							"$ref": "#/$defs/revision"
+						},
+						"panelId": {
+							"$ref": "#/$defs/identity"
+						},
+						"binding": {
+							"$ref": "#/$defs/binding"
+						},
+						"disposition": {
+							"enum": ["applied", "ignored", "deferred"]
+						},
+						"changed": {
+							"type": "boolean"
+						},
+						"view": {
+							"$ref": "#/$defs/view"
+						},
+						"presentationId": {
+							"$ref": "#/$defs/identity"
+						}
+					},
+					"required": [
+						"kind",
+						"workbenchRevision",
+						"reportRevision",
+						"panelId",
+						"binding",
+						"disposition",
+						"changed",
+						"view",
+						"presentationId"
+					]
 				}
 			]
 		},
@@ -317,5 +364,61 @@
 			"required": ["kind", "protocolVersion", "requestId", "siteId", "outcome"]
 		}
 	},
-	"$comment": "Protocol result definitions follow workbench-panel-agent.schema.json; binding validation also enforces byte limits, official reference eligibility, correlated identities and view consistency."
+	"$comment": "Protocol result definitions follow workbench-panel-agent.schema.json; binding validation also enforces byte limits, official reference eligibility, correlated identities and view consistency.",
+	"allOf": [
+		{
+			"if": {
+				"properties": {
+					"version": {
+						"const": 2
+					}
+				}
+			},
+			"then": {
+				"required": ["presentationId"],
+				"properties": {
+					"observation": {
+						"properties": {
+							"reply": {
+								"properties": {
+									"outcome": {
+										"properties": {
+											"kind": {
+												"enum": ["presentation-reported", "failed"]
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			},
+			"else": {
+				"not": {
+					"required": ["presentationId"]
+				},
+				"properties": {
+					"observation": {
+						"properties": {
+							"reply": {
+								"properties": {
+									"outcome": {
+										"not": {
+											"properties": {
+												"kind": {
+													"const": "presentation-reported"
+												}
+											},
+											"required": ["kind"]
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	]
 }

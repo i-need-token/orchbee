@@ -39,10 +39,39 @@ impl Options {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct PanelMetadataCommand {
     pub(crate) target: Target,
+    pub(crate) presentation_id: Option<orchbee_workbench_protocol::TerminalPresentationId>,
     pub(crate) source: MetadataSource,
     pub(crate) patch: PanelMetadataPatch,
     pub(crate) sequence: Option<WorkbenchRevision>,
     pub(crate) ttl_milliseconds: Option<u32>,
+}
+impl PanelMetadataCommand {
+    pub(crate) fn action(
+        &self,
+        panel_id: orchbee_workbench_protocol::WorkbenchPanelId,
+        expected_binding: orchbee_workbench_protocol::PresentationBinding,
+    ) -> orchbee_workbench_protocol::PanelMetadataAction {
+        use orchbee_workbench_protocol::PanelMetadataAction;
+        match &self.presentation_id {
+            Some(presentation_id) => PanelMetadataAction::ReportPresentation {
+                panel_id,
+                presentation_id: presentation_id.clone(),
+                expected_binding,
+                source: self.source.clone(),
+                patch: Box::new(self.patch.clone()),
+                sequence: self.sequence,
+                ttl_milliseconds: self.ttl_milliseconds,
+            },
+            None => PanelMetadataAction::Report {
+                panel_id,
+                expected_binding,
+                source: self.source.clone(),
+                patch: Box::new(self.patch.clone()),
+                sequence: self.sequence,
+                ttl_milliseconds: self.ttl_milliseconds,
+            },
+        }
+    }
 }
 pub(super) fn parse(
     value: &str,
@@ -134,16 +163,41 @@ pub(super) fn parse(
     patch
         .validate()
         .map_err(|_| invalid("report", "", ExpectedValue::MetadataPresentation))?;
+    let command = PanelMetadataCommand {
+        target: target(value.to_owned(), Resource::Panel, envelope)?,
+        presentation_id: super::report_target::parse(options, context, envelope)?,
+        source: common.source,
+        patch,
+        sequence: common.sequence,
+        ttl_milliseconds: common.ttl_milliseconds,
+    };
+    preflight(&command).map_err(|_| invalid("report", "", ExpectedValue::MetadataPatchSize))?;
     Ok(Request::PanelMetadata {
-        command: PanelMetadataCommand {
-            target: target(value.to_owned(), Resource::Panel, envelope)?,
-            source: common.source,
-            patch,
-            sequence: common.sequence,
-            ttl_milliseconds: common.ttl_milliseconds,
-        },
+        command,
         format: options.format.unwrap_or(OutputFormat::Text),
     })
+}
+
+fn preflight(
+    command: &PanelMetadataCommand,
+) -> Result<(), orchbee_workbench_protocol::WorkbenchWireError> {
+    use orchbee_workbench_protocol::*;
+    const ID: &str = "00000000000000000000000000000001";
+    write_workbench_request(
+        &mut Vec::new(),
+        &WorkbenchRequest::PanelMetadata(PanelMetadataRequest {
+            protocol_version: ProtocolVersion,
+            request_id: WorkbenchRequestId::parse(ID).expect("fixed identity"),
+            site_id: SiteId::parse(ID).expect("fixed identity"),
+            action: command.action(
+                WorkbenchPanelId::parse(ID).expect("fixed identity"),
+                PresentationBinding {
+                    worker_id: WorkerId::parse(ID).expect("fixed identity"),
+                    terminal_id: TerminalId::parse(ID).expect("fixed identity"),
+                },
+            ),
+        }),
+    )
 }
 
 #[cfg(test)]

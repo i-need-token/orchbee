@@ -60,7 +60,7 @@ Workbench-query failures, including `client-changed` and `workbench-changed`, wi
 results. Generic current-stage failures retain the exact `current-panel` stage. Windows success
 uses `orchbee.panel.current` v7, with canonical Panel structure and an explicit `currentPresentation`.
 Non-Windows current retains v3; the embedded schema strictly separates these shapes.
-`orchbee.panel.process-info` remains v2. Catalog v96 contains 91 documents and 108 command paths.
+`orchbee.panel.process-info` remains v2. Catalog v97 contains 91 documents and 108 command paths.
 
 ## Refinement and evidence
 
@@ -111,7 +111,7 @@ Client control receipt v6 admits this new intent while v1–v5 remain closed.
 Evidence covers strict contract parsing and reply identity, native child projection without
 primary borrowing, caller child resolution, and controlled Windows CLI request ordering and
 stale-member rejection. Full Windows/provider/multi-Client acceptance remains a final gate.
-The following enrichment uses this same member identity; report writes remain a separate obligation.
+The following enrichment uses this same member identity; [Report writes](windows-panel-agent-reports.md#exact-member-targets) select an explicit member separately.
 
 ## Current member enrichment
 
@@ -141,4 +141,4 @@ Pure target tests and actual Windows CLI peer traces cover primary, child caller
 unbound explicit primary, exact report/metadata association, stale tokens/revisions, failure
 envelopes and legacy schema rejection. The final provider/multi-Client/full gate remains deferred.
 No new wire shape, dependency or durable migration is required; roll out the updated native CLI
-with its existing matched cohort, and roll back by source. Report writes remain a separate obligation.
+with its existing matched cohort, and roll back by source. [Report writes](windows-panel-agent-reports.md#exact-member-targets) select an explicit member separately.

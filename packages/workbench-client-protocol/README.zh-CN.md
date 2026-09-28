@@ -206,3 +206,10 @@ Server 屏幕模型拥有来源选择、下载、安装、取消和回执上限�
 可选 `maintenance.automatic` 暴露配置开关及来源、后台／发布版／可用性门控、实际启用状态和最近一次自动操作。必需可空字段 `lastOperation` 保留 pending、updated、failed 或 unknown 事实，拒绝仅用于重载的 Applied。Rust／TypeScript 校验门控一致性与默认来源。自动任务不消耗手动回执 ID；调度由 Server 拥有。
 
 两个 Panel 载体还支持 `read-presentations` 和 `presentations-read`，用于精确主项或子项报告／元数据观察：四个有序唯一 Presentation ID、空读取修订校验、必需的所属 `panel` 行，以及不同成员共享 Panel ID。Rust／TypeScript 与主项读取同样校验载荷不变量及元数据字段顺序归属。既有主项读写形状不变。共享用例覆盖精确成员数量界限、严格包装、同 Panel 成员和未绑定载荷；原生调用者还关联 Presentation、Panel 和 binding。协议应与其 Server 及原生 TUI 消费者作为匹配 cohort 交付。
+
+两类 Panel 载体另接纳封闭的 `report-presentation` / `presentation-reported` 变体，必需
+携带 Panel、Presentation 及期望／实际绑定身份。旧 `report` / `reported` 保持封闭且只
+针对主项。共享 Rust／TypeScript／JSON 向量覆盖精确请求／回复、必需 ID 及旧形状拒绝；
+原生关联还要求精确请求成员。[Agent 报告目标契约](../../apps/orchbee/docs/windows-panel-agent-reports.zh-CN.md#精确成员目标)
+与[元数据目标契约](../../apps/orchbee/docs/windows-panel-metadata.zh-CN.md#精确成员目标)拥有
+运行时语义、提交回执及配套 cohort 兼容规则。

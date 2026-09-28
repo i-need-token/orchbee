@@ -705,24 +705,54 @@ fn presentation_reports_read_exact_primary_child_and_unbound_in_requested_order(
     let mut a = owner();
     let facts = [physical(1, 1), physical(2, 1)];
     invoke(&mut a, state("custom", "1"), &facts);
-    // Publish terminal two while it is primary, then retain it as a child.
-    let mut swapped = tree();
-    swapped["terminalContexts"][0]["tabs"][0]["root"]["primaryPresentation"]["binding"] =
-        json!(binding(2));
-    swapped["terminalContexts"][0]["tabs"][0]["root"]["childPresentations"][0]["binding"] =
-        json!(binding(1));
-    install(&mut a, &swapped);
-    let mut action = report(
-        json!({"kind":"state","source":"custom","agent":"child-agent","state":"blocked","message":"child approval"}),
-    );
-    if let Action::Report {
-        expected_binding, ..
-    } = &mut action
-    {
-        *expected_binding = binding(2);
+    let Action::Report { report, .. } = report(
+        json!({"kind":"state","source":"custom","agent":"child-agent","state":"blocked","message":"child approval","sequence":"2"}),
+    ) else {
+        panic!("report")
+    };
+    let exact = Action::ReportPresentation {
+        panel_id: panel(),
+        presentation_id: orchbee_workbench_protocol::TerminalPresentationId::parse(&format!(
+            "{:032x}",
+            5
+        ))
+        .unwrap(),
+        expected_binding: binding(2),
+        report,
+    };
+    assert!(matches!(
+        invoke(&mut a, exact.clone(), &facts),
+        Outcome::PresentationReported { changed: true, .. }
+    ));
+    assert!(matches!(
+        invoke(&mut a, exact.clone(), &facts),
+        Outcome::PresentationReported { changed: false, .. }
+    ));
+    for wrong_owner in [false, true] {
+        let mut rejected = exact.clone();
+        if let Action::ReportPresentation {
+            panel_id,
+            expected_binding,
+            ..
+        } = &mut rejected
+        {
+            if wrong_owner {
+                *panel_id = WorkbenchPanelId::parse(&format!("{:032x}", 99)).unwrap();
+            } else {
+                *expected_binding = binding(1);
+            }
+        }
+        assert_eq!(
+            invoke(&mut a, rejected, &facts),
+            Outcome::Failed {
+                reason: if wrong_owner {
+                    Failure::NotFound
+                } else {
+                    Failure::BindingChanged
+                }
+            }
+        );
     }
-    invoke(&mut a, action, &facts);
-    install(&mut a, &tree());
     let before = a.snapshot().clone();
     let id = |n: u128| {
         orchbee_workbench_protocol::TerminalPresentationId::parse(&format!("{n:032x}")).unwrap()
@@ -782,6 +812,12 @@ fn presentation_reports_read_exact_primary_child_and_unbound_in_requested_order(
     unbound["terminalContexts"][0]["tabs"][0]["root"]["childPresentations"][0]["binding"] =
         Value::Null;
     install(&mut a, &unbound);
+    assert_eq!(
+        invoke(&mut a, exact, &facts[..1]),
+        Outcome::Failed {
+            reason: Failure::Unbound
+        }
+    );
     let Outcome::PresentationsRead { presentations, .. } =
         invoke(&mut a, read(&[5, 4]), &facts[..1])
     else {

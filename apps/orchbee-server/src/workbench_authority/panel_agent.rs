@@ -378,13 +378,32 @@ impl WorkbenchAuthority {
                 panel_id,
                 expected_binding,
                 report,
+            }
+            | Action::ReportPresentation {
+                panel_id,
+                expected_binding,
+                report,
+                ..
             } => {
-                let binding = membership
-                    .panels
-                    .get(panel_id)
-                    .ok_or(Failure::NotFound)?
-                    .as_ref()
-                    .ok_or(Failure::Unbound)?;
+                let presentation_id = match &request.action {
+                    Action::ReportPresentation {
+                        presentation_id, ..
+                    } => Some(presentation_id),
+                    _ => None,
+                };
+                let binding = if let Some(id) = presentation_id {
+                    if membership.owners.get(id) != Some(panel_id) {
+                        return Err(Failure::NotFound);
+                    }
+                    membership
+                        .presentations
+                        .get(id.as_str())
+                        .ok_or(Failure::NotFound)?
+                } else {
+                    membership.panels.get(panel_id).ok_or(Failure::NotFound)?
+                }
+                .as_ref()
+                .ok_or(Failure::Unbound)?;
                 if binding != expected_binding {
                     return Err(Failure::BindingChanged);
                 }
@@ -423,14 +442,27 @@ impl WorkbenchAuthority {
                 } else {
                     self.panel_agent.revision
                 };
-                let outcome = Outcome::Reported {
-                    workbench_revision,
-                    report_revision: WorkbenchRevision::new(revision),
-                    panel_id: panel_id.clone(),
-                    binding: binding.clone(),
-                    disposition: transition.disposition,
-                    changed: transition.changed,
-                    view: Box::new(candidate.reports.view()),
+                let outcome = if let Some(id) = presentation_id {
+                    Outcome::PresentationReported {
+                        workbench_revision,
+                        report_revision: WorkbenchRevision::new(revision),
+                        panel_id: panel_id.clone(),
+                        presentation_id: id.clone(),
+                        binding: binding.clone(),
+                        disposition: transition.disposition,
+                        changed: transition.changed,
+                        view: Box::new(candidate.reports.view()),
+                    }
+                } else {
+                    Outcome::Reported {
+                        workbench_revision,
+                        report_revision: WorkbenchRevision::new(revision),
+                        panel_id: panel_id.clone(),
+                        binding: binding.clone(),
+                        disposition: transition.disposition,
+                        changed: transition.changed,
+                        view: Box::new(candidate.reports.view()),
+                    }
                 };
                 admit_result(&outcome)?;
                 if transition.changed {

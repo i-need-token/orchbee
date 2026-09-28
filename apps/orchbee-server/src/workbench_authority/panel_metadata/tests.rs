@@ -617,18 +617,59 @@ fn metadata_revision_failure_prevents_the_companion_agent_exit_commit() {
 fn presentation_metadata_reads_exact_binding_without_primary_fallback() {
     let mut a = WorkbenchAuthority::new(SiteId::parse(&format!("{:032x}", 80)).unwrap()).unwrap();
     install(&mut a, &tree());
-    let now = Instant::now();
+    let report = |n: u128, value: &str| Action::ReportPresentation {
+        panel_id: panel(3),
+        presentation_id: orchbee_workbench_protocol::TerminalPresentationId::parse(&format!(
+            "{:032x}",
+            n + 3
+        ))
+        .unwrap(),
+        expected_binding: binding(n),
+        source: source(1),
+        patch: Box::new(title(value)),
+        sequence: Some(WorkbenchRevision::new(1)),
+        ttl_milliseconds: None,
+    };
     for (n, value) in [(1, "primary title"), (2, "child title")] {
-        a.panel_metadata
-            .report(
-                &key(&binding(n)),
-                &source(1),
-                &title(value),
-                None,
-                None,
-                now,
-            )
-            .unwrap();
+        assert!(matches!(
+            invoke(&mut a, report(n, value)).outcome,
+            Outcome::PresentationReported {
+                disposition: Disposition::Applied,
+                ..
+            }
+        ));
+        assert!(matches!(
+            invoke(&mut a, report(n, "stale title")).outcome,
+            Outcome::PresentationReported {
+                disposition: Disposition::Stale,
+                ..
+            }
+        ));
+    }
+    for wrong_owner in [false, true] {
+        let mut rejected = report(2, "wrong");
+        if let Action::ReportPresentation {
+            panel_id,
+            expected_binding,
+            ..
+        } = &mut rejected
+        {
+            if wrong_owner {
+                *panel_id = panel(99);
+            } else {
+                *expected_binding = binding(1);
+            }
+        }
+        assert_eq!(
+            invoke(&mut a, rejected).outcome,
+            Outcome::Failed {
+                reason: if wrong_owner {
+                    Failure::NotFound
+                } else {
+                    Failure::BindingChanged
+                }
+            }
+        );
     }
     let before = a.snapshot().clone();
     let read = |ids: &[u128]| Action::ReadPresentations {
@@ -670,6 +711,12 @@ fn presentation_metadata_reads_exact_binding_without_primary_fallback() {
     unbound["terminalContexts"][0]["tabs"][0]["root"]["childPresentations"][0]["binding"] =
         Value::Null;
     install(&mut a, &unbound);
+    assert_eq!(
+        invoke(&mut a, report(2, "unbound")).outcome,
+        Outcome::Failed {
+            reason: Failure::Unbound
+        }
+    );
     let Outcome::PresentationsRead { presentations, .. } = invoke(&mut a, read(&[5, 4])).outcome
     else {
         panic!("unbound")

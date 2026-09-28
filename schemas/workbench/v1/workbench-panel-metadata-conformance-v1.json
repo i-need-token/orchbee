@@ -572,6 +572,62 @@
 					]
 				}
 			}
+		},
+		{
+			"name": "exact-member-report-presentation",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.panel-metadata",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "report-presentation",
+					"panelId": "00000000000000000000000000000003",
+					"expectedBinding": {
+						"workerId": "00000000000000000000000000000004",
+						"terminalId": "00000000000000000000000000000005"
+					},
+					"source": "hook:example",
+					"patch": {
+						"title": "标题 😀",
+						"displayAgent": "Agent",
+						"stateLabels": {
+							"working": "忙碌"
+						},
+						"tokens": {
+							"__proto__": "safe",
+							"constructor": "legal",
+							"gone": null
+						}
+					},
+					"sequence": "18446744073709551615",
+					"ttlMilliseconds": 86400000,
+					"presentationId": "00000000000000000000000000000077"
+				}
+			}
+		},
+		{
+			"name": "exact-member-presentation-reported",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-metadata.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "presentation-reported",
+					"workbenchRevision": "9",
+					"metadataRevision": "10",
+					"panelId": "00000000000000000000000000000003",
+					"binding": {
+						"workerId": "00000000000000000000000000000004",
+						"terminalId": "00000000000000000000000000000005"
+					},
+					"disposition": "applied",
+					"presentationId": "00000000000000000000000000000077"
+				}
+			}
 		}
 	],
 	"invalid": [
@@ -2416,6 +2472,172 @@
 				}
 			},
 			"boundary": "semantic"
+		},
+		{
+			"name": "missing-member-report-presentation",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.panel-metadata",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "report-presentation",
+					"panelId": "00000000000000000000000000000003",
+					"expectedBinding": {
+						"workerId": "00000000000000000000000000000004",
+						"terminalId": "00000000000000000000000000000005"
+					},
+					"source": "hook:example",
+					"patch": {
+						"title": "标题 😀",
+						"displayAgent": "Agent",
+						"stateLabels": {
+							"working": "忙碌"
+						},
+						"tokens": {
+							"__proto__": "safe",
+							"constructor": "legal",
+							"gone": null
+						}
+					},
+					"sequence": "18446744073709551615",
+					"ttlMilliseconds": 86400000
+				}
+			}
+		},
+		{
+			"name": "malformed-member-report-presentation",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.panel-metadata",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "report-presentation",
+					"panelId": "00000000000000000000000000000003",
+					"expectedBinding": {
+						"workerId": "00000000000000000000000000000004",
+						"terminalId": "00000000000000000000000000000005"
+					},
+					"source": "hook:example",
+					"patch": {
+						"title": "标题 😀",
+						"displayAgent": "Agent",
+						"stateLabels": {
+							"working": "忙碌"
+						},
+						"tokens": {
+							"__proto__": "safe",
+							"constructor": "legal",
+							"gone": null
+						}
+					},
+					"sequence": "18446744073709551615",
+					"ttlMilliseconds": 86400000,
+					"presentationId": "00000000000000000000000000000000"
+				}
+			}
+		},
+		{
+			"name": "legacy-with-member-report-presentation",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.panel-metadata",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "report",
+					"panelId": "00000000000000000000000000000003",
+					"expectedBinding": {
+						"workerId": "00000000000000000000000000000004",
+						"terminalId": "00000000000000000000000000000005"
+					},
+					"source": "hook:example",
+					"patch": {
+						"title": "标题 😀",
+						"displayAgent": "Agent",
+						"stateLabels": {
+							"working": "忙碌"
+						},
+						"tokens": {
+							"__proto__": "safe",
+							"constructor": "legal",
+							"gone": null
+						}
+					},
+					"sequence": "18446744073709551615",
+					"ttlMilliseconds": 86400000,
+					"presentationId": "00000000000000000000000000000077"
+				}
+			}
+		},
+		{
+			"name": "missing-member-presentation-reported",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-metadata.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "presentation-reported",
+					"workbenchRevision": "9",
+					"metadataRevision": "10",
+					"panelId": "00000000000000000000000000000003",
+					"binding": {
+						"workerId": "00000000000000000000000000000004",
+						"terminalId": "00000000000000000000000000000005"
+					},
+					"disposition": "applied"
+				}
+			}
+		},
+		{
+			"name": "malformed-member-presentation-reported",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-metadata.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "presentation-reported",
+					"workbenchRevision": "9",
+					"metadataRevision": "10",
+					"panelId": "00000000000000000000000000000003",
+					"binding": {
+						"workerId": "00000000000000000000000000000004",
+						"terminalId": "00000000000000000000000000000005"
+					},
+					"disposition": "applied",
+					"presentationId": "00000000000000000000000000000000"
+				}
+			}
+		},
+		{
+			"name": "legacy-with-member-presentation-reported",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-metadata.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "reported",
+					"workbenchRevision": "9",
+					"metadataRevision": "10",
+					"panelId": "00000000000000000000000000000003",
+					"binding": {
+						"workerId": "00000000000000000000000000000004",
+						"terminalId": "00000000000000000000000000000005"
+					},
+					"disposition": "applied",
+					"presentationId": "00000000000000000000000000000077"
+				}
+			}
 		}
 	]
 }

@@ -24,6 +24,12 @@ mod workspace_group_close;
 mod worktree;
 
 impl Locale {
+    pub(crate) const fn cli_report_presentation_label(self) -> &'static str {
+        match self {
+            Self::EnUs => "Presentation",
+            Self::ZhCn => "终端成员",
+        }
+    }
     /// Localized human diagnostic for one CLI failure. User-controlled data is
     /// escaped before it reaches the terminal.
     pub(crate) fn cli_failure(self, failure: &Failure) -> String {
@@ -695,6 +701,12 @@ impl Locale {
                 "a literal file path of 1–4096 UTF-8 bytes"
             }
             (Self::ZhCn, ExpectedValue::OutputFilePath) => "1–4096 UTF-8 字节的字面文件路径",
+            (Self::EnUs, ExpectedValue::PresentationId) => {
+                "a nonzero 32-character lowercase hexadecimal Presentation ID"
+            }
+            (Self::ZhCn, ExpectedValue::PresentationId) => {
+                "非零的 32 位小写十六进制 Presentation 标识"
+            }
             (Self::EnUs, ExpectedValue::ClientId) => {
                 "a nonzero 32-character lowercase hexadecimal Client ID"
             }

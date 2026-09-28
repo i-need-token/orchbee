@@ -3,6 +3,8 @@ pub(crate) mod panel_agent;
 pub(crate) mod panel_metadata;
 #[cfg(windows)]
 mod panel_metadata_query;
+#[cfg(windows)]
+mod report_target;
 mod schema_export;
 pub(crate) mod workspace_metadata;
 pub(crate) use schema_export::run as export_schema;

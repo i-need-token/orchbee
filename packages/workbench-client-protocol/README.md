@@ -272,3 +272,11 @@ source selection, downloading, installation, cancellation and receipt limits.
 Optional `maintenance.automatic` exposes the configured check and provenance, background/release/availability gates, effective enabled state and one latest automatic operation. Required nullable `lastOperation` retains pending, updated, failed or unknown facts; reload-only Applied is refused. Rust/TypeScript validate gate consistency and default provenance. Automatic work never consumes manual receipt IDs; scheduling belongs to the Server.
 
 Both Panel carriers also admit `read-presentations` and `presentations-read` for exact primary or child report/metadata observations: four unique ordered Presentation IDs, empty revision fences, required owning `panel` rows, and shared Panel IDs across different members. Rust/TypeScript enforce payload invariants and metadata field-order ownership identically to primary reads. Existing primary read/write shapes remain unchanged. The shared corpora cover exact-member bounds, strict wrappers, same-Panel members and unbound payloads; native callers additionally correlate Presentation, Panel and binding. Ship the protocol with its Server and native TUI consumers as a matched cohort.
+
+Both Panel carriers additionally admit closed `report-presentation` / `presentation-reported`
+variants with required Panel, Presentation and expected/actual binding identities. Legacy
+`report` / `reported` remain closed and primary-only. Shared Rust/TypeScript/JSON vectors cover
+exact requests/replies, required IDs and legacy rejection; native correlation also requires the
+exact requested member. The [Agent report target contract](../../apps/orchbee/docs/windows-panel-agent-reports.md#exact-member-targets)
+and [metadata target contract](../../apps/orchbee/docs/windows-panel-metadata.md#exact-member-targets)
+own runtime semantics, submission receipts and matched-cohort compatibility.

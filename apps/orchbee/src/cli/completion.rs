@@ -268,6 +268,7 @@ const FAMILY_VERBS: &[(&str, &[&str])] = &[
 /// Every business flag the grammar admits (`--format` is orthogonal), in the
 /// order the state machine records them.
 const BUSINESS_FLAGS: &[&str] = &[
+    "--presentation",
     "--agent",
     "--state",
     "--message",
@@ -750,6 +751,7 @@ const COMMAND_FLAGS: &[(&str, &[&str])] = &[
     (
         "panel:report-agent",
         &[
+            "--presentation",
             "--source",
             "--agent",
             "--state",
@@ -762,6 +764,7 @@ const COMMAND_FLAGS: &[(&str, &[&str])] = &[
     (
         "panel:report-agent-session",
         &[
+            "--presentation",
             "--source",
             "--agent",
             "--seq",
@@ -770,11 +773,18 @@ const COMMAND_FLAGS: &[(&str, &[&str])] = &[
             "--session-start-source",
         ],
     ),
-    ("panel:clear-agent-authority", &["--source", "--seq"]),
-    ("panel:release-agent", &["--source", "--agent", "--seq"]),
+    (
+        "panel:clear-agent-authority",
+        &["--presentation", "--source", "--seq"],
+    ),
+    (
+        "panel:release-agent",
+        &["--presentation", "--source", "--agent", "--seq"],
+    ),
     (
         "panel:report-metadata",
         &[
+            "--presentation",
             "--source",
             "--agent",
             "--applies-to-source",
@@ -1340,6 +1350,7 @@ fn flag_bit(flag: &str) -> &'static str {
         "--applies-to-source" => "seen_panel_metadata_applies_to_source",
         "--title" => "seen_panel_metadata_title",
         "--display-agent" => "seen_panel_metadata_display_agent",
+        "--presentation" => "seen_report_presentation",
         "--state-label" => "seen_panel_metadata_state_label",
         "--clear-title" => "seen_panel_metadata_clear_title",
         "--clear-display-agent" => "seen_panel_metadata_clear_display_agent",

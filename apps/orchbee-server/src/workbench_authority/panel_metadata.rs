@@ -371,26 +371,60 @@ impl WorkbenchAuthority {
                 patch,
                 sequence,
                 ttl_milliseconds,
+            }
+            | Action::ReportPresentation {
+                panel_id,
+                expected_binding,
+                source,
+                patch,
+                sequence,
+                ttl_milliseconds,
+                ..
             } => {
-                let binding = panels
-                    .get(panel_id)
-                    .ok_or(Failure::NotFound)?
-                    .as_ref()
-                    .ok_or(Failure::Unbound)?;
+                let presentation_id = match &request.action {
+                    Action::ReportPresentation {
+                        presentation_id, ..
+                    } => Some(presentation_id),
+                    _ => None,
+                };
+                let binding = if let Some(id) = presentation_id {
+                    if owners.get(id) != Some(panel_id) {
+                        return Err(Failure::NotFound);
+                    }
+                    presentations.get(id.as_str()).ok_or(Failure::NotFound)?
+                } else {
+                    panels.get(panel_id).ok_or(Failure::NotFound)?
+                }
+                .as_ref()
+                .ok_or(Failure::Unbound)?;
                 if binding != expected_binding {
                     return Err(Failure::BindingChanged);
                 }
+                let reported = |revision, disposition| match presentation_id {
+                    Some(id) => Outcome::PresentationReported {
+                        workbench_revision,
+                        metadata_revision: revision,
+                        panel_id: panel_id.clone(),
+                        presentation_id: id.clone(),
+                        binding: binding.clone(),
+                        disposition,
+                    },
+                    None => Outcome::Reported {
+                        workbench_revision,
+                        metadata_revision: revision,
+                        panel_id: panel_id.clone(),
+                        binding: binding.clone(),
+                        disposition,
+                    },
+                };
                 if self
                     .panel_agent
                     .blocks_metadata(binding, source.as_str(), patch)
                 {
-                    return Ok(Outcome::Reported {
-                        workbench_revision,
-                        metadata_revision: WorkbenchRevision::new(self.panel_metadata.revision),
-                        panel_id: panel_id.clone(),
-                        binding: binding.clone(),
-                        disposition: Disposition::Stale,
-                    });
+                    return Ok(reported(
+                        WorkbenchRevision::new(self.panel_metadata.revision),
+                        Disposition::Stale,
+                    ));
                 }
                 let disposition = self.panel_metadata.report(
                     &key(binding),
@@ -400,13 +434,10 @@ impl WorkbenchAuthority {
                     *ttl_milliseconds,
                     now,
                 )?;
-                Ok(Outcome::Reported {
-                    workbench_revision,
-                    metadata_revision: WorkbenchRevision::new(self.panel_metadata.revision),
-                    panel_id: panel_id.clone(),
-                    binding: binding.clone(),
+                Ok(reported(
+                    WorkbenchRevision::new(self.panel_metadata.revision),
                     disposition,
-                })
+                ))
             }
         }
     }

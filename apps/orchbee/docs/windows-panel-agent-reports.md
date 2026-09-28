@@ -1,5 +1,28 @@
 # Windows Panel Agent reports
 
+## Exact member targets
+
+Each command accepts optional `--presentation <id>`, a full nonzero 32-character lowercase
+hexadecimal Presentation ID belonging to the positional Panel. Omission retains the primary
+target. Explicit selection never falls back to a different member, caller or Client. The CLI
+resolves canonical membership and requires a bound member before submission. The Server rechecks
+the exact owning Panel and expected binding under its existing Site gate. Reports remain owned
+by the binding and physical generation; source ordering and report policy are unchanged.
+
+Exact writes use the closed `report-presentation` / `presentation-reported` variants of the
+existing carrier. Positive replies must match request, Site, Panel, Presentation and binding;
+legacy `report` / `reported` remain primary-only. The CLI emits `orchbee.panel.agent-report` v2
+only for explicit member selection, including the requested `presentationId` for known and
+unknown submitted outcomes. Legacy v1 remains closed. Localized text identifies the member.
+All phases retain the single five-second deadline, cancellation and no-replay rules below.
+
+Targeted contract and owner traces cover child/primary isolation, wrong owners, unbound members,
+binding changes and source ordering; CLI traces cover exact requests and correlated or unknown
+receipts. Matched private cohorts roll out together, with source rollback and no data migration.
+Full provider, multi-Client and visual acceptance remains part of the final gate.
+
+## Commands
+
 Four commands submit explicit terminal reports to the running Site:
 
 ```text
@@ -38,7 +61,7 @@ can have different outcomes, so the returned disposition and `changed` flag are 
 ## Submission and receipt
 
 One existing-Site connection, snapshot and submission share a five-second deadline and signal
-owner. Resolve the primary terminal once and submit the expected binding. Unbound targets fail
+owner. Resolve the requested member once (primary by default) and submit the expected binding. Unbound targets fail
 before submission; changed bindings receive a correlated rejection. No Site starts, focus changes,
 terminal input, provider execution or automatic retries occur. After handoff, a lost, malformed,
 mismatched or late response preserves the request ID and reports an unknown outcome. A late

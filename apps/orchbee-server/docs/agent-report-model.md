@@ -96,7 +96,7 @@ Report-associated names and TUI context remain required consumers; native querie
 
 `workbench.panel-agent` uses OBWP kind 35 for requests and kind 36 for results. Read permission
 admits zero to four unique Panel IDs; navigation permission admits the four explicit report kinds.
-Writes require the expected logical primary binding and a currently retained physical fact. Source
+Legacy primary writes require the expected logical primary binding and a currently retained physical fact. Source
 and message remain literal, Agent labels use shared normalization, and sequences are full-u64 decimal
 strings. Invalid provider references and unknown start reasons normalize to absence as in the reference;
 a valid reference remains distinct from canonical observation Session IDs. Windows composition supplies
@@ -169,3 +169,17 @@ coverage. State is transient; rollback replaces the matched cohort, without chec
 ## Exact Presentation reads
 
 `read-presentations` reads up to four ordered unique primary or child Presentation IDs under the same read policy and Site gate as primary Panel reads. `presentations-read` retains independent Workbench/report revisions and wraps each exact member’s Panel row with its Presentation ID. Shared Panel IDs are valid; unknown members fail the whole batch with `not-found`. Unbound members have null binding/report; bound members without reports have the existing unknown view. Queries reuse binding-owned resources and never borrow the primary report. Empty reads fence report revisions. Existing primary read and write semantics are unchanged; callers must correlate Presentation, Panel, binding and Workbench revision.
+
+## Exact Presentation writes
+
+`report-presentation` names a Panel, one primary or child Presentation, its expected binding and
+the existing report payload. Under the Site gate, the membership owner first proves that the
+Presentation belongs to that Panel, then requires its nonnull matching binding and retained
+physical fact. Wrong owners, missing members, unbound targets and stale bindings fail before the
+report transition. This reuses the binding-keyed owner, source sequence, resource admission and
+physical-generation lifecycle; canonical structure and other members' reports stay unchanged.
+`presentation-reported` echoes Panel, Presentation and binding plus the existing independent
+revisions, disposition, change flag and view. Result byte admission still precedes commit.
+Navigation permission is required, as for legacy primary-only `report`. Exact-member traces cover
+isolation, replay, wrong owner/binding and unbound targets. No durable migration is introduced;
+replace the matched cohort to roll out or roll back.

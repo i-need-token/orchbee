@@ -54,7 +54,7 @@ Ready 或 Busy 观察（历史阅读属于 Busy）；`process-info` 仍只接受
 阶段失败保留精确的 `current-panel` 阶段。Windows 成功结果使用 `orchbee.panel.current`
 v7，保留规范 Panel 结构并显式携带 `currentPresentation`。非 Windows current 保留 v3；
 嵌入 schema 严格区分这两种形状。`orchbee.panel.process-info` 保持 v2。
-目录 v96 包含 91 份文档和 108 条命令路径。
+目录 v97 包含 91 份文档和 108 条命令路径。
 
 ## 细化映射与证据
 
@@ -96,7 +96,7 @@ Presentation，其封闭结构保持不变。
 
 证据覆盖严格契约解析及回复身份、不会借用主终端的原生子成员投影、调用者子终端解析，
 以及受控 Windows CLI 请求顺序和过时成员拒绝。完整 Windows/provider/多 Client 验收
-仍留到最终阶段。下文的信息补充使用同一成员身份；报告写入仍是独立义务。
+仍留到最终阶段。下文的信息补充使用同一成员身份；[报告写入](windows-panel-agent-reports.zh-CN.md#精确成员目标)单独选择显式成员。
 
 ## 当前成员信息增强
 
@@ -121,4 +121,4 @@ Client 成员读取包围信息组合及最终规范修订检查。两次回执�
 纯目标测试与实际 Windows CLI 端点轨迹覆盖主项、子项调用者、所选子项、未绑定显式
 主项、精确报告／元数据关联、过时代次／修订、失败封套及旧 schema 拒绝。最终 provider／
 多 Client／全量检查仍后置。不需要新线结构、依赖或持久化迁移；更新原生 CLI 与现有配套
-cohort 一起发布，通过源码回滚。报告写入仍为独立待办。
+cohort 一起发布，通过源码回滚。[报告写入](windows-panel-agent-reports.zh-CN.md#精确成员目标)单独选择显式成员。

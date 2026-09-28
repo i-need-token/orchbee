@@ -78,7 +78,7 @@ JSON 轨迹。转换准备新状态，调用方负责准入与提交。
 ## Windows 上报承载
 
 `workbench.panel-agent` 的请求使用 OBWP kind 35，结果使用 kind 36。读取权限允许查询零至
-四个不重复的 Panel ID；导航权限允许四种显式上报。写入要求预期逻辑主绑定匹配，且具有当前
+四个不重复的 Panel ID；导航权限允许四种显式上报。旧主项写入要求预期逻辑主绑定匹配，且具有当前
 保留的物理身份事实。来源和消息按原文保留，Agent 标签使用共享规范化，序号是完整 u64 十进制
 字符串。无效 provider 引用及未知启动原因按参考实现转为缺失；有效 provider 引用与规范观察
 Session ID 独立。Windows 组合层提供路径绝对性判断，不访问文件系统或执行 provider。
@@ -139,3 +139,14 @@ CLI 物理 Agent Get 是首个消费者；wait／prompt 活动门槛和 Client �
 ## 精确 Presentation 读取
 
 `read-presentations` 在与主 Panel 读取相同的只读策略和 Site 门内读取最多四个有序唯一的主项或子项 Presentation ID。`presentations-read` 保留独立 Workbench／报告修订号，以 Presentation ID 包装每个精确成员的 Panel 行。共享 Panel ID 合法；未知成员以 `not-found` 拒绝整批。未绑定成员的绑定／报告均为 null；已绑定但无报告的成员使用既有 unknown 视图。查询复用绑定所属资源，不借用主项报告。空读取校验报告修订号。既有主项读写语义不变；调用者必须关联 Presentation、Panel、绑定和 Workbench 修订号。
+
+## 精确 Presentation 写入
+
+`report-presentation` 指明 Panel、其中一个主项或子项 Presentation、期望绑定及已有报告内容。
+Site 门内先证明 Presentation 属于该 Panel，再要求其绑定非空、与期望一致，且具备当前物理
+事实。错误所属、成员缺失、未绑定及过期绑定都在报告转换前失败。流程复用绑定索引所有者、
+来源序列、资源准入及物理代次生命周期；规范结构与其他成员报告保持不变。
+`presentation-reported` 回传 Panel、Presentation、绑定及既有独立修订号、处理结果、变化
+标志与视图。应答字节准入仍先于提交。与旧的仅主项 `report` 一样，要求导航权限。精确成员
+轨迹覆盖隔离、重放、错误所属／绑定和未绑定目标。不新增持久化迁移；替换配套 cohort 发布
+或回滚。
