@@ -25,6 +25,8 @@ pub use checkpoint::{
     MAXIMUM_WORKBENCH_CHECKPOINT_BYTES, PreparedWorkbenchRestoreBinding, WorkbenchCheckpoint,
     WorkbenchCheckpointError, WorkbenchRestoreError, WorkbenchRestoreTarget,
 };
+#[cfg(test)]
+mod agent_reports;
 mod panel_metadata;
 mod terminal_membership;
 mod workspace_directory;

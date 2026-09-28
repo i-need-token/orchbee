@@ -1031,3 +1031,8 @@ revision exhaustion and primary/child binding lifetime. Compatibility targets He
 resumable sessions and TUI rendering remain separate consumers. A metadata report never creates
 an Agent authority or changes OSC terminal title. Public CLI integration requires the carrier and
 query projection; the owner alone does not establish CLI parity.
+
+The [Agent report model](agent-report-model.md) defines the staged explicit report transitions
+that will supply actual authority context and process-exit metadata cleanup under this same
+commit gate. Canonical Agent observations retain their existing owner; the staged core is not a
+public report service and does not yet change metadata queries.

@@ -113,6 +113,10 @@
 			"englishSha256": "12bb81d1bb99b1fc6f9a51d3feedcd74503dffdcaa7195e03d8b846542336c08",
 			"zhCnSha256": "8b8dd1f1b1aa221e5cf223933edb94e5b45d962f00b3f6da39517ee081adc4a9"
 		},
+		"apps/orchbee-server/docs/agent-report-model.md": {
+			"englishSha256": "dd3850debb00eb17431b39e243c567717d4ffbf6045e6985aa84df9f42fbcbbd",
+			"zhCnSha256": "a145ea6165e39b3b4364ee04a4052945335c22737b32a818c725bf2acd5ded22"
+		},
 		"apps/orchbee-server/docs/terminal-controller-takeover.md": {
 			"englishSha256": "d30b30c27f6d64a07517c1490296bce7cf612cdd9bf70ab6c3e0f08f270fa5eb",
 			"zhCnSha256": "d1afa06e1a4cf7a2655615161ca1392ec9d5c352f24f29634bb571b6940c36a5"
@@ -122,8 +126,8 @@
 			"zhCnSha256": "8ad708e3dbe11e0e6872223d538aabf3dc75bbdb0e33dbecd547511d9258eda2"
 		},
 		"apps/orchbee-server/docs/workbench-authority.md": {
-			"englishSha256": "09f4bc45fa3ec893fda2f1b75805cb2a4591cbd55e44b735167b270df5cb1c1a",
-			"zhCnSha256": "e1204da7320c575c433e77486e59f25f60331d87466618319f0a148da3e8b3e9"
+			"englishSha256": "b2566c573564c7f74adc477436d94edc4cf4272552e753585d186ecf34508c87",
+			"zhCnSha256": "d5293aa72c372a145aac882c63d4241c93c24ad685a89ae7c4c92294be1a34fa"
 		},
 		"apps/orchbee-server/docs/workbench-checkpoint.md": {
 			"englishSha256": "cc29d33992fa18b8b820b2179ebbed23b87899ce4559fc359abce57c5de5f5d5",
