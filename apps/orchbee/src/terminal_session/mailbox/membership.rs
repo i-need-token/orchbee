@@ -1,5 +1,6 @@
 use super::{
-    AttachmentKey, CarrierFailure, MailboxMembership, MailboxState, PaneKey, UiReplyTransaction,
+    AttachmentKey, CarrierFailure, MailboxMembership, MailboxState, PaneKey, PaneRef,
+    UiReplyTransaction,
 };
 use orchbee_workbench_protocol::{WorkbenchPanelId, WorkbenchTabId};
 
@@ -22,7 +23,7 @@ pub(in crate::terminal_session) struct PreparedDesiredInstall<'a> {
     state: &'a mut MailboxState,
     desired: Option<PaneKey>,
     generation: u64,
-    preserve: bool,
+    panes: Vec<PaneRef>,
 }
 
 impl PreparedDesiredInstall<'_> {
@@ -32,20 +33,9 @@ impl PreparedDesiredInstall<'_> {
     }
 
     pub(in crate::terminal_session) fn commit(self) {
-        // A preserved epoch keeps its admitted pane set; any other install
-        // changes the anchor, so no pane is admitted until the next reconcile
-        // snapshot names the incarnations the state minted for it.
-        let panes = if self.preserve {
-            match &self.state.desired {
-                MailboxMembership::Live { panes, .. } => panes.clone(),
-                MailboxMembership::AwaitingBootstrap => Vec::new(),
-            }
-        } else {
-            Vec::new()
-        };
         self.state.desired = MailboxMembership::Live {
             desired: self.desired,
-            panes,
+            panes: self.panes,
         };
         self.state.attachment_generation = self.generation;
     }
@@ -60,7 +50,16 @@ impl UiReplyTransaction<'_> {
             return Err(CarrierFailure::Protocol);
         }
         let mut generation = self.state.attachment_generation;
-        let preserve = matches!(install, DesiredInstall::Preserve);
+        // Preserve the current manifest or restore only the incarnations proven
+        // by the exclusively borrowed Session. Fresh epochs wait for reconcile.
+        let panes = match &install {
+            DesiredInstall::Preserve => match &self.state.desired {
+                MailboxMembership::Live { panes, .. } => panes.clone(),
+                MailboxMembership::AwaitingBootstrap => Vec::new(),
+            },
+            DesiredInstall::RestoreSwitch(proof) => proof.panes().to_vec(),
+            _ => Vec::new(),
+        };
         let desired = match install {
             DesiredInstall::Preserve => self.state.desired.key().cloned(),
             DesiredInstall::ReuseReserved { key, panel } => {
@@ -90,7 +89,7 @@ impl UiReplyTransaction<'_> {
             state: self.state,
             desired,
             generation,
-            preserve,
+            panes,
         })
     }
 }

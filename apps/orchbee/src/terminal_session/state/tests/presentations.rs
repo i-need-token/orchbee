@@ -402,7 +402,7 @@ fn unbound_focus_with_live_sibling_cleans_the_real_epoch_on_switch_and_binding_r
                 let requested = state.desired().unwrap().clone();
                 assert!(state.prepare_switch_restore(&requested, &[]).is_err());
                 state
-                    .prepare_switch_restore(&requested, &[sibling.pane().clone()])
+                    .prepare_switch_restore(&requested, &[sibling.clone()])
                     .unwrap()
                     .commit();
                 assert!(state.selected_is_unbound());

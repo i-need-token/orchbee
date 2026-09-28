@@ -30,7 +30,7 @@ fn epoch() -> HostEpoch {
 
 /// A minimal live frame whose gate-relevant fields the caller controls,
 /// routed to the projection it will be installed on.
-fn frame(
+pub(super) fn frame(
     projection: &TerminalProjection,
     scrollback_rows: u64,
     alternate_screen: bool,

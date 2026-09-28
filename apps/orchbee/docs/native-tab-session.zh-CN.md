@@ -1197,11 +1197,17 @@ Switch 模型接收该有效选择，检查具体 key 转换、清理与建立�
 意图不能安装 projection、接受目标 setup configuration、发布 Ready，或结算为未挂接 setup。
 这些路径必须持有已安装候选。旧的直接 Switch-old-Detached 事件及其意图转 Attach 续程已移除。
 
-及时的明确 Unavailable 结果只能恢复 owner 持有、源自真实稳定状态的 anchor。恢复 Ready 要求
-精确相同的 viewer/controller，以及在标记前如实结算后仍有效的完整帧、draw/feedback 和当前
-geometry 证明。已接受 Resize 清帧、最新 geometry 未匹配、无法保留证明的旧 Poll/causal 放弃，
+及时的明确 Unavailable 结果只能恢复 owner 持有、源自真实稳定状态的 anchor。恢复 Ready 覆盖
+原 anchor 中每个存活且未离开的 pane，而不只恢复焦点。每个 pane 都要求精确相同的挂接实例、
+绑定、viewer/controller、观测／已准入 geometry、保留的 UI projection，以及在标记前如实结算后
+仍有效的完整帧、draw/feedback 确认证明。准备阶段无副作用；提交同时恢复全部捕获的 projection，
+不发起 Attach、重放输入或分配新代次。owner 铸造的恢复证明还会在同一个 desired-install 事务中
+把这些精确 pane 实例发布到 mailbox，使普通 Poll 和输入准入无需新 reconcile 即可恢复。
+原本已离开的 pane 继续保持离开状态。任一 pane 证明缺失或尚未完成都会阻止恢复，任一捕获
+pane 的因果结果被放弃都会使 anchor 失效。已接受 Resize 清帧、最新 geometry 未匹配、无法保留证明的旧 Poll/causal 放弃，
 或 viewer 清理／替换，都会使该证明失效。Anchor 随这些事实更新；准入时 clone 不能回滚它们。
-已记录的 selected-without-attachment 或 retryable 来源，只能在仍没有 viewer/controller 时恢复。
+已记录的 selected-without-attachment 或 retryable 来源，只能在仍没有 viewer/controller 时恢复；
+但带有存活兄弟终端的未绑定选择，使用下文相同的整个 anchor 精确投影证明。
 尚未完成的 Switch 不能创造 stable anchor；特别是第一个标记尚未 Ready 的 viewer 清理后，第二个
 标记没有任何 anchor。当前 Unavailable 没有有效 anchor 时退役，不发送修复 Poll 或建立操作。
 已被取代的结果仅结算其旧 flight。精确恢复可以把 desired 返回旧的已分配 key，但 allocation cursor

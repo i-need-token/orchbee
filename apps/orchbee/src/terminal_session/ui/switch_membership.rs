@@ -92,7 +92,7 @@ impl NativeUi {
         let retained_projections = self
             .projections
             .iter()
-            .map(|projection| projection.key.pane().clone())
+            .map(|projection| projection.key.clone())
             .collect::<Vec<_>>();
         let Some(state) = self.state.as_mut() else {
             self.retire(CarrierFailure::Protocol);

@@ -1468,12 +1468,20 @@ as an unattached setup. Those paths require the installed candidate. The former 
 Switch-old-Detached event and its intent-to-Attach continuation have been removed.
 
 A timely definite Unavailable result restores only an owner-held anchor from a genuine stable
-origin. Ready restoration requires the same exact viewer/controller and a still-current full-frame,
-draw/feedback and geometry proof after truthful pre-marker settlement. Accepted Resize that clears
+origin. Ready restoration covers every live nondeparting pane in the original anchor, not just its
+focus. Each pane requires the same exact attachment incarnation, binding, viewer/controller,
+observed/admitted geometry, retained UI projection and accepted full-frame/draw/feedback proof after
+truthful pre-marker settlement. Preparation is effect-free; commit restores all captured projections
+together without Attach, input replay or a fresh generation. The owner-minted restoration proof also
+publishes those exact pane incarnations into the mailbox in the same desired-install transaction,
+so ordinary Poll and input admission can resume without a new reconcile. Already departing panes
+remain departing. A missing or unfinished pane proof
+prevents restoration, and abandonment of any captured pane invalidates the anchor. Accepted Resize that clears
 the frame, unmatched latest geometry, unpreservable old Poll/causal abandonment, or viewer cleanup
 or replacement invalidates that proof. The anchor follows those facts; an admission-time clone
 cannot roll them back. A recorded selected-without-attachment or retryable origin may restore only
-while it still has no viewer/controller. A partly completed Switch never creates a stable anchor;
+while it still has no viewer/controller, except an unbound selection with live siblings uses the
+same exact whole-anchor projection proof described below. A partly completed Switch never creates a stable anchor;
 in particular, a second marker can have no anchor after the first marker's not-yet-Ready viewer was
 cleaned up. Current Unavailable without a valid anchor retires, without a repair Poll or setup.
 Superseded results only settle their old flight. Exact restoration may return desired to the old

@@ -66,6 +66,114 @@ fn panel_focus_switch_keeps_the_tab_and_targets_the_selected_leaf_binding() {
 }
 
 #[test]
+fn refused_switch_restores_every_split_projection_and_local_input_target() {
+    let mut source = split_panel_baseline();
+    source.terminal_contexts[0].tabs.push(tab(1));
+    let mut state = ready_with_cache(project_native_standalone_tabs(&source).unwrap());
+    let focus = state.focus_pane_ref().unwrap();
+    let sibling = attach_nonfirst_leaf(&mut state);
+    let frame = FrameIdentity::new(7);
+    assert!(state.stage_drawn_frame(&sibling, frame));
+    assert!(state.mark_feedback_accepted(&sibling, frame));
+    let original = state.pollable_panes();
+    assert_eq!(original.len(), 2);
+    let marker = admit(&mut state, 1, 2);
+    let marker_pane = state.desired().unwrap().clone();
+    state
+        .prepare_switch_restore(&marker_pane, &[focus.clone(), sibling.clone()])
+        .unwrap()
+        .commit();
+    assert_eq!(state.desired(), Some(focus.pane()));
+    assert!(state.desired().unwrap().anchor().generation() < marker.generation());
+    assert_eq!(state.pollable_panes(), original);
+    assert!(
+        state.move_panel_focus_local(
+            state
+                .plan_panel_focus_local_at(sibling.pane().panel())
+                .unwrap()
+        )
+    );
+    assert_eq!(state.focus_pane_ref(), Some(sibling));
+    assert_eq!(
+        state.focus_accepted_frame().map(|(_, frame)| frame),
+        Some(frame)
+    );
+    assert!(state.ready().is_some() && state.invariant_holds());
+}
+
+#[test]
+fn split_refusal_requires_every_exact_retained_viewer_and_causal_proof() {
+    for loss in [
+        "missing projection",
+        "wrong incarnation",
+        "detached",
+        "abandoned",
+        "unfinished frame",
+    ] {
+        let mut source = split_panel_baseline();
+        source.terminal_contexts[0].tabs.push(tab(1));
+        let mut state = ready_with_cache(project_native_standalone_tabs(&source).unwrap());
+        let focus = state.focus_pane_ref().unwrap();
+        let sibling = attach_nonfirst_leaf(&mut state);
+        if loss != "unfinished frame" {
+            assert!(state.stage_drawn_frame(&sibling, FrameIdentity::new(7)));
+            assert!(state.mark_feedback_accepted(&sibling, FrameIdentity::new(7)));
+        }
+        admit(&mut state, 1, 2);
+        let mut retained = vec![focus.clone(), sibling.clone()];
+        match loss {
+            "missing projection" => {
+                retained.pop();
+            }
+            "wrong incarnation" => {
+                retained[1] = PaneRef::new(sibling.pane().clone(), sibling.incarnation() + 1);
+            }
+            "detached" => assert!(state.settle_pane_detached(&sibling)),
+            "abandoned" => state.invalidate_switch_anchor_for(sibling.pane()),
+            "unfinished frame" => {}
+            _ => unreachable!(),
+        }
+        let marker = state.desired().unwrap().clone();
+        assert!(
+            state.prepare_switch_restore(&marker, &retained).is_err(),
+            "{loss}"
+        );
+        assert_eq!(state.desired(), Some(&marker));
+        assert!(state.pollable_panes().is_empty());
+        assert!(state.invariant_holds());
+    }
+}
+
+#[test]
+fn rollback_does_not_revive_a_sibling_that_was_already_departing() {
+    let mut source = split_panel_baseline();
+    source.terminal_contexts[0].tabs.push(tab(1));
+    let mut state = ready_with_cache(project_native_standalone_tabs(&source).unwrap());
+    let focus = state.focus_pane_ref().unwrap();
+    let sibling = attach_nonfirst_leaf(&mut state);
+    assert!(state.sync_pane_set(
+        &[(focus.pane().panel().clone(), 0, geometry(80))],
+        Instant::now()
+    ));
+    assert!(state.live_pane_record(&sibling).unwrap().departing);
+    admit(&mut state, 1, 2);
+    let marker = state.desired().unwrap().clone();
+    {
+        let _prepared = state
+            .prepare_switch_restore(&marker, &[focus.clone()])
+            .unwrap();
+    }
+    assert_eq!(state.desired(), Some(&marker));
+    state
+        .prepare_switch_restore(&marker, &[focus.clone()])
+        .unwrap()
+        .commit();
+    assert_eq!(state.pollable_panes(), vec![focus]);
+    assert!(state.live_pane_record(&sibling).unwrap().departing);
+    assert!(state.invariant_holds());
+}
+
+#[test]
 fn unavailable_restores_only_the_exact_ready_anchor_and_plan_drop_is_effect_free() {
     let mut state = ready(2);
     let old = state.desired().unwrap().clone();

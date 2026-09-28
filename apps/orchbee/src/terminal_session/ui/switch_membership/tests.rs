@@ -103,6 +103,91 @@ fn detached(
 }
 
 #[test]
+fn split_refusal_restores_both_visible_projections_and_local_focus_through_mailbox() {
+    let (mut ui, mailbox, clock, _elapsed) =
+        super::super::move_membership_tests::ready_ui_with_snapshot(
+            super::super::publication_hint_tests::split_snapshot(1),
+        );
+    let focus = super::super::viewport_tests::install_projection(&mut ui, Some((0, false, 24)), 0);
+    super::super::publication_hint_tests::attach_split_peer(&mut ui, &mailbox, &clock);
+    let peer = ui.state.as_ref().unwrap().cache().tabs()[0]
+        .panel(1)
+        .unwrap()
+        .panel_id()
+        .clone();
+    let sibling = ui
+        .state
+        .as_ref()
+        .unwrap()
+        .pane_by_panel(&peer)
+        .unwrap()
+        .pane_ref();
+    let projection = ui
+        .projections
+        .iter_mut()
+        .find(|item| item.key == sibling)
+        .unwrap();
+    let frame = super::super::viewport_tests::frame(&projection.value, 0, false, 24);
+    projection.value.install_frame_for_test(frame);
+    let state = ui.state.as_mut().unwrap();
+    assert!(state.stage_drawn_frame(&sibling, FrameIdentity::new(7)));
+    assert!(state.mark_feedback_accepted(&sibling, FrameIdentity::new(7)));
+    let expected = state.pollable_panes();
+    assert_eq!(expected.len(), 2);
+
+    assert_eq!(
+        ui.select_tab(ClientAction::SelectTab(2)),
+        SessionActionDisposition::DismissNavigator
+    );
+    let lease = mailbox.try_recv().unwrap().unwrap();
+    let QueuedCommand::Switch(marker) = lease.record() else {
+        panic!("Switch lease")
+    };
+    let target = marker.target();
+    let permit = mailbox
+        .authorize_switch_snapshot(&lease, target, &clock)
+        .unwrap()
+        .unwrap();
+    mailbox.answer_switch_snapshot(permit).unwrap();
+    let cursors = mailbox.cursors();
+    let wait = mailbox.publish_event_before(
+        WorkerEvent::SwitchSnapshotResult {
+            marker: target.selected().key().clone(),
+            outcome: WorkbenchSnapshotOutcome::Unavailable {
+                reason: orchbee_workbench_protocol::WorkbenchSnapshotUnavailableReason::ServiceUnavailable,
+            },
+        },
+        EventDeadline::PlacementOnly(target.deadlines().forward_cutoff()),
+        &clock,
+    ).unwrap();
+    ui.tick();
+    let UiReply::Switch(settlement) = mailbox.take_deposited_reply(&wait).unwrap().unwrap() else {
+        panic!("Switch reply")
+    };
+    assert!(matches!(settlement.decision(), RefreshDecision::Continue));
+    assert_eq!(settlement.desired(), Some(focus.pane()));
+    mailbox.finish_lease(lease).unwrap();
+    assert_eq!(mailbox.cursors(), cursors);
+    assert!(mailbox.is_closed().is_none());
+    assert_eq!(ui.state.as_ref().unwrap().pollable_panes(), expected);
+    assert!(ui.view().pane_projection(&peer).unwrap().frame().is_some());
+    ui.apply_client_action(ClientAction::FocusPanel(peer));
+    assert_eq!(ui.state.as_ref().unwrap().focus_pane_ref(), Some(sibling));
+    assert!(ui.state.as_ref().unwrap().ready().is_some());
+    assert!(ui.state.as_ref().unwrap().invariant_holds());
+    let poll = mailbox
+        .try_recv()
+        .unwrap()
+        .expect("ordinary polling resumes after rollback");
+    assert!(matches!(poll.record(), QueuedCommand::Poll(_)));
+    mailbox.finish_lease(poll).unwrap();
+    assert!(
+        mailbox.try_recv().unwrap().is_none(),
+        "rollback and local focus never reattach"
+    );
+}
+
+#[test]
 fn response_before_ui_new_marker_preserves_exact_cleanup_and_never_installs_stale_candidate() {
     let (mut ui, mailbox, clock, _elapsed) = ready();
     let (lease, cleanup) = stage(&mut ui, &mailbox, &clock);
