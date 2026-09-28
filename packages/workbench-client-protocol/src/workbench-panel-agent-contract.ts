@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import {
 	SiteIdSchema,
+	TerminalPresentationIdSchema,
 	WORKBENCH_PROTOCOL_VERSION,
 	WorkbenchRequestIdSchema,
 	WorkbenchRevisionSchema,
@@ -55,7 +56,26 @@ export const PanelAgentReportSchema = z.discriminatedUnion('kind', [
 		})
 		.readonly(),
 ]);
+const hostIdentity = z
+	.string()
+	.regex(/^[0-9a-f]{32}$/u)
+	.refine((s) => s !== '00000000000000000000000000000000');
+const terminalBinding = z
+	.strictObject({
+		presentationId: TerminalPresentationIdSchema,
+		generation: hostIdentity,
+		hostEpoch: hostIdentity,
+		hostTerminalId: hostIdentity,
+	})
+	.readonly();
 export const PanelAgentActionSchema = z.discriminatedUnion('kind', [
+	z
+		.strictObject({
+			kind: z.literal('observe'),
+			binding: terminalBinding,
+			afterSequence: WorkbenchRevisionSchema.nullable(),
+		})
+		.readonly(),
 	z
 		.strictObject({
 			kind: z.literal('read'),
@@ -153,7 +173,42 @@ export const PanelAgentFailureSchema = z.enum([
 	'clock-overflow',
 	'result-too-large',
 ]);
+const semanticChange = z
+	.strictObject({
+		sequence: WorkbenchRevisionSchema.refine((s) => s !== '0'),
+		agent: normalizedLabel.nullable(),
+		state: PanelAgentStateSchema,
+	})
+	.readonly();
+const semanticObservation = z
+	.strictObject({
+		binding: terminalBinding,
+		sequence: WorkbenchRevisionSchema,
+		changes: z.array(semanticChange).max(128).readonly(),
+		view: PanelAgentViewSchema,
+	})
+	.refine((o) => {
+		const last = o.changes.at(-1);
+		return (
+			o.changes.every(
+				(c, i) => i === 0 || BigInt(o.changes[i - 1]?.sequence ?? '0') + 1n === BigInt(c.sequence),
+			) &&
+			(last === undefined ||
+				(last.sequence === o.sequence &&
+					last.agent === o.view.agent &&
+					last.state === o.view.state))
+		);
+	})
+	.readonly();
 export const PanelAgentOutcomeSchema = z.discriminatedUnion('kind', [
+	z
+		.strictObject({
+			kind: z.literal('observed'),
+			workbenchRevision: WorkbenchRevisionSchema,
+			reportRevision: WorkbenchRevisionSchema,
+			observation: semanticObservation,
+		})
+		.readonly(),
 	z
 		.strictObject({
 			kind: z.literal('read'),

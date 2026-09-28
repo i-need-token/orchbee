@@ -10,6 +10,7 @@ pub(super) fn key(binding: &PresentationBinding) -> BindingKey {
 #[derive(Default)]
 pub(super) struct ReportMembership {
     pub(super) panels: BTreeMap<WorkbenchPanelId, Option<PresentationBinding>>,
+    pub(super) presentations: BTreeMap<String, Option<PresentationBinding>>,
     pub(super) live: BTreeSet<BindingKey>,
 }
 impl ReportMembership {
@@ -33,6 +34,8 @@ impl ReportMembership {
                 self.panels
                     .insert(panel_id.clone(), primary_presentation.binding.clone());
                 for p in std::iter::once(primary_presentation).chain(child_presentations) {
+                    self.presentations
+                        .insert(p.presentation_id.as_str().to_owned(), p.binding.clone());
                     if let Some(binding) = &p.binding {
                         self.live.insert(key(binding));
                     }

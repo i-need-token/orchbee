@@ -51,7 +51,7 @@ impl Answer {
             Observation::Unknown(_) => 8,
             Observation::Server(reply) => match reply.outcome {
                 PanelAgentOutcome::Reported { .. } => 0,
-                PanelAgentOutcome::Read { .. } => 5,
+                PanelAgentOutcome::Read { .. } | PanelAgentOutcome::Observed { .. } => 5,
                 PanelAgentOutcome::Failed { reason } => match reason {
                     PanelAgentFailure::Denied
                     | PanelAgentFailure::NotFound

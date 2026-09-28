@@ -89,5 +89,18 @@ fn panel_agent_permissions_are_independent_and_refusals_leave_topology_unchanged
             reason: Failure::InvalidRequest
         }
     );
+    request.action = serde_json::from_value(serde_json::json!({"kind":"observe","binding":{"presentationId":"1".repeat(32),"generation":"1".repeat(32),"hostEpoch":"1".repeat(32),"hostTerminalId":"1".repeat(32)},"afterSequence":null})).unwrap();
+    for grants in 0..32 {
+        assert_eq!(
+            execute(grants, &request),
+            Outcome::Failed {
+                reason: if grants & 1 == 0 {
+                    Failure::Denied
+                } else {
+                    Failure::Unavailable
+                }
+            }
+        );
+    }
     assert_eq!(snapshot(&admin), before);
 }

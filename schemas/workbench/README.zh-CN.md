@@ -414,3 +414,7 @@ Client 所有的 Agent 提示状态读取指定 1–100 个唯一规范 Agent �
 [`workbench-workspace-metadata.schema.json`](v1/workbench-workspace-metadata.schema.json) 定义 `workbench.workspace-metadata` 及其结果，OBWP 类型为 31/32。Read 接受 0–8 个有序且唯一的 Workspace ID；Report 接受 1–16 个唯一 token 补丁，可附 uint64 序号及有界 TTL。结果具有独立的 128 KiB 分配前上限；请求保留 16 KiB 意图上限。[共享语料](v1/workbench-workspace-metadata-conformance-v1.json) 检查两种语言绑定。绑定还执行 uint64 范围、结果身份唯一性及编码字节限制；Rust 原始解码拒绝重复 token 键。[所属模型](../../apps/orchbee/docs/windows-workspace-metadata.zh-CN.md) 定义权限、过期、容量及查询一致性。
 
 [Panel 元数据 schema](v1/workbench-panel-metadata.schema.json) 与 [一致性用例](v1/workbench-panel-metadata-conformance-v1.json) 定义 OBWP 33/34 上报和读取。Rust 与 TypeScript 还校验 JSON Schema 之外的行／来源／顺序语义不变量；Rust 原始解码也拒绝重复键。
+
+[Panel Agent schema](v1/workbench-panel-agent.schema.json) 还覆盖固定代际的物理
+`observe`／`observed` 读取。共享语料检查必填可空游标、非零 Host 身份和语义变化形状；
+语言绑定额外约束连续序号、头部和当前状态一致。精确游标覆盖由请求／结果关联负责。

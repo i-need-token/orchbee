@@ -208,3 +208,9 @@ Rust/TypeScript additionally enforce UTF-8 reference bounds, source/reference el
 consistency. The [Server report model](../../apps/orchbee-server/docs/agent-report-model.md) owns
 physical generation, sequencing, suppression and atomic metadata exit cleanup. This decoded binding
 adds no Desktop command or process producer and cannot submit process-existence claims.
+
+Physical `observe` reads use the same Panel Agent carrier and read permission. They require an exact
+presentation/Host binding and a required nullable `afterSequence`; `observed` returns current view,
+terminal-local sequence and at most 128 contiguous semantic changes. Rust/TypeScript validate the
+last change against the current head/state; Rust correlation additionally proves request cursor
+coverage. This is transient report state, separate from canonical Agent revisions and Client `done`.

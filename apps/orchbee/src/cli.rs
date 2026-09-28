@@ -926,7 +926,7 @@ fn success_output(
                 projection,
                 results::Projection::AgentTerminalInspection { .. }
             ) {
-                14
+                15
             } else {
                 version
             };

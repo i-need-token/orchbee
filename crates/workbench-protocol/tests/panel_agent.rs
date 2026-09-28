@@ -1,5 +1,68 @@
 use orchbee_workbench_protocol::*;
 #[test]
+fn physical_observation_answers_only_matching_binding_and_contiguous_cursor() {
+    let id = "11111111111111111111111111111111";
+    let binding = serde_json::from_value(
+        serde_json::json!({"presentationId":id,"generation":id,"hostEpoch":id,"hostTerminalId":id}),
+    )
+    .unwrap();
+    let mut request = PanelAgentRequest {
+        protocol_version: ProtocolVersion,
+        request_id: WorkbenchRequestId::parse(id).unwrap(),
+        site_id: SiteId::parse(id).unwrap(),
+        action: PanelAgentAction::Observe {
+            binding,
+            after_sequence: Some(WorkbenchRevision::new(0)),
+        },
+    };
+    let PanelAgentAction::Observe { binding, .. } = &request.action else {
+        unreachable!()
+    };
+    let mut result = PanelAgentResult {
+        protocol_version: ProtocolVersion,
+        request_id: request.request_id.clone(),
+        site_id: request.site_id.clone(),
+        outcome: PanelAgentOutcome::Observed {
+            workbench_revision: WorkbenchRevision::new(1),
+            report_revision: WorkbenchRevision::new(1),
+            observation: Box::new(TerminalAgentObservation {
+                binding: binding.clone(),
+                sequence: WorkbenchRevision::new(1),
+                changes: vec![TerminalAgentChange {
+                    sequence: WorkbenchRevision::new(1),
+                    agent: None,
+                    state: PanelAgentState::Idle,
+                }],
+                view: PanelAgentView {
+                    state: PanelAgentState::Idle,
+                    ..Default::default()
+                },
+            }),
+        },
+    };
+    assert!(result.answers(&request));
+    if let PanelAgentAction::Observe { after_sequence, .. } = &mut request.action {
+        *after_sequence = None;
+    }
+    assert!(!result.answers(&request));
+    if let PanelAgentOutcome::Observed { observation, .. } = &mut result.outcome {
+        observation.changes.clear();
+    }
+    assert!(result.answers(&request));
+    if let PanelAgentAction::Observe { after_sequence, .. } = &mut request.action {
+        *after_sequence = Some(WorkbenchRevision::new(0));
+    }
+    assert!(!result.answers(&request));
+    if let PanelAgentAction::Observe { after_sequence, .. } = &mut request.action {
+        *after_sequence = Some(WorkbenchRevision::new(1));
+    }
+    assert!(result.answers(&request));
+    if let PanelAgentAction::Observe { after_sequence, .. } = &mut request.action {
+        *after_sequence = Some(WorkbenchRevision::new(2));
+    }
+    assert!(!result.answers(&request));
+}
+#[test]
 fn panel_agent_shared_corpus_and_carrier_bounds() {
     let corpus: serde_json::Value = serde_json::from_str(include_str!(
         "../../../schemas/workbench/v1/workbench-panel-agent-conformance-v1.json"

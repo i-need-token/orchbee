@@ -54,6 +54,19 @@ pub(super) fn read(
     }
     let management =
         query::read_terminal_management(client, &binding, deadline, signals.poll_fd())?;
+    let semantic = query::terminal_agent::read(
+        client,
+        snapshot,
+        &binding,
+        None,
+        deadline,
+        signals.poll_fd(),
+    )?;
+    if let Some(report) = fields.get("reportedAgent")
+        && report["source"]["reportRevision"] != semantic.source["reportRevision"]
+    {
+        return Err(crate::cli::workbench_agents::failure("workbench-changed"));
+    }
     query::named_terminal::verify_named_binding(client, &binding, deadline, signals.poll_fd())?;
     let latest = query::refresh_snapshot(
         client,
@@ -72,6 +85,7 @@ pub(super) fn read(
             binding,
             terminal: fields,
             management,
+            semantic,
         },
     ))
 }

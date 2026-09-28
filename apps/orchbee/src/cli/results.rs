@@ -1069,6 +1069,7 @@ pub(crate) enum Projection {
         binding: orchbee_agent_observation_protocol::AgentLaunchBinding,
         terminal: Value,
         management: TerminalManagementDoc,
+        semantic: super::query::terminal_agent::TerminalAgentRead,
     },
     /// The typed `found` outcome carrying session plus explanation.
     AgentExplain(AgentExplainOutcome),
@@ -1299,9 +1300,10 @@ impl Projection {
                 binding,
                 terminal,
                 management,
+                semantic,
             } => json!({
                 "kind":"terminal-found", "target":{"kind":"terminal","binding":binding},
-                "terminal":terminal, "management":{"source":management.source,"state":management.state},
+                "terminal":terminal, "management":{"source":management.source,"state":management.state}, "semantic":semantic.document(),
             }),
             Self::AgentInspection(doc) => {
                 let mut result = json!({"kind":"found","revision":doc.revision,"session":doc.session,"runtime":doc.runtime.document(),"management":doc.management.document()});

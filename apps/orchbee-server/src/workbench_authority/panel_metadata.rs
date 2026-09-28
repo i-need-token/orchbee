@@ -320,7 +320,7 @@ impl WorkbenchAuthority {
         if request.site_id != *self.site_id() {
             return Err(Failure::SiteMismatch);
         }
-        let ReportMembership { panels, live } = ReportMembership::read(self.snapshot());
+        let ReportMembership { panels, live, .. } = ReportMembership::read(self.snapshot());
         self.panel_metadata.maintain(&live, now)?;
         let workbench_revision = self.snapshot().revision;
         match &request.action {

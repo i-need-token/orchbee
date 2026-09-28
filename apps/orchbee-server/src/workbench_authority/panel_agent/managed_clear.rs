@@ -1,5 +1,5 @@
 //! Stage every fallible report change before the Names owner releases its alias.
-use super::{PanelAgents, Resource, TerminalAgentBinding, WorkbenchAuthority, key, retained_bytes};
+use super::{PanelAgents, Resource, TerminalAgentBinding, WorkbenchAuthority, key};
 use orchbee_workbench_protocol::{PanelAgentFailure as Failure, PanelAgentSession};
 
 pub struct PreparedManagedAgentClear<'a> {
@@ -45,19 +45,15 @@ impl WorkbenchAuthority {
         let mut bytes = self.panel_agent.bytes;
         let mut revision = self.panel_agent.revision;
         let resource = if let Some((prior, reports)) = next {
-            let next_bytes = retained_bytes(&reports)?;
+            revision = revision.checked_add(1).ok_or(Failure::RevisionExhausted)?;
+            let candidate = Resource::prepare(physical.clone(), reports, revision, Some(prior))?;
+            let next_bytes = candidate.bytes;
             bytes = bytes
                 .checked_sub(prior.bytes)
                 .and_then(|n| n.checked_add(next_bytes))
                 .filter(|n| *n <= super::MAXIMUM_BYTES)
                 .ok_or(Failure::ResourceLimit)?;
-            revision = revision.checked_add(1).ok_or(Failure::RevisionExhausted)?;
-            Some(Resource {
-                physical: physical.clone(),
-                reports,
-                explicit_revision: revision,
-                bytes: next_bytes,
-            })
+            Some(candidate)
         } else {
             None
         };

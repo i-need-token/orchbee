@@ -10,7 +10,7 @@
 			"const": "orchbee.agent.get"
 		},
 		"version": {
-			"enum": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]
+			"enum": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
 		},
 		"source": {
 			"oneOf": [
@@ -32,6 +32,9 @@
 				},
 				{
 					"$ref": "#/$defs/managedTerminalInspection"
+				},
+				{
+					"$ref": "#/$defs/semanticTerminalInspection"
 				}
 			]
 		}
@@ -2587,6 +2590,259 @@
 					}
 				}
 			}
+		},
+		"physical_session": {
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+				"source": {
+					"type": "string"
+				},
+				"agent": {
+					"$ref": "#/$defs/physical_normalizedAgent"
+				},
+				"reference": {
+					"$ref": "#/$defs/physical_reference"
+				}
+			},
+			"required": ["source", "agent", "reference"]
+		},
+		"physical_terminalBinding": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["presentationId", "generation", "hostEpoch", "hostTerminalId"],
+			"properties": {
+				"presentationId": {
+					"$ref": "#/$defs/physical_identity"
+				},
+				"generation": {
+					"$ref": "#/$defs/physical_identity"
+				},
+				"hostEpoch": {
+					"$ref": "#/$defs/physical_identity"
+				},
+				"hostTerminalId": {
+					"$ref": "#/$defs/physical_identity"
+				}
+			}
+		},
+		"physical_semanticChange": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["sequence", "agent", "state"],
+			"properties": {
+				"sequence": {
+					"allOf": [
+						{
+							"$ref": "#/$defs/physical_revision"
+						},
+						{
+							"not": {
+								"const": "0"
+							}
+						}
+					]
+				},
+				"agent": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/physical_normalizedAgent"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"state": {
+					"$ref": "#/$defs/physical_state"
+				}
+			}
+		},
+		"physical_state": {
+			"enum": ["idle", "working", "blocked", "unknown"]
+		},
+		"physical_semanticObservation": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["binding", "sequence", "changes", "view"],
+			"properties": {
+				"binding": {
+					"$ref": "#/$defs/physical_terminalBinding"
+				},
+				"sequence": {
+					"$ref": "#/$defs/physical_revision"
+				},
+				"changes": {
+					"type": "array",
+					"maxItems": 128,
+					"items": {
+						"$ref": "#/$defs/physical_semanticChange"
+					}
+				},
+				"view": {
+					"$ref": "#/$defs/physical_view"
+				}
+			}
+		},
+		"physical_identity": {
+			"type": "string",
+			"pattern": "^[0-9a-f]{32}$",
+			"not": {
+				"const": "00000000000000000000000000000000"
+			}
+		},
+		"physical_normalizedAgent": {
+			"type": "string",
+			"minLength": 1,
+			"not": {
+				"pattern": "^[\\u0009-\\u000d\\u0020\\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000]|[\\u0009-\\u000d\\u0020\\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000]$(?![\\s\\S])"
+			}
+		},
+		"physical_view": {
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+				"agent": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/physical_normalizedAgent"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"state": {
+					"$ref": "#/$defs/physical_state"
+				},
+				"authoritySource": {
+					"anyOf": [
+						{
+							"type": "string"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"message": {
+					"anyOf": [
+						{
+							"type": "string"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"session": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/physical_session"
+						},
+						{
+							"type": "null"
+						}
+					]
+				}
+			},
+			"required": ["agent", "state", "authoritySource", "message", "session"]
+		},
+		"physical_reference": {
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+				"kind": {
+					"enum": ["id", "path"]
+				},
+				"value": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 4096,
+					"not": {
+						"pattern": "[\\u0000-\\u001f\\u007f-\\u009f]"
+					}
+				}
+			},
+			"required": ["kind", "value"]
+		},
+		"physical_revision": {
+			"type": "string",
+			"pattern": "^(?:0|[1-9][0-9]{0,19})$",
+			"maxLength": 20,
+			"format": "orchbee-uint64"
+		},
+		"terminalSemantic": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["source", "observation"],
+			"properties": {
+				"source": {
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["siteId", "workbenchRevision", "reportRevision", "requestId"],
+					"properties": {
+						"siteId": {
+							"$ref": "#/$defs/physical_identity"
+						},
+						"workbenchRevision": {
+							"$ref": "#/$defs/physical_revision"
+						},
+						"reportRevision": {
+							"$ref": "#/$defs/physical_revision"
+						},
+						"requestId": {
+							"$ref": "#/$defs/physical_identity"
+						}
+					}
+				},
+				"observation": {
+					"$ref": "#/$defs/physical_semanticObservation"
+				}
+			}
+		},
+		"semanticTerminalInspection": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["kind", "target", "terminal", "management", "semantic"],
+			"properties": {
+				"kind": {
+					"const": "terminal-found"
+				},
+				"target": {
+					"allOf": [
+						{
+							"$ref": "#/$defs/nameTarget"
+						},
+						{
+							"properties": {
+								"kind": {
+									"const": "terminal"
+								}
+							}
+						}
+					]
+				},
+				"terminal": {
+					"$ref": "#/$defs/namedTerminal"
+				},
+				"management": {
+					"type": "object",
+					"required": ["source", "state"],
+					"additionalProperties": false,
+					"properties": {
+						"source": {
+							"$ref": "#/$defs/agentReadSource"
+						},
+						"state": {
+							"$ref": "#/$defs/terminalManagementState"
+						}
+					}
+				},
+				"semantic": {
+					"$ref": "#/$defs/terminalSemantic"
+				}
+			}
 		}
 	},
 	"allOf": [
@@ -2594,14 +2850,21 @@
 			"if": {
 				"properties": {
 					"version": {
-						"const": 14
+						"enum": [14, 15]
 					}
 				}
 			},
 			"then": {
 				"properties": {
 					"result": {
-						"$ref": "#/$defs/managedTerminalInspection"
+						"oneOf": [
+							{
+								"$ref": "#/$defs/managedTerminalInspection"
+							},
+							{
+								"$ref": "#/$defs/semanticTerminalInspection"
+							}
+						]
 					},
 					"source": {
 						"$ref": "#/$defs/runtimeProcess_snapshotSource"
@@ -3034,6 +3297,31 @@
 							}
 						}
 					]
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"version": {
+						"const": 15
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"result": {
+						"$ref": "#/$defs/semanticTerminalInspection"
+					}
+				}
+			},
+			"else": {
+				"properties": {
+					"result": {
+						"not": {
+							"required": ["semantic"]
+						}
+					}
 				}
 			}
 		}

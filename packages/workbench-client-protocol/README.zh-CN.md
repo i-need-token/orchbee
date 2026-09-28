@@ -152,3 +152,8 @@ Panel Agent 上报新增 `workbench.panel-agent`／`workbench.panel-agent.result
 字节上限、来源／引用资格和视图一致性。[Server 上报模型](../../apps/orchbee-server/docs/agent-report-model.zh-CN.md)
 拥有物理代际、序号、抑制和原子元数据退出清理。此解码绑定不新增 Desktop 命令或进程生产者，
 也不能提交进程存在声明。
+
+物理 `observe` 读取复用 Panel Agent 承载和读权限，要求精确展示／Host 绑定，以及必填但可为
+null 的 `afterSequence`；`observed` 返回当前视图、终端局部序号和最多 128 条连续语义变化。
+Rust／TypeScript 校验最后变化与当前头部／状态一致，Rust 关联还证明请求游标覆盖。
+这些是瞬态报告状态，与规范 Agent 修订及 Client `done` 分离。

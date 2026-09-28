@@ -15,6 +15,34 @@ impl LocalTerminalService {
         };
         #[cfg(windows)]
         {
+            if let orchbee_workbench_protocol::PanelAgentAction::Observe { binding, .. } =
+                &request.action
+            {
+                let Ok(workers) = self.workers.lock() else {
+                    return unavailable;
+                };
+                let handle = workers.request_handle();
+                let Some(worker) = super::placement(handle.as_ref().filter(|h| h.is_active()))
+                else {
+                    return unavailable;
+                };
+                let Ok(mut coordinator) = self.coordinator.lock() else {
+                    return unavailable;
+                };
+                let Ok(facts) = coordinator.agent_registration_snapshot() else {
+                    return unavailable;
+                };
+                if !facts.iter().any(|fact| {
+                    fact.presentation_id().as_str() == binding.presentation_id.as_str()
+                        && fact.worker_id() == worker.worker_id
+                        && fact.worker_generation() == worker.generation
+                }) {
+                    return unavailable;
+                }
+                return coordinator
+                    .panel_agent(request, std::time::Instant::now())
+                    .unwrap_or(unavailable);
+            }
             self.coordinator
                 .lock()
                 .ok()

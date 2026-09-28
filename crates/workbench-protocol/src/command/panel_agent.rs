@@ -10,6 +10,10 @@ use orchbee_agent_observation_protocol::{
 };
 use serde::{Deserialize, Deserializer, Serialize};
 use std::collections::BTreeSet;
+mod observation;
+pub use observation::{
+    MAXIMUM_TERMINAL_AGENT_CHANGES, TerminalAgentChange, TerminalAgentObservation,
+};
 
 pub const MAXIMUM_PANEL_AGENT_READ_ROWS: usize = 4;
 pub const MAXIMUM_ENCODED_PANEL_AGENT_RESULT_BYTES: usize = 512 * 1024;
@@ -99,6 +103,11 @@ impl PanelAgentReport {
     deny_unknown_fields
 )]
 pub enum PanelAgentAction {
+    Observe {
+        binding: orchbee_agent_observation_protocol::AgentLaunchBinding,
+        #[serde(deserialize_with = "nullable")]
+        after_sequence: Option<WorkbenchRevision>,
+    },
     Read {
         panel_ids: Vec<WorkbenchPanelId>,
     },
@@ -119,6 +128,17 @@ pub struct PanelAgentRequest {
 impl PanelAgentRequest {
     pub fn validate(&self) -> Result<(), ContractError> {
         match &self.action {
+            PanelAgentAction::Observe { binding, .. } => {
+                if orchbee_agent_observation_protocol::AgentHostEpoch::parse(
+                    binding.generation.as_str(),
+                )
+                .is_ok()
+                {
+                    Ok(())
+                } else {
+                    Err(ContractError::InvalidDocument)
+                }
+            }
             PanelAgentAction::Read { panel_ids }
                 if panel_ids.len() <= MAXIMUM_PANEL_AGENT_READ_ROWS
                     && panel_ids.iter().collect::<BTreeSet<_>>().len() == panel_ids.len() =>
@@ -218,6 +238,11 @@ pub enum PanelAgentFailure {
     deny_unknown_fields
 )]
 pub enum PanelAgentOutcome {
+    Observed {
+        workbench_revision: WorkbenchRevision,
+        report_revision: WorkbenchRevision,
+        observation: Box<TerminalAgentObservation>,
+    },
     Read {
         workbench_revision: WorkbenchRevision,
         report_revision: WorkbenchRevision,
@@ -247,6 +272,7 @@ pub struct PanelAgentResult {
 impl PanelAgentResult {
     pub fn validate(&self) -> Result<(), ContractError> {
         let valid = match &self.outcome {
+            PanelAgentOutcome::Observed { observation, .. } => observation.valid(),
             PanelAgentOutcome::Read { panels, .. } => {
                 panels.len() <= MAXIMUM_PANEL_AGENT_READ_ROWS
                     && panels
@@ -277,6 +303,13 @@ impl PanelAgentResult {
             return false;
         }
         match (&request.action, &self.outcome) {
+            (
+                PanelAgentAction::Observe {
+                    binding,
+                    after_sequence,
+                },
+                PanelAgentOutcome::Observed { observation, .. },
+            ) => &observation.binding == binding && observation.covers(*after_sequence),
             (_, PanelAgentOutcome::Failed { .. }) => true,
             (PanelAgentAction::Read { panel_ids }, PanelAgentOutcome::Read { panels, .. }) => {
                 panel_ids.iter().eq(panels.iter().map(|p| &p.panel_id))

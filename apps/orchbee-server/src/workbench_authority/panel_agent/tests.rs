@@ -38,6 +38,97 @@ fn owner() -> WorkbenchAuthority {
     install(&mut a, &tree());
     a
 }
+fn observation(presentation: u128, after: Option<u64>) -> Action {
+    Action::Observe {
+        binding: serde_json::from_value(json!({"presentationId":format!("{presentation:032x}"),
+            "generation":"01".repeat(16), "hostEpoch":"02".repeat(16), "hostTerminalId":"03".repeat(16)})).unwrap(),
+        after_sequence: after.map(WorkbenchRevision::new),
+    }
+}
+#[test]
+fn physical_observation_is_contiguous_and_isolates_child_membership() {
+    let mut a = owner();
+    let facts = [physical(1, 1), physical(2, 1)];
+    invoke(&mut a, state("custom", "1"), &facts);
+    invoke(
+        &mut a,
+        report(
+            json!({"kind":"state","source":"custom","agent":"Team Agent","state":"working","message":"changed","sequence":"2"}),
+        ),
+        &facts,
+    );
+    invoke(
+        &mut a,
+        report(
+            json!({"kind":"state","source":"custom","agent":"Team Agent","state":"idle","sequence":"3"}),
+        ),
+        &facts,
+    );
+    let Outcome::Observed { observation, .. } = invoke(&mut a, observation(4, Some(0)), &facts)
+    else {
+        panic!("observation");
+    };
+    assert_eq!(observation.sequence.value(), 2);
+    assert_eq!(
+        observation
+            .changes
+            .iter()
+            .map(|c| c.state)
+            .collect::<Vec<_>>(),
+        [
+            orchbee_workbench_protocol::PanelAgentState::Working,
+            orchbee_workbench_protocol::PanelAgentState::Idle
+        ]
+    );
+    let Outcome::Observed { observation, .. } =
+        invoke(&mut a, self::observation(5, Some(0)), &facts)
+    else {
+        panic!("child");
+    };
+    assert_eq!(observation.sequence.value(), 0);
+    assert!(observation.view.agent.is_none());
+    assert_eq!(
+        invoke(&mut a, self::observation(4, Some(3)), &facts),
+        Outcome::Failed {
+            reason: Failure::InvalidRequest
+        }
+    );
+}
+#[test]
+fn physical_observation_rejects_replacement_and_does_not_borrow_missing_proof() {
+    let mut a = owner();
+    let facts = [physical(1, 1)];
+    invoke(&mut a, state("custom", "1"), &facts);
+    assert_eq!(
+        invoke(&mut a, observation(4, None), &[]),
+        Outcome::Failed {
+            reason: Failure::Unavailable
+        }
+    );
+    let mut replaced = physical(1, 2);
+    replaced.identity = HostTerminalIdentity::new(
+        HostCreationId::from_bytes([4; 16]).unwrap(),
+        replaced.identity.host_epoch(),
+        replaced.identity.terminal_id(),
+    );
+    assert_eq!(
+        invoke(&mut a, observation(4, None), &[replaced.clone()]),
+        Outcome::Failed {
+            reason: Failure::BindingChanged
+        }
+    );
+    let mut action = observation(4, Some(0));
+    if let Action::Observe { binding, .. } = &mut action {
+        binding.generation =
+            orchbee_agent_observation_protocol::AgentAttachmentGeneration::parse(&"04".repeat(16))
+                .unwrap();
+    }
+    let Outcome::Observed { observation, .. } = invoke(&mut a, action, &[replaced]) else {
+        panic!("new binding");
+    };
+    assert_eq!(observation.sequence.value(), 0);
+    assert!(observation.view.agent.is_none());
+}
 fn panel() -> WorkbenchPanelId {
     WorkbenchPanelId::parse(&format!("{:032x}", 3)).unwrap()
 }
@@ -411,6 +502,7 @@ fn noops_remain_available_at_full_capacity_and_byte_rejection_preserves_the_cand
     let facts = [physical(1, 1)];
     invoke(&mut a, state("custom", "1"), &facts);
     let before = serde_json::to_value(&a.panel_agent.resources[&key(&binding(1))].reports).unwrap();
+    let semantic_before = invoke(&mut a, observation(4, Some(0)), &facts);
     a.panel_agent.bytes = MAXIMUM_BYTES;
     assert!(matches!(
         invoke(
@@ -430,10 +522,14 @@ fn noops_remain_available_at_full_capacity_and_byte_rejection_preserves_the_cand
         serde_json::to_value(&a.panel_agent.resources[&key(&binding(1))].reports).unwrap(),
         before
     );
+    assert_eq!(
+        invoke(&mut a, observation(4, Some(0)), &facts),
+        semantic_before
+    );
 }
 
 #[test]
-fn clearing_an_unsequenced_custom_report_reclaims_the_empty_resource() {
+fn clearing_a_report_retains_semantic_history_until_physical_membership_is_removed() {
     let mut a = owner();
     let facts = [physical(1, 1)];
     invoke(
@@ -446,8 +542,18 @@ fn clearing_an_unsequenced_custom_report_reclaims_the_empty_resource() {
         invoke(&mut a, report(json!({"kind":"clear"})), &facts),
         Outcome::Reported { changed: true, .. }
     ));
-    assert!(a.panel_agent.resources.is_empty());
-    assert_eq!(a.panel_agent.bytes, 0);
+    assert_eq!(a.panel_agent.resources.len(), 1);
+    let Outcome::Observed { observation, .. } = invoke(&mut a, observation(4, Some(0)), &facts)
+    else {
+        panic!("history");
+    };
+    assert_eq!(observation.changes.len(), 2);
+    assert!(observation.view.agent.is_none());
+    assert_eq!(
+        observation.view.state,
+        orchbee_workbench_protocol::PanelAgentState::Unknown
+    );
+    assert!(a.panel_agent.bytes > 0);
 }
 
 #[test]

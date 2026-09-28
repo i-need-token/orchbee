@@ -267,6 +267,29 @@
 						}
 					},
 					"required": ["kind", "panelId", "expectedBinding", "report"]
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["kind", "binding", "afterSequence"],
+					"properties": {
+						"kind": {
+							"const": "observe"
+						},
+						"binding": {
+							"$ref": "#/$defs/terminalBinding"
+						},
+						"afterSequence": {
+							"anyOf": [
+								{
+									"$ref": "#/$defs/revision"
+								},
+								{
+									"type": "null"
+								}
+							]
+						}
+					}
 				}
 			]
 		},
@@ -475,6 +498,25 @@
 						}
 					},
 					"required": ["kind", "reason"]
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["kind", "workbenchRevision", "reportRevision", "observation"],
+					"properties": {
+						"kind": {
+							"const": "observed"
+						},
+						"workbenchRevision": {
+							"$ref": "#/$defs/revision"
+						},
+						"reportRevision": {
+							"$ref": "#/$defs/revision"
+						},
+						"observation": {
+							"$ref": "#/$defs/semanticObservation"
+						}
+					}
 				}
 			]
 		},
@@ -521,6 +563,80 @@
 				}
 			},
 			"required": ["kind", "protocolVersion", "requestId", "siteId", "outcome"]
+		},
+		"terminalBinding": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["presentationId", "generation", "hostEpoch", "hostTerminalId"],
+			"properties": {
+				"presentationId": {
+					"$ref": "#/$defs/identity"
+				},
+				"generation": {
+					"$ref": "#/$defs/identity"
+				},
+				"hostEpoch": {
+					"$ref": "#/$defs/identity"
+				},
+				"hostTerminalId": {
+					"$ref": "#/$defs/identity"
+				}
+			}
+		},
+		"semanticChange": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["sequence", "agent", "state"],
+			"properties": {
+				"sequence": {
+					"allOf": [
+						{
+							"$ref": "#/$defs/revision"
+						},
+						{
+							"not": {
+								"const": "0"
+							}
+						}
+					]
+				},
+				"agent": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/normalizedAgent"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"state": {
+					"$ref": "#/$defs/state"
+				}
+			}
+		},
+		"semanticObservation": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["binding", "sequence", "changes", "view"],
+			"properties": {
+				"binding": {
+					"$ref": "#/$defs/terminalBinding"
+				},
+				"sequence": {
+					"$ref": "#/$defs/revision"
+				},
+				"changes": {
+					"type": "array",
+					"maxItems": 128,
+					"items": {
+						"$ref": "#/$defs/semanticChange"
+					}
+				},
+				"view": {
+					"$ref": "#/$defs/view"
+				}
+			}
 		}
 	}
 }

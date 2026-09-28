@@ -137,3 +137,31 @@ The Windows Site owns one periodic sampler, started after restored terminals are
 The sampler owns one temporary read-only viewer at a time. It attaches, collects process and coherent live screen evidence and detaches through the existing carrier and Host validation path; it never acquires a controller, sends input, focuses a Client or acknowledges display frames. The coordinator folds admitted process and optional screen facts together. Required carrier completions must be consumed: cancellation stops new sampling phases, settles the in-flight response and releases the owned viewer. It never abandons a required completion or sends cleanup before the Attach outcome settles. An uncertain Detach retains one exact `PendingCleanup` and blocks new Attach attempts until confirmed Detached or positively Disposed; later attempts only repeat idempotent cleanup for that same viewer. Shutdown joins this owner before Worker shutdown; a cooperative deadline failure retains the thread handle and pending ownership for the same shutdown attempt to retry. Once the producer stops, remaining cleanup is explicitly owned by Site shutdown and released only after the matching Worker/Host stop and actual Worker exit. Startup rollback also stops it. Drop signals cancellation; the thread keeps only a weak Site reference between turns and performs no I/O under registry or coordinator locks.
 
 Missing targets, capacity refusal, transport failure and invalid samples preserve prior report facts. A later round is a fresh observation, not mutation replay. The scheduler does not authenticate provider identity, create canonical Agent Sessions or persist report state. Deterministic turn selection, transport effect traces, lifecycle/deadline tests and an isolated Windows Site without user-driven process reads establish its claims.
+
+## Physical semantic observations
+
+Physical Agent observations reuse the report owner for primary and child presentations. `observe`
+pins presentation, Worker generation, Host epoch and Host terminal identity. Current membership and
+retained physical proof must agree under Worker registry and Site gates; missing proof refuses the
+read. A replacement cannot inherit an old cursor. Results include the effective report view,
+independent report revision and terminal-local semantic sequence. Names and restart references do
+not prove interactive readiness. Client attention owns `done`; this source exposes idle, working,
+blocked and unknown only.
+
+The sequence starts at zero with unknown/no Agent and advances by checked addition only when the
+effective Agent label or state changes. Message, reference, watermark and sample-time updates alone
+do not advance it. All report, process, restart seed and managed-clear writers prepare the resource
+and history before commit. History retains at most 128 changes and 64 KiB per physical resource,
+counted within the existing aggregate admission. Eviction advances an explicit floor. Empty report
+state with history remains until membership removal or confirmed physical replacement.
+
+Null `afterSequence` checkpoints the current head with no changes. A cursor at the retained floor
+receives every subsequent change through that head in order; a cursor below it fails with
+`history-limit`, and a future cursor fails with `invalid-request`. Reads never advance the sequence
+or replace lost history with sampled success. Historical state is distinct from current state.
+This refines generic terminal state-change/event waits in fixed Herdr
+`e0507237ad8d41f60aece10d00ef29ce2339ca34`. CLI physical Agent Get is the first consumer;
+wait/prompt activity gates and Client attention remain dependent consumers, not completion claims
+of this boundary. Traces cover quiet updates, transients, eviction, overflow, admission rollback,
+generation reset and primary/child isolation. Shared wire vectors check closed shapes and cursor
+coverage. State is transient; rollback replaces the matched cohort, without checkpoint migration.

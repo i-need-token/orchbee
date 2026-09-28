@@ -652,13 +652,16 @@ pub(crate) fn render(
         Projection::AgentTerminalInspection {
             terminal,
             management,
+            semantic,
             ..
         } => {
             super::terminal_observation::render(out, terminal, locale)?;
             out.push(&locale.cli_terminal_management(&management.state))?;
-            if let Some(report) = terminal.get("reportedAgent") {
-                super::panel_metadata_query::render_report(out, report, locale)?;
-            }
+            super::panel_metadata_query::render_report(
+                out,
+                &serde_json::json!({"view":semantic.observation.view}),
+                locale,
+            )?;
             Ok(())
         }
         Projection::AgentInspection(doc) => {

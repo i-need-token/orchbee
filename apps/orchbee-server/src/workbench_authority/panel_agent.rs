@@ -18,6 +18,8 @@ use std::{collections::BTreeMap, time::Instant};
 const MAXIMUM_RESOURCES: usize = 4096;
 const MAXIMUM_BYTES: usize = 32 * 1024 * 1024;
 mod managed_clear;
+mod observation;
+mod semantic;
 pub use managed_clear::PreparedManagedAgentClear;
 
 /// Pure name-ownership observation; never grants canonical Agent authority.
@@ -41,6 +43,7 @@ struct Resource {
     physical: TerminalAgentBinding,
     reports: Reports,
     explicit_revision: u64,
+    semantic: semantic::SemanticHistory,
     bytes: usize,
 }
 #[derive(Default)]
@@ -86,12 +89,13 @@ impl PanelAgents {
                 continue;
             }
             let reports = Reports::from_restart_session(&session).ok_or(Failure::InvalidRequest)?;
-            let added = retained_bytes(&reports)?;
+            let candidate = Resource::prepare(physical, reports, 0, None)?;
+            let added = candidate.bytes;
             bytes = bytes
                 .checked_add(added)
                 .filter(|n| *n <= MAXIMUM_BYTES)
                 .ok_or(Failure::ResourceLimit)?;
-            if prepared.insert(id, (physical, reports, added)).is_some() {
+            if prepared.insert(id, candidate).is_some() {
                 return Err(Failure::BindingChanged);
             }
         }
@@ -106,16 +110,9 @@ impl PanelAgents {
             .checked_add(1)
             .ok_or(Failure::RevisionExhausted)?;
         self.time(now)?;
-        for (id, (physical, reports, bytes)) in prepared {
-            self.resources.insert(
-                id,
-                Resource {
-                    physical,
-                    reports,
-                    explicit_revision: revision,
-                    bytes,
-                },
-            );
+        for (id, mut resource) in prepared {
+            resource.explicit_revision = revision;
+            self.resources.insert(id, resource);
         }
         self.bytes = bytes;
         self.revision = revision;
@@ -302,6 +299,15 @@ impl WorkbenchAuthority {
                 .map_err(|_| Failure::ResultTooLarge)
         };
         match &request.action {
+            Action::Observe {
+                binding,
+                after_sequence,
+            } => {
+                let outcome =
+                    self.observe_agent(binding, *after_sequence, &membership, &physical)?;
+                admit_result(&outcome)?;
+                Ok(outcome)
+            }
             Action::Read { panel_ids } => {
                 let mut panels = Vec::new();
                 for id in panel_ids {
@@ -346,8 +352,10 @@ impl WorkbenchAuthority {
                 let current = prior.map_or_else(Reports::default, |r| r.reports.clone());
                 let transition =
                     current.transition(event(report, absolute)?, self.panel_agent.time(now)?);
+                let mut candidate =
+                    Resource::prepare((*physical).clone(), transition.next, 0, prior)?;
                 let (next_bytes, bytes) = if transition.changed {
-                    let next_bytes = retained_bytes(&transition.next)?;
+                    let next_bytes = candidate.bytes;
                     let bytes = self
                         .panel_agent
                         .bytes
@@ -380,22 +388,15 @@ impl WorkbenchAuthority {
                     binding: binding.clone(),
                     disposition: transition.disposition,
                     changed: transition.changed,
-                    view: Box::new(transition.next.view()),
+                    view: Box::new(candidate.reports.view()),
                 };
                 admit_result(&outcome)?;
                 if transition.changed {
                     if next_bytes == 0 {
                         self.panel_agent.resources.remove(&key);
                     } else {
-                        self.panel_agent.resources.insert(
-                            key,
-                            Resource {
-                                physical: (*physical).clone(),
-                                reports: transition.next,
-                                explicit_revision: revision,
-                                bytes: next_bytes,
-                            },
-                        );
+                        candidate.explicit_revision = revision;
+                        self.panel_agent.resources.insert(key, candidate);
                     }
                     self.panel_agent.bytes = bytes;
                     self.panel_agent.revision = revision;
@@ -548,8 +549,16 @@ impl WorkbenchAuthority {
             .transpose()?
             .flatten();
         let changed = transition.changed || prior.is_some_and(|r| &r.physical != target);
+        let candidate = Resource::prepare(
+            target.clone(),
+            transition.next,
+            prior
+                .filter(|r| &r.physical == target)
+                .map_or(0, |r| r.explicit_revision),
+            prior,
+        )?;
         let (next_bytes, bytes, revision) = if changed {
-            let next_bytes = retained_bytes(&transition.next)?;
+            let next_bytes = candidate.bytes;
             if next_bytes > 0
                 && prior.is_none()
                 && self.panel_agent.resources.len() >= MAXIMUM_RESOURCES
@@ -577,17 +586,7 @@ impl WorkbenchAuthority {
             if next_bytes == 0 {
                 self.panel_agent.resources.remove(&key);
             } else {
-                self.panel_agent.resources.insert(
-                    key,
-                    Resource {
-                        physical: target.clone(),
-                        reports: transition.next,
-                        explicit_revision: prior
-                            .filter(|r| &r.physical == target)
-                            .map_or(0, |r| r.explicit_revision),
-                        bytes: next_bytes,
-                    },
-                );
+                self.panel_agent.resources.insert(key, candidate);
             }
             self.panel_agent.bytes = bytes;
             self.panel_agent.revision = revision;

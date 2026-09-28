@@ -258,10 +258,10 @@ canonical session alias.
 
 Terminal-target resolve/list use versions 3, rename/clear use version 2, and mixed-target name
 collisions use failure version 4 with `conflictTarget`. Existing canonical receipts keep their
-versions. Windows `agent get` without `--client` returns version 14 `terminal-found` with its exact
+versions. Windows `agent get` without `--client` returns version 15 `terminal-found` with its exact
 target, actual frame/process/primary-panel report fields and a separate management source/state read.
 Management is unmanaged or active with the restored provider; it does not assert current readiness.
-The closed version 13 schema remains available. It contains no invented
+The closed version 13 and 14 schemas remain available. It contains no invented
 session ID. Child terminal reads never borrow the primary panel's report. Named `read`, `send-keys` and
 `attach` route through the exact physical binding and existing terminal owners. Canonical-only
 `explain`, semantic `wait`/`prompt`, focus and `get --client` still require canonical observations;
@@ -297,6 +297,15 @@ only the actual read's `agent-read` source. Resolution refusals use their own
 Windows process evidence covers real pipe admission, resolved reads, pinned polling,
 the shared five-second deadline, explicit-ID reads, schema-valid failures,
 lost/mismatched mutation replies and parse-before-effect.
+
+Windows physical Agent Get emits v15, adding `semantic: {source, observation}` to the closed v14
+inspection shape. The source contains Site, Workbench/report revisions and the actual request ID;
+observation contains the exact target binding, current effective report view, terminal-local sequence
+and an empty change list for this checkpoint read. Primary and child presentations read their own
+report resources. Primary metadata/report projections must agree with the semantic report revision.
+Text output renders that effective report view in the selected locale. v13/v14 and all canonical
+variants remain closed and readable. No canonical Session ID, turn, readiness or Client `done` is
+invented. This read supplies the physical source required by subsequent wait/prompt integration.
 
 ## Agent terminal operations
 

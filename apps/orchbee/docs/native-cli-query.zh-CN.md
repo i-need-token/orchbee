@@ -206,9 +206,9 @@ Windows 终端名称要求真实的上报、进程识别或保留 provider 身�
 
 终端目标 resolve/list 使用 version 3，rename/clear 使用 version 2，混合目标重名失败使用
 version 4 的 `conflictTarget`；既有 canonical 回执保持原版本。Windows `agent get` 不带
-`--client` 时返回 version 14 `terminal-found`，包含精确目标、实际帧／进程／主 Panel 报告
+`--client` 时返回 version 15 `terminal-found`，包含精确目标、实际帧／进程／主 Panel 报告
 字段及独立的 management 来源／状态读取。状态为 unmanaged 或带恢复 provider 的 active，
-不代表当前就绪；仍保留闭合的 version 13 schema。不伪造会话 ID。子终端读取不会借用主 Panel 的报告。按名 `read`、
+不代表当前就绪；仍保留闭合的 version 13／14 schema。不伪造会话 ID。子终端读取不会借用主 Panel 的报告。按名 `read`、
 `send-keys`、`attach` 经精确物理绑定交给既有终端所有者。仅 canonical 的 `explain`、语义
 `wait`／`prompt`、focus 和 `get --client` 仍要求 canonical 观察；启用 provider 恢复后，已完成托管名称绑定到新物理终端。
 普通手工名称和待完成预留不在冷启动恢复。同 provider 换引用或改名保留恢复后的托管身份；
@@ -235,6 +235,13 @@ version 4 的 `conflictTarget`；既有 canonical 回执保持原版本。Window
 解析拒绝使用自身的 `agent-names` source 与失败 schema，绝不伪造未执行读取的来源。
 Windows 进程证据覆盖真实管道接纳、名称解析后读取、固定目标轮询、共享五秒截止、
 显式 ID 直读、schema 合规失败、丢失或不匹配的修改回复，以及效果前解析。
+
+Windows 物理 Agent Get 输出 v15，在封闭的 v14 检查形状上增加 `semantic: {source, observation}`。
+来源包含 Site、Workbench／报告修订和实际请求 ID；观察包含精确目标绑定、当前有效报告视图、
+终端局部序号和本次头部读取的空变化列表。主展示与子展示分别读取自己的报告资源。
+主面板元数据／报告投影须与语义报告修订一致。文本按所选语言呈现该有效报告视图。
+v13／v14 和所有规范变体继续保持封闭且可读取，不虚构规范 Session ID、轮次、就绪或
+Client `done`。该读取提供后续 wait／prompt 集成所需的物理状态来源。
 
 ## Agent 终端操作
 

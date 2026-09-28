@@ -833,6 +833,69 @@
 					]
 				}
 			}
+		},
+		{
+			"name": "physical checkpoint",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.panel-agent",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "11111111111111111111111111111111",
+				"action": {
+					"kind": "observe",
+					"binding": {
+						"presentationId": "11111111111111111111111111111111",
+						"generation": "11111111111111111111111111111111",
+						"hostEpoch": "11111111111111111111111111111111",
+						"hostTerminalId": "11111111111111111111111111111111"
+					},
+					"afterSequence": null
+				}
+			}
+		},
+		{
+			"name": "physical contiguous changes",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-agent.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "11111111111111111111111111111111",
+				"outcome": {
+					"kind": "observed",
+					"workbenchRevision": "1",
+					"reportRevision": "8",
+					"observation": {
+						"binding": {
+							"presentationId": "11111111111111111111111111111111",
+							"generation": "11111111111111111111111111111111",
+							"hostEpoch": "11111111111111111111111111111111",
+							"hostTerminalId": "11111111111111111111111111111111"
+						},
+						"sequence": "2",
+						"changes": [
+							{
+								"sequence": "1",
+								"agent": "grok",
+								"state": "working"
+							},
+							{
+								"sequence": "2",
+								"agent": "grok",
+								"state": "idle"
+							}
+						],
+						"view": {
+							"agent": "grok",
+							"state": "idle",
+							"authoritySource": null,
+							"message": null,
+							"session": null
+						}
+					}
+				}
+			}
 		}
 	],
 	"invalid": [
@@ -1216,6 +1279,287 @@
 							}
 						}
 					]
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "missing nullable cursor",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.panel-agent",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "11111111111111111111111111111111",
+				"action": {
+					"kind": "observe",
+					"binding": {
+						"presentationId": "11111111111111111111111111111111",
+						"generation": "11111111111111111111111111111111",
+						"hostEpoch": "11111111111111111111111111111111",
+						"hostTerminalId": "11111111111111111111111111111111"
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "zero physical generation",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.panel-agent",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "11111111111111111111111111111111",
+				"action": {
+					"kind": "observe",
+					"binding": {
+						"presentationId": "11111111111111111111111111111111",
+						"generation": "00000000000000000000000000000000",
+						"hostEpoch": "11111111111111111111111111111111",
+						"hostTerminalId": "11111111111111111111111111111111"
+					},
+					"afterSequence": null
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "opaque physical generation",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.panel-agent",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "11111111111111111111111111111111",
+				"action": {
+					"kind": "observe",
+					"binding": {
+						"presentationId": "11111111111111111111111111111111",
+						"generation": "opaque",
+						"hostEpoch": "11111111111111111111111111111111",
+						"hostTerminalId": "11111111111111111111111111111111"
+					},
+					"afterSequence": null
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "zero semantic sequence",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-agent.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "11111111111111111111111111111111",
+				"outcome": {
+					"kind": "observed",
+					"workbenchRevision": "1",
+					"reportRevision": "8",
+					"observation": {
+						"binding": {
+							"presentationId": "11111111111111111111111111111111",
+							"generation": "11111111111111111111111111111111",
+							"hostEpoch": "11111111111111111111111111111111",
+							"hostTerminalId": "11111111111111111111111111111111"
+						},
+						"sequence": "2",
+						"changes": [
+							{
+								"sequence": "0",
+								"agent": "grok",
+								"state": "working"
+							},
+							{
+								"sequence": "2",
+								"agent": "grok",
+								"state": "idle"
+							}
+						],
+						"view": {
+							"agent": "grok",
+							"state": "idle",
+							"authoritySource": null,
+							"message": null,
+							"session": null
+						}
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "gap in semantic changes",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-agent.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "11111111111111111111111111111111",
+				"outcome": {
+					"kind": "observed",
+					"workbenchRevision": "1",
+					"reportRevision": "8",
+					"observation": {
+						"binding": {
+							"presentationId": "11111111111111111111111111111111",
+							"generation": "11111111111111111111111111111111",
+							"hostEpoch": "11111111111111111111111111111111",
+							"hostTerminalId": "11111111111111111111111111111111"
+						},
+						"sequence": "2",
+						"changes": [
+							{
+								"sequence": "2",
+								"agent": "grok",
+								"state": "working"
+							},
+							{
+								"sequence": "2",
+								"agent": "grok",
+								"state": "idle"
+							}
+						],
+						"view": {
+							"agent": "grok",
+							"state": "idle",
+							"authoritySource": null,
+							"message": null,
+							"session": null
+						}
+					}
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "wrong semantic head",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-agent.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "11111111111111111111111111111111",
+				"outcome": {
+					"kind": "observed",
+					"workbenchRevision": "1",
+					"reportRevision": "8",
+					"observation": {
+						"binding": {
+							"presentationId": "11111111111111111111111111111111",
+							"generation": "11111111111111111111111111111111",
+							"hostEpoch": "11111111111111111111111111111111",
+							"hostTerminalId": "11111111111111111111111111111111"
+						},
+						"sequence": "3",
+						"changes": [
+							{
+								"sequence": "1",
+								"agent": "grok",
+								"state": "working"
+							},
+							{
+								"sequence": "2",
+								"agent": "grok",
+								"state": "idle"
+							}
+						],
+						"view": {
+							"agent": "grok",
+							"state": "idle",
+							"authoritySource": null,
+							"message": null,
+							"session": null
+						}
+					}
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "wrong current state",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-agent.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "11111111111111111111111111111111",
+				"outcome": {
+					"kind": "observed",
+					"workbenchRevision": "1",
+					"reportRevision": "8",
+					"observation": {
+						"binding": {
+							"presentationId": "11111111111111111111111111111111",
+							"generation": "11111111111111111111111111111111",
+							"hostEpoch": "11111111111111111111111111111111",
+							"hostTerminalId": "11111111111111111111111111111111"
+						},
+						"sequence": "2",
+						"changes": [
+							{
+								"sequence": "1",
+								"agent": "grok",
+								"state": "working"
+							},
+							{
+								"sequence": "2",
+								"agent": "grok",
+								"state": "idle"
+							}
+						],
+						"view": {
+							"agent": "grok",
+							"state": "working",
+							"authoritySource": null,
+							"message": null,
+							"session": null
+						}
+					}
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "missing semantic nullable agent",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-agent.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "11111111111111111111111111111111",
+				"outcome": {
+					"kind": "observed",
+					"workbenchRevision": "1",
+					"reportRevision": "8",
+					"observation": {
+						"binding": {
+							"presentationId": "11111111111111111111111111111111",
+							"generation": "11111111111111111111111111111111",
+							"hostEpoch": "11111111111111111111111111111111",
+							"hostTerminalId": "11111111111111111111111111111111"
+						},
+						"sequence": "2",
+						"changes": [
+							{
+								"sequence": "1",
+								"state": "working"
+							},
+							{
+								"sequence": "2",
+								"agent": "grok",
+								"state": "idle"
+							}
+						],
+						"view": {
+							"agent": "grok",
+							"state": "idle",
+							"authoritySource": null,
+							"message": null,
+							"session": null
+						}
+					}
 				}
 			},
 			"boundary": "schema"
