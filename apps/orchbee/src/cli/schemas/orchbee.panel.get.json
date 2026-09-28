@@ -10,7 +10,7 @@
 			"const": "orchbee.panel.get"
 		},
 		"version": {
-			"enum": [7, 8]
+			"enum": [7, 8, 9]
 		},
 		"source": {
 			"$ref": "#/$defs/snapshotSource"
@@ -110,7 +110,17 @@
 							"$ref": "#/$defs/panelScrollObservation"
 						},
 						"metadata": {
-							"$ref": "#/$defs/panelMetadata"
+							"anyOf": [
+								{
+									"$ref": "#/$defs/panelMetadata"
+								},
+								{
+									"$ref": "#/$defs/reportedPanelMetadata"
+								}
+							]
+						},
+						"reportedAgent": {
+							"$ref": "#/$defs/reportedAgent"
 						}
 					},
 					"allOf": [
@@ -1928,6 +1938,341 @@
 					}
 				}
 			]
+		},
+		"reportIdentity": {
+			"type": "string",
+			"pattern": "^[0-9a-f]{32}$",
+			"not": {
+				"const": "00000000000000000000000000000000"
+			}
+		},
+		"reportRevision": {
+			"type": "string",
+			"pattern": "^(?:0|[1-9][0-9]{0,19})$",
+			"maxLength": 20,
+			"format": "orchbee-uint64"
+		},
+		"reportBinding": {
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+				"workerId": {
+					"$ref": "#/$defs/reportIdentity"
+				},
+				"terminalId": {
+					"$ref": "#/$defs/reportIdentity"
+				}
+			},
+			"required": ["workerId", "terminalId"]
+		},
+		"reportNormalizedAgent": {
+			"type": "string",
+			"minLength": 1,
+			"not": {
+				"pattern": "^[\\u0009-\\u000d\\u0020\\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000]|[\\u0009-\\u000d\\u0020\\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000]$(?![\\s\\S])"
+			}
+		},
+		"reportState": {
+			"enum": ["idle", "working", "blocked", "unknown"]
+		},
+		"reportReference": {
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+				"kind": {
+					"enum": ["id", "path"]
+				},
+				"value": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 4096,
+					"not": {
+						"pattern": "[\\u0000-\\u001f\\u007f-\\u009f]"
+					}
+				}
+			},
+			"required": ["kind", "value"]
+		},
+		"reportSession": {
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+				"source": {
+					"type": "string"
+				},
+				"agent": {
+					"$ref": "#/$defs/reportNormalizedAgent"
+				},
+				"reference": {
+					"$ref": "#/$defs/reportReference"
+				}
+			},
+			"required": ["source", "agent", "reference"]
+		},
+		"reportView": {
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+				"agent": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/reportNormalizedAgent"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"state": {
+					"$ref": "#/$defs/reportState"
+				},
+				"authoritySource": {
+					"anyOf": [
+						{
+							"type": "string"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"message": {
+					"anyOf": [
+						{
+							"type": "string"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"session": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/reportSession"
+						},
+						{
+							"type": "null"
+						}
+					]
+				}
+			},
+			"required": ["agent", "state", "authoritySource", "message", "session"]
+		},
+		"reportedPanelMetadata": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["source", "binding", "tokens", "presentations", "context", "presentation"],
+			"properties": {
+				"source": {
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["siteId", "workbenchRevision", "metadataRevision", "requestIds"],
+					"properties": {
+						"siteId": {
+							"$ref": "#/$defs/metadataIdentity"
+						},
+						"workbenchRevision": {
+							"$ref": "#/$defs/metadataRevision"
+						},
+						"metadataRevision": {
+							"$ref": "#/$defs/metadataRevision"
+						},
+						"requestIds": {
+							"type": "array",
+							"minItems": 2,
+							"uniqueItems": true,
+							"items": {
+								"$ref": "#/$defs/metadataIdentity"
+							}
+						}
+					}
+				},
+				"binding": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/metadataBinding"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"tokens": {
+					"$ref": "#/$defs/metadataTokens"
+				},
+				"presentations": {
+					"type": "array",
+					"maxItems": 32,
+					"items": {
+						"$ref": "#/$defs/metadataPresentation"
+					}
+				},
+				"context": {
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["agent", "authoritySource"],
+					"properties": {
+						"agent": {
+							"anyOf": [
+								{
+									"type": "null"
+								},
+								{
+									"$ref": "#/$defs/reportNormalizedAgent"
+								}
+							]
+						},
+						"authoritySource": {
+							"type": ["string", "null"]
+						}
+					}
+				},
+				"presentation": {
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["title", "displayAgent", "stateLabels"],
+					"properties": {
+						"title": {
+							"anyOf": [
+								{
+									"$ref": "#/$defs/metadataValue"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"displayAgent": {
+							"anyOf": [
+								{
+									"$ref": "#/$defs/metadataValue"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"stateLabels": {
+							"$ref": "#/$defs/metadataLabels"
+						}
+					}
+				}
+			},
+			"allOf": [
+				{
+					"if": {
+						"properties": {
+							"binding": {
+								"type": "null"
+							}
+						}
+					},
+					"then": {
+						"properties": {
+							"tokens": {
+								"type": "object",
+								"maxProperties": 0
+							},
+							"presentations": {
+								"type": "array",
+								"maxItems": 0
+							},
+							"presentation": {
+								"type": "object",
+								"properties": {
+									"title": {
+										"type": "null"
+									},
+									"displayAgent": {
+										"type": "null"
+									},
+									"stateLabels": {
+										"type": "object",
+										"maxProperties": 0
+									}
+								}
+							}
+						}
+					}
+				}
+			]
+		},
+		"reportedAgent": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["source", "binding", "view"],
+			"properties": {
+				"source": {
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["siteId", "workbenchRevision", "reportRevision", "requestIds"],
+					"properties": {
+						"siteId": {
+							"$ref": "#/$defs/metadataIdentity"
+						},
+						"workbenchRevision": {
+							"$ref": "#/$defs/metadataRevision"
+						},
+						"requestIds": {
+							"type": "array",
+							"minItems": 2,
+							"uniqueItems": true,
+							"items": {
+								"$ref": "#/$defs/metadataIdentity"
+							}
+						},
+						"reportRevision": {
+							"$ref": "#/$defs/metadataRevision"
+						}
+					}
+				},
+				"binding": {
+					"anyOf": [
+						{
+							"type": "null"
+						},
+						{
+							"$ref": "#/$defs/reportBinding"
+						}
+					]
+				},
+				"view": {
+					"anyOf": [
+						{
+							"type": "null"
+						},
+						{
+							"$ref": "#/$defs/reportView"
+						}
+					]
+				}
+			},
+			"allOf": [
+				{
+					"if": {
+						"properties": {
+							"binding": {
+								"type": "null"
+							}
+						}
+					},
+					"then": {
+						"properties": {
+							"view": {
+								"type": "null"
+							}
+						}
+					},
+					"else": {
+						"properties": {
+							"view": {
+								"$ref": "#/$defs/reportView"
+							}
+						}
+					}
+				}
+			]
 		}
 	},
 	"allOf": [
@@ -1935,7 +2280,7 @@
 			"if": {
 				"properties": {
 					"version": {
-						"const": 8
+						"enum": [8, 9]
 					}
 				}
 			},
@@ -1948,7 +2293,14 @@
 								"type": "object",
 								"properties": {
 									"metadata": {
-										"$ref": "#/$defs/panelMetadata"
+										"anyOf": [
+											{
+												"$ref": "#/$defs/panelMetadata"
+											},
+											{
+												"$ref": "#/$defs/reportedPanelMetadata"
+											}
+										]
 									}
 								},
 								"required": ["metadata"]
@@ -1971,6 +2323,59 @@
 								},
 								"not": {
 									"required": ["metadata"]
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"version": {
+						"enum": [9]
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"result": {
+						"type": "object",
+						"properties": {
+							"panel": {
+								"type": "object",
+								"properties": {
+									"metadata": {
+										"$ref": "#/$defs/reportedPanelMetadata"
+									},
+									"reportedAgent": {
+										"$ref": "#/$defs/reportedAgent"
+									}
+								},
+								"required": ["metadata", "reportedAgent"]
+							}
+						}
+					}
+				}
+			},
+			"else": {
+				"properties": {
+					"result": {
+						"type": "object",
+						"properties": {
+							"panel": {
+								"type": "object",
+								"properties": {
+									"metadata": {
+										"$ref": "#/$defs/panelMetadata"
+									},
+									"reportedAgent": {
+										"$ref": "#/$defs/reportedAgent"
+									}
+								},
+								"not": {
+									"required": ["reportedAgent"]
 								}
 							}
 						}

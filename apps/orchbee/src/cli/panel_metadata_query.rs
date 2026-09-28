@@ -1,4 +1,5 @@
 //! One revision-consistent observation of logical-terminal reports, shared by Panel and Agent reads.
+mod reports;
 use super::{
     Failure, FailureKind,
     output::{Bounded, TooLarge},
@@ -22,6 +23,7 @@ use std::{
 
 #[derive(Debug)]
 pub(super) struct Document {
+    reports: Option<reports::Document>,
     rows: BTreeMap<WorkbenchPanelId, PanelMetadataRow>,
     encoded_row_bytes: usize,
     revision: WorkbenchRevision,
@@ -158,6 +160,7 @@ pub(super) fn read(
     for chunk in chunks {
         let (request_id, revision, rows) = exchange(client, snapshot, chunk, deadline, signals)?;
         let doc = document.get_or_insert_with(|| Document {
+            reports: None,
             rows: BTreeMap::new(),
             encoded_row_bytes: 0,
             revision,
@@ -167,7 +170,16 @@ pub(super) fn read(
         });
         doc.admit(request_id, revision, rows)?;
     }
-    document.ok_or_else(|| Failure::new(FailureKind::InternalFailure))
+    let mut document = document.ok_or_else(|| Failure::new(FailureKind::InternalFailure))?;
+    document.reports = Some(reports::read(
+        client,
+        snapshot,
+        ids,
+        super::output::LIMIT - document.encoded_row_bytes,
+        deadline,
+        signals,
+    )?);
+    Ok(document)
 }
 impl Document {
     fn admit(
@@ -206,20 +218,39 @@ impl Document {
         signals: &mut ArmedSignals,
     ) -> Result<(), Failure> {
         let (id, revision, rows) = exchange(client, snapshot, &[], deadline, signals)?;
-        self.admit(id, revision, rows)
+        self.admit(id, revision, rows)?;
+        self.reports
+            .as_mut()
+            .expect("completed report read")
+            .verify(client, snapshot, deadline, signals)
     }
     pub(super) fn value(&self, id: &WorkbenchPanelId) -> Value {
         let row = self
             .rows
             .get(id)
             .expect("complete correlated metadata rows");
-        json!({"source":{"siteId":self.site,"workbenchRevision":self.workbench_revision,"metadataRevision":self.revision,"requestIds":self.request_ids},"binding":row.binding,"tokens":row.tokens,"presentations":row.presentations,"context":{"agent":null,"authoritySource":null},"presentation":row.presentation(None,None)})
+        let view = self
+            .reports
+            .as_ref()
+            .expect("completed report read")
+            .view(id);
+        let agent = view.and_then(|view| view.agent.as_deref());
+        let authority = view.and_then(|view| view.authority_source.as_deref());
+        json!({"source":{"siteId":self.site,"workbenchRevision":self.workbench_revision,"metadataRevision":self.revision,"requestIds":self.request_ids},"binding":row.binding,"tokens":row.tokens,"presentations":row.presentations,"context":{"agent":agent,"authoritySource":authority},"presentation":row.presentation(agent,authority)})
+    }
+    pub(super) fn report_value(&self, id: &WorkbenchPanelId) -> Value {
+        self.reports.as_ref().expect("completed report read").value(
+            id,
+            &self.site,
+            self.workbench_revision,
+        )
     }
     pub(super) fn enrich(&self, result: &mut Value) {
         let enrich = |row: &mut Value| {
             let id = WorkbenchPanelId::parse(row["panelId"].as_str().expect("typed Panel row"))
                 .expect("typed Panel ID");
             row["metadata"] = self.value(&id);
+            row["reportedAgent"] = self.report_value(&id);
         };
         if let Some(rows) = result.get_mut("panels").and_then(Value::as_array_mut) {
             rows.iter_mut().for_each(enrich);
@@ -231,7 +262,15 @@ impl Document {
     pub(super) fn render(&self, out: &mut Bounded, locale: Locale) -> Result<(), TooLarge> {
         out.write(format_args!("{}\n", locale.cli_panel_metadata_heading()))?;
         for (id, row) in &self.rows {
-            let presentation = row.presentation(None, None);
+            let report = self
+                .reports
+                .as_ref()
+                .expect("completed report read")
+                .view(id);
+            let presentation = row.presentation(
+                report.and_then(|v| v.agent.as_deref()),
+                report.and_then(|v| v.authority_source.as_deref()),
+            );
             out.write(format_args!(
                 "{}  {}  {}\n",
                 id,
@@ -243,6 +282,7 @@ impl Document {
                         .map_or("-", |v| v.as_str())
                 )
             ))?;
+            render_report(out, &self.report_value(id), locale)?;
             for (key, value) in row.tokens.as_map() {
                 out.write(format_args!(
                     "{}  {}={}\n",
@@ -275,6 +315,11 @@ pub(super) fn empty_fixture(
         _ => return None,
     };
     Some(Document {
+        reports: Some(reports::fixture(
+            snapshot,
+            rows.iter()
+                .map(|row| WorkbenchPanelId::parse(&row.panel_id).unwrap()),
+        )),
         encoded_row_bytes: 0,
         rows: rows
             .into_iter()
@@ -300,3 +345,36 @@ pub(super) fn empty_fixture(
 }
 #[cfg(test)]
 mod tests;
+
+pub(in crate::cli) fn render_report(
+    out: &mut Bounded,
+    report: &Value,
+    locale: Locale,
+) -> Result<(), TooLarge> {
+    let view = &report["view"];
+    if view.is_null() {
+        return Ok(());
+    }
+    let labels = locale.cli_reported_agent_fields();
+    for (label, value) in labels[..4].iter().zip([
+        &view["agent"],
+        &view["state"],
+        &view["authoritySource"],
+        &view["message"],
+    ]) {
+        out.write(format_args!(
+            "{label}: {}\n",
+            super::escape::escape(value.as_str().unwrap_or("-"))
+        ))?;
+    }
+    let reference = &view["session"]["reference"];
+    if !reference.is_null() {
+        out.write(format_args!(
+            "{}: {} {}\n",
+            labels[4],
+            super::escape::escape(reference["kind"].as_str().expect("typed reference kind")),
+            super::escape::escape(reference["value"].as_str().expect("typed reference value"))
+        ))?;
+    }
+    Ok(())
+}

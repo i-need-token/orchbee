@@ -665,6 +665,11 @@ pub(crate) fn render(
             #[cfg(windows)]
             if let Some(terminal) = &doc.terminal {
                 super::terminal_observation::render(out, terminal, locale)?;
+                super::panel_metadata_query::render_report(
+                    out,
+                    &terminal["reportedAgent"],
+                    locale,
+                )?;
             }
             match &doc.runtime {
                 super::results::AgentRuntimeDoc::Unavailable(reason) => {

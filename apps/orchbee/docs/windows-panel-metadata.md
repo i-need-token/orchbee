@@ -34,8 +34,8 @@ refusals exit 3, unavailability 4, invalid request 5, revision/deadline/result b
 failure exits 1 unless the submitted result is already unknown.
 
 `orchbee.panel.metadata` v1 contains request/Site/Panel IDs, observation (`server` with the exact
-reply, or `unknown` with a closed reason), `interrupted` and `cleanupFailed`. Catalog v86 includes
-89 schemas. OBWP 33/34 carries `workbench.panel-metadata` and its result; request limit is 16 KiB,
+reply, or `unknown` with a closed reason), `interrupted` and `cleanupFailed`. Catalog v88 includes
+90 schemas. OBWP 33/34 carries `workbench.panel-metadata` and its result; request limit is 16 KiB,
 result limit 512 KiB. Server reads use read permission and reports navigation permission under
 the Site gate. Reads expose source records for up to four ordered unique Panels. Metadata and
 Workbench revisions remain separate. Same-cohort deployment is required; old peers reject the
@@ -44,39 +44,51 @@ unknown carrier kind. There is no persistence migration; restarting the Site cle
 Protocol/owner tests cover atomic changes, replay and TTL; shared Rust/TypeScript/JSON corpus
 checks bound and malformed inputs; named-pipe tests check exact correlation including binding,
 response loss, deadline and no replay. Parser, receipt, localization and shell grammar checks
-cover the CLI projection. TUI rendering, general events and provider authority/session reporting remain separate
-integration obligations; the query projection below consumes current Server reports. This command alone
+cover the CLI projection. TUI rendering and general events remain separate integration obligations; the query projection below consumes current Server reports. This command alone
 does not establish complete Herdr Panel/Agent parity or Desktop support.
 
 ## Query observation model
 
-Panel list/get/current and Agent Get consume the Server's metadata through one bounded query
-collector. Its inputs are the already admitted connection, original Snapshot, ordered Panel IDs,
-absolute deadline and cancellation signal. It reads batches of four, requires one metadata
-revision across batches, checks every returned binding against the original primary membership,
-and ends with an empty read at the same revision. The outer query still fences canonical and
-selected Client state. Failure never publishes a mixed or partial metadata projection.
+Panel list/get/current and Agent Get consume Server metadata and explicit Agent reports through
+one bounded query collector. Inputs are the admitted connection, original Snapshot, ordered Panel
+IDs, original absolute deadline and cancellation signal. Both families read batches of four and
+require their own stable revision across batches. Every row must match the original primary
+binding and Workbench revision. All data reads finish before empty reads fence first metadata and
+then Agent reports; their stable intervals therefore overlap. Neither family can silently change
+during this join. A change rejects the query with `metadata-changed`, including report changes that
+would change metadata guard context. The outer query still fences canonical and selected Client
+state. No automatic retry or partial projection is published.
 
-Each projected `metadata` object contains `source` (Site, Workbench and metadata revisions plus
-all read request IDs), current `binding`, `tokens`, raw source `presentations`, guard `context`
-(`agent`, `authoritySource`) and computed `presentation` (title, displayAgent, stateLabels).
-Missing context is explicit null and never satisfies a guard. Until actual Agent authority is
-integrated, both context facts are absent; guarded records remain visible as raw reports but do
-not override display. Provider IDs, user names and generic observation categories are not
-substituted for the missing authority. This dependency remains part of full parity acceptance.
+Each `metadata` object contains `source` (Site, Workbench and metadata revisions plus its read
+request IDs), `binding`, `tokens`, raw source `presentations`, guard `context` (`agent`,
+`authoritySource`) and computed `presentation` (title, displayAgent, stateLabels). Its sibling
+`reportedAgent` contains its own `source` (Site, Workbench and report revisions plus report read
+request IDs), the same logical `binding`, and `view` (Agent label, state, authority source, message
+and optional external provider session reference). An unbound row has null binding/view; a bound
+terminal with no report has an explicit unknown view. The metadata guard context uses the actual
+Server report view. Missing facts remain null and never satisfy a guard. Generic observation
+categories, user-assigned names and canonical provider IDs are never substituted for that context.
+Native session-identity reporting alone does not fabricate process or report authority.
 
-The collector is a read workflow, not a second metadata owner. No Host availability is required
-for Server metadata. Agent Get uses only a unique live primary binding; ended, unbound, ambiguous
-or subsequently changed Agent membership discards that metadata with its terminal sample. Report
-metadata never replaces independently observed OSC title, canonical label, status or readiness.
-The collector's tests must cover batch and final-fence changes, missing/mismatched rows/bindings,
-nonmatching guards and retained global tokens, cancellation, original deadline and no replay.
+The collector is a read workflow, not another report owner. Server metadata and reports remain
+available when a Host sample is unavailable. Agent Get uses a unique live primary binding; ended,
+unbound, ambiguous or subsequently changed Agent membership discards both alongside the terminal
+sample. Reports never replace independently observed OSC title, canonical label, status or
+readiness. External provider references remain separate from canonical observation Session IDs
+and are not executed by these queries. Automatic Host process production, associated names,
+provider resume/persistence and TUI publication remain separate integration obligations.
 
-Windows Panel list/get emit v8, current emits v5, and Agent Get emits v9 (v10 with `--client`).
-The metadata object is required on each Panel row or non-null Agent terminal. Legacy query
-versions reject it; their previous shapes remain accepted. Text prints escaped effective fields
-and global tokens. Catalog v86 contains 89 schemas and 100 command paths.
+Windows Panel list/get emit v9, current emits v6, and Agent Get emits v11 (v12 with `--client`).
+Every Panel row and non-null Agent terminal requires metadata and reportedAgent. Earlier metadata
+versions retain null guard context and reject reportedAgent; still older versions reject metadata
+as well. Their closed previous shapes remain accepted. Localized text escapes effective metadata,
+report details, messages and external references. Catalog v88 contains 90 schemas and 104 command
+paths; this query change adds no command or schema identity.
 
-Admission caps the sum of encoded metadata rows at the existing 8 MiB CLI output budget before
-extending the collector; the final envelope retains its separate preparation bound. A batch
-that exceeds the budget fails atomically with output-too-large, without partial publication.
+Admission caps combined encoded metadata and report rows at the existing 8 MiB CLI output budget.
+After metadata admission, reports consume only the remaining row budget; each batch is validated
+before extending state. The final envelope remains independently bounded. Oversize or inconsistent
+reads fail without partial output. Tests cover both revision fences, exact batches, wrong/missing
+rows and bindings, permissions, transport loss, original shared deadline, closed legacy/new schema
+shapes, guarded presentation, global tokens and escaped text. Matched Windows cohort acceptance
+exercises the actual public reports and queries; it is not final TUI or authenticated provider proof.

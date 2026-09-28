@@ -4,7 +4,8 @@ This model owns explicit terminal report facts: source authority, provider Sessi
 source watermarks and suppression of stale lifecycle reports. It is distinct from canonical
 hook-observation Sessions in `AgentRuntime`. The core now serves a bounded Windows Server registry and the OBWP report/read family.
 The [native CLI commands](../../orchbee/docs/windows-panel-agent-reports.md) submit these reports.
-Automatic Host process production, names and query/TUI publication remain integration obligations. The public wire cannot submit process observations.
+Panel/Agent queries join the real report view and metadata guards under independent revision fences.
+Automatic Host process production, names and TUI publication remain integration obligations. The public wire cannot submit process observations.
 
 ## Inputs and ownership
 
@@ -87,7 +88,7 @@ The metadata owner retains presentation report time separately from per-field pr
 the Agent associated with accepted sequences, including token-only reports. Late matching metadata
 is a stale no-op until real process confirmation. Both candidates pass capacity/revision checks
 before either commits, so metadata or report revision exhaustion cannot leave half an exit.
-Report-associated names and joined query/TUI context remain required consumers.
+Report-associated names and TUI context remain required consumers; native queries now join report and metadata state.
 
 ## Windows report carrier
 
@@ -117,4 +118,4 @@ foreign-clear isolation and absence of invented provider/process facts; failures
 replayable trace. Pinned-reference differential traces additionally compare complete report state,
 effective views and release outcomes through the public routing rules. These cover the core and owner
 admission only. The native CLI has separate carrier/command acceptance; actual Host observations,
-name/query/TUI behavior and the final full regression remain required before claiming CLI/API parity.
+name/TUI behavior and the final full regression remain required before claiming CLI/API parity.

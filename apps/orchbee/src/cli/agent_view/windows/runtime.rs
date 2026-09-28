@@ -107,9 +107,9 @@ pub(super) fn read(
         ));
     }
     let mut terminal_fields = observation.fields();
-    terminal_fields["metadata"] = metadata
-        .expect("stable unique live binding")
-        .value(&panel_id);
+    let metadata = metadata.expect("stable unique live binding");
+    terminal_fields["metadata"] = metadata.value(&panel_id);
+    terminal_fields["reportedAgent"] = metadata.report_value(&panel_id);
     terminal_fields["terminalId"] = json!(terminal);
     terminal_fields["source"] = results::snapshot_source(snapshot);
     let Observation::Observed(mut read) = observation else {

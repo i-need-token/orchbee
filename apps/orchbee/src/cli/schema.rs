@@ -462,8 +462,8 @@ pub(crate) fn answer(schema_id: Option<&str>, format: OutputFormat, locale: Loca
     };
     let document = json!({
         "schema": "orchbee.api.schema",
-        // Explicit Agent reports add their correlated receipt schema.
-        "version": 87,
+        // Panel and Agent queries now join explicit Agent reports and guarded metadata.
+        "version": 88,
         "source": embedded_source(),
         "result": result,
     });

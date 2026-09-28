@@ -27,7 +27,7 @@ Agent 守卫不会被截断或移除内部控制字符：超出现有 80 标量�
 退出 5，修订号／期限／结果边界失败退出 1。清理失败退出 1，但提交结果已未知时仍退出 8。
 
 `orchbee.panel.metadata` v1 包含请求／Site／Panel ID、observation（带原始应答的 `server`，
-或带封闭原因的 `unknown`）、`interrupted` 和 `cleanupFailed`。目录 v86 包含 89 个 schema。
+或带封闭原因的 `unknown`）、`interrupted` 和 `cleanupFailed`。目录 v88 包含 90 个 schema。
 OBWP 33/34 承载 `workbench.panel-metadata` 及其结果；请求上限 16 KiB，结果上限 512 KiB。
 Server 在 Site 锁内按读取权限读取、按导航权限上报。读取返回至多四个有序且唯一 Panel 的来源
 记录。元数据与 Workbench 修订号独立。需部署匹配 cohort；旧端拒绝未知通信类型。无持久化
@@ -35,34 +35,41 @@ Server 在 Site 锁内按读取权限读取、按导航权限上报。读取返�
 
 协议／owner 测试覆盖原子变更、重放和 TTL；Rust／TypeScript／JSON 共享用例覆盖边界和畸形
 输入；命名管道测试检查包括绑定在内的精确关联、应答丢失、期限和不重放。解析、回执、本地化
-及 shell 语法检查覆盖 CLI 投影。TUI 渲染、通用事件及 provider 权威／会话上报仍是独立集成义务；
+及 shell 语法检查覆盖 CLI 投影。TUI 渲染及通用事件仍是独立集成义务；
 下述查询投影已消费当前 Server 上报。仅此命令不代表完整 Herdr Panel／Agent 对齐或 Desktop 支持。
 
 ## 查询观察模型
 
-Panel list/get/current 与 Agent Get 通过同一个有界查询收集器消费 Server 元数据。输入为
-已准入连接、原始 Snapshot、有序 Panel ID、绝对期限和取消信号。每批读取四个 Panel，要求
-所有批次使用同一元数据修订号，将每条返回绑定与原始主成员关系比较，最后空读校验修订号。
-外层查询仍校验规范状态及所选 Client 状态。失败不得发布混合或部分元数据投影。
+Panel list/get/current 与 Agent Get 通过一个有界收集器读取 Server 元数据和显式 Agent 上报。
+输入为已准入连接、原始 Snapshot、有序 Panel ID、原始绝对期限及取消信号。两类接口均每批
+读取四个 Panel，分别要求自身修订号跨批稳定。每条返回行须匹配原始主绑定及 Workbench 修订号。
+全部数据读完后，先空读校验元数据，再空读校验 Agent 上报；两者稳定区间因此重叠，联合查询
+期间任一类都不能静默变化。发生变化以 `metadata-changed` 拒绝查询，包括会改变元数据守卫
+上下文的上报变化。外层仍校验规范状态及所选 Client 状态，不自动重试或发布部分投影。
 
-各投影的 `metadata` 对象包含 `source`（Site、Workbench、元数据修订号及所有读取请求 ID）、
-当前 `binding`、`tokens`、原始来源 `presentations`、守卫 `context`（`agent`、
-`authoritySource`）及计算出的 `presentation`（title、displayAgent、stateLabels）。
-缺失上下文显式为 null，永不满足守卫。实际 Agent 权威集成之前，两项上下文都缺失；带守卫
-的记录仍作为原始上报可见，但不覆盖显示。不能用 provider ID、用户名称或通用观察类别替代
-缺失权威。这项依赖仍属于完整对齐验收范围。
+各 `metadata` 对象包含 `source`（Site、Workbench、元数据修订号及其读取请求 ID）、`binding`、
+`tokens`、原始来源 `presentations`、守卫 `context`（`agent`、`authoritySource`）及计算出的
+`presentation`（title、displayAgent、stateLabels）。同级 `reportedAgent` 包含自身 `source`
+（Site、Workbench、上报修订号及上报读取请求 ID）、同一逻辑 `binding`，以及 `view`（Agent 标签、
+状态、权威来源、消息及可选外部 provider 会话引用）。未绑定行的 binding/view 为 null；已绑定
+但没有上报的终端给出明确 unknown 视图。守卫使用真实 Server 上报视图，缺失事实保留 null，
+永不满足守卫。不得用通用观察类别、用户命名或规范 provider ID 替代上下文。
+单独上报原生会话身份不会伪造进程或上报权威。
 
-收集器是读取工作流，不是第二个元数据负责人。读取 Server 元数据不要求 Host 可用。
-Agent Get 仅使用唯一且存活的主绑定；Agent 已结束、未绑定、多义或成员关系随后变化时，
-连同终端样本一起丢弃元数据。上报元数据不会替换独立观察到的 OSC 标题、规范 label、状态或
-就绪性。收集器测试需覆盖批间和最终校验修订变化、缺失／不匹配行和绑定、不匹配守卫与保留
-的全局 tokens、取消、原始期限及不重放。
+收集器是读取工作流，不是另一个上报负责人。Host 样本不可用时，Server 元数据及上报仍可读取。
+Agent Get 使用唯一且存活的主绑定；Agent 已结束、未绑定、多义或成员关系随后变化时，连同终端
+样本一起丢弃两者。上报不会替换独立观察到的 OSC 标题、规范 label、状态或就绪性。外部 provider
+引用与规范观察 Session ID 独立，查询不会执行引用。自动 Host 进程生产、关联名称、provider
+恢复／持久化及 TUI 发布仍是独立集成义务。
 
-Windows Panel list/get 输出 v8，current 输出 v5，Agent Get 输出 v9（带 `--client` 时为 v10）。
-每个 Panel 行或非 null 的 Agent terminal 必须包含 metadata 对象。旧查询版本拒绝该字段，
-同时仍接受原有形状。文本输出转义后的有效展示字段和全局 token。目录 v86 包含 89 个 schema
-和 100 条命令路径。
+Windows Panel list/get 输出 v9，current 输出 v6，Agent Get 输出 v11（带 `--client` 时为 v12）。
+每个 Panel 行和非 null 的 Agent terminal 必须包含 metadata 与 reportedAgent。前序元数据版本
+保留 null 守卫上下文并拒绝 reportedAgent；更早版本同时拒绝 metadata，原有闭合形状仍被接受。
+本地化文本转义有效元数据、上报详情、消息和外部引用。目录 v88 包含 90 份 schema 和 104 条
+命令路径；此次查询变更不增加命令或 schema 身份。
 
-收集器在接纳批次前，将所有已编码元数据行的总大小限制在现有 CLI 的 8 MiB 输出预算内；
-最终封套仍单独受准备阶段的上限约束。超出预算的批次原子失败，返回 output-too-large，
-不发布部分结果。
+接纳时将元数据与上报编码行的合计大小限制在既有 CLI 8 MiB 输出预算内。元数据接纳后，上报
+仅使用剩余行预算；每批在扩展状态前校验。最终封套仍单独受限。超限或不一致读取不输出部分
+结果。测试覆盖两类修订号复核、精确分批、错误／缺失行与绑定、权限、传输丢失、原始共享期限、
+闭合旧／新 schema、带守卫展示、全局 tokens 和转义文本。匹配 Windows cohort 验收实际公开
+上报及查询，不代表最终 TUI 或认证 provider 任务证明。

@@ -88,7 +88,7 @@ fn agent_get_returns_process_facts_and_bounded_prompt_readiness() {
             &doc,
             include_str!("../src/cli/schemas/orchbee.agent.get.json"),
         );
-        assert_eq!(doc["version"], 9);
+        assert_eq!(doc["version"], 11);
         assert!(doc["result"].get("client").is_none());
         if case == "ready" {
             let schema: Value =
@@ -105,6 +105,7 @@ fn agent_get_returns_process_facts_and_bounded_prompt_readiness() {
                 "source",
                 "terminalId",
                 "metadata",
+                "reportedAgent",
             ] {
                 let mut bad = doc.clone();
                 if field == "terminal" {
@@ -123,6 +124,22 @@ fn agent_get_returns_process_facts_and_bounded_prompt_readiness() {
             let mut bad = doc.clone();
             bad["result"]["terminal"]["invented"] = json!(true);
             assert!(!validator.is_valid(&bad));
+            for version in [7, 9] {
+                let mut legacy = doc.clone();
+                legacy["version"] = json!(version);
+                assert!(!validator.is_valid(&legacy));
+                legacy["result"]["terminal"]
+                    .as_object_mut()
+                    .unwrap()
+                    .remove("reportedAgent");
+                if version == 7 {
+                    legacy["result"]["terminal"]
+                        .as_object_mut()
+                        .unwrap()
+                        .remove("metadata");
+                }
+                assert!(validator.is_valid(&legacy), "legacy {version}");
+            }
             for version in [1, 3, 5] {
                 let mut legacy = doc.clone();
                 legacy["version"] = json!(version);

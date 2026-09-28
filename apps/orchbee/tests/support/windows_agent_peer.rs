@@ -479,10 +479,15 @@ pub(super) fn snapshot_after_metadata(
     }
     let mut reads = 0;
     let mut fenced = false;
+    let mut report_reads = 0;
+    let mut report_fenced = false;
     loop {
         match read_workbench_request(stream).unwrap() {
             WorkbenchRequest::SnapshotRead(request) => {
-                assert!(reads == 0 || fenced, "missing metadata fence");
+                assert!(
+                    reads == 0 || (fenced && report_fenced),
+                    "missing metadata/report fence"
+                );
                 return request;
             }
             WorkbenchRequest::PanelMetadata(request) => {
@@ -516,6 +521,52 @@ pub(super) fn snapshot_after_metadata(
                         outcome: PanelMetadataOutcome::Read {
                             workbench_revision: snapshot.revision,
                             metadata_revision: WorkbenchRevision::new(0),
+                            panels,
+                        },
+                    }),
+                )
+                .unwrap();
+            }
+            WorkbenchRequest::PanelAgent(request) => {
+                assert!(!report_fenced, "no reads after report fence");
+                assert_eq!(request.site_id, snapshot.site_id);
+                let PanelAgentAction::Read { panel_ids } = &request.action else {
+                    panic!("query must never report Agent state")
+                };
+                report_fenced = report_reads > 0 && panel_ids.is_empty();
+                report_reads += 1;
+                let panels = panel_ids
+                    .iter()
+                    .map(|id| {
+                        let binding = snapshot
+                            .terminal_contexts
+                            .iter()
+                            .flat_map(|context| &context.tabs)
+                            .find_map(|tab| binding(&tab.root, id))
+                            .expect("known panel");
+                        let report = binding.as_ref().map(|_| PanelAgentView {
+                            agent: None,
+                            state: PanelAgentState::Unknown,
+                            authority_source: None,
+                            message: None,
+                            session: None,
+                        });
+                        PanelAgentRow {
+                            panel_id: id.clone(),
+                            binding,
+                            report,
+                        }
+                    })
+                    .collect();
+                write_workbench_response(
+                    stream,
+                    &WorkbenchResponse::PanelAgent(PanelAgentResult {
+                        protocol_version: ProtocolVersion,
+                        request_id: request.request_id,
+                        site_id: request.site_id,
+                        outcome: PanelAgentOutcome::Read {
+                            workbench_revision: snapshot.revision,
+                            report_revision: WorkbenchRevision::new(0),
                             panels,
                         },
                     }),

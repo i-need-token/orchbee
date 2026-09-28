@@ -16,6 +16,10 @@ fn metadata_projection_preserves_sources_without_inventing_authority_and_fences_
     let state = snapshot();
     let panel = WorkbenchPanelId::parse(&id(5)).unwrap();
     let mut doc = Document {
+        reports: Some(reports::fixture(
+            &state,
+            [WorkbenchPanelId::parse(&id(5)).unwrap()],
+        )),
         rows: BTreeMap::new(),
         encoded_row_bytes: 0,
         revision: WorkbenchRevision::new(2),
@@ -108,6 +112,10 @@ fn metadata_batch_admission_bounds_aggregate_rows_without_partial_state() {
     let row = row();
     let size = serde_json::to_vec(&row).unwrap().len();
     let mut doc = Document {
+        reports: Some(reports::fixture(
+            &state,
+            [WorkbenchPanelId::parse(&id(5)).unwrap()],
+        )),
         rows: BTreeMap::new(),
         encoded_row_bytes: super::super::output::LIMIT - size,
         revision: WorkbenchRevision::new(2),
@@ -142,4 +150,60 @@ fn metadata_batch_admission_bounds_aggregate_rows_without_partial_state() {
         vec![],
     )
     .unwrap();
+}
+
+#[test]
+fn actual_report_context_selects_guarded_metadata_without_rewriting_canonical_fields() {
+    let state = snapshot();
+    let panel = WorkbenchPanelId::parse(&id(5)).unwrap();
+    let mut doc = Document {
+        reports: None,
+        rows: BTreeMap::new(),
+        encoded_row_bytes: 0,
+        revision: WorkbenchRevision::new(2),
+        request_ids: vec![],
+        site: state.site_id.clone(),
+        workbench_revision: state.revision,
+    };
+    doc.admit(
+        WorkbenchRequestId::parse(&id(10)).unwrap(),
+        doc.revision,
+        vec![row()],
+    )
+    .unwrap();
+    for (agent, authority, title) in [
+        ("codex", "hook-a", "guarded title"),
+        ("codex", "different", "标题"),
+        ("custom", "hook-a", "标题"),
+    ] {
+        doc.reports = Some(reports::fixture(&state, [panel.clone()]).with_view(
+            orchbee_workbench_protocol::PanelAgentView {
+                agent: Some(agent.into()),
+                state: orchbee_workbench_protocol::PanelAgentState::Blocked,
+                authority_source: Some(authority.into()),
+                message: Some("中文\n\u{1b}[31m".into()),
+                session: None,
+            },
+        ));
+        let metadata = doc.value(&panel);
+        assert_eq!(
+            metadata["context"],
+            json!({"agent":agent,"authoritySource":authority})
+        );
+        assert_eq!(metadata["presentation"]["title"], title);
+        assert_eq!(metadata["presentations"].as_array().unwrap().len(), 2);
+        let mut result = json!({"panel":{"panelId":panel,"agentStatus":"canonical","displayLabel":"canonical label"}});
+        doc.enrich(&mut result);
+        assert_eq!(result["panel"]["agentStatus"], "canonical");
+        assert_eq!(result["panel"]["displayLabel"], "canonical label");
+        assert_eq!(result["panel"]["reportedAgent"]["view"]["state"], "blocked");
+        assert_eq!(
+            result["panel"]["reportedAgent"]["source"]["reportRevision"],
+            "0"
+        );
+        for locale in [Locale::EnUs, Locale::ZhCn] {
+            let rendered = crate::cli::output::render_text(|out| doc.render(out, locale)).unwrap();
+            assert!(!rendered.contains(&0x1b));
+        }
+    }
 }

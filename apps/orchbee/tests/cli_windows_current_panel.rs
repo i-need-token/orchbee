@@ -218,7 +218,7 @@ fn caller_explicit_and_client_targets_preserve_precedence_without_mutating_contr
             if process {
                 assert_eq!(doc["result"]["terminal"]["terminalId"], id(selected + 200));
             } else {
-                assert_eq!(doc["version"], 5);
+                assert_eq!(doc["version"], 6);
                 assert_eq!(doc["result"]["panel"]["panelId"], id(selected));
                 assert_eq!(doc["result"]["panel"]["agentSessionIds"], json!([]));
                 assert_eq!(

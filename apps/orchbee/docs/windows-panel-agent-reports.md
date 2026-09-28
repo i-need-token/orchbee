@@ -53,17 +53,17 @@ revision/clock/result bounds exit 1. Unknown after submission exits 8. Cleanup f
 the submitted outcome is already unknown. Localized text reports disposition and request identity;
 JSON carries the complete view without changing its strings.
 
-Catalog v87 publishes 90 schemas and the native grammar has 104 command paths. OBWP 35/36 uses
+Catalog v88 publishes 90 schemas and the native grammar has 104 command paths. OBWP 35/36 uses
 the existing 16 KiB request and 512 KiB result limits. Deploy a matched private cohort; older peers
 reject these carrier kinds. State is transient and no persistence migration is involved.
 
 ## Remaining integration and verification
 
 The native commands consume the real Server owner. Automatic Host process production,
-report-associated names, provider resume/persistence, joined Panel/Agent queries and TUI display
-remain separate integration obligations. In particular, a deferred lifecycle report does not
-become a confirmed process merely because its CLI receipt succeeded. General Panel queries still
-use the independently documented [metadata projection](windows-panel-metadata.md#query-observation-model).
+report-associated names, provider resume/persistence and TUI display remain separate integration obligations. In particular, a deferred lifecycle report does not
+become a confirmed process merely because its CLI receipt succeeded. Panel list/get/current and Agent Get now expose source-attributed `reportedAgent` views and
+apply metadata guards using their actual context. Both revisions are fenced together; see the
+[metadata projection](windows-panel-metadata.md#query-observation-model).
 
 Parser tests cover scope, source distinctions, label/reference preservation and complete encoded
 request bounds. Named-pipe fault tests cover pre-submission deadlines, response correlation,

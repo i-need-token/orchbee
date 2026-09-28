@@ -37,7 +37,7 @@ fn reply(stream: &mut LocalStream, case: &str, turn: u64, count: u64) {
     if case == "lost" {
         return;
     }
-    if case == "total-deadline" {
+    if matches!(case, "total-deadline" | "report-total-deadline") {
         std::thread::sleep(Duration::from_millis(1800));
         if turn == 2 {
             return;
@@ -69,6 +69,62 @@ fn reply(stream: &mut LocalStream, case: &str, turn: u64, count: u64) {
     };
     write_workbench_response(stream, &WorkbenchResponse::PanelMetadata(response)).unwrap();
 }
+fn report_reply(stream: &mut LocalStream, case: &str, turn: u64, count: u64) {
+    let WorkbenchRequest::PanelAgent(request) = read_workbench_request(stream).unwrap() else {
+        panic!("report read")
+    };
+    let PanelAgentAction::Read { panel_ids } = &request.action else {
+        panic!("read only")
+    };
+    let expected: Vec<_> = if turn == 0 {
+        (0..count.min(4)).map(|n| id(6 + 2 * n)).collect()
+    } else if turn == 1 && count > 4 {
+        vec![id(14)]
+    } else {
+        vec![]
+    };
+    assert_eq!(
+        panel_ids.iter().map(|id| id.as_str()).collect::<Vec<_>>(),
+        expected
+    );
+    if case == "report-lost" {
+        return;
+    }
+    if case == "report-total-deadline" {
+        std::thread::sleep(Duration::from_millis(1800));
+        return;
+    }
+    let mut panels: Vec<_> = panel_ids.iter().map(|panel| {
+        let n = u64::from_str_radix(panel.as_str(), 16).unwrap();
+        json!({"panelId":panel,"binding":{"workerId":"6f7263686265652d6c6f63616c2d7631","terminalId":id(n+200)},
+            "report":{"agent":"codex","state":"blocked","authoritySource":"hook-a","message":"中文\n\u{1b}[31m","session":null}})
+    }).collect();
+    if !panels.is_empty() {
+        match case {
+            "report-wrong-row" => panels[0]["panelId"] = json!(id(999)),
+            "report-wrong-binding" => panels[0]["binding"]["terminalId"] = json!(id(999)),
+            _ => {}
+        }
+    }
+    let outcome = match case {
+        "report-denied" => json!({"kind":"failed","reason":"denied"}),
+        "report-not-found" => json!({"kind":"failed","reason":"not-found"}),
+        _ => {
+            json!({"kind":"read","workbenchRevision":if case=="report-workbench-changed"{"13"}else{"12"},
+            "reportRevision":if (case=="report-batch-changed" && turn==1)||(case=="report-fence-changed" && panel_ids.is_empty()){"4"}else{"3"},"panels":panels})
+        }
+    };
+    write_workbench_response(
+        stream,
+        &WorkbenchResponse::PanelAgent(PanelAgentResult {
+            protocol_version: ProtocolVersion,
+            request_id: request.request_id,
+            site_id: request.site_id,
+            outcome: serde_json::from_value(outcome).unwrap(),
+        }),
+    )
+    .unwrap();
+}
 #[test]
 fn panel_metadata_queries_enforce_exact_batches_binding_fences_and_original_deadline() {
     for case in [
@@ -84,6 +140,15 @@ fn panel_metadata_queries_enforce_exact_batches_binding_fences_and_original_dead
         "workbench-changed",
         "lost",
         "total-deadline",
+        "report-batch-changed",
+        "report-fence-changed",
+        "report-wrong-row",
+        "report-wrong-binding",
+        "report-not-found",
+        "report-denied",
+        "report-workbench-changed",
+        "report-lost",
+        "report-total-deadline",
     ] {
         let fixture = Fixture::new();
         let listener = LocalListener::bind(fixture.rendezvous().client_socket_path()).unwrap();
@@ -101,7 +166,7 @@ fn panel_metadata_queries_enforce_exact_batches_binding_fences_and_original_dead
                 runtime::unavailable(&mut stream);
             }
             let batches = if count > 4 { 2 } else { 1 };
-            for turn in 0..=batches {
+            for turn in 0..batches {
                 reply(&mut stream, case, turn, count);
                 if case == "lost" {
                     return;
@@ -110,12 +175,39 @@ fn panel_metadata_queries_enforce_exact_batches_binding_fences_and_original_dead
                     case,
                     "wrong-row" | "wrong-binding" | "not-found" | "denied" | "workbench-changed"
                 ) || (case == "batch-changed" && turn == 1)
-                    || (case == "fence-changed" && turn == batches)
-                    || (case == "total-deadline" && turn == 2)
                 {
                     assert_closed(&mut stream);
                     return;
                 }
+            }
+            for turn in 0..batches {
+                report_reply(&mut stream, case, turn, count);
+                if case == "report-lost" {
+                    return;
+                }
+                if matches!(
+                    case,
+                    "report-wrong-row"
+                        | "report-wrong-binding"
+                        | "report-not-found"
+                        | "report-denied"
+                        | "report-workbench-changed"
+                        | "report-total-deadline"
+                ) || (case == "report-batch-changed" && turn == 1)
+                {
+                    assert_closed(&mut stream);
+                    return;
+                }
+            }
+            reply(&mut stream, case, batches, count);
+            if matches!(case, "fence-changed" | "total-deadline") {
+                assert_closed(&mut stream);
+                return;
+            }
+            report_reply(&mut stream, case, batches, count);
+            if case == "report-fence-changed" {
+                assert_closed(&mut stream);
+                return;
             }
             snapshot(&mut stream, count);
             assert_closed(&mut stream);
@@ -141,7 +233,7 @@ fn panel_metadata_queries_enforce_exact_batches_binding_fences_and_original_dead
                     include_str!("../../../src/cli/schemas/orchbee.panel.list.json")
                 },
             );
-            assert_eq!(doc["version"], 8);
+            assert_eq!(doc["version"], 9);
             if count > 0 {
                 let row = if case == "get" {
                     &doc["result"]["panel"]
@@ -149,14 +241,26 @@ fn panel_metadata_queries_enforce_exact_batches_binding_fences_and_original_dead
                     &doc["result"]["panels"][0]
                 };
                 let md = &row["metadata"];
-                assert_eq!(md["presentation"]["title"], "标题");
+                assert_eq!(md["presentation"]["title"], "guarded");
                 assert_eq!(md["presentations"].as_array().unwrap().len(), 2);
-                assert_eq!(md["context"], json!({"agent":null,"authoritySource":null}));
+                assert_eq!(
+                    md["context"],
+                    json!({"agent":"codex","authoritySource":"hook-a"})
+                );
                 assert_eq!(
                     md["source"]["requestIds"].as_array().unwrap().len(),
                     if count > 4 { 3 } else { 2 }
                 );
                 assert_eq!(md["tokens"]["__proto__"], "preserved");
+                assert_eq!(row["reportedAgent"]["view"]["state"], "blocked");
+                assert_eq!(row["reportedAgent"]["source"]["reportRevision"], "3");
+                assert_eq!(
+                    row["reportedAgent"]["source"]["requestIds"]
+                        .as_array()
+                        .unwrap()
+                        .len(),
+                    if count > 4 { 3 } else { 2 }
+                );
             }
             let schema = if case == "get" {
                 include_str!("../../../src/cli/schemas/orchbee.panel.get.json")
@@ -175,9 +279,14 @@ fn panel_metadata_queries_enforce_exact_batches_binding_fences_and_original_dead
                     .as_object_mut()
                     .unwrap()
                     .remove("metadata");
+                legacy["result"]["panel"]
+                    .as_object_mut()
+                    .unwrap()
+                    .remove("reportedAgent");
             } else {
                 for row in legacy["result"]["panels"].as_array_mut().unwrap() {
                     row.as_object_mut().unwrap().remove("metadata");
+                    row.as_object_mut().unwrap().remove("reportedAgent");
                 }
             }
             assert!(validator.is_valid(&legacy));
@@ -190,14 +299,22 @@ fn panel_metadata_queries_enforce_exact_batches_binding_fences_and_original_dead
             assert_eq!(
                 output.status.code(),
                 Some(match case {
-                    "batch-changed" | "fence-changed" | "not-found" | "denied"
-                    | "workbench-changed" => 3,
-                    "total-deadline" => 7,
+                    "batch-changed"
+                    | "fence-changed"
+                    | "not-found"
+                    | "denied"
+                    | "workbench-changed"
+                    | "report-batch-changed"
+                    | "report-fence-changed"
+                    | "report-not-found"
+                    | "report-denied"
+                    | "report-workbench-changed" => 3,
+                    "total-deadline" | "report-total-deadline" => 7,
                     _ => 5,
                 }),
                 "{case}: {doc}"
             );
-            if case == "total-deadline" {
+            if matches!(case, "total-deadline" | "report-total-deadline") {
                 assert!(
                     elapsed >= Duration::from_secs(5) && elapsed < Duration::from_secs(8),
                     "{elapsed:?}"
