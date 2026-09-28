@@ -26,6 +26,12 @@ use std::sync::mpsc::{self, Receiver, SyncSender, TryRecvError};
 #[cfg(windows)]
 mod agent_attention;
 mod agent_board;
+#[cfg(windows)]
+mod panel_reports;
+#[cfg(all(windows, test))]
+pub(crate) use panel_reports::PanelReport;
+#[cfg(windows)]
+pub(crate) use panel_reports::PanelReportView;
 #[cfg(any(target_os = "linux", windows))]
 mod agent_read_lane;
 mod connection;

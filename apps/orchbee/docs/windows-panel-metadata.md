@@ -92,3 +92,5 @@ reads fail without partial output. Tests cover both revision fences, exact batch
 rows and bindings, permissions, transport loss, original shared deadline, closed legacy/new schema
 shapes, guarded presentation, global tokens and escaped text. Matched Windows cohort acceptance
 exercises the actual public reports and queries; it is not final TUI or authenticated provider proof.
+
+The Windows TUI now consumes a separately revision-fenced report/metadata round for primary Panels in its active Tab. Custom titles retain precedence; effective metadata, literal tokens and localized Agent status paint in the existing single, split or zoomed header. See [Panel report presentation](windows-panel-report-presentation.md) for scope, failure and shutdown rules.

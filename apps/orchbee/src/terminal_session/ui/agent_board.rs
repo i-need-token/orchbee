@@ -27,6 +27,8 @@ impl NativeUi {
     ) {
         #[cfg(windows)]
         self.attention.set_origin(origin.clone());
+        #[cfg(windows)]
+        self.reports.set_origin(origin.clone());
         self.board.set_origin(origin);
     }
 
@@ -83,6 +85,8 @@ impl NativeUi {
         self.board.release_lane();
         #[cfg(windows)]
         self.attention.close();
+        #[cfg(windows)]
+        self.reports.close();
     }
 
     /// One key under board capture. Consumed regardless — the capture

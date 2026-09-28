@@ -73,3 +73,5 @@ Windows Panel list/get 输出 v9，current 输出 v6，Agent Get 输出 v11（�
 结果。测试覆盖两类修订号复核、精确分批、错误／缺失行与绑定、权限、传输丢失、原始共享期限、
 闭合旧／新 schema、带守卫展示、全局 tokens 和转义文本。匹配 Windows cohort 验收实际公开
 上报及查询，不代表最终 TUI 或认证 provider 任务证明。
+
+Windows TUI 现通过独立修订号校验的一轮上报／元数据读取，展示当前 Tab 主 Panel 的状态。自定义标题保持优先；有效元数据、字面 token 和本地化 Agent 状态绘制在既有单面板、分屏或放大标题栏中。范围、失败与关闭规则见 [Panel 上报展示](windows-panel-report-presentation.zh-CN.md)。

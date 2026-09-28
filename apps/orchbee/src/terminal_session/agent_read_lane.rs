@@ -1,4 +1,4 @@
-//! Shared native OBAP read lane: one worker thread holding its own
+//! Shared native Agent and Panel observation read lane: one worker thread holding its own
 //! admitted Client Session (re-established from `LocalClientOrigin`, the
 //! `status_recovery` precedent). Commands are sequential; a wake pipe lets
 //! `close` interrupt an in-flight exchange, and every outcome is delivered
@@ -43,7 +43,16 @@ mod attention;
 #[cfg(windows)]
 pub(super) use attention::AttentionRound;
 
+#[cfg(windows)]
+mod panel_reports;
+
 pub(super) enum LaneCommand {
+    #[cfg(windows)]
+    PanelReports {
+        epoch: u64,
+        scope: super::panel_reports::Scope,
+        deadline: Instant,
+    },
     #[cfg(windows)]
     Attention {
         epoch: u64,
@@ -64,6 +73,11 @@ pub(super) enum LaneCommand {
 }
 
 pub(super) enum LaneOutcome {
+    #[cfg(windows)]
+    PanelReports {
+        epoch: u64,
+        result: Result<super::panel_reports::Round, LaneFailure>,
+    },
     #[cfg(windows)]
     Attention {
         epoch: u64,
@@ -228,6 +242,23 @@ fn run(
             break;
         }
         let outcome = match command {
+            #[cfg(windows)]
+            LaneCommand::PanelReports {
+                epoch,
+                scope,
+                deadline,
+            } => LaneOutcome::PanelReports {
+                epoch,
+                result: panel_reports::read_round(
+                    &origin,
+                    &clock,
+                    &mut client,
+                    scope,
+                    deadline,
+                    wake_read.as_local_io(),
+                    &shutdown,
+                ),
+            },
             #[cfg(windows)]
             LaneCommand::Attention {
                 epoch,

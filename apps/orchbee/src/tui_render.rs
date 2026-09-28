@@ -1,3 +1,5 @@
+#[cfg(not(windows))]
+use crate::terminal_text::sanitize_terminal_text;
 use ratatui::{
     Frame,
     layout::{Alignment, Constraint, Layout, Rect},
@@ -14,7 +16,7 @@ use crate::{
         NativeDrawReceipt, NativeProjectionStatus, NativeRefreshStatus, NativeSessionView,
         NativeTabView, TerminalSessionView,
     },
-    terminal_text::{display_width, sanitize_terminal_text, truncate_display},
+    terminal_text::{display_width, truncate_display},
     tui_layout::{
         ShellAreas, SidebarArea, SidebarLayer, ViewportTier, overlay_area, place_overlay,
         project_shell_areas, terminal_area,
@@ -28,6 +30,8 @@ use crate::terminal_session::TerminalStatus;
 mod agent_board;
 mod contexts;
 mod panel_close;
+#[cfg(windows)]
+mod panel_reports;
 mod tab_close;
 mod tab_rename;
 mod tabs;
@@ -495,6 +499,10 @@ fn render_native_workbench(
         hits,
     );
 
+    let active_tab = native
+        .active_position()
+        .and_then(|p| p.checked_sub(1))
+        .and_then(|index| native.tab(index));
     let framed = areas.tier.shows_panel_frame();
     let content_area = terminal_area(panel_area, framed);
     let panel_title = text.panel_title.to_owned();
@@ -508,21 +516,45 @@ fn render_native_workbench(
                 locale.agent_unseen_badge(native.panel_unseen_count(panel))
             )
         });
+    let frame_title = Line::from(Span::styled(
+        format!(" {panel_title} "),
+        theme.style(Role::TextSecondary),
+    ));
+    #[cfg(windows)]
+    let frame_title = active_tab
+        .filter(|tab| tab.panel_count() == 1 || native.zoom_active())
+        .and_then(|tab| {
+            let index = tab.active_panel()?;
+            let panel = tab.panel(index)?;
+            let title = format!(
+                "{}{}",
+                panel_reports::title(
+                    panel,
+                    index + 1,
+                    text.panel_title,
+                    native.panel_report(panel),
+                    theme
+                ),
+                locale.agent_unseen_badge(native.panel_unseen_count(panel.panel_id()))
+            );
+            Some(panel_reports::header(
+                title,
+                native.panel_report(panel),
+                usize::from(panel_area.width.saturating_sub(2)),
+                locale,
+                theme,
+                theme.style(Role::AccentFocus).add_modifier(Modifier::BOLD),
+            ))
+        })
+        .unwrap_or(frame_title);
     if framed {
         let panel_block = Block::new()
             .borders(Borders::ALL)
             .border_style(theme.style(Role::FrameFocused))
             .border_type(theme.corners)
-            .title(Span::styled(
-                format!(" {panel_title} "),
-                theme.style(Role::TextSecondary),
-            ));
+            .title(frame_title);
         frame.render_widget(panel_block, panel_area);
     }
-    let active_tab = native
-        .active_position()
-        .and_then(|position| position.checked_sub(1))
-        .and_then(|index| native.tab(index));
     // Under zoom the drawn set narrows to the focused leaf: the single-pane
     // path below paints it across the whole content area and records the
     // only pane hit region — hidden leaves stay attached but undrawn.
@@ -757,10 +789,25 @@ fn render_leaf(
     let panel_index = leaf.panel_index;
     let active = tab.active_panel() == Some(panel_index);
     let panel = tab.panel(panel_index);
+    #[cfg(windows)]
+    let title = panel.map_or_else(
+        || format!(" {} {} ", text.panel_title, panel_index + 1),
+        |p| {
+            panel_reports::title(
+                p,
+                panel_index + 1,
+                text.panel_title,
+                native.panel_report(p),
+                theme,
+            )
+        },
+    );
+    #[cfg(not(windows))]
     let title = panel.map_or_else(
         || format!(" {} {} ", text.panel_title, panel_index.saturating_add(1)),
         |panel| {
-            if let Some(title) = panel.custom_label() {
+            let override_title = panel.custom_label();
+            if let Some(title) = override_title {
                 return format!(
                     " {} {} {} ",
                     sanitize_terminal_text(title),
@@ -791,15 +838,23 @@ fn render_leaf(
         theme.style(Role::TextSecondary)
     };
     let title_area = Rect::new(area.x, area.y, area.width, 1.min(area.height));
-    frame.render_widget(
-        Paragraph::new(truncate_display(
-            &title,
-            usize::from(area.width),
-            theme.glyphs.ellipsis,
-        ))
-        .style(title_style),
-        title_area,
+    #[cfg(windows)]
+    let header = panel_reports::header(
+        title,
+        panel.map_or(crate::terminal_session::PanelReportView::Pending, |p| {
+            native.panel_report(p)
+        }),
+        usize::from(area.width),
+        locale,
+        theme,
+        title_style,
     );
+    #[cfg(not(windows))]
+    let header = Line::from(Span::styled(
+        truncate_display(&title, usize::from(area.width), theme.glyphs.ellipsis),
+        title_style,
+    ));
+    frame.render_widget(Paragraph::new(header), title_area);
     let content = leaf.content;
     if !active {
         frame.render_widget(

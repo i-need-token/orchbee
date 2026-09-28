@@ -219,9 +219,19 @@ pub(crate) struct NativeSessionView<'a> {
     board_summary: Option<AgentBoardSummary>,
     #[cfg(windows)]
     attention: Option<&'a super::agent_attention::AgentAttention>,
+    #[cfg(windows)]
+    reports: Option<&'a super::panel_reports::PanelReports>,
 }
 
 impl<'a> NativeSessionView<'a> {
+    #[cfg(windows)]
+    pub(crate) fn panel_report(&self, panel: &super::NativePanel) -> super::PanelReportView<'_> {
+        if self.retirement.is_some() {
+            return super::PanelReportView::Unavailable;
+        }
+        self.reports
+            .map_or(super::PanelReportView::Pending, |r| r.view(panel))
+    }
     pub(crate) fn context_count(&self) -> usize {
         self.state
             .as_ref()
@@ -476,6 +486,8 @@ impl<'a> NativeSessionView<'a> {
             board_summary: None,
             #[cfg(windows)]
             attention: None,
+            #[cfg(windows)]
+            reports: None,
         }
     }
 }
@@ -544,6 +556,8 @@ pub(super) struct NativeUi {
     board: super::agent_board::AgentBoard,
     #[cfg(windows)]
     attention: super::agent_attention::AgentAttention,
+    #[cfg(windows)]
+    reports: super::panel_reports::PanelReports,
     /// `presentation_id → workbench placement` over the freshest observed
     /// canonical snapshot — a pure function of that snapshot, rebuilt
     /// whole on every snapshot-bearing event.
@@ -579,6 +593,8 @@ pub(in crate::terminal_session) mod membership_tests;
 pub(in crate::terminal_session) mod move_membership_tests;
 #[cfg(test)]
 mod panel_input_tests;
+#[cfg(all(test, windows))]
+mod panel_reports_tests;
 #[cfg(test)]
 pub(in crate::terminal_session) mod publication_hint_tests;
 #[cfg(test)]
@@ -603,6 +619,8 @@ impl NativeUi {
             board: super::agent_board::AgentBoard::new(clock.clone()),
             #[cfg(windows)]
             attention: super::agent_attention::AgentAttention::new(clock.clone()),
+            #[cfg(windows)]
+            reports: super::panel_reports::PanelReports::new(clock.clone()),
             agent_index: super::agent_board::PresentationIndex::default(),
             clock,
             state: None,
@@ -654,6 +672,10 @@ impl NativeUi {
             board_summary: self.board.summary(),
             #[cfg(windows)]
             attention: Some(&self.attention),
+            #[cfg(windows)]
+            reports: state
+                .filter(|s| self.reports.matches(s))
+                .map(|_| &self.reports),
         }
     }
 
@@ -848,6 +870,11 @@ impl NativeUi {
             #[cfg(windows)]
             {
                 changed |= self.attention.tick();
+                changed |= self.reports.tick(
+                    self.state
+                        .as_ref()
+                        .and_then(super::panel_reports::Scope::capture),
+                );
             }
             // Viewport deadline episodes and staged steps advance on the
             // same fair tick as the ordinary schedulers.
@@ -2842,6 +2869,8 @@ impl NativeUi {
             self.retirement_poll_serial = self.ordinary_poll_serial;
         }
         self.board.close();
+        #[cfg(windows)]
+        self.reports.close();
         if let Some(state) = &mut self.state {
             state.close_carrier_retired();
             state.cancel_panel_close_confirmation();

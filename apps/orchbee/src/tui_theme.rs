@@ -28,9 +28,9 @@ pub(crate) enum Role {
     StatusSuccess,
     StatusWarning,
     StatusError,
-    #[cfg(test)]
+    #[cfg(any(windows, test))]
     StatusInfo,
-    #[cfg(test)]
+    #[cfg(any(windows, test))]
     StatusPending,
     FrameFocused,
     #[cfg(test)]
@@ -147,9 +147,9 @@ pub(crate) struct RoleStyles {
     pub status_success: Style,
     pub status_warning: Style,
     pub status_error: Style,
-    #[cfg(test)]
+    #[cfg(any(windows, test))]
     pub status_info: Style,
-    #[cfg(test)]
+    #[cfg(any(windows, test))]
     pub status_pending: Style,
     pub frame_focused: Style,
     #[cfg(test)]
@@ -180,9 +180,9 @@ impl RoleStyles {
             Role::StatusSuccess => self.status_success,
             Role::StatusWarning => self.status_warning,
             Role::StatusError => self.status_error,
-            #[cfg(test)]
+            #[cfg(any(windows, test))]
             Role::StatusInfo => self.status_info,
-            #[cfg(test)]
+            #[cfg(any(windows, test))]
             Role::StatusPending => self.status_pending,
             Role::FrameFocused => self.frame_focused,
             #[cfg(test)]
@@ -270,9 +270,9 @@ impl Theme {
                 status_success: Style::new().fg(Color::Green),
                 status_warning: Style::new().fg(Color::Magenta),
                 status_error: Style::new().fg(Color::Red),
-                #[cfg(test)]
+                #[cfg(any(windows, test))]
                 status_info: Style::new().fg(Color::Cyan),
-                #[cfg(test)]
+                #[cfg(any(windows, test))]
                 status_pending: Style::new().fg(Color::Cyan).add_modifier(Modifier::DIM),
                 frame_focused: Style::new().fg(Color::Cyan),
                 #[cfg(test)]

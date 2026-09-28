@@ -6,6 +6,8 @@ use crate::client_view::{
 };
 
 mod cli;
+#[cfg(windows)]
+mod panel_reports;
 pub(crate) use cli::CliLabels;
 #[cfg(any(unix, windows))]
 mod location_labels;
