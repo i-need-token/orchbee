@@ -316,22 +316,29 @@ mod linux {
         let target = match target {
             SendTarget::Terminal(target) => target,
             SendTarget::Agent(target) => {
-                let selected = super::super::query::resolve_agent_terminal(
-                    &mut client,
-                    &snapshot,
-                    target,
-                    deadline,
-                )
-                .map_err(SendError::Failure)?;
                 #[cfg(windows)]
-                let selected = super::super::query::verify_agent_terminal(
-                    &mut client,
-                    &snapshot,
-                    selected,
-                    deadline,
-                )
-                .map_err(SendError::Failure)?;
-                agent_target = selected.terminal;
+                {
+                    agent_target = super::super::query::named_terminal_target(
+                        &mut client,
+                        &snapshot,
+                        target,
+                        deadline,
+                        None,
+                        true,
+                    )
+                    .map_err(SendError::Failure)?;
+                }
+                #[cfg(not(windows))]
+                {
+                    agent_target = super::super::query::resolve_agent_terminal(
+                        &mut client,
+                        &snapshot,
+                        target,
+                        deadline,
+                    )
+                    .map_err(SendError::Failure)?
+                    .terminal;
+                }
                 &agent_target
             }
         };

@@ -476,3 +476,43 @@ fn presentation_selectors_require_one_live_navigable_session_and_mutate_atomical
         }
     );
 }
+
+#[cfg(windows)]
+#[test]
+fn guarded_names_refuse_before_drain_and_preserve_unavailable_on_failed_finalization() {
+    let service = AgentService::open(AgentPolicy {
+        read: false,
+        manage: false,
+    })
+    .unwrap();
+    let request = AgentNamesRequest::NameAssign {
+        request_id: request_id(),
+        target: target("one"),
+        name: name("alpha"),
+    };
+    let answer = service.execute_names_guarded(request.clone(), |_| panic!("denied before drain"));
+    assert!(matches!(
+        answer,
+        AgentNamesResult::NameAssign {
+            result: AgentNameAssignOutcomeEnvelope {
+                outcome: AgentNameAssignOutcome::Rejected {
+                    reason: AgentNameAssignRejectionReason::ManageDenied,
+                    ..
+                }
+            },
+            ..
+        }
+    ));
+    let service = seeded(&[]).unwrap();
+    let answer = service.execute_names_guarded(request, |_| Err(PreparedUnavailable));
+    assert!(matches!(
+        answer,
+        AgentNamesResult::NameAssign {
+            result: AgentNameAssignOutcomeEnvelope {
+                outcome: AgentNameAssignOutcome::Unavailable { .. }
+            },
+            ..
+        }
+    ));
+    assert!(bindings(&service).is_empty());
+}

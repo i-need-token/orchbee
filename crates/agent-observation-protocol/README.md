@@ -43,6 +43,16 @@ before allocating or reading the body; kind 10 retains the 256 KiB bounded-list 
 Semantic invariants on canonical read entities remain enforced on every parse and
 serialize path, independently of JSON Schema.
 
+
+The Windows Names composition also admits exact terminal selectors and typed `nameTarget` values:
+canonical session or terminal launch binding (presentation, creation generation, Host epoch and
+terminal ID). `resolved-target`, `assigned-target`, `unchanged-target`, `released-target` and
+`listed-targets` preserve this identity distinction. Mixed lists share the same 512-entry limit,
+unique global names and sorted order; physical presentation claims cannot overlap pending launches.
+`rejected-target` is exclusively name-in-use with a non-null incumbent target. All small results
+remain within 1 KiB; both list variants use the existing 256 KiB ceiling. Names owner/provider
+reconciliation and guarded composition belong to the Server; no canonical ID is synthesized.
+
 ## Non-goals
 
 Canonical Agent state, session lifecycle, ingress, mutations, wait or change streams, persistence,

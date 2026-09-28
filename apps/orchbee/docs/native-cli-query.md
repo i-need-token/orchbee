@@ -239,13 +239,31 @@ command. Listing remains read-only. The runtime base itself is not implicitly re
 ## Agent session names
 
 `agent names` lists all live aliases in the running Site. `agent resolve <target>`
-returns a full session ID, testing exact ID existence before aliases. `agent rename
+returns a canonical session ID or an exact terminal target, testing exact session ID existence before aliases. `agent rename
 <target> <new-name>` assigns or atomically replaces a name; `agent rename <target>
 --clear` releases it without stopping the session. Replace the target operand with
 `--session <id>`, `--name <alias>` or `--panel <id|@panel:suffix>` for explicit selection; exactly one selector is
 required. Names match `[a-z][a-z0-9_-]{0,31}` and are case-sensitive. They are unique,
-sharing a 512-entry cap with pending launches, and released when the session ends, is removed, or the
+sharing a 512-entry cap across canonical names, terminal names and pending launches, and released when the session ends, is removed, or the
 Site runtime is disposed. Restarting a Site starts with an empty alias table.
+
+
+Windows terminal-backed names require a reported, detected or retained provider identity; an
+ordinary unnamed shell does not qualify. Their target carries presentation ID, creation generation,
+Host epoch and terminal ID. A first provider reference upgrades ownership; a changed provider or
+known reference, proven release/exit, removal or physical replacement clears the name. Intermediate
+report changes are reconciled at commit, so A → B → A cannot revive an old alias. Missing process
+observations alone do not clear it. Hook arrival does not silently convert a terminal alias into a
+canonical session alias.
+
+Terminal-target resolve/list use versions 3, rename/clear use version 2, and mixed-target name
+collisions use failure version 4 with `conflictTarget`. Existing canonical receipts keep their
+versions. Windows `agent get` without `--client` returns version 13 `terminal-found` with its exact
+target, actual frame/process/primary-panel report fields and unmanaged state. It contains no invented
+session ID. Child terminal reads never borrow the primary panel's report. Named `read`, `send-keys` and
+`attach` route through the exact physical binding and existing terminal owners. Canonical-only
+`explain`, semantic `wait`/`prompt`, focus and `get --client` still require canonical observations;
+terminal name persistence and managed restart are separate remaining integrations.
 
 All three commands admit `--format text|json`. The embedded success schemas are
 `orchbee.agent.names` version 2 (with separate pending reservations), and

@@ -10,7 +10,7 @@
 			"const": "orchbee.agent.rename"
 		},
 		"version": {
-			"const": 1
+			"enum": [1, 2]
 		},
 		"source": {
 			"type": "object",
@@ -97,6 +97,77 @@
 							"$ref": "#/$defs/sessionId"
 						}
 					}
+				},
+				{
+					"type": "object",
+					"required": ["kind", "target", "name", "previousName"],
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "assigned-target"
+						},
+						"target": {
+							"$ref": "#/$defs/nameTarget"
+						},
+						"name": {
+							"$ref": "#/$defs/agentName"
+						},
+						"previousName": {
+							"oneOf": [
+								{
+									"$ref": "#/$defs/agentName"
+								},
+								{
+									"type": "null"
+								}
+							]
+						}
+					}
+				},
+				{
+					"type": "object",
+					"required": ["kind", "target", "name"],
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "unchanged-target"
+						},
+						"target": {
+							"$ref": "#/$defs/nameTarget"
+						},
+						"name": {
+							"$ref": "#/$defs/agentName"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"required": ["kind", "target", "name"],
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "released-target"
+						},
+						"target": {
+							"$ref": "#/$defs/nameTarget"
+						},
+						"name": {
+							"$ref": "#/$defs/agentName"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"required": ["kind", "target"],
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "unchanged-target"
+						},
+						"target": {
+							"$ref": "#/$defs/nameTarget"
+						}
+					}
 				}
 			]
 		}
@@ -117,6 +188,253 @@
 			"type": "string",
 			"pattern": "^[0-9a-f]{32}$",
 			"$comment": "Request identity: exactly 32 lowercase hexadecimal characters and never the zero sentinel; the nonzero rule is a semantic invariant enforced by each binding."
+		},
+		"nameTarget": {
+			"oneOf": [
+				{
+					"type": "object",
+					"required": ["kind", "sessionId"],
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "session"
+						},
+						"sessionId": {
+							"$ref": "#/$defs/sessionId"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"required": ["kind", "binding"],
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "terminal"
+						},
+						"binding": {
+							"$ref": "#/$defs/launchBinding"
+						}
+					}
+				}
+			]
+		},
+		"namedTarget": {
+			"type": "object",
+			"required": ["name", "target"],
+			"additionalProperties": false,
+			"properties": {
+				"name": {
+					"$ref": "#/$defs/agentName"
+				},
+				"target": {
+					"$ref": "#/$defs/nameTarget"
+				}
+			}
+		},
+		"launchBinding": {
+			"type": "object",
+			"required": ["presentationId", "generation", "hostEpoch", "hostTerminalId"],
+			"additionalProperties": false,
+			"properties": {
+				"presentationId": {
+					"type": "string",
+					"pattern": "^[0-9a-f]{32}$",
+					"not": {
+						"const": "00000000000000000000000000000000"
+					}
+				},
+				"generation": {
+					"type": "string",
+					"pattern": "^[0-9a-f]{32}$",
+					"not": {
+						"const": "00000000000000000000000000000000"
+					}
+				},
+				"hostEpoch": {
+					"type": "string",
+					"pattern": "^[0-9a-f]{32}$",
+					"not": {
+						"const": "00000000000000000000000000000000"
+					}
+				},
+				"hostTerminalId": {
+					"type": "string",
+					"pattern": "^[0-9a-f]{32}$",
+					"not": {
+						"const": "00000000000000000000000000000000"
+					}
+				}
+			}
 		}
-	}
+	},
+	"allOf": [
+		{
+			"if": {
+				"properties": {
+					"version": {
+						"const": 2
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"result": {
+						"anyOf": [
+							{
+								"type": "object",
+								"required": ["kind", "target", "name", "previousName"],
+								"additionalProperties": false,
+								"properties": {
+									"kind": {
+										"const": "assigned-target"
+									},
+									"target": {
+										"$ref": "#/$defs/nameTarget"
+									},
+									"name": {
+										"$ref": "#/$defs/agentName"
+									},
+									"previousName": {
+										"oneOf": [
+											{
+												"$ref": "#/$defs/agentName"
+											},
+											{
+												"type": "null"
+											}
+										]
+									}
+								}
+							},
+							{
+								"type": "object",
+								"required": ["kind", "target", "name"],
+								"additionalProperties": false,
+								"properties": {
+									"kind": {
+										"const": "unchanged-target"
+									},
+									"target": {
+										"$ref": "#/$defs/nameTarget"
+									},
+									"name": {
+										"$ref": "#/$defs/agentName"
+									}
+								}
+							},
+							{
+								"type": "object",
+								"required": ["kind", "target", "name"],
+								"additionalProperties": false,
+								"properties": {
+									"kind": {
+										"const": "released-target"
+									},
+									"target": {
+										"$ref": "#/$defs/nameTarget"
+									},
+									"name": {
+										"$ref": "#/$defs/agentName"
+									}
+								}
+							},
+							{
+								"type": "object",
+								"required": ["kind", "target"],
+								"additionalProperties": false,
+								"properties": {
+									"kind": {
+										"const": "unchanged-target"
+									},
+									"target": {
+										"$ref": "#/$defs/nameTarget"
+									}
+								}
+							}
+						]
+					}
+				}
+			},
+			"else": {
+				"properties": {
+					"result": {
+						"anyOf": [
+							{
+								"type": "object",
+								"required": ["kind", "sessionId", "name", "previousName"],
+								"additionalProperties": false,
+								"properties": {
+									"kind": {
+										"const": "assigned"
+									},
+									"sessionId": {
+										"$ref": "#/$defs/sessionId"
+									},
+									"name": {
+										"$ref": "#/$defs/agentName"
+									},
+									"previousName": {
+										"oneOf": [
+											{
+												"$ref": "#/$defs/agentName"
+											},
+											{
+												"type": "null"
+											}
+										]
+									}
+								}
+							},
+							{
+								"type": "object",
+								"required": ["kind", "sessionId", "name"],
+								"additionalProperties": false,
+								"properties": {
+									"kind": {
+										"const": "unchanged"
+									},
+									"sessionId": {
+										"$ref": "#/$defs/sessionId"
+									},
+									"name": {
+										"$ref": "#/$defs/agentName"
+									}
+								}
+							},
+							{
+								"type": "object",
+								"required": ["kind", "sessionId", "name"],
+								"additionalProperties": false,
+								"properties": {
+									"kind": {
+										"const": "released"
+									},
+									"sessionId": {
+										"$ref": "#/$defs/sessionId"
+									},
+									"name": {
+										"$ref": "#/$defs/agentName"
+									}
+								}
+							},
+							{
+								"type": "object",
+								"required": ["kind", "sessionId"],
+								"additionalProperties": false,
+								"properties": {
+									"kind": {
+										"const": "unchanged"
+									},
+									"sessionId": {
+										"$ref": "#/$defs/sessionId"
+									}
+								}
+							}
+						]
+					}
+				}
+			}
+		}
+	]
 }

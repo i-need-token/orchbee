@@ -10,7 +10,7 @@
 			"const": "orchbee.cli.failure.agent-names"
 		},
 		"version": {
-			"enum": [1, 2, 3]
+			"enum": [1, 2, 3, 4]
 		},
 		"failure": {
 			"type": "object",
@@ -63,6 +63,9 @@
 						},
 						"conflictSessionId": {
 							"$ref": "#/$defs/sessionId"
+						},
+						"conflictTarget": {
+							"$ref": "#/$defs/nameTarget"
 						}
 					}
 				}
@@ -98,6 +101,71 @@
 			"type": "string",
 			"pattern": "^[0-9a-f]{32}$",
 			"$comment": "Request identity: exactly 32 lowercase hexadecimal characters and never the zero sentinel; the nonzero rule is a semantic invariant enforced by each binding."
+		},
+		"nameTarget": {
+			"oneOf": [
+				{
+					"type": "object",
+					"required": ["kind", "sessionId"],
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "session"
+						},
+						"sessionId": {
+							"$ref": "#/$defs/sessionId"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"required": ["kind", "binding"],
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "terminal"
+						},
+						"binding": {
+							"$ref": "#/$defs/launchBinding"
+						}
+					}
+				}
+			]
+		},
+		"launchBinding": {
+			"type": "object",
+			"required": ["presentationId", "generation", "hostEpoch", "hostTerminalId"],
+			"additionalProperties": false,
+			"properties": {
+				"presentationId": {
+					"type": "string",
+					"pattern": "^[0-9a-f]{32}$",
+					"not": {
+						"const": "00000000000000000000000000000000"
+					}
+				},
+				"generation": {
+					"type": "string",
+					"pattern": "^[0-9a-f]{32}$",
+					"not": {
+						"const": "00000000000000000000000000000000"
+					}
+				},
+				"hostEpoch": {
+					"type": "string",
+					"pattern": "^[0-9a-f]{32}$",
+					"not": {
+						"const": "00000000000000000000000000000000"
+					}
+				},
+				"hostTerminalId": {
+					"type": "string",
+					"pattern": "^[0-9a-f]{32}$",
+					"not": {
+						"const": "00000000000000000000000000000000"
+					}
+				}
+			}
 		}
 	},
 	"allOf": [
@@ -151,6 +219,49 @@
 											"const": "launch-pending"
 										}
 									}
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"version": {
+						"const": 4
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"failure": {
+						"required": ["details"],
+						"properties": {
+							"kind": {
+								"const": "rejected"
+							},
+							"details": {
+								"required": ["stage", "reason", "conflictTarget"],
+								"properties": {
+									"reason": {
+										"const": "name-in-use"
+									},
+									"conflictSessionId": false
+								}
+							}
+						}
+					}
+				}
+			},
+			"else": {
+				"properties": {
+					"failure": {
+						"properties": {
+							"details": {
+								"properties": {
+									"conflictTarget": false
 								}
 							}
 						}

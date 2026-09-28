@@ -385,6 +385,26 @@ impl Reports {
 }
 
 impl Reports {
+    pub(super) fn name_owner(&self) -> super::panel_agent::TerminalAgentNameOwner {
+        let (agent, reference) = if let Some(authority) = &self.authority {
+            (
+                Some(authority.author.agent.clone()),
+                authority.reference.clone(),
+            )
+        } else if let Some(session) = &self.persisted {
+            (
+                Some(session.author.agent.clone()),
+                Some(session.reference.clone()),
+            )
+        } else {
+            (self.effective().agent, None)
+        };
+        super::panel_agent::TerminalAgentNameOwner {
+            agent,
+            reference,
+            clear: self.recent_exit.is_some() && self.detected.is_none(),
+        }
+    }
     pub(super) fn view(&self) -> orchbee_workbench_protocol::PanelAgentView {
         use orchbee_workbench_protocol::{PanelAgentReference, PanelAgentSession, PanelAgentView};
         let effective = self.effective();

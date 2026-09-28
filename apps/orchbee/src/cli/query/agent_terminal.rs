@@ -23,7 +23,14 @@ pub(crate) fn agent_terminal_target(
     target: &AgentTarget,
     deadline: Instant,
 ) -> Result<Target, Failure> {
-    resolve_agent_terminal(client, snapshot, target, deadline).map(|resolved| resolved.terminal)
+    #[cfg(windows)]
+    {
+        named_terminal_target(client, snapshot, target, deadline, None, false)
+    }
+    #[cfg(not(windows))]
+    {
+        resolve_agent_terminal(client, snapshot, target, deadline).map(|resolved| resolved.terminal)
+    }
 }
 
 pub(crate) struct AgentObservationRead {
@@ -189,7 +196,7 @@ pub(crate) fn read_agent_observation(
     }
 }
 
-fn select_terminal_for_presentation(
+pub(super) fn select_terminal_for_presentation(
     snapshot: &Snapshot,
     session: &AgentSessionDetail,
     presentation: Option<&str>,

@@ -7,7 +7,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::identity::{AgentName, AgentPresentationId, AgentSessionId, ObapRequestId};
-use crate::launch::AgentLaunchReservation;
+use crate::launch::{AgentLaunchBinding, AgentLaunchReservation};
 use crate::model::{AgentLifecycle, deserialize_required_nullable};
 use crate::read::AgentUnavailableReason;
 
@@ -29,6 +29,8 @@ pub enum AgentSessionSelector {
     Name { name: AgentName },
     #[serde(rename = "auto")]
     Auto { target: AgentSessionId },
+    #[serde(rename = "terminal")]
+    Terminal { binding: AgentLaunchBinding },
     #[serde(rename = "presentation")]
     Presentation {
         presentation_id: AgentPresentationId,
@@ -73,6 +75,26 @@ impl AgentNamesRequest {
             | Self::NameRelease { request_id, .. } => request_id,
         }
     }
+}
+
+/// A physical target never claims a canonical Agent session identity.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(
+    tag = "kind",
+    rename_all = "kebab-case",
+    rename_all_fields = "camelCase",
+    deny_unknown_fields
+)]
+pub enum AgentNameTarget {
+    Session { session_id: AgentSessionId },
+    Terminal { binding: AgentLaunchBinding },
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct AgentNamedTarget {
+    pub name: AgentName,
+    pub target: AgentNameTarget,
 }
 
 /// Which resolution rule produced a session identity.
@@ -130,6 +152,10 @@ pub enum AgentNameReleaseRejectionReason {
     deny_unknown_fields
 )]
 pub enum AgentResolveOutcome {
+    ResolvedTarget {
+        target: AgentNameTarget,
+        resolved_by: AgentResolvedBy,
+    },
     Resolved {
         session_id: AgentSessionId,
         resolved_by: AgentResolvedBy,
@@ -161,6 +187,10 @@ pub struct AgentNameBinding {
     deny_unknown_fields
 )]
 pub enum AgentNamesListOutcome {
+    ListedTargets {
+        bindings: Vec<AgentNamedTarget>,
+        pending: Vec<AgentLaunchReservation>,
+    },
     /// The complete table — ≤512 rows in byte-sorted name order. This is a
     /// bounded-read payload, not a small outcome.
     Listed {
@@ -183,6 +213,21 @@ pub enum AgentNamesListOutcome {
     deny_unknown_fields
 )]
 pub enum AgentNameAssignOutcome {
+    AssignedTarget {
+        target: AgentNameTarget,
+        name: AgentName,
+        #[serde(deserialize_with = "deserialize_required_nullable")]
+        previous_name: Option<AgentName>,
+    },
+    UnchangedTarget {
+        target: AgentNameTarget,
+        name: AgentName,
+    },
+    RejectedTarget {
+        reason: AgentNameAssignRejectionReason,
+        #[serde(deserialize_with = "deserialize_required_nullable")]
+        conflict_target: Option<AgentNameTarget>,
+    },
     /// The binding committed; `previousName` is the alias the atomic rename
     /// released — required-but-nullable, `null` for a first naming.
     Assigned {
@@ -216,6 +261,13 @@ pub enum AgentNameAssignOutcome {
     deny_unknown_fields
 )]
 pub enum AgentNameReleaseOutcome {
+    ReleasedTarget {
+        target: AgentNameTarget,
+        name: AgentName,
+    },
+    UnchangedTarget {
+        target: AgentNameTarget,
+    },
     Released {
         session_id: AgentSessionId,
         name: AgentName,
@@ -293,14 +345,15 @@ impl AgentNamesResult {
     }
 
     /// Whether the outcome is a small terminal answer; producers bound these
-    /// bodies at 1,024 bytes before serialization. Only `listed` is a
+    /// bodies at 1,024 bytes before serialization. Only `listed` and `listed-targets` are
     /// bounded-read payload.
     #[must_use]
     pub fn is_small_outcome(&self) -> bool {
         match self {
-            Self::NamesList { result, .. } => {
-                !matches!(result.outcome, AgentNamesListOutcome::Listed { .. })
-            }
+            Self::NamesList { result, .. } => !matches!(
+                result.outcome,
+                AgentNamesListOutcome::Listed { .. } | AgentNamesListOutcome::ListedTargets { .. }
+            ),
             Self::Resolve { .. } | Self::NameAssign { .. } | Self::NameRelease { .. } => true,
         }
     }

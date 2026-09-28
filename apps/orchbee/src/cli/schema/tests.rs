@@ -87,3 +87,74 @@ fn configuration_check_versions_keep_closed_and_required_restore_fields() {
     document["result"]["checks"].as_array_mut().unwrap().pop();
     validator.validate(&document).unwrap();
 }
+
+#[test]
+fn terminal_name_schemas_accept_new_receipts_without_widening_legacy_versions() {
+    use serde_json::json;
+    let id = "11111111111111111111111111111111";
+    let target = json!({"kind":"terminal","binding":{"presentationId":id,"generation":id,"hostEpoch":id,"hostTerminalId":id}});
+    for (schema, version, result, old) in [
+        (
+            "orchbee.agent.resolve",
+            3,
+            json!({"kind":"resolved-target","target":target,"resolvedBy":"name"}),
+            2,
+        ),
+        (
+            "orchbee.agent.names",
+            3,
+            json!({"kind":"listed-targets","bindings":[{"name":"alpha","target":target}],"pending":[]}),
+            2,
+        ),
+        (
+            "orchbee.agent.rename",
+            2,
+            json!({"kind":"assigned-target","target":target,"name":"alpha","previousName":null}),
+            1,
+        ),
+    ] {
+        let definition: Value = serde_json::from_str(super::document(schema).unwrap()).unwrap();
+        let validator = jsonschema::validator_for(&definition).unwrap();
+        let mut document = json!({"schema":schema,"version":version,"source":{"kind":"agent-names","requestId":id},"result":result});
+        validator.validate(&document).unwrap();
+        document["version"] = json!(old);
+        assert!(!validator.is_valid(&document));
+    }
+    let definition: Value =
+        serde_json::from_str(super::document("orchbee.cli.failure.agent-names").unwrap()).unwrap();
+    let validator = jsonschema::validator_for(&definition).unwrap();
+    let document = json!({"schema":"orchbee.cli.failure.agent-names","version":4,"failure":{"kind":"rejected","details":{"stage":"agent-names","reason":"name-in-use","conflictTarget":target}}});
+    validator.validate(&document).unwrap();
+    let mut invalid = document.clone();
+    invalid["failure"]["details"]["conflictTarget"] = Value::Null;
+    assert!(!validator.is_valid(&invalid));
+}
+
+#[test]
+fn terminal_agent_inspection_schema_has_closed_target_and_preserves_canonical_versions() {
+    use serde_json::json;
+    let id = "11111111111111111111111111111111";
+    let source = json!({"kind":"workbench-snapshot","siteId":id,"revision":"1"});
+    let binding = json!({"presentationId":id,"generation":id,"hostEpoch":id,"hostTerminalId":id});
+    let definition: Value =
+        serde_json::from_str(super::document("orchbee.agent.get").unwrap()).unwrap();
+    let validator = jsonschema::validator_for(&definition).unwrap();
+    let document = json!({"schema":"orchbee.agent.get","version":13,"source":source,"result":{
+        "kind":"terminal-found","target":{"kind":"terminal","binding":binding},"management":{"phase":"unmanaged"},
+        "terminal":{"terminalId":id,"presentationId":id,"panelId":id,"source":source,"cwd":null,"cwdSource":null,"foregroundCwd":null,"terminalTitle":null,"terminalTitleStripped":null,
+            "terminalObservation":{"state":"observed","frame":{"hostEpoch":id,"attachmentId":id,"sequence":"1","generation":"1","revision":"1","columns":80,"rows":24,"alternateScreen":false,"scrollbackRows":"0","title":null,"currentDirectory":null},"processes":{"state":"unavailable","reason":"process-unavailable"}}}
+    }});
+    validator.validate(&document).unwrap();
+    let mut invalid = document.clone();
+    invalid["version"] = 12.into();
+    assert!(!validator.is_valid(&invalid));
+    let mut invalid = document.clone();
+    invalid["result"]["session"] = json!({});
+    assert!(!validator.is_valid(&invalid));
+    let mut invalid = document;
+    invalid["result"]["target"]["binding"]
+        .as_object_mut()
+        .unwrap()
+        .remove("generation");
+    assert!(!validator.is_valid(&invalid));
+}

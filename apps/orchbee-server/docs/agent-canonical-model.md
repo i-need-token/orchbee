@@ -147,8 +147,9 @@ suppression, no fake use, no const tables, no variant narrowing.
 ## Session names sidecar
 
 The OBAP names family is implemented by `agent_service/names.rs` in the same
-`AgentState` cell. Two private ordered maps hold name → session and session → name;
-names are runtime-scoped, absent from canonical session documents, and never persisted.
+`AgentState` cell. The canonical indexes hold name → session and session → name;
+the terminal extension below shares their namespace. Names are runtime-scoped,
+absent from canonical session documents, and not yet persisted.
 Names use `[a-z][a-z0-9_-]{0,31}`. There is at most one binding per name and per
 session, bounded at 512. New assignments enforce the bound; an atomic rename at
 capacity still succeeds. Collision refuses with the incumbent session identity.
@@ -175,6 +176,36 @@ Deterministic service tests cover collision, atomic rename, exact-ID precedence,
 full capacity, lifecycle cleanup, policy separation, stale preparation, disposal,
 poison, and concurrent claims. Wire and Windows process tests cover bounds,
 schema-conforming replies, malformed operations, and ambiguous mutation outcomes.
+
+## Terminal-backed names
+
+Windows also admits a terminal with an actual reported, process-detected or retained provider
+identity when it has no canonical Agent session. The same Names owner stores its alias against
+the exact Presentation, creation generation, Host epoch and Host terminal identity. Closed
+terminal outcome variants distinguish this target from a canonical session; no synthetic session
+ID is introduced. The 512-name capacity and collision checks include canonical names, terminal
+names and pending launch reservations. Atomic rename at capacity remains valid.
+
+An unmanaged terminal name retains its provider label and optional external session reference.
+A first reference upgrades ownership; a different provider or different known reference clears
+it. A proven release/exit, terminal removal or physical-generation replacement also clears it;
+missing observations do not prove exit. Report transitions notify the Names leaf synchronously
+under the coordinator commit guard, including intermediate changes between queries. A single
+weak handle connects that composition to the existing AgentState, without a second registry,
+event log or process observer. Workbench owns the pure report-owner projection.
+
+Names requests retain the existing registry → coordinator → AgentState lock order through final
+resolution/mutation, following one drain preparation with policy checked first. The final fold
+does no I/O; a committed mutation returns its correlated result even if the deadline then passes.
+Disposed/poisoned owners remain unavailable. Existing canonical ID precedence, detached-session
+names and request ambiguity rules remain. Whole matched cohorts carry the extended protocol;
+rollback replaces the cohort. Names persistence and managed restart need their own fresh-binding
+integration and are not established by a terminal alias alone.
+
+Evidence must cover mixed-name/reservation collisions, full capacity, reference upgrade and
+replacement, provider A → B → A between reads, proven versus uncertain exit, physical replacement,
+policy/disposal, strict wire bounds and actual Windows rename/resolve/list/clear plus named
+terminal access. The protocol schema and CLI envelope versions must agree with emitted targets.
 
 ## Managed launch reservations
 

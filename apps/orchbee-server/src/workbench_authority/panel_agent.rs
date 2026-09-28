@@ -18,6 +18,14 @@ use std::{collections::BTreeMap, time::Instant};
 const MAXIMUM_RESOURCES: usize = 4096;
 const MAXIMUM_BYTES: usize = 32 * 1024 * 1024;
 
+/// Pure name-ownership observation; never grants canonical Agent authority.
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct TerminalAgentNameOwner {
+    pub agent: Option<String>,
+    pub reference: Option<Reference>,
+    pub clear: bool,
+}
+
 /// Composition supplies a uniquely retained physical generation for a committed logical terminal.
 /// A report request cannot construct this fact or claim its process is alive.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -622,5 +630,21 @@ impl WorkbenchAuthority {
             }
         }
         self.panel_agent.maintain(&membership, &physical)
+    }
+}
+
+impl WorkbenchAuthority {
+    /// The caller proves current membership and physical generation under its commit guard.
+    pub fn terminal_agent_name_owner(
+        &self,
+        physical: &TerminalAgentBinding,
+    ) -> TerminalAgentNameOwner {
+        self.panel_agent
+            .resources
+            .get(&key(&physical.binding))
+            .filter(|resource| &resource.physical == physical)
+            .map_or_else(TerminalAgentNameOwner::default, |resource| {
+                resource.reports.name_owner()
+            })
     }
 }

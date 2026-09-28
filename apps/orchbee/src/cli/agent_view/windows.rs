@@ -1,5 +1,6 @@
 pub(super) mod list;
 mod runtime;
+mod terminal;
 use super::*;
 use crate::cli::{
     Failure, FailureKind,
@@ -41,13 +42,24 @@ pub(super) fn run(
         let admitted = query::stream_snapshot(deadline, signals.poll_fd());
         check(deadline, &mut signals)?;
         let (mut client, snapshot) = admitted?;
-        let id = query::agent_attention_target(
+        let resolved = query::named_terminal::resolve_named(
             &mut client,
-            &snapshot,
             target,
+            Some(&snapshot),
             deadline,
             signals.poll_fd(),
         )?;
+        let id = match resolved.target {
+            orchbee_agent_observation_protocol::AgentNameTarget::Session { session_id } => {
+                session_id
+            }
+            orchbee_agent_observation_protocol::AgentNameTarget::Terminal { binding } => {
+                if selected.is_some() {
+                    return Err(view_failure(FailureKind::Rejected));
+                }
+                return terminal::read(&mut client, &snapshot, binding, deadline, &mut signals);
+            }
+        };
         let attention = selected
             .map(|selected| {
                 read(

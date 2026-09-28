@@ -980,6 +980,19 @@
 							"$ref": "#/$defs/presentationId"
 						}
 					}
+				},
+				{
+					"type": "object",
+					"required": ["kind", "binding"],
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "terminal"
+						},
+						"binding": {
+							"$ref": "#/$defs/launchBinding"
+						}
+					}
 				}
 			]
 		},
@@ -1048,6 +1061,44 @@
 								},
 								{
 									"$ref": "#/$defs/unavailableOutcome"
+								},
+								{
+									"type": "object",
+									"required": ["kind", "target", "resolvedBy"],
+									"additionalProperties": false,
+									"properties": {
+										"kind": {
+											"const": "resolved-target"
+										},
+										"target": {
+											"$ref": "#/$defs/nameTarget"
+										},
+										"resolvedBy": {
+											"enum": ["session-id", "name", "presentation"]
+										}
+									},
+									"allOf": [
+										{
+											"if": {
+												"properties": {
+													"target": {
+														"properties": {
+															"kind": {
+																"const": "terminal"
+															}
+														}
+													}
+												}
+											},
+											"then": {
+												"properties": {
+													"resolvedBy": {
+														"enum": ["name", "presentation"]
+													}
+												}
+											}
+										}
+									]
 								}
 							]
 						}
@@ -1139,6 +1190,30 @@
 								},
 								{
 									"$ref": "#/$defs/unavailableOutcome"
+								},
+								{
+									"type": "object",
+									"required": ["kind", "bindings", "pending"],
+									"additionalProperties": false,
+									"properties": {
+										"kind": {
+											"const": "listed-targets"
+										},
+										"bindings": {
+											"type": "array",
+											"maxItems": 512,
+											"items": {
+												"$ref": "#/$defs/namedTarget"
+											}
+										},
+										"pending": {
+											"type": "array",
+											"maxItems": 512,
+											"items": {
+												"$ref": "#/$defs/launchReservation"
+											}
+										}
+									}
 								}
 							]
 						}
@@ -1284,6 +1359,64 @@
 								},
 								{
 									"$ref": "#/$defs/unavailableOutcome"
+								},
+								{
+									"type": "object",
+									"required": ["kind", "target", "name", "previousName"],
+									"additionalProperties": false,
+									"properties": {
+										"kind": {
+											"const": "assigned-target"
+										},
+										"target": {
+											"$ref": "#/$defs/nameTarget"
+										},
+										"name": {
+											"$ref": "#/$defs/agentName"
+										},
+										"previousName": {
+											"oneOf": [
+												{
+													"$ref": "#/$defs/agentName"
+												},
+												{
+													"type": "null"
+												}
+											]
+										}
+									}
+								},
+								{
+									"type": "object",
+									"required": ["kind", "target", "name"],
+									"additionalProperties": false,
+									"properties": {
+										"kind": {
+											"const": "unchanged-target"
+										},
+										"target": {
+											"$ref": "#/$defs/nameTarget"
+										},
+										"name": {
+											"$ref": "#/$defs/agentName"
+										}
+									}
+								},
+								{
+									"type": "object",
+									"required": ["kind", "reason", "conflictTarget"],
+									"additionalProperties": false,
+									"properties": {
+										"kind": {
+											"const": "rejected-target"
+										},
+										"reason": {
+											"const": "name-in-use"
+										},
+										"conflictTarget": {
+											"$ref": "#/$defs/nameTarget"
+										}
+									}
 								}
 							]
 						}
@@ -1375,6 +1508,35 @@
 								},
 								{
 									"$ref": "#/$defs/unavailableOutcome"
+								},
+								{
+									"type": "object",
+									"required": ["kind", "target", "name"],
+									"additionalProperties": false,
+									"properties": {
+										"kind": {
+											"const": "released-target"
+										},
+										"target": {
+											"$ref": "#/$defs/nameTarget"
+										},
+										"name": {
+											"$ref": "#/$defs/agentName"
+										}
+									}
+								},
+								{
+									"type": "object",
+									"required": ["kind", "target"],
+									"additionalProperties": false,
+									"properties": {
+										"kind": {
+											"const": "unchanged-target"
+										},
+										"target": {
+											"$ref": "#/$defs/nameTarget"
+										}
+									}
 								}
 							]
 						}
@@ -2182,6 +2344,49 @@
 							]
 						}
 					}
+				}
+			}
+		},
+		"nameTarget": {
+			"oneOf": [
+				{
+					"type": "object",
+					"required": ["kind", "sessionId"],
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "session"
+						},
+						"sessionId": {
+							"$ref": "#/$defs/sessionId"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"required": ["kind", "binding"],
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "terminal"
+						},
+						"binding": {
+							"$ref": "#/$defs/launchBinding"
+						}
+					}
+				}
+			]
+		},
+		"namedTarget": {
+			"type": "object",
+			"required": ["name", "target"],
+			"additionalProperties": false,
+			"properties": {
+				"name": {
+					"$ref": "#/$defs/agentName"
+				},
+				"target": {
+					"$ref": "#/$defs/nameTarget"
 				}
 			}
 		}

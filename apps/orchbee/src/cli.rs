@@ -920,9 +920,19 @@ fn success_output(
     };
     match document_format {
         OutputFormat::Json => {
+            let version = results::schema_version(command);
+            #[cfg(windows)]
+            let version = if matches!(
+                projection,
+                results::Projection::AgentTerminalInspection { .. }
+            ) {
+                13
+            } else {
+                version
+            };
             let document = json!({
                 "schema": schema_id,
-                "version": results::schema_version(command),
+                "version": version,
                 "source": source,
                 "result": projection.result(),
             });

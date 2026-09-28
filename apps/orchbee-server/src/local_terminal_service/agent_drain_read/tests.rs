@@ -804,3 +804,36 @@ fn retired_carrier_serves_the_retained_snapshot() {
         presentation
     );
 }
+
+#[test]
+fn names_finalization_keeps_registry_and_coordinator_guards_until_leaf_commit() {
+    let service = LocalTerminalService::new(registry());
+    let agents = AgentService::open(AgentPolicy {
+        read: true,
+        manage: true,
+    })
+    .unwrap();
+    let value = agent_drain_finish(
+        &service.workers,
+        &service.coordinator,
+        &agents,
+        Instant::now() + WINDOW,
+        RETRY,
+        |_, snapshot| {
+            assert!(matches!(
+                service.workers.try_lock(),
+                Err(std::sync::TryLockError::WouldBlock)
+            ));
+            assert!(matches!(
+                service.coordinator.try_lock(),
+                Err(std::sync::TryLockError::WouldBlock)
+            ));
+            assert!(snapshot.sessions.is_empty());
+            Ok(42)
+        },
+    )
+    .unwrap();
+    assert_eq!(value, 42);
+    assert!(service.workers.try_lock().is_ok());
+    assert!(service.coordinator.try_lock().is_ok());
+}

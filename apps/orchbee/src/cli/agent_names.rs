@@ -2,8 +2,8 @@
 //! owns no alias cache and never retries a mutation after transport ambiguity.
 
 use orchbee_agent_observation_protocol::{
-    AgentNameAssignOutcome, AgentNameReleaseOutcome, AgentNamesListOutcome, AgentNamesResult,
-    AgentResolveOutcome,
+    AgentNameAssignOutcome, AgentNameReleaseOutcome, AgentNameTarget, AgentNamesListOutcome,
+    AgentNamesResult, AgentResolveOutcome,
 };
 use serde_json::{Value, json};
 
@@ -65,14 +65,47 @@ fn render(result: &AgentNamesResult, format: OutputFormat, locale: Locale) -> Ou
             locale,
         ),
         Ok((schema, outcome, text)) => {
-            let version = if matches!(result, AgentNamesResult::NamesList { .. })
-                || matches!(result, AgentNamesResult::Resolve { result, .. }
-                if matches!(result.outcome, AgentResolveOutcome::Resolved {
-                    resolved_by: orchbee_agent_observation_protocol::AgentResolvedBy::Presentation, ..
-                })) {
-                2
-            } else {
-                1
+            let version = match result {
+                AgentNamesResult::Resolve { result, .. }
+                    if matches!(result.outcome, AgentResolveOutcome::ResolvedTarget { .. }) =>
+                {
+                    3
+                }
+                AgentNamesResult::NamesList { result, .. }
+                    if matches!(result.outcome, AgentNamesListOutcome::ListedTargets { .. }) =>
+                {
+                    3
+                }
+                AgentNamesResult::NameAssign { result, .. }
+                    if matches!(
+                        result.outcome,
+                        AgentNameAssignOutcome::AssignedTarget { .. }
+                            | AgentNameAssignOutcome::UnchangedTarget { .. }
+                    ) =>
+                {
+                    2
+                }
+                AgentNamesResult::NameRelease { result, .. }
+                    if matches!(
+                        result.outcome,
+                        AgentNameReleaseOutcome::ReleasedTarget { .. }
+                            | AgentNameReleaseOutcome::UnchangedTarget { .. }
+                    ) =>
+                {
+                    2
+                }
+                _ => {
+                    if matches!(result, AgentNamesResult::NamesList { .. })
+                        || matches!(result, AgentNamesResult::Resolve { result, .. }
+                        if matches!(result.outcome, AgentResolveOutcome::Resolved {
+                            resolved_by: orchbee_agent_observation_protocol::AgentResolvedBy::Presentation, ..
+                        }))
+                    {
+                        2
+                    } else {
+                        1
+                    }
+                }
             };
             let bytes = match format {
                 OutputFormat::Json => output::encode_document(
@@ -129,6 +162,18 @@ fn project(
     let unavailable = || Failure::new(FailureKind::ServiceUnavailable);
     match result {
         AgentNamesResult::Resolve { result, .. } => match &result.outcome {
+            AgentResolveOutcome::ResolvedTarget {
+                target,
+                resolved_by,
+            } => Ok((
+                "orchbee.agent.resolve",
+                json!(result.outcome),
+                format!(
+                    "{}\t{}\n",
+                    target_text(target, locale),
+                    json!(resolved_by).as_str().unwrap_or_default()
+                ),
+            )),
             AgentResolveOutcome::Resolved {
                 session_id,
                 resolved_by,
@@ -144,12 +189,31 @@ fn project(
             AgentResolveOutcome::Unavailable { .. } => Err(unavailable()),
         },
         AgentNamesResult::NamesList { result, .. } => match &result.outcome {
-            AgentNamesListOutcome::Listed { bindings, pending } => {
-                let mut text = match locale {
-                    Locale::EnUs => "NAME\tSESSION\n",
-                    Locale::ZhCn => "名称\t会话\n",
+            AgentNamesListOutcome::ListedTargets { bindings, pending } => {
+                let mut text = locale.cli_agent_names_header(true).to_owned();
+                for entry in bindings {
+                    text.push_str(&format!(
+                        "{}\t{}\n",
+                        entry.name,
+                        target_text(&entry.target, locale)
+                    ));
                 }
-                .to_owned();
+                if !pending.is_empty() {
+                    text.push_str(locale.cli_agent_pending_names_header());
+                    for entry in pending {
+                        text.push_str(&format!(
+                            "{}\t{}\t{}\t{}\n",
+                            entry.name,
+                            entry.provider_id,
+                            entry.remaining_ms.value(),
+                            entry.reservation_id
+                        ));
+                    }
+                }
+                Ok(("orchbee.agent.names", json!(result.outcome), text))
+            }
+            AgentNamesListOutcome::Listed { bindings, pending } => {
+                let mut text = locale.cli_agent_names_header(false).to_owned();
                 for binding in bindings {
                     text.push_str(&format!("{}\t{}\n", binding.name, binding.session_id));
                 }
@@ -171,14 +235,27 @@ fn project(
             AgentNamesListOutcome::Unavailable { .. } => Err(unavailable()),
         },
         AgentNamesResult::NameAssign { result, .. } => match &result.outcome {
+            AgentNameAssignOutcome::AssignedTarget { target, name, .. }
+            | AgentNameAssignOutcome::UnchangedTarget { target, name } => Ok((
+                "orchbee.agent.rename",
+                json!(result.outcome),
+                locale.cli_agent_name_assigned(name.as_str(), &target_text(target, locale)),
+            )),
+            AgentNameAssignOutcome::RejectedTarget {
+                reason,
+                conflict_target,
+            } => Err(Failure::new(FailureKind::Rejected).version(4).details(
+                serde_json::Map::from_iter([
+                    ("stage".into(), json!("agent-names")),
+                    ("reason".into(), json!(reason)),
+                    ("conflictTarget".into(), json!(conflict_target)),
+                ]),
+            )),
             AgentNameAssignOutcome::Assigned {
                 session_id, name, ..
             }
             | AgentNameAssignOutcome::Unchanged { session_id, name } => {
-                let text = match locale {
-                    Locale::EnUs => format!("{name} -> {session_id}\n"),
-                    Locale::ZhCn => format!("{name} → {session_id}\n"),
-                };
+                let text = locale.cli_agent_name_assigned(name.as_str(), session_id.as_str());
                 Ok(("orchbee.agent.rename", json!(result.outcome), text))
             }
             AgentNameAssignOutcome::Rejected {
@@ -188,17 +265,29 @@ fn project(
             AgentNameAssignOutcome::Unavailable { .. } => Err(unavailable()),
         },
         AgentNamesResult::NameRelease { result, .. } => match &result.outcome {
+            AgentNameReleaseOutcome::ReleasedTarget { target, .. }
+            | AgentNameReleaseOutcome::UnchangedTarget { target } => {
+                let target = target_text(target, locale);
+                let text = locale.cli_agent_name_cleared(&target);
+                Ok(("orchbee.agent.rename", json!(result.outcome), text))
+            }
             AgentNameReleaseOutcome::Released { session_id, .. }
             | AgentNameReleaseOutcome::Unchanged { session_id } => {
-                let text = match locale {
-                    Locale::EnUs => format!("{session_id}: name cleared\n"),
-                    Locale::ZhCn => format!("{session_id}：名称已清除\n"),
-                };
+                let text = locale.cli_agent_name_cleared(session_id.as_str());
                 Ok(("orchbee.agent.rename", json!(result.outcome), text))
             }
             AgentNameReleaseOutcome::Rejected { reason } => Err(rejection(json!(reason), None)),
             AgentNameReleaseOutcome::Unavailable { .. } => Err(unavailable()),
         },
+    }
+}
+
+fn target_text(target: &AgentNameTarget, locale: Locale) -> String {
+    match target {
+        AgentNameTarget::Session { session_id } => session_id.to_string(),
+        AgentNameTarget::Terminal { binding } => {
+            locale.cli_agent_terminal_name_target(binding.presentation_id.as_str())
+        }
     }
 }
 

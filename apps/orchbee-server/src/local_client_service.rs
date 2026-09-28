@@ -94,6 +94,8 @@ fn start_listener(
     terminals: Arc<LocalTerminalService>,
     agents: Arc<AgentService>,
 ) -> io::Result<thread::JoinHandle<io::Result<()>>> {
+    #[cfg(windows)]
+    terminals.bind_agent_names(&agents)?;
     let registry = Arc::new(Mutex::new(ClientSessionRegistry::new()));
     let connection_slots = Arc::new(ConnectionSlots::new());
     let expected_cohort: Arc<str> = Arc::from(expected_cohort);
@@ -300,11 +302,18 @@ fn handle_candidate_control(
                 ))
             }
             orchbee_agent_observation_protocol::AgentRequest::Names(request) => {
-                Ok(orchbee_agent_observation_protocol::AgentResult::Names(
-                    agents.execute_names_prepared(request, || {
-                        terminals.prepare_agent_drain_read(agents)
-                    }),
-                ))
+                Ok(orchbee_agent_observation_protocol::AgentResult::Names({
+                    #[cfg(windows)]
+                    {
+                        terminals.execute_agent_names(agents, request)
+                    }
+                    #[cfg(not(windows))]
+                    {
+                        agents.execute_names_prepared(request, || {
+                            terminals.prepare_agent_drain_read(agents)
+                        })
+                    }
+                }))
             }
         },
         || control.enter(),

@@ -4,20 +4,25 @@
 use super::*;
 use crate::invocation::{AgentTarget, QueryCommand};
 use orchbee_agent_observation_protocol::{
-    AgentName, AgentNamesRequest, AgentNamesResult, AgentPresentationId, AgentResolveOutcome,
-    AgentResolveRejectionReason, AgentSessionSelector,
+    AgentName, AgentNameTarget, AgentNamesRequest, AgentNamesResult, AgentPresentationId,
+    AgentResolveOutcome, AgentResolveRejectionReason, AgentSessionSelector,
 };
 
 pub(super) struct PreparedTarget {
     pub(super) selector: AgentSessionSelector,
-    pub(super) presentation: Option<String>,
+    pub(in crate::cli) presentation: Option<String>,
     /// Preserve the actual correlated Resolve when positional precedence won.
     pub(super) resolved: Option<AgentNamesResult>,
 }
 
+pub(in crate::cli) struct NamedTarget {
+    pub(in crate::cli) target: AgentNameTarget,
+    pub(in crate::cli) presentation: Option<String>,
+}
+
 pub(super) struct ResolvedTarget {
     pub(super) session_id: AgentSessionId,
-    pub(super) presentation: Option<String>,
+    pub(in crate::cli) presentation: Option<String>,
 }
 
 pub(super) fn prepare(
@@ -59,9 +64,16 @@ pub(super) fn prepare(
                         }
                     ) => {}
                 _ => {
-                    let session_id = resolved_id(&answer)?;
+                    let selector = match resolved_target(&answer)? {
+                        AgentNameTarget::Session { session_id } => {
+                            AgentSessionSelector::Session { session_id }
+                        }
+                        AgentNameTarget::Terminal { binding } => {
+                            AgentSessionSelector::Terminal { binding }
+                        }
+                    };
                     return Ok(PreparedTarget {
-                        selector: AgentSessionSelector::Session { session_id },
+                        selector,
                         presentation: None,
                         resolved: Some(answer),
                     });
@@ -95,6 +107,27 @@ pub(super) fn resolve_on_session(
     total: Instant,
     wake: Option<BorrowedFd<'_>>,
 ) -> Result<ResolvedTarget, Failure> {
+    let resolved = resolve_named(client, target, snapshot, total, wake)?;
+    let AgentNameTarget::Session { session_id } = resolved.target else {
+        return Err(crate::cli::agent_names::rejection(
+            serde_json::json!("session-not-found"),
+            None,
+        )
+        .failure_schema(crate::cli::agent_names::FAILURE_SCHEMA));
+    };
+    Ok(ResolvedTarget {
+        session_id,
+        presentation: resolved.presentation,
+    })
+}
+
+pub(in crate::cli) fn resolve_named(
+    client: &mut LocalClient,
+    target: &AgentTarget,
+    snapshot: Option<&Snapshot>,
+    total: Instant,
+    wake: Option<BorrowedFd<'_>>,
+) -> Result<NamedTarget, Failure> {
     // Preserve direct reads for explicit IDs and opaque non-Panel IDs.
     let direct = match target {
         AgentTarget::Session { session_id } => Some(session_id),
@@ -107,8 +140,10 @@ pub(super) fn resolve_on_session(
         _ => None,
     };
     if let Some(session_id) = direct {
-        return Ok(ResolvedTarget {
-            session_id: session_id.clone(),
+        return Ok(NamedTarget {
+            target: AgentNameTarget::Session {
+                session_id: session_id.clone(),
+            },
             presentation: None,
         });
     }
@@ -117,13 +152,13 @@ pub(super) fn resolve_on_session(
         Some(answer) => answer,
         None => resolve(client, prepared.selector, total, wake)?,
     };
-    Ok(ResolvedTarget {
-        session_id: resolved_id(&answer)?,
+    Ok(NamedTarget {
+        target: resolved_target(&answer)?,
         presentation: prepared.presentation,
     })
 }
 
-fn resolve(
+pub(super) fn resolve(
     client: &mut LocalClient,
     target: AgentSessionSelector,
     total: Instant,
@@ -146,14 +181,17 @@ fn resolve(
     Ok(answer)
 }
 
-fn resolved_id(answer: &AgentNamesResult) -> Result<AgentSessionId, Failure> {
+pub(super) fn resolved_target(answer: &AgentNamesResult) -> Result<AgentNameTarget, Failure> {
     let schema = crate::cli::agent_names::FAILURE_SCHEMA;
     let source = serde_json::json!({"kind":"agent-names", "requestId":answer.request_id()});
     let AgentNamesResult::Resolve { result, .. } = answer else {
         return Err(Failure::new(FailureKind::ProtocolInvalid).failure_schema(schema));
     };
     match &result.outcome {
-        AgentResolveOutcome::Resolved { session_id, .. } => Ok(session_id.clone()),
+        AgentResolveOutcome::Resolved { session_id, .. } => Ok(AgentNameTarget::Session {
+            session_id: session_id.clone(),
+        }),
+        AgentResolveOutcome::ResolvedTarget { target, .. } => Ok(target.clone()),
         AgentResolveOutcome::Rejected { reason } => Err(crate::cli::agent_names::rejection(
             serde_json::json!(reason),
             None,

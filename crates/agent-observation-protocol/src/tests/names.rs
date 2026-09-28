@@ -137,3 +137,80 @@ fn presentation_selector_round_trips_and_rejects_invalid_identities() {
         }
     }
 }
+
+#[test]
+fn terminal_names_round_trip_with_closed_identity_and_collision_contracts() {
+    let binding = json!({"presentationId":ID,"generation":ID,"hostEpoch":ID,"hostTerminalId":ID});
+    let target = json!({"kind":"terminal","binding":binding});
+    let request = json!({"kind":"agent.session.resolve.request","requestId":ID,"target":target});
+    let parsed = parse_agent_request(&serde_json::to_vec(&request).unwrap()).unwrap();
+    let mut bytes = Vec::new();
+    write_agent_request(&mut bytes, &parsed).unwrap();
+    assert_eq!(read_agent_request(&mut Cursor::new(bytes)).unwrap(), parsed);
+    for (operation, outcome) in [
+        (
+            "resolve",
+            json!({"kind":"resolved-target","target":target,"resolvedBy":"name"}),
+        ),
+        (
+            "names.list",
+            json!({"kind":"listed-targets","bindings":[{"name":"alpha","target":target},{"name":"beta","target":{"kind":"session","sessionId":"s1"}}],"pending":[]}),
+        ),
+        (
+            "name.assign",
+            json!({"kind":"assigned-target","target":target,"name":"alpha","previousName":null}),
+        ),
+        (
+            "name.assign",
+            json!({"kind":"unchanged-target","target":target,"name":"alpha"}),
+        ),
+        (
+            "name.assign",
+            json!({"kind":"rejected-target","reason":"name-in-use","conflictTarget":target}),
+        ),
+        (
+            "name.release",
+            json!({"kind":"released-target","target":target,"name":"alpha"}),
+        ),
+        (
+            "name.release",
+            json!({"kind":"unchanged-target","target":target}),
+        ),
+    ] {
+        let document = json!({"kind":format!("agent.session.{operation}.result"),"requestId":ID,"result":{"outcome":outcome}});
+        let result = parse_agent_result(&serde_json::to_vec(&document).unwrap()).unwrap();
+        let mut bytes = Vec::new();
+        write_agent_result(&mut bytes, &result).unwrap();
+        assert_eq!(read_agent_result(&mut Cursor::new(bytes)).unwrap(), result);
+    }
+    for outcome in [
+        json!({"kind":"resolved-target","target":target,"resolvedBy":"session-id"}),
+        json!({"kind":"resolved-target","target":{"kind":"terminal","binding":{"presentationId":ID,"generation":ID,"hostEpoch":ID}},"resolvedBy":"name"}),
+    ] {
+        assert!(parse_agent_result(&serde_json::to_vec(&json!({"kind":"agent.session.resolve.result","requestId":ID,"result":{"outcome":outcome}})).unwrap()).is_err());
+    }
+    for (reason, conflict) in [
+        ("name-in-use", json!(null)),
+        ("capacity-exceeded", target.clone()),
+        ("capacity-exceeded", json!(null)),
+    ] {
+        assert!(parse_agent_result(&serde_json::to_vec(&json!({"kind":"agent.session.name.assign.result","requestId":ID,"result":{"outcome":{"kind":"rejected-target","reason":reason,"conflictTarget":conflict}}})).unwrap()).is_err());
+    }
+}
+
+#[test]
+fn terminal_names_maximum_list_fits_and_duplicate_physical_targets_are_rejected() {
+    let mut rows = Vec::new();
+    for i in 1..=512 {
+        let id = format!("{i:032x}");
+        rows.push(json!({"name":format!("n{i:04}{}","x".repeat(27)),"target":{"kind":"terminal","binding":{"presentationId":id,"generation":ID,"hostEpoch":ID,"hostTerminalId":id}}}));
+    }
+    let mut document = json!({"kind":"agent.session.names.list.result","requestId":ID,"result":{"outcome":{"kind":"listed-targets","bindings":rows,"pending":[]}}});
+    let result = parse_agent_result(&serde_json::to_vec(&document).unwrap()).unwrap();
+    let mut bytes = Vec::new();
+    write_agent_result(&mut bytes, &result).unwrap();
+    assert!(bytes.len() <= 256 * 1024 + 12);
+    document["result"]["outcome"]["bindings"][1]["target"] =
+        document["result"]["outcome"]["bindings"][0]["target"].clone();
+    assert!(parse_agent_result(&serde_json::to_vec(&document).unwrap()).is_err());
+}

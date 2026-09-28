@@ -97,10 +97,7 @@ fn connect(
     let target = match &command.target {
         AttachTarget::Terminal(target) => target.clone(),
         AttachTarget::Agent(target) => {
-            query::resolve_agent_terminal_cancellable(
-                client, &snapshot, target, deadline, gate.wake,
-            )?
-            .terminal
+            query::named_terminal_target(client, &snapshot, target, deadline, gate.wake, false)?
         }
     };
     gate.check(deadline)?;

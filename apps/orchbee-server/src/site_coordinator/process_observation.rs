@@ -203,6 +203,8 @@ impl SiteCoordinator {
             return false;
         }
         let input_revision = workbench.terminal_agent_input_revision(&physical);
+        let released = departed.is_some() && selected.is_none();
+        self.observe_name_owner(&physical.binding, released);
         self.process_samples.insert(
             key,
             Sample {

@@ -38,6 +38,15 @@ name-in-use 拒绝必须标明占用者；其他赋名拒绝携带 null。结果
 在分配或读取正文前拒绝超过 1,024 字节的正文；kind 10 维持 256 KiB 的有界列表上限。
 canonical 读取实体的语义不变量仍在每次解析与序列化时执行，独立于 JSON Schema。
 
+
+Windows Names 组合还接纳精确终端选择器与有类型的 `nameTarget`：canonical 会话或终端启动
+绑定（presentation、创建 generation、Host epoch、终端 ID）。`resolved-target`、
+`assigned-target`、`unchanged-target`、`released-target`、`listed-targets` 保留身份区别。
+混合列表共用 512 条上限、全局唯一名称及排序规则；物理 presentation 占用不能与待完成
+启动重叠。`rejected-target` 只表示 name-in-use，并要求非空占用目标。小结果仍限 1 KiB；
+两个列表变体都使用既有 256 KiB 上限。名称／provider 归属核对与受锁保护的组合由 Server
+负责，不生成虚假的 canonical ID。
+
 ## 非目标
 
 canonical Agent 状态、会话生命周期、ingress、变更、wait 或变更流、持久化、socket 或超时时

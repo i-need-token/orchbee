@@ -25,6 +25,8 @@ use crate::{
 
 mod agent_drain_read;
 #[cfg(windows)]
+mod agent_names;
+#[cfg(windows)]
 mod checkpoint;
 mod close_maintenance;
 mod controller_session;

@@ -29,8 +29,8 @@ mod agent_reports;
 mod panel_agent;
 mod report_membership;
 pub use panel_agent::{
-    TerminalAgentBinding, TerminalAgentProcessObservation, TerminalAgentProcessOutcome,
-    TerminalAgentScreenObservation,
+    TerminalAgentBinding, TerminalAgentNameOwner, TerminalAgentProcessObservation,
+    TerminalAgentProcessOutcome, TerminalAgentScreenObservation,
 };
 mod panel_metadata;
 mod terminal_membership;

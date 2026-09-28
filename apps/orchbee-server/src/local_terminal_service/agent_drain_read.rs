@@ -91,6 +91,24 @@ pub(crate) fn agent_drain_prepare(
     deadline: Instant,
     retry: Duration,
 ) -> Result<AgentRuntimeSnapshot, PreparedUnavailable> {
+    agent_drain_finish(
+        workers,
+        coordinator,
+        agents,
+        deadline,
+        retry,
+        |_, snapshot| Ok(snapshot),
+    )
+}
+
+pub(super) fn agent_drain_finish<R>(
+    workers: &Mutex<WorkerRegistry>,
+    coordinator: &Mutex<SiteCoordinator>,
+    agents: &AgentService,
+    deadline: Instant,
+    retry: Duration,
+    finish: impl FnOnce(&SiteCoordinator, AgentRuntimeSnapshot) -> Result<R, PreparedUnavailable>,
+) -> Result<R, PreparedUnavailable> {
     // STEP 0 — eligible preparation. The registry guard is scoped to the
     // typed accessor and released before any mint/admit/wait work.
     let provenance = {
@@ -248,9 +266,11 @@ pub(crate) fn agent_drain_prepare(
     if Instant::now() >= deadline {
         return Err(PreparedUnavailable);
     }
+    let result = finish(&coordinator_guard, snapshot);
+    // The final callback may commit a mutation: preserve its correlated receipt even if time passed.
     drop(coordinator_guard);
     drop(registry_guard);
-    Ok(snapshot)
+    result
 }
 
 #[cfg(test)]

@@ -39,7 +39,7 @@ struct Entry {
     expires_ms: u64,
 }
 
-fn launch_binding(binding: &Binding) -> AgentLaunchBinding {
+pub(super) fn launch_binding(binding: &Binding) -> AgentLaunchBinding {
     AgentLaunchBinding {
         presentation_id: orchbee_agent_observation_protocol::AgentPresentationId::parse(
             binding.presentation.as_str(),
@@ -58,7 +58,7 @@ fn launch_binding(binding: &Binding) -> AgentLaunchBinding {
     }
 }
 
-fn same_binding(left: &Binding, right: &Binding) -> bool {
+pub(super) fn same_binding(left: &Binding, right: &Binding) -> bool {
     left.presentation == right.presentation
         && left.carrier == right.carrier
         && left.host == right.host
@@ -167,6 +167,7 @@ impl Names {
         now_ms: u64,
         disposed: bool,
     ) {
+        self.reconcile_terminal_bindings(bindings, disposed);
         self.launches.now_ms = self.launches.now_ms.max(now_ms);
         let now = self.launches.now_ms;
         self.launches.active.retain(|_, entry| {
@@ -228,7 +229,7 @@ impl Names {
     }
 
     pub(super) fn total_bindings(&self) -> usize {
-        self.by_name.len() + self.launches.entries.len()
+        self.by_name.len() + self.terminals.len() + self.launches.entries.len()
     }
 
     pub(in crate::agent_service) fn execute_launch(
@@ -254,7 +255,13 @@ impl Names {
             ttl_ms,
         } = request
         {
-            if self.by_name.contains_key(name) || self.pending_name(name.as_str()) {
+            if self.terminals.contains_key(presentation_id) {
+                return reject(Rejection::NameInUse);
+            }
+            if self.by_name.contains_key(name)
+                || self.terminal_claim(name.as_str()).is_some()
+                || self.pending_name(name.as_str())
+            {
                 return reject(Rejection::NameInUse);
             }
             if self.launches.entries.contains_key(request_id)
@@ -386,3 +393,15 @@ impl Names {
 
 #[cfg(test)]
 mod tests;
+
+impl Names {
+    pub(super) fn terminal_pending(
+        &self,
+        presentation: &orchbee_agent_observation_protocol::AgentPresentationId,
+    ) -> bool {
+        self.launches
+            .entries
+            .values()
+            .any(|entry| entry.binding.presentation.as_str() == presentation.as_str())
+    }
+}

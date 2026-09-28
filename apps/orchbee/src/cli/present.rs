@@ -648,6 +648,14 @@ pub(crate) fn render(
         }
         Projection::AgentChanges(outcome) => agent_changes(out, outcome, locale),
         Projection::AgentGet(outcome) => agent_get(out, outcome, text, locale),
+        #[cfg(windows)]
+        Projection::AgentTerminalInspection { terminal, .. } => {
+            super::terminal_observation::render(out, terminal, locale)?;
+            if let Some(report) = terminal.get("reportedAgent") {
+                super::panel_metadata_query::render_report(out, report, locale)?;
+            }
+            Ok(())
+        }
         Projection::AgentInspection(doc) => {
             agent_get(
                 out,

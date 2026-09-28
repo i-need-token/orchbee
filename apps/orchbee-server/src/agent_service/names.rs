@@ -3,6 +3,8 @@
 //! mutation then inspect the live runtime together inside one fold.
 
 mod launch;
+mod terminal;
+pub(crate) use terminal::TerminalNameFact;
 
 use std::collections::BTreeMap;
 
@@ -22,6 +24,8 @@ use crate::agent::{AgentLifecycle, AgentRuntime, AgentRuntimeSnapshot};
 #[derive(Default)]
 pub(super) struct Names {
     launches: launch::Launches,
+    terminals:
+        BTreeMap<orchbee_agent_observation_protocol::AgentPresentationId, terminal::TerminalName>,
     by_name: BTreeMap<AgentName, AgentSessionId>,
     by_session: BTreeMap<AgentSessionId, AgentName>,
 }
@@ -32,6 +36,7 @@ impl Names {
     /// but live canonical session retains its alias until explicit release/end.
     pub(super) fn reconcile(&mut self, runtime: &AgentRuntime) {
         if runtime.is_disposed() {
+            self.terminals.clear();
             self.by_name.clear();
             self.by_session.clear();
             self.reconcile_managed(runtime.snapshot());
@@ -78,7 +83,9 @@ impl Names {
         let id = match target {
             AgentSessionSelector::Session { session_id } => Some(session_id),
             AgentSessionSelector::Auto { target } => Some(target),
-            AgentSessionSelector::Name { .. } | AgentSessionSelector::Presentation { .. } => None,
+            AgentSessionSelector::Name { .. }
+            | AgentSessionSelector::Presentation { .. }
+            | AgentSessionSelector::Terminal { .. } => None,
         };
         if let Some(id) = id
             && snapshot
@@ -91,7 +98,9 @@ impl Names {
         let name = match target {
             AgentSessionSelector::Name { name } => name.as_str(),
             AgentSessionSelector::Auto { target } => target.as_str(),
-            AgentSessionSelector::Session { .. } | AgentSessionSelector::Presentation { .. } => {
+            AgentSessionSelector::Session { .. }
+            | AgentSessionSelector::Presentation { .. }
+            | AgentSessionSelector::Terminal { .. } => {
                 return Err(Missing::Session);
             }
         };
@@ -137,6 +146,14 @@ impl Names {
         }
         if self.pending_name(name.as_str()) || self.pending_session(snapshot, &id) {
             return reject(AgentNameAssignRejectionReason::LaunchPending);
+        }
+        if let Some(binding) = self.terminal_claim(name.as_str()) {
+            return AgentNameAssignOutcome::RejectedTarget {
+                reason: AgentNameAssignRejectionReason::NameInUse,
+                conflict_target: Some(
+                    orchbee_agent_observation_protocol::AgentNameTarget::Terminal { binding },
+                ),
+            };
         }
         if let Some(incumbent) = self.by_name.get(name) {
             return if incumbent == &id {
@@ -210,6 +227,7 @@ enum Refusal {
 }
 
 impl AgentService {
+    #[cfg(any(not(windows), test))]
     pub(crate) fn execute_names_prepared(
         &self,
         request: AgentNamesRequest,
@@ -224,7 +242,7 @@ impl AgentService {
             }
         };
         if !allowed {
-            return answer(&request, Err(Refusal::Denied));
+            return answer(&request, Err(Refusal::Denied), &[]);
         }
         // The prepared clone is freshness evidence only. Liveness and name
         // ownership are re-read from the actual cell at the linearization point.
@@ -232,22 +250,23 @@ impl AgentService {
             .unwrap_or(Err(PreparedUnavailable))
             .is_err()
         {
-            return answer(&request, Err(Refusal::Unavailable));
+            return answer(&request, Err(Refusal::Unavailable), &[]);
         }
         self.with_state(|state| {
             if state.runtime.is_disposed() {
-                answer(&request, Err(Refusal::Unavailable))
+                answer(&request, Err(Refusal::Unavailable), &[])
             } else {
-                answer(&request, Ok(state))
+                answer(&request, Ok(state), &[])
             }
         })
-        .unwrap_or_else(|_| answer(&request, Err(Refusal::Unavailable)))
+        .unwrap_or_else(|_| answer(&request, Err(Refusal::Unavailable), &[]))
     }
 }
 
 fn answer(
     request: &AgentNamesRequest,
     state: Result<&mut AgentState, Refusal>,
+    facts: &[TerminalNameFact],
 ) -> AgentNamesResult {
     let unavailable = AgentUnavailableReason::RuntimeUnavailable;
     match request {
@@ -261,21 +280,9 @@ fn answer(
                     Err(Refusal::Unavailable) => AgentResolveOutcome::Unavailable {
                         reason: unavailable,
                     },
-                    Ok(state) => match state.names.resolve(state.runtime.snapshot(), target) {
-                        Ok((session_id, resolved_by)) => AgentResolveOutcome::Resolved {
-                            session_id,
-                            resolved_by,
-                        },
-                        Err(Missing::Pending) => AgentResolveOutcome::Rejected {
-                            reason: AgentResolveRejectionReason::LaunchPending,
-                        },
-                        Err(Missing::Ambiguous) => AgentResolveOutcome::Rejected {
-                            reason: AgentResolveRejectionReason::AmbiguousTarget,
-                        },
-                        Err(_) => AgentResolveOutcome::Rejected {
-                            reason: AgentResolveRejectionReason::NotFound,
-                        },
-                    },
+                    Ok(state) => state
+                        .names
+                        .resolve_named(state.runtime.snapshot(), target, facts),
                 },
             },
         },
@@ -289,19 +296,7 @@ fn answer(
                     Err(Refusal::Unavailable) => AgentNamesListOutcome::Unavailable {
                         reason: unavailable,
                     },
-                    Ok(state) => AgentNamesListOutcome::Listed {
-                        pending: state.names.pending_names(),
-                        bindings: state
-                            .names
-                            .by_name
-                            .iter()
-                            .map(|(name, session_id)| AgentNameBinding {
-                                name: name.clone(),
-                                session_id: session_id.clone(),
-                                lifecycle: orchbee_agent_observation_protocol::AgentLifecycle::Live,
-                            })
-                            .collect(),
-                    },
+                    Ok(state) => state.names.names_list(),
                 },
             },
         },
@@ -320,7 +315,11 @@ fn answer(
                     Err(Refusal::Unavailable) => AgentNameAssignOutcome::Unavailable {
                         reason: unavailable,
                     },
-                    Ok(state) => state.names.assign(state.runtime.snapshot(), target, name),
+                    Ok(state) => {
+                        state
+                            .names
+                            .assign_named(state.runtime.snapshot(), target, name, facts)
+                    }
                 },
             },
         },
@@ -334,7 +333,9 @@ fn answer(
                     Err(Refusal::Unavailable) => AgentNameReleaseOutcome::Unavailable {
                         reason: unavailable,
                     },
-                    Ok(state) => state.names.release(state.runtime.snapshot(), target),
+                    Ok(state) => state
+                        .names
+                        .release_named(state.runtime.snapshot(), target, facts),
                 },
             },
         },
@@ -343,3 +344,51 @@ fn answer(
 
 #[cfg(test)]
 mod tests;
+
+impl AgentService {
+    /// Policy precedes preparation; the caller supplies the existing final commit guards.
+    #[cfg(windows)]
+    pub(crate) fn execute_names_guarded(
+        &self,
+        request: AgentNamesRequest,
+        fold: impl FnOnce(&AgentNamesRequest) -> Result<AgentNamesResult, PreparedUnavailable>,
+    ) -> AgentNamesResult {
+        let allowed = match &request {
+            AgentNamesRequest::Resolve { .. } | AgentNamesRequest::NamesList { .. } => {
+                self.policy.read
+            }
+            AgentNamesRequest::NameAssign { .. } | AgentNamesRequest::NameRelease { .. } => {
+                self.policy.manage
+            }
+        };
+        if !allowed {
+            return answer(&request, Err(Refusal::Denied), &[]);
+        }
+        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| fold(&request)))
+            .ok()
+            .and_then(Result::ok)
+            .unwrap_or_else(|| answer(&request, Err(Refusal::Unavailable), &[]))
+    }
+
+    #[cfg(windows)]
+    pub(crate) fn fold_terminal_names(
+        &self,
+        request: &AgentNamesRequest,
+        facts: &[TerminalNameFact],
+    ) -> Result<AgentNamesResult, PreparedUnavailable> {
+        self.with_state(|state| {
+            if state.runtime.is_disposed() {
+                return answer(request, Err(Refusal::Unavailable), &[]);
+            }
+            state.names.reconcile_terminals(facts);
+            answer(request, Ok(state), facts)
+        })
+        .map_err(|_| PreparedUnavailable)
+    }
+
+    #[cfg(windows)]
+    pub(crate) fn observe_terminal_name(&self, fact: &TerminalNameFact) {
+        // Poison/disposal is permanently unavailable to every names consumer, never stale success.
+        let _ = self.with_state(|state| state.names.observe_terminal_owner(fact));
+    }
+}

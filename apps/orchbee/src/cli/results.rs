@@ -1064,6 +1064,11 @@ pub(crate) enum Projection {
     /// The typed `found` outcome, verbatim from the wire.
     AgentGet(AgentGetOutcome),
     AgentInspection(Box<AgentInspectionDoc>),
+    #[cfg(windows)]
+    AgentTerminalInspection {
+        binding: orchbee_agent_observation_protocol::AgentLaunchBinding,
+        terminal: Value,
+    },
     /// The typed `found` outcome carrying session plus explanation.
     AgentExplain(AgentExplainOutcome),
     /// The `agent wait` matched answer: the satisfying session detail
@@ -1281,6 +1286,11 @@ impl Projection {
             }
             Self::AgentChanges(outcome) => json!(outcome),
             Self::AgentGet(outcome) => json!(outcome),
+            #[cfg(windows)]
+            Self::AgentTerminalInspection { binding, terminal } => json!({
+                "kind":"terminal-found", "target":{"kind":"terminal","binding":binding},
+                "terminal":terminal, "management":{"phase":"unmanaged"},
+            }),
             Self::AgentInspection(doc) => {
                 let mut result = json!({"kind":"found","revision":doc.revision,"session":doc.session,"runtime":doc.runtime.document(),"management":doc.management.document()});
                 #[cfg(windows)]

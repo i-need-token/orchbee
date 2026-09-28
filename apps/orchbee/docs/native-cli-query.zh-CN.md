@@ -191,17 +191,32 @@ scope 传给子终端，使内部 CLI 命令保持所属 Site，即使 Server �
 
 ## Agent 会话名称
 
-`agent names` 列出运行中 Site 的所有存活别名。`agent resolve <target>` 返回完整会话 ID，
+`agent names` 列出运行中 Site 的所有存活别名。`agent resolve <target>` 返回 canonical 会话 ID 或精确终端目标，
 优先检查精确 ID 是否存在，再查别名。`agent rename <target> <new-name>` 赋名或原子替换
 名称；`agent rename <target> --clear` 只释放名称，不停止会话。可把目标位置参数替换成
 `--session <id>`、`--name <alias>` 或 `--panel <id|@panel:suffix>` 明确选择；必须且只能使用一种选择器。
-名称格式为 `[a-z][a-z0-9_-]{0,31}`，区分大小写且唯一，与待完成启动预留共用 512 条上限。
+名称格式为 `[a-z][a-z0-9_-]{0,31}`，区分大小写且唯一，canonical 名称、终端名称与待完成启动预留共用 512 条上限。
 会话结束、移除或 Site 运行时 dispose 后释放名称；Site 重启后的别名表为空。
+
+Windows 终端名称要求真实的上报、进程识别或保留 provider 身份；普通未命名 shell 不符合条件。
+目标携带 presentation ID、创建 generation、Host epoch 和终端 ID。首次 provider reference
+补齐归属；provider 或已知 reference 改变、确认释放／退出、移除或物理重建会清除名称。
+报告提交时同步核对归属，因此 A → B → A 不会复活旧别名。单独缺少进程观察不会清除名称。
+后续 Hook 到达不会悄悄把终端别名转为 canonical 会话别名。
+
+终端目标 resolve/list 使用 version 3，rename/clear 使用 version 2，混合目标重名失败使用
+version 4 的 `conflictTarget`；既有 canonical 回执保持原版本。Windows `agent get` 不带
+`--client` 时返回 version 13 `terminal-found`，包含精确目标、实际帧／进程／主 Panel 报告
+字段及 unmanaged 状态，不伪造会话 ID。子终端读取不会借用主 Panel 的报告。按名 `read`、
+`send-keys`、`attach` 经精确物理绑定交给既有终端所有者。仅 canonical 的 `explain`、语义
+`wait`／`prompt`、focus 和 `get --client` 仍要求 canonical 观察；终端名称持久化和托管重启
+属于后续仍需完成的集成。
+
 
 三个命令均接受 `--format text|json`。内嵌成功 schema 为 `orchbee.agent.names`、
 `orchbee.agent.resolve` 与 `orchbee.agent.rename`；names 为 version 2，独立列出预留，另两者为 version 1；接纳后的失败使用
 `orchbee.cli.failure.agent-names` version 1。presentation 解析与 ambiguous-target 失败使用 version 2；launch-pending 失败使用 version 3；原有结果仍为 version 1。相关语义结果携带 `agent-names` source
-和 OBAP request ID。这四份文档与提示契约一起纳入 Schema 目录 version 39。非法名称或冲突选择器在
+和 OBAP request ID。这四份文档与提示契约一起纳入 Schema 目录 version 64。非法名称或冲突选择器在
 任何运行时访问前以退出码 2 失败。重名以退出码 3 拒绝并标明占用者，绝不覆盖其名称。
 
 每个命令的单一五秒截止覆盖 cohort 校验、仅查已有 Site、接纳、可选 Panel 解析和最终 OBAP 交换。
@@ -281,7 +296,7 @@ Server 仍验证终端当前绑定。
 
 Windows 中，canonical provider 为 `codex` 时，单次输入序列按字面 paste、Right、Enter 排列。Right 作为非字符边界，促使 Codex 刷出 paste-burst 缓冲并清除 Enter 抑制窗口；不向提示文本拼接转义码，也不以固定延时猜测投递速度。其他 provider 保持 paste、Enter，普通 `terminal send --paste --enter` 不增加按键。回执准确报告三条或两条记录；若在 Right 或 Enter 前停止，只报告实际接受的前缀，绝不补发或开始等待。该边界不证明输入框为空、焦点归属或 provider 已就绪。
 
-Schema 目录 version 39 共 74 份文档，包含提示成功与失败契约。
+Schema 目录 version 64 共 74 份文档，包含提示成功与失败契约。
 
 `orchbee.agent.prompt` 返回会话 ID、完整终端提交回执，以及可选的匹配观察/等待事实。
 发送拒绝、部分接受或不确定时沿用既有终端发送/失败契约，不开始等待。预检及提交后失败

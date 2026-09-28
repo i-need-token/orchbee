@@ -15,8 +15,8 @@ use crate::model::{
     AgentSessionExplanation, AgentSessionSnapshot, AgentSessionSummary, AgentTurnState,
 };
 use crate::names::{
-    AgentNameAssignOutcome, AgentNameAssignRejectionReason, AgentNamesListOutcome,
-    AgentNamesRequest, AgentNamesResult, MAXIMUM_NAME_BINDINGS,
+    AgentNameAssignOutcome, AgentNameAssignRejectionReason, AgentNameTarget, AgentNamedTarget,
+    AgentNamesListOutcome, AgentNamesRequest, AgentNamesResult, MAXIMUM_NAME_BINDINGS,
 };
 use crate::read::{
     AgentExplainOutcome, AgentGetOutcome, AgentListOutcome, AgentReadRequest, AgentReadResult,
@@ -176,6 +176,9 @@ fn validate_read_result(result: &AgentReadResult) -> Result<(), AgentContractErr
 fn validate_names_result(result: &AgentNamesResult) -> Result<(), AgentContractError> {
     match result {
         AgentNamesResult::NamesList { result, .. } => {
+            if let AgentNamesListOutcome::ListedTargets { bindings, pending } = &result.outcome {
+                validate_named_targets(bindings, pending)?;
+            }
             if let AgentNamesListOutcome::Listed { bindings, pending } = &result.outcome {
                 if bindings.len() + pending.len() > MAXIMUM_NAME_BINDINGS {
                     return Err(AgentContractError::InvalidDocument);
@@ -214,6 +217,15 @@ fn validate_names_result(result: &AgentNamesResult) -> Result<(), AgentContractE
             }
         }
         AgentNamesResult::NameAssign { result, .. } => {
+            if let AgentNameAssignOutcome::RejectedTarget {
+                reason,
+                conflict_target,
+            } = &result.outcome
+                && (conflict_target.is_none()
+                    || *reason != AgentNameAssignRejectionReason::NameInUse)
+            {
+                return Err(AgentContractError::InvalidDocument);
+            }
             if let AgentNameAssignOutcome::Rejected {
                 reason,
                 conflict_session_id,
@@ -225,7 +237,58 @@ fn validate_names_result(result: &AgentNamesResult) -> Result<(), AgentContractE
                 }
             }
         }
-        AgentNamesResult::Resolve { .. } | AgentNamesResult::NameRelease { .. } => {}
+        AgentNamesResult::Resolve { result, .. } => {
+            if matches!(
+                &result.outcome,
+                crate::AgentResolveOutcome::ResolvedTarget {
+                    target: AgentNameTarget::Terminal { .. },
+                    resolved_by: crate::AgentResolvedBy::SessionId
+                }
+            ) {
+                return Err(AgentContractError::InvalidDocument);
+            }
+        }
+        AgentNamesResult::NameRelease { .. } => {}
+    }
+    Ok(())
+}
+
+fn validate_named_targets(
+    bindings: &[AgentNamedTarget],
+    pending: &[AgentLaunchReservation],
+) -> Result<(), AgentContractError> {
+    if bindings.len() + pending.len() > MAXIMUM_NAME_BINDINGS
+        || bindings.windows(2).any(|pair| pair[0].name >= pair[1].name)
+        || pending.windows(2).any(|pair| pair[0].name >= pair[1].name)
+    {
+        return Err(AgentContractError::InvalidDocument);
+    }
+    let mut names = HashSet::new();
+    let mut sessions = HashSet::new();
+    let mut presentations = HashSet::new();
+    let mut reservations = HashSet::new();
+    for entry in bindings {
+        if !names.insert(entry.name.as_str()) {
+            return Err(AgentContractError::InvalidDocument);
+        }
+        let unique = match &entry.target {
+            AgentNameTarget::Session { session_id } => sessions.insert(session_id.as_str()),
+            AgentNameTarget::Terminal { binding } => {
+                presentations.insert(binding.presentation_id.as_str())
+            }
+        };
+        if !unique {
+            return Err(AgentContractError::InvalidDocument);
+        }
+    }
+    for entry in pending {
+        validate_reservation(entry)?;
+        if !names.insert(entry.name.as_str())
+            || !presentations.insert(entry.binding.presentation_id.as_str())
+            || !reservations.insert(entry.reservation_id.as_str())
+        {
+            return Err(AgentContractError::InvalidDocument);
+        }
     }
     Ok(())
 }

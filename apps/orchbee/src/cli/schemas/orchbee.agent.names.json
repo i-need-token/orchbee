@@ -10,7 +10,7 @@
 			"const": "orchbee.agent.names"
 		},
 		"version": {
-			"const": 2
+			"enum": [2, 3]
 		},
 		"source": {
 			"type": "object",
@@ -64,6 +64,30 @@
 						}
 					},
 					"$comment": "Bindings and pending reservations share a combined cap of 512; semantic validation enforces disjoint sorted names, unique sessions and unique pending presentations and reservation IDs."
+				},
+				{
+					"type": "object",
+					"required": ["kind", "bindings", "pending"],
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "listed-targets"
+						},
+						"bindings": {
+							"type": "array",
+							"maxItems": 512,
+							"items": {
+								"$ref": "#/$defs/namedTarget"
+							}
+						},
+						"pending": {
+							"type": "array",
+							"maxItems": 512,
+							"items": {
+								"$ref": "#/$defs/launchReservation"
+							}
+						}
+					}
 				}
 			]
 		}
@@ -160,6 +184,138 @@
 			"type": "string",
 			"pattern": "^[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?$",
 			"maxLength": 64
+		},
+		"nameTarget": {
+			"oneOf": [
+				{
+					"type": "object",
+					"required": ["kind", "sessionId"],
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "session"
+						},
+						"sessionId": {
+							"$ref": "#/$defs/sessionId"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"required": ["kind", "binding"],
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "terminal"
+						},
+						"binding": {
+							"$ref": "#/$defs/launchBinding"
+						}
+					}
+				}
+			]
+		},
+		"namedTarget": {
+			"type": "object",
+			"required": ["name", "target"],
+			"additionalProperties": false,
+			"properties": {
+				"name": {
+					"$ref": "#/$defs/agentName"
+				},
+				"target": {
+					"$ref": "#/$defs/nameTarget"
+				}
+			}
 		}
-	}
+	},
+	"allOf": [
+		{
+			"if": {
+				"properties": {
+					"version": {
+						"const": 3
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"result": {
+						"anyOf": [
+							{
+								"type": "object",
+								"required": ["kind", "bindings", "pending"],
+								"additionalProperties": false,
+								"properties": {
+									"kind": {
+										"const": "listed-targets"
+									},
+									"bindings": {
+										"type": "array",
+										"maxItems": 512,
+										"items": {
+											"$ref": "#/$defs/namedTarget"
+										}
+									},
+									"pending": {
+										"type": "array",
+										"maxItems": 512,
+										"items": {
+											"$ref": "#/$defs/launchReservation"
+										}
+									}
+								}
+							}
+						]
+					}
+				}
+			},
+			"else": {
+				"properties": {
+					"result": {
+						"oneOf": [
+							{
+								"type": "object",
+								"required": ["kind", "bindings", "pending"],
+								"additionalProperties": false,
+								"properties": {
+									"kind": {
+										"const": "listed"
+									},
+									"bindings": {
+										"type": "array",
+										"maxItems": 512,
+										"items": {
+											"type": "object",
+											"required": ["name", "sessionId", "lifecycle"],
+											"additionalProperties": false,
+											"properties": {
+												"name": {
+													"$ref": "#/$defs/agentName"
+												},
+												"sessionId": {
+													"$ref": "#/$defs/sessionId"
+												},
+												"lifecycle": {
+													"const": "live"
+												}
+											}
+										}
+									},
+									"pending": {
+										"type": "array",
+										"maxItems": 512,
+										"items": {
+											"$ref": "#/$defs/launchReservation"
+										}
+									}
+								},
+								"$comment": "Bindings and pending reservations share a combined cap of 512; semantic validation enforces disjoint sorted names, unique sessions and unique pending presentations and reservation IDs."
+							}
+						]
+					}
+				}
+			}
+		}
+	]
 }

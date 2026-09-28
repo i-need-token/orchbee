@@ -89,6 +89,7 @@ pub(crate) fn start(
     agents: Arc<AgentService>,
     shutdown: Arc<SiteShutdown>,
 ) -> io::Result<ManagedClients> {
+    terminals.bind_agent_names(&agents)?;
     let listener = bind_managed(endpoint)?;
     listener.set_nonblocking(true)?;
     let registry = Arc::new(Mutex::new(ClientSessionRegistry::new()));

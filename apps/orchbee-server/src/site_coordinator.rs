@@ -39,6 +39,8 @@ pub(crate) use terminal_selection::{
 };
 mod target_lifecycle;
 pub(crate) use target_lifecycle::TargetLifecycle;
+#[cfg(windows)]
+mod agent_names;
 mod agent_registration;
 #[cfg(windows)]
 mod process_observation;
@@ -51,6 +53,8 @@ pub(crate) struct SiteCoordinator {
     standalone: StandaloneTerminal,
     #[cfg(windows)]
     process_samples: process_observation::Samples,
+    #[cfg(windows)]
+    agent_names: Option<std::sync::Weak<crate::agent_service::AgentService>>,
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -74,6 +78,8 @@ impl SiteCoordinator {
             standalone: StandaloneTerminal::Empty,
             #[cfg(windows)]
             process_samples: process_observation::Samples::new(),
+            #[cfg(windows)]
+            agent_names: None,
         }
     }
 
@@ -129,13 +135,29 @@ impl SiteCoordinator {
                 });
             }
         };
-        Some(
-            self.workbench
-                .as_mut()?
-                .panel_agent(request, &facts, now, |path| {
-                    std::path::Path::new(path).is_absolute()
-                }),
-        )
+        #[cfg(windows)]
+        let release = matches!(&request.action, orchbee_workbench_protocol::PanelAgentAction::Report { report, .. }
+            if matches!(report.as_ref(), orchbee_workbench_protocol::PanelAgentReport::Release { .. }));
+        let result = self
+            .workbench
+            .as_mut()?
+            .panel_agent(request, &facts, now, |path| {
+                std::path::Path::new(path).is_absolute()
+            });
+        #[cfg(windows)]
+        if let orchbee_workbench_protocol::PanelAgentOutcome::Reported {
+            binding,
+            disposition,
+            view,
+            ..
+        } = &result.outcome
+        {
+            let released = release
+                && *disposition == orchbee_workbench_protocol::PanelAgentDisposition::Applied
+                && view.agent.is_none();
+            self.observe_name_owner(binding, released);
+        }
+        Some(result)
     }
 
     pub(crate) fn panel_metadata(

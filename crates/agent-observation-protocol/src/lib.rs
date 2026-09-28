@@ -57,10 +57,10 @@ pub use model::{
 pub use names::{
     AgentNameAssignOutcome, AgentNameAssignOutcomeEnvelope, AgentNameAssignRejectionReason,
     AgentNameBinding, AgentNameReleaseOutcome, AgentNameReleaseOutcomeEnvelope,
-    AgentNameReleaseRejectionReason, AgentNamesListOutcome, AgentNamesListOutcomeEnvelope,
-    AgentNamesListRejectionReason, AgentNamesRequest, AgentNamesResult, AgentResolveOutcome,
-    AgentResolveOutcomeEnvelope, AgentResolveRejectionReason, AgentResolvedBy,
-    AgentSessionSelector, MAXIMUM_NAME_BINDINGS,
+    AgentNameReleaseRejectionReason, AgentNameTarget, AgentNamedTarget, AgentNamesListOutcome,
+    AgentNamesListOutcomeEnvelope, AgentNamesListRejectionReason, AgentNamesRequest,
+    AgentNamesResult, AgentResolveOutcome, AgentResolveOutcomeEnvelope,
+    AgentResolveRejectionReason, AgentResolvedBy, AgentSessionSelector, MAXIMUM_NAME_BINDINGS,
 };
 pub use read::{
     AgentExplainOutcome, AgentExplainOutcomeEnvelope, AgentGetOutcome, AgentGetOutcomeEnvelope,

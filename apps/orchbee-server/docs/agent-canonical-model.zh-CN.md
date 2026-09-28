@@ -132,8 +132,8 @@ ingress `socket_path`、`RegistrationFact::binding`，以及 drain exchange 的 
 ## 会话命名侧表
 
 OBAP names 家族由 `agent_service/names.rs` 在同一个 `AgentState` 状态单元中实现。
-两个私有有序映射持有名称 → 会话和会话 → 名称；名称只属于当前运行时，不进入 canonical
-会话文档，也不持久化。名称格式为 `[a-z][a-z0-9_-]{0,31}`。每个名称和每个会话至多一个
+canonical 索引持有名称 → 会话和会话 → 名称；下述终端扩展共享同一名称空间。名称只属于当前运行时，不进入 canonical
+会话文档，尚未持久化。名称格式为 `[a-z][a-z0-9_-]{0,31}`。每个名称和每个会话至多一个
 绑定，上限 512。新增绑定检查上限；满额时原子重命名仍可成功。重名拒绝携带已有占用者的会话身份。
 
 每次 `with_state` fold 在释放叶子互斥锁前协调两张映射，移除指向缺席或 ended 会话的绑定。
@@ -153,6 +153,29 @@ socket I/O、不获取外层锁。顺序应用会话解复用路由两个 OBAP �
 确定性服务测试覆盖重名、原子重命名、ID 优先、满额、生命周期清理、策略分离、过期准备、
 dispose、poison 和并发抢占。wire 与 Windows 进程测试覆盖上限、schema 合规回复、
 错误操作类型和修改结果未知。
+
+## 基于终端的名称
+
+Windows 对具有实际上报、进程识别或保留 provider 身份而没有 canonical Agent 会话的终端，
+也允许赋名。同一 Names 所有者将别名绑定到精确的 Presentation、创建代次、Host epoch 和
+Host terminal 身份。封闭的终端结果变体将其与 canonical 会话区分，不伪造会话 ID。
+512 项容量及重名检查同时覆盖 canonical 名称、终端名称和待定启动预留；满额原子重命名仍有效。
+
+未托管的终端名称保留其 provider 标签和可选外部会话引用。首个引用升级归属；provider 改变或
+已知引用改变则清名。已证明的释放／退出、终端移除或物理代次替换也清名；观察缺失不能证明退出。
+上报转换在 coordinator 提交锁仍持有时同步通知 Names 叶子，包括两次查询之间的中间变化。
+一个弱引用将该组合接到现有 AgentState，不引入第二注册表、事件日志或进程观察器。
+Workbench 拥有纯上报归属投影。
+
+Names 请求先检查策略、执行一次 drain 准备，再以已有 registry → coordinator → AgentState
+锁序持锁完成最终解析／修改。最终 fold 不做 I/O；修改提交后即使期限随后过去，也返回相关结果。
+dispose／poison 所有者仍回答 unavailable。保留既有 canonical ID 优先、已脱离会话名称和
+请求不确定性规则。扩展协议随完整匹配 cohort 交付；回退替换 cohort。名称持久化和托管恢复
+仍需各自的新绑定集成，单有终端别名不能证明完成。
+
+证据须覆盖混合名称／预留冲突、满额、引用升级／替换、两次读取之间 provider A → B → A、
+已证明及不确定退出、物理替换、策略／dispose、严格协议边界，以及真实 Windows
+重命名／解析／列举／清名和具名终端访问。协议 schema 和 CLI 信封版本须与实际目标一致。
 
 ## 托管启动预留
 
