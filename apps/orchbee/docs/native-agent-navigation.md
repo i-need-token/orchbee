@@ -64,7 +64,9 @@ with all created Agent processes, Sites and consoles stopped afterward. Review i
 TLA execution and independent review are not claimed. Final live focus/acknowledgement acceptance
 remains pending the combined Windows verification; targeted checks alone do not discharge it.
 
-The Client must be ready; otherwise Agent reads are skipped and the existing Client selection failure reports `client-not-ready` with its Client ID. Catalog v51 extends this v1 reason vocabulary without adding a schema.
+The Client must report Ready or Busy; Starting and Unavailable skip Agent reads and report
+`client-not-ready` with its Client ID. Busy admission permits the Client-owned mode-exit preflight
+below; it does not guarantee that the Client can navigate.
 
 ## Agent identity and explicit acknowledgement
 
@@ -73,9 +75,7 @@ TerminalContext, Tab and primary Panel. The CLI resolves once and checks the own
 the Client revalidates the target before effects and completion. A physical target additionally
 requires the selected frame's actual Host epoch/terminal identity before success. An old frame or
 replacement cannot authorize focus acknowledgement. Child-only presentations are not substituted
-with parent content; their navigable surface remains a separate lifecycle obligation. Busy modals
-and history still use the existing refusal; matching Herdr's mode dismissal remains an open
-interaction obligation.
+with parent content; their navigable surface remains a separate lifecycle obligation.
 
 The Client applies ordinary ordered navigation and completes after a successful draw, including an
 already-focused target. Successful explicit Agent focus acknowledges the current known Agent
@@ -92,3 +92,25 @@ operation reports existing outcomes, and status reads never repeat the effect. C
 carries this intent; older versions remain closed. The matched Client/Server cohort must be updated
 together. Pure identity/acknowledgement and bounded controller/protocol checks precede final live
 Windows acceptance; they do not by themselves prove multi-Client or authenticated-provider behavior.
+
+## Returning to terminal mode
+
+Agent focus is an effectful intent that can be delivered while the Client reports Busy. Ordinary
+navigation and passive-read classification do not change. Before cancelling modes, the Client
+checks the exact Agent source, usable terminal geometry, Ready or Empty session state, and absence
+of pending refresh, submitted or uncertain structural operations and close recovery. A failed
+preflight leaves modes intact. Unsubmitted rename/setup drafts, close confirmations and the Agent
+board can be cancelled through their owners; retained operation receipts cannot be discarded.
+
+The controller owns one mode-exit preparation per command. It requests a single shell-owned
+overlay/prefix dismissal and asks every retained history viewport to exit through its existing
+Recover queue. No provider input is sent. A recovering viewport remains owned until recovery and
+a subsequent live frame complete; focus waits under the original operation deadline. Mode exit
+counts as a partial effect even if later navigation fails. A later local input, new modal, target
+replacement or expiry produces rejected/incomplete as appropriate and never acknowledges the
+Agent. A repeated tick or status read cannot dismiss a newly opened mode.
+
+After mode exit, ordinary ordered navigation and post-draw identity/acknowledgement apply. Shared
+admission and pure transition checks cover Busy versus Starting, one-shot dismissal, interruption,
+expiry and failure before effects. Native owner checks cover drafts and history recovery with no
+input; final combined Windows acceptance covers real shell overlays and Server/Client delivery.

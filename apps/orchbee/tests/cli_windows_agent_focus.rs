@@ -208,9 +208,14 @@ fn names_sessions_and_explicit_panels_select_one_primary_without_touching_other_
         let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
         let direct = selector[0] == "--session";
         let pinned = selector[0] == "--panel";
+        let busy = selector[0] == "--name";
         let server = peer(&fixture, listener, move |mut stream| {
             snapshot_reply(&mut stream);
-            list_reply(&mut stream, vec![record(7, 6), record(9, 6)]);
+            let mut selected = record(7, 6);
+            if busy {
+                selected["view"]["phase"] = json!("busy");
+            }
+            list_reply(&mut stream, vec![selected, record(9, 6)]);
             if !direct {
                 resolved(&mut stream);
             }

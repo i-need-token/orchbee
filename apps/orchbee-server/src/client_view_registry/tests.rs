@@ -1,7 +1,7 @@
 use super::*;
 use orchbee_workbench_protocol::{
-    ProtocolVersion, SiteId, WorkbenchClientViewResult, WorkbenchRequest, WorkbenchRevision,
-    parse_workbench_request,
+    ClientViewPhase, ProtocolVersion, SiteId, WorkbenchClientViewResult, WorkbenchRequest,
+    WorkbenchRevision, parse_workbench_request,
 };
 
 fn owner(value: u64) -> NonZeroU64 {
@@ -112,6 +112,79 @@ fn acknowledge(id: u64) -> ClientViewAction {
         outcome: ClientViewCompletionOutcome::Applied {},
     });
     action
+}
+
+#[test]
+fn agent_focus_can_be_delivered_while_busy_but_still_owns_the_single_effect_slot() {
+    for phase in [
+        ClientViewPhase::Ready,
+        ClientViewPhase::Busy,
+        ClientViewPhase::Starting,
+    ] {
+        let now = Instant::now();
+        let mut registry = ClientViewRegistry::default();
+        let mut sample = sample();
+        let ClientViewAction::Synchronize { view, .. } = &mut sample else {
+            panic!()
+        };
+        view.phase = phase;
+        execute(&mut registry, 1, sample.clone(), now);
+        let mut focus = command(990, 1);
+        let ClientViewIntent::Panel {
+            terminal_context_id,
+            tab_id,
+            panel_id,
+        } = focus.intent
+        else {
+            panic!()
+        };
+        focus.intent = serde_json::from_value(serde_json::json!({
+            "kind":"agent-focus", "terminalContextId":terminal_context_id,
+            "tabId":tab_id, "panelId":panel_id, "presentationId":"3".repeat(32),
+            "target":{"kind":"session", "sessionId":"agent-1"}
+        }))
+        .unwrap();
+        assert!(!focus.intent.is_passive_read());
+        let outcome = execute(
+            &mut registry,
+            20,
+            ClientViewAction::Submit {
+                command: Box::new(focus.clone()),
+            },
+            now,
+        );
+        if phase == ClientViewPhase::Starting {
+            assert_eq!(
+                status(outcome),
+                ClientViewControlStatus::Rejected {
+                    reason: ClientViewControlReason::Busy
+                }
+            );
+            continue;
+        }
+        assert_eq!(status(outcome), ClientViewControlStatus::Queued {});
+        let mut second = focus.clone();
+        second.operation_id = operation_id(991);
+        assert_eq!(
+            status(execute(
+                &mut registry,
+                20,
+                ClientViewAction::Submit {
+                    command: Box::new(second)
+                },
+                now
+            )),
+            ClientViewControlStatus::Rejected {
+                reason: ClientViewControlReason::Busy
+            }
+        );
+        let ClientViewOutcome::Synchronized { control, .. } =
+            execute(&mut registry, 1, sample, now)
+        else {
+            panic!()
+        };
+        assert_eq!(control, Some(Box::new(focus)));
+    }
 }
 
 #[test]

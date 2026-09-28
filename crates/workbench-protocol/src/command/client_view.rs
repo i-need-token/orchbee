@@ -193,6 +193,16 @@ pub enum ClientViewIntent {
     },
 }
 impl ClientViewIntent {
+    /// Agent focus owns a cancellable-mode preflight in the Client. It remains an effect.
+    #[must_use]
+    pub fn blocked_by_busy_phase(&self, phase: ClientViewPhase) -> bool {
+        !self.is_passive_read()
+            && match phase {
+                ClientViewPhase::Starting => true,
+                ClientViewPhase::Busy => !matches!(self, Self::AgentFocus { .. }),
+                _ => false,
+            }
+    }
     #[must_use]
     pub fn is_passive_read(&self) -> bool {
         matches!(

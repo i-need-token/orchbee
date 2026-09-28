@@ -6,6 +6,56 @@ use orchbee_workbench_protocol::{
 };
 
 impl NativeUi {
+    /// One preflight precedes every cancellation. Pending operations keep their owners/receipts.
+    pub(in crate::terminal_session) fn dismiss_agent_focus_modes(
+        &mut self,
+        command: &ClientViewControl,
+    ) -> Result<bool, Reason> {
+        self.agent_focus_source(command)?;
+        let state = self.state.as_ref().ok_or(Reason::ProjectionUnavailable)?;
+        let setup = self.view().setup_draft().map(|draft| draft.token());
+        if self.retirement_failure.is_some()
+            || !matches!(
+                state.phase_kind(),
+                super::SessionPhaseKind::Ready | super::SessionPhaseKind::Empty
+            )
+            || state.pending_refresh_generation().is_some()
+            || state.mutation_in_progress()
+            || (state.mutation_blocks_structure() && setup.is_none())
+            || self.view().close_status().is_some()
+        {
+            return Err(Reason::Busy);
+        }
+        let history = self.control_history();
+        let mailbox = self.mailbox.as_ref().cloned();
+        if history && mailbox.is_none() {
+            return Err(Reason::ProjectionUnavailable);
+        }
+        let changed = self.control_modal() || state.rename_draft_blocks_structure();
+        self.cancel_close();
+        self.cancel_panel_close();
+        if let Some(state) = self.state.as_mut() {
+            state.cancel_rename_draft();
+        }
+        if let Some(token) = setup {
+            self.cancel_setup_draft(token);
+        }
+        self.board.close();
+        if let Some(mailbox) = mailbox {
+            for index in 0..self.projections.len() {
+                if self.retirement_failure.is_some() {
+                    break;
+                }
+                let key = self.projections[index].key.clone();
+                if let Some(viewport) = self.projections[index].viewport.as_mut() {
+                    let effect = viewport.nav(super::ViewportNav::Exit);
+                    self.settle_viewport_effect(&mailbox, &key, effect);
+                }
+            }
+        }
+        Ok(changed)
+    }
+
     pub(in crate::terminal_session) fn agent_focus_source(
         &self,
         command: &ClientViewControl,

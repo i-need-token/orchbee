@@ -50,6 +50,112 @@ fn completion(control: &ClientControl) -> Option<(Sample, ClientViewCompletion)>
 }
 
 #[test]
+fn agent_focus_mode_decisions_distinguish_owned_recovery_from_new_capture() {
+    let mut modes = AgentFocusModes::Unprepared;
+    assert_eq!(modes.decide(true, true, true), ModeStep::Prepare);
+    modes = AgentFocusModes::Exiting;
+    assert_eq!(modes.decide(false, false, true), ModeStep::Wait);
+    assert_eq!(modes.decide(false, true, true), ModeStep::Interrupted);
+    assert_eq!(modes.decide(true, false, false), ModeStep::Interrupted);
+    assert_eq!(modes.decide(false, false, false), ModeStep::Navigate);
+    modes = AgentFocusModes::Finished;
+    assert_eq!(modes.decide(false, false, true), ModeStep::Interrupted);
+    assert_eq!(modes.decide(false, false, false), ModeStep::Navigate);
+}
+
+#[test]
+fn agent_focus_shell_exit_is_one_shot_and_retains_partial_outcomes() {
+    for result in [
+        "applied",
+        "new-mode",
+        "input",
+        "expired",
+        "too-small",
+        "history",
+    ] {
+        let (mut native, agent, clock) =
+            crate::terminal_session::ui::focused_physical_agent_fixture();
+        let mut control = controller(clock);
+        if result == "history" {
+            native.apply_client_action(ClientAction::EnterHistory);
+            assert!(native.control_history());
+        }
+        control.observe_geometry(
+            ratatui::layout::Rect::new(0, 0, if result == "too-small" { 1 } else { 120 }, 36),
+            crate::client_view::SidebarSurface::Hidden,
+        );
+        control.tick(&mut native, true);
+        let mut command = command(&control, None);
+        let ClientViewIntent::Panel {
+            terminal_context_id,
+            tab_id,
+            panel_id,
+        } = command.intent
+        else {
+            panic!("Panel")
+        };
+        command.intent = ClientViewIntent::AgentFocus {
+            terminal_context_id,
+            tab_id,
+            panel_id,
+            presentation_id: orchbee_workbench_protocol::TerminalPresentationId::parse(
+                agent.binding.presentation_id.as_str(),
+            )
+            .unwrap(),
+            target: orchbee_agent_observation_protocol::AgentNameTarget::Terminal {
+                binding: agent.binding.clone(),
+            },
+        };
+        inject(&control, command);
+        control.tick(&mut native, true);
+        assert_eq!(control.take_shell_mode_dismissal(), result != "too-small");
+        assert!(!control.take_shell_mode_dismissal());
+        control.after_draw(&mut native);
+        if result != "too-small" {
+            assert!(
+                completion(&control).is_none(),
+                "mode exit alone is not applied focus"
+            );
+            if result == "input" {
+                control.interrupt();
+            }
+            if result == "expired" {
+                control.pending.as_mut().unwrap().deadline = control.clock.now();
+            }
+            control.tick(&mut native, result == "new-mode");
+            control.after_draw(&mut native);
+            if result == "history" {
+                assert!(completion(&control).is_none());
+                assert!(native.control_history());
+                control.pending.as_mut().unwrap().deadline = control.clock.now();
+                control.tick(&mut native, false);
+            }
+        }
+        let expected = match result {
+            "applied" => ClientViewCompletionOutcome::Applied {},
+            "too-small" => ClientViewCompletionOutcome::Rejected {
+                reason: Reason::Busy,
+            },
+            "expired" | "history" => ClientViewCompletionOutcome::Incomplete {
+                reason: Reason::Expired,
+            },
+            _ => ClientViewCompletionOutcome::Incomplete {
+                reason: Reason::Interrupted,
+            },
+        };
+        assert_eq!(completion(&control).unwrap().1.outcome, expected);
+        assert!(!control.take_shell_mode_dismissal());
+        let attention = native
+            .read_terminal_agent_attention(std::slice::from_ref(&agent.binding))
+            .unwrap();
+        assert_eq!(
+            attention.entries[0].state.as_ref().unwrap().seen,
+            result == "applied"
+        );
+    }
+}
+
+#[test]
 fn agent_focus_acknowledges_only_after_an_uninterrupted_unexpired_draw() {
     use orchbee_agent_observation_protocol::AgentNameTarget;
     for disposition in ["applied", "expired", "interrupted"] {

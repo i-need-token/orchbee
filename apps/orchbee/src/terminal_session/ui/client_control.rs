@@ -8,6 +8,16 @@ use orchbee_workbench_protocol::{
 
 impl NativeUi {
     pub(in crate::terminal_session) fn control_modal(&self) -> bool {
+        self.control_dialog() || self.control_history()
+    }
+
+    pub(in crate::terminal_session) fn control_history(&self) -> bool {
+        self.projections
+            .iter()
+            .any(|projection| projection.viewport.is_some())
+    }
+
+    pub(in crate::terminal_session) fn control_dialog(&self) -> bool {
         let view = self.view();
         view.close_confirmation().is_some()
             || view.close_status().is_some()
@@ -15,10 +25,6 @@ impl NativeUi {
             || view.rename_draft().is_some()
             || view.setup_draft().is_some()
             || view.agent_board().is_some()
-            || self
-                .projections
-                .iter()
-                .any(|projection| projection.viewport.is_some())
     }
 
     pub(in crate::terminal_session) fn control_observation(

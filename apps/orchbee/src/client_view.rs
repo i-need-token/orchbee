@@ -344,6 +344,12 @@ impl ClientView {
         self.overlay = None;
     }
 
+    #[cfg(windows)]
+    pub(crate) fn dismiss_agent_focus_modes(&mut self) {
+        self.dismiss_overlay();
+        self.prefix_active = false;
+    }
+
     /// Applies the navigator settlement of a pointer-issued action. Pointer
     /// intents carry no `ClientTransition`; this is the same disposition
     /// effect `commit` applies for keyboard-issued actions.

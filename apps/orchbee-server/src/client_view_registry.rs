@@ -2,8 +2,8 @@
 use orchbee_workbench_protocol::{
     ClientViewAction, ClientViewAvailability, ClientViewCompletion, ClientViewCompletionOutcome,
     ClientViewControl, ClientViewControlReason, ClientViewControlStatus, ClientViewIntent,
-    ClientViewObservation, ClientViewOperation, ClientViewOutcome, ClientViewPhase,
-    ClientViewRecord, ClientViewSequence, ClientViewUnavailable, MAXIMUM_CLIENT_VIEWS,
+    ClientViewObservation, ClientViewOperation, ClientViewOutcome, ClientViewRecord,
+    ClientViewSequence, ClientViewUnavailable, MAXIMUM_CLIENT_VIEWS,
     MAXIMUM_ENCODED_CLIENT_ATTENTION_BYTES, MAXIMUM_ENCODED_CLIENT_LAYOUT_BYTES, WorkbenchClientId,
     WorkbenchRequestId,
 };
@@ -204,11 +204,7 @@ impl ClientViewRegistry {
         } else if self.receipts.values().any(|receipt| {
             receipt.operation.command.client_id == command.client_id
                 && receipt.operation.status.pending()
-        }) || (!command.intent.is_passive_read()
-            && matches!(
-                client.view.phase,
-                ClientViewPhase::Starting | ClientViewPhase::Busy
-            ))
+        }) || command.intent.blocked_by_busy_phase(client.view.phase)
         {
             Some(ClientViewControlReason::Busy)
         } else {
@@ -390,11 +386,11 @@ impl ClientViewRegistry {
                 || client.view_revision != receipt.operation.command.expected_view_revision
             {
                 Some(ClientViewControlReason::StaleView)
-            } else if !receipt.operation.command.intent.is_passive_read()
-                && matches!(
-                    client.view.phase,
-                    ClientViewPhase::Starting | ClientViewPhase::Busy
-                )
+            } else if receipt
+                .operation
+                .command
+                .intent
+                .blocked_by_busy_phase(client.view.phase)
             {
                 Some(ClientViewControlReason::Busy)
             } else {

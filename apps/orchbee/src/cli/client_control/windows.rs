@@ -157,7 +157,10 @@ fn observe(
             };
             let selected = selection::select(&clients, explicit.as_ref(), caller.as_ref())?;
             let intent = if let ClientNavigationTarget::Agent(agent) = target {
-                if selected.view.phase != ClientViewPhase::Ready {
+                if !matches!(
+                    selected.view.phase,
+                    ClientViewPhase::Ready | ClientViewPhase::Busy
+                ) {
                     return Err(selection::failure(
                         FailureKind::ServiceUnavailable,
                         "client-not-ready",

@@ -135,6 +135,89 @@ fn focus_command(
 }
 
 #[test]
+fn agent_focus_cancels_only_after_validating_its_source_and_does_not_discard_history() {
+    use crate::terminal_session::mailbox::QueuedCommand;
+    use crate::terminal_session::terminal_viewport::ViewportStep;
+    let (mut ui, _, agent) = physical_fixture();
+    let command = focus_command(
+        &ui,
+        orchbee_agent_observation_protocol::AgentNameTarget::Terminal {
+            binding: agent.binding.clone(),
+        },
+        agent.binding.presentation_id.as_str(),
+    );
+    let mut stale = command.clone();
+    let orchbee_workbench_protocol::ClientViewIntent::AgentFocus { target, .. } = &mut stale.intent
+    else {
+        panic!()
+    };
+    *target =
+        serde_json::from_value(json!({"kind":"session","sessionId":"missing-agent"})).unwrap();
+    assert!(ui.request_rename_draft().is_some());
+    ui.board.open();
+    assert_eq!(
+        ui.dismiss_agent_focus_modes(&stale),
+        Err(orchbee_workbench_protocol::ClientViewControlReason::ProjectionUnavailable)
+    );
+    assert!(ui.view().rename_draft().is_some());
+    assert!(ui.view().agent_board().is_some());
+    assert_eq!(ui.dismiss_agent_focus_modes(&command), Ok(true));
+    assert!(ui.view().rename_draft().is_none());
+    assert!(ui.view().agent_board().is_none());
+
+    ui.request_close_confirmation();
+    assert!(ui.view().close_confirmation().is_some());
+    assert_eq!(ui.dismiss_agent_focus_modes(&command), Ok(true));
+    assert!(ui.view().close_confirmation().is_none());
+    assert!(
+        ui.request_setup_draft(
+            crate::terminal_session::state::workspace_setup::NativeSetupIntent::CreateWorkspace
+        )
+        .is_some()
+    );
+    assert_eq!(ui.dismiss_agent_focus_modes(&command), Ok(true));
+    assert!(ui.view().setup_draft().is_none());
+
+    let mailbox = ui.mailbox.as_ref().unwrap().clone();
+    while let Some(lease) = mailbox.try_recv().unwrap() {
+        mailbox.finish_lease(lease).unwrap();
+    }
+    ui.enter_history();
+    while let Some(lease) = mailbox.try_recv().unwrap() {
+        mailbox.finish_lease(lease).unwrap();
+    }
+    assert!(ui.control_history());
+    assert_eq!(ui.dismiss_agent_focus_modes(&command), Ok(true));
+    let mut steps = vec![];
+    while let Some(lease) = mailbox.try_recv().unwrap() {
+        let QueuedCommand::Viewport(tagged) = lease.record() else {
+            panic!("unexpected command: {:?}", lease.record())
+        };
+        steps.push(*tagged.value());
+        mailbox.finish_lease(lease).unwrap();
+    }
+    assert_eq!(steps, [ViewportStep::Recover]);
+    assert!(
+        ui.control_history(),
+        "core is retained until recovery and a new live frame"
+    );
+    assert!(ui.projections[0].viewport.as_ref().unwrap().recovering());
+    assert!(!physical_seen(&ui, &agent));
+    let key = ui.projections[0].key.clone();
+    let before = ui.projections[0].viewport.as_mut().unwrap().frame_applied();
+    assert!(!before.live, "an earlier frame cannot complete recovery");
+    ui.apply_viewport_outcome(
+        &mailbox,
+        key.clone(),
+        crate::terminal_session::mailbox::ViewportOutcome::Recovered,
+    );
+    assert!(ui.control_history());
+    let after = ui.projections[0].viewport.as_mut().unwrap().frame_applied();
+    ui.settle_viewport_effect(&mailbox, &key, after);
+    assert!(!ui.control_history());
+}
+
+#[test]
 fn explicit_agent_focus_acknowledges_an_already_focused_agent_despite_outer_focus_loss() {
     use crate::terminal_session::client_control::{ControlStep, StepProgress};
     use orchbee_agent_observation_protocol::AgentNameTarget;

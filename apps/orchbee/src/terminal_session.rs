@@ -314,14 +314,18 @@ impl TerminalSession {
     #[cfg(windows)]
     pub(crate) fn client_control_tick(
         &mut self,
-        shell_blocked: bool,
+        view: &mut crate::client_view::ClientView,
         viewport: ratatui::layout::Rect,
-        sidebar: crate::client_view::SidebarSurface,
     ) -> bool {
         match (&mut self.client_control, &mut self.backend) {
             (Some(control), SessionBackend::Native(native)) => {
-                control.observe_geometry(viewport, sidebar);
-                control.tick(native, shell_blocked)
+                control.observe_geometry(viewport, view.sidebar_surface());
+                let changed =
+                    control.tick(native, view.overlay().is_some() || view.prefix_active());
+                if control.take_shell_mode_dismissal() {
+                    view.dismiss_agent_focus_modes();
+                }
+                changed
             }
             _ => false,
         }

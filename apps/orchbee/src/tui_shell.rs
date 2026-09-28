@@ -410,18 +410,7 @@ fn run_event_loop_with_modes<B: Backend + ResizableBackend>(
             return Ok(LoopExit::Signal);
         }
 
-        if terminal_input.client_control_tick(
-            view.overlay().is_some()
-                || view.prefix_active()
-                || crate::tui_layout::project_shell_areas(
-                    to_area(dimensions),
-                    view.sidebar_surface(),
-                )
-                .tier
-                    == crate::tui_layout::ViewportTier::TooSmall,
-            to_area(dimensions),
-            view.sidebar_surface(),
-        ) {
+        if terminal_input.client_control_tick(&mut view, to_area(dimensions)) {
             synchronize_viewport(
                 terminal,
                 viewport,
@@ -683,12 +672,7 @@ pub(crate) fn pane_geometries(
 }
 
 trait TerminalSurface: crate::terminal_input::TerminalInputPort {
-    fn client_control_tick(
-        &mut self,
-        _shell_blocked: bool,
-        _viewport: Rect,
-        _sidebar: crate::client_view::SidebarSurface,
-    ) -> bool {
+    fn client_control_tick(&mut self, _view: &mut ClientView, _viewport: Rect) -> bool {
         false
     }
     fn tick(&mut self) -> bool {
@@ -712,13 +696,8 @@ trait TerminalSurface: crate::terminal_input::TerminalInputPort {
 impl TerminalSurface for UnavailableTerminalInputPort {}
 impl TerminalSurface for crate::terminal_session::TerminalSession {
     #[cfg(windows)]
-    fn client_control_tick(
-        &mut self,
-        shell_blocked: bool,
-        viewport: Rect,
-        sidebar: crate::client_view::SidebarSurface,
-    ) -> bool {
-        self.client_control_tick(shell_blocked, viewport, sidebar)
+    fn client_control_tick(&mut self, view: &mut ClientView, viewport: Rect) -> bool {
+        self.client_control_tick(view, viewport)
     }
     fn tick(&mut self) -> bool {
         self.tick()

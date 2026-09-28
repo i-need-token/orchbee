@@ -105,7 +105,7 @@ Starting/unavailable 视图不能产生成功的视口观察；精确视图修�
 
 ## Agent 导航
 
-Windows `agent focus <target> [--client <id>]` 将规范 Session 或终端 Agent 解析为一个可导航主 Panel。一次 `agent-focus` 控制在 Client 导航和完成期间保留精确 Agent 与 Presentation 身份。Client 复核自己的观察；物理目标还要求匹配 Host 帧。显式聚焦成功后，将所选 Tab 的当前已知版本标记已读，包括目标已经聚焦及外层失焦的情况。普通绘制和只读 `agent attention` 保持既有规则。`--request-id`、`--detach`、默认 30000 ms 总期限及保留状态恢复不变。Client 未就绪时在 Agent 读取前拒绝；目标丢失／替换会拒绝或报告导航未完整完成，不改选目标。`orchbee.client.control` v5 携带此操作，不激活操作系统窗口。[Agent 导航契约](native-agent-navigation.zh-CN.md) 负责身份、确认及最终验收。
+Windows `agent focus <target> [--client <id>]` 将规范 Session 或终端 Agent 解析为一个可导航主 Panel。一次 `agent-focus` 控制在 Client 导航和完成期间保留精确 Agent 与 Presentation 身份。Client 复核自己的观察；物理目标还要求匹配 Host 帧。显式聚焦成功后，将所选 Tab 的当前已知版本标记已读，包括目标已经聚焦及外层失焦的情况。普通绘制和只读 `agent attention` 保持既有规则。`--request-id`、`--detach`、默认 30000 ms 总期限及保留状态恢复不变。Starting 或 Unavailable Client 在 Agent 读取前拒绝；Busy 可以进入一次性模式退出前置检查，但不丢弃已提交操作。历史模式等待恢复及新的实时帧；目标丢失／替换会拒绝或报告导航未完整完成，不改选目标。`orchbee.client.control` v5 携带此操作，不激活操作系统窗口。[Agent 导航契约](native-agent-navigation.zh-CN.md) 负责身份、确认及最终验收。
 
 ## Client 相对 Workbench 查询
 

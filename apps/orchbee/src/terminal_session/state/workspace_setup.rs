@@ -155,10 +155,10 @@ impl NativeSessionState {
             )
     }
     pub(in crate::terminal_session) fn setup_blocks_structure(&self) -> bool {
-        self.setup.draft.is_some()
-            || self.setup.pending.is_some()
-            || self.setup.known.is_some()
-            || self.setup.uncertain.is_some()
+        self.setup.draft.is_some() || self.setup_operation_in_progress()
+    }
+    pub(super) fn setup_operation_in_progress(&self) -> bool {
+        self.setup.pending.is_some() || self.setup.known.is_some() || self.setup.uncertain.is_some()
     }
     pub(in crate::terminal_session) fn setup_recovery(&self) -> bool {
         self.setup.known.is_some() && self.setup.pending.is_none()

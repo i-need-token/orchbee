@@ -3,13 +3,40 @@ use super::ui::NativeUi;
 use crate::local_client::{LocalClientOrigin, LocalOperationClock};
 use orchbee_workbench_protocol::{
     ClientLayoutAdjustment, ClientViewCompletion, ClientViewCompletionOutcome, ClientViewControl,
-    ClientViewControlReason as Reason, ClientViewIntent, ClientViewObservation, ClientViewPhase,
-    ClientViewSequence,
+    ClientViewControlReason as Reason, ClientViewIntent, ClientViewObservation, ClientViewSequence,
 };
 use std::time::Instant;
 
 mod lane;
 use lane::{ClientControlLane, Sample};
+
+#[derive(Default)]
+enum AgentFocusModes {
+    #[default]
+    Unprepared,
+    Exiting,
+    Finished,
+}
+
+#[derive(Debug, PartialEq)]
+enum ModeStep {
+    Prepare,
+    Wait,
+    Navigate,
+    Interrupted,
+}
+
+impl AgentFocusModes {
+    fn decide(&self, shell_mode: bool, dialog: bool, history: bool) -> ModeStep {
+        match self {
+            Self::Unprepared => ModeStep::Prepare,
+            _ if shell_mode || dialog => ModeStep::Interrupted,
+            Self::Exiting if history => ModeStep::Wait,
+            Self::Finished if history => ModeStep::Interrupted,
+            _ => ModeStep::Navigate,
+        }
+    }
+}
 
 #[derive(Default)]
 pub(super) struct StepProgress {
@@ -18,6 +45,7 @@ pub(super) struct StepProgress {
     pub(super) tab_attempted: bool,
     pub(super) had_effect: bool,
     pub(super) toggle_origin: Option<bool>,
+    focus_modes: AgentFocusModes,
 }
 pub(super) enum ControlStep {
     Waiting,
@@ -43,8 +71,50 @@ impl Execution {
             Self::Adjustment { .. } => true,
         }
     }
-    fn step(&mut self, native: &mut NativeUi) -> ControlStep {
+    fn step(
+        &mut self,
+        native: &mut NativeUi,
+        shell_mode: bool,
+        too_small: bool,
+        dismiss_shell_modes: &mut bool,
+    ) -> ControlStep {
         match self {
+            Self::Navigation { target, progress }
+                if matches!(target.intent, ClientViewIntent::AgentFocus { .. }) =>
+            {
+                if let Err(reason) = native.agent_focus_source(target) {
+                    return ControlStep::Failed(reason);
+                }
+                if too_small {
+                    return ControlStep::Failed(Reason::Busy);
+                }
+                match progress.focus_modes.decide(
+                    shell_mode,
+                    native.control_dialog(),
+                    native.control_history(),
+                ) {
+                    ModeStep::Prepare => {
+                        let changed = match native.dismiss_agent_focus_modes(target) {
+                            Ok(changed) => changed,
+                            Err(reason) => return ControlStep::Failed(reason),
+                        };
+                        progress.focus_modes = AgentFocusModes::Exiting;
+                        progress.had_effect |= changed || shell_mode;
+                        *dismiss_shell_modes = shell_mode;
+                        if changed || shell_mode {
+                            return ControlStep::Changed;
+                        }
+                    }
+                    ModeStep::Wait => return ControlStep::Waiting,
+                    ModeStep::Interrupted => return ControlStep::Failed(Reason::Interrupted),
+                    ModeStep::Navigate => {}
+                }
+                progress.focus_modes = AgentFocusModes::Finished;
+                native.control_step(target, progress)
+            }
+            _ if shell_mode || too_small || native.control_modal() => {
+                ControlStep::Failed(Reason::Interrupted)
+            }
             Self::Navigation { target, progress } => native.control_step(target, progress),
             Self::Adjustment { adjustment, before } => {
                 if native.adjustment_observed(adjustment, before) {
@@ -118,6 +188,7 @@ pub(super) struct ClientControl {
     observed: Option<ClientViewObservation>,
     pending: Option<Pending>,
     shell_blocked: bool,
+    dismiss_shell_modes: bool,
     viewport: Option<(ratatui::layout::Rect, crate::client_view::SidebarSurface)>,
 }
 impl ClientControl {
@@ -132,6 +203,7 @@ impl ClientControl {
             observed: None,
             pending: None,
             shell_blocked: false,
+            dismiss_shell_modes: false,
             viewport: None,
         }
     }
@@ -159,7 +231,15 @@ impl ClientControl {
             pending.interrupted = true;
         }
     }
-    pub(super) fn tick(&mut self, native: &mut NativeUi, shell_blocked: bool) -> bool {
+    pub(super) fn take_shell_mode_dismissal(&mut self) -> bool {
+        std::mem::take(&mut self.dismiss_shell_modes)
+    }
+    pub(super) fn tick(&mut self, native: &mut NativeUi, shell_mode: bool) -> bool {
+        let too_small = self.viewport.is_some_and(|(viewport, sidebar)| {
+            crate::tui_layout::project_shell_areas(viewport, sidebar).tier
+                == crate::tui_layout::ViewportTier::TooSmall
+        });
+        let shell_blocked = shell_mode || too_small;
         self.shell_blocked = shell_blocked;
         if self.stopped {
             return false;
@@ -196,12 +276,7 @@ impl ClientControl {
             }
             let reason = if command.expected_view_revision != sample.revision {
                 Some(Reason::StaleView)
-            } else if !command.intent.is_passive_read()
-                && matches!(
-                    sample.view.phase,
-                    ClientViewPhase::Starting | ClientViewPhase::Busy
-                )
-            {
+            } else if command.intent.blocked_by_busy_phase(sample.view.phase) {
                 Some(Reason::Busy)
             } else {
                 None
@@ -296,12 +371,14 @@ impl ClientControl {
         let Some(pending) = &mut self.pending else {
             return false;
         };
-        let step = if pending.interrupted || shell_blocked || native.control_modal() {
+        let step = if pending.interrupted {
             ControlStep::Failed(Reason::Interrupted)
         } else if self.clock.now() >= pending.deadline {
             ControlStep::Failed(Reason::Expired)
         } else {
-            pending.execution.step(native)
+            pending
+                .execution
+                .step(native, shell_mode, too_small, &mut self.dismiss_shell_modes)
         };
         match step {
             ControlStep::Waiting => view_changed,
@@ -392,6 +469,7 @@ impl ClientControl {
     pub(super) fn close(&mut self) {
         self.stopped = true;
         self.pending = None;
+        self.dismiss_shell_modes = false;
         if let Some(mut lane) = self.lane.take() {
             lane.close();
         }
