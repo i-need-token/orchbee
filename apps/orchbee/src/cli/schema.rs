@@ -466,8 +466,8 @@ pub(crate) fn answer(schema_id: Option<&str>, format: OutputFormat, locale: Loca
     };
     let document = json!({
         "schema": "orchbee.api.schema",
-        // Exact Client Presentation reads use a new closed control receipt version.
-        "version": 95,
+        // Current Panel enrichment identifies the exact resolved Presentation.
+        "version": 96,
         "source": embedded_source(),
         "result": result,
     });

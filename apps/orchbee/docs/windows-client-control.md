@@ -160,5 +160,5 @@ member yields null; a stale binding cannot borrow another member's frame. This o
 cannot complete as applied navigation.
 
 The [current Panel contract](native-current-panel.md#exact-current-presentation-for-process-information)
-owns Windows process-info composition and its before/after member fence. Client control v6
+owns Windows process-info/current composition and their before/after member fences. Client control v6
 admits this intent; v1–v5 remain closed. Existing primary `viewports` reads retain their meaning.

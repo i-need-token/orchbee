@@ -175,10 +175,23 @@ pub(super) fn read(
     snapshot: &Snapshot,
     projection: &Projection,
     selected: Option<&ClientViewRecord>,
+    current: Option<&super::current_presentation::Resolved>,
     deadline: Instant,
     signals: &mut ArmedSignals,
 ) -> Result<Document, Failure> {
-    let rows = membership(projection, snapshot)?;
+    let rows = if let Some(member) = current {
+        BTreeMap::from([(
+            member.panel_id.to_string(),
+            member
+                .binding
+                .as_ref()
+                .map(|_| member.presentation_id.to_string())
+                .into_iter()
+                .collect(),
+        )])
+    } else {
+        membership(projection, snapshot)?
+    };
     let presentations = rows.values().flatten().cloned().collect::<BTreeSet<_>>();
     let first = list(client, deadline, signals)?;
     let ids = first

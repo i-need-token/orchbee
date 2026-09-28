@@ -27,13 +27,13 @@ Context and Tab in the snapshot. Missing or changed membership fails with
 `client-panel-unavailable`; the query never follows that Panel into another location implicitly.
 
 The snapshot and Client record are successive observations. `panel current` pins the
-selected Client record, including its view revision, before joining the same Agent, terminal
-and viewport observations as `panel get`. It never reselects a Client or redirects to a new
+selected Client record, including its view revision, before joining Agent, terminal, report,
+metadata and viewport observations for its exact current member. It never reselects a Client or redirects to a new
 Panel. Before publication, the canonical revision and selected Client view/revision must still
 match. A move away and back also fails because the view revision advanced. These fences do not
 make Host/process/scroll observations atomic; each retains its own provenance.
 
-Explicit/caller `panel current` reads remain headless: they receive primary Agent membership, terminal
+Explicit/caller `panel current` reads remain headless: they receive resolved-member Agent membership, terminal
 title, directory and process observations, but no inferred Client focus. `scroll` is null with
 `scrollObservation.state: no-client`. Unique/explicit Client reads include focus, its observed
 live/history scroll or explicit unavailable/pending state, and read-operation provenance.
@@ -58,9 +58,9 @@ that times out retires the connection, while actual EOF remains transport loss.
 Routing refusals retain `orchbee.cli.failure.client-control` v1. Enrichment uses the existing
 Workbench-query failures, including `client-changed` and `workbench-changed`, without partial
 results. Generic current-stage failures retain the exact `current-panel` stage. Windows success
-uses `orchbee.panel.current` v6, with the enriched Panel Get v9 shape and its own schema ID.
+uses `orchbee.panel.current` v7, with canonical Panel structure and an explicit `currentPresentation`.
 Non-Windows current retains v3; the embedded schema strictly separates these shapes.
-`orchbee.panel.process-info` remains v2. Catalog v95 contains 91 documents and 108 command paths.
+`orchbee.panel.process-info` remains v2. Catalog v96 contains 91 documents and 108 command paths.
 
 ## Refinement and evidence
 
@@ -81,7 +81,7 @@ checks do not establish atomic snapshot/Client/OS observations or other-platform
 The passive Presentation read extends the matched private wire cohort; no dependency, durable state,
 or migration changes. Existing non-Windows
 query behavior remains unchanged; `--client` is Windows-only. Consumers of Windows current v3
-must accept the v6 enrichment contract. Rollout and rollback replace the CLI executable within
+must accept the v7 enrichment contract. Rollout and rollback replace the CLI executable within
 the existing cohort; they do not migrate saved data.
 
 ## Exact current Presentation for process information
@@ -111,4 +111,34 @@ Client control receipt v6 admits this new intent while v1–v5 remain closed.
 Evidence covers strict contract parsing and reply identity, native child projection without
 primary borrowing, caller child resolution, and controlled Windows CLI request ordering and
 stale-member rejection. Full Windows/provider/multi-Client acceptance remains a final gate.
-Full `panel current` enrichment and report writes still require their own exact-member adapters.
+The following enrichment uses this same member identity; report writes remain a separate obligation.
+
+## Current member enrichment
+
+Windows `panel current` v7 resolves one canonical Presentation before joining observations.
+Explicit Panel targets choose their primary (including an unbound primary), caller metadata
+chooses that exact bound terminal, and Client targets use the passive exact-member read.
+`currentPresentation` identifies this member, its canonical label/override/binding and origin
+(`primary`, `caller`, or `client` with local attachment generation/incarnation). Canonical
+`primaryPresentation` and `childPresentations` retain their actual structure. Existing v3–v6
+remain closed; Panel Get/List retain their existing primary semantics.
+
+Current Agent membership, terminal title/directory/runtime, reports, metadata and Client scroll
+all use the same resolved member. Exact report reads validate Presentation ID, owning Panel and
+binding against the initial snapshot; missing or mismatched rows fail. Metadata/report revisions
+are independently fenced with the existing empty global reads, whose empty rows name no primary
+and whose revision owners are shared with exact-member reads. Aggregate limits and the overlapping
+read/fence order remain unchanged. Headless reads do not infer Client focus or scroll.
+
+A Client member read brackets the joins and final canonical-revision check. Both receipts require
+the original Client view revision and observation; local member tokens must agree, while viewport
+updates alone are allowed. Both operation IDs are retained in query provenance. Missing member,
+canonical change, reattachment or selection change yields no partial result. This uses one admitted
+session, the original five-second deadline, and existing signal/viewer cleanup owners. It does not
+claim atomic Host/process/Agent observations, and creates no input or focus effects.
+
+Pure target tests and actual Windows CLI peer traces cover primary, child caller, selected child,
+unbound explicit primary, exact report/metadata association, stale tokens/revisions, failure
+envelopes and legacy schema rejection. The final provider/multi-Client/full gate remains deferred.
+No new wire shape, dependency or durable migration is required; roll out the updated native CLI
+with its existing matched cohort, and roll back by source. Report writes remain a separate obligation.

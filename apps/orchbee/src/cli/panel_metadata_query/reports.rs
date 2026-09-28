@@ -21,13 +21,13 @@ pub(super) struct Document {
     encoded_bytes: usize,
     byte_limit: usize,
 }
-fn exchange(
+fn send(
     client: &mut LocalClient,
     snapshot: &Snapshot,
-    ids: &[WorkbenchPanelId],
+    action: PanelAgentAction,
     deadline: Instant,
     signals: &mut ArmedSignals,
-) -> Result<(WorkbenchRequestId, WorkbenchRevision, Vec<PanelAgentRow>), Failure> {
+) -> Result<(WorkbenchRequestId, PanelAgentOutcome), Failure> {
     signals.check_before(deadline)?;
     let request_id = query::request_id()?;
     let reply = client.panel_agent(
@@ -35,9 +35,7 @@ fn exchange(
             protocol_version: snapshot.protocol_version,
             request_id: request_id.clone(),
             site_id: snapshot.site_id.clone(),
-            action: PanelAgentAction::Read {
-                panel_ids: ids.to_vec(),
-            },
+            action,
         },
         deadline,
         signals.poll_fd(),
@@ -56,8 +54,7 @@ fn exchange(
             _ => FailureKind::TransportLoss,
         })
     })?;
-    let (revision, rows) = observe(snapshot, reply.outcome)?;
-    Ok((request_id, revision, rows))
+    Ok((request_id, reply.outcome))
 }
 fn observe(
     snapshot: &Snapshot,
@@ -97,6 +94,78 @@ fn observe(
         _ => Err(Failure::new(FailureKind::ProtocolInvalid)),
     }
 }
+fn exchange(
+    client: &mut LocalClient,
+    snapshot: &Snapshot,
+    ids: &[WorkbenchPanelId],
+    deadline: Instant,
+    signals: &mut ArmedSignals,
+) -> Result<(WorkbenchRequestId, WorkbenchRevision, Vec<PanelAgentRow>), Failure> {
+    let (id, outcome) = send(
+        client,
+        snapshot,
+        PanelAgentAction::Read {
+            panel_ids: ids.to_vec(),
+        },
+        deadline,
+        signals,
+    )?;
+    let (revision, rows) = observe(snapshot, outcome)?;
+    Ok((id, revision, rows))
+}
+
+pub(super) fn read_presentation(
+    client: &mut LocalClient,
+    snapshot: &Snapshot,
+    member: &crate::cli::current_presentation::Resolved,
+    byte_limit: usize,
+    deadline: Instant,
+    signals: &mut ArmedSignals,
+) -> Result<Document, Failure> {
+    let (id, outcome) = send(
+        client,
+        snapshot,
+        PanelAgentAction::ReadPresentations {
+            presentation_ids: vec![member.presentation_id.clone()],
+        },
+        deadline,
+        signals,
+    )?;
+    let (workbench_revision, revision, mut rows) = match outcome {
+        PanelAgentOutcome::PresentationsRead {
+            workbench_revision,
+            report_revision,
+            presentations,
+        } => (workbench_revision, report_revision, presentations),
+        other => {
+            return observe(snapshot, other)
+                .and_then(|_| Err(Failure::new(FailureKind::ProtocolInvalid)));
+        }
+    };
+    if workbench_revision != snapshot.revision {
+        return Err(crate::cli::workbench_agents::failure("workbench-changed"));
+    }
+    if rows.len() != 1 {
+        return Err(Failure::new(FailureKind::ProtocolInvalid));
+    }
+    let row = rows.pop().expect("one exact member");
+    if row.presentation_id != member.presentation_id
+        || row.panel.panel_id != member.panel_id
+        || row.panel.binding != member.binding
+    {
+        return Err(Failure::new(FailureKind::ProtocolInvalid));
+    }
+    let mut document = Document {
+        rows: BTreeMap::new(),
+        revision,
+        request_ids: vec![],
+        encoded_bytes: 0,
+        byte_limit,
+    };
+    document.admit(id, revision, vec![row.panel])?;
+    Ok(document)
+}
+
 pub(super) fn read(
     client: &mut LocalClient,
     snapshot: &Snapshot,

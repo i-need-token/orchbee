@@ -28,6 +28,7 @@ mod tests;
 pub(crate) struct Document {
     pub(super) projection: Box<Projection>,
     client: Option<ClientViewRecord>,
+    current_member: Option<super::current_presentation::Resolved>,
     agents: Option<super::workbench_agents::Document>,
     terminals: Option<super::workbench_terminals::Document>,
     viewports: Option<super::workbench_viewports::Document>,
@@ -214,6 +215,7 @@ fn execute(
         &snapshot,
         projection,
         original,
+        None,
         deadline,
         signals,
     )
@@ -226,6 +228,7 @@ pub(super) fn collect(
     snapshot: &Snapshot,
     projection: Projection,
     original: Option<ClientViewRecord>,
+    current_member: Option<super::current_presentation::Resolved>,
     deadline: Instant,
     signals: &mut ArmedSignals,
 ) -> Result<(Value, Document), Failure> {
@@ -242,7 +245,13 @@ pub(super) fn collect(
         .map(|record| requested_contexts(&projection, record))
         .transpose()?
         .unwrap_or_default();
+    if let Some(member) = &current_member
+        && !matches!(&projection, Projection::PanelGet(panel) if panel.row.panel_id == member.panel_id.as_str())
+    {
+        return Err(Failure::new(FailureKind::InternalFailure));
+    }
     let mut document = Document {
+        current_member,
         projection: Box::new(projection),
         client: original,
         agents: None,
@@ -254,6 +263,13 @@ pub(super) fn collect(
         operations: vec![],
         contexts: vec![],
     };
+    if let Some(read) = document
+        .current_member
+        .as_ref()
+        .and_then(|member| member.client())
+    {
+        document.operations.push(read.operation_id.clone());
+    }
     for ids in requested.chunks(MAXIMUM_CLIENT_SELECTION_CONTEXTS) {
         let record = document
             .client
@@ -307,6 +323,7 @@ pub(super) fn collect(
         snapshot,
         &document.projection,
         document.client.as_ref(),
+        document.current_member.as_ref(),
         deadline,
         signals,
     )?);
@@ -323,17 +340,22 @@ pub(super) fn collect(
         client,
         snapshot,
         &document.projection,
+        document.current_member.as_ref(),
         deadline,
         signals,
     )?;
-    document.viewports = super::workbench_viewports::read(
-        client,
-        snapshot,
-        &document.projection,
-        document.client.as_ref(),
-        deadline,
-        signals,
-    )?;
+    document.viewports = if let Some(member) = &document.current_member {
+        super::workbench_viewports::from_current(member)
+    } else {
+        super::workbench_viewports::read(
+            client,
+            snapshot,
+            &document.projection,
+            document.client.as_ref(),
+            deadline,
+            signals,
+        )?
+    };
     if let Some(viewports) = &document.viewports {
         document
             .operations
@@ -356,8 +378,13 @@ pub(super) fn collect(
                     .map_err(|_| Failure::new(FailureKind::InternalFailure))
             })
             .collect::<Result<Vec<_>, _>>()?;
-        let mut metadata =
-            super::panel_metadata_query::read(client, snapshot, &ids, deadline, signals)?;
+        let mut metadata = if let Some(member) = &document.current_member {
+            super::panel_metadata_query::read_presentation(
+                client, snapshot, member, deadline, signals,
+            )?
+        } else {
+            super::panel_metadata_query::read(client, snapshot, &ids, deadline, signals)?
+        };
         metadata.verify(client, snapshot, deadline, signals)?;
         document.panel_metadata = Some(metadata);
     }
@@ -374,7 +401,27 @@ pub(super) fn collect(
     if final_snapshot.revision != snapshot.revision {
         return Err(super::workbench_agents::failure("workbench-changed"));
     }
-    if let Some(original) = &document.client {
+    if let (Some(original), Some(member), Some(first)) = (
+        &document.client,
+        &document.current_member,
+        document
+            .current_member
+            .as_ref()
+            .and_then(|member| member.client()),
+    ) {
+        let last = super::current_presentation::read_with_receipt(
+            client,
+            snapshot,
+            original,
+            &member.panel_id,
+            deadline,
+            signals,
+        )?;
+        if !first.member.same_member(&last.member) {
+            return Err(super::workbench_agents::failure("client-changed"));
+        }
+        document.operations.push(last.operation_id);
+    } else if let Some(original) = &document.client {
         let final_client = current(
             client,
             snapshot,
@@ -447,6 +494,9 @@ fn verify_membership(
 impl Document {
     pub(super) fn result(&self) -> Value {
         let mut value = self.projection.result();
+        if let Some(member) = &self.current_member {
+            value["panel"]["currentPresentation"] = member.value();
+        }
         if let Some(agents) = &self.agents {
             agents.enrich(&mut value);
         }
@@ -521,6 +571,9 @@ impl Document {
         command: &QueryCommand,
         locale: Locale,
     ) -> Result<(), TooLarge> {
+        if let Some(member) = &self.current_member {
+            member.render(out, locale)?;
+        }
         if let Some(agents) = &self.agents {
             agents.render(out, locale)?;
         }

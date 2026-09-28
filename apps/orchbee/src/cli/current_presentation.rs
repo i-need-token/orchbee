@@ -4,6 +4,12 @@ use crate::local_client::LocalClient;
 use orchbee_workbench_protocol::*;
 use std::time::Instant;
 
+#[derive(Debug, Clone)]
+pub(super) struct Read {
+    pub(super) member: ClientPresentationSelection,
+    pub(super) operation_id: WorkbenchRequestId,
+}
+
 pub(super) fn read(
     client: &mut LocalClient,
     snapshot: &Snapshot,
@@ -12,6 +18,18 @@ pub(super) fn read(
     deadline: Instant,
     signals: &mut ArmedSignals,
 ) -> Result<ClientPresentationSelection, Failure> {
+    read_with_receipt(client, snapshot, selected, panel_id, deadline, signals)
+        .map(|read| read.member)
+}
+
+pub(super) fn read_with_receipt(
+    client: &mut LocalClient,
+    snapshot: &Snapshot,
+    selected: &ClientViewRecord,
+    panel_id: &WorkbenchPanelId,
+    deadline: Instant,
+    signals: &mut ArmedSignals,
+) -> Result<Read, Failure> {
     signals.check_before(deadline)?;
     let command = ClientViewControl {
         operation_id: query::request_id()?,
@@ -77,5 +95,93 @@ pub(super) fn read(
     {
         return Err(Failure::new(FailureKind::ProtocolInvalid));
     }
-    Ok(member)
+    Ok(Read {
+        member,
+        operation_id: command.operation_id,
+    })
 }
+
+#[derive(Debug, Clone)]
+pub(super) enum Origin {
+    Primary,
+    Caller(TerminalId),
+    Client(Box<Read>),
+}
+
+/// One resolved member shared by every enrichment; canonical Panel structure stays immutable.
+#[derive(Debug, Clone)]
+pub(super) struct Resolved {
+    pub(super) panel_id: WorkbenchPanelId,
+    pub(super) presentation_id: TerminalPresentationId,
+    pub(super) binding: Option<PresentationBinding>,
+    presentation: results::PresentationRow,
+    origin: Origin,
+}
+impl Resolved {
+    pub(super) fn new(panel: &results::PanelDoc, origin: Origin) -> Result<Self, Failure> {
+        let invalid = || Failure::new(FailureKind::ProtocolInvalid);
+        let members =
+            || std::iter::once(&panel.primary_presentation).chain(&panel.child_presentations);
+        let presentation = match &origin {
+            Origin::Primary => &panel.primary_presentation,
+            Origin::Caller(terminal) => members()
+                .find(|row| row.terminal_id.as_deref() == Some(terminal.as_str()))
+                .ok_or_else(invalid)?,
+            Origin::Client(read) => members()
+                .find(|row| row.presentation_id == read.member.presentation_id.as_str())
+                .ok_or_else(invalid)?,
+        };
+        let binding = match (&presentation.terminal_id, &presentation.worker_id) {
+            (Some(terminal), Some(worker)) => Some(PresentationBinding {
+                terminal_id: TerminalId::parse(terminal).map_err(|_| invalid())?,
+                worker_id: WorkerId::parse(worker).map_err(|_| invalid())?,
+            }),
+            (None, None) => None,
+            _ => return Err(invalid()),
+        };
+        if let Origin::Client(read) = &origin
+            && binding.as_ref() != Some(&read.member.binding)
+        {
+            return Err(invalid());
+        }
+        Ok(Self {
+            panel_id: WorkbenchPanelId::parse(&panel.row.panel_id).map_err(|_| invalid())?,
+            presentation_id: TerminalPresentationId::parse(&presentation.presentation_id)
+                .map_err(|_| invalid())?,
+            binding,
+            presentation: presentation.clone(),
+            origin,
+        })
+    }
+    pub(super) fn client(&self) -> Option<&Read> {
+        match &self.origin {
+            Origin::Client(read) => Some(read),
+            _ => None,
+        }
+    }
+    pub(super) fn value(&self) -> serde_json::Value {
+        let mut value = results::presentation_json(&self.presentation);
+        value["source"] = match &self.origin {
+            Origin::Primary => serde_json::json!({"kind":"primary"}),
+            Origin::Caller(_) => serde_json::json!({"kind":"caller"}),
+            Origin::Client(read) => serde_json::json!({"kind":"client",
+                "attachmentGeneration":read.member.attachment_generation,"incarnation":read.member.incarnation}),
+        };
+        value
+    }
+    pub(super) fn render(
+        &self,
+        out: &mut super::output::Bounded,
+        locale: crate::localization::Locale,
+    ) -> Result<(), super::output::TooLarge> {
+        out.write(format_args!(
+            "{}: {}  {}\n",
+            locale.cli_current_presentation_label(),
+            self.presentation_id,
+            super::escape::escape(&self.presentation.display_label)
+        ))
+    }
+}
+
+#[cfg(test)]
+mod tests;

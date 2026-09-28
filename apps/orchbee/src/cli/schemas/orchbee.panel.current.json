@@ -10,7 +10,7 @@
 			"const": "orchbee.panel.current"
 		},
 		"version": {
-			"enum": [3, 4, 5, 6]
+			"enum": [3, 4, 5, 6, 7]
 		},
 		"source": {
 			"$ref": "#/$defs/snapshotSource"
@@ -121,6 +121,9 @@
 						},
 						"reportedAgent": {
 							"$ref": "#/$defs/reportedAgent"
+						},
+						"currentPresentation": {
+							"$ref": "#/$defs/currentPresentation"
 						}
 					},
 					"allOf": [
@@ -2389,6 +2392,110 @@
 					}
 				}
 			]
+		},
+		"currentPresentation": {
+			"type": "object",
+			"required": ["presentationId", "label", "binding", "customLabel", "displayLabel", "source"],
+			"additionalProperties": false,
+			"properties": {
+				"displayLabel": {
+					"type": "string"
+				},
+				"customLabel": {
+					"anyOf": [
+						{
+							"type": "string",
+							"minLength": 1,
+							"maxLength": 512,
+							"pattern": "^[^\\u0009-\\u000d\\u0020\\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000](?:[\\s\\S]*[^\\u0009-\\u000d\\u0020\\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000])?(?![\\s\\S])"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"presentationId": {
+					"$ref": "#/$defs/id"
+				},
+				"label": {
+					"type": "string"
+				},
+				"binding": {
+					"anyOf": [
+						{
+							"type": "object",
+							"required": ["terminalId", "workerId"],
+							"additionalProperties": false,
+							"properties": {
+								"terminalId": {
+									"$ref": "#/$defs/id"
+								},
+								"workerId": {
+									"$ref": "#/$defs/id"
+								}
+							}
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"source": {
+					"oneOf": [
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"enum": ["primary", "caller"]
+								}
+							},
+							"required": ["kind"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "client"
+								},
+								"attachmentGeneration": {
+									"$ref": "#/$defs/revision"
+								},
+								"incarnation": {
+									"type": "integer",
+									"minimum": 0,
+									"maximum": 4294967295
+								}
+							},
+							"required": ["kind", "attachmentGeneration", "incarnation"],
+							"additionalProperties": false
+						}
+					]
+				}
+			},
+			"allOf": [
+				{
+					"if": {
+						"properties": {
+							"source": {
+								"type": "object",
+								"properties": {
+									"kind": {
+										"enum": ["client", "caller"]
+									}
+								}
+							}
+						}
+					},
+					"then": {
+						"properties": {
+							"binding": {
+								"type": "object"
+							}
+						}
+					}
+				}
+			]
 		}
 	},
 	"allOf": [
@@ -2484,7 +2591,7 @@
 			"if": {
 				"properties": {
 					"version": {
-						"enum": [5, 6]
+						"enum": [5, 6, 7]
 					}
 				}
 			},
@@ -2538,7 +2645,7 @@
 			"if": {
 				"properties": {
 					"version": {
-						"enum": [6]
+						"enum": [6, 7]
 					}
 				}
 			},
@@ -2580,6 +2687,43 @@
 								},
 								"not": {
 									"required": ["reportedAgent"]
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"version": {
+						"const": 7
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"result": {
+						"type": "object",
+						"properties": {
+							"panel": {
+								"type": "object",
+								"required": ["currentPresentation"]
+							}
+						}
+					}
+				}
+			},
+			"else": {
+				"properties": {
+					"result": {
+						"type": "object",
+						"properties": {
+							"panel": {
+								"type": "object",
+								"not": {
+									"required": ["currentPresentation"]
 								}
 							}
 						}

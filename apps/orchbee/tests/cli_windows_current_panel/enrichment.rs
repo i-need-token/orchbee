@@ -1,10 +1,48 @@
 //! Current selection is pinned before joins, including a move away and back.
+fn member(stream: &mut LocalStream, client: u64, panel: u64, case: &str, final_read: bool) {
+    let request = view_request(stream);
+    let ClientViewAction::Submit { command } = &request.action else {
+        panic!("passive member read")
+    };
+    assert_eq!(command.client_id.as_str(), id(client));
+    assert_eq!(json!(command.expected_view_revision), "2");
+    assert_eq!(json!(command.minimum_workbench_revision), "12");
+    assert_eq!(
+        json!(command.intent),
+        json!({"kind":"presentation","panelId":id(panel)})
+    );
+    let moved = (final_read && case == "final-moved") || (!final_read && case == "viewport-moved");
+    let mut view = record(client, if moved { 8 } else { panel })["view"].clone();
+    if case == "busy" {
+        view["phase"] = json!("busy");
+    }
+    let viewport = json!({"state":"observed","mode":"history",
+        "source":{"hostEpoch":id(50),"attachmentId":id(51),"generation":"1","revision":"5",
+            "columns":80,"alternateScreen":false,"totalRows":"400","startRow":"100"},
+        "scroll":{"offsetFromBottom":"276","maxOffsetFromBottom":"376","viewportRows":24}});
+    view_reply(
+        stream,
+        &request,
+        json!({"kind":"operation","operation":{"command":command,
+        "status":{"kind":"presentation-read","view":view,"presentation":{"workbenchRevision":"12","panelId":id(panel),
+            "presentation":{"presentationId":id(panel+300),"binding":{"terminalId":id(panel+400),"workerId":"6f7263686265652d6c6f63616c2d7631"},
+                "attachmentGeneration":if final_read && case == "away-and-back" {"8"} else {"7"},
+                "incarnation":0,"viewport":viewport}}}}}),
+    );
+}
+
 use super::*;
 use orchbee_agent_observation_protocol::{
     AgentRequest, AgentResult, read_agent_request, write_agent_result,
 };
 
 pub(super) fn read(stream: &mut LocalStream, panel: u64, client: Option<u64>, case: &str) {
+    if let Some(client) = client {
+        member(stream, client, panel, case, false);
+        if case == "viewport-moved" {
+            return;
+        }
+    }
     let AgentRequest::Read(request) = read_agent_request(stream).unwrap() else {
         panic!("read-only Agent list")
     };
@@ -24,7 +62,7 @@ pub(super) fn read(stream: &mut LocalStream, panel: u64, client: Option<u64>, ca
     assert_eq!(
         json!(request.action()),
         json!({"kind":"attach-binding", "siteId":id(2),
-        "workerId":"6f7263686265652d6c6f63616c2d7631", "terminalId":id(panel+200)})
+        "workerId":"6f7263686265652d6c6f63616c2d7631", "terminalId":id(panel+if client.is_some() || case == "caller-child" {400} else {200})})
     );
     answer(
         stream,
@@ -33,52 +71,9 @@ pub(super) fn read(stream: &mut LocalStream, panel: u64, client: Option<u64>, ca
             reason: c::ViewerUnavailableReason::TerminalRuntimeUnavailable,
         },
     );
-    if let Some(client) = client {
-        let request = view_request(stream);
-        let ClientViewAction::Submit { command } = &request.action else {
-            panic!("read-only viewport operation")
-        };
-        assert_eq!(command.client_id.as_str(), id(client));
-        assert_eq!(json!(command.expected_view_revision), "2");
-        assert_eq!(json!(command.minimum_workbench_revision), "12");
-        assert_eq!(
-            json!(command.intent),
-            json!({"kind":"viewports","panelIds":[id(panel)]})
-        );
-        let mut view =
-            record(client, if case == "viewport-moved" { 8 } else { panel })["view"].clone();
-        if case == "busy" {
-            view["phase"] = json!("busy");
-        }
-        let observation = json!({"state":"observed","mode":"history",
-            "source":{"hostEpoch":id(50),"attachmentId":id(51),"generation":"1","revision":"5",
-                "columns":80,"alternateScreen":false,"totalRows":"400","startRow":"100"},
-            "scroll":{"offsetFromBottom":"276","maxOffsetFromBottom":"376","viewportRows":24}});
-        view_reply(
-            stream,
-            &request,
-            json!({"kind":"operation","operation":{"command":command,
-            "status":{"kind":"viewport-read","view":view,"viewport":{"workbenchRevision":"12",
-                "panels":[{"panelId":id(panel),"primaryTerminalId":id(panel+200),"observation":observation}]}}}}),
-        );
-        if case == "viewport-moved" {
-            return;
-        }
-    }
     snapshot_reply(stream);
     if let Some(client) = client {
-        let request = view_request(stream);
-        assert!(
-            matches!(&request.action, ClientViewAction::Get { client_id } if client_id.as_str() == id(client))
-        );
-        let mut selected = record(client, if case == "final-moved" { 8 } else { panel });
-        if case == "busy" {
-            selected["view"]["phase"] = json!("busy");
-        }
-        if matches!(case, "final-moved" | "away-and-back") {
-            selected["viewRevision"] = json!("4");
-        }
-        view_reply(stream, &request, json!({"kind":"found","client":selected}));
+        member(stream, client, panel, case, true);
     }
 }
 

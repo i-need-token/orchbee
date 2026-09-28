@@ -13,7 +13,11 @@ use orchbee_terminal_protocol::{
     encode_transport_envelope,
 };
 
-fn reply(stream: &mut LocalStream, expected: &str, outcome: TerminalViewerOutcome) {
+fn reply(
+    stream: &mut LocalStream,
+    expected: &str,
+    outcome: TerminalViewerOutcome,
+) -> orchbee_client_server_protocol::TerminalViewerRequest {
     let ClientMessage::TerminalViewer(request) = read_client_message(stream).unwrap() else {
         panic!("only viewer {expected}")
     };
@@ -35,6 +39,7 @@ fn reply(stream: &mut LocalStream, expected: &str, outcome: TerminalViewerOutcom
         )),
     )
     .unwrap();
+    request
 }
 pub(crate) fn unavailable(stream: &mut LocalStream) {
     reply(
@@ -71,10 +76,18 @@ fn frame_bytes() -> Vec<u8> {
 }
 
 pub(crate) fn sample(stream: &mut LocalStream, mode: &str, image: &str) {
+    sample_for(stream, mode, image, None);
+}
+pub(crate) fn sample_for(
+    stream: &mut LocalStream,
+    mode: &str,
+    image: &str,
+    expected_terminal: Option<&str>,
+) {
     let bytes = frame_bytes();
     let frame = decode_terminal_text_frame(&bytes).unwrap();
     let route = frame.route;
-    reply(
+    let attached = reply(
         stream,
         "attach",
         TerminalViewerOutcome::Attached {
@@ -89,6 +102,11 @@ pub(crate) fn sample(stream: &mut LocalStream, mode: &str, image: &str) {
             .unwrap(),
         },
     );
+    if let Some(expected) = expected_terminal {
+        assert!(
+            matches!(attached.action(), TerminalViewerAction::AttachBinding { terminal_id, .. } if terminal_id.as_str() == expected)
+        );
+    }
     if mode == "deadline" {
         let ClientMessage::TerminalViewer(request) = read_client_message(stream).unwrap() else {
             panic!("frame poll")

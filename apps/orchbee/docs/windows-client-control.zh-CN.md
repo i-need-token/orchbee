@@ -142,5 +142,5 @@ Presentation ID、精确绑定、现有本地附着代次及窗格实例编号�
 此操作不能以已应用导航完成。
 
 [当前 Panel 契约](native-current-panel.zh-CN.md#进程信息的精确当前-presentation)
-负责 Windows process-info 组合及前后成员栅栏。Client control v6 接纳此意图；
+负责 Windows process-info/current 组合及前后成员栅栏。Client control v6 接纳此意图；
 v1–v5 保持封闭。已有主终端 `viewports` 读取保留原有语义。

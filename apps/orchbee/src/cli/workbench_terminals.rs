@@ -20,6 +20,7 @@ pub(super) fn read(
     client: &mut LocalClient,
     snapshot: &Snapshot,
     projection: &Projection,
+    current: Option<&super::current_presentation::Resolved>,
     deadline: Instant,
     signals: &mut ArmedSignals,
 ) -> Result<Option<Document>, Failure> {
@@ -31,13 +32,24 @@ pub(super) fn read(
     let mut rows = BTreeMap::new();
     for panel in panels {
         signals.check_before(deadline)?;
-        let observation = match &panel.primary_terminal_id {
+        let terminal = if let Some(member) = current {
+            if panel.panel_id != member.panel_id.as_str() {
+                return Err(Failure::new(FailureKind::InternalFailure));
+            }
+            member
+                .binding
+                .as_ref()
+                .map(|binding| binding.terminal_id.as_str())
+        } else {
+            panel.primary_terminal_id.as_deref()
+        };
+        let observation = match terminal {
             None => Observation::Unbound,
             Some(id) => {
                 let outcome = query::terminal_metadata::read(
                     client,
                     snapshot,
-                    &Target::Id(id.clone()),
+                    &Target::Id(id.to_owned()),
                     deadline,
                     signals.poll_fd(),
                 );

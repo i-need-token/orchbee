@@ -107,13 +107,34 @@ fn collect(
     };
     check_pending(deadline, signals)?;
     let result = match command {
-        QueryCommand::PanelCurrent(_) => {
+        QueryCommand::PanelCurrent(_) => (|| {
+            use crate::cli::current_presentation::{self, Origin, Resolved};
             let projection = results::project(&QueryCommand::PanelGet(panel), &snapshot)?;
+            let results::Projection::PanelGet(doc) = &projection else {
+                return Err(Failure::new(FailureKind::InternalFailure));
+            };
+            let origin = if let Some(record) = &selected {
+                let panel_id =
+                    orchbee_workbench_protocol::WorkbenchPanelId::parse(&doc.row.panel_id)
+                        .map_err(|_| Failure::new(FailureKind::InternalFailure))?;
+                Origin::Client(Box::new(current_presentation::read_with_receipt(
+                    &mut client,
+                    &snapshot,
+                    record,
+                    &panel_id,
+                    deadline,
+                    signals,
+                )?))
+            } else {
+                caller_terminal.map_or(Origin::Primary, Origin::Caller)
+            };
+            let member = Resolved::new(doc, origin)?;
             workbench_query::collect(
                 &mut client,
                 &snapshot,
                 projection,
                 selected,
+                Some(member),
                 deadline,
                 signals,
             )
@@ -123,7 +144,7 @@ fn collect(
                     results::Projection::WorkbenchQuery(Box::new(document)),
                 )
             })
-        }
+        })(),
         QueryCommand::PanelProcessInfo(_) => (|| {
             let panel_id = selected
                 .as_ref()

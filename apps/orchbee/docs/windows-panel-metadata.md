@@ -49,11 +49,14 @@ does not establish complete Herdr Panel/Agent parity or Desktop support.
 
 ## Query observation model
 
-Panel list/get/current and Agent Get consume Server metadata and explicit Agent reports through
+Panel list/get and Agent Get consume Server metadata and explicit Agent reports through
 one bounded query collector. Inputs are the admitted connection, original Snapshot, ordered Panel
 IDs, original absolute deadline and cancellation signal. Both families read batches of four and
 require their own stable revision across batches. Every row must match the original primary
-binding and Workbench revision. All data reads finish before empty reads fence first metadata and
+binding and Workbench revision. `panel current` instead resolves one exact member and validates
+its Presentation ID, owning Panel and nullable binding using `ReadPresentations`; see
+[current member enrichment](native-current-panel.md#current-member-enrichment). Both read forms
+share the same global revisions. All data reads finish before empty reads fence first metadata and
 then Agent reports; their stable intervals therefore overlap. Neither family can silently change
 during this join. A change rejects the query with `metadata-changed`, including report changes that
 would change metadata guard context. The outer query still fences canonical and selected Client
@@ -78,7 +81,7 @@ readiness. External provider references remain separate from canonical observati
 and are not executed by these queries. Automatic Host process production, associated names,
 provider resume/persistence and TUI publication remain separate integration obligations.
 
-Windows Panel list/get emit v9, current emits v6, and Agent Get emits v11 (v12 with `--client`).
+Windows Panel list/get emit v9, current emits v7, and Agent Get emits v11 (v12 with `--client`).
 Every Panel row and non-null Agent terminal requires metadata and reportedAgent. Earlier metadata
 versions retain null guard context and reject reportedAgent; still older versions reject metadata
 as well. Their closed previous shapes remain accepted. Localized text escapes effective metadata,

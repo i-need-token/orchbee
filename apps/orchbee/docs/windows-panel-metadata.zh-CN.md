@@ -40,9 +40,12 @@ Server 在 Site 锁内按读取权限读取、按导航权限上报。读取返�
 
 ## 查询观察模型
 
-Panel list/get/current 与 Agent Get 通过一个有界收集器读取 Server 元数据和显式 Agent 上报。
+Panel list/get 与 Agent Get 通过一个有界收集器读取 Server 元数据和显式 Agent 上报。
 输入为已准入连接、原始 Snapshot、有序 Panel ID、原始绝对期限及取消信号。两类接口均每批
 读取四个 Panel，分别要求自身修订号跨批稳定。每条返回行须匹配原始主绑定及 Workbench 修订号。
+`panel current` 则解析一个精确成员，通过 `ReadPresentations` 校验其 Presentation ID、所属
+Panel 和可空绑定；见[当前成员信息增强](native-current-panel.zh-CN.md#当前成员信息增强)。
+两种读取形式共用相同的全局修订号。
 全部数据读完后，先空读校验元数据，再空读校验 Agent 上报；两者稳定区间因此重叠，联合查询
 期间任一类都不能静默变化。发生变化以 `metadata-changed` 拒绝查询，包括会改变元数据守卫
 上下文的上报变化。外层仍校验规范状态及所选 Client 状态，不自动重试或发布部分投影。
@@ -62,7 +65,7 @@ Agent Get 使用唯一且存活的主绑定；Agent 已结束、未绑定、多�
 引用与规范观察 Session ID 独立，查询不会执行引用。自动 Host 进程生产、关联名称、provider
 恢复／持久化及 TUI 发布仍是独立集成义务。
 
-Windows Panel list/get 输出 v9，current 输出 v6，Agent Get 输出 v11（带 `--client` 时为 v12）。
+Windows Panel list/get 输出 v9，current 输出 v7，Agent Get 输出 v11（带 `--client` 时为 v12）。
 每个 Panel 行和非 null 的 Agent terminal 必须包含 metadata 与 reportedAgent。前序元数据版本
 保留 null 守卫上下文并拒绝 reportedAgent；更早版本同时拒绝 metadata，原有闭合形状仍被接受。
 本地化文本转义有效元数据、上报详情、消息和外部引用。目录 v90 包含 90 份 schema 和 104 条

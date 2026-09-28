@@ -196,7 +196,7 @@ fn caller_explicit_and_client_targets_preserve_precedence_without_mutating_contr
                             4 => Some(12),
                             _ => None,
                         },
-                        "stable",
+                        if mode == 1 { "caller-child" } else { "stable" },
                     );
                 }
                 assert_closed(&mut stream);
@@ -243,8 +243,16 @@ fn caller_explicit_and_client_targets_preserve_precedence_without_mutating_contr
                     id(selected + if mode == 1 || mode >= 3 { 400 } else { 200 })
                 );
             } else {
-                assert_eq!(doc["version"], 6);
+                assert_eq!(doc["version"], 7);
                 assert_eq!(doc["result"]["panel"]["panelId"], id(selected));
+                assert_eq!(
+                    doc["result"]["panel"]["currentPresentation"]["presentationId"],
+                    id(selected + if mode == 1 || mode >= 3 { 300 } else { 100 })
+                );
+                assert_eq!(
+                    doc["result"]["panel"]["primaryPresentation"]["presentationId"],
+                    id(selected + 100)
+                );
                 assert_eq!(doc["result"]["panel"]["agentSessionIds"], json!([]));
                 assert_eq!(
                     doc["result"]["panel"]["terminalObservation"]["state"],
@@ -261,6 +269,9 @@ fn caller_explicit_and_client_targets_preserve_precedence_without_mutating_contr
                 } else {
                     assert_eq!(doc["result"]["panel"]["focused"], true);
                     assert_eq!(doc["result"]["panel"]["scroll"]["offsetFromBottom"], "276");
+                    let operations = doc["result"]["client"]["operationIds"].as_array().unwrap();
+                    assert_eq!(operations.len(), 2);
+                    assert_ne!(operations[0], operations[1]);
                 }
             }
         }
@@ -422,3 +433,10 @@ mod enrichment;
 
 #[path = "cli_windows_current_panel/presentations.rs"]
 mod presentations;
+
+use support as peer_support;
+#[path = "cli_windows_current_panel/current_member.rs"]
+mod current_member;
+#[allow(dead_code)]
+#[path = "support/terminal_metadata_peer.rs"]
+mod terminal_metadata_peer;

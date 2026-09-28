@@ -100,7 +100,7 @@ pub(crate) const fn schema_version(command: &QueryCommand) -> u64 {
         }
         QueryCommand::PanelCurrent(_) => {
             if cfg!(windows) {
-                6
+                7
             } else {
                 3
             }
@@ -1906,7 +1906,7 @@ fn tab_row_json(row: &TabRow) -> Value {
     })
 }
 
-fn presentation_json(row: &PresentationRow) -> Value {
+pub(super) fn presentation_json(row: &PresentationRow) -> Value {
     json!({
         "presentationId": row.presentation_id,
         "label": row.label,

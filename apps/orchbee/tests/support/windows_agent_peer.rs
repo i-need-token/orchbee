@@ -481,6 +481,33 @@ pub(super) fn snapshot_after_metadata(
             }
         }
     }
+    fn presentation(
+        node: &PanelNode,
+        id: &TerminalPresentationId,
+    ) -> Option<(WorkbenchPanelId, Option<PresentationBinding>)> {
+        match node {
+            PanelNode::Panel {
+                panel_id,
+                primary_presentation,
+                child_presentations,
+                ..
+            } => std::iter::once(primary_presentation)
+                .chain(child_presentations)
+                .find(|member| &member.presentation_id == id)
+                .map(|member| (panel_id.clone(), member.binding.clone())),
+            PanelNode::Split { children, .. } => children
+                .iter()
+                .find_map(|slot| presentation(&slot.node, id)),
+        }
+    }
+    let exact = |id: &TerminalPresentationId| {
+        snapshot
+            .terminal_contexts
+            .iter()
+            .flat_map(|context| &context.tabs)
+            .find_map(|tab| presentation(&tab.root, id))
+            .expect("known member")
+    };
     let mut reads = 0;
     let mut fenced = false;
     let mut report_reads = 0;
@@ -497,6 +524,41 @@ pub(super) fn snapshot_after_metadata(
             WorkbenchRequest::PanelMetadata(request) => {
                 assert!(!fenced, "no reads after metadata fence");
                 assert_eq!(request.site_id, snapshot.site_id);
+                if let PanelMetadataAction::ReadPresentations { presentation_ids } = &request.action
+                {
+                    assert!(!presentation_ids.is_empty());
+                    reads += 1;
+                    let presentations = presentation_ids
+                        .iter()
+                        .map(|id| {
+                            let (panel_id, binding) = exact(id);
+                            PresentationMetadataRow {
+                                presentation_id: id.clone(),
+                                panel: PanelMetadataRow {
+                                    panel_id,
+                                    binding,
+                                    tokens: Default::default(),
+                                    presentations: vec![],
+                                },
+                            }
+                        })
+                        .collect();
+                    write_workbench_response(
+                        stream,
+                        &WorkbenchResponse::PanelMetadata(PanelMetadataResult {
+                            protocol_version: ProtocolVersion,
+                            request_id: request.request_id,
+                            site_id: request.site_id,
+                            outcome: PanelMetadataOutcome::PresentationsRead {
+                                workbench_revision: snapshot.revision,
+                                metadata_revision: WorkbenchRevision::new(0),
+                                presentations,
+                            },
+                        }),
+                    )
+                    .unwrap();
+                    continue;
+                }
                 let PanelMetadataAction::Read { panel_ids } = &request.action else {
                     panic!("query must never report metadata")
                 };
@@ -534,6 +596,46 @@ pub(super) fn snapshot_after_metadata(
             WorkbenchRequest::PanelAgent(request) => {
                 assert!(!report_fenced, "no reads after report fence");
                 assert_eq!(request.site_id, snapshot.site_id);
+                if let PanelAgentAction::ReadPresentations { presentation_ids } = &request.action {
+                    assert!(!presentation_ids.is_empty());
+                    report_reads += 1;
+                    let presentations = presentation_ids
+                        .iter()
+                        .map(|id| {
+                            let (panel_id, binding) = exact(id);
+                            let report = binding.as_ref().map(|_| PanelAgentView {
+                                agent: None,
+                                state: PanelAgentState::Unknown,
+                                authority_source: None,
+                                message: None,
+                                session: None,
+                            });
+                            PresentationAgentRow {
+                                presentation_id: id.clone(),
+                                panel: PanelAgentRow {
+                                    panel_id,
+                                    binding,
+                                    report,
+                                },
+                            }
+                        })
+                        .collect();
+                    write_workbench_response(
+                        stream,
+                        &WorkbenchResponse::PanelAgent(PanelAgentResult {
+                            protocol_version: ProtocolVersion,
+                            request_id: request.request_id,
+                            site_id: request.site_id,
+                            outcome: PanelAgentOutcome::PresentationsRead {
+                                workbench_revision: snapshot.revision,
+                                report_revision: WorkbenchRevision::new(0),
+                                presentations,
+                            },
+                        }),
+                    )
+                    .unwrap();
+                    continue;
+                }
                 let PanelAgentAction::Read { panel_ids } = &request.action else {
                     panic!("query must never report Agent state")
                 };

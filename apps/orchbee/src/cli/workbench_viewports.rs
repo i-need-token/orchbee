@@ -178,3 +178,11 @@ pub(super) fn enrich(document: Option<&Document>, result: &mut Value) {
         row(panel);
     }
 }
+
+/// Reuse the exact installed-member observation captured before enrichment.
+pub(super) fn from_current(member: &super::current_presentation::Resolved) -> Option<Document> {
+    member.client().map(|read| Document {
+        operations: vec![],
+        rows: BTreeMap::from([(member.panel_id.to_string(), read.member.viewport.clone())]),
+    })
+}

@@ -4104,3 +4104,12 @@ const HELP_TERMINAL_WAIT_OUTPUT_ZH: &str = r#"orchbee terminal wait-output <term
 匹配退出 0，超时退出 7，取消退出 130。JSON 使用 orchbee.terminal.wait-output v3，
 timeoutMs 可为 null。需要 30 秒期限和 1000 个最近行时，用 --lines 1000 --timeout 30000。
 "#;
+
+impl super::Locale {
+    pub(crate) const fn cli_current_presentation_label(self) -> &'static str {
+        match self {
+            Self::EnUs => "Current presentation",
+            Self::ZhCn => "当前终端成员",
+        }
+    }
+}
