@@ -30,6 +30,7 @@ pub struct TerminalAgentBinding {
 struct Resource {
     physical: TerminalAgentBinding,
     reports: Reports,
+    explicit_revision: u64,
     bytes: usize,
 }
 #[derive(Default)]
@@ -309,6 +310,7 @@ impl WorkbenchAuthority {
                             Resource {
                                 physical: (*physical).clone(),
                                 reports: transition.next,
+                                explicit_revision: revision,
                                 bytes: next_bytes,
                             },
                         );
@@ -373,6 +375,16 @@ impl PanelAgents {
     }
 }
 impl WorkbenchAuthority {
+    /// Per-binding explicit-report input stamp; process confirmations never advance it.
+    /// The physical identity prevents a replacement from inheriting a previous stamp.
+    #[must_use]
+    pub fn terminal_agent_input_revision(&self, target: &TerminalAgentBinding) -> u64 {
+        self.panel_agent
+            .resources
+            .get(&key(&target.binding))
+            .filter(|r| &r.physical == target)
+            .map_or(0, |r| r.explicit_revision)
+    }
     /// Commits a trusted sample and its metadata cleanup together after all capacity/revision checks.
     /// `target` must still match an exact retained fact and committed primary or child membership.
     /// # Errors
@@ -479,6 +491,9 @@ impl WorkbenchAuthority {
                     Resource {
                         physical: target.clone(),
                         reports: transition.next,
+                        explicit_revision: prior
+                            .filter(|r| &r.physical == target)
+                            .map_or(0, |r| r.explicit_revision),
                         bytes: next_bytes,
                     },
                 );

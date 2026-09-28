@@ -196,6 +196,7 @@ impl SiteCoordinator {
             terminals,
             workbench,
             standalone,
+            ..
         } = self;
         let Some(workbench) = workbench.as_mut() else {
             return PreparedOpen::Ready(unavailable(CreateUnavailableReason::ServerBusy));

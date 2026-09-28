@@ -35,6 +35,7 @@ impl SiteCoordinator {
             terminals,
             workbench,
             standalone,
+            ..
         } = self;
         let workbench = workbench.as_mut()?;
         let grant =
@@ -384,6 +385,7 @@ impl SiteCoordinator {
             terminals,
             workbench,
             standalone,
+            ..
         } = self;
         let workbench = workbench.as_mut().ok_or(PostcommitCoordinationError)?;
         let Ok(prepared) = workbench.prepare_terminal_tab_close_publication(close_id, now) else {

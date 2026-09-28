@@ -31,5 +31,9 @@ orchbee-workbench-protocol = { path = "../../crates/workbench-protocol" }
 [target.'cfg(unix)'.dependencies]
 nix = { version = "0.31.3", default-features = false, features = ["fs", "poll", "process"] }
 
+[target.'cfg(windows)'.dependencies]
+# Parse Host process command lines with the Windows API; never infer identity from shell text.
+winsafe = { workspace = true, features = ["shell"] }
+
 [lints]
 workspace = true

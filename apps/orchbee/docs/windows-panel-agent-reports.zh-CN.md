@@ -49,7 +49,7 @@ applied/ignored/deferred 处理结果、实际变更标记及有效上报视图�
 
 ## 剩余集成与验证
 
-原生命令已经调用真实 Server 所有者。自动 Host 进程生产、关联名称、provider 恢复/持久化、
+原生命令已经调用真实 Server 所有者。周期 Host 进程生产、关联名称、provider 恢复/持久化、
 TUI 展示仍是独立集成义务。尤其是暂存的生命周期上报，不会因为 CLI
 回执成功就变成已确认进程。Panel list/get/current 与 Agent Get 现已展示带来源的 `reportedAgent`，并使用实际上下文应用
 元数据守卫；两类修订号共同校验，详见 [元数据投影](windows-panel-metadata.zh-CN.md#查询观察模型)。
@@ -58,3 +58,7 @@ TUI 展示仍是独立集成义务。尤其是暂存的生命周期上报，不�
 期限、应答相关性、绑定不匹配、丢失、畸形、迟到应答及不重放。回执测试在迟到取消、双语言及
 封闭 JSON schema 下保留三种处理结果。Windows 验收使用匹配 cohort 和隔离 Site，通过这些
 公开命令操作；不代表已执行认证 provider 任务或完成最终 TUI/全量回归验收。
+
+## 通过 Host 读取确认进程
+
+Windows 上成功的 `panel process-info` 及 Panel／Agent 查询中的终端观察会进入 Server 可信进程适配器。它再次校验精确的 Worker／Host 代际，识别唯一进程链，并可激活匹配的暂存生命周期上报。后续完整样本可证明保留的 PID／创建时间身份已离开，同时原子清理对应上报及适用元数据。缺失／失败／歧义样本不虚构退出；未改变的身份不会反复推进修订。Panel／Agent 查询先采集 Host 观察，再读取上报／元数据修订，因此自身成功接纳的进程确认可以出现在同一次结果中。之后若并发改变修订，查询返回既有 `metadata-changed` 失败，不发布混合结果。自动周期采样和屏幕回退状态仍待完成；进程识别不认证 provider，也不创建规范 Agent 会话。

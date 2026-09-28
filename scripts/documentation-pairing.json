@@ -114,8 +114,8 @@
 			"zhCnSha256": "8b8dd1f1b1aa221e5cf223933edb94e5b45d962f00b3f6da39517ee081adc4a9"
 		},
 		"apps/orchbee-server/docs/agent-report-model.md": {
-			"englishSha256": "c2e93d31234bc45d33d3a555f0960a7e6f5c3a94492367d21b484a2ce147f006",
-			"zhCnSha256": "777b357d50264c66b2f09512a5bb5ce6963f15a18657c4449b9487afc76bca46"
+			"englishSha256": "3e5c79b2bbde2b469c4878bf796198ef1eb7e30245696352279da72229834e6c",
+			"zhCnSha256": "0168543eaee5addac5e89c53499accdce0dd8cb2db1348783b309a9a59d8909f"
 		},
 		"apps/orchbee-server/docs/terminal-controller-takeover.md": {
 			"englishSha256": "d30b30c27f6d64a07517c1490296bce7cf612cdd9bf70ab6c3e0f08f270fa5eb",
@@ -294,8 +294,8 @@
 			"zhCnSha256": "a6607679c62cf2852b5b9c5b5359a1be8e7fee084b1713b7f4e32e79a66fd7a9"
 		},
 		"apps/orchbee/docs/windows-panel-agent-reports.md": {
-			"englishSha256": "fd165f1a589da878d8aefdaa8dc817a31382e1340dbaf5761bc622affc2f3e0b",
-			"zhCnSha256": "9af01d3380713c6b1facd5157afa1fa7e3decf34dca715fe1a87c56a40ed275c"
+			"englishSha256": "47f41d4bb140ffbb2323ee63a735ec3b8f5b2d6a9c86ffe85ee9377e15324c62",
+			"zhCnSha256": "6c61cbe8382dfc7324ece46c2718f8354114527bb573f1505e60d1b6d290a4cb"
 		},
 		"apps/orchbee/docs/windows-panel-metadata.md": {
 			"englishSha256": "7d64d0e2d6e89fbe060d575d73618269847ace6a242a7ceba3dc4204568ce55f",
@@ -354,8 +354,8 @@
 			"zhCnSha256": "4a34d8948be3a7e299f8789ced88ae2ff6bb7b9cd9233e8db7f6ae83423226a9"
 		},
 		"crates/agent-observation-protocol/README.md": {
-			"englishSha256": "1780bc998b1379f9c3bfd86707dced3dd5e188fe589853248a2da7e0574b883e",
-			"zhCnSha256": "94a330643f8713b3efbe648db0918b9ad0508fc20da9b8125dd59a1158e1658e"
+			"englishSha256": "73b89f5c9702ae6a4c69d7bc0ecbfaf41bae783d0f0b3a0fa0feb28eb24d8259",
+			"zhCnSha256": "a183e5367e70188a4b0ae81cc27b4e100cf967ac6a5331bd01de0790ca148c20"
 		},
 		"crates/capability-node-protocol/README.md": {
 			"englishSha256": "fcf0b57b85ad760129bb7a007bad13a9a1f18ff8b8ef98817ae66f2f46ed7a6e",

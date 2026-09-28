@@ -59,7 +59,7 @@ reject these carrier kinds. State is transient and no persistence migration is i
 
 ## Remaining integration and verification
 
-The native commands consume the real Server owner. Automatic Host process production,
+The native commands consume the real Server owner. Periodic Host process production,
 report-associated names, provider resume/persistence and TUI display remain separate integration obligations. In particular, a deferred lifecycle report does not
 become a confirmed process merely because its CLI receipt succeeded. Panel list/get/current and Agent Get now expose source-attributed `reportedAgent` views and
 apply metadata guards using their actual context. Both revisions are fenced together; see the
@@ -71,3 +71,7 @@ binding mismatch, loss, malformed replies, late replies and no replay. Receipt t
 three dispositions through late cancellation, both locales and the closed JSON schema. Windows
 acceptance uses a matched cohort and isolated Site through these public command paths; it does not
 claim an authenticated provider task or final TUI/full-regression acceptance.
+
+## Process confirmation through Host reads
+
+On Windows, successful `panel process-info` and the terminal observations used by Panel/Agent queries feed the Server's trusted process adapter. It rechecks the exact Worker/Host generation, recognizes a unique process chain, and can activate matching deferred lifecycle reports. A later complete sample can prove departure of the retained PID/creation identity and clear its reports plus applicable metadata atomically. Missing/failed/ambiguous samples do not invent exits; unchanged identities do not churn revisions. Panel/Agent queries collect Host observations before reading report/metadata revisions, so their own admitted confirmation can appear in the same result. A later concurrent revision change returns the existing `metadata-changed` failure, never a mixed result. Automatic periodic sampling and screen-based fallback state remain pending; process recognition does not authenticate a provider or create canonical Agent Sessions.

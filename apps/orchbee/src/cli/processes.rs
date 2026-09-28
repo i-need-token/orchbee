@@ -1,7 +1,10 @@
 //! Interpretation of a bounded Host Job sample. This never collects processes,
 //! expands commands, or creates canonical Agent state.
 
-mod identity;
+use orchbee_agent_observation_protocol::{
+    AgentProcessCandidate, AgentProcessSelection, AgentReportProvider, identify_agent_process,
+    select_agent_process,
+};
 #[cfg(test)]
 mod tests;
 
@@ -53,7 +56,7 @@ pub(super) fn interpret(sample: &TerminalProcessInfo) -> Interpretation<'_> {
         .iter()
         .map(|facts| {
             let argv = facts.command_line.as_deref().and_then(arguments);
-            let provider = identity::identify(facts.image.as_deref(), argv.as_deref());
+            let provider = identify_agent_process(facts.image.as_deref(), argv.as_deref());
             Process {
                 facts,
                 argv,
@@ -61,66 +64,43 @@ pub(super) fn interpret(sample: &TerminalProcessInfo) -> Interpretation<'_> {
             }
         })
         .collect();
-    let candidates: Vec<_> = processes.iter().filter(|p| p.provider.is_some()).collect();
-    let selected = candidates.iter().find(|candidate| {
-        candidates.iter().all(|other| {
-            ancestry(sample, other.facts.pid).is_some_and(|chain| {
-                candidate.facts.pid == other.facts.pid || chain.contains(&candidate.facts.pid)
-            })
+    let candidates: Vec<_> = processes
+        .iter()
+        .map(|p| AgentProcessCandidate {
+            pid: p.facts.pid,
+            parent_pid: p.facts.parent_pid,
+            creation_time: p.facts.creation_time,
+            provider: p.provider.and_then(AgentReportProvider::lookup),
         })
-    });
-    let foreground = if let Some(selected) = selected {
-        Foreground {
+        .collect();
+    let foreground = match select_agent_process(&candidates) {
+        AgentProcessSelection::Selected { pid, provider, .. } => Foreground {
             selection: Selection::AgentChain,
-            pid: Some(selected.facts.pid),
-            provider: selected.provider,
-        }
-    } else if !candidates.is_empty() {
-        Foreground {
+            pid: Some(pid),
+            provider: Some(provider.native_provider_id()),
+        },
+        AgentProcessSelection::Ambiguous => Foreground {
             selection: Selection::Ambiguous,
             pid: None,
             provider: None,
+        },
+        AgentProcessSelection::None if processes.iter().any(|p| p.facts.pid == sample.root_pid) => {
+            Foreground {
+                selection: Selection::Root,
+                pid: Some(sample.root_pid),
+                provider: None,
+            }
         }
-    } else if processes.iter().any(|p| p.facts.pid == sample.root_pid) {
-        Foreground {
-            selection: Selection::Root,
-            pid: Some(sample.root_pid),
-            provider: None,
-        }
-    } else {
-        Foreground {
+        AgentProcessSelection::None => Foreground {
             selection: Selection::Unavailable,
             pid: None,
             provider: None,
-        }
+        },
     };
     Interpretation {
         processes,
         foreground,
     }
-}
-
-fn ancestry(sample: &TerminalProcessInfo, child: u32) -> Option<Vec<u32>> {
-    let mut current = child;
-    let mut visited = Vec::with_capacity(sample.processes.len());
-    for _ in 0..sample.processes.len() {
-        if visited.contains(&current) {
-            return None;
-        }
-        visited.push(current);
-        let child = sample.processes.iter().find(|p| p.pid == current)?;
-        let Some(next) = child
-            .parent_pid
-            .and_then(|pid| sample.processes.iter().find(|p| p.pid == pid))
-        else {
-            return Some(visited);
-        };
-        if next.creation_time > child.creation_time {
-            return None;
-        }
-        current = next.pid;
-    }
-    None
 }
 
 fn arguments(command: &str) -> Option<Vec<String>> {

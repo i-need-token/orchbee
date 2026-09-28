@@ -27,30 +27,10 @@ pub(crate) const CANONICAL_IDS: &[&str] = &[
     "muse",
 ];
 
-pub(crate) fn provider(label: &str) -> Option<&'static str> {
-    let name = basename(label);
-    if name == "agent" {
-        return Some("cursor");
-    }
-    orchbee_agent_observation_protocol::AgentReportProvider::lookup(&name)
-        .map(orchbee_agent_observation_protocol::AgentReportProvider::native_provider_id)
-}
-
-pub(crate) use orchbee_agent_observation_protocol::normalize_agent_report_label as reported_label;
-
-pub(crate) fn basename(path: &str) -> String {
-    let value = path
-        .rsplit(['/', '\\'])
-        .next()
-        .unwrap_or("")
-        .to_ascii_lowercase();
-    for suffix in [".exe", ".com", ".cmd", ".ps1", ".js", ".mjs", ".cjs", ".py"] {
-        if let Some(stem) = value.strip_suffix(suffix) {
-            return stem.to_owned();
-        }
-    }
-    value
-}
+pub(crate) use orchbee_agent_observation_protocol::{
+    native_agent_basename as basename, native_agent_provider as provider,
+    normalize_agent_report_label as reported_label,
+};
 
 /// Only canonical identities select a command; aliases remain read-only recognition.
 pub(crate) fn executable(canonical: &str) -> Option<&'static str> {

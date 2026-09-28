@@ -128,3 +128,7 @@ prove normalization and planning only, not running provider sessions or complete
 The closed provider-reference kind enum also decodes `id`/`path` for the Workbench report result
 binding. This does not add context-free deserialization of `AgentProviderSessionReference`; the
 private validated value still requires its constructor and the caller's platform path predicate.
+
+## Native process input rules
+
+`identify_agent_process` and `select_agent_process` now serve both native CLI diagnostics and the Windows Server Host adapter. Recognition uses the actual image and a supported runtime entrypoint, never a name mentioned in arbitrary arguments; a forged runtime argv[0] cannot replace the image. Native executable suffixes and the `agent` alias remain separate from report-label normalization. The pure candidate selector requires one outer recognized Agent chain, rejects cycles/reused-parent creation order and ambiguous siblings, and preserves explicit absence. These helpers do not collect processes, parse Windows command-line text, grant foreground/control authority or create canonical Agent Sessions. Each Windows caller uses the existing OS parser; only the Server adapter admits proven Host samples under its identity and timing fences.

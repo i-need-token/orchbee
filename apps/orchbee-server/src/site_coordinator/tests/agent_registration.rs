@@ -242,3 +242,175 @@ fn registration_facts_convert_for_a_consumer_shaped_reader() {
     assert_eq!(view[0].2, authorization.worker_generation());
     assert_eq!(view[0].3, identity());
 }
+
+#[cfg(windows)]
+mod process_samples {
+    use super::*;
+    use orchbee_terminal_protocol::{
+        AttachmentId, TerminalId, TerminalProcess, TerminalProcessInfo,
+    };
+    use orchbee_workbench_protocol::{
+        PanelAgentAction, PanelAgentOutcome, PanelAgentRequest, PanelAgentState,
+    };
+    use std::time::{Duration, Instant};
+    fn fixture() -> (
+        SiteCoordinator,
+        crate::terminal_coordinator::BindingViewerTarget,
+        TerminalProcessInfo,
+    ) {
+        let mut site = site();
+        complete_opened_member(&mut site);
+        let fact = site.agent_registration_snapshot().unwrap().remove(0);
+        let target = crate::terminal_coordinator::BindingViewerTarget {
+            terminal_id: orchbee_capability_node_protocol::TerminalId::from_bytes(
+                u128::from_str_radix(fact.binding().terminal_id.as_str(), 16)
+                    .unwrap()
+                    .to_be_bytes(),
+            )
+            .unwrap(),
+            identity: fact.identity(),
+            worker: worker(1),
+        };
+        let sample = TerminalProcessInfo {
+            attachment_id: AttachmentId::from_bytes([1; 16]).unwrap(),
+            terminal_id: TerminalId::from_bytes(target.identity.terminal_id().as_bytes()).unwrap(),
+            root_pid: 10,
+            processes: vec![
+                TerminalProcess {
+                    pid: 10,
+                    parent_pid: None,
+                    creation_time: 100,
+                    image: Some("C:/Windows/cmd.exe".into()),
+                    command_line: Some("cmd.exe".into()),
+                    current_directory: None,
+                },
+                TerminalProcess {
+                    pid: 20,
+                    parent_pid: Some(10),
+                    creation_time: 200,
+                    image: Some("C:/tools/pi.exe".into()),
+                    command_line: Some("pi.exe".into()),
+                    current_directory: None,
+                },
+            ],
+        };
+        (site, target, sample)
+    }
+    fn read(
+        site: &mut SiteCoordinator,
+    ) -> (
+        orchbee_workbench_protocol::WorkbenchRevision,
+        orchbee_workbench_protocol::PanelAgentView,
+    ) {
+        let snap = site.workbench.as_ref().unwrap().snapshot();
+        let PanelNode::Panel { panel_id, .. } = &snap.terminal_contexts[0].tabs[0].root else {
+            panic!("panel")
+        };
+        let request = PanelAgentRequest {
+            protocol_version: ProtocolVersion,
+            request_id: WorkbenchRequestId::parse(&format!("{:032x}", 777)).unwrap(),
+            site_id: snap.site_id.clone(),
+            action: PanelAgentAction::Read {
+                panel_ids: vec![panel_id.clone()],
+            },
+        };
+        let PanelAgentOutcome::Read {
+            report_revision,
+            mut panels,
+            ..
+        } = site.panel_agent(request, Instant::now()).unwrap().outcome
+        else {
+            panic!("read")
+        };
+        (report_revision, panels.remove(0).report.unwrap())
+    }
+    #[test]
+    fn complete_samples_confirm_without_revision_churn_then_prove_pid_reuse_exit() {
+        let (mut site, target, mut sample) = fixture();
+        let now = Instant::now();
+        assert!(site.observe_host_process(target, &sample, now, now));
+        let (rev, view) = read(&mut site);
+        assert_eq!(view.agent.as_deref(), Some("pi"));
+        assert_eq!(view.state, PanelAgentState::Unknown);
+        let later = now + Duration::from_millis(1);
+        assert!(site.observe_host_process(target, &sample, later, later));
+        assert_eq!(read(&mut site).0, rev);
+        assert!(!site.observe_host_process(target, &sample, now, later));
+        sample.processes[1].creation_time += 1;
+        let later = later + Duration::from_millis(1);
+        assert!(site.observe_host_process(target, &sample, later, later));
+        assert_eq!(read(&mut site).1.agent, None);
+        let later = later + Duration::from_millis(1);
+        assert!(site.observe_host_process(target, &sample, later, later));
+        assert_eq!(read(&mut site).1.agent.as_deref(), Some("pi"));
+    }
+    #[test]
+    fn wrong_physical_generation_missing_image_and_ambiguous_chains_do_not_erase_reports() {
+        let (mut site, target, mut sample) = fixture();
+        let now = Instant::now();
+        assert!(site.observe_host_process(target, &sample, now, now));
+        let before = read(&mut site);
+        let later = now + Duration::from_millis(1);
+        let mut stale = target;
+        stale.worker = worker(2);
+        assert!(!site.observe_host_process(stale, &sample, later, later));
+        assert_eq!(read(&mut site), before);
+        sample.processes[1].image = None;
+        assert!(site.observe_host_process(target, &sample, later, later));
+        assert_eq!(read(&mut site), before);
+        sample.processes[1].image = Some("pi.exe".into());
+        let mut sibling = sample.processes[1].clone();
+        sibling.pid = 30;
+        sibling.creation_time = 300;
+        sibling.image = Some("codex.exe".into());
+        sample.processes.push(sibling);
+        let later = later + Duration::from_millis(1);
+        assert!(site.observe_host_process(target, &sample, later, later));
+        assert_eq!(read(&mut site), before);
+        assert!(!site.observe_host_process(
+            target,
+            &sample,
+            later + Duration::from_millis(1),
+            later
+        ));
+    }
+    #[test]
+    fn process_confirmation_activates_deferred_lifecycle_and_departure_clears_it() {
+        use orchbee_workbench_protocol::PanelAgentDisposition;
+        let (mut site, target, mut sample) = fixture();
+        let snapshot = site.workbench.as_ref().unwrap().snapshot().clone();
+        let PanelNode::Panel {
+            panel_id,
+            primary_presentation,
+            ..
+        } = &snapshot.terminal_contexts[0].tabs[0].root
+        else {
+            panic!("panel")
+        };
+        for (n,report) in [
+            serde_json::json!({"kind":"state","source":"herdr:pi","agent":"pi","state":"blocked","message":"approval","sequence":"2","agentSessionId":"provider-session"}),
+            serde_json::json!({"kind":"session","source":"herdr:pi","agent":"pi","sequence":"1","agentSessionId":"provider-session","sessionStartSource":"startup"}),
+        ].into_iter().enumerate() {
+            let request=PanelAgentRequest{protocol_version:ProtocolVersion,request_id:WorkbenchRequestId::parse(&format!("{:032x}",810+n)).unwrap(),site_id:snapshot.site_id.clone(),
+                action:PanelAgentAction::Report {panel_id:panel_id.clone(),expected_binding:primary_presentation.binding.clone().unwrap(),report:Box::new(serde_json::from_value(report).unwrap())}};
+            assert!(matches!(site.panel_agent(request,Instant::now()).unwrap().outcome,PanelAgentOutcome::Reported{disposition:PanelAgentDisposition::Deferred,..}));
+        }
+        assert_eq!(read(&mut site).1.authority_source, None);
+        let now = Instant::now();
+        assert!(site.observe_host_process(target, &sample, now, now));
+        let (revision, view) = read(&mut site);
+        assert_eq!(view.authority_source.as_deref(), Some("herdr:pi"));
+        assert_eq!(view.state, PanelAgentState::Blocked);
+        assert!(view.session.is_some());
+        let next = now + Duration::from_millis(1);
+        assert!(site.observe_host_process(target, &sample, next, next));
+        assert_eq!(read(&mut site).0, revision);
+        sample.processes.pop();
+        let next = next + Duration::from_millis(1);
+        assert!(site.observe_host_process(target, &sample, next, next));
+        let view = read(&mut site).1;
+        assert_eq!(view.agent, None);
+        assert_eq!(view.authority_source, None);
+        assert_eq!(view.session, None);
+    }
+}

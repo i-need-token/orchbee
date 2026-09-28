@@ -5,7 +5,7 @@ source watermarks and suppression of stale lifecycle reports. It is distinct fro
 hook-observation Sessions in `AgentRuntime`. The core now serves a bounded Windows Server registry and the OBWP report/read family.
 The [native CLI commands](../../orchbee/docs/windows-panel-agent-reports.md) submit these reports.
 Panel/Agent queries join the real report view and metadata guards under independent revision fences.
-Automatic Host process production, names and TUI publication remain integration obligations. The public wire cannot submit process observations.
+The correlated Windows viewer Host sample now feeds the trusted process operation. Periodic sampling, names and TUI publication remain integration obligations. The public wire cannot submit process observations.
 
 ## Inputs and ownership
 
@@ -32,8 +32,8 @@ The registry belongs beside terminal metadata under the Site/Workbench gate. A t
 operation prepares both report and metadata exit changes before committing either. Canonical
 observation Sessions and their aliases remain with `AgentState`. The binary supplies the current
 retained Worker generation and Host creation/epoch/terminal identity for each committed binding;
-a Client-provided label, PID or generic observation category is insufficient. The Host sampling
-adapter must still call the trusted operation; this boundary alone does not collect processes.
+a Client-provided label, PID or generic observation category is insufficient. The Windows viewer
+adapter calls the trusted operation only after a fully correlated successful Host sample; the core itself does not collect processes.
 
 ## Transition decisions
 
@@ -119,3 +119,11 @@ replayable trace. Pinned-reference differential traces additionally compare comp
 effective views and release outcomes through the public routing rules. These cover the core and owner
 admission only. The native CLI has separate carrier/command acceptance; actual Host observations,
 name/TUI behavior and the final full regression remain required before claiming CLI/API parity.
+
+## Windows process sample adapter
+
+The Windows viewer adapter is the first live producer of trusted process observations. It consumes only a fully correlated successful Host `ProcessInfo` response after I/O, then holds the Worker registry and Site coordinator gates through a second physical-generation check and commit. A sample retains its request-start time, logical binding, Worker generation and Host creation/epoch/terminal identity. The Host pins process objects and verifies identical Job membership before and after collecting all rows. A typed failure, missing identity or ambiguous Agent chain is not an exit.
+
+Executable/entrypoint recognition and ancestry selection are shared pure Agent input rules; Windows command-line parsing remains in each OS adapter. The coordinator retains the selected PID plus creation time and the latest admitted sample start. Older/equal samples cannot supersede newer observations. Complete membership can prove that a previously confirmed process has left that Job or its PID was reused. Exit and metadata cleanup commit as one owner operation; a replacement is confirmed from a subsequent sample, rather than partially committing two transitions. Failed owner admission does not advance the retained process identity. Repeated identity with unchanged explicit-report input revision does not churn report revisions; a new pending report permits renewed confirmation. Missing retained facts never generate an exit. Cache entries are bounded by current registrations and released with their physical membership.
+
+This adapter supplies provider presence and unknown fallback state only. Screen-derived working/idle/blocker detection, periodic sampling without a viewer read, names, persistence, provider execution and TUI presentation remain required integrations. Existing CLI diagnostic process reads remain available even if the report owner cannot admit the sample; they do not promise report freshness.

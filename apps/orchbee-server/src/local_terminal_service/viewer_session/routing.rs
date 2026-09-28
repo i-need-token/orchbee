@@ -206,6 +206,7 @@ impl LocalTerminalSession<'_> {
                 unreachable!("attach is handled before existing-viewer operations")
             }
         };
+        let process_started = std::time::Instant::now();
         let completion = viewer
             .handle
             .request(WorkerOperationRequest::Viewer(WorkerRequest {
@@ -230,7 +231,7 @@ impl LocalTerminalSession<'_> {
                     // route violation.
                     let accepted = match request.action() {
                         Action::ReadProcessInfo { .. } => {
-                            valid_process_record(viewer, request_id, &record)
+                            valid_process_record(viewer, request_id, &record, process_started)
                         }
                         Action::ReadRows { .. } => {
                             valid_rows_record(request.action(), viewer, request_id, &record)
@@ -313,6 +314,7 @@ fn valid_process_record(
     viewer: &ViewerAttachment<'_>,
     operation: OperationId,
     record: &[u8],
+    started: std::time::Instant,
 ) -> bool {
     use orchbee_terminal_protocol::{
         ConnectionControl, MAXIMUM_CONTROL_JSON_BYTES, ProcessInfoControl,
@@ -338,8 +340,17 @@ fn valid_process_record(
     }
     match decode_process_info_control(envelope.kind, envelope.role, envelope.payload) {
         Ok(ProcessInfoControl::ProcessInfo(info)) => {
-            info.attachment_id == viewer.projection.attachment_id
-                && info.terminal_id.as_bytes() == &viewer.target.identity.terminal_id().as_bytes()
+            let valid = info.attachment_id == viewer.projection.attachment_id
+                && info.terminal_id.as_bytes() == &viewer.target.identity.terminal_id().as_bytes();
+            #[cfg(windows)]
+            if valid {
+                viewer
+                    .service
+                    .observe_host_process(&viewer.handle, viewer.target, &info, started);
+            }
+            #[cfg(not(windows))]
+            let _ = started;
+            valid
         }
         _ => matches!(
             decode_connection_control(envelope.kind, envelope.role, envelope.payload),

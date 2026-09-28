@@ -1,8 +1,12 @@
 //! Explicit executable and runtime entrypoint recognition, never argument search.
 
-use crate::agent_provider::{basename, provider};
+use super::{native_agent_basename as basename, native_agent_provider as provider};
 
-pub(super) fn identify(image: Option<&str>, argv: Option<&[String]>) -> Option<&'static str> {
+/// Recognizes an executable or supported runtime entrypoint; arguments are never searched for names.
+pub fn identify_agent_process(
+    image: Option<&str>,
+    argv: Option<&[String]>,
+) -> Option<&'static str> {
     let image = image?;
     if let Some(direct) = provider(image) {
         return interactive(direct, argv.and_then(|a| a.get(1..)));

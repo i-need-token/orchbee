@@ -80,3 +80,9 @@ pub use report_values::{
     agent_report_allows_session_replacement, agent_report_reserves_native_state,
     agent_report_source_policy, normalize_agent_report_label, windows_agent_resume_argv,
 };
+
+mod process_identity;
+pub use process_identity::{
+    AgentProcessCandidate, AgentProcessSelection, identify_agent_process, native_agent_basename,
+    native_agent_provider, select_agent_process,
+};

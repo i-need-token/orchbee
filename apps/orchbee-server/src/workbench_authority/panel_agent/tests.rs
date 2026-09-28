@@ -449,3 +449,37 @@ fn clearing_an_unsequenced_custom_report_reclaims_the_empty_resource() {
     assert!(a.panel_agent.resources.is_empty());
     assert_eq!(a.panel_agent.bytes, 0);
 }
+
+#[test]
+fn per_binding_explicit_input_stamp_ignores_process_writes_and_other_bindings() {
+    let mut owner = owner();
+    let fact = physical(1, 1);
+    let facts = [fact.clone(), physical(2, 1)];
+    let before = owner.terminal_agent_input_revision(&fact);
+    assert_eq!(before, 0);
+    invoke(&mut owner, state("custom", "1"), &facts);
+    let stamp = owner.terminal_agent_input_revision(&fact);
+    assert!(stamp > before);
+    assert_eq!(owner.terminal_agent_input_revision(&facts[1]), 0);
+    assert_eq!(owner.terminal_agent_input_revision(&physical(1, 2)), 0);
+    let now = Instant::now();
+    owner
+        .observe_terminal_agent(
+            &fact,
+            &facts,
+            TerminalAgentProcessObservation {
+                observed_at: now,
+                agent: Some(orchbee_agent_observation_protocol::AgentReportProvider::Codex),
+                state: orchbee_workbench_protocol::PanelAgentState::Unknown,
+                visible_blocker: false,
+                exited: false,
+            },
+            now,
+        )
+        .unwrap();
+    assert_eq!(owner.terminal_agent_input_revision(&fact), stamp);
+    invoke(&mut owner, state("custom", "1"), &facts);
+    assert_eq!(owner.terminal_agent_input_revision(&fact), stamp);
+    invoke(&mut owner, state("custom", "2"), &facts);
+    assert!(owner.terminal_agent_input_revision(&fact) > stamp);
+}

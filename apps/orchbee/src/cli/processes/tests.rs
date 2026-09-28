@@ -177,10 +177,13 @@ fn runtime_entrypoints_exclude_eval_flags_prompt_mentions_and_forged_argv0() {
     ] {
         let argv = arguments(command).unwrap();
         assert_eq!(
-            identity::identify(Some(image), Some(&argv)),
+            identify_agent_process(Some(image), Some(&argv)),
             expected,
             "{command}"
         );
     }
-    assert_eq!(identity::identify(None, Some(&["codex.exe".into()])), None);
+    assert_eq!(
+        identify_agent_process(None, Some(&["codex.exe".into()])),
+        None
+    );
 }

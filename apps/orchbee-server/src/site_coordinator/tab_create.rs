@@ -134,6 +134,7 @@ impl SiteCoordinator {
             terminals,
             workbench,
             standalone,
+            ..
         } = self;
         let Some(workbench) = workbench.as_mut() else {
             return PreparedTerminalTabCreate::Ready(unavailable(
@@ -376,6 +377,7 @@ impl SiteCoordinator {
             terminals,
             workbench,
             standalone,
+            ..
         } = self;
         let Some(workbench) = workbench.as_mut() else {
             return Err(PostcommitCoordinationError);

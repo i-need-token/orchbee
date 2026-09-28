@@ -40,11 +40,15 @@ pub(crate) use terminal_selection::{
 mod target_lifecycle;
 pub(crate) use target_lifecycle::TargetLifecycle;
 mod agent_registration;
+#[cfg(windows)]
+mod process_observation;
 
 pub(crate) struct SiteCoordinator {
     terminals: TerminalCoordinator,
     workbench: Option<WorkbenchAuthority>,
     standalone: StandaloneTerminal,
+    #[cfg(windows)]
+    process_samples: process_observation::Samples,
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -66,6 +70,8 @@ impl SiteCoordinator {
             terminals: TerminalCoordinator::new(),
             workbench,
             standalone: StandaloneTerminal::Empty,
+            #[cfg(windows)]
+            process_samples: process_observation::Samples::new(),
         }
     }
 
@@ -222,6 +228,7 @@ impl SiteCoordinator {
             terminals,
             workbench,
             standalone,
+            ..
         } = self;
         let workbench = workbench.as_mut()?;
         let grant = WorkbenchGrant::manage_navigation(workbench.site_id().clone());
@@ -250,6 +257,7 @@ impl SiteCoordinator {
             terminals,
             workbench,
             standalone,
+            ..
         } = self;
         let workbench = workbench.as_mut()?;
         let grant = WorkbenchGrant::manage_navigation(workbench.site_id().clone());
@@ -288,6 +296,7 @@ impl SiteCoordinator {
             terminals,
             workbench,
             standalone,
+            ..
         } = self;
         let workbench = workbench.as_mut()?;
         let grant = WorkbenchGrant::manage_navigation(workbench.site_id().clone())
@@ -337,7 +346,7 @@ impl SiteCoordinator {
         let Self {
             terminals,
             standalone,
-            workbench: _,
+            ..
         } = self;
         let prepared = terminals.prepare_completion(pending, completion, current_worker)?;
         let result = prepared.result().clone();
