@@ -208,8 +208,9 @@ impl<'a> WorkbenchPanelRelocateAdmission<'a> {
             })
             || self
                 .membership
-                .member_for_panel(&self.tab_id, &self.panel_id)
-                .is_some_and(|member| self.authority.open_close_covers_member(member))
+                .members_for_tab(&self.tab_id)
+                .filter(|member| member.panel_id() == &self.panel_id)
+                .any(|member| self.authority.open_close_covers_member(member))
             || self
                 .authority
                 .pending_terminal_covers_panel(&self.terminal_context_id, &self.panel_id)
@@ -319,10 +320,6 @@ impl WorkbenchAuthority {
         };
         let source_leaf = match find_panel(&source_tab.root, &panel_id) {
             None => Some(WorkbenchRejectionReason::PanelUnavailable),
-            Some(PanelNode::Panel {
-                child_presentations,
-                ..
-            }) if !child_presentations.is_empty() => Some(WorkbenchRejectionReason::PanelNotLeaf),
             Some(PanelNode::Panel { .. }) => None,
             Some(PanelNode::Split { .. }) => {
                 return WorkbenchPanelRelocateBegin::Ready(self.retire(&command));
@@ -331,9 +328,8 @@ impl WorkbenchAuthority {
         if let Some(reason) = source_leaf {
             return WorkbenchPanelRelocateBegin::Ready(self.retain_rejection(command, reason));
         }
-        // Tree membership admits Split-bearing contexts; a context carrying
-        // stacked Panels, groups, or pinned Tabs is outside the supported
-        // shape and retires the authority exactly like `panel move`.
+        // Tree membership includes every child Presentation; group/pin ordering
+        // retains its separate structural admission policy.
         let membership = match super::terminal_membership::tree_terminal_membership(
             snapshot,
             &terminal_context_id,
@@ -462,10 +458,9 @@ fn take_leaf_panel(node: &mut PanelNode, panel_id: &WorkbenchPanelId) -> Option<
         if matches!(
             &children[index].node,
             PanelNode::Panel {
-                child_presentations,
                 panel_id: candidate,
                 ..
-            } if child_presentations.is_empty() && candidate == panel_id
+            } if candidate == panel_id
         ) {
             let moved = children[index].node.clone();
             *node = children[1 - index].node.clone();

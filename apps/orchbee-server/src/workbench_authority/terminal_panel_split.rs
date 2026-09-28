@@ -909,10 +909,9 @@ fn count_node(node: &PanelNode) -> usize {
 fn contains_leaf_panel(node: &PanelNode, panel_id: &WorkbenchPanelId) -> bool {
     match node {
         PanelNode::Panel {
-            child_presentations,
             panel_id: candidate,
             ..
-        } => candidate == panel_id && child_presentations.is_empty(),
+        } => candidate == panel_id,
         PanelNode::Split { children, .. } => children
             .iter()
             .any(|child| contains_leaf_panel(&child.node, panel_id)),
@@ -934,11 +933,7 @@ struct PanelSplitReplacement<'a> {
 
 fn replace_panel(node: &mut PanelNode, replacement: &PanelSplitReplacement<'_>) -> bool {
     match node {
-        PanelNode::Panel {
-            child_presentations,
-            panel_id,
-            ..
-        } if panel_id == replacement.target_panel_id && child_presentations.is_empty() => {
+        PanelNode::Panel { panel_id, .. } if panel_id == replacement.target_panel_id => {
             let original = node.clone();
             let new_panel = PanelNode::Panel {
                 right_click: replacement.right_click,

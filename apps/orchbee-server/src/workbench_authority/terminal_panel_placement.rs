@@ -380,11 +380,7 @@ const fn move_inserts_before(direction: WorkbenchPanelSplitDirection) -> bool {
 
 fn leaf_panel_id(node: &PanelNode) -> Option<&WorkbenchPanelId> {
     match node {
-        PanelNode::Panel {
-            child_presentations,
-            panel_id,
-            ..
-        } if child_presentations.is_empty() => Some(panel_id),
+        PanelNode::Panel { panel_id, .. } => Some(panel_id),
         _ => None,
     }
 }

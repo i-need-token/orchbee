@@ -3,7 +3,11 @@ use orchbee_client_server_protocol::{OpenOutcome, TerminalOpenRequest};
 use orchbee_server::{WorkbenchCheckpoint, WorkbenchRestoreTarget};
 use serde_json::{Value, json};
 
-fn restored() -> (
+mod presentations;
+
+fn restored(
+    with_tab_metadata: bool,
+) -> (
     SiteCoordinator,
     Vec<WorkbenchRestoreTarget>,
     WorkerPlacement,
@@ -48,6 +52,11 @@ fn restored() -> (
     tab["root"]["primaryPresentation"]["presentationId"] = json!(format!("{:032x}", 1004));
     tab["root"]["childPresentations"] = json!([]);
     context["tabs"].as_array_mut().unwrap().push(tab);
+    if !with_tab_metadata {
+        context["groups"] = json!([]);
+        context["tabs"][0]["pinned"] = json!(false);
+        context["tabs"][1]["groupId"] = Value::Null;
+    }
     let primary =
         document["terminalContexts"][0]["tabs"][0]["root"]["primaryPresentation"]["presentationId"]
             .clone();
@@ -76,7 +85,7 @@ fn restored() -> (
 
 #[test]
 fn restart_rebinds_children_and_grouped_pinned_tabs_before_open_reuses_first_terminal() {
-    let (mut coordinator, targets, worker) = restored();
+    let (mut coordinator, targets, worker) = restored(true);
     assert_eq!(targets.len(), 3);
     let before = coordinator.workbench.as_ref().unwrap().snapshot().clone();
     let pending: Vec<_> = targets
@@ -219,7 +228,7 @@ fn restart_rebinds_children_and_grouped_pinned_tabs_before_open_reuses_first_ter
 
 #[test]
 fn restart_refusal_does_not_commit_a_second_physical_reservation() {
-    let (mut coordinator, targets, worker) = restored();
+    let (mut coordinator, targets, worker) = restored(true);
     let pending = coordinator
         .prepare_checkpoint_terminal(&targets[0], id(100), worker, expiry(), None, None)
         .unwrap();
@@ -247,7 +256,7 @@ fn restart_refusal_does_not_commit_a_second_physical_reservation() {
 
 #[test]
 fn unavailable_restart_is_retained_without_replaying_or_faking_open_success() {
-    let (mut coordinator, targets, worker) = restored();
+    let (mut coordinator, targets, worker) = restored(true);
     for (index, target) in targets.iter().enumerate() {
         let pending = coordinator
             .prepare_checkpoint_terminal(

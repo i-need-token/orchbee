@@ -108,7 +108,8 @@ impl WorkbenchTerminalMembership {
             .filter(move |member| member.tab_id() == tab_id)
     }
 
-    /// Resolves the exact bound leaf member under `panel_id` inside `tab_id`.
+    /// Resolves the bound primary Presentation under `panel_id` inside `tab_id`.
+    /// Complete membership always places the primary before its ordered children.
     #[must_use]
     pub fn member_for_panel(
         &self,
@@ -518,18 +519,17 @@ fn collect_tree_members(
             panel_id,
             primary_presentation,
         } => {
-            if !child_presentations.is_empty() {
-                return Err(WorkbenchTerminalInvariantError);
+            for presentation in std::iter::once(primary_presentation).chain(child_presentations) {
+                members.push(WorkbenchTerminalTab {
+                    tab_id: tab.tab_id.clone(),
+                    panel_id: panel_id.clone(),
+                    presentation_id: presentation.presentation_id.clone(),
+                    binding: presentation
+                        .binding
+                        .clone()
+                        .ok_or(WorkbenchTerminalInvariantError)?,
+                });
             }
-            members.push(WorkbenchTerminalTab {
-                tab_id: tab.tab_id.clone(),
-                panel_id: panel_id.clone(),
-                presentation_id: primary_presentation.presentation_id.clone(),
-                binding: primary_presentation
-                    .binding
-                    .clone()
-                    .ok_or(WorkbenchTerminalInvariantError)?,
-            });
         }
         PanelNode::Split { children, .. } => {
             for child in children.iter() {

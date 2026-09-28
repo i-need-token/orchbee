@@ -273,6 +273,13 @@ fn cross_context_reference_matrix_conserves_leaves_and_reports_source_disposal()
                             second_slot_id: WorkbenchPanelSlotId::parse(&identity(2812)).unwrap(),
                         },
                     );
+                    let mut next = 500_000;
+                    for context in &mut initial.terminal_contexts {
+                        for tab in &mut context.tabs {
+                            super::presentations::add_children(&mut tab.root, &mut next);
+                        }
+                    }
+                    owner.last_identity = next;
                     install(&mut owner, initial.clone());
                     let target_context = initial.terminal_contexts[2].terminal_context_id.clone();
                     let destination = match destination_kind {

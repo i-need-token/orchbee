@@ -147,8 +147,8 @@ The source tuple and expected revision are exact. Existing destination forms ret
 source-context default. An explicit destination context enables cross-context moves, and an
 optional target Panel selects the graft leaf; absence retains the existing root-graft contract.
 A new Workspace specifies its Project, optional Project-owned directory and labels. A new `primaryDirectoryPath` alternatively creates a Directory in that same commit. It is mutually exclusive with an existing directory ID. The local service probes the path through the current Worker, rechecks its generation and requires directory-association authority; the proven Worker must own the retained source terminal. Missing proof, capacity or path failure cannot publish topology. A created Directory adds one allocated identity and `transfer.createdDirectoryId`. Only new structural and directory identities are allocated. A moved leaf retains its Panel, Presentation, binding,
-custom label and input policy. Existing child-Presentation, grouped and pinned tree admission
-restrictions remain explicit; this operation does not establish their complete lifecycle support.
+custom label and input policy, including every ordered child Presentation. Grouped/pinned tree
+admission and unbound-member lifecycle remain separately tracked restrictions.
 
 | Guard or transition                                                               | Observable result                                                                                              |
 | --------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
@@ -1005,15 +1005,15 @@ canonical forms. Display states are `idle`, `working`, `blocked`, `done`, `unkno
 Agent label and authority source compare exact observed facts; missing context never matches.
 A generic observation category such as `hook` is not an authority-source identity.
 
-| Transition | Guard and result |
-| ---------- | ---------------- |
-| Fresh report with presentation sets and no clears | Replace that source's entire presentation, including guards and omitted fields; assign write order to supplied fields |
-| Report containing a clear flag | Clear only named fields, apply supplied values/guards, preserve untouched field priority; setting and clearing the same field is invalid |
-| Presentation TTL | Sets or explicit TTL refresh the source presentation expiry; clear-only without TTL preserves it |
-| Token patch | Update or remove named global terminal tokens; each value has its own expiry; unrelated keys retain their expiry |
-| Old or equal source sequence | Return `stale` without mutation or expiry refresh; omitted sequence never resets the high-water mark |
-| Read or report time boundary | Expire values at the supplied monotonic time; retain sequence fences until binding disposal |
-| Capacity or checked revision/deadline failure | Reject the whole report without consuming its sequence or partially applying fields |
+| Transition                                        | Guard and result                                                                                                                         |
+| ------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| Fresh report with presentation sets and no clears | Replace that source's entire presentation, including guards and omitted fields; assign write order to supplied fields                    |
+| Report containing a clear flag                    | Clear only named fields, apply supplied values/guards, preserve untouched field priority; setting and clearing the same field is invalid |
+| Presentation TTL                                  | Sets or explicit TTL refresh the source presentation expiry; clear-only without TTL preserves it                                         |
+| Token patch                                       | Update or remove named global terminal tokens; each value has its own expiry; unrelated keys retain their expiry                         |
+| Old or equal source sequence                      | Return `stale` without mutation or expiry refresh; omitted sequence never resets the high-water mark                                     |
+| Read or report time boundary                      | Expire values at the supplied monotonic time; retain sequence fences until binding disposal                                              |
+| Capacity or checked revision/deadline failure     | Reject the whole report without consuming its sequence or partially applying fields                                                      |
 
 Effective presentation selects the newest eligible value independently for title, display Agent
 and each state label. A clear of an unrelated field cannot promote an older title. Metadata has
@@ -1038,3 +1038,26 @@ prepares report and metadata cleanup together under this commit gate, preserving
 custom presentation. Later metadata from a retained exited Agent is stale. Canonical observations
 retain their existing owner. Automatic Host process production, names and joined query/TUI context
 remain integration obligations; the report wire cannot assert process existence.
+
+## Structural operations preserve child Presentations
+
+A Panel remains a layout leaf when it owns child Presentations. Bound tree membership enumerates
+the primary followed by every ordered child, retaining each exact binding. `member_for_panel`
+selects the primary; a member count is a Presentation count, not a Panel count. Legacy single-leaf
+membership still rejects additional Presentations. Grouped/pinned reordering remains a separate
+policy because Snapshot requires a pinned prefix and contiguous groups; unbound members are never
+silently filtered.
+
+Tab creation and ordering admit contexts containing child Presentations. Panel split wraps the
+complete original Panel and one fresh sibling. Same-Tab move/swap and cross-Tab/context relocation
+transfer the complete Panel node, including ordered child identities, labels, bindings and input
+policy. No existing Presentation is recreated, rebound or dropped. New Workspace directory
+selection retains its existing primary-terminal ownership; this operation starts no extra process.
+Relocation checks pending Close ownership for every member of its Panel. Standalone reference
+reconciliation validates the entire before/after binding set under the existing Site commit gate.
+
+Evidence must compare complete Panel payloads after split, move/swap and relocation, cover new Tab
+and Tab ordering with children, preserve primary-versus-child identity, and verify exact standalone
+reference composition and existing Close fences. Native child selection/navigation, child creation,
+group/pin movement and unbound-member lifecycle remain separately tracked obligations. There is no
+wire or checkpoint migration; the matched Server cohort activates or rolls back this behavior.

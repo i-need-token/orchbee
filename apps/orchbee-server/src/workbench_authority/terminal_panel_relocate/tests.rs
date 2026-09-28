@@ -558,7 +558,7 @@ fn relocate_rejections_are_typed_retained_and_leave_the_projection_untouched() {
 }
 
 #[test]
-fn relocate_names_a_stacked_panel_with_panel_not_leaf_instead_of_retiring() {
+fn relocate_preserves_the_complete_panel_with_child_presentations() {
     let (mut authority, grant) = authority();
     let membership = authority.tree_standalone_membership().unwrap();
     let member = membership.members().first().unwrap().clone();
@@ -581,9 +581,8 @@ fn relocate_names_a_stacked_panel_with_panel_not_leaf_instead_of_retiring() {
         .panel_id()
         .clone();
 
-    // Stack a child Presentation under the moved leaf by snapshot surgery: no
-    // production path mints this shape today, so it arrives as a foreign
-    // projection and must earn the typed refusal, not an authority retirement.
+    // A restored canonical Panel may own children; relocation preserves the
+    // complete payload without allocating a replacement terminal or Presentation.
     let mut snapshot = authority.projection.snapshot().clone();
     let mut marked = false;
     for tab in &mut snapshot.terminal_contexts[0].tabs {
@@ -620,8 +619,13 @@ fn relocate_names_a_stacked_panel_with_panel_not_leaf_instead_of_retiring() {
     assert!(marked);
     let encoded = serialize_document(&WorkbenchProtocolDocument::Snapshot(snapshot)).unwrap();
     authority.projection = WorkbenchProjectionStore::load(&encoded).unwrap();
+    authority.last_identity = 424_242;
 
     let snapshot = authority.projection.snapshot().clone();
+    let moved = leaves(&tab_root(&authority, &source_tab))
+        .into_iter()
+        .find(|leaf| leaf_panel_id(leaf) == panel_b)
+        .unwrap();
     let request = relocate_command(
         &authority,
         10,
@@ -635,13 +639,16 @@ fn relocate_names_a_stacked_panel_with_panel_not_leaf_instead_of_retiring() {
         },
     );
     let result = submit(&mut authority, &grant, request.clone());
-    assert_eq!(
+    assert!(matches!(
         result.outcome,
-        WorkbenchCommandOutcome::Rejected {
-            revision: snapshot.revision,
-            reason: WorkbenchRejectionReason::PanelNotLeaf,
-        }
+        WorkbenchCommandOutcome::PanelRelocated { .. }
+    ));
+    assert_eq!(
+        authority.snapshot().revision.value(),
+        snapshot.revision.value() + 1
     );
+    assert!(!leaves(&tab_root(&authority, &source_tab)).contains(&moved));
+    assert!(leaves(&tab_root(&authority, &target_tab)).contains(&moved));
     assert!(!authority.retired);
     assert_eq!(submit(&mut authority, &grant, request), result);
 }
@@ -1101,4 +1108,5 @@ fn relocate_into_a_maximum_depth_destination_is_a_resource_limit() {
     assert!(!authority.retired);
 }
 
+mod presentations;
 mod transfer;
