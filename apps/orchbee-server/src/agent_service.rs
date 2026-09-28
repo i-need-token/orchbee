@@ -17,6 +17,7 @@ mod cursor;
 mod launch;
 mod map;
 mod names;
+pub(crate) use names::ManagedNameClaim;
 #[cfg(windows)]
 pub(crate) use names::TerminalNameFact;
 #[cfg(test)]

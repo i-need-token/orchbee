@@ -1731,6 +1731,25 @@ impl Locale {
             (Self::ZhCn, AgentManagement::Active { .. }) => "托管启动：已确认交互就绪\n".into(),
         }
     }
+    #[cfg(windows)]
+    pub(crate) fn cli_terminal_management(
+        self,
+        state: &orchbee_agent_observation_protocol::AgentTerminalManagement,
+    ) -> String {
+        use orchbee_agent_observation_protocol::AgentTerminalManagement;
+        match (self, state) {
+            (Self::EnUs, AgentTerminalManagement::Unmanaged {}) => {
+                "Managed startup: unmanaged\n".into()
+            }
+            (Self::ZhCn, AgentTerminalManagement::Unmanaged {}) => "托管启动：非托管\n".into(),
+            (Self::EnUs, AgentTerminalManagement::Active { provider_id }) => {
+                format!("Managed startup: restored ({})\n", provider_id.as_str())
+            }
+            (Self::ZhCn, AgentTerminalManagement::Active { provider_id }) => {
+                format!("托管启动：已恢复（{}）\n", provider_id.as_str())
+            }
+        }
+    }
     pub(crate) fn cli_agent_runtime(self, ready: Option<bool>, reason: Option<&str>) -> String {
         match (self, ready) {
             (Self::EnUs, Some(true)) => "Prompt preflight: ready at this observation\n".into(),

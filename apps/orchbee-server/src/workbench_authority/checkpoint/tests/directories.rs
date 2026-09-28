@@ -12,6 +12,7 @@ fn v3_requires_strict_directory_rows_and_preserves_v1_v2_compatibility() {
         let bytes = changed(|v| {
             v["version"] = json!(version);
             v.as_object_mut().unwrap().remove("terminalDirectories");
+            v.as_object_mut().unwrap().remove("managedNames");
             if version == 1 {
                 v.as_object_mut().unwrap().remove("agentSessions");
             }
@@ -19,7 +20,7 @@ fn v3_requires_strict_directory_rows_and_preserves_v1_v2_compatibility() {
         let upgraded: Value =
             serde_json::from_slice(&restore(&bytes).unwrap().checkpoint(&worker(400)).unwrap())
                 .unwrap();
-        assert_eq!(upgraded["version"], 3);
+        assert_eq!(upgraded["version"], 4);
         assert_eq!(upgraded["terminalDirectories"], json!([]));
     }
     for fault in 0..9 {
@@ -28,6 +29,7 @@ fn v3_requires_strict_directory_rows_and_preserves_v1_v2_compatibility() {
             match fault {
                 0 => {
                     v.as_object_mut().unwrap().remove("terminalDirectories");
+                    v.as_object_mut().unwrap().remove("managedNames");
                 }
                 1 => v["terminalDirectories"] = Value::Null,
                 2 => v["version"] = json!(2),

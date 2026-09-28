@@ -245,7 +245,7 @@ returns a canonical session ID or an exact terminal target, testing exact sessio
 `--session <id>`, `--name <alias>` or `--panel <id|@panel:suffix>` for explicit selection; exactly one selector is
 required. Names match `[a-z][a-z0-9_-]{0,31}` and are case-sensitive. They are unique,
 sharing a 512-entry cap across canonical names, terminal names and pending launches, and released when the session ends, is removed, or the
-Site runtime is disposed. Restarting a Site starts with an empty alias table.
+Site runtime is disposed. Only admitted completed managed names can return after Site restart.
 
 
 Windows terminal-backed names require a reported, detected or retained provider identity; an
@@ -258,12 +258,16 @@ canonical session alias.
 
 Terminal-target resolve/list use versions 3, rename/clear use version 2, and mixed-target name
 collisions use failure version 4 with `conflictTarget`. Existing canonical receipts keep their
-versions. Windows `agent get` without `--client` returns version 13 `terminal-found` with its exact
-target, actual frame/process/primary-panel report fields and unmanaged state. It contains no invented
+versions. Windows `agent get` without `--client` returns version 14 `terminal-found` with its exact
+target, actual frame/process/primary-panel report fields and a separate management source/state read.
+Management is unmanaged or active with the restored provider; it does not assert current readiness.
+The closed version 13 schema remains available. It contains no invented
 session ID. Child terminal reads never borrow the primary panel's report. Named `read`, `send-keys` and
 `attach` route through the exact physical binding and existing terminal owners. Canonical-only
 `explain`, semantic `wait`/`prompt`, focus and `get --client` still require canonical observations;
-terminal name persistence and managed restart are separate remaining integrations.
+completed managed names restore onto fresh bindings after enabled provider resume. Ordinary manual names
+and pending reservations do not survive a cold restart. Same-provider reference changes and renaming
+preserve restored management. Clearing its name removes only its matching owned persisted resume seed.
 
 All three commands admit `--format text|json`. The embedded success schemas are
 `orchbee.agent.names` version 2 (with separate pending reservations), and

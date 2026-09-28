@@ -8,6 +8,7 @@ use serde_json::{Value, json};
 
 mod agent_sessions;
 mod directories;
+mod managed_names;
 mod restore;
 
 #[test]
@@ -21,10 +22,10 @@ fn admission_validates_the_complete_graph_before_runtime_reconstruction() {
         changed(|value| value["terminalContexts"][1]["terminalContextId"] = json!(identity(900)));
     assert!(WorkbenchCheckpoint::parse(&invalid_graph).is_err());
     assert!(WorkbenchCheckpoint::parse(b"{}").is_err());
-    let unsupported = changed(|value| value["version"] = json!(4));
+    let unsupported = changed(|value| value["version"] = json!(5));
     assert!(matches!(
         WorkbenchCheckpoint::parse(&unsupported),
-        Err(WorkbenchCheckpointError::UnsupportedVersion(4))
+        Err(WorkbenchCheckpointError::UnsupportedVersion(5))
     ));
 }
 
@@ -371,12 +372,12 @@ fn rejects_missing_unknown_duplicate_and_unsupported_fields() {
     assert!(restore(&changed(|value| value["siteId"] = json!(identity(100)))).is_err());
     assert!(restore(&changed(|value| value["schema"] = json!("another.schema"))).is_err());
     assert_eq!(
-        restore(&changed(|value| value["version"] = json!(4))).err(),
-        Some(WorkbenchCheckpointError::UnsupportedVersion(4))
+        restore(&changed(|value| value["version"] = json!(5))).err(),
+        Some(WorkbenchCheckpointError::UnsupportedVersion(5))
     );
     let encoded = String::from_utf8(checkpoint()).unwrap();
     for (needle, replacement) in [
-        ("\"version\":3", "\"version\":3,\"version\":3"),
+        ("\"version\":4", "\"version\":4,\"version\":4"),
         ("\"binding\":null", "\"binding\":null,\"binding\":null"),
         (
             "\"name\":\"same name\"",

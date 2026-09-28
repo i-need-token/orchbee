@@ -22,9 +22,10 @@ pub(crate) struct TerminalNameFact {
     pub(crate) owner: TerminalAgentNameOwner,
 }
 pub(super) struct TerminalName {
-    name: AgentName,
-    binding: Binding,
-    owner: TerminalAgentNameOwner,
+    pub(super) name: AgentName,
+    pub(super) binding: Binding,
+    pub(super) owner: TerminalAgentNameOwner,
+    pub(super) managed: Option<super::restart::RestoredManagement>,
 }
 enum Selected<'a> {
     Session(AgentSessionId, AgentResolvedBy),
@@ -50,18 +51,26 @@ impl Names {
             return;
         };
         let incoming = &fact.owner;
+        let managed_provider = entry.managed.as_ref().is_some_and(|managed| {
+            incoming
+                .agent
+                .as_deref()
+                .and_then(orchbee_agent_observation_protocol::AgentReportProvider::lookup)
+                .is_some_and(|provider| provider.native_provider_id() == managed.provider.as_str())
+        });
         if !same_binding(&entry.binding, &fact.binding)
             || incoming.clear
-            || incoming
-                .agent
-                .as_ref()
-                .zip(entry.owner.agent.as_ref())
-                .is_some_and(|(a, b)| a != b)
-            || incoming
-                .reference
-                .as_ref()
-                .zip(entry.owner.reference.as_ref())
-                .is_some_and(|(a, b)| a != b)
+            || (!managed_provider
+                && (incoming
+                    .agent
+                    .as_ref()
+                    .zip(entry.owner.agent.as_ref())
+                    .is_some_and(|(a, b)| a != b)
+                    || incoming
+                        .reference
+                        .as_ref()
+                        .zip(entry.owner.reference.as_ref())
+                        .is_some_and(|(a, b)| a != b)))
         {
             self.terminals.remove(&id);
             return;
@@ -246,6 +255,10 @@ impl Names {
             return reject(AssignReason::CapacityExceeded);
         }
         let mut owner = fact.owner.clone();
+        let managed = self
+            .terminals
+            .get(&id)
+            .and_then(|existing| existing.managed.clone());
         if let Some(existing) = self.terminals.get(&id) {
             owner = existing.owner.clone();
         }
@@ -257,6 +270,7 @@ impl Names {
                     name: name.clone(),
                     binding: fact.binding.clone(),
                     owner,
+                    managed,
                 },
             )
             .map(|entry| entry.name);

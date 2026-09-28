@@ -52,6 +52,8 @@ pub(super) fn read(
         fields["metadata"] = metadata.value(&panel_id);
         fields["reportedAgent"] = metadata.report_value(&panel_id);
     }
+    let management =
+        query::read_terminal_management(client, &binding, deadline, signals.poll_fd())?;
     query::named_terminal::verify_named_binding(client, &binding, deadline, signals.poll_fd())?;
     let latest = query::refresh_snapshot(
         client,
@@ -69,6 +71,7 @@ pub(super) fn read(
         results::Projection::AgentTerminalInspection {
             binding,
             terminal: fields,
+            management,
         },
     ))
 }

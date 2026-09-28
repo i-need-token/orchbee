@@ -118,6 +118,22 @@ impl Entry {
 }
 
 impl Names {
+    pub(super) fn canonical_managed_claims(&self) -> Vec<super::restart::ManagedNameClaim> {
+        self.launches
+            .active
+            .iter()
+            .filter_map(|(id, managed)| {
+                self.by_session
+                    .get(id)
+                    .map(|name| super::restart::ManagedNameClaim {
+                        name: name.clone(),
+                        provider: managed.provider.clone(),
+                        binding: managed.binding.clone(),
+                        owned_session: None,
+                    })
+            })
+            .collect()
+    }
     pub(super) fn reconcile_managed(&mut self, snapshot: &AgentRuntimeSnapshot) {
         self.launches.active.retain(|id, managed| {
             self.by_session.contains_key(id)
@@ -242,6 +258,28 @@ impl Names {
         self.reconcile_launches(bindings, now_ms, false);
         self.reconcile_managed(snapshot);
         let now = self.launches.now_ms;
+        if let AgentLaunchRequest::TerminalStatus { binding, .. } = request {
+            if !bindings
+                .iter()
+                .any(|candidate| launch_binding(candidate) == *binding)
+            {
+                return reject(Rejection::BindingChanged);
+            }
+            let management = self
+                .terminals
+                .get(&binding.presentation_id)
+                .and_then(|entry| entry.managed.as_ref())
+                .map_or(
+                    orchbee_agent_observation_protocol::AgentTerminalManagement::Unmanaged {},
+                    |managed| orchbee_agent_observation_protocol::AgentTerminalManagement::Active {
+                        provider_id: managed.provider.clone(),
+                    },
+                );
+            return Outcome::TerminalStatus {
+                binding: binding.clone(),
+                management,
+            };
+        }
         if let AgentLaunchRequest::Status { session_id, .. } = request {
             return self.management(snapshot, session_id);
         }
@@ -319,7 +357,9 @@ impl Names {
             AgentLaunchRequest::Inspect { reservation_id, .. }
             | AgentLaunchRequest::Complete { reservation_id, .. }
             | AgentLaunchRequest::Cancel { reservation_id, .. } => reservation_id,
-            AgentLaunchRequest::Reserve { .. } | AgentLaunchRequest::Status { .. } => {
+            AgentLaunchRequest::Reserve { .. }
+            | AgentLaunchRequest::Status { .. }
+            | AgentLaunchRequest::TerminalStatus { .. } => {
                 unreachable!("handled above")
             }
         };

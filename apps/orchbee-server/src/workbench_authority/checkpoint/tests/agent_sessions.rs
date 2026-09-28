@@ -112,10 +112,11 @@ fn v1_remains_readable_but_v2_records_are_required_and_strict() {
         v["version"] = json!(1);
         v.as_object_mut().unwrap().remove("agentSessions");
         v.as_object_mut().unwrap().remove("terminalDirectories");
+        v.as_object_mut().unwrap().remove("managedNames");
     });
     let upgraded = restore(&legacy).unwrap().checkpoint(&worker(400)).unwrap();
     let upgraded: Value = serde_json::from_slice(&upgraded).unwrap();
-    assert_eq!(upgraded["version"], 3);
+    assert_eq!(upgraded["version"], 4);
     assert_eq!(upgraded["agentSessions"], json!([]));
     for fault in 0..10 {
         let bytes = changed(|v| {

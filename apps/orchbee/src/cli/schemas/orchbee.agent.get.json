@@ -10,7 +10,7 @@
 			"const": "orchbee.agent.get"
 		},
 		"version": {
-			"enum": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]
+			"enum": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]
 		},
 		"source": {
 			"oneOf": [
@@ -29,6 +29,9 @@
 				},
 				{
 					"$ref": "#/$defs/terminalInspection"
+				},
+				{
+					"$ref": "#/$defs/managedTerminalInspection"
 				}
 			]
 		}
@@ -2515,6 +2518,75 @@
 		},
 		"sessionId": {
 			"$ref": "#/$defs/opaqueIdentity"
+		},
+		"terminalManagementState": {
+			"oneOf": [
+				{
+					"type": "object",
+					"required": ["phase"],
+					"additionalProperties": false,
+					"properties": {
+						"phase": {
+							"const": "unmanaged"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"required": ["phase", "providerId"],
+					"additionalProperties": false,
+					"properties": {
+						"phase": {
+							"const": "active"
+						},
+						"providerId": {
+							"type": "string",
+							"pattern": "^[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?$",
+							"maxLength": 64
+						}
+					}
+				}
+			]
+		},
+		"managedTerminalInspection": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["kind", "target", "terminal", "management"],
+			"properties": {
+				"kind": {
+					"const": "terminal-found"
+				},
+				"target": {
+					"allOf": [
+						{
+							"$ref": "#/$defs/nameTarget"
+						},
+						{
+							"properties": {
+								"kind": {
+									"const": "terminal"
+								}
+							}
+						}
+					]
+				},
+				"terminal": {
+					"$ref": "#/$defs/namedTerminal"
+				},
+				"management": {
+					"type": "object",
+					"required": ["source", "state"],
+					"additionalProperties": false,
+					"properties": {
+						"source": {
+							"$ref": "#/$defs/agentReadSource"
+						},
+						"state": {
+							"$ref": "#/$defs/terminalManagementState"
+						}
+					}
+				}
+			}
 		}
 	},
 	"allOf": [
@@ -2522,14 +2594,14 @@
 			"if": {
 				"properties": {
 					"version": {
-						"const": 13
+						"const": 14
 					}
 				}
 			},
 			"then": {
 				"properties": {
 					"result": {
-						"$ref": "#/$defs/terminalInspection"
+						"$ref": "#/$defs/managedTerminalInspection"
 					},
 					"source": {
 						"$ref": "#/$defs/runtimeProcess_snapshotSource"
@@ -2537,413 +2609,432 @@
 				}
 			},
 			"else": {
-				"properties": {
-					"result": {
-						"$ref": "#/$defs/canonicalInspection"
-					},
-					"source": {
-						"$ref": "#/$defs/agentReadSource"
+				"if": {
+					"properties": {
+						"version": {
+							"const": 13
+						}
 					}
 				},
-				"allOf": [
-					{
-						"if": {
-							"properties": {
-								"version": {
-									"enum": [2, 4, 6, 8, 10, 12]
-								}
-							}
+				"then": {
+					"properties": {
+						"result": {
+							"$ref": "#/$defs/terminalInspection"
 						},
-						"then": {
-							"properties": {
-								"result": {
-									"required": ["client"],
-									"type": "object"
-								}
-							}
-						},
-						"else": {
-							"properties": {
-								"result": {
-									"not": {
-										"required": ["client"]
-									},
-									"type": "object"
-								}
-							}
-						}
-					},
-					{
-						"if": {
-							"properties": {
-								"version": {
-									"enum": [3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
-								}
-							}
-						},
-						"then": {
-							"properties": {
-								"result": {
-									"required": ["runtime"],
-									"type": "object"
-								}
-							}
-						},
-						"else": {
-							"properties": {
-								"result": {
-									"not": {
-										"required": ["runtime"]
-									},
-									"type": "object"
-								}
-							}
-						}
-					},
-					{
-						"if": {
-							"properties": {
-								"version": {
-									"enum": [5, 6, 7, 8, 9, 10, 11, 12]
-								}
-							}
-						},
-						"then": {
-							"properties": {
-								"result": {
-									"required": ["management"],
-									"type": "object"
-								}
-							}
-						},
-						"else": {
-							"properties": {
-								"result": {
-									"not": {
-										"required": ["management"]
-									},
-									"type": "object"
-								}
-							}
-						}
-					},
-					{
-						"if": {
-							"properties": {
-								"version": {
-									"enum": [7, 8, 9, 10, 11, 12]
-								}
-							}
-						},
-						"then": {
-							"properties": {
-								"result": {
-									"required": ["terminal"],
-									"allOf": [
-										{
-											"if": {
-												"properties": {
-													"runtime": {
-														"type": "object",
-														"required": ["reason"],
-														"properties": {
-															"kind": {
-																"const": "unavailable"
-															},
-															"reason": {
-																"enum": [
-																	"session-ended",
-																	"unbound",
-																	"ambiguous-primary",
-																	"binding-changed"
-																]
-															}
-														}
-													}
-												}
-											},
-											"then": {
-												"properties": {
-													"terminal": {
-														"type": "null"
-													}
-												}
-											}
-										},
-										{
-											"if": {
-												"properties": {
-													"runtime": {
-														"type": "object",
-														"required": ["reason"],
-														"properties": {
-															"kind": {
-																"const": "unavailable"
-															},
-															"reason": {
-																"enum": ["terminal-unavailable"]
-															}
-														}
-													}
-												}
-											},
-											"then": {
-												"properties": {
-													"terminal": {
-														"type": "object",
-														"properties": {
-															"terminalObservation": {
-																"type": "object",
-																"properties": {
-																	"state": {
-																		"const": "unavailable"
-																	}
-																}
-															}
-														}
-													}
-												}
-											}
-										},
-										{
-											"if": {
-												"properties": {
-													"runtime": {
-														"type": "object",
-														"required": ["reason"],
-														"properties": {
-															"kind": {
-																"const": "unavailable"
-															},
-															"reason": {
-																"enum": ["process-unavailable"]
-															}
-														}
-													}
-												}
-											},
-											"then": {
-												"properties": {
-													"terminal": {
-														"type": "object",
-														"properties": {
-															"terminalObservation": {
-																"type": "object",
-																"properties": {
-																	"state": {
-																		"const": "observed"
-																	},
-																	"processes": {
-																		"type": "object",
-																		"properties": {
-																			"state": {
-																				"const": "unavailable"
-																			}
-																		}
-																	}
-																}
-															}
-														}
-													}
-												}
-											}
-										},
-										{
-											"if": {
-												"properties": {
-													"runtime": {
-														"type": "object",
-														"properties": {
-															"kind": {
-																"const": "observed"
-															}
-														}
-													}
-												}
-											},
-											"then": {
-												"properties": {
-													"terminal": {
-														"type": "object",
-														"properties": {
-															"terminalObservation": {
-																"type": "object",
-																"properties": {
-																	"state": {
-																		"const": "observed"
-																	},
-																	"processes": {
-																		"type": "object",
-																		"properties": {
-																			"state": {
-																				"const": "observed"
-																			}
-																		}
-																	}
-																}
-															}
-														}
-													}
-												}
-											}
-										}
-									],
-									"type": "object"
-								}
-							}
-						},
-						"else": {
-							"properties": {
-								"result": {
-									"not": {
-										"required": ["terminal"]
-									},
-									"properties": {
-										"runtime": {
-											"$ref": "#/$defs/legacyRuntime"
-										}
-									},
-									"type": "object"
-								}
-							}
-						}
-					},
-					{
-						"if": {
-							"properties": {
-								"version": {
-									"enum": [9, 10, 11, 12]
-								}
-							}
-						},
-						"then": {
-							"properties": {
-								"result": {
-									"type": "object",
-									"properties": {
-										"terminal": {
-											"anyOf": [
-												{
-													"type": "null"
-												},
-												{
-													"type": "object",
-													"properties": {
-														"metadata": {
-															"anyOf": [
-																{
-																	"$ref": "#/$defs/panelMetadata"
-																},
-																{
-																	"$ref": "#/$defs/reportedPanelMetadata"
-																}
-															]
-														}
-													},
-													"required": ["metadata"]
-												}
-											]
-										}
-									}
-								}
-							}
-						},
-						"else": {
-							"properties": {
-								"result": {
-									"type": "object",
-									"properties": {
-										"terminal": {
-											"anyOf": [
-												{
-													"type": "null"
-												},
-												{
-													"type": "object",
-													"properties": {
-														"metadata": {
-															"$ref": "#/$defs/panelMetadata"
-														}
-													},
-													"not": {
-														"required": ["metadata"]
-													}
-												}
-											]
-										}
-									}
-								}
-							}
-						}
-					},
-					{
-						"if": {
-							"properties": {
-								"version": {
-									"enum": [11, 12]
-								}
-							}
-						},
-						"then": {
-							"properties": {
-								"result": {
-									"type": "object",
-									"properties": {
-										"terminal": {
-											"anyOf": [
-												{
-													"type": "null"
-												},
-												{
-													"type": "object",
-													"properties": {
-														"metadata": {
-															"$ref": "#/$defs/reportedPanelMetadata"
-														},
-														"reportedAgent": {
-															"$ref": "#/$defs/reportedAgent"
-														}
-													},
-													"required": ["metadata", "reportedAgent"]
-												}
-											]
-										}
-									}
-								}
-							}
-						},
-						"else": {
-							"properties": {
-								"result": {
-									"type": "object",
-									"properties": {
-										"terminal": {
-											"anyOf": [
-												{
-													"type": "null"
-												},
-												{
-													"type": "object",
-													"properties": {
-														"metadata": {
-															"$ref": "#/$defs/panelMetadata"
-														},
-														"reportedAgent": {
-															"$ref": "#/$defs/reportedAgent"
-														}
-													},
-													"not": {
-														"required": ["reportedAgent"]
-													}
-												}
-											]
-										}
-									}
-								}
-							}
+						"source": {
+							"$ref": "#/$defs/runtimeProcess_snapshotSource"
 						}
 					}
-				]
+				},
+				"else": {
+					"properties": {
+						"result": {
+							"$ref": "#/$defs/canonicalInspection"
+						},
+						"source": {
+							"$ref": "#/$defs/agentReadSource"
+						}
+					},
+					"allOf": [
+						{
+							"if": {
+								"properties": {
+									"version": {
+										"enum": [2, 4, 6, 8, 10, 12]
+									}
+								}
+							},
+							"then": {
+								"properties": {
+									"result": {
+										"required": ["client"],
+										"type": "object"
+									}
+								}
+							},
+							"else": {
+								"properties": {
+									"result": {
+										"not": {
+											"required": ["client"]
+										},
+										"type": "object"
+									}
+								}
+							}
+						},
+						{
+							"if": {
+								"properties": {
+									"version": {
+										"enum": [3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+									}
+								}
+							},
+							"then": {
+								"properties": {
+									"result": {
+										"required": ["runtime"],
+										"type": "object"
+									}
+								}
+							},
+							"else": {
+								"properties": {
+									"result": {
+										"not": {
+											"required": ["runtime"]
+										},
+										"type": "object"
+									}
+								}
+							}
+						},
+						{
+							"if": {
+								"properties": {
+									"version": {
+										"enum": [5, 6, 7, 8, 9, 10, 11, 12]
+									}
+								}
+							},
+							"then": {
+								"properties": {
+									"result": {
+										"required": ["management"],
+										"type": "object"
+									}
+								}
+							},
+							"else": {
+								"properties": {
+									"result": {
+										"not": {
+											"required": ["management"]
+										},
+										"type": "object"
+									}
+								}
+							}
+						},
+						{
+							"if": {
+								"properties": {
+									"version": {
+										"enum": [7, 8, 9, 10, 11, 12]
+									}
+								}
+							},
+							"then": {
+								"properties": {
+									"result": {
+										"required": ["terminal"],
+										"allOf": [
+											{
+												"if": {
+													"properties": {
+														"runtime": {
+															"type": "object",
+															"required": ["reason"],
+															"properties": {
+																"kind": {
+																	"const": "unavailable"
+																},
+																"reason": {
+																	"enum": [
+																		"session-ended",
+																		"unbound",
+																		"ambiguous-primary",
+																		"binding-changed"
+																	]
+																}
+															}
+														}
+													}
+												},
+												"then": {
+													"properties": {
+														"terminal": {
+															"type": "null"
+														}
+													}
+												}
+											},
+											{
+												"if": {
+													"properties": {
+														"runtime": {
+															"type": "object",
+															"required": ["reason"],
+															"properties": {
+																"kind": {
+																	"const": "unavailable"
+																},
+																"reason": {
+																	"enum": ["terminal-unavailable"]
+																}
+															}
+														}
+													}
+												},
+												"then": {
+													"properties": {
+														"terminal": {
+															"type": "object",
+															"properties": {
+																"terminalObservation": {
+																	"type": "object",
+																	"properties": {
+																		"state": {
+																			"const": "unavailable"
+																		}
+																	}
+																}
+															}
+														}
+													}
+												}
+											},
+											{
+												"if": {
+													"properties": {
+														"runtime": {
+															"type": "object",
+															"required": ["reason"],
+															"properties": {
+																"kind": {
+																	"const": "unavailable"
+																},
+																"reason": {
+																	"enum": ["process-unavailable"]
+																}
+															}
+														}
+													}
+												},
+												"then": {
+													"properties": {
+														"terminal": {
+															"type": "object",
+															"properties": {
+																"terminalObservation": {
+																	"type": "object",
+																	"properties": {
+																		"state": {
+																			"const": "observed"
+																		},
+																		"processes": {
+																			"type": "object",
+																			"properties": {
+																				"state": {
+																					"const": "unavailable"
+																				}
+																			}
+																		}
+																	}
+																}
+															}
+														}
+													}
+												}
+											},
+											{
+												"if": {
+													"properties": {
+														"runtime": {
+															"type": "object",
+															"properties": {
+																"kind": {
+																	"const": "observed"
+																}
+															}
+														}
+													}
+												},
+												"then": {
+													"properties": {
+														"terminal": {
+															"type": "object",
+															"properties": {
+																"terminalObservation": {
+																	"type": "object",
+																	"properties": {
+																		"state": {
+																			"const": "observed"
+																		},
+																		"processes": {
+																			"type": "object",
+																			"properties": {
+																				"state": {
+																					"const": "observed"
+																				}
+																			}
+																		}
+																	}
+																}
+															}
+														}
+													}
+												}
+											}
+										],
+										"type": "object"
+									}
+								}
+							},
+							"else": {
+								"properties": {
+									"result": {
+										"not": {
+											"required": ["terminal"]
+										},
+										"properties": {
+											"runtime": {
+												"$ref": "#/$defs/legacyRuntime"
+											}
+										},
+										"type": "object"
+									}
+								}
+							}
+						},
+						{
+							"if": {
+								"properties": {
+									"version": {
+										"enum": [9, 10, 11, 12]
+									}
+								}
+							},
+							"then": {
+								"properties": {
+									"result": {
+										"type": "object",
+										"properties": {
+											"terminal": {
+												"anyOf": [
+													{
+														"type": "null"
+													},
+													{
+														"type": "object",
+														"properties": {
+															"metadata": {
+																"anyOf": [
+																	{
+																		"$ref": "#/$defs/panelMetadata"
+																	},
+																	{
+																		"$ref": "#/$defs/reportedPanelMetadata"
+																	}
+																]
+															}
+														},
+														"required": ["metadata"]
+													}
+												]
+											}
+										}
+									}
+								}
+							},
+							"else": {
+								"properties": {
+									"result": {
+										"type": "object",
+										"properties": {
+											"terminal": {
+												"anyOf": [
+													{
+														"type": "null"
+													},
+													{
+														"type": "object",
+														"properties": {
+															"metadata": {
+																"$ref": "#/$defs/panelMetadata"
+															}
+														},
+														"not": {
+															"required": ["metadata"]
+														}
+													}
+												]
+											}
+										}
+									}
+								}
+							}
+						},
+						{
+							"if": {
+								"properties": {
+									"version": {
+										"enum": [11, 12]
+									}
+								}
+							},
+							"then": {
+								"properties": {
+									"result": {
+										"type": "object",
+										"properties": {
+											"terminal": {
+												"anyOf": [
+													{
+														"type": "null"
+													},
+													{
+														"type": "object",
+														"properties": {
+															"metadata": {
+																"$ref": "#/$defs/reportedPanelMetadata"
+															},
+															"reportedAgent": {
+																"$ref": "#/$defs/reportedAgent"
+															}
+														},
+														"required": ["metadata", "reportedAgent"]
+													}
+												]
+											}
+										}
+									}
+								}
+							},
+							"else": {
+								"properties": {
+									"result": {
+										"type": "object",
+										"properties": {
+											"terminal": {
+												"anyOf": [
+													{
+														"type": "null"
+													},
+													{
+														"type": "object",
+														"properties": {
+															"metadata": {
+																"$ref": "#/$defs/panelMetadata"
+															},
+															"reportedAgent": {
+																"$ref": "#/$defs/reportedAgent"
+															}
+														},
+														"not": {
+															"required": ["reportedAgent"]
+														}
+													}
+												]
+											}
+										}
+									}
+								}
+							}
+						}
+					]
+				}
 			}
 		}
 	]

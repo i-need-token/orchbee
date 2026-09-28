@@ -28,6 +28,7 @@ mod agent_drain_read;
 mod agent_names;
 #[cfg(windows)]
 mod checkpoint;
+pub(crate) use checkpoint::CheckpointRestore;
 mod close_maintenance;
 mod controller_session;
 mod operation_maintenance;

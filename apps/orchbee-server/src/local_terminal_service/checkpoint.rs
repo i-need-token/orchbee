@@ -14,13 +14,21 @@ use std::{
 };
 mod resume;
 
+pub(crate) struct CheckpointRestore {
+    pending: Vec<PendingOperation>,
+    managed: Vec<(
+        orchbee_server::ManagedAgentRestart,
+        orchbee_workbench_protocol::PanelAgentSession,
+    )>,
+}
+
 impl LocalTerminalService {
     /// Reconstructs and reserves every terminal before any request can launch a Host.
     pub(crate) fn from_checkpoint(
         workers: Arc<Mutex<WorkerRegistry>>,
         checkpoint: Option<WorkbenchCheckpoint>,
         resume_agents: bool,
-    ) -> io::Result<(Self, Vec<PendingOperation>)> {
+    ) -> io::Result<(Self, CheckpointRestore)> {
         let handle = workers
             .lock()
             .map_err(|_| io::Error::other("Worker registry failed"))?
@@ -33,6 +41,10 @@ impl LocalTerminalService {
         ))
         .map_err(io::Error::other)?;
         let site = random_site_id()?;
+        let saved_names = checkpoint
+            .as_ref()
+            .map(|checkpoint| checkpoint.managed_names().to_vec())
+            .unwrap_or_default();
         let mut authority = match checkpoint {
             Some(checkpoint) => checkpoint
                 .reconstruct(site, &owner)
@@ -47,7 +59,16 @@ impl LocalTerminalService {
             .map_err(|_| io::Error::other("coordinator failed"))?;
         let expiry = lease_expiry().ok_or_else(|| io::Error::other("restore lease unavailable"))?;
         let mut pending = Vec::with_capacity(plans.len());
+        let mut managed = Vec::new();
         for (target, launch) in plans {
+            if launch.is_some()
+                && let Some(claim) = saved_names
+                    .iter()
+                    .find(|claim| &claim.presentation_id == target.presentation_id())
+                && let Some(session) = target.agent_session()
+            {
+                managed.push((claim.clone(), session.clone()));
+            }
             let reference = create_reference()
                 .ok_or_else(|| io::Error::other("restore request identity unavailable"))?;
             let cwd = target
@@ -61,12 +82,13 @@ impl LocalTerminalService {
                     &target, reference, worker, expiry, launch, cwd,
                 )?);
         }
-        Ok((service, pending))
+        Ok((service, CheckpointRestore { pending, managed }))
     }
 
     pub(crate) fn launch_checkpoint_terminals(
         &self,
-        pending: Vec<PendingOperation>,
+        restore: CheckpointRestore,
+        agents: &crate::agent_service::AgentService,
         deadline: Instant,
     ) -> io::Result<()> {
         let handle = self
@@ -74,7 +96,7 @@ impl LocalTerminalService {
             .lock()
             .map_err(|_| io::Error::other("Worker registry failed"))?
             .request_handle();
-        for terminal in pending {
+        for terminal in restore.pending {
             let completion = if Instant::now() >= deadline {
                 Completion::Unavailable
             } else {
@@ -99,11 +121,32 @@ impl LocalTerminalService {
                 .map_err(|_| io::Error::other("restore settlement failed"))?;
             coordinator.seed_checkpoint_agent_sessions()?;
         }
+        if !restore.managed.is_empty() {
+            super::agent_drain_read::agent_drain_finish(
+                &self.workers,
+                &self.coordinator,
+                agents,
+                deadline,
+                std::time::Duration::from_millis(25),
+                |coordinator, _| {
+                    let facts = coordinator
+                        .terminal_name_facts()
+                        .map_err(|_| crate::agent_service::PreparedUnavailable)?;
+                    agents.restore_managed_names(&restore.managed, &facts)
+                },
+            )
+            .map_err(|_| io::Error::other("managed Agent name restoration unavailable"))?;
+        }
         self.standalone_changed.notify_all();
         Ok(())
     }
 
-    pub(crate) fn checkpoint(&self, worker: &WorkerId, deadline: Instant) -> io::Result<Vec<u8>> {
+    pub(crate) fn checkpoint(
+        &self,
+        worker: &WorkerId,
+        agents: &crate::agent_service::AgentService,
+        deadline: Instant,
+    ) -> io::Result<Vec<u8>> {
         let (revision, targets) = self
             .coordinator
             .lock()
@@ -137,6 +180,6 @@ impl LocalTerminalService {
         if coordinator.checkpoint_observation_targets()? != (revision, targets) {
             return Err(io::Error::other("checkpoint physical membership changed"));
         }
-        coordinator.checkpoint_with_agent_sessions(worker, &directories)
+        coordinator.checkpoint_with_agent_sessions(worker, agents, &directories)
     }
 }

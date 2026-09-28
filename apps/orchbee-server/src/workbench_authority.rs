@@ -22,15 +22,15 @@ use crate::workbench_projection::{
 
 mod checkpoint;
 pub use checkpoint::{
-    MAXIMUM_WORKBENCH_CHECKPOINT_BYTES, PreparedWorkbenchRestoreBinding, WorkbenchCheckpoint,
-    WorkbenchCheckpointError, WorkbenchRestoreError, WorkbenchRestoreTarget,
+    MAXIMUM_WORKBENCH_CHECKPOINT_BYTES, ManagedAgentRestart, PreparedWorkbenchRestoreBinding,
+    WorkbenchCheckpoint, WorkbenchCheckpointError, WorkbenchRestoreError, WorkbenchRestoreTarget,
 };
 mod agent_reports;
 mod panel_agent;
 mod report_membership;
 pub use panel_agent::{
-    TerminalAgentBinding, TerminalAgentNameOwner, TerminalAgentProcessObservation,
-    TerminalAgentProcessOutcome, TerminalAgentScreenObservation,
+    PreparedManagedAgentClear, TerminalAgentBinding, TerminalAgentNameOwner,
+    TerminalAgentProcessObservation, TerminalAgentProcessOutcome, TerminalAgentScreenObservation,
 };
 mod panel_metadata;
 mod terminal_membership;

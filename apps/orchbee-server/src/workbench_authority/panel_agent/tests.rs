@@ -482,3 +482,53 @@ fn per_binding_explicit_input_stamp_ignores_process_writes_and_other_bindings() 
     invoke(&mut owner, state("custom", "2"), &facts);
     assert!(owner.terminal_agent_input_revision(&fact) > stamp);
 }
+
+#[test]
+fn managed_clear_is_prepared_atomic_exact_and_preserves_independent_reports() {
+    let mut a = owner();
+    let physical = physical(1, 1);
+    let session: orchbee_workbench_protocol::PanelAgentSession = serde_json::from_value(
+        json!({"source":"herdr:grok","agent":"grok","reference":{"kind":"id","value":"saved"}}),
+    )
+    .unwrap();
+    a.panel_agent
+        .seed_sessions(vec![(physical.clone(), session.clone())], Instant::now())
+        .unwrap();
+    let revision = a.panel_agent.revision;
+    drop(a.prepare_managed_agent_clear(&physical, &session).unwrap());
+    assert_eq!(a.terminal_restart_session(&physical), Some(session.clone()));
+    assert_eq!(a.panel_agent.revision, revision);
+    a.panel_agent.revision = u64::MAX;
+    assert!(matches!(
+        a.prepare_managed_agent_clear(&physical, &session),
+        Err(Failure::RevisionExhausted)
+    ));
+    assert_eq!(a.terminal_restart_session(&physical), Some(session.clone()));
+    a.panel_agent.revision = revision;
+    let mut other = session.clone();
+    other.reference.value = "later".into();
+    a.prepare_managed_agent_clear(&physical, &other)
+        .unwrap()
+        .commit();
+    assert_eq!(a.terminal_restart_session(&physical), Some(session.clone()));
+    let mut stale = physical.clone();
+    stale.worker_generation = WorkerGeneration::new(NonZeroU64::new(2).unwrap());
+    a.prepare_managed_agent_clear(&stale, &session)
+        .unwrap()
+        .commit();
+    assert_eq!(a.terminal_restart_session(&physical), Some(session.clone()));
+    a.prepare_managed_agent_clear(&physical, &session)
+        .unwrap()
+        .commit();
+    assert_eq!(a.panel_agent.checkpoint_session(&physical), Some(None));
+    assert_eq!(a.panel_agent.revision, revision + 1);
+    // A newer persisted provider reference is not owned by the cleared name.
+    let mut a = owner();
+    a.panel_agent
+        .seed_sessions(vec![(physical.clone(), other.clone())], Instant::now())
+        .unwrap();
+    a.prepare_managed_agent_clear(&physical, &session)
+        .unwrap()
+        .commit();
+    assert_eq!(a.terminal_restart_session(&physical), Some(other));
+}

@@ -196,7 +196,7 @@ scope 传给子终端，使内部 CLI 命令保持所属 Site，即使 Server �
 名称；`agent rename <target> --clear` 只释放名称，不停止会话。可把目标位置参数替换成
 `--session <id>`、`--name <alias>` 或 `--panel <id|@panel:suffix>` 明确选择；必须且只能使用一种选择器。
 名称格式为 `[a-z][a-z0-9_-]{0,31}`，区分大小写且唯一，canonical 名称、终端名称与待完成启动预留共用 512 条上限。
-会话结束、移除或 Site 运行时 dispose 后释放名称；Site 重启后的别名表为空。
+会话结束、移除或 Site 运行时 dispose 后释放名称；Site 重启后仅可恢复已接纳的已完成托管名称。
 
 Windows 终端名称要求真实的上报、进程识别或保留 provider 身份；普通未命名 shell 不符合条件。
 目标携带 presentation ID、创建 generation、Host epoch 和终端 ID。首次 provider reference
@@ -206,11 +206,13 @@ Windows 终端名称要求真实的上报、进程识别或保留 provider 身�
 
 终端目标 resolve/list 使用 version 3，rename/clear 使用 version 2，混合目标重名失败使用
 version 4 的 `conflictTarget`；既有 canonical 回执保持原版本。Windows `agent get` 不带
-`--client` 时返回 version 13 `terminal-found`，包含精确目标、实际帧／进程／主 Panel 报告
-字段及 unmanaged 状态，不伪造会话 ID。子终端读取不会借用主 Panel 的报告。按名 `read`、
+`--client` 时返回 version 14 `terminal-found`，包含精确目标、实际帧／进程／主 Panel 报告
+字段及独立的 management 来源／状态读取。状态为 unmanaged 或带恢复 provider 的 active，
+不代表当前就绪；仍保留闭合的 version 13 schema。不伪造会话 ID。子终端读取不会借用主 Panel 的报告。按名 `read`、
 `send-keys`、`attach` 经精确物理绑定交给既有终端所有者。仅 canonical 的 `explain`、语义
-`wait`／`prompt`、focus 和 `get --client` 仍要求 canonical 观察；终端名称持久化和托管重启
-属于后续仍需完成的集成。
+`wait`／`prompt`、focus 和 `get --client` 仍要求 canonical 观察；启用 provider 恢复后，已完成托管名称绑定到新物理终端。
+普通手工名称和待完成预留不在冷启动恢复。同 provider 换引用或改名保留恢复后的托管身份；
+清名仅清除其仍匹配的自有持久恢复引用。
 
 
 三个命令均接受 `--format text|json`。内嵌成功 schema 为 `orchbee.agent.names`、

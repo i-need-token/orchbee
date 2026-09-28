@@ -17,6 +17,8 @@ use orchbee_workbench_protocol::{
 use std::{collections::BTreeMap, time::Instant};
 const MAXIMUM_RESOURCES: usize = 4096;
 const MAXIMUM_BYTES: usize = 32 * 1024 * 1024;
+mod managed_clear;
+pub use managed_clear::PreparedManagedAgentClear;
 
 /// Pure name-ownership observation; never grants canonical Agent authority.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]

@@ -16,6 +16,8 @@ use super::{WorkbenchAuthority, catalog_serialized_size, identity};
 use crate::workbench_projection::WorkbenchProjectionStore;
 
 mod agent_sessions;
+mod managed_names;
+pub use managed_names::ManagedAgentRestart;
 mod directories;
 mod restore;
 pub use restore::{PreparedWorkbenchRestoreBinding, WorkbenchRestoreError, WorkbenchRestoreTarget};
@@ -35,6 +37,7 @@ pub enum WorkbenchCheckpointError {
     TerminalBinding,
     InvalidAgentSession,
     InvalidTerminalDirectory,
+    InvalidManagedName,
 }
 
 impl fmt::Display for WorkbenchCheckpointError {
@@ -65,6 +68,9 @@ impl fmt::Display for WorkbenchCheckpointError {
                 formatter.write_str("invalid checkpoint terminal directory")
             }
             Self::InvalidAgentSession => formatter.write_str("invalid checkpoint Agent session"),
+            Self::InvalidManagedName => {
+                formatter.write_str("invalid checkpoint managed Agent name")
+            }
         }
     }
 }
@@ -141,6 +147,12 @@ struct Checkpoint {
         skip_serializing_if = "Option::is_none"
     )]
     terminal_directories: Option<Vec<directories::StoredDirectory>>,
+    #[serde(
+        default,
+        deserialize_with = "managed_names::deserialize",
+        skip_serializing_if = "Option::is_none"
+    )]
+    managed_names: Option<Vec<ManagedAgentRestart>>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -201,6 +213,20 @@ impl WorkbenchAuthority {
             WorkbenchDirectoryPath,
         )],
     ) -> Result<Vec<u8>, WorkbenchCheckpointError> {
+        self.checkpoint_with_managed_agents(local_worker, facts, observed, &[])
+    }
+
+    /// Names supplies only completed claims already fenced against these physical facts.
+    pub fn checkpoint_with_managed_agents(
+        &self,
+        local_worker: &WorkerId,
+        facts: &[super::TerminalAgentBinding],
+        observed: &[(
+            orchbee_workbench_protocol::PresentationBinding,
+            WorkbenchDirectoryPath,
+        )],
+        managed: &[ManagedAgentRestart],
+    ) -> Result<Vec<u8>, WorkbenchCheckpointError> {
         if self.retired {
             return Err(WorkbenchCheckpointError::RetiredAuthority);
         }
@@ -208,6 +234,7 @@ impl WorkbenchAuthority {
         // Serialization alone does not validate the shared graph. Validate before recursion.
         let projection = validate_projection(self.snapshot().clone())?;
         let agent_sessions = agent_sessions::capture(self, local_worker, facts)?;
+        managed_names::validate(managed, &agent_sessions)?;
         let terminal_directories = directories::capture(self, local_worker, observed)?;
         let mut snapshot = projection.snapshot().clone();
         for context in &mut snapshot.terminal_contexts {
@@ -262,7 +289,7 @@ impl WorkbenchAuthority {
             .collect::<Result<Vec<_>, WorkbenchCheckpointError>>()?;
         let checkpoint = Checkpoint {
             schema: Schema::Workbench,
-            version: 3,
+            version: 4,
             last_identity,
             navigation: StoredNavigation {
                 workspace_order: snapshot.navigation.workspace_order,
@@ -273,6 +300,7 @@ impl WorkbenchAuthority {
             profiles,
             agent_sessions: Some(agent_sessions),
             terminal_directories: Some(terminal_directories),
+            managed_names: Some(managed.to_vec()),
         };
         let encoded = serde_json::to_vec(&checkpoint)
             .map_err(|_error| WorkbenchCheckpointError::InvalidDocument)?;
@@ -297,11 +325,15 @@ pub struct WorkbenchCheckpoint {
 }
 
 impl WorkbenchCheckpoint {
+    /// Immutable intent is consumed by native startup planning before reconstruction.
+    pub fn managed_names(&self) -> &[ManagedAgentRestart] {
+        self.checkpoint.managed_names.as_deref().unwrap_or_default()
+    }
     pub fn parse(encoded: &[u8]) -> Result<Self, WorkbenchCheckpointError> {
         enforce_encoded_limit(encoded)?;
         let checkpoint: Checkpoint = serde_json::from_slice(encoded)
             .map_err(|_error| WorkbenchCheckpointError::InvalidDocument)?;
-        if !matches!(checkpoint.version, 1..=3) {
+        if !matches!(checkpoint.version, 1..=4) {
             return Err(WorkbenchCheckpointError::UnsupportedVersion(
                 checkpoint.version,
             ));
@@ -309,8 +341,11 @@ impl WorkbenchCheckpoint {
         if (checkpoint.version >= 2) != checkpoint.agent_sessions.is_some() {
             return Err(WorkbenchCheckpointError::InvalidAgentSession);
         }
-        if (checkpoint.version == 3) != checkpoint.terminal_directories.is_some() {
+        if (checkpoint.version >= 3) != checkpoint.terminal_directories.is_some() {
             return Err(WorkbenchCheckpointError::InvalidTerminalDirectory);
+        }
+        if (checkpoint.version == 4) != checkpoint.managed_names.is_some() {
+            return Err(WorkbenchCheckpointError::InvalidManagedName);
         }
         // These values only validate the shared graph shape. No authority is constructed,
         // retained or published; actual boot identities arrive during reconstruction.
@@ -422,6 +457,10 @@ fn checkpoint_parts(
     agent_sessions::validate(
         checkpoint.agent_sessions.as_deref().unwrap_or_default(),
         projection.snapshot(),
+    )?;
+    managed_names::validate(
+        checkpoint.managed_names.as_deref().unwrap_or_default(),
+        checkpoint.agent_sessions.as_deref().unwrap_or_default(),
     )?;
     directories::validate(
         checkpoint

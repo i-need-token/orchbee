@@ -170,12 +170,41 @@ Workbench 拥有纯上报归属投影。
 Names 请求先检查策略、执行一次 drain 准备，再以已有 registry → coordinator → AgentState
 锁序持锁完成最终解析／修改。最终 fold 不做 I/O；修改提交后即使期限随后过去，也返回相关结果。
 dispose／poison 所有者仍回答 unavailable。保留既有 canonical ID 优先、已脱离会话名称和
-请求不确定性规则。扩展协议随完整匹配 cohort 交付；回退替换 cohort。名称持久化和托管恢复
-仍需各自的新绑定集成，单有终端别名不能证明完成。
+请求不确定性规则。扩展协议随完整匹配 cohort 交付；回退替换 cohort。托管名称持久化遵循
+下述新绑定重启契约；单有终端别名不能证明托管启动。
 
 证据须覆盖混合名称／预留冲突、满额、引用升级／替换、两次读取之间 provider A → B → A、
 已证明及不确定退出、物理替换、策略／dispose、严格协议边界，以及真实 Windows
 重命名／解析／列举／清名和具名终端访问。协议 schema 和 CLI 信封版本须与实际目标一致。
+
+
+## 托管名称重启
+
+私有 Windows 检查点 version 4 仅保留已完成的托管名称占用，按 Presentation 索引，内容为
+名称和 provider ID。每条占用必须有同一规范化 provider 的有效官方恢复引用。占用共用
+512 名称上限，名称和 presentation 均唯一。待完成启动、canonical 会话 ID、旧物理身份及
+预留 ID 不构成重启权威。继续读取 version 1–3；旧二进制拒绝 version 4，不静默丢弃。
+匹配 cohort 回滚必须保留兼容恢复数据，或显式转换／使用此前有效检查点；失败时不得覆盖
+保留的 version 4。
+
+正常停止在 registry → coordinator → AgentState 守卫内按精确当前成员捕获。启动只选择
+已启用且去重后的 provider 恢复计划。在新的 Host 创建及引用播种完成后、Site 发布前，
+Names 将选中占用恢复到新物理绑定。禁用恢复、重复抑制和物理创建缺失均不恢复名称。
+恢复的托管状态只表示归属，不表示 provider 就绪，也不伪造 canonical 观察。同 provider
+的 reference 改变保留托管名称；provider 变化、确认释放／退出和物理重建／移除使其失效。
+改名保留托管状态。
+
+既有 launch 协议族负责精确终端托管状态读取，物理 Agent Get 消费该状态；canonical
+启动状态保持独立。读取策略先于准备，registry／coordinator 锁保持到 Names 状态 fold 结束，
+避免最终成员校验与状态采样之间发生物理替换。清除恢复名称还会清除它拥有且仍匹配的持久恢复 seed，保留后续独立
+上报引用与权威。coordinator 在 Names 修改前准备有界报告更新，只对匹配的成功名称释放
+提交该准备结果，提交期间始终持有守卫。两个所有者仅执行 CPU 工作，提交守卫内无传输。
+这避免可观察的半释放，也避免删除较新的 provider 会话。
+
+证据须覆盖旧／新检查点严格接纳、有界唯一占用、待完成状态排除、provider／引用一致、
+新物理身份、禁用／去重恢复、同 provider reference 替换、分阶段清除，以及真实 Windows
+托管重启后的按名查询／输入／清除。仅编码或存储测试不能证明这条运行链路。终端语义
+wait／prompt／focus 和完整 provider 就绪仍是独立义务。
 
 ## 托管启动预留
 
@@ -491,7 +520,8 @@ names 家族还接受 `{kind:"presentation", presentationId}`。解析、分配�
 
 只读 `agent.launch.status` 在读取策略准入和 Agent 单元外的一次准备后检查精确 Session。它一起采样规范修订和名称所有者的启动状态：非托管；包含原有精确预留及当前阻塞标志的待启动；或者包含已接受 Complete 的预留身份、provider 和物理绑定的活动状态。Status 不提交、不续期、不重放、不启动。
 
-只有已接受的 launch Complete 才创建活动状态。手动命名不能证明启动就绪；重命名保留已有托管身份。活动记录受已提交名称容量约束，在显式清名、规范结束／移除／销毁、provider 不符或精确原生绑定替换／退役时移除。待启动状态保留原 TTL。活动表示启动已完成，与之后的工作／阻塞／新鲜度、OS 焦点及输入所有权相互独立。现有 CLI 阻塞启动取消策略及重启持久化仍是独立工作流义务。
+只有已接受的 launch Complete 才创建活动状态。手动命名不能证明启动就绪；重命名保留已有托管身份。活动记录受已提交名称容量约束，在显式清名、规范结束／移除／销毁、provider 不符或精确原生绑定替换／退役时移除。待启动状态保留原 TTL。活动表示启动已完成，与之后的工作／阻塞／新鲜度、OS 焦点及输入所有权相互独立。现有 CLI 阻塞启动取消策略仍是独立工作流义务。已完成归属也可通过托管名称重启契约恢复为
+物理名称，但不恢复 canonical 会话，也不重复声明原先的就绪事实。
 
 冻结语料保留原始源码指纹。新增 Kilo 注册表边界由 `kilo_hook_boundary_matches_opencode_with_distinct_provider` 和 Desktop 适配器注册表测试单独检查；不将历史语料改标为已重新生成。
 

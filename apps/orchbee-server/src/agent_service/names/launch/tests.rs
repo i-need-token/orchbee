@@ -322,5 +322,6 @@ fn managed_readiness_requires_completed_launch_and_dies_with_its_ownership() {
             }
         ));
         assert!(names.launches.active.is_empty());
+        assert!(names.managed_claims().is_empty());
     }
 }

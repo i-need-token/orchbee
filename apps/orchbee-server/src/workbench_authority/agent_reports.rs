@@ -165,6 +165,18 @@ pub(super) struct Reports {
     recent_exit: Option<(String, u64)>,
 }
 impl Reports {
+    pub(super) fn clear_owned_restart_session(
+        &self,
+        session: &orchbee_workbench_protocol::PanelAgentSession,
+    ) -> Option<Self> {
+        let expected = Self::from_restart_session(session)?.persisted;
+        if self.persisted.is_none() || self.persisted != expected {
+            return None;
+        }
+        let mut next = self.clone();
+        next.persisted = None;
+        Some(next)
+    }
     pub(super) fn from_restart_session(
         session: &orchbee_workbench_protocol::PanelAgentSession,
     ) -> Option<Self> {

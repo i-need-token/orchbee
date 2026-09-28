@@ -1,6 +1,52 @@
 //! Bounded reads of Server-owned startup facts, shared by Get and prompt.
 use super::*;
 
+#[cfg(windows)]
+pub(in crate::cli) fn read_terminal_management(
+    client: &mut LocalClient,
+    binding: &orchbee_agent_observation_protocol::AgentLaunchBinding,
+    deadline: Instant,
+    wake: Option<BorrowedFd<'_>>,
+) -> Result<crate::cli::results::TerminalManagementDoc, Failure> {
+    use orchbee_agent_observation_protocol::{
+        AgentLaunchOutcome, AgentLaunchRejectionReason, AgentLaunchRequest,
+    };
+    let operation = AgentReadOperation::Management;
+    let request_id = obap_request_id()?;
+    let result = client
+        .submit_agent_launch_before_cancellable(
+            AgentLaunchRequest::TerminalStatus {
+                request_id: request_id.clone(),
+                binding: binding.clone(),
+            },
+            deadline,
+            wake,
+        )
+        .map_err(|error| classify_agent_read(error, operation))?;
+    if Instant::now() >= deadline {
+        return Err(Failure::new(FailureKind::Timeout));
+    }
+    match result.outcome() {
+        AgentLaunchOutcome::TerminalStatus {
+            binding: confirmed,
+            management,
+        } if confirmed == binding => Ok(crate::cli::results::TerminalManagementDoc {
+            source: crate::cli::results::agent_source(&request_id),
+            state: management.clone(),
+        }),
+        AgentLaunchOutcome::Rejected {
+            reason: AgentLaunchRejectionReason::ReadDenied,
+        } => Err(Failure::new(FailureKind::Denied)),
+        AgentLaunchOutcome::Rejected {
+            reason: AgentLaunchRejectionReason::BindingChanged,
+        }
+        | AgentLaunchOutcome::Unavailable { .. } => {
+            Err(Failure::new(FailureKind::ServiceUnavailable))
+        }
+        _ => Err(Failure::new(FailureKind::ProtocolInvalid)),
+    }
+}
+
 /// Startup ownership is a separate read, with its own sampled revision and source.
 #[cfg(windows)]
 pub(in crate::cli) fn read_agent_management(

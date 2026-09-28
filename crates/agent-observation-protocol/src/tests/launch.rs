@@ -165,3 +165,45 @@ fn management_status_has_closed_phases_correlated_frames_and_a_small_worst_case(
     header.extend_from_slice(&1025_u32.to_be_bytes());
     assert!(read_agent_result(&mut Cursor::new(header)).is_err());
 }
+
+#[test]
+fn terminal_status_requires_exact_binding_and_closed_operation_and_management() {
+    let binding = reservation()["binding"].clone();
+    let request_doc =
+        json!({"kind":"agent.launch.terminal-status.request","requestId":ID,"binding":binding});
+    let request = parse_agent_request(&serde_json::to_vec(&request_doc).unwrap()).unwrap();
+    let mut bytes = Vec::new();
+    write_agent_request(&mut bytes, &request).unwrap();
+    assert_eq!(bytes[7], 27);
+    assert_eq!(
+        read_agent_request(&mut Cursor::new(bytes)).unwrap(),
+        request
+    );
+    for management in [
+        json!({"phase":"unmanaged"}),
+        json!({"phase":"active","providerId":"codex"}),
+    ] {
+        let document = json!({"kind":"agent.launch.terminal-status.result","requestId":ID,"result":{"outcome":{"kind":"terminal-status","binding":binding,"management":management}}});
+        let result = parse_agent_result(&serde_json::to_vec(&document).unwrap()).unwrap();
+        let mut bytes = Vec::new();
+        write_agent_result(&mut bytes, &result).unwrap();
+        assert_eq!(bytes[7], 28);
+        assert!(bytes.len() < 1024);
+        assert_eq!(read_agent_result(&mut Cursor::new(bytes)).unwrap(), result);
+        let mut wrong = document.clone();
+        wrong["kind"] = "agent.launch.status.result".into();
+        assert!(parse_agent_result(&serde_json::to_vec(&wrong).unwrap()).is_err());
+        for value in [
+            json!({"phase":"active"}),
+            json!({"phase":"active","providerId":"codex","reservationId":ID}),
+            json!({"phase":"pending"}),
+        ] {
+            let mut wrong = document.clone();
+            wrong["result"]["outcome"]["management"] = value;
+            assert!(parse_agent_result(&serde_json::to_vec(&wrong).unwrap()).is_err());
+        }
+    }
+    let mut invalid = request_doc;
+    invalid["binding"]["generation"] = "0".repeat(32).into();
+    assert!(parse_agent_request(&serde_json::to_vec(&invalid).unwrap()).is_err());
+}

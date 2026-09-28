@@ -18,17 +18,27 @@ impl AgentService {
         request: AgentLaunchRequest,
         prepare: impl FnOnce() -> Result<AgentRuntimeSnapshot, PreparedUnavailable>,
     ) -> AgentLaunchResult {
+        self.execute_launch_guarded(request, |request| {
+            prepare()?;
+            self.fold_launch(request)
+        })
+    }
+
+    pub(crate) fn execute_launch_guarded(
+        &self,
+        request: AgentLaunchRequest,
+        fold: impl FnOnce(&AgentLaunchRequest) -> Result<AgentLaunchOutcome, PreparedUnavailable>,
+    ) -> AgentLaunchResult {
         let inspect = matches!(
             request,
-            AgentLaunchRequest::Inspect { .. } | AgentLaunchRequest::Status { .. }
+            AgentLaunchRequest::Inspect { .. }
+                | AgentLaunchRequest::Status { .. }
+                | AgentLaunchRequest::TerminalStatus { .. }
         );
         let allowed = if inspect {
             self.policy.read
         } else {
             self.policy.manage
-        };
-        let unavailable = || AgentLaunchOutcome::Unavailable {
-            reason: AgentUnavailableReason::RuntimeUnavailable,
         };
         let outcome = if !allowed {
             AgentLaunchOutcome::Rejected {
@@ -38,29 +48,20 @@ impl AgentService {
                     AgentLaunchRejectionReason::ManageDenied
                 },
             }
-        } else if std::panic::catch_unwind(std::panic::AssertUnwindSafe(prepare))
-            .unwrap_or(Err(PreparedUnavailable))
-            .is_err()
-        {
-            unavailable()
         } else {
-            self.with_state(|state| {
-                if state.runtime.is_disposed() {
-                    return unavailable();
-                }
-                let now = state.launch_now_ms(Instant::now());
-                state.names.execute_launch(
-                    &request,
-                    state.runtime.snapshot(),
-                    state.native.bindings(),
-                    now,
-                )
-            })
-            .unwrap_or_else(|_| unavailable())
+            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| fold(&request)))
+                .ok()
+                .and_then(Result::ok)
+                .unwrap_or(AgentLaunchOutcome::Unavailable {
+                    reason: AgentUnavailableReason::RuntimeUnavailable,
+                })
         };
         let result = AgentLaunchOutcomeEnvelope { outcome };
         let request_id = request.request_id().clone();
         match request {
+            AgentLaunchRequest::TerminalStatus { .. } => {
+                AgentLaunchResult::TerminalStatus { request_id, result }
+            }
             AgentLaunchRequest::Status { .. } => AgentLaunchResult::Status { request_id, result },
             AgentLaunchRequest::Reserve { .. } => AgentLaunchResult::Reserve { request_id, result },
             AgentLaunchRequest::Inspect { .. } => AgentLaunchResult::Inspect { request_id, result },
@@ -69,5 +70,24 @@ impl AgentService {
             }
             AgentLaunchRequest::Cancel { .. } => AgentLaunchResult::Cancel { request_id, result },
         }
+    }
+
+    pub(crate) fn fold_launch(
+        &self,
+        request: &AgentLaunchRequest,
+    ) -> Result<AgentLaunchOutcome, PreparedUnavailable> {
+        self.with_state(|state| {
+            if state.runtime.is_disposed() {
+                return Err(PreparedUnavailable);
+            }
+            let now = state.launch_now_ms(Instant::now());
+            Ok(state.names.execute_launch(
+                request,
+                state.runtime.snapshot(),
+                state.native.bindings(),
+                now,
+            ))
+        })
+        .map_err(|_| PreparedUnavailable)?
     }
 }

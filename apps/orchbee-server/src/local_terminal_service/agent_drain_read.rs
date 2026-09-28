@@ -107,7 +107,7 @@ pub(super) fn agent_drain_finish<R>(
     agents: &AgentService,
     deadline: Instant,
     retry: Duration,
-    finish: impl FnOnce(&SiteCoordinator, AgentRuntimeSnapshot) -> Result<R, PreparedUnavailable>,
+    finish: impl FnOnce(&mut SiteCoordinator, AgentRuntimeSnapshot) -> Result<R, PreparedUnavailable>,
 ) -> Result<R, PreparedUnavailable> {
     // STEP 0 — eligible preparation. The registry guard is scoped to the
     // typed accessor and released before any mint/admit/wait work.
@@ -236,7 +236,7 @@ pub(super) fn agent_drain_finish<R>(
         // replaced by leaf absence.
         _ => return Err(PreparedUnavailable),
     };
-    let coordinator_guard = coordinator.lock().map_err(|_| PreparedUnavailable)?;
+    let mut coordinator_guard = coordinator.lock().map_err(|_| PreparedUnavailable)?;
     if Instant::now() >= deadline {
         return Err(PreparedUnavailable);
     }
@@ -266,7 +266,7 @@ pub(super) fn agent_drain_finish<R>(
     if Instant::now() >= deadline {
         return Err(PreparedUnavailable);
     }
-    let result = finish(&coordinator_guard, snapshot);
+    let result = finish(&mut coordinator_guard, snapshot);
     // The final callback may commit a mutation: preserve its correlated receipt even if time passed.
     drop(coordinator_guard);
     drop(registry_guard);

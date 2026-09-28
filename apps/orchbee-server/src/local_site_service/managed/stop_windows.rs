@@ -59,15 +59,16 @@ fn failure(phase: StopPhase, error: io::Error) -> Failure {
 pub(super) fn run(
     mut owners: Owners,
     cohort: &str,
-    restored: Vec<crate::terminal_coordinator::PendingOperation>,
+    restored: crate::local_terminal_service::CheckpointRestore,
     startup_deadline: Instant,
 ) -> io::Result<()> {
     let shutdown = Arc::new(SiteShutdown::default());
     let started = (|| {
+        owners.terminals.bind_agent_names(&owners.agents)?;
         owners.terminals.start_close_maintenance()?;
         owners
             .terminals
-            .launch_checkpoint_terminals(restored, startup_deadline)?;
+            .launch_checkpoint_terminals(restored, &owners.agents, startup_deadline)?;
         owners.terminals.start_process_observer()?;
         local_client_service::start_managed_windows(
             owners.site.client_socket_path(),
@@ -179,7 +180,7 @@ fn settle(
         .map_err(|error| failure(StopPhase::BackgroundJobs, io::Error::other(error)))?;
         let bytes = owners
             .terminals
-            .checkpoint(&worker, deadline)
+            .checkpoint(&worker, &owners.agents, deadline)
             .map_err(|error| failure(StopPhase::BackgroundJobs, error))?;
         owners
             .checkpoint_store

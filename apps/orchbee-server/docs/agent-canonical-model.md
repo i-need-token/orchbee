@@ -199,13 +199,49 @@ resolution/mutation, following one drain preparation with policy checked first. 
 does no I/O; a committed mutation returns its correlated result even if the deadline then passes.
 Disposed/poisoned owners remain unavailable. Existing canonical ID precedence, detached-session
 names and request ambiguity rules remain. Whole matched cohorts carry the extended protocol;
-rollback replaces the cohort. Names persistence and managed restart need their own fresh-binding
-integration and are not established by a terminal alias alone.
+rollback replaces the cohort. Managed-name persistence follows the fresh-binding restart contract
+below; a terminal alias alone never establishes managed startup.
 
 Evidence must cover mixed-name/reservation collisions, full capacity, reference upgrade and
 replacement, provider A → B → A between reads, proven versus uncertain exit, physical replacement,
 policy/disposal, strict wire bounds and actual Windows rename/resolve/list/clear plus named
 terminal access. The protocol schema and CLI envelope versions must agree with emitted targets.
+
+
+## Managed name restart
+
+The private Windows checkpoint version 4 retains only completed managed name claims, keyed by
+Presentation and containing name plus provider ID. Every claim must have a valid official resume
+reference for that same normalized provider. Claims share the 512-name bound and have unique names
+and presentations. Pending launches, canonical session IDs, old physical identities and reservation
+IDs are not restart authority. Versions 1–3 remain readable; older binaries refuse version 4 rather
+than silently discarding it. Matched-cohort rollback must retain compatible restart data or use an
+explicit conversion/prior valid checkpoint; it must not overwrite a retained version 4 on failure.
+
+Clean-stop capture holds registry → coordinator → AgentState fences over exact current membership.
+Startup selects only enabled, deduplicated provider resume plans. After fresh Host creation and
+reference seeding, Names restores the selected claims onto the new physical bindings before Site
+publication. Disabled resume, duplicate suppression and missing physical creation do not restore
+names. Restored management expresses ownership, not provider readiness or a fabricated canonical
+observation. Same-provider reference changes retain managed names; provider changes, confirmed
+release/exit and physical replacement/removal invalidate them. Rename retains management.
+
+The existing launch family owns an exact terminal-management status read. Physical Agent Get
+consumes this status; canonical launch status remains independent. Read policy precedes preparation,
+and registry/coordinator guards remain held through the Names status fold so physical replacement
+cannot pass between final membership validation and status sampling. Clearing a restored name also
+clears its matching owned persisted resume seed, while preserving later independent report
+references and authority. The coordinator stages the bounded report update before the Names
+mutation, then commits that prepared update only for the matching successful name release, while
+its guard is still held. Both owners perform CPU work only; no transport runs under commit guards.
+This prevents a visible half-release or accidental deletion of a newer provider session.
+
+Evidence must establish strict old/new checkpoint admission, bounded and unique claims, pending
+exclusion, provider/reference agreement, new physical identities, disabled/deduplicated restoration,
+same-provider reference replacement, staged clear semantics and actual Windows managed restart
+with subsequent name/query/input/clear behavior. Codec or storage-only checks do not prove this
+runtime chain. Terminal semantic wait/prompt/focus and complete provider readiness remain separate
+obligations.
 
 ## Managed launch reservations
 
@@ -595,7 +631,9 @@ A consumer establishes a checkpoint before its coherent session baseline and rec
 
 Read-only `agent.launch.status` inspects an exact Session after read-policy admission and one preparation outside the Agent cell. It samples the canonical revision and the names owner's startup state together: unmanaged; pending with the existing exact reservation and current blocked flag; or active with the accepted Complete operation's reservation identity, provider and physical binding. Status never commits, renews, replays or launches.
 
-Only accepted launch Complete creates active state. Manual naming cannot establish startup readiness; renaming preserves an existing managed identity. The active record is bounded by the committed name capacity and is removed on explicit name clear, canonical end/removal/disposal, provider mismatch or exact native binding replacement/retirement. Pending keeps its original TTL. Active means startup was completed, independently of later working/blocked/freshness state, OS focus or input ownership. The existing CLI blocked-start cancellation and restart persistence remain separate workflow obligations.
+Only accepted launch Complete creates active state. Manual naming cannot establish startup readiness; renaming preserves an existing managed identity. The active record is bounded by the committed name capacity and is removed on explicit name clear, canonical end/removal/disposal, provider mismatch or exact native binding replacement/retirement. Pending keeps its original TTL. Active means startup was completed, independently of later working/blocked/freshness state, OS focus or input ownership. The existing CLI blocked-start cancellation remains a separate workflow obligation. Completed ownership
+can also be restored as a physical name through the managed-name restart contract; it never restores
+a canonical session or repeats the original readiness assertion.
 
 The frozen corpora retain their original source fingerprints. The additive Kilo registry boundary is checked separately by `kilo_hook_boundary_matches_opencode_with_distinct_provider` and the Desktop adapter registry tests; this does not relabel the historical corpus as regenerated.
 

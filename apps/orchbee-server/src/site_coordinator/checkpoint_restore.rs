@@ -55,16 +55,57 @@ impl SiteCoordinator {
     pub(crate) fn checkpoint_with_agent_sessions(
         &self,
         worker: &orchbee_workbench_protocol::WorkerId,
+        agents: &crate::agent_service::AgentService,
         directories: &[(
             orchbee_workbench_protocol::PresentationBinding,
             orchbee_workbench_protocol::WorkbenchDirectoryPath,
         )],
     ) -> io::Result<Vec<u8>> {
         let facts = self.checkpoint_agent_bindings()?;
-        self.workbench
+        let workbench = self
+            .workbench
             .as_ref()
-            .ok_or_else(|| io::Error::other("Workbench unavailable"))?
-            .checkpoint_with_terminal_directories(worker, &facts, directories)
+            .ok_or_else(|| io::Error::other("Workbench unavailable"))?;
+        let claims = agents
+            .managed_name_claims()
+            .map_err(|_| io::Error::other("managed Names unavailable"))?;
+        let registrations = self
+            .agent_registration_for_bindings(
+                &facts.iter().map(|f| f.binding.clone()).collect::<Vec<_>>(),
+            )
+            .map_err(|_| io::Error::other("checkpoint name membership unavailable"))?;
+        let mut managed = Vec::new();
+        for claim in claims {
+            let Some(registration) = registrations.iter().find(|fact| {
+                fact.presentation_id() == &claim.binding.presentation
+                    && fact.identity() == claim.binding.host
+                    && fact.worker_id() == claim.binding.carrier.worker_id
+                    && fact.worker_generation() == claim.binding.carrier.generation
+            }) else {
+                continue;
+            };
+            let Some(physical) = facts
+                .iter()
+                .find(|fact| fact.binding == *registration.binding())
+            else {
+                continue;
+            };
+            if workbench
+                .terminal_restart_session(physical)
+                .and_then(|session| {
+                    orchbee_agent_observation_protocol::AgentReportProvider::lookup(&session.agent)
+                })
+                .is_some_and(|provider| provider.native_provider_id() == claim.provider.as_str())
+            {
+                managed.push(orchbee_server::ManagedAgentRestart {
+                    presentation_id: claim.binding.presentation,
+                    name: claim.name,
+                    provider_id: claim.provider,
+                });
+            }
+        }
+        workbench
+            .checkpoint_with_managed_agents(worker, &facts, directories, &managed)
             .map_err(io::Error::other)
     }
 

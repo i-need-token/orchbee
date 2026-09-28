@@ -162,3 +162,50 @@ fn competing_launches_commit_one_claim_and_service_timer_releases_it() {
         matches!(listed, AgentNamesResult::NamesList { result:AgentNamesListOutcomeEnvelope { outcome:AgentNamesListOutcome::Listed { pending, .. } }, .. } if pending.is_empty())
     );
 }
+
+#[test]
+fn terminal_management_policy_precedes_guarded_preparation_and_unavailable_never_becomes_unmanaged()
+{
+    let binding = AgentLaunchBinding {
+        presentation_id: AgentPresentationId::parse(&"1".repeat(32)).unwrap(),
+        generation: AgentAttachmentGeneration::parse(&"2".repeat(32)).unwrap(),
+        host_epoch: AgentHostEpoch::parse(&"3".repeat(32)).unwrap(),
+        host_terminal_id: AgentHostTerminalId::parse(&"4".repeat(32)).unwrap(),
+    };
+    let request = AgentLaunchRequest::TerminalStatus {
+        request_id: ObapRequestId::parse(&"5".repeat(32)).unwrap(),
+        binding,
+    };
+    let service = AgentService::open(AgentPolicy {
+        read: false,
+        manage: true,
+    })
+    .unwrap();
+    assert!(matches!(
+        service
+            .execute_launch_guarded(request.clone(), |_| panic!("denied before preparation"))
+            .outcome(),
+        AgentLaunchOutcome::Rejected {
+            reason: AgentLaunchRejectionReason::ReadDenied
+        }
+    ));
+    let service = AgentService::open(AgentPolicy {
+        read: true,
+        manage: false,
+    })
+    .unwrap();
+    assert!(matches!(
+        service
+            .execute_launch_guarded(request.clone(), |_| Err(PreparedUnavailable))
+            .outcome(),
+        AgentLaunchOutcome::Unavailable { .. }
+    ));
+    assert!(matches!(
+        service
+            .execute_launch_guarded(request, |request| service.fold_launch(request))
+            .outcome(),
+        AgentLaunchOutcome::Rejected {
+            reason: AgentLaunchRejectionReason::BindingChanged
+        }
+    ));
+}

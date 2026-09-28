@@ -145,6 +145,18 @@ fn terminal_agent_inspection_schema_has_closed_target_and_preserves_canonical_ve
             "terminalObservation":{"state":"observed","frame":{"hostEpoch":id,"attachmentId":id,"sequence":"1","generation":"1","revision":"1","columns":80,"rows":24,"alternateScreen":false,"scrollbackRows":"0","title":null,"currentDirectory":null},"processes":{"state":"unavailable","reason":"process-unavailable"}}}
     }});
     validator.validate(&document).unwrap();
+    for state in [
+        json!({"phase":"unmanaged"}),
+        json!({"phase":"active","providerId":"codex"}),
+    ] {
+        let mut current = document.clone();
+        current["version"] = 14.into();
+        current["result"]["management"] =
+            json!({"source":{"kind":"agent-read","requestId":id},"state":state});
+        validator.validate(&current).unwrap();
+        current["result"]["management"]["state"]["reservationId"] = id.into();
+        assert!(!validator.is_valid(&current));
+    }
     let mut invalid = document.clone();
     invalid["version"] = 12.into();
     assert!(!validator.is_valid(&invalid));

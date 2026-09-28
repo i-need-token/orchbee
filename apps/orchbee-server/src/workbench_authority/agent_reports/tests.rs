@@ -983,3 +983,25 @@ fn presence_preserves_screen_age_and_replacement_clears_it() {
     step(&mut current, observation(Provider::Pi, None, false, 80), 80);
     assert_eq!(current.effective().status, Status::Unknown);
 }
+
+#[test]
+fn managed_seed_clear_preserves_independent_authority_and_is_effect_free_until_committed() {
+    let session: orchbee_workbench_protocol::PanelAgentSession = serde_json::from_str(
+        r#"{"source":"herdr:grok","agent":"grok","reference":{"kind":"id","value":"saved"}}"#,
+    )
+    .unwrap();
+    let mut reports = Reports::from_restart_session(&session).unwrap();
+    reports.authority = Some(Authority {
+        author: author("custom", "grok"),
+        status: Status::Working,
+        message: None,
+        at: 1,
+        reference: reference("new"),
+    });
+    let before = reports.clone();
+    let next = reports.clear_owned_restart_session(&session).unwrap();
+    assert_eq!(reports, before);
+    assert!(next.persisted.is_none());
+    assert_eq!(next.authority, before.authority);
+    assert_eq!(next.view().session.unwrap().reference.value, "new");
+}

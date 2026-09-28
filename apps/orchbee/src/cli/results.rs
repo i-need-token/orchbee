@@ -1068,6 +1068,7 @@ pub(crate) enum Projection {
     AgentTerminalInspection {
         binding: orchbee_agent_observation_protocol::AgentLaunchBinding,
         terminal: Value,
+        management: TerminalManagementDoc,
     },
     /// The typed `found` outcome carrying session plus explanation.
     AgentExplain(AgentExplainOutcome),
@@ -1140,6 +1141,13 @@ pub(crate) struct AgentManagementDoc {
     pub(crate) source: Value,
     pub(crate) revision: AgentSafeInteger,
     pub(crate) management: orchbee_agent_observation_protocol::AgentManagement,
+}
+
+#[cfg(windows)]
+#[derive(Debug)]
+pub(crate) struct TerminalManagementDoc {
+    pub(crate) source: Value,
+    pub(crate) state: orchbee_agent_observation_protocol::AgentTerminalManagement,
 }
 impl AgentManagementDoc {
     fn document(&self) -> Value {
@@ -1287,9 +1295,13 @@ impl Projection {
             Self::AgentChanges(outcome) => json!(outcome),
             Self::AgentGet(outcome) => json!(outcome),
             #[cfg(windows)]
-            Self::AgentTerminalInspection { binding, terminal } => json!({
+            Self::AgentTerminalInspection {
+                binding,
+                terminal,
+                management,
+            } => json!({
                 "kind":"terminal-found", "target":{"kind":"terminal","binding":binding},
-                "terminal":terminal, "management":{"phase":"unmanaged"},
+                "terminal":terminal, "management":{"source":management.source,"state":management.state},
             }),
             Self::AgentInspection(doc) => {
                 let mut result = json!({"kind":"found","revision":doc.revision,"session":doc.session,"runtime":doc.runtime.document(),"management":doc.management.document()});
