@@ -1,4 +1,5 @@
 use super::*;
+mod presentations;
 use orchbee_capability_node_protocol::{
     LifecycleStepOrdinal, LifecycleUnknownReason, TerminalLifecycleAction,
     TerminalLifecycleAuthorization,

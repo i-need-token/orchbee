@@ -425,7 +425,7 @@ fn workspace_publication_rejects_changed_exact_tuple_without_removing_any_tab() 
 }
 
 #[test]
-fn workspace_membership_validates_only_its_canonical_context_and_rejects_unsupported_shape() {
+fn workspace_membership_admits_pinned_tabs_and_still_refuses_unbound_presentations() {
     let (mut authority, grant) = workspace_fixture(1);
     let mut snapshot = authority.projection.snapshot().clone();
     snapshot.terminal_contexts[0].tabs[0].pinned = true;
@@ -457,6 +457,12 @@ fn workspace_membership_validates_only_its_canonical_context_and_rejects_unsuppo
             primary_presentation.binding = None;
         }
         load(&mut authority, snapshot.clone());
+        if pinned {
+            let _ = accept(&mut authority, &grant, close, Instant::now());
+            assert!(!authority.retired);
+            assert_eq!(authority.projection.snapshot(), &snapshot);
+            continue;
+        }
         assert!(matches!(
             authority.begin_terminal_tab_close(Some(&grant), close),
             WorkbenchTabCloseBegin::Ready(WorkbenchCommandResult {

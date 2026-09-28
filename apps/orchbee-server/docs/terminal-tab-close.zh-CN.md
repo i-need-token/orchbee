@@ -568,7 +568,7 @@ Worktree 所有者只能取消自身精确持有且已静止的 Workspace Close 
 也不再限制 Context 结构或参与新的 Workspace/Tab/Panel Close 查找。
 后续普通 Close 捕获当前成员，并拥有独立身份。
 
-既有原生 Close 成员契约在效果前排除子 presentation 及分组／固定 Tab；恢复继承该准入边界。
+Close 成员关系包含全部已绑定的主、子 Presentation，也包含分组／固定 Tab。恢复保留捕获时的顺序成员及其精确身份。
 
 持有期间，已领取的 Worktree 尝试可以为一个精确捕获的 presentation 准备替换绑定。
 原 Context、Tab、Panel、顺序、标签和分割比例保持不变。每次替换同时生成全新的
@@ -602,3 +602,11 @@ Creating/Starting 仍为 busy。Unknown、保留 identity 的 unavailable、缺�
 ## Workspace 组接纳
 
 普通 Workspace Close 对有关联组成员的已知主 checkout Workspace 返回 `workspace-group-close-required`，沿用相同的拒绝/重放规则。独立的[组 owner](../../orchbee/docs/windows-worktrees.zh-CN.md#workspace-组关闭) 冻结作用域，再将各子操作交给此生命周期。内部接纳令牌必须匹配保留操作、已领取的尝试、精确规范成员和前序已关闭成员前缀；线上 action 不包含绕过标志。子 Close 仍独自负责终端处置、代次围栏恢复及规范移除。组聚合读取携带精简子操作观测，现有 Workspace Close 读取继续保留完整终端成员。
+
+## 完整 Presentation 成员关系
+
+Panel、Tab 和 Workspace Close 按规范 Tab／树顺序捕获全部已绑定的 Presentation，每个 Panel 先主 Presentation、再按顺序排列的子项。分组／固定 Tab 同样可关闭；这些元数据不改变终端生命周期权限。Panel 范围同时捕获其主项与全部子项。只有该 Tab 没有其他不同 Panel 时，才升级为整个 Tab 范围，与目标 Panel 包含多少 Presentation 无关。
+
+每条捕获的 binding 独立经过现有的运行时解析、预留、销毁与清理续作。全部目标结束前禁止发布移除。未知效果保留既有隔离／恢复语义，不能遗漏尚未处理的子项。发布前，所有者再次将完整、有序的现存范围与捕获的身份、binding 比较。新增、删除、重排或替换子项均导致组合失败，保留已知销毁事实且不移除规范范围。其他 Panel／Tab 及其元数据原样保留，未使用的分组元数据也保留。Standalone 协调同时移除所有捕获 binding，再选择精确的存续引用或空状态。
+
+完整成员遍历与只读注册共用，发布时在预备候选上调用。存在未绑定 Presentation 时仍拒绝整个捕获，不能过滤丢弃。其他结构操作和原生 TUI 导航保留各自准入契约。不增加命令、线路字段、生命周期回执或权限。定向证据覆盖多 Presentation 的 Panel／Tab 范围区别、完整 Tab／Workspace 捕获、部分目标完成、未知效果、成员篡改、存续元数据和 Standalone 引用组合。完整 Windows CLI／TUI 验收仍属于后续组合门禁。

@@ -208,45 +208,13 @@ impl WorkbenchAuthority {
         self.presentation_membership(&self.snapshot().navigation.standalone_terminal_context_id)
     }
 
-    /// Complete read-only membership. Destructive tree operations keep their separate guards.
+    /// Complete bound membership for registration and all-target Close.
+    /// Other structural operations keep their separate guards.
     pub fn presentation_membership(
         &self,
         context_id: &WorkbenchTerminalContextId,
     ) -> Result<WorkbenchTerminalMembership, WorkbenchTerminalInvariantError> {
-        let snapshot = self.projection.snapshot();
-        let context_kind = terminal_context_kind(snapshot, context_id)?;
-        let mut matching = snapshot
-            .terminal_contexts
-            .iter()
-            .filter(|context| &context.terminal_context_id == context_id);
-        let context = matching.next().ok_or(WorkbenchTerminalInvariantError)?;
-        if matching.next().is_some() {
-            return Err(WorkbenchTerminalInvariantError);
-        }
-        let mut members = Vec::new();
-        let mut unbound = false;
-        for tab in &context.tabs {
-            visit_panel_presentations(&tab.root, &mut |panel_id, presentation| {
-                if let Some(binding) = &presentation.binding {
-                    members.push(WorkbenchTerminalTab {
-                        tab_id: tab.tab_id.clone(),
-                        panel_id: panel_id.clone(),
-                        presentation_id: presentation.presentation_id.clone(),
-                        binding: binding.clone(),
-                    });
-                } else {
-                    unbound = true;
-                }
-            });
-        }
-        if unbound {
-            return Err(WorkbenchTerminalInvariantError);
-        }
-        Ok(WorkbenchTerminalMembership {
-            terminal_context_id: context_id.clone(),
-            context_kind,
-            members,
-        })
+        presentation_membership(self.projection.snapshot(), context_id)
     }
 
     pub fn terminal_membership(
@@ -416,6 +384,45 @@ pub(super) fn terminal_membership(
 ) -> Result<WorkbenchTerminalMembership, WorkbenchTerminalInvariantError> {
     let context_kind = terminal_context_kind(snapshot, context_id)?;
     let (_context, members) = legacy_single_leaf_context(snapshot, context_id)?;
+    Ok(WorkbenchTerminalMembership {
+        terminal_context_id: context_id.clone(),
+        context_kind,
+        members,
+    })
+}
+
+pub(super) fn presentation_membership(
+    snapshot: &Snapshot,
+    context_id: &WorkbenchTerminalContextId,
+) -> Result<WorkbenchTerminalMembership, WorkbenchTerminalInvariantError> {
+    let context_kind = terminal_context_kind(snapshot, context_id)?;
+    let mut matching = snapshot
+        .terminal_contexts
+        .iter()
+        .filter(|context| &context.terminal_context_id == context_id);
+    let context = matching.next().ok_or(WorkbenchTerminalInvariantError)?;
+    if matching.next().is_some() {
+        return Err(WorkbenchTerminalInvariantError);
+    }
+    let mut members = Vec::new();
+    let mut unbound = false;
+    for tab in &context.tabs {
+        visit_panel_presentations(&tab.root, &mut |panel_id, presentation| {
+            if let Some(binding) = &presentation.binding {
+                members.push(WorkbenchTerminalTab {
+                    tab_id: tab.tab_id.clone(),
+                    panel_id: panel_id.clone(),
+                    presentation_id: presentation.presentation_id.clone(),
+                    binding: binding.clone(),
+                });
+            } else {
+                unbound = true;
+            }
+        });
+    }
+    if unbound {
+        return Err(WorkbenchTerminalInvariantError);
+    }
     Ok(WorkbenchTerminalMembership {
         terminal_context_id: context_id.clone(),
         context_kind,

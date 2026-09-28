@@ -111,23 +111,18 @@ impl<'a> WorkbenchTabCloseAdmission<'a> {
         let (members, scope) = match &self.panel_id {
             None => (tab_members.clone(), CloseScope::Tab),
             Some(panel_id) => {
-                match self
-                    .membership
-                    .member_for_panel(&self.tab_id, panel_id)
+                let members: Vec<_> = tab_members
+                    .iter()
+                    .filter(|member| member.panel_id() == panel_id)
                     .cloned()
-                {
-                    Some(member) if tab_members.len() > 1 => (vec![member], CloseScope::Panel),
-                    Some(member) => (vec![member], CloseScope::Tab),
-                    None if !tab_members.is_empty() => {
-                        return WorkbenchTabCloseResolution::Ready(
-                            self.authority.retain_rejection(
-                                self.command,
-                                WorkbenchRejectionReason::PanelUnavailable,
-                            ),
-                        );
-                    }
-                    None => (Vec::new(), CloseScope::Panel),
-                }
+                    .collect();
+                // Children are independent targets, not additional layout Panels.
+                let scope = if !members.is_empty() && members.len() == tab_members.len() {
+                    CloseScope::Tab
+                } else {
+                    CloseScope::Panel
+                };
+                (members, scope)
             }
         };
         if members.is_empty() {
@@ -599,7 +594,7 @@ impl WorkbenchAuthority {
         if let Some(reason) = rejection {
             return WorkbenchTabCloseBegin::Ready(self.retain_rejection(command, reason));
         }
-        let membership = match self.terminal_tree_membership(&terminal_context_id) {
+        let membership = match self.presentation_membership(&terminal_context_id) {
             Ok(membership) => membership,
             Err(_invariant) => return WorkbenchTabCloseBegin::Ready(self.retire(&command)),
         };
@@ -743,7 +738,7 @@ impl WorkbenchAuthority {
             return WorkbenchWorkspaceCloseBegin::Ready(self.retire(&command));
         };
         let terminal_context_id = workspace.terminal_context_id.clone();
-        let membership = match self.terminal_tree_membership(&terminal_context_id) {
+        let membership = match self.presentation_membership(&terminal_context_id) {
             Ok(membership) => membership,
             Err(_invariant) => return WorkbenchWorkspaceCloseBegin::Ready(self.retire(&command)),
         };

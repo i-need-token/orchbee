@@ -109,7 +109,7 @@ fn restart_rebinds_children_and_grouped_pinned_tabs_before_open_reuses_first_ter
             .unwrap()
             .tree_standalone_membership()
             .is_err(),
-        "destructive guards stay independent"
+        "other structural-operation guards stay independent"
     );
     assert!(matches!(
         coordinator.prepare_open(
@@ -163,6 +163,58 @@ fn restart_rebinds_children_and_grouped_pinned_tabs_before_open_reuses_first_ter
         before.terminal_contexts[0].groups
     );
     assert!(after.terminal_contexts[0].tabs[0].pinned);
+
+    // Closing the restored pinned Panel must settle both its primary and child,
+    // then retarget Open onto the surviving grouped Tab's exact fresh binding.
+    for index in 0..2 {
+        let snapshot = coordinator.workbench.as_ref().unwrap().snapshot();
+        let context = &snapshot.terminal_contexts[0];
+        let tab = &context.tabs[0];
+        let orchbee_workbench_protocol::PanelNode::Panel { panel_id, .. } = &tab.root else {
+            panic!("restored Panel")
+        };
+        let close = orchbee_workbench_protocol::WorkbenchCommand {
+            protocol_version: ProtocolVersion,
+            request_id: WorkbenchRequestId::parse(&format!("{:032x}", 3000 + index)).unwrap(),
+            site_id: snapshot.site_id.clone(),
+            expected_revision: snapshot.revision,
+            action: orchbee_workbench_protocol::WorkbenchAction::PanelClose {
+                terminal_context_id: context.terminal_context_id.clone(),
+                tab_id: tab.tab_id.clone(),
+                panel_id: panel_id.clone(),
+            },
+        };
+        let result = coordinator
+            .execute_terminal_tab_close(
+                close.clone(),
+                Some(worker),
+                true,
+                std::time::Instant::now(),
+            )
+            .unwrap();
+        assert!(matches!(
+            result.outcome,
+            orchbee_workbench_protocol::WorkbenchCommandOutcome::PanelCloseAccepted { .. }
+        ));
+        assert!(super::multileaf_membership::drive_close_to_publication(
+            &mut coordinator,
+            &close
+        ));
+        if index == 0 {
+            assert!(
+                matches!(coordinator.prepare_open(&TerminalOpenRequest::new(id(62), geometry()), None, Some(worker), None), PreparedOpen::Ready(OpenOutcome::Opened { terminal_create_request_id }) if terminal_create_request_id == id(102))
+            );
+        }
+    }
+    assert!(matches!(coordinator.standalone, StandaloneTerminal::Empty));
+    let context = &coordinator
+        .workbench
+        .as_ref()
+        .unwrap()
+        .snapshot()
+        .terminal_contexts[0];
+    assert!(context.tabs.is_empty());
+    assert_eq!(context.groups, before.terminal_contexts[0].groups);
 }
 
 #[test]

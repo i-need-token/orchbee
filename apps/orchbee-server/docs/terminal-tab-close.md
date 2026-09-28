@@ -692,8 +692,8 @@ It cannot publish removal or resume. It no longer fences Context structure or
 participates in new Workspace/Tab/Panel Close lookup. A later ordinary Close
 captures current membership and has its own identity.
 
-Existing native Close membership excludes child presentations and grouped/pinned
-Tabs before effects; recovery inherits that admission boundary.
+Close membership includes all bound primary and child Presentations, including grouped/pinned
+Tabs. Recovery retains the captured ordered membership and its exact identities.
 
 While the hold is active, the claimed Worktree attempt may prepare a replacement
 binding for one exact captured presentation. The original Context, Tab, Panel,
@@ -735,3 +735,28 @@ Creating/Starting stays busy. Unknown, unavailable with a retained identity, mis
 ## Workspace group admission
 
 Ordinary Workspace Close rejects a known main-checkout Workspace with associated group members using `workspace-group-close-required`. It retains the same rejection/replay rules. The separate [group owner](../../orchbee/docs/windows-worktrees.md#workspace-group-closure) freezes scopes and delegates each child to this lifecycle. Its internal admission token must match the retained operation, claimed attempt, exact canonical member and closed predecessor prefix; the wire action contains no bypass flag. Child Close remains the sole authority for terminal disposal, generation-fenced resume and canonical removal. Aggregate group reads carry compact child observations, while existing Workspace Close reads retain full terminal membership.
+
+## Complete Presentation membership
+
+Panel, Tab and Workspace Close capture all bound Presentations in canonical Tab/tree order, with
+the primary before each Panel's ordered children. Grouped/pinned Tabs remain eligible; their
+metadata does not change terminal lifecycle authority. A Panel scope captures its primary and all
+children together. It becomes a whole-Tab scope only when that Tab has no other distinct Panel,
+regardless of how many Presentations the requested Panel contains.
+
+Each captured binding has its own existing runtime resolution, reservation, disposal and cleanup
+continuation. Publication remains forbidden until every target is settled. Unknown effects retain
+existing quarantine/resume semantics and never permit removing an unprocessed child. Immediately
+before publication, the owner compares the complete ordered live scope to its captured identities
+and bindings. A child addition, removal, reorder or replacement fails composition and retains the
+known disposal facts without removing the canonical scope. Other Panels/Tabs and their metadata
+survive unchanged; unused group metadata is retained. Standalone reconciliation removes all
+captured bindings together and selects an exact surviving reference or emptiness.
+
+The complete membership walker is shared with read-only registration; publication invokes it on
+the prepared candidate. Unbound Presentations still refuse the complete capture, without filtering.
+Other structural operations and native TUI navigation keep their separate admission contracts.
+No new command, wire field, lifecycle receipt or permission is introduced. Focused evidence must
+cover multi-Presentation Panel versus Tab scope, complete Tab/Workspace capture, partial target
+settlement, unknown effects, tampered membership, surviving metadata and standalone reference
+composition. Full Windows CLI/TUI acceptance remains a later combined gate.

@@ -43,9 +43,8 @@ impl PreparedWorkbenchTabClosePublication<'_> {
     pub fn after_membership(&self) -> &WorkbenchTerminalMembership {
         &self.after
     }
-    /// The single removed leaf member — meaningful for the Tab and Panel
-    /// scopes only; a Context scope removes its Workspace and reports the
-    /// complete member set through `exact_removed_members`.
+    /// The first captured member, retained for legacy callers. All scopes may
+    /// remove multiple Presentations; composition uses `exact_removed_members`.
     #[must_use]
     pub fn exact_removed_member(&self) -> Option<&WorkbenchTerminalTab> {
         self.removed.as_ref()
@@ -123,7 +122,7 @@ impl WorkbenchAuthority {
                 WorkbenchTabClosePublicationError::CompositionMismatch,
             );
         }
-        let before = match self.terminal_tree_membership(&context_id) {
+        let before = match self.presentation_membership(&context_id) {
             Ok(membership) => membership,
             Err(_error) => {
                 return self.fail_close_publication(
@@ -132,35 +131,20 @@ impl WorkbenchAuthority {
                 );
             }
         };
-        let actual_tab_members: Vec<_> = target
-            .as_ref()
-            .map(|target| before.members_for_tab(target.member.tab_id()).collect())
-            .unwrap_or_default();
-        if before.terminal_context_id() != &context_id {
-            return self.fail_close_publication(
-                close_request_id,
-                WorkbenchTabClosePublicationError::CompositionMismatch,
-            );
-        }
-        if scope == CloseScope::Tab
-            && (actual_tab_members.len() != targets.len()
-                || !actual_tab_members
-                    .into_iter()
-                    .eq(targets.iter().map(|target| &target.member)))
-        {
-            return self.fail_close_publication(
-                close_request_id,
-                WorkbenchTabClosePublicationError::CompositionMismatch,
-            );
-        }
-        // The Context scope re-proves the complete captured ordered leaf
-        // membership — every member, in admission order, exactly as the live
-        // Context still composes it. An empty capture proves an empty Context.
-        if matches!(scope, CloseScope::Context { .. })
-            && !before
-                .members()
-                .iter()
-                .eq(targets.iter().map(|target| &target.member))
+        // Compare every captured Presentation, not only the Panel's primary.
+        // Exact order also detects child reordering while disposal was in flight.
+        let actual_members = before.members().iter().filter(|member| match &scope {
+            CloseScope::Context { .. } => true,
+            CloseScope::Tab => target
+                .as_ref()
+                .is_some_and(|target| member.tab_id() == target.member.tab_id()),
+            CloseScope::Panel => target.as_ref().is_some_and(|target| {
+                member.tab_id() == target.member.tab_id()
+                    && member.panel_id() == target.member.panel_id()
+            }),
+        });
+        if before.terminal_context_id() != &context_id
+            || !actual_members.eq(targets.iter().map(|target| &target.member))
         {
             return self.fail_close_publication(
                 close_request_id,
@@ -307,7 +291,7 @@ impl WorkbenchAuthority {
         let after = if matches!(scope, CloseScope::Context { .. }) {
             WorkbenchTerminalMembership::removed_workspace(context_id.clone())
         } else {
-            match super::super::terminal_membership::tree_terminal_membership(
+            match super::super::terminal_membership::presentation_membership(
                 &candidate,
                 &context_id,
             ) {
@@ -381,8 +365,8 @@ fn leaf_presentation<'a>(
             right_click: _,
             panel_id: identity,
             primary_presentation,
-            child_presentations,
-        } if identity == panel_id && child_presentations.is_empty() => Some(primary_presentation),
+            ..
+        } if identity == panel_id => Some(primary_presentation),
         PanelNode::Split { children, .. } => children
             .iter()
             .find_map(|slot| leaf_presentation(&slot.node, panel_id)),

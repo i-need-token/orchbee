@@ -687,6 +687,8 @@ Windows 省略时先尝试跟随已解析来源的根进程目录；`--cwd works
 
 `workspace close <target> --group --confirm` 关闭捕获的 worktree 组，源工作区最后关闭，不删除 Git checkout。已知主 Workspace 若有关联成员就必须带 `--group`；关联 Workspace 只关闭自身。成员消失后使用 `workspace close-status --group --request <operation-id>`；只有明确可恢复失败才使用 `workspace close-resume --group --request <operation-id> --generation <attempt> --confirm`。组模式支持分离/有界等待，报告每个子 Close 的身份及已观测状态。参见[归属模型](docs/windows-worktrees.zh-CN.md#workspace-组关闭)。`api schema` v44 目录包含 74 份文档，其中 `orchbee.workspace.group-close` 为 v1。
 
+Windows CLI 的 Panel／Tab／Workspace Close 会捕获并结束全部已绑定的主、子 Presentation，也支持分组／固定 Tab。只有全部目标的处置与清理完成，并重新验证完整成员关系后，才移除布局；未知效果继续保留原回执与恢复约束。未绑定 Presentation、子终端导航和其他结构操作仍按各自契约处理，见 [Close 模型](../orchbee-server/docs/terminal-tab-close.zh-CN.md#完整-presentation-成员关系)。
+
 ## Windows Client 导航
 
 [Windows Client 视图控制](docs/windows-client-control.zh-CN.md) 拥有 `client list/get/control-status`、`workspace focus`、`tab focus`、`panel focus` 和 `panel zoom`。导航通过 `--client` 或无歧义且已校验的调用者上下文定位一个 current TUI。只提交一次，并等待绘制确认；超时或 Ctrl+C 仅停止等待。单 Panel 缩放有明确无操作回执。目录 v68 包含 76 个 schema，新增均为 v1 的 `orchbee.client.view`、`orchbee.client.control` 和 `orchbee.cli.failure.client-control`。未增加操作系统窗口激活或 Mac/Linux 控制运行时。
