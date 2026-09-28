@@ -134,8 +134,8 @@
 			"zhCnSha256": "e008d8081838ba623f16e9fbd3cd66a6dfcd88889c54c84f9ca56de9aca97d3a"
 		},
 		"apps/orchbee-server/docs/workbench-authority.md": {
-			"englishSha256": "ac76370ef2cca812aa82f655ea2d78884e37881beb1ced74affa10e7166017ba",
-			"zhCnSha256": "82335c3dded0f54ae4a966b8a102fa1a1d6b27cd0b714e14e9b16e2f14416297"
+			"englishSha256": "2f04f19298cde6cc177f985463f529b811a2771c11eb1a35705815d0da1066a3",
+			"zhCnSha256": "00a8c6b16187fdc8b9c3c98e927f372566fdba2e24aefeea480eea93e5d0bf91"
 		},
 		"apps/orchbee-server/docs/workbench-checkpoint.md": {
 			"englishSha256": "6aa3252b7fa3c87fc042c7ec6b049d3d61233ac9e4a8cc1355cafa4489d79492",
@@ -182,8 +182,8 @@
 			"zhCnSha256": "02a733960e6fe84fa997ee219d2ba2f948a89570d88da974acfed344a100bf50"
 		},
 		"apps/orchbee/docs/native-cli-query.md": {
-			"englishSha256": "d852083a4dd1cbe9895fc464f1fbd00b22c110c1b75199437cb1d0b4adc4a617",
-			"zhCnSha256": "eba289252f01457e63856d272c1d674018d5816adb09f0a4ada680e2ef9eadf1"
+			"englishSha256": "690f239c3b7e80ae4a140f4e213e36ad6bcad4f04aae317a6770c7fa0f77d793",
+			"zhCnSha256": "9f225296972c34f6a82217907eccf1e87167d8872855c8dd5be1de4429f922ae"
 		},
 		"apps/orchbee/docs/native-cli-wait-model.md": {
 			"englishSha256": "2f847c74877ecd971ab0be6f98d8250d2180a427ad26a21fff90d5a14eeaea69",
@@ -678,8 +678,8 @@
 			"zhCnSha256": "5f39c7edce88095411070851ba9359fa88f26053a3b3e2ef35c69ee51eb3ab61"
 		},
 		"packages/workbench-client-protocol/README.md": {
-			"englishSha256": "b05bb1fb9a5821ca135044736647c0bd947407b78215687a6b2dc225fef1c9db",
-			"zhCnSha256": "5569e48ff2badf8828d96569b36065ec708375744c1b7886798ce2014f2269e9"
+			"englishSha256": "2721540694721cc19df2dc4bbef71ed1ef50c6b66de9c271d220171822740cfc",
+			"zhCnSha256": "4e57a264de53b69f3d1bebcf845a705a957563d82b59bb7cf15bc3a7af75a1a8"
 		},
 		"packages/workbench/README.md": {
 			"englishSha256": "ff7d467f5f6d2691cf972093984f8f8d557a316af61ceaf4a1f48467d051c1d6",
@@ -762,8 +762,8 @@
 			"zhCnSha256": "d02ac828008b60dd6acb5efe727b2051626b108367e6f8331e2ea00f28d1cf4e"
 		},
 		"schemas/workbench/README.md": {
-			"englishSha256": "33e8b688b29a0c54251e7a4f0f2211d912b2d171c0feb539b500e1bce773b89a",
-			"zhCnSha256": "a0413457d4c62bec3eafd9875fce9c3ec2dd4271604bd55bfab934afcbe99fac"
+			"englishSha256": "cd8eb6cc485c7d0d2aaa5a010490213baa3b7c141204c9085587820f0685ff96",
+			"zhCnSha256": "9d5d654daca4ebf6a76b2e3208c14368c5eee0d2a73d58110925a9a246239e6d"
 		},
 		"third-party/process-wrap/README.md": {
 			"englishSha256": "c04f40708252280f3924b45b419a50a59f036e9f1e575a26eada1a8b8106e1f6",

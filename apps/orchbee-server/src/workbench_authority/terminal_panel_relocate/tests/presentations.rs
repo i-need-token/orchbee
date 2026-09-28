@@ -40,7 +40,17 @@ fn children_survive_tab_creation_ordering_split_move_and_swap() {
     let (mut owner, grant) = authority();
     let mut snapshot = owner.snapshot().clone();
     let mut next = 500_000;
+    let group_id =
+        orchbee_workbench_protocol::WorkbenchTabGroupId::parse(&identity(499_999)).unwrap();
+    snapshot.terminal_contexts[0]
+        .groups
+        .push(orchbee_workbench_protocol::TabGroup {
+            group_id: group_id.clone(),
+            label: "preserved group".to_owned(),
+            color: orchbee_workbench_protocol::TabGroupColor::Blue,
+        });
     let tab = &mut snapshot.terminal_contexts[0].tabs[0];
+    tab.group_id = Some(group_id.clone());
     add_children(&mut tab.root, &mut next);
     let original = tab.root.clone();
     let source_tab = tab.tab_id.clone();
@@ -63,6 +73,7 @@ fn children_survive_tab_creation_ordering_split_move_and_swap() {
 
     let target_tab = create_tab(&mut owner, &grant, 100, "new tab", 800);
     assert_eq!(tab_root(&owner, &source_tab), original);
+    assert_eq!(owner.snapshot().terminal_contexts[0].tabs[1].group_id, None);
     let request = command(
         &owner,
         101,
@@ -148,5 +159,9 @@ fn children_survive_tab_creation_ordering_split_move_and_swap() {
             5
         );
         assert!(!owner.retired);
+        assert_eq!(
+            owner.snapshot().terminal_contexts[0].tabs[1].group_id,
+            Some(group_id.clone())
+        );
     }
 }

@@ -466,8 +466,8 @@ pub(crate) fn answer(schema_id: Option<&str>, format: OutputFormat, locale: Loca
     };
     let document = json!({
         "schema": "orchbee.api.schema",
-        // Panel and Agent queries now join explicit Agent reports and guarded metadata.
-        "version": 93,
+        // Tab movement preserves grouping and pinning with an explicit refusal.
+        "version": 94,
         "source": embedded_source(),
         "result": result,
     });

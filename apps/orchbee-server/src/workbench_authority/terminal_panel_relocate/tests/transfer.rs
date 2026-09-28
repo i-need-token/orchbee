@@ -274,8 +274,19 @@ fn cross_context_reference_matrix_conserves_leaves_and_reports_source_disposal()
                         },
                     );
                     let mut next = 500_000;
-                    for context in &mut initial.terminal_contexts {
+                    for (index, context) in initial.terminal_contexts.iter_mut().enumerate() {
+                        let group_id = orchbee_workbench_protocol::WorkbenchTabGroupId::parse(
+                            &identity(499_990 + index as u128),
+                        )
+                        .unwrap();
+                        context.groups.push(orchbee_workbench_protocol::TabGroup {
+                            group_id: group_id.clone(),
+                            label: "retained group".to_owned(),
+                            color: orchbee_workbench_protocol::TabGroupColor::Blue,
+                        });
                         for tab in &mut context.tabs {
+                            tab.pinned = index < 2;
+                            tab.group_id = (index == 2).then(|| group_id.clone());
                             super::presentations::add_children(&mut tab.root, &mut next);
                         }
                     }
@@ -326,6 +337,25 @@ fn cross_context_reference_matrix_conserves_leaves_and_reports_source_disposal()
                     );
                     let after = owner.snapshot().clone();
                     assert_eq!(retained(&after), retained(&initial));
+                    for previous in &initial.terminal_contexts {
+                        if let Some(context) = after.terminal_contexts.iter().find(|context| {
+                            context.terminal_context_id == previous.terminal_context_id
+                        }) {
+                            assert_eq!(context.groups, previous.groups);
+                            for tab in &context.tabs {
+                                if let Some(old) =
+                                    previous.tabs.iter().find(|old| old.tab_id == tab.tab_id)
+                                {
+                                    assert_eq!(
+                                        (&tab.group_id, tab.pinned),
+                                        (&old.group_id, old.pinned)
+                                    );
+                                } else {
+                                    assert_eq!((&tab.group_id, tab.pinned), (&None, false));
+                                }
+                            }
+                        }
+                    }
                     assert_eq!(after.revision.value(), initial.revision.value() + 1);
                     assert_eq!(
                         after.terminal_contexts.len(),

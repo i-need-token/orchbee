@@ -114,7 +114,7 @@ Workbench 拥有拓扑，Site 拥有 standalone Open 引用，Client 视图权�
 源元组和预期修订必须精确。现有目标形式保留默认源上下文；显式目标上下文支持跨上下文迁移，
 可选目标 Panel 指定嫁接叶子，缺省保留现有根部嫁接契约。新 Workspace 指定 Project、可选的
 Project 所属目录及标签。新增 `primaryDirectoryPath` 可在同次提交中创建 Directory，与已有目录 ID 互斥。本地服务通过当前 Worker 探测路径、复核其代次，并要求目录关联权限；已验证 Worker 必须拥有保留的来源终端。缺少证明、容量不足或路径失败均不能发布拓扑。新目录多分配一个身份，并由 `transfer.createdDirectoryId` 返回；仅分配新结构与目录身份。移动叶子保留 Panel、Presentation、绑定、自定义标签和
-输入策略，包括全部有序子 Presentation。分组／固定 Tab 的树准入以及未绑定成员的生命周期仍是单独跟踪的限制。
+输入策略，包括全部有序子 Presentation。未绑定成员的生命周期仍是单独跟踪的限制。
 
 | 守卫或转换                                     | 可观察结果                                                             |
 | ---------------------------------------------- | ---------------------------------------------------------------------- |
@@ -197,9 +197,7 @@ Windows CLI 与 TUI 消费该共享顺序，筛选列表保持对应子序列。
 上下文；未知上下文返回 `TerminalContextUnavailable`，属于其他上下文的 Tab 返回
 `TabUnavailable`。Move 不要求主 Directory、文件系统探测或在线 Worker。
 
-两类上下文均接受已验证的拆分树：无分组、固定/分组 Tab 或子 presentation，每个叶节点的主
-presentation 均有绑定。布局分歧先于目标查找和 no-op，使权威退役且不置换。这保留当前本地
-cohort 的形状，不定义固定/分组移动或导入布局恢复。
+两类上下文均接受规范拆分树、分组／固定 Tab 以及全部已绑定主／子 Presentation。缺失绑定仍为单独跟踪的生命周期限制。规范元数据不是组合失败。Tab Move 仅改变顺序，不改变分组／固定元数据，也不将单 Tab 扩展为整组。精确请求位置若破坏固定前缀或打散连续分组，则在分配修订之前返回保留的 `tab-move-order-conflict`，状态不变且权威仍可用。合法位置及精确 no-op 沿用原结果和重放规则，不截断位置或隐式重新分组。
 
 只有 standalone Move 准入向 Site 提供 `WorkbenchTerminalMembership`，供其执行既有引用派生组合
 校验。Workspace 准入不读取或修改 standalone 槽位及其保留授权。在同一 Site 门锁下，借用式
@@ -230,7 +228,7 @@ standalone 槽位状态各自实际发生 Workspace 移动。既有
 Workbench 拥有顺序、修订、严格成员关系和请求/结果保留。Site 仅保留
 `Empty | Creating(reference) | Settled { reference, outcome }`；TerminalCoordinator 拥有保留
 授权和执行。Move 不增加存储的锚身份/绑定、每 Tab 的 Site 映射、Open 字段、结构身份、终端计划、
-Worker IPC、查看器或控制器效果。Close/Stop、归档/重启、固定/分组、创建拆分、持久化、远程操作、
+Worker IPC、查看器或控制器效果。Close/Stop、归档/重启、固定／分组属性修改、创建拆分、持久化、远程操作、
 Web 迁移和推送仍从 Move 排除。Close 已有上方描述的独立本地 Server 集成，原生集成另有
 Linux 进程证据；发布收敛仍待完成。不增加显式空 Open 结果。
 
@@ -240,7 +238,7 @@ Linux 进程证据；发布收敛仍待完成。不增加显式空 Open 结果�
 空成员关系有效当且仅当 Site 槽位为 Empty。非空成员关系要求 Creating 或 Settled 含引用 R、
 `TerminalCoordinator.retained_authorization(R)` 可用、成功精确转换成 `PresentationBinding`，
 并且向量任意位置恰有一个匹配绑定。位置从不标识引导或完成。零/多个匹配、授权缺失/无法转换、
-重复上下文或固定/分组/子项/缺失绑定布局属于内部权威分歧，从不修复或返回 `TabUnavailable`。
+重复上下文或缺失绑定属于内部权威分歧，从不修复或返回 `TabUnavailable`。
 
 `standalone_membership()` 仍为要求每 Tab 一个成员的调用方提供严格简单投影。
 Create、完成、Move 和 Open 使用 `tree_standalone_membership()`：在相同上下文验证下，按规范
@@ -269,10 +267,11 @@ Create、完成、Move 和 Open 使用 `tree_standalone_membership()`：在相�
 11. 精确目标 Tab，否则 `TabUnavailable`；
 12. 插入边界不超过当前 Tab 数，否则 `TabMoveIndexOutOfBounds`；
 13. 语义无变化，产生现有 `Unchanged { revision }`；
-14. 实际置换时的修订耗尽；
-15. 预构建/验证完整候选投影、发布和固定结果；
-16. 预留精确保留请求/结果字节；
-17. 不会失败地提交投影、修订及已结算账本条目。
+14. 保留固定前缀及分组连续性，否则 `TabMoveOrderConflict`；
+15. 实际置换时的修订耗尽；
+16. 预构建/验证完整候选投影、发布和固定结果；
+17. 预留精确保留请求/结果字节；
+18. 不会失败地提交投影、修订及已结算账本条目。
 
 因此不支持布局优先于目标缺失/无变化；上下文缺失保留类型化拒绝。无变化优先于修订耗尽。
 类型化拒绝/无变化仅在字节策略准入时保留。条目/字节耗尽为暂时 unavailable，不插入账本、不改变
@@ -872,8 +871,16 @@ Herdr `e0507237ad8d41f60aece10d00ef29ce2339ca34` 的展示和 token 行为；pro
 
 ## 结构操作保留子 Presentation
 
-Panel 即使拥有子 Presentation，仍是布局叶子。已绑定树成员按主项、各有序子项的顺序枚举，并保留每条精确 binding。`member_for_panel` 选择主项；成员数量是 Presentation 数量，不是 Panel 数量。旧的单叶成员入口仍拒绝额外 Presentation。分组／固定 Tab 的重排仍需独立策略，因为 Snapshot 要求固定项位于前缀且分组连续；未绑定项不能被静默过滤。
+Panel 即使拥有子 Presentation，仍是布局叶子。已绑定树成员按主项、各有序子项的顺序枚举，并保留每条精确 binding。`member_for_panel` 选择主项；成员数量是 Presentation 数量，不是 Panel 数量。旧的单叶成员入口仍拒绝额外 Presentation 及分组／固定 Tab。完整树成员在规范验证下包含分组／固定元数据；未绑定项不能被静默过滤。
 
 Tab 创建和排序允许上下文包含子 Presentation。Panel 分屏将完整原 Panel 与一个新兄弟项包装为分屏树。同 Tab 移动／交换、跨 Tab／上下文迁移均转移完整 Panel 节点，包含有序子项身份、标签、binding 和输入策略；不重建、换绑或丢弃现存 Presentation。新 Workspace 的目录选择维持既有主终端所有权，不因迁移启动额外进程。迁移检查 Panel 每个成员是否已被未完成 Close 占用。Standalone 引用协调在既有 Site 提交门内验证前后完整 binding 集合。
 
-证据比较分屏、移动／交换、迁移后的完整 Panel 内容，覆盖带子项的 Tab 创建及排序、主项与子项身份区别、精确 Standalone 引用组合与既有 Close 栅栏。原生子项选择／导航、子项创建、分组／固定项移动、未绑定成员生命周期仍为独立未完成义务。没有线路或检查点迁移，通过匹配 Server cohort 启用或回滚行为。
+证据比较分屏、移动／交换、迁移后的完整 Panel 内容，覆盖带子项的 Tab 创建及排序、主项与子项身份区别、精确 Standalone 引用组合与既有 Close 栅栏。原生子项选择／导航、子项创建、分组／固定属性创建和修改、未绑定成员生命周期仍为独立未完成义务。没有线路或检查点迁移，通过匹配 Server cohort 启用或回滚行为。
+
+## 分组和固定项的结构操作
+
+Workbench 的已绑定结构操作接受规范分组元数据和固定前缀。Tab 创建在末尾追加一个未分组／未固定 Tab。Panel 分屏、移动、交换及迁移保留完整既有 Panel 内容与存续 Tab／分组元数据；移除最后一个 Panel 时移除其 Tab，移到新 Tab 时创建未分组／未固定目标。空分组仍是独立元数据。这些操作均不隐式固定、取消固定、分组或取消分组。
+
+Tab Move 先根据原方向或原始插入边界确定精确置换；no-op 在分配修订之前返回不变。候选必须保留固定前缀及每个分组的连续成员，否则保留 `tab-move-order-conflict`，不修改状态或退役权威。这是 Herdr 精确移除／插入语义之上的 Orchbee 元数据约束（固定 `e0507237ad8d41f60aece10d00ef29ce2339ca34`，`workspace.rs::move_tab`）；Herdr 本身不定义这些分组／固定语义。请求重放、上下文 Close 栅栏、Site 完整成员组合、容量及回滚沿用既有所有者，不发生进程操作。
+
+证据通过独立移除／插入及连续区间参考算法比较完整记录，覆盖合法／非法位置、全部方向、所有插入边界、修订耗尽时的 no-op、精确拒绝重放及后续合法操作。恢复后的分组／固定 Site 组合，以及保留子项的创建／分屏／布局／迁移仍是必要集成见证。Rust／TypeScript／线路 schema 和原生失败分类同时接纳新原因。原生索引失败采用 v2，schema v1 保持封闭；方向操作仅针对新拒绝使用专用 v2 信封。匹配协议／Server／Client 的启用或源码回滚不补偿已提交顺序。分组／固定创建 UI、未绑定生命周期及真实 Windows 多 Client TUI 验收仍为独立义务。

@@ -1,5 +1,6 @@
 use super::*;
 mod index;
+mod metadata;
 mod stateful;
 mod workspace;
 use crate::workbench_authority::terminal_membership::{append_simple_tab, parse_tab_ids};
@@ -310,7 +311,14 @@ fn context_and_full_layout_validation_precede_missing_tab_or_boundary_noop() {
         for target in [0, 9] {
             let (mut authority, grant) = authority(2);
             let mut snapshot = authority.projection.snapshot().clone();
-            snapshot.terminal_contexts[0].tabs[0].pinned = true;
+            let orchbee_workbench_protocol::PanelNode::Panel {
+                primary_presentation,
+                ..
+            } = &mut snapshot.terminal_contexts[0].tabs[0].root
+            else {
+                unreachable!()
+            };
+            primary_presentation.binding = None;
             authority.projection = WorkbenchProjectionStore::load(
                 &serialize_document(&WorkbenchProtocolDocument::Snapshot(snapshot.clone()))
                     .unwrap(),

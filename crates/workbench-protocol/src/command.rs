@@ -854,13 +854,15 @@ pub enum WorkbenchRejectionReason {
     TerminalContextUnavailable,
     TabUnavailable,
     TabMoveIndexOutOfBounds,
+    /// Exact placement would break the pinned prefix or a contiguous Tab group.
+    TabMoveOrderConflict,
     PanelUnavailable,
     ResourceLimit,
     IdentityExhausted,
     RevisionExhausted,
     RequestIdentityConflict,
-    /// The named Panel exists but carries stacked child Presentations; only a
-    /// leaf Panel relocates.
+    /// Legacy stacked-Presentation refusal retained for earlier peers. Current
+    /// relocation preserves every child as part of its complete Panel.
     PanelNotLeaf,
     /// Legacy last-leaf refusal retained for decoding earlier peers. Current
     /// relocation removes the empty source Tab without disposing the terminal.

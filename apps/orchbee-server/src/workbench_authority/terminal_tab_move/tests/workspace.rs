@@ -1,12 +1,11 @@
 use super::*;
 use orchbee_workbench_protocol::{
-    PanelNode, PanelOrientation, PanelSlot, Presentation, Project, Snapshot, TabGroup,
-    TabGroupColor, TerminalPresentationId, WorkbenchPanelSlotId, WorkbenchProjectId,
-    WorkbenchSplitId, WorkbenchTabGroupId, WorkbenchTerminalContextId, WorkbenchWorkspaceId,
-    Workspace,
+    PanelNode, PanelOrientation, PanelSlot, Presentation, Project, Snapshot,
+    TerminalPresentationId, WorkbenchPanelSlotId, WorkbenchProjectId, WorkbenchSplitId,
+    WorkbenchTerminalContextId, WorkbenchWorkspaceId, Workspace,
 };
 
-fn workspace_authority(count: usize) -> (WorkbenchAuthority, WorkbenchGrant) {
+pub(super) fn workspace_authority(count: usize) -> (WorkbenchAuthority, WorkbenchGrant) {
     let (mut authority, grant) = authority(3);
     let mut snapshot = authority.projection.snapshot().clone();
     for workspace in 0..2_u128 {
@@ -291,27 +290,12 @@ fn workspace_move_does_not_validate_another_contexts_layout() {
 
 #[test]
 fn workspace_strict_layout_precedes_missing_target_and_boundary_noop() {
-    for layout in 0..6 {
+    for layout in 3..6 {
         for target in [0, 99] {
             let (mut authority, grant) = workspace_authority(3);
             let mut before = authority.projection.snapshot().clone();
             let context = &mut before.terminal_contexts[1];
             match layout {
-                0 => {
-                    context.tabs[0].pinned = true;
-                    context.tabs[1].pinned = true;
-                }
-                1 | 2 => {
-                    let group_id = WorkbenchTabGroupId::parse(&identity(800)).unwrap();
-                    context.groups.push(TabGroup {
-                        group_id: group_id.clone(),
-                        label: "group".to_owned(),
-                        color: TabGroupColor::Blue,
-                    });
-                    if layout == 2 {
-                        context.tabs[1].group_id = Some(group_id);
-                    }
-                }
                 3 | 4 => {
                     let PanelNode::Panel {
                         primary_presentation,

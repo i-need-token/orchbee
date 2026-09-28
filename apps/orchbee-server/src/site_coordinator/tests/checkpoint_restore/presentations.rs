@@ -7,7 +7,7 @@ use orchbee_workbench_protocol::{
 
 #[test]
 fn relocating_restored_children_preserves_all_bindings_and_the_open_reference() {
-    let (mut coordinator, targets, worker) = restored(false);
+    let (mut coordinator, targets, worker) = restored(true);
     for (index, target) in targets.iter().enumerate() {
         let pending = coordinator
             .prepare_checkpoint_terminal(
@@ -89,6 +89,9 @@ fn relocating_restored_children_preserves_all_bindings_and_the_open_reference() 
     ));
     let after = coordinator.workbench.as_ref().unwrap().snapshot();
     assert_eq!(after.terminal_contexts[0].tabs.len(), 1);
+    assert_eq!(after.terminal_contexts[0].groups, context.groups);
+    assert_eq!(after.terminal_contexts[0].tabs[0].group_id, target.group_id);
+    assert!(!after.terminal_contexts[0].tabs[0].pinned);
     let PanelNode::Split { children, .. } = &after.terminal_contexts[0].tabs[0].root else {
         panic!("grafted Panel")
     };

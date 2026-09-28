@@ -642,8 +642,18 @@ mod linux {
                         | MutationCommand::WorkspaceMoveBlock { .. }
                 ) {
                     failure.failure_schema(super::super::schema::WORKSPACE_MOVE_FAILURE_ID)
-                } else if matches!(command, MutationCommand::TabMoveIndex { .. }) {
-                    failure.failure_schema(super::super::schema::TAB_MOVE_FAILURE_ID)
+                } else if matches!(command, MutationCommand::TabMoveIndex { .. })
+                    || (matches!(command, MutationCommand::TabMove { .. })
+                        && failure
+                            .details
+                            .as_ref()
+                            .and_then(|details| details.get("reason"))
+                            .and_then(serde_json::Value::as_str)
+                            == Some("tab-move-order-conflict"))
+                {
+                    failure
+                        .failure_schema(super::super::schema::TAB_MOVE_FAILURE_ID)
+                        .version(2)
                 } else {
                     failure
                 };
@@ -2267,6 +2277,7 @@ mod linux {
             WorkbenchRejectionReason::TerminalContextUnavailable => "terminal-context-unavailable",
             WorkbenchRejectionReason::TabUnavailable => "tab-unavailable",
             WorkbenchRejectionReason::TabMoveIndexOutOfBounds => "tab-move-index-out-of-bounds",
+            WorkbenchRejectionReason::TabMoveOrderConflict => "tab-move-order-conflict",
             WorkbenchRejectionReason::WorkspaceMoveIndexOutOfBounds => {
                 "workspace-move-index-out-of-bounds"
             }

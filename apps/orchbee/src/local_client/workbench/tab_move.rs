@@ -304,6 +304,7 @@ fn classify_outcome(
                     | WorkbenchRejectionReason::RevisionMismatch
                     | WorkbenchRejectionReason::TerminalContextUnavailable
                     | WorkbenchRejectionReason::TabUnavailable
+                    | WorkbenchRejectionReason::TabMoveOrderConflict
                     | WorkbenchRejectionReason::ResourceLimit
                     | WorkbenchRejectionReason::RevisionExhausted
                     | WorkbenchRejectionReason::RequestIdentityConflict

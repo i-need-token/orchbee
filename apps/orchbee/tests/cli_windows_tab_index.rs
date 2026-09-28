@@ -99,6 +99,11 @@ fn indexed_move_known_refused_and_unknown_outcomes_never_replay_or_focus() {
             Some("rejected"),
         ),
         (
+            "order-conflict",
+            json!({"kind":"rejected","revision":"9","reason":"tab-move-order-conflict"}),
+            Some("rejected"),
+        ),
+        (
             "capacity",
             json!({"kind":"unavailable","reason":"request-ledger-full"}),
             Some("service-unavailable"),
@@ -165,7 +170,22 @@ fn indexed_move_known_refused_and_unknown_outcomes_never_replay_or_focus() {
         if let Some(kind) = failure {
             assert!(!output.status.success(), "{case}");
             assert_eq!(doc["failure"]["kind"], kind, "{case}: {doc}");
+            assert_eq!(doc["version"], 2);
             validate(&doc, FAILURE);
+            if case == "order-conflict" {
+                assert_eq!(
+                    doc["failure"]["details"]["reason"],
+                    "tab-move-order-conflict"
+                );
+                let mut legacy = doc.clone();
+                legacy["version"] = json!(1);
+                let schema: Value = serde_json::from_str(FAILURE).unwrap();
+                assert!(
+                    !jsonschema::validator_for(&schema)
+                        .unwrap()
+                        .is_valid(&legacy)
+                );
+            }
             if case == "bounds" {
                 assert_eq!(
                     doc["failure"]["details"]["reason"],
@@ -188,33 +208,52 @@ fn indexed_move_known_refused_and_unknown_outcomes_never_replay_or_focus() {
 }
 
 #[test]
-fn legacy_direction_rejects_index_only_reason_as_unknown() {
-    let fixture = Fixture::new();
-    let listener = LocalListener::bind(fixture.rendezvous().client_socket_path()).unwrap();
-    let worker = peer(&fixture, listener, |mut stream| {
-        snapshot_reply(&mut stream);
-        let WorkbenchRequest::Command(command) = read_workbench_request(&mut stream).unwrap()
-        else {
-            panic!("command")
-        };
-        assert!(matches!(command.action, WorkbenchAction::TabMove { .. }));
-        write_workbench_response(
-            &mut stream,
-            &WorkbenchResponse::Command(WorkbenchCommandResult {
-                protocol_version: ProtocolVersion,
-                request_id: command.request_id,
-                outcome: WorkbenchCommandOutcome::Rejected {
-                    revision: WorkbenchRevision::new(9),
-                    reason: WorkbenchRejectionReason::TabMoveIndexOutOfBounds,
-                },
-            }),
-        )
-        .unwrap();
-        assert_closed(&mut stream);
-    });
-    let output = fixture.run(&["tab", "move", TAB, "--direction=last", "--format=json"]);
-    worker.join().unwrap();
-    let doc: Value = serde_json::from_slice(&output.stdout).unwrap();
-    assert_eq!(doc["schema"], "orchbee.cli.failure");
-    assert_eq!(doc["failure"]["kind"], "outcome-unknown");
+fn direction_classifies_order_conflict_but_not_index_only_refusal() {
+    for (reason, kind, schema) in [
+        (
+            WorkbenchRejectionReason::TabMoveIndexOutOfBounds,
+            "outcome-unknown",
+            "orchbee.cli.failure",
+        ),
+        (
+            WorkbenchRejectionReason::TabMoveOrderConflict,
+            "rejected",
+            "orchbee.cli.failure.tab-move",
+        ),
+    ] {
+        let fixture = Fixture::new();
+        let listener = LocalListener::bind(fixture.rendezvous().client_socket_path()).unwrap();
+        let worker = peer(&fixture, listener, move |mut stream| {
+            snapshot_reply(&mut stream);
+            let WorkbenchRequest::Command(command) = read_workbench_request(&mut stream).unwrap()
+            else {
+                panic!("command")
+            };
+            assert!(matches!(command.action, WorkbenchAction::TabMove { .. }));
+            write_workbench_response(
+                &mut stream,
+                &WorkbenchResponse::Command(WorkbenchCommandResult {
+                    protocol_version: ProtocolVersion,
+                    request_id: command.request_id,
+                    outcome: WorkbenchCommandOutcome::Rejected {
+                        revision: WorkbenchRevision::new(9),
+                        reason,
+                    },
+                }),
+            )
+            .unwrap();
+            assert_closed(&mut stream);
+        });
+        let output = fixture.run(&["tab", "move", TAB, "--direction=last", "--format=json"]);
+        worker.join().unwrap();
+        let doc: Value = serde_json::from_slice(&output.stdout).unwrap();
+        assert_eq!(doc["schema"], schema);
+        assert_eq!(doc["failure"]["kind"], kind);
+        if reason == WorkbenchRejectionReason::TabMoveOrderConflict {
+            assert_eq!(doc["version"], 2);
+            validate(&doc, FAILURE);
+        } else {
+            assert_eq!(doc["version"], 1);
+        }
+    }
 }

@@ -126,7 +126,6 @@ impl<'a> WorkbenchTabMoveAdmission<'a> {
             return Ok(self.authority.unchanged());
         }
         let mut candidate = self.authority.projection.snapshot().clone();
-        let revision = self.authority.next_revision()?;
         let context = candidate
             .terminal_contexts
             .iter_mut()
@@ -141,6 +140,12 @@ impl<'a> WorkbenchTabMoveAdmission<'a> {
         } else {
             moved.rotate_right(1);
         }
+        if !preserves_tab_order_constraints(&context.tabs) {
+            return Err(PlanFailure::Rejected(
+                WorkbenchRejectionReason::TabMoveOrderConflict,
+            ));
+        }
+        let revision = self.authority.next_revision()?;
         candidate.revision = revision;
         let encoded = serialize_document(&WorkbenchProtocolDocument::Snapshot(candidate)).map_err(
             |error| match error {
@@ -166,6 +171,31 @@ impl<'a> WorkbenchTabMoveAdmission<'a> {
             },
         })
     }
+}
+
+/// Order-only moves cannot implicitly unpin or regroup a Tab. Input metadata
+/// already passed canonical validation; only its permutation changes here.
+fn preserves_tab_order_constraints(tabs: &[orchbee_workbench_protocol::Tab]) -> bool {
+    let mut unpinned = false;
+    let mut previous_group = None;
+    let mut completed_groups = std::collections::HashSet::new();
+    for tab in tabs {
+        if tab.pinned && unpinned {
+            return false;
+        }
+        unpinned |= !tab.pinned;
+        let group = tab.group_id.as_ref();
+        if group != previous_group {
+            if let Some(previous) = previous_group {
+                completed_groups.insert(previous);
+            }
+            if group.is_some_and(|group| completed_groups.contains(group)) {
+                return false;
+            }
+            previous_group = group;
+        }
+    }
+    true
 }
 
 impl WorkbenchAuthority {

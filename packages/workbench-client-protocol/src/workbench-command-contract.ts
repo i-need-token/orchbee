@@ -376,6 +376,7 @@ export const WorkbenchRejectionReasonSchema = z.enum([
 	'terminal-context-unavailable',
 	'tab-unavailable',
 	'tab-move-index-out-of-bounds',
+	'tab-move-order-conflict',
 	'workspace-move-index-out-of-bounds',
 	'workspace-move-target-in-block',
 	'panel-unavailable',

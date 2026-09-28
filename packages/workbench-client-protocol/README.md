@@ -181,6 +181,9 @@ the original direction `tab.move` contract is unchanged. `insertIndex` is an int
 denotes a zero-based boundary in the original order. After exact context/target and tree membership
 composition, the Server rejects a value above its current Tab count as
 `tab-move-index-out-of-bounds`. Source/source+1 boundaries are unchanged; the count boundary appends.
+Both direction and indexed movement preserve pin/group metadata. Exact placement that would break
+the pinned prefix or split a contiguous group returns retained `tab-move-order-conflict` without
+mutation, retirement or implicit regrouping; valid placements retain complete Tab records.
 It reuses `tab-moved` and `unchanged`, the shared revision, retained results and atomic commit owner,
 without terminal or focus effects. The request fingerprint includes the action kind and boundary.
 The corpus covers bounds, decimal integer normalization, missing/extra/conflicting fields and

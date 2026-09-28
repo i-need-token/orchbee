@@ -480,9 +480,7 @@ fn tree_membership_collects_split_primary_leaves_but_legacy_context_rejects_them
 
 #[test]
 fn tree_membership_still_rejects_genuine_tree_corruption() {
-    // The widened tree view keeps every other tree restriction: an unbound leaf,
-    // a leaf carrying child presentations, or a pinned Tab inside a split must
-    // still fail the invariant instead of being admitted.
+    // Unbound primary and child Presentations still refuse complete membership.
     fn split_snapshot(authority: &WorkbenchAuthority) -> Snapshot {
         let mut snapshot = authority.projection.snapshot().clone();
         let tab = &mut snapshot.terminal_contexts[0].tabs[0];
@@ -528,7 +526,7 @@ fn tree_membership_still_rejects_genuine_tree_corruption() {
         };
         snapshot
     }
-    for case in ["unbound leaf", "child presentations", "pinned tab"] {
+    for case in ["unbound leaf", "child presentations"] {
         let mut authority = authority();
         authority.commit_standalone_intent(binding()).unwrap();
         let mut snapshot = split_snapshot(&authority);

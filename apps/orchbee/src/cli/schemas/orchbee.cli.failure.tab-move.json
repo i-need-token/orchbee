@@ -1,7 +1,7 @@
 {
 	"$schema": "https://json-schema.org/draft/2020-12/schema",
 	"$id": "orchbee.cli.failure.tab-move",
-	"title": "orchbee indexed Tab move runtime failure",
+	"title": "orchbee Tab ordering runtime failure",
 	"type": "object",
 	"required": ["schema", "version", "failure"],
 	"additionalProperties": false,
@@ -10,7 +10,7 @@
 			"const": "orchbee.cli.failure.tab-move"
 		},
 		"version": {
-			"const": 1
+			"enum": [1, 2]
 		},
 		"failure": {
 			"type": "object",
@@ -542,6 +542,32 @@
 					}
 				}
 			}
+		},
+		{
+			"if": {
+				"properties": {
+					"version": {
+						"const": 1
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"failure": {
+						"properties": {
+							"details": {
+								"properties": {
+									"reason": {
+										"not": {
+											"const": "tab-move-order-conflict"
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
 		}
 	],
 	"$defs": {
@@ -857,7 +883,8 @@
 				"workspace-directory-conflict",
 				"workspace-directory-unavailable",
 				"workspace-unavailable",
-				"tab-move-index-out-of-bounds"
+				"tab-move-index-out-of-bounds",
+				"tab-move-order-conflict"
 			]
 		},
 		"outcomeUnknownReason": {

@@ -147,8 +147,8 @@ The source tuple and expected revision are exact. Existing destination forms ret
 source-context default. An explicit destination context enables cross-context moves, and an
 optional target Panel selects the graft leaf; absence retains the existing root-graft contract.
 A new Workspace specifies its Project, optional Project-owned directory and labels. A new `primaryDirectoryPath` alternatively creates a Directory in that same commit. It is mutually exclusive with an existing directory ID. The local service probes the path through the current Worker, rechecks its generation and requires directory-association authority; the proven Worker must own the retained source terminal. Missing proof, capacity or path failure cannot publish topology. A created Directory adds one allocated identity and `transfer.createdDirectoryId`. Only new structural and directory identities are allocated. A moved leaf retains its Panel, Presentation, binding,
-custom label and input policy, including every ordered child Presentation. Grouped/pinned tree
-admission and unbound-member lifecycle remain separately tracked restrictions.
+custom label and input policy, including every ordered child Presentation. Unbound-member lifecycle
+remains separately tracked.
 
 | Guard or transition                                                               | Observable result                                                                                              |
 | --------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
@@ -247,10 +247,13 @@ result rules below. Context admission accepts the standalone context or an exist
 context; an unknown context is `TerminalContextUnavailable`. A Tab belonging to another context
 is `TabUnavailable`. Move does not require a primary Directory, filesystem probe or live Worker.
 
-Both context kinds accept validated split trees: no groups, pinned/grouped Tabs or child
-presentations, and every leaf primary presentation has a binding. Layout divergence precedes
-target lookup and no-op and retires the authority without permutation. This preserves the current
-local cohort's shape; it does not define pin/group movement or recovery of imported layouts.
+Both context kinds accept canonical split trees, grouped/pinned Tabs and all bound primary/child
+Presentations. Missing bindings remain a separately tracked lifecycle restriction. Canonical
+metadata is not a composition failure. Tab Move changes order only: it neither changes group/pin
+metadata nor expands one Tab into a whole group. Exact requested placement that would break the
+pinned prefix or split a contiguous group returns retained `tab-move-order-conflict`, with unchanged
+state and usable authority, before revision allocation. Valid placements and exact no-ops retain
+the ordinary result and replay rules; no clamping or implicit regrouping occurs.
 
 Only standalone Move admission supplies `WorkbenchTerminalMembership` to Site's existing
 reference-derived composition check. Workspace admission neither reads nor modifies the standalone
@@ -289,7 +292,7 @@ strict membership and request/result retention. Site retains only
 `Empty | Creating(reference) | Settled { reference, outcome }`; TerminalCoordinator owns retained
 authorization and execution. Move adds no stored anchor identity/binding, per-Tab Site map, Open
 field, structural identity, terminal plan, Worker IPC, viewer or controller effect. Close/Stop,
-archive/restart, pin/group, split creation, persistence, remote operations, Web migration and push remain
+archive/restart, pin/group mutation, split creation, persistence, remote operations, Web migration and push remain
 excluded from Move. Close has the separate local Server integration described above; its native
 integration has separate Linux process evidence; release convergence remains pending.
 No explicit-empty Open result is added.
@@ -301,7 +304,7 @@ the Site slot is Empty. Nonempty membership requires Creating or Settled with re
 `TerminalCoordinator.retained_authorization(R)`, successful exact conversion to
 `PresentationBinding`, and exactly one matching binding anywhere in the vector. Position never
 identifies bootstrap or completion. Zero/multiple matches, absent/unconvertible authorization,
-duplicate context or pin/group/child/missing-binding layout are internal divergence, never
+duplicate context or missing bindings are internal divergence, never
 repaired or returned as `TabUnavailable`.
 
 `standalone_membership()` remains the strict-simple projection for callers requiring one member
@@ -336,10 +339,11 @@ For a syntactically valid Move, the exact precedence is:
 11. exact target Tab, otherwise `TabUnavailable`;
 12. insertion boundary not exceeding the current Tab count, otherwise `TabMoveIndexOutOfBounds`;
 13. semantic no-op, yielding existing `Unchanged { revision }`;
-14. revision exhaustion for an actual permutation;
-15. prebuild/validate complete candidate projection, publication and fixed result;
-16. reserve exact retained request/result bytes;
-17. infallibly commit projection, revision and settled ledger entry.
+14. preserve pinned-prefix and group contiguity, otherwise `TabMoveOrderConflict`;
+15. revision exhaustion for an actual permutation;
+16. prebuild/validate complete candidate projection, publication and fixed result;
+17. reserve exact retained request/result bytes;
+18. infallibly commit projection, revision and settled ledger entry.
 
 Unsupported layout therefore precedes missing target/no-op; missing context keeps its typed
 rejection. No-op precedes revision exhaustion. Typed rejection/no-op is retained only if the byte
@@ -1044,9 +1048,8 @@ remain integration obligations; the report wire cannot assert process existence.
 A Panel remains a layout leaf when it owns child Presentations. Bound tree membership enumerates
 the primary followed by every ordered child, retaining each exact binding. `member_for_panel`
 selects the primary; a member count is a Presentation count, not a Panel count. Legacy single-leaf
-membership still rejects additional Presentations. Grouped/pinned reordering remains a separate
-policy because Snapshot requires a pinned prefix and contiguous groups; unbound members are never
-silently filtered.
+membership still rejects additional Presentations and grouped/pinned Tabs. Complete tree membership
+includes group/pin metadata under canonical validation; unbound members are never silently filtered.
 
 Tab creation and ordering admit contexts containing child Presentations. Panel split wraps the
 complete original Panel and one fresh sibling. Same-Tab move/swap and cross-Tab/context relocation
@@ -1059,5 +1062,31 @@ reconciliation validates the entire before/after binding set under the existing 
 Evidence must compare complete Panel payloads after split, move/swap and relocation, cover new Tab
 and Tab ordering with children, preserve primary-versus-child identity, and verify exact standalone
 reference composition and existing Close fences. Native child selection/navigation, child creation,
-group/pin movement and unbound-member lifecycle remain separately tracked obligations. There is no
+group/pin creation and mutation, and unbound-member lifecycle remain separately tracked obligations. There is no
 wire or checkpoint migration; the matched Server cohort activates or rolls back this behavior.
+
+## Grouped and pinned structural operations
+
+Workbench accepts canonical group metadata and pinned prefixes for bound structural operations.
+Tab creation appends one ungrouped/unpinned Tab. Panel split/move/swap and relocation preserve
+complete existing Panel payloads and surviving Tab/group metadata; removing the final Panel removes
+its Tab, and moving into a new Tab creates an ungrouped/unpinned destination. Empty groups remain
+independent metadata. None of these operations implicitly pins, unpins, groups or ungroups a Tab.
+
+For Tab Move, the existing direction or original insertion boundary first determines one exact
+permutation. No-op returns unchanged before revision allocation. The candidate must retain a pinned
+prefix and contiguous members for every group; otherwise `tab-move-order-conflict` is retained
+without mutation or retirement. This is an Orchbee metadata constraint over Herdr's exact
+remove/insert semantics (pinned `e0507237ad8d41f60aece10d00ef29ce2339ca34`, `workspace.rs::move_tab`);
+Herdr does not define these group/pin semantics. Request replay, context-Close fences, all-member
+Site composition, capacity and rollback retain their existing owners. No process operation occurs.
+
+Evidence compares complete records against independent remove/insert and contiguous-span oracles,
+including legal/illegal placements, all directions, all insertion boundaries, no-op at exhausted
+revision, exact refusal replay and subsequent valid work. Restored grouped/pinned Site composition
+and child-preserving create/split/placement/relocation remain required integration witnesses.
+Rust/TypeScript/wire schemas and native failure classification include the new reason together.
+Native indexed failures use v2 while schema v1 remains closed; direction uses the dedicated v2
+envelope only for this new refusal. Matched protocol/Server/Client rollout or source rollback does
+not compensate already committed order. Group/pin creation UI, unbound lifecycle and actual
+Windows multi-Client TUI acceptance remain separate obligations.

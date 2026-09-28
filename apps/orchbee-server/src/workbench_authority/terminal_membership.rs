@@ -209,8 +209,7 @@ impl WorkbenchAuthority {
         self.presentation_membership(&self.snapshot().navigation.standalone_terminal_context_id)
     }
 
-    /// Complete bound membership for registration and all-target Close.
-    /// Other structural operations keep their separate guards.
+    /// Complete bound membership for registration, structural operations and Close.
     pub fn presentation_membership(
         &self,
         context_id: &WorkbenchTerminalContextId,
@@ -435,13 +434,7 @@ pub(super) fn tree_terminal_membership(
     snapshot: &Snapshot,
     context_id: &WorkbenchTerminalContextId,
 ) -> Result<WorkbenchTerminalMembership, WorkbenchTerminalInvariantError> {
-    let context_kind = terminal_context_kind(snapshot, context_id)?;
-    let (_context, members) = tree_membership_context(snapshot, context_id)?;
-    Ok(WorkbenchTerminalMembership {
-        terminal_context_id: context_id.clone(),
-        context_kind,
-        members,
-    })
+    presentation_membership(snapshot, context_id)
 }
 
 fn legacy_single_leaf_context<'a>(

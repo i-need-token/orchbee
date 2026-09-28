@@ -225,6 +225,7 @@ fn compatible_rejection(action: &WorkbenchAction, reason: WorkbenchRejectionReas
         | WorkbenchRejectionReason::TerminalContextUnavailable
         | WorkbenchRejectionReason::TabUnavailable
         | WorkbenchRejectionReason::TabMoveIndexOutOfBounds
+        | WorkbenchRejectionReason::TabMoveOrderConflict
         | WorkbenchRejectionReason::PanelUnavailable
         | WorkbenchRejectionReason::PanelNotLeaf
         | WorkbenchRejectionReason::LastPanelInTab

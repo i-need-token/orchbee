@@ -117,8 +117,8 @@ fn restart_rebinds_children_and_grouped_pinned_tabs_before_open_reuses_first_ter
             .as_ref()
             .unwrap()
             .tree_standalone_membership()
-            .is_err(),
-        "other structural-operation guards stay independent"
+            .is_ok(),
+        "canonical groups, pins and children are valid structural membership"
     );
     assert!(matches!(
         coordinator.prepare_open(
