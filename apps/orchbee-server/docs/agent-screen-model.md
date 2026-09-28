@@ -18,7 +18,7 @@ Bundled TOML files are retained under `resources/agent-detection` with their Apa
 | Regex / line regex | All patterns; case-sensitive unless the expression changes flags; line patterns may match different lines |
 | Nested all / any / not | All children / at least one child if present / no child matches |
 | No matching rule for known provider | Idle without visible idle evidence |
-| Transcript/history viewer rule | Skip state publication, preserve existing fallback |
+| Transcript/history viewer rule | Skip publication, preserve existing fallback and clear pending idle confirmation |
 | Visibility flag inconsistent with state | Flag is false in the derived result |
 
 Regions follow the reference's live prompt, response markers, prompt boxes, top/bottom nonempty lines and separate OSC fields. Line boundaries retain correct UTF-8 offsets for LF and CRLF, including blank lines and a final unterminated line; no byte offset may split a Unicode character. All matching is pure and does not access files, processes, clocks or mutable global state. Compiled rules may be retained by the sampling owner and reused.

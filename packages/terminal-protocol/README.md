@@ -61,8 +61,15 @@ shared `Arc<str>` values, including empty strings. The all-ones index means abse
 and delta headers replace these observations completely; null clears a prior value. No URI,
 filesystem, process or presentation interpretation occurs in this decoder.
 
+Optional progress extension kind `3` is decoded into a closed `TerminalProgress` value.
+Set/error/pause carry an optional validated `TerminalProgressValue` percentage; remove and
+indeterminate cannot carry one. The frame retains extension presence as `Option`; absence has
+the existing wire meaning of removed progress. Duplicate records, wrong lengths, invalid state
+tags, noncanonical percentages and forbidden combinations reject the whole frame before publication.
+This is a current sample, with no inference about provider identity or work completion.
+
 This is a text-table decoder, not a full graphics/extension decoder or a Client state machine.
-Optional extension contents are skipped without interpretation or retention; every required
+Other optional extension contents are skipped without interpretation or retention; every required
 extension still rejects. It never executes VT, activates hyperlinks, performs clipboard effects,
 applies deltas, sends feedback, or renders. Existing TypeScript and real Ghostty fixtures plus the
 owner's malformed-frame corpus and byte-boundary tests maintain conformance. The native TUI owns

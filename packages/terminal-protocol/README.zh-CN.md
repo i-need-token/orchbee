@@ -55,8 +55,13 @@ geometry、screen、color、theme revision、routing fact，以及已验证的 `
 包括空字符串。全一位索引表示缺失。Snapshot 和 delta 头部均完整替换这些观察，null 清除
 此前值。此解码器不解释 URI、文件系统、进程或展示语义。
 
-这是 text table decoder，不是完整 graphics/extension decoder 或 Client 状态机。Optional
-extension 内容跳过且不解释、不保留；任何 required extension 仍拒绝。它不执行 VT、激活
+可选进度扩展 kind `3` 解码为封闭的 `TerminalProgress` 值。Set／error／pause 可携带已验证的
+可选 `TerminalProgressValue` 百分比；remove 和 indeterminate 不可携带百分比。帧以 `Option`
+保留扩展是否存在；缺失仍具有既有线协议的移除进度语义。重复记录、错误长度、无效状态标签、
+非规范百分比及禁止组合均在发布前拒绝整帧。这是当前样本，不推导 provider 身份或任务完成。
+
+这是 text table decoder，不是完整 graphics/extension decoder 或 Client 状态机。
+其他 optional extension 内容跳过且不解释、不保留；任何 required extension 仍拒绝。它不执行 VT、激活
 hyperlink、产生 clipboard effect、应用 delta、发送 feedback 或渲染。现有 TypeScript 和真实
 Ghostty fixture，以及 owner 的 malformed-frame corpus 和 byte-boundary test 维护一致性。
 原生 TUI 拥有原子的 snapshot/delta 应用、保留内存准入、避免 escape 注入的 cell 呈现，以及

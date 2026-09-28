@@ -172,6 +172,7 @@ pub use version::{CURRENT_PROTOCOL_VERSION, ProtocolVersion};
 
 mod text_frame;
 pub use text_frame::{
-    MouseFormat, MouseTracking, TerminalInteraction, TerminalTextCell, TerminalTextCursor,
-    TerminalTextFrame, TerminalTextRow, TerminalTextStyle, decode_terminal_text_frame,
+    MouseFormat, MouseTracking, TerminalInteraction, TerminalProgress, TerminalProgressValue,
+    TerminalTextCell, TerminalTextCursor, TerminalTextFrame, TerminalTextRow, TerminalTextStyle,
+    decode_terminal_text_frame,
 };

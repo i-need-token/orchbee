@@ -34,6 +34,7 @@ impl Stability {
         let mut next = self.clone();
         next.last_sample = Some(now);
         if detected.skip {
+            next.pending_idle = None;
             return Ok(Prepared {
                 next,
                 publish: None,
@@ -148,5 +149,30 @@ mod tests {
         let p = state.prepare(skip, 1000, false).unwrap();
         assert_eq!(p.publish, None);
         assert_eq!(p.next.published, block);
+    }
+    #[test]
+    fn transcript_viewer_clears_idle_confirmation_without_publishing() {
+        let working = signal(PanelAgentState::Working, true);
+        let idle = signal(PanelAgentState::Idle, false);
+        let held = Stability::new(working)
+            .prepare(idle, 1, false)
+            .unwrap()
+            .next;
+        let skipped = held
+            .prepare(
+                Detection {
+                    skip: true,
+                    ..signal(PanelAgentState::Unknown, false)
+                },
+                900,
+                false,
+            )
+            .unwrap();
+        assert_eq!(skipped.publish, None);
+        assert_eq!(skipped.next.published, working);
+        assert_eq!(skipped.next.pending_idle, None);
+        let resumed = skipped.next.prepare(idle, 1000, false).unwrap();
+        assert_eq!(resumed.publish, None);
+        assert_eq!(resumed.next.pending_idle, Some((1000, 0)));
     }
 }

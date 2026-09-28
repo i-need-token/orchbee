@@ -3564,6 +3564,7 @@ mod tests {
                 background: 0,
                 theme_revision: 1,
                 scrollback_rows: 0,
+                progress: None,
                 title: None,
                 current_directory: None,
                 rows,

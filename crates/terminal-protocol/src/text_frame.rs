@@ -1,11 +1,13 @@
-//! Bounded OBTF text projection. Optional extension contents are not interpreted.
+//! Bounded OBTF text projection and typed progress; other optional extension contents are skipped.
 use crate::{
     MAXIMUM_TEXT_CELL_BYTES, ProtocolError, ProtocolErrorCode, TerminalFrameRoute,
     TerminalPixelGeometry, inspect_terminal_frame_route,
 };
 use std::sync::Arc;
 
+mod progress;
 mod rows;
+pub use progress::{TerminalProgress, TerminalProgressValue};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct TerminalTextStyle {
@@ -52,6 +54,8 @@ pub struct TerminalTextFrame {
     /// Raw nullable metadata captured in this frame, including explicit empty strings.
     pub title: Option<Arc<str>>,
     pub current_directory: Option<Arc<str>>,
+    /// Presence of the validated current progress extension; absence means removed progress on the wire.
+    pub progress: Option<TerminalProgress>,
     pub rows: Vec<TerminalTextRow>,
 }
 
@@ -259,8 +263,9 @@ pub fn decode_terminal_text_frame(bytes: &[u8]) -> Result<TerminalTextFrame, Pro
         &styles,
     )?;
     let mut extension_bytes = 0_u64;
+    let mut progress = None;
     for _ in 0..extensions_count {
-        header.u16()?;
+        let kind = header.u16()?;
         if header.u16()? & 0x8000 != 0 {
             return Err(error(ProtocolErrorCode::UnknownRequiredFlag));
         }
@@ -269,7 +274,13 @@ pub fn decode_terminal_text_frame(bytes: &[u8]) -> Result<TerminalTextFrame, Pro
         if extension_bytes > 33 * 1024 * 1024 {
             return Err(error(ProtocolErrorCode::LimitExceeded));
         }
-        header.take(length as usize)?;
+        let bytes = header.take(length as usize)?;
+        if kind == 3 {
+            if progress.is_some() {
+                return Err(error(ProtocolErrorCode::InvalidField));
+            }
+            progress = Some(progress::decode(bytes)?);
+        }
     }
     if !header.bytes.is_empty() {
         return Err(error(ProtocolErrorCode::LengthMismatch));
@@ -290,6 +301,7 @@ pub fn decode_terminal_text_frame(bytes: &[u8]) -> Result<TerminalTextFrame, Pro
         scrollback_rows,
         title: (title != u32::MAX).then(|| strings[title as usize].clone()),
         current_directory: (directory != u32::MAX).then(|| strings[directory as usize].clone()),
+        progress,
         rows,
     })
 }

@@ -62,6 +62,7 @@ fn frame(
         background: 0,
         theme_revision: 1,
         scrollback_rows,
+        progress: None,
         title: None,
         current_directory: None,
         rows: (0..rows)
