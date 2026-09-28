@@ -1917,7 +1917,9 @@ mod linux {
                 }
             }
             // Swap is a declared canonical-plus-focus workflow, never an ordinary mutation.
-            WorkbenchAction::PanelSwap { .. } | WorkbenchAction::PanelCreateTerminal { .. } => {
+            WorkbenchAction::PanelSwap { .. }
+            | WorkbenchAction::PanelCreateTerminal { .. }
+            | WorkbenchAction::TabCreateLayout { .. } => {
                 Err(Failure::new(FailureKind::InternalFailure))
             }
         }

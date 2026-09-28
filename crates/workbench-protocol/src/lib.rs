@@ -2,7 +2,13 @@ mod carrier;
 mod command;
 mod directory;
 mod identity;
+mod layout_template;
 mod model;
+pub use layout_template::{
+    MAXIMUM_ENCODED_LAYOUT_COMMAND_BYTES, MAXIMUM_LAYOUT_CHILDREN, MAXIMUM_LAYOUT_DEPTH,
+    MAXIMUM_LAYOUT_PANELS, WorkbenchLayoutNode, WorkbenchLayoutPresentation,
+    WorkbenchLayoutTemplate,
+};
 mod panel_label;
 mod validation;
 mod workspace_order;

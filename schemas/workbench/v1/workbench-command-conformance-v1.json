@@ -4339,6 +4339,847 @@
 					"candidateIds": ["site:1", "site:2"]
 				}
 			}
+		},
+		{
+			"name": "layout-materialize-mixed-members",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "2",
+				"action": {
+					"kind": "tab.create-layout",
+					"terminalContextId": "00000000000000000000000000000005",
+					"label": "Layout",
+					"automaticLabel": false,
+					"layout": {
+						"kind": "split",
+						"orientation": "vertical",
+						"children": [
+							{
+								"kind": "panel",
+								"primary": {
+									"label": "Primary",
+									"customLabel": "Manual"
+								},
+								"children": [
+									{
+										"label": "Child"
+									}
+								],
+								"rightClick": "panel"
+							},
+							{
+								"kind": "panel",
+								"primary": {
+									"label": "Empty"
+								},
+								"children": [],
+								"rightClick": "orchbee"
+							}
+						]
+					}
+				}
+			}
+		},
+		{
+			"name": "layout-materialized-receipt",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "tab-layout-created",
+					"revision": "3",
+					"terminalContextId": "00000000000000000000000000000005",
+					"tabId": "00000000000000000000000000000006"
+				}
+			}
+		},
+		{
+			"name": "layout-panels-24",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "2",
+				"action": {
+					"kind": "tab.create-layout",
+					"terminalContextId": "00000000000000000000000000000005",
+					"label": "Layout",
+					"automaticLabel": false,
+					"layout": {
+						"kind": "split",
+						"orientation": "horizontal",
+						"children": [
+							{
+								"kind": "split",
+								"orientation": "horizontal",
+								"children": [
+									{
+										"kind": "split",
+										"orientation": "horizontal",
+										"children": [
+											{
+												"kind": "split",
+												"orientation": "horizontal",
+												"children": [
+													{
+														"kind": "panel",
+														"primary": {
+															"label": "Primary",
+															"customLabel": "Manual"
+														},
+														"children": [
+															{
+																"label": "Child"
+															}
+														],
+														"rightClick": "panel"
+													},
+													{
+														"kind": "split",
+														"orientation": "horizontal",
+														"children": [
+															{
+																"kind": "panel",
+																"primary": {
+																	"label": "Primary",
+																	"customLabel": "Manual"
+																},
+																"children": [
+																	{
+																		"label": "Child"
+																	}
+																],
+																"rightClick": "panel"
+															},
+															{
+																"kind": "panel",
+																"primary": {
+																	"label": "Primary",
+																	"customLabel": "Manual"
+																},
+																"children": [
+																	{
+																		"label": "Child"
+																	}
+																],
+																"rightClick": "panel"
+															}
+														]
+													}
+												]
+											},
+											{
+												"kind": "split",
+												"orientation": "horizontal",
+												"children": [
+													{
+														"kind": "panel",
+														"primary": {
+															"label": "Primary",
+															"customLabel": "Manual"
+														},
+														"children": [
+															{
+																"label": "Child"
+															}
+														],
+														"rightClick": "panel"
+													},
+													{
+														"kind": "split",
+														"orientation": "horizontal",
+														"children": [
+															{
+																"kind": "panel",
+																"primary": {
+																	"label": "Primary",
+																	"customLabel": "Manual"
+																},
+																"children": [
+																	{
+																		"label": "Child"
+																	}
+																],
+																"rightClick": "panel"
+															},
+															{
+																"kind": "panel",
+																"primary": {
+																	"label": "Primary",
+																	"customLabel": "Manual"
+																},
+																"children": [
+																	{
+																		"label": "Child"
+																	}
+																],
+																"rightClick": "panel"
+															}
+														]
+													}
+												]
+											}
+										]
+									},
+									{
+										"kind": "split",
+										"orientation": "horizontal",
+										"children": [
+											{
+												"kind": "split",
+												"orientation": "horizontal",
+												"children": [
+													{
+														"kind": "panel",
+														"primary": {
+															"label": "Primary",
+															"customLabel": "Manual"
+														},
+														"children": [
+															{
+																"label": "Child"
+															}
+														],
+														"rightClick": "panel"
+													},
+													{
+														"kind": "split",
+														"orientation": "horizontal",
+														"children": [
+															{
+																"kind": "panel",
+																"primary": {
+																	"label": "Primary",
+																	"customLabel": "Manual"
+																},
+																"children": [
+																	{
+																		"label": "Child"
+																	}
+																],
+																"rightClick": "panel"
+															},
+															{
+																"kind": "panel",
+																"primary": {
+																	"label": "Primary",
+																	"customLabel": "Manual"
+																},
+																"children": [
+																	{
+																		"label": "Child"
+																	}
+																],
+																"rightClick": "panel"
+															}
+														]
+													}
+												]
+											},
+											{
+												"kind": "split",
+												"orientation": "horizontal",
+												"children": [
+													{
+														"kind": "panel",
+														"primary": {
+															"label": "Primary",
+															"customLabel": "Manual"
+														},
+														"children": [
+															{
+																"label": "Child"
+															}
+														],
+														"rightClick": "panel"
+													},
+													{
+														"kind": "split",
+														"orientation": "horizontal",
+														"children": [
+															{
+																"kind": "panel",
+																"primary": {
+																	"label": "Primary",
+																	"customLabel": "Manual"
+																},
+																"children": [
+																	{
+																		"label": "Child"
+																	}
+																],
+																"rightClick": "panel"
+															},
+															{
+																"kind": "panel",
+																"primary": {
+																	"label": "Primary",
+																	"customLabel": "Manual"
+																},
+																"children": [
+																	{
+																		"label": "Child"
+																	}
+																],
+																"rightClick": "panel"
+															}
+														]
+													}
+												]
+											}
+										]
+									}
+								]
+							},
+							{
+								"kind": "split",
+								"orientation": "horizontal",
+								"children": [
+									{
+										"kind": "split",
+										"orientation": "horizontal",
+										"children": [
+											{
+												"kind": "split",
+												"orientation": "horizontal",
+												"children": [
+													{
+														"kind": "panel",
+														"primary": {
+															"label": "Primary",
+															"customLabel": "Manual"
+														},
+														"children": [
+															{
+																"label": "Child"
+															}
+														],
+														"rightClick": "panel"
+													},
+													{
+														"kind": "split",
+														"orientation": "horizontal",
+														"children": [
+															{
+																"kind": "panel",
+																"primary": {
+																	"label": "Primary",
+																	"customLabel": "Manual"
+																},
+																"children": [
+																	{
+																		"label": "Child"
+																	}
+																],
+																"rightClick": "panel"
+															},
+															{
+																"kind": "panel",
+																"primary": {
+																	"label": "Primary",
+																	"customLabel": "Manual"
+																},
+																"children": [
+																	{
+																		"label": "Child"
+																	}
+																],
+																"rightClick": "panel"
+															}
+														]
+													}
+												]
+											},
+											{
+												"kind": "split",
+												"orientation": "horizontal",
+												"children": [
+													{
+														"kind": "panel",
+														"primary": {
+															"label": "Primary",
+															"customLabel": "Manual"
+														},
+														"children": [
+															{
+																"label": "Child"
+															}
+														],
+														"rightClick": "panel"
+													},
+													{
+														"kind": "split",
+														"orientation": "horizontal",
+														"children": [
+															{
+																"kind": "panel",
+																"primary": {
+																	"label": "Primary",
+																	"customLabel": "Manual"
+																},
+																"children": [
+																	{
+																		"label": "Child"
+																	}
+																],
+																"rightClick": "panel"
+															},
+															{
+																"kind": "panel",
+																"primary": {
+																	"label": "Primary",
+																	"customLabel": "Manual"
+																},
+																"children": [
+																	{
+																		"label": "Child"
+																	}
+																],
+																"rightClick": "panel"
+															}
+														]
+													}
+												]
+											}
+										]
+									},
+									{
+										"kind": "split",
+										"orientation": "horizontal",
+										"children": [
+											{
+												"kind": "split",
+												"orientation": "horizontal",
+												"children": [
+													{
+														"kind": "panel",
+														"primary": {
+															"label": "Primary",
+															"customLabel": "Manual"
+														},
+														"children": [
+															{
+																"label": "Child"
+															}
+														],
+														"rightClick": "panel"
+													},
+													{
+														"kind": "split",
+														"orientation": "horizontal",
+														"children": [
+															{
+																"kind": "panel",
+																"primary": {
+																	"label": "Primary",
+																	"customLabel": "Manual"
+																},
+																"children": [
+																	{
+																		"label": "Child"
+																	}
+																],
+																"rightClick": "panel"
+															},
+															{
+																"kind": "panel",
+																"primary": {
+																	"label": "Primary",
+																	"customLabel": "Manual"
+																},
+																"children": [
+																	{
+																		"label": "Child"
+																	}
+																],
+																"rightClick": "panel"
+															}
+														]
+													}
+												]
+											},
+											{
+												"kind": "split",
+												"orientation": "horizontal",
+												"children": [
+													{
+														"kind": "panel",
+														"primary": {
+															"label": "Primary",
+															"customLabel": "Manual"
+														},
+														"children": [
+															{
+																"label": "Child"
+															}
+														],
+														"rightClick": "panel"
+													},
+													{
+														"kind": "split",
+														"orientation": "horizontal",
+														"children": [
+															{
+																"kind": "panel",
+																"primary": {
+																	"label": "Primary",
+																	"customLabel": "Manual"
+																},
+																"children": [
+																	{
+																		"label": "Child"
+																	}
+																],
+																"rightClick": "panel"
+															},
+															{
+																"kind": "panel",
+																"primary": {
+																	"label": "Primary",
+																	"customLabel": "Manual"
+																},
+																"children": [
+																	{
+																		"label": "Child"
+																	}
+																],
+																"rightClick": "panel"
+															}
+														]
+													}
+												]
+											}
+										]
+									}
+								]
+							}
+						]
+					}
+				}
+			}
+		},
+		{
+			"name": "layout-depth-16",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "2",
+				"action": {
+					"kind": "tab.create-layout",
+					"terminalContextId": "00000000000000000000000000000005",
+					"label": "Layout",
+					"automaticLabel": false,
+					"layout": {
+						"kind": "split",
+						"orientation": "vertical",
+						"children": [
+							{
+								"kind": "split",
+								"orientation": "vertical",
+								"children": [
+									{
+										"kind": "split",
+										"orientation": "vertical",
+										"children": [
+											{
+												"kind": "split",
+												"orientation": "vertical",
+												"children": [
+													{
+														"kind": "split",
+														"orientation": "vertical",
+														"children": [
+															{
+																"kind": "split",
+																"orientation": "vertical",
+																"children": [
+																	{
+																		"kind": "split",
+																		"orientation": "vertical",
+																		"children": [
+																			{
+																				"kind": "split",
+																				"orientation": "vertical",
+																				"children": [
+																					{
+																						"kind": "split",
+																						"orientation": "vertical",
+																						"children": [
+																							{
+																								"kind": "split",
+																								"orientation": "vertical",
+																								"children": [
+																									{
+																										"kind": "split",
+																										"orientation": "vertical",
+																										"children": [
+																											{
+																												"kind": "split",
+																												"orientation": "vertical",
+																												"children": [
+																													{
+																														"kind": "split",
+																														"orientation": "vertical",
+																														"children": [
+																															{
+																																"kind": "split",
+																																"orientation": "vertical",
+																																"children": [
+																																	{
+																																		"kind": "split",
+																																		"orientation": "vertical",
+																																		"children": [
+																																			{
+																																				"kind": "panel",
+																																				"primary": {
+																																					"label": "Primary",
+																																					"customLabel": "Manual"
+																																				},
+																																				"children": [
+																																					{
+																																						"label": "Child"
+																																					}
+																																				],
+																																				"rightClick": "panel"
+																																			},
+																																			{
+																																				"kind": "panel",
+																																				"primary": {
+																																					"label": "Primary",
+																																					"customLabel": "Manual"
+																																				},
+																																				"children": [
+																																					{
+																																						"label": "Child"
+																																					}
+																																				],
+																																				"rightClick": "panel"
+																																			}
+																																		]
+																																	},
+																																	{
+																																		"kind": "panel",
+																																		"primary": {
+																																			"label": "Primary",
+																																			"customLabel": "Manual"
+																																		},
+																																		"children": [
+																																			{
+																																				"label": "Child"
+																																			}
+																																		],
+																																		"rightClick": "panel"
+																																	}
+																																]
+																															},
+																															{
+																																"kind": "panel",
+																																"primary": {
+																																	"label": "Primary",
+																																	"customLabel": "Manual"
+																																},
+																																"children": [
+																																	{
+																																		"label": "Child"
+																																	}
+																																],
+																																"rightClick": "panel"
+																															}
+																														]
+																													},
+																													{
+																														"kind": "panel",
+																														"primary": {
+																															"label": "Primary",
+																															"customLabel": "Manual"
+																														},
+																														"children": [
+																															{
+																																"label": "Child"
+																															}
+																														],
+																														"rightClick": "panel"
+																													}
+																												]
+																											},
+																											{
+																												"kind": "panel",
+																												"primary": {
+																													"label": "Primary",
+																													"customLabel": "Manual"
+																												},
+																												"children": [
+																													{
+																														"label": "Child"
+																													}
+																												],
+																												"rightClick": "panel"
+																											}
+																										]
+																									},
+																									{
+																										"kind": "panel",
+																										"primary": {
+																											"label": "Primary",
+																											"customLabel": "Manual"
+																										},
+																										"children": [
+																											{
+																												"label": "Child"
+																											}
+																										],
+																										"rightClick": "panel"
+																									}
+																								]
+																							},
+																							{
+																								"kind": "panel",
+																								"primary": {
+																									"label": "Primary",
+																									"customLabel": "Manual"
+																								},
+																								"children": [
+																									{
+																										"label": "Child"
+																									}
+																								],
+																								"rightClick": "panel"
+																							}
+																						]
+																					},
+																					{
+																						"kind": "panel",
+																						"primary": {
+																							"label": "Primary",
+																							"customLabel": "Manual"
+																						},
+																						"children": [
+																							{
+																								"label": "Child"
+																							}
+																						],
+																						"rightClick": "panel"
+																					}
+																				]
+																			},
+																			{
+																				"kind": "panel",
+																				"primary": {
+																					"label": "Primary",
+																					"customLabel": "Manual"
+																				},
+																				"children": [
+																					{
+																						"label": "Child"
+																					}
+																				],
+																				"rightClick": "panel"
+																			}
+																		]
+																	},
+																	{
+																		"kind": "panel",
+																		"primary": {
+																			"label": "Primary",
+																			"customLabel": "Manual"
+																		},
+																		"children": [
+																			{
+																				"label": "Child"
+																			}
+																		],
+																		"rightClick": "panel"
+																	}
+																]
+															},
+															{
+																"kind": "panel",
+																"primary": {
+																	"label": "Primary",
+																	"customLabel": "Manual"
+																},
+																"children": [
+																	{
+																		"label": "Child"
+																	}
+																],
+																"rightClick": "panel"
+															}
+														]
+													},
+													{
+														"kind": "panel",
+														"primary": {
+															"label": "Primary",
+															"customLabel": "Manual"
+														},
+														"children": [
+															{
+																"label": "Child"
+															}
+														],
+														"rightClick": "panel"
+													}
+												]
+											},
+											{
+												"kind": "panel",
+												"primary": {
+													"label": "Primary",
+													"customLabel": "Manual"
+												},
+												"children": [
+													{
+														"label": "Child"
+													}
+												],
+												"rightClick": "panel"
+											}
+										]
+									},
+									{
+										"kind": "panel",
+										"primary": {
+											"label": "Primary",
+											"customLabel": "Manual"
+										},
+										"children": [
+											{
+												"label": "Child"
+											}
+										],
+										"rightClick": "panel"
+									}
+								]
+							},
+							{
+								"kind": "panel",
+								"primary": {
+									"label": "Primary",
+									"customLabel": "Manual"
+								},
+								"children": [
+									{
+										"label": "Child"
+									}
+								],
+								"rightClick": "panel"
+							}
+						]
+					}
+				}
+			}
 		}
 	],
 	"invalid": [
@@ -13902,6 +14743,1318 @@
 					]
 				}
 			}
+		},
+		{
+			"name": "layout-identity",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "2",
+				"action": {
+					"kind": "tab.create-layout",
+					"terminalContextId": "00000000000000000000000000000005",
+					"label": "Layout",
+					"automaticLabel": false,
+					"layout": {
+						"kind": "split",
+						"orientation": "vertical",
+						"children": [
+							{
+								"kind": "panel",
+								"primary": {
+									"label": "Primary",
+									"customLabel": "Manual",
+									"presentationId": "0000000000000000000000000000000a"
+								},
+								"children": [
+									{
+										"label": "Child"
+									}
+								],
+								"rightClick": "panel"
+							},
+							{
+								"kind": "panel",
+								"primary": {
+									"label": "Empty"
+								},
+								"children": [],
+								"rightClick": "orchbee"
+							}
+						]
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "layout-binding",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "2",
+				"action": {
+					"kind": "tab.create-layout",
+					"terminalContextId": "00000000000000000000000000000005",
+					"label": "Layout",
+					"automaticLabel": false,
+					"layout": {
+						"kind": "split",
+						"orientation": "vertical",
+						"children": [
+							{
+								"kind": "panel",
+								"primary": {
+									"label": "Primary",
+									"customLabel": "Manual",
+									"binding": null
+								},
+								"children": [
+									{
+										"label": "Child"
+									}
+								],
+								"rightClick": "panel"
+							},
+							{
+								"kind": "panel",
+								"primary": {
+									"label": "Empty"
+								},
+								"children": [],
+								"rightClick": "orchbee"
+							}
+						]
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "layout-empty-label",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "2",
+				"action": {
+					"kind": "tab.create-layout",
+					"terminalContextId": "00000000000000000000000000000005",
+					"label": "Layout",
+					"automaticLabel": false,
+					"layout": {
+						"kind": "split",
+						"orientation": "vertical",
+						"children": [
+							{
+								"kind": "panel",
+								"primary": {
+									"label": "",
+									"customLabel": "Manual"
+								},
+								"children": [
+									{
+										"label": "Child"
+									}
+								],
+								"rightClick": "panel"
+							},
+							{
+								"kind": "panel",
+								"primary": {
+									"label": "Empty"
+								},
+								"children": [],
+								"rightClick": "orchbee"
+							}
+						]
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "layout-untrimmed-label",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "2",
+				"action": {
+					"kind": "tab.create-layout",
+					"terminalContextId": "00000000000000000000000000000005",
+					"label": "Layout",
+					"automaticLabel": false,
+					"layout": {
+						"kind": "split",
+						"orientation": "vertical",
+						"children": [
+							{
+								"kind": "panel",
+								"primary": {
+									"label": "Primary",
+									"customLabel": " padded "
+								},
+								"children": [
+									{
+										"label": "Child"
+									}
+								],
+								"rightClick": "panel"
+							},
+							{
+								"kind": "panel",
+								"primary": {
+									"label": "Empty"
+								},
+								"children": [],
+								"rightClick": "orchbee"
+							}
+						]
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "layout-null-label",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "2",
+				"action": {
+					"kind": "tab.create-layout",
+					"terminalContextId": "00000000000000000000000000000005",
+					"label": "Layout",
+					"automaticLabel": false,
+					"layout": {
+						"kind": "split",
+						"orientation": "vertical",
+						"children": [
+							{
+								"kind": "panel",
+								"primary": {
+									"label": "Primary",
+									"customLabel": null
+								},
+								"children": [
+									{
+										"label": "Child"
+									}
+								],
+								"rightClick": "panel"
+							},
+							{
+								"kind": "panel",
+								"primary": {
+									"label": "Empty"
+								},
+								"children": [],
+								"rightClick": "orchbee"
+							}
+						]
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "layout-too-many-children",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "2",
+				"action": {
+					"kind": "tab.create-layout",
+					"terminalContextId": "00000000000000000000000000000005",
+					"label": "Layout",
+					"automaticLabel": false,
+					"layout": {
+						"kind": "split",
+						"orientation": "vertical",
+						"children": [
+							{
+								"kind": "panel",
+								"primary": {
+									"label": "Primary",
+									"customLabel": "Manual"
+								},
+								"children": [
+									{
+										"label": "Child"
+									},
+									{
+										"label": "Child"
+									},
+									{
+										"label": "Child"
+									},
+									{
+										"label": "Child"
+									},
+									{
+										"label": "Child"
+									},
+									{
+										"label": "Child"
+									},
+									{
+										"label": "Child"
+									},
+									{
+										"label": "Child"
+									},
+									{
+										"label": "Child"
+									},
+									{
+										"label": "Child"
+									},
+									{
+										"label": "Child"
+									},
+									{
+										"label": "Child"
+									},
+									{
+										"label": "Child"
+									},
+									{
+										"label": "Child"
+									},
+									{
+										"label": "Child"
+									},
+									{
+										"label": "Child"
+									},
+									{
+										"label": "Child"
+									}
+								],
+								"rightClick": "panel"
+							},
+							{
+								"kind": "panel",
+								"primary": {
+									"label": "Empty"
+								},
+								"children": [],
+								"rightClick": "orchbee"
+							}
+						]
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "layout-unknown-right-click",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "2",
+				"action": {
+					"kind": "tab.create-layout",
+					"terminalContextId": "00000000000000000000000000000005",
+					"label": "Layout",
+					"automaticLabel": false,
+					"layout": {
+						"kind": "split",
+						"orientation": "vertical",
+						"children": [
+							{
+								"kind": "panel",
+								"primary": {
+									"label": "Primary",
+									"customLabel": "Manual"
+								},
+								"children": [
+									{
+										"label": "Child"
+									}
+								],
+								"rightClick": "both"
+							},
+							{
+								"kind": "panel",
+								"primary": {
+									"label": "Empty"
+								},
+								"children": [],
+								"rightClick": "orchbee"
+							}
+						]
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "layout-missing-policy",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "2",
+				"action": {
+					"kind": "tab.create-layout",
+					"terminalContextId": "00000000000000000000000000000005",
+					"label": "Layout",
+					"automaticLabel": false,
+					"layout": {
+						"kind": "split",
+						"orientation": "vertical",
+						"children": [
+							{
+								"kind": "panel",
+								"primary": {
+									"label": "Primary",
+									"customLabel": "Manual"
+								},
+								"children": [
+									{
+										"label": "Child"
+									}
+								]
+							},
+							{
+								"kind": "panel",
+								"primary": {
+									"label": "Empty"
+								},
+								"children": [],
+								"rightClick": "orchbee"
+							}
+						]
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "layout-missing-children",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "2",
+				"action": {
+					"kind": "tab.create-layout",
+					"terminalContextId": "00000000000000000000000000000005",
+					"label": "Layout",
+					"automaticLabel": false,
+					"layout": {
+						"kind": "split",
+						"orientation": "vertical",
+						"children": [
+							{
+								"kind": "panel",
+								"primary": {
+									"label": "Primary",
+									"customLabel": "Manual"
+								},
+								"rightClick": "panel"
+							},
+							{
+								"kind": "panel",
+								"primary": {
+									"label": "Empty"
+								},
+								"children": [],
+								"rightClick": "orchbee"
+							}
+						]
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "layout-missing-primary",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "2",
+				"action": {
+					"kind": "tab.create-layout",
+					"terminalContextId": "00000000000000000000000000000005",
+					"label": "Layout",
+					"automaticLabel": false,
+					"layout": {
+						"kind": "split",
+						"orientation": "vertical",
+						"children": [
+							{
+								"kind": "panel",
+								"children": [
+									{
+										"label": "Child"
+									}
+								],
+								"rightClick": "panel"
+							},
+							{
+								"kind": "panel",
+								"primary": {
+									"label": "Empty"
+								},
+								"children": [],
+								"rightClick": "orchbee"
+							}
+						]
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "layout-panels-25",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "2",
+				"action": {
+					"kind": "tab.create-layout",
+					"terminalContextId": "00000000000000000000000000000005",
+					"label": "Layout",
+					"automaticLabel": false,
+					"layout": {
+						"kind": "split",
+						"orientation": "horizontal",
+						"children": [
+							{
+								"kind": "split",
+								"orientation": "horizontal",
+								"children": [
+									{
+										"kind": "split",
+										"orientation": "horizontal",
+										"children": [
+											{
+												"kind": "split",
+												"orientation": "horizontal",
+												"children": [
+													{
+														"kind": "panel",
+														"primary": {
+															"label": "Primary",
+															"customLabel": "Manual"
+														},
+														"children": [
+															{
+																"label": "Child"
+															}
+														],
+														"rightClick": "panel"
+													},
+													{
+														"kind": "split",
+														"orientation": "horizontal",
+														"children": [
+															{
+																"kind": "panel",
+																"primary": {
+																	"label": "Primary",
+																	"customLabel": "Manual"
+																},
+																"children": [
+																	{
+																		"label": "Child"
+																	}
+																],
+																"rightClick": "panel"
+															},
+															{
+																"kind": "panel",
+																"primary": {
+																	"label": "Primary",
+																	"customLabel": "Manual"
+																},
+																"children": [
+																	{
+																		"label": "Child"
+																	}
+																],
+																"rightClick": "panel"
+															}
+														]
+													}
+												]
+											},
+											{
+												"kind": "split",
+												"orientation": "horizontal",
+												"children": [
+													{
+														"kind": "panel",
+														"primary": {
+															"label": "Primary",
+															"customLabel": "Manual"
+														},
+														"children": [
+															{
+																"label": "Child"
+															}
+														],
+														"rightClick": "panel"
+													},
+													{
+														"kind": "split",
+														"orientation": "horizontal",
+														"children": [
+															{
+																"kind": "panel",
+																"primary": {
+																	"label": "Primary",
+																	"customLabel": "Manual"
+																},
+																"children": [
+																	{
+																		"label": "Child"
+																	}
+																],
+																"rightClick": "panel"
+															},
+															{
+																"kind": "panel",
+																"primary": {
+																	"label": "Primary",
+																	"customLabel": "Manual"
+																},
+																"children": [
+																	{
+																		"label": "Child"
+																	}
+																],
+																"rightClick": "panel"
+															}
+														]
+													}
+												]
+											}
+										]
+									},
+									{
+										"kind": "split",
+										"orientation": "horizontal",
+										"children": [
+											{
+												"kind": "split",
+												"orientation": "horizontal",
+												"children": [
+													{
+														"kind": "panel",
+														"primary": {
+															"label": "Primary",
+															"customLabel": "Manual"
+														},
+														"children": [
+															{
+																"label": "Child"
+															}
+														],
+														"rightClick": "panel"
+													},
+													{
+														"kind": "split",
+														"orientation": "horizontal",
+														"children": [
+															{
+																"kind": "panel",
+																"primary": {
+																	"label": "Primary",
+																	"customLabel": "Manual"
+																},
+																"children": [
+																	{
+																		"label": "Child"
+																	}
+																],
+																"rightClick": "panel"
+															},
+															{
+																"kind": "panel",
+																"primary": {
+																	"label": "Primary",
+																	"customLabel": "Manual"
+																},
+																"children": [
+																	{
+																		"label": "Child"
+																	}
+																],
+																"rightClick": "panel"
+															}
+														]
+													}
+												]
+											},
+											{
+												"kind": "split",
+												"orientation": "horizontal",
+												"children": [
+													{
+														"kind": "panel",
+														"primary": {
+															"label": "Primary",
+															"customLabel": "Manual"
+														},
+														"children": [
+															{
+																"label": "Child"
+															}
+														],
+														"rightClick": "panel"
+													},
+													{
+														"kind": "split",
+														"orientation": "horizontal",
+														"children": [
+															{
+																"kind": "panel",
+																"primary": {
+																	"label": "Primary",
+																	"customLabel": "Manual"
+																},
+																"children": [
+																	{
+																		"label": "Child"
+																	}
+																],
+																"rightClick": "panel"
+															},
+															{
+																"kind": "panel",
+																"primary": {
+																	"label": "Primary",
+																	"customLabel": "Manual"
+																},
+																"children": [
+																	{
+																		"label": "Child"
+																	}
+																],
+																"rightClick": "panel"
+															}
+														]
+													}
+												]
+											}
+										]
+									}
+								]
+							},
+							{
+								"kind": "split",
+								"orientation": "horizontal",
+								"children": [
+									{
+										"kind": "split",
+										"orientation": "horizontal",
+										"children": [
+											{
+												"kind": "split",
+												"orientation": "horizontal",
+												"children": [
+													{
+														"kind": "panel",
+														"primary": {
+															"label": "Primary",
+															"customLabel": "Manual"
+														},
+														"children": [
+															{
+																"label": "Child"
+															}
+														],
+														"rightClick": "panel"
+													},
+													{
+														"kind": "split",
+														"orientation": "horizontal",
+														"children": [
+															{
+																"kind": "panel",
+																"primary": {
+																	"label": "Primary",
+																	"customLabel": "Manual"
+																},
+																"children": [
+																	{
+																		"label": "Child"
+																	}
+																],
+																"rightClick": "panel"
+															},
+															{
+																"kind": "panel",
+																"primary": {
+																	"label": "Primary",
+																	"customLabel": "Manual"
+																},
+																"children": [
+																	{
+																		"label": "Child"
+																	}
+																],
+																"rightClick": "panel"
+															}
+														]
+													}
+												]
+											},
+											{
+												"kind": "split",
+												"orientation": "horizontal",
+												"children": [
+													{
+														"kind": "panel",
+														"primary": {
+															"label": "Primary",
+															"customLabel": "Manual"
+														},
+														"children": [
+															{
+																"label": "Child"
+															}
+														],
+														"rightClick": "panel"
+													},
+													{
+														"kind": "split",
+														"orientation": "horizontal",
+														"children": [
+															{
+																"kind": "panel",
+																"primary": {
+																	"label": "Primary",
+																	"customLabel": "Manual"
+																},
+																"children": [
+																	{
+																		"label": "Child"
+																	}
+																],
+																"rightClick": "panel"
+															},
+															{
+																"kind": "panel",
+																"primary": {
+																	"label": "Primary",
+																	"customLabel": "Manual"
+																},
+																"children": [
+																	{
+																		"label": "Child"
+																	}
+																],
+																"rightClick": "panel"
+															}
+														]
+													}
+												]
+											}
+										]
+									},
+									{
+										"kind": "split",
+										"orientation": "horizontal",
+										"children": [
+											{
+												"kind": "split",
+												"orientation": "horizontal",
+												"children": [
+													{
+														"kind": "panel",
+														"primary": {
+															"label": "Primary",
+															"customLabel": "Manual"
+														},
+														"children": [
+															{
+																"label": "Child"
+															}
+														],
+														"rightClick": "panel"
+													},
+													{
+														"kind": "split",
+														"orientation": "horizontal",
+														"children": [
+															{
+																"kind": "panel",
+																"primary": {
+																	"label": "Primary",
+																	"customLabel": "Manual"
+																},
+																"children": [
+																	{
+																		"label": "Child"
+																	}
+																],
+																"rightClick": "panel"
+															},
+															{
+																"kind": "panel",
+																"primary": {
+																	"label": "Primary",
+																	"customLabel": "Manual"
+																},
+																"children": [
+																	{
+																		"label": "Child"
+																	}
+																],
+																"rightClick": "panel"
+															}
+														]
+													}
+												]
+											},
+											{
+												"kind": "split",
+												"orientation": "horizontal",
+												"children": [
+													{
+														"kind": "split",
+														"orientation": "horizontal",
+														"children": [
+															{
+																"kind": "panel",
+																"primary": {
+																	"label": "Primary",
+																	"customLabel": "Manual"
+																},
+																"children": [
+																	{
+																		"label": "Child"
+																	}
+																],
+																"rightClick": "panel"
+															},
+															{
+																"kind": "panel",
+																"primary": {
+																	"label": "Primary",
+																	"customLabel": "Manual"
+																},
+																"children": [
+																	{
+																		"label": "Child"
+																	}
+																],
+																"rightClick": "panel"
+															}
+														]
+													},
+													{
+														"kind": "split",
+														"orientation": "horizontal",
+														"children": [
+															{
+																"kind": "panel",
+																"primary": {
+																	"label": "Primary",
+																	"customLabel": "Manual"
+																},
+																"children": [
+																	{
+																		"label": "Child"
+																	}
+																],
+																"rightClick": "panel"
+															},
+															{
+																"kind": "panel",
+																"primary": {
+																	"label": "Primary",
+																	"customLabel": "Manual"
+																},
+																"children": [
+																	{
+																		"label": "Child"
+																	}
+																],
+																"rightClick": "panel"
+															}
+														]
+													}
+												]
+											}
+										]
+									}
+								]
+							}
+						]
+					}
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "layout-depth-17",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "2",
+				"action": {
+					"kind": "tab.create-layout",
+					"terminalContextId": "00000000000000000000000000000005",
+					"label": "Layout",
+					"automaticLabel": false,
+					"layout": {
+						"kind": "split",
+						"orientation": "vertical",
+						"children": [
+							{
+								"kind": "split",
+								"orientation": "vertical",
+								"children": [
+									{
+										"kind": "split",
+										"orientation": "vertical",
+										"children": [
+											{
+												"kind": "split",
+												"orientation": "vertical",
+												"children": [
+													{
+														"kind": "split",
+														"orientation": "vertical",
+														"children": [
+															{
+																"kind": "split",
+																"orientation": "vertical",
+																"children": [
+																	{
+																		"kind": "split",
+																		"orientation": "vertical",
+																		"children": [
+																			{
+																				"kind": "split",
+																				"orientation": "vertical",
+																				"children": [
+																					{
+																						"kind": "split",
+																						"orientation": "vertical",
+																						"children": [
+																							{
+																								"kind": "split",
+																								"orientation": "vertical",
+																								"children": [
+																									{
+																										"kind": "split",
+																										"orientation": "vertical",
+																										"children": [
+																											{
+																												"kind": "split",
+																												"orientation": "vertical",
+																												"children": [
+																													{
+																														"kind": "split",
+																														"orientation": "vertical",
+																														"children": [
+																															{
+																																"kind": "split",
+																																"orientation": "vertical",
+																																"children": [
+																																	{
+																																		"kind": "split",
+																																		"orientation": "vertical",
+																																		"children": [
+																																			{
+																																				"kind": "split",
+																																				"orientation": "vertical",
+																																				"children": [
+																																					{
+																																						"kind": "panel",
+																																						"primary": {
+																																							"label": "Primary",
+																																							"customLabel": "Manual"
+																																						},
+																																						"children": [
+																																							{
+																																								"label": "Child"
+																																							}
+																																						],
+																																						"rightClick": "panel"
+																																					},
+																																					{
+																																						"kind": "panel",
+																																						"primary": {
+																																							"label": "Primary",
+																																							"customLabel": "Manual"
+																																						},
+																																						"children": [
+																																							{
+																																								"label": "Child"
+																																							}
+																																						],
+																																						"rightClick": "panel"
+																																					}
+																																				]
+																																			},
+																																			{
+																																				"kind": "panel",
+																																				"primary": {
+																																					"label": "Primary",
+																																					"customLabel": "Manual"
+																																				},
+																																				"children": [
+																																					{
+																																						"label": "Child"
+																																					}
+																																				],
+																																				"rightClick": "panel"
+																																			}
+																																		]
+																																	},
+																																	{
+																																		"kind": "panel",
+																																		"primary": {
+																																			"label": "Primary",
+																																			"customLabel": "Manual"
+																																		},
+																																		"children": [
+																																			{
+																																				"label": "Child"
+																																			}
+																																		],
+																																		"rightClick": "panel"
+																																	}
+																																]
+																															},
+																															{
+																																"kind": "panel",
+																																"primary": {
+																																	"label": "Primary",
+																																	"customLabel": "Manual"
+																																},
+																																"children": [
+																																	{
+																																		"label": "Child"
+																																	}
+																																],
+																																"rightClick": "panel"
+																															}
+																														]
+																													},
+																													{
+																														"kind": "panel",
+																														"primary": {
+																															"label": "Primary",
+																															"customLabel": "Manual"
+																														},
+																														"children": [
+																															{
+																																"label": "Child"
+																															}
+																														],
+																														"rightClick": "panel"
+																													}
+																												]
+																											},
+																											{
+																												"kind": "panel",
+																												"primary": {
+																													"label": "Primary",
+																													"customLabel": "Manual"
+																												},
+																												"children": [
+																													{
+																														"label": "Child"
+																													}
+																												],
+																												"rightClick": "panel"
+																											}
+																										]
+																									},
+																									{
+																										"kind": "panel",
+																										"primary": {
+																											"label": "Primary",
+																											"customLabel": "Manual"
+																										},
+																										"children": [
+																											{
+																												"label": "Child"
+																											}
+																										],
+																										"rightClick": "panel"
+																									}
+																								]
+																							},
+																							{
+																								"kind": "panel",
+																								"primary": {
+																									"label": "Primary",
+																									"customLabel": "Manual"
+																								},
+																								"children": [
+																									{
+																										"label": "Child"
+																									}
+																								],
+																								"rightClick": "panel"
+																							}
+																						]
+																					},
+																					{
+																						"kind": "panel",
+																						"primary": {
+																							"label": "Primary",
+																							"customLabel": "Manual"
+																						},
+																						"children": [
+																							{
+																								"label": "Child"
+																							}
+																						],
+																						"rightClick": "panel"
+																					}
+																				]
+																			},
+																			{
+																				"kind": "panel",
+																				"primary": {
+																					"label": "Primary",
+																					"customLabel": "Manual"
+																				},
+																				"children": [
+																					{
+																						"label": "Child"
+																					}
+																				],
+																				"rightClick": "panel"
+																			}
+																		]
+																	},
+																	{
+																		"kind": "panel",
+																		"primary": {
+																			"label": "Primary",
+																			"customLabel": "Manual"
+																		},
+																		"children": [
+																			{
+																				"label": "Child"
+																			}
+																		],
+																		"rightClick": "panel"
+																	}
+																]
+															},
+															{
+																"kind": "panel",
+																"primary": {
+																	"label": "Primary",
+																	"customLabel": "Manual"
+																},
+																"children": [
+																	{
+																		"label": "Child"
+																	}
+																],
+																"rightClick": "panel"
+															}
+														]
+													},
+													{
+														"kind": "panel",
+														"primary": {
+															"label": "Primary",
+															"customLabel": "Manual"
+														},
+														"children": [
+															{
+																"label": "Child"
+															}
+														],
+														"rightClick": "panel"
+													}
+												]
+											},
+											{
+												"kind": "panel",
+												"primary": {
+													"label": "Primary",
+													"customLabel": "Manual"
+												},
+												"children": [
+													{
+														"label": "Child"
+													}
+												],
+												"rightClick": "panel"
+											}
+										]
+									},
+									{
+										"kind": "panel",
+										"primary": {
+											"label": "Primary",
+											"customLabel": "Manual"
+										},
+										"children": [
+											{
+												"label": "Child"
+											}
+										],
+										"rightClick": "panel"
+									}
+								]
+							},
+							{
+								"kind": "panel",
+								"primary": {
+									"label": "Primary",
+									"customLabel": "Manual"
+								},
+								"children": [
+									{
+										"label": "Child"
+									}
+								],
+								"rightClick": "panel"
+							}
+						]
+					}
+				}
+			},
+			"boundary": "semantic"
 		}
 	],
 	"invalidJson": [
@@ -14181,6 +16334,11 @@
 			"direction": "response",
 			"json": "{\"kind\":\"workbench.command.result\",\"protocolVersion\":1,\"requestId\":\"00000000000000000000000000000009\",\"outcome\":{\"kind\":\"panel-moved\",\"kind\":\"panel-moved\",\"revision\":\"8\",\"terminalContextId\":\"00000000000000000000000000000004\",\"tabId\":\"00000000000000000000000000000005\",\"panelId\":\"00000000000000000000000000000006\",\"targetPanelId\":\"00000000000000000000000000000007\"}}",
 			"boundary": "wire"
+		},
+		{
+			"name": "layout-duplicate-member-label",
+			"direction": "request",
+			"json": "{\"kind\":\"workbench.command\",\"protocolVersion\":1,\"requestId\":\"00000000000000000000000000000009\",\"siteId\":\"00000000000000000000000000000001\",\"expectedRevision\":\"2\",\"action\":{\"kind\":\"tab.create-layout\",\"terminalContextId\":\"00000000000000000000000000000005\",\"label\":\"Layout\",\"automaticLabel\":false,\"layout\":{\"kind\":\"split\",\"orientation\":\"vertical\",\"children\":[{\"kind\":\"panel\",\"primary\":{\"label\":\"Primary\",\"label\":\"Other\",\"customLabel\":\"Manual\"},\"children\":[{\"label\":\"Child\"}],\"rightClick\":\"panel\"},{\"kind\":\"panel\",\"primary\":{\"label\":\"Empty\"},\"children\":[],\"rightClick\":\"orchbee\"}]}}}"
 		}
 	],
 	"validJson": [

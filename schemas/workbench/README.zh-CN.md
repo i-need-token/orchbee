@@ -480,3 +480,12 @@ null 选择器和空 options 规范化为省略字段。Launch 最多 128 个参
 [Server 所有者](../../apps/orchbee-server/docs/workbench-authority.zh-CN.md#在既有-panel-内创建终端)
 要求导航及终端创建权限，并负责预备、效果及结算。既有分屏语法／结果字段不变。匹配的私有 cohort
 一起上线；扩展自身不增加持久化迁移或公共 CLI 命令。
+
+## 无身份布局结构创建
+
+命令绑定还接受 `tab.create-layout` 及其最终 `tab-layout-created` 回执。
+经过验证的递归模板携带标签、手工覆盖、Panel 输入策略及二叉 Split 方向，不包含调用方提供的身份或绑定。
+除封闭的 JSON 结构外，Rust 和 TypeScript 还限制最多 24 个叶节点、16 层和每个叶节点的 16 个子成员。
+整个命令上限为 1 MiB；虽然共享命令帧可以承载较大模板，其他命令仍保留各自的限额。
+Server 负责原子分配和发布；物理成员创建仍是独立的保留命令。
+此私有契约本身不代表公共 CLI 导出与应用往返流程已完成。

@@ -1139,3 +1139,20 @@ again, and known failure retains the committed member. Targeted evidence covers 
 limits/refusals, preparation drop, foreign settlement, child/primary binding, literal dispatch,
 first-reference settlement, scope fences and service grants. This private creation path is the
 foundation for layout application and member controls; those consumers remain separate work.
+
+## Unbound layout creation
+
+`tab.create-layout` creates a complete Tab structure in one canonical transaction. Its identity-free
+layout contains primary and ordered child labels, optional manual labels, Panel right-click policy
+and binary Split orientations. The Server allocates every Tab, Panel, Presentation, Split and slot
+identity; all Presentations begin unbound. No Worker or terminal is created, reused or required.
+A navigation grant admits structure creation; launching each intended member later uses the separate
+`panel.create-terminal` lifecycle and its navigation plus terminal-creation grants.
+
+The template admits at most 24 Panels, 16 levels including the root and 16 children per Panel,
+within a 1 MiB command envelope. Existing context, Tab, projection, identity and retained-request
+limits still apply. An open Context Close fences creation. Revision checking, publication, identity
+allocation and the final `tab-layout-created` receipt commit together; exact request replay returns
+the same IDs without another effect. Labels and input policy survive materialization. Client focus,
+ratios, group assignment, pinning and physical launches are separate owners and are not implied by
+this receipt. An all-unbound Tab participates in checkpoint, selection and zero-terminal Close.

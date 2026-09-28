@@ -321,3 +321,36 @@ fn launch_selection_wire_shape_is_closed_and_default_omits_the_key() {
         );
     }
 }
+
+#[test]
+fn layout_command_has_a_bounded_large_carrier_without_widening_ordinary_commands() {
+    let leaf = serde_json::json!({"kind":"panel","rightClick":"orchbee",
+        "primary":{"label":"蜂".repeat(512)},
+        "children":(0..16).map(|_| serde_json::json!({"label":"蜂".repeat(512)})).collect::<Vec<_>>()});
+    let mut root = leaf;
+    for _ in 0..3 {
+        root = serde_json::json!({"kind":"split","orientation":"horizontal","children":[root.clone(),root]});
+    }
+    let value = serde_json::json!({"kind":"workbench.command","protocolVersion":1,
+        "requestId":"00000000000000000000000000000001","siteId":"00000000000000000000000000000002",
+        "expectedRevision":"0","action":{"kind":"tab.create-layout","terminalContextId":"00000000000000000000000000000003",
+        "label":"Layout","automaticLabel":false,"layout":root}});
+    let request = parse_workbench_request(&serde_json::to_vec(&value).unwrap()).unwrap();
+    let encoded = serialize_workbench_request(&request).unwrap();
+    assert!(encoded.len() > MAXIMUM_ENCODED_LAUNCH_COMMAND_BYTES);
+    let mut wire = Vec::new();
+    crate::write_workbench_request(&mut wire, &request).unwrap();
+    assert_eq!(
+        crate::read_workbench_request(&mut Cursor::new(wire)).unwrap(),
+        request
+    );
+    let mut oversized = encoded;
+    oversized.resize(crate::MAXIMUM_ENCODED_LAYOUT_COMMAND_BYTES + 1, b' ');
+    assert!(parse_workbench_request(&oversized).is_err());
+    let ordinary = serde_json::json!({"kind":"workbench.command","protocolVersion":1,
+        "requestId":"00000000000000000000000000000001","siteId":"00000000000000000000000000000002",
+        "expectedRevision":"0","action":{"kind":"project.create","label":"Project"}});
+    let mut padded = serde_json::to_vec(&ordinary).unwrap();
+    padded.resize(MAXIMUM_ENCODED_INTENT_BYTES + 1, b' ');
+    assert!(parse_workbench_request(&padded).is_err());
+}

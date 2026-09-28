@@ -404,7 +404,9 @@ fn run(steps: &[Step]) -> Result<(), String> {
                         "panel input changed unrelated state",
                     )?;
                 }
-                WorkbenchAction::WorkspaceLaunch { .. } | WorkbenchAction::TabCreate { .. } => {
+                WorkbenchAction::WorkspaceLaunch { .. }
+                | WorkbenchAction::TabCreate { .. }
+                | WorkbenchAction::TabCreateLayout { .. } => {
                     return Err("pure trace generated tab.create".to_owned());
                 }
                 WorkbenchAction::PanelSplit { .. }

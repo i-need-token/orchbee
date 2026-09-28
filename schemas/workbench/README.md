@@ -541,3 +541,14 @@ the final variant includes the existing terminal outcome. They reject split-only
 requires navigation and terminal creation grants and owns preparation, effects and settlement.
 Existing split grammar/result fields are unchanged. Matched private cohorts roll out together;
 this extension adds no persistent migration or public CLI command by itself.
+
+## Identity-free layout materialization
+
+The command binding also admits `tab.create-layout` and its final `tab-layout-created` receipt.
+A validated recursive template carries labels, manual overrides, Panel input policy and binary
+Split orientation, with no caller-provided identities or bindings. Rust and TypeScript enforce
+24 leaves, 16 levels and 16 children per leaf in addition to the closed JSON structure. The whole
+command is bounded to 1 MiB; other commands retain their individual limits even though the shared
+command frame can carry the larger template. The Server owns atomic allocation and publication;
+physical member creation remains a separate retained command. This private contract alone does
+not establish the public CLI export/apply roundtrip.

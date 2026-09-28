@@ -552,6 +552,13 @@ pub enum WorkbenchAction {
         terminal_context_id: WorkbenchTerminalContextId,
         tab_id: WorkbenchTabId,
     },
+    #[serde(rename = "tab.create-layout")]
+    TabCreateLayout {
+        terminal_context_id: WorkbenchTerminalContextId,
+        label: WorkbenchLabel,
+        automatic_label: bool,
+        layout: crate::WorkbenchLayoutTemplate,
+    },
     #[serde(rename = "tab.create")]
     TabCreate {
         #[serde(default, skip_serializing_if = "crate::model::is_false")]
@@ -1031,6 +1038,11 @@ pub enum WorkbenchCommandOutcome {
         presentation_id: TerminalPresentationId,
         terminal_outcome: WorkbenchTerminalOutcome,
     },
+    TabLayoutCreated {
+        revision: WorkbenchRevision,
+        terminal_context_id: WorkbenchTerminalContextId,
+        tab_id: WorkbenchTabId,
+    },
     TabCreatePending {
         revision: WorkbenchRevision,
         terminal_context_id: WorkbenchTerminalContextId,
@@ -1239,7 +1251,10 @@ pub enum WorkbenchResponse {
 }
 
 pub fn parse_workbench_request(encoded: &[u8]) -> Result<WorkbenchRequest, ContractError> {
-    enforce_encoded_limit(encoded, MAXIMUM_ENCODED_CLIENT_LAYOUT_BYTES)?;
+    enforce_encoded_limit(
+        encoded,
+        MAXIMUM_ENCODED_CLIENT_LAYOUT_BYTES.max(crate::MAXIMUM_ENCODED_LAYOUT_COMMAND_BYTES),
+    )?;
     let request: WorkbenchRequest =
         serde_json::from_slice(encoded).map_err(|_error| ContractError::InvalidDocument)?;
     enforce_encoded_limit(encoded, request_byte_limit(&request))?;
@@ -1312,6 +1327,15 @@ fn validate_request(request: &WorkbenchRequest) -> Result<(), ContractError> {
 }
 
 fn request_byte_limit(request: &WorkbenchRequest) -> usize {
+    if matches!(
+        request,
+        WorkbenchRequest::Command(WorkbenchCommand {
+            action: WorkbenchAction::TabCreateLayout { .. },
+            ..
+        })
+    ) {
+        return crate::MAXIMUM_ENCODED_LAYOUT_COMMAND_BYTES;
+    }
     if matches!(
         request,
         WorkbenchRequest::Command(WorkbenchCommand {

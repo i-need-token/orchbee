@@ -409,3 +409,45 @@ mod workspace_metadata;
 mod panel_metadata;
 
 mod panel_agent;
+
+#[test]
+fn layout_structure_uses_navigation_only_without_a_worker() {
+    let terminals = Arc::new(LocalTerminalService::new(Arc::new(Mutex::new(
+        WorkerRegistry::new(),
+    ))));
+    let service = WorkbenchService::new(
+        WorkbenchPolicy {
+            read: true,
+            manage_navigation: true,
+            associate_directory: false,
+            create_terminal: false,
+            manage_terminal_lifecycle: false,
+        },
+        terminals,
+    );
+    let WorkbenchResponse::Snapshot(before) = response(service.execute(
+        WorkbenchRequest::SnapshotRead(SnapshotReadIntent {
+            protocol_version: ProtocolVersion,
+            request_id: WorkbenchRequestId::parse(&format!("{:032x}", 9809)).unwrap(),
+        }),
+    )) else {
+        panic!()
+    };
+    let WorkbenchSnapshotOutcome::Available { snapshot } = before.outcome else {
+        panic!()
+    };
+    let command = WorkbenchCommand { protocol_version: ProtocolVersion,
+        request_id: WorkbenchRequestId::parse(&format!("{:032x}", 9810)).unwrap(),
+        site_id: snapshot.site_id, expected_revision: snapshot.revision,
+        action: WorkbenchAction::TabCreateLayout { terminal_context_id: snapshot.navigation.standalone_terminal_context_id,
+            label: WorkbenchLabel::parse("Layout").unwrap(), automatic_label: false,
+            layout: serde_json::from_value(serde_json::json!({"kind":"panel","primary":{"label":"Empty"},"children":[],"rightClick":"orchbee"})).unwrap() } };
+    let response = response(service.execute(WorkbenchRequest::Command(command)));
+    assert!(matches!(
+        response,
+        WorkbenchResponse::Command(orchbee_workbench_protocol::WorkbenchCommandResult {
+            outcome: WorkbenchCommandOutcome::TabLayoutCreated { .. },
+            ..
+        })
+    ));
+}

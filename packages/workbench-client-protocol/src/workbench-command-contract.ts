@@ -1,4 +1,8 @@
 import {
+	WorkbenchLayoutTemplateSchema,
+	WORKBENCH_MAXIMUM_ENCODED_LAYOUT_COMMAND_BYTES,
+} from './workbench-layout-template-contract';
+import {
 	AgentManifestsRequestSchema,
 	AgentManifestsResultSchema,
 	WORKBENCH_MAXIMUM_ENCODED_AGENT_MANIFESTS_BYTES,
@@ -120,6 +124,15 @@ export const WorkbenchPanelTerminalTargetSchema = z.discriminatedUnion('kind', [
 ]);
 
 export const WorkbenchActionSchema = z.discriminatedUnion('kind', [
+	z
+		.strictObject({
+			kind: z.literal('tab.create-layout'),
+			terminalContextId: WorkbenchTerminalContextIdSchema,
+			label: WorkbenchLabelSchema,
+			automaticLabel: z.boolean(),
+			layout: WorkbenchLayoutTemplateSchema,
+		})
+		.readonly(),
 	z
 		.strictObject({
 			kind: z.literal('panel.create-terminal'),
@@ -390,6 +403,8 @@ export const WorkbenchRequestSchema = z
 	])
 	.refine((value) => {
 		let maximum = WORKBENCH_MAXIMUM_ENCODED_INTENT_BYTES;
+		if (value.kind === 'workbench.command' && value.action.kind === 'tab.create-layout')
+			maximum = WORKBENCH_MAXIMUM_ENCODED_LAYOUT_COMMAND_BYTES;
 		if (value.kind === 'workbench.command' && value.action.kind === 'panel.create-terminal')
 			maximum = WORKBENCH_MAXIMUM_ENCODED_LAUNCH_COMMAND_BYTES;
 		if (
@@ -462,6 +477,14 @@ const WorkbenchPanelTransferSchema = z
 	.readonly();
 
 export const WorkbenchCommandOutcomeSchema = z.discriminatedUnion('kind', [
+	z
+		.strictObject({
+			kind: z.literal('tab-layout-created'),
+			revision: WorkbenchRevisionSchema,
+			terminalContextId: WorkbenchTerminalContextIdSchema,
+			tabId: WorkbenchTabIdSchema,
+		})
+		.readonly(),
 	z.strictObject({ kind: z.literal('launch-profile-unavailable') }).readonly(),
 	z
 		.strictObject({

@@ -1,3 +1,4 @@
+mod layout_create;
 use std::collections::BTreeMap;
 
 use orchbee_workbench_protocol::{
@@ -697,6 +698,39 @@ impl WorkbenchAuthority {
         let mut catalog_next = None;
         let outcome =
             match action {
+                PureWorkbenchAction::TabCreateLayout {
+                    terminal_context_id,
+                    label,
+                    automatic_label,
+                    layout,
+                } => {
+                    if self.open_close_fences_context(&terminal_context_id) {
+                        return Ok(self.settled(unavailable(
+                            WorkbenchCommandUnavailableReason::TerminalBusy,
+                        )));
+                    }
+                    let context = candidate
+                        .terminal_contexts
+                        .iter_mut()
+                        .find(|context| context.terminal_context_id == terminal_context_id)
+                        .ok_or(PlanFailure::Rejected(
+                            WorkbenchRejectionReason::TerminalContextUnavailable,
+                        ))?;
+                    let tab_id = layout_create::materialize(
+                        context,
+                        &layout,
+                        &label,
+                        automatic_label,
+                        &mut last_identity,
+                    )?;
+                    let revision = self.next_revision()?;
+                    candidate.revision = revision;
+                    WorkbenchCommandOutcome::TabLayoutCreated {
+                        revision,
+                        terminal_context_id,
+                        tab_id,
+                    }
+                }
                 PureWorkbenchAction::ProjectCreate { label } => {
                     if candidate.navigation.projects.len() >= MAXIMUM_PROJECTS {
                         return reject(WorkbenchRejectionReason::ResourceLimit);
@@ -1086,6 +1120,12 @@ enum PlanFailure {
 }
 
 enum PureWorkbenchAction {
+    TabCreateLayout {
+        terminal_context_id: WorkbenchTerminalContextId,
+        label: WorkbenchLabel,
+        automatic_label: bool,
+        layout: orchbee_workbench_protocol::WorkbenchLayoutTemplate,
+    },
     WorkspaceMove {
         workspace_id: WorkbenchWorkspaceId,
         insert_index: orchbee_workbench_protocol::WorkbenchWorkspaceInsertIndex,
@@ -1139,6 +1179,17 @@ enum PureWorkbenchAction {
 impl PureWorkbenchAction {
     fn from_action(action: &WorkbenchAction) -> Option<Self> {
         Some(match action {
+            WorkbenchAction::TabCreateLayout {
+                terminal_context_id,
+                label,
+                automatic_label,
+                layout,
+            } => Self::TabCreateLayout {
+                terminal_context_id: terminal_context_id.clone(),
+                label: label.clone(),
+                automatic_label: *automatic_label,
+                layout: layout.clone(),
+            },
             WorkbenchAction::WorkspaceMove {
                 workspace_id,
                 insert_index,

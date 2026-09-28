@@ -485,3 +485,13 @@ export {
 	type ClientPresentationSelection,
 	type ClientPresentationSnapshot,
 } from './workbench-client-presentation-contract';
+
+export {
+	WorkbenchLayoutTemplateSchema,
+	WorkbenchLayoutPresentationSchema,
+	WORKBENCH_MAXIMUM_ENCODED_LAYOUT_COMMAND_BYTES,
+} from './workbench-layout-template-contract';
+export type {
+	WorkbenchLayoutNode,
+	WorkbenchLayoutPresentation,
+} from './workbench-layout-template-contract';

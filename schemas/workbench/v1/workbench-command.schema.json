@@ -605,6 +605,28 @@
 							}
 						}
 					}
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "tab.create-layout"
+						},
+						"terminalContextId": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/terminalContextId"
+						},
+						"label": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/label"
+						},
+						"automaticLabel": {
+							"type": "boolean"
+						},
+						"layout": {
+							"$ref": "#/$defs/layoutNode"
+						}
+					},
+					"required": ["kind", "terminalContextId", "label", "automaticLabel", "layout"],
+					"additionalProperties": false
 				}
 			]
 		},
@@ -1421,6 +1443,25 @@
 						}
 					},
 					"required": ["kind", "candidateIds"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "tab-layout-created"
+						},
+						"revision": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/revision"
+						},
+						"terminalContextId": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/terminalContextId"
+						},
+						"tabId": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/tabId"
+						}
+					},
+					"required": ["kind", "revision", "terminalContextId", "tabId"],
 					"additionalProperties": false
 				}
 			]
@@ -2509,6 +2550,67 @@
 						}
 					},
 					"required": ["kind", "presentationId"],
+					"additionalProperties": false
+				}
+			]
+		},
+		"layoutPresentation": {
+			"type": "object",
+			"properties": {
+				"label": {
+					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/label"
+				},
+				"customLabel": {
+					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/panelCustomLabel"
+				}
+			},
+			"required": ["label"],
+			"additionalProperties": false
+		},
+		"layoutNode": {
+			"oneOf": [
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "panel"
+						},
+						"primary": {
+							"$ref": "#/$defs/layoutPresentation"
+						},
+						"children": {
+							"type": "array",
+							"maxItems": 16,
+							"items": {
+								"$ref": "#/$defs/layoutPresentation"
+							}
+						},
+						"rightClick": {
+							"enum": ["orchbee", "panel"]
+						}
+					},
+					"required": ["kind", "primary", "children", "rightClick"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "split"
+						},
+						"orientation": {
+							"enum": ["horizontal", "vertical"]
+						},
+						"children": {
+							"type": "array",
+							"minItems": 2,
+							"maxItems": 2,
+							"items": {
+								"$ref": "#/$defs/layoutNode"
+							}
+						}
+					},
+					"required": ["kind", "orientation", "children"],
 					"additionalProperties": false
 				}
 			]
