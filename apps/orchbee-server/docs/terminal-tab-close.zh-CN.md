@@ -14,6 +14,20 @@ Close 到 Empty、手动 Create 及保留 shell 重入的进程用例。这些�
 
 Worktree Remove 可以暂缓规范 Workspace Close 发布，同时由已有续执行释放所有捕获的终端并完成本地清理。Worktree 所有者在 Close 准入的同一把锁内记录精确操作／Close 关联。调度和直接发布入口均拒绝绕过保留；只有精确的可发布证据才允许 Git 删除。已知 Git 失败保留 Workspace 结构及 Close 栅栏。Worktree 失败后，显式接纳的普通 Workspace Close 可以不执行 Git 而释放保留；Worktree pending 期间的竞争 Close 返回 busy。读取和失败的 Close 准入从不释放保留。Git 删除成功后，先保留单调完成标记再释放发布，因此后续 Worktree Resume 仅完成规范 Close。该边界为恢复保留布局，但不重启 shell。[CLI Worktree 模型](../../orchbee/docs/windows-worktrees.zh-CN.md) 拥有用户可见的部分结果和恢复契约。
 
+### 未绑定及混合范围
+
+Close 先从规范树解析精确 Context／Tab／Panel，再收集已绑定成员。只有当 Panel 是 Tab 的唯一
+布局叶子时，才将其视为整个 Tab 范围。已绑定成员数量不会扩大范围而覆盖未绑定兄弟项，未绑定
+主项也不会借用已绑定子项。即使没有物理终端，保留命令仍拥有范围地址。此类 Close 无需 Worker
+或运行时所有者：保留正常 ledger／revision 额度，沿用排队发布、重放／加入、状态、发布失败及
+Resume 流程，不发送 Dispose。
+
+重叠的 Tab／Panel／Workspace 范围是否冲突不依赖已绑定成员数量。迁移对正在关闭的指定 Panel
+设置栅栏，包括未绑定 Panel；兄弟结构操作仍遵循既有规则。发布重新证明有序精确已绑定成员及
+规范范围，只移除该范围，并根据全部存续绑定协调 standalone 引用。移除绑定集合为空时，保留
+既有 Open 引用或 Empty 槽位。范围缺失保留既有类型化拒绝行为。定向权威与 Site 用例覆盖混合
+成员、仅子项绑定、纯发布关闭、重放、范围栅栏以及无关绑定的保留。
+
 ### Workspace 生命周期扩展
 
 本地 Server 接受规范 Workspace 所有的简单 Terminal Context 中的 Close，沿用 standalone 的
@@ -23,8 +37,8 @@ Worktree Remove 可以暂缓规范 Workspace Close 发布，同时由已有续�
 
 `WorkbenchTerminalMembership` 和 `WorkbenchTerminalTab` 为既有操作描述严格单 leaf 成员，
 为已接受的 PanelSplit/聚合 Close 路径描述两类上下文中的确切树成员。成员关系携带从规范导航派生的
-不可变上下文类型，是读取结果而非另一份权威。不支持的分组、固定/分组 Tab、子项或缺失绑定沿用既有
-分歧行为。除调用方条件分支外，standalone 组合 helper 自身也拒绝 Workspace 成员关系，使未发布库
+不可变上下文类型，是读取结果而非另一份权威。规范分组、固定／分组 Tab 及子项均可接受。未绑定成员保留在规范树中，运行时成员集合
+仅包含已绑定成员，并显式记录主成员身份。除调用方条件分支外，standalone 组合 helper 自身也拒绝 Workspace 成员关系，使未发布库
 使用通用类型名后仍保留所有者边界。
 
 Workspace 准入和发布不读取、重定向或结算 standalone 引导槽位。已知 Dispose 和精确目标清理

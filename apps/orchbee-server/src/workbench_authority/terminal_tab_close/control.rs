@@ -301,13 +301,10 @@ impl WorkbenchAuthority {
                     _ => None,
                 })
                 .map_or(WorkbenchTabCloseReadOutcome::NotClosing {}, |record| {
-                    let Some(target) = record.targets().next() else {
-                        return WorkbenchTabCloseReadOutcome::NotClosing {};
-                    };
                     WorkbenchTabCloseReadOutcome::Available {
                         close_request_id: record.command.request_id.clone(),
-                        terminal_context_id: target.terminal_context_id.clone(),
-                        tab_id: target.member.tab_id().clone(),
+                        terminal_context_id: record.terminal_context_id.clone(),
+                        tab_id: request.tab_id.clone(),
                         attempt_generation: record.generation,
                         status: record.status(),
                     }

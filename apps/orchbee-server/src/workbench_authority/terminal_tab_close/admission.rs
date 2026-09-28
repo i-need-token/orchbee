@@ -103,6 +103,37 @@ impl<'a> WorkbenchTabCloseAdmission<'a> {
     /// Site first validates standalone reference-derived composition when applicable.
     #[must_use]
     pub fn resolve_after_composition(self) -> WorkbenchTabCloseResolution<'a> {
+        let tab = self
+            .authority
+            .snapshot()
+            .terminal_contexts
+            .iter()
+            .find(|context| &context.terminal_context_id == self.membership.terminal_context_id())
+            .and_then(|context| context.tabs.iter().find(|tab| tab.tab_id == self.tab_id));
+        let Some(tab) = tab else {
+            return WorkbenchTabCloseResolution::Ready(self.authority.retain_rejection(
+                self.command,
+                if self.panel_id.is_some() {
+                    WorkbenchRejectionReason::PanelUnavailable
+                } else {
+                    WorkbenchRejectionReason::TabUnavailable
+                },
+            ));
+        };
+        if self
+            .panel_id
+            .as_ref()
+            .is_some_and(|id| super::publication::leaf_presentation(&tab.root, id).is_none())
+        {
+            return WorkbenchTabCloseResolution::Ready(
+                self.authority
+                    .retain_rejection(self.command, WorkbenchRejectionReason::PanelUnavailable),
+            );
+        }
+        let single_panel = matches!(
+            tab.root,
+            orchbee_workbench_protocol::PanelNode::Panel { .. }
+        );
         let tab_members: Vec<_> = self
             .membership
             .members_for_tab(&self.tab_id)
@@ -117,7 +148,7 @@ impl<'a> WorkbenchTabCloseAdmission<'a> {
                     .cloned()
                     .collect();
                 // Children are independent targets, not additional layout Panels.
-                let scope = if !members.is_empty() && members.len() == tab_members.len() {
+                let scope = if single_panel {
                     CloseScope::Tab
                 } else {
                     CloseScope::Panel
@@ -125,23 +156,17 @@ impl<'a> WorkbenchTabCloseAdmission<'a> {
                 (members, scope)
             }
         };
-        if members.is_empty() {
-            return WorkbenchTabCloseResolution::Ready(self.authority.retain_rejection(
-                self.command,
-                if self.panel_id.is_some() {
-                    WorkbenchRejectionReason::PanelUnavailable
-                } else {
-                    WorkbenchRejectionReason::TabUnavailable
-                },
-            ));
-        }
         let covering = self
             .authority
             .ledger
             .values()
             .find_map(|entry| match entry {
                 RetainedRequest::TabClose(record)
-                    if members.iter().any(|member| record.covers_member(member)) =>
+                    if record.overlaps_tab_scope(
+                        self.membership.terminal_context_id(),
+                        &self.tab_id,
+                        self.panel_id.as_ref(),
+                    ) =>
                 {
                     Some(record)
                 }
@@ -154,7 +179,10 @@ impl<'a> WorkbenchTabCloseAdmission<'a> {
             }
             let same_action = std::mem::discriminant(&record.command.action)
                 == std::mem::discriminant(&self.command.action);
-            if same_action && record.matches_members(&members) {
+            if same_action
+                && record.panel_id() == self.panel_id.as_ref()
+                && record.matches_members(&members)
+            {
                 // Joining retained facts is effect-free even when the runtime is now unavailable.
                 let plan = CommitPlan {
                     projection: None,
@@ -271,7 +299,8 @@ impl<'a> WorkbenchWorkspaceCloseAdmission<'a> {
             .values()
             .find_map(|entry| match entry {
                 RetainedRequest::TabClose(record)
-                    if members.iter().any(|member| record.covers_member(member)) =>
+                    if members.iter().any(|member| record.covers_member(member))
+                        || (!record.is_finished() && record.matches_context(&context_id)) =>
                 {
                     Some(record)
                 }
@@ -395,21 +424,21 @@ impl<'a> WorkbenchTabClosePrimaryAdmission<'a> {
             return WorkbenchTabClosePreparation::Ready(self.authority.retire(&self.command));
         };
         let outcome = match &self.command.action {
-            WorkbenchAction::TabClose { .. } => WorkbenchCommandOutcome::TabCloseAccepted {
+            WorkbenchAction::TabClose { tab_id, .. } => WorkbenchCommandOutcome::TabCloseAccepted {
                 close_request_id: self.command.request_id.clone(),
                 terminal_context_id: self.membership.terminal_context_id().clone(),
-                tab_id: self.member().tab_id().clone(),
+                tab_id: tab_id.clone(),
                 accepted_revision: self.command.expected_revision,
             },
-            WorkbenchAction::PanelClose { panel_id, .. } => {
-                WorkbenchCommandOutcome::PanelCloseAccepted {
-                    close_request_id: self.command.request_id.clone(),
-                    terminal_context_id: self.membership.terminal_context_id().clone(),
-                    tab_id: self.member().tab_id().clone(),
-                    panel_id: panel_id.clone(),
-                    accepted_revision: self.command.expected_revision,
-                }
-            }
+            WorkbenchAction::PanelClose {
+                tab_id, panel_id, ..
+            } => WorkbenchCommandOutcome::PanelCloseAccepted {
+                close_request_id: self.command.request_id.clone(),
+                terminal_context_id: self.membership.terminal_context_id().clone(),
+                tab_id: tab_id.clone(),
+                panel_id: panel_id.clone(),
+                accepted_revision: self.command.expected_revision,
+            },
             WorkbenchAction::WorkspaceClose {
                 project_id,
                 workspace_id,

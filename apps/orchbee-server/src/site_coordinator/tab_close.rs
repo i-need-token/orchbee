@@ -53,7 +53,7 @@ impl SiteCoordinator {
             WorkbenchTabCloseResolution::Ready(result) => return Some(result),
             WorkbenchTabCloseResolution::Primary(admission) => admission,
         };
-        if !owner_available {
+        if !owner_available && !admission.members().is_empty() {
             return Some(
                 admission
                     .runtime_unavailable(WorkbenchTabCloseRuntimeUnavailableReason::ServerBusy),

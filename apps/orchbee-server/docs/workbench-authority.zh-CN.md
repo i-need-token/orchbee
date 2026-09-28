@@ -232,17 +232,17 @@ Worker IPC、查看器或控制器效果。Close/Stop、归档/重启、固定�
 Web 迁移和推送仍从 Move 排除。Close 已有上方描述的独立本地 Server 集成，原生集成另有
 Linux 进程证据；发布收敛仍待完成。不增加显式空 Open 结果。
 
-`tree_standalone_membership()` 返回的 `WorkbenchTerminalMembership` 是包含全部严格独立成员的
+`tree_standalone_membership()` 返回的 `WorkbenchTerminalMembership` 是包含全部已绑定独立成员的
 有界只读向量，保持规范顺序，暴露
 精确 Tab/Panel/Presentation 身份及绑定。Workbench 验证完整上下文并构造它；Site 从不缓存。
 空成员关系有效当且仅当 Site 槽位为 Empty。非空成员关系要求 Creating 或 Settled 含引用 R、
 `TerminalCoordinator.retained_authorization(R)` 可用、成功精确转换成 `PresentationBinding`，
 并且向量任意位置恰有一个匹配绑定。位置从不标识引导或完成。零/多个匹配、授权缺失/无法转换、
-重复上下文或缺失绑定属于内部权威分歧，从不修复或返回 `TabUnavailable`。
+重复上下文或已绑定成员缺少保留授权属于内部权威分歧，从不修复或返回 `TabUnavailable`。
 
 `standalone_membership()` 仍为要求每 Tab 一个成员的调用方提供严格简单投影。
 Create、完成、Move 和 Open 使用 `tree_standalone_membership()`：在相同上下文验证下，按规范
-顺序返回独立 Tab 树的每个叶成员。Site 对这些成员应用同一
+顺序返回独立 Tab 树的每个已绑定主项及子项。Site 对这些成员应用同一
 引用派生锚点关系，因此合法的多叶形状绝不是组合分歧；仅凭"全体成员有 retained binding"不能证明
 槽位锚点，授权缺失、零/重复锚点匹配及任何结构性违规仍是失败关闭的分歧。
 
@@ -871,7 +871,11 @@ Herdr `e0507237ad8d41f60aece10d00ef29ce2339ca34` 的展示和 token 行为；pro
 
 ## 结构操作保留子 Presentation
 
-Panel 即使拥有子 Presentation，仍是布局叶子。已绑定树成员按主项、各有序子项的顺序枚举，并保留每条精确 binding。`member_for_panel` 选择主项；成员数量是 Presentation 数量，不是 Panel 数量。旧的单叶成员入口仍拒绝额外 Presentation 及分组／固定 Tab。完整树成员在规范验证下包含分组／固定元数据；未绑定项不能被静默过滤。
+Panel 即使拥有子 Presentation，仍是布局叶子。已绑定树成员按主项、各有序子项的顺序枚举，并保留每条精确 binding。`member_for_panel` 选择主项；成员数量是 Presentation 数量，不是 Panel 数量。旧的单叶成员入口仍拒绝额外 Presentation 及分组／固定 Tab。完整树成员在规范验证下包含分组／固定元数据。未绑定成员保留在规范 Panel 树中，但不进入运行时绑定向量；显式主成员标记防止已绑定子项满足未绑定主项的 `member_for_panel` 查询。部分成员未绑定时，Agent 注册仍可观察存续的已绑定成员。
+
+规范占用状态与已绑定成员集合分开。引导要求上下文没有 Tab；Open 遇到完全未绑定的布局时返回 `terminal-runtime-unavailable`，不启动、不退役。
+显式 Tab Create 或 Split 可以建立首个已绑定 standalone 引用。Close 根据规范 Tab／Panel 地址及拓扑确定范围，保留未绑定兄弟项；完全未绑定的范围使用保留的纯发布 Close。
+混合成员及空范围用例覆盖注册、Open、分屏结算、重放、精确发布及 standalone 重定向。
 
 Tab 创建和排序允许上下文包含子 Presentation。Panel 分屏将完整原 Panel 与一个新兄弟项包装为分屏树。同 Tab 移动／交换、跨 Tab／上下文迁移均转移完整 Panel 节点，包含有序子项身份、标签、binding 和输入策略；不重建、换绑或丢弃现存 Presentation。新 Workspace 的目录选择维持既有主终端所有权，不因迁移启动额外进程。迁移检查 Panel 每个成员是否已被未完成 Close 占用。Standalone 引用协调在既有 Site 提交门内验证前后完整 binding 集合。
 

@@ -1,5 +1,21 @@
 # Native panel lifecycle
 
+## Bound and unbound members
+
+Canonical Panels retain their primary and ordered children even when some members have no terminal
+binding. Server runtime membership contains only bound members and records which one is primary;
+a bound child never substitutes for an unbound primary. Registration and structural operations
+preserve the unbound members. Legacy single-member readers keep their stricter contract.
+
+Open uses existing bound membership. A layout containing only unbound members is occupied and
+returns terminal-runtime-unavailable without a launch or authority retirement. Explicit Tab Create
+or Split can create the first bound terminal and install the standalone reference normally.
+
+Close determines its scope from canonical topology, never from the number of bound terminals.
+Unbound siblings survive Panel Close. An entirely unbound Panel or Tab uses the retained Close
+publication path without Worker disposal; it is removed only at canonical publication. Scope
+conflicts, revision credit, replay, publication recovery and relocation fences still apply.
+
 ## Scope and ownership
 
 The native Client admits at most one structural panel mutation — split, move, or close of the

@@ -110,13 +110,17 @@ impl WorkbenchAuthority {
         // publication address; a zero-member Context scope has no first leaf.
         let context_id = record.terminal_context_id.clone();
         let target = targets.first().cloned();
+        let tab_id = record.tab_id().cloned();
+        let panel_id = record.panel_id().cloned();
         if self.ledger_bytes < record.reserved_bytes {
             return self.fail_close_publication(
                 close_request_id,
                 WorkbenchTabClosePublicationError::CompositionMismatch,
             );
         }
-        if matches!(scope, CloseScope::Tab | CloseScope::Panel) && target.is_none() {
+        if (matches!(scope, CloseScope::Tab | CloseScope::Panel) && tab_id.is_none())
+            || (matches!(scope, CloseScope::Panel) && panel_id.is_none())
+        {
             return self.fail_close_publication(
                 close_request_id,
                 WorkbenchTabClosePublicationError::CompositionMismatch,
@@ -135,13 +139,11 @@ impl WorkbenchAuthority {
         // Exact order also detects child reordering while disposal was in flight.
         let actual_members = before.members().iter().filter(|member| match &scope {
             CloseScope::Context { .. } => true,
-            CloseScope::Tab => target
-                .as_ref()
-                .is_some_and(|target| member.tab_id() == target.member.tab_id()),
-            CloseScope::Panel => target.as_ref().is_some_and(|target| {
-                member.tab_id() == target.member.tab_id()
-                    && member.panel_id() == target.member.panel_id()
-            }),
+            CloseScope::Tab => Some(member.tab_id()) == tab_id.as_ref(),
+            CloseScope::Panel => {
+                Some(member.tab_id()) == tab_id.as_ref()
+                    && Some(member.panel_id()) == panel_id.as_ref()
+            }
         });
         if before.terminal_context_id() != &context_id
             || !actual_members.eq(targets.iter().map(|target| &target.member))
@@ -166,9 +168,6 @@ impl WorkbenchAuthority {
         match &scope {
             // Strict membership proved the exact Tab/Panel/Presentation/binding tuple above.
             CloseScope::Tab => {
-                let target = target
-                    .as_ref()
-                    .ok_or(WorkbenchTabClosePublicationError::CompositionMismatch)?;
                 let Some(context) = candidate
                     .terminal_contexts
                     .iter_mut()
@@ -179,12 +178,20 @@ impl WorkbenchAuthority {
                         WorkbenchTabClosePublicationError::CompositionMismatch,
                     );
                 };
-                context
+                let Some(index) = context
                     .tabs
-                    .retain(|tab| &tab.tab_id != target.member.tab_id());
+                    .iter()
+                    .position(|tab| Some(&tab.tab_id) == tab_id.as_ref())
+                else {
+                    return self.fail_close_publication(
+                        close_request_id,
+                        WorkbenchTabClosePublicationError::CompositionMismatch,
+                    );
+                };
+                context.tabs.remove(index);
             }
             CloseScope::Panel => {
-                let target = target
+                let panel_id = panel_id
                     .as_ref()
                     .ok_or(WorkbenchTabClosePublicationError::CompositionMismatch)?;
                 let Some(context) = candidate
@@ -200,38 +207,29 @@ impl WorkbenchAuthority {
                 let Some(tab_index) = context
                     .tabs
                     .iter()
-                    .position(|tab| &tab.tab_id == target.member.tab_id())
+                    .position(|tab| Some(&tab.tab_id) == tab_id.as_ref())
                 else {
                     return self.fail_close_publication(
                         close_request_id,
                         WorkbenchTabClosePublicationError::CompositionMismatch,
                     );
                 };
-                let Some(presentation) = context
+                let Some(_) = context
                     .tabs
                     .get(tab_index)
-                    .and_then(|tab| leaf_presentation(&tab.root, target.member.panel_id()))
+                    .and_then(|tab| leaf_presentation(&tab.root, panel_id))
                 else {
                     return self.fail_close_publication(
                         close_request_id,
                         WorkbenchTabClosePublicationError::CompositionMismatch,
                     );
                 };
-                // Strict membership proves the exact leaf Presentation/binding tuple.
-                if presentation.presentation_id != *target.member.presentation_id()
-                    || presentation.binding.as_ref() != Some(target.member.binding())
-                {
-                    return self.fail_close_publication(
-                        close_request_id,
-                        WorkbenchTabClosePublicationError::CompositionMismatch,
-                    );
-                }
                 if matches!(&context.tabs[tab_index].root, PanelNode::Panel { .. }) {
                     // Sibling Closes already collapsed the tree; this leaf is the whole Tab.
                     context.tabs.remove(tab_index);
                 } else {
                     let tab = &mut context.tabs[tab_index];
-                    if !remove_leaf_panel(&mut tab.root, target.member.panel_id()) {
+                    if !remove_leaf_panel(&mut tab.root, panel_id) {
                         return self.fail_close_publication(
                             close_request_id,
                             WorkbenchTabClosePublicationError::CompositionMismatch,
@@ -356,7 +354,7 @@ impl WorkbenchAuthority {
 
 /// Resolves the primary Presentation of the leaf Panel `panel_id`, or `None` when the identity
 /// addresses no leaf (a Split identity or a vanished node).
-fn leaf_presentation<'a>(
+pub(super) fn leaf_presentation<'a>(
     node: &'a PanelNode,
     panel_id: &WorkbenchPanelId,
 ) -> Option<&'a Presentation> {

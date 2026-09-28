@@ -297,19 +297,19 @@ excluded from Move. Close has the separate local Server integration described ab
 integration has separate Linux process evidence; release convergence remains pending.
 No explicit-empty Open result is added.
 
-The `WorkbenchTerminalMembership` returned by `tree_standalone_membership()` is a bounded read-only vector of every strict standalone member
+The `WorkbenchTerminalMembership` returned by `tree_standalone_membership()` is a bounded read-only vector of every bound standalone member
 in canonical order, exposing exact Tab/Panel/Presentation identities and binding. Workbench validates
 the entire context and constructs it; Site never caches it. Empty membership is valid exactly when
 the Site slot is Empty. Nonempty membership requires Creating or Settled with reference R,
 `TerminalCoordinator.retained_authorization(R)`, successful exact conversion to
 `PresentationBinding`, and exactly one matching binding anywhere in the vector. Position never
 identifies bootstrap or completion. Zero/multiple matches, absent/unconvertible authorization,
-duplicate context or missing bindings are internal divergence, never
+duplicate context or missing retained authorizations for bound members are internal divergence, never
 repaired or returned as `TabUnavailable`.
 
 `standalone_membership()` remains the strict-simple projection for callers requiring one member
-per Tab. Create, completion, Move and Open use `tree_standalone_membership()`, the strict tree read:
-every leaf of the standalone Tab tree in canonical order under the same context validation. Site
+per Tab. Create, completion, Move and Open use `tree_standalone_membership()`, the bound tree read:
+every bound primary and child of the standalone Tab tree in canonical order under the same context validation. Site
 applies the same reference-derived anchor relation over its members, so a legal multi-leaf shape is
 never a composition fault; "every member has a retained binding" alone does not prove the slot anchor,
 and missing retained authorization, zero or duplicate anchor matches and every structural violation
@@ -1049,14 +1049,24 @@ A Panel remains a layout leaf when it owns child Presentations. Bound tree membe
 the primary followed by every ordered child, retaining each exact binding. `member_for_panel`
 selects the primary; a member count is a Presentation count, not a Panel count. Legacy single-leaf
 membership still rejects additional Presentations and grouped/pinned Tabs. Complete tree membership
-includes group/pin metadata under canonical validation; unbound members are never silently filtered.
+includes group/pin metadata under canonical validation. Unbound members remain in the canonical
+Panel tree but do not enter the runtime-binding vector; explicit primary-role metadata prevents a
+bound child from satisfying `member_for_panel` for an unbound primary. Agent registration can
+observe surviving bound members while other members remain unbound.
+
+Canonical occupancy is separate from bound inventory. Bootstrap requires a context with no Tabs;
+Open on a wholly unbound layout returns `terminal-runtime-unavailable` without launch or retirement.
+Explicit Tab Create or Split can establish the first bound standalone reference. Close scope uses
+canonical Tab/Panel addresses and topology; unbound siblings survive, and an entirely unbound
+scope uses retained publication-only Close. Mixed-member and empty-scope traces cover registration,
+Open, split settlement, replay, exact publication, and standalone retargeting.
 
 Tab creation and ordering admit contexts containing child Presentations. Panel split wraps the
 complete original Panel and one fresh sibling. Same-Tab move/swap and cross-Tab/context relocation
 transfer the complete Panel node, including ordered child identities, labels, bindings and input
 policy. No existing Presentation is recreated, rebound or dropped. New Workspace directory
 selection retains its existing primary-terminal ownership; this operation starts no extra process.
-Relocation checks pending Close ownership for every member of its Panel. Standalone reference
+Relocation checks pending Close ownership of its canonical Panel, including unbound members. Standalone reference
 reconciliation validates the entire before/after binding set under the existing Site commit gate.
 
 Evidence must compare complete Panel payloads after split, move/swap and relocation, cover new Tab

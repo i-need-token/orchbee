@@ -17,6 +17,23 @@ canonical projection and strict standalone membership.
 
 Worktree Remove can hold canonical Workspace Close publication while the existing continuation disposes every captured terminal and finishes local cleanup. The Worktree owner installs the exact operation/Close association under the same gate as Close admission. Both scheduled and direct publication refuse the hold; only exact publication-ready evidence permits Git removal. A known Git failure retains the Workspace structure and its Close fences. After a failed Worktree, an explicitly accepted ordinary Workspace Close may release the hold without Git; a competing Close during a pending Worktree is busy. Reads and failed Close admission never release it. Successful Git deletion retains a monotonic completion marker before releasing publication, so a later Worktree Resume only finishes canonical Close. This boundary preserves layout for restoration; it does not restart shells. The [CLI Worktree model](../../orchbee/docs/windows-worktrees.md) owns the user-visible partial outcome and recovery.
 
+### Unbound and mixed scopes
+
+Close resolves the exact Context/Tab/Panel from the canonical tree before collecting bound members.
+A Panel is a whole-Tab scope only when it is the Tab's sole layout leaf. Bound-member counts never
+widen the scope across unbound siblings, and an unbound primary never substitutes a bound child.
+The retained command owns the scope address even when no physical terminal exists. Such a Close
+needs no Worker or runtime owner: it reserves normal ledger/revision credit and follows the same
+queued publication, replay/join, status, publication-failure and Resume path. It never emits Dispose.
+
+Overlapping Tab/Panel/Workspace scopes conflict independently of bound-member count. Relocation
+fences the addressed closing Panel, including an unbound Panel; sibling structural operations keep
+the existing rules. Publication re-proves ordered exact bound membership and canonical scope,
+removes only that scope, and reconciles the standalone reference against all surviving bindings.
+An empty removed-binding set preserves the existing Open reference or Empty slot. Missing scopes
+retain existing typed rejection behavior. Targeted owner and Site traces cover mixed members,
+child-only binding, publication-only close, replay, scope fences and unrelated binding preservation.
+
 ### Workspace lifetime extension
 
 The local Server accepts Close for a simple Terminal Context owned by a canonical Workspace,
@@ -28,8 +45,8 @@ does not authorize or block Close; exact live runtime identity still gates a new
 `WorkbenchTerminalMembership` and `WorkbenchTerminalTab` describe strict single-leaf members for
 legacy operations and exact tree members for the accepted PanelSplit/aggregate Close path in either
 context. Membership carries an immutable context kind derived from canonical navigation; it is a
-read result, not another authority. Unsupported groups, pinned/grouped Tabs, children or missing
-bindings retain the existing divergence behavior. Standalone composition helpers reject Workspace
+read result, not another authority. Canonical groups, pinned/grouped Tabs and children are accepted. Unbound members stay in the
+canonical tree while runtime membership contains only bound members with an explicit primary role. Standalone composition helpers reject Workspace
 membership themselves, in addition to conditional callers. This preserves their owner boundary
 after generic type names replace standalone-only names in the unpublished library.
 

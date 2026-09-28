@@ -64,7 +64,6 @@ pub(super) fn prepare_standalone_close_settlement_members<'site>(
     if !before.is_standalone()
         || !after.is_standalone()
         || before.terminal_context_id() != after.terminal_context_id()
-        || removed.is_empty()
         || removed.iter().any(|removed_member| {
             before
                 .members()
@@ -87,7 +86,9 @@ pub(super) fn prepare_standalone_close_settlement_members<'site>(
         return Err(PostcommitCoordinationError);
     }
     let current_reference = match &*slot {
-        StandaloneTerminal::Empty => return Err(PostcommitCoordinationError),
+        StandaloneTerminal::Empty => {
+            return Ok(PreparedStandaloneRetarget { slot, next: None });
+        }
         StandaloneTerminal::Creating(reference) | StandaloneTerminal::Settled { reference, .. } => {
             reference
         }
@@ -234,6 +235,19 @@ impl SiteCoordinator {
                 return PreparedOpen::Ready(outcome.clone());
             }
             StandaloneTerminal::Empty => {}
+        }
+        if workbench
+            .snapshot()
+            .terminal_contexts
+            .iter()
+            .any(|context| {
+                &context.terminal_context_id == membership.terminal_context_id()
+                    && !context.tabs.is_empty()
+            })
+        {
+            return PreparedOpen::Ready(unavailable(
+                CreateUnavailableReason::TerminalRuntimeUnavailable,
+            ));
         }
         if worker.is_none() {
             return PreparedOpen::Ready(unavailable(CreateUnavailableReason::NoCompatibleWorker));

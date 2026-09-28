@@ -479,7 +479,7 @@ fn tree_membership_collects_split_primary_leaves_but_legacy_context_rejects_them
 }
 
 #[test]
-fn tree_membership_still_rejects_genuine_tree_corruption() {
+fn tree_membership_preserves_unbound_layouts_and_enumerates_only_bound_members() {
     // Unbound primary and child Presentations still refuse complete membership.
     fn split_snapshot(authority: &WorkbenchAuthority) -> Snapshot {
         let mut snapshot = authority.projection.snapshot().clone();
@@ -559,21 +559,84 @@ fn tree_membership_still_rejects_genuine_tree_corruption() {
         snapshot.revision = WorkbenchRevision::new(2);
         let encoded = serialize_document(&WorkbenchProtocolDocument::Snapshot(snapshot)).unwrap();
         authority.projection = WorkbenchProjectionStore::load(&encoded).unwrap();
+        let before = authority.snapshot().clone();
+        let membership = authority.tree_standalone_membership().unwrap();
         assert_eq!(
-            authority.tree_standalone_membership(),
-            Err(WorkbenchTerminalInvariantError),
-            "{case}"
+            membership.members().len(),
+            if case == "unbound leaf" { 1 } else { 2 }
         );
         assert_eq!(
-            authority.terminal_tree_membership(
-                &authority
-                    .projection
-                    .snapshot()
-                    .navigation
-                    .standalone_terminal_context_id
-            ),
-            Err(WorkbenchTerminalInvariantError),
-            "{case}"
+            authority
+                .terminal_tree_membership(membership.terminal_context_id())
+                .unwrap(),
+            membership
+        );
+        assert_eq!(authority.snapshot(), &before);
+        assert!(!authority.retired);
+        assert!(
+            authority.standalone_membership().is_err(),
+            "legacy remains strict"
         );
     }
+}
+
+#[test]
+fn unbound_primary_never_borrows_a_bound_child_and_bootstrap_preserves_occupied_layout() {
+    let mut owner = authority();
+    owner.commit_standalone_intent(binding()).unwrap();
+    let mut snapshot = owner.snapshot().clone();
+    let tab_id = snapshot.terminal_contexts[0].tabs[0].tab_id.clone();
+    let PanelNode::Panel {
+        panel_id,
+        primary_presentation,
+        child_presentations,
+        ..
+    } = &mut snapshot.terminal_contexts[0].tabs[0].root
+    else {
+        panic!()
+    };
+    let panel_id = panel_id.clone();
+    let mut child = primary_presentation.clone();
+    child.presentation_id = TerminalPresentationId::parse(&identity(501)).unwrap();
+    primary_presentation.binding = None;
+    child_presentations.push(child.clone());
+    owner.projection = WorkbenchProjectionStore::load(
+        &serialize_document(&WorkbenchProtocolDocument::Snapshot(snapshot.clone())).unwrap(),
+    )
+    .unwrap();
+    let membership = owner.standalone_presentation_membership().unwrap();
+    assert_eq!(membership.members().len(), 1);
+    assert_eq!(
+        membership.members()[0].presentation_id(),
+        &child.presentation_id
+    );
+    assert_eq!(membership.member_for_panel(&tab_id, &panel_id), None);
+    assert_eq!(
+        owner.commit_standalone_intent(binding()),
+        Err(StandaloneIntentError::Occupied)
+    );
+    let PanelNode::Panel {
+        child_presentations,
+        ..
+    } = &mut snapshot.terminal_contexts[0].tabs[0].root
+    else {
+        panic!()
+    };
+    child_presentations[0].binding = None;
+    owner.projection = WorkbenchProjectionStore::load(
+        &serialize_document(&WorkbenchProtocolDocument::Snapshot(snapshot.clone())).unwrap(),
+    )
+    .unwrap();
+    assert!(
+        owner
+            .standalone_presentation_membership()
+            .unwrap()
+            .is_empty()
+    );
+    assert_eq!(
+        owner.commit_standalone_intent(binding()),
+        Err(StandaloneIntentError::Occupied)
+    );
+    assert_eq!(owner.snapshot(), &snapshot);
+    assert!(!owner.retired);
 }

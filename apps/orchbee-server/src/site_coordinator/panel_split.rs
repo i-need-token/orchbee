@@ -157,6 +157,10 @@ impl SiteCoordinator {
         {
             return PreparedTerminalPanelSplit::Ready(admission.retire_composition_failure());
         }
+        let settles_first = admission
+            .staged_metadata()
+            .standalone_membership()
+            .is_some_and(|membership| membership.is_empty());
         let (worker_constraint, workspace_cwd) = if let Some(membership) =
             admission.staged_metadata().standalone_membership()
         {
@@ -273,6 +277,9 @@ impl SiteCoordinator {
             ));
         }
         let terminal = terminal.commit();
+        if settles_first {
+            *standalone = StandaloneTerminal::Creating(reference.clone());
+        }
         PreparedTerminalPanelSplit::Dispatch(PendingTerminalPanelSplit {
             workbench: pending_workbench,
             terminal,

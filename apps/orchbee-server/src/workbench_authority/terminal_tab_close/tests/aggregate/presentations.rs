@@ -134,6 +134,315 @@ fn first_children(node: &mut PanelNode) -> &mut Vec<Presentation> {
     }
 }
 
+fn unbind(node: &mut PanelNode) {
+    match node {
+        PanelNode::Panel {
+            primary_presentation,
+            child_presentations,
+            ..
+        } => {
+            primary_presentation.binding = None;
+            for child in child_presentations {
+                child.binding = None;
+            }
+        }
+        PanelNode::Split { children, .. } => {
+            for child in children.iter_mut() {
+                unbind(&mut child.node);
+            }
+        }
+    }
+}
+
+#[test]
+fn mixed_panel_close_preserves_unbound_sibling_and_accepts_bound_child_of_unbound_primary() {
+    for child_only in [false, true] {
+        let (mut authority, grant) = split_fixture(1);
+        let mut snapshot = authority.snapshot().clone();
+        let context_id = snapshot.terminal_contexts[0].terminal_context_id.clone();
+        let tab = &mut snapshot.terminal_contexts[0].tabs[0];
+        let tab_id = tab.tab_id.clone();
+        let PanelNode::Split { children, .. } = &mut tab.root else {
+            panic!()
+        };
+        unbind(&mut children[1].node);
+        let survivor = children[1].node.clone();
+        let PanelNode::Panel {
+            panel_id,
+            primary_presentation,
+            child_presentations,
+            ..
+        } = &mut children[0].node
+        else {
+            panic!()
+        };
+        let panel_id = panel_id.clone();
+        if child_only {
+            let mut child = primary_presentation.clone();
+            child.presentation_id = TerminalPresentationId::parse(&identity(60000)).unwrap();
+            primary_presentation.binding = None;
+            child_presentations.push(child);
+        }
+        load(&mut authority, snapshot);
+        let close = command(
+            &authority,
+            60001,
+            WorkbenchAction::PanelClose {
+                terminal_context_id: context_id,
+                tab_id,
+                panel_id,
+            },
+        );
+        let now = Instant::now();
+        let captured = admit(&mut authority, &grant, &close, now);
+        assert_eq!(captured.len(), 1);
+        assert_eq!(
+            authority.close_record(&close.request_id).unwrap().scope,
+            CloseScope::Panel
+        );
+        assert_eq!(settle_all(&mut authority, &close, now), captured);
+        let _ = authority
+            .prepare_terminal_tab_close_publication(&close.request_id, now)
+            .unwrap()
+            .commit();
+        assert_eq!(
+            authority.snapshot().terminal_contexts[0].tabs[0].root,
+            survivor
+        );
+        assert!(
+            authority
+                .standalone_presentation_membership()
+                .unwrap()
+                .is_empty()
+        );
+    }
+}
+
+#[test]
+fn unbound_panel_and_tab_close_use_addressed_publication_with_replay_and_scope_fences() {
+    for whole_tab in [false, true] {
+        let (mut authority, grant) = split_fixture(2);
+        let mut snapshot = authority.snapshot().clone();
+        let context_id = snapshot.terminal_contexts[0].terminal_context_id.clone();
+        let tab = &mut snapshot.terminal_contexts[0].tabs[0];
+        let tab_id = tab.tab_id.clone();
+        unbind(&mut tab.root);
+        let PanelNode::Split { children, .. } = &tab.root else {
+            panic!()
+        };
+        let PanelNode::Panel { panel_id, .. } = &children[0].node else {
+            panic!()
+        };
+        let panel_id = panel_id.clone();
+        let survivor = children[1].node.clone();
+        load(&mut authority, snapshot.clone());
+        let close = command(
+            &authority,
+            60002,
+            if whole_tab {
+                WorkbenchAction::TabClose {
+                    terminal_context_id: context_id.clone(),
+                    tab_id: tab_id.clone(),
+                }
+            } else {
+                WorkbenchAction::PanelClose {
+                    terminal_context_id: context_id.clone(),
+                    tab_id: tab_id.clone(),
+                    panel_id: panel_id.clone(),
+                }
+            },
+        );
+        let now = Instant::now();
+        assert!(admit(&mut authority, &grant, &close, now).is_empty());
+        assert_eq!(authority.snapshot(), &snapshot);
+        assert!(authority.open_close_covers_panel(&context_id, &tab_id, &panel_id));
+        assert_eq!(
+            authority.aggregate_close_fences_tab(&context_id, &tab_id),
+            whole_tab
+        );
+        let original = authority
+            .close_record(&close.request_id)
+            .unwrap()
+            .result
+            .clone();
+        let WorkbenchTabCloseBegin::Ready(replay) =
+            authority.begin_terminal_tab_close(Some(&grant), close.clone())
+        else {
+            panic!()
+        };
+        assert_eq!(replay, original);
+        let mut alias = close.clone();
+        alias.request_id = WorkbenchRequestId::parse(&identity(60003)).unwrap();
+        let WorkbenchTabCloseBegin::Admitted(admission) =
+            authority.begin_terminal_tab_close(Some(&grant), alias)
+        else {
+            panic!()
+        };
+        let WorkbenchTabCloseResolution::Ready(joined) = admission.resolve_after_composition()
+        else {
+            panic!()
+        };
+        assert_eq!(joined.outcome, original.outcome);
+        assert!(matches!(authority.outstanding_close_credits(), Ok(1)));
+        let competing = command(
+            &authority,
+            60004,
+            if whole_tab {
+                WorkbenchAction::PanelClose {
+                    terminal_context_id: context_id.clone(),
+                    tab_id: tab_id.clone(),
+                    panel_id: panel_id.clone(),
+                }
+            } else {
+                WorkbenchAction::TabClose {
+                    terminal_context_id: context_id.clone(),
+                    tab_id: tab_id.clone(),
+                }
+            },
+        );
+        let WorkbenchTabCloseBegin::Admitted(admission) =
+            authority.begin_terminal_tab_close(Some(&grant), competing)
+        else {
+            panic!()
+        };
+        assert!(matches!(
+            admission.resolve_after_composition(),
+            WorkbenchTabCloseResolution::Ready(WorkbenchCommandResult {
+                outcome: WorkbenchCommandOutcome::Unavailable {
+                    reason: WorkbenchCommandUnavailableReason::TerminalBusy
+                },
+                ..
+            })
+        ));
+        authority
+            .close_record_mut(&close.request_id)
+            .unwrap()
+            .publication_failed(WorkbenchTabClosePublicationReason::PreparationFailed);
+        assert!(matches!(
+            status(&authority, &grant, &close),
+            WorkbenchTabCloseReadOutcome::Available {
+                status: WorkbenchTabCloseStatus::DisposedAwaitingPublication {
+                    resumable: true,
+                    ..
+                },
+                ..
+            }
+        ));
+        let resume = WorkbenchTabCloseResume {
+            protocol_version: ProtocolVersion,
+            request_id: request_id(60005),
+            site_id: close.site_id.clone(),
+            terminal_context_id: context_id.clone(),
+            tab_id: tab_id.clone(),
+            close_request_id: close.request_id.clone(),
+            expected_attempt_generation: WorkbenchTabCloseAttemptGeneration::new(1).unwrap(),
+        };
+        let WorkbenchTabCloseResumeBegin::Admitted(admission) =
+            authority.begin_terminal_tab_close_resume(Some(&grant), resume)
+        else {
+            panic!()
+        };
+        let WorkbenchTabCloseResumePreparation::Prepared(prepared) = admission.finish(now) else {
+            panic!()
+        };
+        assert!(matches!(
+            prepared.commit().outcome,
+            WorkbenchTabCloseResumeOutcome::Resumed { .. }
+        ));
+        assert!(settle_all(&mut authority, &close, now).is_empty());
+        let _ = authority
+            .prepare_terminal_tab_close_publication(&close.request_id, now)
+            .unwrap()
+            .commit();
+        assert!(!authority.open_close_covers_panel(&context_id, &tab_id, &panel_id));
+        let after = authority.snapshot();
+        assert_eq!(after.revision.value(), snapshot.revision.value() + 1);
+        assert_eq!(
+            after.terminal_contexts[0].tabs.last(),
+            snapshot.terminal_contexts[0].tabs.last()
+        );
+        assert_eq!(
+            after.terminal_contexts[0].tabs.len(),
+            if whole_tab { 1 } else { 2 }
+        );
+        if !whole_tab {
+            assert_eq!(after.terminal_contexts[0].tabs[0].root, survivor);
+        }
+        assert!(matches!(
+            status(&authority, &grant, &close),
+            WorkbenchTabCloseReadOutcome::Available {
+                status: WorkbenchTabCloseStatus::Closed { .. },
+                ..
+            }
+        ));
+    }
+}
+
+#[test]
+fn unbound_sibling_closes_remain_distinct_and_join_after_tree_collapses() {
+    let (mut authority, grant) = split_fixture(1);
+    let mut snapshot = authority.snapshot().clone();
+    let context_id = snapshot.terminal_contexts[0].terminal_context_id.clone();
+    let tab = &mut snapshot.terminal_contexts[0].tabs[0];
+    let tab_id = tab.tab_id.clone();
+    unbind(&mut tab.root);
+    let PanelNode::Split { children, .. } = &tab.root else {
+        panic!()
+    };
+    let panels: Vec<_> = children
+        .iter()
+        .map(|slot| {
+            let PanelNode::Panel { panel_id, .. } = &slot.node else {
+                panic!()
+            };
+            panel_id.clone()
+        })
+        .collect();
+    load(&mut authority, snapshot);
+    let closes: Vec<_> = panels
+        .into_iter()
+        .enumerate()
+        .map(|(index, panel_id)| {
+            command(
+                &authority,
+                61000 + index as u128,
+                WorkbenchAction::PanelClose {
+                    terminal_context_id: context_id.clone(),
+                    tab_id: tab_id.clone(),
+                    panel_id,
+                },
+            )
+        })
+        .collect();
+    let now = Instant::now();
+    for close in &closes {
+        assert!(admit(&mut authority, &grant, close, now).is_empty());
+    }
+    assert!(matches!(authority.outstanding_close_credits(), Ok(2)));
+    let _ = authority
+        .prepare_terminal_tab_close_publication(&closes[1].request_id, now)
+        .unwrap()
+        .commit();
+    let alias = command(&authority, 61002, closes[0].action.clone());
+    let WorkbenchTabCloseBegin::Admitted(admission) =
+        authority.begin_terminal_tab_close(Some(&grant), alias)
+    else {
+        panic!()
+    };
+    let WorkbenchTabCloseResolution::Ready(joined) = admission.resolve_after_composition() else {
+        panic!()
+    };
+    assert!(
+        matches!(joined.outcome, WorkbenchCommandOutcome::PanelCloseAccepted { close_request_id, .. } if close_request_id == closes[0].request_id)
+    );
+    let _ = authority
+        .prepare_terminal_tab_close_publication(&closes[0].request_id, now)
+        .unwrap()
+        .commit();
+    assert!(authority.snapshot().terminal_contexts[0].tabs.is_empty());
+    assert!(!authority.retired);
+}
+
 #[test]
 fn panel_tab_and_workspace_close_capture_all_children_and_preserve_survivors() {
     for scope in 0..3 {

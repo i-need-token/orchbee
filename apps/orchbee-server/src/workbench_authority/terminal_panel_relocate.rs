@@ -206,11 +206,11 @@ impl<'a> WorkbenchPanelRelocateAdmission<'a> {
                             || self.authority.pending_terminal_covers_tab(context, tab)
                     })
             })
-            || self
-                .membership
-                .members_for_tab(&self.tab_id)
-                .filter(|member| member.panel_id() == &self.panel_id)
-                .any(|member| self.authority.open_close_covers_member(member))
+            || self.authority.open_close_covers_panel(
+                &self.terminal_context_id,
+                &self.tab_id,
+                &self.panel_id,
+            )
             || self
                 .authority
                 .pending_terminal_covers_panel(&self.terminal_context_id, &self.panel_id)

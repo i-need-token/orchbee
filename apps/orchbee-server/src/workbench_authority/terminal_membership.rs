@@ -46,6 +46,7 @@ pub struct WorkbenchTerminalTab {
     panel_id: WorkbenchPanelId,
     presentation_id: TerminalPresentationId,
     binding: PresentationBinding,
+    primary: bool,
 }
 
 impl WorkbenchTerminalTab {
@@ -109,19 +110,20 @@ impl WorkbenchTerminalMembership {
     }
 
     /// Resolves the bound primary Presentation under `panel_id` inside `tab_id`.
-    /// Complete membership always places the primary before its ordered children.
+    /// An unbound primary never resolves to one of its bound children.
     #[must_use]
     pub fn member_for_panel(
         &self,
         tab_id: &WorkbenchTabId,
         panel_id: &WorkbenchPanelId,
     ) -> Option<&WorkbenchTerminalTab> {
-        self.members
-            .iter()
-            .find(|member| member.tab_id() == tab_id && member.panel_id() == panel_id)
+        self.members.iter().find(|member| {
+            member.primary && member.tab_id() == tab_id && member.panel_id() == panel_id
+        })
     }
 
     #[must_use]
+    /// Whether the context has no bound runtime members; unbound Panels and Tabs may remain.
     pub const fn is_empty(&self) -> bool {
         self.members.is_empty()
     }
@@ -259,11 +261,16 @@ impl WorkbenchAuthority {
         if self.retired {
             return Err(StandaloneIntentError::Unavailable);
         }
-        let membership = match self.standalone_membership() {
+        let membership = match self.standalone_presentation_membership() {
             Ok(membership) => membership,
             Err(_error) => return self.retire_membership(),
         };
-        if !membership.is_empty() {
+        if !membership.is_empty()
+            || self.snapshot().terminal_contexts.iter().any(|context| {
+                context.terminal_context_id == *membership.terminal_context_id()
+                    && !context.tabs.is_empty()
+            })
+        {
             return Err(StandaloneIntentError::Occupied);
         }
 
@@ -405,23 +412,8 @@ pub(super) fn presentation_membership(
         return Err(WorkbenchTerminalInvariantError);
     }
     let mut members = Vec::new();
-    let mut unbound = false;
     for tab in &context.tabs {
-        visit_panel_presentations(&tab.root, &mut |panel_id, presentation| {
-            if let Some(binding) = &presentation.binding {
-                members.push(WorkbenchTerminalTab {
-                    tab_id: tab.tab_id.clone(),
-                    panel_id: panel_id.clone(),
-                    presentation_id: presentation.presentation_id.clone(),
-                    binding: binding.clone(),
-                });
-            } else {
-                unbound = true;
-            }
-        });
-    }
-    if unbound {
-        return Err(WorkbenchTerminalInvariantError);
+        collect_tree_members(tab, &tab.root, &mut members, false)?;
     }
     Ok(WorkbenchTerminalMembership {
         terminal_context_id: context_id.clone(),
@@ -477,7 +469,7 @@ fn tree_membership_context<'a>(
     }
     let mut members = Vec::new();
     for tab in &context.tabs {
-        collect_tree_members(tab, &tab.root, &mut members)?;
+        collect_tree_members(tab, &tab.root, &mut members, true)?;
     }
     Ok((context, members))
 }
@@ -504,6 +496,7 @@ fn collect_tree_members(
     tab: &Tab,
     node: &PanelNode,
     members: &mut Vec<WorkbenchTerminalTab>,
+    require_binding: bool,
 ) -> Result<(), WorkbenchTerminalInvariantError> {
     match node {
         PanelNode::Panel {
@@ -512,21 +505,28 @@ fn collect_tree_members(
             panel_id,
             primary_presentation,
         } => {
-            for presentation in std::iter::once(primary_presentation).chain(child_presentations) {
+            for (index, presentation) in std::iter::once(primary_presentation)
+                .chain(child_presentations)
+                .enumerate()
+            {
+                let Some(binding) = &presentation.binding else {
+                    if require_binding {
+                        return Err(WorkbenchTerminalInvariantError);
+                    }
+                    continue;
+                };
                 members.push(WorkbenchTerminalTab {
                     tab_id: tab.tab_id.clone(),
                     panel_id: panel_id.clone(),
                     presentation_id: presentation.presentation_id.clone(),
-                    binding: presentation
-                        .binding
-                        .clone()
-                        .ok_or(WorkbenchTerminalInvariantError)?,
+                    binding: binding.clone(),
+                    primary: index == 0,
                 });
             }
         }
         PanelNode::Split { children, .. } => {
             for child in children.iter() {
-                collect_tree_members(tab, &child.node, members)?;
+                collect_tree_members(tab, &child.node, members, require_binding)?;
             }
         }
     }

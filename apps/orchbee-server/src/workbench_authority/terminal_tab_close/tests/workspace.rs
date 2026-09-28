@@ -425,7 +425,7 @@ fn workspace_publication_rejects_changed_exact_tuple_without_removing_any_tab() 
 }
 
 #[test]
-fn workspace_membership_admits_pinned_tabs_and_still_refuses_unbound_presentations() {
+fn workspace_membership_admits_pinned_tabs_and_unbound_presentations() {
     let (mut authority, grant) = workspace_fixture(1);
     let mut snapshot = authority.projection.snapshot().clone();
     snapshot.terminal_contexts[0].tabs[0].pinned = true;
@@ -463,17 +463,35 @@ fn workspace_membership_admits_pinned_tabs_and_still_refuses_unbound_presentatio
             assert_eq!(authority.projection.snapshot(), &snapshot);
             continue;
         }
-        assert!(matches!(
-            authority.begin_terminal_tab_close(Some(&grant), close),
-            WorkbenchTabCloseBegin::Ready(WorkbenchCommandResult {
-                outcome: WorkbenchCommandOutcome::Unavailable {
-                    reason: WorkbenchCommandUnavailableReason::ServiceUnavailable
-                },
-                ..
-            })
-        ));
-        assert!(authority.retired);
+        let WorkbenchTabCloseBegin::Admitted(admission) =
+            authority.begin_terminal_tab_close(Some(&grant), close.clone())
+        else {
+            panic!()
+        };
+        let WorkbenchTabCloseResolution::Primary(primary) = admission.resolve_after_composition()
+        else {
+            panic!()
+        };
+        assert!(primary.members().is_empty());
+        let now = Instant::now();
+        let WorkbenchTabClosePreparation::Prepared(prepared) =
+            primary.finish_resolved_members(vec![], now)
+        else {
+            panic!()
+        };
+        let _ = prepared.commit();
+        assert!(!authority.retired);
         assert_eq!(authority.projection.snapshot(), &snapshot);
-        assert_eq!(authority.outstanding_close_credits().ok(), Some(0));
+        assert_eq!(authority.outstanding_close_credits().ok(), Some(1));
+        let _ = authority
+            .prepare_terminal_tab_close_publication(&close.request_id, now)
+            .unwrap()
+            .commit();
+        assert!(authority.snapshot().terminal_contexts[1].tabs.is_empty());
+        assert_eq!(
+            authority.snapshot().terminal_contexts[0],
+            snapshot.terminal_contexts[0]
+        );
+        assert_eq!(authority.snapshot().navigation, snapshot.navigation);
     }
 }

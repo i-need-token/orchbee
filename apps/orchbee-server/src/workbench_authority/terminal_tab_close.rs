@@ -5,11 +5,12 @@ use orchbee_capability_node_protocol::{
     WorkerId,
 };
 use orchbee_workbench_protocol::{
-    WorkbenchCommand, WorkbenchCommandResult, WorkbenchProjectId, WorkbenchRequestId,
-    WorkbenchRevision, WorkbenchTabCloseAttemptGeneration, WorkbenchTabClosePhase,
-    WorkbenchTabClosePublicationReason, WorkbenchTabCloseResume, WorkbenchTabCloseResumeResult,
-    WorkbenchTabCloseStatus, WorkbenchTabId, WorkbenchTerminalContextId,
-    WorkbenchWorkspaceCloseResume, WorkbenchWorkspaceCloseResumeResult, WorkbenchWorkspaceId,
+    WorkbenchAction, WorkbenchCommand, WorkbenchCommandResult, WorkbenchPanelId,
+    WorkbenchProjectId, WorkbenchRequestId, WorkbenchRevision, WorkbenchTabCloseAttemptGeneration,
+    WorkbenchTabClosePhase, WorkbenchTabClosePublicationReason, WorkbenchTabCloseResume,
+    WorkbenchTabCloseResumeResult, WorkbenchTabCloseStatus, WorkbenchTabId,
+    WorkbenchTerminalContextId, WorkbenchWorkspaceCloseResume, WorkbenchWorkspaceCloseResumeResult,
+    WorkbenchWorkspaceId,
 };
 
 use super::{PlanFailure, RetainedRequest, WorkbenchAuthority, WorkbenchTerminalTab};
@@ -198,11 +199,11 @@ pub(super) struct CloseRecord {
     reserved_bytes: usize,
     continuations: Vec<CloseContinuation>,
     scheduler_cursor: usize,
-    /// Zero-member Context scope publication-only marker: the first scheduled
+    /// Zero-member scope publication-only marker: the first scheduled
     /// Publication flips this, transitioning `closing(queued)` into
     /// `disposed-awaiting-publication(preparing)`.
     publication_attempted: bool,
-    /// A failed publication on a zero-member Context scope parks the same
+    /// A failed publication on a zero-member scope parks the same
     /// `(reason, resumable)` truth a member continuation would carry.
     parked_publication: Option<(WorkbenchTabClosePublicationReason, bool)>,
     closed_revision: Option<WorkbenchRevision>,
@@ -221,6 +222,41 @@ pub(super) enum AcceptedResumeReceipt {
 }
 
 impl CloseRecord {
+    fn tab_id(&self) -> Option<&WorkbenchTabId> {
+        match &self.command.action {
+            WorkbenchAction::TabClose { tab_id, .. }
+            | WorkbenchAction::PanelClose { tab_id, .. } => Some(tab_id),
+            _ => None,
+        }
+    }
+
+    fn panel_id(&self) -> Option<&WorkbenchPanelId> {
+        match &self.command.action {
+            WorkbenchAction::PanelClose { panel_id, .. } => Some(panel_id),
+            _ => None,
+        }
+    }
+
+    /// Scope addresses remain authoritative even when there are no runtime targets.
+    fn overlaps_tab_scope(
+        &self,
+        context_id: &WorkbenchTerminalContextId,
+        tab_id: &WorkbenchTabId,
+        panel_id: Option<&WorkbenchPanelId>,
+    ) -> bool {
+        if self.workspace_retained || !self.matches_context(context_id) {
+            return false;
+        }
+        match self.scope {
+            CloseScope::Context { .. } => true,
+            CloseScope::Tab => self.tab_id() == Some(tab_id),
+            CloseScope::Panel => {
+                self.tab_id() == Some(tab_id)
+                    && panel_id.is_none_or(|panel| self.panel_id() == Some(panel))
+            }
+        }
+    }
+
     fn is_closed(&self) -> bool {
         self.closed_revision.is_some()
     }
@@ -288,19 +324,24 @@ impl CloseRecord {
         self.terminal_context_id == *context_id
     }
 
-    /// The Close covers this exact `(context, tab)` pair — all its captured
-    /// members sit under one Tab. An empty Context scope matches nothing here;
-    /// workspace-close reads key on `matches_context_scope` instead.
+    /// Tab/Panel addresses come from the retained command, including unbound scopes.
+    /// Context scopes preserve the existing nonempty single-Tab read compatibility.
     fn matches_context_tab(
         &self,
         context_id: &WorkbenchTerminalContextId,
         tab_id: &WorkbenchTabId,
     ) -> bool {
         !self.workspace_retained
-            && !self.targets.is_empty()
-            && self.targets().all(|target| {
-                target.terminal_context_id() == context_id && target.member().tab_id() == tab_id
-            })
+            && self.matches_context(context_id)
+            && match self.scope {
+                CloseScope::Tab | CloseScope::Panel => self.tab_id() == Some(tab_id),
+                CloseScope::Context { .. } => {
+                    !self.targets.is_empty()
+                        && self
+                            .targets()
+                            .all(|target| target.member().tab_id() == tab_id)
+                }
+            }
     }
 
     /// The `(project, workspace)` pair a `workspace.close` names — only
@@ -355,16 +396,6 @@ impl CloseRecord {
         !self.workspace_retained && self.members().any(|existing| existing == member)
     }
 
-    /// An unsettled Close — either scope — covers this exact leaf member. A
-    /// leaf-scoped Close re-proves the captured `(Tab, Panel, Presentation,
-    /// binding)` tuple at publication, so relocating that member under a
-    /// different Tab would strand the proof; aggregate members are covered
-    /// for completeness even though `aggregate_close_fences_tab` already
-    /// fences them.
-    fn open_covers_member(&self, member: &WorkbenchTerminalTab) -> bool {
-        !self.is_finished() && self.covers_member(member)
-    }
-
     fn matches_members(&self, members: &[WorkbenchTerminalTab]) -> bool {
         self.members().eq(members.iter())
     }
@@ -380,7 +411,7 @@ impl CloseRecord {
             return WorkbenchTabCloseStatus::Closed { revision };
         }
         if self.targets.is_empty() {
-            // A zero-member Context scope is its own publication-only
+            // A zero-member scope is its own publication-only
             // continuation: queued, then preparing, then parked — the close
             // revision exists only after `commit_closed` lands.
             if let Some((reason, resumable)) = self.parked_publication {
@@ -521,7 +552,7 @@ impl CloseRecord {
             };
         }
         if self.targets.is_empty() {
-            // Zero-member Context scope has no lifecycle steps — a parked
+            // Zero-member scope has no lifecycle steps — a parked
             // publication waits for resume, otherwise the next scheduled step
             // is the scope commit itself.
             if self.parked_publication.is_some() {
@@ -723,13 +754,16 @@ impl WorkbenchAuthority {
         })
     }
 
-    /// Whether an unsettled Close of either scope covers this exact leaf
-    /// member — `panel.relocate` fences the moved leaf this way because the
-    /// Close publication re-proves the member tuple captured at admission.
-    pub(super) fn open_close_covers_member(&self, member: &WorkbenchTerminalTab) -> bool {
+    /// Relocation cannot move an addressed closing Panel, including an unbound one.
+    pub(super) fn open_close_covers_panel(
+        &self,
+        context_id: &WorkbenchTerminalContextId,
+        tab_id: &WorkbenchTabId,
+        panel_id: &WorkbenchPanelId,
+    ) -> bool {
         self.ledger.values().any(|entry| {
             matches!(entry, RetainedRequest::TabClose(record)
-                if record.open_covers_member(member))
+                if !record.is_finished() && record.overlaps_tab_scope(context_id, tab_id, Some(panel_id)))
         })
     }
 
