@@ -75,3 +75,52 @@ Changes uses request/result kinds 23/24 and the usual correlated outcome envelop
 ## Managed launch status
 
 Read-only launch Status uses request/result kinds 25/26 and the existing 16 KiB request/1,024-byte result ceilings. The status outcome carries exact sessionId, canonical revision and a closed management phase: unmanaged; pending with a validated reservation and blocked boolean; active with reservationId, providerId and exact launch binding. Only Status results admit this outcome. Session existence and lifecycle, completed startup retention and read authorization belong to the Server names owner. Consumers must correlate the Session and distinguish completed startup from current prompt readiness. This additive native extension requires matching cohort binaries.
+
+
+## Report input values
+
+`report_values` owns normalization and validated input values for native Agent reports. It
+has no report state, permissions, frame assignment, deadline, provider execution or I/O. The
+native CLI consumes its provider catalog and report-label normalizer; native process-name
+preprocessing remains a separate CLI policy. Report state/session/clear/release handlers and
+their query/TUI consumers are separate integration obligations, not delivered by these values.
+
+The compatibility reference is Herdr `e0507237ad8d41f60aece10d00ef29ce2339ca34`, Windows
+report-label and `agent_resume` behavior. Recognized labels use the report form (`claude`,
+`agy`, `copilot`, `qwen`), independently of native canonical provider IDs. Unknown labels retain
+trimmed original content; normalization never removes internal controls or truncates identity.
+The metadata CLI retains its existing stricter guard bound until its wire contract is extended.
+The catalog's exact lookup operation does not strip suffixes, trim, lowercase or recognize bare
+`agent`; callers own those input policies. Report normalization strips one recognized suffix
+before taking the last nonempty path component. The same catalog serves native process lookup
+without changing that caller's existing suffix or bare-`agent` behavior.
+
+Only the exact 18 official source/Agent pairs admit provider references. Source names are
+untrusted data, not authentication. Six pairs have full lifecycle reports, four are identity-only,
+and the remaining eight use native state observations. Other pairs are custom reports and
+cannot claim official resumability. An ID is nonempty, control-free and at most 512 UTF-8 bytes;
+a path has the same text requirements with a 4096-byte bound and must pass the caller's absolute
+path capability. No trimming, filesystem access or path canonicalization occurs. pi/omp prefer
+a valid path, then fall back to a valid ID; other official pairs use only the ID. Invalid or
+unsupported references produce absence, matching report no-op input semantics. Reference fields
+are private, and untrusted deserialization must go through the same checked constructors with
+the destination's path capability; a text-only deserialize cannot establish path validity.
+
+The Windows resume planner returns literal argument vectors for a valid source/Agent/reference
+combination. It handles each provider's resume syntax, including `cursor-agent.cmd`, omp and
+Copilot equals arguments, and Letta's `default:AGENT` form. It does not execute the vector,
+interpret a shell, or treat an Orchbee canonical Session ID as provider identity. The eight
+recognized start sources are startup/resume/clear/compact/branch/new/fork/select; unknown input
+normalizes to absence. Report sequences carry the full unsigned 64-bit decimal domain as closed
+strings and are distinct from JavaScript-safe canonical Agent revisions. Sequence ordering and
+ownership transitions remain the Server's responsibility. Native-state reservation is a separate
+predicate: Qwen reserves native state while accepting identity-only reports. Likewise `branch`
+is valid start input but not full-lifecycle reanchor eligibility. Provider/start-source replacement
+eligibility is a separate predicate and never replaces the Server's current-owner, process,
+generation and sequence checks.
+
+Decision tests cover every official pair and resume vector, foreign source/Agent pairs,
+identity-only/full-lifecycle distinctions, ID/path precedence and byte/control boundaries,
+invalid path fallback, unknown start sources, and full-u64 Serde rejection. The native CLI's
+alias/custom-label and process-recognition checks protect the integrated consumer. These checks
+prove normalization and planning only, not running provider sessions or complete report parity.

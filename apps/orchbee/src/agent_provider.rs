@@ -29,75 +29,14 @@ pub(crate) const CANONICAL_IDS: &[&str] = &[
 
 pub(crate) fn provider(label: &str) -> Option<&'static str> {
     let name = basename(label);
-    lookup(&name)
+    if name == "agent" {
+        return Some("cursor");
+    }
+    orchbee_agent_observation_protocol::AgentReportProvider::lookup(&name)
+        .map(orchbee_agent_observation_protocol::AgentReportProvider::native_provider_id)
 }
 
-fn lookup(name: &str) -> Option<&'static str> {
-    match name {
-        "pi" => Some("pi"),
-        "claude" | "claude-code" => Some("claude-code"),
-        "codex" => Some("codex"),
-        "gemini" => Some("gemini"),
-        "cursor" | "cursor-agent" | "agent" => Some("cursor"),
-        "devin" | "devin-cli" | "devin cli" => Some("devin"),
-        "agy" | "antigravity" | "antigravity-cli" => Some("antigravity"),
-        "cline" | ".cline" => Some("cline"),
-        "omp" => Some("omp"),
-        "mastracode" | "mastra-code" | "mastra code" => Some("mastracode"),
-        "opencode" | "opencode2" | "open-code" => Some("opencode"),
-        "copilot" | "github-copilot" | "ghcs" => Some("github-copilot"),
-        "kimi" | "kimi-code" | "kimi code" => Some("kimi"),
-        "kiro" | "kiro-cli" => Some("kiro"),
-        "droid" => Some("droid"),
-        "amp" | "amp-local" => Some("amp"),
-        "grok" | "grok-build" => Some("grok"),
-        "hermes" | "hermes-agent" => Some("hermes"),
-        "kilo" | "kilo-code" | "kilo code" => Some("kilo"),
-        "qodercli" | "qoderclicn" | "qoder" | "qodercn" => Some("qodercli"),
-        "qwen" | "qwen-code" | "qwen code" => Some("qwen-code"),
-        "letta" | "letta-code" | "letta code" => Some("letta"),
-        "maki" => Some("maki"),
-        "muse" | "muse-code" | "muse-cli" => Some("muse"),
-        value
-            if value
-                .strip_prefix("muse-bin-")
-                .is_some_and(|v| v.starts_with(|c: char| c.is_ascii_digit())) =>
-        {
-            Some("muse")
-        }
-        _ => None,
-    }
-}
-
-/// Normalize a reported identity without converting custom labels into display text.
-/// Report labels and native provider IDs have deliberately different canonical forms.
-pub(crate) fn reported_label(label: &str) -> Option<String> {
-    let label = label.trim();
-    if label.is_empty() {
-        return None;
-    }
-    let mut name = label.to_lowercase();
-    for suffix in [".exe", ".cmd", ".bat", ".ps1", ".js"] {
-        if let Some(stem) = name.strip_suffix(suffix) {
-            name = stem.to_owned();
-            break;
-        }
-    }
-    let name = name
-        .rsplit(['/', '\\'])
-        .find(|component| !component.is_empty())
-        .unwrap_or(&name);
-    // `agent` is Cursor's native executable, but is an unspecified custom report identity.
-    let recognized = (name != "agent").then(|| lookup(name)).flatten();
-    Some(match recognized {
-        Some("claude-code") => "claude".to_owned(),
-        Some("antigravity") => "agy".to_owned(),
-        Some("github-copilot") => "copilot".to_owned(),
-        Some("qwen-code") => "qwen".to_owned(),
-        Some(id) => id.to_owned(),
-        None => label.to_owned(),
-    })
-}
+pub(crate) use orchbee_agent_observation_protocol::normalize_agent_report_label as reported_label;
 
 pub(crate) fn basename(path: &str) -> String {
     let value = path
@@ -156,6 +95,11 @@ mod tests {
                 "{input:?}"
             );
         }
+        let shared_ids: Vec<_> = orchbee_agent_observation_protocol::AgentReportProvider::ALL
+            .iter()
+            .map(|provider| provider.native_provider_id())
+            .collect();
+        assert_eq!(shared_ids, CANONICAL_IDS);
         for id in CANONICAL_IDS {
             assert!(reported_label(id).is_some());
         }

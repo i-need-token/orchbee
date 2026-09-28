@@ -1,6 +1,7 @@
 mod changes;
 mod launch;
 mod names;
+mod report_values;
 
 use std::io::Cursor;
 

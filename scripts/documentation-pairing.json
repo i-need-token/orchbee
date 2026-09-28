@@ -346,8 +346,8 @@
 			"zhCnSha256": "4a34d8948be3a7e299f8789ced88ae2ff6bb7b9cd9233e8db7f6ae83423226a9"
 		},
 		"crates/agent-observation-protocol/README.md": {
-			"englishSha256": "4d1281aed17a34396f0b20ce93c4afada4006d92328d6b89022649d2a1eb938d",
-			"zhCnSha256": "b6d588d461483ae2ddc83430345213d79ff7ddebf5277f5aee713431e43ab92c"
+			"englishSha256": "8679d03f63f20a7efe24e8e0a4dbc229c28225490e74d6ae1756b7abadb9c86c",
+			"zhCnSha256": "6fb87e3ada2112bd90c48d164377ce6fe737fa7813912151540a1486df9c3732"
 		},
 		"crates/capability-node-protocol/README.md": {
 			"englishSha256": "fcf0b57b85ad760129bb7a007bad13a9a1f18ff8b8ef98817ae66f2f46ed7a6e",
