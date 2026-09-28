@@ -42,8 +42,10 @@ fn process(agent: Option<Provider>, status: Status, exited: bool) -> Event {
     Event::Process(Process {
         observed_at: u64::MAX,
         agent,
-        status,
-        visible_blocker: false,
+        fallback: Some(Fallback {
+            status,
+            visible_blocker: false,
+        }),
         exited,
     })
 }
@@ -688,8 +690,10 @@ fn delayed_exit_preserves_newer_custom_authority_and_newer_blocker_remains_visib
         Event::Process(Process {
             observed_at: 20,
             agent: Some(Provider::Codex),
-            status: Status::Unknown,
-            visible_blocker: false,
+            fallback: Some(Fallback {
+                status: Status::Unknown,
+                visible_blocker: false,
+            }),
             exited: true,
         }),
         35,
@@ -708,8 +712,10 @@ fn delayed_exit_preserves_newer_custom_authority_and_newer_blocker_remains_visib
         Event::Process(Process {
             observed_at: u64::MAX,
             agent: Some(Provider::Codex),
-            status: Status::Blocked,
-            visible_blocker: true,
+            fallback: Some(Fallback {
+                status: Status::Blocked,
+                visible_blocker: true,
+            }),
             exited: false,
         }),
         40,
@@ -848,8 +854,10 @@ fn delayed_process_clear_uses_current_owner_time_for_future_suppression() {
         Event::Process(Process {
             observed_at: 4,
             agent: Some(Provider::Codex),
-            status: Status::Idle,
-            visible_blocker: false,
+            fallback: Some(Fallback {
+                status: Status::Idle,
+                visible_blocker: false,
+            }),
             exited: false,
         }),
         10,
@@ -861,8 +869,10 @@ fn delayed_process_clear_uses_current_owner_time_for_future_suppression() {
         Event::Process(Process {
             observed_at: 8,
             agent: Some(Provider::Pi),
-            status: Status::Unknown,
-            visible_blocker: false,
+            fallback: Some(Fallback {
+                status: Status::Unknown,
+                visible_blocker: false,
+            }),
             exited: false,
         }),
         11,
@@ -917,4 +927,59 @@ fn stale_session_history_limit_refuses_the_candidate_without_forgetting_old_sess
     );
     assert_eq!(current.stale["herdr:pi"].len(), 256);
     assert!(current.admitted_bytes().is_ok());
+}
+
+#[test]
+fn presence_preserves_screen_age_and_replacement_clears_it() {
+    let mut current = Reports::default();
+    let observation = |agent, fallback, exited, at| {
+        Event::Process(Process {
+            observed_at: at,
+            agent: Some(agent),
+            fallback,
+            exited,
+        })
+    };
+    let blocker = Some(Fallback {
+        status: Status::Blocked,
+        visible_blocker: true,
+    });
+    step(
+        &mut current,
+        observation(Provider::Codex, blocker, false, 10),
+        10,
+    );
+    step(
+        &mut current,
+        state("custom", "codex", Status::Working, seq(1), None),
+        20,
+    );
+    let present = step(
+        &mut current,
+        observation(Provider::Codex, None, false, 30),
+        30,
+    );
+    assert!(!present.changed);
+    assert_eq!(current.effective().status, Status::Working);
+    assert_eq!(current.observed_at, Some(10));
+    step(
+        &mut current,
+        observation(Provider::Codex, blocker, false, 40),
+        40,
+    );
+    assert_eq!(current.effective().status, Status::Blocked);
+    step(&mut current, observation(Provider::Pi, None, false, 50), 50);
+    assert_eq!(current.effective().status, Status::Unknown);
+    assert!(!current.visible_blocker);
+    assert_eq!(current.observed_at, None);
+    step(
+        &mut current,
+        observation(Provider::Pi, blocker, false, 60),
+        60,
+    );
+    step(&mut current, observation(Provider::Pi, None, true, 70), 70);
+    assert_eq!(current.fallback, Status::Unknown);
+    assert_eq!(current.observed_at, None);
+    step(&mut current, observation(Provider::Pi, None, false, 80), 80);
+    assert_eq!(current.effective().status, Status::Unknown);
 }

@@ -110,7 +110,11 @@ fn discovered_target_cannot_attach_a_new_worker_generation_or_run_after_cancel()
     assert!(
         fixture
             .service
-            .sample_process_target(&target, &stop)
+            .sample_process_target(
+                &target,
+                &stop,
+                &crate::agent_screen::ScreenDetector::bundled().unwrap()
+            )
             .is_none()
     );
     assert!(fixture.barrier().unwrap().is_empty());
@@ -119,7 +123,11 @@ fn discovered_target_cannot_attach_a_new_worker_generation_or_run_after_cancel()
     assert!(
         fixture
             .service
-            .sample_process_target(&target, &stop)
+            .sample_process_target(
+                &target,
+                &stop,
+                &crate::agent_screen::ScreenDetector::bundled().unwrap()
+            )
             .is_none()
     );
     assert!(fixture.barrier().unwrap().is_empty());

@@ -104,6 +104,15 @@ export function stageWindows(root, output, cargoTarget, verifyCapsule) {
 			copyFileSync(source, staged, constants.COPYFILE_EXCL);
 			hashes[artifact] = createHash('sha256').update(readFileSync(staged)).digest('hex');
 		}
+		const licenses = path.join(prepared, 'licenses', 'agent-detection');
+		mkdirSync(licenses, { recursive: true });
+		for (const name of ['LICENSE', 'NOTICE']) {
+			copyFileSync(
+				path.join(root, 'apps', 'orchbee-server', 'resources', 'agent-detection', name),
+				path.join(licenses, name),
+				constants.COPYFILE_EXCL,
+			);
+		}
 		const capsule = path.join(prepared, 'agent-observation-adapters');
 		cpSync(path.join(root, 'apps', 'desktop', 'resources', 'agent-observation-adapters'), capsule, {
 			errorOnExist: true,

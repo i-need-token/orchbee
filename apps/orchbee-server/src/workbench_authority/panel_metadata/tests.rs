@@ -546,7 +546,7 @@ fn metadata_revision_failure_prevents_the_companion_agent_exit_commit() {
     use orchbee_capability_node_protocol::{
         HostCreationId, HostEpoch, HostTerminalId, HostTerminalIdentity, WorkerGeneration,
     };
-    use orchbee_workbench_protocol::{PanelAgentAction, PanelAgentRequest, PanelAgentState};
+    use orchbee_workbench_protocol::{PanelAgentAction, PanelAgentRequest};
     let mut authority =
         WorkbenchAuthority::new(SiteId::parse(&format!("{:032x}", 80)).unwrap()).unwrap();
     install(&mut authority, &tree());
@@ -580,8 +580,7 @@ fn metadata_revision_failure_prevents_the_companion_agent_exit_commit() {
             TerminalAgentProcessObservation {
                 observed_at: now,
                 agent: Some(AgentReportProvider::Codex),
-                state: PanelAgentState::Unknown,
-                visible_blocker: false,
+                fallback: None,
                 exited: true
             },
             now

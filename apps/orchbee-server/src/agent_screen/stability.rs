@@ -2,18 +2,18 @@
 use super::{Detection, PanelAgentState};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(super) struct Stability {
+pub(crate) struct Stability {
     published: Detection,
     pending_idle: Option<(u64, u8)>,
     last_refresh: Option<u64>,
     last_sample: Option<u64>,
 }
-pub(super) struct Prepared {
-    pub(super) next: Stability,
-    pub(super) publish: Option<Detection>,
+pub(crate) struct Prepared {
+    pub(crate) next: Stability,
+    pub(crate) publish: Option<Detection>,
 }
 impl Stability {
-    pub(super) fn new(initial: Detection) -> Self {
+    pub(crate) fn new(initial: Detection) -> Self {
         Self {
             published: initial,
             pending_idle: None,
@@ -21,8 +21,11 @@ impl Stability {
             last_sample: None,
         }
     }
+    pub(crate) fn published(&self) -> Detection {
+        self.published
+    }
     /// Time is supplied as monotonic milliseconds. A stale sample has no effect.
-    pub(super) fn prepare(
+    pub(crate) fn prepare(
         &self,
         detected: Detection,
         now: u64,

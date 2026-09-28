@@ -5,6 +5,7 @@ use orchbee_workbench_protocol::PanelAgentState;
 mod manifest;
 mod regions;
 mod stability;
+pub(crate) use stability::Stability;
 #[cfg(test)]
 mod tests;
 
@@ -23,7 +24,7 @@ pub(crate) struct Detection {
     pub(crate) visible_working: bool,
 }
 impl Detection {
-    fn fallback(known: bool) -> Self {
+    pub(crate) fn fallback(known: bool) -> Self {
         Self {
             state: if known {
                 PanelAgentState::Idle

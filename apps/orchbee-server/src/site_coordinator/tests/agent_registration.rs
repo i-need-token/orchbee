@@ -449,4 +449,115 @@ mod process_samples {
         assert_eq!(view.authority_source, None);
         assert_eq!(view.session, None);
     }
+    #[test]
+    fn screen_grace_idle_hold_missing_samples_and_generation_reset() {
+        use crate::agent_screen::Detection;
+        let (mut site, target, mut sample) = fixture();
+        let now = Instant::now();
+        let working = Detection {
+            state: PanelAgentState::Working,
+            skip: false,
+            visible_working: true,
+            visible_idle: false,
+            visible_blocker: false,
+        };
+        let idle = Detection {
+            state: PanelAgentState::Idle,
+            visible_working: false,
+            ..working
+        };
+        let admit = |site: &mut SiteCoordinator, ms, detection| {
+            let at = now + Duration::from_millis(ms);
+            assert!(site.observe_host_screen(target, &sample, detection, at, at));
+        };
+        admit(&mut site, 0, Some(working));
+        admit(&mut site, 2999, Some(working));
+        assert_eq!(read(&mut site).1.state, PanelAgentState::Unknown);
+        admit(&mut site, 3000, Some(working));
+        let working_view = read(&mut site);
+        assert_eq!(working_view.1.state, PanelAgentState::Working);
+        admit(&mut site, 3100, None);
+        assert_eq!(read(&mut site), working_view);
+        for ms in [3200, 3300, 3400] {
+            admit(&mut site, ms, Some(idle));
+            assert_eq!(read(&mut site), working_view);
+        }
+        // Transcript skip clears the pending idle timer; ordinary idle starts from zero again.
+        admit(&mut site, 3500, Some(Detection { skip: true, ..idle }));
+        admit(&mut site, 4200, Some(idle));
+        assert_eq!(read(&mut site), working_view);
+        admit(&mut site, 4900, Some(idle));
+        assert_eq!(read(&mut site).1.state, PanelAgentState::Idle);
+        sample.processes[1].creation_time += 1;
+        for ms in [5000, 5100, 8000] {
+            let at = now + Duration::from_millis(ms);
+            assert!(site.observe_host_screen(target, &sample, Some(working), at, at));
+            assert_eq!(read(&mut site).1.state, PanelAgentState::Unknown);
+        }
+        let at = now + Duration::from_millis(8100);
+        assert!(site.observe_host_screen(target, &sample, Some(working), at, at));
+        assert_eq!(read(&mut site).1.state, PanelAgentState::Working);
+    }
+    #[test]
+    fn process_only_query_cannot_consume_screen_republication_after_clear() {
+        use crate::agent_screen::Detection;
+        let (mut site, target, sample) = fixture();
+        let origin = Instant::now() - Duration::from_secs(10);
+        let working = Detection {
+            state: PanelAgentState::Working,
+            skip: false,
+            visible_working: true,
+            visible_idle: false,
+            visible_blocker: false,
+        };
+        assert!(site.observe_host_screen(target, &sample, Some(working), origin, origin));
+        let snapshot = site.workbench.as_ref().unwrap().snapshot().clone();
+        let PanelNode::Panel {
+            panel_id,
+            primary_presentation,
+            ..
+        } = &snapshot.terminal_contexts[0].tabs[0].root
+        else {
+            panic!("panel")
+        };
+        let send = |site: &mut SiteCoordinator, report: serde_json::Value| {
+            let request = PanelAgentRequest {
+                protocol_version: ProtocolVersion,
+                request_id: WorkbenchRequestId::parse(&format!("{:032x}", 901)).unwrap(),
+                site_id: snapshot.site_id.clone(),
+                action: PanelAgentAction::Report {
+                    panel_id: panel_id.clone(),
+                    expected_binding: primary_presentation.binding.clone().unwrap(),
+                    report: Box::new(serde_json::from_value(report).unwrap()),
+                },
+            };
+            assert!(matches!(
+                site.panel_agent(request, Instant::now()).unwrap().outcome,
+                PanelAgentOutcome::Reported { .. }
+            ));
+        };
+        send(
+            &mut site,
+            serde_json::json!({"kind":"session","source":"herdr:pi","agent":"pi","sequence":"1","agentSessionId":"full","sessionStartSource":"startup"}),
+        );
+        send(
+            &mut site,
+            serde_json::json!({"kind":"state","source":"herdr:pi","agent":"pi","sequence":"2","agentSessionId":"full","state":"blocked"}),
+        );
+        let at = Instant::now();
+        assert!(site.observe_host_screen(target, &sample, Some(working), at, at));
+        assert_eq!(read(&mut site).1.state, PanelAgentState::Blocked);
+        send(
+            &mut site,
+            serde_json::json!({"kind":"clear","source":"herdr:pi","sequence":"3"}),
+        );
+        let at = Instant::now();
+        assert!(site.observe_host_process(target, &sample, at, at));
+        assert_eq!(read(&mut site).1.state, PanelAgentState::Unknown);
+        let at = Instant::now();
+        assert!(site.observe_host_screen(target, &sample, Some(working), at, at));
+        let (_, view) = read(&mut site);
+        assert_eq!(view.state, PanelAgentState::Working);
+        assert_eq!(view.authority_source, None);
+    }
 }

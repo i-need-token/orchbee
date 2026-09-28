@@ -1,5 +1,6 @@
 //! Commit a complete Host Job sample after physical-generation validation; never infer exit from failure.
 use super::SiteCoordinator;
+use crate::agent_screen::{Detection, Stability};
 use crate::terminal_coordinator::BindingViewerTarget;
 use orchbee_agent_observation_protocol::{
     AgentProcessCandidate, AgentProcessSelection, AgentReportProvider, identify_agent_process,
@@ -7,19 +8,22 @@ use orchbee_agent_observation_protocol::{
 };
 use orchbee_server::{TerminalAgentBinding, TerminalAgentProcessObservation};
 use orchbee_terminal_protocol::TerminalProcessInfo;
-use orchbee_workbench_protocol::{PanelAgentState, PresentationBinding};
+use orchbee_workbench_protocol::PresentationBinding;
 use std::{collections::BTreeMap, time::Instant};
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-struct Selected {
+pub(crate) struct Selected {
     pid: u32,
     created: u64,
-    provider: AgentReportProvider,
+    pub(crate) provider: AgentReportProvider,
 }
 pub(super) struct Sample {
     target: TerminalAgentBinding,
     started: Instant,
     selected: Option<Selected>,
     input_revision: u64,
+    first_seen: Instant,
+    screen: Stability,
+    screen_input_revision: u64,
 }
 pub(super) type Samples = BTreeMap<(String, String), Sample>;
 fn key(binding: &PresentationBinding) -> (String, String) {
@@ -28,7 +32,7 @@ fn key(binding: &PresentationBinding) -> (String, String) {
         binding.terminal_id.as_str().into(),
     )
 }
-fn identify(sample: &TerminalProcessInfo) -> Option<Selected> {
+pub(crate) fn identify(sample: &TerminalProcessInfo) -> Option<Selected> {
     let candidates: Vec<_> = sample
         .processes
         .iter()
@@ -64,10 +68,22 @@ fn identify(sample: &TerminalProcessInfo) -> Option<Selected> {
 }
 impl SiteCoordinator {
     /// Called only after a correlated Host response and current Worker registry fence, under the Site gate.
+    #[cfg(test)]
     pub(crate) fn observe_host_process(
         &mut self,
         target: BindingViewerTarget,
         sample: &TerminalProcessInfo,
+        started: Instant,
+        now: Instant,
+    ) -> bool {
+        self.observe_host_screen(target, sample, None, started, now)
+    }
+    /// Screen evidence must be bounded and associated with the same process on both sides of capture.
+    pub(crate) fn observe_host_screen(
+        &mut self,
+        target: BindingViewerTarget,
+        sample: &TerminalProcessInfo,
+        detection: Option<Detection>,
         started: Instant,
         now: Instant,
     ) -> bool {
@@ -132,6 +148,43 @@ impl SiteCoordinator {
         } else {
             (None, old)
         };
+        let same = prior.filter(|p| p.selected == retained);
+        let first_seen = same.map_or(started, |p| p.first_seen);
+        let mut screen = same.map_or_else(
+            || Stability::new(Detection::fallback(false)),
+            |p| p.screen.clone(),
+        );
+        let mut screen_input_revision = same.map_or(0, |p| p.screen_input_revision);
+        let mut fallback = None;
+        if departed.is_none()
+            && selected.is_some()
+            && selected == retained
+            && let Some(detection) = detection
+            && started.saturating_duration_since(first_seen) >= std::time::Duration::from_secs(3)
+        {
+            let Ok(tick) = u64::try_from(started.saturating_duration_since(first_seen).as_millis())
+            else {
+                return false;
+            };
+            let Ok(prepared) = screen.prepare(detection, tick, false) else {
+                return false;
+            };
+            screen = prepared.next;
+            let republish = screen_input_revision != input_revision
+                && !detection.skip
+                && screen.published() == detection;
+            if !detection.skip && screen.published() == detection {
+                screen_input_revision = input_revision;
+            }
+            fallback = prepared
+                .publish
+                .or(republish.then_some(detection))
+                .map(|p| orchbee_server::TerminalAgentScreenObservation {
+                    state: p.state,
+                    visible_blocker: p.visible_blocker,
+                });
+        }
+        let event = event.or_else(|| fallback.and(selected.map(|p| (p.provider, false))));
         if let Some((provider, exited)) = event
             && workbench
                 .observe_terminal_agent(
@@ -140,8 +193,7 @@ impl SiteCoordinator {
                     TerminalAgentProcessObservation {
                         observed_at: started,
                         agent: Some(provider),
-                        state: PanelAgentState::Unknown,
-                        visible_blocker: false,
+                        fallback,
                         exited,
                     },
                     now,
@@ -158,6 +210,9 @@ impl SiteCoordinator {
                 started,
                 selected: retained,
                 input_revision,
+                first_seen,
+                screen,
+                screen_input_revision,
             },
         );
         true

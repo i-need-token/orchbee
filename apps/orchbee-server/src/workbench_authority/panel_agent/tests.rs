@@ -255,7 +255,7 @@ fn metadata_read(
 #[test]
 fn process_exit_commits_metadata_cleanup_and_blocks_late_reports_without_dropping_tokens() {
     use orchbee_agent_observation_protocol::AgentReportProvider as Provider;
-    use orchbee_workbench_protocol::{MetadataTokenKey, PanelAgentState};
+    use orchbee_workbench_protocol::MetadataTokenKey;
     let mut a = owner();
     let fact = physical(1, 1);
     let facts = [fact.clone()];
@@ -273,8 +273,7 @@ fn process_exit_commits_metadata_cleanup_and_blocks_late_reports_without_droppin
     let observation = TerminalAgentProcessObservation {
         observed_at: now + std::time::Duration::from_millis(10),
         agent: Some(Provider::Codex),
-        state: PanelAgentState::Unknown,
-        visible_blocker: false,
+        fallback: None,
         exited: true,
     };
     let result = a
@@ -334,7 +333,6 @@ fn process_exit_commits_metadata_cleanup_and_blocks_late_reports_without_droppin
 #[test]
 fn failed_process_commit_preserves_metadata_and_report_state_and_clock_keeps_sample_time() {
     use orchbee_agent_observation_protocol::AgentReportProvider as Provider;
-    use orchbee_workbench_protocol::PanelAgentState;
     let mut a = owner();
     let fact = physical(1, 1);
     let facts = [fact.clone()];
@@ -345,8 +343,10 @@ fn failed_process_commit_preserves_metadata_and_report_state_and_clock_keeps_sam
     let observation = TerminalAgentProcessObservation {
         observed_at: now,
         agent: Some(Provider::Codex),
-        state: PanelAgentState::Unknown,
-        visible_blocker: false,
+        fallback: Some(TerminalAgentScreenObservation {
+            state: orchbee_workbench_protocol::PanelAgentState::Unknown,
+            visible_blocker: false,
+        }),
         exited: true,
     };
     assert_eq!(
@@ -470,8 +470,7 @@ fn per_binding_explicit_input_stamp_ignores_process_writes_and_other_bindings() 
             TerminalAgentProcessObservation {
                 observed_at: now,
                 agent: Some(orchbee_agent_observation_protocol::AgentReportProvider::Codex),
-                state: orchbee_workbench_protocol::PanelAgentState::Unknown,
-                visible_blocker: false,
+                fallback: None,
                 exited: false,
             },
             now,

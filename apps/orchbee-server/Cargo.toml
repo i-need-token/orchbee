@@ -32,6 +32,9 @@ orchbee-workbench-protocol = { path = "../../crates/workbench-protocol" }
 nix = { version = "0.31.3", default-features = false, features = ["fs", "poll", "process"] }
 
 [target.'cfg(windows)'.dependencies]
+# Pinned provider screen rules compiled once by the Windows sampler.
+regex = { version = "=1.13.1", default-features = false, features = ["std", "unicode", "perf"] }
+toml = { version = "=1.1.6", default-features = false, features = ["std", "parse", "serde"] }
 # Parse Host process command lines with the Windows API; never infer identity from shell text.
 winsafe = { workspace = true, features = ["shell"] }
 
@@ -39,6 +42,6 @@ winsafe = { workspace = true, features = ["shell"] }
 workspace = true
 
 [dev-dependencies]
-# The deterministic screen-rule engine is verified before Host publication integration.
+# Portable pure-rule conformance tests use the same locked parser versions.
 regex = { version = "=1.13.1", default-features = false, features = ["std", "unicode", "perf"] }
 toml = { version = "=1.1.6", default-features = false, features = ["std", "parse", "serde"] }

@@ -1,12 +1,13 @@
-//! One temporary process-only viewer; unsettled cleanup blocks the sampler's next attachment.
+//! One temporary process/screen viewer; unsettled cleanup blocks the sampler's next attachment.
 use super::{
     BindingViewerTarget, ClientSiteId, ClientTerminalId, ClientWorkerId, LocalTerminalService,
-    TargetLifecycle, WorkerAction, WorkerOperationRequest, WorkerOperationResult, WorkerOutcome,
-    WorkerRequest, WorkerRequestError, WorkerRequestHandle, routing,
+    TargetLifecycle, WorkerOperationRequest, WorkerOperationResult, WorkerOutcome, WorkerRequest,
+    WorkerRequestError, WorkerRequestHandle,
 };
+use crate::agent_screen::ScreenDetector;
 use crate::site_coordinator::ProcessObservationTarget;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::time::Instant;
+mod screen;
 
 /// Owned by the periodic sampler until exact Detach/Disposed, or matching Site shutdown proves Worker exit.
 pub(in crate::local_terminal_service) struct PendingCleanup {
@@ -42,6 +43,7 @@ impl LocalTerminalService {
         &self,
         target: &ProcessObservationTarget,
         stop: &AtomicBool,
+        detector: &ScreenDetector,
     ) -> Option<PendingCleanup> {
         if stop.load(Ordering::Acquire) {
             return None;
@@ -99,25 +101,8 @@ impl LocalTerminalService {
             && !stop.load(Ordering::Acquire)
             && self.viewer_worker_is_current(&issued.viewer.handle)
             && self.target_lifecycle(issued.viewer.target) == Some(TargetLifecycle::Unfenced)
-            && let Some(request_id) = self.next_viewer_operation()
         {
-            let started = Instant::now();
-            let result =
-                issued
-                    .viewer
-                    .handle
-                    .request(WorkerOperationRequest::Viewer(WorkerRequest {
-                        request_id,
-                        action: WorkerAction::ReadProcessInfo,
-                        ..template
-                    }));
-            // Cancellation still consumes the required response, but no longer admits it as fresh state.
-            if !stop.load(Ordering::Acquire)
-                && let Ok(WorkerOperationResult::Viewer(result)) = result
-                && let WorkerOutcome::Record(record) = result.outcome
-            {
-                routing::valid_process_record(&issued.viewer, request_id, &record, started);
-            }
+            screen::observe(&mut issued.viewer, template, stop, detector);
         }
         let pending = PendingCleanup {
             handle: issued.viewer.handle.clone(),

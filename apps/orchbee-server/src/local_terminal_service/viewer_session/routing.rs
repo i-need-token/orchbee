@@ -316,19 +316,39 @@ pub(super) fn valid_process_record(
     record: &[u8],
     started: std::time::Instant,
 ) -> bool {
+    match process_record(viewer, operation, record) {
+        Ok(Some(info)) => {
+            #[cfg(windows)]
+            viewer.service.observe_host_process(
+                &viewer.handle,
+                viewer.target,
+                &info,
+                None,
+                started,
+            );
+            #[cfg(not(windows))]
+            let _ = (info, started);
+            true
+        }
+        Ok(None) => true,
+        Err(()) => false,
+    }
+}
+/// Validates complete correlated process evidence without publishing it.
+pub(super) fn process_record(
+    viewer: &ViewerAttachment<'_>,
+    operation: OperationId,
+    record: &[u8],
+) -> Result<Option<orchbee_terminal_protocol::TerminalProcessInfo>, ()> {
     use orchbee_terminal_protocol::{
         ConnectionControl, MAXIMUM_CONTROL_JSON_BYTES, ProcessInfoControl,
         TRANSPORT_ENVELOPE_HEADER_BYTES, decode_connection_control, decode_process_info_control,
     };
     if record.len() > TRANSPORT_ENVELOPE_HEADER_BYTES + MAXIMUM_CONTROL_JSON_BYTES {
-        return false;
+        return Err(());
     }
-    let (Ok(envelope), Ok(correlation)) = (
-        decode_transport_envelope(record),
-        CorrelationId::from_bytes(operation.as_bytes()),
-    ) else {
-        return false;
-    };
+    let envelope = decode_transport_envelope(record).map_err(|_| ())?;
+    let correlation = CorrelationId::from_bytes(operation.as_bytes()).map_err(|_| ())?;
     if envelope.protocol != CURRENT_PROTOCOL_VERSION
         || envelope.role != MessageRole::Response
         || envelope.correlation_id != Some(correlation)
@@ -336,26 +356,25 @@ pub(super) fn valid_process_record(
         || envelope.optional_message
         || envelope.payload_encoding != PayloadEncoding::ControlJson
     {
-        return false;
+        return Err(());
     }
-    match decode_process_info_control(envelope.kind, envelope.role, envelope.payload) {
-        Ok(ProcessInfoControl::ProcessInfo(info)) => {
-            let valid = info.attachment_id == viewer.projection.attachment_id
-                && info.terminal_id.as_bytes() == &viewer.target.identity.terminal_id().as_bytes();
-            #[cfg(windows)]
-            if valid {
-                viewer
-                    .service
-                    .observe_host_process(&viewer.handle, viewer.target, &info, started);
-            }
-            #[cfg(not(windows))]
-            let _ = started;
-            valid
+    if let Ok(ProcessInfoControl::ProcessInfo(info)) =
+        decode_process_info_control(envelope.kind, envelope.role, envelope.payload)
+    {
+        if info.attachment_id != viewer.projection.attachment_id
+            || info.terminal_id.as_bytes() != &viewer.target.identity.terminal_id().as_bytes()
+        {
+            return Err(());
         }
-        _ => matches!(
-            decode_connection_control(envelope.kind, envelope.role, envelope.payload),
-            Ok(ConnectionControl::TypedFailure(_))
-        ),
+        return Ok(Some(info));
+    }
+    if matches!(
+        decode_connection_control(envelope.kind, envelope.role, envelope.payload),
+        Ok(ConnectionControl::TypedFailure(_))
+    ) {
+        Ok(None)
+    } else {
+        Err(())
     }
 }
 
@@ -364,7 +383,7 @@ pub(super) fn valid_process_record(
 /// projection never sees. The event validates its complete envelope plus the
 /// decoded payload's exact attachment identity; anything else remains the
 /// projection's strict rejection.
-fn valid_poll_record(viewer: &mut ViewerAttachment, record: &[u8]) -> bool {
+pub(super) fn valid_poll_record(viewer: &mut ViewerAttachment, record: &[u8]) -> bool {
     let Ok(envelope) = decode_transport_envelope(record) else {
         return false;
     };
@@ -387,7 +406,7 @@ fn valid_poll_record(viewer: &mut ViewerAttachment, record: &[u8]) -> bool {
 /// A ReadRows record is accepted only when the complete OBTP envelope and the
 /// OBRW header both name this exact request: the Server-issued operation is the
 /// Host correlation, and every pinned window field echoes the request.
-fn valid_rows_record(
+pub(super) fn valid_rows_record(
     action: &Action,
     viewer: &ViewerAttachment,
     operation: OperationId,

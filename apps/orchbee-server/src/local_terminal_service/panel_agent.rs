@@ -38,6 +38,7 @@ impl LocalTerminalService {
         handle: &crate::worker_obcn_carrier::WorkerRequestHandle,
         target: crate::terminal_coordinator::BindingViewerTarget,
         sample: &orchbee_terminal_protocol::TerminalProcessInfo,
+        screen: Option<crate::agent_screen::Detection>,
         started: std::time::Instant,
     ) {
         let Ok(workers) = self.workers.lock() else {
@@ -52,6 +53,6 @@ impl LocalTerminalService {
         let Ok(mut coordinator) = self.coordinator.lock() else {
             return;
         };
-        coordinator.observe_host_process(target, sample, started, std::time::Instant::now());
+        coordinator.observe_host_screen(target, sample, screen, started, std::time::Instant::now());
     }
 }

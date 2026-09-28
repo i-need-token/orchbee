@@ -1,6 +1,6 @@
 #[cfg(any(unix, windows))]
 mod agent;
-#[cfg(test)]
+#[cfg(any(windows, test))]
 mod agent_screen;
 #[cfg(any(unix, windows))]
 mod agent_service;

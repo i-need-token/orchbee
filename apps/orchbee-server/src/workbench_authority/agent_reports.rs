@@ -91,12 +91,17 @@ fn serialize_provider<S: serde::Serializer>(
     provider.map(Provider::report_label).serialize(serializer)
 }
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+pub(super) struct Fallback {
+    pub(super) status: Status,
+    pub(super) visible_blocker: bool,
+}
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
 pub(super) struct Process {
     pub(super) observed_at: u64,
     #[serde(serialize_with = "serialize_provider")]
     pub(super) agent: Option<Provider>,
-    pub(super) status: Status,
-    pub(super) visible_blocker: bool,
+    #[serde(flatten)]
+    pub(super) fallback: Option<Fallback>,
     pub(super) exited: bool,
 }
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]

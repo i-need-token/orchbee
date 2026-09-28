@@ -49,9 +49,15 @@ impl Reports {
                 process.agent,
             );
         }
-        self.fallback = process.status;
-        self.visible_blocker = process.visible_blocker && process.status == Status::Blocked;
-        self.observed_at = Some(at);
+        if let Some(fallback) = process.fallback {
+            self.fallback = fallback.status;
+            self.visible_blocker = fallback.visible_blocker && fallback.status == Status::Blocked;
+            self.observed_at = Some(at);
+        } else if process.exited || replacement || previous_detected != process.agent {
+            self.fallback = Status::Unknown;
+            self.visible_blocker = false;
+            self.observed_at = None;
+        }
         if process.exited {
             if let Some(agent) = process.agent {
                 self.recent_exit = Some((agent.report_label().to_owned(), at));

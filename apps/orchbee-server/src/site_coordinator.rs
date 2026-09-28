@@ -43,7 +43,7 @@ mod agent_registration;
 #[cfg(windows)]
 mod process_observation;
 #[cfg(windows)]
-pub(crate) use process_observation::ProcessObservationTarget;
+pub(crate) use process_observation::{ProcessObservationTarget, identify as identify_host_agent};
 
 pub(crate) struct SiteCoordinator {
     terminals: TerminalCoordinator,

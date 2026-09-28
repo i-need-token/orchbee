@@ -333,9 +333,14 @@ mod tests;
 pub struct TerminalAgentProcessObservation {
     pub observed_at: Instant,
     pub agent: Option<orchbee_agent_observation_protocol::AgentReportProvider>,
+    pub fallback: Option<TerminalAgentScreenObservation>,
+    pub exited: bool,
+}
+/// Fresh screen evidence associated with this exact process sample and its start time.
+#[derive(Clone, Copy, Debug)]
+pub struct TerminalAgentScreenObservation {
     pub state: orchbee_workbench_protocol::PanelAgentState,
     pub visible_blocker: bool,
-    pub exited: bool,
 }
 /// Both report and metadata candidates have committed when this result is returned.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -430,8 +435,12 @@ impl WorkbenchAuthority {
             Event::Process(super::agent_reports::Process {
                 observed_at: observation_tick,
                 agent: observation.agent,
-                status: observation.state,
-                visible_blocker: observation.visible_blocker,
+                fallback: observation
+                    .fallback
+                    .map(|f| super::agent_reports::Fallback {
+                        status: f.state,
+                        visible_blocker: f.visible_blocker,
+                    }),
                 exited: observation.exited,
             }),
             self.panel_agent.time(now)?,
