@@ -19,6 +19,10 @@ mod send_key;
 pub(crate) use layouts::{LayoutApplyCommand, LayoutDestination, LayoutExportCommand};
 #[cfg(windows)]
 pub(crate) use named_sessions::NamedSessionCommand;
+#[cfg(windows)]
+mod machines;
+#[cfg(windows)]
+pub(crate) use machines::MachineCommand;
 mod creation;
 #[cfg(windows)]
 mod workspace_creation;
@@ -176,6 +180,8 @@ pub(crate) enum HelpTopic {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum Family {
     #[cfg(windows)]
+    Machine,
+    #[cfg(windows)]
     Plugin,
     #[cfg(windows)]
     PluginAction,
@@ -241,6 +247,8 @@ impl Family {
             Self::Config => "config",
             #[cfg(windows)]
             Self::Channel => "channel",
+            #[cfg(windows)]
+            Self::Machine => "machine",
             Self::Completion => "completion",
         }
     }
@@ -248,6 +256,19 @@ impl Family {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum CommandPath {
+    #[cfg(windows)]
+    MachineList,
+    #[cfg(windows)]
+    MachineAdd,
+    #[cfg(windows)]
+    MachineRename,
+    #[cfg(windows)]
+    MachineRemove,
+    #[cfg(windows)]
+    MachineEnable,
+    #[cfg(windows)]
+    MachineDisable,
+
     #[cfg(windows)]
     PluginInstall,
     #[cfg(windows)]
@@ -528,6 +549,19 @@ impl CommandPath {
             Self::ConfigResetKeys => "config reset-keys",
             #[cfg(windows)]
             Self::ChannelShow => "channel show",
+            #[cfg(windows)]
+            Self::MachineList => "machine list",
+            #[cfg(windows)]
+            Self::MachineAdd => "machine add",
+            #[cfg(windows)]
+            Self::MachineRename => "machine rename",
+            #[cfg(windows)]
+            Self::MachineRemove => "machine remove",
+            #[cfg(windows)]
+            Self::MachineEnable => "machine enable",
+            #[cfg(windows)]
+            Self::MachineDisable => "machine disable",
+
             #[cfg(windows)]
             Self::ChannelSet => "channel set",
             #[cfg(windows)]
@@ -1292,6 +1326,11 @@ pub(crate) enum RuntimeStatusScope {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum Request {
+    #[cfg(windows)]
+    Machine {
+        command: MachineCommand,
+        format: OutputFormat,
+    },
     PanelAgent {
         command: PanelAgentCommand,
         format: OutputFormat,
@@ -1502,6 +1541,12 @@ pub(crate) enum UsageContext {
 /// expect; rendered per locale, never serialized.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum ExpectedValue {
+    #[cfg(windows)]
+    MachineId,
+    #[cfg(windows)]
+    MachineLabel,
+    #[cfg(windows)]
+    SshTarget,
     #[cfg(windows)]
     PluginId,
     #[cfg(windows)]
@@ -1755,6 +1800,8 @@ enum Token {
 
 #[derive(Default)]
 struct Options {
+    remote_session: Option<String>,
+    machine_json: bool,
     plugin_enabled: bool,
     plugin_disabled: bool,
     plugin_id: Option<String>,
@@ -1884,6 +1931,8 @@ struct Options {
 /// both the format-envelope walk and the option scan so ownership is decided
 /// identically in the two passes.
 const VALUE_FLAGS: &[&str] = &[
+    #[cfg(windows)]
+    "--remote-session",
     "--entrypoint",
     "--placement",
     "--target-pane",
@@ -2123,6 +2172,13 @@ fn format_envelope(tokens: &[String]) -> Result<Option<OutputFormat>, ParseFailu
         let token = tokens[index].as_str();
         match token {
             "--" => break,
+            #[cfg(windows)]
+            "--json" => {
+                if format.replace(OutputFormat::Json).is_some() {
+                    return Err(duplicate());
+                }
+                index += 1;
+            }
             "--format" => {
                 let Some(value) = tokens.get(index + 1).filter(|value| value.as_str() != "--")
                 else {
@@ -2178,6 +2234,11 @@ fn scan(tokens: Vec<String>) -> Result<SelectedRequest, ParseFailure> {
             continue;
         }
         match token.as_str() {
+            #[cfg(windows)]
+            "--json" => {
+                options.machine_json = true;
+                index += 1;
+            }
             "--" => {
                 ended = true;
                 index += 1;
@@ -2570,6 +2631,8 @@ fn apply_value_flag(
         "--after-revision" => &mut options.after_revision,
         "--name" => &mut options.name,
         "--session" => &mut options.session,
+        #[cfg(windows)]
+        "--remote-session" => &mut options.remote_session,
         "--profile" => &mut options.profile,
         "--adapter-source" => &mut options.adapter_source,
         "--regex" => &mut options.regex,
@@ -2715,6 +2778,8 @@ fn resolve_words(
         ["layout", "apply"] => layouts::apply(options, envelope),
         #[cfg(windows)]
         ["session", ..] => named_sessions::parse(words, options, envelope),
+        #[cfg(windows)]
+        ["machine", ..] => machines::parse(words, options, envelope),
         ["client", ..]
         | ["layout", ..]
         | ["agent", "focus" | "attention", ..]
@@ -4846,6 +4911,21 @@ fn help_topic(path: &[&str]) -> Option<HelpTopic> {
         #[cfg(windows)]
         ["channel"] => HelpTopic::Family(Family::Channel),
         #[cfg(windows)]
+        ["machine"] => HelpTopic::Family(Family::Machine),
+        #[cfg(windows)]
+        ["machine", "list"] => HelpTopic::Command(CommandPath::MachineList),
+        #[cfg(windows)]
+        ["machine", "add"] => HelpTopic::Command(CommandPath::MachineAdd),
+        #[cfg(windows)]
+        ["machine", "rename"] => HelpTopic::Command(CommandPath::MachineRename),
+        #[cfg(windows)]
+        ["machine", "remove"] => HelpTopic::Command(CommandPath::MachineRemove),
+        #[cfg(windows)]
+        ["machine", "enable"] => HelpTopic::Command(CommandPath::MachineEnable),
+        #[cfg(windows)]
+        ["machine", "disable"] => HelpTopic::Command(CommandPath::MachineDisable),
+
+        #[cfg(windows)]
         ["channel", "show"] => HelpTopic::Command(CommandPath::ChannelShow),
         #[cfg(windows)]
         ["channel", "set"] => HelpTopic::Command(CommandPath::ChannelSet),
@@ -5058,6 +5138,8 @@ fn mutation(command: MutationCommand, options: &Options) -> Request {
 /// is only meaningful whole.
 #[derive(Clone, Copy)]
 struct Scope {
+    remote_session: bool,
+    machine_json: bool,
     plugin: bool,
     plugin_select: bool,
     plugin_context: bool,
@@ -5194,6 +5276,8 @@ struct Scope {
 }
 
 const NO_OPTIONS: Scope = Scope {
+    remote_session: false,
+    machine_json: false,
     plugin: false,
     plugin_select: false,
     plugin_context: false,
@@ -5526,7 +5610,9 @@ const INTEGRATION_SCOPE: Scope = Scope {
 
 /// Any mutation-only option seen outside a mutation command.
 fn business_options(options: &Options) -> bool {
-    options.plugin_target.is_some()
+    options.remote_session.is_some()
+        || options.machine_json
+        || options.plugin_target.is_some()
         || options.plugin_entrypoint.is_some()
         || options.plugin_placement.is_some()
         || options.plugin_id.is_some()
@@ -5609,6 +5695,12 @@ fn business_options(options: &Options) -> bool {
 /// The first named option present but outside `scope`, in the fixed `Options`
 /// declaration order — deterministic without any argv-order state.
 fn first_out_of_scope(options: &Options, scope: Scope) -> Option<&'static str> {
+    if options.remote_session.is_some() && !scope.remote_session {
+        return Some("--remote-session");
+    }
+    if options.machine_json && !scope.machine_json {
+        return Some("--json");
+    }
     if !scope.plugin_install {
         if options.plugin_yes {
             return Some("--yes");

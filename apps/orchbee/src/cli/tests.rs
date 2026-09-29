@@ -301,6 +301,8 @@ fn fixed_outputs_are_far_below_the_bound() {
         Family::Config,
         #[cfg(windows)]
         Family::Channel,
+        #[cfg(windows)]
+        Family::Machine,
         Family::LaunchProfile,
         Family::Panel,
         Family::Layout,
@@ -375,6 +377,18 @@ fn fixed_outputs_are_far_below_the_bound() {
         CommandPath::ApiSnapshot,
         #[cfg(windows)]
         CommandPath::ChannelShow,
+        #[cfg(windows)]
+        CommandPath::MachineList,
+        #[cfg(windows)]
+        CommandPath::MachineAdd,
+        #[cfg(windows)]
+        CommandPath::MachineRename,
+        #[cfg(windows)]
+        CommandPath::MachineRemove,
+        #[cfg(windows)]
+        CommandPath::MachineEnable,
+        #[cfg(windows)]
+        CommandPath::MachineDisable,
         #[cfg(windows)]
         CommandPath::ChannelSet,
         #[cfg(windows)]
@@ -488,6 +502,8 @@ fn fixed_outputs_are_far_below_the_bound() {
     // trailing `--help` and the `help` prefix.
     let roots = [
         #[cfg(windows)]
+        "machine",
+        #[cfg(windows)]
         "channel",
         #[cfg(windows)]
         "update",
@@ -513,6 +529,7 @@ fn fixed_outputs_are_far_below_the_bound() {
         "worktree",
     ];
     let verbs = [
+        "add",
         "show",
         "install",
         "uninstall",

@@ -10,7 +10,7 @@
 			"const": "orchbee.api.schema"
 		},
 		"version": {
-			"const": 118
+			"const": 119
 		},
 		"source": {
 			"type": "object",
@@ -157,7 +157,8 @@
 						"orchbee.plugin.provision",
 						"orchbee.plugin.logs",
 						"orchbee.channel.show",
-						"orchbee.update"
+						"orchbee.update",
+						"orchbee.machine"
 					],
 					"propertyNames": {
 						"$ref": "#/$defs/schemaId"
@@ -273,7 +274,8 @@
 				"orchbee.plugin.provision",
 				"orchbee.plugin.logs",
 				"orchbee.channel.show",
-				"orchbee.update"
+				"orchbee.update",
+				"orchbee.machine"
 			]
 		}
 	}

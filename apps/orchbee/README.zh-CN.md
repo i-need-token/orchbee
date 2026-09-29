@@ -29,6 +29,8 @@
 
 Windows `channel show [--format text|json]` 从共享用户配置读取严格的 stable/preview 偏好，不激活 Site。参见[配置及频道来源](docs/windows-cli-configuration.zh-CN.md#规则更新策略)。
 
+Windows `machine list|add|rename|remove|enable|disable` 管理已保存的 SSH 配置，并在添加前检查远端 Windows 就绪状态。持久化、部分结果及尚未完成的 TUI 实时集成见[已保存的 Windows 机器](docs/machines.zh-CN.md)。
+
 Windows `update` 与 `channel set` 共用完整 cohort 安装、显式发布源、独立版本发布和单独的用户 PATH 激活。详见 [Windows 版本安装](docs/windows-cli-configuration.zh-CN.md#windows-版本安装)。
 
 ## 命令面

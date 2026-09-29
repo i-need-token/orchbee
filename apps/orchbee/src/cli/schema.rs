@@ -39,6 +39,10 @@ pub(crate) const PROJECT_RENAME_RESULT_ID: &str = "orchbee.project.rename";
 /// `schema` id → embedded document, in dictionary order.
 const DOCUMENTS: &[(&str, &str)] = &[
     (
+        "orchbee.machine",
+        include_str!("schemas/orchbee.machine.json"),
+    ),
+    (
         "orchbee.update",
         include_str!("schemas/orchbee.update.json"),
     ),
@@ -511,7 +515,7 @@ pub(crate) fn answer(schema_id: Option<&str>, format: OutputFormat, locale: Loca
     let document = json!({
         "schema": "orchbee.api.schema",
         // Adds membership-checked plugin Pane focus and close.
-        "version": 118,
+        "version": 119,
         "source": embedded_source(),
         "result": result,
     });

@@ -32,6 +32,8 @@ See [Windows Agent startup](docs/windows-agent-start.md) for setup, limits and r
 
 Windows `channel show [--format text|json]` reads the strict stable/preview preference from the shared user configuration without activating a Site. See [configuration and channel provenance](docs/windows-cli-configuration.md#rule-update-policy).
 
+Windows `machine list|add|rename|remove|enable|disable` manages saved SSH profiles with remote Windows readiness checks before add. See [saved Windows machines](docs/machines.md) for persistence, partial outcomes, and remaining live TUI integration.
+
 Windows `update` and `channel set` share complete-cohort installation, explicit release sources, immutable publication and separate user PATH activation. See [Windows release installation](docs/windows-cli-configuration.md#windows-release-installation).
 
 ## Command surface

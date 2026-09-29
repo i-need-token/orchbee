@@ -1,6 +1,13 @@
 //! Shared observable completion obligations, independent of shell syntax.
 
 pub(super) const CASES: &[(&str, &str, bool)] = &[
+    ("orchbee mach", "machine", true),
+    ("orchbee machine ", "add", true),
+    ("orchbee help machine ", "disable", true),
+    ("orchbee machine add host --r", "--remote-session", true),
+    ("orchbee machine remove id --r", "--remote-session", false),
+    ("orchbee machine list --j", "--json", true),
+    ("orchbee machine list --json --f", "--format", false),
     ("orchbee up", "update", true),
     ("orchbee channel ", "set", true),
     ("orchbee help channel ", "set", true),

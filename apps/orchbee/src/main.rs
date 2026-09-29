@@ -21,6 +21,8 @@ mod local_client;
 mod local_startup;
 mod localization;
 #[cfg(windows)]
+mod machines;
+#[cfg(windows)]
 mod notifications;
 mod presentation;
 #[cfg(any(unix, windows))]
@@ -101,6 +103,10 @@ fn main() -> ExitCode {
             Err(failure) => cli::parse_failure(failure, locale),
             Ok(invocation::Request::Tui { .. }) => {
                 cli::process_result(present(Ok(Invocation::Tui), locale), locale)
+            }
+            #[cfg(windows)]
+            Ok(invocation::Request::Machine { command, format }) => {
+                cli::machines::run(&command, format, locale)
             }
             Ok(invocation::Request::Version) => {
                 cli::process_result(present(Ok(Invocation::Version), locale), locale)

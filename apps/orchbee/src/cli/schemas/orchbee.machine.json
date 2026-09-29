@@ -1,0 +1,190 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "orchbee.machine",
+	"title": "Saved Windows SSH machine command receipt",
+	"type": "object",
+	"additionalProperties": false,
+	"required": ["schema", "version", "source", "operation", "result"],
+	"properties": {
+		"schema": {
+			"const": "orchbee.machine"
+		},
+		"version": {
+			"const": 1
+		},
+		"source": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["kind"],
+			"properties": {
+				"kind": {
+					"const": "saved-machines"
+				}
+			}
+		},
+		"operation": {
+			"enum": ["list", "add", "rename", "remove", "enable", "disable"]
+		},
+		"result": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": [
+				"profileId",
+				"revision",
+				"profiles",
+				"changed",
+				"committed",
+				"remote",
+				"error",
+				"interrupted"
+			],
+			"properties": {
+				"profileId": {
+					"anyOf": [
+						{
+							"type": "string",
+							"pattern": "^[0-9a-f]{32}$"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"revision": {
+					"anyOf": [
+						{
+							"type": "integer",
+							"minimum": 0,
+							"maximum": 9007199254740991
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"profiles": {
+					"anyOf": [
+						{
+							"type": "array",
+							"maxItems": 64,
+							"items": {
+								"type": "object",
+								"additionalProperties": false,
+								"required": ["id", "label", "target", "session", "enabled"],
+								"properties": {
+									"id": {
+										"type": "string",
+										"pattern": "^[0-9a-f]{32}$"
+									},
+									"label": {
+										"type": "string",
+										"minLength": 1,
+										"maxLength": 128
+									},
+									"target": {
+										"type": "string",
+										"minLength": 1,
+										"maxLength": 1024
+									},
+									"session": {
+										"type": "string",
+										"pattern": "^[A-Za-z0-9._-]{1,64}$"
+									},
+									"enabled": {
+										"type": "boolean"
+									}
+								}
+							}
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"changed": {
+					"type": "boolean"
+				},
+				"committed": {
+					"type": "boolean"
+				},
+				"remote": {
+					"enum": ["not-contacted", "unchanged", "possibly-started", "ready"]
+				},
+				"error": {
+					"enum": [
+						null,
+						"configuration",
+						"invalid-catalog",
+						"storage",
+						"busy",
+						"not-found",
+						"capacity",
+						"revision-exhausted",
+						"ssh-unavailable",
+						"ssh-failed",
+						"remote-protocol",
+						"remote-incompatible",
+						"remote-not-ready",
+						"cancelled",
+						"timeout",
+						"physical-unknown",
+						"internal"
+					]
+				},
+				"interrupted": {
+					"type": "boolean"
+				}
+			},
+			"allOf": [
+				{
+					"if": {
+						"properties": {
+							"changed": {
+								"const": true
+							}
+						}
+					},
+					"then": {
+						"properties": {
+							"committed": {
+								"const": true
+							},
+							"revision": {
+								"type": "integer"
+							},
+							"profiles": {
+								"type": "array"
+							}
+						}
+					},
+					"else": {
+						"properties": {
+							"committed": {
+								"const": false
+							}
+						}
+					}
+				},
+				{
+					"if": {
+						"properties": {
+							"error": {
+								"const": null
+							}
+						}
+					},
+					"then": {
+						"properties": {
+							"revision": {
+								"type": "integer"
+							},
+							"profiles": {
+								"type": "array"
+							}
+						}
+					}
+				}
+			]
+		}
+	}
+}

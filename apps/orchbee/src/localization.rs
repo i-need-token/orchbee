@@ -1,3 +1,5 @@
+#[cfg(windows)]
+mod machines;
 mod notification;
 #[cfg(windows)]
 mod plugins;

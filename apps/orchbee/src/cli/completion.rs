@@ -118,6 +118,8 @@ const ROOT_WORDS: &[&str] = &[
     "completion",
     "config",
     #[cfg(windows)]
+    "machine",
+    #[cfg(windows)]
     "channel",
     #[cfg(windows)]
     "update",
@@ -148,6 +150,8 @@ const FORMAT_ROOT_WORDS: &[&str] = &[
     "agent",
     "api",
     "config",
+    #[cfg(windows)]
+    "machine",
     #[cfg(windows)]
     "channel",
     #[cfg(windows)]
@@ -216,6 +220,11 @@ const FAMILY_VERBS: &[(&str, &[&str])] = &[
     ("config", &["check", "reset-keys"]),
     #[cfg(windows)]
     ("channel", &["show", "set"]),
+    #[cfg(windows)]
+    (
+        "machine",
+        &["list", "add", "rename", "remove", "enable", "disable"],
+    ),
     (
         "panel",
         &[
@@ -307,6 +316,10 @@ const FAMILY_VERBS: &[(&str, &[&str])] = &[
 /// Every business flag the grammar admits (`--format` is orthogonal), in the
 /// order the state machine records them.
 const BUSINESS_FLAGS: &[&str] = &[
+    #[cfg(windows)]
+    "--remote-session",
+    #[cfg(windows)]
+    "--json",
     "--yes",
     "--entrypoint",
     "--placement",
@@ -446,6 +459,12 @@ const REPEATABLE_FLAGS: &[&str] = &[
 const CONTROL_FLAGS: &[&str] = &["--cols", "--rows", "--timeout", "--takeover"];
 const OBSERVE_FLAGS: &[&str] = &["--cols", "--rows", "--timeout"];
 const COMMAND_FLAGS: &[(&str, &[&str])] = &[
+    #[cfg(windows)]
+    ("machine:list", &["--json"]),
+    #[cfg(windows)]
+    ("machine:add", &["--label", "--remote-session"]),
+    #[cfg(windows)]
+    ("machine:rename", &["--label"]),
     #[cfg(windows)]
     ("plugin:pane:focus", &["--client", "--timeout"]),
     #[cfg(windows)]
@@ -1206,6 +1225,16 @@ const PROVIDER_VALUES: &[&str] = &[
 /// `<family>:<verb>` paths that consume one positional operand.
 const OPERAND_PATHS: &[&str] = &[
     #[cfg(windows)]
+    "machine:add",
+    #[cfg(windows)]
+    "machine:rename",
+    #[cfg(windows)]
+    "machine:remove",
+    #[cfg(windows)]
+    "machine:enable",
+    #[cfg(windows)]
+    "machine:disable",
+    #[cfg(windows)]
     "channel:set",
     #[cfg(windows)]
     "plugin:pane:focus",
@@ -1321,6 +1350,8 @@ const HELP_TOPICS: &[&str] = &[
     "completion",
     "config",
     #[cfg(windows)]
+    "machine",
+    #[cfg(windows)]
     "channel",
     #[cfg(windows)]
     "update",
@@ -1390,6 +1421,11 @@ const HELP_CHILDREN: &[(&str, &[&str])] = &[
     ("config", &["check", "reset-keys"]),
     #[cfg(windows)]
     ("channel", &["show", "set"]),
+    #[cfg(windows)]
+    (
+        "machine",
+        &["list", "add", "rename", "remove", "enable", "disable"],
+    ),
     (
         "panel",
         &[
@@ -1507,6 +1543,9 @@ pub(crate) fn render(shell: CompletionShell) -> String {
 /// `flag` → the walker's one-shot seen bit for it.
 fn flag_bit(flag: &str) -> &'static str {
     match flag {
+        "--remote-session" => "seen_remote_session",
+        "--json" => "seen_json",
+        "--format" => "seen_format",
         "--entrypoint" => "seen_plugin_entrypoint",
         "--placement" => "seen_plugin_placement",
         "--target-pane" => "seen_plugin_target",
@@ -1627,7 +1666,7 @@ fn flag_bit(flag: &str) -> &'static str {
 /// owned value stays opaque (`filter`).
 fn flag_value(flag: &str) -> Option<&'static str> {
     match flag {
-        "--enabled" | "--disabled" => None,
+        "--json" | "--enabled" | "--disabled" => None,
         "--on" | "--off" | "--toggle" | "--focus" | "--no-focus" => None,
         "--cwd" => Some("cwd"),
         "--right-click" => Some("right_click"),
@@ -3925,6 +3964,8 @@ fn command_conflict_pairs(
 
 fn command_flag_conflicts(command: &str, flag: &str) -> &'static [&'static str] {
     match (command, flag) {
+        ("machine:list", "--json") => &["--format"],
+        ("machine:list", "--format") => &["--json"],
         ("plugin:link", "--enabled") => &["--disabled"],
         ("plugin:link", "--disabled") => &["--enabled"],
         ("panel:create-terminal", "--child") => &["--presentation"],
