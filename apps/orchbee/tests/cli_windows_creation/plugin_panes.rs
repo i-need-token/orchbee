@@ -2,10 +2,13 @@ use super::*;
 
 #[test]
 fn plugin_pane_open_submits_catalog_identity_once_and_preserves_canonical_receipts() {
-    for (split, focus, lost) in [
-        (false, false, false),
-        (true, true, false),
-        (true, false, true),
+    for (split, focus, lost, zoom, cut) in [
+        (false, false, false, false, Cut::Complete),
+        (true, true, false, false, Cut::Complete),
+        (true, false, true, false, Cut::Complete),
+        (true, false, false, true, Cut::Complete),
+        (true, false, false, true, Cut::FocusLost),
+        (true, false, false, true, Cut::SelectionChanged),
     ] {
         let fixture = Fixture::new();
         let manifest = fixture.0.join("orchbee-plugin.toml");
@@ -20,7 +23,7 @@ fn plugin_pane_open_submits_catalog_identity_once_and_preserves_canonical_receip
         let listener = LocalListener::bind(fixture.rendezvous().client_socket_path()).unwrap();
         let handler = peer(&fixture, listener, move |mut stream| {
             snapshot_reply(&mut stream, snapshot(false, split));
-            if !split || focus {
+            if !split || focus || zoom {
                 let request = view_request(&mut stream);
                 assert!(matches!(request.action, ClientViewAction::List {}));
                 view_reply(
@@ -66,9 +69,37 @@ fn plugin_pane_open_submits_catalog_identity_once_and_preserves_canonical_receip
                 }),
             )
             .unwrap();
-            if focus {
-                assert!(observe(&mut stream, split, Cut::Complete));
-                assert!(submit(&mut stream, split, false, Cut::Complete));
+            if focus || zoom {
+                if !observe(&mut stream, split, cut) {
+                    return;
+                }
+                if zoom {
+                    let request = view_request(&mut stream);
+                    let ClientViewAction::Submit { command } = &request.action else {
+                        panic!("combined focus and zoom");
+                    };
+                    assert_eq!(
+                        command.minimum_workbench_revision,
+                        WorkbenchRevision::new(13)
+                    );
+                    assert_eq!(json!(command.expected_view_revision), "3");
+                    assert_eq!(
+                        json!(command.intent),
+                        json!({"kind":"zoom","terminalContextId":id(4),"tabId":id(5),"panelId":id(20),"enabled":true})
+                    );
+                    if cut == Cut::FocusLost {
+                        return;
+                    }
+                    let mut view = record(true, true, true)["view"].clone();
+                    view["selection"]["zoomed"] = json!(true);
+                    view_reply(
+                        &mut stream,
+                        &request,
+                        json!({"kind":"operation","operation":{"command":command,"status":{"kind":"applied","view":view}}}),
+                    );
+                } else {
+                    assert!(submit(&mut stream, split, false, Cut::Complete));
+                }
             }
             assert_closed(&mut stream);
         });
@@ -86,7 +117,16 @@ fn plugin_pane_open_submits_catalog_identity_once_and_preserves_canonical_receip
             "--format=json",
         ];
         if split {
-            args.extend(["--placement", "split", "--target-pane", &panel]);
+            args.extend([
+                "--placement",
+                if zoom { "zoomed" } else { "split" },
+                "--target-pane",
+                &panel,
+                "--workspace",
+                "ignored-for-splits",
+            ]);
+        } else {
+            args.extend(["--target-pane", &panel]);
         }
         if !focus {
             args.push("--no-focus");
@@ -97,7 +137,31 @@ fn plugin_pane_open_submits_catalog_identity_once_and_preserves_canonical_receip
         if lost {
             assert_eq!(output.status.code(), Some(8), "{document}");
         } else {
-            assert!(output.status.success(), "{document}");
+            if cut == Cut::FocusLost {
+                assert_eq!(output.status.code(), Some(8), "{document}");
+            } else if cut == Cut::SelectionChanged {
+                assert!(!output.status.success(), "{document}");
+                assert_eq!(document["postCreate"]["failure"], "denied");
+            } else {
+                assert!(output.status.success(), "{document}");
+            }
+            assert_eq!(document["version"], if zoom { 4 } else { 3 });
+            if zoom {
+                assert_eq!(document["postCreate"]["requested"]["zoom"], true);
+                assert_eq!(document["postCreate"]["requested"]["focus"], true);
+                assert_eq!(document["result"]["outcome"], "committed");
+                let mut legacy = document.clone();
+                legacy["version"] = json!(3);
+                let schema: Value = serde_json::from_str(include_str!(
+                    "../../src/cli/schemas/orchbee.creation.result.json"
+                ))
+                .unwrap();
+                assert!(
+                    !jsonschema::validator_for(&schema)
+                        .unwrap()
+                        .is_valid(&legacy)
+                );
+            }
             validate(
                 &document,
                 include_str!("../../src/cli/schemas/orchbee.creation.result.json"),

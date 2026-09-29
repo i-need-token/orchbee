@@ -166,6 +166,7 @@ fn execute(
         client_id: selected.as_ref().map(|client| client.client_id.clone()),
         requested_ratio: ratio,
         requested_focus: command.focus,
+        requested_zoom: command.zoom,
         ratio: None,
         focus: None,
         stage: "created",
@@ -273,10 +274,19 @@ fn execute(
                 client_id: selected.client_id.clone(),
                 expected_view_revision: current.view_revision,
                 minimum_workbench_revision: revision,
-                intent: ClientViewIntent::Panel {
-                    terminal_context_id: created.context,
-                    tab_id: created.tab,
-                    panel_id: created.panel,
+                intent: if command.zoom {
+                    ClientViewIntent::Zoom {
+                        terminal_context_id: created.context,
+                        tab_id: created.tab,
+                        panel_id: created.panel,
+                        enabled: true,
+                    }
+                } else {
+                    ClientViewIntent::Panel {
+                        terminal_context_id: created.context,
+                        tab_id: created.tab,
+                        panel_id: created.panel,
+                    }
                 },
             },
             deadline,

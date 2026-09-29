@@ -1570,6 +1570,7 @@ fn mutation(command: MutationCommand, format: OutputFormat) -> Request {
             options,
             client: None,
             focus: false,
+            zoom: false,
             timeout_ms: 30_000,
         },
         format,

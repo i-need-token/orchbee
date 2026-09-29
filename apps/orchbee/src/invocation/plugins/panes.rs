@@ -198,6 +198,7 @@ pub(super) fn parse(
                 options: launch_options,
                 client: client_control::client_id(options, context, envelope)?,
                 focus: !options.no_focus,
+                zoom: false,
                 timeout_ms: if options.timeout.is_some() {
                     wait_timeout_option(options, context, envelope)?
                 } else {

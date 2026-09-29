@@ -41,20 +41,15 @@ pub(super) fn open(mut command: Open, format: OutputFormat, locale: Locale) -> O
         );
         match command.placement.unwrap_or(pane.placement) {
             PluginPanePlacement::Tab => {
-                if matches!(
-                    &command.creation.kind,
-                    CreationKind::Split {
-                        target: Some(_),
-                        ..
-                    }
-                ) {
-                    return Err(Failure::new(FailureKind::Rejected));
-                }
                 command.creation.kind = CreationKind::Tab {
                     context: command.workspace,
                 };
             }
-            PluginPanePlacement::Split if command.workspace.is_none() => {}
+            PluginPanePlacement::Split => {}
+            PluginPanePlacement::Zoomed => {
+                command.creation.focus = true;
+                command.creation.zoom = true;
+            }
             _ => return Err(Failure::new(FailureKind::Rejected)),
         }
         Ok(())

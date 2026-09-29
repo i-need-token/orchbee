@@ -503,7 +503,7 @@ pub(crate) fn answer(schema_id: Option<&str>, format: OutputFormat, locale: Loca
     let document = json!({
         "schema": "orchbee.api.schema",
         // Adds membership-checked plugin Pane focus and close.
-        "version": 114,
+        "version": 115,
         "source": embedded_source(),
         "result": result,
     });

@@ -10,7 +10,7 @@
 			"const": "orchbee.creation.result"
 		},
 		"version": {
-			"enum": [2, 3]
+			"enum": [2, 3, 4]
 		},
 		"source": {
 			"$ref": "#/$defs/canonical/$defs/commandSource"
@@ -92,6 +92,9 @@
 						},
 						"focus": {
 							"type": "boolean"
+						},
+						"zoom": {
+							"const": true
 						}
 					}
 				},
@@ -1715,6 +1718,44 @@
 							"policy": {
 								"not": {
 									"const": "plugin-root"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"version": {
+						"const": 4
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"postCreate": {
+						"properties": {
+							"requested": {
+								"required": ["zoom"],
+								"properties": {
+									"focus": {
+										"const": true
+									}
+								}
+							}
+						}
+					}
+				}
+			},
+			"else": {
+				"properties": {
+					"postCreate": {
+						"properties": {
+							"requested": {
+								"not": {
+									"required": ["zoom"]
 								}
 							}
 						}
