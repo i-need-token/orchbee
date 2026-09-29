@@ -816,3 +816,7 @@ controller，等待 DetachTerminalAccepted，然后 attach 新 input/resize cont
 旧授权保持撤销。缺失 detach 证明会以 broker error 结束操作，绝不尝试新 Attach。
 Windows 可运行的本地管道测试覆盖真实协议交换，不代表打包 Worker/Host 进程验收。
 [Server 交接模型](../orchbee-server/docs/terminal-controller-takeover.zh-CN.md)拥有联合契约。
+
+## Windows 默认 Shell 配置
+
+Worker 在匹配版本的托管启动中接收自有 `WindowsShellSettings` 快照，或在显式端点接入前读取一次共享配置。延迟 Host 前置循环与接入后循环借用同一快照准备默认启动。显式可执行文件/Profile 绕过它，精确重放不重复解析。[Windows 配置契约](../orchbee/docs/windows-cli-configuration.zh-CN.md#windows-配置-shell) 负责可执行文件语法、PATH 解析、模式参数、启动生命周期和证据边界。

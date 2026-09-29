@@ -74,7 +74,18 @@ pub(super) fn run(
     let registry = Arc::new(Mutex::new(WorkerRegistry::new()));
     let mut worker = orchbee_local_site_runtime::spawn_retained(
         &cohort.executable(NativeArtifact::Worker),
-        &[std::ffi::OsStr::new("--local-site"), runtime.as_os_str()],
+        &[
+            std::ffi::OsStr::new("--local-site"),
+            runtime.as_os_str(),
+            #[cfg(windows)]
+            std::ffi::OsStr::new("--default-shell"),
+            #[cfg(windows)]
+            std::ffi::OsStr::new(settings.shell.executable()),
+            #[cfg(windows)]
+            std::ffi::OsStr::new("--shell-mode"),
+            #[cfg(windows)]
+            std::ffi::OsStr::new(settings.shell.mode().as_str()),
+        ],
     )?;
     #[cfg(windows)]
     let mut carrier = None;

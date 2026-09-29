@@ -9,6 +9,7 @@ use std::path::PathBuf;
 
 #[derive(Debug)]
 pub(super) struct Settings {
+    shell: orchbee_local_site_runtime::WindowsShellSettings,
     pub(super) path: Option<PathBuf>,
     pub(super) exists: bool,
     pub(super) cwd: Option<(CreationDirectory, Option<WorkbenchDirectoryPath>)>,
@@ -31,6 +32,13 @@ impl Error {
     pub(super) fn failure(self) -> Failure {
         Failure::new(FailureKind::CheckFailed)
             .failure_schema("orchbee.cli.failure.configuration")
+            .version(
+                if matches!(self.field, "terminal.default_shell" | "terminal.shell_mode") {
+                    2
+                } else {
+                    1
+                },
+            )
             .details(serde_json::Map::from_iter([
                 ("field".into(), self.field.into()),
                 ("reason".into(), self.reason.into()),
@@ -53,6 +61,7 @@ fn project(raw: WindowsUserSettings) -> Result<Settings, Error> {
         WorkbenchDirectoryPath::parse(&value).map_err(|_| Error::new(field, "invalid-path"))
     };
     Ok(Settings {
+        shell: raw.shell,
         path: raw.path,
         exists: raw.exists,
         cwd: raw
@@ -98,6 +107,8 @@ impl Settings {
     }
     pub(super) fn check_details(&self) -> serde_json::Map<String, serde_json::Value> {
         serde_json::Map::from_iter([
+            ("defaultShell".into(), self.shell.executable().into()),
+            ("shellMode".into(), self.shell.mode().as_str().into()),
             ("manifestCheck".into(), self.manifest_check.into()),
             (
                 "manifestCheckSource".into(),

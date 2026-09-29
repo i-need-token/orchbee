@@ -40,8 +40,12 @@ impl fmt::Display for DefaultInteractiveLaunchError {
 
 impl std::error::Error for DefaultInteractiveLaunchError {}
 
-pub(crate) fn resolve_default_interactive_launch()
--> Result<DefaultInteractiveLaunch, DefaultInteractiveLaunchError> {
+pub(crate) fn resolve_default_interactive_launch(
+    #[cfg(windows)] shell: &orchbee_local_site_runtime::WindowsShellSettings,
+) -> Result<DefaultInteractiveLaunch, DefaultInteractiveLaunchError> {
+    #[cfg(windows)]
+    return native::resolve(shell, |name| std::env::var_os(name));
+    #[cfg(not(windows))]
     select_default_interactive_launch(native::usable_shell_candidates())
 }
 

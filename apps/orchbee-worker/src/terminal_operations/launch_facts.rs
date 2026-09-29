@@ -1,5 +1,8 @@
 use std::{error::Error, io};
 
+#[cfg(all(test, windows))]
+mod tests;
+
 #[cfg(windows)]
 mod powershell;
 
@@ -20,6 +23,7 @@ pub(super) fn resolve(
     explicit_cwd: Option<&AbsoluteCwd>,
     selection: Option<&orchbee_capability_node_protocol::LaunchSelection>,
     environment: &orchbee_capability_node_protocol::LaunchEnvironment,
+    #[cfg(windows)] shell: &orchbee_local_site_runtime::WindowsShellSettings,
 ) -> Result<ResolvedTerminalLaunchFacts, Box<dyn Error>> {
     // An authorized selection keeps its executable: no PATH search, no shell
     // resolution, and no silent fallback to the default launch. The default
@@ -31,7 +35,10 @@ pub(super) fn resolve(
             selection.arguments().to_vec(),
         ),
         None => {
-            let launch = resolve_default_interactive_launch()?;
+            let launch = resolve_default_interactive_launch(
+                #[cfg(windows)]
+                shell,
+            )?;
             (launch.executable, launch.arguments)
         }
     };

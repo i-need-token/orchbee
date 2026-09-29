@@ -43,6 +43,7 @@ pub(crate) fn run(
     worker_id: WorkerId,
     generation: NonZeroU64,
     drain: &Rc<RefCell<AgentDrain>>,
+    #[cfg(windows)] shell: &orchbee_local_site_runtime::WindowsShellSettings,
 ) -> Result<(), Box<dyn Error>> {
     server.set_nonblocking(true)?;
     host.stream().set_nonblocking(true)?;
@@ -59,6 +60,8 @@ pub(crate) fn run(
         generation,
         kernel,
         AdmittedAux {
+            #[cfg(windows)]
+            shell,
             drain,
             worktree_slot: &worktree_slot,
             #[cfg(windows)]
@@ -77,6 +80,8 @@ pub(crate) fn run(
 /// drain, the WorktreeJob discovery slot, and the managed site runtime
 /// directory (`None` for unmanaged launches).
 pub(crate) struct AdmittedAux<'a> {
+    #[cfg(windows)]
+    pub(crate) shell: &'a orchbee_local_site_runtime::WindowsShellSettings,
     pub(crate) drain: &'a Rc<RefCell<AgentDrain>>,
     pub(crate) worktree_slot: &'a crate::worktree_discovery_job::WorktreeDiscoverySlot,
     #[cfg(windows)]
@@ -308,14 +313,19 @@ pub(crate) fn run_admitted(
             }
         };
         let disposition = match admission {
-            HostOperationAdmission::Dispatch(dispatch) => prepare(&dispatch, aux.site_runtime)?
-                .execute(
-                    &mut kernel,
-                    host,
-                    server,
-                    unix_milliseconds,
-                    HOST_OPERATION_BUDGET,
-                )?,
+            HostOperationAdmission::Dispatch(dispatch) => prepare(
+                &dispatch,
+                aux.site_runtime,
+                #[cfg(windows)]
+                aux.shell,
+            )?
+            .execute(
+                &mut kernel,
+                host,
+                server,
+                unix_milliseconds,
+                HOST_OPERATION_BUDGET,
+            )?,
             HostOperationAdmission::ResultReady => HostOperationDisposition::ResultReady,
             HostOperationAdmission::SlotOccupied => {
                 return Err(io::Error::other("Worker operation slot is still occupied").into());
@@ -393,12 +403,19 @@ fn take_result(kernel: &mut AuthorizedHostOperationKernel) -> io::Result<Capabil
 fn prepare(
     dispatch: &AuthorizedHostDispatch,
     site_runtime: Option<&std::path::Path>,
+    #[cfg(windows)] shell: &orchbee_local_site_runtime::WindowsShellSettings,
 ) -> Result<PreparedHostOperation, Box<dyn Error>> {
     let correlation = CorrelationId::from_bytes(crate::worker_identity::fresh_identity()?)?;
     match dispatch.operation() {
         AuthorizedHostOperation::Launch(launch) => Ok(PreparedHostOperation::launch(
             dispatch,
-            launch_facts::resolve(launch.cwd(), launch.launch(), launch.environment())?,
+            launch_facts::resolve(
+                launch.cwd(),
+                launch.launch(),
+                launch.environment(),
+                #[cfg(windows)]
+                shell,
+            )?,
             correlation,
             site_runtime,
         )?),

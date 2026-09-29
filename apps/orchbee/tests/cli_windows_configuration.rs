@@ -47,6 +47,11 @@ fn malformed_or_missing_explicit_configuration_stops_every_creation_before_ipc()
         (vec![0xff], "invalid-utf8"),
         (b"[terminal]\nnew_cwd=1".to_vec(), "wrong-type"),
         (
+            b"[terminal]\ndefault_shell='C:relative.exe'".to_vec(),
+            "invalid-executable",
+        ),
+        (b"[terminal]\nshell_mode='INVALID'".to_vec(), "invalid-mode"),
+        (
             b"[terminal]\nnew_cwd='home'\nnew_cwd='follow'".to_vec(),
             "invalid-toml",
         ),
@@ -81,6 +86,16 @@ fn malformed_or_missing_explicit_configuration_stops_every_creation_before_ipc()
             let doc = document(output);
             validate(&doc, schema);
             assert_eq!(doc["failure"]["details"]["reason"], reason);
+            if matches!(reason, "invalid-executable" | "invalid-mode") {
+                assert_eq!(doc["version"], 2);
+                let mut old = doc;
+                old["version"] = json!(1);
+                assert!(
+                    !jsonschema::validator_for(&serde_json::from_str::<Value>(schema).unwrap())
+                        .unwrap()
+                        .is_valid(&old)
+                );
+            }
         }
     }
     std::fs::remove_file(&config).unwrap();
@@ -117,7 +132,9 @@ fn config_check_reports_the_actual_file_without_creating_it() {
         !validator.is_valid(&old),
         "v2 must not silently omit user configuration"
     );
-    assert_eq!(doc["version"], 4);
+    assert_eq!(doc["version"], 5);
+    assert_eq!(doc["result"]["checks"][5]["details"]["defaultShell"], "");
+    assert_eq!(doc["result"]["checks"][5]["details"]["shellMode"], "auto");
     assert_eq!(doc["result"]["checks"][5]["details"]["manifestCheck"], true);
     assert_eq!(
         doc["result"]["checks"][5]["details"]["manifestCheckSource"],
@@ -128,7 +145,7 @@ fn config_check_reports_the_actual_file_without_creating_it() {
     std::fs::create_dir_all(config.parent().unwrap()).unwrap();
     std::fs::write(
         &config,
-        "[terminal]\nnew_cwd='home'\n[worktrees]\ndirectory='../trees'\n[update]\nmanifest_check=false",
+        "[terminal]\nnew_cwd='home'\ndefault_shell='pwsh.exe'\nshell_mode='login'\n[worktrees]\ndirectory='../trees'\n[update]\nmanifest_check=false",
     )
     .unwrap();
     let doc = document(fixture.run(&["config", "check", "--format=json"]));
@@ -136,6 +153,21 @@ fn config_check_reports_the_actual_file_without_creating_it() {
     let check = &doc["result"]["checks"][5];
     assert_eq!(check["status"], "pass");
     assert_eq!(check["details"]["newCwd"], "home");
+    assert_eq!(check["details"]["defaultShell"], "pwsh.exe");
+    assert_eq!(check["details"]["shellMode"], "login");
+    let mut old = doc.clone();
+    old["version"] = json!(4);
+    assert!(
+        !validator.is_valid(&old),
+        "old config checks cannot carry shell policy"
+    );
+    for key in ["defaultShell", "shellMode"] {
+        old["result"]["checks"][5]["details"]
+            .as_object_mut()
+            .unwrap()
+            .remove(key);
+    }
+    assert!(validator.is_valid(&old));
     assert_eq!(check["details"]["manifestCheck"], false);
     assert_eq!(check["details"]["manifestCheckSource"], "file");
     assert_eq!(

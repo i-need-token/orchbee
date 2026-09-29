@@ -20,7 +20,7 @@
 			"const": "orchbee.cli.failure.configuration"
 		},
 		"version": {
-			"const": 1
+			"enum": [1, 2]
 		},
 		"failure": {
 			"type": "object",
@@ -39,41 +39,194 @@
 					]
 				},
 				"details": {
-					"type": "object",
-					"required": ["field", "reason"],
-					"additionalProperties": false,
-					"properties": {
-						"field": {
-							"enum": [
-								"file",
-								"ORCHBEE_CONFIG_FILE",
-								"ORCHBEE_RESUME_AGENTS_ON_RESTORE",
-								"APPDATA",
-								"terminal.new_cwd",
-								"worktrees.directory",
-								"session.resume_agents_on_restore",
-								"update.manifest_check"
-							]
+					"anyOf": [
+						{
+							"type": "object",
+							"required": ["field", "reason"],
+							"additionalProperties": false,
+							"properties": {
+								"field": {
+									"enum": [
+										"file",
+										"ORCHBEE_CONFIG_FILE",
+										"ORCHBEE_RESUME_AGENTS_ON_RESTORE",
+										"APPDATA",
+										"terminal.new_cwd",
+										"worktrees.directory",
+										"session.resume_agents_on_restore",
+										"update.manifest_check"
+									]
+								},
+								"reason": {
+									"enum": [
+										"invalid-path",
+										"invalid-boolean",
+										"missing",
+										"io-error",
+										"not-file",
+										"too-large",
+										"invalid-utf8",
+										"invalid-toml",
+										"unknown-key",
+										"wrong-type",
+										"source-query-failed",
+										"source-query-interrupted"
+									]
+								}
+							}
 						},
-						"reason": {
-							"enum": [
-								"invalid-path",
-								"invalid-boolean",
-								"missing",
-								"io-error",
-								"not-file",
-								"too-large",
-								"invalid-utf8",
-								"invalid-toml",
-								"unknown-key",
-								"wrong-type",
-								"source-query-failed",
-								"source-query-interrupted"
-							]
+						{
+							"type": "object",
+							"required": ["field", "reason"],
+							"additionalProperties": false,
+							"properties": {
+								"field": {
+									"enum": [
+										"file",
+										"ORCHBEE_CONFIG_FILE",
+										"ORCHBEE_RESUME_AGENTS_ON_RESTORE",
+										"APPDATA",
+										"terminal.new_cwd",
+										"worktrees.directory",
+										"session.resume_agents_on_restore",
+										"update.manifest_check",
+										"terminal.default_shell",
+										"terminal.shell_mode"
+									]
+								},
+								"reason": {
+									"enum": [
+										"invalid-path",
+										"invalid-boolean",
+										"missing",
+										"io-error",
+										"not-file",
+										"too-large",
+										"invalid-utf8",
+										"invalid-toml",
+										"unknown-key",
+										"wrong-type",
+										"source-query-failed",
+										"source-query-interrupted",
+										"invalid-executable",
+										"invalid-mode"
+									]
+								}
+							}
+						}
+					]
+				}
+			}
+		}
+	},
+	"allOf": [
+		{
+			"if": {
+				"properties": {
+					"version": {
+						"const": 1
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"failure": {
+						"properties": {
+							"details": {
+								"type": "object",
+								"required": ["field", "reason"],
+								"additionalProperties": false,
+								"properties": {
+									"field": {
+										"enum": [
+											"file",
+											"ORCHBEE_CONFIG_FILE",
+											"ORCHBEE_RESUME_AGENTS_ON_RESTORE",
+											"APPDATA",
+											"terminal.new_cwd",
+											"worktrees.directory",
+											"session.resume_agents_on_restore",
+											"update.manifest_check"
+										]
+									},
+									"reason": {
+										"enum": [
+											"invalid-path",
+											"invalid-boolean",
+											"missing",
+											"io-error",
+											"not-file",
+											"too-large",
+											"invalid-utf8",
+											"invalid-toml",
+											"unknown-key",
+											"wrong-type",
+											"source-query-failed",
+											"source-query-interrupted"
+										]
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"version": {
+						"const": 2
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"failure": {
+						"properties": {
+							"details": {
+								"type": "object",
+								"required": ["field", "reason"],
+								"additionalProperties": false,
+								"properties": {
+									"field": {
+										"enum": [
+											"file",
+											"ORCHBEE_CONFIG_FILE",
+											"ORCHBEE_RESUME_AGENTS_ON_RESTORE",
+											"APPDATA",
+											"terminal.new_cwd",
+											"worktrees.directory",
+											"session.resume_agents_on_restore",
+											"update.manifest_check",
+											"terminal.default_shell",
+											"terminal.shell_mode"
+										]
+									},
+									"reason": {
+										"enum": [
+											"invalid-path",
+											"invalid-boolean",
+											"missing",
+											"io-error",
+											"not-file",
+											"too-large",
+											"invalid-utf8",
+											"invalid-toml",
+											"unknown-key",
+											"wrong-type",
+											"source-query-failed",
+											"source-query-interrupted",
+											"invalid-executable",
+											"invalid-mode"
+										]
+									}
+								}
+							}
 						}
 					}
 				}
 			}
 		}
-	}
+	]
 }

@@ -42,12 +42,16 @@ pub(super) fn resolve(
     };
     flag_value(&mut arguments, "--configuration-file-explicit")?;
     let explicit = boolean(arguments.next())?;
+    let shell =
+        orchbee_local_site_runtime::WindowsShellSettings::from_private_arguments(&mut arguments)
+            .map_err(|error| io::Error::new(io::ErrorKind::InvalidInput, error))?;
     if arguments.next().is_some()
         || (path.is_none() && (explicit || manifest_check_source == "file"))
     {
         return Err(io::ErrorKind::InvalidInput.into());
     }
     Ok(WindowsUserSettings {
+        shell,
         path,
         explicit,
         manifest_check,
@@ -77,27 +81,33 @@ mod tests {
     #[test]
     fn immutable_snapshot_does_not_reread_mutable_file_or_environment() {
         for (text, expected) in [("true", true), ("false", false)] {
+            let settings = resolve(
+                [
+                    "--resume-agents-on-restore",
+                    text,
+                    "--manifest-check",
+                    "true",
+                    "--manifest-check-source",
+                    "default",
+                    "--configuration-file",
+                    "",
+                    "--configuration-file-explicit",
+                    "false",
+                    "--default-shell",
+                    "C:/snapshot/shell.exe",
+                    "--shell-mode",
+                    "login",
+                ]
+                .map(OsString::from)
+                .into_iter(),
+                || panic!("committed startup must not reload configuration"),
+            )
+            .unwrap();
+            assert_eq!(settings.resume_agents_on_restore, expected);
+            assert_eq!(settings.shell.mode().as_str(), "login");
             assert_eq!(
-                resolve(
-                    [
-                        "--resume-agents-on-restore",
-                        text,
-                        "--manifest-check",
-                        "true",
-                        "--manifest-check-source",
-                        "default",
-                        "--configuration-file",
-                        "",
-                        "--configuration-file-explicit",
-                        "false"
-                    ]
-                    .map(OsString::from)
-                    .into_iter(),
-                    || panic!("committed startup must not reload configuration")
-                )
-                .unwrap()
-                .resume_agents_on_restore,
-                expected
+                std::path::Path::new(settings.shell.executable()),
+                std::path::Path::new("C:/snapshot/shell.exe")
             );
         }
     }

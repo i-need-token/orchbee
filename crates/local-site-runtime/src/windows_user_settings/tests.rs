@@ -2,6 +2,79 @@ use super::*;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 #[test]
+fn configured_shell_is_strict_literal_and_keeps_directory_settings() {
+    for mode in ["auto", "login", "non_login"] {
+        let settings = parse(
+            &format!("[terminal]\ndefault_shell=' pwsh.exe '\nshell_mode='{mode}'\nnew_cwd='home'"),
+            Path::new(r"C:\config.toml"),
+            &|_| None,
+        )
+        .unwrap();
+        assert_eq!(settings.shell.executable(), "pwsh.exe");
+        assert_eq!(settings.shell.mode().as_str(), mode);
+        assert_eq!(settings.cwd, Some((WindowsDirectoryPolicy::Home, None)));
+    }
+    for (field, value) in [
+        ("default_shell", "42"),
+        ("shell_mode", "false"),
+        ("shell_mode", "'LOGIN'"),
+        ("default_shell", "'C:relative.exe'"),
+        ("default_shell", "'./shell.exe'"),
+    ] {
+        let error = parse(
+            &format!("[terminal]\n{field}={value}"),
+            Path::new(r"C:\config.toml"),
+            &|_| None,
+        )
+        .unwrap_err();
+        assert_eq!(error.field, format!("terminal.{field}"));
+    }
+    assert!(WindowsShellSettings::new(&"x".repeat(4096), "auto").is_ok());
+    assert!(WindowsShellSettings::new(&"x".repeat(4097), "auto").is_err());
+    for invalid in [
+        "a\0b",
+        "a\nb",
+        r"\\server\share\shell.exe",
+        r"\\?\C:\shell.exe",
+    ] {
+        assert!(
+            WindowsShellSettings::new(invalid, "auto").is_err(),
+            "{invalid:?}"
+        );
+    }
+}
+
+#[test]
+fn private_shell_snapshot_is_complete_and_does_not_consume_other_arguments() {
+    let mut args = [
+        "--default-shell",
+        "C:/shell with spaces/pwsh.exe",
+        "--shell-mode",
+        "login",
+        "remaining",
+    ]
+    .map(OsString::from)
+    .into_iter();
+    let shell = WindowsShellSettings::from_private_arguments(&mut args).unwrap();
+    assert_eq!(shell.mode(), WindowsShellMode::Login);
+    assert!(shell.executable().ends_with("pwsh.exe"));
+    assert_eq!(args.next(), Some("remaining".into()));
+    for words in [
+        vec![],
+        vec!["--default-shell", "pwsh"],
+        vec!["--shell-mode", "login", "--default-shell", "pwsh"],
+        vec!["--default-shell", "", "--shell-mode", "bad"],
+    ] {
+        assert!(
+            WindowsShellSettings::from_private_arguments(
+                &mut words.into_iter().map(OsString::from)
+            )
+            .is_err()
+        );
+    }
+}
+
+#[test]
 fn companion_asset_location_reuses_precedence_without_opening_settings() {
     let path = windows_user_settings_path(|key| match key {
         "ORCHBEE_CONFIG_FILE" => Some(OsString::from(

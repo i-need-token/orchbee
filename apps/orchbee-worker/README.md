@@ -910,3 +910,12 @@ the replacement. Host refusal after detach leaves the old grant revoked. Missing
 ends the operation with a broker error and never attempts new Attach. Windows-capable local-pipe
 tests exercise real protocol exchanges, not a packaged Worker/Host process acceptance. The
 [Server transfer model](../orchbee-server/docs/terminal-controller-takeover.md) owns the joint contract.
+
+## Configured Windows default shell
+
+Worker receives an owned `WindowsShellSettings` snapshot through matched managed startup,
+or reads the shared configuration once before explicit-endpoint admission. Both the lazy
+pre-Host loop and admitted loop borrow that same snapshot for default launch preparation.
+Explicit executable/Profile selections bypass it, and exact replay does not resolve again.
+The [Windows configuration contract](../orchbee/docs/windows-cli-configuration.md#configured-windows-shell)
+owns executable syntax, PATH resolution, mode flags, startup lifetime and evidence limits.

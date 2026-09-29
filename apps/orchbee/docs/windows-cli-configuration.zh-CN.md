@@ -7,6 +7,8 @@ Windows CLI 创建操作读取 `APPDATA/Orchbee/config.toml`，或 `ORCHBEE_CONF
 ```toml
 [terminal]
 new_cwd = "follow"
+default_shell = "pwsh.exe"
+shell_mode = "auto"
 
 [worktrees]
 directory = "~/Projects/worktrees"
@@ -32,7 +34,7 @@ manifest_check = true
 
 分支目录名将 ASCII 字母转为小写，将连续非字母数字字符压缩为一个连字符，去掉首尾连字符，空结果使用 `worktree`。自动分支仍为 `worktree/<operation-id>`，并固定在提交意图中。只读仓库查询与创建使用相同来源和信任策略。Server 仍复核来源并独占所有 Git 和规范 Workspace 副作用；查询不构成文件系统事务。显式路径省去额外查询。每次调用只读一次配置，并在应用显式覆盖前完成校验。
 
-创建设置作用于 Windows CLI 创建。旧的显式空 Workspace 命令、TUI 直接创建、既有终端、Server 配置重载、自定义 Shell 和键位仍由各自契约约束。
+创建设置作用于 Windows CLI 创建。旧的显式空 Workspace 命令、TUI 直接创建、既有终端、Server 配置重载和键位仍由各自契约约束；下述 Shell 策略同时覆盖 TUI 创建。
 
 ## 检查与正确性
 
@@ -91,3 +93,13 @@ Windows `config reset-keys [--format text|json]` 是离线配置修复操作，�
 
 纯变换、独占文件／备份检查、注入写入／恢复失败以及真实 Windows CLI 进程测试覆盖本契约。
 完整快捷键、配置重载和最终 Windows 替换验收仍是独立待办。
+
+## Windows 配置 Shell
+
+`terminal.default_shell` 是一个字面可执行文件，而非命令行：接受绝对本地 Windows 路径或裸文件名，最多 4,096 个 UTF-8 字节，不含控制字符。去掉首尾空白，空值沿用当前平台默认值。拒绝带分隔符的相对路径、驱动器相对路径、UNC 和设备路径。裸名称仅在 Worker 的绝对 PATH 目录中查找，先检查原名，没有扩展名时再检查 `.exe`；不回退到当前目录、PATHEXT 或脚本。配置的程序不存在时启动失败，不回退。空配置目前仍用 COMSPEC，然后 SystemRoot/cmd.exe；自动优先 PowerShell 仍是独立对齐项。
+
+`terminal.shell_mode` 仅接受 `auto`（默认）、`login`、`non_login`。Windows 上 auto/non_login 不增加参数；login 只给 sh、bash、zsh、ksh、dash、ash、mksh、fish、csh、tcsh 添加 `-l`，名称忽略大小写和可选 `.exe` 后缀。其他 Shell 不加登录参数。已有 PowerShell 提示符集成在选择 Shell 后执行。显式可执行文件和 Launch Profile 保留原参数，绕过默认 Shell 选择。
+
+Client 激活在提交前连同已有配置冻结这两个值。匹配版本的 Server 把私有快照传给 Worker，不重读配置。Worker 持有快照，贯穿延迟 Host 启动、后续终端准备、CLI/TUI 新建和默认 Shell 恢复。非托管 Worker 直接启动在接入前读取并校验一次配置。已准备操作及重放保留确定的启动事实。编辑文件不改变运行中的 Shell 或 Worker 策略；通用热重载完成前需要新的 Site 生命周期。Windows `config check` v5 报告 `defaultShell`、`shellMode`，旧版本保持封闭。Shell 专属创建错误使用 configuration failure v2，v1 保留原字段和原因集合。这些值代表配置，不保证程序实际能启动。
+
+共享解析器、私有快照接入、Worker 启动解析、显式覆盖与运行循环测试，以及真实 Windows CLI 检查覆盖本契约。不修改公开线协议或持久化检查点；部署和回退均使用匹配的整套程序。

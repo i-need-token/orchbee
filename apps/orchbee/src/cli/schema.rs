@@ -474,8 +474,8 @@ pub(crate) fn answer(schema_id: Option<&str>, format: OutputFormat, locale: Loca
     };
     let document = json!({
         "schema": "orchbee.api.schema",
-        // Offline keybinding reset exposes explicit backup and recovery results.
-        "version": 101,
+        // Config check v5 and configuration failure v2 admit Windows shell settings.
+        "version": 102,
         "source": embedded_source(),
         "result": result,
     });

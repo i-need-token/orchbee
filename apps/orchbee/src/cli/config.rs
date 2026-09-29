@@ -127,7 +127,7 @@ pub(crate) fn check(format: OutputFormat, locale: Locale) -> Output {
                 OutputFormat::Json => {
                     let document = json!({
                         "schema": "orchbee.config.check",
-                        "version": if cfg!(windows) { 4 } else { 1 },
+                        "version": if cfg!(windows) { 5 } else { 1 },
                         "source": local_runtime_source(),
                         "result": result,
                     });

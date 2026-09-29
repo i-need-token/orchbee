@@ -1,7 +1,9 @@
 //! Shared Windows user settings: bounded strict reads and explicitly invoked repair.
 mod reset_keys;
+mod shell;
 use crate::windows_user_path::{WINDOWS_USER_PATH_LIMIT, normalize_windows_user_path};
 pub use reset_keys::{WindowsKeysResetOutcome, WindowsKeysResetReport, reset_windows_keybindings};
+pub use shell::{WindowsShellMode, WindowsShellSettings};
 use std::{
     ffi::OsString,
     fs::File,
@@ -13,6 +15,7 @@ const LIMIT: u64 = 64 * 1024;
 
 #[derive(Debug)]
 pub struct WindowsUserSettings {
+    pub shell: WindowsShellSettings,
     pub path: Option<PathBuf>,
     pub exists: bool,
     pub explicit: bool,
@@ -27,6 +30,7 @@ pub struct WindowsUserSettings {
 impl Default for WindowsUserSettings {
     fn default() -> Self {
         Self {
+            shell: WindowsShellSettings::default(),
             path: None,
             exists: false,
             explicit: false,
@@ -226,8 +230,25 @@ fn parse(
         let table = value
             .as_table()
             .ok_or(WindowsSettingsError::new(field, "wrong-type"))?;
-        if table.keys().any(|entry| entry != key) {
+        if table.keys().any(|entry| {
+            entry != key
+                && !(section == "terminal"
+                    && matches!(entry.as_str(), "default_shell" | "shell_mode"))
+        }) {
             return Err(WindowsSettingsError::new(field, "unknown-key"));
+        }
+        if section == "terminal" {
+            let shell_value = |key, field, default| {
+                table.get(key).map_or(Ok(default), |value| {
+                    value
+                        .as_str()
+                        .ok_or(WindowsSettingsError::new(field, "wrong-type"))
+                })
+            };
+            settings.shell = WindowsShellSettings::new(
+                shell_value("default_shell", "terminal.default_shell", "")?,
+                shell_value("shell_mode", "terminal.shell_mode", "auto")?,
+            )?;
         }
         let Some(value) = table.get(key) else {
             continue;

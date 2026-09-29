@@ -32,6 +32,7 @@ pub(crate) fn run(
     generation: NonZeroU64,
     cohort: &NativeCohort,
     runtime: &Path,
+    #[cfg(windows)] shell: &orchbee_local_site_runtime::WindowsShellSettings,
 ) -> Result<(), Box<dyn Error>> {
     server.set_nonblocking(true)?;
     // The Agent Drain queue is owned by this admitted Server connection and
@@ -152,7 +153,12 @@ pub(crate) fn run(
                 }
             };
             // Preserve this exact kernel and dispatch across preparation and startup.
-            let prepared = super::prepare(&dispatch, Some(runtime));
+            let prepared = super::prepare(
+                &dispatch,
+                Some(runtime),
+                #[cfg(windows)]
+                shell,
+            );
             let started = prepared.and_then(|prepared| {
                 start_host(cohort, runtime, Rc::clone(&drain)).map(|host| (prepared, host))
             });
@@ -194,6 +200,8 @@ pub(crate) fn run(
                 generation,
                 kernel,
                 super::AdmittedAux {
+                    #[cfg(windows)]
+                    shell,
                     drain: &drain,
                     worktree_slot: &worktree_slot,
                     #[cfg(windows)]

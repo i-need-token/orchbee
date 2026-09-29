@@ -10,7 +10,7 @@
 			"const": "orchbee.config.check"
 		},
 		"version": {
-			"enum": [1, 2, 3, 4]
+			"enum": [1, 2, 3, 4, 5]
 		},
 		"source": {
 			"type": "object",
@@ -60,6 +60,9 @@
 								},
 								{
 									"$ref": "#/$defs/userConfigCheckV4"
+								},
+								{
+									"$ref": "#/$defs/userConfigCheckV5"
 								}
 							]
 						}
@@ -230,6 +233,37 @@
 									true,
 									{
 										"$ref": "#/$defs/userConfigCheckV4"
+									}
+								]
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"version": {
+						"const": 5
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"result": {
+						"properties": {
+							"checks": {
+								"minItems": 6,
+								"maxItems": 6,
+								"prefixItems": [
+									true,
+									true,
+									true,
+									true,
+									true,
+									{
+										"$ref": "#/$defs/userConfigCheckV5"
 									}
 								]
 							}
@@ -1411,6 +1445,135 @@
 											"wrong-type",
 											"source-query-failed",
 											"source-query-interrupted"
+										]
+									}
+								}
+							}
+						}
+					}
+				}
+			]
+		},
+		"userConfigCheckV5": {
+			"type": "object",
+			"required": ["name", "status", "details"],
+			"additionalProperties": false,
+			"properties": {
+				"name": {
+					"const": "user-config"
+				},
+				"status": {
+					"enum": ["pass", "fail"]
+				},
+				"details": {
+					"type": "object"
+				}
+			},
+			"allOf": [
+				{
+					"if": {
+						"properties": {
+							"status": {
+								"const": "pass"
+							}
+						}
+					},
+					"then": {
+						"properties": {
+							"details": {
+								"type": "object",
+								"required": [
+									"path",
+									"exists",
+									"newCwd",
+									"worktreeDirectory",
+									"resumeAgentsOnRestore",
+									"resumeAgentsOnRestoreSource",
+									"manifestCheck",
+									"manifestCheckSource",
+									"defaultShell",
+									"shellMode"
+								],
+								"additionalProperties": false,
+								"properties": {
+									"path": {
+										"type": ["string", "null"],
+										"minLength": 1,
+										"maxLength": 4096
+									},
+									"exists": {
+										"type": "boolean"
+									},
+									"resumeAgentsOnRestore": {
+										"type": "boolean"
+									},
+									"resumeAgentsOnRestoreSource": {
+										"enum": ["default", "file", "environment"]
+									},
+									"newCwd": {
+										"type": "string",
+										"minLength": 1,
+										"maxLength": 4096
+									},
+									"worktreeDirectory": {
+										"type": ["string", "null"],
+										"minLength": 1,
+										"maxLength": 4096
+									},
+									"manifestCheck": {
+										"type": "boolean"
+									},
+									"manifestCheckSource": {
+										"enum": ["default", "file"]
+									},
+									"defaultShell": {
+										"type": "string",
+										"maxLength": 4096
+									},
+									"shellMode": {
+										"enum": ["auto", "login", "non_login"]
+									}
+								}
+							}
+						}
+					},
+					"else": {
+						"properties": {
+							"details": {
+								"type": "object",
+								"required": ["field", "reason"],
+								"additionalProperties": false,
+								"properties": {
+									"field": {
+										"enum": [
+											"file",
+											"ORCHBEE_CONFIG_FILE",
+											"APPDATA",
+											"terminal.new_cwd",
+											"worktrees.directory",
+											"session.resume_agents_on_restore",
+											"ORCHBEE_RESUME_AGENTS_ON_RESTORE",
+											"update.manifest_check",
+											"terminal.default_shell",
+											"terminal.shell_mode"
+										]
+									},
+									"reason": {
+										"enum": [
+											"invalid-path",
+											"invalid-boolean",
+											"missing",
+											"io-error",
+											"not-file",
+											"too-large",
+											"invalid-utf8",
+											"invalid-toml",
+											"unknown-key",
+											"wrong-type",
+											"source-query-failed",
+											"source-query-interrupted",
+											"invalid-executable",
+											"invalid-mode"
 										]
 									}
 								}

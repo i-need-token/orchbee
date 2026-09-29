@@ -54,6 +54,10 @@ pub(crate) fn run(
             .next()
             .map(std::path::PathBuf::from)
             .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "missing Site runtime"))?;
+        #[cfg(windows)]
+        let shell = orchbee_local_site_runtime::WindowsShellSettings::from_private_arguments(
+            &mut arguments,
+        )?;
         if arguments.next().is_some() {
             return Err(io::Error::from(io::ErrorKind::InvalidInput).into());
         }
@@ -73,9 +77,15 @@ pub(crate) fn run(
             server.generation(),
             &cohort,
             &runtime,
+            #[cfg(windows)]
+            &shell,
         );
     }
     let options = WorkerOptions::parse(arguments)?;
+    #[cfg(windows)]
+    let shell =
+        orchbee_local_site_runtime::read_windows_user_settings(|name| std::env::var_os(name))?
+            .shell;
     let server = connect_to_server(&options.server_endpoint, cohort)?;
     // The Agent Drain queue belongs to this admitted Server connection and is
     // created before the Host broker so both paths share one owner.
@@ -89,6 +99,8 @@ pub(crate) fn run(
         server.worker_id,
         server.generation(),
         &drain,
+        #[cfg(windows)]
+        &shell,
     )
 }
 

@@ -7,6 +7,8 @@ Windows CLI creation reads `APPDATA/Orchbee/config.toml`, or the absolute file n
 ```toml
 [terminal]
 new_cwd = "follow"
+default_shell = "pwsh.exe"
+shell_mode = "auto"
 
 [worktrees]
 directory = "~/Projects/worktrees"
@@ -18,7 +20,7 @@ resume_agents_on_restore = true
 manifest_check = true
 ```
 
-Only these four sections and keys are accepted. `terminal.new_cwd` accepts `follow`, `home`, `current`, `workspace`, or a path. An empty value means `follow`. Paths use the Windows CLI path adapter: relative paths resolve against the configuration file's parent, tilde paths use Windows home, and ambiguous drive-relative, UNC and device paths are rejected. A missing `APPDATA` leaves defaults available; an explicit malformed value does not silently fall back.
+Only the sections and keys shown here are accepted. `terminal.new_cwd` accepts `follow`, `home`, `current`, `workspace`, or a path. An empty value means `follow`. Paths use the Windows CLI path adapter: relative paths resolve against the configuration file's parent, tilde paths use Windows home, and ambiguous drive-relative, UNC and device paths are rejected. A missing `APPDATA` leaves defaults available; an explicit malformed value does not silently fall back.
 
 ## Creation policy
 
@@ -32,7 +34,7 @@ Only these four sections and keys are accepted. `terminal.new_cwd` accepts `foll
 
 Branch slugs lowercase ASCII letters, collapse nonalphanumeric runs to a hyphen, trim hyphens and use `worktree` if empty. Generated branches remain `worktree/<operation-id>` and are fixed in the submitted intent. The read-only repository query uses the same source and trust policy as creation. The Server still rechecks the source and owns every Git and canonical Workspace effect; the query is not a filesystem transaction. Explicit path avoids the extra query. Configuration is read once per invocation, including validation before an explicit override is applied.
 
-The creation settings govern Windows CLI creation. The legacy explicit empty-Workspace command, TUI direct creation, existing terminals, Server configuration reload, custom shells and keybindings retain their own contracts.
+The creation settings govern Windows CLI creation. The legacy explicit empty-Workspace command, TUI direct creation, existing terminals, Server configuration reload and keybindings retain their own contracts; the shell policy below also covers TUI creation.
 
 ## Check and correctness
 
@@ -104,3 +106,34 @@ Site admission, reload, process launch or unrelated settings write occurs.
 Pure transformation tests, exclusive-file/backup checks, injected write/recovery failure witnesses
 and real Windows CLI processes cover this contract. Full keybindings, config reload and final
 Windows replacement acceptance remain separate obligations.
+
+## Configured Windows shell
+
+`terminal.default_shell` is one literal executable, not a command line: an absolute local
+Windows path or bare executable name, at most 4,096 UTF-8 bytes, without control characters.
+Outer whitespace is trimmed; empty selects the existing platform default. Relative paths with
+separators, drive-relative, UNC and device paths are rejected. Bare names resolve on the Worker's
+absolute PATH directories, checking the literal name and then `.exe` when no extension was given;
+no current-directory, PATHEXT or script fallback occurs. A configured missing executable fails
+launch and never falls back. Empty configuration still uses COMSPEC then SystemRoot/cmd.exe;
+automatic PowerShell preference remains a separate parity obligation.
+
+`terminal.shell_mode` accepts exactly `auto` (default), `login`, or `non_login`. On Windows,
+auto/non_login add no arguments; login adds `-l` only for sh, bash, zsh, ksh, dash, ash, mksh,
+fish, csh and tcsh, case-insensitive with optional `.exe`. Other shells have no login flag.
+Existing PowerShell prompt integration runs after shell selection. Explicit executables and
+Launch Profiles retain their exact arguments and bypass configured default selection.
+
+Client activation freezes these values alongside existing settings before commitment. The matched
+Server forwards this private snapshot to Worker without rereading configuration. Worker owns the
+snapshot across lazy Host startup and later terminal preparation, including CLI/TUI creation and
+default-shell restore. Direct unmanaged Worker startup validates its configuration once before
+admission. Prepared operations and replay retain their resolved launch facts. Editing the file
+does not change live shells or running Worker policy; a new Site lifetime is required until general
+reload is implemented. Windows `config check` v5 reports `defaultShell` and `shellMode`; prior
+versions remain closed. Shell-specific creation errors use configuration failure v2; v1 keeps
+its original field/reason set. These are configured values, not a claim that a binary can launch.
+
+The shared parser and private snapshot admission, Worker launch resolver, explicit-override and
+owned-loop tests, and actual Windows CLI checks cover this contract. No public wire shape or
+persisted checkpoint changes; deployment and rollback use the whole matched cohort.
