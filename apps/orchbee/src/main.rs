@@ -157,6 +157,10 @@ fn main() -> ExitCode {
             }
             Ok(invocation::Request::SiteStart { format }) => cli::site_start(format, locale),
             #[cfg(windows)]
+            Ok(invocation::Request::Plugin { command, format }) => {
+                cli::plugins::run(command, format, locale)
+            }
+            #[cfg(windows)]
             Ok(invocation::Request::ConfigResetKeys { format }) => {
                 cli::config_reset::run(format, locale)
             }

@@ -1,5 +1,12 @@
 //! Private native development runtime boundaries; applications own startup policy.
 #[cfg(windows)]
+mod windows_plugins;
+#[cfg(windows)]
+pub use windows_plugins::{
+    PluginActionDefinition, PluginManifest, PluginPlatform, PluginRegistry, PluginRegistryEntry,
+    PluginRegistryError, PluginRegistryMutation, PluginRegistryResult, plugin_identifier,
+};
+#[cfg(windows)]
 mod private_cache_windows;
 #[cfg(windows)]
 pub use private_cache_windows::WindowsPrivateCache;

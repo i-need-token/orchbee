@@ -1,4 +1,6 @@
 mod notification;
+#[cfg(windows)]
+mod plugins;
 mod runtime_configuration;
 mod window_title;
 #[cfg(test)]

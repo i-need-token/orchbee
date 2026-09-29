@@ -7,6 +7,8 @@ mod panel_metadata_query;
 #[cfg(windows)]
 pub(crate) mod panel_terminal_creation;
 #[cfg(windows)]
+pub(crate) mod plugins;
+#[cfg(windows)]
 mod report_target;
 pub(crate) mod runtime_configuration;
 mod schema_export;

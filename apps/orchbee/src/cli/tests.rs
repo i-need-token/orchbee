@@ -392,6 +392,20 @@ fn fixed_outputs_are_far_below_the_bound() {
         CommandPath::SiteConfig,
         CommandPath::SiteReloadConfig,
         CommandPath::NotificationShow,
+        #[cfg(windows)]
+        CommandPath::PluginLink,
+        #[cfg(windows)]
+        CommandPath::PluginUnlink,
+        #[cfg(windows)]
+        CommandPath::PluginEnable,
+        #[cfg(windows)]
+        CommandPath::PluginDisable,
+        #[cfg(windows)]
+        CommandPath::PluginList,
+        #[cfg(windows)]
+        CommandPath::PluginConfigDir,
+        #[cfg(windows)]
+        CommandPath::PluginActionList,
         CommandPath::TerminalTitleSet,
         CommandPath::TerminalTitleClear,
         CommandPath::SiteReloadAgentManifests,
@@ -457,6 +471,7 @@ fn fixed_outputs_are_far_below_the_bound() {
     // everything the walk does enumerate. Both legal surfaces are walked:
     // trailing `--help` and the `help` prefix.
     let roots = [
+        "plugin",
         "notification",
         "session",
         "layout",
@@ -478,6 +493,11 @@ fn fixed_outputs_are_far_below_the_bound() {
         "worktree",
     ];
     let verbs = [
+        "link",
+        "unlink",
+        "enable",
+        "disable",
+        "config-dir",
         "title",
         "set",
         "clear",
@@ -579,6 +599,8 @@ fn fixed_outputs_are_far_below_the_bound() {
         collect(&["terminal", "title", verb, "--help"]);
         collect(&["help", "terminal", "title", verb]);
     }
+    collect(&["plugin", "action", "list", "--help"]);
+    collect(&["help", "plugin", "action", "list"]);
     for command in &topics {
         assert!(
             commands.contains(command),

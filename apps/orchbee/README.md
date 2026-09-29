@@ -886,3 +886,5 @@ Windows `panel report-agent`, `report-agent-session`, `clear-agent-authority` an
 ## Windows outer terminal title
 
 `orchbee terminal title set "Build workspace"` publishes an override for the foreground main TUI; `orchbee terminal title clear` returns to the live `ui.window_title` template (fallback `Orchbee`). Both accept `--format json` and retain publication when no Client is connected. See [title ownership and restoration](docs/windows-terminal-title.md) for configured templates and physical-host limits.
+
+Windows `plugin link/unlink/enable/disable/list/config-dir` and `plugin action list` manage the real shared user catalog offline. See [Windows plugins](docs/windows-plugins.md) for manifests, source refresh, persistence and the remaining runtime integration. A catalog receipt never claims command execution.

@@ -2,6 +2,8 @@ mod panel_agent;
 mod panel_metadata;
 #[cfg(windows)]
 pub(crate) mod panel_terminal_creation;
+#[cfg(windows)]
+pub(crate) mod plugins;
 mod report_target;
 pub(crate) use panel_agent::PanelAgentCommand;
 mod workspace_metadata;
@@ -173,6 +175,10 @@ pub(crate) enum HelpTopic {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum Family {
+    #[cfg(windows)]
+    Plugin,
+    #[cfg(windows)]
+    PluginAction,
     TerminalTitle,
     Notification,
     #[cfg(windows)]
@@ -215,6 +221,10 @@ impl Family {
             Self::Worktree => "worktree",
             Self::LaunchProfile => "launch-profile",
             Self::TerminalTitle => "terminal title",
+            #[cfg(windows)]
+            Self::Plugin => "plugin",
+            #[cfg(windows)]
+            Self::PluginAction => "plugin action",
             Self::Notification => "notification",
             Self::Site => "site",
             Self::Api => "api",
@@ -226,6 +236,21 @@ impl Family {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum CommandPath {
+    #[cfg(windows)]
+    PluginLink,
+    #[cfg(windows)]
+    PluginUnlink,
+    #[cfg(windows)]
+    PluginEnable,
+    #[cfg(windows)]
+    PluginDisable,
+    #[cfg(windows)]
+    PluginList,
+    #[cfg(windows)]
+    PluginConfigDir,
+    #[cfg(windows)]
+    PluginActionList,
+
     #[cfg(windows)]
     SessionList,
     #[cfg(windows)]
@@ -475,6 +500,20 @@ impl CommandPath {
             Self::SiteReloadConfig => "site reload-config",
             Self::TerminalTitleSet => "terminal title set",
             Self::TerminalTitleClear => "terminal title clear",
+            #[cfg(windows)]
+            Self::PluginLink => "plugin link",
+            #[cfg(windows)]
+            Self::PluginUnlink => "plugin unlink",
+            #[cfg(windows)]
+            Self::PluginEnable => "plugin enable",
+            #[cfg(windows)]
+            Self::PluginDisable => "plugin disable",
+            #[cfg(windows)]
+            Self::PluginList => "plugin list",
+            #[cfg(windows)]
+            Self::PluginConfigDir => "plugin config-dir",
+            #[cfg(windows)]
+            Self::PluginActionList => "plugin action list",
             Self::NotificationShow => "notification show",
             Self::SiteAgentManifests => "site agent-manifests",
             Self::SiteUpdateAgentManifests => "site update-agent-manifests",
@@ -1317,6 +1356,11 @@ pub(crate) enum Request {
         format: OutputFormat,
     },
     #[cfg(windows)]
+    Plugin {
+        command: plugins::PluginCommand,
+        format: OutputFormat,
+    },
+    #[cfg(windows)]
     ConfigResetKeys {
         format: OutputFormat,
     },
@@ -1397,6 +1441,8 @@ pub(crate) enum UsageContext {
 /// expect; rendered per locale, never serialized.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum ExpectedValue {
+    #[cfg(windows)]
+    PluginId,
     WindowTitle,
     NotificationTitle,
     NotificationPosition,
@@ -1634,6 +1680,8 @@ enum Token {
 
 #[derive(Default)]
 struct Options {
+    plugin_enabled: bool,
+    plugin_disabled: bool,
     notification_body: Option<String>,
     notification_position: Option<String>,
     notification_sound: Option<String>,
@@ -2130,6 +2178,8 @@ fn scan(tokens: Vec<String>) -> Result<SelectedRequest, ParseFailure> {
             | "--history"
             | "--enter"
             | "--stdin"
+            | "--enabled"
+            | "--disabled"
             | "--outdated-only"
             | "--include-ended"
             | "--new-tab"
@@ -2153,7 +2203,11 @@ fn scan(tokens: Vec<String>) -> Result<SelectedRequest, ParseFailure> {
             | "--child"
             | "--focus"
             | "--no-focus" => {
-                let (seen, option) = if token == "--clear-title" {
+                let (seen, option) = if token == "--enabled" {
+                    (&mut options.plugin_enabled, "--enabled")
+                } else if token == "--disabled" {
+                    (&mut options.plugin_disabled, "--disabled")
+                } else if token == "--clear-title" {
                     (&mut options.panel_metadata.clear_title, "--clear-title")
                 } else if token == "--clear-display-agent" {
                     (
@@ -2556,6 +2610,8 @@ fn resolve_words(
     envelope: FailureEnvelope,
 ) -> Result<Request, ParseFailure> {
     match words {
+        #[cfg(windows)]
+        ["plugin", ..] => plugins::parse(words, options, envelope),
         #[cfg(windows)]
         ["layout", "export"] => layouts::export(options, envelope),
         #[cfg(windows)]
@@ -4730,6 +4786,24 @@ fn help_topic(path: &[&str]) -> Option<HelpTopic> {
         ["terminal", "title"] => HelpTopic::Family(Family::TerminalTitle),
         ["terminal", "title", "set"] => HelpTopic::Command(CommandPath::TerminalTitleSet),
         ["terminal", "title", "clear"] => HelpTopic::Command(CommandPath::TerminalTitleClear),
+        #[cfg(windows)]
+        ["plugin"] => HelpTopic::Family(Family::Plugin),
+        #[cfg(windows)]
+        ["plugin", "action"] => HelpTopic::Family(Family::PluginAction),
+        #[cfg(windows)]
+        ["plugin", "link"] => HelpTopic::Command(CommandPath::PluginLink),
+        #[cfg(windows)]
+        ["plugin", "unlink"] => HelpTopic::Command(CommandPath::PluginUnlink),
+        #[cfg(windows)]
+        ["plugin", "enable"] => HelpTopic::Command(CommandPath::PluginEnable),
+        #[cfg(windows)]
+        ["plugin", "disable"] => HelpTopic::Command(CommandPath::PluginDisable),
+        #[cfg(windows)]
+        ["plugin", "list"] => HelpTopic::Command(CommandPath::PluginList),
+        #[cfg(windows)]
+        ["plugin", "config-dir"] => HelpTopic::Command(CommandPath::PluginConfigDir),
+        #[cfg(windows)]
+        ["plugin", "action", "list"] => HelpTopic::Command(CommandPath::PluginActionList),
         ["notification"] => HelpTopic::Family(Family::Notification),
         ["notification", "show"] => HelpTopic::Command(CommandPath::NotificationShow),
         ["site", "agent-manifests"] => HelpTopic::Command(CommandPath::SiteAgentManifests),
@@ -4806,6 +4880,7 @@ fn mutation(command: MutationCommand, options: &Options) -> Request {
 /// is only meaningful whole.
 #[derive(Clone, Copy)]
 struct Scope {
+    plugin: bool,
     notification: bool,
     panel_terminal: bool,
     metadata: bool,
@@ -4937,6 +5012,7 @@ struct Scope {
 }
 
 const NO_OPTIONS: Scope = Scope {
+    plugin: false,
     notification: false,
     panel_terminal: false,
     metadata: false,
@@ -5264,7 +5340,9 @@ const INTEGRATION_SCOPE: Scope = Scope {
 
 /// Any mutation-only option seen outside a mutation command.
 fn business_options(options: &Options) -> bool {
-    options.notification_body.is_some()
+    options.plugin_enabled
+        || options.plugin_disabled
+        || options.notification_body.is_some()
         || options.notification_position.is_some()
         || options.notification_sound.is_some()
         || options.child
@@ -5338,6 +5416,14 @@ fn business_options(options: &Options) -> bool {
 /// The first named option present but outside `scope`, in the fixed `Options`
 /// declaration order — deterministic without any argv-order state.
 fn first_out_of_scope(options: &Options, scope: Scope) -> Option<&'static str> {
+    if !scope.plugin {
+        if options.plugin_enabled {
+            return Some("--enabled");
+        }
+        if options.plugin_disabled {
+            return Some("--disabled");
+        }
+    }
     if !scope.notification {
         if options.notification_body.is_some() {
             return Some("--body");

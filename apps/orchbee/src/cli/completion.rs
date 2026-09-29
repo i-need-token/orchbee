@@ -108,6 +108,8 @@ use crate::invocation::CompletionShell;
 
 /// Top-level words the grammar accepts before any option.
 const ROOT_WORDS: &[&str] = &[
+    #[cfg(windows)]
+    "plugin",
     "notification",
     "layout",
     "client",
@@ -134,6 +136,8 @@ const ROOT_WORDS: &[&str] = &[
 /// every data command family accepts it; `help`/`completion`/`tui`/`--version`
 /// reject it.
 const FORMAT_ROOT_WORDS: &[&str] = &[
+    #[cfg(windows)]
+    "plugin",
     "notification",
     "layout",
     "client",
@@ -155,6 +159,19 @@ const FORMAT_ROOT_WORDS: &[&str] = &[
 
 /// family → the verbs it implements.
 const FAMILY_VERBS: &[(&str, &[&str])] = &[
+    #[cfg(windows)]
+    (
+        "plugin",
+        &[
+            "link",
+            "unlink",
+            "enable",
+            "disable",
+            "list",
+            "config-dir",
+            "action",
+        ],
+    ),
     ("notification", &["show"]),
     (
         "agent",
@@ -276,6 +293,8 @@ const FAMILY_VERBS: &[(&str, &[&str])] = &[
 /// Every business flag the grammar admits (`--format` is orthogonal), in the
 /// order the state machine records them.
 const BUSINESS_FLAGS: &[&str] = &[
+    "--enabled",
+    "--disabled",
     "--body",
     "--position",
     "--sound",
@@ -406,6 +425,8 @@ const REPEATABLE_FLAGS: &[&str] = &[
 const CONTROL_FLAGS: &[&str] = &["--cols", "--rows", "--timeout", "--takeover"];
 const OBSERVE_FLAGS: &[&str] = &["--cols", "--rows", "--timeout"];
 const COMMAND_FLAGS: &[(&str, &[&str])] = &[
+    #[cfg(windows)]
+    ("plugin:link", &["--enabled", "--disabled"]),
     ("notification:show", &["--body", "--position", "--sound"]),
     #[cfg(windows)]
     (
@@ -1122,6 +1143,20 @@ const PROVIDER_VALUES: &[&str] = &[
 
 /// `<family>:<verb>` paths that consume one positional operand.
 const OPERAND_PATHS: &[&str] = &[
+    #[cfg(windows)]
+    "plugin:link",
+    #[cfg(windows)]
+    "plugin:unlink",
+    #[cfg(windows)]
+    "plugin:enable",
+    #[cfg(windows)]
+    "plugin:disable",
+    #[cfg(windows)]
+    "plugin:list",
+    #[cfg(windows)]
+    "plugin:config-dir",
+    #[cfg(windows)]
+    "plugin:action:list",
     "terminal:title:set",
     "notification:show",
     #[cfg(windows)]
@@ -1200,6 +1235,8 @@ const OPERAND_PATHS: &[&str] = &[
 /// Help topics that lead anywhere (`help <word>`); leaf topics accept no
 /// deeper word.
 const HELP_TOPICS: &[&str] = &[
+    #[cfg(windows)]
+    "plugin",
     "notification",
     "layout",
     "client",
@@ -1223,6 +1260,19 @@ const HELP_TOPICS: &[&str] = &[
 
 /// `help <topic>` → the deeper words that complete a help path.
 const HELP_CHILDREN: &[(&str, &[&str])] = &[
+    #[cfg(windows)]
+    (
+        "plugin",
+        &[
+            "link",
+            "unlink",
+            "enable",
+            "disable",
+            "list",
+            "config-dir",
+            "action",
+        ],
+    ),
     ("notification", &["show"]),
     (
         "agent",
@@ -1344,6 +1394,8 @@ const HELP_CHILDREN: &[(&str, &[&str])] = &[
 /// `help <topic> <child>` → third-level words. Nested command families
 /// reach a third help level.
 const HELP_LEVEL3: &[(&str, &[&str])] = &[
+    #[cfg(windows)]
+    ("plugin:action", &["list"]),
     ("agent:integration", INTEGRATION_VERBS),
     ("terminal:title", &["set", "clear"]),
     ("terminal:session", &["observe", "control"]),
@@ -1365,6 +1417,8 @@ pub(crate) fn render(shell: CompletionShell) -> String {
 /// `flag` → the walker's one-shot seen bit for it.
 fn flag_bit(flag: &str) -> &'static str {
     match flag {
+        "--enabled" => "seen_plugin_enabled",
+        "--disabled" => "seen_plugin_disabled",
         "--child" => "seen_child",
         "--mouse" => "seen_mouse",
         "--output" => "seen_output",
@@ -1476,6 +1530,7 @@ fn flag_bit(flag: &str) -> &'static str {
 /// owned value stays opaque (`filter`).
 fn flag_value(flag: &str) -> Option<&'static str> {
     match flag {
+        "--enabled" | "--disabled" => None,
         "--on" | "--off" | "--toggle" | "--focus" | "--no-focus" => None,
         "--cwd" => Some("cwd"),
         "--right-click" => Some("right_click"),
@@ -3773,6 +3828,8 @@ fn command_conflict_pairs(
 
 fn command_flag_conflicts(command: &str, flag: &str) -> &'static [&'static str] {
     match (command, flag) {
+        ("plugin:link", "--enabled") => &["--disabled"],
+        ("plugin:link", "--disabled") => &["--enabled"],
         ("panel:create-terminal", "--child") => &["--presentation"],
         ("panel:create-terminal", "--presentation") => &["--child", "--label"],
         ("panel:create-terminal", "--label") => &["--presentation"],
