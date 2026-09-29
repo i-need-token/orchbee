@@ -194,8 +194,10 @@ zoom = ""
 Windows `config check` v6 adds `keyPrefix` and `keyOverrides`; key configuration failures use
 configuration failure v3. Older versions retain their closed field sets. The example lets new Tab
 replace the default next-Tab chord; empty `zoom` disables its shortcut. Bindings currently apply to
-the main TUI; CLI terminal-stream attach has a separate control-key path still to migrate. Complete
-keymap import and recovery through nonfatal diagnostics remain future implementation.
+the main TUI. CLI terminal-stream attach deliberately keeps its independent Ctrl+B/q escape;
+pinned Herdr `e0507237` also uses a fixed escape in `src/client/attach.rs`, so configurable attach
+is not a parity requirement. Complete keymap import and recovery through nonfatal diagnostics
+remain future implementation.
 
 Function keys use the actual xterm F1–F12 sequence numbers (skipping 16 and 22), modified
 F1–F4, and kitty F1–F24. Modifier event tails retain press, repeat and release; invalid events or

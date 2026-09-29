@@ -286,8 +286,8 @@
 			"zhCnSha256": "db660f7531044c2c3c516547290636a951f0d3069906c3aceb0267d9abdd5ed8"
 		},
 		"apps/orchbee/docs/windows-cli-configuration.md": {
-			"englishSha256": "bc22574f4efac0e2b0bc53874407a36e9935e0cc25a6748dd74dfa6530d3fbc6",
-			"zhCnSha256": "80a7f9b772a208c0a67b65809265b1125ceb22b42b94375f434981fefa42f5ac"
+			"englishSha256": "a4295f1fd2e053c5556a612685d45e73af18248595690fbf15bfb90594d75417",
+			"zhCnSha256": "9d182d03c71253854231f600751c852f6060b28f06c37aa23802bdcc91577238"
 		},
 		"apps/orchbee/docs/windows-client-control.md": {
 			"englishSha256": "1eb19dd2cc4f3f13bcd06e16a837e082ec5baa5361e33d333f1d026142e9bd57",
@@ -318,8 +318,8 @@
 			"zhCnSha256": "15ea18212967a226eca272f5a64dfe540b101c9ca9d038d3e39921bcb1dc4705"
 		},
 		"apps/orchbee/docs/windows-terminal-streams.md": {
-			"englishSha256": "950d8cff21a347bd13700e307e141dec480721857802539ec61bb872912f57e3",
-			"zhCnSha256": "95db78ea048e4336a4f791873020d2ca951526d264fc99c115848f7dc26d0bbd"
+			"englishSha256": "937ce34fa717e306fc929274fd4ceac133a620ceed1c4323720e8c286afdedc1",
+			"zhCnSha256": "395875ef019975e88ff1c537f627180665a56ca96354c6a8a06dd2b2a77196a2"
 		},
 		"apps/orchbee/docs/windows-workspace-creation.md": {
 			"englishSha256": "928de2ee1d637343cbc72e71daf78043c3069d4f339e2d0aa854e96269d4288a",

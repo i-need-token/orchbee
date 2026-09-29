@@ -143,8 +143,9 @@ zoom = ""
 
 Windows `config check` v6 增加 `keyPrefix`、`keyOverrides`，按键配置错误使用
 configuration failure v3；旧版本保留封闭字段集合。示例让新建 Tab 取代默认的下一 Tab
-快捷键；空 `zoom` 禁用放大快捷键。当前绑定只在主 TUI 使用，CLI 终端流 attach 的
-独立控制按键尚未迁移。全量键位导入和无害警告恢复仍需后续实现。
+快捷键；空 `zoom` 禁用放大快捷键。当前绑定只在主 TUI 使用。CLI 终端流 attach 保留
+独立的 Ctrl+B/q 转义；固定 Herdr `e0507237` 在 `src/client/attach.rs` 同样使用固定转义，
+因此可配置 attach 不是对齐要求。全量键位导入和无害警告恢复仍需后续实现。
 
 功能键使用 xterm 的实际 F1–F12 序列编号（跳过 16 和 22），带修饰符的 F1–F4
 以及 kitty F1–F24。修饰符事件尾部保留按下、重复和释放；无效事件或无法表示的
