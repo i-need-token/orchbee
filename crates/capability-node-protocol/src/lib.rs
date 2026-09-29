@@ -1,4 +1,6 @@
 mod agent_drain;
+mod default_shell;
+pub use default_shell::{DefaultShellMode, DefaultShellSelection};
 mod codec;
 mod error;
 mod identity;

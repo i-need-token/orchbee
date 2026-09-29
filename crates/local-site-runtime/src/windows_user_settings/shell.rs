@@ -1,4 +1,4 @@
-//! Literal shell policy retained for one managed Windows Site lifetime.
+//! Validated literal Windows shell policy for startup and published launch defaults.
 use super::WindowsSettingsError;
 use std::{ffi::OsString, path::Path};
 

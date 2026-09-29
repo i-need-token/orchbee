@@ -478,8 +478,8 @@ pub(crate) fn answer(schema_id: Option<&str>, format: OutputFormat, locale: Loca
     };
     let document = json!({
         "schema": "orchbee.api.schema",
-        // Adds the running-Site configuration publication receipt.
-        "version": 103,
+        // Adds observable live shell defaults in configuration receipt v2.
+        "version": 104,
         "source": embedded_source(),
         "result": result,
     });

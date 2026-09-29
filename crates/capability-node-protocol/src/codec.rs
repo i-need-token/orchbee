@@ -287,7 +287,22 @@ fn encode_authorized_terminal_launch(value: &AuthorizedTerminalLaunch) -> Vec<u8
     encode_authorization(&mut payload, value.authorization());
     encode_cwd(&mut payload, value.cwd());
     encode_launch_mode(&mut payload, value.mode());
-    if !value.environment().is_empty() {
+    if let Some(shell) = value.default_shell() {
+        payload.extend_from_slice(&0u16.to_be_bytes());
+        payload.push(2);
+        payload.push(match shell.mode() {
+            crate::DefaultShellMode::Auto => 0,
+            crate::DefaultShellMode::Login => 1,
+            crate::DefaultShellMode::NonLogin => 2,
+        });
+        payload.extend_from_slice(
+            &u16::try_from(shell.executable().len())
+                .expect("bounded shell")
+                .to_be_bytes(),
+        );
+        payload.extend_from_slice(shell.executable().as_bytes());
+        encode_launch_environment(&mut payload, value.environment());
+    } else if !value.environment().is_empty() {
         // Zero cannot begin a legacy nonempty executable path. Version the
         // extension independently and keep empty-overlay payloads byte-identical.
         payload.extend_from_slice(&0u16.to_be_bytes());
@@ -310,24 +325,41 @@ fn decode_authorized_terminal_launch(
     let authorization = decode_authorization(&mut reader)?;
     let cwd = decode_cwd(&mut reader)?;
     let mode = decode_launch_mode(&mut reader)?;
-    let (launch, environment) = if reader.is_exhausted() {
-        (None, crate::LaunchEnvironment::empty())
+    let (launch, environment, shell) = if reader.is_exhausted() {
+        (None, crate::LaunchEnvironment::empty(), None)
     } else {
         let executable_length = usize::from(reader.read_u16()?);
         if executable_length == 0 {
-            if reader.read_u8()? != 1 {
+            let version = reader.read_u8()?;
+            if version == 2 {
+                let mode = match reader.read_u8()? {
+                    0 => crate::DefaultShellMode::Auto,
+                    1 => crate::DefaultShellMode::Login,
+                    2 => crate::DefaultShellMode::NonLogin,
+                    _ => return Err(ProtocolError::InvalidPayload),
+                };
+                let length = usize::from(reader.read_u16()?);
+                if length > 4096 {
+                    return Err(ProtocolError::InvalidPayload);
+                }
+                let executable = String::from_utf8(reader.read_slice(length)?.to_vec())
+                    .map_err(|_| ProtocolError::InvalidPayload)?;
+                let shell = crate::DefaultShellSelection::new(executable, mode)?;
+                (None, decode_launch_environment(&mut reader)?, Some(shell))
+            } else if version == 1 {
+                let launch = match reader.read_u8()? {
+                    0 => None,
+                    1 => Some(decode_launch_selection(&mut reader)?),
+                    _ => return Err(ProtocolError::InvalidPayload),
+                };
+                let environment = decode_launch_environment(&mut reader)?;
+                if environment.is_empty() {
+                    return Err(ProtocolError::InvalidPayload);
+                }
+                (launch, environment, None)
+            } else {
                 return Err(ProtocolError::InvalidPayload);
             }
-            let launch = match reader.read_u8()? {
-                0 => None,
-                1 => Some(decode_launch_selection(&mut reader)?),
-                _ => return Err(ProtocolError::InvalidPayload),
-            };
-            let environment = decode_launch_environment(&mut reader)?;
-            if environment.is_empty() {
-                return Err(ProtocolError::InvalidPayload);
-            }
-            (launch, environment)
         } else {
             (
                 Some(decode_launch_selection_body(
@@ -335,14 +367,14 @@ fn decode_authorized_terminal_launch(
                     executable_length,
                 )?),
                 crate::LaunchEnvironment::empty(),
+                None,
             )
         }
     };
     reader.finish()?;
-    Ok(
-        AuthorizedTerminalLaunch::new(authorization, cwd, mode, launch)
-            .with_environment(environment),
-    )
+    AuthorizedTerminalLaunch::new(authorization, cwd, mode, launch)
+        .with_environment(environment)
+        .with_default_shell(shell)
 }
 
 fn encode_terminal_launch_result(value: TerminalLaunchResult) -> Vec<u8> {

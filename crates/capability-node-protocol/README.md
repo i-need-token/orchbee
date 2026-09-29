@@ -609,3 +609,9 @@ another live incumbent is refused. See the [transfer model](../../apps/orchbee-s
 Existing tags remain unchanged; mixed private cohorts are unsupported.
 
 Launch selections additionally cap worst-case JSON string-content bytes at 30 KiB: ASCII controls count as six, quotes and backslashes as two, and other UTF-8 bytes as one. This preserves the previous 2 KiB input domain while bounding the larger resume commands. Matching cohorts are required for the enlarged limits.
+
+## Per-launch Windows shell defaults
+
+An authorized default launch may carry `DefaultShellSelection`: a literal executable of 0–4096 UTF-8 bytes without control characters and mode Auto/Login/NonLogin. Empty executable means platform default; absence means Worker startup fallback. The Worker separately validates Windows executable syntax before effects. Explicit `LaunchSelection` and a default override are mutually exclusive. This value participates in exact replay identity.
+
+The existing zero-u16 launch extension sentinel uses version 2 for this shape: u8 mode (0/1/2), u16 executable byte length, executable UTF-8 bytes, then the existing environment encoding (including empty). There is no explicit selection slot in v2. Legacy payloads and v1 nonempty-environment extensions retain exact bytes. Unknown mode/version, truncation, trailing bytes and invalid bounded values are refused. OBCN frame version and 40 KiB payload limit stay unchanged. Matched private cohorts ship/roll back together; this wire adds no broadcast, persistence or retry.

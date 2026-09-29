@@ -33,6 +33,8 @@ mod shutdown;
 
 #[cfg(test)]
 mod drain_tests;
+#[cfg(all(test, windows))]
+mod shell_tests;
 
 // Leave room for result delivery within the Server carrier's response budget.
 const HOST_OPERATION_BUDGET: Duration = Duration::from_secs(1);
@@ -313,19 +315,22 @@ pub(crate) fn run_admitted(
             }
         };
         let disposition = match admission {
-            HostOperationAdmission::Dispatch(dispatch) => prepare(
+            HostOperationAdmission::Dispatch(dispatch) => match prepare_or_fail(
+                &mut kernel,
                 &dispatch,
                 aux.site_runtime,
                 #[cfg(windows)]
                 aux.shell,
-            )?
-            .execute(
-                &mut kernel,
-                host,
-                server,
-                unix_milliseconds,
-                HOST_OPERATION_BUDGET,
-            )?,
+            )? {
+                Some(prepared) => prepared.execute(
+                    &mut kernel,
+                    host,
+                    server,
+                    unix_milliseconds,
+                    HOST_OPERATION_BUDGET,
+                )?,
+                None => HostOperationDisposition::ResultReady,
+            },
             HostOperationAdmission::ResultReady => HostOperationDisposition::ResultReady,
             HostOperationAdmission::SlotOccupied => {
                 return Err(io::Error::other("Worker operation slot is still occupied").into());
@@ -400,6 +405,26 @@ fn take_result(kernel: &mut AuthorizedHostOperationKernel) -> io::Result<Capabil
     }
 }
 
+fn prepare_or_fail(
+    kernel: &mut AuthorizedHostOperationKernel,
+    dispatch: &AuthorizedHostDispatch,
+    site_runtime: Option<&std::path::Path>,
+    #[cfg(windows)] shell: &orchbee_local_site_runtime::WindowsShellSettings,
+) -> Result<Option<PreparedHostOperation>, Box<dyn Error>> {
+    match prepare(
+        dispatch,
+        site_runtime,
+        #[cfg(windows)]
+        shell,
+    ) {
+        Ok(prepared) => Ok(Some(prepared)),
+        Err(_) => {
+            kernel.record_pre_handoff_failure(dispatch, unix_milliseconds())?;
+            Ok(None)
+        }
+    }
+}
+
 fn prepare(
     dispatch: &AuthorizedHostDispatch,
     site_runtime: Option<&std::path::Path>,
@@ -407,18 +432,40 @@ fn prepare(
 ) -> Result<PreparedHostOperation, Box<dyn Error>> {
     let correlation = CorrelationId::from_bytes(crate::worker_identity::fresh_identity()?)?;
     match dispatch.operation() {
-        AuthorizedHostOperation::Launch(launch) => Ok(PreparedHostOperation::launch(
-            dispatch,
-            launch_facts::resolve(
-                launch.cwd(),
-                launch.launch(),
-                launch.environment(),
-                #[cfg(windows)]
-                shell,
-            )?,
-            correlation,
-            site_runtime,
-        )?),
+        AuthorizedHostOperation::Launch(launch) => {
+            #[cfg(not(windows))]
+            if launch.default_shell().is_some() {
+                return Err(io::Error::new(
+                    io::ErrorKind::Unsupported,
+                    "Windows shell policy is unsupported",
+                )
+                .into());
+            }
+            #[cfg(windows)]
+            let selected = launch
+                .default_shell()
+                .map(|policy| {
+                    orchbee_local_site_runtime::WindowsShellSettings::new(
+                        policy.executable(),
+                        policy.mode().as_str(),
+                    )
+                })
+                .transpose()?;
+            #[cfg(windows)]
+            let shell = selected.as_ref().unwrap_or(shell);
+            Ok(PreparedHostOperation::launch(
+                dispatch,
+                launch_facts::resolve(
+                    launch.cwd(),
+                    launch.launch(),
+                    launch.environment(),
+                    #[cfg(windows)]
+                    shell,
+                )?,
+                correlation,
+                site_runtime,
+            )?)
+        }
         AuthorizedHostOperation::Start(_) => {
             Ok(PreparedHostOperation::start(dispatch, correlation)?)
         }

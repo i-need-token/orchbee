@@ -31,13 +31,27 @@ impl Locale {
             revision.map_or_else(|| "-".into(), |n| n.to_string())
         )
     }
+    pub(crate) fn cli_configuration_shell(self, escaped_shell: &str, mode: &str) -> String {
+        let shell = if escaped_shell.is_empty() {
+            match self {
+                Self::EnUs => "(platform default)",
+                Self::ZhCn => "（平台默认）",
+            }
+        } else {
+            escaped_shell
+        };
+        match self {
+            Self::EnUs => format!("New terminal defaults: shell=\"{shell}\" mode={mode}\n"),
+            Self::ZhCn => format!("新终端默认值：shell=\"{shell}\" mode={mode}\n"),
+        }
+    }
     pub(crate) const fn runtime_configuration_help(self) -> &'static str {
         match self {
             Self::EnUs => {
-                "orchbee site config|reload-config [--format text|json]\n\nRead the running Site's published configuration or reload its frozen config path.\nLive keys are published to main TUI Clients; manifest-check policy updates online.\nChanged shell/startup restore policy is reported as restartRequired. No Site is started.\nInvalid configuration keeps the previous publication. A lost reply is not retried.\n"
+                "orchbee site config|reload-config [--format text|json]\n\nRead the running Site's published configuration or reload its frozen config path.\nLive keys are published to main TUI Clients; manifest-check policy updates online.\nShell defaults apply to subsequent terminals; changed startup restore policy requires restart. No Site is started.\nInvalid configuration keeps the previous publication. A lost reply is not retried.\n"
             }
             Self::ZhCn => {
-                "orchbee site config|reload-config [--format text|json]\n\n读取运行中 Site 已发布的配置，或重载其冻结的配置路径。\n键位发布到主 TUI Client；manifest-check 策略在线更新。\nShell/启动恢复策略变化通过 restartRequired 返回。不启动 Site。\n无效配置保留旧发布；丢失响应不会自动重试。\n"
+                "orchbee site config|reload-config [--format text|json]\n\n读取运行中 Site 已发布的配置，或重载其冻结的配置路径。\n键位发布到主 TUI Client；manifest-check 策略在线更新。\nShell 默认值用于后续新终端；启动恢复策略变化需要重启。不启动 Site。\n无效配置保留旧发布；丢失响应不会自动重试。\n"
             }
         }
     }

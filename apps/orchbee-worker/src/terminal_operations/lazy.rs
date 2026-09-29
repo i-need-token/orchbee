@@ -153,15 +153,20 @@ pub(crate) fn run(
                 }
             };
             // Preserve this exact kernel and dispatch across preparation and startup.
-            let prepared = super::prepare(
+            let prepared = super::prepare_or_fail(
+                &mut kernel,
                 &dispatch,
                 Some(runtime),
                 #[cfg(windows)]
                 shell,
-            );
-            let started = prepared.and_then(|prepared| {
-                start_host(cohort, runtime, Rc::clone(&drain)).map(|host| (prepared, host))
-            });
+            )?;
+            let Some(prepared) = prepared else {
+                let result = super::take_result(&mut kernel)?;
+                let _no_host = server_transport::send(server, None, &result)?;
+                continue;
+            };
+            let started =
+                start_host(cohort, runtime, Rc::clone(&drain)).map(|host| (prepared, host));
             let (prepared, (mut host, _child)) = match started {
                 Ok(started) => started,
                 Err(error) => {

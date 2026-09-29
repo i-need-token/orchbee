@@ -37,6 +37,26 @@ pub struct ConfigurationSnapshot {
     pub keys_profile: String,
     pub restart_required: Vec<ConfigurationRestart>,
     pub manifest_check: bool,
+    /// Admitted defaults for subsequent preparations, not resolved executable facts.
+    pub default_shell: String,
+    pub shell_mode: ConfigurationShellMode,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ConfigurationShellMode {
+    Auto,
+    Login,
+    NonLogin,
+}
+impl ConfigurationShellMode {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Auto => "auto",
+            Self::Login => "login",
+            Self::NonLogin => "non_login",
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -114,6 +134,8 @@ impl ConfigurationResult {
             | ConfigurationOutcome::Reloaded { snapshot, .. } => {
                 !snapshot.keys_profile.is_empty()
                     && snapshot.keys_profile.len() <= 64 * 1024
+                    && snapshot.default_shell.len() <= 4096
+                    && !snapshot.default_shell.chars().any(char::is_control)
                     && snapshot.restart_required.len() <= 3
                     && snapshot
                         .restart_required

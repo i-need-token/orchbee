@@ -100,7 +100,7 @@ Windows `config reset-keys [--format text|json]` 是离线配置修复操作，�
 
 `terminal.shell_mode` 仅接受 `auto`（默认）、`login`、`non_login`。Windows 上 auto/non_login 不增加参数；login 只给 sh、bash、zsh、ksh、dash、ash、mksh、fish、csh、tcsh 添加 `-l`，名称忽略大小写和可选 `.exe` 后缀。其他 Shell 不加登录参数。已有 PowerShell 提示符集成在选择 Shell 后执行。显式可执行文件和 Launch Profile 保留原参数，绕过默认 Shell 选择。
 
-Client 激活在提交前连同已有配置冻结这两个值。匹配版本的 Server 把私有快照传给 Worker，不重读配置。Worker 持有快照，贯穿延迟 Host 启动、后续终端准备、CLI/TUI 新建和默认 Shell 恢复。非托管 Worker 直接启动在接入前读取并校验一次配置。已准备操作及重放保留确定的启动事实。编辑文件不改变运行中的 Shell 或 Worker 策略；Worker 的 Shell 默认值仍需新的 Site 生命周期生效，在线重载通过 `restartRequired` 明确返回这些变化。Windows `config check` v5 报告 `defaultShell`、`shellMode`，旧版本保持封闭。Shell 专属创建错误使用 configuration failure v2，v1 保留原字段和原因集合。这些值代表配置，不保证程序实际能启动。
+Client 激活在提交前连同已有配置冻结这两个值。匹配版本的 Server 把私有快照传给 Worker，不重读配置。Worker 保留快照作为延迟 Host 启动及后续准备的回退值。Server 授权的 CLI/TUI/默认 Shell 恢复准备捕获最新已发布默认值，详见下文。非托管 Worker 直接启动在接入前读取并校验一次配置。已准备操作及重放保留确定的启动事实。仅编辑文件不发布配置，也不改变运行中的 Shell；显式重载更新后续准备所用的默认值。Windows `config check` v5 报告 `defaultShell`、`shellMode`，旧版本保持封闭。Shell 专属创建错误使用 configuration failure v2，v1 保留原字段和原因集合。这些值代表配置，不保证程序实际能启动。
 
 共享解析器、私有快照接入、Worker 启动解析、显式覆盖与运行循环测试，以及真实 Windows CLI 检查覆盖本契约。不修改公开线协议或持久化检查点；部署和回退均使用匹配的整套程序。
 
@@ -162,11 +162,21 @@ Server 提交已支持的在线 manifest-check 策略，并向连接中的主 TU
 之间应用已验证的新版本配置；清除待处理前缀，保留编辑器/确认归属和草稿。重载失败
 保留现有键位并显示本地化提示。重载动作可通过 `reload_config` 配置。原生默认是前缀 F5；Herdr 使用前缀 Shift+R，与原生已有的 Project 重命名默认冲突。配置 `reload_config = "prefix+shift+r"` 会明确替换该冲突默认。
 
-默认 Shell、Shell 模式和启动恢复策略相对 Site 启动时的变化通过 `restartRequired`
-明确返回；现有 Worker 策略和已恢复会话仍由当前生命周期拥有。CLI 目录/worktree 默认值
-在下一次调用读取。这是部分 Herdr 重载对齐：严格整文件拒绝、Worker 在线默认值、
-未实现的配置族和 Client 独立配置策略仍待补全。
+启动恢复策略相对 Site 启动时的变化通过 `restartRequired` 返回；已恢复会话仍由当前
+生命周期拥有。默认 Shell 和模式无须重启，对后续准备生效。CLI 目录/worktree 默认值
+在下一次调用读取。这是部分 Herdr 重载对齐：严格整文件拒绝、未实现的配置族和
+Client 独立配置策略仍待补全。
 在线键位配置上限为 64 KiB；每动作最多 144 个展开触发键，容纳用户文件最多 16 个数字范围候选。独立可取消连接每 500 毫秒读取一次，单次交换限时两秒。成功重载表示已发布，不表示每个 Client 都已应用。
 
 不新增持久化格式迁移或自动重试。
 测试覆盖授权、有界序列化、失败保留、无变化重载、发布应用及关闭。
+
+## 后续 Windows 终端的在线默认值
+
+重载把已验证的 `DefaultShellSelection` 提交到 Server 现有 TerminalCoordinator。新建接纳时将不可变值冻结到每个默认 `AuthorizedTerminalLaunch`；显式程序/Profile 请求不携带默认覆盖。Worker 在 Host 交接前校验 Windows Shell 语法，并使用自身的程序/PATH 和模式解析。没有覆盖时，非托管/旧私有请求保留 Worker 的启动回退。现有 PTY、已准备启动、精确重放和延迟 Start 不接收后续默认值。CLI/TUI/恢复新建共用同一 coordinator 接纳。
+
+提交锁顺序为配置注册表、Site coordinator、manifest 调度。候选校验与线协议值构造在提交前完成；调度拒绝接纳时，启动策略和发布均不变。持锁期间没有 Worker IPC 或分布式确认。Shell/模式变化对后续新建生效，不再要求 Site 重启；启动恢复仍属于仅启动时生效的设置。重载成功证明配置接纳，不保证程序存在。
+
+启动准备失败记录既有的确定交接前失败，保留 Worker/Server 连接，不创建 Host 终端。同一失败请求重放原失败；修正设置后必须使用新的创建标识。首次 Host 尚不存在时，延迟循环也保持可用。Host 启动/传输不确定性仍保留原退出与不重试策略。证据覆盖私有帧、默认/显式/缺省选择、跨重载准备、精确/冲突重放、失败保留和真实 Windows 管道交换；provider/多 Client/视觉全量验收仍延后。匹配的私有 cohort 整套部署或回退，不迁移持久化数据。
+
+`site config` 和重载回执显示后续默认创建所用的已接纳 `defaultShell` 与 `shellMode`，包括重载响应丢失后的查询。空 Shell 表示平台默认；这些值不证明 Worker 已解析可执行文件或启动成功。CLI 回执 v2 必须包含两字段；历史 v1 schema 保持原有封闭字段集。匹配私有 cohort 的 Workbench 快照同样要求有界字面量（4096 UTF-8 字节、无控制字符）以及 `auto`/`login`/`non_login` 模式。人类可读输出转义字面量，并本地化空 Shell 标签。

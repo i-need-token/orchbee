@@ -504,3 +504,5 @@ Server 负责原子分配和发布；物理成员创建仍是独立的保留命�
 `workbench.configuration`（OBWP 类型 39）携带 `current` 或 `reload`；`workbench.configuration.result`（类型 40）携带封闭的 current/reloaded/failed 结果。每帧上限 128 KiB。[配置 schema](v1/workbench-configuration.schema.json)、共享语料和独立 Rust/TypeScript 绑定接纳相同形状和边界。快照版本 0 表示启动基线，正版本表示显式发布。仅含键位的规范配置上限 64 KiB；重启字段不可重复；可选失败诊断为必需但可空的成对字段（128 个 UTF-8 字节、无控制字符，仅载入失败允许）。请求和 Site 标识必须匹配，成功结果必须对应请求动作。
 
 [Windows 配置归属契约](../../apps/orchbee/docs/windows-cli-configuration.zh-CN.md#在线配置重载) 负责授权、冻结路径、候选校验、发布、Client 应用和关闭。发布不表示所有 Client 已确认。已提交重载丢失响应仍为未知，不自动重试。不新增 Desktop 命令；匹配的私有版本整套交付，不迁移持久化格式。
+
+必需 `defaultShell` 和 `shellMode` 暴露后续终端准备所用的已接纳默认值，不是 Worker 解析后的事实。可执行文件为空表示平台默认，否则为最多 4096 UTF-8 字节、无控制字符的字面量；模式为 `auto`、`login` 或 `non_login`。匹配的私有 cohort 一同升级。公开 CLI configuration v2 映射这两个字段，历史 v1 schema 保持封闭。

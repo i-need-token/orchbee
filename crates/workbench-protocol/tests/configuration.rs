@@ -29,6 +29,8 @@ fn configuration_roundtrips_have_distinct_carrier_kinds_and_exact_correlation() 
             snapshot: ConfigurationSnapshot {
                 revision: WorkbenchRevision::new(1),
                 keys_profile: format!("[keys]\n#{}", "x".repeat(20_000)),
+                default_shell: String::new(),
+                shell_mode: orchbee_workbench_protocol::ConfigurationShellMode::Auto,
                 manifest_check: true,
                 restart_required: vec![],
             },
@@ -53,6 +55,9 @@ fn configuration_roundtrips_have_distinct_carrier_kinds_and_exact_correlation() 
 }
 #[test]
 fn configuration_rejects_unknown_fields_oversize_and_invalid_failure_shapes() {
+    // Keep malformed Unicode outside the corpus container: serde_json rejects it before DTO admission.
+    let invalid = br#"{"kind":"workbench.configuration.result","protocolVersion":1,"requestId":"00000000000000000000000000000001","siteId":"00000000000000000000000000000002","outcome":{"kind":"current","snapshot":{"revision":"0","keysProfile":"[keys]","manifestCheck":true,"restartRequired":[],"defaultShell":"\ud800","shellMode":"auto"}}}"#;
+    assert!(parse_workbench_response(invalid).is_err());
     let request = request();
     let mut value = serde_json::to_value(&request).unwrap();
     value["unexpected"] = true.into();
@@ -72,6 +77,8 @@ fn configuration_rejects_unknown_fields_oversize_and_invalid_failure_shapes() {
         snapshot: ConfigurationSnapshot {
             revision: WorkbenchRevision::new(1),
             keys_profile: "x".repeat(65537),
+            default_shell: String::new(),
+            shell_mode: orchbee_workbench_protocol::ConfigurationShellMode::Auto,
             manifest_check: false,
             restart_required: vec![],
         },

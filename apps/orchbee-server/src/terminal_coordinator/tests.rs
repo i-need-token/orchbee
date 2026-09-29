@@ -3,6 +3,61 @@ use orchbee_capability_node_protocol::{
     HostCreationId, HostEpoch, HostLaunchAccepted, HostTerminalId, TerminalLaunchResult,
 };
 
+#[cfg(windows)]
+#[test]
+fn reloaded_shell_defaults_are_captured_only_by_new_default_preparations() {
+    use orchbee_capability_node_protocol::{DefaultShellMode, DefaultShellSelection};
+    let old = DefaultShellSelection::new("old.exe".into(), DefaultShellMode::Auto).unwrap();
+    let new = DefaultShellSelection::new("new.exe".into(), DefaultShellMode::Login).unwrap();
+    let mut coordinator = TerminalCoordinator::new();
+    coordinator.set_default_shell(old.clone());
+    let pending = dispatch(coordinator.prepare(false, create(1), Some(worker(1)), Some(expiry())));
+    let before = orchbee_capability_node_protocol::encode_message(pending.command()).unwrap();
+    coordinator.set_default_shell(new.clone());
+    assert_eq!(
+        orchbee_capability_node_protocol::encode_message(pending.command()).unwrap(),
+        before
+    );
+    let CapabilityNodeMessage::AuthorizedTerminalLaunch(first) = pending.command() else {
+        panic!("launch");
+    };
+    assert_eq!(first.default_shell(), Some(&old));
+    let next = dispatch(coordinator.prepare(false, create(2), Some(worker(1)), Some(expiry())));
+    let CapabilityNodeMessage::AuthorizedTerminalLaunch(next) = next.command() else {
+        panic!("launch");
+    };
+    assert_eq!(next.default_shell(), Some(&new));
+    let explicit = orchbee_client_server_protocol::LaunchSelection::new(
+        "C:/explicit.exe".into(),
+        vec!["literal".into()],
+    )
+    .unwrap();
+    let next = dispatch(coordinator.prepare(
+        false,
+        ClientMessage::TerminalCreate(TerminalCreateRequest::new(
+            id(3),
+            None,
+            None,
+            StartMode::Deferred,
+            Some(explicit),
+        )),
+        Some(worker(1)),
+        Some(expiry()),
+    ));
+    let CapabilityNodeMessage::AuthorizedTerminalLaunch(next) = next.command() else {
+        panic!("launch");
+    };
+    assert!(next.default_shell().is_none());
+    assert_eq!(next.launch().unwrap().executable(), "C:/explicit.exe");
+    let accepted = accepted_launch(&pending);
+    commit_completion(&mut coordinator, pending, accepted, Some(worker(1)));
+    assert!(matches!(
+        dispatch(coordinator.prepare(false, start(4, 1), Some(worker(1)), Some(expiry())))
+            .command(),
+        CapabilityNodeMessage::AuthorizedTerminalStart(_)
+    ));
+}
+
 #[test]
 fn close_fence_refuses_only_new_start_effects_without_consuming_the_cursor() {
     let mut coordinator = TerminalCoordinator::new();

@@ -10,6 +10,27 @@ const caseSchema = z.strictObject({
 	boundary: z.enum(['schema', 'semantic']).optional(),
 });
 describe('Site configuration publication', () => {
+	it('rejects unpaired Unicode before admitting a shell snapshot', () => {
+		expect(
+			WorkbenchResponseSchema.safeParse({
+				kind: 'workbench.configuration.result',
+				protocolVersion: 1,
+				requestId: '00000000000000000000000000000001',
+				siteId: '00000000000000000000000000000002',
+				outcome: {
+					kind: 'current',
+					snapshot: {
+						revision: '0',
+						keysProfile: '[keys]',
+						manifestCheck: true,
+						restartRequired: [],
+						defaultShell: '\ud800',
+						shellMode: 'auto',
+					},
+				},
+			}).success,
+		).toBe(false);
+	});
 	it('matches the shared Rust configuration corpus and closed shapes', async () => {
 		const corpus = z
 			.strictObject({

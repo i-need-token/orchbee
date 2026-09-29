@@ -34,7 +34,14 @@
 		},
 		"snapshot": {
 			"type": "object",
-			"required": ["revision", "keysProfile", "manifestCheck", "restartRequired"],
+			"required": [
+				"revision",
+				"keysProfile",
+				"manifestCheck",
+				"restartRequired",
+				"defaultShell",
+				"shellMode"
+			],
 			"additionalProperties": false,
 			"properties": {
 				"revision": {
@@ -62,6 +69,15 @@
 							"session.resume_agents_on_restore"
 						]
 					}
+				},
+				"defaultShell": {
+					"type": "string",
+					"maxLength": 4096,
+					"pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]*$",
+					"$comment": "Bindings additionally enforce the 4096 UTF-8 byte limit and Unicode scalar strings."
+				},
+				"shellMode": {
+					"enum": ["auto", "login", "non_login"]
 				}
 			}
 		},

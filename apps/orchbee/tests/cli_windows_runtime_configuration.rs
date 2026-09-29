@@ -47,10 +47,16 @@ fn current_reload_rejections_and_lost_reply_have_closed_typed_receipts_without_r
                 revision: WorkbenchRevision::new(if case == "startup" { 0 } else { 3 }),
                 keys_profile: "[keys]\nprefix='ctrl+a'\n".into(),
                 restart_required: if case == "restart" {
-                    vec![ConfigurationRestart::DefaultShell]
+                    vec![ConfigurationRestart::ResumeAgents]
                 } else {
                     Vec::new()
                 },
+                default_shell: if case == "en" {
+                    "C:\\tools\\\u{202e}shell.exe".into()
+                } else {
+                    String::new()
+                },
+                shell_mode: orchbee_workbench_protocol::ConfigurationShellMode::Auto,
                 manifest_check: false,
             };
             let outcome = match case {
@@ -112,21 +118,36 @@ fn current_reload_rejections_and_lost_reply_have_closed_typed_receipts_without_r
             String::from_utf8_lossy(&output.stderr)
         );
         if text {
-            assert!(
-                String::from_utf8(output.stdout)
-                    .unwrap()
-                    .contains(if case == "zh" {
-                        "配置已发布"
-                    } else {
-                        "Configuration published"
-                    })
-            );
+            let text = String::from_utf8(output.stdout).unwrap();
+            assert!(text.contains(if case == "zh" {
+                "配置已发布"
+            } else {
+                "Configuration published"
+            }));
+            assert!(text.contains("mode=auto"));
+            if case == "zh" {
+                assert!(text.contains("（平台默认）"));
+            } else {
+                assert!(text.contains(r"C:\\tools\\\u{202e}shell.exe"));
+                assert!(!text.contains('\u{202e}'));
+            }
         } else {
             let document: Value = serde_json::from_slice(&output.stdout).unwrap();
             validate(
                 &document,
                 include_str!("../src/cli/schemas/orchbee.site.configuration.json"),
             );
+            assert_eq!(document["version"], 2);
+            if matches!(case, "startup" | "current" | "reload" | "restart") {
+                assert_eq!(
+                    document["result"]["reply"]["outcome"]["snapshot"]["defaultShell"],
+                    ""
+                );
+                assert_eq!(
+                    document["result"]["reply"]["outcome"]["snapshot"]["shellMode"],
+                    "auto"
+                );
+            }
             if matches!(case, "lost" | "wrong-action") {
                 assert!(document["result"]["reply"].is_null());
             }
@@ -152,4 +173,32 @@ fn reload_does_not_activate_a_site_and_rejects_unrelated_flags_before_admission(
         let output = fixture.run(&arguments);
         assert_eq!(output.status.code(), Some(2));
     }
+}
+
+#[test]
+fn public_configuration_versions_keep_closed_independent_snapshots() {
+    let schema: Value = serde_json::from_str(include_str!(
+        "../src/cli/schemas/orchbee.site.configuration.json"
+    ))
+    .unwrap();
+    let validator = jsonschema::validator_for(&schema).unwrap();
+    let mut document = serde_json::json!({
+        "schema": "orchbee.site.configuration", "version": 1,
+        "source": {"kind": "local-runtime"},
+        "result": {"action": "current", "interrupted": false, "cleanupFailed": false,
+            "reply": {"protocolVersion": 1, "requestId": "00000000000000000000000000000001", "siteId": "00000000000000000000000000000002",
+                "outcome": {"kind": "current", "snapshot": {"revision": "0", "keysProfile": "[keys]", "manifestCheck": true, "restartRequired": []}}}}
+    });
+    assert!(validator.is_valid(&document));
+    document["version"] = 2.into();
+    assert!(!validator.is_valid(&document));
+    let snapshot = &mut document["result"]["reply"]["outcome"]["snapshot"];
+    snapshot["defaultShell"] = "pwsh.exe".into();
+    snapshot["shellMode"] = "non_login".into();
+    assert!(validator.is_valid(&document));
+    document["version"] = 1.into();
+    assert!(!validator.is_valid(&document));
+    document["version"] = 2.into();
+    document["result"]["reply"]["outcome"]["snapshot"]["shellMode"] = "unknown".into();
+    assert!(!validator.is_valid(&document));
 }

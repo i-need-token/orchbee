@@ -7,10 +7,10 @@ import {
 } from './workbench-semantic-contract';
 
 export const WORKBENCH_MAXIMUM_ENCODED_CONFIGURATION_BYTES = 128 * 1024;
-const bounded = (maximum: number) =>
+const bounded = (maximum: number, minimum = 1) =>
 	z
 		.string()
-		.min(1)
+		.min(minimum)
 		.max(maximum)
 		.refine(
 			(value) =>
@@ -23,6 +23,8 @@ const snapshot = z.strictObject({
 	revision: WorkbenchRevisionSchema,
 	keysProfile: bounded(65536),
 	manifestCheck: z.boolean(),
+	defaultShell: bounded(4096, 0).refine((value) => !/\p{Cc}/u.test(value)),
+	shellMode: z.enum(['auto', 'login', 'non_login']),
 	restartRequired: z
 		.array(
 			z.enum(['terminal.default_shell', 'terminal.shell_mode', 'session.resume_agents_on_restore']),

@@ -71,6 +71,11 @@ impl ProcessObserver {
             !cfg!(debug_assertions) && !cfg!(test),
         )?;
         service.configuration.initialize(&settings)?;
+        if !service.apply_configuration(&settings) {
+            return Err(io::Error::other(
+                "Configuration launch policy is unavailable",
+            ));
+        }
         let service = Arc::downgrade(service);
         let wake = Arc::clone(&self.wake);
         let spawned = thread::Builder::new()

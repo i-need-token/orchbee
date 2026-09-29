@@ -3,7 +3,8 @@ use orchbee_local_site_runtime::{WindowsUserSettings, read_windows_user_settings
 use orchbee_workbench_protocol::{
     ConfigurationAction as Action, ConfigurationFailure as Failure,
     ConfigurationOutcome as Outcome, ConfigurationRequest, ConfigurationRestart as Restart,
-    ConfigurationResult, ConfigurationSnapshot, ProtocolVersion, WorkbenchRevision,
+    ConfigurationResult, ConfigurationShellMode, ConfigurationSnapshot, ProtocolVersion,
+    WorkbenchRevision,
 };
 use std::sync::Mutex;
 
@@ -113,12 +114,6 @@ fn snapshot(
     revision: u64,
 ) -> ConfigurationSnapshot {
     let mut restart_required = Vec::new();
-    if startup.shell.executable() != current.shell.executable() {
-        restart_required.push(Restart::DefaultShell);
-    }
-    if startup.shell.mode() != current.shell.mode() {
-        restart_required.push(Restart::ShellMode);
-    }
     if startup.resume_agents_on_restore != current.resume_agents_on_restore {
         restart_required.push(Restart::ResumeAgents);
     }
@@ -126,10 +121,39 @@ fn snapshot(
         revision: WorkbenchRevision::new(revision),
         keys_profile: current.keys.profile(),
         manifest_check: current.manifest_check,
+        default_shell: current.shell.executable().into(),
+        shell_mode: match current.shell.mode() {
+            orchbee_local_site_runtime::WindowsShellMode::Auto => ConfigurationShellMode::Auto,
+            orchbee_local_site_runtime::WindowsShellMode::Login => ConfigurationShellMode::Login,
+            orchbee_local_site_runtime::WindowsShellMode::NonLogin => {
+                ConfigurationShellMode::NonLogin
+            }
+        },
         restart_required,
     }
 }
 impl super::LocalTerminalService {
+    /// No fallible effect follows scheduler admission. Creation and reload share this lock.
+    pub(super) fn apply_configuration(&self, settings: &WindowsUserSettings) -> bool {
+        use orchbee_capability_node_protocol::{DefaultShellMode, DefaultShellSelection};
+        use orchbee_local_site_runtime::WindowsShellMode;
+        let mode = match settings.shell.mode() {
+            WindowsShellMode::Auto => DefaultShellMode::Auto,
+            WindowsShellMode::Login => DefaultShellMode::Login,
+            WindowsShellMode::NonLogin => DefaultShellMode::NonLogin,
+        };
+        let Ok(shell) = DefaultShellSelection::new(settings.shell.executable().into(), mode) else {
+            return false;
+        };
+        let Ok(mut coordinator) = self.coordinator.lock() else {
+            return false;
+        };
+        if !self.process_observer.apply_configuration(settings) {
+            return false;
+        }
+        coordinator.set_default_shell(shell);
+        true
+    }
     pub(crate) fn execute_configuration(
         &self,
         request: ConfigurationRequest,
@@ -137,9 +161,9 @@ impl super::LocalTerminalService {
         let outcome = match self.workbench_site_matches(&request.site_id) {
             None => Outcome::failed(Failure::Unavailable),
             Some(false) => Outcome::failed(Failure::SiteMismatch),
-            Some(true) => self.configuration.execute(&request, |settings| {
-                self.process_observer.apply_configuration(settings)
-            }),
+            Some(true) => self
+                .configuration
+                .execute(&request, |settings| self.apply_configuration(settings)),
         };
         ConfigurationResult {
             protocol_version: ProtocolVersion,

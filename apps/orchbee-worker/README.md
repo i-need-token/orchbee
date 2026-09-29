@@ -915,7 +915,9 @@ tests exercise real protocol exchanges, not a packaged Worker/Host process accep
 
 Worker receives an owned `WindowsShellSettings` snapshot through matched managed startup,
 or reads the shared configuration once before explicit-endpoint admission. Both the lazy
-pre-Host loop and admitted loop borrow that same snapshot for default launch preparation.
+pre-Host loop and admitted loop borrow that snapshot as the fallback for default launch preparation.
 Explicit executable/Profile selections bypass it, and exact replay does not resolve again.
 The [Windows configuration contract](../orchbee/docs/windows-cli-configuration.md#configured-windows-shell)
 owns executable syntax, PATH resolution, mode flags, startup lifetime and evidence limits.
+
+New Server-authorized default launches can override the startup fallback with a frozen Windows shell policy. Explicit programs always bypass it. Preparation validates the policy and resolves Worker-local facts once; cached replay and deferred Start keep those facts. Invalid syntax or unavailable executable fails only that pre-handoff operation, leaving both lazy and admitted Worker loops available for a fresh corrected request. See [live defaults](../orchbee/docs/windows-cli-configuration.md#live-defaults-for-subsequent-windows-terminals).

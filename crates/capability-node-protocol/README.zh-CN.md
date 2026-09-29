@@ -554,3 +554,9 @@ Control request action tag 5 表示 Takeover，后接预期旧 controller ID（�
 既有 tag 不变；不支持混用私有版本。
 
 启动选择另将最坏 JSON 字符串内容限制为 30 KiB：ASCII 控制字符计六字节，引号和反斜杠计两字节，其他 UTF-8 字节计一字节。原有 2 KiB 输入域全部保留，同时约束更大的恢复命令。扩大上限后必须使用匹配 cohort。
+
+## 每次启动的 Windows Shell 默认值
+
+授权默认启动可携带 `DefaultShellSelection`：0–4096 个 UTF-8 字节、无控制字符的字面程序和 Auto/Login/NonLogin 模式。空程序表示平台默认；缺省表示 Worker 启动回退。Worker 在效果前另外校验 Windows 程序语法。显式 `LaunchSelection` 与默认覆盖互斥。该值参与精确重放身份比较。
+
+已有的零 u16 启动扩展哨兵用版本 2 表示此形状：u8 模式（0/1/2）、u16 程序字节长度、程序 UTF-8 字节，随后是原有环境编码（允许空）。v2 不含显式选择槽。旧负载和 v1 非空环境扩展保持原字节。未知模式/版本、截断、尾随字节和无效有界值均被拒绝。OBCN 帧版本及 40 KiB 负载上限不变。匹配的私有 cohort 整套交付/回退；该线协议不引入广播、持久化或重试。

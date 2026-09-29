@@ -16,6 +16,8 @@ fn snapshot(revision: u64, profile: &str) -> ConfigurationSnapshot {
         revision: WorkbenchRevision::new(revision),
         keys_profile: profile.into(),
         restart_required: Vec::new(),
+        default_shell: String::new(),
+        shell_mode: orchbee_workbench_protocol::ConfigurationShellMode::Auto,
         manifest_check: true,
     }
 }

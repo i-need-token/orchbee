@@ -328,6 +328,7 @@ pub struct AuthorizedTerminalLaunch {
     mode: TerminalLaunchMode,
     launch: Option<LaunchSelection>,
     environment: crate::LaunchEnvironment,
+    default_shell: Option<crate::DefaultShellSelection>,
 }
 
 impl AuthorizedTerminalLaunch {
@@ -344,6 +345,7 @@ impl AuthorizedTerminalLaunch {
             mode,
             launch,
             environment: crate::LaunchEnvironment::empty(),
+            default_shell: None,
         }
     }
 
@@ -376,6 +378,19 @@ impl AuthorizedTerminalLaunch {
     #[must_use]
     pub const fn environment(&self) -> &crate::LaunchEnvironment {
         &self.environment
+    }
+    pub fn with_default_shell(
+        mut self,
+        shell: Option<crate::DefaultShellSelection>,
+    ) -> Result<Self, ProtocolError> {
+        if shell.is_some() && self.launch.is_some() {
+            return Err(ProtocolError::InvalidPayload);
+        }
+        self.default_shell = shell;
+        Ok(self)
+    }
+    pub const fn default_shell(&self) -> Option<&crate::DefaultShellSelection> {
+        self.default_shell.as_ref()
     }
 }
 

@@ -127,11 +127,12 @@ Launch Profiles retain their exact arguments and bypass configured default selec
 
 Client activation freezes these values alongside existing settings before commitment. The matched
 Server forwards this private snapshot to Worker without rereading configuration. Worker owns the
-snapshot across lazy Host startup and later terminal preparation, including CLI/TUI creation and
-default-shell restore. Direct unmanaged Worker startup validates its configuration once before
-admission. Prepared operations and replay retain their resolved launch facts. Editing the file
-does not change live shells or running Worker policy; a new Site lifetime is still required for
-Worker shell defaults, and live reload reports these changes in `restartRequired`. Windows `config check` v5 reports `defaultShell` and `shellMode`; prior
+snapshot as a fallback across lazy Host startup and later terminal preparation. Server-authorized
+CLI/TUI/default-shell restore preparations capture the latest published defaults as described below.
+Direct unmanaged Worker startup validates its configuration once before admission. Prepared
+operations and replay retain their resolved launch facts. Editing the file alone does not publish
+settings or change live shells; explicit reload updates defaults for subsequent preparations.
+Windows `config check` v5 reports `defaultShell` and `shellMode`; prior
 versions remain closed. Shell-specific creation errors use configuration failure v2; v1 keeps
 its original field/reason set. These are configured values, not a claim that a binary can launch.
 
@@ -217,12 +218,22 @@ configuration watcher and applies only a validated newer profile between input p
 prefix state is cleared, editor/confirmation ownership and user drafts remain intact. Reload failure
 keeps current keys and produces a localized notice. The reload action itself is configurable through `reload_config`. The native default is prefix F5; Herdr uses prefix Shift+R, which conflicts with the existing native Project rename default. A profile such as `reload_config = "prefix+shift+r"` explicitly replaces that conflicting default.
 
-Changed default shell, shell mode or restore-on-start policy is explicitly returned in
-`restartRequired` relative to Site startup; existing Worker policy and already-restored sessions
-remain owned by their current lifetime. CLI directory/worktree defaults are caller reads on the next
-invocation. This is partial Herdr reload parity: strict whole-file rejection, Worker live defaults,
-unimplemented configuration families and Client-specific profile policy remain unfinished.
+Changed restore-on-start policy is returned in `restartRequired` relative to Site startup;
+already-restored sessions remain owned by their current lifetime. Default shell and mode apply to
+subsequent preparations without a restart. CLI directory/worktree defaults are caller reads on the
+next invocation. This is partial Herdr reload parity: strict whole-file rejection, unimplemented
+configuration families and Client-specific profile policy remain unfinished.
 The wire key profile is capped at 64 KiB; up to 144 expanded triggers per action preserve the user file limit of 16 indexed alternatives. Polling uses an independent cancellable connection every 500 ms, with a two-second exchange limit. A successful reload is published state, not an acknowledgement that every Client has applied it.
 
 No persisted configuration migration or automatic retry is introduced. Tests cover authorization,
 bounded serialization, failure retention, no-change reload, publication application and shutdown.
+
+## Live defaults for subsequent Windows terminals
+
+Reload commits a validated `DefaultShellSelection` into the existing Server TerminalCoordinator. Its creation admission captures that immutable value in each new default `AuthorizedTerminalLaunch`; explicit executable/Profile requests carry no default override. The Worker validates the Windows shell syntax and resolves its own executable/PATH and mode flags before Host handoff. An absent override retains the Worker's startup fallback for unmanaged/legacy private requests. Existing PTYs, prepared launches, exact replay and deferred Start never acquire later defaults. New CLI/TUI/restore creation uses the same coordinator admission.
+
+The commit lock order is configuration registry, Site coordinator, then manifest scheduling. Candidate validation and wire-value construction precede commit; scheduler admission refusal leaves both launch policy and publication unchanged. No Worker IPC or distributed acknowledgement occurs under these locks. Shell/mode changes apply to subsequent creation and cease to require Site restart; restore-on-start remains a startup-only requirement. Successful reload confirms configuration admission, not executable availability.
+
+Launch preparation failure records the existing known pre-handoff failure, retains the Worker/Server connection and creates no Host terminal. The same failed request replays its failure; corrected settings require a fresh creation identity. The lazy loop also remains available before any Host exists. Host startup/transport uncertainty retains its prior retirement and no-retry policy. Evidence covers private framing, default/explicit/absent selection, preparation across reload, exact/conflicting replay, failure retention and real Windows pipe exchanges; full provider/multi-Client/visual acceptance remains deferred. Matching private cohorts deploy or roll back together without a durable migration.
+
+`site config` and reload receipts expose the admitted `defaultShell` and `shellMode` for subsequent default preparations, including after a lost reload reply. Empty shell means the platform default; these values are not Worker executable-resolution or launch-success evidence. CLI receipt v2 requires both fields while the historical v1 schema stays closed and unchanged. Matched private Workbench snapshots require the same bounded literal (4096 UTF-8 bytes, no controls) and `auto`/`login`/`non_login` mode. Human output escapes the literal and localizes the empty-shell label.
