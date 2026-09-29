@@ -232,7 +232,92 @@ fn plugin_log_cli_follows_exact_worker_cursor_and_requested_limit() {
         String::from_utf8_lossy(&output.stdout)
     );
     let document: Value = serde_json::from_slice(&output.stdout).unwrap();
-    validate(&document, SCHEMA);
-    assert_eq!(document["result"]["replies"].as_array().unwrap().len(), 2);
+    validate(
+        &document,
+        include_str!("../src/cli/schemas/orchbee.plugin.logs.json"),
+    );
+    let logs = document["result"]["logs"].as_array().unwrap();
+    assert_eq!(logs.len(), 5);
+    assert_eq!(logs[0]["sequence"], 6);
+    assert_eq!(logs[4]["sequence"], 10);
     handler.join().unwrap();
+}
+
+#[test]
+fn plugin_history_defaults_to_latest_fifty_in_chronological_json_and_text_order() {
+    for format in ["json", "text"] {
+        let fixture = Fixture::new();
+        let listener = LocalListener::bind(fixture.rendezvous().client_socket_path()).unwrap();
+        let handler = peer(&fixture, listener, move |mut stream| {
+            bound_snapshot_reply(&mut stream);
+            let mut remaining = 50;
+            let mut sequence = 100;
+            while remaining > 0 {
+                let WorkbenchRequest::Plugin(request) =
+                    read_workbench_request(&mut stream).unwrap()
+                else {
+                    panic!()
+                };
+                let PluginAction::Logs { limit, cursor, .. } = request.action else {
+                    panic!()
+                };
+                assert_eq!(usize::from(limit), remaining.min(4));
+                assert_eq!(
+                    cursor.map(|c| c.before),
+                    (sequence < 100).then_some(sequence + 1)
+                );
+                let logs = (0..limit)
+                    .map(|_| {
+                        let value = log(format!("{sequence:032x}"), sequence);
+                        sequence -= 1;
+                        value
+                    })
+                    .collect();
+                remaining -= usize::from(limit);
+                write_workbench_response(
+                    &mut stream,
+                    &WorkbenchResponse::Plugin(PluginResult {
+                        protocol_version: ProtocolVersion,
+                        request_id: request.request_id,
+                        site_id: request.site_id,
+                        outcome: PluginOutcome::Logs {
+                            worker: worker(),
+                            logs,
+                            next: Some(PluginLogCursor {
+                                worker: worker(),
+                                before: sequence + 1,
+                            }),
+                        },
+                    }),
+                )
+                .unwrap();
+            }
+            assert_closed(&mut stream);
+        });
+        let output = fixture.run(&["plugin", "log", "list", "--format", format]);
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        if format == "json" {
+            let document: Value = serde_json::from_slice(&output.stdout).unwrap();
+            validate(
+                &document,
+                include_str!("../src/cli/schemas/orchbee.plugin.logs.json"),
+            );
+            let logs = document["result"]["logs"].as_array().unwrap();
+            assert_eq!(logs.len(), 50);
+            for (index, row) in logs.iter().enumerate() {
+                assert_eq!(row["sequence"], 51 + index);
+            }
+        } else {
+            let text = String::from_utf8(output.stdout).unwrap();
+            let positions: Vec<_> = (51..=100)
+                .map(|sequence| text.find(&format!("{sequence:032x}")).unwrap())
+                .collect();
+            assert!(positions.windows(2).all(|pair| pair[0] < pair[1]));
+        }
+        handler.join().unwrap();
+    }
 }

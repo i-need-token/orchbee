@@ -14,13 +14,13 @@ local-site-runtime 插件边界负责有界 TOML 校验和持久目录。目录�
 
 ## 运行时 action 与日志
 
-`plugin action invoke ACTION [--plugin ID] [--context JSON]` 向已有 Site 提交普通 action ID 或 `plugin.action` 完整 ID。`plugin log list [ID] [--plugin ID] [--limit 1..200]` 查询最新保留日志，默认 20 条。list 和 action-list 也支持用 `--plugin` 替代位置过滤参数。均支持 `--format text|json`，运行时命令不启动 Site。上下文是封闭的 camelCase 对象，包含可选 workspace/tab/Pane 展示字段、选中文字、调用来源、关联 ID、点击 URL 和链接处理器 ID；编码总量最多 16 KiB，选中文字最多 8 KiB。上下文不携带授权。省略调用来源时使用 `cli`。
+`plugin action invoke ACTION [--plugin ID] [--context JSON]` 向已有 Site 提交普通 action ID 或 `plugin.action` 完整 ID。`plugin log list [ID] [--plugin ID] [--limit 1..200]` 查询最新保留日志，默认 50 条。list 和 action-list 也支持用 `--plugin` 替代位置过滤参数。均支持 `--format text|json`，运行时命令不启动 Site。上下文是封闭的 camelCase 对象，包含可选 workspace/tab/Pane 展示字段、选中文字、调用来源、关联 ID、点击 URL 和链接处理器 ID；编码总量最多 16 KiB，选中文字最多 8 KiB。上下文不携带授权。省略调用来源时使用 `cli`。
 
 Server 在解析调用前要求读取、终端创建和生命周期权限。确认 Site、action 唯一且源有效、已启用、支持 Windows 后，固定 argv、源 cwd 和环境。Worker 在插件根目录执行独立参数；显式 shell 命令保留自身 shell 语义。相对程序从插件根目录解析，再使用 Windows PATH/PATHEXT。原生上下文通过 `ORCHBEE_PLUGIN_CONTEXT_JSON` 及插件 ID/root/action/config/state 路径、`ORCHBEE_BIN_PATH`、可选 workspace/tab/Pane ID 和链接字段提供。受管 Worker 用自身 Site 路由覆盖 runtime base/scope。这些是 Orchbee 变量和 API 语义，Herdr 专属脚本可能需要调整。安装本次字段前会清除继承的插件/终端身份。
 
 每个 Worker 生命周期最多拥有 32 个并发命令和 200 条日志。每个命令保留线程及 Windows Job，在 CLI 断开后继续运行。保留期内相同操作 ID 返回原回执，不同意图产生冲突；已淘汰日志不构成持久重放记录。CLI 在回复不确定时不重新提交修改。启动回执只确认受理，不确认执行成功。日志包含序号、起止时间、退出码、类型化失败、stdout/stderr 和显式截断标记。每路原始输出保留 64 KiB，超出后继续排空；无效 UTF-8 用替换字符解码。文本输出转义控制字符。优先淘汰最旧的已完成日志，运行中的命令保留归属。命令结束后提供输出。
 
-运行时日志在同一个十秒 CLI 截止时间内按每页四条读取，并固定 Worker/generation 和递减序号游标。新增命令不会推移后续页面；Worker 变化会拒绝旧游标。公开回执为 `orchbee.plugin.runtime` v1，遵守常规 8 MiB 输出上限。日志查询将进程失败作为数据返回，不因此让每次历史查询失败。私有 get/cancel 请求指向准确 Worker 和 job ID。取消及 Site 停止会清理根进程和后代、排空输出并等待线程结束；Job 清理不确定时阻止新执行，重试不能将未知清理变成成功。没有隐藏辅助窗口、脱离归属的管道读取线程或任意命令时长限制。
+运行时日志在同一个十秒 CLI 截止时间内按每页四条读取，并固定 Worker/generation 和递减序号游标。新增命令不会推移后续页面；Worker 变化会拒绝旧游标。调用使用 `orchbee.plugin.runtime` v1；历史使用 `orchbee.plugin.logs` v1，通过一个展平的 `logs` 数组按所选最近记录的时间正序返回，默认 50 条，与参照一致。内部游标分页仍为倒序。两者遵守常规 8 MiB 输出上限；旧 runtime schema 继续用于历史回执。日志查询将进程失败作为数据返回，不因此让每次历史查询失败。私有 get/cancel 请求指向准确 Worker 和 job ID。取消及 Site 停止会清理根进程和后代、排空输出并等待线程结束；Job 清理不确定时阻止新执行，重试不能将未知清理变成成功。没有隐藏辅助窗口、脱离归属的管道读取线程或任意命令时长限制。
 
 ## 托管源码安装与移除
 

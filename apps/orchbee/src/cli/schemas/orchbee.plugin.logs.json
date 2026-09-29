@@ -1,0 +1,307 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "orchbee.plugin.logs",
+	"title": "Chronological native plugin command history",
+	"type": "object",
+	"additionalProperties": false,
+	"required": ["schema", "version", "source", "result"],
+	"properties": {
+		"schema": {
+			"const": "orchbee.plugin.logs"
+		},
+		"version": {
+			"const": 1
+		},
+		"source": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["kind"],
+			"properties": {
+				"kind": {
+					"const": "local-runtime"
+				}
+			}
+		},
+		"result": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["worker", "logs", "failure", "complete", "interrupted", "cleanupFailed"],
+			"properties": {
+				"worker": {
+					"anyOf": [
+						{
+							"type": "null"
+						},
+						{
+							"$ref": "#/$defs/worker"
+						}
+					]
+				},
+				"logs": {
+					"type": "array",
+					"maxItems": 200,
+					"items": {
+						"$ref": "#/$defs/log"
+					},
+					"$comment": "Latest requested records in strictly increasing sequence order, pinned to one Worker generation."
+				},
+				"failure": {
+					"enum": [
+						null,
+						"denied",
+						"unavailable",
+						"site-mismatch",
+						"worker-changed",
+						"invalid-intent",
+						"not-found",
+						"disabled",
+						"unsupported",
+						"source-unavailable",
+						"ambiguous",
+						"busy",
+						"conflict",
+						"physical-unknown"
+					]
+				},
+				"complete": {
+					"type": "boolean"
+				},
+				"interrupted": {
+					"type": "boolean"
+				},
+				"cleanupFailed": {
+					"type": "boolean"
+				}
+			},
+			"allOf": [
+				{
+					"if": {
+						"properties": {
+							"worker": {
+								"type": "null"
+							}
+						}
+					},
+					"then": {
+						"properties": {
+							"logs": {
+								"maxItems": 0
+							}
+						}
+					}
+				}
+			]
+		}
+	},
+	"$defs": {
+		"worker": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["workerId", "generation"],
+			"properties": {
+				"workerId": {
+					"type": "string",
+					"pattern": "^[0-9a-f]{32}$",
+					"not": {
+						"const": "00000000000000000000000000000000"
+					}
+				},
+				"generation": {
+					"type": "string",
+					"pattern": "^[1-9][0-9]*$",
+					"format": "orchbee-uint64"
+				}
+			}
+		},
+		"log": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": [
+				"jobId",
+				"sequence",
+				"pluginId",
+				"commandId",
+				"command",
+				"startedMs",
+				"finishedMs",
+				"exitCode",
+				"failure",
+				"stdout",
+				"stderr",
+				"stdoutTruncated",
+				"stderrTruncated"
+			],
+			"properties": {
+				"jobId": {
+					"type": "string",
+					"pattern": "^[0-9a-f]{32}$",
+					"not": {
+						"const": "00000000000000000000000000000000"
+					}
+				},
+				"sequence": {
+					"type": "integer",
+					"minimum": 1,
+					"maximum": 9007199254740991
+				},
+				"pluginId": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 120,
+					"pattern": "^[A-Za-z0-9._:-]+$"
+				},
+				"commandId": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 241,
+					"pattern": "^[A-Za-z0-9._:-]+$"
+				},
+				"command": {
+					"type": "array",
+					"minItems": 1,
+					"maxItems": 128,
+					"items": {
+						"type": "string",
+						"maxLength": 4096,
+						"pattern": "^[^\\u0000]*$",
+						"minLength": 1
+					}
+				},
+				"startedMs": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 9007199254740991
+				},
+				"finishedMs": {
+					"anyOf": [
+						{
+							"type": "integer",
+							"minimum": 0,
+							"maximum": 9007199254740991
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"exitCode": {
+					"anyOf": [
+						{
+							"type": "integer",
+							"minimum": -2147483648,
+							"maximum": 2147483647
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"failure": {
+					"anyOf": [
+						{
+							"enum": [
+								"exit-failure",
+								"spawn-unavailable",
+								"spawn-failed",
+								"io",
+								"cancelled",
+								"physical-unknown"
+							]
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"stdout": {
+					"type": "string",
+					"maxLength": 196608
+				},
+				"stderr": {
+					"type": "string",
+					"maxLength": 196608
+				},
+				"stdoutTruncated": {
+					"type": "boolean"
+				},
+				"stderrTruncated": {
+					"type": "boolean"
+				}
+			},
+			"allOf": [
+				{
+					"if": {
+						"properties": {
+							"finishedMs": {
+								"type": "null"
+							}
+						}
+					},
+					"then": {
+						"properties": {
+							"exitCode": {
+								"type": "null"
+							},
+							"failure": {
+								"type": "null"
+							},
+							"stdout": {
+								"const": ""
+							},
+							"stderr": {
+								"const": ""
+							},
+							"stdoutTruncated": {
+								"const": false
+							},
+							"stderrTruncated": {
+								"const": false
+							}
+						}
+					},
+					"else": {
+						"if": {
+							"properties": {
+								"failure": {
+									"type": "null"
+								}
+							}
+						},
+						"then": {
+							"properties": {
+								"exitCode": {
+									"const": 0
+								}
+							}
+						},
+						"else": {
+							"if": {
+								"properties": {
+									"failure": {
+										"const": "exit-failure"
+									}
+								}
+							},
+							"then": {
+								"properties": {
+									"exitCode": {
+										"not": {
+											"const": 0
+										}
+									}
+								}
+							},
+							"else": {
+								"properties": {
+									"exitCode": {
+										"type": "null"
+									}
+								}
+							}
+						}
+					}
+				}
+			]
+		}
+	}
+}

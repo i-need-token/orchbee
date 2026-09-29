@@ -228,7 +228,7 @@ pub(super) fn parse(
             PluginCommand::List(filter)
         } else if verb == "log list" {
             let limit = match options.limit.as_deref() {
-                None => 20,
+                None => 50,
                 Some(value) => value
                     .parse::<u16>()
                     .ok()

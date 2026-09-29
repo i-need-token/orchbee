@@ -132,7 +132,11 @@ pub(super) fn run(command: PluginCommand, format: OutputFormat, locale: Locale) 
             } else {
                 0
             };
-            let document = serde_json::json!({"schema":"orchbee.plugin.runtime","version":1,"source":{"kind":"local-runtime"},"operation":operation,"result":{"operationId":operation_id,"replies":replies,"complete":complete,"interrupted":interrupted,"cleanupFailed":cleanup_failed}});
+            let document = if operation == "logs" {
+                history_document(&replies, complete, interrupted, cleanup_failed)
+            } else {
+                serde_json::json!({"schema":"orchbee.plugin.runtime","version":1,"source":{"kind":"local-runtime"},"operation":operation,"result":{"operationId":operation_id,"replies":replies,"complete":complete,"interrupted":interrupted,"cleanupFailed":cleanup_failed}})
+            };
             let encoded = match format {
                 OutputFormat::Json => output::encode_document(&document),
                 OutputFormat::Text => render(&replies, complete, operation_id.as_deref(), locale),
@@ -179,7 +183,7 @@ fn render(
             out.push(locale.plugin_runtime_state("unknown"))?;
             out.push("\n")?;
         }
-        for reply in replies {
+        for reply in replies.iter().rev() {
             match &reply.outcome {
                 PluginOutcome::Failed { reason } => {
                     out.push(locale.plugin_runtime_failure(*reason))?;
@@ -195,7 +199,7 @@ fn render(
                         PluginOutcome::Logs { logs, .. } => logs,
                         _ => &[],
                     };
-                    for log in logs {
+                    for log in logs.iter().rev() {
                         if let Some(code) = log.exit_code {
                             out.write(format_args!(
                                 "{}: {code}\n",
@@ -235,4 +239,30 @@ fn render(
         }
         Ok(())
     })
+}
+
+fn history_document(
+    replies: &[PluginResult],
+    complete: bool,
+    interrupted: bool,
+    cleanup_failed: bool,
+) -> serde_json::Value {
+    let worker = replies.iter().find_map(|r| match &r.outcome {
+        PluginOutcome::Logs { worker, .. } => Some(worker),
+        _ => None,
+    });
+    let failure = replies.iter().find_map(|r| match r.outcome {
+        PluginOutcome::Failed { reason } => Some(reason),
+        _ => None,
+    });
+    let mut logs: Vec<_> = replies
+        .iter()
+        .flat_map(|r| match &r.outcome {
+            PluginOutcome::Logs { logs, .. } => logs.as_slice(),
+            _ => &[],
+        })
+        .collect();
+    // Internal cursor pages are descending and nonoverlapping; presentation is chronological.
+    logs.reverse();
+    serde_json::json!({"schema":"orchbee.plugin.logs","version":1,"source":{"kind":"local-runtime"},"result":{"worker":worker,"logs":logs,"failure":failure,"complete":complete,"interrupted":interrupted,"cleanupFailed":cleanup_failed}})
 }
