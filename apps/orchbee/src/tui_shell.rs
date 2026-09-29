@@ -587,7 +587,7 @@ fn draw_surface<B: Backend>(
                 crate::notifications::render(frame, &view.notifications, chrome.theme);
         }
         #[cfg(windows)]
-        view.machines.render(frame, chrome.locale);
+        view.machines.render(frame, chrome.locale, chrome.theme);
     });
     if let Err(error) = drawn {
         // A failed draw never publishes: the previous map stays the

@@ -138,10 +138,20 @@ pub(crate) fn probe(
     match result.failure {
         Some(WindowsCommandFailure::Cancelled) => return Err(io::ErrorKind::Interrupted.into()),
         Some(WindowsCommandFailure::Timeout) => return Err(io::ErrorKind::TimedOut.into()),
+        Some(WindowsCommandFailure::PhysicalUnknown) => {
+            return Err(io::ErrorKind::PermissionDenied.into());
+        }
+        Some(WindowsCommandFailure::SpawnUnavailable) => return Err(io::ErrorKind::NotFound.into()),
+        Some(WindowsCommandFailure::ExitFailure) => {
+            return Err(probe_exit_kind(result.exit_code, &result.stderr).into());
+        }
         Some(_) => return Err(io::Error::other("SSH Client probe failed")),
         None => {}
     }
-    if result.exit_code != Some(0) || result.stdout_truncated {
+    if result.exit_code != Some(0) {
+        return Err(probe_exit_kind(result.exit_code, &result.stderr).into());
+    }
+    if result.stdout_truncated {
         return Err(io::ErrorKind::InvalidData.into());
     }
     let value = serde_json::from_slice(&result.stdout).map_err(|_| io::ErrorKind::InvalidData)?;
@@ -151,6 +161,52 @@ pub(crate) fn probe(
             "remote Client admission refused",
         )
     })
+}
+// Inspect bounded diagnostics only to classify retry policy; never surface remote stderr.
+fn probe_exit_kind(code: Option<i32>, stderr: &[u8]) -> io::ErrorKind {
+    if code == Some(125) {
+        return io::ErrorKind::NotFound;
+    }
+    let diagnostic = String::from_utf8_lossy(stderr).to_ascii_lowercase();
+    if [
+        "permission denied",
+        "authentication failed",
+        "host key verification failed",
+        "remote host identification has changed",
+        "no matching host key",
+        "bad configuration",
+        "bad owner or permissions",
+        "too many authentication failures",
+        "no supported authentication",
+    ]
+    .iter()
+    .any(|text| diagnostic.contains(text))
+    {
+        io::ErrorKind::PermissionDenied
+    } else {
+        io::ErrorKind::ConnectionRefused
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn machine_probe_refusals_and_transient_network_errors_have_distinct_retry_policy() {
+        assert_eq!(
+            probe_exit_kind(Some(255), b"Permission denied (publickey)."),
+            io::ErrorKind::PermissionDenied
+        );
+        assert_eq!(
+            probe_exit_kind(Some(255), b"Host key verification failed."),
+            io::ErrorKind::PermissionDenied
+        );
+        assert_eq!(probe_exit_kind(Some(125), b""), io::ErrorKind::NotFound);
+        assert_eq!(
+            probe_exit_kind(Some(255), b"Connection timed out"),
+            io::ErrorKind::ConnectionRefused
+        );
+    }
 }
 /// The OS OpenSSH client, retaining the user's authentication/configuration owner.
 pub(crate) fn executable() -> io::Result<PathBuf> {

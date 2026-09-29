@@ -17,7 +17,7 @@ use ratatui::{
 pub(crate) enum Role {
     TextPrimary,
     TextSecondary,
-    #[cfg(test)]
+    #[cfg(any(windows, test))]
     TextDisabled,
     TextInverse,
     AccentFocus,
@@ -38,7 +38,7 @@ pub(crate) enum Role {
     FrameDivider,
     SurfaceChrome,
     SurfaceOverlay,
-    #[cfg(test)]
+    #[cfg(any(windows, test))]
     SurfaceSelection,
     SurfaceInactive,
     HintKey,
@@ -136,7 +136,7 @@ impl GlyphSet {
 pub(crate) struct RoleStyles {
     pub text_primary: Style,
     pub text_secondary: Style,
-    #[cfg(test)]
+    #[cfg(any(windows, test))]
     pub text_disabled: Style,
     pub text_inverse: Style,
     pub accent_focus: Style,
@@ -157,7 +157,7 @@ pub(crate) struct RoleStyles {
     pub frame_divider: Style,
     pub surface_chrome: Style,
     pub surface_overlay: Style,
-    #[cfg(test)]
+    #[cfg(any(windows, test))]
     pub surface_selection: Style,
     pub surface_inactive: Style,
     pub hint_key: Style,
@@ -169,7 +169,7 @@ impl RoleStyles {
         match role {
             Role::TextPrimary => self.text_primary,
             Role::TextSecondary => self.text_secondary,
-            #[cfg(test)]
+            #[cfg(any(windows, test))]
             Role::TextDisabled => self.text_disabled,
             Role::TextInverse => self.text_inverse,
             Role::AccentFocus => self.accent_focus,
@@ -190,7 +190,7 @@ impl RoleStyles {
             Role::FrameDivider => self.frame_divider,
             Role::SurfaceChrome => self.surface_chrome,
             Role::SurfaceOverlay => self.surface_overlay,
-            #[cfg(test)]
+            #[cfg(any(windows, test))]
             Role::SurfaceSelection => self.surface_selection,
             Role::SurfaceInactive => self.surface_inactive,
             Role::HintKey => self.hint_key,
@@ -257,7 +257,7 @@ impl Theme {
             styles: RoleStyles {
                 text_primary: reset,
                 text_secondary: dim,
-                #[cfg(test)]
+                #[cfg(any(windows, test))]
                 text_disabled: dim,
                 text_inverse: reset,
                 accent_focus: Style::new().fg(Color::Cyan),
@@ -280,7 +280,7 @@ impl Theme {
                 frame_divider: Style::new().fg(Color::DarkGray),
                 surface_chrome: Style::new().bg(Color::Reset),
                 surface_overlay: Style::new().bg(Color::Reset),
-                #[cfg(test)]
+                #[cfg(any(windows, test))]
                 surface_selection: Style::new().bg(Color::Blue),
                 surface_inactive: Style::new().bg(Color::Reset).add_modifier(Modifier::DIM),
                 hint_key: Style::new().fg(Color::Reset).add_modifier(Modifier::BOLD),
@@ -348,7 +348,7 @@ impl Theme {
         let style = self.style(role);
         match role {
             Role::SurfaceChrome | Role::SurfaceOverlay | Role::SurfaceInactive => style.bg,
-            #[cfg(test)]
+            #[cfg(any(windows, test))]
             Role::SurfaceSelection => style.bg,
             _ => style.fg,
         }

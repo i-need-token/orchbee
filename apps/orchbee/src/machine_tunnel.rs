@@ -31,7 +31,7 @@ impl Drop for Tunnel {
         }
     }
 }
-/// An admitted remote Site carrier. Cancellation belongs to the selecting UI attempt.
+/// An admitted remote Site carrier. Cancellation belongs to the connection's owner.
 pub(crate) fn connect(
     profile: &Profile,
     deadline: Instant,
@@ -61,11 +61,37 @@ pub(crate) fn connect(
         deadline,
         Some(orchbee_local_ipc::LocalIo::Wake(cancelled, 1)),
     )
-    .map_err(io::Error::other)?;
+    .map_err(admission_error)?;
     if cancelled.load(Ordering::Acquire) != 0 {
         return Err(io::ErrorKind::Interrupted.into());
     }
     Ok(client.with_tunnel(guard))
+}
+pub(crate) fn admission_error(error: crate::local_client::LocalClientConnectError) -> io::Error {
+    use crate::local_client::LocalClientConnectError;
+    use orchbee_local_client_protocol::ConnectClientError;
+    match error {
+        LocalClientConnectError::RequestIoConfiguration(error)
+        | LocalClientConnectError::Admission(
+            ConnectClientError::ConnectFailed(error)
+            | ConnectClientError::Io(error)
+            | ConnectClientError::CancellationSourceFault(error),
+        ) => error,
+        LocalClientConnectError::Admission(ConnectClientError::CancellationReady) => {
+            io::ErrorKind::Interrupted.into()
+        }
+        LocalClientConnectError::Admission(ConnectClientError::Rejected(
+            orchbee_local_client_protocol::RejectionReason::CapacityExceeded
+            | orchbee_local_client_protocol::RejectionReason::HandshakeTimeout
+            | orchbee_local_client_protocol::RejectionReason::Stopping,
+        )) => io::ErrorKind::ConnectionRefused.into(),
+        LocalClientConnectError::Admission(ConnectClientError::Rejected(_)) => {
+            io::ErrorKind::PermissionDenied.into()
+        }
+        LocalClientConnectError::Admission(
+            ConnectClientError::Protocol(_) | ConnectClientError::UnexpectedResponse,
+        ) => io::ErrorKind::InvalidData.into(),
+    }
 }
 fn start(
     command: impl Fn() -> io::Result<std::process::Command> + Send + 'static,

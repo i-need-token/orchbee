@@ -104,8 +104,8 @@ The Windows TUI discovers the saved catalog while open and offers a machine
 picker, opened with Ctrl+B then Shift+M or the footer indicator. Selection is by
 profile identity, not row index or label. Local remains
 available. A disabled, removed, ambiguous, or corrupt entry cannot silently
-become another machine. Catalog discovery does not claim online status or seize
-remote terminal control: a selected enabled profile starts a connection attempt.
+become another machine. Enabled profiles connect automatically for read-only discovery; only an explicit
+selection opens a terminal surface. Saved enabled state is never online evidence.
 The current surface stays usable until the candidate reaches a drawable state;
 cancellation or failure keeps the current surface. Successful switching preserves
 per-machine views and invalidates pointer/input state before accepting new input.
@@ -142,3 +142,48 @@ Evidence must include binary full-duplex/backpressure/EOF/cancellation, same-use
 pipe admission through a real helper process, picker identity and stale-result
 traces, and rendered keyboard/mouse paths. Local fixtures do not establish real
 SSH network survival, remote installation, or complete two-machine acceptance.
+
+## Automatic machine discovery
+
+The running Windows TUI reconciles enabled profiles by ID, target and Site. Each
+endpoint generation owns one observer, cancellation flag and latest-event slot.
+New connections are limited to four at once; existing online observers do not
+consume that startup budget. A rotating cursor gives later profiles a turn even when earlier endpoints keep failing. Disabled/removed/replaced entries cancel their old
+observers, and retired threads are joined before their slots are reused. Corrupt
+catalog input suspends all discovery without changing the current terminal surface.
+Renaming preserves connection identity. No observer creates a terminal, claims
+control, changes focus, starts a Site or installs software.
+
+An observer uses the admitted persistent tunnel and reads native Workbench
+snapshots every two seconds with a five-second read deadline. Only a bounded
+summary is retained: Site/revision, project/workspace/Tab counts and up to eight
+project/workspace labels of 80 scalars each. A fresh successful native snapshot
+means Online; a saved profile or SSH process alone does not. An observation older
+than ten seconds is shown as stale and is not offered for connection reuse.
+
+Transitions are Waiting -> Connecting -> Online, or Connecting/Online ->
+Reconnecting/Attention. Transient failure retries after 500 milliseconds,
+doubling up to 120 seconds; 60 seconds continuously online resets that history.
+Authentication, host-trust, unsupported/malformed protocol, absent installation
+and denied snapshots enter Attention without automatic retries. Explicit selection
+can request another attempt. Catalog generations fence all results, including a
+removed/re-added ID; a one-slot mailbox coalesces observations without an unbounded
+history. An admitted observer retains its transport through failure delivery; the UI
+clears its cached origin before acknowledging retirement. The observer clears its
+mailbox and releases its last transport guard on its own thread. Profile limits bound observers; shutdown cancels every worker before joins.
+
+The machine picker shows localized connection states and an aggregate overview;
+remote labels are data and cannot supply terminal control bytes. Explicit selection
+waits at most 60 seconds for a fresh observer, reuses its admitted origin on a
+separate native lane, and commits only a drawable candidate. Selection failure,
+expiry or Escape preserves the current surface. Escape cancels the selection,
+while discovery of enabled profiles continues. Retry applies only to observations,
+never submitted terminal input or Client mutations. Cross-machine merged Workbench
+navigation, merged Agent views, remote bootstrap/authentication and real-network
+longevity acceptance remain separate obligations.
+
+Evidence must exercise retry timing/stability, permanent refusals, concurrency,
+profile replacement and corrupt catalogs, coalescing and cancellation, actual
+read-only snapshot frames, stale-source refusal and rendered localized overview.
+The reference scope is Herdr e0507237, endpoint supervisor and saved SSH transport;
+local IPC fixtures do not establish remote SSH authentication or network recovery.

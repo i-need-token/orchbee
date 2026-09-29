@@ -1,8 +1,9 @@
-//! UI-owned saved-machine connections. Only an explicit selection starts network work.
+//! UI-owned selection over read-only saved-machine observers.
 use super::{SurfaceSlot, TerminalSurface, terminal_geometry};
 use crate::{
     client_view::ClientView,
     local_client::LocalClient,
+    machine_discovery::{Discovery, same_endpoint},
     machine_picker::Choice,
     machines::{Profile, Store},
     terminal_device::WindowDimensions,
@@ -49,8 +50,9 @@ impl Cached {
 fn choice(profile: Option<&Profile>) -> Choice {
     profile.map_or(Choice::Local, |p| Choice::Remote(p.id.clone()))
 }
-fn same_endpoint(a: &Profile, b: &Profile) -> bool {
-    a.id == b.id && a.draft.target == b.draft.target && a.draft.session == b.draft.session
+struct Queued {
+    profile: Profile,
+    deadline: Instant,
 }
 #[derive(Default)]
 pub(super) struct Change {
@@ -66,7 +68,8 @@ pub(super) struct Manager {
     template: ClientView,
     attempt: Option<Attempt>,
     candidate: Option<Candidate>,
-    queued: Option<Choice>,
+    queued: Option<Queued>,
+    discovery: Discovery,
 }
 impl Manager {
     pub(super) fn new(view: &mut ClientView) -> Self {
@@ -81,6 +84,7 @@ impl Manager {
             attempt: None,
             candidate: None,
             queued: None,
+            discovery: Discovery::default(),
         }
     }
     fn valid(&self, profile: &Profile) -> bool {
@@ -114,6 +118,8 @@ impl Manager {
                 dimensions,
             );
         }
+        self.discovery.tick(now);
+        change.redraw |= view.machines.observe(&self.discovery.observations(now));
         if !view.machines.open {
             self.cancel();
         }
@@ -126,8 +132,17 @@ impl Manager {
             } else if self.restore(&request, surface, view, dimensions, true) {
                 change.switched = true;
             } else if let Choice::Remote(id) = &request {
-                if self.catalog_ok && self.profiles.iter().any(|p| &p.id == id && p.enabled) {
-                    self.queued = Some(request);
+                if let Some(profile) = self
+                    .profiles
+                    .iter()
+                    .find(|p| &p.id == id && p.enabled)
+                    .filter(|_| self.catalog_ok)
+                {
+                    self.discovery.retry(id, now);
+                    self.queued = Some(Queued {
+                        profile: profile.clone(),
+                        deadline: now + Duration::from_secs(60),
+                    });
                     view.machines.error = None;
                 } else {
                     view.machines.error = Some("removed");
@@ -170,30 +185,22 @@ impl Manager {
             change.redraw = true;
         }
         if self.attempt.is_none()
-            && let Some(Choice::Remote(id)) = self.queued.take()
+            && let Some(queued) = self.queued.take()
         {
-            if let Some(profile) = self
-                .profiles
-                .iter()
-                .find(|p| p.id == id && p.enabled)
-                .filter(|_| self.catalog_ok)
-                .cloned()
-            {
+            if !self.valid(&queued.profile) {
+                view.machines.error = Some("removed");
+            } else if now >= queued.deadline || self.discovery.failed(&queued.profile) {
+                view.machines.error = Some("failed");
+            } else if let Some(connection) = self.discovery.connection(&queued.profile, now) {
                 let cancel = Arc::new(AtomicU8::new(0));
                 let worker_cancel = cancel.clone();
-                let worker_profile = profile.clone();
                 match thread::Builder::new()
                     .name("orchbee-machine-connect".into())
-                    .spawn(move || {
-                        crate::machine_tunnel::connect(
-                            &worker_profile,
-                            Instant::now() + Duration::from_secs(60),
-                            &worker_cancel,
-                        )
-                    }) {
+                    .spawn(move || connection.reconnect(queued.deadline, &worker_cancel))
+                {
                     Ok(task) => {
                         self.attempt = Some(Attempt {
-                            profile,
+                            profile: queued.profile,
                             cancel,
                             task: Some(task),
                         })
@@ -201,9 +208,9 @@ impl Manager {
                     Err(_) => view.machines.error = Some("failed"),
                 }
             } else {
-                view.machines.error = Some("removed");
+                self.queued = Some(queued);
             }
-            change.redraw = true;
+            change.redraw |= self.queued.is_none();
         }
         if let Some(mut candidate) = self.candidate.take() {
             candidate.session.tick();
@@ -249,6 +256,7 @@ impl Manager {
             Ok(catalog) => {
                 self.profiles = catalog.profiles;
                 self.catalog_ok = true;
+                self.discovery.reconcile(&self.profiles, Instant::now());
                 view.machines.replace(&self.profiles);
                 if view.machines.error == Some("catalog") {
                     view.machines.error = None;
@@ -275,6 +283,7 @@ impl Manager {
             }
             Err(_) => {
                 self.catalog_ok = false;
+                self.discovery.reconcile(&[], Instant::now());
                 view.machines.replace(&[]);
                 view.machines.error = Some("catalog");
             }
@@ -510,6 +519,49 @@ mod tests {
         assert_eq!(view.machines.current, Choice::Local);
     }
     struct DisconnectedLocal;
+    #[test]
+    fn machine_wait_expiry_endpoint_edit_and_escape_preserve_current_surface() {
+        let (mut manager, mut view, mut surface) = setup();
+        let now = Instant::now();
+        view.machines.show();
+        manager.queued = Some(Queued {
+            profile: profile(),
+            deadline: now,
+        });
+        assert!(
+            !manager
+                .tick(&mut surface, &mut view, dimensions(), now)
+                .switched
+        );
+        assert_eq!(view.machines.error, Some("failed"));
+        assert!(manager.queued.is_none());
+        manager.queued = Some(Queued {
+            profile: profile(),
+            deadline: now + Duration::from_secs(60),
+        });
+        manager.profiles[0].draft.target = "replacement.invalid".into();
+        assert!(
+            !manager
+                .tick(&mut surface, &mut view, dimensions(), now)
+                .switched
+        );
+        assert_eq!(view.machines.error, Some("removed"));
+        assert!(manager.queued.is_none());
+        manager.profiles[0] = profile();
+        manager.queued = Some(Queued {
+            profile: profile(),
+            deadline: now + Duration::from_secs(60),
+        });
+        view.machines.open = false;
+        assert!(
+            !manager
+                .tick(&mut surface, &mut view, dimensions(), now)
+                .switched
+        );
+        assert!(manager.queued.is_none());
+        assert!(manager.attempt.is_none());
+        assert_eq!(view.machines.current, Choice::Local);
+    }
     impl crate::terminal_input::TerminalInputPort for DisconnectedLocal {
         fn forward(
             &mut self,

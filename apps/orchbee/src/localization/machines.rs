@@ -10,10 +10,26 @@ impl Locale {
             (Self::ZhCn, "disabled") => "已禁用",
             (Self::EnUs, "current") => "Current",
             (Self::ZhCn, "current") => "当前",
+            (Self::EnUs, "waiting") => "Waiting",
+            (Self::ZhCn, "waiting") => "等待连接",
+            (Self::EnUs, "opening") => "Connecting",
+            (Self::ZhCn, "opening") => "连接中",
+            (Self::EnUs, "online") => "Online",
+            (Self::ZhCn, "online") => "在线",
+            (Self::EnUs, "reconnecting") => "Reconnecting",
+            (Self::ZhCn, "reconnecting") => "正在重连",
+            (Self::EnUs, "attention") => "Needs attention",
+            (Self::ZhCn, "attention") => "需要处理",
+            (Self::EnUs, "stale") => "Stale",
+            (Self::ZhCn, "stale") => "状态已过期",
+            (Self::EnUs, "compact") => "Machines · Esc Close",
+            (Self::ZhCn, "compact") => "机器 · Esc 关闭",
             (Self::EnUs, "hint") => "↑/↓ Choose · Enter/Click Connect · Esc Close",
             (Self::ZhCn, "hint") => "↑/↓ 选择 · Enter/点击连接 · Esc 关闭",
-            (Self::EnUs, "connecting") => "Connecting… Esc cancels; current session is retained.",
-            (Self::ZhCn, "connecting") => "正在连接… Esc 取消，当前会话仍保留。",
+            (Self::EnUs, "connecting") => {
+                "Switching… Esc cancels selection; background discovery continues."
+            }
+            (Self::ZhCn, "connecting") => "正在切换… Esc 取消选机，后台发现继续。",
             (Self::EnUs, "catalog") => "Machine catalog unavailable. Local remains available.",
             (Self::ZhCn, "catalog") => "机器目录不可用，仍可选择本地。",
             (Self::EnUs, "failed") => {
@@ -25,6 +41,32 @@ impl Locale {
             }
             (Self::ZhCn, "removed") => "机器已删除或禁用，请选择本地或其他机器。",
             _ => "",
+        }
+    }
+
+    pub(crate) fn machine_overview(
+        self,
+        machines: usize,
+        workspaces: usize,
+        tabs: usize,
+    ) -> String {
+        match self {
+            Self::EnUs => {
+                format!("Online: {machines} machines · {workspaces} workspaces · {tabs} tabs")
+            }
+            Self::ZhCn => {
+                format!("在线：{machines} 台机器 · {workspaces} 个工作区 · {tabs} 个标签页")
+            }
+        }
+    }
+    pub(crate) fn machine_details(self, projects: usize, workspaces: usize, tabs: usize) -> String {
+        match self {
+            Self::EnUs => {
+                format!("Selected: {projects} projects · {workspaces} workspaces · {tabs} tabs")
+            }
+            Self::ZhCn => {
+                format!("所选：{projects} 个项目 · {workspaces} 个工作区 · {tabs} 个标签页")
+            }
         }
     }
 
@@ -42,10 +84,10 @@ impl Locale {
     pub(crate) fn cli_machine_help(self, verb: Option<&str>) -> &'static str {
         match (self, verb) {
             (Self::EnUs, None) => {
-                "Usage: orchbee machine <list|add|rename|remove|enable|disable>\n\nManage saved Windows SSH machines. Add verifies an installed remote Client, starts the explicit Site, and verifies readiness before saving. SSH authentication and host trust must already work in batch mode. Removing or disabling a profile leaves remote sessions running. Use orchbee --machine <label-or-id> <command> for remote commands. Help is local; duplicate labels and disabled profiles are refused. Terminal --file/--stdin are read locally; paths such as --cwd belong to the remote machine. TUI and terminal streams are not routed. In the Windows TUI, use Ctrl+B then Shift+M or click the machine indicator to connect and switch. The catalog refreshes while open; connection requires selection.\n"
+                "Usage: orchbee machine <list|add|rename|remove|enable|disable>\n\nManage saved Windows SSH machines. Add verifies an installed remote Client, starts the explicit Site, and verifies readiness before saving. SSH authentication and host trust must already work in batch mode. Removing or disabling a profile leaves remote sessions running. Use orchbee --machine <label-or-id> <command> for remote commands. Help is local; duplicate labels and disabled profiles are refused. Terminal --file/--stdin are read locally; paths such as --cwd belong to the remote machine. TUI and terminal streams are not routed. In the Windows TUI, use Ctrl+B then Shift+M or click the machine indicator to connect and switch. Enabled machines connect automatically for read-only status and workspace discovery; selection opens the terminal surface.\n"
             }
             (Self::ZhCn, None) => {
-                "用法：orchbee machine <list|add|rename|remove|enable|disable>\n\n管理已保存的 Windows SSH 机器。Add 检查已安装的远端 Client，启动指定 Site，并在保存前确认就绪。SSH 认证和主机信任须已能以批处理模式使用。删除或禁用配置不会停止远端会话。使用 orchbee --machine <标签或ID> <命令> 执行远端命令。帮助本地显示；拒绝重名标签及已禁用配置。终端 --file/--stdin 在本地读取，--cwd 等路径属于远端。不路由 TUI 和交互式终端流。在 Windows TUI 中按 Ctrl+B 后 Shift+M，或点击机器指示器连接和切换。机器目录实时刷新，选中后才连接。\n"
+                "用法：orchbee machine <list|add|rename|remove|enable|disable>\n\n管理已保存的 Windows SSH 机器。Add 检查已安装的远端 Client，启动指定 Site，并在保存前确认就绪。SSH 认证和主机信任须已能以批处理模式使用。删除或禁用配置不会停止远端会话。使用 orchbee --machine <标签或ID> <命令> 执行远端命令。帮助本地显示；拒绝重名标签及已禁用配置。终端 --file/--stdin 在本地读取，--cwd 等路径属于远端。不路由 TUI 和交互式终端流。在 Windows TUI 中按 Ctrl+B 后 Shift+M，或点击机器指示器连接和切换。已启用机器自动连接以读取状态和工作区概览；选中后打开终端界面。\n"
             }
             (Self::EnUs, Some("list")) => {
                 "Usage: orchbee machine list [--json | --format text|json]\n\nRead the saved machine catalog without contacting SSH or creating directories. Enabled is a saved preference, not a live connection observation.\n"
