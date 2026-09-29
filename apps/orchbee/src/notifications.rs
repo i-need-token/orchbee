@@ -101,7 +101,8 @@ impl State {
     }
 }
 pub(crate) fn available(view: &ClientView, session: Option<TerminalSessionView<'_>>) -> bool {
-    !view.prefix_active()
+    !view.machines.open
+        && !view.prefix_active()
         && view.overlay().is_none()
         && view.notice().is_none()
         && matches!(session,

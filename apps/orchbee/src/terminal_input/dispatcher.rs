@@ -25,6 +25,8 @@ pub(crate) struct InputDispatcher {
     /// An open confirmation captured the current packet whole, so every
     /// later item of the same read stays swallowed.
     confirm_packet: bool,
+    #[cfg(windows)]
+    machine_packet: bool,
     /// The board's input ownership as last observed — an open or close
     /// edge rewrites what the painted regions mean, so the recorded hit
     /// map drops until the next frame publishes.
@@ -80,6 +82,13 @@ fn literal_chord_byte(item: &DecodedItem) -> Option<u8> {
 }
 
 impl InputDispatcher {
+    #[cfg(windows)]
+    pub(crate) fn machine_surface_changed(&mut self) {
+        self.keys.capture_pending();
+        self.pointer.invalidate_map();
+        self.board_owned = false;
+    }
+
     /// The shell settles the armed flag after the terminal mode write
     /// succeeded, so client state never claims a capture the host did not
     /// actually take.
@@ -136,6 +145,10 @@ impl InputDispatcher {
         changed |= !events.is_empty();
         self.apply_events(view, port, events);
         self.confirm_packet = false;
+        #[cfg(windows)]
+        {
+            self.machine_packet = false;
+        }
         for item in self.keys.tick(now) {
             changed = true;
             self.handle_item(view, port, now, item, &mut |_, _| Ok(()), mode)?;
@@ -194,7 +207,10 @@ impl InputDispatcher {
             // A frame opened inside a captured packet carries `owned`
             // provenance: it stays captured even when it completes in a
             // later read, while genuinely later input decodes normally.
-            for item in self.keys.push(byte, now, self.confirm_packet) {
+            let owned = self.confirm_packet;
+            #[cfg(windows)]
+            let owned = owned || self.machine_packet;
+            for item in self.keys.push(byte, now, owned) {
                 if let DispatchOutcome::Exit =
                     self.handle_item(view, port, now, item, &mut after_layout, mode)?
                 {
@@ -234,6 +250,34 @@ impl InputDispatcher {
             // The item completes a frame that began inside a captured
             // packet: consumed by that capture, never forwarded or decided.
             self.flush_pending(view, port);
+            return Ok(DispatchOutcome::Continue);
+        }
+        #[cfg(windows)]
+        if self.machine_packet || view.machines.open {
+            self.flush_pending(view, port);
+            if !self.machine_packet {
+                match item.kind {
+                    DecodedKind::Key(key) => view.machines.key(key),
+                    DecodedKind::Mouse(event) => {
+                        view.machines.pointer(event);
+                    }
+                    _ => {}
+                }
+            }
+            if !view.machines.open || view.machines.request.is_some() {
+                self.machine_packet = true;
+            }
+            self.pointer.invalidate_map();
+            return Ok(DispatchOutcome::Continue);
+        }
+        #[cfg(windows)]
+        if let DecodedKind::Mouse(event) = item.kind
+            && self.pointer.capture_enabled()
+            && view.machines.pointer(event)
+        {
+            self.flush_pending(view, port);
+            self.machine_packet = true;
+            self.pointer.invalidate_map();
             return Ok(DispatchOutcome::Continue);
         }
         #[cfg(windows)]
@@ -384,6 +428,12 @@ impl InputDispatcher {
             transition,
             applied.unwrap_or(SessionActionDisposition::KeepNavigator),
         );
+        #[cfg(windows)]
+        if action == Some(ClientAction::OpenMachines) && view.machines.available {
+            view.machines.show();
+            self.machine_packet = true;
+            self.pointer.invalidate_map();
+        }
         if action == Some(ClientAction::TogglePointerCapture) {
             // The client-local release entry: the mode write must succeed
             // before the settled flag mirrors it, exactly like the modal

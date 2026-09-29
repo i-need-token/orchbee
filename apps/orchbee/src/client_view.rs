@@ -81,6 +81,8 @@ pub(crate) enum ClientAction {
     CloseShortcutHelp,
     PageShortcutHelp,
     OpenWorkbenchNavigator,
+    #[cfg(windows)]
+    OpenMachines,
     CloseWorkbenchNavigator,
     /// `Ctrl+B g` — toggles the session-owned Agent board overlay.
     ToggleAgentBoard,
@@ -197,6 +199,8 @@ impl ClientTransition {
 impl ClientAction {
     pub(crate) fn backend_action(&self) -> Option<BackendAction> {
         match self {
+            #[cfg(windows)]
+            Self::OpenMachines => None,
             Self::ReloadConfiguration => Some(BackendAction::ReloadConfiguration),
             Self::RequestWorkspaceCreate => Some(BackendAction::CreateWorkspace),
             Self::RequestWorkspaceDirectory => Some(BackendAction::ConfigureWorkspaceDirectory),
@@ -250,6 +254,8 @@ pub(crate) enum SidebarSurface {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct ClientView {
+    #[cfg(windows)]
+    pub(crate) machines: crate::machine_picker::Picker,
     bindings: std::sync::Arc<Bindings>,
     #[cfg(windows)]
     pub(crate) notifications: crate::notifications::State,
@@ -283,6 +289,8 @@ impl ClientView {
 
     pub(crate) fn new(width: u16) -> Self {
         Self {
+            #[cfg(windows)]
+            machines: crate::machine_picker::Picker::default(),
             bindings: std::sync::Arc::new(Bindings::default()),
             #[cfg(windows)]
             notifications: crate::notifications::State::default(),

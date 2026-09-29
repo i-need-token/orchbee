@@ -241,6 +241,22 @@ impl Default for LegacyDecoder {
 }
 
 impl LegacyDecoder {
+    /// A surface switch claims a frame already in flight without discarding its terminator.
+    #[cfg(windows)]
+    pub(crate) fn capture_pending(&mut self) {
+        match &mut self.state {
+            State::Ground => {}
+            State::Esc { owned, .. }
+            | State::Csi { owned, .. }
+            | State::Ss3 { owned, .. }
+            | State::Utf8 { owned, .. }
+            | State::Utf8Tail { owned, .. }
+            | State::Paste { owned, .. }
+            | State::X10 { owned, .. }
+            | State::Discard { owned, .. } => *owned = true,
+        }
+    }
+
     /// A framed paste retains ownership through overflow/timeout draining.
     /// Interactive attach rejects these raw fragments instead of submitting a
     /// partial paste; the Workbench dispatcher retains its passthrough policy.

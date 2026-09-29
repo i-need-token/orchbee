@@ -171,6 +171,39 @@ pub(crate) struct TerminalSession {
 }
 
 impl TerminalSession {
+    #[cfg(windows)]
+    pub(crate) fn suspend_machine(&mut self) -> Option<bool> {
+        let focus = self.backend.native_mut().and_then(|native| {
+            let focus = native.host_focus();
+            native.observe_focus(false);
+            focus
+        });
+        if let Some(mut control) = self.client_control.take() {
+            control.close();
+        }
+        if let Some(mut listener) = self.notifications.take() {
+            listener.close();
+        }
+        if let Some(mut watcher) = self.window_title.take() {
+            watcher.close();
+        }
+        focus
+    }
+    #[cfg(windows)]
+    pub(crate) fn resume_machine(&mut self, focus: Option<bool>) {
+        if let Some(native) = self.backend.native_mut() {
+            native.inherit_host_focus(focus);
+            if self.client_control.is_none()
+                && let Some(origin) = &self.origin
+            {
+                self.client_control = Some(client_control::ClientControl::new(
+                    origin.clone(),
+                    native.configuration_clock(),
+                ));
+            }
+        }
+    }
+
     pub(crate) fn start(
         client: LocalClient,
         intent: TerminalIntent,
@@ -408,8 +441,10 @@ impl TerminalSession {
         match (&mut self.client_control, &mut self.backend) {
             (Some(control), SessionBackend::Native(native)) => {
                 control.observe_geometry(viewport, view.sidebar_surface());
-                let changed =
-                    control.tick(native, view.overlay().is_some() || view.prefix_active());
+                let changed = control.tick(
+                    native,
+                    view.overlay().is_some() || view.prefix_active() || view.machines.open,
+                );
                 if control.take_shell_mode_dismissal() {
                     view.dismiss_focus_modes();
                 }

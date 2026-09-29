@@ -49,8 +49,7 @@ receipt distinguishes `not-contacted`, `unchanged`, `possibly-started`, and
 process settlement is reported, never retried as a successful add.
 
 Missing or incompatible remote installations fail without saving. Automated
-remote installation, interactive authentication, live local TUI connections,
-and machine switching remain outside the implemented
+remote installation and interactive authentication remain outside the implemented
 boundary; an enabled profile is not evidence of a live connection. No remote
 session is stopped by rename, enable, disable, or remove.
 
@@ -98,3 +97,48 @@ cross-machine acceptance is inferred from fixture-only relay tests.
 Private requests are at most 2 MiB and replies at most 24 MiB; raw stdout and
 stderr are each at most 8 MiB. Arguments are bounded to 64 KiB and 1024 entries.
 PowerShell completion supports the selector prefix and routed command scope.
+
+## Persistent TUI connections
+
+The Windows TUI discovers the saved catalog while open and offers a machine
+picker, opened with Ctrl+B then Shift+M or the footer indicator. Selection is by
+profile identity, not row index or label. Local remains
+available. A disabled, removed, ambiguous, or corrupt entry cannot silently
+become another machine. Catalog discovery does not claim online status or seize
+remote terminal control: a selected enabled profile starts a connection attempt.
+The current surface stays usable until the candidate reaches a drawable state;
+cancellation or failure keeps the current surface. Successful switching preserves
+per-machine views and invalidates pointer/input state before accepting new input.
+Local is retained; at most four inactive remote surfaces are cached. Eviction
+releases the Client connection, leaving the remote Site running. Cached inactive
+surfaces withdraw their Client-control, notification and outer-title subscriptions;
+returning reopens them and transfers the host focus observation. A hidden surface
+must not advertise a Ready control destination or acknowledge visible drawing.
+
+The persistent transport owner creates a private, same-user local pipe endpoint
+and a bounded SSH byte relay for each required native Client lane. SSH authenticates
+the remote account; the exact admitted remote executable verifies its installed
+cohort and opens only the selected existing Site's same-user pipe. Native Client
+admission and application frames pass unchanged through that stream. Neither end
+fabricates an accepted generation or bypasses Server cohort admission. Remote
+terminal input, layout, metadata and control keep their existing semantic owners.
+
+A transport guard retained by Client origins owns its listener, relay task and
+SSH Jobs, including secondary query/control lanes. Each lane has bounded buffers;
+backpressure pauses reads instead of dropping bytes. EOF retires that lane, and
+no submitted frame is replayed. Dropping the last guard cancels and joins the
+relay and settles children. The remote stdio adapter likewise owns and settles
+its binary reader/writer Jobs. Disconnecting a Client does not stop the remote
+Site or terminal processes. No port forwarding, host-key acceptance, credentials
+storage, remote installation or POSIX implementation is added.
+
+The picker owns keyboard and mouse input while open. Escape cancels; Enter and
+click choose an exact painted identity. Resizing or catalog replacement invalidates
+painted rows; pasted text and the remainder of a closing input packet cannot leak
+into the underlying terminal. Each asynchronous attempt has an identity and a
+cancellation owner; stale completion cannot switch the active machine.
+
+Evidence must include binary full-duplex/backpressure/EOF/cancellation, same-user
+pipe admission through a real helper process, picker identity and stale-result
+traces, and rendered keyboard/mouse paths. Local fixtures do not establish real
+SSH network survival, remote installation, or complete two-machine acceptance.

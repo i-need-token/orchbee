@@ -10,6 +10,21 @@ pub(crate) struct Route {
 }
 
 pub(super) fn parse(tokens: Vec<String>) -> Result<SelectedRequest, ParseFailure> {
+    if let [mode, site, cohort] = tokens.as_slice()
+        && mode == "--machine-tunnel-v1"
+        && cohort.len() == 64
+        && cohort
+            .bytes()
+            .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+        && let Ok(site) = orchbee_local_site_runtime::WindowsSiteName::parse(site)
+    {
+        return Ok(SelectedRequest {
+            request: Request::MachineTunnel {
+                cohort: cohort.clone(),
+            },
+            site: Some(site),
+        });
+    }
     if tokens == ["--machine-relay-v1"] {
         return Ok(SelectedRequest {
             request: Request::MachineRelay,

@@ -1333,6 +1333,10 @@ pub(crate) enum Request {
     #[cfg(windows)]
     MachineRelay,
     #[cfg(windows)]
+    MachineTunnel {
+        cohort: String,
+    },
+    #[cfg(windows)]
     Machine {
         command: MachineCommand,
         format: OutputFormat,

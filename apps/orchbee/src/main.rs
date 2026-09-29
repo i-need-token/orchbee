@@ -21,6 +21,12 @@ mod local_client;
 mod local_startup;
 mod localization;
 #[cfg(windows)]
+mod machine_picker;
+#[cfg(windows)]
+mod machine_ssh;
+#[cfg(windows)]
+mod machine_tunnel;
+#[cfg(windows)]
 mod machines;
 #[cfg(windows)]
 mod notifications;
@@ -110,6 +116,17 @@ fn main() -> ExitCode {
             }
             #[cfg(windows)]
             Ok(invocation::Request::MachineRelay) => cli::machines::routing::serve(locale),
+            #[cfg(windows)]
+            Ok(invocation::Request::MachineTunnel { cohort }) => cli::Output {
+                status: if machine_tunnel::serve(&cohort).is_ok() {
+                    0
+                } else {
+                    5
+                },
+                stdout: Vec::new(),
+                stderr: String::new(),
+                finalization: None,
+            },
             #[cfg(windows)]
             Ok(invocation::Request::Machine { command, format }) => {
                 cli::machines::run(&command, format, locale)

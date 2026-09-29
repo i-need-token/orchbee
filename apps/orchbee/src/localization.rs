@@ -38,6 +38,8 @@ const ZH_CN_USAGE_FAILURE: &str = "调用方式无效。请运行 ‘orchbee --h
 
 fn en_us_prefix_desc(desc: PrefixDesc) -> &'static str {
     match desc {
+        #[cfg(windows)]
+        PrefixDesc::Machines => "Choose local or saved SSH machine",
         PrefixDesc::ReloadConfiguration => "Reload Site configuration",
         PrefixDesc::WorkspaceCreate => "Create a Workspace in an existing or new Project",
         PrefixDesc::WorkspaceDirectory => "Configure an empty Workspace's first directory",
@@ -73,6 +75,8 @@ fn en_us_prefix_desc(desc: PrefixDesc) -> &'static str {
 
 fn zh_cn_prefix_desc(desc: PrefixDesc) -> &'static str {
     match desc {
+        #[cfg(windows)]
+        PrefixDesc::Machines => "选择本地或已保存的 SSH 机器",
         PrefixDesc::ReloadConfiguration => "重载 Site 配置",
         PrefixDesc::WorkspaceCreate => "在现有或新建 Project 中创建 Workspace",
         PrefixDesc::WorkspaceDirectory => "配置空 Workspace 的首个目录",

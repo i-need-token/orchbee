@@ -200,6 +200,8 @@ pub(crate) fn disconnected_origin() -> super::LocalClientOrigin {
     super::LocalClientOrigin {
         endpoint: PathBuf::from("/nonexistent-orchbee-agent-board.sock"),
         cohort: "agent-board-tests".to_owned(),
+        #[cfg(windows)]
+        tunnel: None,
     }
 }
 

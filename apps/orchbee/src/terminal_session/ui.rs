@@ -670,6 +670,10 @@ mod workspace_setup_tests;
 
 impl NativeUi {
     #[cfg(windows)]
+    pub(super) fn host_focus(&self) -> Option<bool> {
+        self.outer_focused
+    }
+    #[cfg(windows)]
     pub(super) fn outer_title_focused(&self) -> bool {
         self.outer_focused.unwrap_or(false)
     }
@@ -988,8 +992,11 @@ impl NativeUi {
     }
 
     pub(super) fn observe_focus(&mut self, focused: bool) {
-        if self.outer_focused != Some(focused) {
-            self.outer_focused = Some(focused);
+        self.inherit_host_focus(Some(focused));
+    }
+    pub(super) fn inherit_host_focus(&mut self, focused: Option<bool>) {
+        if self.outer_focused != focused {
+            self.outer_focused = focused;
             #[cfg(windows)]
             self.attention.focus_changed();
         }
@@ -1719,6 +1726,8 @@ impl NativeUi {
             self.board.close();
         }
         match action {
+            #[cfg(windows)]
+            ClientAction::OpenMachines => SessionActionDisposition::KeepNavigator,
             ClientAction::RequestWorkspaceCreate
             | ClientAction::RequestWorkspaceDirectory
             | ClientAction::RequestWorkspaceRename

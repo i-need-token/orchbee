@@ -1,5 +1,33 @@
 use super::Locale;
 impl Locale {
+    pub(crate) fn machine_picker_text(self, key: &str) -> &'static str {
+        match (self, key) {
+            (Self::EnUs, "local") => "Local",
+            (Self::ZhCn, "local") => "本地",
+            (Self::EnUs, "title") => " Machines ",
+            (Self::ZhCn, "title") => " 机器 ",
+            (Self::EnUs, "disabled") => "Disabled",
+            (Self::ZhCn, "disabled") => "已禁用",
+            (Self::EnUs, "current") => "Current",
+            (Self::ZhCn, "current") => "当前",
+            (Self::EnUs, "hint") => "↑/↓ Choose · Enter/Click Connect · Esc Close",
+            (Self::ZhCn, "hint") => "↑/↓ 选择 · Enter/点击连接 · Esc 关闭",
+            (Self::EnUs, "connecting") => "Connecting… Esc cancels; current session is retained.",
+            (Self::ZhCn, "connecting") => "正在连接… Esc 取消，当前会话仍保留。",
+            (Self::EnUs, "catalog") => "Machine catalog unavailable. Local remains available.",
+            (Self::ZhCn, "catalog") => "机器目录不可用，仍可选择本地。",
+            (Self::EnUs, "failed") => {
+                "Connection failed. Check SSH readiness, then choose to retry."
+            }
+            (Self::ZhCn, "failed") => "连接失败。请检查 SSH 就绪状态，然后重新选择以重试。",
+            (Self::EnUs, "removed") => {
+                "Machine removed or disabled. Choose Local or another machine."
+            }
+            (Self::ZhCn, "removed") => "机器已删除或禁用，请选择本地或其他机器。",
+            _ => "",
+        }
+    }
+
     pub(crate) fn cli_machine_route_failure(self, unknown: bool) -> &'static str {
         match (self, unknown) {
             (Self::EnUs, false) => "Remote command was not submitted.",
@@ -14,10 +42,10 @@ impl Locale {
     pub(crate) fn cli_machine_help(self, verb: Option<&str>) -> &'static str {
         match (self, verb) {
             (Self::EnUs, None) => {
-                "Usage: orchbee machine <list|add|rename|remove|enable|disable>\n\nManage saved Windows SSH machines. Add verifies an installed remote Client, starts the explicit Site, and verifies readiness before saving. SSH authentication and host trust must already work in batch mode. Removing or disabling a profile leaves remote sessions running. Use orchbee --machine <label-or-id> <command> for remote commands. Help is local; duplicate labels and disabled profiles are refused. Terminal --file/--stdin are read locally; paths such as --cwd belong to the remote machine. TUI and terminal streams are not routed. Saved profiles do not yet connect automatically in the local TUI.\n"
+                "Usage: orchbee machine <list|add|rename|remove|enable|disable>\n\nManage saved Windows SSH machines. Add verifies an installed remote Client, starts the explicit Site, and verifies readiness before saving. SSH authentication and host trust must already work in batch mode. Removing or disabling a profile leaves remote sessions running. Use orchbee --machine <label-or-id> <command> for remote commands. Help is local; duplicate labels and disabled profiles are refused. Terminal --file/--stdin are read locally; paths such as --cwd belong to the remote machine. TUI and terminal streams are not routed. In the Windows TUI, use Ctrl+B then Shift+M or click the machine indicator to connect and switch. The catalog refreshes while open; connection requires selection.\n"
             }
             (Self::ZhCn, None) => {
-                "用法：orchbee machine <list|add|rename|remove|enable|disable>\n\n管理已保存的 Windows SSH 机器。Add 检查已安装的远端 Client，启动指定 Site，并在保存前确认就绪。SSH 认证和主机信任须已能以批处理模式使用。删除或禁用配置不会停止远端会话。使用 orchbee --machine <标签或ID> <命令> 执行远端命令。帮助本地显示；拒绝重名标签及已禁用配置。终端 --file/--stdin 在本地读取，--cwd 等路径属于远端。不路由 TUI 和交互式终端流。已保存配置暂不在本地 TUI 中自动连接。\n"
+                "用法：orchbee machine <list|add|rename|remove|enable|disable>\n\n管理已保存的 Windows SSH 机器。Add 检查已安装的远端 Client，启动指定 Site，并在保存前确认就绪。SSH 认证和主机信任须已能以批处理模式使用。删除或禁用配置不会停止远端会话。使用 orchbee --machine <标签或ID> <命令> 执行远端命令。帮助本地显示；拒绝重名标签及已禁用配置。终端 --file/--stdin 在本地读取，--cwd 等路径属于远端。不路由 TUI 和交互式终端流。在 Windows TUI 中按 Ctrl+B 后 Shift+M，或点击机器指示器连接和切换。机器目录实时刷新，选中后才连接。\n"
             }
             (Self::EnUs, Some("list")) => {
                 "Usage: orchbee machine list [--json | --format text|json]\n\nRead the saved machine catalog without contacting SSH or creating directories. Enabled is a saved preference, not a live connection observation.\n"

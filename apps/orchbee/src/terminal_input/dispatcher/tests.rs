@@ -1045,3 +1045,55 @@ fn focus_metadata_preserves_input_order_and_an_armed_prefix() {
         ]
     );
 }
+
+#[cfg(windows)]
+#[test]
+fn machine_picker_owns_closing_packet_and_split_paste_across_surface_switch() {
+    let calls = Rc::new(RefCell::new(Vec::new()));
+    let mut port = UnavailablePort(calls.clone());
+    let mut dispatcher = InputDispatcher::default();
+    let mut view = ClientView::new(100);
+    view.machines.available = true;
+    let now = Instant::now();
+    let dispatch = |dispatcher: &mut InputDispatcher,
+                    view: &mut ClientView,
+                    port: &mut UnavailablePort,
+                    packet: &[u8]| {
+        dispatcher
+            .dispatch(
+                view,
+                packet,
+                port,
+                now,
+                |_, _| Ok::<(), io::Error>(()),
+                &mut |_| Ok(()),
+            )
+            .unwrap();
+    };
+    dispatch(&mut dispatcher, &mut view, &mut port, b"\x02Mignored");
+    assert!(view.machines.open);
+    dispatch(&mut dispatcher, &mut view, &mut port, b"\x1b[200~hidden");
+    // An asynchronous candidate wins while a paste is still being decoded.
+    view.machines.open = false;
+    dispatcher.machine_surface_changed();
+    dispatch(
+        &mut dispatcher,
+        &mut view,
+        &mut port,
+        b"payload\x1b[201~visible",
+    );
+    assert_eq!(
+        *calls.borrow(),
+        [
+            Call::Action(ClientAction::OpenMachines),
+            Call::Forward(b"visible".to_vec())
+        ]
+    );
+    calls.borrow_mut().clear();
+    view.machines.show();
+    dispatch(&mut dispatcher, &mut view, &mut port, b"\r\x1b[");
+    assert!(view.machines.request.is_some());
+    view.machines.open = false;
+    dispatch(&mut dispatcher, &mut view, &mut port, b"Aok");
+    assert_eq!(*calls.borrow(), [Call::Forward(b"ok".to_vec())]);
+}

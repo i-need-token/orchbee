@@ -1,18 +1,12 @@
 //! Bounded Windows OpenSSH preparation. User OpenSSH configuration remains authoritative.
 use super::{Context, Error, Remote};
 use crate::machines::Draft;
-use base64::Engine as _;
 use orchbee_local_site_runtime::{WindowsCommandFailure, run_windows_command};
 use serde_json::Value;
-use std::{
-    path::{Path, PathBuf},
-    process::Command,
-};
+use std::path::{Path, PathBuf};
 
-pub(super) struct Client {
-    pub(super) executable: String,
-    pub(super) cohort: String,
-}
+use crate::machine_ssh::protocols;
+pub(super) use crate::machine_ssh::{Client, command, literal, program};
 pub(super) fn prepare(
     draft: &Draft,
     context: &mut Context,
@@ -59,40 +53,9 @@ fn prepare_session(
     Ok(())
 }
 pub(super) fn client(value: &Value) -> Result<Client, Error> {
-    if value["schema"] != "orchbee.status.client" || value["version"] != 2 {
-        return Err(Error::RemoteProtocol);
-    }
-    let r = &value["result"];
-    if r["version"] != env!("CARGO_PKG_VERSION")
-        || r["platform"] != "windows"
-        || r["architecture"] != std::env::consts::ARCH
-        || !protocols(&r["protocols"])
-        || r["cohort"]["state"] != "available"
-    {
-        return Err(Error::RemoteIncompatible);
-    }
-    let cohort = r["cohort"]["identity"]
-        .as_str()
-        .filter(|s| hex64(s))
-        .ok_or(Error::RemoteProtocol)?;
-    let executable = r["executable"]["path"]
-        .as_str()
-        .filter(|s| {
-            s.len() <= 4096
-                && !s.chars().any(char::is_control)
-                && s.as_bytes().get(1) == Some(&b':')
-                && s.as_bytes()[0].is_ascii_alphabetic()
-                && s.as_bytes()
-                    .get(2)
-                    .is_some_and(|b| matches!(b, b'/' | b'\\'))
-                && Path::new(s)
-                    .file_name()
-                    .is_some_and(|n| n.eq_ignore_ascii_case("orchbee.exe"))
-        })
-        .ok_or(Error::RemoteProtocol)?;
-    Ok(Client {
-        executable: executable.to_owned(),
-        cohort: cohort.to_owned(),
+    crate::machine_ssh::client(value).map_err(|error| match error {
+        crate::machine_ssh::AdmissionError::Protocol => Error::RemoteProtocol,
+        crate::machine_ssh::AdmissionError::Incompatible => Error::RemoteIncompatible,
     })
 }
 fn server(value: &Value, client: &Client) -> Result<(), Error> {
@@ -111,69 +74,6 @@ fn server(value: &Value, client: &Client) -> Result<(), Error> {
         return Err(Error::RemoteNotReady);
     }
     Ok(())
-}
-fn protocols(value: &Value) -> bool {
-    value["admission"] == orchbee_local_client_protocol::PROTOCOL_VERSION
-        && value["terminal"] == orchbee_client_server_protocol::PROTOCOL_VERSION
-}
-fn hex64(s: &str) -> bool {
-    s.len() == 64
-        && s.bytes()
-            .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
-}
-pub(super) fn literal(value: &str) -> String {
-    format!("'{}'", value.replace('\'', "''"))
-}
-pub(super) fn program(executable: Option<&str>, session: &str, action: &str) -> String {
-    let resolve = executable.map_or_else(
-        || "$program=(Get-Command orchbee.exe -CommandType Application -ErrorAction Stop | Select-Object -First 1).Path".to_owned(),
-        |path| format!("$program={}", literal(path)));
-    let args = if action == "start" {
-        "'site' 'start'".to_owned()
-    } else {
-        format!("'status' {}", literal(action))
-    };
-    let script = format!(
-        "$ErrorActionPreference='Stop';$ProgressPreference='SilentlyContinue';\
-        [Console]::OutputEncoding=New-Object System.Text.UTF8Encoding($false);\
-        $OutputEncoding=[Console]::OutputEncoding;\
-        try{{{resolve};if(-not $program){{exit 125}};\
-        & $program '--site' {} {args} '--format' 'json';exit $LASTEXITCODE}}catch{{exit 125}}",
-        literal(session)
-    );
-    let encoded = base64::engine::general_purpose::STANDARD.encode(
-        script
-            .encode_utf16()
-            .flat_map(u16::to_le_bytes)
-            .collect::<Vec<_>>(),
-    );
-    format!("powershell.exe -NoLogo -NoProfile -NonInteractive -EncodedCommand {encoded}")
-}
-pub(super) fn command(ssh: &Path, target: &str, remote: &str) -> Command {
-    let mut command = Command::new(ssh);
-    command.arg("-T");
-    for option in [
-        "BatchMode=yes",
-        "StrictHostKeyChecking=yes",
-        "ConnectionAttempts=1",
-        "ConnectTimeout=10",
-        "ServerAliveInterval=5",
-        "ServerAliveCountMax=2",
-        "ClearAllForwardings=yes",
-        "ForwardAgent=no",
-        "ForwardX11=no",
-        "PermitLocalCommand=no",
-        "RemoteCommand=none",
-        "ControlMaster=no",
-        "ControlPath=none",
-    ] {
-        command.args(["-o", option]);
-    }
-    command.args(["--", target, remote]);
-    command
-        .env_remove("SSH_ASKPASS")
-        .env("SSH_ASKPASS_REQUIRE", "never");
-    command
 }
 pub(super) fn exchange(
     ssh: &Path,

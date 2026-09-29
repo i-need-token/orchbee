@@ -1,3 +1,6 @@
+#[cfg(windows)]
+mod machines;
+
 #[cfg(unix)]
 use std::io::Read;
 use std::{
@@ -226,7 +229,7 @@ fn run_prepared_surface(
     locale: Locale,
     inherited: InheritedTerminal,
     dimensions: WindowDimensions,
-    mut terminal_input: Box<dyn TerminalSurface>,
+    terminal_input: Box<dyn TerminalSurface>,
     mouse: bool,
 ) -> Result<(), TuiFailure> {
     let mut initial_view = ClientView::new(dimensions.columns);
@@ -275,7 +278,8 @@ fn run_prepared_surface(
 
     #[cfg(windows)]
     let mut system_notifications = crate::notifications::system::SystemNotifications::default();
-    let run_result = run_event_loop_with_modes(
+    let mut surface = SurfaceSlot::Owned(terminal_input);
+    let run_result = run_surface_loop(
         &mut terminal,
         Chrome {
             locale,
@@ -302,7 +306,7 @@ fn run_prepared_surface(
             ModeRequest::BracketedPaste(enabled) => modes.set_bracketed_paste(enabled),
             ModeRequest::PointerCapture(enabled) => modes.set_pointer_capture(enabled),
         }),
-        terminal_input.as_mut(),
+        &mut surface,
         &termination,
         &inherited,
         dimensions,
@@ -318,7 +322,7 @@ fn run_prepared_surface(
     #[cfg(windows)]
     drop(system_notifications);
     drop(terminal);
-    drop(terminal_input);
+    drop(surface);
     let restore_result = modes.restore().map_err(io::Error::other);
 
     match (run_result, restore_result) {
@@ -345,7 +349,7 @@ fn run_event_loop<B: Backend + ResizableBackend>(
     terminal: &mut Terminal<B>,
     chrome: Chrome<'_>,
     inputs: &mut impl InputSource,
-    terminal_input: &mut (impl TerminalSurface + ?Sized),
+    terminal_input: &mut dyn TerminalSurface,
     termination: &impl TerminationSource,
     viewport: &impl ViewportSource,
     dimensions: WindowDimensions,
@@ -364,6 +368,7 @@ fn run_event_loop<B: Backend + ResizableBackend>(
     )
 }
 
+#[cfg(test)]
 #[expect(clippy::too_many_arguments)]
 fn run_event_loop_with_modes<B: Backend + ResizableBackend>(
     terminal: &mut Terminal<B>,
@@ -372,7 +377,63 @@ fn run_event_loop_with_modes<B: Backend + ResizableBackend>(
         &mut impl InputSource,
         &mut impl FnMut(ModeRequest) -> io::Result<()>,
     ),
-    terminal_input: &mut (impl TerminalSurface + ?Sized),
+    terminal_input: &mut dyn TerminalSurface,
+    termination: &impl TerminationSource,
+    viewport: &impl ViewportSource,
+    dimensions: WindowDimensions,
+    mouse: bool,
+    view: ClientView,
+) -> Result<LoopExit, LoopFailure<B::Error>> {
+    let mut surface = SurfaceSlot::Borrowed(terminal_input);
+    run_surface_loop(
+        terminal,
+        chrome,
+        input_runtime,
+        &mut surface,
+        termination,
+        viewport,
+        dimensions,
+        mouse,
+        view,
+    )
+}
+
+enum SurfaceSlot<'a> {
+    Owned(Box<dyn TerminalSurface>),
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "borrowed surfaces belong to deterministic loop tests"
+        )
+    )]
+    Borrowed(&'a mut dyn TerminalSurface),
+}
+impl SurfaceSlot<'_> {
+    fn active(&mut self) -> &mut dyn TerminalSurface {
+        match self {
+            Self::Owned(surface) => surface.as_mut(),
+            Self::Borrowed(surface) => *surface,
+        }
+    }
+    #[cfg(windows)]
+    fn replace(&mut self, next: Box<dyn TerminalSurface>) -> Box<dyn TerminalSurface> {
+        match self {
+            Self::Owned(surface) => std::mem::replace(surface, next),
+            Self::Borrowed(_) => unreachable!("machine manager requires an owned surface"),
+        }
+    }
+}
+
+#[expect(clippy::too_many_arguments)]
+fn run_surface_loop<B: Backend + ResizableBackend>(
+    terminal: &mut Terminal<B>,
+    chrome: Chrome<'_>,
+    input_runtime: (
+        &mut impl InputSource,
+        &mut impl FnMut(ModeRequest) -> io::Result<()>,
+    ),
+    surface: &mut SurfaceSlot<'_>,
     termination: &impl TerminationSource,
     viewport: &impl ViewportSource,
     mut dimensions: WindowDimensions,
@@ -380,6 +441,10 @@ fn run_event_loop_with_modes<B: Backend + ResizableBackend>(
     mut view: ClientView,
 ) -> Result<LoopExit, LoopFailure<B::Error>> {
     let (inputs, mode) = input_runtime;
+    #[cfg(windows)]
+    let mut machines =
+        matches!(surface, SurfaceSlot::Owned(_)).then(|| machines::Manager::new(&mut view));
+    let terminal_input = surface.active();
     let mut dispatcher = InputDispatcher::default();
     // The lifecycle write already armed or released host reporting; the
     // dispatcher and the status indicator settle to the same truth here.
@@ -405,6 +470,7 @@ fn run_event_loop_with_modes<B: Backend + ResizableBackend>(
                 EVENT_POLL_INTERVAL_MILLISECONDS,
             )))
             .map_err(LoopFailure::Input)?;
+        let terminal_input = surface.active();
         let mut redraw = synchronize_viewport(
             terminal,
             viewport,
@@ -456,6 +522,26 @@ fn run_event_loop_with_modes<B: Backend + ResizableBackend>(
             redraw = true;
         }
         #[cfg(windows)]
+        if let Some(machines) = &mut machines {
+            let change = machines.tick(surface, &mut view, dimensions, now);
+            redraw |= change.redraw;
+            if change.switched {
+                dispatcher.machine_surface_changed();
+                if mode(ModeRequest::WindowTitle(None)).is_err() {
+                    view.window_title_unavailable();
+                }
+                view.machines.invalidate();
+                synchronize_viewport(
+                    terminal,
+                    viewport,
+                    &mut view,
+                    surface.active(),
+                    &mut dimensions,
+                )?;
+            }
+        }
+        let terminal_input = surface.active();
+        #[cfg(windows)]
         if let Some(snapshot) = view.window_title.take()
             && mode(ModeRequest::WindowTitle(snapshot.title)).is_err()
         {
@@ -496,10 +582,12 @@ fn draw_surface<B: Backend>(
             &mut hits,
         );
         #[cfg(windows)]
-        if crate::notifications::available(view, surface.view()) {
+        if !view.machines.open && crate::notifications::available(view, surface.view()) {
             notification_painted =
                 crate::notifications::render(frame, &view.notifications, chrome.theme);
         }
+        #[cfg(windows)]
+        view.machines.render(frame, chrome.locale);
     });
     if let Err(error) = drawn {
         // A failed draw never publishes: the previous map stays the
@@ -512,6 +600,11 @@ fn draw_surface<B: Backend>(
         crate::notifications::sound(view.notifications.take_sound_after_draw());
     }
     dispatcher.publish_hit_map(hits.finish());
+    #[cfg(windows)]
+    if view.machines.open {
+        // Covered native content cannot acknowledge successful visible presentation.
+        return Ok(());
+    }
     let help_page = receipt.help_page();
     surface.after_close_draw(receipt);
     if let Some(page) = help_page {
@@ -536,6 +629,8 @@ fn synchronize_viewport<B: Backend + ResizableBackend>(
     };
     let changed = next != *dimensions;
     if changed {
+        #[cfg(windows)]
+        view.machines.invalidate();
         terminal_input.invalidate_close_display();
         terminal_input.invalidate_rename_display();
         terminal_input.invalidate_setup_display();
@@ -731,6 +826,18 @@ pub(crate) fn pane_geometries(
 }
 
 trait TerminalSurface: crate::terminal_input::TerminalInputPort {
+    #[cfg(windows)]
+    fn suspend_machine(&mut self) -> Option<bool> {
+        None
+    }
+    #[cfg(windows)]
+    fn resume_machine(&mut self, _focus: Option<bool>) {}
+
+    #[cfg(windows)]
+    fn reusable_machine(&self) -> bool {
+        true
+    }
+
     fn client_control_tick(&mut self, _view: &mut ClientView, _viewport: Rect) -> bool {
         false
     }
@@ -754,6 +861,22 @@ trait TerminalSurface: crate::terminal_input::TerminalInputPort {
 }
 impl TerminalSurface for UnavailableTerminalInputPort {}
 impl TerminalSurface for crate::terminal_session::TerminalSession {
+    #[cfg(windows)]
+    fn suspend_machine(&mut self) -> Option<bool> {
+        self.suspend_machine()
+    }
+    #[cfg(windows)]
+    fn resume_machine(&mut self, focus: Option<bool>) {
+        self.resume_machine(focus);
+    }
+    #[cfg(windows)]
+    fn reusable_machine(&self) -> bool {
+        !matches!(
+            self.status(),
+            crate::terminal_session::TerminalStatus::Unavailable
+                | crate::terminal_session::TerminalStatus::OutcomeUnknown
+        )
+    }
     #[cfg(windows)]
     fn client_control_tick(&mut self, view: &mut ClientView, viewport: Rect) -> bool {
         self.client_control_tick(view, viewport)

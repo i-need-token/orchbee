@@ -47,6 +47,8 @@ pub(crate) struct LocalClient {
 pub(crate) struct LocalClientOrigin {
     endpoint: PathBuf,
     cohort: String,
+    #[cfg(windows)]
+    tunnel: Option<Arc<crate::machine_tunnel::Tunnel>>,
 }
 
 #[cfg(any(target_os = "linux", windows))]
@@ -57,6 +59,7 @@ impl LocalClientOrigin {
         clock: LocalOperationClock,
     ) -> Result<LocalClient, LocalClientConnectError> {
         let mut client = LocalClient::connect_before(&self.endpoint, &self.cohort, deadline)?;
+        client.origin = self.clone();
         client.clock = clock;
         Ok(client)
     }
@@ -73,12 +76,19 @@ impl LocalClientOrigin {
     ) -> Result<LocalClient, LocalClientConnectError> {
         let mut client =
             LocalClient::connect_before_cancellable(&self.endpoint, &self.cohort, deadline, wake)?;
+        client.origin = self.clone();
         client.clock = clock;
         Ok(client)
     }
 }
 
 impl LocalClient {
+    /// Retains the transport through all future origin-derived lanes.
+    #[cfg(windows)]
+    pub(crate) fn with_tunnel(mut self, tunnel: Arc<crate::machine_tunnel::Tunnel>) -> Self {
+        self.origin.tunnel = Some(tunnel);
+        self
+    }
     #[cfg(any(target_os = "linux", windows))]
     pub(crate) fn connect_before(
         endpoint: &Path,
@@ -108,6 +118,8 @@ impl LocalClient {
             LocalClientOrigin {
                 endpoint: endpoint.to_path_buf(),
                 cohort: cohort.to_owned(),
+                #[cfg(windows)]
+                tunnel: None,
             },
             REQUEST_TOTAL_TIMEOUT,
             Box::new(SystemMonotonicClock),
@@ -148,6 +160,8 @@ impl LocalClient {
             LocalClientOrigin {
                 endpoint: endpoint.to_path_buf(),
                 cohort: cohort.to_owned(),
+                #[cfg(windows)]
+                tunnel: None,
             },
             request_timeout,
             clock,

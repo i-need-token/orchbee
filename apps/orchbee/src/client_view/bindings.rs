@@ -68,6 +68,8 @@ pub(crate) struct PrefixMember {
 /// `localization.rs` behind this enum; grouped members share one row.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum PrefixDesc {
+    #[cfg(windows)]
+    Machines,
     ReloadConfiguration,
     WorkspaceCreate,
     WorkspaceDirectory,
@@ -125,6 +127,11 @@ use super::PanelDirection;
 /// Every prefix-layer binding group, in help order. The first member label of
 /// each group joins with `" / "` into the help chord column.
 pub(crate) static PREFIX_GROUPS: &[PrefixGroup] = &[
+    #[cfg(windows)]
+    PrefixGroup {
+        members: &[member(key(KeyCode::Char('M')), ClientAction::OpenMachines)],
+        desc: PrefixDesc::Machines,
+    },
     PrefixGroup {
         members: &[member(
             key(KeyCode::Char('a')),
