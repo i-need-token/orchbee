@@ -155,9 +155,10 @@ Renaming preserves connection identity. No observer creates a terminal, claims
 control, changes focus, starts a Site or installs software.
 
 An observer uses the admitted persistent tunnel and reads native Workbench
-snapshots every two seconds with a five-second read deadline. Only a bounded
-summary is retained: Site/revision, project/workspace/Tab counts and up to eight
-project/workspace labels of 80 scalars each. A fresh successful native snapshot
+snapshots every two seconds with a five-second read deadline. A bounded
+summary retains Site/revision, project/workspace/Tab counts and up to eight
+preview labels of 80 scalars each, alongside the bounded context identities and
+labels used by workspace navigation below. A fresh successful native snapshot
 means Online; a saved profile or SSH process alone does not. An observation older
 than ten seconds is shown as stale and is not offered for connection reuse.
 
@@ -178,12 +179,54 @@ waits at most 60 seconds for a fresh observer, reuses its admitted origin on a
 separate native lane, and commits only a drawable candidate. Selection failure,
 expiry or Escape preserves the current surface. Escape cancels the selection,
 while discovery of enabled profiles continues. Retry applies only to observations,
-never submitted terminal input or Client mutations. Cross-machine merged Workbench
-navigation, merged Agent views, remote bootstrap/authentication and real-network
-longevity acceptance remain separate obligations.
+never submitted terminal input or Client mutations. The workspace mode below
+provides combined navigation. Merged Agent views, remote bootstrap/authentication
+and real-network longevity acceptance remain separate obligations.
 
 Evidence must exercise retry timing/stability, permanent refusals, concurrency,
 profile replacement and corrupt catalogs, coalescing and cancellation, actual
 read-only snapshot frames, stale-source refusal and rendered localized overview.
 The reference scope is Herdr e0507237, endpoint supervisor and saved SSH transport;
 local IPC fixtures do not establish remote SSH authentication or network recovery.
+
+## Cross-machine workspace navigation
+
+The machine picker has Machines and Workspaces modes, switched with Tab or their
+painted mode controls. Workspaces combines Local's last accepted canonical
+navigation with fresh enabled remote observations; rows carry machine identity,
+Site ID and the complete standalone or project/workspace/context identity. Labels
+and row positions never route a selection. Native protocol limits bound the list
+to 1024 contexts per machine; project/workspace labels retain at most 80 safe
+scalars each. Shared immutable context arrays avoid copying the list per UI tick.
+Local retained navigation is a candidate list, not proof of remote liveness.
+The overview's online counts describe remote observers. Offline/stale remote
+contexts are not selectable. Renaming or reordering preserves selection identity;
+removal invalidates painted hits and cannot retarget a pending selection.
+
+Explicit context selection opens a separately admitted native lane, including
+when the destination machine is already active or cached. The candidate reads a
+fresh snapshot and verifies the exact Site and context before any attachment.
+This path never opens or creates a standalone terminal as a navigation side
+effect. A vanished/replaced target fails without selecting a fallback. An empty
+context bootstraps Empty membership with no viewer or terminal; normal create
+actions remain available after switching. The mailbox allocates a fresh generation
+for empty and populated bootstrap alike. Legacy standalone startup still opens
+its normal standalone context. Every machine candidate supplies an explicit
+startup deadline; remote observation deadlines never become terminal startup
+authority implicitly.
+
+Queued selection freezes endpoint and destination identity. A candidate replaces
+the current surface only after the selected context is drawable; failure, timeout
+and Escape keep the current surface, with no mutation replay. Local is retained
+when switching away; replacing the same machine retires its previous surface
+only after commit. Cached machine-only selection preserves its selected context,
+including empty workspaces and unbound placeholders.
+A successful switch invalidates host input and painted regions through the
+existing machine handoff. This navigator does not yet aggregate Agent views,
+change the main sidebar or provide global cross-machine next/previous bindings.
+
+Evidence includes native snapshot-first exact bootstrap, absent/mismatched
+Site/context refusal before effects, empty-context membership, actual machine
+candidate startup and cancellation, duplicate labels and local/remote identity
+separation, reordered/stale hits, mode keyboard/mouse and narrow rendering. Local
+protocol peers do not establish real SSH or real-host visual acceptance.

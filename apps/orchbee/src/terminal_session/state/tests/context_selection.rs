@@ -148,17 +148,12 @@ fn context_selection_retains_every_known_create_provenance_on_reentry() {
 }
 
 #[test]
-fn unsupported_target_is_refused_without_hiding_or_detaching_current_terminal() {
+fn missing_target_is_refused_without_hiding_or_detaching_current_terminal() {
     let mut snapshot = contexts(1, 1);
-    let PanelNode::Panel {
-        primary_presentation,
-        ..
-    } = &mut snapshot.terminal_contexts[1].tabs[0].root
-    else {
-        panic!("single Panel fixture")
-    };
-    primary_presentation.binding = None;
     let mut state = ready_with_cache(project_native_standalone_tabs(&snapshot).unwrap());
+    snapshot.revision = WorkbenchRevision::new(2);
+    snapshot.navigation.projects[0].workspaces.remove(0);
+    snapshot.terminal_contexts.remove(1);
     let cache = state.cache().clone();
     let desired = state.desired().cloned();
     let attached = state.attached_key().cloned();

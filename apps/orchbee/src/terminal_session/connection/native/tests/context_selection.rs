@@ -5,11 +5,11 @@ use orchbee_workbench_protocol::{
     WorkbenchWorkspaceId, Workspace,
 };
 
-fn snapshot(empty: bool, unsupported: bool) -> Snapshot {
+fn snapshot(empty: bool, unbound: bool) -> Snapshot {
     let mut snapshot = setup::snapshot(3, 2);
     let mut tab = snapshot.terminal_contexts[0].tabs.pop().unwrap();
     tab.pinned = true;
-    if unsupported {
+    if unbound {
         let orchbee_workbench_protocol::PanelNode::Panel {
             primary_presentation,
             ..
@@ -49,7 +49,7 @@ fn return_snapshot(harness: &mut Harness, snapshot: Snapshot) -> TestResult {
 #[test]
 fn actual_context_selection_reads_snapshot_then_detaches_exact_viewer_before_workspace_attach()
 -> TestResult {
-    for (empty, unsupported) in [(false, false), (true, false), (false, true)] {
+    for (empty, unbound) in [(false, false), (true, false), (false, true)] {
         let geometry = fixture_geometry()?;
         let mut steps = vec![
             WireKind::Obcs,
@@ -61,34 +61,23 @@ fn actual_context_selection_reads_snapshot_then_detaches_exact_viewer_before_wor
             WireKind::Obcs,
         ];
         steps.extend([WireKind::Workbench, WireKind::Workbench]);
-        if !unsupported {
-            steps.push(WireKind::Obcs);
-            if !empty {
-                steps.extend([WireKind::Obcs; 5]);
-            }
+        steps.push(WireKind::Obcs);
+        if !empty && !unbound {
+            steps.extend([WireKind::Obcs; 5]);
         }
         let mut harness = Harness::start(steps, geometry)?;
         let old = drive_controlling_startup(&mut harness, geometry, 2)?;
         let refresh = harness.ui.admit_refresh()?;
-        return_snapshot(&mut harness, snapshot(empty, unsupported))?;
+        return_snapshot(&mut harness, snapshot(empty, unbound))?;
         assert!(
             matches!(harness.ui.settle_next(FrameCut::None)?, UiEvent::Refresh { generation, decision: RefreshDecision::Continue } if generation == refresh)
         );
         assert_eq!(harness.ui.state().view().context_count(), 2);
         let baseline = harness.ui.state().cache().clone();
         let selected = harness.ui.admit_context_selection()?;
-        return_snapshot(&mut harness, snapshot(empty, unsupported))?;
+        return_snapshot(&mut harness, snapshot(empty, unbound))?;
         let event = harness.ui.settle_next(FrameCut::None)?;
-        if unsupported {
-            assert!(
-                matches!(event, UiEvent::Refresh { generation, decision: RefreshDecision::Continue } if generation == selected)
-            );
-            assert_eq!(harness.ui.state().cache(), &baseline);
-            assert_eq!(
-                harness.ui.state().attached_key().map(|pane| pane.anchor()),
-                Some(&old)
-            );
-        } else {
+        {
             assert!(
                 matches!(event, UiEvent::Refresh { generation, decision: RefreshDecision::Cleanup(_) } if generation == selected)
             );
@@ -116,7 +105,7 @@ fn actual_context_selection_reads_snapshot_then_detaches_exact_viewer_before_wor
                 ))?;
             let event = harness.ui.settle_next(FrameCut::None)?;
             assert_eq!(harness.ui.state().view().active_context_position(), Some(2));
-            if empty {
+            if empty || unbound {
                 assert!(matches!(
                     event,
                     UiEvent::Refresh {
@@ -124,7 +113,15 @@ fn actual_context_selection_reads_snapshot_then_detaches_exact_viewer_before_wor
                         ..
                     }
                 ));
-                assert_eq!(harness.ui.state().phase_kind(), SessionPhaseKind::Empty);
+                assert_eq!(
+                    harness.ui.state().phase_kind(),
+                    if empty {
+                        SessionPhaseKind::Empty
+                    } else {
+                        SessionPhaseKind::SelectedWithoutAttachment
+                    }
+                );
+                assert!(!harness.ui.state().has_attachments());
             } else {
                 assert!(matches!(
                     event,

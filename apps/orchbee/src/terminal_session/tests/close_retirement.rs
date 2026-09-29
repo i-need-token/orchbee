@@ -72,7 +72,7 @@ fn panic_after_close_handoff_preserves_uncertainty_after_exact_join() -> TestRes
     ));
     let worker_mailbox = Arc::clone(&mailbox);
     let task = thread::spawn(move || -> connection::NativeWorkerExit {
-        let _lost_return = connection::run_native(client, geometry, worker_mailbox);
+        let _lost_return = connection::run_native(client, geometry, worker_mailbox, None);
         panic!("injected worker panic after transport returned");
     });
     let mut session = TerminalSession {

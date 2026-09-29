@@ -1692,7 +1692,7 @@ impl UiDriver {
                             NativeSessionState::starting(cache, generation, geometry)
                                 .ok_or(CarrierFailure::AuthorityDivergence)?;
                         installed = Some(state);
-                        Ok(target)
+                        Ok(Some(target))
                     },
                 );
                 require_applied(result)?;

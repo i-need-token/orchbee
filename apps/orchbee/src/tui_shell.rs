@@ -827,6 +827,15 @@ pub(crate) fn pane_geometries(
 
 trait TerminalSurface: crate::terminal_input::TerminalInputPort {
     #[cfg(windows)]
+    fn machine_source(
+        &self,
+    ) -> Option<(
+        crate::local_client::LocalClientOrigin,
+        crate::local_client::LocalOperationClock,
+    )> {
+        None
+    }
+    #[cfg(windows)]
     fn suspend_machine(&mut self) -> Option<bool> {
         None
     }
@@ -862,6 +871,15 @@ trait TerminalSurface: crate::terminal_input::TerminalInputPort {
 impl TerminalSurface for UnavailableTerminalInputPort {}
 impl TerminalSurface for crate::terminal_session::TerminalSession {
     #[cfg(windows)]
+    fn machine_source(
+        &self,
+    ) -> Option<(
+        crate::local_client::LocalClientOrigin,
+        crate::local_client::LocalOperationClock,
+    )> {
+        self.machine_source()
+    }
+    #[cfg(windows)]
     fn suspend_machine(&mut self) -> Option<bool> {
         self.suspend_machine()
     }
@@ -871,6 +889,15 @@ impl TerminalSurface for crate::terminal_session::TerminalSession {
     }
     #[cfg(windows)]
     fn reusable_machine(&self) -> bool {
+        // A canonical placeholder is a usable workspace, despite having no
+        // attached terminal. Preserve it when revisiting the cached machine.
+        if let crate::terminal_session::TerminalSessionView::Native(view) = self.view()
+            && view.retirement().is_none()
+            && view.phase()
+                == crate::terminal_session::NativeDisplayPhase::SelectedWithoutAttachment
+        {
+            return true;
+        }
         !matches!(
             self.status(),
             crate::terminal_session::TerminalStatus::Unavailable

@@ -480,9 +480,12 @@ fn resume_requires_visible_status_and_the_complete_modal_returns_both_current_to
         assert!(status.unavailable());
         assert!(!status.resumable());
         assert!(
-            rendered
-                .replace(' ', "")
-                .contains(&locale.native_close_status(&status).replace(' ', ""))
+            rendered.replace(' ', "").contains(
+                &locale
+                    .shell()
+                    .bound_hint(&view, &locale.native_close_status(&status))
+                    .replace(' ', "")
+            )
         );
     }
     dispatch_close_input(&mut session, &mut view, b"\x02x");

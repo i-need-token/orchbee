@@ -1179,24 +1179,47 @@ impl NativeSessionState {
             binding: panel.binding().cloned(),
             incarnation: 1,
         };
-        let state = Self {
+        let mut state = Self::initial(cache, geometry);
+        state.phase = if record.is_some() {
+            SessionPhase::Starting(StartingSetup {
+                selected,
+                mode: None,
+                accepted_geometry: None,
+            })
+        } else {
+            SessionPhase::SelectedWithoutAttachment(selected)
+        };
+        state.desired = Some(key);
+        state.panes = record.into_iter().collect();
+        state.next_incarnation = 2;
+        Some((state, target))
+    }
+
+    pub(super) fn bootstrap(
+        cache: NativeContextTabs,
+        generation: u64,
+        geometry: Geometry,
+    ) -> Option<(Self, Option<BootstrapTarget>)> {
+        if generation == 0 {
+            return None;
+        }
+        if cache.tabs().is_empty() {
+            Some((Self::initial(cache, geometry), None))
+        } else {
+            Self::starting(cache, generation, geometry).map(|(state, target)| (state, Some(target)))
+        }
+    }
+    fn initial(cache: NativeContextTabs, geometry: Geometry) -> Self {
+        Self {
             context_selection: None,
             retained_contexts: Vec::new(),
             navigation_memory: navigation_memory::NavigationMemory::default(),
             provenance: vec![CreateTerminalProvenance::BindingOnly; cache.tabs().len()],
             cache,
-            phase: if record.is_some() {
-                SessionPhase::Starting(StartingSetup {
-                    selected,
-                    mode: None,
-                    accepted_geometry: None,
-                })
-            } else {
-                SessionPhase::SelectedWithoutAttachment(selected)
-            },
-            desired: Some(key),
-            panes: record.into_iter().collect(),
-            next_incarnation: 2,
+            phase: SessionPhase::Empty,
+            desired: None,
+            panes: Vec::new(),
+            next_incarnation: 1,
             reconcile_deadlines: None,
             latest_geometry: geometry,
             notice: None,
@@ -1219,8 +1242,7 @@ impl NativeSessionState {
             settled_create: None,
             zoomed_tabs: std::collections::BTreeSet::new(),
             split_ratios: split_ratios::SplitRatios::default(),
-        };
-        Some((state, target))
+        }
     }
 
     pub(super) const fn phase_kind(&self) -> SessionPhaseKind {

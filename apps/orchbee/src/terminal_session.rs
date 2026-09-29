@@ -48,7 +48,7 @@ mod ui;
 mod workbench_projection;
 
 pub(crate) use workbench_projection::{
-    NativeContextLocation, NativePanel, NativePanelTree, NativePresentation,
+    NativeContextLocation, NativeContextTarget, NativePanel, NativePanelTree, NativePresentation,
 };
 
 pub(crate) use ui::{
@@ -209,6 +209,40 @@ impl TerminalSession {
         intent: TerminalIntent,
         geometry: Geometry,
     ) -> io::Result<Self> {
+        Self::start_with_context(client, intent, geometry, None)
+    }
+
+    #[cfg(windows)]
+    pub(crate) fn start_context(
+        client: LocalClient,
+        target: workbench_projection::NativeContextTarget,
+        geometry: Geometry,
+    ) -> io::Result<Self> {
+        Self::start_with_context(client, TerminalIntent::Standalone, geometry, Some(target))
+    }
+
+    #[cfg(windows)]
+    pub(crate) fn machine_source(
+        &self,
+    ) -> Option<(
+        crate::local_client::LocalClientOrigin,
+        crate::local_client::LocalOperationClock,
+    )> {
+        match &self.backend {
+            SessionBackend::Native(native) => {
+                Some((self.origin.clone()?, native.configuration_clock()))
+            }
+            #[cfg(test)]
+            SessionBackend::Legacy(_) => None,
+        }
+    }
+
+    fn start_with_context(
+        client: LocalClient,
+        intent: TerminalIntent,
+        geometry: Geometry,
+        context: Option<workbench_projection::NativeContextTarget>,
+    ) -> io::Result<Self> {
         let shutdown = client.shutdown_handle()?;
         let clock = client.operation_clock();
         let identity_seed = random_identity_seed()?;
@@ -220,7 +254,9 @@ impl TerminalSession {
                 let worker_mailbox = Arc::clone(&mailbox);
                 let task = thread::Builder::new()
                     .name("orchbee-terminal-session".into())
-                    .spawn(move || connection::run_native(client, geometry, worker_mailbox))?;
+                    .spawn(move || {
+                        connection::run_native(client, geometry, worker_mailbox, context)
+                    })?;
                 #[cfg(windows)]
                 let client_control = Some(client_control::ClientControl::new(
                     origin.clone(),

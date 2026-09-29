@@ -45,8 +45,9 @@ pub(super) fn run_native(
     client: LocalClient,
     initial_geometry: Geometry,
     mailbox: Arc<CommandMailbox>,
+    context: Option<super::workbench_projection::NativeContextTarget>,
 ) -> NativeWorkerExit {
-    native::run(client, initial_geometry, mailbox)
+    native::run_at(client, initial_geometry, mailbox, context)
 }
 
 pub(super) struct NativeWorkerExit {

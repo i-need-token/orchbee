@@ -35,6 +35,13 @@ pub(crate) enum NativeContextLocation {
     },
 }
 
+/// An explicit destination is bound to a Site as well as its navigation identity.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct NativeContextTarget {
+    pub(crate) site_id: SiteId,
+    pub(crate) location: NativeContextLocation,
+}
+
 impl NativeContextLocation {
     pub(super) fn terminal_context_id(&self) -> &WorkbenchTerminalContextId {
         match self {

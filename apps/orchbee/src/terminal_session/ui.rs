@@ -290,6 +290,10 @@ impl<'a> NativeSessionView<'a> {
             .as_ref()
             .map_or(0, StateSessionView::context_count)
     }
+    #[cfg(windows)]
+    pub(crate) fn navigation_site(&self) -> Option<&orchbee_workbench_protocol::SiteId> {
+        self.state.as_ref().map(StateSessionView::navigation_site)
+    }
 
     pub(crate) fn active_context_position(&self) -> Option<usize> {
         self.state.as_ref()?.active_context_position()
@@ -793,7 +797,14 @@ impl NativeUi {
     }
 
     pub(super) fn startup_draw_ready(&self) -> bool {
-        !self.pending_draws.is_empty()
+        self.retirement_failure.is_none()
+            && (!self.pending_draws.is_empty()
+                || self.state.as_ref().is_some_and(|state| {
+                    matches!(
+                        state.phase_kind(),
+                        SessionPhaseKind::Empty | SessionPhaseKind::SelectedWithoutAttachment
+                    )
+                }))
     }
 
     pub(super) const fn retirement_requested(&self) -> bool {
@@ -2238,8 +2249,9 @@ impl NativeUi {
                 &wait_key,
                 &self.clock,
                 |generation, geometry| {
-                    let (state, target) = NativeSessionState::starting(cache, generation, geometry)
-                        .ok_or(CarrierFailure::AuthorityDivergence)?;
+                    let (state, target) =
+                        NativeSessionState::bootstrap(cache, generation, geometry)
+                            .ok_or(CarrierFailure::AuthorityDivergence)?;
                     installed = Some(state);
                     Ok(target)
                 },

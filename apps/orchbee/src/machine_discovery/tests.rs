@@ -385,3 +385,60 @@ fn overview_is_bounded_and_remote_labels_cannot_control_the_host_terminal() {
     assert_eq!(overview.labels.len(), 8);
     assert!(overview.labels.iter().all(|s| s == &"界".repeat(80)));
 }
+
+#[test]
+fn discovered_contexts_preserve_global_order_and_full_identity_beyond_label_preview_limit() {
+    let mut s = snapshot();
+    let workspaces: Vec<_> = (20..40)
+        .map(|n| orchbee_workbench_protocol::Workspace {
+            label: format!("\u{202e}{}", "界".repeat(100)),
+            primary_directory_id: None,
+            terminal_context_id: WorkbenchTerminalContextId::parse(&format!("{:032x}", n + 100))
+                .unwrap(),
+            workspace_id: orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(&format!(
+                "{n:032x}"
+            ))
+            .unwrap(),
+        })
+        .collect();
+    s.navigation.workspace_order = workspaces
+        .iter()
+        .rev()
+        .map(|w| w.workspace_id.clone())
+        .collect();
+    s.navigation
+        .projects
+        .push(orchbee_workbench_protocol::Project {
+            project_id: orchbee_workbench_protocol::WorkbenchProjectId::parse(&format!(
+                "{:032x}",
+                10
+            ))
+            .unwrap(),
+            label: "project".into(),
+            directories: Vec::new(),
+            workspaces,
+        });
+    let overview = Overview::from_snapshot(&s);
+    assert_eq!(overview.contexts.len(), 21);
+    assert!(matches!(
+        overview.contexts[0].target.location,
+        NativeContextLocation::Standalone(_)
+    ));
+    for (context, expected) in overview.contexts[1..]
+        .iter()
+        .zip(&s.navigation.workspace_order)
+    {
+        assert_eq!(context.target.site_id, s.site_id);
+        let NativeContextLocation::Workspace {
+            project_id,
+            workspace_id,
+            ..
+        } = &context.target.location
+        else {
+            panic!("workspace row");
+        };
+        assert_eq!(project_id, &s.navigation.projects[0].project_id);
+        assert_eq!(workspace_id, expected);
+        assert_eq!(context.workspace, Some("界".repeat(80)));
+    }
+}

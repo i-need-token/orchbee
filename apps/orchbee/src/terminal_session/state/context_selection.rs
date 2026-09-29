@@ -375,6 +375,10 @@ impl<'a> NativeContextView<'a> {
 }
 
 impl<'a> NativeSessionView<'a> {
+    #[cfg(windows)]
+    pub(in crate::terminal_session) fn navigation_site(&self) -> &SiteId {
+        self.state.cache.site_id()
+    }
     pub(in crate::terminal_session) fn context_count(&self) -> usize {
         self.state.cache.navigation().len()
     }

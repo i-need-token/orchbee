@@ -6,6 +6,7 @@ mod worker;
 use crate::{
     local_client::{LocalClient, LocalClientOrigin, LocalOperationClock},
     machines::{Profile, ProfileId},
+    terminal_session::{NativeContextLocation, NativeContextTarget},
 };
 use orchbee_workbench_protocol::{SiteId, Snapshot, WorkbenchRevision};
 use policy::{Phase, Policy};
@@ -27,6 +28,13 @@ pub(crate) struct Overview {
     pub(crate) workspaces: usize,
     pub(crate) tabs: usize,
     pub(crate) labels: Vec<String>,
+    pub(crate) contexts: std::sync::Arc<[Context]>,
+}
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct Context {
+    pub(crate) target: NativeContextTarget,
+    pub(crate) project: Option<String>,
+    pub(crate) workspace: Option<String>,
 }
 impl Overview {
     fn from_snapshot(snapshot: &Snapshot) -> Self {
@@ -40,6 +48,31 @@ impl Overview {
                     labels.push(display_label(&workspace.label));
                 }
             }
+        }
+        let mut contexts = vec![Context {
+            target: NativeContextTarget {
+                site_id: snapshot.site_id.clone(),
+                location: NativeContextLocation::Standalone(
+                    snapshot.navigation.standalone_terminal_context_id.clone(),
+                ),
+            },
+            project: None,
+            workspace: None,
+        }];
+        // The wire boundary has already validated ordering, membership and protocol limits.
+        if let Ok(ordered) = snapshot.navigation.ordered_workspaces() {
+            contexts.extend(ordered.into_iter().map(|(project, workspace)| Context {
+                target: NativeContextTarget {
+                    site_id: snapshot.site_id.clone(),
+                    location: NativeContextLocation::Workspace {
+                        project_id: project.project_id.clone(),
+                        workspace_id: workspace.workspace_id.clone(),
+                        terminal_context_id: workspace.terminal_context_id.clone(),
+                    },
+                },
+                project: Some(display_label(&project.label)),
+                workspace: Some(display_label(&workspace.label)),
+            }));
         }
         Self {
             site: snapshot.site_id.clone(),
@@ -57,6 +90,7 @@ impl Overview {
                 .map(|c| c.tabs.len())
                 .sum(),
             labels,
+            contexts: contexts.into(),
         }
     }
 }
@@ -90,6 +124,9 @@ pub(crate) struct Connection {
     clock: LocalOperationClock,
 }
 impl Connection {
+    pub(crate) fn from_origin(origin: LocalClientOrigin, clock: LocalOperationClock) -> Self {
+        Self { origin, clock }
+    }
     pub(crate) fn reconnect(
         &self,
         deadline: Instant,

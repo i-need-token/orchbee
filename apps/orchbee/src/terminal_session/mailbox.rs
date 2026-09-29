@@ -935,7 +935,7 @@ pub(super) enum UiReply {
     Close(CloseFlightKey),
     Move(MoveSettlement),
     Panel(PanelSettlement),
-    BootstrapApplied(BootstrapTarget),
+    BootstrapApplied(Option<BootstrapTarget>),
     SetupConfigurationSettled(SetupEventDisposition),
     SwitchEntryExpiredApplied(CleanupContinuation),
     SetupWithoutAttachmentApplied(CleanupContinuation),
@@ -2958,7 +2958,7 @@ impl CommandMailbox {
         settle: Settle,
     ) -> Result<MutationResult, EventError>
     where
-        Settle: FnOnce(u64, Geometry) -> Result<BootstrapTarget, CarrierFailure>,
+        Settle: FnOnce(u64, Geometry) -> Result<Option<BootstrapTarget>, CarrierFailure>,
     {
         self.deposit_bootstrap_reply_before_using(wait_key, clock, settle)
     }
@@ -2970,7 +2970,7 @@ impl CommandMailbox {
         settle: Settle,
     ) -> Result<MutationResult, EventError>
     where
-        Settle: FnOnce(u64, Geometry) -> Result<BootstrapTarget, CarrierFailure>,
+        Settle: FnOnce(u64, Geometry) -> Result<Option<BootstrapTarget>, CarrierFailure>,
     {
         let (mut state, observed_at) = self.lock_with_fresh_sample(clock);
         Self::ensure_open(&state).map_err(EventError::Closed)?;
@@ -2994,15 +2994,21 @@ impl CommandMailbox {
                 return Err(self.close_failure(&mut state, failure));
             }
         };
-        if target.selected().key().anchor().generation() != generation {
+        if target
+            .as_ref()
+            .is_some_and(|target| target.selected().key().anchor().generation() != generation)
+        {
             return Err(self.close_protocol(&mut state));
         }
         state.attachment_generation = generation;
         state.desired = MailboxMembership::Live {
-            desired: Some(target.selected().key().clone()),
+            desired: target
+                .as_ref()
+                .map(|target| target.selected().key().clone()),
             panes: target
-                .binding()
-                .map(|_| target.pane_ref())
+                .as_ref()
+                .filter(|target| target.binding().is_some())
+                .map(|target| target.pane_ref())
                 .into_iter()
                 .collect(),
         };

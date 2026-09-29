@@ -26,7 +26,9 @@ use crate::{
         terminal_viewport::{
             ViewportReadRejection, ViewportStep, ViewportWindowFailure, decode_viewport_window,
         },
-        workbench_projection::project_native_standalone_tabs,
+        workbench_projection::{
+            NativeContextTarget, project_native_context_tabs, project_native_standalone_tabs,
+        },
     },
 };
 use orchbee_client_server_protocol::{
@@ -74,13 +76,24 @@ impl From<CarrierFailure> for ReadyFlowError {
     }
 }
 
-pub(super) fn run(
+#[cfg(test)]
+fn run(
     client: LocalClient,
     initial_geometry: Geometry,
     mailbox: Arc<CommandMailbox>,
 ) -> NativeWorkerExit {
+    run_at(client, initial_geometry, mailbox, None)
+}
+
+pub(super) fn run_at(
+    client: LocalClient,
+    initial_geometry: Geometry,
+    mailbox: Arc<CommandMailbox>,
+    context: Option<NativeContextTarget>,
+) -> NativeWorkerExit {
     let mut exit = WorkerExit::new(Arc::clone(&mailbox));
     let mut executor = NativeExecutor::new(client, mailbox);
+    executor.initial_context = context;
     let result = executor.run(initial_geometry);
     let failure = result.err();
     if let Some(failure) = failure {
@@ -120,6 +133,7 @@ impl Drop for WorkerExit {
 }
 
 struct NativeExecutor {
+    initial_context: Option<NativeContextTarget>,
     status_only: bool,
     #[cfg(any(target_os = "linux", windows))]
     membership_recovery: bool,
@@ -291,6 +305,7 @@ impl NativeExecutor {
         let started = clock.now();
         Self {
             client,
+            initial_context: None,
             status_only: false,
             #[cfg(any(target_os = "linux", windows))]
             membership_recovery: false,
@@ -317,7 +332,10 @@ impl NativeExecutor {
             .client
             .submission_deadline()
             .ok_or(CarrierFailure::Protocol)?;
-        let bootstrap = self.bootstrap(initial_geometry, startup_deadline)?;
+        let Some(bootstrap) = self.bootstrap(initial_geometry, startup_deadline)? else {
+            self.client.set_submission_deadline(None);
+            return self.run_ready_queue();
+        };
         if bootstrap.binding().is_none() {
             self.client.set_submission_deadline(None);
             return self.run_ready_queue();
@@ -343,18 +361,20 @@ impl NativeExecutor {
         &mut self,
         initial_geometry: Geometry,
         startup_deadline: Instant,
-    ) -> Result<BootstrapTarget> {
+    ) -> Result<Option<BootstrapTarget>> {
         self.ensure_before(startup_deadline)?;
-        let open_request = self.mailbox.allocate_obcs_request_id().map_err(closed)?;
-        let open = self
-            .client
-            .submit_terminal_open(TerminalOpenRequest::new(open_request, initial_geometry))
-            .map_err(submission)?;
-        match open.into_outcome() {
-            OpenOutcome::Opened { .. } => {}
-            OpenOutcome::OutcomeUnknown {} => return Err(CarrierFailure::OutcomeUnknown),
-            OpenOutcome::Unavailable { .. } | OpenOutcome::Failed { .. } => {
-                return Err(CarrierFailure::Transport);
+        if self.initial_context.is_none() {
+            let open_request = self.mailbox.allocate_obcs_request_id().map_err(closed)?;
+            let open = self
+                .client
+                .submit_terminal_open(TerminalOpenRequest::new(open_request, initial_geometry))
+                .map_err(submission)?;
+            match open.into_outcome() {
+                OpenOutcome::Opened { .. } => {}
+                OpenOutcome::OutcomeUnknown {} => return Err(CarrierFailure::OutcomeUnknown),
+                OpenOutcome::Unavailable { .. } | OpenOutcome::Failed { .. } => {
+                    return Err(CarrierFailure::Transport);
+                }
             }
         }
 
@@ -368,9 +388,16 @@ impl NativeExecutor {
         else {
             return Err(CarrierFailure::Transport);
         };
-        let cache = project_native_standalone_tabs(&snapshot)
-            .map_err(|_error| CarrierFailure::AuthorityDivergence)?;
-        if cache.tabs().is_empty() {
+        let cache = if let Some(target) = &self.initial_context {
+            if target.site_id != snapshot.site_id {
+                return Err(CarrierFailure::AuthorityDivergence);
+            }
+            project_native_context_tabs(&snapshot, &target.location)
+        } else {
+            project_native_standalone_tabs(&snapshot)
+        }
+        .map_err(|_error| CarrierFailure::AuthorityDivergence)?;
+        if self.initial_context.is_none() && cache.tabs().is_empty() {
             return Err(CarrierFailure::AuthorityDivergence);
         }
         self.publish_and_wait(
@@ -2981,11 +3008,11 @@ impl NativeExecutor {
 }
 
 trait BootstrapReply {
-    fn into_bootstrap(self) -> Result<BootstrapTarget>;
+    fn into_bootstrap(self) -> Result<Option<BootstrapTarget>>;
 }
 
 impl BootstrapReply for UiReply {
-    fn into_bootstrap(self) -> Result<BootstrapTarget> {
+    fn into_bootstrap(self) -> Result<Option<BootstrapTarget>> {
         match self {
             Self::BootstrapApplied(target) => Ok(target),
             _ => Err(CarrierFailure::Protocol),

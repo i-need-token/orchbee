@@ -576,7 +576,7 @@ fn native_session_with_identity(
     let worker_mailbox = Arc::clone(&mailbox);
     let task = thread::Builder::new()
         .name("orchbee-native-ui-test-session".into())
-        .spawn(move || connection::run_native(client, geometry, worker_mailbox))?;
+        .spawn(move || connection::run_native(client, geometry, worker_mailbox, None))?;
     Ok((
         TerminalSession {
             #[cfg(windows)]

@@ -276,7 +276,7 @@ fn bootstrap_uses_latest_geometry_and_publishes_first_desired_key_with_its_reply
                 let (state, target) = NativeSessionState::starting(cache, generation, geometry)
                     .ok_or(CarrierFailure::AuthorityDivergence)?;
                 canonical = Some(state);
-                Ok(target)
+                Ok(Some(target))
             })
             .unwrap(),
         MutationResult::Applied
@@ -287,7 +287,7 @@ fn bootstrap_uses_latest_geometry_and_publishes_first_desired_key_with_its_reply
     assert_eq!(mailbox.lock().desired.key(), Some(state.desired().unwrap()));
     assert!(matches!(
         mailbox.take_deposited_reply(&wait).unwrap(),
-        Some(UiReply::BootstrapApplied(target))
+        Some(UiReply::BootstrapApplied(Some(target)))
             if target.selected().key() == state.desired().unwrap()
     ));
     assert_eq!(mailbox.cursors(), (1, 0, 10));
@@ -323,6 +323,58 @@ fn bootstrap_uses_latest_geometry_and_publishes_first_desired_key_with_its_reply
             .wait_key(),
         Some(&newer)
     );
+}
+
+#[test]
+fn empty_bootstrap_publishes_live_generation_and_admits_refresh_without_a_viewer() {
+    let base = Instant::now();
+    let clock = FakeClock::new(base);
+    let mailbox = CommandMailbox::new(10, geometry(80));
+    let wait = mailbox
+        .publish_event_before_using(
+            WorkerEvent::Bootstrap {
+                cache: projected_tabs(0),
+            },
+            EventDeadline::Startup(base + Duration::from_secs(1)),
+            &clock,
+        )
+        .unwrap();
+    let WorkerEvent::Bootstrap { cache } = mailbox
+        .take_event_before_using(&clock)
+        .unwrap()
+        .unwrap()
+        .into_event()
+    else {
+        panic!("expected bootstrap");
+    };
+    let mut canonical = None;
+    mailbox
+        .deposit_bootstrap_reply_before_using(&wait, &clock, |generation, geometry| {
+            let (state, target) =
+                NativeSessionState::bootstrap(cache, generation, geometry).unwrap();
+            assert!(target.is_none());
+            canonical = Some(state);
+            Ok(target)
+        })
+        .unwrap();
+    let state = canonical.unwrap();
+    assert_eq!(state.phase_kind(), SessionPhaseKind::Empty);
+    assert!(state.desired().is_none());
+    assert!(matches!(
+        mailbox.take_deposited_reply(&wait).unwrap(),
+        Some(UiReply::BootstrapApplied(None))
+    ));
+    assert_eq!(mailbox.cursors().0, 1);
+    assert!(
+        matches!(&mailbox.lock().desired, MailboxMembership::Live { desired: None, panes } if panes.is_empty())
+    );
+    assert_eq!(
+        mailbox.try_enqueue_refresh(base + Duration::from_secs(1), |_| Ok::<_, ()>(())),
+        Ok(1)
+    );
+    let lease = mailbox.try_recv().unwrap().unwrap();
+    assert!(matches!(lease.record(), QueuedCommand::Refresh(_)));
+    assert_eq!(mailbox.cursors().0, 1);
 }
 
 #[test]
