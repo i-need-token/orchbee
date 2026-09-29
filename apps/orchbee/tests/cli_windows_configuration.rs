@@ -359,3 +359,104 @@ fn configured_checkout_query_precedes_setup_and_explicit_path_skips_it() {
         }
     }
 }
+
+#[test]
+fn reset_keys_real_windows_cli_backs_up_and_preserves_configuration_without_runtime() {
+    let fixture = Fixture::new();
+    let config = fixture.0.join("config.toml");
+    let schema = include_str!("../src/cli/schemas/orchbee.config.reset-keys.json");
+    let args = ["config", "reset-keys", "--format=json"];
+    let missing = document(fixture.run(&args));
+    validate(&missing, schema);
+    assert_eq!(missing["result"]["state"], "missing");
+    assert!(!fixture.0.join("appdata").exists());
+    let env = [("ORCHBEE_CONFIG_FILE", config.as_os_str())];
+    let missing = document(fixture.run_with_env(&args, None, None, &env));
+    validate(&missing, schema);
+    assert_eq!(missing["result"]["state"], "missing");
+    let original = b"# retained\r\n[terminal]\r\nnew_cwd='home'\r\n[keys]\r\nprefix='ctrl+a'\r\n[keys.indexed]\r\nswitch_tab='alt+1..9'\r\n[[keys.command]]\r\ncommand='DO_NOT_ECHO'\r\n";
+    std::fs::write(&config, original).unwrap();
+    let output = fixture.run_with_env(&args, None, None, &env);
+    assert_eq!(output.status.code(), Some(0));
+    assert!(!String::from_utf8_lossy(&output.stdout).contains("DO_NOT_ECHO"));
+    let reset = document(output);
+    validate(&reset, schema);
+    assert_eq!(reset["result"]["state"], "reset");
+    let backup = std::path::PathBuf::from(reset["result"]["backupPath"].as_str().unwrap());
+    assert_eq!(std::fs::read(backup).unwrap(), original);
+    assert_eq!(
+        std::fs::read(&config).unwrap(),
+        b"# retained\r\n[terminal]\r\nnew_cwd='home'\r\n"
+    );
+    let before = std::fs::read_dir(&fixture.0).unwrap().count();
+    let repeated = document(fixture.run_with_env(&args, None, None, &env));
+    validate(&repeated, schema);
+    assert_eq!(repeated["result"]["state"], "no-keys");
+    assert_eq!(std::fs::read_dir(&fixture.0).unwrap().count(), before);
+    let text = fixture.run_with_env(
+        &["config", "reset-keys"],
+        None,
+        None,
+        &[
+            ("ORCHBEE_CONFIG_FILE", config.as_os_str()),
+            ("LC_ALL", std::ffi::OsStr::new("zh_CN.UTF-8")),
+        ],
+    );
+    assert_eq!(text.status.code(), Some(0));
+    assert!(String::from_utf8_lossy(&text.stdout).contains("没有自定义键位"));
+    assert!(!fixture.0.join("runtime").exists());
+}
+
+#[test]
+fn reset_keys_real_windows_cli_refuses_bad_input_before_writing() {
+    let fixture = Fixture::new();
+    let config = fixture.0.join("config.toml");
+    let schema = include_str!("../src/cli/schemas/orchbee.config.reset-keys.json");
+    for bytes in [
+        b"[keys\nDO_NOT_ECHO".to_vec(),
+        vec![0xff],
+        vec![b'a'; 65537],
+        b"keys = [\n'ctrl+a',\n]\n".to_vec(),
+    ] {
+        std::fs::write(&config, &bytes).unwrap();
+        let before = std::fs::read_dir(&fixture.0).unwrap().count();
+        let output = fixture.run_with_env(
+            &["config", "reset-keys", "--format=json"],
+            None,
+            None,
+            &[("ORCHBEE_CONFIG_FILE", config.as_os_str())],
+        );
+        assert_eq!(output.status.code(), Some(1));
+        assert!(!String::from_utf8_lossy(&output.stderr).contains("DO_NOT_ECHO"));
+        let rejected = document(output);
+        validate(&rejected, schema);
+        assert_eq!(rejected["result"]["state"], "failed");
+        assert_eq!(rejected["result"]["backupPath"], Value::Null);
+        assert_eq!(rejected["result"]["recoveryRequired"], false);
+        assert_eq!(std::fs::read(&config).unwrap(), bytes);
+        assert_eq!(std::fs::read_dir(&fixture.0).unwrap().count(), before);
+    }
+    let original = b"[keys]\nprefix='f12'\n";
+    std::fs::write(&config, original).unwrap();
+    let output = fixture.run_with_env(
+        &["config", "reset-keys", "extra", "--format=json"],
+        None,
+        None,
+        &[("ORCHBEE_CONFIG_FILE", config.as_os_str())],
+    );
+    assert_eq!(output.status.code(), Some(2));
+    assert_eq!(std::fs::read(&config).unwrap(), original);
+    let held = std::fs::File::open(&config).unwrap();
+    let output = fixture.run_with_env(
+        &["config", "reset-keys", "--format=json"],
+        None,
+        None,
+        &[("ORCHBEE_CONFIG_FILE", config.as_os_str())],
+    );
+    assert_eq!(output.status.code(), Some(1));
+    let rejected = document(output);
+    validate(&rejected, schema);
+    drop(held);
+    assert_eq!(std::fs::read(&config).unwrap(), original);
+    assert!(!fixture.0.join("runtime").exists());
+}

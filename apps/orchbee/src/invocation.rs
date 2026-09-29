@@ -333,6 +333,7 @@ pub(crate) enum CommandPath {
     ApiSnapshot,
     ApiSchema,
     ConfigCheck,
+    ConfigResetKeys,
     SiteStart,
     SiteDiagnose,
     SiteAgentManifests,
@@ -458,6 +459,7 @@ impl CommandPath {
             Self::ApiSnapshot => "api snapshot",
             Self::ApiSchema => "api schema",
             Self::ConfigCheck => "config check",
+            Self::ConfigResetKeys => "config reset-keys",
             Self::SiteStart => "site start",
             Self::SiteDiagnose => "site diagnose",
             Self::SiteAgentManifests => "site agent-manifests",
@@ -1298,6 +1300,10 @@ pub(crate) enum Request {
     /// `site start`: the headless connect-or-activate command — neither a
     /// Workbench query nor a mutation; it runs the shared activation core.
     SiteStart {
+        format: OutputFormat,
+    },
+    #[cfg(windows)]
+    ConfigResetKeys {
         format: OutputFormat,
     },
     /// `site diagnose`: the read-only runtime observation command —
@@ -3791,6 +3797,13 @@ fn resolve_words(
         }
         ["api", "schema"] => schema_export::request(None, options, envelope),
         ["api", "schema", schema_id] => schema_export::request(Some(schema_id), options, envelope),
+        #[cfg(windows)]
+        ["config", "reset-keys"] => {
+            reject_filters(options, UsageContext::Path("config reset-keys"), envelope)?;
+            Ok(Request::ConfigResetKeys {
+                format: options.format.unwrap_or(OutputFormat::Text),
+            })
+        }
         ["config", "check"] => {
             reject_filters(options, UsageContext::Path("config check"), envelope)?;
             Ok(query(QueryCommand::ConfigCheck, options))
@@ -4289,6 +4302,11 @@ fn resolve_words(
         )),
         ["api", verb, ..] => Err(unknown_command(UsageContext::Path("api"), verb, envelope)),
         ["config"] => Err(missing_command(UsageContext::Path("config"), envelope)),
+        ["config", "reset-keys", extra, ..] => Err(unexpected_argument(
+            UsageContext::Path("config reset-keys"),
+            extra,
+            envelope,
+        )),
         ["config", "check", extra, ..] => Err(unexpected_argument(
             UsageContext::Path("config check"),
             extra,
@@ -4503,6 +4521,7 @@ fn help_topic(path: &[&str]) -> Option<HelpTopic> {
         ["api", "snapshot"] => HelpTopic::Command(CommandPath::ApiSnapshot),
         ["api", "schema"] => HelpTopic::Command(CommandPath::ApiSchema),
         ["config", "check"] => HelpTopic::Command(CommandPath::ConfigCheck),
+        ["config", "reset-keys"] => HelpTopic::Command(CommandPath::ConfigResetKeys),
         ["site", "start"] => HelpTopic::Command(CommandPath::SiteStart),
         #[cfg(windows)]
         ["session"] => HelpTopic::Family(Family::Session),

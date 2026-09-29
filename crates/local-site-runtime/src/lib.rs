@@ -13,8 +13,9 @@ pub use windows_user_path::{
 mod windows_user_settings;
 #[cfg(windows)]
 pub use windows_user_settings::{
-    WindowsDirectoryPolicy, WindowsSettingsError, WindowsUserSettings, read_windows_user_settings,
-    read_windows_user_settings_at, windows_user_settings_path,
+    WindowsDirectoryPolicy, WindowsKeysResetOutcome, WindowsKeysResetReport, WindowsSettingsError,
+    WindowsUserSettings, read_windows_user_settings, read_windows_user_settings_at,
+    reset_windows_keybindings, windows_user_settings_path,
 };
 #[cfg(windows)]
 mod windows_directory;

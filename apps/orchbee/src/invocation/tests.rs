@@ -7960,3 +7960,39 @@ fn manifest_commands_accept_only_their_owned_options() {
         assert!(parse(&args).is_err());
     }
 }
+
+#[test]
+#[cfg(windows)]
+fn config_reset_keys_grammar_is_offline_and_rejects_effect_options() {
+    assert_eq!(
+        parse(&["config", "reset-keys"]),
+        Ok(Request::ConfigResetKeys {
+            format: OutputFormat::Text
+        })
+    );
+    assert_eq!(
+        parse(&["--format=json", "config", "reset-keys"]),
+        Ok(Request::ConfigResetKeys {
+            format: OutputFormat::Json
+        })
+    );
+    for args in [
+        vec!["config", "reset-keys", "extra"],
+        vec!["config", "reset-keys", "--force"],
+        vec!["config", "reset-keys", "--current"],
+        vec!["config", "reset-keys", "--timeout=20"],
+    ] {
+        assert!(parse(&args).is_err(), "{args:?}");
+    }
+    for args in [
+        ["config", "reset-keys", "--help"],
+        ["help", "config", "reset-keys"],
+    ] {
+        assert_eq!(
+            parse(&args),
+            Ok(Request::Help(HelpTopic::Command(
+                CommandPath::ConfigResetKeys
+            )))
+        );
+    }
+}

@@ -181,7 +181,7 @@ const FAMILY_VERBS: &[(&str, &[&str])] = &[
     #[cfg(not(windows))]
     ("layout", &["set-split-ratio"]),
     ("launch-profile", &["create", "delete", "get", "list"]),
-    ("config", &["check"]),
+    ("config", &["check", "reset-keys"]),
     (
         "panel",
         &[
@@ -1239,7 +1239,7 @@ const HELP_CHILDREN: &[(&str, &[&str])] = &[
     #[cfg(not(windows))]
     ("layout", &["set-split-ratio"]),
     ("launch-profile", &["create", "delete", "get", "list"]),
-    ("config", &["check"]),
+    ("config", &["check", "reset-keys"]),
     (
         "panel",
         &[

@@ -39,6 +39,10 @@ pub(crate) const PROJECT_RENAME_RESULT_ID: &str = "orchbee.project.rename";
 /// `schema` id → embedded document, in dictionary order.
 const DOCUMENTS: &[(&str, &str)] = &[
     (
+        "orchbee.config.reset-keys",
+        include_str!("schemas/orchbee.config.reset-keys.json"),
+    ),
+    (
         "orchbee.panel.terminal-create",
         include_str!("schemas/orchbee.panel.terminal-create.json"),
     ),
@@ -470,8 +474,8 @@ pub(crate) fn answer(schema_id: Option<&str>, format: OutputFormat, locale: Loca
     };
     let document = json!({
         "schema": "orchbee.api.schema",
-        // Current-member reads now distinguish a stable unbound selection.
-        "version": 100,
+        // Offline keybinding reset exposes explicit backup and recovery results.
+        "version": 101,
         "source": embedded_source(),
         "result": result,
     });

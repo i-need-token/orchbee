@@ -387,3 +387,7 @@ The Server updater is the real consumer; this adapter alone does not implement r
 `read_existing` pins and validates an existing private directory tree and performs a bounded leaf read without creating directories, lock files or staging files. It serves startup/reload status inspection; missing cache paths remain absent.
 
 Windows settings also admit strict `[update] manifest_check` (default true) and retain default/file provenance plus explicit-location status. `read_windows_user_settings_at` serves explicit reload at a frozen path, preserving missing-default/missing-explicit behavior without creating files. Applications retain startup snapshot transport and automatic scheduling policy.
+
+## Windows keybinding configuration repair
+
+The Windows settings owner exposes bounded offline keybinding reset with semantic preservation, exclusive-file admission, a flushed private backup and explicit recovery results. The application owns CLI receipts and localization; [the configuration contract](../../apps/orchbee/docs/windows-cli-configuration.md#reset-custom-keybindings) owns policy, failure behavior and backup lifecycle. The library does not reload or launch a process.

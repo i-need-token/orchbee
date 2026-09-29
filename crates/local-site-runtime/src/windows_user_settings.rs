@@ -1,5 +1,7 @@
-//! Shared Windows user settings: bounded strict file admission without writes or caching.
+//! Shared Windows user settings: bounded strict reads and explicitly invoked repair.
+mod reset_keys;
 use crate::windows_user_path::{WINDOWS_USER_PATH_LIMIT, normalize_windows_user_path};
+pub use reset_keys::{WindowsKeysResetOutcome, WindowsKeysResetReport, reset_windows_keybindings};
 use std::{
     ffi::OsString,
     fs::File,

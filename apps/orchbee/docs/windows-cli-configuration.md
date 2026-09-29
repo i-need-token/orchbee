@@ -38,7 +38,7 @@ The creation settings govern Windows CLI creation. The legacy explicit empty-Wor
 
 Windows `config check` version 2 adds a sixth `user-config` check to the five runtime checks. Version 1 keeps its five-check schema. The added check reports the selected file, presence, normalized effective settings, or a bounded reason and field. Invalid creation configuration uses the separate `orchbee.cli.failure.configuration` version-1 envelope and exits 1. Failed source discovery stops configured-path creation before first-Project setup; no mutation is retried.
 
-The shared Windows settings reader owns bounded file inspection and normalization; the creation workflows own precedence and existing effect receipts. There is no configuration writer or cached mutable state. Core evidence covers malformed and duplicate TOML, unknown keys, bounds, relative/tilde paths, override precedence and pinned Herdr slug vectors. Windows public IPC traces cover effective launch cwd, configured checkout intent, failed discovery with no mutation, explicit path without discovery and unchanged no-file behavior. Full application acceptance remains a separate gate. Reference behavior: Herdr `e0507237ad8d41f60aece10d00ef29ce2339ca34`, `TerminalConfig`, `WorktreesConfig` and `default_checkout_path`.
+The shared Windows settings reader owns bounded file inspection and normalization; the creation workflows own precedence and existing effect receipts. Reads have no writer or cached mutable state; the explicit reset operation below owns configuration repair. Core evidence covers malformed and duplicate TOML, unknown keys, bounds, relative/tilde paths, override precedence and pinned Herdr slug vectors. Windows public IPC traces cover effective launch cwd, configured checkout intent, failed discovery with no mutation, explicit path without discovery and unchanged no-file behavior. Full application acceptance remains a separate gate. Reference behavior: Herdr `e0507237ad8d41f60aece10d00ef29ce2339ca34`, `TerminalConfig`, `WorktreesConfig` and `default_checkout_path`.
 
 ## Restore policy
 
@@ -71,3 +71,36 @@ by this command. Explicit updates remain available when automatic checks are dis
 Release acceptance fixtures must explicitly disable checks when public network access is outside
 the test's purpose. Rolling back to a reader predating this key requires removing the update section;
 user overrides and already committed rule caches are retained.
+
+## Reset custom keybindings
+
+Windows `config reset-keys [--format text|json]` is an offline configuration repair operation.
+It uses the same file location as `config check`, but a missing file (including an explicit path)
+or no top-level `keys` value succeeds without creating or writing anything. It removes `[keys]`,
+its nested tables and command arrays, or a safely removable top-level assignment. Other settings,
+comments outside the removed tables and line endings remain byte-for-byte. Invalid UTF-8/TOML, files over 64 KiB and edits whose
+parsed result differs from the original minus `keys` fail before writing. This allows recovery from
+custom keys that the current settings reader does not yet support; it does not validate or repair
+other settings, implement custom binding dispatch, or reload a running Client.
+
+The shared Windows settings repair owner pins the private parent directory tree, rejects reparse
+points/nonregular or multiply linked files, and reopens the file exclusively before comparing its
+bytes with the prepared input. Changed input or a concurrent file holder refuses the edit. A unique
+adjacent `.bak-keys-...` backup is created without overwriting an existing file, admitted as private,
+and flushed before rewriting the original through its exclusive handle. The original's file identity
+and permissions remain. A write/flush failure restores and flushes the original before releasing it;
+failed recovery retains the complete backup and reports `recoveryRequired: true`. A process crash
+after rewriting begins also leaves the previously flushed backup available. This is recoverable
+in-place replacement, not a filesystem transaction across power loss.
+
+The closed `orchbee.config.reset-keys` v1 receipt identifies `missing`, `no-keys`, `reset` or `failed`,
+the selected path, nullable backup path, bounded error field/reason and recovery requirement. Exit 0
+means reset or no change, exit 1 means failure, and usage errors exit 2 before file access. Text output
+is localized and escapes paths; configuration values are never echoed. Successful backup files are
+user recovery artifacts, explicitly handed to the caller in the receipt for restoration/removal.
+Unneeded failed-attempt backups are removed; cleanup failure exposes their exact path. No automatic
+Site admission, reload, process launch or unrelated settings write occurs.
+
+Pure transformation tests, exclusive-file/backup checks, injected write/recovery failure witnesses
+and real Windows CLI processes cover this contract. Full keybindings, config reload and final
+Windows replacement acceptance remain separate obligations.

@@ -4,6 +4,8 @@
 mod client_control;
 mod client_layout;
 #[cfg(windows)]
+mod config_reset;
+#[cfg(windows)]
 mod layouts;
 #[cfg(windows)]
 mod named_sessions;
@@ -2757,6 +2759,8 @@ impl Locale {
             (Self::ZhCn, CommandPath::ApiSnapshot) => HELP_API_SNAPSHOT_ZH,
             (Self::EnUs, CommandPath::ApiSchema) => HELP_API_SCHEMA_EN,
             (Self::ZhCn, CommandPath::ApiSchema) => HELP_API_SCHEMA_ZH,
+            (Self::EnUs, CommandPath::ConfigResetKeys) => HELP_CONFIG_RESET_KEYS_EN,
+            (Self::ZhCn, CommandPath::ConfigResetKeys) => HELP_CONFIG_RESET_KEYS_ZH,
             (Self::EnUs, CommandPath::ConfigCheck) => HELP_CONFIG_CHECK_EN,
             (Self::ZhCn, CommandPath::ConfigCheck) => HELP_CONFIG_CHECK_ZH,
             #[cfg(windows)]
@@ -2883,8 +2887,8 @@ const HELP_AGENT_INTEGRATION_DISABLE_ZH: &str = "orchbee agent integration disab
 const HELP_API_EN: &str = "orchbee api snapshot|schema\n\nMachine introspection of the local Workbench surface.\n  api snapshot           Emit the complete workbench.snapshot document\n  api schema [<id>]      List embedded JSON Schemas, or one schema by ID\nSuccessful output is always JSON, whatever '--format' was selected; a\nfailure envelope still requires an explicit '--format json'.\n";
 const HELP_API_ZH: &str = "orchbee api snapshot|schema\n\n本地 Workbench 面的机器自省。\n  api snapshot           输出完整 workbench.snapshot 文档\n  api schema [<id>]      列出内嵌 JSON Schema，或按 ID 取单个 schema\n成功输出无论 '--format' 选择如何都是 JSON；失败封套仍需显式\n'--format json'。\n";
 
-const HELP_CONFIG_EN: &str = "orchbee config check\n\nInspect local inputs only: runtime base, Site runtime directory, current\ncohort integrity, effective locale, and socket presence plus the socket\naddress budget. Nothing is connected, started, created, or locked. Any\nfailed check exits 1. Windows also validates APPDATA/Orchbee/config.toml;\nORCHBEE_CONFIG_FILE selects an absolute configuration file.\n";
-const HELP_CONFIG_ZH: &str = "orchbee config check\n\n仅检查本地输入：运行时基座、Site 运行时目录、当前 cohort 完整性、生效\nlocale、套接字存在性与套接字地址长度预算。不连接、不启动、不创建、\n不加锁。任一检查失败以 1 退出。Windows 还校验 APPDATA/Orchbee/config.toml；\nORCHBEE_CONFIG_FILE 可指定绝对配置文件路径。\n";
+const HELP_CONFIG_EN: &str = "orchbee config check\norchbee config reset-keys [--format text|json] (Windows)\n\nreset-keys backs up and removes custom keys without connecting or reloading.\nThe following inspection rules apply only to check.\n\nInspect local inputs only: runtime base, Site runtime directory, current\ncohort integrity, effective locale, and socket presence plus the socket\naddress budget. Nothing is connected, started, created, or locked. Any\nfailed check exits 1. Windows also validates APPDATA/Orchbee/config.toml;\nORCHBEE_CONFIG_FILE selects an absolute configuration file.\n";
+const HELP_CONFIG_ZH: &str = "orchbee config check\norchbee config reset-keys [--format text|json]（Windows）\n\nreset-keys 备份并移除自定义键位，不连接或重载。以下检查规则仅适用于 check。\n\n仅检查本地输入：运行时基座、Site 运行时目录、当前 cohort 完整性、生效\nlocale、套接字存在性与套接字地址长度预算。不连接、不启动、不创建、\n不加锁。任一检查失败以 1 退出。Windows 还校验 APPDATA/Orchbee/config.toml；\nORCHBEE_CONFIG_FILE 可指定绝对配置文件路径。\n";
 
 const HELP_COMPLETION_EN: &str = "orchbee completion bash|zsh|fish|powershell|elvish\n\nEmit a static completion script for the implemented grammar to stdout.\nNothing is installed and no user files are written.\n";
 const HELP_COMPLETION_ZH: &str = "orchbee completion bash|zsh|fish|powershell|elvish\n\n向标准输出生成已实现语法的静态补全脚本。不安装、不写入用户文件。\n";
@@ -4131,3 +4135,6 @@ impl super::Locale {
         }
     }
 }
+
+const HELP_CONFIG_RESET_KEYS_EN: &str = "orchbee config reset-keys [--format text|json]\n\nBack up APPDATA/Orchbee/config.toml (or ORCHBEE_CONFIG_FILE) and remove\ncustom keys. Preserve other settings and comments outside the removed tables.\nMissing file or no keys succeeds without writing. Invalid TOML or an unsafe\nedit fails unchanged. Windows requires a private parent and an exclusively\nopened regular file. Keep the reported backup until you no longer need to\nrestore the configuration. A failed restore reports recoveryRequired=true.\nDoes not connect, launch, or reload a Client. Exit 0 on success/no change,\n1 on failure, 2 on usage error.\n";
+const HELP_CONFIG_RESET_KEYS_ZH: &str = "orchbee config reset-keys [--format text|json]\n\n备份 APPDATA/Orchbee/config.toml（或 ORCHBEE_CONFIG_FILE 指定文件），\n并移除自定义键位。保留其他设置及被移除表之外的注释。文件不存在或无 keys\n时成功且不写入；TOML 无效或无法安全编辑时保持不变并失败。Windows 要求\n私有父目录和可独占打开的普通文件。请保留回执中的备份，直到不再需要恢复\n配置；恢复失败时报告 recoveryRequired=true。不连接、启动或重载 Client。\n成功或无变更退出 0，失败退出 1，用法错误退出 2。\n";

@@ -34,6 +34,8 @@ pub(crate) use creation::run as run_creation;
 mod completion;
 pub(crate) mod config;
 #[cfg(windows)]
+pub(crate) mod config_reset;
+#[cfg(windows)]
 mod configuration;
 pub(crate) mod escape;
 pub(crate) mod integration;

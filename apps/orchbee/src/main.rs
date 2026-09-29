@@ -153,6 +153,10 @@ fn main() -> ExitCode {
             }
             Ok(invocation::Request::SiteStart { format }) => cli::site_start(format, locale),
             #[cfg(windows)]
+            Ok(invocation::Request::ConfigResetKeys { format }) => {
+                cli::config_reset::run(format, locale)
+            }
+            #[cfg(windows)]
             Ok(invocation::Request::NamedSession { command, format }) => {
                 cli::named_sessions::run(&command, format, locale)
             }
