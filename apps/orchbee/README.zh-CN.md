@@ -802,4 +802,4 @@ Windows `panel report-agent`、`report-agent-session`、`clear-agent-authority` 
 
 ## Windows 外层终端标题
 
-`orchbee terminal title set "Build workspace"` 向前台主 TUI 发布覆盖标题；`orchbee terminal title clear` 恢复为 `Orchbee`。两者接受 `--format json`，没有 Client 连接时仍保留发布状态。剩余模板及实际宿主限制见[标题归属与恢复](docs/windows-terminal-title.zh-CN.md)。
+`orchbee terminal title set "Build workspace"` 向前台主 TUI 发布覆盖标题；`orchbee terminal title clear` 恢复在线 `ui.window_title` 模板（回退为 `Orchbee`）。两者接受 `--format json`，没有 Client 连接时仍保留发布状态。模板规则及实际宿主限制见[标题归属与恢复](docs/windows-terminal-title.zh-CN.md)。

@@ -3,10 +3,10 @@ impl Locale {
     pub(crate) const fn window_title_help(self) -> &'static str {
         match self {
             Self::EnUs => {
-                "orchbee terminal title set <title> [--format text|json]\norchbee terminal title clear [--format text|json]\n\nPublish a Site override for the foreground Windows main TUI. No Site is started.\nSet removes controls, truncates to 200 characters then trims; empty is invalid.\nClear uses Orchbee until configured title templates are supported.\nNo-foreground still commits for later attachment; delivery is not a display acknowledgement.\nUnknown submitted outcomes are not retried.\n"
+                "orchbee terminal title set <title> [--format text|json]\norchbee terminal title clear [--format text|json]\n\nPublish a Site override for the foreground Windows main TUI. No Site is started.\nSet removes controls, truncates to 200 characters then trims; empty is invalid.\nClear restores the live ui.window_title template; empty output uses Orchbee.\nNo-foreground still commits for later attachment; delivery is not a display acknowledgement.\nUnknown submitted outcomes are not retried.\n"
             }
             Self::ZhCn => {
-                "orchbee terminal title set <title> [--format text|json]\norchbee terminal title clear [--format text|json]\n\n发布 Site 覆盖标题，由前台 Windows 主 TUI 接收；不启动 Site。\nSet 移除控制字符、截取 200 个字符后 trim；空标题无效。\nClear 在配置标题模板接入前使用 Orchbee。\n无前台仍提交给后续连接；投递不确认实际显示。\n已提交但结果未知时不自动重试。\n"
+                "orchbee terminal title set <title> [--format text|json]\norchbee terminal title clear [--format text|json]\n\n发布 Site 覆盖标题，由前台 Windows 主 TUI 接收；不启动 Site。\nSet 移除控制字符、截取 200 个字符后 trim；空标题无效。\nClear 恢复在线 ui.window_title 模板；输出为空时使用 Orchbee。\n无前台仍提交给后续连接；投递不确认实际显示。\n已提交但结果未知时不自动重试。\n"
             }
         }
     }

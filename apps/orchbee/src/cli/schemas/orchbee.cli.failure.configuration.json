@@ -20,7 +20,7 @@
 			"const": "orchbee.cli.failure.configuration"
 		},
 		"version": {
-			"enum": [1, 2, 3]
+			"enum": [1, 2, 3, 4]
 		},
 		"failure": {
 			"type": "object",
@@ -54,44 +54,8 @@
 										"terminal.new_cwd",
 										"worktrees.directory",
 										"session.resume_agents_on_restore",
-										"update.manifest_check"
-									]
-								},
-								"reason": {
-									"enum": [
-										"invalid-path",
-										"invalid-boolean",
-										"missing",
-										"io-error",
-										"not-file",
-										"too-large",
-										"invalid-utf8",
-										"invalid-toml",
-										"unknown-key",
-										"wrong-type",
-										"source-query-failed",
-										"source-query-interrupted"
-									]
-								}
-							}
-						},
-						{
-							"type": "object",
-							"required": ["field", "reason"],
-							"additionalProperties": false,
-							"properties": {
-								"field": {
-									"enum": [
-										"file",
-										"ORCHBEE_CONFIG_FILE",
-										"ORCHBEE_RESUME_AGENTS_ON_RESTORE",
-										"APPDATA",
-										"terminal.new_cwd",
-										"worktrees.directory",
-										"session.resume_agents_on_restore",
 										"update.manifest_check",
-										"terminal.default_shell",
-										"terminal.shell_mode"
+										"ui.window_title"
 									]
 								},
 								"reason": {
@@ -108,8 +72,7 @@
 										"wrong-type",
 										"source-query-failed",
 										"source-query-interrupted",
-										"invalid-executable",
-										"invalid-mode"
+										"value-too-long"
 									]
 								}
 							}
@@ -131,7 +94,49 @@
 										"update.manifest_check",
 										"terminal.default_shell",
 										"terminal.shell_mode",
-										"keys"
+										"ui.window_title"
+									]
+								},
+								"reason": {
+									"enum": [
+										"invalid-path",
+										"invalid-boolean",
+										"missing",
+										"io-error",
+										"not-file",
+										"too-large",
+										"invalid-utf8",
+										"invalid-toml",
+										"unknown-key",
+										"wrong-type",
+										"source-query-failed",
+										"source-query-interrupted",
+										"invalid-executable",
+										"invalid-mode",
+										"value-too-long"
+									]
+								}
+							}
+						},
+						{
+							"type": "object",
+							"required": ["field", "reason"],
+							"additionalProperties": false,
+							"properties": {
+								"field": {
+									"enum": [
+										"file",
+										"ORCHBEE_CONFIG_FILE",
+										"ORCHBEE_RESUME_AGENTS_ON_RESTORE",
+										"APPDATA",
+										"terminal.new_cwd",
+										"worktrees.directory",
+										"session.resume_agents_on_restore",
+										"update.manifest_check",
+										"terminal.default_shell",
+										"terminal.shell_mode",
+										"keys",
+										"ui.window_title"
 									]
 								},
 								"reason": {
@@ -154,7 +159,8 @@
 										"reserved-binding",
 										"unsafe-binding",
 										"duplicate-binding",
-										"too-many-bindings"
+										"too-many-bindings",
+										"value-too-long"
 									]
 								}
 							}
@@ -326,6 +332,70 @@
 											"unsafe-binding",
 											"duplicate-binding",
 											"too-many-bindings"
+										]
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"version": {
+						"const": 4
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"failure": {
+						"properties": {
+							"details": {
+								"type": "object",
+								"required": ["field", "reason"],
+								"additionalProperties": false,
+								"properties": {
+									"field": {
+										"enum": [
+											"file",
+											"ORCHBEE_CONFIG_FILE",
+											"ORCHBEE_RESUME_AGENTS_ON_RESTORE",
+											"APPDATA",
+											"terminal.new_cwd",
+											"worktrees.directory",
+											"session.resume_agents_on_restore",
+											"update.manifest_check",
+											"terminal.default_shell",
+											"terminal.shell_mode",
+											"keys",
+											"ui.window_title"
+										]
+									},
+									"reason": {
+										"enum": [
+											"invalid-path",
+											"invalid-boolean",
+											"missing",
+											"io-error",
+											"not-file",
+											"too-large",
+											"invalid-utf8",
+											"invalid-toml",
+											"unknown-key",
+											"wrong-type",
+											"source-query-failed",
+											"source-query-interrupted",
+											"invalid-executable",
+											"invalid-mode",
+											"invalid-binding",
+											"reserved-binding",
+											"unsafe-binding",
+											"duplicate-binding",
+											"too-many-bindings",
+											"value-too-long"
 										]
 									}
 								}

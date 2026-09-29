@@ -239,6 +239,44 @@ pub(crate) struct NativeSessionView<'a> {
 
 impl<'a> NativeSessionView<'a> {
     #[cfg(windows)]
+    pub(super) fn window_title_context(&self) -> orchbee_workbench_protocol::WindowTitleContext {
+        let workspace = self
+            .active_context_position()
+            .and_then(|position| position.checked_sub(1))
+            .and_then(|index| self.context_at(index))
+            .and_then(|context| context.workspace_label())
+            .unwrap_or("");
+        let tab = self
+            .active_position()
+            .and_then(|position| position.checked_sub(1))
+            .and_then(|index| self.tab(index));
+        let label = tab.as_ref().map(|tab| tab.tab_label()).unwrap_or_default();
+        let pane = tab.as_ref().and_then(|tab| {
+            self.focus_panel_id().and_then(|id| {
+                (0..tab.panel_count())
+                    .filter_map(|index| tab.panel(index))
+                    .find(|panel| panel.panel_id() == id)
+            })
+        });
+        let manual = pane
+            .map(|panel| self.selected_presentation(panel))
+            .and_then(|member| member.custom_label())
+            .unwrap_or("");
+        let title = self
+            .focus_panel_id()
+            .filter(|panel| {
+                self.retirement.is_none()
+                    && self.pane_projection_status(panel) == NativeProjectionStatus::FrameAvailable
+            })
+            .and_then(|panel| self.pane_projection(panel))
+            .and_then(|projection| projection.frame())
+            .and_then(|frame| frame.title.as_deref())
+            .and_then(crate::terminal_title::stripped)
+            .unwrap_or("");
+        orchbee_workbench_protocol::WindowTitleContext::new(workspace, &label, manual, title)
+    }
+
+    #[cfg(windows)]
     pub(crate) fn panel_report(&self, panel: &super::NativePanel) -> super::PanelReportView<'_> {
         if self.retirement.is_some() {
             return super::PanelReportView::Unavailable;
@@ -3113,3 +3151,6 @@ fn finish_action<Value>(
         | Err(AdmissionError::Build(ActionBuildError::Protocol)) => {}
     }
 }
+
+#[cfg(all(test, windows))]
+mod window_title_tests;

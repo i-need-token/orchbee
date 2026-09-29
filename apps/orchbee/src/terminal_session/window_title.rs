@@ -3,7 +3,8 @@ use crate::local_client::{LocalClientOrigin, LocalOperationClock};
 use orchbee_local_ipc::{AsLocalIo, LocalStream};
 use orchbee_workbench_protocol::{ProtocolVersion, SiteId, WorkbenchRequestId};
 use orchbee_workbench_protocol::{
-    WindowTitleAction, WindowTitleOutcome, WindowTitleRequest, WindowTitleSnapshot,
+    WindowTitleAction, WindowTitleContext, WindowTitleOutcome, WindowTitleRequest,
+    WindowTitleSnapshot,
 };
 use std::time::Duration;
 use std::{
@@ -14,6 +15,7 @@ use std::{
 struct Handoff {
     stopped: bool,
     focused: bool,
+    context: WindowTitleContext,
     snapshot: Option<WindowTitleSnapshot>,
     last: Option<WindowTitleSnapshot>,
 }
@@ -49,7 +51,11 @@ impl Subscription {
             task: Some(task),
         })
     }
-    pub(super) fn poll(&self, focused: bool) -> Option<WindowTitleSnapshot> {
+    pub(super) fn poll(
+        &self,
+        focused: bool,
+        context: WindowTitleContext,
+    ) -> Option<WindowTitleSnapshot> {
         let Ok(mut state) = self.shared.0.lock() else {
             return None;
         };
@@ -57,6 +63,7 @@ impl Subscription {
             state.last = None;
         }
         state.focused = focused;
+        state.context = context;
         state.snapshot.take()
     }
     pub(super) fn close(&mut self) {
@@ -88,14 +95,14 @@ fn run(
     let mut client = None;
     let mut serial = 0_u64;
     loop {
-        let focused = {
+        let (focused, context) = {
             let Ok(state) = shared.0.lock() else {
                 return;
             };
             if state.stopped {
                 return;
             }
-            state.focused
+            (state.focused, state.context.clone())
         };
         if client.is_none() {
             client = origin
@@ -117,7 +124,7 @@ fn run(
                     request_id: WorkbenchRequestId::parse(&format!("{serial:032x}"))
                         .expect("nonzero serial"),
                     site_id: site.clone(),
-                    action: WindowTitleAction::Listen { focused },
+                    action: WindowTitleAction::Listen { focused, context },
                 },
                 clock.now() + Duration::from_secs(2),
                 Some(wake.as_local_io()),

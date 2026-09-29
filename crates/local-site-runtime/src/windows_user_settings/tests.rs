@@ -334,3 +334,29 @@ fn manifest_check_is_strict_defaulted_and_reload_keeps_the_frozen_location() {
     assert!(default.manifest_check);
     assert_eq!(default.manifest_check_source, "default");
 }
+
+#[test]
+fn window_title_settings_default_empty_invalid_syntax_and_strict_type() {
+    assert_eq!(
+        WindowsUserSettings::default().window_title,
+        "{hostname}: {workspace}"
+    );
+    for title in ["", "{workspace}/{tab}", "{unknown}"] {
+        let settings = parse(
+            &format!("[ui]\nwindow_title='{title}'\n[update]\nmanifest_check=false"),
+            Path::new(r"C:\config.toml"),
+            &|_| None,
+        )
+        .unwrap();
+        assert_eq!(settings.window_title, title);
+        assert!(!settings.manifest_check);
+    }
+    for text in ["[ui]\nwindow_title=2", "[ui]\nunknown='x'"] {
+        assert_eq!(
+            parse(text, Path::new(r"C:\config.toml"), &|_| None)
+                .unwrap_err()
+                .field,
+            "ui.window_title"
+        );
+    }
+}

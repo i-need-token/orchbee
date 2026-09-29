@@ -137,7 +137,7 @@ fn config_check_reports_the_actual_file_without_creating_it() {
         !validator.is_valid(&old),
         "v2 must not silently omit user configuration"
     );
-    assert_eq!(doc["version"], 6);
+    assert_eq!(doc["version"], 7);
     assert_eq!(doc["result"]["checks"][5]["details"]["defaultShell"], "");
     assert_eq!(doc["result"]["checks"][5]["details"]["shellMode"], "auto");
     assert_eq!(doc["result"]["checks"][5]["details"]["manifestCheck"], true);
@@ -166,7 +166,14 @@ fn config_check_reports_the_actual_file_without_creating_it() {
         !validator.is_valid(&old),
         "old config checks cannot carry shell policy"
     );
-    for key in ["defaultShell", "shellMode", "keyPrefix", "keyOverrides"] {
+    for key in [
+        "defaultShell",
+        "shellMode",
+        "keyPrefix",
+        "keyOverrides",
+        "windowTitle",
+        "windowTitleDiagnostic",
+    ] {
         old["result"]["checks"][5]["details"]
             .as_object_mut()
             .unwrap()
@@ -205,7 +212,12 @@ fn config_check_validates_keys_and_keeps_previous_envelopes_closed() {
     let mut old = doc;
     old["version"] = json!(5);
     assert!(!validator.is_valid(&old));
-    for key in ["keyPrefix", "keyOverrides"] {
+    for key in [
+        "keyPrefix",
+        "keyOverrides",
+        "windowTitle",
+        "windowTitleDiagnostic",
+    ] {
         old["result"]["checks"][5]["details"]
             .as_object_mut()
             .unwrap()
@@ -534,4 +546,46 @@ fn reset_keys_real_windows_cli_refuses_bad_input_before_writing() {
     drop(held);
     assert_eq!(std::fs::read(&config).unwrap(), original);
     assert!(!fixture.0.join("runtime").exists());
+}
+
+#[test]
+fn config_check_window_title_diagnostics_and_closed_previous_versions() {
+    let fixture = Fixture::new();
+    let config = fixture.0.join("appdata/Orchbee/config.toml");
+    std::fs::create_dir_all(config.parent().unwrap()).unwrap();
+    let schema = include_str!("../src/cli/schemas/orchbee.config.check.json");
+    let validator =
+        jsonschema::validator_for(&serde_json::from_str::<Value>(schema).unwrap()).unwrap();
+    for (title, diagnostic) in [
+        ("", None),
+        ("{workspace}/{tab}", None),
+        ("{unknown}", Some("unknown-token")),
+        ("{tab", Some("unclosed-brace")),
+    ] {
+        std::fs::write(&config, format!("[ui]\nwindow_title='{title}'")).unwrap();
+        let doc = document(fixture.run(&["config", "check", "--format=json"]));
+        validate(&doc, schema);
+        let check = &doc["result"]["checks"][5];
+        assert_eq!(check["status"], "pass");
+        assert_eq!(check["details"]["windowTitle"], title);
+        assert_eq!(check["details"]["windowTitleDiagnostic"], json!(diagnostic));
+        let mut old = doc.clone();
+        old["version"] = json!(6);
+        assert!(!validator.is_valid(&old));
+        for key in ["windowTitle", "windowTitleDiagnostic"] {
+            old["result"]["checks"][5]["details"]
+                .as_object_mut()
+                .unwrap()
+                .remove(key);
+        }
+        assert!(validator.is_valid(&old));
+    }
+    std::fs::write(&config, "[ui]\nwindow_title=false").unwrap();
+    let doc = document(fixture.run(&["workspace", "create", "--format=json"]));
+    validate(
+        &doc,
+        include_str!("../src/cli/schemas/orchbee.cli.failure.configuration.json"),
+    );
+    assert_eq!(doc["version"], 4);
+    assert_eq!(doc["failure"]["details"]["field"], "ui.window_title");
 }

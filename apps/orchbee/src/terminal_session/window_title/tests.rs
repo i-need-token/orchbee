@@ -88,7 +88,11 @@ fn live_window_title_pipe_hands_off_latest_snapshot_once() {
             else {
                 panic!()
             };
-            let deliver = request.action == WindowTitleAction::Listen { focused: true };
+            let deliver = request.action
+                == WindowTitleAction::Listen {
+                    focused: true,
+                    context: Default::default(),
+                };
             write_workbench_response(
                 &mut stream,
                 &WorkbenchResponse::WindowTitle(WindowTitleResult {
@@ -119,18 +123,18 @@ fn live_window_title_pipe_hands_off_latest_snapshot_once() {
         SiteId::parse(&format!("{:032x}", 2)).unwrap(),
     )
     .unwrap();
-    assert_eq!(listener.poll(true), None);
+    assert_eq!(listener.poll(true, Default::default()), None);
     rx.recv_timeout(Duration::from_secs(3)).unwrap();
     let deadline = Instant::now() + Duration::from_secs(3);
     let delivered = loop {
-        if let Some(message) = listener.poll(true) {
+        if let Some(message) = listener.poll(true, Default::default()) {
             break message;
         }
         assert!(Instant::now() < deadline);
         std::thread::sleep(Duration::from_millis(5));
     };
     assert_eq!(delivered, expected);
-    assert_eq!(listener.poll(false), None);
+    assert_eq!(listener.poll(false, Default::default()), None);
     listener.close();
     drop(client);
     server.finish().unwrap();
@@ -150,15 +154,24 @@ fn window_title_latest_handoff_discards_demoted_state_and_republishes_on_promoti
         title: None,
     };
     shared.0.lock().unwrap().receive(Some(snapshot.clone()));
-    assert_eq!(listener.poll(false), Some(snapshot.clone()));
+    assert_eq!(
+        listener.poll(false, Default::default()),
+        Some(snapshot.clone())
+    );
     shared.0.lock().unwrap().receive(Some(snapshot.clone()));
-    assert_eq!(listener.poll(false), None);
+    assert_eq!(listener.poll(false, Default::default()), None);
     shared.0.lock().unwrap().receive(None);
     shared.0.lock().unwrap().receive(Some(snapshot.clone()));
-    assert_eq!(listener.poll(false), Some(snapshot.clone()));
-    assert_eq!(listener.poll(true), None);
+    assert_eq!(
+        listener.poll(false, Default::default()),
+        Some(snapshot.clone())
+    );
+    assert_eq!(listener.poll(true, Default::default()), None);
     shared.0.lock().unwrap().receive(Some(snapshot.clone()));
-    assert_eq!(listener.poll(true), Some(snapshot.clone()));
+    assert_eq!(
+        listener.poll(true, Default::default()),
+        Some(snapshot.clone())
+    );
     let newer = WindowTitleSnapshot {
         revision: orchbee_workbench_protocol::WorkbenchRevision::new(2),
         title: Some(orchbee_workbench_protocol::WindowTitle::normalize("latest").unwrap()),
@@ -166,7 +179,7 @@ fn window_title_latest_handoff_discards_demoted_state_and_republishes_on_promoti
     shared.0.lock().unwrap().receive(Some(newer.clone()));
     shared.0.lock().unwrap().receive(Some(snapshot));
     shared.0.lock().unwrap().receive(Some(newer.clone()));
-    assert_eq!(listener.poll(true), Some(newer));
+    assert_eq!(listener.poll(true, Default::default()), Some(newer));
     shared.0.lock().unwrap().receive(None);
-    assert_eq!(listener.poll(true), None);
+    assert_eq!(listener.poll(true, Default::default()), None);
 }

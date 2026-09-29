@@ -9,6 +9,7 @@ use std::path::PathBuf;
 
 #[derive(Debug)]
 pub(super) struct Settings {
+    window_title: String,
     shell: orchbee_local_site_runtime::WindowsShellSettings,
     keys: orchbee_local_site_runtime::WindowsKeySettings,
     pub(super) path: Option<PathBuf>,
@@ -33,7 +34,9 @@ impl Error {
     pub(super) fn failure(self) -> Failure {
         Failure::new(FailureKind::CheckFailed)
             .failure_schema("orchbee.cli.failure.configuration")
-            .version(if self.field == "keys" {
+            .version(if self.field == "ui.window_title" {
+                4
+            } else if self.field == "keys" {
                 3
             } else if matches!(self.field, "terminal.default_shell" | "terminal.shell_mode") {
                 2
@@ -62,6 +65,7 @@ fn project(raw: WindowsUserSettings) -> Result<Settings, Error> {
         WorkbenchDirectoryPath::parse(&value).map_err(|_| Error::new(field, "invalid-path"))
     };
     Ok(Settings {
+        window_title: raw.window_title,
         shell: raw.shell,
         keys: raw.keys,
         path: raw.path,
@@ -109,6 +113,16 @@ impl Settings {
     }
     pub(super) fn check_details(&self) -> serde_json::Map<String, serde_json::Value> {
         serde_json::Map::from_iter([
+            ("windowTitle".into(), self.window_title.clone().into()),
+            (
+                "windowTitleDiagnostic".into(),
+                serde_json::json!(
+                    orchbee_local_site_runtime::WindowsWindowTitleTemplate::parse(
+                        &self.window_title
+                    )
+                    .err()
+                ),
+            ),
             ("keyOverrides".into(), self.keys.overrides.len().into()),
             ("keyPrefix".into(), {
                 let bindings = crate::client_view::Bindings::configured(&self.keys);

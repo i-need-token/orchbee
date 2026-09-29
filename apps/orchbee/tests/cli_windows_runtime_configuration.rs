@@ -46,6 +46,12 @@ fn current_reload_rejections_and_lost_reply_have_closed_typed_receipts_without_r
             let snapshot = ConfigurationSnapshot {
                 revision: WorkbenchRevision::new(if case == "startup" { 0 } else { 3 }),
                 keys_profile: "[keys]\nprefix='ctrl+a'\n".into(),
+                window_title: if case == "en" {
+                    "{tab}\n\u{202e}"
+                } else {
+                    "{hostname}: {workspace}"
+                }
+                .into(),
                 restart_required: if case == "restart" {
                     vec![ConfigurationRestart::ResumeAgents]
                 } else {
@@ -127,7 +133,9 @@ fn current_reload_rejections_and_lost_reply_have_closed_typed_receipts_without_r
             assert!(text.contains("mode=auto"));
             if case == "zh" {
                 assert!(text.contains("（平台默认）"));
+                assert!(text.contains("窗口标题模板：\"{hostname}: {workspace}\""));
             } else {
+                assert!(text.contains(r#"Window title template: "{tab}\n\u{202e}""#));
                 assert!(text.contains(r"C:\\tools\\\u{202e}shell.exe"));
                 assert!(!text.contains('\u{202e}'));
             }
@@ -137,7 +145,7 @@ fn current_reload_rejections_and_lost_reply_have_closed_typed_receipts_without_r
                 &document,
                 include_str!("../src/cli/schemas/orchbee.site.configuration.json"),
             );
-            assert_eq!(document["version"], 2);
+            assert_eq!(document["version"], 3);
             if matches!(case, "startup" | "current" | "reload" | "restart") {
                 assert_eq!(
                     document["result"]["reply"]["outcome"]["snapshot"]["defaultShell"],
@@ -198,7 +206,17 @@ fn public_configuration_versions_keep_closed_independent_snapshots() {
     assert!(validator.is_valid(&document));
     document["version"] = 1.into();
     assert!(!validator.is_valid(&document));
+    document["version"] = 3.into();
+    assert!(!validator.is_valid(&document));
+    document["result"]["reply"]["outcome"]["snapshot"]["windowTitle"] = "{tab}".into();
+    assert!(validator.is_valid(&document));
     document["version"] = 2.into();
+    assert!(!validator.is_valid(&document));
+    document["result"]["reply"]["outcome"]["snapshot"]
+        .as_object_mut()
+        .unwrap()
+        .remove("windowTitle");
+    assert!(validator.is_valid(&document));
     document["result"]["reply"]["outcome"]["snapshot"]["shellMode"] = "unknown".into();
     assert!(!validator.is_valid(&document));
 }

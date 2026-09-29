@@ -181,3 +181,7 @@ Client 独立配置策略仍待补全。
 启动准备失败记录既有的确定交接前失败，保留 Worker/Server 连接，不创建 Host 终端。同一失败请求重放原失败；修正设置后必须使用新的创建标识。首次 Host 尚不存在时，延迟循环也保持可用。Host 启动/传输不确定性仍保留原退出与不重试策略。证据覆盖私有帧、默认/显式/缺省选择、跨重载准备、精确/冲突重放、失败保留和真实 Windows 管道交换；provider/多 Client/视觉全量验收仍延后。匹配的私有 cohort 整套部署或回退，不迁移持久化数据。
 
 `site config` 和重载回执显示后续默认创建所用的已接纳 `defaultShell` 与 `shellMode`，包括重载响应丢失后的查询。空 Shell 表示平台默认；这些值不证明 Worker 已解析可执行文件或启动成功。CLI 回执 v2 必须包含两字段；历史 v1 schema 保持原有封闭字段集。匹配私有 cohort 的 Workbench 快照同样要求有界字面量（4096 UTF-8 字节、无控制字符）以及 `auto`/`login`/`non_login` 模式。人类可读输出转义字面量，并本地化空 Shell 标签。
+
+## 外层窗口标题
+
+`[ui] window_title` 默认为 `{hostname}: {workspace}`，可在线重载。[标题所有者](windows-terminal-title.zh-CN.md#配置模板) 定义变量、字面花括号、无效/空策略、有界渲染及 CLI 覆盖优先级。`config check` v7 报告 `windowTitle` 及可空 `windowTitleDiagnostic`；模板语法错误提供建议性诊断，类型错误/未知 UI 键/超过 4096 字节则在接入前失败（`orchbee.cli.failure.configuration` v4）。`site config`/`site reload-config` v3 暴露已发布的原始模板，旧公开版本保持封闭。

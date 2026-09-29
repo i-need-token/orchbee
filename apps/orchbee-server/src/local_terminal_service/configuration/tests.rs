@@ -262,3 +262,32 @@ fn busy_exhaustion_and_uninitialized_owner_never_apply_settings() {
         }
     ));
 }
+
+#[test]
+fn window_title_reload_publishes_invalid_syntax_without_losing_other_settings() {
+    let fixture = Fixture::new();
+    fixture.write("[ui]\nwindow_title='{workspace}'");
+    let registry = Registry::default();
+    registry.initialize(&fixture.settings(true)).unwrap();
+    assert_eq!(current(&registry).window_title, "{workspace}");
+    for title in ["{tab}/{pane}", "{unknown}", ""] {
+        fixture.write(&format!("[ui]\nwindow_title='{title}'"));
+        let Outcome::Reloaded { snapshot, .. } =
+            registry.execute(&request(Action::Reload), |_| true)
+        else {
+            panic!()
+        };
+        assert_eq!(snapshot.window_title, title);
+        assert!(snapshot.restart_required.is_empty());
+    }
+    let before = current(&registry);
+    fixture.write("[ui]\nwindow_title=2");
+    assert!(matches!(
+        registry.execute(&request(Action::Reload), |_| panic!()),
+        Outcome::Failed {
+            reason: Failure::LoadFailed,
+            ..
+        }
+    ));
+    assert_eq!(current(&registry), before);
+}

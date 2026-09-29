@@ -37,6 +37,8 @@ mod terminal_projection;
 mod terminal_session;
 #[cfg(any(unix, windows))]
 mod terminal_text;
+#[cfg(windows)]
+mod terminal_title;
 #[cfg(any(unix, windows))]
 mod termination_signal;
 #[cfg(any(unix, windows))]

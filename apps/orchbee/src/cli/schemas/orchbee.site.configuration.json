@@ -8,6 +8,9 @@
 		},
 		{
 			"$ref": "#/$defs/v2"
+		},
+		{
+			"$ref": "#/$defs/v3"
 		}
 	],
 	"$defs": {
@@ -462,6 +465,328 @@
 																},
 																"shellMode": {
 																	"enum": ["auto", "login", "non_login"]
+																}
+															}
+														},
+														"changed": {
+															"type": "boolean"
+														}
+													}
+												},
+												{
+													"type": "object",
+													"required": ["kind", "reason", "field", "detail"],
+													"additionalProperties": false,
+													"properties": {
+														"kind": {
+															"const": "failed"
+														},
+														"reason": {
+															"enum": [
+																"denied",
+																"unavailable",
+																"site-mismatch",
+																"busy",
+																"load-failed",
+																"revision-exhausted"
+															]
+														},
+														"field": {
+															"type": ["string", "null"],
+															"minLength": 1,
+															"maxLength": 128
+														},
+														"detail": {
+															"type": ["string", "null"],
+															"minLength": 1,
+															"maxLength": 128
+														}
+													},
+													"allOf": [
+														{
+															"if": {
+																"properties": {
+																	"reason": {
+																		"not": {
+																			"const": "load-failed"
+																		}
+																	}
+																}
+															},
+															"then": {
+																"properties": {
+																	"field": {
+																		"type": "null"
+																	},
+																	"detail": {
+																		"type": "null"
+																	}
+																}
+															}
+														},
+														{
+															"oneOf": [
+																{
+																	"properties": {
+																		"field": {
+																			"type": "null"
+																		},
+																		"detail": {
+																			"type": "null"
+																		}
+																	}
+																},
+																{
+																	"properties": {
+																		"field": {
+																			"type": "string"
+																		},
+																		"detail": {
+																			"type": "string"
+																		}
+																	}
+																}
+															]
+														}
+													]
+												}
+											]
+										}
+									}
+								}
+							]
+						},
+						"interrupted": {
+							"type": "boolean"
+						},
+						"cleanupFailed": {
+							"type": "boolean"
+						}
+					},
+					"allOf": [
+						{
+							"if": {
+								"properties": {
+									"action": {
+										"const": "current"
+									}
+								}
+							},
+							"then": {
+								"properties": {
+									"reply": {
+										"properties": {
+											"outcome": {
+												"properties": {
+													"kind": {
+														"enum": ["current", "failed"]
+													}
+												}
+											}
+										}
+									}
+								}
+							}
+						},
+						{
+							"if": {
+								"properties": {
+									"action": {
+										"const": "reload"
+									}
+								}
+							},
+							"then": {
+								"properties": {
+									"reply": {
+										"properties": {
+											"outcome": {
+												"properties": {
+													"kind": {
+														"enum": ["reloaded", "failed"]
+													}
+												}
+											}
+										}
+									}
+								}
+							}
+						}
+					]
+				}
+			}
+		},
+		"v3": {
+			"type": "object",
+			"required": ["schema", "version", "source", "result"],
+			"additionalProperties": false,
+			"properties": {
+				"schema": {
+					"const": "orchbee.site.configuration"
+				},
+				"version": {
+					"const": 3
+				},
+				"source": {
+					"type": "object",
+					"required": ["kind"],
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "local-runtime"
+						}
+					}
+				},
+				"result": {
+					"type": "object",
+					"required": ["action", "reply", "interrupted", "cleanupFailed"],
+					"additionalProperties": false,
+					"properties": {
+						"action": {
+							"enum": ["current", "reload"]
+						},
+						"reply": {
+							"anyOf": [
+								{
+									"type": "null"
+								},
+								{
+									"type": "object",
+									"required": ["protocolVersion", "requestId", "siteId", "outcome"],
+									"additionalProperties": false,
+									"properties": {
+										"protocolVersion": {
+											"const": 1
+										},
+										"requestId": {
+											"type": "string",
+											"pattern": "^[0-9a-f]{32}$"
+										},
+										"siteId": {
+											"type": "string",
+											"pattern": "^[0-9a-f]{32}$"
+										},
+										"outcome": {
+											"oneOf": [
+												{
+													"type": "object",
+													"required": ["kind", "snapshot"],
+													"additionalProperties": false,
+													"properties": {
+														"kind": {
+															"const": "current"
+														},
+														"snapshot": {
+															"type": "object",
+															"required": [
+																"revision",
+																"keysProfile",
+																"restartRequired",
+																"manifestCheck",
+																"defaultShell",
+																"shellMode",
+																"windowTitle"
+															],
+															"additionalProperties": false,
+															"properties": {
+																"revision": {
+																	"type": "string",
+																	"pattern": "^(0|[1-9][0-9]{0,19})$"
+																},
+																"keysProfile": {
+																	"type": "string",
+																	"minLength": 1,
+																	"maxLength": 65536
+																},
+																"restartRequired": {
+																	"type": "array",
+																	"uniqueItems": true,
+																	"maxItems": 3,
+																	"items": {
+																		"enum": [
+																			"terminal.default_shell",
+																			"terminal.shell_mode",
+																			"session.resume_agents_on_restore"
+																		]
+																	}
+																},
+																"manifestCheck": {
+																	"type": "boolean"
+																},
+																"defaultShell": {
+																	"type": "string",
+																	"maxLength": 4096,
+																	"pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]*$",
+																	"$comment": "Bindings additionally enforce the 4096 UTF-8 byte limit and Unicode scalar strings."
+																},
+																"shellMode": {
+																	"enum": ["auto", "login", "non_login"]
+																},
+																"windowTitle": {
+																	"type": "string",
+																	"maxLength": 4096
+																}
+															}
+														}
+													}
+												},
+												{
+													"type": "object",
+													"required": ["kind", "snapshot", "changed"],
+													"additionalProperties": false,
+													"properties": {
+														"kind": {
+															"const": "reloaded"
+														},
+														"snapshot": {
+															"type": "object",
+															"required": [
+																"revision",
+																"keysProfile",
+																"restartRequired",
+																"manifestCheck",
+																"defaultShell",
+																"shellMode",
+																"windowTitle"
+															],
+															"additionalProperties": false,
+															"properties": {
+																"revision": {
+																	"type": "string",
+																	"pattern": "^(0|[1-9][0-9]{0,19})$"
+																},
+																"keysProfile": {
+																	"type": "string",
+																	"minLength": 1,
+																	"maxLength": 65536
+																},
+																"restartRequired": {
+																	"type": "array",
+																	"uniqueItems": true,
+																	"maxItems": 3,
+																	"items": {
+																		"enum": [
+																			"terminal.default_shell",
+																			"terminal.shell_mode",
+																			"session.resume_agents_on_restore"
+																		]
+																	}
+																},
+																"manifestCheck": {
+																	"type": "boolean"
+																},
+																"defaultShell": {
+																	"type": "string",
+																	"maxLength": 4096,
+																	"pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]*$",
+																	"$comment": "Bindings additionally enforce the 4096 UTF-8 byte limit and Unicode scalar strings."
+																},
+																"shellMode": {
+																	"enum": ["auto", "login", "non_login"]
+																},
+																"windowTitle": {
+																	"type": "string",
+																	"maxLength": 4096
 																}
 															}
 														},

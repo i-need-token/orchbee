@@ -127,6 +127,7 @@ pub(crate) enum Notice {
     ConfigurationRestart,
     ConfigurationFailed,
     ConfigurationUnknown,
+    WindowTitleUnavailable,
     BackendUnavailable(BackendAction),
     TerminalInputUnavailable,
     UnknownPrefix,
@@ -390,6 +391,11 @@ impl ClientView {
 
     pub(crate) fn configuration_notice(&mut self, notice: Notice) {
         self.notice = Some(notice);
+    }
+
+    #[cfg(windows)]
+    pub(crate) fn window_title_unavailable(&mut self) {
+        self.notice.get_or_insert(Notice::WindowTitleUnavailable);
     }
 
     pub(crate) fn bindings(&self) -> &Bindings {

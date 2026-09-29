@@ -3,25 +3,18 @@
 	"$id": "orchbee.api.schema",
 	"title": "orchbee api schema envelope",
 	"type": "object",
-	"required": [
-		"schema",
-		"version",
-		"source",
-		"result"
-	],
+	"required": ["schema", "version", "source", "result"],
 	"additionalProperties": false,
 	"properties": {
 		"schema": {
 			"const": "orchbee.api.schema"
 		},
 		"version": {
-			"const": 106
+			"const": 107
 		},
 		"source": {
 			"type": "object",
-			"required": [
-				"kind"
-			],
+			"required": ["kind"],
 			"additionalProperties": false,
 			"properties": {
 				"kind": {
@@ -34,17 +27,13 @@
 			"additionalProperties": false,
 			"oneOf": [
 				{
-					"required": [
-						"schema"
-					],
+					"required": ["schema"],
 					"properties": {
 						"schema": {}
 					}
 				},
 				{
-					"required": [
-						"schemas"
-					],
+					"required": ["schemas"],
 					"properties": {
 						"schemas": {}
 					}
@@ -53,10 +42,7 @@
 			"properties": {
 				"schema": {
 					"type": "object",
-					"required": [
-						"schemaId",
-						"document"
-					],
+					"required": ["schemaId", "document"],
 					"additionalProperties": false,
 					"properties": {
 						"schemaId": {

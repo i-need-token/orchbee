@@ -38,7 +38,13 @@
 				"siteId": "22222222222222222222222222222222",
 				"action": {
 					"kind": "listen",
-					"focused": false
+					"focused": false,
+					"context": {
+						"workspace": "",
+						"tab": "",
+						"pane": "",
+						"terminalTitle": ""
+					}
 				}
 			}
 		},
@@ -289,7 +295,13 @@
 				"requestId": "11111111111111111111111111111111",
 				"siteId": "22222222222222222222222222222222",
 				"action": {
-					"kind": "listen"
+					"kind": "listen",
+					"context": {
+						"workspace": "",
+						"tab": "",
+						"pane": "",
+						"terminalTitle": ""
+					}
 				}
 			},
 			"boundary": "schema"
@@ -432,6 +444,85 @@
 				"action": {
 					"kind": "set",
 					"title": "Build  中😀"
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "context-required",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.window-title",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"action": {
+					"kind": "listen",
+					"focused": false
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "context-extra",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.window-title",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"action": {
+					"kind": "listen",
+					"focused": false,
+					"context": {
+						"workspace": "",
+						"tab": "",
+						"pane": "",
+						"terminalTitle": "",
+						"extra": "x"
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "context-control",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.window-title",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"action": {
+					"kind": "listen",
+					"focused": false,
+					"context": {
+						"workspace": "",
+						"tab": "",
+						"pane": "x\u001b",
+						"terminalTitle": ""
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "context-bound",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.window-title",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"action": {
+					"kind": "listen",
+					"focused": false,
+					"context": {
+						"workspace": "",
+						"tab": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+						"pane": "",
+						"terminalTitle": ""
+					}
 				}
 			},
 			"boundary": "schema"

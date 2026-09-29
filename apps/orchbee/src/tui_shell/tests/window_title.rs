@@ -5,6 +5,8 @@ fn window_title_control_tick_reaches_owner_once_without_consuming_input() {
     struct Surface {
         pending: Option<WindowTitleSnapshot>,
         forwarded: Vec<u8>,
+        observed_notice: Option<crate::client_view::Notice>,
+        previous: Option<crate::client_view::Notice>,
     }
     impl TerminalInputPort for Surface {
         fn forward(&mut self, bytes: &[u8]) -> Result<(), TerminalInputUnavailable> {
@@ -14,6 +16,12 @@ fn window_title_control_tick_reaches_owner_once_without_consuming_input() {
     }
     impl super::super::TerminalSurface for Surface {
         fn client_control_tick(&mut self, view: &mut ClientView, _: ratatui::layout::Rect) -> bool {
+            if let Some(previous) = self.previous.take() {
+                view.configuration_notice(previous);
+            }
+            if view.notice().is_some() {
+                self.observed_notice = view.notice();
+            }
             if let Some(snapshot) = self.pending.take() {
                 view.window_title = Some(snapshot);
             }
@@ -21,7 +29,11 @@ fn window_title_control_tick_reaches_owner_once_without_consuming_input() {
         }
     }
     for title in [None, Some(WindowTitle::normalize("Build title").unwrap())] {
-        for fail in [false, true] {
+        for (fail, previous) in [
+            (false, None),
+            (true, None),
+            (true, Some(crate::client_view::Notice::ConfigurationFailed)),
+        ] {
             let initial = dimensions(100, 24);
             let mut terminal = test_terminal(initial);
             let mut inputs = QueueInputSource {
@@ -45,6 +57,8 @@ fn window_title_control_tick_reaches_owner_once_without_consuming_input() {
                     title: title.clone(),
                 }),
                 forwarded: Vec::new(),
+                observed_notice: None,
+                previous,
             };
             let mut written = Vec::new();
             let result = super::super::run_event_loop_with_modes(
@@ -69,11 +83,13 @@ fn window_title_control_tick_reaches_owner_once_without_consuming_input() {
                 true,
                 ClientView::new(initial.columns),
             );
-            if fail {
-                assert!(matches!(result, Err(LoopFailure::Input(_))));
-            } else {
-                assert!(matches!(result, Ok(LoopExit::User)));
-            }
+            assert!(matches!(result, Ok(LoopExit::User)));
+            assert_eq!(
+                surface.observed_notice,
+                previous.or_else(|| {
+                    fail.then_some(crate::client_view::Notice::WindowTitleUnavailable)
+                })
+            );
             assert_eq!(written, vec![title.clone()]);
             assert_eq!(surface.forwarded, b"x");
         }

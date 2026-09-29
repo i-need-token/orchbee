@@ -98,4 +98,4 @@ do not support the synchronized-update mode.
 
 ## Outer title restoration
 
-[Windows title publication](windows-terminal-title.md) has its own lifecycle lease. The first title write captures the inherited title; restoration repays this lease after ending synchronized output and before disabling bracketed paste. Capture or write failure follows the terminal-control error exit and restoration path. No title writes occur after restoration starts. Before any publication no title capture or write occurs.
+[Windows title publication](windows-terminal-title.md) has its own lifecycle lease. The first title write captures the inherited title; restoration repays this lease after ending synchronized output and before disabling bracketed paste. Capture or write failure reports a localized status notice and keeps the TUI usable; any already-owed restoration remains registered. No title writes occur after restoration starts. Before an effective configured or explicit title is delivered, no title capture or write occurs.

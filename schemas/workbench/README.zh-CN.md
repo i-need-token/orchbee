@@ -518,3 +518,7 @@ Server 负责原子分配和发布；物理成员创建仍是独立的保留命�
 `workbench.window-title`（OBWP 43）承载 set/clear/listen；`workbench.window-title.result`（44）承载 published/listening/failed，保持 16 KiB intent 上限。[封闭 schema](v1/workbench-window-title.schema.json) 及共享语料约束 Rust 和 TypeScript：必需可空标题、正十进制 u64 revision、无控制字符且 trim 后至多 200 个标量的标题，以及 reason/changed/title 一致性。请求与回应的身份、Site、动作必须匹配。
 
 [Windows 标题归属](../../apps/orchbee/docs/windows-terminal-title.zh-CN.md) 定义有界重放、连接焦点路由及恢复。公开的 `orchbee.terminal.title` v1 回执区分发布和实际显示。这项私有 cohort 增量不改变持久化文档。
+
+## 窗口标题模板输入
+
+匹配 cohort 的 `workbench.window-title` listen 动作要求 `context`，包含 workspace/tab/pane/terminalTitle；每项为无控制字符且至多 200 个 Unicode 标量的字符串，允许为空。仅前台渲染使用这些展示值，不授予选择权限。`ConfigurationSnapshot.windowTitle` 是必需原始字符串，限制为 4096 个 UTF-8 字节，按文档中的建议性策略允许空值和无效模板。Rust/TypeScript 绑定执行字节/标量上限；schema 与语料保证字段存在及封闭结构。公开配置回执升级为 v3、检查为 v7、配置失败为 v4、目录为 v107；旧版本继续保持封闭。

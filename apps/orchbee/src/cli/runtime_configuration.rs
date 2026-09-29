@@ -112,7 +112,7 @@ fn windows(action: ConfigurationAction, format: OutputFormat, locale: Locale) ->
                         0,
                     ),
                 };
-            let document = serde_json::json!({"schema":"orchbee.site.configuration","version":2,"source":{"kind":"local-runtime"},"result":{"action":action,"reply":reply,"interrupted":interrupted,"cleanupFailed":cleanup_failed}});
+            let document = serde_json::json!({"schema":"orchbee.site.configuration","version":3,"source":{"kind":"local-runtime"},"result":{"action":action,"reply":reply,"interrupted":interrupted,"cleanupFailed":cleanup_failed}});
             let encoded = match format {
                 OutputFormat::Json => output::encode_document(&document),
                 OutputFormat::Text => {
@@ -126,6 +126,9 @@ fn windows(action: ConfigurationAction, format: OutputFormat, locale: Locale) ->
                             &super::escape::escape(&snapshot.default_shell),
                             snapshot.shell_mode.as_str(),
                         ));
+                        text.push_str(&locale.cli_configuration_title(&super::escape::escape(
+                            &snapshot.window_title,
+                        )));
                     }
                     output::encode_text(&text)
                 }

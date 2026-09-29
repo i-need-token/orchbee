@@ -486,8 +486,8 @@ pub(crate) fn answer(schema_id: Option<&str>, format: OutputFormat, locale: Loca
     };
     let document = json!({
         "schema": "orchbee.api.schema",
-        // Adds outer terminal title publication receipts.
-        "version": 106,
+        // Adds live outer-title configuration and syntax diagnostics.
+        "version": 107,
         "source": embedded_source(),
         "result": result,
     });

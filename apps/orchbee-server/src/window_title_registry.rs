@@ -1,4 +1,6 @@
-//! Latest Site title with connection-owned foreground routing and bounded replay.
+//! Site title policy rendered for a connection-owned foreground display context.
+use orchbee_local_site_runtime::WindowsWindowTitleTemplate;
+use orchbee_workbench_protocol::{WindowTitle, WindowTitleContext};
 use orchbee_workbench_protocol::{
     WindowTitleAction as Action, WindowTitleFailure as Failure, WindowTitleOutcome as Outcome,
     WindowTitleReason as Reason, WindowTitleSnapshot, WorkbenchRequestId, WorkbenchRevision,
@@ -24,8 +26,75 @@ pub(crate) struct Registry {
     receipts: BTreeMap<WorkbenchRequestId, Receipt>,
     snapshot: Option<WindowTitleSnapshot>,
     order: u64,
+    profile: Option<String>,
+    template: Option<WindowsWindowTitleTemplate>,
+    hostname: String,
+    delivery: Option<(NonZeroU64, WindowTitleSnapshot)>,
+    delivery_revision: u64,
+    clear_pending: bool,
+    clear_delivery: Option<NonZeroU64>,
 }
 impl Registry {
+    pub(crate) fn configure(&mut self, profile: &str) {
+        if self.profile.as_deref() == Some(profile) {
+            return;
+        }
+        self.profile = Some(profile.into());
+        self.clear_delivery = None;
+        self.template = WindowsWindowTitleTemplate::parse(profile).ok().flatten();
+        self.hostname = winsafe::GetComputerName().unwrap_or_default();
+    }
+    fn rendered(&mut self, generation: NonZeroU64, context: &WindowTitleContext) -> Outcome {
+        if self.foreground() != Some(generation) {
+            return Outcome::Listening { snapshot: None };
+        }
+        let title = if let Some(title) = self
+            .snapshot
+            .as_ref()
+            .and_then(|snapshot| snapshot.title.as_ref())
+        {
+            Some(title.clone())
+        } else if let Some(template) = &self.template {
+            template
+                .render([
+                    &self.hostname,
+                    &context.workspace,
+                    &context.tab,
+                    &context.pane,
+                    &context.terminal_title,
+                ])
+                .and_then(|text| WindowTitle::normalize(&text).ok())
+        } else if self.clear_pending || self.clear_delivery == Some(generation) {
+            self.clear_delivery = Some(generation);
+            None
+        } else {
+            return Outcome::Listening { snapshot: None };
+        };
+        if self
+            .delivery
+            .as_ref()
+            .is_none_or(|(previous, snapshot)| *previous != generation || snapshot.title != title)
+        {
+            let Some(revision) = self.delivery_revision.checked_add(1) else {
+                return Outcome::Failed {
+                    reason: Failure::Unavailable,
+                };
+            };
+            self.delivery_revision = revision;
+            self.delivery = Some((
+                generation,
+                WindowTitleSnapshot {
+                    revision: WorkbenchRevision::new(revision),
+                    title,
+                },
+            ));
+        }
+        self.clear_pending = false;
+        Outcome::Listening {
+            snapshot: self.delivery.as_ref().map(|(_, snapshot)| snapshot.clone()),
+        }
+    }
+
     pub(crate) fn disconnect(&mut self, generation: NonZeroU64) {
         self.listeners.remove(&generation);
     }
@@ -46,7 +115,8 @@ impl Registry {
             .retain(|_, item| now.saturating_duration_since(item.seen) < Duration::from_secs(5));
         self.receipts
             .retain(|_, item| now.saturating_duration_since(item.at) < Duration::from_secs(60));
-        if let Action::Listen { focused } = action {
+        if let Action::Listen { focused, context } = &action {
+            let focused = *focused;
             let previous = self.listeners.get(&generation);
             if previous.is_none() && self.listeners.len() >= 32 {
                 return Outcome::Failed {
@@ -74,13 +144,7 @@ impl Registry {
                     focused,
                 },
             );
-            return Outcome::Listening {
-                snapshot: if self.foreground() == Some(generation) {
-                    self.snapshot.clone()
-                } else {
-                    None
-                },
-            };
+            return self.rendered(generation, context);
         }
         if let Some(receipt) = self.receipts.get(&id) {
             return if receipt.action == action {
@@ -128,6 +192,9 @@ impl Registry {
             changed,
             reason,
         };
+        self.clear_pending = snapshot.title.is_none();
+        self.clear_delivery = None;
+        self.delivery = None;
         self.snapshot = Some(snapshot);
         self.receipts.insert(
             id,

@@ -1,7 +1,7 @@
 mod window_title;
 pub use window_title::{
-    WindowTitle, WindowTitleAction, WindowTitleFailure, WindowTitleOutcome, WindowTitleReason,
-    WindowTitleRequest, WindowTitleResult, WindowTitleSnapshot,
+    WindowTitle, WindowTitleAction, WindowTitleContext, WindowTitleFailure, WindowTitleOutcome,
+    WindowTitleReason, WindowTitleRequest, WindowTitleResult, WindowTitleSnapshot,
 };
 pub(crate) mod notification;
 use notification::*;

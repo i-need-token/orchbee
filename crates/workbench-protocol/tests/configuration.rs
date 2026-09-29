@@ -32,6 +32,7 @@ fn configuration_roundtrips_have_distinct_carrier_kinds_and_exact_correlation() 
                 default_shell: String::new(),
                 shell_mode: orchbee_workbench_protocol::ConfigurationShellMode::Auto,
                 manifest_check: true,
+                window_title: "{hostname}: {workspace}".into(),
                 restart_required: vec![],
             },
             changed: true,
@@ -80,6 +81,7 @@ fn configuration_rejects_unknown_fields_oversize_and_invalid_failure_shapes() {
             default_shell: String::new(),
             shell_mode: orchbee_workbench_protocol::ConfigurationShellMode::Auto,
             manifest_check: false,
+            window_title: "{hostname}: {workspace}".into(),
             restart_required: vec![],
         },
     };

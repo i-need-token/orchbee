@@ -440,8 +440,11 @@ fn run_event_loop_with_modes<B: Backend + ResizableBackend>(
             redraw = true;
         }
         #[cfg(windows)]
-        if let Some(snapshot) = view.window_title.take() {
-            mode(ModeRequest::WindowTitle(snapshot.title)).map_err(LoopFailure::Input)?;
+        if let Some(snapshot) = view.window_title.take()
+            && mode(ModeRequest::WindowTitle(snapshot.title)).is_err()
+        {
+            view.window_title_unavailable();
+            redraw = true;
         }
         if redraw {
             draw_surface(terminal, &mut view, chrome, terminal_input, &mut dispatcher)?;

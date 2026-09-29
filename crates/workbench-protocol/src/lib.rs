@@ -173,6 +173,6 @@ pub use command::notification::{
 };
 
 pub use command::{
-    WindowTitle, WindowTitleAction, WindowTitleFailure, WindowTitleOutcome, WindowTitleReason,
-    WindowTitleRequest, WindowTitleResult, WindowTitleSnapshot,
+    WindowTitle, WindowTitleAction, WindowTitleContext, WindowTitleFailure, WindowTitleOutcome,
+    WindowTitleReason, WindowTitleRequest, WindowTitleResult, WindowTitleSnapshot,
 };

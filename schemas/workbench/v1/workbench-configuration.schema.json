@@ -40,7 +40,8 @@
 				"manifestCheck",
 				"restartRequired",
 				"defaultShell",
-				"shellMode"
+				"shellMode",
+				"windowTitle"
 			],
 			"additionalProperties": false,
 			"properties": {
@@ -78,6 +79,10 @@
 				},
 				"shellMode": {
 					"enum": ["auto", "login", "non_login"]
+				},
+				"windowTitle": {
+					"type": "string",
+					"maxLength": 4096
 				}
 			}
 		},

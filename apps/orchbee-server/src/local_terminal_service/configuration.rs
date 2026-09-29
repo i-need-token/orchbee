@@ -120,6 +120,7 @@ fn snapshot(
     ConfigurationSnapshot {
         revision: WorkbenchRevision::new(revision),
         keys_profile: current.keys.profile(),
+        window_title: current.window_title.clone(),
         manifest_check: current.manifest_check,
         default_shell: current.shell.executable().into(),
         shell_mode: match current.shell.mode() {
@@ -133,6 +134,13 @@ fn snapshot(
     }
 }
 impl super::LocalTerminalService {
+    pub(crate) fn window_title_configuration(&self) -> Result<String, ()> {
+        let slot = self.configuration.0.try_lock().map_err(|_| ())?;
+        Ok(slot
+            .as_ref()
+            .map_or_else(String::new, |state| state.current.window_title.clone()))
+    }
+
     /// No fallible effect follows scheduler admission. Creation and reload share this lock.
     pub(super) fn apply_configuration(&self, settings: &WindowsUserSettings) -> bool {
         use orchbee_capability_node_protocol::{DefaultShellMode, DefaultShellSelection};

@@ -705,6 +705,13 @@ impl WorkbenchClientSession<'_> {
                     reason: Failure::SiteMismatch,
                 }
             } else if let Ok(mut registry) = self.service.window_titles.lock() {
+                let Ok(profile) = self.service.terminals.window_title_configuration() else {
+                    return WorkbenchExecution::Response(unavailable_or_denied(
+                        WorkbenchRequest::WindowTitle(request.clone()),
+                        false,
+                    ));
+                };
+                registry.configure(&profile);
                 registry.execute(
                     self.generation,
                     request.request_id.clone(),

@@ -381,7 +381,10 @@ impl TerminalSession {
                     .ok();
                 }
                 if let Some(watcher) = &self.window_title
-                    && let Some(snapshot) = watcher.poll(native.outer_title_focused())
+                    && let Some(snapshot) = watcher.poll(
+                        native.outer_title_focused(),
+                        native.view().window_title_context(),
+                    )
                 {
                     view.window_title = Some(snapshot);
                 }

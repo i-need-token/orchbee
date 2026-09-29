@@ -35,6 +35,7 @@ pub struct ConfigurationSnapshot {
     pub revision: WorkbenchRevision,
     /// Canonical [keys] only, never arbitrary configuration-file contents.
     pub keys_profile: String,
+    pub window_title: String,
     pub restart_required: Vec<ConfigurationRestart>,
     pub manifest_check: bool,
     /// Admitted defaults for subsequent preparations, not resolved executable facts.
@@ -134,6 +135,7 @@ impl ConfigurationResult {
             | ConfigurationOutcome::Reloaded { snapshot, .. } => {
                 !snapshot.keys_profile.is_empty()
                     && snapshot.keys_profile.len() <= 64 * 1024
+                    && snapshot.window_title.len() <= 4096
                     && snapshot.default_shell.len() <= 4096
                     && !snapshot.default_shell.chars().any(char::is_control)
                     && snapshot.restart_required.len() <= 3

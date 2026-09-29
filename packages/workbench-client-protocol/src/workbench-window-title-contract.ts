@@ -17,6 +17,19 @@ export const WindowTitleSchema = z
 			!/\p{Cc}/u.test(value) &&
 			!/^\p{White_Space}|\p{White_Space}$/u.test(value),
 	);
+const contextText = z
+	.string()
+	.max(400)
+	.refine(
+		(value) =>
+			!/[\uD800-\uDFFF]/u.test(value) && [...value].length <= 200 && !/\p{Cc}/u.test(value),
+	);
+const context = z.strictObject({
+	workspace: contextText,
+	tab: contextText,
+	pane: contextText,
+	terminalTitle: contextText,
+});
 const snapshot = z.strictObject({
 	revision: WorkbenchRevisionSchema.refine((value) => value !== '0'),
 	title: WindowTitleSchema.nullable(),
@@ -33,7 +46,7 @@ export const WindowTitleRequestSchema = z
 		action: z.discriminatedUnion('kind', [
 			z.strictObject({ kind: z.literal('set'), title: WindowTitleSchema }),
 			z.strictObject({ kind: z.literal('clear') }),
-			z.strictObject({ kind: z.literal('listen'), focused: z.boolean() }),
+			z.strictObject({ kind: z.literal('listen'), focused: z.boolean(), context }),
 		]),
 	})
 	.readonly();

@@ -58,7 +58,10 @@ fn window_title_admission_checks_grants_site_and_disconnect() {
             result.validate().unwrap();
             result.outcome
         };
-        let listen = WindowTitleAction::Listen { focused: true };
+        let listen = WindowTitleAction::Listen {
+            focused: true,
+            context: Default::default(),
+        };
         assert_eq!(
             run(&subscriber, snapshot.site_id.clone(), 2, listen.clone()),
             if read {

@@ -2,6 +2,7 @@
 mod keys;
 mod reset_keys;
 mod shell;
+mod window_title;
 use crate::windows_user_path::{WINDOWS_USER_PATH_LIMIT, normalize_windows_user_path};
 pub use keys::{WindowsKeyChord, WindowsKeyOverride, WindowsKeySettings, WindowsKeyTrigger};
 pub use reset_keys::{WindowsKeysResetOutcome, WindowsKeysResetReport, reset_windows_keybindings};
@@ -12,11 +13,13 @@ use std::{
     io::Read,
     path::{Path, PathBuf},
 };
+pub use window_title::{DEFAULT_WINDOW_TITLE, WindowsWindowTitleTemplate};
 
 const LIMIT: u64 = 64 * 1024;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct WindowsUserSettings {
+    pub window_title: String,
     pub keys: WindowsKeySettings,
     pub shell: WindowsShellSettings,
     pub path: Option<PathBuf>,
@@ -33,6 +36,7 @@ pub struct WindowsUserSettings {
 impl Default for WindowsUserSettings {
     fn default() -> Self {
         Self {
+            window_title: DEFAULT_WINDOW_TITLE.into(),
             keys: WindowsKeySettings::default(),
             shell: WindowsShellSettings::default(),
             path: None,
@@ -221,6 +225,27 @@ fn parse(
         ..WindowsUserSettings::default()
     };
     for (section, value) in table {
+        if section == "ui" {
+            let table = value
+                .as_table()
+                .ok_or(WindowsSettingsError::new("ui.window_title", "wrong-type"))?;
+            if table.keys().any(|key| key != "window_title") {
+                return Err(WindowsSettingsError::new("ui.window_title", "unknown-key"));
+            }
+            if let Some(value) = table.get("window_title") {
+                let value = value
+                    .as_str()
+                    .ok_or(WindowsSettingsError::new("ui.window_title", "wrong-type"))?;
+                if value.len() > 4096 {
+                    return Err(WindowsSettingsError::new(
+                        "ui.window_title",
+                        "value-too-long",
+                    ));
+                }
+                settings.window_title = value.into();
+            }
+            continue;
+        }
         if section == "keys" {
             settings.keys = WindowsKeySettings::parse(&value)?;
             continue;

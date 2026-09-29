@@ -2,6 +2,45 @@
 use crate::{ContractError, ProtocolVersion, SiteId, WorkbenchRequestId, WorkbenchRevision};
 use serde::{Deserialize, Serialize};
 
+#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct WindowTitleContext {
+    pub workspace: String,
+    pub tab: String,
+    pub pane: String,
+    pub terminal_title: String,
+}
+impl WindowTitleContext {
+    pub fn new(workspace: &str, tab: &str, pane: &str, terminal_title: &str) -> Self {
+        let bounded = |value: &str| {
+            value
+                .chars()
+                .filter(|ch| !ch.is_control())
+                .take(200)
+                .collect()
+        };
+        Self {
+            workspace: bounded(workspace),
+            tab: bounded(tab),
+            pane: bounded(pane),
+            terminal_title: bounded(terminal_title),
+        }
+    }
+    fn validate(&self) -> Result<(), ContractError> {
+        if [&self.workspace, &self.tab, &self.pane, &self.terminal_title]
+            .iter()
+            .all(|value| {
+                value.len() <= 800
+                    && value.chars().count() <= 200
+                    && !value.chars().any(char::is_control)
+            })
+        {
+            Ok(())
+        } else {
+            Err(ContractError::InvalidDocument)
+        }
+    }
+}
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct WindowTitle(String);
@@ -53,9 +92,14 @@ impl WindowTitleSnapshot {
     deny_unknown_fields
 )]
 pub enum WindowTitleAction {
-    Set { title: WindowTitle },
+    Set {
+        title: WindowTitle,
+    },
     Clear {},
-    Listen { focused: bool },
+    Listen {
+        focused: bool,
+        context: WindowTitleContext,
+    },
 }
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -69,6 +113,7 @@ impl WindowTitleRequest {
     pub fn validate(&self) -> Result<(), ContractError> {
         match &self.action {
             WindowTitleAction::Set { title } => title.validate(),
+            WindowTitleAction::Listen { context, .. } => context.validate(),
             _ => Ok(()),
         }
     }
