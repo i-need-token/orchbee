@@ -1,4 +1,5 @@
 //! Offline catalog commands and admitted runtime invocation/log commands.
+mod provision;
 mod runtime;
 use super::{Failure, FailureKind, Output, failure_output, output};
 use crate::{
@@ -11,12 +12,21 @@ use serde_json::{Value, json};
 pub(crate) fn run(command: PluginCommand, format: OutputFormat, locale: Locale) -> Output {
     if matches!(
         &command,
+        PluginCommand::Install { .. } | PluginCommand::Uninstall(_)
+    ) {
+        return provision::run(command, format, locale);
+    }
+    if matches!(
+        &command,
         PluginCommand::Invoke { .. } | PluginCommand::Logs { .. }
     ) {
         return runtime::run(command, format, locale);
     }
     let operation = match &command {
-        PluginCommand::Invoke { .. } | PluginCommand::Logs { .. } => {
+        PluginCommand::Invoke { .. }
+        | PluginCommand::Logs { .. }
+        | PluginCommand::Install { .. }
+        | PluginCommand::Uninstall(_) => {
             unreachable!("runtime command routed above")
         }
         PluginCommand::List(_) => "list",
@@ -39,7 +49,7 @@ pub(crate) fn run(command: PluginCommand, format: OutputFormat, locale: Locale) 
             format!("{}\n", locale.plugin_error(reason)),
         ),
     };
-    let document = json!({"schema":"orchbee.plugin.registry","version":1,"source":{"kind":"local-configuration"},"operation":operation,"result":result});
+    let document = json!({"schema":"orchbee.plugin.registry","version":2,"source":{"kind":"local-configuration"},"operation":operation,"result":result});
     let encoded = match format {
         OutputFormat::Json => output::encode_document(&document),
         OutputFormat::Text if status != 0 => Ok(vec![]),
@@ -68,7 +78,10 @@ fn execute(
     command: PluginCommand,
 ) -> Result<Value, PluginRegistryError> {
     Ok(match command {
-        PluginCommand::Invoke { .. } | PluginCommand::Logs { .. } => {
+        PluginCommand::Invoke { .. }
+        | PluginCommand::Logs { .. }
+        | PluginCommand::Install { .. }
+        | PluginCommand::Uninstall(_) => {
             unreachable!("offline command checked before dispatch")
         }
         PluginCommand::ConfigDir(id) => {

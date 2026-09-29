@@ -241,6 +241,10 @@ impl Family {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum CommandPath {
     #[cfg(windows)]
+    PluginInstall,
+    #[cfg(windows)]
+    PluginUninstall,
+    #[cfg(windows)]
     PluginLink,
     #[cfg(windows)]
     PluginUnlink,
@@ -508,6 +512,10 @@ impl CommandPath {
             Self::SiteReloadConfig => "site reload-config",
             Self::TerminalTitleSet => "terminal title set",
             Self::TerminalTitleClear => "terminal title clear",
+            #[cfg(windows)]
+            Self::PluginInstall => "plugin install",
+            #[cfg(windows)]
+            Self::PluginUninstall => "plugin uninstall",
             #[cfg(windows)]
             Self::PluginLink => "plugin link",
             #[cfg(windows)]
@@ -1461,6 +1469,10 @@ pub(crate) enum ExpectedValue {
     PluginContext,
     #[cfg(windows)]
     PluginLogLimit,
+    #[cfg(windows)]
+    PluginGithubSource,
+    #[cfg(windows)]
+    PluginGitReference,
     WindowTitle,
     NotificationTitle,
     NotificationPosition,
@@ -1702,6 +1714,8 @@ struct Options {
     plugin_disabled: bool,
     plugin_id: Option<String>,
     plugin_context: Option<String>,
+    plugin_yes: bool,
+    plugin_ref: Option<String>,
     notification_body: Option<String>,
     notification_position: Option<String>,
     notification_sound: Option<String>,
@@ -1822,6 +1836,7 @@ struct Options {
 /// both the format-envelope walk and the option scan so ownership is decided
 /// identically in the two passes.
 const VALUE_FLAGS: &[&str] = &[
+    "--ref",
     "--body",
     "--position",
     "--sound",
@@ -2200,6 +2215,7 @@ fn scan(tokens: Vec<String>) -> Result<SelectedRequest, ParseFailure> {
             | "--history"
             | "--enter"
             | "--stdin"
+            | "--yes"
             | "--enabled"
             | "--disabled"
             | "--outdated-only"
@@ -2227,6 +2243,8 @@ fn scan(tokens: Vec<String>) -> Result<SelectedRequest, ParseFailure> {
             | "--no-focus" => {
                 let (seen, option) = if token == "--enabled" {
                     (&mut options.plugin_enabled, "--enabled")
+                } else if token == "--yes" {
+                    (&mut options.plugin_yes, "--yes")
                 } else if token == "--disabled" {
                     (&mut options.plugin_disabled, "--disabled")
                 } else if token == "--clear-title" {
@@ -2492,6 +2510,7 @@ fn apply_value_flag(
         "--cwd" => &mut options.cwd,
         "--plugin" => &mut options.plugin_id,
         "--context" => &mut options.plugin_context,
+        "--ref" => &mut options.plugin_ref,
         "--limit" => &mut options.limit,
         "--cursor" => &mut options.cursor,
         "--after-revision" => &mut options.after_revision,
@@ -4821,6 +4840,10 @@ fn help_topic(path: &[&str]) -> Option<HelpTopic> {
         #[cfg(windows)]
         ["plugin", "log", "list"] => HelpTopic::Command(CommandPath::PluginLogList),
         #[cfg(windows)]
+        ["plugin", "install"] => HelpTopic::Command(CommandPath::PluginInstall),
+        #[cfg(windows)]
+        ["plugin", "uninstall"] => HelpTopic::Command(CommandPath::PluginUninstall),
+        #[cfg(windows)]
         ["plugin", "link"] => HelpTopic::Command(CommandPath::PluginLink),
         #[cfg(windows)]
         ["plugin", "unlink"] => HelpTopic::Command(CommandPath::PluginUnlink),
@@ -4913,6 +4936,7 @@ struct Scope {
     plugin: bool,
     plugin_select: bool,
     plugin_context: bool,
+    plugin_install: bool,
     notification: bool,
     panel_terminal: bool,
     metadata: bool,
@@ -5047,6 +5071,7 @@ const NO_OPTIONS: Scope = Scope {
     plugin: false,
     plugin_select: false,
     plugin_context: false,
+    plugin_install: false,
     notification: false,
     panel_terminal: false,
     metadata: false,
@@ -5376,6 +5401,8 @@ const INTEGRATION_SCOPE: Scope = Scope {
 fn business_options(options: &Options) -> bool {
     options.plugin_id.is_some()
         || options.plugin_context.is_some()
+        || options.plugin_ref.is_some()
+        || options.plugin_yes
         || options.plugin_enabled
         || options.plugin_disabled
         || options.notification_body.is_some()
@@ -5452,6 +5479,14 @@ fn business_options(options: &Options) -> bool {
 /// The first named option present but outside `scope`, in the fixed `Options`
 /// declaration order — deterministic without any argv-order state.
 fn first_out_of_scope(options: &Options, scope: Scope) -> Option<&'static str> {
+    if !scope.plugin_install {
+        if options.plugin_yes {
+            return Some("--yes");
+        }
+        if options.plugin_ref.is_some() {
+            return Some("--ref");
+        }
+    }
     if !scope.plugin_select && options.plugin_id.is_some() {
         return Some("--plugin");
     }

@@ -45,6 +45,7 @@ later phase:
 - Defaults are finite unless the owning observation command contract expressly defines an indefinite
   wait. Every indefinite mode documents its default or explicit option, preserves bounded admission
   and individual reads, and supports interruption with exit `130`. Ordinary mutations stay bounded.
+- An explicitly owned local-child workflow may declare a bounded settlement allowance in addition to its work deadline; both form the original total invocation budget. After the work deadline, only settlement and reported recovery may continue.
 - A deadline expiry is reported as its own typed outcome. It never claims that the observed
   operation stopped, failed, or was never delivered.
 - Long-polling and change feeds return a cursor and an explicit reset signal when the caller fell
@@ -60,7 +61,7 @@ later phase:
 | Precommit refusals | A definite precommit refusal means that phase applied nothing. Earlier workflow effects remain independently recorded; a later refusal never authorizes replaying the whole workflow. Transport ambiguity remains unknown, never a guessed refusal.                                                                                                                                                          |
 | Detachment         | `--detach` returns once the submission is accepted and yields the request identity; a later `get` or `wait` observes it. Detachment never changes what was submitted.                                                                                                                                                                                                                                        |
 | Reads of output    | Terminal or transcript reads return current content only, are never redacted automatically, and are documented as possibly containing secrets so callers limit what they forward.                                                                                                                                                                                                                            |
-| Durable state      | The process owns none for reads and mutations: no history, cache, lock file, or PID file; the service is the only durable authority. Declared activation and stopped-runtime cleanup are exceptions. Activation may create runtime state and spawn the service; cleanup may serialize against activation and remove only proven-owned stopped state. The owning guide names each artifact and recovery rule. |
+| Durable state      | The process owns none for reads and mutations: no history, cache, lock file, or PID file; the service is the only durable authority. Declared offline user-configuration workflows, activation and stopped-runtime cleanup are exceptions. Offline configuration workflows may serialize on their configuration owner and retain explicitly owned recovery records; they never become an alternate live runtime authority. Activation may create runtime state and spawn the service; cleanup may serialize against activation and remove only proven-owned stopped state. The owning guide names each artifact and recovery rule. |
 
 A declared workflow records its phase order, authoritative commit points, refusal and unknown
 outcomes, cancellation cuts, and bounded recovery before implementation. Every later phase must
@@ -73,7 +74,7 @@ bounded by the original deadline, and separately reported. No hidden compensatin
 
 - `SIGINT` and `SIGTERM` abort the invocation's own waiting and observation. They never issue
   a semantic cancellation; cancelling an accepted operation requires the explicit `cancel`
-  verb.
+  verb. A declared offline provisioning workflow may stop and reap its own untransferred child processes; its owning guide defines commit and recovery cuts.
 - A declared `terminal send` input source watches exactly `SIGHUP`, `SIGINT`, `SIGQUIT`, and
   `SIGTERM`, minus any signal inherited as ignored or blocked, and only inside its
   materialization window. A captured signal ends acquisition as a typed source failure —
@@ -115,6 +116,6 @@ processes or silently repairs unrelated state.
 - Invocations do not coordinate through files or shared memory, except that declared activation and
   stopped-runtime cleanup serialize on the runtime owner's locks so activation converges on one
   service and cannot race deletion. Two concurrent invocations are otherwise independent sessions to the same authority,
-  and the authority owns ordering.
+  and the authority owns ordering. Declared offline configuration workflows serialize through their shared configuration owner, including bounded interruption and recovery.
 - Pagination cursors and request identities are opaque to the caller. Declared lifecycle cleanup
   may additionally retain its private recovery intent until the cleanup completes.

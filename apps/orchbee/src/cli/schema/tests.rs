@@ -4,6 +4,25 @@ use serde_json::Value;
 use std::collections::BTreeSet;
 
 #[test]
+fn plugin_catalog_v2_does_not_widen_legacy_receipts() {
+    use serde_json::json;
+    let schema: Value =
+        serde_json::from_str(super::document("orchbee.plugin.registry").unwrap()).unwrap();
+    let validator = jsonschema::validator_for(&schema).unwrap();
+    let mut receipt = json!({"schema":"orchbee.plugin.registry","version":1,"source":{"kind":"local-configuration"},"operation":"list","result":{"kind":"catalog","catalog":{"revision":1,"changed":false,"plugins":[{"manifestPath":"C:/source/orchbee-plugin.toml","pluginRoot":"C:/source","enabled":true,"warning":null,"manifest":{"id":"tools","name":"Tools","version":"1","min_orchbee_version":null,"min_herdr_version":null,"description":null,"platforms":null,"build":[],"startup":[],"actions":[],"events":[],"panes":[],"link_handlers":[]}}]}}});
+    assert!(validator.is_valid(&receipt));
+    receipt["result"]["catalog"]["plugins"][0]["source"] = Value::Null;
+    assert!(!validator.is_valid(&receipt));
+    receipt["version"] = json!(2);
+    assert!(validator.is_valid(&receipt));
+    receipt["result"]["catalog"]["plugins"][0]
+        .as_object_mut()
+        .unwrap()
+        .remove("source");
+    assert!(!validator.is_valid(&receipt));
+}
+
+#[test]
 fn catalog_requires_and_admits_every_embedded_schema_exactly_once() {
     let ids = DOCUMENTS.iter().map(|(id, _)| *id).collect::<BTreeSet<_>>();
     assert_eq!(ids.len(), DOCUMENTS.len(), "duplicate embedded schema ID");

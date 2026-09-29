@@ -668,6 +668,12 @@ impl Locale {
             (Self::ZhCn, ExpectedValue::PluginContext) => "有界插件上下文 JSON 对象（16 KiB）",
             #[cfg(windows)]
             (_, ExpectedValue::PluginLogLimit) => "1..200",
+            #[cfg(windows)]
+            (_, ExpectedValue::PluginGithubSource) => "owner/repo[/subdir]",
+            #[cfg(windows)]
+            (Self::EnUs, ExpectedValue::PluginGitReference) => "a Git branch, tag or commit",
+            #[cfg(windows)]
+            (Self::ZhCn, ExpectedValue::PluginGitReference) => "Git 分支、标签或提交",
 
             #[cfg(windows)]
             (Self::EnUs, ExpectedValue::PluginId) => {
@@ -2555,7 +2561,9 @@ impl Locale {
                 | CommandPath::PluginConfigDir
                 | CommandPath::PluginActionList
                 | CommandPath::PluginActionInvoke
-                | CommandPath::PluginLogList,
+                | CommandPath::PluginLogList
+                | CommandPath::PluginInstall
+                | CommandPath::PluginUninstall,
             ) => self.plugin_help(),
             (_, CommandPath::NotificationShow) => self.notification_help(),
             (_, CommandPath::SiteConfig | CommandPath::SiteReloadConfig) => {

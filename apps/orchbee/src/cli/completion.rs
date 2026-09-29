@@ -163,6 +163,8 @@ const FAMILY_VERBS: &[(&str, &[&str])] = &[
     (
         "plugin",
         &[
+            "install",
+            "uninstall",
             "link",
             "unlink",
             "enable",
@@ -294,6 +296,8 @@ const FAMILY_VERBS: &[(&str, &[&str])] = &[
 /// Every business flag the grammar admits (`--format` is orthogonal), in the
 /// order the state machine records them.
 const BUSINESS_FLAGS: &[&str] = &[
+    "--yes",
+    "--ref",
     "--plugin",
     "--context",
     "--enabled",
@@ -428,6 +432,8 @@ const REPEATABLE_FLAGS: &[&str] = &[
 const CONTROL_FLAGS: &[&str] = &["--cols", "--rows", "--timeout", "--takeover"];
 const OBSERVE_FLAGS: &[&str] = &["--cols", "--rows", "--timeout"];
 const COMMAND_FLAGS: &[(&str, &[&str])] = &[
+    #[cfg(windows)]
+    ("plugin:install", &["--yes", "--ref", "--timeout"]),
     #[cfg(windows)]
     ("plugin:link", &["--enabled", "--disabled"]),
     #[cfg(windows)]
@@ -1155,6 +1161,10 @@ const PROVIDER_VALUES: &[&str] = &[
 /// `<family>:<verb>` paths that consume one positional operand.
 const OPERAND_PATHS: &[&str] = &[
     #[cfg(windows)]
+    "plugin:install",
+    #[cfg(windows)]
+    "plugin:uninstall",
+    #[cfg(windows)]
     "plugin:link",
     #[cfg(windows)]
     "plugin:unlink",
@@ -1279,6 +1289,8 @@ const HELP_CHILDREN: &[(&str, &[&str])] = &[
     (
         "plugin",
         &[
+            "install",
+            "uninstall",
             "link",
             "unlink",
             "enable",
@@ -1437,6 +1449,8 @@ fn flag_bit(flag: &str) -> &'static str {
     match flag {
         "--plugin" => "seen_plugin_id",
         "--context" => "seen_plugin_context",
+        "--yes" => "seen_plugin_yes",
+        "--ref" => "seen_plugin_ref",
         "--enabled" => "seen_plugin_enabled",
         "--disabled" => "seen_plugin_disabled",
         "--child" => "seen_child",

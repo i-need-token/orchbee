@@ -410,6 +410,10 @@ fn fixed_outputs_are_far_below_the_bound() {
         CommandPath::PluginActionInvoke,
         #[cfg(windows)]
         CommandPath::PluginLogList,
+        #[cfg(windows)]
+        CommandPath::PluginInstall,
+        #[cfg(windows)]
+        CommandPath::PluginUninstall,
         CommandPath::TerminalTitleSet,
         CommandPath::TerminalTitleClear,
         CommandPath::SiteReloadAgentManifests,
@@ -497,6 +501,8 @@ fn fixed_outputs_are_far_below_the_bound() {
         "worktree",
     ];
     let verbs = [
+        "install",
+        "uninstall",
         "link",
         "unlink",
         "enable",

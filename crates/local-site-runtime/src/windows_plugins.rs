@@ -1,10 +1,14 @@
 //! Shared Windows plugin catalog. Executing declared commands belongs to the runtime.
 mod manifest;
+mod source;
 mod store;
 pub use manifest::{PluginActionDefinition, PluginManifest, PluginPlatform, plugin_identifier};
 use serde::{Deserialize, Serialize};
+pub use source::{PluginGithubSource, PluginManagedSource, plugin_git_reference};
 pub use store::{
-    PluginRegistry, PluginRegistryEntry, PluginRegistryMutation, PluginRegistryResult,
+    PluginProvisionCommand, PluginProvisionExecutor, PluginProvisionFailure, PluginProvisionOutput,
+    PluginProvisionReport, PluginProvisionStage, PluginRegistry, PluginRegistryEntry,
+    PluginRegistryMutation, PluginRegistryResult,
 };
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]

@@ -3,8 +3,11 @@
 mod windows_plugins;
 #[cfg(windows)]
 pub use windows_plugins::{
-    PluginActionDefinition, PluginManifest, PluginPlatform, PluginRegistry, PluginRegistryEntry,
-    PluginRegistryError, PluginRegistryMutation, PluginRegistryResult, plugin_identifier,
+    PluginActionDefinition, PluginGithubSource, PluginManagedSource, PluginManifest,
+    PluginPlatform, PluginProvisionCommand, PluginProvisionExecutor, PluginProvisionFailure,
+    PluginProvisionOutput, PluginProvisionReport, PluginProvisionStage, PluginRegistry,
+    PluginRegistryEntry, PluginRegistryError, PluginRegistryMutation, PluginRegistryResult,
+    plugin_git_reference, plugin_identifier,
 };
 #[cfg(windows)]
 mod private_cache_windows;
@@ -88,3 +91,11 @@ pub fn spawn_retained(
 ) -> std::io::Result<RetainedChild> {
     RetainedChild::spawn(executable, arguments)
 }
+
+#[cfg(windows)]
+mod windows_command_child;
+#[cfg(windows)]
+pub use windows_command_child::{
+    WindowsCommandChild, WindowsCommandFailure, WindowsCommandOutput, WindowsCommandSpawnFailure,
+    resolve_windows_program, run_windows_command,
+};

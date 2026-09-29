@@ -1,5 +1,6 @@
 use super::*;
-use crate::{git_repository_windows::canonical_path, windows_command_child::WindowsCommandChild};
+use crate::git_repository_windows::canonical_path;
+use orchbee_local_site_runtime::WindowsCommandChild;
 use std::{fs, path::PathBuf, sync::atomic::AtomicU64};
 
 struct Fixture {

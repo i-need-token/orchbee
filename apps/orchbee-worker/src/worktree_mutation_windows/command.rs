@@ -1,8 +1,8 @@
 //! Bounded, nonblocking output and one exact Job owner for each Git command.
 use super::{Abort, Context, failed};
-use crate::windows_command_child::WindowsCommandChild;
 use orchbee_capability_node_protocol::{WorktreeMutationError as Error, WorktreeMutationStage};
 use orchbee_local_ipc::ChildOutputReader;
+use orchbee_local_site_runtime::WindowsCommandChild;
 use std::{
     io::{self, Read},
     path::Path,

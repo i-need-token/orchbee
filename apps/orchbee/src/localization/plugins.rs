@@ -4,10 +4,10 @@ impl Locale {
     pub(crate) const fn plugin_help(self) -> &'static str {
         match self {
             Self::EnUs => {
-                "orchbee plugin link <path> [--enabled|--disabled]\norchbee plugin unlink|enable|disable|config-dir <plugin-id>\norchbee plugin list [plugin-id]\norchbee plugin action list [plugin-id] [--plugin ID]\norchbee plugin action invoke <action-id> [--plugin ID] [--context JSON]\norchbee plugin log list [plugin-id] [--plugin ID] [--limit 1..200]\n\nAll commands accept --format text|json and do not start a Site. Invoke/logs require an existing Site. Invoke accepts a local or qualified plugin.action ID. Logs default to the newest 20 retained commands, with 64 KiB per output stream and explicit truncation. Accepted work continues after CLI exit; Site shutdown stops it.\nLink accepts a manifest file or a directory containing orchbee-plugin.toml (herdr-plugin.toml fallback).\nLink registers without running commands. Unlink keeps source and user configuration/state files.\nAction list shows enabled, available Windows action definitions.\n"
+                "orchbee plugin install <owner/repo[/subdir]> --yes [--ref REF] [--timeout MS]\norchbee plugin uninstall <plugin-id|owner/repo[/subdir]>\norchbee plugin link <path> [--enabled|--disabled]\norchbee plugin unlink|enable|disable|config-dir <plugin-id>\norchbee plugin list [plugin-id]\norchbee plugin action list [plugin-id] [--plugin ID]\norchbee plugin action invoke <action-id> [--plugin ID] [--context JSON]\norchbee plugin log list [plugin-id] [--plugin ID] [--limit 1..200]\n\nAll commands accept --format text|json and do not start a Site. Invoke/logs require an existing Site. Invoke accepts a local or qualified plugin.action ID. Logs default to the newest 20 retained commands, with 64 KiB per output stream and explicit truncation. Accepted work continues after CLI exit; Site shutdown stops it.\nLink accepts a manifest file or a directory containing orchbee-plugin.toml (herdr-plugin.toml fallback).\nInstall downloads GitHub source and runs Windows build steps with explicit --yes; it requires Git in PATH and defaults to a 600000 ms work deadline (maximum 3600000), followed by at most five seconds to settle an active Job. Failed builds preserve the old registration. Uninstall removes managed source only; config/state remain. Unfinished cleanup is reported for the next explicit install/uninstall.\nLink registers without running commands. Unlink keeps source and user configuration/state files.\nAction list shows enabled, available Windows action definitions.\n"
             }
             Self::ZhCn => {
-                "orchbee plugin link <path> [--enabled|--disabled]\norchbee plugin unlink|enable|disable|config-dir <plugin-id>\norchbee plugin list [plugin-id]\norchbee plugin action list [plugin-id] [--plugin ID]\norchbee plugin action invoke <action-id> [--plugin ID] [--context JSON]\norchbee plugin log list [plugin-id] [--plugin ID] [--limit 1..200]\n\n均支持 --format text|json，不启动 Site。invoke/log 需要已有 Site。invoke 支持 action ID 或 plugin.action ID。日志默认展示最近 20 条，每路保留 64 KiB 输出并标明截断。CLI 退出后已受理任务继续运行；停止 Site 会清理它们。\nlink 接受清单文件，或包含 orchbee-plugin.toml 的目录（缺失时使用 herdr-plugin.toml）。\nlink 只登记，不执行命令。unlink 保留源文件及用户配置/状态。\naction list 展示已启用、源有效且支持 Windows 的 action 定义。\n"
+                "orchbee plugin install <owner/repo[/subdir]> --yes [--ref REF] [--timeout MS]\norchbee plugin uninstall <plugin-id|owner/repo[/subdir]>\norchbee plugin link <path> [--enabled|--disabled]\norchbee plugin unlink|enable|disable|config-dir <plugin-id>\norchbee plugin list [plugin-id]\norchbee plugin action list [plugin-id] [--plugin ID]\norchbee plugin action invoke <action-id> [--plugin ID] [--context JSON]\norchbee plugin log list [plugin-id] [--plugin ID] [--limit 1..200]\n\n均支持 --format text|json，不启动 Site。invoke/log 需要已有 Site。invoke 支持 action ID 或 plugin.action ID。日志默认展示最近 20 条，每路保留 64 KiB 输出并标明截断。CLI 退出后已受理任务继续运行；停止 Site 会清理它们。\nlink 接受清单文件，或包含 orchbee-plugin.toml 的目录（缺失时使用 herdr-plugin.toml）。\ninstall 从 GitHub 下载源码并执行 Windows 构建，必须显式指定 --yes，PATH 中需有 Git；执行期限默认 600000 毫秒、最多 3600000 毫秒，随后最多用五秒清理活动 Job。构建失败保留原登记。uninstall 仅删除托管源码，保留配置/状态；未完成的清理会明确报告，由下次显式 install/uninstall 恢复。\nlink 只登记，不执行命令。unlink 保留源文件及用户配置/状态。\naction list 展示已启用、源有效且支持 Windows 的 action 定义。\n"
             }
         }
     }
@@ -138,6 +138,92 @@ impl Locale {
             (Self::ZhCn, F::Cancelled) => "命令已取消，其进程 Job 已清理。",
             (Self::EnUs, F::PhysicalUnknown) => "Process Job cleanup is uncertain.",
             (Self::ZhCn, F::PhysicalUnknown) => "进程 Job 的清理结果不确定。",
+        }
+    }
+}
+
+impl Locale {
+    pub(crate) const fn plugin_provision_stage(
+        self,
+        stage: orchbee_local_site_runtime::PluginProvisionStage,
+    ) -> &'static str {
+        use orchbee_local_site_runtime::PluginProvisionStage as S;
+        match (self, stage) {
+            (Self::EnUs, S::Prepare) => "Preparing plugin source.",
+            (Self::ZhCn, S::Prepare) => "准备插件源。",
+            (Self::EnUs, S::Checkout) => "Downloading plugin source.",
+            (Self::ZhCn, S::Checkout) => "下载插件源。",
+            (Self::EnUs, S::Inspect) => "Validating plugin manifest.",
+            (Self::ZhCn, S::Inspect) => "校验插件清单。",
+            (Self::EnUs, S::Build) => "Building plugin.",
+            (Self::ZhCn, S::Build) => "构建插件。",
+            (Self::EnUs, S::Commit) => "Updating plugin registration.",
+            (Self::ZhCn, S::Commit) => "更新插件登记。",
+            (Self::EnUs, S::Cleanup) => "Cleaning managed source files.",
+            (Self::ZhCn, S::Cleanup) => "清理托管源文件。",
+            (Self::EnUs, S::Done) => "Plugin operation completed.",
+            (Self::ZhCn, S::Done) => "插件操作已完成。",
+        }
+    }
+    pub(crate) const fn plugin_provision_committed(self) -> &'static str {
+        match self {
+            Self::EnUs => "Registration change committed.",
+            Self::ZhCn => "登记变更已提交。",
+        }
+    }
+    pub(crate) const fn plugin_cleanup_pending(self) -> &'static str {
+        match self {
+            Self::EnUs => "Source cleanup pending",
+            Self::ZhCn => "源文件清理未完成",
+        }
+    }
+    pub(crate) const fn plugin_provision_failure(
+        self,
+        error: &orchbee_local_site_runtime::PluginProvisionFailure,
+    ) -> &'static str {
+        use orchbee_local_site_runtime::{PluginProvisionFailure as F, WindowsCommandFailure as C};
+        match error {
+            F::Registry(error) => self.plugin_error(*error),
+            F::Command(C::Timeout) => match self {
+                Self::EnUs => "Plugin installation reached its time limit.",
+                Self::ZhCn => "插件安装达到执行期限。",
+            },
+            F::Command(reason) => self.plugin_command_failure(match reason {
+                C::ExitFailure => orchbee_workbench_protocol::PluginCommandFailure::ExitFailure,
+                C::SpawnUnavailable => {
+                    orchbee_workbench_protocol::PluginCommandFailure::SpawnUnavailable
+                }
+                C::SpawnFailed => orchbee_workbench_protocol::PluginCommandFailure::SpawnFailed,
+                C::Io | C::Timeout => orchbee_workbench_protocol::PluginCommandFailure::Io,
+                C::Cancelled => orchbee_workbench_protocol::PluginCommandFailure::Cancelled,
+                C::PhysicalUnknown => {
+                    orchbee_workbench_protocol::PluginCommandFailure::PhysicalUnknown
+                }
+            }),
+            F::ManifestChanged => match self {
+                Self::EnUs => "Build changed the plugin manifest; installation was not committed.",
+                Self::ZhCn => "构建修改了插件清单；未提交安装。",
+            },
+            F::LinkedConflict => match self {
+                Self::EnUs => {
+                    "A local source is already linked with this plugin ID; unlink it before installing."
+                }
+                Self::ZhCn => "此插件 ID 已链接本地源，请先解除链接再安装。",
+            },
+            F::CleanupIncomplete => match self {
+                Self::EnUs => {
+                    "Managed source cleanup is incomplete. Close processes using the listed paths before the next install/uninstall."
+                }
+                Self::ZhCn => {
+                    "托管源文件清理未完成。请关闭占用所列路径的进程，再执行 install/uninstall。"
+                }
+            },
+            F::PhysicalUnknown => match self {
+                Self::EnUs => {
+                    "Source process cleanup is uncertain; installation and cleanup are blocked."
+                }
+                Self::ZhCn => "源进程清理结果不确定，已阻止安装及文件清理。",
+            },
         }
     }
 }

@@ -616,6 +616,6 @@ An authorized default launch may carry `DefaultShellSelection`: a literal execut
 
 The existing zero-u16 launch extension sentinel uses version 2 for this shape: u8 mode (0/1/2), u16 executable byte length, executable UTF-8 bytes, then the existing environment encoding (including empty). There is no explicit selection slot in v2. Legacy payloads and v1 nonempty-environment extensions retain exact bytes. Unknown mode/version, truncation, trailing bytes and invalid bounded values are refused. OBCN frame version and 40 KiB payload limit stay unchanged. Matched private cohorts ship/roll back together; this wire adds no broadcast, persistence or retry.
 
-## ## Plugin job records
+## Plugin job records
 
 Plugin requests/results use distinct `OBPJ` records: magic, encoding version 1 (`u16`), reserved zero (`u16`), bounded big-endian `u32` body length, maximum 2 MiB. Ordinary OBCN frames stay unchanged. Bodies carry direction, operation ID, Worker ID/generation and checked start/list/get/cancel or started/logs/cancellation/refused variants. Strings and byte buffers have `u32` lengths, argv counts `u16`, environment/page counts `u8`; no trailing bytes are accepted. Frozen intent is capped at 160 KiB, argv at 128 entries/128 KiB and each retained output stream at 64 KiB. Pages carry at most four descending logs and a consistent next sequence. Frame validation does not grant execution authority. Server/Worker matched cohorts activate together; [the owning native plugin guide](../../apps/orchbee/docs/windows-plugins.md) defines lifecycle and semantics.

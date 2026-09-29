@@ -22,8 +22,18 @@ Server 在解析调用前要求读取、终端创建和生命周期权限。确�
 
 运行时日志在同一个十秒 CLI 截止时间内按每页四条读取，并固定 Worker/generation 和递减序号游标。新增命令不会推移后续页面；Worker 变化会拒绝旧游标。公开回执为 `orchbee.plugin.runtime` v1，遵守常规 8 MiB 输出上限。日志查询将进程失败作为数据返回，不因此让每次历史查询失败。私有 get/cancel 请求指向准确 Worker 和 job ID。取消及 Site 停止会清理根进程和后代、排空输出并等待线程结束；Job 清理不确定时阻止新执行，重试不能将未知清理变成成功。没有隐藏辅助窗口、脱离归属的管道读取线程或任意命令时长限制。
 
+## 托管源码安装与移除
+
+`plugin install owner/repo[/subdir] --yes [--ref REF] [--timeout MS]` 不需要 Site，要求 Windows PATH 中有 Git。`--yes` 显式授权执行下载源码中的构建命令；原生 CLI 不提示确认或读取终端。执行期限默认 600000 毫秒，范围 1..3600000；中断或超时后，活动 Windows Job 另有最多五秒的清理预算。`plugin uninstall plugin-id|owner/repo[/subdir]` 移除登记及托管源码，保留用户配置/状态和本地链接源文件。两者均支持 text 或 JSON 输出。
+
+共享私有目录在有限的 checkout/build/commit/cleanup 流程内持有写锁，读取仍可继续。新代目录先登记，再创建于 `plugins/managed/i-<operation-id>/checkout`。Git 初始化目录，获取一个分支/标签/提交（默认 HEAD），检出确切提交并记录哈希。生效的 Windows build argv 从 manifest 根目录执行。禁用 Git hooks 和符号链接检出；构建以当前用户运行，不宣称具备沙箱。构建子进程继承用户工具环境，移除 `ORCHBEE_*` 运行时上下文并禁止交互式 Git 凭据提示。同步 CLI 拥有每个 Job、有界输出读取和中断；契约不允许这些进程在所有者退出后继续存活。
+
+构建后 manifest 必须保持不变。本地链接 ID 拒绝替换；托管替换保留启用状态。只有原子替换目录登记后新源才生效。构建失败保留原登记并移除暂存源。已提交的替换或卸载将旧代加入清理列表；清理失败不会撤销提交，也不能被当成提交前拒绝。清理根据生成的 ID 推导路径，固定私有祖先并拒绝重解析点、外部所有权或硬链接。下次显式 install/uninstall 恢复记录的清理，不重新执行之前的构建；进程创建前先持久化可能的物理所有权，仅在确认清理完毕后解除；进程运行时崩溃或物理所有权不确定时禁止自动清理。当前目录引用（包括显式链接进某一代的本地源）阻止删除该代。unlink 保留源文件，不安排清理。
+
+存储 v2 保留托管 GitHub 来源和有界恢复列表。v1 目录仍可读取，并在修改时迁移；旧二进制拒绝 v2，不丢弃其状态。`orchbee.plugin.registry` v2 增加可空的托管来源，v1 schema 保持封闭。`orchbee.plugin.provision` v1 报告操作身份、阶段、已提交变更、失败命令/退出码/输出、截断及未清理路径。源码安装/更新提交与构建产生的外部副作用分开，删除 checkout 无法回滚外部副作用。退出码 7 表示执行超时，8 表示物理状态不确定，130 表示中断，其余安装/卸载失败使用 1。
+
 ## 交付与证据
 
-原生已接通目录、action 调用及保留日志。托管安装/build、startup/event hook、完整 worktree 上下文补全、链接处理器及插件 Pane 生命周期仍需集成，之后才能认定插件完整对齐。目录接受不代表命令已执行。参照固定 Herdr `e0507237ad8d41f60aece10d00ef29ce2339ca34`，主要为 `cli/plugin.rs`、`app/api/plugins/manifest.rs` 和 `persist/plugin_registry.rs`。
+原生已接通目录、action 调用、保留日志及托管源码安装/卸载。startup/event hook、完整 worktree 上下文补全、链接处理器及插件 Pane 生命周期仍需集成，之后才能认定插件完整对齐。目录接受不代表命令已执行。参照固定 Herdr `e0507237ad8d41f60aece10d00ef29ce2339ca34`，主要为 `cli/plugin.rs`、`app/api/plugins/manifest.rs` 和 `persist/plugin_registry.rs`。
 
 定向证据覆盖解析上限、标识符/路径碰撞、源不可用时保留条目、缺失目录只读、目录原子转换及真实 Windows CLI 回执。测试夹具拥有并回收临时路径。完整 Windows 视觉/provider/多 Client 与全量回归验收另行执行。

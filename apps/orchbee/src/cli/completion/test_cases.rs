@@ -1,6 +1,12 @@
 //! Shared observable completion obligations, independent of shell syntax.
 
 pub(super) const CASES: &[(&str, &str, bool)] = &[
+    ("orchbee plugin in", "install", true),
+    ("orchbee help plugin unin", "uninstall", true),
+    ("orchbee plugin install owner/repo --y", "--yes", true),
+    ("orchbee plugin install owner/repo --r", "--ref", true),
+    ("orchbee plugin uninstall id --y", "--yes", false),
+    ("orchbee plugin list --r", "--ref", false),
     ("orchbee plugin action ", "invoke", true),
     ("orchbee plugin log ", "list", true),
     ("orchbee plugin action invoke x --c", "--context", true),

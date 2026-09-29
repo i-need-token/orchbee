@@ -1,502 +1,1059 @@
 {
 	"$schema": "https://json-schema.org/draft/2020-12/schema",
 	"$id": "orchbee.plugin.registry",
-	"title": "Windows native plugin catalog receipts",
-	"type": "object",
-	"additionalProperties": false,
-	"required": ["schema", "version", "source", "operation", "result"],
-	"properties": {
-		"schema": {
-			"const": "orchbee.plugin.registry"
+	"title": "Windows native plugin catalog receipts v1 and v2",
+	"oneOf": [
+		{
+			"$ref": "#/$defs/v1"
 		},
-		"version": {
-			"const": 1
-		},
-		"source": {
-			"type": "object",
-			"additionalProperties": false,
-			"required": ["kind"],
-			"properties": {
-				"kind": {
-					"const": "local-configuration"
-				}
-			}
-		},
-		"operation": {
-			"enum": ["link", "unlink", "enable", "disable", "list", "config-dir", "action-list"]
-		},
-		"result": {
-			"$ref": "#/$defs/result"
+		{
+			"$ref": "#/$defs/v2"
 		}
-	},
+	],
 	"$defs": {
-		"platforms": {
-			"anyOf": [
-				{
-					"type": "null"
-				},
-				{
-					"type": "array",
-					"maxItems": 3,
-					"items": {
-						"enum": ["windows", "macos", "linux"]
-					},
-					"minItems": 1
-				}
-			]
-		},
-		"id": {
-			"type": "string",
-			"minLength": 1,
-			"maxLength": 120,
-			"pattern": "^[A-Za-z0-9:._-]+$"
-		},
-		"localId": {
-			"type": "string",
-			"minLength": 1,
-			"maxLength": 120,
-			"pattern": "^[A-Za-z0-9:_-]+$"
-		},
-		"argv": {
-			"type": "array",
-			"maxItems": 128,
-			"items": {
-				"type": "string",
-				"minLength": 1,
-				"maxLength": 4096
-			},
-			"minItems": 1
-		},
-		"command": {
+		"v1": {
 			"type": "object",
 			"additionalProperties": false,
-			"required": ["platforms", "command"],
+			"required": ["schema", "version", "source", "operation", "result"],
 			"properties": {
-				"platforms": {
-					"$ref": "#/$defs/platforms"
-				},
-				"command": {
-					"$ref": "#/$defs/argv"
-				}
-			}
-		},
-		"action": {
-			"type": "object",
-			"additionalProperties": false,
-			"required": ["id", "title", "description", "contexts", "platforms", "command"],
-			"properties": {
-				"id": {
-					"$ref": "#/$defs/localId"
-				},
-				"title": {
-					"type": "string",
-					"minLength": 1,
-					"maxLength": 256
-				},
-				"description": {
-					"anyOf": [
-						{
-							"type": "null"
-						},
-						{
-							"type": "string",
-							"minLength": 1,
-							"maxLength": 4096
-						}
-					]
-				},
-				"contexts": {
-					"type": "array",
-					"maxItems": 5,
-					"items": {
-						"enum": ["global", "workspace", "tab", "pane", "selection"]
-					}
-				},
-				"platforms": {
-					"$ref": "#/$defs/platforms"
-				},
-				"command": {
-					"$ref": "#/$defs/argv"
-				}
-			}
-		},
-		"event": {
-			"type": "object",
-			"additionalProperties": false,
-			"required": ["on", "platforms", "command"],
-			"properties": {
-				"on": {
-					"type": "string",
-					"minLength": 1,
-					"maxLength": 120
-				},
-				"platforms": {
-					"$ref": "#/$defs/platforms"
-				},
-				"command": {
-					"$ref": "#/$defs/argv"
-				}
-			}
-		},
-		"size": {
-			"anyOf": [
-				{
-					"type": "null"
-				},
-				{
-					"oneOf": [
-						{
-							"type": "integer",
-							"minimum": 1,
-							"maximum": 4096
-						},
-						{
-							"type": "string",
-							"pattern": "^(?:[1-9][0-9]?|100)%$"
-						}
-					]
-				}
-			]
-		},
-		"pane": {
-			"type": "object",
-			"additionalProperties": false,
-			"required": [
-				"id",
-				"title",
-				"description",
-				"platforms",
-				"placement",
-				"width",
-				"height",
-				"command"
-			],
-			"properties": {
-				"id": {
-					"$ref": "#/$defs/localId"
-				},
-				"title": {
-					"type": "string",
-					"minLength": 1,
-					"maxLength": 256
-				},
-				"description": {
-					"anyOf": [
-						{
-							"type": "null"
-						},
-						{
-							"type": "string",
-							"minLength": 1,
-							"maxLength": 4096
-						}
-					]
-				},
-				"platforms": {
-					"$ref": "#/$defs/platforms"
-				},
-				"placement": {
-					"enum": ["overlay", "popup", "split", "tab", "zoomed"]
-				},
-				"width": {
-					"$ref": "#/$defs/size"
-				},
-				"height": {
-					"$ref": "#/$defs/size"
-				},
-				"command": {
-					"$ref": "#/$defs/argv"
-				}
-			}
-		},
-		"linkHandler": {
-			"type": "object",
-			"additionalProperties": false,
-			"required": ["id", "title", "pattern", "action", "platforms"],
-			"properties": {
-				"id": {
-					"$ref": "#/$defs/localId"
-				},
-				"title": {
-					"type": "string",
-					"minLength": 1,
-					"maxLength": 256
-				},
-				"pattern": {
-					"type": "string",
-					"minLength": 1,
-					"maxLength": 4096
-				},
-				"action": {
-					"$ref": "#/$defs/localId"
-				},
-				"platforms": {
-					"$ref": "#/$defs/platforms"
-				}
-			}
-		},
-		"manifest": {
-			"type": "object",
-			"additionalProperties": false,
-			"required": [
-				"id",
-				"name",
-				"version",
-				"min_orchbee_version",
-				"min_herdr_version",
-				"description",
-				"platforms",
-				"build",
-				"startup",
-				"actions",
-				"events",
-				"panes",
-				"link_handlers"
-			],
-			"properties": {
-				"id": {
-					"$ref": "#/$defs/id"
-				},
-				"name": {
-					"type": "string",
-					"minLength": 1,
-					"maxLength": 256
+				"schema": {
+					"const": "orchbee.plugin.registry"
 				},
 				"version": {
-					"type": "string",
-					"minLength": 1,
-					"maxLength": 120
+					"const": 1
 				},
-				"min_orchbee_version": {
+				"source": {
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["kind"],
+					"properties": {
+						"kind": {
+							"const": "local-configuration"
+						}
+					}
+				},
+				"operation": {
+					"enum": ["link", "unlink", "enable", "disable", "list", "config-dir", "action-list"]
+				},
+				"result": {
+					"$ref": "#/$defs/v1/$defs/result"
+				}
+			},
+			"$defs": {
+				"platforms": {
 					"anyOf": [
 						{
 							"type": "null"
 						},
 						{
+							"type": "array",
+							"maxItems": 3,
+							"items": {
+								"enum": ["windows", "macos", "linux"]
+							},
+							"minItems": 1
+						}
+					]
+				},
+				"id": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 120,
+					"pattern": "^[A-Za-z0-9:._-]+$"
+				},
+				"localId": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 120,
+					"pattern": "^[A-Za-z0-9:_-]+$"
+				},
+				"argv": {
+					"type": "array",
+					"maxItems": 128,
+					"items": {
+						"type": "string",
+						"minLength": 1,
+						"maxLength": 4096
+					},
+					"minItems": 1
+				},
+				"command": {
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["platforms", "command"],
+					"properties": {
+						"platforms": {
+							"$ref": "#/$defs/v1/$defs/platforms"
+						},
+						"command": {
+							"$ref": "#/$defs/v1/$defs/argv"
+						}
+					}
+				},
+				"action": {
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["id", "title", "description", "contexts", "platforms", "command"],
+					"properties": {
+						"id": {
+							"$ref": "#/$defs/v1/$defs/localId"
+						},
+						"title": {
+							"type": "string",
+							"minLength": 1,
+							"maxLength": 256
+						},
+						"description": {
+							"anyOf": [
+								{
+									"type": "null"
+								},
+								{
+									"type": "string",
+									"minLength": 1,
+									"maxLength": 4096
+								}
+							]
+						},
+						"contexts": {
+							"type": "array",
+							"maxItems": 5,
+							"items": {
+								"enum": ["global", "workspace", "tab", "pane", "selection"]
+							}
+						},
+						"platforms": {
+							"$ref": "#/$defs/v1/$defs/platforms"
+						},
+						"command": {
+							"$ref": "#/$defs/v1/$defs/argv"
+						}
+					}
+				},
+				"event": {
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["on", "platforms", "command"],
+					"properties": {
+						"on": {
 							"type": "string",
 							"minLength": 1,
 							"maxLength": 120
+						},
+						"platforms": {
+							"$ref": "#/$defs/v1/$defs/platforms"
+						},
+						"command": {
+							"$ref": "#/$defs/v1/$defs/argv"
 						}
-					]
+					}
 				},
-				"min_herdr_version": {
+				"size": {
 					"anyOf": [
 						{
 							"type": "null"
 						},
 						{
-							"type": "string",
-							"minLength": 1,
-							"maxLength": 4096
+							"oneOf": [
+								{
+									"type": "integer",
+									"minimum": 1,
+									"maximum": 4096
+								},
+								{
+									"type": "string",
+									"pattern": "^(?:[1-9][0-9]?|100)%$"
+								}
+							]
 						}
 					]
 				},
-				"description": {
-					"anyOf": [
-						{
-							"type": "null"
+				"pane": {
+					"type": "object",
+					"additionalProperties": false,
+					"required": [
+						"id",
+						"title",
+						"description",
+						"platforms",
+						"placement",
+						"width",
+						"height",
+						"command"
+					],
+					"properties": {
+						"id": {
+							"$ref": "#/$defs/v1/$defs/localId"
 						},
-						{
+						"title": {
+							"type": "string",
+							"minLength": 1,
+							"maxLength": 256
+						},
+						"description": {
+							"anyOf": [
+								{
+									"type": "null"
+								},
+								{
+									"type": "string",
+									"minLength": 1,
+									"maxLength": 4096
+								}
+							]
+						},
+						"platforms": {
+							"$ref": "#/$defs/v1/$defs/platforms"
+						},
+						"placement": {
+							"enum": ["overlay", "popup", "split", "tab", "zoomed"]
+						},
+						"width": {
+							"$ref": "#/$defs/v1/$defs/size"
+						},
+						"height": {
+							"$ref": "#/$defs/v1/$defs/size"
+						},
+						"command": {
+							"$ref": "#/$defs/v1/$defs/argv"
+						}
+					}
+				},
+				"linkHandler": {
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["id", "title", "pattern", "action", "platforms"],
+					"properties": {
+						"id": {
+							"$ref": "#/$defs/v1/$defs/localId"
+						},
+						"title": {
+							"type": "string",
+							"minLength": 1,
+							"maxLength": 256
+						},
+						"pattern": {
 							"type": "string",
 							"minLength": 1,
 							"maxLength": 4096
+						},
+						"action": {
+							"$ref": "#/$defs/v1/$defs/localId"
+						},
+						"platforms": {
+							"$ref": "#/$defs/v1/$defs/platforms"
 						}
-					]
-				},
-				"platforms": {
-					"$ref": "#/$defs/platforms"
-				},
-				"build": {
-					"type": "array",
-					"maxItems": 64,
-					"items": {
-						"$ref": "#/$defs/command"
 					}
-				},
-				"startup": {
-					"type": "array",
-					"maxItems": 64,
-					"items": {
-						"$ref": "#/$defs/command"
-					}
-				},
-				"actions": {
-					"type": "array",
-					"maxItems": 64,
-					"items": {
-						"$ref": "#/$defs/action"
-					}
-				},
-				"events": {
-					"type": "array",
-					"maxItems": 64,
-					"items": {
-						"$ref": "#/$defs/event"
-					}
-				},
-				"panes": {
-					"type": "array",
-					"maxItems": 64,
-					"items": {
-						"$ref": "#/$defs/pane"
-					}
-				},
-				"link_handlers": {
-					"type": "array",
-					"maxItems": 64,
-					"items": {
-						"$ref": "#/$defs/linkHandler"
-					}
-				}
-			}
-		},
-		"error": {
-			"enum": [
-				"invalid-manifest",
-				"invalid-identifier",
-				"invalid-path",
-				"invalid-registry",
-				"manifest-unavailable",
-				"plugin-not-found",
-				"limit-exceeded",
-				"busy",
-				"storage-unavailable"
-			]
-		},
-		"entry": {
-			"type": "object",
-			"additionalProperties": false,
-			"required": ["manifestPath", "pluginRoot", "enabled", "manifest", "warning"],
-			"properties": {
-				"manifestPath": {
-					"type": "string",
-					"minLength": 1,
-					"maxLength": 4096
-				},
-				"pluginRoot": {
-					"type": "string",
-					"minLength": 1,
-					"maxLength": 4096
-				},
-				"enabled": {
-					"type": "boolean"
 				},
 				"manifest": {
-					"$ref": "#/$defs/manifest"
-				},
-				"warning": {
-					"anyOf": [
-						{
-							"type": "null"
+					"type": "object",
+					"additionalProperties": false,
+					"required": [
+						"id",
+						"name",
+						"version",
+						"min_orchbee_version",
+						"min_herdr_version",
+						"description",
+						"platforms",
+						"build",
+						"startup",
+						"actions",
+						"events",
+						"panes",
+						"link_handlers"
+					],
+					"properties": {
+						"id": {
+							"$ref": "#/$defs/v1/$defs/id"
 						},
-						{
-							"$ref": "#/$defs/error"
+						"name": {
+							"type": "string",
+							"minLength": 1,
+							"maxLength": 256
+						},
+						"version": {
+							"type": "string",
+							"minLength": 1,
+							"maxLength": 120
+						},
+						"min_orchbee_version": {
+							"anyOf": [
+								{
+									"type": "null"
+								},
+								{
+									"type": "string",
+									"minLength": 1,
+									"maxLength": 120
+								}
+							]
+						},
+						"min_herdr_version": {
+							"anyOf": [
+								{
+									"type": "null"
+								},
+								{
+									"type": "string",
+									"minLength": 1,
+									"maxLength": 4096
+								}
+							]
+						},
+						"description": {
+							"anyOf": [
+								{
+									"type": "null"
+								},
+								{
+									"type": "string",
+									"minLength": 1,
+									"maxLength": 4096
+								}
+							]
+						},
+						"platforms": {
+							"$ref": "#/$defs/v1/$defs/platforms"
+						},
+						"build": {
+							"type": "array",
+							"maxItems": 64,
+							"items": {
+								"$ref": "#/$defs/v1/$defs/command"
+							}
+						},
+						"startup": {
+							"type": "array",
+							"maxItems": 64,
+							"items": {
+								"$ref": "#/$defs/v1/$defs/command"
+							}
+						},
+						"actions": {
+							"type": "array",
+							"maxItems": 64,
+							"items": {
+								"$ref": "#/$defs/v1/$defs/action"
+							}
+						},
+						"events": {
+							"type": "array",
+							"maxItems": 64,
+							"items": {
+								"$ref": "#/$defs/v1/$defs/event"
+							}
+						},
+						"panes": {
+							"type": "array",
+							"maxItems": 64,
+							"items": {
+								"$ref": "#/$defs/v1/$defs/pane"
+							}
+						},
+						"link_handlers": {
+							"type": "array",
+							"maxItems": 64,
+							"items": {
+								"$ref": "#/$defs/v1/$defs/linkHandler"
+							}
 						}
+					}
+				},
+				"error": {
+					"enum": [
+						"invalid-manifest",
+						"invalid-identifier",
+						"invalid-path",
+						"invalid-registry",
+						"manifest-unavailable",
+						"plugin-not-found",
+						"limit-exceeded",
+						"busy",
+						"storage-unavailable"
 					]
-				}
-			}
-		},
-		"catalog": {
-			"type": "object",
-			"additionalProperties": false,
-			"required": ["revision", "changed", "plugins"],
-			"properties": {
-				"revision": {
-					"type": "integer",
-					"minimum": 0,
-					"maximum": 9007199254740991
 				},
-				"changed": {
-					"type": "boolean"
-				},
-				"plugins": {
-					"type": "array",
-					"maxItems": 32,
-					"items": {
-						"$ref": "#/$defs/entry"
-					}
-				}
-			}
-		},
-		"result": {
-			"oneOf": [
-				{
+				"entry": {
 					"type": "object",
 					"additionalProperties": false,
-					"required": ["kind", "catalog"],
+					"required": ["manifestPath", "pluginRoot", "enabled", "manifest", "warning"],
 					"properties": {
-						"kind": {
-							"const": "catalog"
-						},
-						"catalog": {
-							"$ref": "#/$defs/catalog"
-						}
-					}
-				},
-				{
-					"type": "object",
-					"additionalProperties": false,
-					"required": ["kind", "pluginId", "path"],
-					"properties": {
-						"kind": {
-							"const": "directory"
-						},
-						"pluginId": {
-							"$ref": "#/$defs/id"
-						},
-						"path": {
+						"manifestPath": {
 							"type": "string",
 							"minLength": 1,
 							"maxLength": 4096
+						},
+						"pluginRoot": {
+							"type": "string",
+							"minLength": 1,
+							"maxLength": 4096
+						},
+						"enabled": {
+							"type": "boolean"
+						},
+						"manifest": {
+							"$ref": "#/$defs/v1/$defs/manifest"
+						},
+						"warning": {
+							"anyOf": [
+								{
+									"type": "null"
+								},
+								{
+									"$ref": "#/$defs/v1/$defs/error"
+								}
+							]
 						}
 					}
 				},
-				{
+				"catalog": {
 					"type": "object",
 					"additionalProperties": false,
-					"required": ["kind", "revision", "actions"],
+					"required": ["revision", "changed", "plugins"],
 					"properties": {
-						"kind": {
-							"const": "actions"
-						},
 						"revision": {
 							"type": "integer",
 							"minimum": 0,
 							"maximum": 9007199254740991
 						},
-						"actions": {
+						"changed": {
+							"type": "boolean"
+						},
+						"plugins": {
 							"type": "array",
-							"maxItems": 2048,
+							"maxItems": 32,
 							"items": {
-								"type": "object",
-								"additionalProperties": false,
-								"required": ["pluginId", "action"],
-								"properties": {
-									"pluginId": {
-										"$ref": "#/$defs/id"
-									},
-									"action": {
-										"$ref": "#/$defs/action"
-									}
-								}
+								"$ref": "#/$defs/v1/$defs/entry"
 							}
 						}
 					}
 				},
-				{
+				"result": {
+					"oneOf": [
+						{
+							"type": "object",
+							"additionalProperties": false,
+							"required": ["kind", "catalog"],
+							"properties": {
+								"kind": {
+									"const": "catalog"
+								},
+								"catalog": {
+									"$ref": "#/$defs/v1/$defs/catalog"
+								}
+							}
+						},
+						{
+							"type": "object",
+							"additionalProperties": false,
+							"required": ["kind", "pluginId", "path"],
+							"properties": {
+								"kind": {
+									"const": "directory"
+								},
+								"pluginId": {
+									"$ref": "#/$defs/v1/$defs/id"
+								},
+								"path": {
+									"type": "string",
+									"minLength": 1,
+									"maxLength": 4096
+								}
+							}
+						},
+						{
+							"type": "object",
+							"additionalProperties": false,
+							"required": ["kind", "revision", "actions"],
+							"properties": {
+								"kind": {
+									"const": "actions"
+								},
+								"revision": {
+									"type": "integer",
+									"minimum": 0,
+									"maximum": 9007199254740991
+								},
+								"actions": {
+									"type": "array",
+									"maxItems": 2048,
+									"items": {
+										"type": "object",
+										"additionalProperties": false,
+										"required": ["pluginId", "action"],
+										"properties": {
+											"pluginId": {
+												"$ref": "#/$defs/v1/$defs/id"
+											},
+											"action": {
+												"$ref": "#/$defs/v1/$defs/action"
+											}
+										}
+									}
+								}
+							}
+						},
+						{
+							"type": "object",
+							"additionalProperties": false,
+							"required": ["kind", "reason"],
+							"properties": {
+								"kind": {
+									"const": "failed"
+								},
+								"reason": {
+									"$ref": "#/$defs/v1/$defs/error"
+								}
+							}
+						}
+					]
+				}
+			}
+		},
+		"v2": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["schema", "version", "source", "operation", "result"],
+			"properties": {
+				"schema": {
+					"const": "orchbee.plugin.registry"
+				},
+				"version": {
+					"const": 2
+				},
+				"source": {
 					"type": "object",
 					"additionalProperties": false,
-					"required": ["kind", "reason"],
+					"required": ["kind"],
 					"properties": {
 						"kind": {
-							"const": "failed"
+							"const": "local-configuration"
+						}
+					}
+				},
+				"operation": {
+					"enum": ["link", "unlink", "enable", "disable", "list", "config-dir", "action-list"]
+				},
+				"result": {
+					"$ref": "#/$defs/v2/$defs/result"
+				}
+			},
+			"$defs": {
+				"platforms": {
+					"anyOf": [
+						{
+							"type": "null"
 						},
-						"reason": {
-							"$ref": "#/$defs/error"
+						{
+							"type": "array",
+							"maxItems": 3,
+							"items": {
+								"enum": ["windows", "macos", "linux"]
+							},
+							"minItems": 1
+						}
+					]
+				},
+				"id": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 120,
+					"pattern": "^[A-Za-z0-9:._-]+$"
+				},
+				"localId": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 120,
+					"pattern": "^[A-Za-z0-9:_-]+$"
+				},
+				"argv": {
+					"type": "array",
+					"maxItems": 128,
+					"items": {
+						"type": "string",
+						"minLength": 1,
+						"maxLength": 4096
+					},
+					"minItems": 1
+				},
+				"command": {
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["platforms", "command"],
+					"properties": {
+						"platforms": {
+							"$ref": "#/$defs/v2/$defs/platforms"
+						},
+						"command": {
+							"$ref": "#/$defs/v2/$defs/argv"
+						}
+					}
+				},
+				"action": {
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["id", "title", "description", "contexts", "platforms", "command"],
+					"properties": {
+						"id": {
+							"$ref": "#/$defs/v2/$defs/localId"
+						},
+						"title": {
+							"type": "string",
+							"minLength": 1,
+							"maxLength": 256
+						},
+						"description": {
+							"anyOf": [
+								{
+									"type": "null"
+								},
+								{
+									"type": "string",
+									"minLength": 1,
+									"maxLength": 4096
+								}
+							]
+						},
+						"contexts": {
+							"type": "array",
+							"maxItems": 5,
+							"items": {
+								"enum": ["global", "workspace", "tab", "pane", "selection"]
+							}
+						},
+						"platforms": {
+							"$ref": "#/$defs/v2/$defs/platforms"
+						},
+						"command": {
+							"$ref": "#/$defs/v2/$defs/argv"
+						}
+					}
+				},
+				"event": {
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["on", "platforms", "command"],
+					"properties": {
+						"on": {
+							"type": "string",
+							"minLength": 1,
+							"maxLength": 120
+						},
+						"platforms": {
+							"$ref": "#/$defs/v2/$defs/platforms"
+						},
+						"command": {
+							"$ref": "#/$defs/v2/$defs/argv"
+						}
+					}
+				},
+				"size": {
+					"anyOf": [
+						{
+							"type": "null"
+						},
+						{
+							"oneOf": [
+								{
+									"type": "integer",
+									"minimum": 1,
+									"maximum": 4096
+								},
+								{
+									"type": "string",
+									"pattern": "^(?:[1-9][0-9]?|100)%$"
+								}
+							]
+						}
+					]
+				},
+				"pane": {
+					"type": "object",
+					"additionalProperties": false,
+					"required": [
+						"id",
+						"title",
+						"description",
+						"platforms",
+						"placement",
+						"width",
+						"height",
+						"command"
+					],
+					"properties": {
+						"id": {
+							"$ref": "#/$defs/v2/$defs/localId"
+						},
+						"title": {
+							"type": "string",
+							"minLength": 1,
+							"maxLength": 256
+						},
+						"description": {
+							"anyOf": [
+								{
+									"type": "null"
+								},
+								{
+									"type": "string",
+									"minLength": 1,
+									"maxLength": 4096
+								}
+							]
+						},
+						"platforms": {
+							"$ref": "#/$defs/v2/$defs/platforms"
+						},
+						"placement": {
+							"enum": ["overlay", "popup", "split", "tab", "zoomed"]
+						},
+						"width": {
+							"$ref": "#/$defs/v2/$defs/size"
+						},
+						"height": {
+							"$ref": "#/$defs/v2/$defs/size"
+						},
+						"command": {
+							"$ref": "#/$defs/v2/$defs/argv"
+						}
+					}
+				},
+				"linkHandler": {
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["id", "title", "pattern", "action", "platforms"],
+					"properties": {
+						"id": {
+							"$ref": "#/$defs/v2/$defs/localId"
+						},
+						"title": {
+							"type": "string",
+							"minLength": 1,
+							"maxLength": 256
+						},
+						"pattern": {
+							"type": "string",
+							"minLength": 1,
+							"maxLength": 4096
+						},
+						"action": {
+							"$ref": "#/$defs/v2/$defs/localId"
+						},
+						"platforms": {
+							"$ref": "#/$defs/v2/$defs/platforms"
+						}
+					}
+				},
+				"manifest": {
+					"type": "object",
+					"additionalProperties": false,
+					"required": [
+						"id",
+						"name",
+						"version",
+						"min_orchbee_version",
+						"min_herdr_version",
+						"description",
+						"platforms",
+						"build",
+						"startup",
+						"actions",
+						"events",
+						"panes",
+						"link_handlers"
+					],
+					"properties": {
+						"id": {
+							"$ref": "#/$defs/v2/$defs/id"
+						},
+						"name": {
+							"type": "string",
+							"minLength": 1,
+							"maxLength": 256
+						},
+						"version": {
+							"type": "string",
+							"minLength": 1,
+							"maxLength": 120
+						},
+						"min_orchbee_version": {
+							"anyOf": [
+								{
+									"type": "null"
+								},
+								{
+									"type": "string",
+									"minLength": 1,
+									"maxLength": 120
+								}
+							]
+						},
+						"min_herdr_version": {
+							"anyOf": [
+								{
+									"type": "null"
+								},
+								{
+									"type": "string",
+									"minLength": 1,
+									"maxLength": 4096
+								}
+							]
+						},
+						"description": {
+							"anyOf": [
+								{
+									"type": "null"
+								},
+								{
+									"type": "string",
+									"minLength": 1,
+									"maxLength": 4096
+								}
+							]
+						},
+						"platforms": {
+							"$ref": "#/$defs/v2/$defs/platforms"
+						},
+						"build": {
+							"type": "array",
+							"maxItems": 64,
+							"items": {
+								"$ref": "#/$defs/v2/$defs/command"
+							}
+						},
+						"startup": {
+							"type": "array",
+							"maxItems": 64,
+							"items": {
+								"$ref": "#/$defs/v2/$defs/command"
+							}
+						},
+						"actions": {
+							"type": "array",
+							"maxItems": 64,
+							"items": {
+								"$ref": "#/$defs/v2/$defs/action"
+							}
+						},
+						"events": {
+							"type": "array",
+							"maxItems": 64,
+							"items": {
+								"$ref": "#/$defs/v2/$defs/event"
+							}
+						},
+						"panes": {
+							"type": "array",
+							"maxItems": 64,
+							"items": {
+								"$ref": "#/$defs/v2/$defs/pane"
+							}
+						},
+						"link_handlers": {
+							"type": "array",
+							"maxItems": 64,
+							"items": {
+								"$ref": "#/$defs/v2/$defs/linkHandler"
+							}
+						}
+					}
+				},
+				"error": {
+					"enum": [
+						"invalid-manifest",
+						"invalid-identifier",
+						"invalid-path",
+						"invalid-registry",
+						"manifest-unavailable",
+						"plugin-not-found",
+						"limit-exceeded",
+						"busy",
+						"storage-unavailable"
+					]
+				},
+				"entry": {
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["manifestPath", "pluginRoot", "enabled", "manifest", "warning", "source"],
+					"properties": {
+						"manifestPath": {
+							"type": "string",
+							"minLength": 1,
+							"maxLength": 4096
+						},
+						"pluginRoot": {
+							"type": "string",
+							"minLength": 1,
+							"maxLength": 4096
+						},
+						"enabled": {
+							"type": "boolean"
+						},
+						"manifest": {
+							"$ref": "#/$defs/v2/$defs/manifest"
+						},
+						"warning": {
+							"anyOf": [
+								{
+									"type": "null"
+								},
+								{
+									"$ref": "#/$defs/v2/$defs/error"
+								}
+							]
+						},
+						"source": {
+							"anyOf": [
+								{
+									"type": "null"
+								},
+								{
+									"$ref": "#/$defs/v2/$defs/managedSource"
+								}
+							]
+						}
+					}
+				},
+				"catalog": {
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["revision", "changed", "plugins"],
+					"properties": {
+						"revision": {
+							"type": "integer",
+							"minimum": 0,
+							"maximum": 9007199254740991
+						},
+						"changed": {
+							"type": "boolean"
+						},
+						"plugins": {
+							"type": "array",
+							"maxItems": 32,
+							"items": {
+								"$ref": "#/$defs/v2/$defs/entry"
+							}
+						}
+					}
+				},
+				"result": {
+					"oneOf": [
+						{
+							"type": "object",
+							"additionalProperties": false,
+							"required": ["kind", "catalog"],
+							"properties": {
+								"kind": {
+									"const": "catalog"
+								},
+								"catalog": {
+									"$ref": "#/$defs/v2/$defs/catalog"
+								}
+							}
+						},
+						{
+							"type": "object",
+							"additionalProperties": false,
+							"required": ["kind", "pluginId", "path"],
+							"properties": {
+								"kind": {
+									"const": "directory"
+								},
+								"pluginId": {
+									"$ref": "#/$defs/v2/$defs/id"
+								},
+								"path": {
+									"type": "string",
+									"minLength": 1,
+									"maxLength": 4096
+								}
+							}
+						},
+						{
+							"type": "object",
+							"additionalProperties": false,
+							"required": ["kind", "revision", "actions"],
+							"properties": {
+								"kind": {
+									"const": "actions"
+								},
+								"revision": {
+									"type": "integer",
+									"minimum": 0,
+									"maximum": 9007199254740991
+								},
+								"actions": {
+									"type": "array",
+									"maxItems": 2048,
+									"items": {
+										"type": "object",
+										"additionalProperties": false,
+										"required": ["pluginId", "action"],
+										"properties": {
+											"pluginId": {
+												"$ref": "#/$defs/v2/$defs/id"
+											},
+											"action": {
+												"$ref": "#/$defs/v2/$defs/action"
+											}
+										}
+									}
+								}
+							}
+						},
+						{
+							"type": "object",
+							"additionalProperties": false,
+							"required": ["kind", "reason"],
+							"properties": {
+								"kind": {
+									"const": "failed"
+								},
+								"reason": {
+									"$ref": "#/$defs/v2/$defs/error"
+								}
+							}
+						}
+					]
+				},
+				"managedSource": {
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["github", "requestedRef", "resolvedCommit", "installationId"],
+					"properties": {
+						"github": {
+							"type": "object",
+							"additionalProperties": false,
+							"required": ["repository", "subdir"],
+							"properties": {
+								"repository": {
+									"type": "string",
+									"minLength": 3,
+									"maxLength": 241
+								},
+								"subdir": {
+									"type": ["string", "null"],
+									"maxLength": 1024
+								}
+							}
+						},
+						"requestedRef": {
+							"type": ["string", "null"],
+							"minLength": 1,
+							"maxLength": 240
+						},
+						"resolvedCommit": {
+							"type": "string",
+							"pattern": "^(?:[a-f0-9]{40}|[a-f0-9]{64})$"
+						},
+						"installationId": {
+							"type": "string",
+							"pattern": "^(?!0{32}$)[a-f0-9]{32}$"
 						}
 					}
 				}
-			]
+			}
 		}
 	}
 }

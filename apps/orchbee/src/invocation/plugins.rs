@@ -8,6 +8,12 @@ use orchbee_local_site_runtime::{
 };
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum PluginCommand {
+    Install {
+        source: orchbee_local_site_runtime::PluginGithubSource,
+        reference: Option<String>,
+        timeout_ms: u32,
+    },
+    Uninstall(String),
     Mutate(PluginRegistryMutation),
     List(Option<String>),
     Actions(Option<String>),
@@ -59,6 +65,8 @@ pub(super) fn parse(
         _ => unreachable!("plugin family routed here"),
     };
     let context = UsageContext::Path(match verb {
+        "install" => "plugin install",
+        "uninstall" => "plugin uninstall",
         "link" => "plugin link",
         "unlink" => "plugin unlink",
         "enable" => "plugin enable",
@@ -80,6 +88,8 @@ pub(super) fn parse(
         options,
         Scope {
             plugin: verb == "link",
+            plugin_install: verb == "install",
+            timeout: verb == "install",
             plugin_select: matches!(verb, "list" | "action list" | "action invoke" | "log list"),
             plugin_context: verb == "action invoke",
             limit: verb == "log list",
@@ -126,7 +136,48 @@ pub(super) fn parse(
             envelope,
         )
     };
-    let command = if verb == "action invoke" {
+    let command = if verb == "install" {
+        let value = args
+            .first()
+            .ok_or_else(|| missing_required(context, "<owner/repo[/subdir]>", envelope))?;
+        let source = orchbee_local_site_runtime::PluginGithubSource::parse(value)
+            .map_err(|_| invalid("<source>", value, ExpectedValue::PluginGithubSource))?;
+        if !options.plugin_yes {
+            return Err(missing_required(context, "--yes", envelope));
+        }
+        if let Some(reference) = &options.plugin_ref
+            && !orchbee_local_site_runtime::plugin_git_reference(reference)
+        {
+            return Err(invalid(
+                "--ref",
+                reference,
+                ExpectedValue::PluginGitReference,
+            ));
+        }
+        let timeout_ms = match options.timeout.as_deref() {
+            None => 600_000,
+            Some(value) => value
+                .parse::<u32>()
+                .ok()
+                .filter(|n| (1..=3_600_000).contains(n))
+                .ok_or_else(|| invalid("--timeout", value, ExpectedValue::WaitTimeout))?,
+        };
+        PluginCommand::Install {
+            source,
+            reference: options.plugin_ref.clone(),
+            timeout_ms,
+        }
+    } else if verb == "uninstall" {
+        let value = args
+            .first()
+            .ok_or_else(|| missing_required(context, "<plugin-id-or-source>", envelope))?;
+        let target = if orchbee_local_site_runtime::PluginGithubSource::parse(value).is_ok() {
+            (*value).into()
+        } else {
+            id(value)?
+        };
+        PluginCommand::Uninstall(target)
+    } else if verb == "action invoke" {
         let action_id = args
             .first()
             .ok_or_else(|| missing_required(context, "<action-id>", envelope))?;

@@ -1,5 +1,6 @@
 use super::{
-    PluginManifest, PluginRegistryError as Error, manifest::MANIFEST_LIMIT, plugin_identifier,
+    PluginManagedSource, PluginManifest, PluginRegistryError as Error, manifest::MANIFEST_LIMIT,
+    plugin_identifier,
 };
 use crate::{WindowsPrivateCache, windows_user_settings_path};
 use serde::{Deserialize, Serialize};
@@ -13,6 +14,11 @@ use std::{
 const REGISTRY_LIMIT: usize = 1024 * 1024;
 const MAX_REVISION: u64 = 9_007_199_254_740_991;
 const FILE: &str = "registry.json";
+mod provision;
+pub use provision::{
+    PluginProvisionCommand, PluginProvisionExecutor, PluginProvisionFailure, PluginProvisionOutput,
+    PluginProvisionReport, PluginProvisionStage,
+};
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -22,6 +28,8 @@ pub struct PluginRegistryEntry {
     pub enabled: bool,
     pub manifest: PluginManifest,
     pub warning: Option<Error>,
+    #[serde(default)]
+    pub source: Option<PluginManagedSource>,
 }
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -29,6 +37,10 @@ struct Catalog {
     version: u8,
     revision: u64,
     plugins: Vec<PluginRegistryEntry>,
+    #[serde(default)]
+    cleanup: Vec<String>,
+    #[serde(default)]
+    blocked_cleanup: Vec<String>,
 }
 impl Default for Catalog {
     fn default() -> Self {
@@ -36,6 +48,8 @@ impl Default for Catalog {
             version: 1,
             revision: 0,
             plugins: vec![],
+            cleanup: vec![],
+            blocked_cleanup: vec![],
         }
     }
 }
@@ -89,7 +103,7 @@ impl PluginRegistry {
         let id = id.map(plugin_identifier).transpose()?;
         let bytes = WindowsPrivateCache::read_existing(&self.root, FILE, REGISTRY_LIMIT)
             .map_err(storage)?;
-        let mut catalog = decode(bytes.as_deref())?;
+        let mut catalog = decode(bytes.as_deref(), &self.root)?;
         for entry in &mut catalog.plugins {
             refresh(entry);
         }
@@ -126,7 +140,7 @@ impl PluginRegistry {
         };
         let mut store = WindowsPrivateCache::acquire(&self.root).map_err(storage)?;
         let bytes = store.read(FILE, REGISTRY_LIMIT).map_err(storage)?;
-        let mut catalog = decode(bytes.as_deref())?;
+        let mut catalog = decode(bytes.as_deref(), &self.root)?;
         let before = catalog.plugins.clone();
         match mutation {
             PluginRegistryMutation::Link { .. } => {
@@ -151,7 +165,9 @@ impl PluginRegistry {
                     if current.manifest.id != id {
                         return Err(Error::InvalidManifest);
                     }
+                    let source = entry.source.take();
                     *entry = current;
+                    entry.source = source;
                 } else {
                     entry.enabled = false;
                 }
@@ -162,6 +178,7 @@ impl PluginRegistry {
             .sort_by(|a, b| a.manifest.id.cmp(&b.manifest.id));
         let changed = catalog.plugins != before;
         if changed {
+            catalog.version = 2;
             catalog.revision = catalog
                 .revision
                 .checked_add(1)
@@ -198,16 +215,51 @@ fn storage(error: io::Error) -> Error {
         _ => Error::StorageUnavailable,
     }
 }
-fn decode(bytes: Option<&[u8]>) -> Result<Catalog, Error> {
+fn decode(bytes: Option<&[u8]>, root: &Path) -> Result<Catalog, Error> {
     let Some(bytes) = bytes else {
         return Ok(Catalog::default());
     };
     let catalog: Catalog = serde_json::from_slice(bytes).map_err(|_| Error::InvalidRegistry)?;
-    if catalog.version != 1 || catalog.revision > MAX_REVISION || catalog.plugins.len() > 32 {
+    if !matches!(catalog.version, 1 | 2)
+        || catalog.revision > MAX_REVISION
+        || catalog.plugins.len() > 32
+        || catalog.cleanup.len() > 64
+        || catalog.blocked_cleanup.len() > 64
+        || catalog
+            .cleanup
+            .iter()
+            .enumerate()
+            .any(|(i, id)| !super::source::installation_id(id) || catalog.cleanup[..i].contains(id))
+        || catalog
+            .blocked_cleanup
+            .iter()
+            .any(|id| !catalog.cleanup.contains(id))
+        || (catalog.version == 1
+            && (!catalog.cleanup.is_empty()
+                || !catalog.blocked_cleanup.is_empty()
+                || catalog.plugins.iter().any(|p| p.source.is_some())))
+    {
         return Err(Error::InvalidRegistry);
     }
     let mut previous: Option<&str> = None;
     for entry in &catalog.plugins {
+        if let Some(source) = &entry.source {
+            source.validate()?;
+            let checkout = root
+                .canonicalize()
+                .map_err(storage)?
+                .join("managed")
+                .join(format!("i-{}", source.installation_id))
+                .join("checkout");
+            let expected = source
+                .github
+                .subdir
+                .as_ref()
+                .map_or_else(|| checkout.clone(), |subdir| checkout.join(subdir));
+            if Path::new(&entry.plugin_root) != expected {
+                return Err(Error::InvalidRegistry);
+            }
+        }
         let mut normalized = entry.manifest.clone();
         normalized.normalize().map_err(|_| Error::InvalidRegistry)?;
         if normalized != entry.manifest
@@ -230,7 +282,10 @@ fn decode(bytes: Option<&[u8]>) -> Result<Catalog, Error> {
 }
 fn refresh(entry: &mut PluginRegistryEntry) {
     match load(Path::new(&entry.manifest_path), entry.enabled) {
-        Ok(current) if current.manifest.id == entry.manifest.id => *entry = current,
+        Ok(mut current) if current.manifest.id == entry.manifest.id => {
+            current.source = entry.source.take();
+            *entry = current;
+        }
         Ok(_) => entry.warning = Some(Error::InvalidManifest),
         Err(error) => entry.warning = Some(error),
     }
@@ -272,6 +327,7 @@ fn load(path: &Path, enabled: bool) -> Result<PluginRegistryEntry, Error> {
         enabled,
         manifest,
         warning: None,
+        source: None,
     })
 }
 fn component(id: &str) -> String {

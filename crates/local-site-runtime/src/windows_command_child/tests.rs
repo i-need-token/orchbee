@@ -12,6 +12,34 @@ use std::{
 };
 
 use orchbee_local_ipc::ChildOutputReader;
+
+#[test]
+fn captured_commands_settle_on_work_deadline_or_caller_interruption() {
+    for cancelled in [false, true] {
+        let mut command = std::process::Command::new("powershell.exe");
+        command.args([
+            "-NoProfile",
+            "-NonInteractive",
+            "-Command",
+            "Start-Sleep -Seconds 30",
+        ]);
+        let started = Instant::now();
+        let deadline = started + Duration::from_millis(150);
+        let result = run_windows_command(command, (!cancelled).then_some(deadline), || {
+            Ok(cancelled && Instant::now() >= deadline)
+        });
+        assert_eq!(
+            result.failure,
+            Some(if cancelled {
+                WindowsCommandFailure::Cancelled
+            } else {
+                WindowsCommandFailure::Timeout
+            })
+        );
+        assert!(started.elapsed() < Duration::from_secs(6));
+        assert_eq!(result.exit_code, None);
+    }
+}
 use winsafe::{HPROCESS, co};
 
 fn tree() -> (WindowsCommandChild, ChildOutputReader) {

@@ -27,8 +27,6 @@ mod terminal_operations;
 mod terminal_send_operation;
 #[cfg(any(unix, windows))]
 mod terminal_viewer_operation;
-#[cfg(windows)]
-mod windows_command_child;
 #[cfg(any(unix, windows))]
 mod worker_connection;
 #[cfg(any(unix, windows))]

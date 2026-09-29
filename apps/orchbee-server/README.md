@@ -893,6 +893,6 @@ The [Workspace metadata model](../orchbee/docs/windows-workspace-metadata.md) ow
 
 Panel presentation reports use OBWP 33/34 under the Site gate, with read/navigation permissions and exact primary-binding guards. The [state model](docs/workbench-authority.md#panel-presentation-metadata) owns transient per-terminal sources, field priority, tokens and expiry.
 
-## ## Native plugin action admission
+## Native plugin action admission
 
 Workbench plugin execution requires read, terminal-creation and lifecycle grants before source resolution. Local terminal service checks Site/Worker identity, enabled manifest availability, action ambiguity and Windows platform support, freezes argv/cwd/context and submits once to Worker. It does not own subprocesses. Read pages remain bound to Worker generation; lost mutation replies preserve uncertainty. [Native plugin behavior](../orchbee/docs/windows-plugins.md) owns the full contract and outstanding lifecycle integration.

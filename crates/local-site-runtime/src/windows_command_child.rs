@@ -9,26 +9,31 @@ use std::{
 use process_wrap::std::{ChildWrapper, CommandWrap, CreationFlags, JobObject};
 use windows::Win32::System::Threading::CREATE_NO_WINDOW;
 
+mod capture;
+mod program;
+pub use capture::{WindowsCommandFailure, WindowsCommandOutput, run_windows_command};
+pub use program::resolve_windows_program;
+
 enum Settlement {
     Running,
     Failed,
     Complete(ExitStatus),
 }
 
-pub(crate) struct WindowsCommandChild {
+pub struct WindowsCommandChild {
     child: Box<dyn ChildWrapper>,
     settlement: Settlement,
 }
 
 #[derive(Debug)]
-pub(crate) struct WindowsCommandSpawnFailure {
-    pub(crate) error: io::Error,
-    pub(crate) created: bool,
+pub struct WindowsCommandSpawnFailure {
+    pub error: io::Error,
+    pub created: bool,
 }
 
 impl WindowsCommandChild {
     /// Assignment happens while suspended, before any command can spawn a child.
-    pub(crate) fn spawn(command: Command) -> Result<Self, WindowsCommandSpawnFailure> {
+    pub fn spawn(command: Command) -> Result<Self, WindowsCommandSpawnFailure> {
         let mut wrapped = CommandWrap::from(command);
         wrapped
             .wrap(CreationFlags(CREATE_NO_WINDOW))
@@ -52,13 +57,13 @@ impl WindowsCommandChild {
         })
     }
 
-    pub(crate) fn id(&self) -> u32 {
+    pub fn id(&self) -> u32 {
         self.child.id()
     }
 
     /// Runs only on the retained command owner thread. A root exit is not completion
     /// until the owned Job has settled, even when a descendant holds output open.
-    pub(crate) fn try_wait(&mut self) -> io::Result<Option<ExitStatus>> {
+    pub fn try_wait(&mut self) -> io::Result<Option<ExitStatus>> {
         match self.settlement {
             Settlement::Complete(status) => return Ok(Some(status)),
             Settlement::Failed => return Err(unknown_settlement()),
@@ -74,7 +79,7 @@ impl WindowsCommandChild {
 
     /// Terminates remaining members, then observes the corrected wrapper's
     /// root-and-Job completion with a bounded cleanup budget.
-    pub(crate) fn settle(&mut self) -> io::Result<ExitStatus> {
+    pub fn settle(&mut self) -> io::Result<ExitStatus> {
         match self.settlement {
             Settlement::Complete(status) => return Ok(status),
             Settlement::Failed => return Err(unknown_settlement()),

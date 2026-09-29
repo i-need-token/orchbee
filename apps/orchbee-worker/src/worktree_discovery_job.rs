@@ -12,10 +12,10 @@ use std::{
 };
 
 #[cfg(windows)]
-use crate::windows_command_child::WindowsCommandChild as Child;
-#[cfg(windows)]
 use orchbee_local_ipc::ChildOutputReader;
 use orchbee_local_ipc::{AsLocalIo, PollFd, PollFlags, PollTimeout, poll};
+#[cfg(windows)]
+use orchbee_local_site_runtime::WindowsCommandChild as Child;
 #[cfg(unix)]
 use std::process::Child;
 #[cfg(unix)]

@@ -878,12 +878,14 @@ version = "0.1.0"
 dependencies = [
  "nix",
  "orchbee-local-ipc",
+ "process-wrap",
  "rustix",
  "serde",
  "serde_json",
  "sha2",
  "toml",
  "winapi-util",
+ "windows",
  "windows-permissions",
  "winsafe",
 ]
@@ -945,9 +947,7 @@ dependencies = [
  "orchbee-local-site-protocol",
  "orchbee-local-site-runtime",
  "orchbee-terminal-protocol",
- "process-wrap",
  "rustix",
- "windows",
  "winsafe",
 ]
 

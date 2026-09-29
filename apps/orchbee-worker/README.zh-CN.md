@@ -825,4 +825,4 @@ Worker 在匹配版本的托管启动中接收自有 `WindowsShellSettings` 快�
 
 ## Windows 插件进程归属
 
-受理请求循环在 Host 创建前后处理有界插件任务 start/list/get/cancel 记录。`plugin_jobs` 保留最多 32 个命令 owner 和 200 条日志；`windows_command_child` 复用 Git 的 Job 清理方式。CLI 断开后已受理任务继续运行。显式停止 Site 时，必须先通知、清理并等待所有插件 owner 结束，才能报告成功。[原生插件行为](../orchbee/docs/windows-plugins.zh-CN.md) 管理调用、分页、输出上限及剩余集成。
+受理请求循环在 Host 创建前后处理有界插件任务 start/list/get/cancel 记录。`plugin_jobs` 保留最多 32 个命令 owner 和 200 条日志；共享 `orchbee-local-site-runtime` Windows 命令所有者 复用 Git 的 Job 清理方式。CLI 断开后已受理任务继续运行。显式停止 Site 时，必须先通知、清理并等待所有插件 owner 结束，才能报告成功。[原生插件行为](../orchbee/docs/windows-plugins.zh-CN.md) 管理调用、分页、输出上限及剩余集成。
