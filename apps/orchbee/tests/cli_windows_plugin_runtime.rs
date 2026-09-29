@@ -46,6 +46,22 @@ fn plugin_invoke_real_cli_reports_admission_failure_or_unknown_without_resubmiss
         let listener = LocalListener::bind(fixture.rendezvous().client_socket_path()).unwrap();
         let handler = peer(&fixture, listener, move |mut stream| {
             bound_snapshot_reply(&mut stream);
+            let WorkbenchRequest::ClientView(list) = read_workbench_request(&mut stream).unwrap()
+            else {
+                panic!("context client discovery")
+            };
+            assert!(matches!(list.action, ClientViewAction::List {}));
+            write_workbench_response(
+                &mut stream,
+                &WorkbenchResponse::ClientView(WorkbenchClientViewResult {
+                    protocol_version: ProtocolVersion,
+                    request_id: list.request_id,
+                    site_id: list.site_id,
+                    outcome: ClientViewOutcome::Listed { clients: vec![] },
+                }),
+            )
+            .unwrap();
+            bound_snapshot_reply(&mut stream);
             let WorkbenchRequest::Plugin(request) = read_workbench_request(&mut stream).unwrap()
             else {
                 panic!()
@@ -63,6 +79,10 @@ fn plugin_invoke_real_cli_reports_admission_failure_or_unknown_without_resubmiss
             assert_eq!(action_id, "hello");
             assert_eq!(context.selected_text.as_deref(), Some("你好"));
             assert_eq!(context.invocation_source.as_deref(), Some("cli"));
+            assert_eq!(
+                context.correlation_id.as_deref(),
+                Some(operation_id.as_str())
+            );
             if matches!(mode, "lost" | "lost-text") {
                 return;
             }

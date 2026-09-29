@@ -1,6 +1,27 @@
 use orchbee_workbench_protocol::*;
 use serde_json::json;
 #[test]
+fn explicit_context_overlays_display_fields_and_remains_bounded() {
+    let base = PluginInvocationContext {
+        workspace_id: Some("actual".into()),
+        workspace_label: Some("label".into()),
+        correlation_id: Some("operation".into()),
+        ..Default::default()
+    };
+    let provided: PluginInvocationContext = serde_json::from_value(json!({"workspaceId":"display",
+        "workspaceLabel":null,"selectedText":"你好","correlationId":""}))
+    .unwrap();
+    let merged = base.with_overrides(provided);
+    assert_eq!(merged.workspace_id.as_deref(), Some("display"));
+    assert_eq!(merged.workspace_label.as_deref(), Some("label"));
+    assert_eq!(merged.correlation_id.as_deref(), Some(""));
+    assert_eq!(merged.selected_text.as_deref(), Some("你好"));
+    assert!(merged.validate().is_ok());
+    let mut too_large = merged;
+    too_large.selected_text = Some("x".repeat(8193));
+    assert!(too_large.validate().is_err());
+}
+#[test]
 fn plugin_matches_shared_corpus_and_distinct_carrier_kinds() {
     let corpus: serde_json::Value = serde_json::from_str(include_str!(
         "../../../schemas/workbench/v1/workbench-plugin-conformance-v1.json"

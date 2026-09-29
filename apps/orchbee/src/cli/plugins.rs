@@ -1,4 +1,6 @@
 //! Offline catalog commands and admitted runtime invocation/log commands.
+#[cfg(windows)]
+mod context;
 mod provision;
 mod runtime;
 use super::{Failure, FailureKind, Output, failure_output, output};

@@ -19,6 +19,7 @@ pub(crate) enum PluginCommand {
     Actions(Option<String>),
     ConfigDir(String),
     Invoke {
+        client: Option<orchbee_workbench_protocol::WorkbenchClientId>,
         plugin_id: Option<String>,
         action_id: String,
         context: Box<orchbee_workbench_protocol::PluginInvocationContext>,
@@ -92,6 +93,7 @@ pub(super) fn parse(
             timeout: verb == "install",
             plugin_select: matches!(verb, "list" | "action list" | "action invoke" | "log list"),
             plugin_context: verb == "action invoke",
+            client: verb == "action invoke",
             limit: verb == "log list",
             ..NO_OPTIONS
         },
@@ -208,6 +210,7 @@ pub(super) fn parse(
             )
         })?;
         PluginCommand::Invoke {
+            client: super::client_control::client_id(options, context, envelope)?,
             plugin_id: selected,
             action_id: (*action_id).into(),
             context: Box::new(invocation),

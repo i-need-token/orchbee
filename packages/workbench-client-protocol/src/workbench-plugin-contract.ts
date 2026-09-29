@@ -2,6 +2,7 @@ import { z } from 'zod';
 import {
 	SiteIdSchema,
 	WorkerIdSchema,
+	WorkbenchDirectoryPathSchema,
 	WorkbenchRequestIdSchema,
 	WorkbenchRevisionSchema,
 	WORKBENCH_PROTOCOL_VERSION,
@@ -28,11 +29,20 @@ const jobId = z
 	.regex(/^[0-9a-f]{32}$/u)
 	.refine((value) => value !== '0'.repeat(32));
 const optionalText = text(4096).nullable().optional();
+const worktreeContext = z.strictObject({
+	workerId: WorkerIdSchema,
+	repositoryRoot: WorkbenchDirectoryPathSchema,
+	commonDirectory: WorkbenchDirectoryPathSchema,
+	repositoryName: text(4096).refine((value) => value.length > 0),
+	checkoutPath: WorkbenchDirectoryPathSchema,
+	linked: z.boolean(),
+});
 export const PluginInvocationContextSchema = z
 	.strictObject({
 		workspaceId: optionalText,
 		workspaceLabel: optionalText,
 		workspaceCwd: optionalText,
+		worktree: worktreeContext.nullable().optional(),
 		tabId: optionalText,
 		tabLabel: optionalText,
 		focusedPaneId: optionalText,

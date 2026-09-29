@@ -14,7 +14,9 @@ local-site-runtime 插件边界负责有界 TOML 校验和持久目录。目录�
 
 ## 运行时 action 与日志
 
-`plugin action invoke ACTION [--plugin ID] [--context JSON]` 向已有 Site 提交普通 action ID 或 `plugin.action` 完整 ID。`plugin log list [ID] [--plugin ID] [--limit 1..200]` 查询最新保留日志，默认 50 条。list 和 action-list 也支持用 `--plugin` 替代位置过滤参数。均支持 `--format text|json`，运行时命令不启动 Site。上下文是封闭的 camelCase 对象，包含可选 workspace/tab/Pane 展示字段、选中文字、调用来源、关联 ID、点击 URL 和链接处理器 ID；编码总量最多 16 KiB，选中文字最多 8 KiB。上下文不携带授权。省略调用来源时使用 `cli`。
+`plugin action invoke ACTION [--plugin ID] [--client ID] [--context JSON]` 向已有 Site 提交普通 action ID 或 `plugin.action` 完整 ID。`plugin log list [ID] [--plugin ID] [--limit 1..200]` 查询最新保留日志，默认 50 条。list 和 action-list 也支持用 `--plugin` 替代位置过滤参数。均支持 `--format text|json`，运行时命令不启动 Site。上下文是封闭的 camelCase 对象，包含可选 workspace/tab/Pane 展示字段、worktree、选中文字、调用来源、关联 ID、点击 URL 和链接处理器 ID；编码总量最多 16 KiB，选中文字最多 8 KiB。上下文不携带授权。省略调用来源时使用 `cli`；关联 ID 默认取本次调用的操作 ID。
+
+调用在同一个十秒期限内先推导上下文。显式 Client 优先于继承的调用者身份；否则从规范快照中的精确调用者绑定选择终端成员，或由唯一当前 Client 选择观察到的成员。多个当前 Client 需指定 `--client`；没有调用者且没有当前 Client 时按全局动作调用，不编造选区。Ready 和稳定 Busy 视图可读。补充信息期间规范成员、元数据、Client 选区及成员代际必须保持一致，否则不提交动作。运行时 cwd 与 Agent 观察属于该精确成员；该成员显式上报的 Agent 名称及非 unknown 状态优先，否则采用唯一观察到的 provider 及聚合状态；缺失的观察保持空值。工作区 cwd 优先采用观察到的 Pane cwd，再取工作区目录。Worktree 使用现有只读查询，不绕过信任，保留原生字段 `workerId`、`repositoryRoot`、`commonDirectory`、`repositoryName`、`checkoutPath`、`linked`；不可用时保持缺失。显式非 null 上下文字段覆盖推导的展示字段，但不选择或授权任何目标。API 调用不抓取 Client 选中文字，调用者显式提供 `selectedText`，与参考 API 一致。
 
 Server 在解析调用前要求读取、终端创建和生命周期权限。确认 Site、action 唯一且源有效、已启用、支持 Windows 后，固定 argv、源 cwd 和环境。Worker 在插件根目录执行独立参数；显式 shell 命令保留自身 shell 语义。相对程序从插件根目录解析，再使用 Windows PATH/PATHEXT。原生上下文通过 `ORCHBEE_PLUGIN_CONTEXT_JSON` 及插件 ID/root/action/config/state 路径、`ORCHBEE_BIN_PATH`、可选 workspace/tab/Pane ID 和链接字段提供。受管 Worker 用自身 Site 路由覆盖 runtime base/scope。这些是 Orchbee 变量和 API 语义，Herdr 专属脚本可能需要调整。安装本次字段前会清除继承的插件/终端身份。
 
@@ -34,6 +36,6 @@ Server 在解析调用前要求读取、终端创建和生命周期权限。确�
 
 ## 交付与证据
 
-原生已接通目录、action 调用、保留日志及托管源码安装/卸载。startup/event hook、完整 worktree 上下文补全、链接处理器及插件 Pane 生命周期仍需集成，之后才能认定插件完整对齐。目录接受不代表命令已执行。参照固定 Herdr `e0507237ad8d41f60aece10d00ef29ce2339ca34`，主要为 `cli/plugin.rs`、`app/api/plugins/manifest.rs` 和 `persist/plugin_registry.rs`。
+原生已接通目录、action 调用、保留日志及托管源码安装/卸载。startup/event hook、链接处理器及插件 Pane 生命周期仍需集成，之后才能认定插件完整对齐。目录接受不代表命令已执行。参照固定 Herdr `e0507237ad8d41f60aece10d00ef29ce2339ca34`，主要为 `cli/plugin.rs`、`app/api/plugins/manifest.rs` 和 `persist/plugin_registry.rs`。
 
 定向证据覆盖解析上限、标识符/路径碰撞、源不可用时保留条目、缺失目录只读、目录原子转换及真实 Windows CLI 回执。测试夹具拥有并回收临时路径。完整 Windows 视觉/provider/多 Client 与全量回归验收另行执行。

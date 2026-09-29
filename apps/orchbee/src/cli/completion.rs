@@ -441,7 +441,10 @@ const COMMAND_FLAGS: &[(&str, &[&str])] = &[
     #[cfg(windows)]
     ("plugin:action:list", &["--plugin"]),
     #[cfg(windows)]
-    ("plugin:action:invoke", &["--plugin", "--context"]),
+    (
+        "plugin:action:invoke",
+        &["--plugin", "--client", "--context"],
+    ),
     #[cfg(windows)]
     ("plugin:log:list", &["--plugin", "--limit"]),
     ("notification:show", &["--body", "--position", "--sound"]),

@@ -20,6 +20,17 @@ pub fn plugin_job_identifier(value: &str) -> bool {
             .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
         && value.bytes().any(|b| b != b'0')
 }
+/// Display-only repository facts from a native read-only Worktree query.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct PluginWorktreeContext {
+    pub worker_id: WorkerId,
+    pub repository_root: crate::WorkbenchDirectoryPath,
+    pub common_directory: crate::WorkbenchDirectoryPath,
+    pub repository_name: String,
+    pub checkout_path: crate::WorkbenchDirectoryPath,
+    pub linked: bool,
+}
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct PluginInvocationContext {
@@ -29,6 +40,8 @@ pub struct PluginInvocationContext {
     pub workspace_label: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub workspace_cwd: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub worktree: Option<PluginWorktreeContext>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tab_id: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -54,6 +67,13 @@ pub struct PluginInvocationContext {
 }
 impl PluginInvocationContext {
     pub fn validate(&self) -> Result<(), ContractError> {
+        if self.worktree.as_ref().is_some_and(|worktree| {
+            worktree.repository_name.is_empty()
+                || worktree.repository_name.len() > 4096
+                || worktree.repository_name.contains('\0')
+        }) {
+            return Err(ContractError::InvalidDocument);
+        }
         for value in [
             &self.workspace_id,
             &self.workspace_label,
@@ -88,6 +108,31 @@ impl PluginInvocationContext {
             return Err(ContractError::InvalidDocument);
         }
         Ok(())
+    }
+
+    /// Non-null explicit display values override observations; null means omitted.
+    pub fn with_overrides(mut self, provided: Self) -> Self {
+        macro_rules! overlay {
+            ($($field:ident),+ $(,)?) => { $(self.$field = provided.$field.or(self.$field);)+ };
+        }
+        overlay!(
+            workspace_id,
+            workspace_label,
+            workspace_cwd,
+            worktree,
+            tab_id,
+            tab_label,
+            focused_pane_id,
+            focused_pane_cwd,
+            focused_pane_agent,
+            focused_pane_status,
+            selected_text,
+            invocation_source,
+            correlation_id,
+            clicked_url,
+            link_handler_id
+        );
+        self
     }
 }
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]

@@ -176,6 +176,18 @@ impl Observation {
     }
 }
 impl Document {
+    pub(super) fn plugin_context(
+        &self,
+        workspace: &str,
+    ) -> Result<Option<PluginWorktreeContext>, Failure> {
+        match self.0.get(workspace) {
+            Some(Observation::Observed { summary, .. }) => serde_json::from_value(summary.clone())
+                .map(Some)
+                .map_err(|_| Failure::new(FailureKind::ProtocolInvalid)),
+            Some(_) => Ok(None),
+            None => Err(Failure::new(FailureKind::ProtocolInvalid)),
+        }
+    }
     pub(super) fn enrich(&self, result: &mut Value) {
         let mut row = |row: &mut Value| {
             let observation = self

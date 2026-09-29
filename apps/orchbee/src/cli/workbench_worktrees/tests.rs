@@ -105,6 +105,30 @@ fn source_binding_and_revision_mismatches_never_publish_a_summary() {
         );
     }
 }
+
+#[test]
+fn plugin_context_preserves_validated_native_checkout_identity_and_absence() {
+    let (snapshot, row, outcome) = fixture(true);
+    let observed = classify(
+        &snapshot,
+        &row,
+        WorkbenchRequestId::parse(&id(90)).unwrap(),
+        outcome,
+    )
+    .unwrap();
+    let document = Document(BTreeMap::from([(row.workspace_id.clone(), observed)]));
+    let context = document.plugin_context(&row.workspace_id).unwrap().unwrap();
+    assert_eq!(context.checkout_path.as_str(), "C:/trees/中文");
+    assert_eq!(context.common_directory.as_str(), "C:/repo/.git");
+    assert!(context.linked);
+    assert_eq!(context.worker_id.as_str(), id(5));
+    assert!(document.plugin_context(&id(99)).is_err());
+    let absent = Document(BTreeMap::from([(
+        row.workspace_id.clone(),
+        Observation::NoDirectory,
+    )]));
+    assert!(absent.plugin_context(&row.workspace_id).unwrap().is_none());
+}
 #[test]
 fn unavailability_is_explicit_but_trust_transport_and_deadline_fail_whole_read() {
     let (snapshot, row, _) = fixture(false);

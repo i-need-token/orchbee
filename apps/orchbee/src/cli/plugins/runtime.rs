@@ -32,18 +32,28 @@ pub(super) fn run(command: PluginCommand, format: OutputFormat, locale: Locale) 
         let (mut client, snapshot) = query::stream_snapshot(deadline, signals.poll_fd())?;
         let (mut action, mut remaining) = match command {
             PluginCommand::Invoke {
+                client: selected,
                 plugin_id,
                 action_id,
                 context,
             } => {
                 let id = query::request_id()?.as_str().to_owned();
+                let context = super::context::resolve(
+                    &mut client,
+                    &snapshot,
+                    selected.as_ref(),
+                    *context,
+                    &id,
+                    deadline,
+                    &mut signals,
+                )?;
                 operation_id = Some(id.clone());
                 (
                     PluginAction::Invoke {
                         operation_id: id,
                         plugin_id,
                         action_id,
-                        context,
+                        context: Box::new(context),
                     },
                     0,
                 )

@@ -502,6 +502,16 @@
 							"type": "null"
 						}
 					]
+				},
+				"worktree": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/worktreeContext"
+						},
+						{
+							"type": "null"
+						}
+					]
 				}
 			}
 		},
@@ -694,6 +704,65 @@
 					}
 				}
 			]
+		},
+		"worktreeContext": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": [
+				"workerId",
+				"repositoryRoot",
+				"commonDirectory",
+				"repositoryName",
+				"checkoutPath",
+				"linked"
+			],
+			"properties": {
+				"workerId": {
+					"type": "string",
+					"pattern": "^[0-9a-f]{32}$",
+					"not": {
+						"const": "00000000000000000000000000000000"
+					}
+				},
+				"repositoryRoot": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 4096,
+					"pattern": "^(?:/|(?:\\\\\\\\\\?\\\\)?[A-Za-z]:[/\\\\])",
+					"not": {
+						"pattern": "\u0000"
+					}
+				},
+				"commonDirectory": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 4096,
+					"pattern": "^(?:/|(?:\\\\\\\\\\?\\\\)?[A-Za-z]:[/\\\\])",
+					"not": {
+						"pattern": "\u0000"
+					}
+				},
+				"repositoryName": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 4096,
+					"not": {
+						"pattern": "\u0000"
+					}
+				},
+				"checkoutPath": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 4096,
+					"pattern": "^(?:/|(?:\\\\\\\\\\?\\\\)?[A-Za-z]:[/\\\\])",
+					"not": {
+						"pattern": "\u0000"
+					}
+				},
+				"linked": {
+					"type": "boolean"
+				}
+			}
 		}
 	}
 }

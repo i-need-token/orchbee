@@ -597,6 +597,34 @@
 					"reason": "physical-unknown"
 				}
 			}
+		},
+		{
+			"name": "invoke-with-native-worktree",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.plugin",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"action": {
+					"kind": "invoke",
+					"operationId": "44444444444444444444444444444444",
+					"pluginId": null,
+					"actionId": "tools.hello",
+					"context": {
+						"selectedText": "你好",
+						"invocationSource": "cli",
+						"worktree": {
+							"workerId": "33333333333333333333333333333333",
+							"repositoryRoot": "C:/repo",
+							"commonDirectory": "C:/repo/.git",
+							"repositoryName": "项目",
+							"checkoutPath": "C:/worktree",
+							"linked": true
+						}
+					}
+				}
+			}
 		}
 	],
 	"invalid": [
@@ -929,6 +957,209 @@
 				}
 			},
 			"boundary": "semantic"
+		},
+		{
+			"name": "worktree-relative-checkout",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.plugin",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"action": {
+					"kind": "invoke",
+					"operationId": "44444444444444444444444444444444",
+					"pluginId": null,
+					"actionId": "tools.hello",
+					"context": {
+						"selectedText": "你好",
+						"invocationSource": "cli",
+						"worktree": {
+							"workerId": "33333333333333333333333333333333",
+							"repositoryRoot": "C:/repo",
+							"commonDirectory": "C:/repo/.git",
+							"repositoryName": "项目",
+							"checkoutPath": "relative",
+							"linked": true
+						}
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "worktree-empty-repository",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.plugin",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"action": {
+					"kind": "invoke",
+					"operationId": "44444444444444444444444444444444",
+					"pluginId": null,
+					"actionId": "tools.hello",
+					"context": {
+						"selectedText": "你好",
+						"invocationSource": "cli",
+						"worktree": {
+							"workerId": "33333333333333333333333333333333",
+							"repositoryRoot": "C:/repo",
+							"commonDirectory": "C:/repo/.git",
+							"repositoryName": "",
+							"checkoutPath": "C:/worktree",
+							"linked": true
+						}
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "worktree-nul-repository",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.plugin",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"action": {
+					"kind": "invoke",
+					"operationId": "44444444444444444444444444444444",
+					"pluginId": null,
+					"actionId": "tools.hello",
+					"context": {
+						"selectedText": "你好",
+						"invocationSource": "cli",
+						"worktree": {
+							"workerId": "33333333333333333333333333333333",
+							"repositoryRoot": "C:/repo",
+							"commonDirectory": "C:/repo/.git",
+							"repositoryName": "a\u0000b",
+							"checkoutPath": "C:/worktree",
+							"linked": true
+						}
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "worktree-unknown-field",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.plugin",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"action": {
+					"kind": "invoke",
+					"operationId": "44444444444444444444444444444444",
+					"pluginId": null,
+					"actionId": "tools.hello",
+					"context": {
+						"selectedText": "你好",
+						"invocationSource": "cli",
+						"worktree": {
+							"workerId": "33333333333333333333333333333333",
+							"repositoryRoot": "C:/repo",
+							"commonDirectory": "C:/repo/.git",
+							"repositoryName": "项目",
+							"checkoutPath": "C:/worktree",
+							"linked": true,
+							"unknown": true
+						}
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "worktree-zero-worker",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.plugin",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"action": {
+					"kind": "invoke",
+					"operationId": "44444444444444444444444444444444",
+					"pluginId": null,
+					"actionId": "tools.hello",
+					"context": {
+						"selectedText": "你好",
+						"invocationSource": "cli",
+						"worktree": {
+							"workerId": "00000000000000000000000000000000",
+							"repositoryRoot": "C:/repo",
+							"commonDirectory": "C:/repo/.git",
+							"repositoryName": "项目",
+							"checkoutPath": "C:/worktree",
+							"linked": true
+						}
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "worktree-bad-linked",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.plugin",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"action": {
+					"kind": "invoke",
+					"operationId": "44444444444444444444444444444444",
+					"pluginId": null,
+					"actionId": "tools.hello",
+					"context": {
+						"selectedText": "你好",
+						"invocationSource": "cli",
+						"worktree": {
+							"workerId": "33333333333333333333333333333333",
+							"repositoryRoot": "C:/repo",
+							"commonDirectory": "C:/repo/.git",
+							"repositoryName": "项目",
+							"checkoutPath": "C:/worktree",
+							"linked": "true"
+						}
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "worktree-missing-field",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.plugin",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"action": {
+					"kind": "invoke",
+					"operationId": "44444444444444444444444444444444",
+					"pluginId": null,
+					"actionId": "tools.hello",
+					"context": {
+						"selectedText": "你好",
+						"invocationSource": "cli",
+						"worktree": {
+							"workerId": "33333333333333333333333333333333",
+							"repositoryRoot": "C:/repo",
+							"commonDirectory": "C:/repo/.git",
+							"repositoryName": "项目",
+							"checkoutPath": "C:/worktree"
+						}
+					}
+				}
+			},
+			"boundary": "schema"
 		}
 	]
 }
