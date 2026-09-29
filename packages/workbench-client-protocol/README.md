@@ -179,6 +179,11 @@ cases exercise both bindings and JSON Schema without introducing a Desktop runti
 
 Directional control adds `focus-direction` intent and `direction-focused` / `direction-unchanged` receipts on ordinary frames 25/26. Focus success validates an exact destination distinct from the source and its observed view. No-neighbor validates the source layout revision while allowing an unrelated current context. The shared corpus covers closed shapes, revisions, target/intent mismatches and invalid directions.
 
+No-neighbor `direction-unchanged` may retain a Busy view because it does not dismiss the current
+mode or navigate. Starting remains invalid and source revision fences still apply; successful
+`direction-focused` still requires a settled view. Panel and directional focus admission delegates
+cancellable-mode validation to the native Client before any exit effect.
+
 Split adjustment adds strict `resize` and `set-split-ratio` intents and `layout-adjusted` receipts on frames 25/26. Amounts are finite 0–0.5, ratios finite 0.1–0.9, and binary split paths contain at most 16 indices. The bindings independently validate target/revision/view relationships, distinct ordered slots, the exact setter value or clamped signed resize delta, and the resize-only no-split result. Ordinary Applied cannot acknowledge either intent. The shared corpus contains 64 valid and 115 invalid documents; structural JSON Schema checks supplement independent semantic validators. Runtime lifetime, draw ordering and inactive storage belong to the Windows layout owner.
 
 ## Panel custom labels

@@ -355,7 +355,7 @@ impl ClientView {
     }
 
     #[cfg(windows)]
-    pub(crate) fn dismiss_agent_focus_modes(&mut self) {
+    pub(crate) fn dismiss_focus_modes(&mut self) {
         self.dismiss_overlay();
         self.prefix_active = false;
     }

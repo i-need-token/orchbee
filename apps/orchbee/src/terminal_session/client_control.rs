@@ -11,7 +11,7 @@ mod lane;
 use lane::{ClientControlLane, Sample};
 
 #[derive(Default)]
-enum AgentFocusModes {
+enum FocusModes {
     #[default]
     Unprepared,
     Exiting,
@@ -26,7 +26,7 @@ enum ModeStep {
     Interrupted,
 }
 
-impl AgentFocusModes {
+impl FocusModes {
     fn decide(&self, shell_mode: bool, dialog: bool, history: bool) -> ModeStep {
         match self {
             Self::Unprepared => ModeStep::Prepare,
@@ -45,7 +45,7 @@ pub(super) struct StepProgress {
     pub(super) tab_attempted: bool,
     pub(super) had_effect: bool,
     pub(super) toggle_origin: Option<bool>,
-    focus_modes: AgentFocusModes,
+    focus_modes: FocusModes,
 }
 pub(super) enum ControlStep {
     Waiting,
@@ -65,6 +65,22 @@ enum Execution {
     },
 }
 impl Execution {
+    fn focus_target(&self) -> Option<&ClientViewControl> {
+        match self {
+            Self::Navigation { target, .. }
+                if matches!(
+                    target.intent,
+                    ClientViewIntent::Context { .. }
+                        | ClientViewIntent::Tab { .. }
+                        | ClientViewIntent::Panel { .. }
+                        | ClientViewIntent::AgentFocus { .. }
+                ) =>
+            {
+                Some(target)
+            }
+            _ => None,
+        }
+    }
     fn had_effect(&self) -> bool {
         match self {
             Self::Navigation { progress, .. } => progress.had_effect,
@@ -80,7 +96,10 @@ impl Execution {
     ) -> ControlStep {
         match self {
             Self::Navigation { target, progress }
-                if matches!(target.intent, ClientViewIntent::AgentFocus { .. }) =>
+                if matches!(
+                    target.intent,
+                    ClientViewIntent::AgentFocus { .. } | ClientViewIntent::Panel { .. }
+                ) =>
             {
                 if let Err(reason) = native.agent_focus_source(target) {
                     return ControlStep::Failed(reason);
@@ -94,11 +113,11 @@ impl Execution {
                     native.control_history(),
                 ) {
                     ModeStep::Prepare => {
-                        let changed = match native.dismiss_agent_focus_modes(target) {
+                        let changed = match native.dismiss_focus_modes(target) {
                             Ok(changed) => changed,
                             Err(reason) => return ControlStep::Failed(reason),
                         };
-                        progress.focus_modes = AgentFocusModes::Exiting;
+                        progress.focus_modes = FocusModes::Exiting;
                         progress.had_effect |= changed || shell_mode;
                         *dismiss_shell_modes = shell_mode;
                         if changed || shell_mode {
@@ -109,7 +128,7 @@ impl Execution {
                     ModeStep::Interrupted => return ControlStep::Failed(Reason::Interrupted),
                     ModeStep::Navigate => {}
                 }
-                progress.focus_modes = AgentFocusModes::Finished;
+                progress.focus_modes = FocusModes::Finished;
                 native.control_step(target, progress)
             }
             _ if shell_mode || too_small || native.control_modal() => {
@@ -231,9 +250,9 @@ impl ClientControl {
             pending.interrupted = true;
         }
     }
-    pub(super) fn interrupt_agent_focus(&mut self) {
+    pub(super) fn interrupt_focus(&mut self) {
         if let Some(pending) = &mut self.pending
-            && matches!(pending.command.intent, ClientViewIntent::AgentFocus { .. })
+            && pending.execution.focus_target().is_some()
         {
             pending.interrupted = true;
         }
@@ -305,7 +324,7 @@ impl ClientControl {
                 ClientViewIntent::Resize { .. } | ClientViewIntent::SetSplitRatio { .. }
             ) {
                 let prepared = delivery
-                    .layout_snapshot
+                    .workbench_snapshot
                     .as_ref()
                     .ok_or(Reason::ProjectionUnavailable)
                     .and_then(|snapshot| {
@@ -344,7 +363,7 @@ impl ClientControl {
                 let target = match prepare_control(
                     native,
                     &command,
-                    delivery.layout_snapshot.as_ref(),
+                    delivery.workbench_snapshot.as_ref(),
                     self.viewport,
                 ) {
                     Ok(execution) => execution,
@@ -437,11 +456,11 @@ impl ClientControl {
             .filter(|pending| pending.awaiting_draw && !pending.interrupted)
             .and_then(|pending| {
                 let mut outcome = pending.execution.outcome(native, &pending.command, &view)?;
-                if matches!(pending.command.intent, ClientViewIntent::AgentFocus { .. }) {
+                if let Some(target) = pending.execution.focus_target() {
                     let result = if self.clock.now() >= pending.deadline {
                         Err(Reason::Expired)
                     } else {
-                        native.finish_agent_focus(&pending.command)
+                        native.finish_focus(target)
                     };
                     if let Err(reason) = result {
                         outcome = if pending.execution.had_effect() {
@@ -494,6 +513,12 @@ fn prepare_control(
     native
         .agent_focus_source(command)
         .map_err(|reason| Box::new(ClientViewCompletionOutcome::Rejected { reason }))?;
+    if matches!(command.intent, ClientViewIntent::Panel { .. }) {
+        snapshot
+            .ok_or(Reason::ProjectionUnavailable)
+            .and_then(|snapshot| native.validate_panel_focus(command, snapshot))
+            .map_err(|reason| Box::new(ClientViewCompletionOutcome::Rejected { reason }))?;
+    }
     if matches!(command.intent, ClientViewIntent::Presentation { .. }) {
         return Err(Box::new(
             snapshot

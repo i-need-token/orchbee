@@ -1,4 +1,4 @@
-//! Explicit Agent focus retains subject identity and acknowledges one selected Tab.
+//! Exact Agent subject identity and physical-frame readiness for explicit focus.
 use super::NativeUi;
 use orchbee_agent_observation_protocol::AgentNameTarget;
 use orchbee_workbench_protocol::{
@@ -6,56 +6,6 @@ use orchbee_workbench_protocol::{
 };
 
 impl NativeUi {
-    /// One preflight precedes every cancellation. Pending operations keep their owners/receipts.
-    pub(in crate::terminal_session) fn dismiss_agent_focus_modes(
-        &mut self,
-        command: &ClientViewControl,
-    ) -> Result<bool, Reason> {
-        self.agent_focus_source(command)?;
-        let state = self.state.as_ref().ok_or(Reason::ProjectionUnavailable)?;
-        let setup = self.view().setup_draft().map(|draft| draft.token());
-        if self.retirement_failure.is_some()
-            || !matches!(
-                state.phase_kind(),
-                super::SessionPhaseKind::Ready | super::SessionPhaseKind::Empty
-            )
-            || state.pending_refresh_generation().is_some()
-            || state.mutation_in_progress()
-            || (state.mutation_blocks_structure() && setup.is_none())
-            || self.view().close_status().is_some()
-        {
-            return Err(Reason::Busy);
-        }
-        let history = self.control_history();
-        let mailbox = self.mailbox.as_ref().cloned();
-        if history && mailbox.is_none() {
-            return Err(Reason::ProjectionUnavailable);
-        }
-        let changed = self.control_modal() || state.rename_draft_blocks_structure();
-        self.cancel_close();
-        self.cancel_panel_close();
-        if let Some(state) = self.state.as_mut() {
-            state.cancel_rename_draft();
-        }
-        if let Some(token) = setup {
-            self.cancel_setup_draft(token);
-        }
-        self.board.close();
-        if let Some(mailbox) = mailbox {
-            for index in 0..self.projections.len() {
-                if self.retirement_failure.is_some() {
-                    break;
-                }
-                let key = self.projections[index].key.clone();
-                if let Some(viewport) = self.projections[index].viewport.as_mut() {
-                    let effect = viewport.nav(super::ViewportNav::Exit);
-                    self.settle_viewport_effect(&mailbox, &key, effect);
-                }
-            }
-        }
-        Ok(changed)
-    }
-
     pub(in crate::terminal_session) fn agent_focus_source(
         &self,
         command: &ClientViewControl,
@@ -130,43 +80,5 @@ impl NativeUi {
             }
         }
         Ok(true)
-    }
-
-    pub(in crate::terminal_session) fn finish_agent_focus(
-        &mut self,
-        command: &ClientViewControl,
-    ) -> Result<(), Reason> {
-        let (_, view) = self
-            .control_observation(false)
-            .ok_or(Reason::ProjectionUnavailable)?;
-        if !command
-            .intent
-            .is_observed(&view, command.minimum_workbench_revision)
-        {
-            return Err(Reason::StaleView);
-        }
-        if !self.agent_focus_ready(command)? {
-            return Err(Reason::ProjectionUnavailable);
-        }
-        let ClientViewIntent::AgentFocus { tab_id, .. } = &command.intent else {
-            return Ok(());
-        };
-        let state = self.state.as_ref().ok_or(Reason::ProjectionUnavailable)?;
-        let tab = state
-            .cache()
-            .tab_index(tab_id)
-            .and_then(|index| state.cache().tabs().get(index))
-            .ok_or(Reason::TargetUnavailable)?;
-        let presentations: Vec<_> = (0..tab.panel_count())
-            .filter_map(|index| tab.panel(index))
-            .flat_map(|panel| {
-                panel
-                    .presentations()
-                    .map(|member| member.presentation_id().as_str().to_owned())
-            })
-            .collect();
-        self.attention
-            .acknowledge_focused_tab(&presentations.iter().map(String::as_str).collect());
-        Ok(())
     }
 }

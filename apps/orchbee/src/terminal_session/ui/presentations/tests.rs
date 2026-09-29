@@ -715,3 +715,36 @@ fn passive_empty_member_read_keeps_identity_and_never_exports_a_pending_switch()
     assert!(!child.same_member(&first));
     assert!(ui.state.as_ref().unwrap().focus_pane_ref().is_none());
 }
+
+#[test]
+fn unbound_panel_focus_exits_board_without_attaching_a_terminal() {
+    use crate::terminal_session::client_control::{ControlStep, StepProgress};
+    use orchbee_workbench_protocol::{ClientViewControl, ClientViewIntent, ClientViewSequence};
+    let (mut ui, mailbox, _) = empty_ui();
+    let (_, before) = ui.control_observation(false).unwrap();
+    let selection = before.selection.clone().unwrap();
+    let command = ClientViewControl {
+        operation_id: serde_json::from_value(serde_json::json!(format!("{:032x}", 91))).unwrap(),
+        client_id: serde_json::from_value(serde_json::json!(format!("{:032x}", 92))).unwrap(),
+        expected_view_revision: ClientViewSequence::new(1).unwrap(),
+        minimum_workbench_revision: before.workbench_revision,
+        intent: ClientViewIntent::Panel {
+            terminal_context_id: selection.terminal_context_id,
+            tab_id: selection.tab_id.unwrap(),
+            panel_id: selection.panel_id.unwrap(),
+        },
+    };
+    ui.board.open();
+    assert!(ui.control_dialog());
+    assert_eq!(ui.validate_panel_focus(&command, &empty_source()), Ok(()));
+    assert_eq!(ui.dismiss_focus_modes(&command), Ok(true));
+    assert!(!ui.control_dialog());
+    assert!(matches!(
+        ui.control_step(&command, &mut StepProgress::default()),
+        ControlStep::Observed
+    ));
+    assert_eq!(ui.finish_focus(&command), Ok(()));
+    assert_eq!(ui.control_observation(false).unwrap().1, before);
+    assert!(ui.state.as_ref().unwrap().selected_is_unbound());
+    assert!(mailbox.try_recv().unwrap().is_none());
+}

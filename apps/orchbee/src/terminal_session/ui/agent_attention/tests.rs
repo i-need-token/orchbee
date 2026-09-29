@@ -156,18 +156,18 @@ fn agent_focus_cancels_only_after_validating_its_source_and_does_not_discard_his
     assert!(ui.request_rename_draft().is_some());
     ui.board.open();
     assert_eq!(
-        ui.dismiss_agent_focus_modes(&stale),
+        ui.dismiss_focus_modes(&stale),
         Err(orchbee_workbench_protocol::ClientViewControlReason::ProjectionUnavailable)
     );
     assert!(ui.view().rename_draft().is_some());
     assert!(ui.view().agent_board().is_some());
-    assert_eq!(ui.dismiss_agent_focus_modes(&command), Ok(true));
+    assert_eq!(ui.dismiss_focus_modes(&command), Ok(true));
     assert!(ui.view().rename_draft().is_none());
     assert!(ui.view().agent_board().is_none());
 
     ui.request_close_confirmation();
     assert!(ui.view().close_confirmation().is_some());
-    assert_eq!(ui.dismiss_agent_focus_modes(&command), Ok(true));
+    assert_eq!(ui.dismiss_focus_modes(&command), Ok(true));
     assert!(ui.view().close_confirmation().is_none());
     assert!(
         ui.request_setup_draft(
@@ -175,7 +175,7 @@ fn agent_focus_cancels_only_after_validating_its_source_and_does_not_discard_his
         )
         .is_some()
     );
-    assert_eq!(ui.dismiss_agent_focus_modes(&command), Ok(true));
+    assert_eq!(ui.dismiss_focus_modes(&command), Ok(true));
     assert!(ui.view().setup_draft().is_none());
 
     let mailbox = ui.mailbox.as_ref().unwrap().clone();
@@ -187,7 +187,7 @@ fn agent_focus_cancels_only_after_validating_its_source_and_does_not_discard_his
         mailbox.finish_lease(lease).unwrap();
     }
     assert!(ui.control_history());
-    assert_eq!(ui.dismiss_agent_focus_modes(&command), Ok(true));
+    assert_eq!(ui.dismiss_focus_modes(&command), Ok(true));
     let mut steps = vec![];
     while let Some(lease) = mailbox.try_recv().unwrap() {
         let QueuedCommand::Viewport(tagged) = lease.record() else {
@@ -241,7 +241,7 @@ fn explicit_agent_focus_acknowledges_an_already_focused_agent_despite_outer_focu
         1,
         "ordinary unfocused paint never acknowledges"
     );
-    ui.finish_agent_focus(&command).unwrap();
+    ui.finish_focus(&command).unwrap();
     assert_eq!(ui.view().panel_unseen_count(pane.pane().panel()), 0);
 
     let (mut ui, _, mut state) = physical_fixture();
@@ -260,7 +260,7 @@ fn explicit_agent_focus_acknowledges_an_already_focused_agent_despite_outer_focu
     assert!(!physical_seen(&ui, &state));
     ui.after_close_draw(draw(&ui, 120, 40, &shell));
     assert!(!physical_seen(&ui, &state));
-    ui.finish_agent_focus(&command).unwrap();
+    ui.finish_focus(&command).unwrap();
     assert!(physical_seen(&ui, &state));
     state.sequence = orchbee_workbench_protocol::WorkbenchRevision::new(2);
     publish_physical(&mut ui, &state);
@@ -285,10 +285,7 @@ fn agent_focus_refuses_replacement_and_requires_the_matching_live_frame() {
     state.binding.host_terminal_id = AgentHostTerminalId::parse(&"3".repeat(32)).unwrap();
     state.sequence = orchbee_workbench_protocol::WorkbenchRevision::new(2);
     publish_physical(&mut ui, &state);
-    assert_eq!(
-        ui.finish_agent_focus(&command),
-        Err(Reason::TargetUnavailable)
-    );
+    assert_eq!(ui.finish_focus(&command), Err(Reason::TargetUnavailable));
     let replacement = focus_command(
         &ui,
         AgentNameTarget::Terminal {
@@ -298,21 +295,21 @@ fn agent_focus_refuses_replacement_and_requires_the_matching_live_frame() {
     );
     assert!(ui.agent_focus_source(&replacement).is_ok());
     assert_eq!(
-        ui.finish_agent_focus(&replacement),
+        ui.finish_focus(&replacement),
         Err(Reason::TargetUnavailable),
         "old frame belongs to another terminal in the same Host"
     );
     assert!(!physical_seen(&ui, &state));
     ui.projections[0].status = NativeProjectionStatus::Empty;
     assert_eq!(
-        ui.finish_agent_focus(&replacement),
+        ui.finish_focus(&replacement),
         Err(Reason::ProjectionUnavailable)
     );
     assert!(!physical_seen(&ui, &state));
 }
 
 #[test]
-fn explicit_agent_focus_marks_only_current_versions_in_the_requested_tab() {
+fn ordinary_panel_focus_marks_only_current_versions_in_the_requested_tab() {
     use crate::terminal_session::agent_attention::PhysicalRound;
     use crate::terminal_session::ui::publication_hint_tests::ready_split_ui;
     use orchbee_workbench_protocol::{TerminalAgentStateSnapshot, WorkbenchRevision};
@@ -335,18 +332,31 @@ fn explicit_agent_focus_marks_only_current_versions_in_the_requested_tab() {
         report_revision: WorkbenchRevision::new(1),
         states: states.clone(),
     });
-    let tab_ids: std::collections::BTreeSet<_> = states[..states.len() - 1]
-        .iter()
-        .map(|state| state.binding.presentation_id.as_str())
-        .collect();
     ui.observe_focus(false);
-    ui.attention.acknowledge_focused_tab(&tab_ids);
+    let (_, view) = ui.control_observation(false).unwrap();
+    let selection = view.selection.unwrap();
+    let command = serde_json::from_value(json!({
+        "operationId":"1".repeat(32), "clientId":"2".repeat(32), "expectedViewRevision":"1",
+        "minimumWorkbenchRevision":view.workbench_revision,
+        "intent":{"kind":"panel", "terminalContextId":selection.terminal_context_id,
+            "tabId":selection.tab_id, "panelId":selection.panel_id}
+    }))
+    .unwrap();
+    ui.finish_focus(&command).unwrap();
     assert!(
         states[..states.len() - 1]
             .iter()
             .all(|state| physical_seen(&ui, state))
     );
     assert!(!physical_seen(&ui, &outside));
+    for state in &mut states {
+        state.sequence = WorkbenchRevision::new(2);
+    }
+    ui.attention.publish_physical_for_test(&PhysicalRound {
+        report_revision: WorkbenchRevision::new(2),
+        states: states.clone(),
+    });
+    assert!(states.iter().all(|state| !physical_seen(&ui, state)));
 }
 
 #[test]

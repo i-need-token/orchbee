@@ -124,6 +124,10 @@ pnpm --filter @orchbee/workbench-client-protocol test:exports
 
 方向控制新增 `focus-direction` 意图、`direction-focused` 和 `direction-unchanged` 回执，沿用普通 25/26 帧。成功聚焦校验区别于来源的精确目标和已观测视图；无邻居回执校验来源布局版本，支持当前选择位于其他上下文。共享语料覆盖闭合形状、版本、目标、意图不匹配和无效方向。
 
+无邻居的 `direction-unchanged` 可以保留 Busy 视图，因为它不关闭当前模式或导航。
+Starting 仍无效，源版本栅栏继续适用；成功的 `direction-focused` 仍要求视图已稳定。
+Panel 和方向聚焦准入把可取消模式的校验交给原生 Client，在产生退出效果前执行。
+
 分割调整在 25/26 帧新增严格的 `resize`、`set-split-ratio` 意图及 `layout-adjusted` 回执。数量为有限的 0–0.5，比例为有限的 0.1–0.9，二进制分割路径最多 16 个索引。绑定独立校验目标／版本／视图关系、互不相同的有序 slot、精确 setter 数值或夹取后的有符号 resize 增量，以及仅 resize 可用的 no-split 结果。普通 Applied 不能确认这两种意图。共享语料包含 64 个有效、115 个无效文档；结构 JSON Schema 检查补充独立语义校验器。运行时生命周期、绘制顺序和非活动保存归 Windows 布局所有者管理。
 
 ## 窗格自定义标题

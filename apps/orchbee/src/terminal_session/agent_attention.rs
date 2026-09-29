@@ -79,7 +79,7 @@ impl AgentAttention {
         }
     }
 
-    /// Explicit Agent focus marks the selected Tab's current known versions seen, even unfocused.
+    /// Explicit focus marks the selected Tab's current known versions seen, even unfocused.
     /// This consumes only the current snapshots; no deferred acknowledgement survives this call.
     pub(super) fn acknowledge_focused_tab(&mut self, presentations: &BTreeSet<&str>) {
         if let Some(paint) = self.state.paint(presentations) {

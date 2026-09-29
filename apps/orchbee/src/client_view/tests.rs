@@ -37,7 +37,7 @@ fn agent_focus_dismissal_clears_shell_capture_without_changing_pointer_or_sideba
     view.prefix_active = true;
     view.settle_pointer_released(true);
     let sidebar = view.sidebar_surface();
-    view.dismiss_agent_focus_modes();
+    view.dismiss_focus_modes();
     assert!(view.overlay().is_none());
     assert!(!view.prefix_active());
     assert!(view.pointer_released());

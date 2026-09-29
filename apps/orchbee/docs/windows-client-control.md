@@ -168,3 +168,42 @@ Unbound native members extend the passive selection as a strict alternative cont
 null remains absent local membership. Native stable-state and canonical identity checks precede
 publication. Control v7 exposes this alternative, while existing bound/null receipts remain v6 and
 legacy versions reject the unbound shape. Neither variant acknowledges attention or changes focus.
+
+## Explicit focus acknowledgement
+
+A successful Workspace, Tab, direct Panel, directional Panel or Agent focus acknowledges the
+current known attention versions of every Presentation in the selected Tab, including hidden
+siblings and an already selected target while the outer terminal is unfocused. The existing
+Client attention owner performs this once after the matching Ready draw. An empty Context has
+nothing to acknowledge. No acknowledgement is queued for later observations or another Tab.
+
+The controller uses the resolved directional destination; no-neighbor returns without navigation,
+draw or acknowledgement. Read-only queries, zoom and resize do not acquire this explicit effect.
+A decoded human input intent or deadline expiry before the completion draw prevents acknowledgement;
+retained rejected/incomplete outcomes still describe any navigation already performed. Agent focus
+keeps its exact subject/member/physical-frame validation. No OS activation or terminal input occurs.
+
+This follows pinned Herdr `e0507237` Pane focus and Workspace/Tab switch acknowledgement. Workspace/Tab navigation while a modal surface is open remains a separate obligation. Targeted controller and
+attention tests cover outer focus loss, same-target navigation, current-version scope, directional
+resolution/no-neighbor, human input, deadline and replay; full Windows acceptance remains final.
+
+## Panel focus mode exit
+
+Direct Panel focus and a resolved directional neighbor may enter a Busy Client for one cancellable
+mode-exit preflight. Before cancelling any draft or shell surface, the control lane reads one fresh
+canonical Snapshot and the Client validates Site, minimum revision and exact Context/Tab/Panel
+membership. A missing, denied, stale or unavailable target leaves modes untouched. Directional
+geometry resolves once before mode exit; no neighbor returns unchanged without a draw or acknowledgement.
+
+Panel and Agent focus share the existing Client-owned exit sequence: cancel unsent dialogs and
+shell modes once, request history recovery through its viewport owner, wait for recovery and a
+fresh live frame, then navigate and acknowledge after the matching Ready draw. Stable unbound
+selection is admissible without creating an attachment. Submitted mutations, pending refresh,
+close settlement, retirement and an undersized viewport refuse before cancellation. A new mode,
+human input or expiry interrupts the request; retained incomplete outcomes report any earlier mode
+or navigation effect. History buffers and submitted operations are never discarded to manufacture readiness.
+
+Workspace/Tab focus does not acquire Panel mode dismissal. No wire fields, public schemas, OS
+activation, terminal input or persistent state are added. Focused controller, canonical-preflight,
+Server admission and Windows lane shutdown tests cover these boundaries; full Windows acceptance
+remains part of final regression.

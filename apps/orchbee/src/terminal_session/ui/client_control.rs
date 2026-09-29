@@ -7,6 +7,152 @@ use orchbee_workbench_protocol::{
 };
 
 impl NativeUi {
+    /// Canonical membership is checked before any Panel mode cancellation.
+    pub(in crate::terminal_session) fn validate_panel_focus(
+        &self,
+        command: &ClientViewControl,
+        snapshot: &orchbee_workbench_protocol::Snapshot,
+    ) -> Result<(), Reason> {
+        use crate::terminal_session::workbench_projection::{
+            project_native_context_tabs, project_native_standalone_tabs,
+        };
+        let ClientViewIntent::Panel {
+            terminal_context_id,
+            tab_id,
+            panel_id,
+        } = &command.intent
+        else {
+            return Err(Reason::Unsupported);
+        };
+        let state = self.state.as_ref().ok_or(Reason::ProjectionUnavailable)?;
+        if snapshot.site_id != *state.cache().site_id()
+            || snapshot.revision < command.minimum_workbench_revision
+            || snapshot.revision < state.cache().revision()
+        {
+            return Err(Reason::ProjectionUnavailable);
+        }
+        let navigation =
+            project_native_standalone_tabs(snapshot).map_err(|_| Reason::ProjectionUnavailable)?;
+        let location = &navigation
+            .navigation()
+            .iter()
+            .find(|entry| entry.location.terminal_context_id() == terminal_context_id)
+            .ok_or(Reason::TargetUnavailable)?
+            .location;
+        let candidate = project_native_context_tabs(snapshot, location)
+            .map_err(|_| Reason::ProjectionUnavailable)?;
+        let tab = candidate
+            .tab_index(tab_id)
+            .and_then(|index| candidate.tabs().get(index))
+            .ok_or(Reason::TargetUnavailable)?;
+        tab.panel_index(panel_id).ok_or(Reason::TargetUnavailable)?;
+        Ok(())
+    }
+
+    /// One preflight precedes every cancellation. Pending operations keep their owners/receipts.
+    pub(in crate::terminal_session) fn dismiss_focus_modes(
+        &mut self,
+        command: &ClientViewControl,
+    ) -> Result<bool, Reason> {
+        self.agent_focus_source(command)?;
+        let state = self.state.as_ref().ok_or(Reason::ProjectionUnavailable)?;
+        let setup = self.view().setup_draft().map(|draft| draft.token());
+        if self.retirement_failure.is_some()
+            || !matches!(
+                state.phase_kind(),
+                super::SessionPhaseKind::Ready | super::SessionPhaseKind::Empty
+            ) && !(state.phase_kind() == super::SessionPhaseKind::SelectedWithoutAttachment
+                && state.selected_is_unbound())
+            || state.pending_refresh_generation().is_some()
+            || state.mutation_in_progress()
+            || (state.mutation_blocks_structure() && setup.is_none())
+            || self.view().close_status().is_some()
+        {
+            return Err(Reason::Busy);
+        }
+        let history = self.control_history();
+        let mailbox = self.mailbox.as_ref().cloned();
+        if history && mailbox.is_none() {
+            return Err(Reason::ProjectionUnavailable);
+        }
+        let changed = self.control_modal() || state.rename_draft_blocks_structure();
+        self.cancel_close();
+        self.cancel_panel_close();
+        if let Some(state) = self.state.as_mut() {
+            state.cancel_rename_draft();
+        }
+        if let Some(token) = setup {
+            self.cancel_setup_draft(token);
+        }
+        self.board.close();
+        if let Some(mailbox) = mailbox {
+            for index in 0..self.projections.len() {
+                if self.retirement_failure.is_some() {
+                    break;
+                }
+                let key = self.projections[index].key.clone();
+                if let Some(viewport) = self.projections[index].viewport.as_mut() {
+                    let effect = viewport.nav(super::ViewportNav::Exit);
+                    self.settle_viewport_effect(&mailbox, &key, effect);
+                }
+            }
+        }
+        Ok(changed)
+    }
+
+    /// Called after the resolved focus target has been drawn without expiry or interruption.
+    pub(in crate::terminal_session) fn finish_focus(
+        &mut self,
+        command: &ClientViewControl,
+    ) -> Result<(), Reason> {
+        let (_, view) = self
+            .control_observation(false)
+            .ok_or(Reason::ProjectionUnavailable)?;
+        if view.phase != ClientViewPhase::Ready
+            || !command
+                .intent
+                .is_observed(&view, command.minimum_workbench_revision)
+        {
+            return Err(Reason::StaleView);
+        }
+        if !self.agent_focus_ready(command)? {
+            return Err(Reason::ProjectionUnavailable);
+        }
+        let tab_id = match &command.intent {
+            ClientViewIntent::Context { .. } => {
+                let Some(tab_id) = view
+                    .selection
+                    .as_ref()
+                    .and_then(|selection| selection.tab_id.as_ref())
+                else {
+                    return Ok(());
+                };
+                tab_id
+            }
+            ClientViewIntent::Tab { tab_id, .. }
+            | ClientViewIntent::Panel { tab_id, .. }
+            | ClientViewIntent::AgentFocus { tab_id, .. } => tab_id,
+            _ => return Err(Reason::Unsupported),
+        };
+        let state = self.state.as_ref().ok_or(Reason::ProjectionUnavailable)?;
+        let tab = state
+            .cache()
+            .tab_index(tab_id)
+            .and_then(|index| state.cache().tabs().get(index))
+            .ok_or(Reason::TargetUnavailable)?;
+        let presentations: Vec<_> = (0..tab.panel_count())
+            .filter_map(|index| tab.panel(index))
+            .flat_map(|panel| {
+                panel
+                    .presentations()
+                    .map(|member| member.presentation_id().as_str().to_owned())
+            })
+            .collect();
+        self.attention
+            .acknowledge_focused_tab(&presentations.iter().map(String::as_str).collect());
+        Ok(())
+    }
+
     pub(in crate::terminal_session) fn control_modal(&self) -> bool {
         self.control_dialog() || self.control_history()
     }

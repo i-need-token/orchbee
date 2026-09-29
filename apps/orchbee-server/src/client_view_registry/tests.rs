@@ -274,7 +274,7 @@ fn navigation_receipts_validate_owner_and_correlated_memory_without_reexecution(
 }
 
 #[test]
-fn viewport_read_reserves_bounded_memory_and_reads_busy_without_allowing_navigation() {
+fn viewport_read_reserves_bounded_memory_and_reads_busy_without_allowing_tab_navigation() {
     use orchbee_workbench_protocol::{
         ClientPanelViewport, ClientViewportObservation, ClientViewportSnapshot,
         ClientViewportUnavailable,
@@ -287,12 +287,25 @@ fn viewport_read_reserves_bounded_memory_and_reads_busy_without_allowing_navigat
     };
     view.phase = ClientViewPhase::Busy;
     execute(&mut registry, 1, busy.clone(), now);
+    let mut blocked = command(907, 1);
+    let ClientViewIntent::Panel {
+        terminal_context_id,
+        tab_id,
+        ..
+    } = blocked.intent
+    else {
+        panic!()
+    };
+    blocked.intent = ClientViewIntent::Tab {
+        terminal_context_id,
+        tab_id,
+    };
     assert!(matches!(
         status(execute(
             &mut registry,
             20,
             ClientViewAction::Submit {
-                command: Box::new(command(907, 1))
+                command: Box::new(blocked)
             },
             now
         )),
@@ -1034,7 +1047,7 @@ fn ratio_receipts_require_exact_owner_target_and_value_and_never_reexecute_on_re
 }
 
 #[test]
-fn presentation_read_reserves_bounded_memory_and_reads_busy_without_allowing_navigation() {
+fn presentation_read_reserves_bounded_memory_and_reads_busy_without_allowing_tab_navigation() {
     let now = Instant::now();
     let mut registry = ClientViewRegistry::default();
     let mut busy = sample();
@@ -1043,12 +1056,25 @@ fn presentation_read_reserves_bounded_memory_and_reads_busy_without_allowing_nav
     };
     view.phase = ClientViewPhase::Busy;
     execute(&mut registry, 1, busy.clone(), now);
+    let mut blocked = command(907, 1);
+    let ClientViewIntent::Panel {
+        terminal_context_id,
+        tab_id,
+        ..
+    } = blocked.intent
+    else {
+        panic!()
+    };
+    blocked.intent = ClientViewIntent::Tab {
+        terminal_context_id,
+        tab_id,
+    };
     assert!(matches!(
         status(execute(
             &mut registry,
             20,
             ClientViewAction::Submit {
-                command: Box::new(command(907, 1))
+                command: Box::new(blocked)
             },
             now
         )),
@@ -1114,4 +1140,91 @@ fn presentation_read_reserves_bounded_memory_and_reads_busy_without_allowing_nav
         ClientViewControlStatus::PresentationRead { .. }
     ));
     assert_eq!(status(execute(&mut registry, 20, submit, now)), completed);
+}
+
+#[test]
+fn busy_client_delivers_panel_and_directional_focus_but_starting_refuses() {
+    for phase in [ClientViewPhase::Busy, ClientViewPhase::Starting] {
+        for directional in [false, true] {
+            let now = Instant::now();
+            let mut registry = ClientViewRegistry::default();
+            let mut observed = sample();
+            let ClientViewAction::Synchronize { view, .. } = &mut observed else {
+                panic!()
+            };
+            view.phase = phase;
+            execute(&mut registry, 1, observed.clone(), now);
+            let mut target = command(909, 1);
+            if directional {
+                let ClientViewIntent::Panel {
+                    terminal_context_id,
+                    tab_id,
+                    panel_id,
+                } = target.intent
+                else {
+                    panic!()
+                };
+                target.intent = ClientViewIntent::FocusDirection {
+                    terminal_context_id,
+                    tab_id,
+                    panel_id,
+                    direction: orchbee_workbench_protocol::ClientPanelDirection::Right,
+                };
+            }
+            let outcome = status(execute(
+                &mut registry,
+                20,
+                ClientViewAction::Submit {
+                    command: Box::new(target.clone()),
+                },
+                now,
+            ));
+            if phase == ClientViewPhase::Starting {
+                assert!(matches!(
+                    outcome,
+                    ClientViewControlStatus::Rejected {
+                        reason: ClientViewControlReason::Busy
+                    }
+                ));
+                assert!(matches!(
+                    execute(&mut registry, 1, observed, now),
+                    ClientViewOutcome::Synchronized { control: None, .. }
+                ));
+            } else {
+                assert!(matches!(outcome, ClientViewControlStatus::Queued {}));
+                let ClientViewOutcome::Synchronized {
+                    control: Some(delivered),
+                    ..
+                } = execute(&mut registry, 1, observed.clone(), now)
+                else {
+                    panic!("Busy focus must reach the Client preflight")
+                };
+                assert_eq!(*delivered, target);
+                if directional {
+                    let ClientViewAction::Synchronize {
+                        heartbeat,
+                        completion,
+                        ..
+                    } = &mut observed
+                    else {
+                        panic!()
+                    };
+                    *heartbeat = ClientViewSequence::new(2).unwrap();
+                    *completion = Some(ClientViewCompletion {
+                        operation_id: target.operation_id,
+                        outcome: ClientViewCompletionOutcome::DirectionUnchanged {
+                            layout_revision: WorkbenchRevision::new(12),
+                        },
+                    });
+                    assert!(matches!(
+                        execute(&mut registry, 1, observed, now),
+                        ClientViewOutcome::Synchronized { control: None, .. }
+                    ));
+                    assert!(
+                        matches!(status(read(&mut registry, 909, now)), ClientViewControlStatus::DirectionUnchanged { view, .. } if view.phase == ClientViewPhase::Busy)
+                    );
+                }
+            }
+        }
+    }
 }

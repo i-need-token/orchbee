@@ -22,7 +22,7 @@ pub(super) struct Sample {
 }
 pub(super) struct Delivery {
     pub(super) command: ClientViewControl,
-    pub(super) layout_snapshot: Option<Snapshot>,
+    pub(super) workbench_snapshot: Option<Snapshot>,
 }
 #[derive(Default)]
 struct Handoff {
@@ -193,9 +193,10 @@ fn run(
             return;
         };
         let delivery = if let Some(control) = control {
-            let layout_snapshot = if matches!(
+            let workbench_snapshot = if matches!(
                 control.intent,
-                ClientViewIntent::Selections { .. }
+                ClientViewIntent::Panel { .. }
+                    | ClientViewIntent::Selections { .. }
                     | ClientViewIntent::Presentation { .. }
                     | ClientViewIntent::Viewports { .. }
                     | ClientViewIntent::Layout { .. }
@@ -231,7 +232,7 @@ fn run(
             };
             Some(Delivery {
                 command: *control,
-                layout_snapshot,
+                workbench_snapshot,
             })
         } else {
             None
@@ -268,12 +269,6 @@ impl ClientControlLane {
             wake,
             task: None,
         }
-    }
-    pub(super) fn inject_for_test(&self, control: ClientViewControl) {
-        self.inject_delivery_for_test(Delivery {
-            command: control,
-            layout_snapshot: None,
-        });
     }
     pub(super) fn inject_delivery_for_test(&self, delivery: Delivery) {
         assert!(

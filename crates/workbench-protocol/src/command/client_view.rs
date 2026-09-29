@@ -196,13 +196,16 @@ pub enum ClientViewIntent {
     },
 }
 impl ClientViewIntent {
-    /// Agent focus owns a cancellable-mode preflight in the Client. It remains an effect.
+    /// Panel and Agent focus own a cancellable-mode preflight in the Client, remaining effects.
     #[must_use]
     pub fn blocked_by_busy_phase(&self, phase: ClientViewPhase) -> bool {
         !self.is_passive_read()
             && match phase {
                 ClientViewPhase::Starting => true,
-                ClientViewPhase::Busy => !matches!(self, Self::AgentFocus { .. }),
+                ClientViewPhase::Busy => !matches!(
+                    self,
+                    Self::AgentFocus { .. } | Self::Panel { .. } | Self::FocusDirection { .. }
+                ),
                 _ => false,
             }
     }
@@ -713,10 +716,7 @@ impl ClientViewOperation {
                         && selection.tab_id.as_ref() == Some(tab_id)
                 });
                 if *layout_revision < self.command.minimum_workbench_revision
-                    || matches!(
-                        view.phase,
-                        ClientViewPhase::Starting | ClientViewPhase::Busy
-                    )
+                    || view.phase == ClientViewPhase::Starting
                     || (selected && *layout_revision != view.workbench_revision)
                 {
                     return Err(ContractError::InvalidDocument);

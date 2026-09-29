@@ -325,7 +325,7 @@ impl TerminalSession {
                 let changed =
                     control.tick(native, view.overlay().is_some() || view.prefix_active());
                 if control.take_shell_mode_dismissal() {
-                    view.dismiss_agent_focus_modes();
+                    view.dismiss_focus_modes();
                 }
                 changed
             }
@@ -625,7 +625,7 @@ impl TerminalInputPort for TerminalSession {
     #[cfg(windows)]
     fn observe_input_intent(&mut self) {
         if let Some(control) = &mut self.client_control {
-            control.interrupt_agent_focus();
+            control.interrupt_focus();
         }
     }
 

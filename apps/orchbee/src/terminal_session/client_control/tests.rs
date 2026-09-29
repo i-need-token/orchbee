@@ -43,14 +43,39 @@ fn command(control: &ClientControl, zoom: Option<bool>) -> ClientViewControl {
     }
 }
 fn inject(control: &ClientControl, command: ClientViewControl) {
-    control.lane.as_ref().unwrap().inject_for_test(command);
+    let workbench_snapshot = matches!(command.intent, ClientViewIntent::Panel { .. }).then(|| {
+        // These controller fixtures are either the two-Tab baseline or its split first Tab.
+        let revision = command.minimum_workbench_revision.value();
+        if control
+            .observed
+            .as_ref()
+            .unwrap()
+            .selection
+            .as_ref()
+            .unwrap()
+            .panel_count
+            == 2
+        {
+            crate::terminal_session::ui::publication_hint_tests::split_snapshot(revision)
+        } else {
+            crate::terminal_session::ui::membership_tests::snapshot(2, revision)
+        }
+    });
+    control
+        .lane
+        .as_ref()
+        .unwrap()
+        .inject_delivery_for_test(lane::Delivery {
+            command,
+            workbench_snapshot,
+        });
 }
 fn completion(control: &ClientControl) -> Option<(Sample, ClientViewCompletion)> {
     control.lane.as_ref().unwrap().completion_for_test()
 }
 
 #[test]
-fn decoded_local_input_reaches_pending_agent_focus_before_terminal_routing() {
+fn decoded_local_input_reaches_pending_focus_before_terminal_routing() {
     use crate::terminal_input::InputDispatcher;
     use crate::terminal_session::{SessionBackend, TerminalSession};
     let cases: &[(&[u8], bool)] = &[
@@ -67,14 +92,28 @@ fn decoded_local_input_reaches_pending_agent_focus_before_terminal_routing() {
         (b"\x1b[I\x1b[O", false),
         (b"\x1b[<0;0;0M", false),
     ];
-    for agent_focus in [true, false] {
+    for focus_kind in ["agent", "panel", "zoom"] {
         for &(packet, intent) in cases {
             let (mut native, agent, clock) =
                 crate::terminal_session::ui::focused_physical_agent_fixture();
             let mut control = controller(clock);
             control.tick(&mut native, false);
             let mut command = command(&control, None);
-            if agent_focus {
+            if focus_kind == "zoom" {
+                command.intent = match command.intent {
+                    ClientViewIntent::Panel {
+                        terminal_context_id,
+                        tab_id,
+                        panel_id,
+                    } => ClientViewIntent::Zoom {
+                        terminal_context_id,
+                        tab_id,
+                        panel_id,
+                        enabled: false,
+                    },
+                    _ => unreachable!(),
+                };
+            } else if focus_kind == "agent" {
                 let ClientViewIntent::Panel {
                     terminal_context_id,
                     tab_id,
@@ -122,12 +161,12 @@ fn decoded_local_input_reaches_pending_agent_focus_before_terminal_routing() {
                     .as_ref()
                     .unwrap()
                     .interrupted,
-                agent_focus && intent,
-                "agent_focus={agent_focus}, packet={packet:?}"
+                focus_kind != "zoom" && intent,
+                "focus_kind={focus_kind}, packet={packet:?}"
             );
             // Even an otherwise complete draw cannot acknowledge after the decoded intent.
             session.after_draw();
-            if agent_focus && intent {
+            if focus_kind != "zoom" && intent {
                 let control = session.client_control.as_ref().unwrap();
                 assert!(completion(control).is_none());
                 assert!(control.pending.as_ref().unwrap().interrupted);
@@ -137,108 +176,112 @@ fn decoded_local_input_reaches_pending_agent_focus_before_terminal_routing() {
 }
 
 #[test]
-fn agent_focus_mode_decisions_distinguish_owned_recovery_from_new_capture() {
-    let mut modes = AgentFocusModes::Unprepared;
+fn focus_mode_decisions_distinguish_owned_recovery_from_new_capture() {
+    let mut modes = FocusModes::Unprepared;
     assert_eq!(modes.decide(true, true, true), ModeStep::Prepare);
-    modes = AgentFocusModes::Exiting;
+    modes = FocusModes::Exiting;
     assert_eq!(modes.decide(false, false, true), ModeStep::Wait);
     assert_eq!(modes.decide(false, true, true), ModeStep::Interrupted);
     assert_eq!(modes.decide(true, false, false), ModeStep::Interrupted);
     assert_eq!(modes.decide(false, false, false), ModeStep::Navigate);
-    modes = AgentFocusModes::Finished;
+    modes = FocusModes::Finished;
     assert_eq!(modes.decide(false, false, true), ModeStep::Interrupted);
     assert_eq!(modes.decide(false, false, false), ModeStep::Navigate);
 }
 
 #[test]
-fn agent_focus_shell_exit_is_one_shot_and_retains_partial_outcomes() {
-    for result in [
-        "applied",
-        "new-mode",
-        "input",
-        "expired",
-        "too-small",
-        "history",
-    ] {
-        let (mut native, agent, clock) =
-            crate::terminal_session::ui::focused_physical_agent_fixture();
-        let mut control = controller(clock);
-        if result == "history" {
-            native.apply_client_action(ClientAction::EnterHistory);
-            assert!(native.control_history());
-        }
-        control.observe_geometry(
-            ratatui::layout::Rect::new(0, 0, if result == "too-small" { 1 } else { 120 }, 36),
-            crate::client_view::SidebarSurface::Hidden,
-        );
-        control.tick(&mut native, true);
-        let mut command = command(&control, None);
-        let ClientViewIntent::Panel {
-            terminal_context_id,
-            tab_id,
-            panel_id,
-        } = command.intent
-        else {
-            panic!("Panel")
-        };
-        command.intent = ClientViewIntent::AgentFocus {
-            terminal_context_id,
-            tab_id,
-            panel_id,
-            presentation_id: orchbee_workbench_protocol::TerminalPresentationId::parse(
-                agent.binding.presentation_id.as_str(),
-            )
-            .unwrap(),
-            target: orchbee_agent_observation_protocol::AgentNameTarget::Terminal {
-                binding: agent.binding.clone(),
-            },
-        };
-        inject(&control, command);
-        control.tick(&mut native, true);
-        assert_eq!(control.take_shell_mode_dismissal(), result != "too-small");
-        assert!(!control.take_shell_mode_dismissal());
-        control.after_draw(&mut native);
-        if result != "too-small" {
-            assert!(
-                completion(&control).is_none(),
-                "mode exit alone is not applied focus"
-            );
-            if result == "input" {
-                control.interrupt();
-            }
-            if result == "expired" {
-                control.pending.as_mut().unwrap().deadline = control.clock.now();
-            }
-            control.tick(&mut native, result == "new-mode");
-            control.after_draw(&mut native);
+fn panel_and_agent_focus_shell_exit_is_one_shot_and_retains_partial_outcomes() {
+    for agent_focus in [false, true] {
+        for result in [
+            "applied",
+            "new-mode",
+            "input",
+            "expired",
+            "too-small",
+            "history",
+        ] {
+            let (mut native, agent, clock) =
+                crate::terminal_session::ui::focused_physical_agent_fixture();
+            let mut control = controller(clock);
             if result == "history" {
-                assert!(completion(&control).is_none());
+                native.apply_client_action(ClientAction::EnterHistory);
                 assert!(native.control_history());
-                control.pending.as_mut().unwrap().deadline = control.clock.now();
-                control.tick(&mut native, false);
             }
+            control.observe_geometry(
+                ratatui::layout::Rect::new(0, 0, if result == "too-small" { 1 } else { 120 }, 36),
+                crate::client_view::SidebarSurface::Hidden,
+            );
+            control.tick(&mut native, true);
+            let mut command = command(&control, None);
+            if agent_focus {
+                let ClientViewIntent::Panel {
+                    terminal_context_id,
+                    tab_id,
+                    panel_id,
+                } = command.intent
+                else {
+                    panic!("Panel")
+                };
+                command.intent = ClientViewIntent::AgentFocus {
+                    terminal_context_id,
+                    tab_id,
+                    panel_id,
+                    presentation_id: orchbee_workbench_protocol::TerminalPresentationId::parse(
+                        agent.binding.presentation_id.as_str(),
+                    )
+                    .unwrap(),
+                    target: orchbee_agent_observation_protocol::AgentNameTarget::Terminal {
+                        binding: agent.binding.clone(),
+                    },
+                };
+            }
+            inject(&control, command);
+            control.tick(&mut native, true);
+            assert_eq!(control.take_shell_mode_dismissal(), result != "too-small");
+            assert!(!control.take_shell_mode_dismissal());
+            control.after_draw(&mut native);
+            if result != "too-small" {
+                assert!(
+                    completion(&control).is_none(),
+                    "mode exit alone is not applied focus"
+                );
+                if result == "input" {
+                    control.interrupt();
+                }
+                if result == "expired" {
+                    control.pending.as_mut().unwrap().deadline = control.clock.now();
+                }
+                control.tick(&mut native, result == "new-mode");
+                control.after_draw(&mut native);
+                if result == "history" {
+                    assert!(completion(&control).is_none());
+                    assert!(native.control_history());
+                    control.pending.as_mut().unwrap().deadline = control.clock.now();
+                    control.tick(&mut native, false);
+                }
+            }
+            let expected = match result {
+                "applied" => ClientViewCompletionOutcome::Applied {},
+                "too-small" => ClientViewCompletionOutcome::Rejected {
+                    reason: Reason::Busy,
+                },
+                "expired" | "history" => ClientViewCompletionOutcome::Incomplete {
+                    reason: Reason::Expired,
+                },
+                _ => ClientViewCompletionOutcome::Incomplete {
+                    reason: Reason::Interrupted,
+                },
+            };
+            assert_eq!(completion(&control).unwrap().1.outcome, expected);
+            assert!(!control.take_shell_mode_dismissal());
+            let attention = native
+                .read_terminal_agent_attention(std::slice::from_ref(&agent.binding))
+                .unwrap();
+            assert_eq!(
+                attention.entries[0].state.as_ref().unwrap().seen,
+                result == "applied"
+            );
         }
-        let expected = match result {
-            "applied" => ClientViewCompletionOutcome::Applied {},
-            "too-small" => ClientViewCompletionOutcome::Rejected {
-                reason: Reason::Busy,
-            },
-            "expired" | "history" => ClientViewCompletionOutcome::Incomplete {
-                reason: Reason::Expired,
-            },
-            _ => ClientViewCompletionOutcome::Incomplete {
-                reason: Reason::Interrupted,
-            },
-        };
-        assert_eq!(completion(&control).unwrap().1.outcome, expected);
-        assert!(!control.take_shell_mode_dismissal());
-        let attention = native
-            .read_terminal_agent_attention(std::slice::from_ref(&agent.binding))
-            .unwrap();
-        assert_eq!(
-            attention.entries[0].state.as_ref().unwrap().seen,
-            result == "applied"
-        );
     }
 }
 
@@ -315,6 +358,81 @@ fn agent_focus_acknowledges_only_after_an_uninterrupted_unexpired_draw() {
         assert!(control.pending.is_none());
         control.after_draw(&mut native);
         assert_eq!(seen(&native), disposition == "applied");
+    }
+}
+
+#[test]
+fn ordinary_focus_acknowledges_an_unfocused_tab_only_after_a_valid_draw() {
+    for kind in ["context", "tab", "panel"] {
+        for ending in ["applied", "expired", "interrupted"] {
+            let (mut native, agent, clock) =
+                crate::terminal_session::ui::focused_physical_agent_fixture();
+            native.observe_focus(false);
+            let mut control = controller(clock);
+            control.tick(&mut native, false);
+            let mut command = command(&control, None);
+            let ClientViewIntent::Panel {
+                terminal_context_id,
+                tab_id,
+                panel_id,
+            } = command.intent
+            else {
+                unreachable!()
+            };
+            command.intent = match kind {
+                "context" => ClientViewIntent::Context {
+                    terminal_context_id,
+                },
+                "tab" => ClientViewIntent::Tab {
+                    terminal_context_id,
+                    tab_id,
+                },
+                _ => ClientViewIntent::Panel {
+                    terminal_context_id,
+                    tab_id,
+                    panel_id,
+                },
+            };
+            inject(&control, command);
+            assert!(control.tick(&mut native, false));
+            let seen = |native: &NativeUi| {
+                native
+                    .read_terminal_agent_attention(std::slice::from_ref(&agent.binding))
+                    .unwrap()
+                    .entries[0]
+                    .state
+                    .as_ref()
+                    .unwrap()
+                    .seen
+            };
+            assert!(!seen(&native));
+            assert!(completion(&control).is_none());
+            if ending == "expired" {
+                control.pending.as_mut().unwrap().deadline = control.clock.now();
+            } else if ending == "interrupted" {
+                control.interrupt();
+            }
+            control.after_draw(&mut native);
+            if ending == "interrupted" {
+                assert!(!seen(&native));
+                control.tick(&mut native, false);
+            }
+            assert_eq!(seen(&native), ending == "applied", "{kind}/{ending}");
+            assert_eq!(
+                completion(&control).unwrap().1.outcome,
+                match ending {
+                    "applied" => ClientViewCompletionOutcome::Applied {},
+                    "expired" => ClientViewCompletionOutcome::Rejected {
+                        reason: Reason::Expired
+                    },
+                    _ => ClientViewCompletionOutcome::Rejected {
+                        reason: Reason::Interrupted
+                    },
+                }
+            );
+            control.after_draw(&mut native);
+            assert_eq!(seen(&native), ending == "applied");
+        }
     }
 }
 
@@ -532,7 +650,7 @@ fn layout_read_completes_without_draw_resize_or_selection_and_pins_its_sample() 
             .unwrap()
             .inject_delivery_for_test(lane::Delivery {
                 command: command.clone(),
-                layout_snapshot: available.then(|| split_snapshot(1)),
+                workbench_snapshot: available.then(|| split_snapshot(1)),
             });
         assert!(
             !control.tick(&mut native, false),
@@ -599,89 +717,103 @@ fn directional_focus_pins_one_neighbor_preserves_zoom_and_requires_draw() {
     };
     use orchbee_workbench_protocol::ClientPanelDirection;
     use ratatui::layout::Rect;
-    for interrupted in [false, true] {
-        let (mut native, mailbox, clock, _elapsed) = ready_split_ui();
-        let poll = mailbox.try_recv().unwrap().unwrap();
-        mailbox.finish_lease(poll).unwrap();
-        native.apply_client_action(ClientAction::ToggleZoom);
-        let mut control = controller(clock.clone());
-        control.observe_geometry(Rect::new(0, 0, 120, 40), SidebarSurface::Hidden);
-        control.tick(&mut native, false);
-        let mut command = command(&control, None);
-        directional(&mut command, ClientPanelDirection::Right);
-        let snapshot = split_snapshot(1);
-        let layout = native
-            .read_client_layout(
-                &command,
-                &snapshot,
-                Rect::new(0, 0, 120, 40),
-                SidebarSurface::Hidden,
-            )
-            .unwrap();
-        let destination = layout.neighbors.right.unwrap();
-        control
-            .lane
-            .as_ref()
-            .unwrap()
-            .inject_delivery_for_test(lane::Delivery {
-                command: command.clone(),
-                layout_snapshot: Some(snapshot),
-            });
-        assert!(!control.tick(&mut native, false));
-        assert!(
-            completion(&control).is_none(),
-            "pending sibling setup is not failure"
-        );
-        let deadline = control.pending.as_ref().unwrap().deadline;
-        crate::terminal_session::ui::publication_hint_tests::attach_split_peer(
-            &mut native,
-            &mailbox,
-            &clock,
-        );
-        assert!(control.tick(&mut native, false));
-        assert_eq!(control.pending.as_ref().unwrap().deadline, deadline);
-        assert!(completion(&control).is_none());
-        let selection = native
-            .control_observation(false)
-            .unwrap()
-            .1
-            .selection
-            .unwrap();
-        assert_eq!(selection.panel_id.as_ref(), Some(&destination));
-        assert!(selection.zoomed);
-        // Resizing hides the original source; the already captured destination still completes.
-        control.observe_geometry(Rect::new(0, 0, 40, 10), SidebarSurface::Hidden);
-        if interrupted {
-            control.interrupt();
-        }
-        assert!(control.tick(&mut native, false));
-        if interrupted {
-            assert_eq!(
-                completion(&control).unwrap().1.outcome,
-                ClientViewCompletionOutcome::Incomplete {
-                    reason: Reason::Interrupted
-                }
-            );
-        } else {
-            assert!(completion(&control).is_none());
-            control.after_draw(&mut native);
-            let (sample, done) = completion(&control).unwrap();
-            assert_eq!(
-                done.outcome,
-                ClientViewCompletionOutcome::DirectionFocused {
-                    panel_id: destination.clone()
-                }
-            );
-            ClientViewOperation {
-                command,
-                status: ClientViewControlStatus::DirectionFocused {
-                    panel_id: destination,
-                    view: sample.view,
-                },
+    for shell_busy in [false, true] {
+        for interrupted in [false, true] {
+            let (mut native, mailbox, clock, _elapsed) = ready_split_ui();
+            let poll = mailbox.try_recv().unwrap().unwrap();
+            mailbox.finish_lease(poll).unwrap();
+            native.apply_client_action(ClientAction::ToggleZoom);
+            let mut control = controller(clock.clone());
+            control.observe_geometry(Rect::new(0, 0, 120, 40), SidebarSurface::Hidden);
+            if shell_busy {
+                assert!(native.request_rename_draft().is_some());
             }
-            .validate()
-            .unwrap();
-            assert!(control.pending.is_none());
+            control.tick(&mut native, shell_busy);
+            let mut command = command(&control, None);
+            directional(&mut command, ClientPanelDirection::Right);
+            let snapshot = split_snapshot(1);
+            let layout = native
+                .read_client_layout(
+                    &command,
+                    &snapshot,
+                    Rect::new(0, 0, 120, 40),
+                    SidebarSurface::Hidden,
+                )
+                .unwrap();
+            let destination = layout.neighbors.right.unwrap();
+            control
+                .lane
+                .as_ref()
+                .unwrap()
+                .inject_delivery_for_test(lane::Delivery {
+                    command: command.clone(),
+                    workbench_snapshot: Some(snapshot),
+                });
+            assert_eq!(control.tick(&mut native, shell_busy), shell_busy);
+            if shell_busy {
+                assert!(control.take_shell_mode_dismissal());
+                assert!(native.view().rename_draft().is_none());
+                assert!(
+                    control.tick(&mut native, false),
+                    "mode exit publishes the changed view"
+                );
+                assert!(!control.pending.as_ref().unwrap().awaiting_draw);
+            }
+            assert!(
+                completion(&control).is_none(),
+                "pending sibling setup is not failure"
+            );
+            let deadline = control.pending.as_ref().unwrap().deadline;
+            crate::terminal_session::ui::publication_hint_tests::attach_split_peer(
+                &mut native,
+                &mailbox,
+                &clock,
+            );
+            assert!(control.tick(&mut native, false));
+            assert_eq!(control.pending.as_ref().unwrap().deadline, deadline);
+            assert!(completion(&control).is_none());
+            let selection = native
+                .control_observation(false)
+                .unwrap()
+                .1
+                .selection
+                .unwrap();
+            assert_eq!(selection.panel_id.as_ref(), Some(&destination));
+            assert!(selection.zoomed);
+            // Resizing hides the original source; the already captured destination still completes.
+            control.observe_geometry(Rect::new(0, 0, 40, 10), SidebarSurface::Hidden);
+            if interrupted {
+                control.interrupt();
+            }
+            assert!(control.tick(&mut native, false));
+            if interrupted {
+                assert_eq!(
+                    completion(&control).unwrap().1.outcome,
+                    ClientViewCompletionOutcome::Incomplete {
+                        reason: Reason::Interrupted
+                    }
+                );
+            } else {
+                assert!(completion(&control).is_none());
+                control.after_draw(&mut native);
+                let (sample, done) = completion(&control).unwrap();
+                assert_eq!(
+                    done.outcome,
+                    ClientViewCompletionOutcome::DirectionFocused {
+                        panel_id: destination.clone()
+                    }
+                );
+                ClientViewOperation {
+                    command,
+                    status: ClientViewControlStatus::DirectionFocused {
+                        panel_id: destination,
+                        view: sample.view,
+                    },
+                }
+                .validate()
+                .unwrap();
+                assert!(control.pending.is_none());
+            }
         }
     }
 }
@@ -696,63 +828,70 @@ fn no_neighbor_in_an_inactive_tab_has_no_selection_attachment_resize_or_draw_eff
     };
     use orchbee_workbench_protocol::ClientPanelDirection;
     use ratatui::layout::Rect;
-    for direction in [
-        ClientPanelDirection::Left,
-        ClientPanelDirection::Right,
-        ClientPanelDirection::Up,
-        ClientPanelDirection::Down,
-    ] {
-        let (mut native, mailbox, clock, _elapsed) = ready_ui();
-        let before = native.control_observation(false).unwrap();
-        let mut control = controller(clock);
-        control.observe_geometry(Rect::new(0, 0, 120, 40), SidebarSurface::Hidden);
-        control.tick(&mut native, false);
-        // The source is in a newer Snapshot of an inactive Tab; current cache stays at revision 1.
-        let snapshot = snapshot(2, 2);
-        let cache = project_native_standalone_tabs(&snapshot).unwrap();
-        let tab = &cache.tabs()[1];
-        let mut command = command(&control, None);
-        command.minimum_workbench_revision = snapshot.revision;
-        command.intent = ClientViewIntent::FocusDirection {
-            terminal_context_id: cache.terminal_context_id().clone(),
-            tab_id: tab.tab_id().clone(),
-            panel_id: tab.panel(0).unwrap().panel_id().clone(),
-            direction,
-        };
-        control
-            .lane
-            .as_ref()
-            .unwrap()
-            .inject_delivery_for_test(lane::Delivery {
-                command: command.clone(),
-                layout_snapshot: Some(snapshot.clone()),
-            });
-        assert!(
-            !control.tick(&mut native, false),
-            "no-neighbor cannot ask shell to synchronize sizes"
-        );
-        let (sample, done) = completion(&control).unwrap();
-        assert_eq!(
-            done.outcome,
-            ClientViewCompletionOutcome::DirectionUnchanged {
-                layout_revision: snapshot.revision
+    for shell_busy in [false, true] {
+        for direction in [
+            ClientPanelDirection::Left,
+            ClientPanelDirection::Right,
+            ClientPanelDirection::Up,
+            ClientPanelDirection::Down,
+        ] {
+            let (mut native, mailbox, clock, _elapsed) = ready_ui();
+            if shell_busy {
+                assert!(native.request_rename_draft().is_some());
             }
-        );
-        assert_eq!(native.control_observation(false).unwrap(), before);
-        assert_eq!(sample.view, before.1);
-        assert!(mailbox.try_recv().unwrap().is_none());
-        assert!(control.pending.is_none());
-        ClientViewOperation {
-            command,
-            status: ClientViewControlStatus::DirectionUnchanged {
-                layout_revision: snapshot.revision,
-                view: sample.view,
-            },
+            let before = native.control_observation(shell_busy).unwrap();
+            let mut control = controller(clock);
+            control.observe_geometry(Rect::new(0, 0, 120, 40), SidebarSurface::Hidden);
+            control.tick(&mut native, shell_busy);
+            // The source is in a newer Snapshot of an inactive Tab; current cache stays at revision 1.
+            let snapshot = snapshot(2, 2);
+            let cache = project_native_standalone_tabs(&snapshot).unwrap();
+            let tab = &cache.tabs()[1];
+            let mut command = command(&control, None);
+            command.minimum_workbench_revision = snapshot.revision;
+            command.intent = ClientViewIntent::FocusDirection {
+                terminal_context_id: cache.terminal_context_id().clone(),
+                tab_id: tab.tab_id().clone(),
+                panel_id: tab.panel(0).unwrap().panel_id().clone(),
+                direction,
+            };
+            control
+                .lane
+                .as_ref()
+                .unwrap()
+                .inject_delivery_for_test(lane::Delivery {
+                    command: command.clone(),
+                    workbench_snapshot: Some(snapshot.clone()),
+                });
+            assert!(
+                !control.tick(&mut native, shell_busy),
+                "no-neighbor cannot ask shell to synchronize sizes"
+            );
+            let (sample, done) = completion(&control).unwrap();
+            assert_eq!(
+                done.outcome,
+                ClientViewCompletionOutcome::DirectionUnchanged {
+                    layout_revision: snapshot.revision
+                }
+            );
+            assert_eq!(native.control_observation(shell_busy).unwrap(), before);
+            assert_eq!(sample.view, before.1);
+            assert!(mailbox.try_recv().unwrap().is_none());
+            assert!(control.pending.is_none());
+            assert!(!control.take_shell_mode_dismissal());
+            assert_eq!(native.view().rename_draft().is_some(), shell_busy);
+            ClientViewOperation {
+                command,
+                status: ClientViewControlStatus::DirectionUnchanged {
+                    layout_revision: snapshot.revision,
+                    view: sample.view,
+                },
+            }
+            .validate()
+            .unwrap();
+            assert!(!control.tick(&mut native, shell_busy));
+            assert_eq!(completion(&control).unwrap().1, done, "status stays pinned");
         }
-        .validate()
-        .unwrap();
-        assert!(!control.tick(&mut native, false));
-        assert_eq!(completion(&control).unwrap().1, done, "status stays pinned");
     }
 }
 
@@ -811,7 +950,7 @@ fn directional_unknown_geometry_never_claims_no_neighbor_or_changes_selection() 
             .unwrap()
             .inject_delivery_for_test(lane::Delivery {
                 command,
-                layout_snapshot: snapshot,
+                workbench_snapshot: snapshot,
             });
         assert!(!control.tick(&mut native, false));
         assert_eq!(
@@ -851,7 +990,7 @@ fn a_directional_destination_that_never_attaches_keeps_the_original_deadline() {
         .unwrap()
         .inject_delivery_for_test(lane::Delivery {
             command,
-            layout_snapshot: Some(split_snapshot(1)),
+            workbench_snapshot: Some(split_snapshot(1)),
         });
     assert!(!control.tick(&mut native, false));
     let deadline = control.pending.as_ref().unwrap().deadline;
@@ -937,7 +1076,7 @@ fn resize_commits_once_preserves_zoom_and_only_draw_or_interruption_settles_it()
             .unwrap()
             .inject_delivery_for_test(lane::Delivery {
                 command: command.clone(),
-                layout_snapshot: Some(snapshot.clone()),
+                workbench_snapshot: Some(snapshot.clone()),
             });
         assert!(control.tick(&mut native, false));
         assert!(completion(&control).is_none());
@@ -1058,7 +1197,7 @@ fn unchanged_ratio_and_no_resize_border_do_not_request_draw_or_queue_native_work
             .unwrap()
             .inject_delivery_for_test(lane::Delivery {
                 command: command.clone(),
-                layout_snapshot: Some(split_snapshot(1)),
+                workbench_snapshot: Some(split_snapshot(1)),
             });
         assert!(!control.tick(&mut native, false));
         let (sample, done) = completion(&control).unwrap();
@@ -1161,7 +1300,7 @@ fn inactive_and_unvisited_ratio_changes_store_without_selection_attachment_or_dr
             .unwrap()
             .inject_delivery_for_test(lane::Delivery {
                 command: command.clone(),
-                layout_snapshot: Some(snapshot.clone()),
+                workbench_snapshot: Some(snapshot.clone()),
             });
         assert!(
             !control.tick(&mut native, false),
@@ -1244,7 +1383,7 @@ fn ratio_paths_require_matching_rendered_and_canonical_split_identity_before_com
             .unwrap()
             .inject_delivery_for_test(lane::Delivery {
                 command,
-                layout_snapshot: (case != "missing-snapshot").then_some(snapshot),
+                workbench_snapshot: (case != "missing-snapshot").then_some(snapshot),
             });
         assert!(!control.tick(&mut native, false));
         assert!(matches!(
@@ -1287,7 +1426,7 @@ fn ratio_creation_guard_rejects_each_replaced_identity_before_any_effect() {
             .unwrap()
             .inject_delivery_for_test(lane::Delivery {
                 command,
-                layout_snapshot: Some(snapshot),
+                workbench_snapshot: Some(snapshot),
             });
         assert!(!control.tick(&mut native, false));
         assert_eq!(
@@ -1330,7 +1469,7 @@ fn presentation_read_completes_without_draw_or_navigation_in_ready_and_busy() {
                 .unwrap()
                 .inject_delivery_for_test(lane::Delivery {
                     command: command.clone(),
-                    layout_snapshot: available.then(|| split_snapshot(1)),
+                    workbench_snapshot: available.then(|| split_snapshot(1)),
                 });
             assert!(!control.tick(&mut native, shell_busy));
             let (sample, completed) = completion(&control).unwrap();
@@ -1355,4 +1494,122 @@ fn presentation_read_completes_without_draw_or_navigation_in_ready_and_busy() {
             assert!(mailbox.try_recv().unwrap().is_none());
         }
     }
+}
+
+#[test]
+fn panel_focus_validates_canonical_target_before_cancelling_modes() {
+    use crate::terminal_session::ui::membership_tests::snapshot;
+    use orchbee_workbench_protocol::{SiteId, WorkbenchRevision};
+    for case in [
+        "valid",
+        "missing",
+        "wrong-site",
+        "stale",
+        "unknown-panel",
+        "wrong-tab",
+        "wrong-context",
+    ] {
+        let (mut native, mailbox, clock, _) = ready_ui();
+        assert!(native.request_rename_draft().is_some());
+        let mut control = controller(clock);
+        control.tick(&mut native, true);
+        let before = native.control_observation(true).unwrap();
+        let mut command = command(&control, None);
+        let mut canonical = snapshot(2, 1);
+        match case {
+            "wrong-site" => canonical.site_id = SiteId::parse(&format!("{:032x}", 99)).unwrap(),
+            "stale" => command.minimum_workbench_revision = WorkbenchRevision::new(2),
+            "unknown-panel" | "wrong-tab" | "wrong-context" => {
+                let ClientViewIntent::Panel {
+                    terminal_context_id,
+                    tab_id,
+                    panel_id,
+                } = &mut command.intent
+                else {
+                    panic!()
+                };
+                match case {
+                    "unknown-panel" => {
+                        *panel_id =
+                            serde_json::from_value(serde_json::json!(format!("{:032x}", 99)))
+                                .unwrap()
+                    }
+                    "wrong-tab" => *tab_id = canonical.terminal_contexts[0].tabs[1].tab_id.clone(),
+                    _ => {
+                        *terminal_context_id =
+                            serde_json::from_value(serde_json::json!(format!("{:032x}", 99)))
+                                .unwrap()
+                    }
+                }
+            }
+            _ => {}
+        }
+        control
+            .lane
+            .as_ref()
+            .unwrap()
+            .inject_delivery_for_test(lane::Delivery {
+                command,
+                workbench_snapshot: (case != "missing").then_some(canonical),
+            });
+        control.tick(&mut native, true);
+        assert_eq!(
+            control.take_shell_mode_dismissal(),
+            case == "valid",
+            "{case}"
+        );
+        assert_eq!(
+            native.view().rename_draft().is_some(),
+            case != "valid",
+            "{case}"
+        );
+        if case == "valid" {
+            assert!(completion(&control).is_none());
+            control.tick(&mut native, false);
+            control.after_draw(&mut native);
+            assert_eq!(
+                completion(&control).unwrap().1.outcome,
+                ClientViewCompletionOutcome::Applied {}
+            );
+        } else {
+            let reason = if matches!(case, "missing" | "wrong-site" | "stale") {
+                Reason::ProjectionUnavailable
+            } else {
+                Reason::TargetUnavailable
+            };
+            assert_eq!(
+                completion(&control).unwrap().1.outcome,
+                ClientViewCompletionOutcome::Rejected { reason },
+                "{case}"
+            );
+            assert_eq!(native.control_observation(true).unwrap(), before);
+            assert!(control.pending.is_none());
+        }
+        assert!(mailbox.try_recv().unwrap().is_none());
+    }
+}
+
+#[test]
+fn panel_focus_preflight_accepts_a_new_canonical_target_before_local_refresh() {
+    use crate::terminal_session::{
+        ui::membership_tests::snapshot, workbench_projection::project_native_standalone_tabs,
+    };
+    let (native, _, clock, _) = ready_ui();
+    let mut control = controller(clock);
+    control.observed = Some(native.control_observation(false).unwrap().1);
+    control.revision = 1;
+    let mut target = command(&control, None);
+    let canonical = snapshot(3, 2);
+    let cache = project_native_standalone_tabs(&canonical).unwrap();
+    let tab = &cache.tabs()[2];
+    target.minimum_workbench_revision = canonical.revision;
+    target.intent = ClientViewIntent::Panel {
+        terminal_context_id: cache.terminal_context_id().clone(),
+        tab_id: tab.tab_id().clone(),
+        panel_id: tab.panel(0).unwrap().panel_id().clone(),
+    };
+    assert_eq!(
+        prepare_control(&native, &target, Some(&canonical), None).unwrap(),
+        target
+    );
 }

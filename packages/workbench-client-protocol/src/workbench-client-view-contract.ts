@@ -486,7 +486,7 @@ export const ClientViewOperationSchema = z
 						selection.panelId === status.panelId &&
 						status.panelId !== intent.panelId &&
 						BigInt(view.workbenchRevision) >= BigInt(command.minimumWorkbenchRevision)
-					: settled &&
+					: view.phase !== 'starting' &&
 						BigInt(status.layoutRevision) >= BigInt(command.minimumWorkbenchRevision) &&
 						(!selected || status.layoutRevision === view.workbenchRevision);
 			if (!valid)
