@@ -82,3 +82,9 @@ mod launch_environment;
 pub use launch_environment::{
     LaunchEnvironment, MAXIMUM_LAUNCH_ENVIRONMENT_BYTES, MAXIMUM_LAUNCH_ENVIRONMENT_ENTRIES,
 };
+
+mod plugin_terminal_environment;
+pub use plugin_terminal_environment::{
+    MAXIMUM_PLUGIN_TERMINAL_ENVIRONMENT_BYTES, PLUGIN_TERMINAL_ENVIRONMENT_NAMES,
+    PluginTerminalEnvironment,
+};

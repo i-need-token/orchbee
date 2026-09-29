@@ -225,8 +225,26 @@
 				},
 				"environment": {
 					"$ref": "#/$defs/launchEnvironment"
+				},
+				"pluginEnvironment": {
+					"$ref": "#/$defs/pluginTerminalEnvironment"
 				}
-			}
+			},
+			"allOf": [
+				{
+					"if": {
+						"required": ["pluginEnvironment"]
+					},
+					"then": {
+						"required": ["launch"],
+						"properties": {
+							"launch": {
+								"$ref": "#/$defs/launchSelection"
+							}
+						}
+					}
+				}
+			]
 		},
 		"terminalStart": {
 			"type": "object",
@@ -1873,6 +1891,162 @@
 				}
 			},
 			"$comment": "recordsAccepted <= firstStoppedRecord. Accepted outcome requires nonzero equal count/index; nonzero count requires cleanup other than not-needed. Binding checks cross-field relations."
+		},
+		"pluginTerminalEnvironment": {
+			"type": "array",
+			"minItems": 7,
+			"maxItems": 10,
+			"items": {
+				"type": "array",
+				"minItems": 2,
+				"maxItems": 2,
+				"prefixItems": [
+					{
+						"enum": [
+							"ORCHBEE_PLUGIN_ID",
+							"ORCHBEE_PLUGIN_ROOT",
+							"ORCHBEE_PLUGIN_ENTRYPOINT_ID",
+							"ORCHBEE_PLUGIN_CONFIG_DIR",
+							"ORCHBEE_PLUGIN_STATE_DIR",
+							"ORCHBEE_PLUGIN_CONTEXT_JSON",
+							"ORCHBEE_BIN_PATH",
+							"ORCHBEE_WORKSPACE_ID",
+							"ORCHBEE_TAB_ID",
+							"ORCHBEE_PANE_ID"
+						]
+					},
+					{
+						"type": "string",
+						"minLength": 1,
+						"maxLength": 24576,
+						"not": {
+							"pattern": "\u0000"
+						}
+					}
+				]
+			},
+			"allOf": [
+				{
+					"contains": {
+						"type": "array",
+						"prefixItems": [
+							{
+								"const": "ORCHBEE_PLUGIN_ID"
+							}
+						]
+					},
+					"minContains": 1,
+					"maxContains": 1
+				},
+				{
+					"contains": {
+						"type": "array",
+						"prefixItems": [
+							{
+								"const": "ORCHBEE_PLUGIN_ROOT"
+							}
+						]
+					},
+					"minContains": 1,
+					"maxContains": 1
+				},
+				{
+					"contains": {
+						"type": "array",
+						"prefixItems": [
+							{
+								"const": "ORCHBEE_PLUGIN_ENTRYPOINT_ID"
+							}
+						]
+					},
+					"minContains": 1,
+					"maxContains": 1
+				},
+				{
+					"contains": {
+						"type": "array",
+						"prefixItems": [
+							{
+								"const": "ORCHBEE_PLUGIN_CONFIG_DIR"
+							}
+						]
+					},
+					"minContains": 1,
+					"maxContains": 1
+				},
+				{
+					"contains": {
+						"type": "array",
+						"prefixItems": [
+							{
+								"const": "ORCHBEE_PLUGIN_STATE_DIR"
+							}
+						]
+					},
+					"minContains": 1,
+					"maxContains": 1
+				},
+				{
+					"contains": {
+						"type": "array",
+						"prefixItems": [
+							{
+								"const": "ORCHBEE_PLUGIN_CONTEXT_JSON"
+							}
+						]
+					},
+					"minContains": 1,
+					"maxContains": 1
+				},
+				{
+					"contains": {
+						"type": "array",
+						"prefixItems": [
+							{
+								"const": "ORCHBEE_BIN_PATH"
+							}
+						]
+					},
+					"minContains": 1,
+					"maxContains": 1
+				},
+				{
+					"contains": {
+						"type": "array",
+						"prefixItems": [
+							{
+								"const": "ORCHBEE_WORKSPACE_ID"
+							}
+						]
+					},
+					"minContains": 0,
+					"maxContains": 1
+				},
+				{
+					"contains": {
+						"type": "array",
+						"prefixItems": [
+							{
+								"const": "ORCHBEE_TAB_ID"
+							}
+						]
+					},
+					"minContains": 0,
+					"maxContains": 1
+				},
+				{
+					"contains": {
+						"type": "array",
+						"prefixItems": [
+							{
+								"const": "ORCHBEE_PANE_ID"
+							}
+						]
+					},
+					"minContains": 0,
+					"maxContains": 1
+				}
+			]
 		}
 	}
 }

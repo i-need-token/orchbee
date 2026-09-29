@@ -29,7 +29,22 @@ fn configured_and_explicit_shells_reach_real_host_launch_preparation() -> Result
         };
         let environment =
             LaunchEnvironment::new(vec![("USER_MARKER".into(), "literal $ value".into())])?;
-        let facts = resolve(Some(&cwd), selection.as_ref(), &environment, &snapshot)?;
+        let plugin = explicit.then(|| {
+            PluginTerminalEnvironment::new(
+                PLUGIN_TERMINAL_ENVIRONMENT_NAMES[..7]
+                    .iter()
+                    .map(|name| ((*name).into(), "plugin value".into()))
+                    .collect(),
+            )
+            .unwrap()
+        });
+        let facts = resolve(
+            Some(&cwd),
+            selection.as_ref(),
+            &environment,
+            plugin.as_ref(),
+            &snapshot,
+        )?;
         let n = NonZeroU64::MIN;
         let authorization = TerminalOperationAuthorization::new(
             TerminalId::from_bytes([1; 16])?,
@@ -53,12 +68,40 @@ fn configured_and_explicit_shells_reach_real_host_launch_preparation() -> Result
             TerminalLaunchMode::Deferred,
             selection,
         )
-        .with_environment(environment);
+        .with_environment(environment)
+        .with_plugin_environment(plugin)?;
         let HostOperationAdmission::Dispatch(dispatch) = kernel.admit_launch(request, 100)? else {
             panic!("dispatch")
         };
         let host = map_launch_dispatch(&dispatch, facts, None)?;
         assert_eq!(host.launch.current_directory.as_deref(), Some(cwd.as_str()));
+        assert_eq!(
+            host.launch
+                .environment
+                .iter()
+                .find(|entry| entry.name == "ORCHBEE_PLUGIN_ID")
+                .unwrap()
+                .value
+                .as_deref(),
+            explicit.then_some("plugin value")
+        );
+        assert!(
+            host.launch
+                .environment
+                .iter()
+                .any(|entry| entry.name == "ORCHBEE_WORKSPACE_ID" && entry.value.is_none())
+        );
+        assert!(
+            host.environment_overlay
+                .iter()
+                .any(|entry| entry.name == "ORCHBEE_TERMINAL_ID" && entry.value == "01".repeat(16))
+        );
+        assert!(
+            host.environment_overlay
+                .iter()
+                .any(|entry| entry.name == "ORCHBEE_WORKER_ID" && entry.value == "03".repeat(16))
+        );
+
         assert!(
             host.launch
                 .environment
@@ -87,4 +130,52 @@ fn configured_and_explicit_shells_reach_real_host_launch_preparation() -> Result
         }
     }
     Ok(())
+}
+
+#[test]
+fn plugin_launch_environment_removes_inherited_display_keys_and_keeps_routing_owned() {
+    let ordinary = LaunchEnvironment::new(vec![("MARKER".into(), "user".into())]).unwrap();
+    let plugin = PluginTerminalEnvironment::new(
+        PLUGIN_TERMINAL_ENVIRONMENT_NAMES[..7]
+            .iter()
+            .map(|name| ((*name).into(), "literal 中文".into()))
+            .collect(),
+    )
+    .unwrap();
+    for selected in [None, Some(&plugin)] {
+        let result = launch_environment(&ordinary, selected);
+        for name in [
+            "ORCHBEE_PLUGIN_ACTION_ID",
+            "ORCHBEE_PLUGIN_CLICKED_URL",
+            "ORCHBEE_PLUGIN_LINK_HANDLER_ID",
+        ] {
+            assert!(
+                result
+                    .iter()
+                    .any(|entry| entry.name == name && entry.value.is_none())
+            );
+        }
+        for name in PLUGIN_TERMINAL_ENVIRONMENT_NAMES {
+            let entries: Vec<_> = result.iter().filter(|entry| entry.name == name).collect();
+            assert_eq!(entries.len(), 1);
+            assert_eq!(
+                entries[0].value.as_deref(),
+                selected
+                    .and_then(|plugin| plugin.entries().iter().find(|(key, _)| key == name))
+                    .map(|(_, value)| value.as_str())
+            );
+        }
+        assert!(
+            result
+                .iter()
+                .any(|entry| entry.name == "MARKER" && entry.value.as_deref() == Some("user"))
+        );
+        assert!(!result.iter().any(|entry| matches!(
+            entry.name.as_str(),
+            "ORCHBEE_RUNTIME_BASE"
+                | "ORCHBEE_RUNTIME_SCOPE"
+                | "ORCHBEE_WORKER_ID"
+                | "ORCHBEE_TERMINAL_ID"
+        )));
+    }
 }

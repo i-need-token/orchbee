@@ -371,3 +371,7 @@ viewport 读取仍为 text。
 选择和非法 detail；运行时 peer 验证精确响应固定。
 
 启动选择另将最坏 JSON 字符串内容限制为 30 KiB：ASCII 控制字符计六字节，引号和反斜杠计两字节，其他 UTF-8 字节计一字节。原有 2 KiB 输入域全部保留，同时约束更大的恢复命令。扩大上限后必须使用匹配 cohort。
+
+## 插件终端展示环境
+
+显式终端启动可携带独立的 `PluginTerminalEnvironment`（OBCS 字段为 `pluginEnvironment`）。只允许插件 ID/root/entrypoint/config/state/context、原生二进制路径及可选 Workspace/Tab/Pane 展示 ID：十个唯一名称，七项必填，合计最多 24 KiB UTF-8。这些是展示数据，不是权限或插件登记。普通调用者环境保持原有上限及保留名称拒绝规则。runtime base/scope 和 Worker/终端身份仍由 Worker 适配器负责。插件环境必须配合显式可执行文件。OBCN 扩展 3 传递显式启动选择、普通环境和插件环境；旧编码及 40 KiB 帧上限不变。Server 在预留物理操作前校验完整插件启动编码。Worker 先清除继承的已知插件展示字段，再应用本次值。Workbench 插件解析、Pane 归属和 Client 布局仍是独立的集成职责。定向边界及启动事实测试覆盖此载荷，不代表插件 Pane 已完整接通。

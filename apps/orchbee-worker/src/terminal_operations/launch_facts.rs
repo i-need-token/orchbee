@@ -23,8 +23,16 @@ pub(super) fn resolve(
     explicit_cwd: Option<&AbsoluteCwd>,
     selection: Option<&orchbee_capability_node_protocol::LaunchSelection>,
     environment: &orchbee_capability_node_protocol::LaunchEnvironment,
+    plugin_environment: Option<&orchbee_capability_node_protocol::PluginTerminalEnvironment>,
     #[cfg(windows)] shell: &orchbee_local_site_runtime::WindowsShellSettings,
 ) -> Result<ResolvedTerminalLaunchFacts, Box<dyn Error>> {
+    if plugin_environment.is_some() && (!cfg!(windows) || selection.is_none()) {
+        return Err(io::Error::new(
+            io::ErrorKind::Unsupported,
+            "plugin terminal environment requires an explicit Windows launch",
+        )
+        .into());
+    }
     // An authorized selection keeps its executable: no PATH search, no shell
     // resolution, and no silent fallback to the default launch. The default
     // environment entries are protocol-fixed, so an explicit selection does
@@ -59,26 +67,56 @@ pub(super) fn resolve(
         CreationId::from_bytes(fresh_identity()?)?,
         executable,
         arguments,
-        default_launch_environment()
-            .into_iter()
-            .map(|entry| LaunchEnvironmentEntry {
-                name: entry.name,
-                value: Some(entry.value),
-            })
-            .chain(
-                environment
-                    .entries()
-                    .iter()
-                    .map(|(name, value)| LaunchEnvironmentEntry {
-                        name: name.clone(),
-                        value: Some(value.clone()),
-                    }),
-            )
-            .collect(),
+        launch_environment(environment, plugin_environment),
         cwd,
         default_terminal_profile(),
         None,
     ))
+}
+
+fn launch_environment(
+    environment: &orchbee_capability_node_protocol::LaunchEnvironment,
+    plugin: Option<&orchbee_capability_node_protocol::PluginTerminalEnvironment>,
+) -> Vec<LaunchEnvironmentEntry> {
+    let mut entries: Vec<_> = default_launch_environment()
+        .into_iter()
+        .map(|entry| LaunchEnvironmentEntry {
+            name: entry.name,
+            value: Some(entry.value),
+        })
+        .chain(
+            environment
+                .entries()
+                .iter()
+                .map(|(name, value)| LaunchEnvironmentEntry {
+                    name: name.clone(),
+                    value: Some(value.clone()),
+                }),
+        )
+        .collect();
+    if cfg!(windows) {
+        for name in orchbee_capability_node_protocol::PLUGIN_TERMINAL_ENVIRONMENT_NAMES {
+            let value = plugin
+                .and_then(|plugin| plugin.entries().iter().find(|(key, _)| key == name))
+                .map(|(_, value)| value.clone());
+            entries.push(LaunchEnvironmentEntry {
+                name: name.into(),
+                value,
+            });
+        }
+        // Action/link invocations can be ancestors of a newly started Site too.
+        for name in [
+            "ORCHBEE_PLUGIN_ACTION_ID",
+            "ORCHBEE_PLUGIN_CLICKED_URL",
+            "ORCHBEE_PLUGIN_LINK_HANDLER_ID",
+        ] {
+            entries.push(LaunchEnvironmentEntry {
+                name: name.into(),
+                value: None,
+            });
+        }
+    }
+    entries
 }
 
 // The native baseline uses the existing Orchbee default profile. This is a

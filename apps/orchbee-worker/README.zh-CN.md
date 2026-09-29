@@ -826,3 +826,7 @@ Worker 在匹配版本的托管启动中接收自有 `WindowsShellSettings` 快�
 ## Windows 插件进程归属
 
 受理请求循环在 Host 创建前后处理有界插件任务 start/list/get/cancel 记录。`plugin_jobs` 保留最多 32 个命令 owner 和 200 条日志；共享 `orchbee-local-site-runtime` Windows 命令所有者 复用 Git 的 Job 清理方式。CLI 断开后已受理任务继续运行。显式停止 Site 时，必须先通知、清理并等待所有插件 owner 结束，才能报告成功。[原生插件行为](../orchbee/docs/windows-plugins.zh-CN.md) 管理调用、分页、输出上限及剩余集成。
+
+## 插件终端启动环境
+
+显式终端启动可携带独立的 `PluginTerminalEnvironment`（OBCS 字段为 `pluginEnvironment`）。只允许插件 ID/root/entrypoint/config/state/context、原生二进制路径及可选 Workspace/Tab/Pane 展示 ID：十个唯一名称，七项必填，合计最多 24 KiB UTF-8。这些是展示数据，不是权限或插件登记。普通调用者环境保持原有上限及保留名称拒绝规则。runtime base/scope 和 Worker/终端身份仍由 Worker 适配器负责。插件环境必须配合显式可执行文件。OBCN 扩展 3 传递显式启动选择、普通环境和插件环境；旧编码及 40 KiB 帧上限不变。Server 在预留物理操作前校验完整插件启动编码。Worker 先清除继承的已知插件展示字段，再应用本次值。Workbench 插件解析、Pane 归属和 Client 布局仍是独立的集成职责。定向边界及启动事实测试覆盖此载荷，不代表插件 Pane 已完整接通。

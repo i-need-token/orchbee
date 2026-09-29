@@ -564,3 +564,7 @@ Control request action tag 5 表示 Takeover，后接预期旧 controller ID（�
 ## 插件任务记录
 
 插件请求/结果使用独立 `OBPJ` 记录：magic、编码版本 1（`u16`）、保留零（`u16`）和有界大端 `u32` 正文长度，最多 2 MiB。普通 OBCN 帧不变。正文包含方向、操作 ID、Worker ID/generation，以及经过校验的 start/list/get/cancel 或 started/logs/cancellation/refused 分支。字符串和字节块使用 `u32` 长度，argv 数量为 `u16`，环境/页数量为 `u8`；拒绝尾随字节。固定意图最多 160 KiB，argv 最多 128 项/128 KiB，每路保留输出最多 64 KiB。每页最多四条递减日志及一致的下一页序号。帧校验不授予执行权。Server/Worker 同批 cohort 启用；[原生插件归属文档](../../apps/orchbee/docs/windows-plugins.zh-CN.md) 定义生命周期和语义。
+
+## 插件终端展示环境
+
+显式终端启动可携带独立的 `PluginTerminalEnvironment`（OBCS 字段为 `pluginEnvironment`）。只允许插件 ID/root/entrypoint/config/state/context、原生二进制路径及可选 Workspace/Tab/Pane 展示 ID：十个唯一名称，七项必填，合计最多 24 KiB UTF-8。这些是展示数据，不是权限或插件登记。普通调用者环境保持原有上限及保留名称拒绝规则。runtime base/scope 和 Worker/终端身份仍由 Worker 适配器负责。插件环境必须配合显式可执行文件。OBCN 扩展 3 传递显式启动选择、普通环境和插件环境；旧编码及 40 KiB 帧上限不变。Server 在预留物理操作前校验完整插件启动编码。Worker 先清除继承的已知插件展示字段，再应用本次值。Workbench 插件解析、Pane 归属和 Client 布局仍是独立的集成职责。定向边界及启动事实测试覆盖此载荷，不代表插件 Pane 已完整接通。

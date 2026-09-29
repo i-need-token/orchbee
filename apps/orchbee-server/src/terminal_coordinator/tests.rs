@@ -1238,3 +1238,62 @@ fn uncreated_close_requires_unique_settled_failed_create_and_no_retained_identit
     coordinator.bindings.get_mut(&id(2)).unwrap().authorization = authorization;
     assert!(!uncreated(&coordinator));
 }
+
+#[test]
+fn plugin_terminal_launch_rejects_oversized_frames_before_reserving_and_preserves_metadata() {
+    let mut coordinator = TerminalCoordinator::new();
+    let request = |large: bool| {
+        let mut entries: Vec<_> = orchbee_client_server_protocol::PLUGIN_TERMINAL_ENVIRONMENT_NAMES
+            [..7]
+            .iter()
+            .map(|key| ((*key).into(), "literal".to_owned()))
+            .collect();
+        if large {
+            entries[5].1 = "x".repeat(20 * 1024);
+        }
+        TerminalCreateRequest::new(
+            RequestId::parse(&format!("{:032x}", 91)).unwrap(),
+            None,
+            None,
+            StartMode::Deferred,
+            Some(
+                orchbee_client_server_protocol::LaunchSelection::new(
+                    "C:/plugin.exe".into(),
+                    vec![if large {
+                        "x".repeat(30 * 1024 - 100)
+                    } else {
+                        "argument".into()
+                    }],
+                )
+                .unwrap(),
+            ),
+        )
+        .with_plugin_environment(Some(
+            orchbee_client_server_protocol::PluginTerminalEnvironment::new(entries).unwrap(),
+        ))
+        .unwrap()
+    };
+    let identity = coordinator.next_identity;
+    assert!(matches!(
+        create_refusal(coordinator.plan_create(request(true), Some(worker(1)), Some(expiry()))),
+        CreateOutcome::Failed {
+            reason: CreateFailureReason::TerminalCreateFailed
+        }
+    ));
+    assert_eq!(coordinator.next_identity, identity);
+    assert!(coordinator.bindings.is_empty());
+    let intent = request(false);
+    let plan = coordinator
+        .plan_create(intent.clone(), Some(worker(1)), Some(expiry()))
+        .unwrap();
+    let CapabilityNodeMessage::AuthorizedTerminalLaunch(launch) = plan.command() else {
+        panic!()
+    };
+    assert_eq!(
+        launch.plugin_environment().unwrap().entries(),
+        intent.plugin_environment().unwrap().entries()
+    );
+    let pending = plan.commit();
+    assert_eq!(pending.request, ClientMessage::TerminalCreate(intent));
+    assert_eq!(coordinator.bindings.len(), 1);
+}

@@ -35,6 +35,7 @@ pub struct TerminalCreateRequest {
     pub(crate) start_mode: StartMode,
     pub(crate) launch: Option<LaunchSelection>,
     environment: crate::LaunchEnvironment,
+    plugin_environment: Option<crate::PluginTerminalEnvironment>,
 }
 
 impl TerminalCreateRequest {
@@ -53,6 +54,7 @@ impl TerminalCreateRequest {
             start_mode,
             launch,
             environment: crate::LaunchEnvironment::empty(),
+            plugin_environment: None,
         }
     }
 
@@ -85,6 +87,20 @@ impl TerminalCreateRequest {
     pub fn with_environment(mut self, environment: crate::LaunchEnvironment) -> Self {
         self.environment = environment;
         self
+    }
+    /// Plugin display metadata never selects a program or grants membership.
+    pub fn with_plugin_environment(
+        mut self,
+        environment: Option<crate::PluginTerminalEnvironment>,
+    ) -> Result<Self, crate::ProtocolError> {
+        if environment.is_some() && self.launch.is_none() {
+            return Err(crate::ProtocolError::InvalidPayload);
+        }
+        self.plugin_environment = environment;
+        Ok(self)
+    }
+    pub const fn plugin_environment(&self) -> Option<&crate::PluginTerminalEnvironment> {
+        self.plugin_environment.as_ref()
     }
     /// The invocation-owned environment overlay; empty means inherited/default values.
     #[must_use]

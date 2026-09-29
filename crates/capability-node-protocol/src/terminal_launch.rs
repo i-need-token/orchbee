@@ -329,6 +329,7 @@ pub struct AuthorizedTerminalLaunch {
     launch: Option<LaunchSelection>,
     environment: crate::LaunchEnvironment,
     default_shell: Option<crate::DefaultShellSelection>,
+    plugin_environment: Option<crate::PluginTerminalEnvironment>,
 }
 
 impl AuthorizedTerminalLaunch {
@@ -346,6 +347,7 @@ impl AuthorizedTerminalLaunch {
             launch,
             environment: crate::LaunchEnvironment::empty(),
             default_shell: None,
+            plugin_environment: None,
         }
     }
 
@@ -373,6 +375,20 @@ impl AuthorizedTerminalLaunch {
     pub fn with_environment(mut self, environment: crate::LaunchEnvironment) -> Self {
         self.environment = environment;
         self
+    }
+    /// Plugin display metadata never selects a program or grants membership.
+    pub fn with_plugin_environment(
+        mut self,
+        environment: Option<crate::PluginTerminalEnvironment>,
+    ) -> Result<Self, ProtocolError> {
+        if environment.is_some() && self.launch.is_none() {
+            return Err(ProtocolError::InvalidPayload);
+        }
+        self.plugin_environment = environment;
+        Ok(self)
+    }
+    pub const fn plugin_environment(&self) -> Option<&crate::PluginTerminalEnvironment> {
+        self.plugin_environment.as_ref()
     }
     /// The invocation-owned environment overlay; empty means inherited/default values.
     #[must_use]

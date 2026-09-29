@@ -153,6 +153,8 @@ enum DecodedClientMessage {
         launch: Option<crate::LaunchSelection>,
         #[serde(default)]
         environment: crate::LaunchEnvironment,
+        #[serde(default, deserialize_with = "deserialize_plugin_environment")]
+        plugin_environment: Option<crate::PluginTerminalEnvironment>,
     },
     #[serde(rename = "terminal.start")]
     Start {
@@ -204,6 +206,8 @@ enum EncodedClientMessage<'a> {
         launch: &'a Option<crate::LaunchSelection>,
         #[serde(skip_serializing_if = "crate::LaunchEnvironment::is_empty")]
         environment: &'a crate::LaunchEnvironment,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        plugin_environment: Option<&'a crate::PluginTerminalEnvironment>,
     },
     #[serde(rename = "terminal.start")]
     Start {
@@ -405,6 +409,7 @@ pub(crate) fn decode_client_payload(payload: &[u8]) -> Result<ClientMessage, Pro
             start_mode,
             launch,
             environment,
+            plugin_environment,
         } => Ok(ClientMessage::TerminalCreate(
             TerminalCreateRequest::new(
                 request_id,
@@ -413,7 +418,8 @@ pub(crate) fn decode_client_payload(payload: &[u8]) -> Result<ClientMessage, Pro
                 start_mode.into(),
                 launch,
             )
-            .with_environment(environment),
+            .with_environment(environment)
+            .with_plugin_environment(plugin_environment)?,
         )),
         DecodedClientMessage::Start {
             _protocol_version: _,
@@ -458,6 +464,7 @@ pub(crate) fn encode_client_payload(message: &ClientMessage) -> Result<Vec<u8>, 
             start_mode: &request.start_mode,
             launch: &request.launch,
             environment: request.environment(),
+            plugin_environment: request.plugin_environment(),
         },
         ClientMessage::TerminalStart(request) => EncodedClientMessage::Start {
             protocol_version: ProtocolVersion,
@@ -647,6 +654,12 @@ where
     Value: Deserialize<'de>,
 {
     Option::<Value>::deserialize(deserializer)
+}
+
+fn deserialize_plugin_environment<'de, D: Deserializer<'de>>(
+    deserializer: D,
+) -> Result<Option<crate::PluginTerminalEnvironment>, D::Error> {
+    crate::PluginTerminalEnvironment::deserialize(deserializer).map(Some)
 }
 
 fn deserialize_launch_selection<'de, D: Deserializer<'de>>(

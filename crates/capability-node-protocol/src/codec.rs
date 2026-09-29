@@ -305,7 +305,18 @@ fn encode_authorized_terminal_launch(value: &AuthorizedTerminalLaunch) -> Vec<u8
     encode_authorization(&mut payload, value.authorization());
     encode_cwd(&mut payload, value.cwd());
     encode_launch_mode(&mut payload, value.mode());
-    if let Some(shell) = value.default_shell() {
+    if let Some(plugin) = value.plugin_environment() {
+        payload.extend_from_slice(&0u16.to_be_bytes());
+        payload.push(3);
+        encode_launch_selection(
+            &mut payload,
+            value
+                .launch()
+                .expect("plugin environment requires explicit launch"),
+        );
+        encode_launch_environment(&mut payload, value.environment());
+        encode_environment_entries(&mut payload, plugin.entries());
+    } else if let Some(shell) = value.default_shell() {
         payload.extend_from_slice(&0u16.to_be_bytes());
         payload.push(2);
         payload.push(match shell.mode() {
@@ -343,13 +354,25 @@ fn decode_authorized_terminal_launch(
     let authorization = decode_authorization(&mut reader)?;
     let cwd = decode_cwd(&mut reader)?;
     let mode = decode_launch_mode(&mut reader)?;
+    let mut plugin_environment = None;
     let (launch, environment, shell) = if reader.is_exhausted() {
         (None, crate::LaunchEnvironment::empty(), None)
     } else {
         let executable_length = usize::from(reader.read_u16()?);
         if executable_length == 0 {
             let version = reader.read_u8()?;
-            if version == 2 {
+            if version == 3 {
+                let launch = decode_launch_selection(&mut reader)?;
+                let environment = decode_launch_environment(&mut reader)?;
+                plugin_environment = Some(crate::PluginTerminalEnvironment::new(
+                    decode_environment_entries(
+                        &mut reader,
+                        crate::PLUGIN_TERMINAL_ENVIRONMENT_NAMES.len(),
+                        crate::MAXIMUM_PLUGIN_TERMINAL_ENVIRONMENT_BYTES,
+                    )?,
+                )?);
+                (Some(launch), environment, None)
+            } else if version == 2 {
                 let mode = match reader.read_u8()? {
                     0 => crate::DefaultShellMode::Auto,
                     1 => crate::DefaultShellMode::Login,
@@ -392,7 +415,8 @@ fn decode_authorized_terminal_launch(
     reader.finish()?;
     AuthorizedTerminalLaunch::new(authorization, cwd, mode, launch)
         .with_environment(environment)
-        .with_default_shell(shell)
+        .with_default_shell(shell)?
+        .with_plugin_environment(plugin_environment)
 }
 
 fn encode_terminal_launch_result(value: TerminalLaunchResult) -> Vec<u8> {
@@ -653,12 +677,15 @@ fn decode_launch_selection_body(
 }
 
 fn encode_launch_environment(payload: &mut Vec<u8>, environment: &crate::LaunchEnvironment) {
+    encode_environment_entries(payload, environment.entries());
+}
+fn encode_environment_entries(payload: &mut Vec<u8>, entries: &[(String, String)]) {
     payload.extend_from_slice(
-        &u16::try_from(environment.entries().len())
+        &u16::try_from(entries.len())
             .expect("bounded environment")
             .to_be_bytes(),
     );
-    for (name, value) in environment.entries() {
+    for (name, value) in entries {
         for field in [name, value] {
             payload.extend_from_slice(
                 &u16::try_from(field.len())
@@ -672,8 +699,19 @@ fn encode_launch_environment(payload: &mut Vec<u8>, environment: &crate::LaunchE
 fn decode_launch_environment(
     reader: &mut PayloadReader<'_>,
 ) -> Result<crate::LaunchEnvironment, ProtocolError> {
+    crate::LaunchEnvironment::new(decode_environment_entries(
+        reader,
+        crate::MAXIMUM_LAUNCH_ENVIRONMENT_ENTRIES,
+        crate::MAXIMUM_LAUNCH_ENVIRONMENT_BYTES,
+    )?)
+}
+fn decode_environment_entries(
+    reader: &mut PayloadReader<'_>,
+    maximum_entries: usize,
+    maximum_bytes: usize,
+) -> Result<Vec<(String, String)>, ProtocolError> {
     let count = usize::from(reader.read_u16()?);
-    if count > crate::MAXIMUM_LAUNCH_ENVIRONMENT_ENTRIES {
+    if count > maximum_entries {
         return Err(ProtocolError::InvalidPayload);
     }
     let mut entries = Vec::with_capacity(count);
@@ -685,7 +723,7 @@ fn decode_launch_environment(
             bytes = bytes
                 .checked_add(length)
                 .ok_or(ProtocolError::InvalidPayload)?;
-            if bytes > crate::MAXIMUM_LAUNCH_ENVIRONMENT_BYTES {
+            if bytes > maximum_bytes {
                 return Err(ProtocolError::InvalidPayload);
             }
             pair.push(
@@ -697,7 +735,7 @@ fn decode_launch_environment(
         let name = pair.pop().expect("two fields");
         entries.push((name, value));
     }
-    crate::LaunchEnvironment::new(entries)
+    Ok(entries)
 }
 
 fn encode_geometry(payload: &mut Vec<u8>, geometry: TerminalPixelGeometry) {

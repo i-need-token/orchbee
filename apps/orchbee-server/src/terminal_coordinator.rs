@@ -679,6 +679,40 @@ impl TerminalCoordinator {
                 }
             }
         };
+        let plugin_environment = match request
+            .plugin_environment()
+            .map(|environment| {
+                orchbee_capability_node_protocol::PluginTerminalEnvironment::new(
+                    environment.entries().to_vec(),
+                )
+            })
+            .transpose()
+        {
+            Ok(environment) => environment,
+            Err(_) => {
+                return Err(ready(CreateOutcome::Failed {
+                    reason: CreateFailureReason::TerminalCreateFailed,
+                }));
+            }
+        };
+        let command = match command.with_plugin_environment(plugin_environment) {
+            Ok(command) => command,
+            Err(_) => {
+                return Err(ready(CreateOutcome::Failed {
+                    reason: CreateFailureReason::TerminalCreateFailed,
+                }));
+            }
+        };
+        if command.plugin_environment().is_some()
+            && orchbee_capability_node_protocol::encode_message(
+                &CapabilityNodeMessage::AuthorizedTerminalLaunch(command.clone()),
+            )
+            .is_err()
+        {
+            return Err(ready(CreateOutcome::Failed {
+                reason: CreateFailureReason::TerminalCreateFailed,
+            }));
+        }
         Ok(PlannedCreate {
             coordinator: self,
             pending: Box::new(PendingOperation {

@@ -491,6 +491,7 @@ fn prepare(
                     launch.cwd(),
                     launch.launch(),
                     launch.environment(),
+                    launch.plugin_environment(),
                     #[cfg(windows)]
                     shell,
                 )?,
