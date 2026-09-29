@@ -684,6 +684,7 @@ pub(super) enum WorkerEvent {
     },
     Bootstrap {
         cache: NativeContextTabs,
+        selection: Option<super::workbench_projection::NativeMemberTarget>,
     },
     SetupConfigured {
         key: PaneRef,

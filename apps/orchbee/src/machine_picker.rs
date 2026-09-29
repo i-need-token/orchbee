@@ -5,7 +5,7 @@ use crate::{
     machine_discovery::{Context, Observation, display_label},
     machines::{Profile, ProfileId},
     terminal_input::{MouseAction, MouseButton, MouseEvent},
-    terminal_session::NativeContextTarget,
+    terminal_session::{NativeContextTarget, NativeStartupTarget},
     tui_theme::{Role, Theme},
 };
 use ratatui::{
@@ -21,7 +21,7 @@ pub(crate) enum Choice {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct Selection {
     pub(crate) machine: Choice,
-    pub(crate) context: Option<NativeContextTarget>,
+    pub(crate) context: Option<NativeStartupTarget>,
 }
 impl From<Choice> for Selection {
     fn from(machine: Choice) -> Self {
@@ -36,6 +36,7 @@ enum Mode {
     #[default]
     Machines,
     Workspaces,
+    Agents,
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct Row {
@@ -44,12 +45,18 @@ pub(crate) struct Row {
     pub(crate) enabled: bool,
     pub(crate) observation: Option<Observation>,
     context: Option<Context>,
+    agent: Option<crate::machine_agents::Row>,
+    agent_status: Option<&'static str>,
 }
 impl Row {
     fn selection(&self) -> Selection {
         Selection {
             machine: self.choice.clone(),
-            context: self.context.as_ref().map(|c| c.target.clone()),
+            context: self
+                .agent
+                .as_ref()
+                .map(|a| NativeStartupTarget::Agent(Box::new(a.target.clone())))
+                .or_else(|| self.context.as_ref().map(|c| c.target.clone().into())),
         }
     }
 }
@@ -66,6 +73,8 @@ pub(crate) struct Picker {
     pub(crate) current_context: Option<NativeContextTarget>,
     local_contexts: std::sync::Arc<[Context]>,
     workspace_rows: std::sync::Arc<[Row]>,
+    agent_rows: std::sync::Arc<[Row]>,
+    agent_observations: Vec<(Choice, crate::machine_agents::Observation)>,
     mode: Mode,
     mode_hits: Vec<(Rect, Mode)>,
     selected: usize,
@@ -86,6 +95,8 @@ impl Default for Picker {
                 enabled: true,
                 observation: None,
                 context: None,
+                agent: None,
+                agent_status: None,
             }],
             busy: false,
             error: None,
@@ -93,6 +104,8 @@ impl Default for Picker {
             current_context: None,
             local_contexts: std::sync::Arc::from([]),
             workspace_rows: std::sync::Arc::from([]),
+            agent_rows: std::sync::Arc::from([]),
+            agent_observations: Vec::new(),
             mode: Mode::Machines,
             mode_hits: Vec::new(),
             selected: 0,
@@ -104,10 +117,10 @@ impl Default for Picker {
 }
 impl Picker {
     fn visible_rows(&self) -> &[Row] {
-        if self.mode == Mode::Machines {
-            &self.rows
-        } else {
-            &self.workspace_rows
+        match self.mode {
+            Mode::Machines => &self.rows,
+            Mode::Workspaces => &self.workspace_rows,
+            Mode::Agents => &self.agent_rows,
         }
     }
     fn selection(&self) -> Option<Selection> {
@@ -129,9 +142,48 @@ impl Picker {
                 enabled: row.enabled,
                 observation: None,
                 context: Some(context.clone()),
+                agent: None,
+                agent_status: None,
             }));
         }
         self.workspace_rows = rows.into();
+        let mut agents = Vec::new();
+        for machine in self.rows.iter().filter(|r| r.enabled) {
+            let observation = self
+                .agent_observations
+                .iter()
+                .find(|(id, _)| id == &machine.choice)
+                .map(|(_, o)| o);
+            if let Some(crate::machine_agents::Observation::Ready(rows)) = observation
+                && !rows.is_empty()
+            {
+                agents.extend(rows.iter().map(|agent| Row {
+                    choice: machine.choice.clone(),
+                    label: machine.label.clone(),
+                    enabled: true,
+                    observation: None,
+                    context: None,
+                    agent: Some(agent.clone()),
+                    agent_status: None,
+                }));
+            } else {
+                let status = match observation {
+                    Some(crate::machine_agents::Observation::Ready(_)) => "no-agents",
+                    Some(crate::machine_agents::Observation::Loading) => "agents-loading",
+                    _ => "agents-unavailable",
+                };
+                agents.push(Row {
+                    choice: machine.choice.clone(),
+                    label: machine.label.clone(),
+                    enabled: false,
+                    observation: None,
+                    context: None,
+                    agent: None,
+                    agent_status: Some(status),
+                });
+            }
+        }
+        self.agent_rows = agents.into();
         self.selected = selected
             .and_then(|s| {
                 self.visible_rows()
@@ -150,6 +202,21 @@ impl Picker {
         self.rebuild_workspaces(selected);
         true
     }
+    pub(crate) fn wants_agents(&self) -> bool {
+        self.open && self.mode == Mode::Agents
+    }
+    pub(crate) fn observe_agents(
+        &mut self,
+        observations: Vec<(Choice, crate::machine_agents::Observation)>,
+    ) -> bool {
+        if self.agent_observations == observations {
+            return false;
+        }
+        let selected = self.selection();
+        self.agent_observations = observations;
+        self.rebuild_workspaces(selected);
+        true
+    }
     fn set_mode(&mut self, mode: Mode) {
         self.mode = mode;
         self.selected = 0;
@@ -158,10 +225,10 @@ impl Picker {
         self.invalidate();
     }
     fn toggle_mode(&mut self) {
-        self.set_mode(if self.mode == Mode::Machines {
-            Mode::Workspaces
-        } else {
-            Mode::Machines
+        self.set_mode(match self.mode {
+            Mode::Machines => Mode::Workspaces,
+            Mode::Workspaces => Mode::Agents,
+            Mode::Agents => Mode::Machines,
         });
     }
     pub(crate) fn replace(&mut self, profiles: &[Profile]) {
@@ -172,6 +239,8 @@ impl Picker {
             enabled: true,
             observation: None,
             context: None,
+            agent: None,
+            agent_status: None,
         }];
         rows.extend(profiles.iter().map(|p| {
             Row {
@@ -179,6 +248,8 @@ impl Picker {
                 label: p.draft.label.clone(),
                 enabled: p.enabled,
                 context: None,
+                agent: None,
+                agent_status: None,
                 observation: p
                     .enabled
                     .then(|| {
@@ -273,7 +344,7 @@ impl Picker {
                 self.request = Some(row.selection());
                 self.error = None;
             } else {
-                self.error = Some("disabled");
+                self.error = Some(row.agent_status.unwrap_or("disabled"));
             }
         }
     }
@@ -381,14 +452,17 @@ impl Picker {
         if inner.height < 2 || inner.width == 0 {
             return;
         }
-        for (index, mode) in [Mode::Machines, Mode::Workspaces].into_iter().enumerate() {
-            let half = inner.width / 2;
-            let rect = Rect::new(inner.x + index as u16 * half, inner.y, half, 1);
+        for (index, mode) in [Mode::Machines, Mode::Workspaces, Mode::Agents]
+            .into_iter()
+            .enumerate()
+        {
+            let column = inner.width / 3;
+            let rect = Rect::new(inner.x + index as u16 * column, inner.y, column, 1);
             frame.render_widget(
-                Paragraph::new(locale.machine_picker_text(if mode == Mode::Machines {
-                    "machines-mode"
-                } else {
-                    "workspaces-mode"
+                Paragraph::new(locale.machine_picker_text(match mode {
+                    Mode::Machines => "machines-mode",
+                    Mode::Workspaces => "workspaces-mode",
+                    Mode::Agents => "agents-mode",
                 }))
                 .style(theme.style(if self.mode == mode {
                     Role::AccentFocus
@@ -423,7 +497,13 @@ impl Picker {
             } else {
                 &display_label(&row.label)
             };
-            let name = if let Some(context) = &row.context {
+            let name = if let Some(agent) = &row.agent {
+                format!(
+                    "{name} / {} · {}",
+                    display_label(&agent.target.agent),
+                    agent.label
+                )
+            } else if let Some(context) = &row.context {
                 format!(
                     "{name} / {}",
                     context
@@ -434,7 +514,16 @@ impl Picker {
             } else {
                 name.to_owned()
             };
-            let suffix = if !row.enabled {
+            let suffix = if let Some(status) = row.agent_status {
+                locale.machine_picker_text(status)
+            } else if let Some(agent) = &row.agent {
+                locale.machine_picker_text(match agent.state {
+                    orchbee_workbench_protocol::PanelAgentState::Idle => "agent-idle",
+                    orchbee_workbench_protocol::PanelAgentState::Working => "agent-working",
+                    orchbee_workbench_protocol::PanelAgentState::Blocked => "agent-blocked",
+                    orchbee_workbench_protocol::PanelAgentState::Unknown => "agent-unknown",
+                })
+            } else if !row.enabled {
                 locale.machine_picker_text("disabled")
             } else if let Some(observation) = &row.observation {
                 locale.machine_picker_text(observation.key())
@@ -459,14 +548,15 @@ impl Picker {
             } else {
                 theme.style(Role::TextPrimary)
             };
-            let status_width = if self.mode == Mode::Machines {
-                rect.width.min(16)
-            } else {
-                0
+            let status_width = match self.mode {
+                Mode::Machines => rect.width.min(16),
+                Mode::Agents => rect.width.min(18),
+                Mode::Workspaces => 0,
             };
             let name_rect = Rect::new(rect.x, rect.y, rect.width.saturating_sub(status_width), 1);
             let status_rect = Rect::new(name_rect.right(), rect.y, status_width, 1);
-            let current = if row.choice == self.current
+            let current = if self.mode != Mode::Agents
+                && row.choice == self.current
                 && row
                     .context
                     .as_ref()
@@ -505,7 +595,19 @@ impl Picker {
                 online.iter().map(|o| o.workspaces).sum(),
                 online.iter().map(|o| o.tabs).sum(),
             )];
-            if let Some(row) = self.visible_rows().get(self.selected)
+            if let Some(agent) = self
+                .visible_rows()
+                .get(self.selected)
+                .and_then(|r| r.agent.as_ref())
+            {
+                lines.push(if agent.workspace.is_empty() {
+                    locale.machine_picker_text("standalone").into()
+                } else {
+                    agent.workspace.clone()
+                });
+                lines.push(agent.label.clone());
+                lines.push(format!("ID: {}", agent.target.member.as_str()));
+            } else if let Some(row) = self.visible_rows().get(self.selected)
                 && let Some(context) = &row.context
             {
                 lines.push(
@@ -730,7 +832,7 @@ mod tests {
         picker.key(KeyEvent::press(KeyCode::Enter, Modifiers::NONE));
         let expected = Selection {
             machine: Choice::Remote(b.id.clone()),
-            context: Some(context(12).target),
+            context: Some(context(12).target.into()),
         };
         assert_eq!(picker.request.take(), Some(expected.clone()));
         let mut reordered = overview.clone();
@@ -752,7 +854,7 @@ mod tests {
             picker.request.take(),
             Some(Selection {
                 machine: Choice::Local,
-                context: Some(context(11).target)
+                context: Some(context(11).target.into())
             })
         );
         picker.pointer(click(picker.mode_hits[0].0));
@@ -775,7 +877,7 @@ mod tests {
         let last = picker.painted.last().unwrap().0;
         assert_eq!(
             picker.painted.last().unwrap().1.context,
-            Some(context(30).target)
+            Some(context(30).target.into())
         );
         paint(&mut picker, Locale::ZhCn, 20, 5);
         assert!(picker.painted.is_empty());
@@ -783,5 +885,99 @@ mod tests {
         assert!(picker.request.is_none());
         picker.observe_local(Vec::new());
         assert!(paint(&mut picker, Locale::EnUs, 80, 24).contains("No available workspaces"));
+    }
+    fn agent_row() -> crate::machine_agents::Row {
+        crate::machine_agents::Row {
+            target: crate::machine_agents::tests::target(),
+            label: "same terminal".into(),
+            workspace: "project / workspace".into(),
+            state: orchbee_workbench_protocol::PanelAgentState::Working,
+        }
+    }
+    #[test]
+    fn agent_mode_routes_duplicate_local_and_remote_identities_and_invalidates_stale_hits() {
+        use crate::machine_agents::Observation as Agents;
+        let a = profile(1, "same machine", true);
+        let b = profile(2, "same machine", true);
+        let mut picker = Picker {
+            available: true,
+            ..Picker::default()
+        };
+        picker.replace(&[a.clone(), b.clone()]);
+        let rows: std::sync::Arc<[_]> = vec![agent_row()].into();
+        picker.observe_agents(vec![
+            (Choice::Local, Agents::Ready(rows.clone())),
+            (Choice::Remote(a.id.clone()), Agents::Ready(rows.clone())),
+            (Choice::Remote(b.id.clone()), Agents::Ready(rows)),
+        ]);
+        picker.show();
+        picker.key(KeyEvent::press(KeyCode::Tab, Modifiers::NONE));
+        picker.key(KeyEvent::press(KeyCode::Tab, Modifiers::NONE));
+        assert!(picker.wants_agents());
+        assert_eq!(picker.visible_rows().len(), 3);
+        let text = paint(&mut picker, Locale::EnUs, 100, 30);
+        assert!(text.contains("Working"));
+        picker.pointer(click(picker.painted[2].0));
+        let expected = Selection {
+            machine: Choice::Remote(b.id.clone()),
+            context: Some(NativeStartupTarget::Agent(Box::new(agent_row().target))),
+        };
+        assert_eq!(picker.request.take(), Some(expected.clone()));
+        picker.replace(&[b.clone(), a.clone()]);
+        assert_eq!(picker.selection(), Some(expected));
+        paint(&mut picker, Locale::ZhCn, 100, 30);
+        let old = picker.painted[picker.selected].0;
+        picker.observe_agents(vec![(
+            Choice::Local,
+            Agents::Ready(vec![agent_row()].into()),
+        )]);
+        picker.pointer(click(old));
+        assert!(
+            picker.request.is_none(),
+            "old frame is no authority for activation"
+        );
+        picker.key(KeyEvent::press(KeyCode::Home, Modifiers::NONE));
+        picker.key(KeyEvent::press(KeyCode::Enter, Modifiers::NONE));
+        assert_eq!(picker.request.take().unwrap().machine, Choice::Local);
+        picker.key(KeyEvent::press(KeyCode::Tab, Modifiers::NONE));
+        assert_eq!(picker.mode, Mode::Machines);
+    }
+    #[test]
+    fn agent_mode_distinguishes_empty_loading_and_unavailable_without_fallback_selection() {
+        use crate::machine_agents::Observation as Agents;
+        let mut picker = Picker {
+            available: true,
+            ..Picker::default()
+        };
+        picker.replace(&[profile(1, "remote", true)]);
+        picker.show();
+        paint(&mut picker, Locale::EnUs, 100, 30);
+        picker.pointer(click(picker.mode_hits[2].0));
+        for (observation, key) in [
+            (Agents::Loading, "agents-loading"),
+            (Agents::Ready(std::sync::Arc::from([])), "no-agents"),
+            (Agents::Unavailable, "agents-unavailable"),
+        ] {
+            picker.observe_agents(vec![(Choice::Local, observation)]);
+            picker.key(KeyEvent::press(KeyCode::Home, Modifiers::NONE));
+            picker.key(KeyEvent::press(KeyCode::Enter, Modifiers::NONE));
+            assert!(picker.request.is_none());
+            assert_eq!(picker.error, Some(key));
+            for locale in [Locale::EnUs, Locale::ZhCn] {
+                let text = paint(&mut picker, locale, 100, 30);
+                let compact: String = text.chars().filter(|c| !c.is_whitespace()).collect();
+                let expected: String = locale
+                    .machine_picker_text(key)
+                    .chars()
+                    .filter(|c| !c.is_whitespace())
+                    .collect();
+                assert!(compact.contains(&expected));
+            }
+        }
+        let old = picker.painted[0].0;
+        paint(&mut picker, Locale::ZhCn, 20, 5);
+        assert!(picker.painted.is_empty());
+        picker.pointer(click(old));
+        assert!(picker.request.is_none());
     }
 }

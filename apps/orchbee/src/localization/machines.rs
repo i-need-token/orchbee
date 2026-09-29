@@ -28,12 +28,28 @@ impl Locale {
             (Self::ZhCn, "machines-mode") => "机器",
             (Self::EnUs, "workspaces-mode") => "Workspaces",
             (Self::ZhCn, "workspaces-mode") => "工作区",
+            (Self::EnUs, "agents-mode") => "Agents",
+            (Self::ZhCn, "agents-mode") => "Agent",
+            (Self::EnUs, "no-agents") => "No agents",
+            (Self::ZhCn, "no-agents") => "暂无 Agent",
+            (Self::EnUs, "agents-loading") => "Reading agents",
+            (Self::ZhCn, "agents-loading") => "读取 Agent 中",
+            (Self::EnUs, "agents-unavailable") => "Agents unavailable",
+            (Self::ZhCn, "agents-unavailable") => "Agent 不可用",
+            (Self::EnUs, "agent-idle") => "Idle",
+            (Self::ZhCn, "agent-idle") => "空闲",
+            (Self::EnUs, "agent-working") => "Working",
+            (Self::ZhCn, "agent-working") => "工作中",
+            (Self::EnUs, "agent-blocked") => "Blocked",
+            (Self::ZhCn, "agent-blocked") => "受阻",
+            (Self::EnUs, "agent-unknown") => "Unknown",
+            (Self::ZhCn, "agent-unknown") => "未知",
             (Self::EnUs, "standalone") => "Standalone",
             (Self::ZhCn, "standalone") => "独立终端",
             (Self::EnUs, "no-workspaces") => "No available workspaces.",
             (Self::ZhCn, "no-workspaces") => "暂无可用工作区。",
             (Self::EnUs, "hint") => {
-                "↑/↓ Choose · Enter/Click Open\nTab Machines/Workspaces · Esc Close"
+                "↑/↓ Choose · Enter/Click Open\nTab Machines/Workspaces/Agents · Esc Close"
             }
             (Self::ZhCn, "hint") => "↑/↓ 选择 · Enter/点击打开\nTab 切换机器/工作区 · Esc 关闭",
             (Self::EnUs, "connecting") => {
@@ -96,10 +112,10 @@ impl Locale {
     pub(crate) fn cli_machine_help(self, verb: Option<&str>) -> &'static str {
         match (self, verb) {
             (Self::EnUs, None) => {
-                "Usage: orchbee machine <list|add|rename|remove|enable|disable>\n\nManage saved Windows SSH machines. Add verifies an installed remote Client, starts the explicit Site, and verifies readiness before saving. SSH authentication and host trust must already work in batch mode. Removing or disabling a profile leaves remote sessions running. Use orchbee --machine <label-or-id> <command> for remote commands. Help is local; duplicate labels and disabled profiles are refused. Terminal --file/--stdin are read locally; paths such as --cwd belong to the remote machine. TUI and terminal streams are not routed. In the Windows TUI, use Ctrl+B then Shift+M or click the machine indicator to connect and switch. Enabled machines connect automatically for read-only status and workspace discovery; selection opens the terminal surface. Press Tab in the picker for combined Local/remote workspace navigation.\n"
+                "Usage: orchbee machine <list|add|rename|remove|enable|disable>\n\nManage saved Windows SSH machines. Add verifies an installed remote Client, starts the explicit Site, and verifies readiness before saving. SSH authentication and host trust must already work in batch mode. Removing or disabling a profile leaves remote sessions running. Use orchbee --machine <label-or-id> <command> for remote commands. Help is local; duplicate labels and disabled profiles are refused. Terminal --file/--stdin are read locally; paths such as --cwd belong to the remote machine. TUI and terminal streams are not routed. In the Windows TUI, use Ctrl+B then Shift+M or click the machine indicator to connect and switch. Enabled machines connect automatically for read-only status and workspace discovery; selection opens the terminal surface. Press Tab in the picker for combined Local/remote workspace or Agent navigation.\n"
             }
             (Self::ZhCn, None) => {
-                "用法：orchbee machine <list|add|rename|remove|enable|disable>\n\n管理已保存的 Windows SSH 机器。Add 检查已安装的远端 Client，启动指定 Site，并在保存前确认就绪。SSH 认证和主机信任须已能以批处理模式使用。删除或禁用配置不会停止远端会话。使用 orchbee --machine <标签或ID> <命令> 执行远端命令。帮助本地显示；拒绝重名标签及已禁用配置。终端 --file/--stdin 在本地读取，--cwd 等路径属于远端。不路由 TUI 和交互式终端流。在 Windows TUI 中按 Ctrl+B 后 Shift+M，或点击机器指示器连接和切换。已启用机器自动连接以读取状态和工作区概览；选中后打开终端界面。在选择器中按 Tab 可合并浏览本地和远端工作区。\n"
+                "用法：orchbee machine <list|add|rename|remove|enable|disable>\n\n管理已保存的 Windows SSH 机器。Add 检查已安装的远端 Client，启动指定 Site，并在保存前确认就绪。SSH 认证和主机信任须已能以批处理模式使用。删除或禁用配置不会停止远端会话。使用 orchbee --machine <标签或ID> <命令> 执行远端命令。帮助本地显示；拒绝重名标签及已禁用配置。终端 --file/--stdin 在本地读取，--cwd 等路径属于远端。不路由 TUI 和交互式终端流。在 Windows TUI 中按 Ctrl+B 后 Shift+M，或点击机器指示器连接和切换。已启用机器自动连接以读取状态和工作区概览；选中后打开终端界面。在选择器中按 Tab 可合并浏览本地和远端工作区或 Agent。\n"
             }
             (Self::EnUs, Some("list")) => {
                 "Usage: orchbee machine list [--json | --format text|json]\n\nRead the saved machine catalog without contacting SSH or creating directories. Enabled is a saved preference, not a live connection observation.\n"

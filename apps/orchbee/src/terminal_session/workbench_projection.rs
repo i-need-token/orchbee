@@ -42,6 +42,33 @@ pub(crate) struct NativeContextTarget {
     pub(crate) location: NativeContextLocation,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) enum NativeStartupTarget {
+    Context(NativeContextTarget),
+    #[cfg(windows)]
+    Agent(Box<crate::machine_agents::Target>),
+}
+impl From<NativeContextTarget> for NativeStartupTarget {
+    fn from(value: NativeContextTarget) -> Self {
+        Self::Context(value)
+    }
+}
+impl NativeStartupTarget {
+    pub(super) fn context(&self) -> &NativeContextTarget {
+        match self {
+            Self::Context(context) => context,
+            #[cfg(windows)]
+            Self::Agent(target) => &target.context,
+        }
+    }
+}
+#[derive(Clone, Debug)]
+pub(super) struct NativeMemberTarget {
+    pub(super) tab: WorkbenchTabId,
+    pub(super) panel: WorkbenchPanelId,
+    pub(super) presentation: TerminalPresentationId,
+}
+
 impl NativeContextLocation {
     pub(super) fn terminal_context_id(&self) -> &WorkbenchTerminalContextId {
         match self {

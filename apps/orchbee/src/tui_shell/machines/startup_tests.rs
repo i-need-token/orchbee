@@ -158,7 +158,7 @@ fn attempt(server: &FakeServer, context: Option<NativeContextTarget>) -> Attempt
     let endpoint = server.endpoint().to_path_buf();
     Attempt {
         profile: Some(profile()),
-        context,
+        context: context.map(Into::into),
         cancel: Arc::new(AtomicU8::new(0)),
         task: Some(thread::spawn(move || {
             LocalClient::connect_before(
@@ -339,7 +339,7 @@ fn machine_local_workspace_selection_reuses_local_origin_and_replaces_only_after
     view.machines.show();
     view.machines.request = Some(crate::machine_picker::Selection {
         machine: Choice::Local,
-        context: Some(destination.clone()),
+        context: Some(destination.clone().into()),
     });
     assert!(
         !manager

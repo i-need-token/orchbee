@@ -168,11 +168,11 @@ fn navigation_memory_reentry_resolves_reordered_ids_and_removed_tab_to_empty() {
     assert!(state.start_context_selection(40, false, deadlines()));
     finish_selection(&mut state, snapshot.clone(), 40);
     assert_ne!(state.desired().unwrap().anchor().tab_id(), &remembered);
-    assert!(
-        state
-            .navigation_memory
-            .tab(state.cache.location())
-            .is_none()
+    // Committing the surviving Presentation remembers the destination actually
+    // entered. The removed Tab must never be revived by the older context cache.
+    assert_eq!(
+        state.navigation_memory.tab(state.cache.location()),
+        Some(state.desired().unwrap().anchor().tab_id())
     );
     assert!(state.start_context_selection(50, true, deadlines()));
     finish_selection(&mut state, snapshot.clone(), 50);

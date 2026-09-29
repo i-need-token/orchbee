@@ -180,8 +180,9 @@ separate native lane, and commits only a drawable candidate. Selection failure,
 expiry or Escape preserves the current surface. Escape cancels the selection,
 while discovery of enabled profiles continues. Retry applies only to observations,
 never submitted terminal input or Client mutations. The workspace mode below
-provides combined navigation. Merged Agent views, remote bootstrap/authentication
-and real-network longevity acceptance remain separate obligations.
+provides combined navigation, and Agents mode adds physical Agent navigation.
+Custom merged Agent views, remote bootstrap/authentication and real-network
+longevity acceptance remain separate obligations.
 
 Evidence must exercise retry timing/stability, permanent refusals, concurrency,
 profile replacement and corrupt catalogs, coalescing and cancellation, actual
@@ -191,7 +192,7 @@ local IPC fixtures do not establish remote SSH authentication or network recover
 
 ## Cross-machine workspace navigation
 
-The machine picker has Machines and Workspaces modes, switched with Tab or their
+The machine picker has Machines, Workspaces and Agents modes, switched with Tab or their
 painted mode controls. Workspaces combines Local's last accepted canonical
 navigation with fresh enabled remote observations; rows carry machine identity,
 Site ID and the complete standalone or project/workspace/context identity. Labels
@@ -222,11 +223,43 @@ when switching away; replacing the same machine retires its previous surface
 only after commit. Cached machine-only selection preserves its selected context,
 including empty workspaces and unbound placeholders.
 A successful switch invalidates host input and painted regions through the
-existing machine handoff. This navigator does not yet aggregate Agent views,
-change the main sidebar or provide global cross-machine next/previous bindings.
+existing machine handoff. The Agent mode described below shares this handoff;
+main-sidebar integration and global cross-machine next/previous bindings remain
+separate work.
 
 Evidence includes native snapshot-first exact bootstrap, absent/mismatched
 Site/context refusal before effects, empty-context membership, actual machine
 candidate startup and cancellation, duplicate labels and local/remote identity
 separation, reordered/stale hits, mode keyboard/mouse and narrow rendering. Local
 protocol peers do not establish real SSH or real-host visual acceptance.
+
+## Cross-machine Agent navigation
+
+Agents mode combines on-demand physical Agent observations from Local and fresh,
+enabled remote machines. Each complete read joins a native Workbench snapshot to
+bounded physical state batches at one Workbench/report revision. Missing,
+unavailable or stale observations are distinct from a successful empty list.
+Only observations with a reported Agent label become rows; primary and child
+Presentations retain their own identity. Labels are sanitized display data.
+Rows carry machine, Site, context, Tab, Panel, Presentation and complete physical
+binding; no name or row number grants navigation authority.
+
+At most four observation jobs run concurrently. Each job owns a separately
+admitted lane, a five-second total budget and one result slot; reads are bounded
+to 4096 bound Presentations and 8 MiB of serialized physical states, with a
+two-second cooldown. Closing Agents mode
+cancels pending jobs. Removed/disabled/replaced sources discard their results;
+freshness expires ten seconds after worker completion, including time spent
+waiting for the UI to consume the result. Only explicit activation opens a terminal.
+The candidate revalidates the selected snapshot and physical checkpoint, starts
+at the exact member, and checks the returned Host identity before taking control.
+No standalone creation or first-pane attachment precedes that selection. Old
+surfaces survive failure, cancellation and target replacement; commit still
+requires drawable content. There is no replay of terminal input or mutations.
+
+Evidence must cover bounded complete reads, revision/membership/physical identity
+mismatch, primary and child placement, stale job cancellation and fairness,
+keyboard/mouse identity, exact bootstrap and Host mismatch before control.
+Custom Agent-view filters/sorts and metadata, unattached canonical sessions,
+main-sidebar/global-key integration and real SSH/OS visual acceptance remain
+separate obligations. The existing per-Site Agent board remains available.

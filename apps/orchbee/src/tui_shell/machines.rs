@@ -8,7 +8,8 @@ use crate::{
     machines::{Profile, Store},
     terminal_device::WindowDimensions,
     terminal_session::{
-        NativeContextTarget, TerminalIntent, TerminalSession, TerminalSessionView, TerminalStatus,
+        NativeContextTarget, NativeStartupTarget, TerminalIntent, TerminalSession,
+        TerminalSessionView, TerminalStatus,
     },
 };
 use std::{
@@ -23,7 +24,7 @@ use std::{
 
 struct Attempt {
     profile: Option<Profile>,
-    context: Option<NativeContextTarget>,
+    context: Option<NativeStartupTarget>,
     cancel: Arc<AtomicU8>,
     task: Option<JoinHandle<io::Result<LocalClient>>>,
 }
@@ -55,7 +56,7 @@ fn choice(profile: Option<&Profile>) -> Choice {
 }
 struct Queued {
     profile: Option<Profile>,
-    context: Option<NativeContextTarget>,
+    context: Option<NativeStartupTarget>,
     deadline: Instant,
 }
 #[derive(Default)]
@@ -74,6 +75,7 @@ pub(super) struct Manager {
     candidate: Option<Candidate>,
     queued: Option<Queued>,
     discovery: Discovery,
+    agents: crate::machine_agents::Collector,
 }
 impl Manager {
     pub(super) fn new(view: &mut ClientView) -> Self {
@@ -89,6 +91,7 @@ impl Manager {
             candidate: None,
             queued: None,
             discovery: Discovery::default(),
+            agents: crate::machine_agents::Collector::default(),
         }
     }
     fn valid(&self, profile: &Profile) -> bool {
@@ -136,6 +139,26 @@ impl Manager {
         view.machines.current_context = active_context;
         self.discovery.tick(now);
         change.redraw |= view.machines.observe(&self.discovery.observations(now));
+        let mut agent_sources = Vec::new();
+        if view.machines.wants_agents() {
+            if let Some(connection) = self.local_source(surface) {
+                agent_sources.push(crate::machine_agents::Source {
+                    choice: Choice::Local,
+                    connection,
+                });
+            }
+            for profile in &self.profiles {
+                if let Some(connection) = self.discovery.connection(profile, now) {
+                    agent_sources.push(crate::machine_agents::Source {
+                        choice: Choice::Remote(profile.id.clone()),
+                        connection,
+                    });
+                }
+            }
+        }
+        change.redraw |= view
+            .machines
+            .observe_agents(self.agents.tick(agent_sources, now));
         if !view.machines.open {
             self.cancel();
         }
@@ -199,7 +222,7 @@ impl Manager {
                         .ok_or_else(|| io::Error::other("viewport too small"))?;
                     client.set_submission_deadline(Some(startup_deadline));
                     match attempt.context.clone() {
-                        Some(context) => TerminalSession::start_context(client, context, geometry),
+                        Some(context) => TerminalSession::start_target(client, context, geometry),
                         None => {
                             TerminalSession::start(client, TerminalIntent::Standalone, geometry)
                         }
@@ -301,6 +324,14 @@ impl Manager {
         let before = view.machines.clone();
         match catalog {
             Ok(catalog) => {
+                if self.profiles.iter().filter(|p| p.enabled).any(|old| {
+                    !catalog
+                        .profiles
+                        .iter()
+                        .any(|p| p.enabled && same_endpoint(p, old))
+                }) {
+                    self.agents.clear();
+                }
                 // Input is decoded before this refresh. A pending click still
                 // belongs to the previously painted endpoint, never its replacement.
                 if view
@@ -353,6 +384,7 @@ impl Manager {
             }
             Err(_) => {
                 self.catalog_ok = false;
+                self.agents.clear();
                 if view
                     .machines
                     .request
@@ -653,7 +685,7 @@ mod tests {
             let (mut manager, mut view, mut surface) = setup();
             let request = crate::machine_picker::Selection {
                 machine: Choice::Remote(profile().id),
-                context: Some(NativeContextTarget {
+                context: Some(NativeStartupTarget::Context(NativeContextTarget {
                     site_id: orchbee_workbench_protocol::SiteId::parse(
                         "11111111111111111111111111111111",
                     )
@@ -664,7 +696,7 @@ mod tests {
                         )
                         .unwrap(),
                     ),
-                }),
+                })),
             };
             view.machines.request = Some(request.clone());
             let mut updated = profile();

@@ -49,6 +49,7 @@ mod workbench_projection;
 
 pub(crate) use workbench_projection::{
     NativeContextLocation, NativeContextTarget, NativePanel, NativePanelTree, NativePresentation,
+    NativeStartupTarget,
 };
 
 pub(crate) use ui::{
@@ -213,9 +214,9 @@ impl TerminalSession {
     }
 
     #[cfg(windows)]
-    pub(crate) fn start_context(
+    pub(crate) fn start_target(
         client: LocalClient,
-        target: workbench_projection::NativeContextTarget,
+        target: NativeStartupTarget,
         geometry: Geometry,
     ) -> io::Result<Self> {
         Self::start_with_context(client, TerminalIntent::Standalone, geometry, Some(target))
@@ -241,7 +242,7 @@ impl TerminalSession {
         client: LocalClient,
         intent: TerminalIntent,
         geometry: Geometry,
-        context: Option<workbench_projection::NativeContextTarget>,
+        context: Option<workbench_projection::NativeStartupTarget>,
     ) -> io::Result<Self> {
         let shutdown = client.shutdown_handle()?;
         let clock = client.operation_clock();

@@ -30,6 +30,7 @@ fn close_snapshot_waiting_ui(
     let wait = mailbox
         .publish_event_before(
             WorkerEvent::Bootstrap {
+                selection: None,
                 cache: super::super::workbench_projection::project_native_standalone_tabs(
                     &snapshot(1, 1),
                 )
@@ -228,6 +229,7 @@ fn actual_attached_refresh_freezes_until_exact_cleanup_and_never_installs_after_
         let wait = mailbox
             .publish_event_before(
                 WorkerEvent::Bootstrap {
+                    selection: None,
                     cache: super::super::workbench_projection::project_native_standalone_tabs(
                         &snapshot(1, 1),
                     )
@@ -307,6 +309,7 @@ fn actual_refresh_reply_installs_empty_and_later_peer_membership_with_one_shared
     let bootstrap = mailbox
         .publish_event_before(
             WorkerEvent::Bootstrap {
+                selection: None,
                 cache: super::super::workbench_projection::project_native_standalone_tabs(
                     &snapshot(2, 1),
                 )
@@ -531,6 +534,7 @@ fn removed_context_refresh_cleans_every_pending_viewer_then_lands_on_standalone(
     let wait = mailbox
         .publish_event_before(
             WorkerEvent::Bootstrap {
+                selection: None,
                 cache: super::super::workbench_projection::project_native_standalone_tabs(
                     &split_snapshot(),
                 )

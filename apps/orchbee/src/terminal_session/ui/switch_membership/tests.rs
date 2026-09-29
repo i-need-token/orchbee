@@ -22,6 +22,7 @@ fn ready() -> (
     let wait = mailbox
         .publish_event_before(
             WorkerEvent::Bootstrap {
+                selection: None,
                 cache:
                     crate::terminal_session::workbench_projection::project_native_standalone_tabs(
                         &crate::terminal_session::ui::membership_tests::snapshot(2, 1),

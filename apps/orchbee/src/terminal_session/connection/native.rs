@@ -27,7 +27,7 @@ use crate::{
             ViewportReadRejection, ViewportStep, ViewportWindowFailure, decode_viewport_window,
         },
         workbench_projection::{
-            NativeContextTarget, project_native_context_tabs, project_native_standalone_tabs,
+            NativeStartupTarget, project_native_context_tabs, project_native_standalone_tabs,
         },
     },
 };
@@ -89,7 +89,7 @@ pub(super) fn run_at(
     client: LocalClient,
     initial_geometry: Geometry,
     mailbox: Arc<CommandMailbox>,
-    context: Option<NativeContextTarget>,
+    context: Option<NativeStartupTarget>,
 ) -> NativeWorkerExit {
     let mut exit = WorkerExit::new(Arc::clone(&mailbox));
     let mut executor = NativeExecutor::new(client, mailbox);
@@ -133,7 +133,7 @@ impl Drop for WorkerExit {
 }
 
 struct NativeExecutor {
-    initial_context: Option<NativeContextTarget>,
+    initial_context: Option<NativeStartupTarget>,
     status_only: bool,
     #[cfg(any(target_os = "linux", windows))]
     membership_recovery: bool,
@@ -388,7 +388,8 @@ impl NativeExecutor {
         else {
             return Err(CarrierFailure::Transport);
         };
-        let cache = if let Some(target) = &self.initial_context {
+        let cache = if let Some(startup) = &self.initial_context {
+            let target = startup.context();
             if target.site_id != snapshot.site_id {
                 return Err(CarrierFailure::AuthorityDivergence);
             }
@@ -400,8 +401,29 @@ impl NativeExecutor {
         if self.initial_context.is_none() && cache.tabs().is_empty() {
             return Err(CarrierFailure::AuthorityDivergence);
         }
+        #[allow(unused_mut)]
+        let mut selection = None;
+        #[cfg(windows)]
+        if let Some(NativeStartupTarget::Agent(target)) = &self.initial_context {
+            // This read shares the startup deadline and precedes any attachment.
+            crate::machine_agents::verify(
+                &mut self.client,
+                &snapshot,
+                target,
+                startup_deadline,
+                &std::sync::atomic::AtomicU8::new(0),
+            )
+            .map_err(|_| CarrierFailure::AuthorityDivergence)?;
+            selection = Some(
+                crate::terminal_session::workbench_projection::NativeMemberTarget {
+                    tab: target.tab.clone(),
+                    panel: target.panel.clone(),
+                    presentation: target.member.clone(),
+                },
+            );
+        }
         self.publish_and_wait(
-            WorkerEvent::Bootstrap { cache },
+            WorkerEvent::Bootstrap { cache, selection },
             EventDeadline::Startup(startup_deadline),
             startup_deadline,
         )?
@@ -475,6 +497,15 @@ impl NativeExecutor {
             next_sequence: 0,
             accepted_geometry: None,
         });
+        #[cfg(windows)]
+        if matches!(owner, SetupOwner::Startup { .. })
+            && let Some(NativeStartupTarget::Agent(expected)) = &self.initial_context
+            && (host_epoch.as_str() != expected.physical.host_epoch.as_str()
+                || host_terminal_id.as_str() != expected.physical.host_terminal_id.as_str())
+        {
+            self.cleanup_startup_setup(owner, &target.key)?;
+            return Err(CarrierFailure::AuthorityDivergence);
+        }
         let setup = self.finish_attached_setup(
             &target,
             owner,

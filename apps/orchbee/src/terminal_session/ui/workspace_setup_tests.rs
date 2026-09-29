@@ -32,6 +32,7 @@ pub(super) fn ready(
     let wait = mailbox
         .publish_event_before(
             WorkerEvent::Bootstrap {
+                selection: None,
                 cache:
                     crate::terminal_session::workbench_projection::project_native_standalone_tabs(
                         &snapshot,

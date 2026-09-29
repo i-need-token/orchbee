@@ -2239,7 +2239,7 @@ impl NativeUi {
             self.retire(CarrierFailure::Protocol);
             return true;
         };
-        if let WorkerEvent::Bootstrap { cache } = event {
+        if let WorkerEvent::Bootstrap { cache, selection } = event {
             if self.state.is_some() {
                 self.retire(CarrierFailure::Protocol);
                 return true;
@@ -2249,9 +2249,13 @@ impl NativeUi {
                 &wait_key,
                 &self.clock,
                 |generation, geometry| {
-                    let (state, target) =
-                        NativeSessionState::bootstrap(cache, generation, geometry)
-                            .ok_or(CarrierFailure::AuthorityDivergence)?;
+                    let (state, target) = NativeSessionState::bootstrap_at(
+                        cache,
+                        generation,
+                        geometry,
+                        selection.as_ref(),
+                    )
+                    .ok_or(CarrierFailure::AuthorityDivergence)?;
                     installed = Some(state);
                     Ok(target)
                 },

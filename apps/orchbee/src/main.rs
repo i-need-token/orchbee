@@ -21,6 +21,8 @@ mod local_client;
 mod local_startup;
 mod localization;
 #[cfg(windows)]
+mod machine_agents;
+#[cfg(windows)]
 mod machine_discovery;
 #[cfg(windows)]
 mod machine_picker;

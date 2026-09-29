@@ -580,6 +580,7 @@ pub(super) fn starting_split_ui() -> (
     let wait = mailbox
         .publish_event_before(
             WorkerEvent::Bootstrap {
+                selection: None,
                 cache: project_native_standalone_tabs(&split).unwrap(),
             },
             EventDeadline::Startup(clock.now() + crate::terminal_session::state::OPERATION_TOTAL),

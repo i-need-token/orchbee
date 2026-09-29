@@ -341,6 +341,7 @@ fn ready_create_ui_at(
     let wait = mailbox
         .publish_event_before(
             WorkerEvent::Bootstrap {
+                selection: None,
                 cache: super::super::workbench_projection::project_native_standalone_tabs(
                     &snapshot(1, 1),
                 )

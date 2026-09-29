@@ -526,7 +526,10 @@ fn empty_ui() -> (
             .unwrap();
     let wait = mailbox
         .publish_event_before(
-            WorkerEvent::Bootstrap { cache },
+            WorkerEvent::Bootstrap {
+                cache,
+                selection: None,
+            },
             EventDeadline::Startup(clock.now() + crate::terminal_session::state::OPERATION_TOTAL),
             &clock,
         )

@@ -33,7 +33,10 @@ fn ready_with_cache(
     let mut ui = NativeUi::new(Arc::clone(&mailbox), clock.clone());
     let wait = mailbox
         .publish_event_before(
-            WorkerEvent::Bootstrap { cache },
+            WorkerEvent::Bootstrap {
+                cache,
+                selection: None,
+            },
             EventDeadline::Startup(clock.now() + super::super::state::OPERATION_TOTAL),
             &clock,
         )
@@ -443,6 +446,7 @@ fn ready_controlling(
     let wait = mailbox
         .publish_event_before(
             WorkerEvent::Bootstrap {
+                selection: None,
                 cache: project_native_standalone_tabs(&snapshot(3, 1)).unwrap(),
             },
             EventDeadline::Startup(clock.now() + super::super::state::OPERATION_TOTAL),

@@ -42,6 +42,7 @@ fn bootstrap(ui: &mut NativeUi, mailbox: &CommandMailbox, clock: &LocalOperation
     let wait = mailbox
         .publish_event_before(
             WorkerEvent::Bootstrap {
+                selection: None,
                 cache: super::super::workbench_projection::project_native_standalone_tabs(
                     &super::membership_tests::snapshot(1, 1),
                 )

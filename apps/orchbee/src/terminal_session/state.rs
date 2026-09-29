@@ -601,10 +601,6 @@ pub(super) struct SelectedTab {
 }
 
 impl SelectedTab {
-    pub(super) const fn new(key: PaneKey, index: usize) -> Self {
-        Self::new_panel(key, index, 0)
-    }
-
     pub(super) const fn new_panel(key: PaneKey, index: usize, panel_index: usize) -> Self {
         Self {
             key,
@@ -1149,6 +1145,7 @@ pub(super) struct NativeSessionState {
 }
 
 impl NativeSessionState {
+    #[cfg(test)]
     pub(super) fn starting(
         cache: NativeContextTabs,
         generation: u64,
@@ -1157,16 +1154,40 @@ impl NativeSessionState {
         if generation == 0 {
             return None;
         }
-        let first = cache.tabs().first()?;
+        Self::starting_at(cache, generation, geometry, None)
+    }
+    fn starting_at(
+        cache: NativeContextTabs,
+        generation: u64,
+        geometry: Geometry,
+        selection: Option<&super::workbench_projection::NativeMemberTarget>,
+    ) -> Option<(Self, BootstrapTarget)> {
+        if generation == 0 {
+            return None;
+        }
+        let tab_index = match selection {
+            Some(s) => cache.tab_index(&s.tab)?,
+            None => 0,
+        };
+        let first = cache.tabs().get(tab_index)?;
+        let panel_index = match selection {
+            Some(s) => first.panel_index(&s.panel)?,
+            None => 0,
+        };
         let anchor = AttachmentKey::new(generation, first.tab_id().clone());
-        let panel = first.panel(0)?;
+        let panel = first.panel(panel_index)?;
+        let member = match selection {
+            Some(s) => panel.presentation(panel.presentation_index(&s.presentation)?)?,
+            None => panel.primary(),
+        };
+        let member_id = member.presentation_id().clone();
         let key = PaneKey::new(anchor, panel.panel_id().clone());
-        let selected = SelectedTab::new(key.clone(), 0);
-        let record = panel.binding().map(|binding| {
+        let selected = SelectedTab::new_panel(key.clone(), tab_index, panel_index);
+        let record = member.binding().map(|binding| {
             PaneRecord::new(
                 PaneRef::new(key.clone(), 1),
-                0,
-                0,
+                tab_index,
+                panel_index,
                 cache.site_id().clone(),
                 binding.clone(),
                 CreateTerminalProvenance::BindingOnly,
@@ -1176,10 +1197,15 @@ impl NativeSessionState {
         let target = BootstrapTarget {
             selected: selected.clone(),
             site_id: cache.site_id().clone(),
-            binding: panel.binding().cloned(),
+            binding: member.binding().cloned(),
             incarnation: 1,
         };
         let mut state = Self::initial(cache, geometry);
+        if selection.is_some() {
+            state
+                .navigation_memory
+                .remember_presentation(&state.cache, &selected, member_id);
+        }
         state.phase = if record.is_some() {
             SessionPhase::Starting(StartingSetup {
                 selected,
@@ -1195,18 +1221,28 @@ impl NativeSessionState {
         Some((state, target))
     }
 
+    #[cfg(test)]
     pub(super) fn bootstrap(
         cache: NativeContextTabs,
         generation: u64,
         geometry: Geometry,
     ) -> Option<(Self, Option<BootstrapTarget>)> {
+        Self::bootstrap_at(cache, generation, geometry, None)
+    }
+    pub(super) fn bootstrap_at(
+        cache: NativeContextTabs,
+        generation: u64,
+        geometry: Geometry,
+        selection: Option<&super::workbench_projection::NativeMemberTarget>,
+    ) -> Option<(Self, Option<BootstrapTarget>)> {
         if generation == 0 {
             return None;
         }
-        if cache.tabs().is_empty() {
+        if cache.tabs().is_empty() && selection.is_none() {
             Some((Self::initial(cache, geometry), None))
         } else {
-            Self::starting(cache, generation, geometry).map(|(state, target)| (state, Some(target)))
+            Self::starting_at(cache, generation, geometry, selection)
+                .map(|(state, target)| (state, Some(target)))
         }
     }
     fn initial(cache: NativeContextTabs, geometry: Geometry) -> Self {

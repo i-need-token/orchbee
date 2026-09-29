@@ -1,3 +1,5 @@
+#[cfg(windows)]
+mod agent_startup;
 mod commands;
 mod context_selection;
 mod location_labels;

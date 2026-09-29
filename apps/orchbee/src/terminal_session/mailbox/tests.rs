@@ -74,6 +74,7 @@ fn live_empty_mailbox_rejects_old_attachment_commands_and_second_bootstrap() {
     let base = Instant::now();
     let error = mailbox.publish_event_before_using(
         WorkerEvent::Bootstrap {
+            selection: None,
             cache: projected_one_tab(),
         },
         EventDeadline::Startup(base + Duration::from_secs(10)),
@@ -220,6 +221,7 @@ fn test_event_await_uses_existing_cell_and_real_wall_guard() {
         publisher_mailbox
             .publish_event_before_using(
                 WorkerEvent::Bootstrap {
+                    selection: None,
                     cache: projected_one_tab(),
                 },
                 EventDeadline::Startup(base + Duration::from_secs(1)),
@@ -259,6 +261,7 @@ fn bootstrap_uses_latest_geometry_and_publishes_first_desired_key_with_its_reply
     let wait = mailbox
         .publish_event_before_using(
             WorkerEvent::Bootstrap {
+                selection: None,
                 cache: projected_one_tab(),
             },
             EventDeadline::Startup(base + Duration::from_secs(1)),
@@ -266,7 +269,7 @@ fn bootstrap_uses_latest_geometry_and_publishes_first_desired_key_with_its_reply
         )
         .unwrap();
     let event = mailbox.take_event_before_using(&clock).unwrap().unwrap();
-    let WorkerEvent::Bootstrap { cache } = event.into_event() else {
+    let WorkerEvent::Bootstrap { cache, .. } = event.into_event() else {
         panic!("expected bootstrap event")
     };
     let mut canonical = None;
@@ -333,13 +336,14 @@ fn empty_bootstrap_publishes_live_generation_and_admits_refresh_without_a_viewer
     let wait = mailbox
         .publish_event_before_using(
             WorkerEvent::Bootstrap {
+                selection: None,
                 cache: projected_tabs(0),
             },
             EventDeadline::Startup(base + Duration::from_secs(1)),
             &clock,
         )
         .unwrap();
-    let WorkerEvent::Bootstrap { cache } = mailbox
+    let WorkerEvent::Bootstrap { cache, .. } = mailbox
         .take_event_before_using(&clock)
         .unwrap()
         .unwrap()

@@ -389,7 +389,7 @@ pub(super) struct Harness {
 
 impl Harness {
     pub(super) fn start(steps: Vec<WireKind>, initial_geometry: Geometry) -> TestResult<Self> {
-        Self::start_inner(steps, initial_geometry, None, None, IDENTITY_SEED)
+        Self::start_inner(steps, initial_geometry, None, None, IDENTITY_SEED, None)
     }
 
     pub(super) fn start_with_identity_seed(
@@ -397,7 +397,7 @@ impl Harness {
         initial_geometry: Geometry,
         identity_seed: u128,
     ) -> TestResult<Self> {
-        Self::start_inner(steps, initial_geometry, None, None, identity_seed)
+        Self::start_inner(steps, initial_geometry, None, None, identity_seed, None)
     }
 
     pub(super) fn start_with_ceiling_clock(
@@ -410,6 +410,7 @@ impl Harness {
             Some(Arc::new(AtomicBool::new(false))),
             None,
             IDENTITY_SEED,
+            None,
         )
     }
 
@@ -423,6 +424,23 @@ impl Harness {
             None,
             Some(Arc::new(PrewriteGate::default())),
             IDENTITY_SEED,
+            None,
+        )
+    }
+
+    #[cfg(windows)]
+    pub(super) fn start_at(
+        steps: Vec<WireKind>,
+        initial_geometry: Geometry,
+        target: crate::terminal_session::NativeStartupTarget,
+    ) -> TestResult<Self> {
+        Self::start_inner(
+            steps,
+            initial_geometry,
+            None,
+            None,
+            IDENTITY_SEED,
+            Some(target),
         )
     }
 
@@ -432,6 +450,7 @@ impl Harness {
         ceiling_clock: Option<Arc<AtomicBool>>,
         prewrite_gate: Option<Arc<PrewriteGate>>,
         identity_seed: u128,
+        target: Option<crate::terminal_session::NativeStartupTarget>,
     ) -> TestResult<Self> {
         let carrier = ScriptedCarrier::start(steps)?;
         let elapsed_millis = Arc::new(AtomicU64::new(0));
@@ -470,7 +489,11 @@ impl Harness {
         let worker = thread::Builder::new()
             .name("native-scripted-executor".into())
             .spawn(move || {
-                let exit = super::run(client, initial_geometry, worker_mailbox);
+                let exit = if target.is_some() {
+                    super::run_at(client, initial_geometry, worker_mailbox, target)
+                } else {
+                    super::run(client, initial_geometry, worker_mailbox)
+                };
                 let _sent = worker_done_sender.send(());
                 exit
             })?;
@@ -1681,18 +1704,22 @@ impl UiDriver {
                     decision.ok_or_else(|| test_error("Panel decision"))?,
                 ))
             }
-            WorkerEvent::Bootstrap { cache } => {
+            WorkerEvent::Bootstrap { cache, selection } => {
                 let wait_key = wait_key.ok_or_else(|| test_error("Bootstrap wait key"))?;
                 let mut installed = None;
                 let result = self.mailbox.deposit_bootstrap_reply_before(
                     &wait_key,
                     &self.clock,
                     |generation, geometry| {
-                        let (state, target) =
-                            NativeSessionState::starting(cache, generation, geometry)
-                                .ok_or(CarrierFailure::AuthorityDivergence)?;
+                        let (state, target) = NativeSessionState::bootstrap_at(
+                            cache,
+                            generation,
+                            geometry,
+                            selection.as_ref(),
+                        )
+                        .ok_or(CarrierFailure::AuthorityDivergence)?;
                         installed = Some(state);
-                        Ok(Some(target))
+                        Ok(target)
                     },
                 );
                 require_applied(result)?;
