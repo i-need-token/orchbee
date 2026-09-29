@@ -878,3 +878,7 @@ The [Workspace metadata contract](docs/windows-workspace-metadata.md) defines re
 Windows `panel report-metadata` supports source-owned presentation fields, guards, token patches, sequence and TTL with a binding-fenced, once-only receipt. See the [Panel metadata contract](docs/windows-panel-metadata.md).
 
 Windows `panel report-agent`, `report-agent-session`, `clear-agent-authority` and `release-agent` submit explicit source-owned reports and return correlated dispositions. See the [Agent report contract](docs/windows-panel-agent-reports.md).
+
+## Windows CLI notifications
+
+`orchbee notification show "Build complete" --body "All checks passed" --position bottom-right --sound done` sends a short card to accepting main-TUI Clients on the running Site. Use `--format json` for the closed delivery receipt. See [delivery, limits and lifecycle](docs/windows-notifications.md); acceptance is queue admission, not a display or sound acknowledgement.

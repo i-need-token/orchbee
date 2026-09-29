@@ -173,6 +173,7 @@ pub(crate) enum HelpTopic {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum Family {
+    Notification,
     #[cfg(windows)]
     Session,
     Client,
@@ -212,6 +213,7 @@ impl Family {
             Self::TerminalSession => "terminal session",
             Self::Worktree => "worktree",
             Self::LaunchProfile => "launch-profile",
+            Self::Notification => "notification",
             Self::Site => "site",
             Self::Api => "api",
             Self::Config => "config",
@@ -338,6 +340,7 @@ pub(crate) enum CommandPath {
     SiteDiagnose,
     SiteConfig,
     SiteReloadConfig,
+    NotificationShow,
     SiteAgentManifests,
     SiteReloadAgentManifests,
     SiteUpdateAgentManifests,
@@ -466,6 +469,7 @@ impl CommandPath {
             Self::SiteDiagnose => "site diagnose",
             Self::SiteConfig => "site config",
             Self::SiteReloadConfig => "site reload-config",
+            Self::NotificationShow => "notification show",
             Self::SiteAgentManifests => "site agent-manifests",
             Self::SiteUpdateAgentManifests => "site update-agent-manifests",
             Self::SiteReloadAgentManifests => "site reload-agent-manifests",
@@ -1311,6 +1315,10 @@ pub(crate) enum Request {
         format: OutputFormat,
     },
     /// Read or reload the running Site's configuration; never activates a Site.
+    Notification {
+        message: orchbee_workbench_protocol::Notification,
+        format: OutputFormat,
+    },
     RuntimeConfiguration {
         action: orchbee_workbench_protocol::ConfigurationAction,
         format: OutputFormat,
@@ -1379,6 +1387,9 @@ pub(crate) enum UsageContext {
 /// expect; rendered per locale, never serialized.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum ExpectedValue {
+    NotificationTitle,
+    NotificationPosition,
+    NotificationSound,
     PresentationId,
     ReportAgent,
     ReportState,
@@ -1612,6 +1623,9 @@ enum Token {
 
 #[derive(Default)]
 struct Options {
+    notification_body: Option<String>,
+    notification_position: Option<String>,
+    notification_sound: Option<String>,
     child: bool,
     report_presentation: Option<String>,
     panel_agent: panel_agent::Options,
@@ -1729,6 +1743,9 @@ struct Options {
 /// both the format-envelope walk and the option scan so ownership is decided
 /// identically in the two passes.
 const VALUE_FLAGS: &[&str] = &[
+    "--body",
+    "--position",
+    "--sound",
     "--presentation",
     "--agent",
     "--applies-to-source",
@@ -2346,6 +2363,9 @@ fn apply_value_flag(
         "--presentation" => &mut options.report_presentation,
         "--agent" => &mut options.panel_metadata.agent,
         "--state" => &mut options.panel_agent.state,
+        "--body" => &mut options.notification_body,
+        "--position" => &mut options.notification_position,
+        "--sound" => &mut options.notification_sound,
         "--message" => &mut options.panel_agent.message,
         "--agent-session-id" => &mut options.panel_agent.session_id,
         "--agent-session-path" => &mut options.panel_agent.session_path,
@@ -3821,6 +3841,66 @@ fn resolve_words(
                 format: options.format.unwrap_or(OutputFormat::Text),
             })
         }
+        ["notification", "show", title] => {
+            use orchbee_workbench_protocol::{
+                Notification, NotificationPosition as Position, NotificationSound as Sound,
+            };
+            let context = UsageContext::Path("notification show");
+            check_scope(
+                options,
+                Scope {
+                    notification: true,
+                    ..NO_OPTIONS
+                },
+                context,
+                envelope,
+            )?;
+            let invalid = |option, value: &str, expected| {
+                usage_with(
+                    UsageReason::InvalidValue {
+                        context,
+                        option,
+                        value: value.into(),
+                        expected,
+                    },
+                    envelope,
+                )
+            };
+            let position = match options
+                .notification_position
+                .as_deref()
+                .unwrap_or("bottom-right")
+            {
+                "top-left" => Position::TopLeft,
+                "top-right" => Position::TopRight,
+                "bottom-left" => Position::BottomLeft,
+                "bottom-right" => Position::BottomRight,
+                value => {
+                    return Err(invalid(
+                        "--position",
+                        value,
+                        ExpectedValue::NotificationPosition,
+                    ));
+                }
+            };
+            let sound = match options.notification_sound.as_deref().unwrap_or("none") {
+                "none" => Sound::None,
+                "done" => Sound::Done,
+                "request" => Sound::Request,
+                value => return Err(invalid("--sound", value, ExpectedValue::NotificationSound)),
+            };
+            let message = Notification::normalize(
+                title,
+                options.notification_body.as_deref(),
+                position,
+                sound,
+            )
+            .map_err(|_| invalid("<title>", title, ExpectedValue::NotificationTitle))?;
+            Ok(Request::Notification {
+                message,
+                format: options.format.unwrap_or(OutputFormat::Text),
+            })
+        }
         ["site", verb @ ("config" | "reload-config")] => {
             reject_filters(
                 options,
@@ -4343,6 +4423,25 @@ fn resolve_words(
             verb,
             envelope,
         )),
+        ["notification"] => Err(missing_command(
+            UsageContext::Path("notification"),
+            envelope,
+        )),
+        ["notification", "show"] => Err(missing_required(
+            UsageContext::Path("notification show"),
+            "<title>",
+            envelope,
+        )),
+        ["notification", "show", _, extra, ..] => Err(unexpected_argument(
+            UsageContext::Path("notification show"),
+            extra,
+            envelope,
+        )),
+        ["notification", verb, ..] => Err(unknown_command(
+            UsageContext::Path("notification"),
+            verb,
+            envelope,
+        )),
         ["site"] => Err(missing_command(UsageContext::Path("site"), envelope)),
         ["site", "start", extra, ..] => Err(unexpected_argument(
             UsageContext::Path("site start"),
@@ -4565,6 +4664,8 @@ fn help_topic(path: &[&str]) -> Option<HelpTopic> {
         }
         ["site", "config"] => HelpTopic::Command(CommandPath::SiteConfig),
         ["site", "reload-config"] => HelpTopic::Command(CommandPath::SiteReloadConfig),
+        ["notification"] => HelpTopic::Family(Family::Notification),
+        ["notification", "show"] => HelpTopic::Command(CommandPath::NotificationShow),
         ["site", "agent-manifests"] => HelpTopic::Command(CommandPath::SiteAgentManifests),
         ["site", "reload-agent-manifests"] => {
             HelpTopic::Command(CommandPath::SiteReloadAgentManifests)
@@ -4639,6 +4740,7 @@ fn mutation(command: MutationCommand, options: &Options) -> Request {
 /// is only meaningful whole.
 #[derive(Clone, Copy)]
 struct Scope {
+    notification: bool,
     panel_terminal: bool,
     metadata: bool,
     panel_metadata: bool,
@@ -4769,6 +4871,7 @@ struct Scope {
 }
 
 const NO_OPTIONS: Scope = Scope {
+    notification: false,
     panel_terminal: false,
     metadata: false,
     panel_metadata: false,
@@ -5095,7 +5198,10 @@ const INTEGRATION_SCOPE: Scope = Scope {
 
 /// Any mutation-only option seen outside a mutation command.
 fn business_options(options: &Options) -> bool {
-    options.child
+    options.notification_body.is_some()
+        || options.notification_position.is_some()
+        || options.notification_sound.is_some()
+        || options.child
         || options.report_presentation.is_some()
         || options.panel_agent.first_option().is_some()
         || options.panel_metadata.first_option().is_some()
@@ -5166,6 +5272,17 @@ fn business_options(options: &Options) -> bool {
 /// The first named option present but outside `scope`, in the fixed `Options`
 /// declaration order — deterministic without any argv-order state.
 fn first_out_of_scope(options: &Options, scope: Scope) -> Option<&'static str> {
+    if !scope.notification {
+        if options.notification_body.is_some() {
+            return Some("--body");
+        }
+        if options.notification_position.is_some() {
+            return Some("--position");
+        }
+        if options.notification_sound.is_some() {
+            return Some("--sound");
+        }
+    }
     if options.child && !scope.panel_terminal {
         return Some("--child");
     }

@@ -153,6 +153,8 @@ pub(crate) struct TerminalSession {
     #[cfg(windows)]
     configuration: Option<configuration::Watcher>,
     #[cfg(windows)]
+    notifications: Option<crate::notifications::Subscription>,
+    #[cfg(windows)]
     client_control: Option<client_control::ClientControl>,
     backend: SessionBackend,
     task: Option<SessionTask>,
@@ -196,6 +198,8 @@ impl TerminalSession {
                 Ok(Self {
                     #[cfg(windows)]
                     configuration: None,
+                    #[cfg(windows)]
+                    notifications: None,
                     #[cfg(windows)]
                     client_control,
                     backend: SessionBackend::Native(Box::new(native)),
@@ -257,6 +261,8 @@ impl TerminalSession {
             client_control: None,
             #[cfg(windows)]
             configuration: None,
+            #[cfg(windows)]
+            notifications: None,
             backend: SessionBackend::Legacy(Box::new(LegacySession {
                 commands: Some(commands),
                 events: Some(events),
@@ -327,7 +333,7 @@ impl TerminalSession {
         view: &mut crate::client_view::ClientView,
         viewport: ratatui::layout::Rect,
     ) -> bool {
-        let mut configuration_changed = false;
+        let mut configuration_changed = view.notifications.tick(std::time::Instant::now());
         match &self.backend {
             SessionBackend::Native(native) => {
                 if self.configuration.is_none()
@@ -342,7 +348,29 @@ impl TerminalSession {
                     .ok();
                 }
                 if let Some(watcher) = &mut self.configuration {
-                    configuration_changed = watcher.tick(view);
+                    configuration_changed |= watcher.tick(view);
+                }
+                if self.notifications.is_none()
+                    && let Some(origin) = &self.origin
+                    && let Some((site, _)) = native.control_observation(false)
+                {
+                    self.notifications = crate::notifications::Subscription::spawn(
+                        origin.clone(),
+                        native.configuration_clock(),
+                        site,
+                    )
+                    .ok();
+                }
+                let accepting = crate::notifications::available(
+                    view,
+                    Some(TerminalSessionView::Native(native.view())),
+                ) && view.notifications.empty();
+                if let Some(listener) = &self.notifications
+                    && let Some(message) = listener.poll(accepting)
+                {
+                    configuration_changed |= view
+                        .notifications
+                        .install(message, std::time::Instant::now());
                 }
             }
             #[cfg(test)]
@@ -737,6 +765,10 @@ impl TerminalInputPort for TerminalSession {
 
 impl Drop for TerminalSession {
     fn drop(&mut self) {
+        #[cfg(windows)]
+        if let Some(listener) = &mut self.notifications {
+            listener.close();
+        }
         #[cfg(windows)]
         if let Some(watcher) = &mut self.configuration {
             watcher.close();

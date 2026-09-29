@@ -1,3 +1,5 @@
+pub(crate) mod notification;
+use notification::*;
 pub(crate) mod configuration;
 use configuration::*;
 pub(crate) mod agent_manifest_update;
@@ -851,6 +853,8 @@ pub struct WorkbenchCommand {
 pub enum WorkbenchRequest {
     #[serde(rename = "workbench.configuration")]
     Configuration(ConfigurationRequest),
+    #[serde(rename = "workbench.notification")]
+    Notification(NotificationRequest),
     #[serde(rename = "workbench.agent-manifests")]
     AgentManifests(AgentManifestsRequest),
     #[serde(rename = "workbench.panel-agent")]
@@ -1220,6 +1224,8 @@ pub struct WorkbenchSnapshotResult {
 pub enum WorkbenchResponse {
     #[serde(rename = "workbench.configuration.result")]
     Configuration(ConfigurationResult),
+    #[serde(rename = "workbench.notification.result")]
+    Notification(NotificationResult),
     #[serde(rename = "workbench.agent-manifests.result")]
     AgentManifests(AgentManifestsResult),
     #[serde(rename = "workbench.panel-agent.result")]
@@ -1272,6 +1278,9 @@ pub fn parse_workbench_request(encoded: &[u8]) -> Result<WorkbenchRequest, Contr
 /// explicit `launch` and a `profile` selector are mutually exclusive on the
 /// terminal-launch actions.
 fn validate_request(request: &WorkbenchRequest) -> Result<(), ContractError> {
+    if let WorkbenchRequest::Notification(request) = request {
+        return request.validate();
+    }
     if let WorkbenchRequest::PanelAgent(request) = request {
         return request.validate();
     }
@@ -1425,6 +1434,7 @@ fn validate_response(response: &WorkbenchResponse, encoded: &[u8]) -> Result<(),
         return Err(ContractError::InvalidDocument);
     }
     match response {
+        WorkbenchResponse::Notification(result) => result.validate(),
         WorkbenchResponse::Configuration(result) => {
             enforce_encoded_limit(encoded, MAXIMUM_CONFIGURATION_BYTES)?;
             result.validate()

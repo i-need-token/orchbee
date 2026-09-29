@@ -462,6 +462,9 @@ mod panel_metadata;
 
 mod panel_agent;
 
+#[cfg(windows)]
+mod notifications;
+
 #[test]
 fn layout_structure_uses_navigation_only_without_a_worker() {
     let terminals = Arc::new(LocalTerminalService::new(Arc::new(Mutex::new(

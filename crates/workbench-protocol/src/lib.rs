@@ -165,3 +165,9 @@ pub use command::configuration::{
     ConfigurationRestart, ConfigurationResult, ConfigurationShellMode, ConfigurationSnapshot,
     MAXIMUM_CONFIGURATION_BYTES,
 };
+
+pub use command::notification::{
+    Notification, NotificationAction, NotificationFailure, NotificationOutcome,
+    NotificationPosition, NotificationReason, NotificationRequest, NotificationResult,
+    NotificationSound,
+};

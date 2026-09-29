@@ -1,3 +1,4 @@
+mod notification;
 mod runtime_configuration;
 #[cfg(test)]
 use crate::client_view::{PREFIX_CHORD, PrefixGroup};

@@ -446,6 +446,8 @@ fn draw_surface<B: Backend>(
     surface: &mut (impl TerminalSurface + ?Sized),
     dispatcher: &mut InputDispatcher,
 ) -> Result<(), LoopFailure<B::Error>> {
+    #[cfg(windows)]
+    let mut notification_painted = false;
     let mut receipt = crate::terminal_session::NativeDrawReceipt::default();
     let mut hits = HitMapBuilder::new();
     let drawn = terminal.draw(|frame| {
@@ -457,12 +459,21 @@ fn draw_surface<B: Backend>(
             chrome.theme,
             &mut hits,
         );
+        #[cfg(windows)]
+        if crate::notifications::available(view, surface.view()) {
+            notification_painted =
+                crate::notifications::render(frame, &view.notifications, chrome.theme);
+        }
     });
     if let Err(error) = drawn {
         // A failed draw never publishes: the previous map stays the
         // authority for the last frame that reached the screen whole.
         // The failure itself is fatal to the loop.
         return Err(LoopFailure::Terminal(error));
+    }
+    #[cfg(windows)]
+    if notification_painted {
+        crate::notifications::sound(view.notifications.take_sound_after_draw());
     }
     dispatcher.publish_hit_map(hits.finish());
     let help_page = receipt.help_page();

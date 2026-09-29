@@ -134,6 +134,8 @@ fn decoded_local_input_reaches_pending_focus_before_terminal_routing() {
             let (shutdown, _peer) = orchbee_local_ipc::LocalStream::pair().unwrap();
             let mut session = TerminalSession {
                 configuration: None,
+                #[cfg(windows)]
+                notifications: None,
                 client_control: Some(control),
                 backend: SessionBackend::Native(Box::new(native)),
                 task: None,

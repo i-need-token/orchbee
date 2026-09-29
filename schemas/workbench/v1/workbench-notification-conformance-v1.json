@@ -1,0 +1,248 @@
+{
+	"contractVersion": 1,
+	"valid": [
+		{
+			"name": "show",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.notification",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "show",
+					"notification": {
+						"title": "Build ready",
+						"body": "中 😀",
+						"position": "top-right",
+						"sound": "none"
+					}
+				}
+			}
+		},
+		{
+			"name": "listen",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.notification",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "listen",
+					"accepting": false
+				}
+			}
+		},
+		{
+			"name": "shown",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.notification.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "show",
+					"shown": true,
+					"reason": "shown"
+				}
+			}
+		},
+		{
+			"name": "delivery",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.notification.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "listening",
+					"notification": {
+						"title": "Build ready",
+						"body": "中 😀",
+						"position": "top-right",
+						"sound": "none"
+					}
+				}
+			}
+		}
+	],
+	"invalid": [
+		{
+			"name": "title-schema-0",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.notification",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "show",
+					"notification": {
+						"title": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+						"body": "中 😀",
+						"position": "top-right",
+						"sound": "none"
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "title-schema-1",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.notification",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "show",
+					"notification": {
+						"title": "bad\u001b",
+						"body": "中 😀",
+						"position": "top-right",
+						"sound": "none"
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "title-semantic-2",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.notification",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "show",
+					"notification": {
+						"title": "  not normalized",
+						"body": "中 😀",
+						"position": "top-right",
+						"sound": "none"
+					}
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "title-semantic-3",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.notification",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "show",
+					"notification": {
+						"title": "a b",
+						"body": "中 😀",
+						"position": "top-right",
+						"sound": "none"
+					}
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "position-schema-4",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.notification",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "show",
+					"notification": {
+						"title": "Build ready",
+						"body": "中 😀",
+						"position": "center",
+						"sound": "none"
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "sound-schema-5",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.notification",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "show",
+					"notification": {
+						"title": "Build ready",
+						"body": "中 😀",
+						"position": "top-right",
+						"sound": "bell"
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "missing-body",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.notification",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "show",
+					"notification": {
+						"title": "Build ready",
+						"position": "top-right",
+						"sound": "none"
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "missing-sound",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.notification",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "show",
+					"notification": {
+						"title": "Build ready",
+						"body": "中 😀",
+						"position": "top-right"
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "false-shown",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.notification.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "show",
+					"shown": false,
+					"reason": "shown"
+				}
+			},
+			"boundary": "schema"
+		}
+	]
+}

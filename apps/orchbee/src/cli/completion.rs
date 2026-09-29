@@ -108,6 +108,7 @@ use crate::invocation::CompletionShell;
 
 /// Top-level words the grammar accepts before any option.
 const ROOT_WORDS: &[&str] = &[
+    "notification",
     "layout",
     "client",
     "agent",
@@ -133,6 +134,7 @@ const ROOT_WORDS: &[&str] = &[
 /// every data command family accepts it; `help`/`completion`/`tui`/`--version`
 /// reject it.
 const FORMAT_ROOT_WORDS: &[&str] = &[
+    "notification",
     "layout",
     "client",
     "agent",
@@ -153,6 +155,7 @@ const FORMAT_ROOT_WORDS: &[&str] = &[
 
 /// family → the verbs it implements.
 const FAMILY_VERBS: &[(&str, &[&str])] = &[
+    ("notification", &["show"]),
     (
         "agent",
         &[
@@ -272,6 +275,9 @@ const FAMILY_VERBS: &[(&str, &[&str])] = &[
 /// Every business flag the grammar admits (`--format` is orthogonal), in the
 /// order the state machine records them.
 const BUSINESS_FLAGS: &[&str] = &[
+    "--body",
+    "--position",
+    "--sound",
     #[cfg(windows)]
     "--child",
     "--presentation",
@@ -399,6 +405,7 @@ const REPEATABLE_FLAGS: &[&str] = &[
 const CONTROL_FLAGS: &[&str] = &["--cols", "--rows", "--timeout", "--takeover"];
 const OBSERVE_FLAGS: &[&str] = &["--cols", "--rows", "--timeout"];
 const COMMAND_FLAGS: &[(&str, &[&str])] = &[
+    ("notification:show", &["--body", "--position", "--sound"]),
     #[cfg(windows)]
     (
         "layout:apply",
@@ -1114,6 +1121,7 @@ const PROVIDER_VALUES: &[&str] = &[
 
 /// `<family>:<verb>` paths that consume one positional operand.
 const OPERAND_PATHS: &[&str] = &[
+    "notification:show",
     #[cfg(windows)]
     "panel:create-terminal",
     "panel:report-metadata",
@@ -1190,6 +1198,7 @@ const OPERAND_PATHS: &[&str] = &[
 /// Help topics that lead anywhere (`help <word>`); leaf topics accept no
 /// deeper word.
 const HELP_TOPICS: &[&str] = &[
+    "notification",
     "layout",
     "client",
     "agent",
@@ -1212,6 +1221,7 @@ const HELP_TOPICS: &[&str] = &[
 
 /// `help <topic>` → the deeper words that complete a help path.
 const HELP_CHILDREN: &[(&str, &[&str])] = &[
+    ("notification", &["show"]),
     (
         "agent",
         &[
@@ -1374,6 +1384,9 @@ fn flag_bit(flag: &str) -> &'static str {
         "--tab" => "seen_tab",
         "--standalone" => "seen_standalone",
         "--label" => "seen_label",
+        "--body" => "seen_notification_body",
+        "--position" => "seen_notification_position",
+        "--sound" => "seen_notification_sound",
         "--right-click" => "seen_right_click",
         "--source" => "seen_output_source",
         "--state" => "seen_panel_agent_state",

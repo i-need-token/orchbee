@@ -65,6 +65,8 @@ pub(super) fn build() -> serde_json::Value {
         "until": UNTIL_VALUES,
         "providers": PROVIDER_VALUES,
         "rightClick": RIGHT_CLICK_VALUES,
+        "notificationPositions": ["top-left", "top-right", "bottom-left", "bottom-right"],
+        "notificationSounds": ["none", "done", "request"],
         "outputSources": super::OUTPUT_SOURCES,
         "agentKinds": crate::agent_provider::CANONICAL_IDS,
         "helpTopics": HELP_TOPICS,

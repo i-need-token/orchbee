@@ -249,6 +249,8 @@ pub(crate) enum SidebarSurface {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct ClientView {
     bindings: std::sync::Arc<Bindings>,
+    #[cfg(windows)]
+    pub(crate) notifications: crate::notifications::State,
     notice: Option<Notice>,
     overlay: Option<Overlay>,
     prefix_active: bool,
@@ -278,6 +280,8 @@ impl ClientView {
     pub(crate) fn new(width: u16) -> Self {
         Self {
             bindings: std::sync::Arc::new(Bindings::default()),
+            #[cfg(windows)]
+            notifications: crate::notifications::State::default(),
             notice: None,
             overlay: None,
             prefix_active: false,

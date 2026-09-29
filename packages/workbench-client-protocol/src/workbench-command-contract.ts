@@ -1,4 +1,8 @@
 import {
+	NotificationRequestSchema,
+	NotificationResultSchema,
+} from './workbench-notification-contract';
+import {
 	WorkbenchLayoutTemplateSchema,
 	WORKBENCH_MAXIMUM_ENCODED_LAYOUT_COMMAND_BYTES,
 } from './workbench-layout-template-contract';
@@ -383,6 +387,7 @@ export const WorkbenchRequestSchema = z
 		WorkspaceMetadataRequestSchema,
 		AgentManifestsRequestSchema,
 		ConfigurationRequestSchema,
+		NotificationRequestSchema,
 		PanelAgentRequestSchema,
 		PanelMetadataRequestSchema,
 		WorkbenchWorkspaceGroupCloseRequestSchema,
@@ -764,6 +769,7 @@ export const WorkbenchResponseSchema = z
 		WorkspaceMetadataResultSchema,
 		AgentManifestsResultSchema,
 		ConfigurationResultSchema,
+		NotificationResultSchema,
 		PanelAgentResultSchema,
 		PanelMetadataResultSchema,
 		WorkbenchWorkspaceGroupCloseResultSchema,

@@ -9,6 +9,30 @@ use std::{
 fn real_powershell_completes_scoped_grammar_without_runtime() {
     let mut cases = super::super::test_cases::CASES.to_vec();
     cases.extend([
+        ("orchbee notification sh", "show", true),
+        ("orchbee help notification sh", "show", true),
+        ("orchbee notification show hello --po", "--position", true),
+        (
+            "orchbee notification show hello --position b",
+            "bottom-left",
+            true,
+        ),
+        (
+            "orchbee notification show hello --sound=",
+            "--sound=done",
+            true,
+        ),
+        (
+            "orchbee notification show hello --sound nope --b",
+            "--body",
+            false,
+        ),
+        (
+            "orchbee notification show hello --body literal --bo",
+            "--body",
+            false,
+        ),
+        ("orchbee site config --so", "--sound", false),
         ("orchbee panel create-terminal abc --cl", "--client", false),
         ("orchbee panel create-terminal abc --cu", "--current", false),
         (

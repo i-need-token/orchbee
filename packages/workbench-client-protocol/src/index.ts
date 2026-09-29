@@ -502,3 +502,11 @@ export type {
 	WorkbenchLayoutNode,
 	WorkbenchLayoutPresentation,
 } from './workbench-layout-template-contract';
+
+export {
+	NotificationSchema,
+	NotificationRequestSchema,
+	NotificationResultSchema,
+	type NotificationRequest,
+	type NotificationResult,
+} from './workbench-notification-contract';

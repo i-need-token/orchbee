@@ -795,3 +795,7 @@ Windows `workspace create` 可省略项目、名称和目录；按来源终端�
 Windows `panel report-metadata` 支持来源拥有的展示字段、守卫、token 补丁、序号和 TTL，提供绑定校验及单次提交回执。见 [Panel 元数据契约](docs/windows-panel-metadata.zh-CN.md)。
 
 Windows `panel report-agent`、`report-agent-session`、`clear-agent-authority` 和 `release-agent` 提交显式来源上报并返回相关处理结果。参见 [Agent 上报契约](docs/windows-panel-agent-reports.zh-CN.md)。
+
+## Windows CLI 通知
+
+`orchbee notification show "Build complete" --body "All checks passed" --position bottom-right --sound done` 向运行中 Site 上可接收的主 TUI Client 发送短通知卡片。使用 `--format json` 获取封闭投递回执。详见[投递、边界与生命周期](docs/windows-notifications.zh-CN.md)；接收只表示入队，不确认显示或播放声音。

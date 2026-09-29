@@ -1,0 +1,227 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://orchbee.dev/schemas/workbench/v1/workbench-notification.schema.json",
+	"$comment": "Bindings additionally enforce normalized whitespace, Unicode scalar strings and the existing 16 KiB frame bound.",
+	"oneOf": [
+		{
+			"type": "object",
+			"required": ["kind", "protocolVersion", "requestId", "siteId", "action"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": {
+					"const": "workbench.notification"
+				},
+				"protocolVersion": {
+					"const": 1
+				},
+				"requestId": {
+					"type": "string",
+					"pattern": "^[0-9a-f]{32}$",
+					"not": {
+						"const": "00000000000000000000000000000000"
+					}
+				},
+				"siteId": {
+					"type": "string",
+					"pattern": "^[0-9a-f]{32}$",
+					"not": {
+						"const": "00000000000000000000000000000000"
+					}
+				},
+				"action": {
+					"oneOf": [
+						{
+							"type": "object",
+							"required": ["kind", "notification"],
+							"additionalProperties": false,
+							"properties": {
+								"kind": {
+									"const": "show"
+								},
+								"notification": {
+									"type": "object",
+									"required": ["title", "body", "position", "sound"],
+									"additionalProperties": false,
+									"properties": {
+										"title": {
+											"type": "string",
+											"minLength": 1,
+											"maxLength": 80,
+											"pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]+$"
+										},
+										"body": {
+											"anyOf": [
+												{
+													"type": "null"
+												},
+												{
+													"type": "string",
+													"minLength": 1,
+													"maxLength": 240,
+													"pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]+$"
+												}
+											]
+										},
+										"position": {
+											"enum": ["top-left", "top-right", "bottom-left", "bottom-right"]
+										},
+										"sound": {
+											"enum": ["none", "done", "request"]
+										}
+									}
+								}
+							}
+						},
+						{
+							"type": "object",
+							"required": ["kind", "accepting"],
+							"additionalProperties": false,
+							"properties": {
+								"kind": {
+									"const": "listen"
+								},
+								"accepting": {
+									"type": "boolean"
+								}
+							}
+						}
+					]
+				}
+			}
+		},
+		{
+			"type": "object",
+			"required": ["kind", "protocolVersion", "requestId", "siteId", "outcome"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": {
+					"const": "workbench.notification.result"
+				},
+				"protocolVersion": {
+					"const": 1
+				},
+				"requestId": {
+					"type": "string",
+					"pattern": "^[0-9a-f]{32}$",
+					"not": {
+						"const": "00000000000000000000000000000000"
+					}
+				},
+				"siteId": {
+					"type": "string",
+					"pattern": "^[0-9a-f]{32}$",
+					"not": {
+						"const": "00000000000000000000000000000000"
+					}
+				},
+				"outcome": {
+					"oneOf": [
+						{
+							"type": "object",
+							"required": ["kind", "shown", "reason"],
+							"additionalProperties": false,
+							"properties": {
+								"kind": {
+									"const": "show"
+								},
+								"shown": {
+									"type": "boolean"
+								},
+								"reason": {
+									"enum": ["shown", "busy", "rate-limited", "no-foreground-client"]
+								}
+							},
+							"allOf": [
+								{
+									"if": {
+										"properties": {
+											"reason": {
+												"const": "shown"
+											}
+										}
+									},
+									"then": {
+										"properties": {
+											"shown": {
+												"const": true
+											}
+										}
+									},
+									"else": {
+										"properties": {
+											"shown": {
+												"const": false
+											}
+										}
+									}
+								}
+							]
+						},
+						{
+							"type": "object",
+							"required": ["kind", "notification"],
+							"additionalProperties": false,
+							"properties": {
+								"kind": {
+									"const": "listening"
+								},
+								"notification": {
+									"anyOf": [
+										{
+											"type": "null"
+										},
+										{
+											"type": "object",
+											"required": ["title", "body", "position", "sound"],
+											"additionalProperties": false,
+											"properties": {
+												"title": {
+													"type": "string",
+													"minLength": 1,
+													"maxLength": 80,
+													"pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]+$"
+												},
+												"body": {
+													"anyOf": [
+														{
+															"type": "null"
+														},
+														{
+															"type": "string",
+															"minLength": 1,
+															"maxLength": 240,
+															"pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]+$"
+														}
+													]
+												},
+												"position": {
+													"enum": ["top-left", "top-right", "bottom-left", "bottom-right"]
+												},
+												"sound": {
+													"enum": ["none", "done", "request"]
+												}
+											}
+										}
+									]
+								}
+							}
+						},
+						{
+							"type": "object",
+							"required": ["kind", "reason"],
+							"additionalProperties": false,
+							"properties": {
+								"kind": {
+									"const": "failed"
+								},
+								"reason": {
+									"enum": ["denied", "unavailable", "site-mismatch", "conflict"]
+								}
+							}
+						}
+					]
+				}
+			}
+		}
+	]
+}

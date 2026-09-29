@@ -1,4 +1,5 @@
 pub(crate) mod agent_manifests;
+pub(crate) mod notification;
 pub(crate) mod panel_agent;
 pub(crate) mod panel_metadata;
 #[cfg(windows)]

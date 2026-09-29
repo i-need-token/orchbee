@@ -14,6 +14,8 @@ mod local_client_service;
 mod local_site_service;
 #[cfg(any(unix, windows))]
 mod local_terminal_service;
+#[cfg(windows)]
+mod notification_registry;
 #[cfg(any(unix, windows))]
 mod site_coordinator;
 #[cfg(any(windows, test))]

@@ -7996,3 +7996,34 @@ fn config_reset_keys_grammar_is_offline_and_rejects_effect_options() {
         );
     }
 }
+
+#[test]
+fn notification_defaults_and_joined_flags_normalize_before_any_effect() {
+    use orchbee_workbench_protocol::{NotificationPosition, NotificationSound};
+    let Request::Notification { message, format } =
+        parse(&["notification", "show", "  build  ready  "]).unwrap()
+    else {
+        panic!()
+    };
+    assert_eq!(message.title, "build ready");
+    assert_eq!(message.body, None);
+    assert_eq!(message.position, NotificationPosition::BottomRight);
+    assert_eq!(message.sound, NotificationSound::None);
+    assert_eq!(format, OutputFormat::Text);
+    let Request::Notification { message, format } = parse(&[
+        "--format=json",
+        "notification",
+        "show",
+        "done",
+        "--position=top-left",
+        "--sound=request",
+        "--body=  ",
+    ])
+    .unwrap() else {
+        panic!()
+    };
+    assert_eq!(message.body, None);
+    assert_eq!(message.position, NotificationPosition::TopLeft);
+    assert_eq!(message.sound, NotificationSound::Request);
+    assert_eq!(format, OutputFormat::Json);
+}

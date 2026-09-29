@@ -5,6 +5,7 @@ pub(crate) mod client_view;
 pub(crate) mod configuration;
 #[cfg(windows)]
 pub(crate) mod creation;
+pub(crate) mod notification;
 pub(crate) mod panel_agent;
 pub(crate) mod panel_metadata;
 #[cfg(windows)]

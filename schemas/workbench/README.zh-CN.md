@@ -506,3 +506,9 @@ Server 负责原子分配和发布；物理成员创建仍是独立的保留命�
 [Windows 配置归属契约](../../apps/orchbee/docs/windows-cli-configuration.zh-CN.md#在线配置重载) 负责授权、冻结路径、候选校验、发布、Client 应用和关闭。发布不表示所有 Client 已确认。已提交重载丢失响应仍为未知，不自动重试。不新增 Desktop 命令；匹配的私有版本整套交付，不迁移持久化格式。
 
 必需 `defaultShell` 和 `shellMode` 暴露后续终端准备所用的已接纳默认值，不是 Worker 解析后的事实。可执行文件为空表示平台默认，否则为最多 4096 UTF-8 字节、无控制字符的字面量；模式为 `auto`、`login` 或 `non_login`。匹配的私有 cohort 一同升级。公开 CLI configuration v2 映射这两个字段，历史 v1 schema 保持封闭。
+
+## Client 临时通知
+
+`workbench.notification`（OBWP kind 41）承载 show/listen；`workbench.notification.result`（kind 42）承载 show/listening/failed。帧保留 16 KiB intent 上限。[通知 schema](v1/workbench-notification.schema.json) 及共享语料约束 Rust 与 TypeScript 的封闭结构、必需可空的 body/pending 值、四角位置和 none/done/request 声音。规范化标题/正文至多包含 80/240 个 Unicode 标量，只保留合并后的 ASCII 空格且无控制字符。关联必须匹配两个身份及请求动作；shown 仅在 shown 原因时为 true。
+
+[Windows 通知归属](../../apps/orchbee/docs/windows-notifications.zh-CN.md) 定义授权、连接拥有的有界收件箱、过期、重放与 UI 交接。这是临时、匹配 cohort 的传输，不新增持久化迁移或 Desktop 命令。公开的 `orchbee.notification.show` v1 暴露提交事实，包括不确定提交后的 null 回应；不保证显示确认。

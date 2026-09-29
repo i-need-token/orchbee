@@ -20,6 +20,8 @@ mod local_client;
 #[cfg(any(target_os = "linux", windows))]
 mod local_startup;
 mod localization;
+#[cfg(windows)]
+mod notifications;
 mod presentation;
 #[cfg(any(unix, windows))]
 mod startup_wait;
@@ -191,6 +193,9 @@ fn main() -> ExitCode {
             }
             Ok(invocation::Request::Worktree { command, format }) => {
                 cli::run_worktree(&command, format, locale)
+            }
+            Ok(invocation::Request::Notification { message, format }) => {
+                cli::notification::run(message, format, locale)
             }
             Ok(invocation::Request::RuntimeConfiguration { action, format }) => {
                 cli::runtime_configuration::run(action, format, locale)

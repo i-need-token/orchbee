@@ -391,6 +391,7 @@ fn fixed_outputs_are_far_below_the_bound() {
         CommandPath::SiteAgentManifests,
         CommandPath::SiteConfig,
         CommandPath::SiteReloadConfig,
+        CommandPath::NotificationShow,
         CommandPath::SiteReloadAgentManifests,
         CommandPath::SiteUpdateAgentManifests,
         CommandPath::SiteAgentManifestsStatus,
@@ -454,6 +455,7 @@ fn fixed_outputs_are_far_below_the_bound() {
     // everything the walk does enumerate. Both legal surfaces are walked:
     // trailing `--help` and the `help` prefix.
     let roots = [
+        "notification",
         "session",
         "layout",
         "client",
@@ -474,6 +476,7 @@ fn fixed_outputs_are_far_below_the_bound() {
         "worktree",
     ];
     let verbs = [
+        "show",
         "config",
         "reload-config",
         "agent-manifests",
