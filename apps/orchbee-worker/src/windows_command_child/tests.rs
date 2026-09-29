@@ -14,7 +14,7 @@ use std::{
 use orchbee_local_ipc::ChildOutputReader;
 use winsafe::{HPROCESS, co};
 
-fn tree() -> (GitChild, ChildOutputReader) {
+fn tree() -> (WindowsCommandChild, ChildOutputReader) {
     let executable = std::path::PathBuf::from(std::env::var_os("SystemRoot").unwrap())
         .join("System32/WindowsPowerShell/v1.0/powershell.exe");
     let (output, writer) = ChildOutputReader::pipe().unwrap();
@@ -23,7 +23,7 @@ fn tree() -> (GitChild, ChildOutputReader) {
         "-NoLogo", "-NoProfile", "-NonInteractive", "-Command",
         "$ErrorActionPreference='Stop'; $s=New-Object System.Diagnostics.ProcessStartInfo; $s.FileName=$env:SystemRoot+'\\System32\\ping.exe'; $s.Arguments='-n 30 127.0.0.1'; $s.UseShellExecute=$false; $s.CreateNoWindow=$true; $s.RedirectStandardOutput=$true; $c=[System.Diagnostics.Process]::Start($s); [Console]::WriteLine($c.Id); [Console]::Out.Flush(); $null=[Console]::ReadLine(); exit 7",
     ]).stdin(Stdio::piped()).stdout(writer).stderr(Stdio::null());
-    (GitChild::spawn(command).unwrap(), output)
+    (WindowsCommandChild::spawn(command).unwrap(), output)
 }
 
 fn announced_child(reader: &mut ChildOutputReader) -> u32 {
@@ -132,7 +132,7 @@ impl ChildWrapper for FailedJobWait {
 #[test]
 fn failed_job_wait_never_becomes_cached_root_success_on_retry() {
     let calls = Arc::new(AtomicUsize::new(0));
-    let mut child = GitChild {
+    let mut child = WindowsCommandChild {
         child: Box::new(FailedJobWait(Arc::clone(&calls))),
         settlement: Settlement::Running,
     };
@@ -164,7 +164,7 @@ fn spawn_failure_distinguishes_no_child_from_error_after_native_creation() {
     let missing =
         std::env::temp_dir().join(format!("orchbee-absent-git-{}.exe", std::process::id()));
     assert!(!missing.exists());
-    let Err(failure) = GitChild::spawn(Command::new(missing)) else {
+    let Err(failure) = WindowsCommandChild::spawn(Command::new(missing)) else {
         panic!("missing program spawned")
     };
     assert!(!failure.created);
@@ -183,7 +183,7 @@ fn spawn_failure_distinguishes_no_child_from_error_after_native_creation() {
         .wrap(CreationFlags(CREATE_NO_WINDOW))
         .wrap(JobObject)
         .wrap(RejectWrappedChild);
-    let Err(failure) = GitChild::from_wrapped(wrapped) else {
+    let Err(failure) = WindowsCommandChild::from_wrapped(wrapped) else {
         panic!("rejecting wrapper succeeded")
     };
     assert!(failure.created);

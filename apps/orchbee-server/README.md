@@ -892,3 +892,7 @@ Transport admission remains surface-neutral. An admitted Windows Session may add
 The [Workspace metadata model](../orchbee/docs/windows-workspace-metadata.md) owns transient token values, per-source sequence fences and monotonic TTL under the existing Site gate. The separate OBWP 31/32 RPC uses read permission for queries and navigation permission for reports, without creating topology ledger entries, changing canonical revision or requiring a terminal Worker. Reports are atomic across token/source/resource limits; stale sequences do not refresh expiry. State is absent after restart, and closed Workspace identities are pruned at the next metadata operation. Generic metadata events remain a separate integration.
 
 Panel presentation reports use OBWP 33/34 under the Site gate, with read/navigation permissions and exact primary-binding guards. The [state model](docs/workbench-authority.md#panel-presentation-metadata) owns transient per-terminal sources, field priority, tokens and expiry.
+
+## ## Native plugin action admission
+
+Workbench plugin execution requires read, terminal-creation and lifecycle grants before source resolution. Local terminal service checks Site/Worker identity, enabled manifest availability, action ambiguity and Windows platform support, freezes argv/cwd/context and submits once to Worker. It does not own subprocesses. Read pages remain bound to Worker generation; lost mutation replies preserve uncertainty. [Native plugin behavior](../orchbee/docs/windows-plugins.md) owns the full contract and outstanding lifecycle integration.

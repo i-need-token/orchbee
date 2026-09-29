@@ -1,4 +1,4 @@
-//! Retains one Windows Git command's Job through root and descendant settlement.
+//! Retains one Windows command's Job through root and descendant settlement.
 use std::{
     io,
     process::{Command, ExitStatus},
@@ -15,20 +15,20 @@ enum Settlement {
     Complete(ExitStatus),
 }
 
-pub(crate) struct GitChild {
+pub(crate) struct WindowsCommandChild {
     child: Box<dyn ChildWrapper>,
     settlement: Settlement,
 }
 
 #[derive(Debug)]
-pub(crate) struct GitSpawnFailure {
+pub(crate) struct WindowsCommandSpawnFailure {
     pub(crate) error: io::Error,
     pub(crate) created: bool,
 }
 
-impl GitChild {
-    /// Assignment happens while suspended, before any Git hook can spawn a child.
-    pub(crate) fn spawn(command: Command) -> Result<Self, GitSpawnFailure> {
+impl WindowsCommandChild {
+    /// Assignment happens while suspended, before any command can spawn a child.
+    pub(crate) fn spawn(command: Command) -> Result<Self, WindowsCommandSpawnFailure> {
         let mut wrapped = CommandWrap::from(command);
         wrapped
             .wrap(CreationFlags(CREATE_NO_WINDOW))
@@ -36,7 +36,7 @@ impl GitChild {
         Self::from_wrapped(wrapped)
     }
 
-    fn from_wrapped(mut wrapped: CommandWrap) -> Result<Self, GitSpawnFailure> {
+    fn from_wrapped(mut wrapped: CommandWrap) -> Result<Self, WindowsCommandSpawnFailure> {
         let mut created = false;
         let child = wrapped.spawn_with(|command| {
             let child = command.spawn()?;
@@ -45,7 +45,7 @@ impl GitChild {
         });
         // Release duplicate parent pipe writers before the caller drains output.
         drop(wrapped);
-        let child = child.map_err(|error| GitSpawnFailure { error, created })?;
+        let child = child.map_err(|error| WindowsCommandSpawnFailure { error, created })?;
         Ok(Self {
             child,
             settlement: Settlement::Running,
@@ -56,7 +56,7 @@ impl GitChild {
         self.child.id()
     }
 
-    /// Runs only on the retained Git owner thread. A root exit is not completion
+    /// Runs only on the retained command owner thread. A root exit is not completion
     /// until the owned Job has settled, even when a descendant holds output open.
     pub(crate) fn try_wait(&mut self) -> io::Result<Option<ExitStatus>> {
         match self.settlement {
@@ -98,7 +98,7 @@ impl GitChild {
     }
 }
 
-impl Drop for GitChild {
+impl Drop for WindowsCommandChild {
     fn drop(&mut self) {
         if !matches!(self.settlement, Settlement::Complete(_)) {
             // Best effort only: explicit settle owns every successful receipt.
@@ -109,7 +109,7 @@ impl Drop for GitChild {
 }
 
 fn unknown_settlement() -> io::Error {
-    io::Error::other("Git Job settlement is unknown")
+    io::Error::other("Windows command Job settlement is unknown")
 }
 
 #[cfg(test)]

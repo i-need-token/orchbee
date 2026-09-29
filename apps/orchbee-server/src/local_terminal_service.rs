@@ -1,5 +1,7 @@
 #[cfg(windows)]
 mod configuration;
+#[cfg(windows)]
+mod plugins;
 use std::{
     num::NonZeroU64,
     sync::{Arc, Mutex},
@@ -307,6 +309,7 @@ fn submit(handle: &WorkerRequestHandle, message: &CapabilityNodeMessage) -> Comp
             | WorkerOperationResult::Lifecycle(_)
             | WorkerOperationResult::Send(_)
             | WorkerOperationResult::WorktreeJob(_)
+            | WorkerOperationResult::PluginJob(_)
             | WorkerOperationResult::WorktreeMutation(_),
         ) => Completion::Unknown,
         // The drain variant can never come back from the Launch/Start

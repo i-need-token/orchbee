@@ -304,3 +304,7 @@ retain their original shape. Rust, TypeScript and JSON Schema share positive/neg
 vectors for missing, mixed, extra and invalid generation fields. The native current-Panel owner
 validates canonical absence of binding and brackets joins with the existing selection generation;
 no read allocates an epoch or viewer. Roll out this private extension with its matched native cohort.
+
+## ## Native plugin runtime contract
+
+The exported plugin request/result schemas validate matched-cohort OBWP kinds 45/46, closed context/log shapes, UTF-8 byte bounds, process outcomes and Worker/sequence cursor consistency. Shared plugin conformance cases are checked against Rust and JSON Schema. [Native plugin behavior](../../apps/orchbee/docs/windows-plugins.md) owns execution authority, output limits and remaining integration.

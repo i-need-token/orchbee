@@ -1,0 +1,440 @@
+//! Plugin invocation context is display data; only an admitted Server resolves executable intent.
+use crate::{
+    ContractError, ProtocolVersion, SiteId, WorkbenchRequestId, WorkbenchRevision, WorkerId,
+};
+use serde::{Deserialize, Serialize};
+pub const MAXIMUM_ENCODED_PLUGIN_REQUEST_BYTES: usize = 32 * 1024;
+pub const MAXIMUM_ENCODED_PLUGIN_RESULT_BYTES: usize = 8 * 1024 * 1024;
+const MAX_INTEGER: u64 = 9_007_199_254_740_991;
+pub fn plugin_identifier(value: &str, max: usize) -> bool {
+    !value.is_empty()
+        && value.len() <= max
+        && value
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b"._:-".contains(&b))
+}
+pub fn plugin_job_identifier(value: &str) -> bool {
+    value.len() == 32
+        && value
+            .bytes()
+            .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+        && value.bytes().any(|b| b != b'0')
+}
+#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct PluginInvocationContext {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub workspace_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub workspace_label: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub workspace_cwd: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tab_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tab_label: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub focused_pane_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub focused_pane_cwd: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub focused_pane_agent: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub focused_pane_status: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub selected_text: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub invocation_source: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub correlation_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub clicked_url: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub link_handler_id: Option<String>,
+}
+impl PluginInvocationContext {
+    pub fn validate(&self) -> Result<(), ContractError> {
+        for value in [
+            &self.workspace_id,
+            &self.workspace_label,
+            &self.workspace_cwd,
+            &self.tab_id,
+            &self.tab_label,
+            &self.focused_pane_id,
+            &self.focused_pane_cwd,
+            &self.focused_pane_agent,
+            &self.focused_pane_status,
+            &self.invocation_source,
+            &self.correlation_id,
+            &self.clicked_url,
+            &self.link_handler_id,
+        ]
+        .into_iter()
+        .flatten()
+        {
+            if value.len() > 4096 || value.contains('\0') {
+                return Err(ContractError::InvalidDocument);
+            }
+        }
+        if self
+            .selected_text
+            .as_ref()
+            .is_some_and(|s| s.len() > 8192 || s.contains('\0'))
+            || serde_json::to_vec(self)
+                .map_err(|_| ContractError::InvalidDocument)?
+                .len()
+                > 16 * 1024
+        {
+            return Err(ContractError::InvalidDocument);
+        }
+        Ok(())
+    }
+}
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct PluginWorker {
+    pub worker_id: WorkerId,
+    pub generation: WorkbenchRevision,
+}
+impl PluginWorker {
+    fn validate(&self) -> Result<(), ContractError> {
+        if self.generation.value() == 0 {
+            Err(ContractError::InvalidDocument)
+        } else {
+            Ok(())
+        }
+    }
+}
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct PluginLogCursor {
+    pub worker: PluginWorker,
+    pub before: u64,
+}
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(
+    tag = "kind",
+    rename_all = "kebab-case",
+    rename_all_fields = "camelCase",
+    deny_unknown_fields
+)]
+pub enum PluginAction {
+    Invoke {
+        operation_id: String,
+        #[serde(deserialize_with = "super::json_fields::deserialize_nullable")]
+        plugin_id: Option<String>,
+        action_id: String,
+        context: Box<PluginInvocationContext>,
+    },
+    Logs {
+        #[serde(deserialize_with = "super::json_fields::deserialize_nullable")]
+        plugin_id: Option<String>,
+        #[serde(deserialize_with = "super::json_fields::deserialize_nullable")]
+        cursor: Option<PluginLogCursor>,
+        limit: u8,
+    },
+    Get {
+        worker: PluginWorker,
+        job_id: String,
+    },
+    Cancel {
+        worker: PluginWorker,
+        job_id: String,
+    },
+}
+impl PluginAction {
+    pub fn mutating(&self) -> bool {
+        matches!(self, Self::Invoke { .. } | Self::Cancel { .. })
+    }
+    pub fn validate(&self) -> Result<(), ContractError> {
+        match self {
+            Self::Invoke {
+                operation_id,
+                plugin_id,
+                action_id,
+                context,
+            } => {
+                if !plugin_job_identifier(operation_id)
+                    || !plugin_identifier(action_id, 241)
+                    || plugin_id
+                        .as_ref()
+                        .is_some_and(|id| !plugin_identifier(id, 120))
+                {
+                    return Err(ContractError::InvalidDocument);
+                }
+                context.validate()
+            }
+            Self::Logs {
+                plugin_id,
+                cursor,
+                limit,
+            } => {
+                if !(1..=4).contains(limit)
+                    || plugin_id
+                        .as_ref()
+                        .is_some_and(|id| !plugin_identifier(id, 120))
+                {
+                    return Err(ContractError::InvalidDocument);
+                }
+                if let Some(cursor) = cursor {
+                    cursor.worker.validate()?;
+                    if cursor.before == 0 || cursor.before > MAX_INTEGER {
+                        return Err(ContractError::InvalidDocument);
+                    }
+                }
+                Ok(())
+            }
+            Self::Get { worker, job_id } | Self::Cancel { worker, job_id } => {
+                worker.validate()?;
+                if !plugin_job_identifier(job_id) {
+                    return Err(ContractError::InvalidDocument);
+                }
+                Ok(())
+            }
+        }
+    }
+}
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct PluginRequest {
+    pub protocol_version: ProtocolVersion,
+    pub request_id: WorkbenchRequestId,
+    pub site_id: SiteId,
+    pub action: PluginAction,
+}
+impl PluginRequest {
+    pub fn validate(&self) -> Result<(), ContractError> {
+        self.action.validate()
+    }
+}
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum PluginCommandFailure {
+    ExitFailure,
+    SpawnUnavailable,
+    SpawnFailed,
+    Io,
+    Cancelled,
+    PhysicalUnknown,
+}
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct PluginCommandLog {
+    pub job_id: String,
+    pub sequence: u64,
+    pub plugin_id: String,
+    pub command_id: String,
+    pub command: Vec<String>,
+    pub started_ms: u64,
+    #[serde(deserialize_with = "super::json_fields::deserialize_nullable")]
+    pub finished_ms: Option<u64>,
+    #[serde(deserialize_with = "super::json_fields::deserialize_nullable")]
+    pub exit_code: Option<i32>,
+    #[serde(deserialize_with = "super::json_fields::deserialize_nullable")]
+    pub failure: Option<PluginCommandFailure>,
+    pub stdout: String,
+    pub stderr: String,
+    pub stdout_truncated: bool,
+    pub stderr_truncated: bool,
+}
+impl PluginCommandLog {
+    pub fn validate(&self) -> Result<(), ContractError> {
+        if !plugin_job_identifier(&self.job_id)
+            || !plugin_identifier(&self.plugin_id, 120)
+            || !plugin_identifier(&self.command_id, 241)
+            || self.sequence == 0
+            || self.sequence > MAX_INTEGER
+            || self.started_ms > MAX_INTEGER
+            || self
+                .finished_ms
+                .is_some_and(|n| n < self.started_ms || n > MAX_INTEGER)
+            || self.command.is_empty()
+            || self.command.len() > 128
+            || self
+                .command
+                .iter()
+                .any(|s| s.is_empty() || s.len() > 4096 || s.contains('\0'))
+            || self.command.iter().map(String::len).sum::<usize>() > 128 * 1024
+            || self.stdout.len() > 3 * 64 * 1024
+            || self.stderr.len() > 3 * 64 * 1024
+        {
+            return Err(ContractError::InvalidDocument);
+        }
+        let valid = match self.finished_ms {
+            None => {
+                self.exit_code.is_none()
+                    && self.failure.is_none()
+                    && self.stdout.is_empty()
+                    && self.stderr.is_empty()
+                    && !self.stdout_truncated
+                    && !self.stderr_truncated
+            }
+            Some(_) => match self.failure {
+                None => self.exit_code == Some(0),
+                Some(PluginCommandFailure::ExitFailure) => self.exit_code != Some(0),
+                Some(_) => self.exit_code.is_none(),
+            },
+        };
+        if valid {
+            Ok(())
+        } else {
+            Err(ContractError::InvalidDocument)
+        }
+    }
+}
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum PluginFailure {
+    Denied,
+    Unavailable,
+    SiteMismatch,
+    WorkerChanged,
+    InvalidIntent,
+    NotFound,
+    Disabled,
+    Unsupported,
+    SourceUnavailable,
+    Ambiguous,
+    Busy,
+    Conflict,
+    PhysicalUnknown,
+}
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(
+    tag = "kind",
+    rename_all = "kebab-case",
+    rename_all_fields = "camelCase",
+    deny_unknown_fields
+)]
+pub enum PluginOutcome {
+    Started {
+        worker: PluginWorker,
+        log: Box<PluginCommandLog>,
+        existing: bool,
+    },
+    Logs {
+        worker: PluginWorker,
+        logs: Vec<PluginCommandLog>,
+        #[serde(deserialize_with = "super::json_fields::deserialize_nullable")]
+        next: Option<PluginLogCursor>,
+    },
+    Cancellation {
+        worker: PluginWorker,
+        job_id: String,
+        already_complete: bool,
+    },
+    Failed {
+        reason: PluginFailure,
+    },
+    Unknown {
+        worker: PluginWorker,
+    },
+}
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct PluginResult {
+    pub protocol_version: ProtocolVersion,
+    pub request_id: WorkbenchRequestId,
+    pub site_id: SiteId,
+    pub outcome: PluginOutcome,
+}
+impl PluginResult {
+    pub fn validate(&self) -> Result<(), ContractError> {
+        match &self.outcome {
+            PluginOutcome::Started { worker, log, .. } => {
+                worker.validate()?;
+                log.validate()?;
+            }
+            PluginOutcome::Logs { worker, logs, next } => {
+                worker.validate()?;
+                if logs.len() > 4
+                    || logs
+                        .windows(2)
+                        .any(|pair| pair[0].sequence <= pair[1].sequence)
+                    || next.as_ref().is_some_and(|next| {
+                        next.worker != *worker
+                            || logs.last().is_none_or(|log| log.sequence != next.before)
+                    })
+                {
+                    return Err(ContractError::InvalidDocument);
+                }
+                for log in logs {
+                    log.validate()?;
+                }
+            }
+            PluginOutcome::Cancellation { worker, job_id, .. } => {
+                worker.validate()?;
+                if !plugin_job_identifier(job_id) {
+                    return Err(ContractError::InvalidDocument);
+                }
+            }
+            PluginOutcome::Unknown { worker } => worker.validate()?,
+            PluginOutcome::Failed { .. } => {}
+        }
+        Ok(())
+    }
+    pub fn answers(&self, request: &PluginRequest) -> bool {
+        self.request_id == request.request_id
+            && self.site_id == request.site_id
+            && self.validate().is_ok()
+            && match (&request.action, &self.outcome) {
+                (_, PluginOutcome::Failed { .. }) => true,
+                (PluginAction::Invoke { .. }, PluginOutcome::Unknown { .. }) => true,
+                (
+                    PluginAction::Cancel { worker, .. },
+                    PluginOutcome::Unknown { worker: actual },
+                ) => worker == actual,
+                (
+                    PluginAction::Invoke {
+                        operation_id,
+                        plugin_id,
+                        action_id,
+                        ..
+                    },
+                    PluginOutcome::Started { log, .. },
+                ) => {
+                    log.job_id == *operation_id
+                        && plugin_id.as_ref().is_none_or(|id| *id == log.plugin_id)
+                        && (*action_id == log.command_id
+                            || *action_id == format!("{}.{}", log.plugin_id, log.command_id))
+                }
+                (
+                    PluginAction::Logs {
+                        plugin_id,
+                        cursor,
+                        limit,
+                    },
+                    PluginOutcome::Logs { worker, logs, .. },
+                ) => {
+                    cursor.as_ref().is_none_or(|c| c.worker == *worker)
+                        && logs.len() <= usize::from(*limit)
+                        && logs.iter().all(|log| {
+                            plugin_id.as_ref().is_none_or(|id| *id == log.plugin_id)
+                                && cursor.as_ref().is_none_or(|c| log.sequence < c.before)
+                        })
+                }
+                (
+                    PluginAction::Get { worker, job_id },
+                    PluginOutcome::Logs {
+                        worker: actual,
+                        logs,
+                        next,
+                    },
+                ) => {
+                    worker == actual
+                        && logs.len() <= 1
+                        && next.is_none()
+                        && logs.iter().all(|log| log.job_id == *job_id)
+                }
+                (
+                    PluginAction::Cancel { worker, job_id },
+                    PluginOutcome::Cancellation {
+                        worker: actual,
+                        job_id: actual_id,
+                        ..
+                    },
+                ) => worker == actual && job_id == actual_id,
+                _ => false,
+            }
+    }
+}

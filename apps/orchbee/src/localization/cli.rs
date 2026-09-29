@@ -653,6 +653,23 @@ impl Locale {
         };
         let expected = |expected: ExpectedValue| match (self, expected) {
             #[cfg(windows)]
+            (Self::EnUs, ExpectedValue::PluginActionId) => {
+                "an action ID or plugin.action ID (up to 241 ASCII characters)"
+            }
+            #[cfg(windows)]
+            (Self::ZhCn, ExpectedValue::PluginActionId) => {
+                "action ID 或 plugin.action ID（最多 241 个 ASCII 字符）"
+            }
+            #[cfg(windows)]
+            (Self::EnUs, ExpectedValue::PluginContext) => {
+                "a bounded plugin context JSON object (16 KiB)"
+            }
+            #[cfg(windows)]
+            (Self::ZhCn, ExpectedValue::PluginContext) => "有界插件上下文 JSON 对象（16 KiB）",
+            #[cfg(windows)]
+            (_, ExpectedValue::PluginLogLimit) => "1..200",
+
+            #[cfg(windows)]
             (Self::EnUs, ExpectedValue::PluginId) => {
                 "1-120 ASCII letters, digits, colon, dot, underscore or hyphen"
             }
@@ -2509,7 +2526,9 @@ impl Locale {
             },
             (_, HelpTopic::Family(Family::TerminalTitle)) => self.window_title_help(),
             #[cfg(windows)]
-            (_, HelpTopic::Family(Family::Plugin | Family::PluginAction)) => self.plugin_help(),
+            (_, HelpTopic::Family(Family::Plugin | Family::PluginAction | Family::PluginLog)) => {
+                self.plugin_help()
+            }
             (_, HelpTopic::Family(Family::Notification)) => self.notification_help(),
             (_, HelpTopic::Family(Family::Completion)) => match self {
                 Self::EnUs => HELP_COMPLETION_EN,
@@ -2534,7 +2553,9 @@ impl Locale {
                 | CommandPath::PluginDisable
                 | CommandPath::PluginList
                 | CommandPath::PluginConfigDir
-                | CommandPath::PluginActionList,
+                | CommandPath::PluginActionList
+                | CommandPath::PluginActionInvoke
+                | CommandPath::PluginLogList,
             ) => self.plugin_help(),
             (_, CommandPath::NotificationShow) => self.notification_help(),
             (_, CommandPath::SiteConfig | CommandPath::SiteReloadConfig) => {

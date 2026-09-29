@@ -44,6 +44,8 @@ pub(crate) fn run(
     // owned across the first Launch instead of being orphaned at handoff.
     let worktree_slot = crate::worktree_discovery_job::WorktreeDiscoverySlot::new();
     #[cfg(windows)]
+    let plugin_jobs = crate::plugin_jobs::PluginJobs::new();
+    #[cfg(windows)]
     let mutation_slot = crate::worktree_mutation_job::WorktreeMutationSlot::new(
         crate::worktree_mutation_windows::run,
     );
@@ -74,8 +76,11 @@ pub(crate) fn run(
                     request,
                     worker_id,
                     generation,
-                    &worktree_slot,
-                    &mutation_slot,
+                    super::shutdown::BackgroundJobs {
+                        discovery: &worktree_slot,
+                        mutations: &mutation_slot,
+                        plugins: &plugin_jobs,
+                    },
                     None,
                 );
             }
@@ -84,6 +89,23 @@ pub(crate) fn run(
                 // is expected here and does not retire the Server connection.
                 let _no_host = super::dispatch_drain_request(
                     server, None, &drain, &request, worker_id, generation,
+                )?;
+                continue;
+            }
+            if let CapabilityNodeMessage::PluginJobRequest(request) = request {
+                let result = crate::plugin_job_operation::execute(
+                    request,
+                    worker_id,
+                    generation,
+                    #[cfg(windows)]
+                    &plugin_jobs,
+                    #[cfg(windows)]
+                    Some(runtime),
+                );
+                let _no_host = server_transport::send(
+                    server,
+                    None,
+                    &CapabilityNodeMessage::PluginJobResult(result),
                 )?;
                 continue;
             }
@@ -211,6 +233,8 @@ pub(crate) fn run(
                     worktree_slot: &worktree_slot,
                     #[cfg(windows)]
                     mutation_slot: &mutation_slot,
+                    #[cfg(windows)]
+                    plugin_jobs: &plugin_jobs,
                     site_runtime: Some(runtime),
                     #[cfg(windows)]
                     managed_host: Some(&mut managed_host),
@@ -218,6 +242,8 @@ pub(crate) fn run(
             );
         }
     })();
+    #[cfg(windows)]
+    plugin_jobs.stop_before(std::time::Instant::now() + Duration::from_secs(6))?;
     #[cfg(windows)]
     mutation_slot.stop_before(Instant::now() + Duration::from_secs(6))?;
     outcome

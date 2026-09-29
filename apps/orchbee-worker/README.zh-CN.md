@@ -822,3 +822,7 @@ Windows 可运行的本地管道测试覆盖真实协议交换，不代表打包
 Worker 在匹配版本的托管启动中接收自有 `WindowsShellSettings` 快照，或在显式端点接入前读取一次共享配置。延迟 Host 前置循环与接入后循环借用该快照作为默认启动准备的回退值。显式可执行文件/Profile 绕过它，精确重放不重复解析。[Windows 配置契约](../orchbee/docs/windows-cli-configuration.zh-CN.md#windows-配置-shell) 负责可执行文件语法、PATH 解析、模式参数、启动生命周期和证据边界。
 
 新的 Server 授权默认启动可用冻结的 Windows Shell 策略覆盖启动回退。显式程序始终优先。准备时校验策略并仅解析一次 Worker 本地事实；缓存重放和延迟 Start 保留这些事实。无效语法或不可用程序仅让该次交接前操作失败，延迟和已接入 Worker 循环均继续接收新的修正请求。参见[在线默认值](../orchbee/docs/windows-cli-configuration.zh-CN.md#后续-windows-终端的在线默认值)。
+
+## Windows 插件进程归属
+
+受理请求循环在 Host 创建前后处理有界插件任务 start/list/get/cancel 记录。`plugin_jobs` 保留最多 32 个命令 owner 和 200 条日志；`windows_command_child` 复用 Git 的 Job 清理方式。CLI 断开后已受理任务继续运行。显式停止 Site 时，必须先通知、清理并等待所有插件 owner 结束，才能报告成功。[原生插件行为](../orchbee/docs/windows-plugins.zh-CN.md) 管理调用、分页、输出上限及剩余集成。

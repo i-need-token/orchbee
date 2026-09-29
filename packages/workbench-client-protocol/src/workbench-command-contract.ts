@@ -1,3 +1,4 @@
+import { PluginRequestSchema, PluginResultSchema } from './workbench-plugin-contract';
 import {
 	WindowTitleRequestSchema,
 	WindowTitleResultSchema,
@@ -391,6 +392,7 @@ export const WorkbenchRequestSchema = z
 		WorkspaceMetadataRequestSchema,
 		AgentManifestsRequestSchema,
 		ConfigurationRequestSchema,
+		PluginRequestSchema,
 		WindowTitleRequestSchema,
 		NotificationRequestSchema,
 		PanelAgentRequestSchema,
@@ -774,6 +776,7 @@ export const WorkbenchResponseSchema = z
 		WorkspaceMetadataResultSchema,
 		AgentManifestsResultSchema,
 		ConfigurationResultSchema,
+		PluginResultSchema,
 		WindowTitleResultSchema,
 		NotificationResultSchema,
 		PanelAgentResultSchema,

@@ -23,6 +23,7 @@ mod agent_drain;
 mod control;
 mod cwd_validation;
 mod lifecycle;
+mod plugin_job;
 mod send;
 mod shutdown;
 mod viewer;
@@ -49,6 +50,8 @@ pub const MAXIMUM_FRAME_PAYLOAD_BYTES: usize = 40 * 1024;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum CapabilityNodeMessage {
+    PluginJobRequest(crate::PluginJobRequest),
+    PluginJobResult(crate::PluginJobResult),
     WorktreeMutationRequest(crate::WorktreeMutationRequest),
     WorktreeMutationResult(crate::WorktreeMutationResult),
     WorkerShutdownRequest(crate::WorkerShutdownRequest),
@@ -74,6 +77,12 @@ pub enum CapabilityNodeMessage {
 }
 
 pub fn encode_message(message: &CapabilityNodeMessage) -> Result<Vec<u8>, ProtocolError> {
+    if matches!(
+        message,
+        CapabilityNodeMessage::PluginJobRequest(_) | CapabilityNodeMessage::PluginJobResult(_)
+    ) {
+        return plugin_job::encode(message);
+    }
     if let CapabilityNodeMessage::TerminalViewerResult(crate::TerminalViewerResult {
         outcome: crate::TerminalViewerOutcome::Record(_),
         ..
@@ -110,6 +119,9 @@ pub fn encode_message(message: &CapabilityNodeMessage) -> Result<Vec<u8>, Protoc
 }
 
 pub fn decode_message(frame: &[u8]) -> Result<CapabilityNodeMessage, ProtocolError> {
+    if frame.starts_with(b"OBPJ") {
+        return plugin_job::decode(frame);
+    }
     if frame.starts_with(b"OBNR") {
         return viewer::decode_record(frame);
     }
@@ -137,6 +149,9 @@ pub fn decode_message(frame: &[u8]) -> Result<CapabilityNodeMessage, ProtocolErr
 pub fn read_message(reader: &mut impl Read) -> Result<CapabilityNodeMessage, ReadMessageError> {
     let mut header = [0_u8; FRAME_HEADER_BYTES];
     reader.read_exact(&mut header)?;
+    if header.starts_with(b"OBPJ") {
+        return plugin_job::read(reader, header);
+    }
     if header.starts_with(b"OBNR") {
         return viewer::read_record(reader, header);
     }
@@ -163,6 +178,9 @@ pub fn write_message(
 
 fn encode_payload(message: &CapabilityNodeMessage) -> Vec<u8> {
     match message {
+        CapabilityNodeMessage::PluginJobRequest(_) | CapabilityNodeMessage::PluginJobResult(_) => {
+            unreachable!("plugin jobs use OBPJ records")
+        }
         CapabilityNodeMessage::WorktreeMutationRequest(value) => {
             worktree_mutation::encode_request(value)
         }

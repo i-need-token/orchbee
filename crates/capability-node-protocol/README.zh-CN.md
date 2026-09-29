@@ -560,3 +560,7 @@ Control request action tag 5 表示 Takeover，后接预期旧 controller ID（�
 授权默认启动可携带 `DefaultShellSelection`：0–4096 个 UTF-8 字节、无控制字符的字面程序和 Auto/Login/NonLogin 模式。空程序表示平台默认；缺省表示 Worker 启动回退。Worker 在效果前另外校验 Windows 程序语法。显式 `LaunchSelection` 与默认覆盖互斥。该值参与精确重放身份比较。
 
 已有的零 u16 启动扩展哨兵用版本 2 表示此形状：u8 模式（0/1/2）、u16 程序字节长度、程序 UTF-8 字节，随后是原有环境编码（允许空）。v2 不含显式选择槽。旧负载和 v1 非空环境扩展保持原字节。未知模式/版本、截断、尾随字节和无效有界值均被拒绝。OBCN 帧版本及 40 KiB 负载上限不变。匹配的私有 cohort 整套交付/回退；该线协议不引入广播、持久化或重试。
+
+## 插件任务记录
+
+插件请求/结果使用独立 `OBPJ` 记录：magic、编码版本 1（`u16`）、保留零（`u16`）和有界大端 `u32` 正文长度，最多 2 MiB。普通 OBCN 帧不变。正文包含方向、操作 ID、Worker ID/generation，以及经过校验的 start/list/get/cancel 或 started/logs/cancellation/refused 分支。字符串和字节块使用 `u32` 长度，argv 数量为 `u16`，环境/页数量为 `u8`；拒绝尾随字节。固定意图最多 160 KiB，argv 最多 128 项/128 KiB，每路保留输出最多 64 KiB。每页最多四条递减日志及一致的下一页序号。帧校验不授予执行权。Server/Worker 同批 cohort 启用；[原生插件归属文档](../../apps/orchbee/docs/windows-plugins.zh-CN.md) 定义生命周期和语义。

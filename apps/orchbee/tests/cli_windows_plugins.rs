@@ -86,6 +86,23 @@ fn plugin_cli_rejects_malformed_scope_before_filesystem_effects_and_help_is_offl
         vec!["plugin", "action", "list", "a", "extra"],
         vec!["plugin", "link", "missing", "--enabled", "--enabled"],
         vec!["workspace", "list", "--enabled"],
+        vec!["plugin", "list", "tools", "--plugin", "other"],
+        vec!["plugin", "log", "list", "--limit", "201"],
+        vec!["plugin", "action", "list", "--context", "{}"],
+        vec!["plugin", "action", "invoke", "hello", "--context", "{"],
+        vec![
+            "plugin",
+            "action",
+            "invoke",
+            "hello",
+            "--context",
+            "{\"unknown\":1}",
+        ],
+        vec!["plugin", "action", "invoke", "bad/path"],
+        vec![
+            "plugin", "action", "invoke", "hello", "--plugin", "tools", "--plugin", "tools",
+        ],
+        vec!["workspace", "list", "--plugin", "tools"],
     ] {
         assert_eq!(fixture.run(&args).status.code(), Some(2), "{args:?}");
     }
@@ -93,6 +110,8 @@ fn plugin_cli_rejects_malformed_scope_before_filesystem_effects_and_help_is_offl
         vec!["plugin", "--help"],
         vec!["help", "plugin", "action", "list"],
         vec!["plugin", "link", "--help"],
+        vec!["plugin", "action", "invoke", "--help"],
+        vec!["help", "plugin", "log", "list"],
     ] {
         let result = fixture.run(&args);
         assert!(result.status.success());

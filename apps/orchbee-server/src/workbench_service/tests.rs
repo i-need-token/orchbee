@@ -509,3 +509,6 @@ fn layout_structure_uses_navigation_only_without_a_worker() {
 
 #[cfg(windows)]
 mod window_title;
+
+#[cfg(all(test, windows))]
+mod plugins;

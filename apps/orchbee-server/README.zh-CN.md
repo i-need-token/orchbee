@@ -790,3 +790,7 @@ Server 检查准入，释放锁执行 Worker 只读目录探测，再按注册�
 [Workspace 元数据模型](../orchbee/docs/windows-workspace-metadata.zh-CN.md) 管理既有 Site 锁内的临时 token 值、各来源序号栅栏及单调 TTL。独立的 OBWP 31/32 RPC 以读取权限准入查询、以导航管理权限准入上报，不创建拓扑账本项、不改变权威修订，也不要求终端 Worker。上报在 token／来源／资源容量限制下保持原子性；旧序号不刷新过期时间。重启后状态为空，已关闭 Workspace 的身份在下一次元数据操作时清理。通用元数据事件仍需单独集成。
 
 Panel 展示上报通过 OBWP 33/34 在 Site 锁内运行，使用读取／导航权限及精确主绑定守卫。[状态模型](docs/workbench-authority.zh-CN.md#panel-展示元数据) 负责按终端保存的临时来源、字段优先级、tokens 和过期。
+
+## 原生插件 action 受理
+
+Workbench 插件执行在解析源文件前要求读取、终端创建和生命周期权限。本地终端服务检查 Site/Worker 身份、已启用清单可用性、action 唯一性和 Windows 平台支持，固定 argv/cwd/context 后仅向 Worker 提交一次。它不拥有子进程。读取页面固定 Worker generation；修改回复丢失时保留未知状态。[原生插件行为](../orchbee/docs/windows-plugins.zh-CN.md) 管理完整契约及尚未接通的生命周期。

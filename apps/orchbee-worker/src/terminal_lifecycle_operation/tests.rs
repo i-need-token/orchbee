@@ -547,6 +547,8 @@ fn real_dispatch_loop_bypasses_unrelated_closed_viewer_cleanup_for_one_lifecycle
             mutation_slot: &crate::worktree_mutation_job::WorktreeMutationSlot::new(
                 crate::worktree_mutation_windows::run,
             ),
+            #[cfg(windows)]
+            plugin_jobs: &crate::plugin_jobs::PluginJobs::new(),
             site_runtime: None,
             #[cfg(windows)]
             managed_host: None,

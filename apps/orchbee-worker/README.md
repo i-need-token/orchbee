@@ -921,3 +921,7 @@ The [Windows configuration contract](../orchbee/docs/windows-cli-configuration.m
 owns executable syntax, PATH resolution, mode flags, startup lifetime and evidence limits.
 
 New Server-authorized default launches can override the startup fallback with a frozen Windows shell policy. Explicit programs always bypass it. Preparation validates the policy and resolves Worker-local facts once; cached replay and deferred Start keep those facts. Invalid syntax or unavailable executable fails only that pre-handoff operation, leaving both lazy and admitted Worker loops available for a fresh corrected request. See [live defaults](../orchbee/docs/windows-cli-configuration.md#live-defaults-for-subsequent-windows-terminals).
+
+## ## Windows plugin process ownership
+
+The admitted request loop also serves bounded plugin-job start/list/get/cancel records before and after Host creation. `plugin_jobs` retains up to 32 command owners and 200 logs; `windows_command_child` supplies the same Job settlement used by Git. CLI disconnect leaves accepted work running. Explicit Site shutdown signals, settles and joins all plugin owners before reporting success. [Native plugin behavior](../orchbee/docs/windows-plugins.md) owns invocation, paging, output limits and remaining integration.

@@ -176,3 +176,10 @@ pub use command::{
     WindowTitle, WindowTitleAction, WindowTitleContext, WindowTitleFailure, WindowTitleOutcome,
     WindowTitleReason, WindowTitleRequest, WindowTitleResult, WindowTitleSnapshot,
 };
+
+pub use command::{
+    MAXIMUM_ENCODED_PLUGIN_REQUEST_BYTES, MAXIMUM_ENCODED_PLUGIN_RESULT_BYTES, PluginAction,
+    PluginCommandFailure, PluginCommandLog, PluginFailure, PluginInvocationContext,
+    PluginLogCursor, PluginOutcome, PluginRequest, PluginResult, PluginWorker, plugin_identifier,
+    plugin_job_identifier,
+};

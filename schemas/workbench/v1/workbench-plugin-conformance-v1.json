@@ -1,0 +1,934 @@
+{
+	"contractVersion": 1,
+	"valid": [
+		{
+			"name": "invoke-with-context",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.plugin",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"action": {
+					"kind": "invoke",
+					"operationId": "44444444444444444444444444444444",
+					"pluginId": null,
+					"actionId": "tools.hello",
+					"context": {
+						"selectedText": "你好",
+						"invocationSource": "cli"
+					}
+				}
+			}
+		},
+		{
+			"name": "logs",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.plugin",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"action": {
+					"kind": "logs",
+					"pluginId": null,
+					"cursor": null,
+					"limit": 4
+				}
+			}
+		},
+		{
+			"name": "logs",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.plugin",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"action": {
+					"kind": "logs",
+					"pluginId": "tools",
+					"cursor": {
+						"worker": {
+							"workerId": "33333333333333333333333333333333",
+							"generation": "1"
+						},
+						"before": 9
+					},
+					"limit": 1
+				}
+			}
+		},
+		{
+			"name": "get",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.plugin",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"action": {
+					"kind": "get",
+					"worker": {
+						"workerId": "33333333333333333333333333333333",
+						"generation": "1"
+					},
+					"jobId": "44444444444444444444444444444444"
+				}
+			}
+		},
+		{
+			"name": "cancel",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.plugin",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"action": {
+					"kind": "cancel",
+					"worker": {
+						"workerId": "33333333333333333333333333333333",
+						"generation": "1"
+					},
+					"jobId": "44444444444444444444444444444444"
+				}
+			}
+		},
+		{
+			"name": "accepted-running",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.plugin.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"outcome": {
+					"kind": "started",
+					"worker": {
+						"workerId": "33333333333333333333333333333333",
+						"generation": "1"
+					},
+					"log": {
+						"jobId": "44444444444444444444444444444444",
+						"sequence": 1,
+						"pluginId": "tools",
+						"commandId": "hello",
+						"command": ["cmd.exe", "/c", "echo hello"],
+						"startedMs": 1,
+						"finishedMs": null,
+						"exitCode": null,
+						"failure": null,
+						"stdout": "",
+						"stderr": "",
+						"stdoutTruncated": false,
+						"stderrTruncated": false
+					},
+					"existing": false
+				}
+			}
+		},
+		{
+			"name": "finished-logs",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.plugin.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"outcome": {
+					"kind": "logs",
+					"worker": {
+						"workerId": "33333333333333333333333333333333",
+						"generation": "1"
+					},
+					"logs": [
+						{
+							"jobId": "44444444444444444444444444444444",
+							"sequence": 1,
+							"pluginId": "tools",
+							"commandId": "hello",
+							"command": ["cmd.exe", "/c", "echo hello"],
+							"startedMs": 1,
+							"finishedMs": 2,
+							"exitCode": 0,
+							"failure": null,
+							"stdout": "done\u001b[31m",
+							"stderr": "错误",
+							"stdoutTruncated": false,
+							"stderrTruncated": false
+						}
+					],
+					"next": null
+				}
+			}
+		},
+		{
+			"name": "terminal-exit-failure",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.plugin.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"outcome": {
+					"kind": "started",
+					"worker": {
+						"workerId": "33333333333333333333333333333333",
+						"generation": "1"
+					},
+					"log": {
+						"jobId": "44444444444444444444444444444444",
+						"sequence": 1,
+						"pluginId": "tools",
+						"commandId": "hello",
+						"command": ["cmd.exe", "/c", "echo hello"],
+						"startedMs": 1,
+						"finishedMs": 2,
+						"exitCode": 7,
+						"failure": "exit-failure",
+						"stdout": "done\u001b[31m",
+						"stderr": "错误",
+						"stdoutTruncated": false,
+						"stderrTruncated": false
+					},
+					"existing": true
+				}
+			}
+		},
+		{
+			"name": "terminal-spawn-unavailable",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.plugin.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"outcome": {
+					"kind": "started",
+					"worker": {
+						"workerId": "33333333333333333333333333333333",
+						"generation": "1"
+					},
+					"log": {
+						"jobId": "44444444444444444444444444444444",
+						"sequence": 1,
+						"pluginId": "tools",
+						"commandId": "hello",
+						"command": ["cmd.exe", "/c", "echo hello"],
+						"startedMs": 1,
+						"finishedMs": 2,
+						"exitCode": null,
+						"failure": "spawn-unavailable",
+						"stdout": "done\u001b[31m",
+						"stderr": "错误",
+						"stdoutTruncated": false,
+						"stderrTruncated": false
+					},
+					"existing": true
+				}
+			}
+		},
+		{
+			"name": "terminal-spawn-failed",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.plugin.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"outcome": {
+					"kind": "started",
+					"worker": {
+						"workerId": "33333333333333333333333333333333",
+						"generation": "1"
+					},
+					"log": {
+						"jobId": "44444444444444444444444444444444",
+						"sequence": 1,
+						"pluginId": "tools",
+						"commandId": "hello",
+						"command": ["cmd.exe", "/c", "echo hello"],
+						"startedMs": 1,
+						"finishedMs": 2,
+						"exitCode": null,
+						"failure": "spawn-failed",
+						"stdout": "done\u001b[31m",
+						"stderr": "错误",
+						"stdoutTruncated": false,
+						"stderrTruncated": false
+					},
+					"existing": true
+				}
+			}
+		},
+		{
+			"name": "terminal-io",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.plugin.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"outcome": {
+					"kind": "started",
+					"worker": {
+						"workerId": "33333333333333333333333333333333",
+						"generation": "1"
+					},
+					"log": {
+						"jobId": "44444444444444444444444444444444",
+						"sequence": 1,
+						"pluginId": "tools",
+						"commandId": "hello",
+						"command": ["cmd.exe", "/c", "echo hello"],
+						"startedMs": 1,
+						"finishedMs": 2,
+						"exitCode": null,
+						"failure": "io",
+						"stdout": "done\u001b[31m",
+						"stderr": "错误",
+						"stdoutTruncated": false,
+						"stderrTruncated": false
+					},
+					"existing": true
+				}
+			}
+		},
+		{
+			"name": "terminal-cancelled",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.plugin.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"outcome": {
+					"kind": "started",
+					"worker": {
+						"workerId": "33333333333333333333333333333333",
+						"generation": "1"
+					},
+					"log": {
+						"jobId": "44444444444444444444444444444444",
+						"sequence": 1,
+						"pluginId": "tools",
+						"commandId": "hello",
+						"command": ["cmd.exe", "/c", "echo hello"],
+						"startedMs": 1,
+						"finishedMs": 2,
+						"exitCode": null,
+						"failure": "cancelled",
+						"stdout": "done\u001b[31m",
+						"stderr": "错误",
+						"stdoutTruncated": false,
+						"stderrTruncated": false
+					},
+					"existing": true
+				}
+			}
+		},
+		{
+			"name": "terminal-physical-unknown",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.plugin.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"outcome": {
+					"kind": "started",
+					"worker": {
+						"workerId": "33333333333333333333333333333333",
+						"generation": "1"
+					},
+					"log": {
+						"jobId": "44444444444444444444444444444444",
+						"sequence": 1,
+						"pluginId": "tools",
+						"commandId": "hello",
+						"command": ["cmd.exe", "/c", "echo hello"],
+						"startedMs": 1,
+						"finishedMs": 2,
+						"exitCode": null,
+						"failure": "physical-unknown",
+						"stdout": "done\u001b[31m",
+						"stderr": "错误",
+						"stdoutTruncated": false,
+						"stderrTruncated": false
+					},
+					"existing": true
+				}
+			}
+		},
+		{
+			"name": "logs",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.plugin.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"outcome": {
+					"kind": "logs",
+					"worker": {
+						"workerId": "33333333333333333333333333333333",
+						"generation": "1"
+					},
+					"logs": [],
+					"next": null
+				}
+			}
+		},
+		{
+			"name": "unknown",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.plugin.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"outcome": {
+					"kind": "unknown",
+					"worker": {
+						"workerId": "33333333333333333333333333333333",
+						"generation": "1"
+					}
+				}
+			}
+		},
+		{
+			"name": "cancellation",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.plugin.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"outcome": {
+					"kind": "cancellation",
+					"worker": {
+						"workerId": "33333333333333333333333333333333",
+						"generation": "1"
+					},
+					"jobId": "44444444444444444444444444444444",
+					"alreadyComplete": false
+				}
+			}
+		},
+		{
+			"name": "denied",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.plugin.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"outcome": {
+					"kind": "failed",
+					"reason": "denied"
+				}
+			}
+		},
+		{
+			"name": "unavailable",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.plugin.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"outcome": {
+					"kind": "failed",
+					"reason": "unavailable"
+				}
+			}
+		},
+		{
+			"name": "site-mismatch",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.plugin.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"outcome": {
+					"kind": "failed",
+					"reason": "site-mismatch"
+				}
+			}
+		},
+		{
+			"name": "worker-changed",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.plugin.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"outcome": {
+					"kind": "failed",
+					"reason": "worker-changed"
+				}
+			}
+		},
+		{
+			"name": "invalid-intent",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.plugin.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"outcome": {
+					"kind": "failed",
+					"reason": "invalid-intent"
+				}
+			}
+		},
+		{
+			"name": "not-found",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.plugin.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"outcome": {
+					"kind": "failed",
+					"reason": "not-found"
+				}
+			}
+		},
+		{
+			"name": "disabled",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.plugin.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"outcome": {
+					"kind": "failed",
+					"reason": "disabled"
+				}
+			}
+		},
+		{
+			"name": "unsupported",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.plugin.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"outcome": {
+					"kind": "failed",
+					"reason": "unsupported"
+				}
+			}
+		},
+		{
+			"name": "source-unavailable",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.plugin.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"outcome": {
+					"kind": "failed",
+					"reason": "source-unavailable"
+				}
+			}
+		},
+		{
+			"name": "ambiguous",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.plugin.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"outcome": {
+					"kind": "failed",
+					"reason": "ambiguous"
+				}
+			}
+		},
+		{
+			"name": "busy",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.plugin.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"outcome": {
+					"kind": "failed",
+					"reason": "busy"
+				}
+			}
+		},
+		{
+			"name": "conflict",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.plugin.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"outcome": {
+					"kind": "failed",
+					"reason": "conflict"
+				}
+			}
+		},
+		{
+			"name": "physical-unknown",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.plugin.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"outcome": {
+					"kind": "failed",
+					"reason": "physical-unknown"
+				}
+			}
+		}
+	],
+	"invalid": [
+		{
+			"name": "zero-operation",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.plugin",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"action": {
+					"kind": "invoke",
+					"operationId": "00000000000000000000000000000000",
+					"pluginId": null,
+					"actionId": "tools.hello",
+					"context": {
+						"selectedText": "你好",
+						"invocationSource": "cli"
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "unknown-context",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.plugin",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"action": {
+					"kind": "invoke",
+					"operationId": "44444444444444444444444444444444",
+					"pluginId": null,
+					"actionId": "tools.hello",
+					"context": {
+						"danger": true
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "malformed-identifier",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.plugin",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"action": {
+					"kind": "invoke",
+					"operationId": "44444444444444444444444444444444",
+					"pluginId": "bad/path",
+					"actionId": "tools.hello",
+					"context": {
+						"selectedText": "你好",
+						"invocationSource": "cli"
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "limit-zero",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.plugin",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"action": {
+					"kind": "logs",
+					"pluginId": null,
+					"cursor": null,
+					"limit": 0
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "missing-nullable",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.plugin",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"action": {
+					"kind": "logs",
+					"cursor": null,
+					"limit": 4
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "utf8-context-bound",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.plugin",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"action": {
+					"kind": "invoke",
+					"operationId": "44444444444444444444444444444444",
+					"pluginId": null,
+					"actionId": "tools.hello",
+					"context": {
+						"workspaceLabel": "😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀"
+					}
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "nul-context",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.plugin",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"action": {
+					"kind": "invoke",
+					"operationId": "44444444444444444444444444444444",
+					"pluginId": null,
+					"actionId": "tools.hello",
+					"context": {
+						"selectedText": "x\u0000"
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "running-exit-code",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.plugin.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"outcome": {
+					"kind": "started",
+					"worker": {
+						"workerId": "33333333333333333333333333333333",
+						"generation": "1"
+					},
+					"log": {
+						"jobId": "44444444444444444444444444444444",
+						"sequence": 1,
+						"pluginId": "tools",
+						"commandId": "hello",
+						"command": ["cmd.exe", "/c", "echo hello"],
+						"startedMs": 1,
+						"finishedMs": null,
+						"exitCode": 0,
+						"failure": null,
+						"stdout": "",
+						"stderr": "",
+						"stdoutTruncated": false,
+						"stderrTruncated": false
+					},
+					"existing": false
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "success-nonzero",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.plugin.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"outcome": {
+					"kind": "started",
+					"worker": {
+						"workerId": "33333333333333333333333333333333",
+						"generation": "1"
+					},
+					"log": {
+						"jobId": "44444444444444444444444444444444",
+						"sequence": 1,
+						"pluginId": "tools",
+						"commandId": "hello",
+						"command": ["cmd.exe", "/c", "echo hello"],
+						"startedMs": 1,
+						"finishedMs": 2,
+						"exitCode": 7,
+						"failure": null,
+						"stdout": "done\u001b[31m",
+						"stderr": "错误",
+						"stdoutTruncated": false,
+						"stderrTruncated": false
+					},
+					"existing": false
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "time-backwards",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.plugin.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"outcome": {
+					"kind": "started",
+					"worker": {
+						"workerId": "33333333333333333333333333333333",
+						"generation": "1"
+					},
+					"log": {
+						"jobId": "44444444444444444444444444444444",
+						"sequence": 1,
+						"pluginId": "tools",
+						"commandId": "hello",
+						"command": ["cmd.exe", "/c", "echo hello"],
+						"startedMs": 1,
+						"finishedMs": 0,
+						"exitCode": 0,
+						"failure": null,
+						"stdout": "done\u001b[31m",
+						"stderr": "错误",
+						"stdoutTruncated": false,
+						"stderrTruncated": false
+					},
+					"existing": false
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "unordered-logs",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.plugin.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"outcome": {
+					"kind": "logs",
+					"worker": {
+						"workerId": "33333333333333333333333333333333",
+						"generation": "1"
+					},
+					"logs": [
+						{
+							"jobId": "44444444444444444444444444444444",
+							"sequence": 1,
+							"pluginId": "tools",
+							"commandId": "hello",
+							"command": ["cmd.exe", "/c", "echo hello"],
+							"startedMs": 1,
+							"finishedMs": 2,
+							"exitCode": 0,
+							"failure": null,
+							"stdout": "done\u001b[31m",
+							"stderr": "错误",
+							"stdoutTruncated": false,
+							"stderrTruncated": false
+						},
+						{
+							"jobId": "44444444444444444444444444444444",
+							"sequence": 1,
+							"pluginId": "tools",
+							"commandId": "hello",
+							"command": ["cmd.exe", "/c", "echo hello"],
+							"startedMs": 1,
+							"finishedMs": 2,
+							"exitCode": 0,
+							"failure": null,
+							"stdout": "done\u001b[31m",
+							"stderr": "错误",
+							"stdoutTruncated": false,
+							"stderrTruncated": false
+						}
+					],
+					"next": null
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "cursor-worker-mismatch",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.plugin.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"outcome": {
+					"kind": "logs",
+					"worker": {
+						"workerId": "33333333333333333333333333333333",
+						"generation": "1"
+					},
+					"logs": [
+						{
+							"jobId": "44444444444444444444444444444444",
+							"sequence": 1,
+							"pluginId": "tools",
+							"commandId": "hello",
+							"command": ["cmd.exe", "/c", "echo hello"],
+							"startedMs": 1,
+							"finishedMs": 2,
+							"exitCode": 0,
+							"failure": null,
+							"stdout": "done\u001b[31m",
+							"stderr": "错误",
+							"stdoutTruncated": false,
+							"stderrTruncated": false
+						}
+					],
+					"next": {
+						"worker": {
+							"workerId": "33333333333333333333333333333333",
+							"generation": "2"
+						},
+						"before": 1
+					}
+				}
+			},
+			"boundary": "semantic"
+		}
+	]
+}

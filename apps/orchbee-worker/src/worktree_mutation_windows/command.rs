@@ -1,6 +1,6 @@
 //! Bounded, nonblocking output and one exact Job owner for each Git command.
 use super::{Abort, Context, failed};
-use crate::git_process_windows::GitChild;
+use crate::windows_command_child::WindowsCommandChild;
 use orchbee_capability_node_protocol::{WorktreeMutationError as Error, WorktreeMutationStage};
 use orchbee_local_ipc::ChildOutputReader;
 use std::{
@@ -47,7 +47,7 @@ impl Context<'_> {
         // The wrapper may fail after suspended creation or Job assignment.
         // Retire on post-creation failure; an observed no-child failure preserves
         // normal error reporting and does not poison the owner.
-        let mut child = GitChild::spawn(command).map_err(|failure| {
+        let mut child = WindowsCommandChild::spawn(command).map_err(|failure| {
             if failure.created {
                 Abort::PhysicalUnknown
             } else {

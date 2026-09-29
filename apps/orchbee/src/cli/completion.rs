@@ -170,6 +170,7 @@ const FAMILY_VERBS: &[(&str, &[&str])] = &[
             "list",
             "config-dir",
             "action",
+            "log",
         ],
     ),
     ("notification", &["show"]),
@@ -293,6 +294,8 @@ const FAMILY_VERBS: &[(&str, &[&str])] = &[
 /// Every business flag the grammar admits (`--format` is orthogonal), in the
 /// order the state machine records them.
 const BUSINESS_FLAGS: &[&str] = &[
+    "--plugin",
+    "--context",
     "--enabled",
     "--disabled",
     "--body",
@@ -427,6 +430,14 @@ const OBSERVE_FLAGS: &[&str] = &["--cols", "--rows", "--timeout"];
 const COMMAND_FLAGS: &[(&str, &[&str])] = &[
     #[cfg(windows)]
     ("plugin:link", &["--enabled", "--disabled"]),
+    #[cfg(windows)]
+    ("plugin:list", &["--plugin"]),
+    #[cfg(windows)]
+    ("plugin:action:list", &["--plugin"]),
+    #[cfg(windows)]
+    ("plugin:action:invoke", &["--plugin", "--context"]),
+    #[cfg(windows)]
+    ("plugin:log:list", &["--plugin", "--limit"]),
     ("notification:show", &["--body", "--position", "--sound"]),
     #[cfg(windows)]
     (
@@ -1157,6 +1168,10 @@ const OPERAND_PATHS: &[&str] = &[
     "plugin:config-dir",
     #[cfg(windows)]
     "plugin:action:list",
+    #[cfg(windows)]
+    "plugin:action:invoke",
+    #[cfg(windows)]
+    "plugin:log:list",
     "terminal:title:set",
     "notification:show",
     #[cfg(windows)]
@@ -1271,6 +1286,7 @@ const HELP_CHILDREN: &[(&str, &[&str])] = &[
             "list",
             "config-dir",
             "action",
+            "log",
         ],
     ),
     ("notification", &["show"]),
@@ -1395,7 +1411,9 @@ const HELP_CHILDREN: &[(&str, &[&str])] = &[
 /// reach a third help level.
 const HELP_LEVEL3: &[(&str, &[&str])] = &[
     #[cfg(windows)]
-    ("plugin:action", &["list"]),
+    ("plugin:action", &["list", "invoke"]),
+    #[cfg(windows)]
+    ("plugin:log", &["list"]),
     ("agent:integration", INTEGRATION_VERBS),
     ("terminal:title", &["set", "clear"]),
     ("terminal:session", &["observe", "control"]),
@@ -1417,6 +1435,8 @@ pub(crate) fn render(shell: CompletionShell) -> String {
 /// `flag` → the walker's one-shot seen bit for it.
 fn flag_bit(flag: &str) -> &'static str {
     match flag {
+        "--plugin" => "seen_plugin_id",
+        "--context" => "seen_plugin_context",
         "--enabled" => "seen_plugin_enabled",
         "--disabled" => "seen_plugin_disabled",
         "--child" => "seen_child",

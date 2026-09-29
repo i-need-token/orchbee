@@ -126,14 +126,19 @@ pub(super) fn refusal(
     }
 }
 
+pub(super) struct BackgroundJobs<'a> {
+    pub(super) discovery: &'a WorktreeDiscoverySlot,
+    pub(super) mutations: &'a crate::worktree_mutation_job::WorktreeMutationSlot,
+    pub(super) plugins: &'a crate::plugin_jobs::PluginJobs,
+}
+
 /// After a valid stop, only explicit stop attempts are accepted; no normal admission resumes.
 pub(super) fn run(
     server: &LocalStream,
     mut request: WorkerShutdownRequest,
     worker_id: WorkerId,
     generation: NonZeroU64,
-    slot: &WorktreeDiscoverySlot,
-    mutation_slot: &crate::worktree_mutation_job::WorktreeMutationSlot,
+    jobs: BackgroundJobs<'_>,
     mut managed: Option<(&HostBrokerConnection, &mut ManagedHost)>,
 ) -> Result<(), Box<dyn Error>> {
     loop {
@@ -141,9 +146,11 @@ pub(super) fn run(
             Instant::now() + Duration::from_millis(u64::from(request.budget.milliseconds()));
         let outcome = if let Some(reason) = refusal(request, worker_id, generation, true) {
             WorkerShutdownOutcome::Refused(reason)
-        } else if let Err(error) = mutation_slot
+        } else if let Err(error) = jobs
+            .plugins
             .stop_before(deadline)
-            .and_then(|()| slot.stop_before(deadline))
+            .and_then(|()| jobs.mutations.stop_before(deadline))
+            .and_then(|()| jobs.discovery.stop_before(deadline))
         {
             WorkerShutdownOutcome::Incomplete {
                 host_epoch: managed.as_ref().map(|(host, _)| {

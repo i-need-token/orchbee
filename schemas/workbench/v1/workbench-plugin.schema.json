@@ -1,0 +1,699 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://orchbee.dev/schemas/workbench/v1/workbench-plugin.schema.json",
+	"$comment": "Bindings additionally enforce UTF-8 byte/aggregate limits, Unicode scalar strings, temporal/status consistency, descending log sequence and cursor correlation. Matched cohort OBWP kinds 45/46, 32 KiB request and 8 MiB result.",
+	"oneOf": [
+		{
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["kind", "protocolVersion", "requestId", "siteId", "action"],
+			"properties": {
+				"kind": {
+					"const": "workbench.plugin"
+				},
+				"protocolVersion": {
+					"const": 1
+				},
+				"requestId": {
+					"type": "string",
+					"pattern": "^[0-9a-f]{32}$",
+					"not": {
+						"const": "00000000000000000000000000000000"
+					}
+				},
+				"siteId": {
+					"type": "string",
+					"pattern": "^[0-9a-f]{32}$",
+					"not": {
+						"const": "00000000000000000000000000000000"
+					}
+				},
+				"action": {
+					"oneOf": [
+						{
+							"type": "object",
+							"additionalProperties": false,
+							"required": ["kind", "operationId", "pluginId", "actionId", "context"],
+							"properties": {
+								"kind": {
+									"const": "invoke"
+								},
+								"operationId": {
+									"type": "string",
+									"pattern": "^[0-9a-f]{32}$",
+									"not": {
+										"const": "00000000000000000000000000000000"
+									}
+								},
+								"pluginId": {
+									"anyOf": [
+										{
+											"type": "string",
+											"minLength": 1,
+											"maxLength": 120,
+											"pattern": "^[A-Za-z0-9._:-]+$"
+										},
+										{
+											"type": "null"
+										}
+									]
+								},
+								"actionId": {
+									"type": "string",
+									"minLength": 1,
+									"maxLength": 241,
+									"pattern": "^[A-Za-z0-9._:-]+$"
+								},
+								"context": {
+									"$ref": "#/$defs/context"
+								}
+							}
+						},
+						{
+							"type": "object",
+							"additionalProperties": false,
+							"required": ["kind", "pluginId", "cursor", "limit"],
+							"properties": {
+								"kind": {
+									"const": "logs"
+								},
+								"pluginId": {
+									"anyOf": [
+										{
+											"type": "string",
+											"minLength": 1,
+											"maxLength": 120,
+											"pattern": "^[A-Za-z0-9._:-]+$"
+										},
+										{
+											"type": "null"
+										}
+									]
+								},
+								"cursor": {
+									"anyOf": [
+										{
+											"$ref": "#/$defs/cursor"
+										},
+										{
+											"type": "null"
+										}
+									]
+								},
+								"limit": {
+									"type": "integer",
+									"minimum": 1,
+									"maximum": 4
+								}
+							}
+						},
+						{
+							"type": "object",
+							"additionalProperties": false,
+							"required": ["kind", "worker", "jobId"],
+							"properties": {
+								"kind": {
+									"const": "get"
+								},
+								"worker": {
+									"$ref": "#/$defs/worker"
+								},
+								"jobId": {
+									"type": "string",
+									"pattern": "^[0-9a-f]{32}$",
+									"not": {
+										"const": "00000000000000000000000000000000"
+									}
+								}
+							}
+						},
+						{
+							"type": "object",
+							"additionalProperties": false,
+							"required": ["kind", "worker", "jobId"],
+							"properties": {
+								"kind": {
+									"const": "cancel"
+								},
+								"worker": {
+									"$ref": "#/$defs/worker"
+								},
+								"jobId": {
+									"type": "string",
+									"pattern": "^[0-9a-f]{32}$",
+									"not": {
+										"const": "00000000000000000000000000000000"
+									}
+								}
+							}
+						}
+					]
+				}
+			}
+		},
+		{
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["kind", "protocolVersion", "requestId", "siteId", "outcome"],
+			"properties": {
+				"kind": {
+					"const": "workbench.plugin.result"
+				},
+				"protocolVersion": {
+					"const": 1
+				},
+				"requestId": {
+					"type": "string",
+					"pattern": "^[0-9a-f]{32}$",
+					"not": {
+						"const": "00000000000000000000000000000000"
+					}
+				},
+				"siteId": {
+					"type": "string",
+					"pattern": "^[0-9a-f]{32}$",
+					"not": {
+						"const": "00000000000000000000000000000000"
+					}
+				},
+				"outcome": {
+					"oneOf": [
+						{
+							"type": "object",
+							"additionalProperties": false,
+							"required": ["kind", "worker", "log", "existing"],
+							"properties": {
+								"kind": {
+									"const": "started"
+								},
+								"worker": {
+									"$ref": "#/$defs/worker"
+								},
+								"log": {
+									"$ref": "#/$defs/log"
+								},
+								"existing": {
+									"type": "boolean"
+								}
+							}
+						},
+						{
+							"type": "object",
+							"additionalProperties": false,
+							"required": ["kind", "worker", "logs", "next"],
+							"properties": {
+								"kind": {
+									"const": "logs"
+								},
+								"worker": {
+									"$ref": "#/$defs/worker"
+								},
+								"logs": {
+									"type": "array",
+									"maxItems": 4,
+									"items": {
+										"$ref": "#/$defs/log"
+									}
+								},
+								"next": {
+									"anyOf": [
+										{
+											"$ref": "#/$defs/cursor"
+										},
+										{
+											"type": "null"
+										}
+									]
+								}
+							}
+						},
+						{
+							"type": "object",
+							"additionalProperties": false,
+							"required": ["kind", "worker", "jobId", "alreadyComplete"],
+							"properties": {
+								"kind": {
+									"const": "cancellation"
+								},
+								"worker": {
+									"$ref": "#/$defs/worker"
+								},
+								"jobId": {
+									"type": "string",
+									"pattern": "^[0-9a-f]{32}$",
+									"not": {
+										"const": "00000000000000000000000000000000"
+									}
+								},
+								"alreadyComplete": {
+									"type": "boolean"
+								}
+							}
+						},
+						{
+							"type": "object",
+							"additionalProperties": false,
+							"required": ["kind", "reason"],
+							"properties": {
+								"kind": {
+									"const": "failed"
+								},
+								"reason": {
+									"enum": [
+										"denied",
+										"unavailable",
+										"site-mismatch",
+										"worker-changed",
+										"invalid-intent",
+										"not-found",
+										"disabled",
+										"unsupported",
+										"source-unavailable",
+										"ambiguous",
+										"busy",
+										"conflict",
+										"physical-unknown"
+									]
+								}
+							}
+						},
+						{
+							"type": "object",
+							"additionalProperties": false,
+							"required": ["kind", "worker"],
+							"properties": {
+								"kind": {
+									"const": "unknown"
+								},
+								"worker": {
+									"$ref": "#/$defs/worker"
+								}
+							}
+						}
+					]
+				}
+			}
+		}
+	],
+	"$defs": {
+		"worker": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["workerId", "generation"],
+			"properties": {
+				"workerId": {
+					"type": "string",
+					"pattern": "^[0-9a-f]{32}$",
+					"not": {
+						"const": "00000000000000000000000000000000"
+					}
+				},
+				"generation": {
+					"type": "string",
+					"pattern": "^[1-9][0-9]*$",
+					"format": "orchbee-uint64"
+				}
+			}
+		},
+		"cursor": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["worker", "before"],
+			"properties": {
+				"worker": {
+					"$ref": "#/$defs/worker"
+				},
+				"before": {
+					"type": "integer",
+					"minimum": 1,
+					"maximum": 9007199254740991
+				}
+			}
+		},
+		"context": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": [],
+			"properties": {
+				"workspaceId": {
+					"anyOf": [
+						{
+							"type": "string",
+							"maxLength": 4096,
+							"pattern": "^[^\\u0000]*$"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"workspaceLabel": {
+					"anyOf": [
+						{
+							"type": "string",
+							"maxLength": 4096,
+							"pattern": "^[^\\u0000]*$"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"workspaceCwd": {
+					"anyOf": [
+						{
+							"type": "string",
+							"maxLength": 4096,
+							"pattern": "^[^\\u0000]*$"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"tabId": {
+					"anyOf": [
+						{
+							"type": "string",
+							"maxLength": 4096,
+							"pattern": "^[^\\u0000]*$"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"tabLabel": {
+					"anyOf": [
+						{
+							"type": "string",
+							"maxLength": 4096,
+							"pattern": "^[^\\u0000]*$"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"focusedPaneId": {
+					"anyOf": [
+						{
+							"type": "string",
+							"maxLength": 4096,
+							"pattern": "^[^\\u0000]*$"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"focusedPaneCwd": {
+					"anyOf": [
+						{
+							"type": "string",
+							"maxLength": 4096,
+							"pattern": "^[^\\u0000]*$"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"focusedPaneAgent": {
+					"anyOf": [
+						{
+							"type": "string",
+							"maxLength": 4096,
+							"pattern": "^[^\\u0000]*$"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"focusedPaneStatus": {
+					"anyOf": [
+						{
+							"type": "string",
+							"maxLength": 4096,
+							"pattern": "^[^\\u0000]*$"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"selectedText": {
+					"anyOf": [
+						{
+							"type": "string",
+							"maxLength": 8192,
+							"pattern": "^[^\\u0000]*$"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"invocationSource": {
+					"anyOf": [
+						{
+							"type": "string",
+							"maxLength": 4096,
+							"pattern": "^[^\\u0000]*$"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"correlationId": {
+					"anyOf": [
+						{
+							"type": "string",
+							"maxLength": 4096,
+							"pattern": "^[^\\u0000]*$"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"clickedUrl": {
+					"anyOf": [
+						{
+							"type": "string",
+							"maxLength": 4096,
+							"pattern": "^[^\\u0000]*$"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"linkHandlerId": {
+					"anyOf": [
+						{
+							"type": "string",
+							"maxLength": 4096,
+							"pattern": "^[^\\u0000]*$"
+						},
+						{
+							"type": "null"
+						}
+					]
+				}
+			}
+		},
+		"log": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": [
+				"jobId",
+				"sequence",
+				"pluginId",
+				"commandId",
+				"command",
+				"startedMs",
+				"finishedMs",
+				"exitCode",
+				"failure",
+				"stdout",
+				"stderr",
+				"stdoutTruncated",
+				"stderrTruncated"
+			],
+			"properties": {
+				"jobId": {
+					"type": "string",
+					"pattern": "^[0-9a-f]{32}$",
+					"not": {
+						"const": "00000000000000000000000000000000"
+					}
+				},
+				"sequence": {
+					"type": "integer",
+					"minimum": 1,
+					"maximum": 9007199254740991
+				},
+				"pluginId": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 120,
+					"pattern": "^[A-Za-z0-9._:-]+$"
+				},
+				"commandId": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 241,
+					"pattern": "^[A-Za-z0-9._:-]+$"
+				},
+				"command": {
+					"type": "array",
+					"minItems": 1,
+					"maxItems": 128,
+					"items": {
+						"type": "string",
+						"maxLength": 4096,
+						"pattern": "^[^\\u0000]*$",
+						"minLength": 1
+					}
+				},
+				"startedMs": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 9007199254740991
+				},
+				"finishedMs": {
+					"anyOf": [
+						{
+							"type": "integer",
+							"minimum": 0,
+							"maximum": 9007199254740991
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"exitCode": {
+					"anyOf": [
+						{
+							"type": "integer",
+							"minimum": -2147483648,
+							"maximum": 2147483647
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"failure": {
+					"anyOf": [
+						{
+							"enum": [
+								"exit-failure",
+								"spawn-unavailable",
+								"spawn-failed",
+								"io",
+								"cancelled",
+								"physical-unknown"
+							]
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"stdout": {
+					"type": "string",
+					"maxLength": 196608
+				},
+				"stderr": {
+					"type": "string",
+					"maxLength": 196608
+				},
+				"stdoutTruncated": {
+					"type": "boolean"
+				},
+				"stderrTruncated": {
+					"type": "boolean"
+				}
+			},
+			"allOf": [
+				{
+					"if": {
+						"properties": {
+							"finishedMs": {
+								"type": "null"
+							}
+						}
+					},
+					"then": {
+						"properties": {
+							"exitCode": {
+								"type": "null"
+							},
+							"failure": {
+								"type": "null"
+							},
+							"stdout": {
+								"const": ""
+							},
+							"stderr": {
+								"const": ""
+							},
+							"stdoutTruncated": {
+								"const": false
+							},
+							"stderrTruncated": {
+								"const": false
+							}
+						}
+					},
+					"else": {
+						"if": {
+							"properties": {
+								"failure": {
+									"type": "null"
+								}
+							}
+						},
+						"then": {
+							"properties": {
+								"exitCode": {
+									"const": 0
+								}
+							}
+						},
+						"else": {
+							"if": {
+								"properties": {
+									"failure": {
+										"const": "exit-failure"
+									}
+								}
+							},
+							"then": {
+								"properties": {
+									"exitCode": {
+										"not": {
+											"const": 0
+										}
+									}
+								}
+							},
+							"else": {
+								"properties": {
+									"exitCode": {
+										"type": "null"
+									}
+								}
+							}
+						}
+					}
+				}
+			]
+		}
+	}
+}

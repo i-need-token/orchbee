@@ -232,3 +232,7 @@ Server 屏幕模型拥有来源选择、下载、安装、取消和回执上限�
 已绑定选择保留原有形状。Rust、TypeScript 和 JSON Schema 共享缺失、混合、多余及无效代次
 字段的正反一致性向量。原生 current-Panel 所有者验证规范绑定缺席，并用既有选择代次围住
 关联读取；读取不分配代次或 viewer。此私有扩展与匹配的原生 cohort 一起发布。
+
+## 原生插件运行时契约
+
+导出的插件请求/结果 schema 校验同批 cohort 的 OBWP 45/46、封闭上下文/日志结构、UTF-8 字节上限、进程结果和 Worker/序号游标一致性。共享插件一致性用例同时对照 Rust 和 JSON Schema。[原生插件行为](../../apps/orchbee/docs/windows-plugins.zh-CN.md) 管理执行权限、输出上限和剩余集成。

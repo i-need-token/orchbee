@@ -12,7 +12,7 @@ use std::{
 };
 
 #[cfg(windows)]
-use crate::git_process_windows::GitChild as Child;
+use crate::windows_command_child::WindowsCommandChild as Child;
 #[cfg(windows)]
 use orchbee_local_ipc::ChildOutputReader;
 use orchbee_local_ipc::{AsLocalIo, PollFd, PollFlags, PollTimeout, poll};

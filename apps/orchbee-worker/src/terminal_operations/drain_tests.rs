@@ -314,6 +314,8 @@ fn admitted_request_replies_with_host_observed_event() -> TestResult {
             mutation_slot: &crate::worktree_mutation_job::WorktreeMutationSlot::new(
                 crate::worktree_mutation_windows::run,
             ),
+            #[cfg(windows)]
+            plugin_jobs: &crate::plugin_jobs::PluginJobs::new(),
             site_runtime: None,
             #[cfg(windows)]
             managed_host: None,

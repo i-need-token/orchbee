@@ -1,4 +1,5 @@
-//! Offline user plugin catalog operations. No Site or plugin process is started here.
+//! Offline catalog commands and admitted runtime invocation/log commands.
+mod runtime;
 use super::{Failure, FailureKind, Output, failure_output, output};
 use crate::{
     invocation::{OutputFormat, plugins::PluginCommand},
@@ -8,7 +9,16 @@ use orchbee_local_site_runtime::{PluginRegistry, PluginRegistryError, PluginRegi
 use serde_json::{Value, json};
 
 pub(crate) fn run(command: PluginCommand, format: OutputFormat, locale: Locale) -> Output {
+    if matches!(
+        &command,
+        PluginCommand::Invoke { .. } | PluginCommand::Logs { .. }
+    ) {
+        return runtime::run(command, format, locale);
+    }
     let operation = match &command {
+        PluginCommand::Invoke { .. } | PluginCommand::Logs { .. } => {
+            unreachable!("runtime command routed above")
+        }
         PluginCommand::List(_) => "list",
         PluginCommand::Actions(_) => "action-list",
         PluginCommand::ConfigDir(_) => "config-dir",
@@ -58,6 +68,9 @@ fn execute(
     command: PluginCommand,
 ) -> Result<Value, PluginRegistryError> {
     Ok(match command {
+        PluginCommand::Invoke { .. } | PluginCommand::Logs { .. } => {
+            unreachable!("offline command checked before dispatch")
+        }
         PluginCommand::ConfigDir(id) => {
             json!({"kind":"directory","pluginId":id,"path":registry.config_dir(&id)?.to_str().ok_or(PluginRegistryError::InvalidPath)?})
         }

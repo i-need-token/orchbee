@@ -199,6 +199,7 @@ fn admitted_worker_survives_invalid_defaults_then_launches_fresh_policy_and_fenc
                 drain: &drain,
                 worktree_slot: &worktrees,
                 mutation_slot: &mutations,
+                plugin_jobs: &crate::plugin_jobs::PluginJobs::new(),
                 site_runtime: None,
                 managed_host: None,
             }

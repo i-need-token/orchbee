@@ -103,13 +103,16 @@ impl PluginRegistry {
         })
     }
     pub fn config_dir(&self, id: &str) -> Result<PathBuf, Error> {
+        self.user_directories(id).map(|(config, _)| config)
+    }
+    pub fn user_directories(&self, id: &str) -> Result<(PathBuf, PathBuf), Error> {
         let id = plugin_identifier(id)?;
         let component = component(&id);
         let config = self.root.join("config").join(&component);
         let state = self.root.join("state").join(component);
         drop(WindowsPrivateCache::acquire(&config).map_err(storage)?);
         drop(WindowsPrivateCache::acquire(&state).map_err(storage)?);
-        Ok(config)
+        Ok((config, state))
     }
     pub fn mutate(&self, mutation: PluginRegistryMutation) -> Result<PluginRegistryResult, Error> {
         // All caller-controlled identity and manifest validation precedes storage creation.

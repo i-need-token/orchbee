@@ -70,6 +70,7 @@ impl WorkbenchService {
 
     pub(crate) fn execute(&self, request: WorkbenchRequest) -> WorkbenchExecution {
         let permitted = match &request {
+            WorkbenchRequest::Plugin(request) => self.policy.read && (!request.action.mutating() || (self.policy.create_terminal && self.policy.manage_terminal_lifecycle)),
             WorkbenchRequest::WindowTitle(_) | WorkbenchRequest::Notification(_) => false,
             WorkbenchRequest::Configuration(request) => match request.action { orchbee_workbench_protocol::ConfigurationAction::Reload => self.policy.manage_navigation, _ => self.policy.read },
             WorkbenchRequest::AgentManifests(request) => match request.action {
@@ -167,6 +168,12 @@ impl WorkbenchService {
             return WorkbenchExecution::Response(unavailable_or_denied(request, true));
         }
         match &request {
+            WorkbenchRequest::Plugin(request) => {
+                #[cfg(windows)]
+                return WorkbenchExecution::Response(WorkbenchResponse::Plugin(self.terminals.execute_plugin(request.clone())));
+                #[cfg(not(windows))]
+                return WorkbenchExecution::Response(unavailable_or_denied(WorkbenchRequest::Plugin(request.clone()), false));
+            }
             WorkbenchRequest::Notification(request) => return WorkbenchExecution::Response(unavailable_or_denied(WorkbenchRequest::Notification(request.clone()), false)),
             WorkbenchRequest::WindowTitle(request) => return WorkbenchExecution::Response(unavailable_or_denied(WorkbenchRequest::WindowTitle(request.clone()), false)),
         WorkbenchRequest::Configuration(request) => {
@@ -396,6 +403,20 @@ impl WorkbenchService {
 
 fn unavailable_or_denied(request: WorkbenchRequest, denied: bool) -> WorkbenchResponse {
     match request {
+        WorkbenchRequest::Plugin(request) => {
+            WorkbenchResponse::Plugin(orchbee_workbench_protocol::PluginResult {
+                protocol_version: ProtocolVersion,
+                request_id: request.request_id,
+                site_id: request.site_id,
+                outcome: orchbee_workbench_protocol::PluginOutcome::Failed {
+                    reason: if denied {
+                        orchbee_workbench_protocol::PluginFailure::Denied
+                    } else {
+                        orchbee_workbench_protocol::PluginFailure::Unavailable
+                    },
+                },
+            })
+        }
         WorkbenchRequest::WindowTitle(request) => {
             WorkbenchResponse::WindowTitle(orchbee_workbench_protocol::WindowTitleResult {
                 protocol_version: request.protocol_version,

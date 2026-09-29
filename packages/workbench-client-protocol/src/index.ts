@@ -518,3 +518,12 @@ export {
 	type WindowTitleRequest,
 	type WindowTitleResult,
 } from './workbench-window-title-contract';
+
+export {
+	PluginInvocationContextSchema,
+	PluginCommandLogSchema,
+	PluginRequestSchema,
+	PluginResultSchema,
+	type PluginRequest,
+	type PluginResult,
+} from './workbench-plugin-contract';

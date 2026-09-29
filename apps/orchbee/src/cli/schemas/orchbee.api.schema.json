@@ -10,7 +10,7 @@
 			"const": "orchbee.api.schema"
 		},
 		"version": {
-			"const": 109
+			"const": 110
 		},
 		"source": {
 			"type": "object",
@@ -152,7 +152,8 @@
 						"orchbee.config.reset-keys",
 						"orchbee.notification.show",
 						"orchbee.terminal.title",
-						"orchbee.plugin.registry"
+						"orchbee.plugin.registry",
+						"orchbee.plugin.runtime"
 					],
 					"propertyNames": {
 						"$ref": "#/$defs/schemaId"
@@ -263,7 +264,8 @@
 				"orchbee.config.reset-keys",
 				"orchbee.notification.show",
 				"orchbee.terminal.title",
-				"orchbee.plugin.registry"
+				"orchbee.plugin.registry",
+				"orchbee.plugin.runtime"
 			]
 		}
 	}

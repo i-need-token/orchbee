@@ -179,6 +179,8 @@ pub(crate) enum Family {
     Plugin,
     #[cfg(windows)]
     PluginAction,
+    #[cfg(windows)]
+    PluginLog,
     TerminalTitle,
     Notification,
     #[cfg(windows)]
@@ -225,6 +227,8 @@ impl Family {
             Self::Plugin => "plugin",
             #[cfg(windows)]
             Self::PluginAction => "plugin action",
+            #[cfg(windows)]
+            Self::PluginLog => "plugin log",
             Self::Notification => "notification",
             Self::Site => "site",
             Self::Api => "api",
@@ -250,6 +254,10 @@ pub(crate) enum CommandPath {
     PluginConfigDir,
     #[cfg(windows)]
     PluginActionList,
+    #[cfg(windows)]
+    PluginActionInvoke,
+    #[cfg(windows)]
+    PluginLogList,
 
     #[cfg(windows)]
     SessionList,
@@ -514,6 +522,10 @@ impl CommandPath {
             Self::PluginConfigDir => "plugin config-dir",
             #[cfg(windows)]
             Self::PluginActionList => "plugin action list",
+            #[cfg(windows)]
+            Self::PluginActionInvoke => "plugin action invoke",
+            #[cfg(windows)]
+            Self::PluginLogList => "plugin log list",
             Self::NotificationShow => "notification show",
             Self::SiteAgentManifests => "site agent-manifests",
             Self::SiteUpdateAgentManifests => "site update-agent-manifests",
@@ -1443,6 +1455,12 @@ pub(crate) enum UsageContext {
 pub(crate) enum ExpectedValue {
     #[cfg(windows)]
     PluginId,
+    #[cfg(windows)]
+    PluginActionId,
+    #[cfg(windows)]
+    PluginContext,
+    #[cfg(windows)]
+    PluginLogLimit,
     WindowTitle,
     NotificationTitle,
     NotificationPosition,
@@ -1682,6 +1700,8 @@ enum Token {
 struct Options {
     plugin_enabled: bool,
     plugin_disabled: bool,
+    plugin_id: Option<String>,
+    plugin_context: Option<String>,
     notification_body: Option<String>,
     notification_position: Option<String>,
     notification_sound: Option<String>,
@@ -1853,6 +1873,8 @@ const VALUE_FLAGS: &[&str] = &[
     "--key",
     "--kind",
     "--label",
+    "--plugin",
+    "--context",
     "--limit",
     "--source",
     "--lines",
@@ -2468,6 +2490,8 @@ fn apply_value_flag(
         "--file" => &mut options.file,
         "--exec" => &mut options.exec,
         "--cwd" => &mut options.cwd,
+        "--plugin" => &mut options.plugin_id,
+        "--context" => &mut options.plugin_context,
         "--limit" => &mut options.limit,
         "--cursor" => &mut options.cursor,
         "--after-revision" => &mut options.after_revision,
@@ -4791,6 +4815,12 @@ fn help_topic(path: &[&str]) -> Option<HelpTopic> {
         #[cfg(windows)]
         ["plugin", "action"] => HelpTopic::Family(Family::PluginAction),
         #[cfg(windows)]
+        ["plugin", "log"] => HelpTopic::Family(Family::PluginLog),
+        #[cfg(windows)]
+        ["plugin", "action", "invoke"] => HelpTopic::Command(CommandPath::PluginActionInvoke),
+        #[cfg(windows)]
+        ["plugin", "log", "list"] => HelpTopic::Command(CommandPath::PluginLogList),
+        #[cfg(windows)]
         ["plugin", "link"] => HelpTopic::Command(CommandPath::PluginLink),
         #[cfg(windows)]
         ["plugin", "unlink"] => HelpTopic::Command(CommandPath::PluginUnlink),
@@ -4881,6 +4911,8 @@ fn mutation(command: MutationCommand, options: &Options) -> Request {
 #[derive(Clone, Copy)]
 struct Scope {
     plugin: bool,
+    plugin_select: bool,
+    plugin_context: bool,
     notification: bool,
     panel_terminal: bool,
     metadata: bool,
@@ -5013,6 +5045,8 @@ struct Scope {
 
 const NO_OPTIONS: Scope = Scope {
     plugin: false,
+    plugin_select: false,
+    plugin_context: false,
     notification: false,
     panel_terminal: false,
     metadata: false,
@@ -5340,7 +5374,9 @@ const INTEGRATION_SCOPE: Scope = Scope {
 
 /// Any mutation-only option seen outside a mutation command.
 fn business_options(options: &Options) -> bool {
-    options.plugin_enabled
+    options.plugin_id.is_some()
+        || options.plugin_context.is_some()
+        || options.plugin_enabled
         || options.plugin_disabled
         || options.notification_body.is_some()
         || options.notification_position.is_some()
@@ -5416,6 +5452,12 @@ fn business_options(options: &Options) -> bool {
 /// The first named option present but outside `scope`, in the fixed `Options`
 /// declaration order — deterministic without any argv-order state.
 fn first_out_of_scope(options: &Options, scope: Scope) -> Option<&'static str> {
+    if !scope.plugin_select && options.plugin_id.is_some() {
+        return Some("--plugin");
+    }
+    if !scope.plugin_context && options.plugin_context.is_some() {
+        return Some("--context");
+    }
     if !scope.plugin {
         if options.plugin_enabled {
             return Some("--enabled");

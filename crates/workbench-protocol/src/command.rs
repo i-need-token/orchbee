@@ -1,3 +1,10 @@
+mod plugins;
+pub use plugins::{
+    MAXIMUM_ENCODED_PLUGIN_REQUEST_BYTES, MAXIMUM_ENCODED_PLUGIN_RESULT_BYTES, PluginAction,
+    PluginCommandFailure, PluginCommandLog, PluginFailure, PluginInvocationContext,
+    PluginLogCursor, PluginOutcome, PluginRequest, PluginResult, PluginWorker, plugin_identifier,
+    plugin_job_identifier,
+};
 mod window_title;
 pub use window_title::{
     WindowTitle, WindowTitleAction, WindowTitleContext, WindowTitleFailure, WindowTitleOutcome,
@@ -856,6 +863,8 @@ pub struct WorkbenchCommand {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind")]
 pub enum WorkbenchRequest {
+    #[serde(rename = "workbench.plugin")]
+    Plugin(PluginRequest),
     #[serde(rename = "workbench.configuration")]
     Configuration(ConfigurationRequest),
     #[serde(rename = "workbench.notification")]
@@ -1229,6 +1238,8 @@ pub struct WorkbenchSnapshotResult {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind")]
 pub enum WorkbenchResponse {
+    #[serde(rename = "workbench.plugin.result")]
+    Plugin(PluginResult),
     #[serde(rename = "workbench.configuration.result")]
     Configuration(ConfigurationResult),
     #[serde(rename = "workbench.notification.result")]
@@ -1287,6 +1298,9 @@ pub fn parse_workbench_request(encoded: &[u8]) -> Result<WorkbenchRequest, Contr
 /// explicit `launch` and a `profile` selector are mutually exclusive on the
 /// terminal-launch actions.
 fn validate_request(request: &WorkbenchRequest) -> Result<(), ContractError> {
+    if let WorkbenchRequest::Plugin(request) = request {
+        return request.validate();
+    }
     if let WorkbenchRequest::WindowTitle(request) = request {
         request.validate()?;
     }
@@ -1354,6 +1368,9 @@ fn validate_request(request: &WorkbenchRequest) -> Result<(), ContractError> {
 }
 
 fn request_byte_limit(request: &WorkbenchRequest) -> usize {
+    if matches!(request, WorkbenchRequest::Plugin(_)) {
+        return MAXIMUM_ENCODED_PLUGIN_REQUEST_BYTES;
+    }
     if matches!(request, WorkbenchRequest::Configuration(_)) {
         return MAXIMUM_CONFIGURATION_BYTES;
     }
@@ -1421,7 +1438,10 @@ pub fn serialize_workbench_request(request: &WorkbenchRequest) -> Result<Vec<u8>
 }
 
 pub fn parse_workbench_response(encoded: &[u8]) -> Result<WorkbenchResponse, ContractError> {
-    enforce_encoded_limit(encoded, MAXIMUM_ENCODED_SNAPSHOT_RESULT_BYTES)?;
+    enforce_encoded_limit(
+        encoded,
+        MAXIMUM_ENCODED_SNAPSHOT_RESULT_BYTES.max(MAXIMUM_ENCODED_PLUGIN_RESULT_BYTES),
+    )?;
     let response =
         serde_json::from_slice(encoded).map_err(|_error| ContractError::InvalidDocument)?;
     validate_response(&response, encoded)?;
@@ -1446,6 +1466,10 @@ fn validate_response(response: &WorkbenchResponse, encoded: &[u8]) -> Result<(),
         return Err(ContractError::InvalidDocument);
     }
     match response {
+        WorkbenchResponse::Plugin(result) => {
+            enforce_encoded_limit(encoded, MAXIMUM_ENCODED_PLUGIN_RESULT_BYTES)?;
+            result.validate()
+        }
         WorkbenchResponse::WindowTitle(result) => result.validate(),
         WorkbenchResponse::Notification(result) => result.validate(),
         WorkbenchResponse::Configuration(result) => {

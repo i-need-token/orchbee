@@ -1,5 +1,5 @@
 use super::*;
-use crate::{git_process_windows::GitChild, git_repository_windows::canonical_path};
+use crate::{git_repository_windows::canonical_path, windows_command_child::WindowsCommandChild};
 use std::{fs, path::PathBuf, sync::atomic::AtomicU64};
 
 struct Fixture {
@@ -49,7 +49,8 @@ impl Fixture {
             .stdin(Stdio::null())
             .stdout(Stdio::null())
             .stderr(Stdio::inherit());
-        let mut child = GitChild::spawn(command).unwrap_or_else(|_| panic!("spawn fixture Git"));
+        let mut child =
+            WindowsCommandChild::spawn(command).unwrap_or_else(|_| panic!("spawn fixture Git"));
         let deadline = Instant::now() + Duration::from_secs(10);
         loop {
             if let Some(status) = child.try_wait().unwrap() {

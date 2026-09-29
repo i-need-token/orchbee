@@ -406,6 +406,10 @@ fn fixed_outputs_are_far_below_the_bound() {
         CommandPath::PluginConfigDir,
         #[cfg(windows)]
         CommandPath::PluginActionList,
+        #[cfg(windows)]
+        CommandPath::PluginActionInvoke,
+        #[cfg(windows)]
+        CommandPath::PluginLogList,
         CommandPath::TerminalTitleSet,
         CommandPath::TerminalTitleClear,
         CommandPath::SiteReloadAgentManifests,
@@ -601,6 +605,10 @@ fn fixed_outputs_are_far_below_the_bound() {
     }
     collect(&["plugin", "action", "list", "--help"]);
     collect(&["help", "plugin", "action", "list"]);
+    collect(&["plugin", "action", "invoke", "--help"]);
+    collect(&["help", "plugin", "action", "invoke"]);
+    collect(&["plugin", "log", "list", "--help"]);
+    collect(&["help", "plugin", "log", "list"]);
     for command in &topics {
         assert!(
             commands.contains(command),

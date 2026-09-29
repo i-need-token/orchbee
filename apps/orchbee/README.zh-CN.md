@@ -804,4 +804,4 @@ Windows `panel report-agent`、`report-agent-session`、`clear-agent-authority` 
 
 `orchbee terminal title set "Build workspace"` 向前台主 TUI 发布覆盖标题；`orchbee terminal title clear` 恢复在线 `ui.window_title` 模板（回退为 `Orchbee`）。两者接受 `--format json`，没有 Client 连接时仍保留发布状态。模板规则及实际宿主限制见[标题归属与恢复](docs/windows-terminal-title.zh-CN.md)。
 
-Windows 的 `plugin link/unlink/enable/disable/list/config-dir` 和 `plugin action list` 离线管理真实的用户共享目录。清单、源刷新、持久化及剩余运行时集成见 [Windows 插件](docs/windows-plugins.zh-CN.md)。目录回执不代表命令已执行。
+Windows 的 `plugin link/unlink/enable/disable/list/config-dir` 和 `plugin action list` 离线管理用户共享目录。`plugin action invoke` 向已有 Site 提交具有归属的命令，`plugin log list` 查询保留结果。上下文、进程归属、有界输出及剩余安装/hook/Pane 集成见 [Windows 插件](docs/windows-plugins.zh-CN.md)。启动回执确认受理，执行结果由日志提供。

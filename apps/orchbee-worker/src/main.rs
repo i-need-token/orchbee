@@ -3,11 +3,13 @@ mod agent_drain;
 #[cfg(any(unix, windows))]
 mod default_interactive_launch;
 #[cfg(windows)]
-mod git_process_windows;
-#[cfg(windows)]
 mod git_repository_windows;
 #[cfg(any(unix, windows))]
 mod host_connection;
+#[cfg(any(unix, windows))]
+mod plugin_job_operation;
+#[cfg(windows)]
+mod plugin_jobs;
 #[cfg(any(unix, windows, test))]
 mod terminal_authorization;
 mod terminal_control_operation;
@@ -25,6 +27,8 @@ mod terminal_operations;
 mod terminal_send_operation;
 #[cfg(any(unix, windows))]
 mod terminal_viewer_operation;
+#[cfg(windows)]
+mod windows_command_child;
 #[cfg(any(unix, windows))]
 mod worker_connection;
 #[cfg(any(unix, windows))]

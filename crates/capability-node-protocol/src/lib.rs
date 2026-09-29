@@ -4,6 +4,12 @@ pub use default_shell::{DefaultShellMode, DefaultShellSelection};
 mod codec;
 mod error;
 mod identity;
+mod plugin_job;
+pub use plugin_job::{
+    MAXIMUM_PLUGIN_INTENT_BYTES, MAXIMUM_PLUGIN_LOG_PAGE, MAXIMUM_PLUGIN_OUTPUT_BYTES,
+    PluginCommandFailure, PluginCommandIntent, PluginCommandLog, PluginJobAction, PluginJobOutcome,
+    PluginJobRefusal, PluginJobRequest, PluginJobResult,
+};
 mod worker_shutdown;
 pub use worker_shutdown::{
     ShutdownBudget, ShutdownFailure, ShutdownRefusal, ShutdownStage, WorkerShutdownOutcome,
