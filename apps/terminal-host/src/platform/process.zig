@@ -33,6 +33,7 @@ pub const testing = if (builtin.is_test) struct {
     pub const PosixProcessType = posix_process.Process;
     pub const SessionIdentityStateType = posix_process.SessionIdentityState;
     pub const windowsCommandLineFn = windows_process.windowsCommandLine;
+    pub const windowsBatchCommandLineFn = @import("windows_command_line.zig").batch;
     pub const windowsSearchCandidatesFn = windows_process.windowsSearchCandidates;
     pub const windowsTerminatedExitResultFn = windows_process.windowsTerminatedExitResult;
 } else struct {};

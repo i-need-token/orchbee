@@ -164,7 +164,11 @@ pub const Process = if (builtin.os.tag != .windows) void else struct {
         std.mem.replaceScalar(u8, executable_argument, '/', '\\');
         arguments[0] = executable_argument;
         @memcpy(arguments[1..], launch.arguments);
-        const command_line = try windowsCommandLine(arena, arguments);
+        const batch = @import("windows_command_line.zig").isBatch(executable_argument);
+        const command_line = if (batch)
+            try @import("windows_command_line.zig").batch(arena, executable_argument, launch.arguments)
+        else
+            try windowsCommandLine(arena, arguments);
         const command_line_template = try std.unicode.utf8ToUtf16LeAllocZ(arena, command_line);
         const command_line_w = try arena.allocSentinel(u16, command_line_template.len, 0);
         const environment_w = try environment.createWindowsBlock(arena, .{});
@@ -222,7 +226,14 @@ pub const Process = if (builtin.os.tag != .windows) void else struct {
         const flags = windows_api.CREATE_SUSPENDED |
             windows_api.CREATE_UNICODE_ENVIRONMENT |
             windows_api.EXTENDED_STARTUPINFO_PRESENT;
-        const application_names = try executableCandidates(arena, &environment, launch);
+        const application_names = if (batch) names: {
+            // A script may override PATH/ComSpec, never the command processor itself.
+            const system = try windowsSystemDirectory(arena);
+            const command_processor = try joinWindowsPath(arena, system, "cmd.exe");
+            const names = try arena.alloc([:0]u16, 1);
+            names[0] = try std.unicode.utf8ToUtf16LeAllocZ(arena, command_processor);
+            break :names names;
+        } else try executableCandidates(arena, &environment, launch);
         var spawned = false;
         for (application_names) |application_name| {
             // CreateProcessW may modify its command-line buffer even when the
@@ -464,34 +475,4 @@ pub const Process = if (builtin.os.tag != .windows) void else struct {
 pub fn windowsTerminatedExitResult(code: u32) !ExitResult {
     return .{ .exit_code = code };
 }
-pub fn windowsCommandLine(allocator: std.mem.Allocator, arguments: []const []const u8) ![:0]u8 {
-    var output: std.Io.Writer.Allocating = .init(allocator);
-    defer output.deinit();
-    const writer = &output.writer;
-    for (arguments, 0..) |argument, argument_index| {
-        if (argument_index != 0) try writer.writeByte(' ');
-        const requires_quotes = argument.len == 0 or std.mem.indexOfAny(u8, argument, " \t\n\"") != null;
-        if (!requires_quotes) {
-            try writer.writeAll(argument);
-            continue;
-        }
-        try writer.writeByte('"');
-        var backslashes: usize = 0;
-        for (argument) |byte| switch (byte) {
-            '\\' => backslashes += 1,
-            '"' => {
-                try writer.splatByteAll('\\', backslashes * 2 + 1);
-                try writer.writeByte('"');
-                backslashes = 0;
-            },
-            else => {
-                try writer.splatByteAll('\\', backslashes);
-                try writer.writeByte(byte);
-                backslashes = 0;
-            },
-        };
-        try writer.splatByteAll('\\', backslashes * 2);
-        try writer.writeByte('"');
-    }
-    return output.toOwnedSliceSentinel(0);
-}
+pub const windowsCommandLine = @import("windows_command_line.zig").executable;

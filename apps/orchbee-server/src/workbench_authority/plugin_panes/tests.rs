@@ -144,7 +144,7 @@ fn plugin_pane_resolution_freezes_root_relative_argv_and_protected_target_contex
 }
 
 #[test]
-fn plugin_pane_resolution_refuses_disabled_missing_platform_and_shell_wrapper() {
+fn plugin_pane_resolution_refuses_disabled_missing_and_incompatible_platform() {
     let (root, registry, snapshot, command, selector) = fixture();
     registry
         .mutate(PluginRegistryMutation::SetEnabled {
@@ -161,11 +161,24 @@ fn plugin_pane_resolution_refuses_disabled_missing_platform_and_shell_wrapper() 
         .unwrap();
     for source in [
         SOURCE.replace("placement='tab'", "platforms=['linux']"),
-        SOURCE.replace("pane.exe", "script.cmd"),
         "invalid manifest".into(),
     ] {
         fs::write(root.0.join("orchbee-plugin.toml"), source).unwrap();
         assert!(resolve_from(&registry, &snapshot, &command, &selector).is_err());
+    }
+    for script in ["script.cmd", "script.BAT"] {
+        fs::write(root.0.join(script), b"@exit /B 0").unwrap();
+        fs::write(
+            root.0.join("orchbee-plugin.toml"),
+            SOURCE.replace("pane.exe", script),
+        )
+        .unwrap();
+        let batch = resolve_from(&registry, &snapshot, &command, &selector).unwrap();
+        assert_eq!(
+            PathBuf::from(batch.launch.executable()),
+            fs::canonicalize(&root.0).unwrap().join(script)
+        );
+        assert_eq!(batch.launch.arguments(), &["hello world", "&literal"]);
     }
     fs::remove_file(root.0.join("orchbee-plugin.toml")).unwrap();
     assert!(resolve_from(&registry, &snapshot, &command, &selector).is_err());

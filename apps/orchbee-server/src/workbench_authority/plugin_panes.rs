@@ -63,13 +63,6 @@ fn resolve_from(
     }
     let root = Path::new(&entry.plugin_root);
     let program = orchbee_local_site_runtime::resolve_windows_program(&pane.command[0], root);
-    // The PTY Host executes literal programs. Batch wrappers require a separate
-    // cmd.exe quoting contract and must not accidentally become shell strings.
-    if program.extension().is_some_and(|extension| {
-        extension.eq_ignore_ascii_case("bat") || extension.eq_ignore_ascii_case("cmd")
-    }) {
-        return Err(unavailable);
-    }
     let path = |path: &Path| path.to_str().map(str::to_owned).ok_or(unavailable);
     let launch = LaunchSelection::new(path(&program)?, pane.command[1..].to_vec())
         .map_err(|_| unavailable)?;

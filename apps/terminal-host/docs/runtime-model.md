@@ -1,5 +1,7 @@
 # Terminal Host Runtime Contract and Correctness Model
 
+On Windows, absolute `.cmd`/`.bat` selections use the system directory’s `cmd.exe` with `/e:ON /v:OFF /d /c`. The private command-line adapter distinguishes script quoting from ordinary executable argv, protects percent literals and metacharacters, and rejects NUL/CR/LF parameters and encoded lines above 8191 bytes before creating a PTY. Canonical verbatim drive/UNC paths are converted only when component meaning is preserved; device paths, relative script paths and ambiguous verbatim components are refused. The script remains responsible for its own parameter expansion. Neither `ComSpec` nor `PATH` can replace the command processor. The same suspended launch, Job containment, exit observation and cleanup own the script and descendants; no wrapper supervisor is introduced.
+
 ## Status and authority
 
 This document is the authoritative runtime model for `terminal-host`. The accepted contract is
