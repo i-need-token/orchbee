@@ -299,6 +299,8 @@ fn fixed_outputs_are_far_below_the_bound() {
         Family::Api,
         Family::Completion,
         Family::Config,
+        #[cfg(windows)]
+        Family::Channel,
         Family::LaunchProfile,
         Family::Panel,
         Family::Layout,
@@ -371,6 +373,8 @@ fn fixed_outputs_are_far_below_the_bound() {
         CommandPath::AgentWait,
         CommandPath::ApiSchema,
         CommandPath::ApiSnapshot,
+        #[cfg(windows)]
+        CommandPath::ChannelShow,
         CommandPath::ConfigCheck,
         CommandPath::ConfigResetKeys,
         CommandPath::LaunchProfileCreate,
@@ -479,6 +483,8 @@ fn fixed_outputs_are_far_below_the_bound() {
     // everything the walk does enumerate. Both legal surfaces are walked:
     // trailing `--help` and the `help` prefix.
     let roots = [
+        #[cfg(windows)]
+        "channel",
         "plugin",
         "notification",
         "session",
@@ -501,6 +507,7 @@ fn fixed_outputs_are_far_below_the_bound() {
         "worktree",
     ];
     let verbs = [
+        "show",
         "install",
         "uninstall",
         "link",

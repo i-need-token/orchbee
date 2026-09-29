@@ -203,6 +203,8 @@ pub(crate) enum Family {
     Site,
     Api,
     Config,
+    #[cfg(windows)]
+    Channel,
     Completion,
 }
 
@@ -237,6 +239,8 @@ impl Family {
             Self::Site => "site",
             Self::Api => "api",
             Self::Config => "config",
+            #[cfg(windows)]
+            Self::Channel => "channel",
             Self::Completion => "completion",
         }
     }
@@ -385,6 +389,8 @@ pub(crate) enum CommandPath {
     ApiSchema,
     ConfigCheck,
     ConfigResetKeys,
+    #[cfg(windows)]
+    ChannelShow,
     SiteStart,
     SiteDiagnose,
     SiteConfig,
@@ -516,6 +522,8 @@ impl CommandPath {
             Self::ApiSchema => "api schema",
             Self::ConfigCheck => "config check",
             Self::ConfigResetKeys => "config reset-keys",
+            #[cfg(windows)]
+            Self::ChannelShow => "channel show",
             Self::SiteStart => "site start",
             Self::SiteDiagnose => "site diagnose",
             Self::SiteConfig => "site config",
@@ -1394,6 +1402,10 @@ pub(crate) enum Request {
     #[cfg(windows)]
     Plugin {
         command: plugins::PluginCommand,
+        format: OutputFormat,
+    },
+    #[cfg(windows)]
+    ChannelShow {
         format: OutputFormat,
     },
     #[cfg(windows)]
@@ -3970,6 +3982,13 @@ fn resolve_words(
                 format: options.format.unwrap_or(OutputFormat::Text),
             })
         }
+        #[cfg(windows)]
+        ["channel", "show"] => {
+            reject_filters(options, UsageContext::Path("channel show"), envelope)?;
+            Ok(Request::ChannelShow {
+                format: options.format.unwrap_or(OutputFormat::Text),
+            })
+        }
         ["config", "check"] => {
             reject_filters(options, UsageContext::Path("config check"), envelope)?;
             Ok(query(QueryCommand::ConfigCheck, options))
@@ -4598,6 +4617,20 @@ fn resolve_words(
             envelope,
         )),
         ["api", verb, ..] => Err(unknown_command(UsageContext::Path("api"), verb, envelope)),
+        #[cfg(windows)]
+        ["channel"] => Err(missing_command(UsageContext::Path("channel"), envelope)),
+        #[cfg(windows)]
+        ["channel", "show", extra, ..] => Err(unexpected_argument(
+            UsageContext::Path("channel show"),
+            extra,
+            envelope,
+        )),
+        #[cfg(windows)]
+        ["channel", verb, ..] => Err(unknown_command(
+            UsageContext::Path("channel"),
+            verb,
+            envelope,
+        )),
         ["config"] => Err(missing_command(UsageContext::Path("config"), envelope)),
         ["config", "reset-keys", extra, ..] => Err(unexpected_argument(
             UsageContext::Path("config reset-keys"),
@@ -4763,6 +4796,10 @@ fn help_topic(path: &[&str]) -> Option<HelpTopic> {
         ["api"] => HelpTopic::Family(Family::Api),
         ["site"] => HelpTopic::Family(Family::Site),
         ["config"] => HelpTopic::Family(Family::Config),
+        #[cfg(windows)]
+        ["channel"] => HelpTopic::Family(Family::Channel),
+        #[cfg(windows)]
+        ["channel", "show"] => HelpTopic::Command(CommandPath::ChannelShow),
         ["completion"] => HelpTopic::Family(Family::Completion),
         ["project", "list"] => HelpTopic::Command(CommandPath::ProjectList),
         ["project", "get"] => HelpTopic::Command(CommandPath::ProjectGet),

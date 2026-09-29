@@ -27,6 +27,8 @@
 仅在进程和 canonical 就绪检查通过后绑定名称。配置、限制和恢复见
 [Windows Agent 启动](docs/windows-agent-start.zh-CN.md)。
 
+Windows `channel show [--format text|json]` 从共享用户配置读取严格的 stable/preview 偏好，不激活 Site。参见[配置及频道来源](docs/windows-cli-configuration.zh-CN.md#规则更新策略)。
+
 ## 命令面
 
 裸调用和显式 `tui` 调用先准入继承的交互终端和有效 cell geometry，再在 Windows 和 Linux 上运行下面的

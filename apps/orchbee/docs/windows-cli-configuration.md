@@ -17,6 +17,7 @@ directory = "~/Projects/worktrees"
 resume_agents_on_restore = true
 
 [update]
+channel = "stable"
 manifest_check = true
 ```
 
@@ -53,6 +54,8 @@ Client startup reads and validates once before durable Active publication or act
 Windows `config check` version 3 reports `resumeAgentsOnRestore` and `resumeAgentsOnRestoreSource` (`default`, `file`, `environment`). Schemas for versions 1 and 2 remain available. Diagnostics report only a bounded field/reason. Checks must cover default/file/environment precedence, malformed and non-UTF-8 values, strict types/keys, read bounds, before-commit refusal and corrected retry, unchanged existing-Site admission, and actual disabled/enabled restart. Live reload, names and managed-state restoration are separate obligations.
 
 ## Rule update policy
+
+`[update] channel` accepts exactly `stable` (default) or `preview`, independently of `manifest_check`. `orchbee channel show [--format text|json]` reads the complete shared configuration without creating files, activating a Site or accessing the network. Text is the channel token; `orchbee.channel.show` v1 reports channel, default/file provenance, selected configuration path and file presence. An absent default file uses stable; an absent explicit file or malformed configuration fails. This is the requested release preference, not evidence about the currently installed cohort. Windows `config check` v9 and configuration failure v6 admit `update.channel` diagnostics; earlier schemas remain closed.
 
 `[update] manifest_check` is a TOML boolean, default true, with `default`/`file` provenance.
 Windows `config check` v4 adds `manifestCheck` and `manifestCheckSource` while v1-v3 remain closed.

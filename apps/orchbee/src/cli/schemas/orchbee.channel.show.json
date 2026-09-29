@@ -1,0 +1,67 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "orchbee.channel.show",
+	"title": "Windows configured release channel",
+	"type": "object",
+	"additionalProperties": false,
+	"required": ["schema", "version", "source", "result"],
+	"properties": {
+		"schema": {
+			"const": "orchbee.channel.show"
+		},
+		"version": {
+			"const": 1
+		},
+		"source": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["kind"],
+			"properties": {
+				"kind": {
+					"const": "local-configuration"
+				}
+			}
+		},
+		"result": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["channel", "source", "path", "exists"],
+			"properties": {
+				"channel": {
+					"enum": ["stable", "preview"]
+				},
+				"source": {
+					"enum": ["default", "file"]
+				},
+				"path": {
+					"type": ["string", "null"]
+				},
+				"exists": {
+					"type": "boolean"
+				}
+			},
+			"allOf": [
+				{
+					"if": {
+						"properties": {
+							"source": {
+								"const": "file"
+							}
+						}
+					},
+					"then": {
+						"properties": {
+							"exists": {
+								"const": true
+							},
+							"path": {
+								"type": "string",
+								"minLength": 1
+							}
+						}
+					}
+				}
+			]
+		}
+	}
+}

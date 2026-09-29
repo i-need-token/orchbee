@@ -8,6 +8,90 @@ use orchbee_workbench_protocol::*;
 use serde_json::{Value, json};
 use support::{Fixture, assert_closed, peer, validate};
 
+#[test]
+fn channel_show_reads_strict_shared_settings_without_a_site_or_writes() {
+    let fixture = Fixture::new();
+    let config = fixture.0.join("appdata/Orchbee/config.toml");
+    let run = || fixture.run(&["channel", "show", "--format=json"]);
+    let output = run();
+    assert!(output.status.success());
+    let doc = document(output);
+    validate(
+        &doc,
+        include_str!("../src/cli/schemas/orchbee.channel.show.json"),
+    );
+    assert_eq!(doc["result"]["channel"], "stable");
+    assert_eq!(doc["result"]["source"], "default");
+    assert_eq!(doc["result"]["exists"], false);
+    assert!(!config.parent().unwrap().exists());
+    std::fs::create_dir_all(config.parent().unwrap()).unwrap();
+    let bytes = b"# retained comment\n[update]\nchannel='preview'\nmanifest_check=false\n";
+    std::fs::write(&config, bytes).unwrap();
+    let output = run();
+    assert!(output.status.success());
+    let doc = document(output);
+    validate(
+        &doc,
+        include_str!("../src/cli/schemas/orchbee.channel.show.json"),
+    );
+    assert_eq!(doc["result"]["channel"], "preview");
+    assert_eq!(doc["result"]["source"], "file");
+    let text = fixture.run(&["channel", "show"]);
+    assert!(text.status.success());
+    assert_eq!(text.stdout, b"preview\n");
+    assert_eq!(std::fs::read(&config).unwrap(), bytes);
+    for content in ["[update]\nchannel='DO-NOT-ECHO'", "[update]\nchannel=true"] {
+        std::fs::write(&config, content).unwrap();
+        let output = run();
+        assert_eq!(output.status.code(), Some(1));
+        assert!(!String::from_utf8_lossy(&output.stdout).contains("DO-NOT-ECHO"));
+        let doc = document(output);
+        validate(
+            &doc,
+            include_str!("../src/cli/schemas/orchbee.cli.failure.configuration.json"),
+        );
+        assert_eq!(doc["version"], 6);
+        assert_eq!(doc["failure"]["details"]["field"], "update.channel");
+        let schema: Value = serde_json::from_str(include_str!(
+            "../src/cli/schemas/orchbee.cli.failure.configuration.json"
+        ))
+        .unwrap();
+        let mut legacy = doc.clone();
+        legacy["version"] = json!(5);
+        assert!(
+            !jsonschema::validator_for(&schema)
+                .unwrap()
+                .is_valid(&legacy)
+        );
+        let checked = document(fixture.run(&["config", "check", "--format=json"]));
+        validate(
+            &checked,
+            include_str!("../src/cli/schemas/orchbee.config.check.json"),
+        );
+        assert_eq!(checked["version"], 9);
+        assert_eq!(std::fs::read_to_string(&config).unwrap(), content);
+    }
+    let missing = fixture.0.join("explicit-missing.toml");
+    let output = fixture.run_with_env(
+        &["channel", "show", "--format=json"],
+        None,
+        None,
+        &[("ORCHBEE_CONFIG_FILE", missing.as_os_str())],
+    );
+    assert_eq!(output.status.code(), Some(1));
+    assert_eq!(document(output)["failure"]["details"]["reason"], "missing");
+    let panel = id(7);
+    for invalid in [
+        vec!["channel"],
+        vec!["channel", "unknown"],
+        vec!["channel", "show", "extra"],
+        vec!["channel", "show", "--client", &panel],
+    ] {
+        assert_eq!(fixture.run(&invalid).status.code(), Some(2), "{invalid:?}");
+    }
+    assert!(!fixture.0.join("runtime").exists());
+}
+
 fn id(n: u64) -> String {
     format!("{n:032x}")
 }
@@ -137,7 +221,7 @@ fn config_check_reports_the_actual_file_without_creating_it() {
         !validator.is_valid(&old),
         "v2 must not silently omit user configuration"
     );
-    assert_eq!(doc["version"], 8);
+    assert_eq!(doc["version"], 9);
     assert_eq!(doc["result"]["checks"][5]["details"]["defaultShell"], "");
     assert_eq!(doc["result"]["checks"][5]["details"]["shellMode"], "auto");
     assert_eq!(doc["result"]["checks"][5]["details"]["manifestCheck"], true);

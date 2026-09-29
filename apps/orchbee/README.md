@@ -30,6 +30,8 @@ input receipt on later timeout or cancellation; it does not promise turn causali
 terminal and binds its name only after process and canonical readiness checks.
 See [Windows Agent startup](docs/windows-agent-start.md) for setup, limits and recovery.
 
+Windows `channel show [--format text|json]` reads the strict stable/preview preference from the shared user configuration without activating a Site. See [configuration and channel provenance](docs/windows-cli-configuration.md#rule-update-policy).
+
 ## Command surface
 
 Bare and explicit `tui` invocation first admit the inherited interactive terminal and valid

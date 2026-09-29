@@ -36,6 +36,8 @@ pub(crate) mod workspace_creation;
 #[cfg(windows)]
 mod workspace_focus;
 pub(crate) use creation::run as run_creation;
+#[cfg(windows)]
+pub(crate) mod channel;
 mod completion;
 pub(crate) mod config;
 #[cfg(windows)]

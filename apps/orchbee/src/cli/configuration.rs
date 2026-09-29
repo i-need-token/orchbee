@@ -35,7 +35,9 @@ impl Error {
     pub(super) fn failure(self) -> Failure {
         Failure::new(FailureKind::CheckFailed)
             .failure_schema("orchbee.cli.failure.configuration")
-            .version(if self.field == "ui.toast" {
+            .version(if self.field == "update.channel" {
+                6
+            } else if self.field == "ui.toast" {
                 5
             } else if self.field == "ui.window_title" {
                 4

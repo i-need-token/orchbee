@@ -28,12 +28,29 @@ pub struct WindowsUserSettings {
     pub path: Option<PathBuf>,
     pub exists: bool,
     pub explicit: bool,
+    pub update_channel: WindowsUpdateChannel,
+    pub update_channel_source: &'static str,
     pub manifest_check: bool,
     pub manifest_check_source: &'static str,
     pub cwd: Option<(WindowsDirectoryPolicy, Option<String>)>,
     pub worktree_root: Option<String>,
     pub resume_agents_on_restore: bool,
     pub resume_agents_on_restore_source: &'static str,
+}
+
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum WindowsUpdateChannel {
+    #[default]
+    Stable,
+    Preview,
+}
+impl WindowsUpdateChannel {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Stable => "stable",
+            Self::Preview => "preview",
+        }
+    }
 }
 
 impl Default for WindowsUserSettings {
@@ -46,6 +63,8 @@ impl Default for WindowsUserSettings {
             path: None,
             exists: false,
             explicit: false,
+            update_channel: WindowsUpdateChannel::Stable,
+            update_channel_source: "default",
             manifest_check: true,
             manifest_check_source: "default",
             cwd: None,
@@ -275,10 +294,29 @@ fn parse(
             .ok_or(WindowsSettingsError::new(field, "wrong-type"))?;
         if table.keys().any(|entry| {
             entry != key
+                && !(section == "update" && entry == "channel")
                 && !(section == "terminal"
                     && matches!(entry.as_str(), "default_shell" | "shell_mode"))
         }) {
             return Err(WindowsSettingsError::new(field, "unknown-key"));
+        }
+        if section == "update"
+            && let Some(value) = table.get("channel")
+        {
+            settings.update_channel = match value
+                .as_str()
+                .ok_or(WindowsSettingsError::new("update.channel", "wrong-type"))?
+            {
+                "stable" => WindowsUpdateChannel::Stable,
+                "preview" => WindowsUpdateChannel::Preview,
+                _ => {
+                    return Err(WindowsSettingsError::new(
+                        "update.channel",
+                        "invalid-channel",
+                    ));
+                }
+            };
+            settings.update_channel_source = "file";
         }
         if section == "terminal" {
             let shell_value = |key, field, default| {

@@ -2,6 +2,37 @@ use super::*;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 #[test]
+fn update_channel_is_strict_and_independent_of_manifest_checks() {
+    let read = |text: &str| parse(text, Path::new(r"C:\config.toml"), &|_| None);
+    for text in ["", "[update]\nmanifest_check=false"] {
+        let settings = read(text).unwrap();
+        assert_eq!(settings.update_channel, WindowsUpdateChannel::Stable);
+        assert_eq!(settings.update_channel_source, "default");
+    }
+    for channel in ["stable", "preview"] {
+        let settings = read(&format!(
+            "[update]\nchannel='{channel}'\nmanifest_check=false"
+        ))
+        .unwrap();
+        assert_eq!(settings.update_channel.as_str(), channel);
+        assert_eq!(settings.update_channel_source, "file");
+        assert!(!settings.manifest_check);
+    }
+    for (value, reason) in [
+        ("true", "wrong-type"),
+        ("'nightly'", "invalid-channel"),
+        ("'Preview'", "invalid-channel"),
+        ("''", "invalid-channel"),
+    ] {
+        let error = read(&format!("[update]\nchannel={value}")).unwrap_err();
+        assert_eq!(error.field, "update.channel");
+        assert_eq!(error.reason, reason);
+    }
+    assert!(read("[update]\nchannel='preview'\nunknown=true").is_err());
+    assert!(read("[update]\nchannel='preview'\nmanifest_check='true'").is_err());
+}
+
+#[test]
 fn configured_shell_is_strict_literal_and_keeps_directory_settings() {
     for mode in ["auto", "login", "non_login"] {
         let settings = parse(

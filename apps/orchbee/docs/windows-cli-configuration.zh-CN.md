@@ -17,6 +17,7 @@ directory = "~/Projects/worktrees"
 resume_agents_on_restore = true
 
 [update]
+channel = "stable"
 manifest_check = true
 ```
 
@@ -53,6 +54,8 @@ Client 启动在持久 Active 发布或激活标记提交前读取并校验一�
 Windows `config check` 版本 3 报告 `resumeAgentsOnRestore` 和 `resumeAgentsOnRestoreSource`（`default`、`file`、`environment`）。保留版本 1、2 的 schema。诊断只报告有界字段和原因。验证须覆盖默认值／文件／环境优先级、非法及非 UTF-8 值、严格类型／键、读取边界、提交前拒绝及修正重试、已有 Site 准入不变和实际禁用／启用恢复。热重载、名称和托管状态恢复仍是独立义务。
 
 ## 规则更新策略
+
+`[update] channel` 仅接受 `stable`（默认）或 `preview`，与 `manifest_check` 相互独立。`orchbee channel show [--format text|json]` 读取完整共享配置，不创建文件、不激活 Site、不访问网络。文本仅为频道标记；`orchbee.channel.show` v1 报告频道、default/file 来源、选定配置路径和文件存在状态。默认文件缺失时使用 stable；显式文件缺失或配置非法时失败。这是期望的发布频道偏好，不代表当前安装 cohort 的事实。Windows `config check` v9 和配置失败 v6 接受 `update.channel` 诊断；旧 schema 保持封闭。
 
 `[update] manifest_check` 是 TOML 布尔值，默认 true，来源为 `default`／`file`。
 Windows `config check` v4 增加 `manifestCheck` 和 `manifestCheckSource`，v1-v3 保持封闭。

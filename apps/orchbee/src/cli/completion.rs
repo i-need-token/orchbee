@@ -117,6 +117,8 @@ const ROOT_WORDS: &[&str] = &[
     "api",
     "completion",
     "config",
+    #[cfg(windows)]
+    "channel",
     "help",
     "panel",
     "project",
@@ -144,6 +146,8 @@ const FORMAT_ROOT_WORDS: &[&str] = &[
     "agent",
     "api",
     "config",
+    #[cfg(windows)]
+    "channel",
     "panel",
     "project",
     #[cfg(windows)]
@@ -206,6 +210,8 @@ const FAMILY_VERBS: &[(&str, &[&str])] = &[
     ("layout", &["set-split-ratio"]),
     ("launch-profile", &["create", "delete", "get", "list"]),
     ("config", &["check", "reset-keys"]),
+    #[cfg(windows)]
+    ("channel", &["show"]),
     (
         "panel",
         &[
@@ -1308,6 +1314,8 @@ const HELP_TOPICS: &[&str] = &[
     "api",
     "completion",
     "config",
+    #[cfg(windows)]
+    "channel",
     "panel",
     "project",
     #[cfg(windows)]
@@ -1372,6 +1380,8 @@ const HELP_CHILDREN: &[(&str, &[&str])] = &[
     ("layout", &["set-split-ratio"]),
     ("launch-profile", &["create", "delete", "get", "list"]),
     ("config", &["check", "reset-keys"]),
+    #[cfg(windows)]
+    ("channel", &["show"]),
     (
         "panel",
         &[

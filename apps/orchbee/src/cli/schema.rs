@@ -47,6 +47,10 @@ const DOCUMENTS: &[(&str, &str)] = &[
         include_str!("schemas/orchbee.plugin.provision.json"),
     ),
     (
+        "orchbee.channel.show",
+        include_str!("schemas/orchbee.channel.show.json"),
+    ),
+    (
         "orchbee.plugin.runtime",
         include_str!("schemas/orchbee.plugin.runtime.json"),
     ),
@@ -503,7 +507,7 @@ pub(crate) fn answer(schema_id: Option<&str>, format: OutputFormat, locale: Loca
     let document = json!({
         "schema": "orchbee.api.schema",
         // Adds membership-checked plugin Pane focus and close.
-        "version": 115,
+        "version": 116,
         "source": embedded_source(),
         "result": result,
     });
