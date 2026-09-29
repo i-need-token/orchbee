@@ -162,8 +162,8 @@
 			"zhCnSha256": "d8cf567e78cd38c101dfca1292c92433c89c1b1ba326ded06fa9c811210da3f0"
 		},
 		"apps/orchbee/README.md": {
-			"englishSha256": "7c2562f70612529d8c98c4df2c95a9bc28a1814f73be55316611622f95c40acc",
-			"zhCnSha256": "17b1dc2f1e91c442bcaaec0f3918d4389d0a9c751a1fd6e5f83c911b788b1f9f"
+			"englishSha256": "7f65bd076c27e9387653336debe6530bb1f0786601d724f19f61eca266656cab",
+			"zhCnSha256": "ab84058bcd15b3f16d5f9ba3c6e4ca6155d4c9f50dc7fd8acce18f8836e47921"
 		},
 		"apps/orchbee/docs/agent-board.md": {
 			"englishSha256": "98ee5ca8e26978f24dc8c19a111e98ad9d8adaa034abcd5b8bb1ba9ad37af08e",
@@ -254,8 +254,8 @@
 			"zhCnSha256": "08363f641e48a1958c083767c587b2904732a016028292b2f8396f73a5a0ccc7"
 		},
 		"apps/orchbee/docs/native-terminal-environment.md": {
-			"englishSha256": "1064cf857d5fd43707d2d4b96a3e386e7484c43f7fd578e6e0573910f2c46eaf",
-			"zhCnSha256": "4f59b95359edae24c0215a2e240bde838182ecf3100df1dd56a2dc9896c0b5d5"
+			"englishSha256": "bf76119fd98b80fe90adb2ccf1ae68de94ec39c73cbde8b7364da357e679a423",
+			"zhCnSha256": "e9a681cb72f81b78a8935117803fcc0f56e47a5ada16a8cfa580463ff25b1311"
 		},
 		"apps/orchbee/docs/native-terminal-output.md": {
 			"englishSha256": "302bd1355588b478245d98344244391d6a39213620839655363a17e4781d5de2",
@@ -324,6 +324,10 @@
 		"apps/orchbee/docs/windows-terminal-streams.md": {
 			"englishSha256": "937ce34fa717e306fc929274fd4ceac133a620ceed1c4323720e8c286afdedc1",
 			"zhCnSha256": "395875ef019975e88ff1c537f627180665a56ca96354c6a8a06dd2b2a77196a2"
+		},
+		"apps/orchbee/docs/windows-terminal-title.md": {
+			"englishSha256": "1797737f8fbd00aa5be2e6798567e993a928f7eaf7908a95c881ef5731d74097",
+			"zhCnSha256": "39dc745c80eb5b14db306363035fc98974d7f7dea07c2139299807bf46dac94e"
 		},
 		"apps/orchbee/docs/windows-workspace-creation.md": {
 			"englishSha256": "928de2ee1d637343cbc72e71daf78043c3069d4f339e2d0aa854e96269d4288a",
@@ -770,8 +774,8 @@
 			"zhCnSha256": "d02ac828008b60dd6acb5efe727b2051626b108367e6f8331e2ea00f28d1cf4e"
 		},
 		"schemas/workbench/README.md": {
-			"englishSha256": "b7fd0dda585b0aabdd6dba611753f4836df55b12c71c7673540cb85dfb79015e",
-			"zhCnSha256": "5d01285f46550133d52ee4cdbf0925de3b17d428955b5904150e8ba7645c7186"
+			"englishSha256": "9c9814f7aadaaef981edaa2263dd295981c25461cf023c98a08ebaeb0584039d",
+			"zhCnSha256": "7fc709ad942d70116972c7cd4236ee47603567adc697d32eaa660500adc61270"
 		},
 		"third-party/process-wrap/README.md": {
 			"englishSha256": "c04f40708252280f3924b45b419a50a59f036e9f1e575a26eada1a8b8106e1f6",

@@ -577,3 +577,9 @@ Required `defaultShell` and `shellMode` expose admitted defaults for subsequent 
 `workbench.notification` (OBWP kind 41) carries show/listen; `workbench.notification.result` (kind 42) carries show/listening/failed. Frames retain the 16 KiB intent bound. The [notification schema](v1/workbench-notification.schema.json) and shared corpus bind Rust and TypeScript to closed shapes, required nullable body/pending values, four corner positions and none/done/request sound. Normalized title/body contain at most 80/240 Unicode scalar values, collapsed ASCII spaces and no controls. Correlation matches both identities and the requested action; shown is true exactly for the shown reason.
 
 The [Windows notification owner](../../apps/orchbee/docs/windows-notifications.md) defines authorization, connection-owned bounded inboxes, expiry, replay and UI handoff. This is ephemeral, matched-cohort transport, with no persistence migration or Desktop command. Public `orchbee.notification.show` v1 exposes submission facts, including null replies after uncertain submission; it does not promise display acknowledgement.
+
+## Outer Client title publications
+
+`workbench.window-title` (OBWP 43) carries set/clear/listen; `workbench.window-title.result` (44) carries published/listening/failed under the 16 KiB intent bound. The [closed schema](v1/workbench-window-title.schema.json) and shared corpus bind Rust and TypeScript: a required nullable title, positive decimal u64 revision, control-free 200-scalar trimmed title, and reason/changed/title consistency. Request/reply identity, Site and action must match.
+
+[Windows title ownership](../../apps/orchbee/docs/windows-terminal-title.md) defines bounded replay, connection focus routing and restoration. The public `orchbee.terminal.title` v1 receipt distinguishes publication from physical display. This private cohort addition does not change persisted documents.

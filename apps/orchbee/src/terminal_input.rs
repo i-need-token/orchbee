@@ -26,8 +26,10 @@ pub(crate) struct TerminalInputUnavailable;
 
 /// One terminal-mode write the dispatcher asks the shell to perform. The
 /// dispatcher decides *when*; the lifecycle layer owns the actual bytes.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum ModeRequest {
+    #[cfg(windows)]
+    WindowTitle(Option<orchbee_workbench_protocol::WindowTitle>),
     /// Bracketed-paste lease for modal capture.
     BracketedPaste(bool),
     /// Pointer reporting (`?1002` + `?1006`) armed or released.

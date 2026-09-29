@@ -171,3 +171,8 @@ pub use command::notification::{
     NotificationPosition, NotificationReason, NotificationRequest, NotificationResult,
     NotificationSound,
 };
+
+pub use command::{
+    WindowTitle, WindowTitleAction, WindowTitleFailure, WindowTitleOutcome, WindowTitleReason,
+    WindowTitleRequest, WindowTitleResult, WindowTitleSnapshot,
+};

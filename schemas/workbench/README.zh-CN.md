@@ -512,3 +512,9 @@ Server 负责原子分配和发布；物理成员创建仍是独立的保留命�
 `workbench.notification`（OBWP kind 41）承载 show/listen；`workbench.notification.result`（kind 42）承载 show/listening/failed。帧保留 16 KiB intent 上限。[通知 schema](v1/workbench-notification.schema.json) 及共享语料约束 Rust 与 TypeScript 的封闭结构、必需可空的 body/pending 值、四角位置和 none/done/request 声音。规范化标题/正文至多包含 80/240 个 Unicode 标量，只保留合并后的 ASCII 空格且无控制字符。关联必须匹配两个身份及请求动作；shown 仅在 shown 原因时为 true。
 
 [Windows 通知归属](../../apps/orchbee/docs/windows-notifications.zh-CN.md) 定义授权、连接拥有的有界收件箱、过期、重放与 UI 交接。这是临时、匹配 cohort 的传输，不新增持久化迁移或 Desktop 命令。公开的 `orchbee.notification.show` v1 暴露提交事实，包括不确定提交后的 null 回应；不保证显示确认。
+
+## 外层 Client 标题发布
+
+`workbench.window-title`（OBWP 43）承载 set/clear/listen；`workbench.window-title.result`（44）承载 published/listening/failed，保持 16 KiB intent 上限。[封闭 schema](v1/workbench-window-title.schema.json) 及共享语料约束 Rust 和 TypeScript：必需可空标题、正十进制 u64 revision、无控制字符且 trim 后至多 200 个标量的标题，以及 reason/changed/title 一致性。请求与回应的身份、Site、动作必须匹配。
+
+[Windows 标题归属](../../apps/orchbee/docs/windows-terminal-title.zh-CN.md) 定义有界重放、连接焦点路由及恢复。公开的 `orchbee.terminal.title` v1 回执区分发布和实际显示。这项私有 cohort 增量不改变持久化文档。

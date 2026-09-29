@@ -9,6 +9,17 @@ use std::{
 fn real_powershell_completes_scoped_grammar_without_runtime() {
     let mut cases = super::super::test_cases::CASES.to_vec();
     cases.extend([
+        ("orchbee terminal ti", "title", true),
+        ("orchbee terminal title s", "set", true),
+        ("orchbee help terminal title c", "clear", true),
+        (
+            "orchbee terminal title set 'Build title' --fo",
+            "--format",
+            true,
+        ),
+        ("orchbee terminal title clear --fo", "--format", true),
+        ("orchbee terminal title clear extra --fo", "--format", false),
+        ("orchbee terminal title set x --bo", "--body", false),
         ("orchbee notification sh", "show", true),
         ("orchbee help notification sh", "show", true),
         ("orchbee notification show hello --po", "--position", true),

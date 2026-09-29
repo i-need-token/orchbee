@@ -173,6 +173,7 @@ pub(crate) enum HelpTopic {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum Family {
+    TerminalTitle,
     Notification,
     #[cfg(windows)]
     Session,
@@ -213,6 +214,7 @@ impl Family {
             Self::TerminalSession => "terminal session",
             Self::Worktree => "worktree",
             Self::LaunchProfile => "launch-profile",
+            Self::TerminalTitle => "terminal title",
             Self::Notification => "notification",
             Self::Site => "site",
             Self::Api => "api",
@@ -340,6 +342,8 @@ pub(crate) enum CommandPath {
     SiteDiagnose,
     SiteConfig,
     SiteReloadConfig,
+    TerminalTitleSet,
+    TerminalTitleClear,
     NotificationShow,
     SiteAgentManifests,
     SiteReloadAgentManifests,
@@ -469,6 +473,8 @@ impl CommandPath {
             Self::SiteDiagnose => "site diagnose",
             Self::SiteConfig => "site config",
             Self::SiteReloadConfig => "site reload-config",
+            Self::TerminalTitleSet => "terminal title set",
+            Self::TerminalTitleClear => "terminal title clear",
             Self::NotificationShow => "notification show",
             Self::SiteAgentManifests => "site agent-manifests",
             Self::SiteUpdateAgentManifests => "site update-agent-manifests",
@@ -1315,6 +1321,10 @@ pub(crate) enum Request {
         format: OutputFormat,
     },
     /// Read or reload the running Site's configuration; never activates a Site.
+    WindowTitle {
+        title: Option<orchbee_workbench_protocol::WindowTitle>,
+        format: OutputFormat,
+    },
     Notification {
         message: orchbee_workbench_protocol::Notification,
         format: OutputFormat,
@@ -1387,6 +1397,7 @@ pub(crate) enum UsageContext {
 /// expect; rendered per locale, never serialized.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum ExpectedValue {
+    WindowTitle,
     NotificationTitle,
     NotificationPosition,
     NotificationSound,
@@ -3841,6 +3852,61 @@ fn resolve_words(
                 format: options.format.unwrap_or(OutputFormat::Text),
             })
         }
+        ["terminal", "title", "set", title] => {
+            let context = UsageContext::Path("terminal title set");
+            reject_filters(options, context, envelope)?;
+            let title =
+                orchbee_workbench_protocol::WindowTitle::normalize(title).map_err(|_| {
+                    usage_with(
+                        UsageReason::InvalidValue {
+                            context,
+                            option: "<title>",
+                            value: (*title).into(),
+                            expected: ExpectedValue::WindowTitle,
+                        },
+                        envelope,
+                    )
+                })?;
+            Ok(Request::WindowTitle {
+                title: Some(title),
+                format: options.format.unwrap_or(OutputFormat::Text),
+            })
+        }
+        ["terminal", "title", "clear"] => {
+            reject_filters(
+                options,
+                UsageContext::Path("terminal title clear"),
+                envelope,
+            )?;
+            Ok(Request::WindowTitle {
+                title: None,
+                format: options.format.unwrap_or(OutputFormat::Text),
+            })
+        }
+        ["terminal", "title"] => Err(missing_command(
+            UsageContext::Path("terminal title"),
+            envelope,
+        )),
+        ["terminal", "title", "set"] => Err(missing_required(
+            UsageContext::Path("terminal title set"),
+            "<title>",
+            envelope,
+        )),
+        ["terminal", "title", "set", _, extra, ..] => Err(unexpected_argument(
+            UsageContext::Path("terminal title set"),
+            extra,
+            envelope,
+        )),
+        ["terminal", "title", "clear", extra, ..] => Err(unexpected_argument(
+            UsageContext::Path("terminal title clear"),
+            extra,
+            envelope,
+        )),
+        ["terminal", "title", verb, ..] => Err(unknown_command(
+            UsageContext::Path("terminal title"),
+            verb,
+            envelope,
+        )),
         ["notification", "show", title] => {
             use orchbee_workbench_protocol::{
                 Notification, NotificationPosition as Position, NotificationSound as Sound,
@@ -4664,6 +4730,9 @@ fn help_topic(path: &[&str]) -> Option<HelpTopic> {
         }
         ["site", "config"] => HelpTopic::Command(CommandPath::SiteConfig),
         ["site", "reload-config"] => HelpTopic::Command(CommandPath::SiteReloadConfig),
+        ["terminal", "title"] => HelpTopic::Family(Family::TerminalTitle),
+        ["terminal", "title", "set"] => HelpTopic::Command(CommandPath::TerminalTitleSet),
+        ["terminal", "title", "clear"] => HelpTopic::Command(CommandPath::TerminalTitleClear),
         ["notification"] => HelpTopic::Family(Family::Notification),
         ["notification", "show"] => HelpTopic::Command(CommandPath::NotificationShow),
         ["site", "agent-manifests"] => HelpTopic::Command(CommandPath::SiteAgentManifests),

@@ -1,0 +1,440 @@
+{
+	"contractVersion": 1,
+	"valid": [
+		{
+			"name": "set",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.window-title",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"action": {
+					"kind": "set",
+					"title": "Build  中😀"
+				}
+			}
+		},
+		{
+			"name": "clear",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.window-title",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"action": {
+					"kind": "clear"
+				}
+			}
+		},
+		{
+			"name": "listen",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.window-title",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"action": {
+					"kind": "listen",
+					"focused": false
+				}
+			}
+		},
+		{
+			"name": "scalar-bound",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.window-title",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"action": {
+					"kind": "set",
+					"title": "😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀"
+				}
+			}
+		},
+		{
+			"name": "bom-is-not-rust-whitespace",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.window-title",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"action": {
+					"kind": "set",
+					"title": "﻿"
+				}
+			}
+		},
+		{
+			"name": "set",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.window-title.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"outcome": {
+					"kind": "published",
+					"snapshot": {
+						"revision": "1",
+						"title": "Build"
+					},
+					"changed": true,
+					"reason": "set"
+				}
+			}
+		},
+		{
+			"name": "clear",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.window-title.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"outcome": {
+					"kind": "published",
+					"snapshot": {
+						"revision": "2",
+						"title": null
+					},
+					"changed": true,
+					"reason": "cleared"
+				}
+			}
+		},
+		{
+			"name": "retained",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.window-title.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"outcome": {
+					"kind": "published",
+					"snapshot": {
+						"revision": "3",
+						"title": "Build"
+					},
+					"changed": false,
+					"reason": "no-foreground-client"
+				}
+			}
+		},
+		{
+			"name": "listen-none",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.window-title.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"outcome": {
+					"kind": "listening",
+					"snapshot": null
+				}
+			}
+		},
+		{
+			"name": "listen-clear",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.window-title.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"outcome": {
+					"kind": "listening",
+					"snapshot": {
+						"revision": "18446744073709551615",
+						"title": null
+					}
+				}
+			}
+		},
+		{
+			"name": "failed",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.window-title.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"outcome": {
+					"kind": "failed",
+					"reason": "busy"
+				}
+			}
+		}
+	],
+	"invalid": [
+		{
+			"name": "blank",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.window-title",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"action": {
+					"kind": "set",
+					"title": ""
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "controls",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.window-title",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"action": {
+					"kind": "set",
+					"title": "a\u001bb"
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "overflow",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.window-title",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"action": {
+					"kind": "set",
+					"title": "😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀"
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "trim",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.window-title",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"action": {
+					"kind": "set",
+					"title": " x"
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "unicode-trim",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.window-title",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"action": {
+					"kind": "set",
+					"title": " x"
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "unknown-field",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.window-title",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"action": {
+					"kind": "set",
+					"title": "Build  中😀"
+				},
+				"extra": true
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "extra-clear-title",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.window-title",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"action": {
+					"kind": "clear",
+					"title": "x"
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "missing-focus",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.window-title",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"action": {
+					"kind": "listen"
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "missing-null",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.window-title.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"outcome": {
+					"kind": "listening",
+					"snapshot": {
+						"revision": "18446744073709551615"
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "missing-snapshot",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.window-title.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"outcome": {
+					"kind": "listening"
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "zero-revision",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.window-title.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"outcome": {
+					"kind": "published",
+					"snapshot": {
+						"revision": "0",
+						"title": "Build"
+					},
+					"changed": true,
+					"reason": "set"
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "overflow-revision",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.window-title.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"outcome": {
+					"kind": "published",
+					"snapshot": {
+						"revision": "18446744073709551616",
+						"title": "Build"
+					},
+					"changed": true,
+					"reason": "set"
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "changed-lie",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.window-title.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"outcome": {
+					"kind": "published",
+					"snapshot": {
+						"revision": "1",
+						"title": "Build"
+					},
+					"changed": false,
+					"reason": "set"
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "wrong-reason",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.window-title.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"outcome": {
+					"kind": "published",
+					"snapshot": {
+						"revision": "2",
+						"title": null
+					},
+					"changed": true,
+					"reason": "set"
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "listen-extra",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.window-title.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"outcome": {
+					"kind": "listening",
+					"snapshot": null,
+					"changed": true
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "bad-site",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.window-title",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "00000000000000000000000000000000",
+				"action": {
+					"kind": "set",
+					"title": "Build  中😀"
+				}
+			},
+			"boundary": "schema"
+		}
+	]
+}

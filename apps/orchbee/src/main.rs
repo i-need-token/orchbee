@@ -194,6 +194,9 @@ fn main() -> ExitCode {
             Ok(invocation::Request::Worktree { command, format }) => {
                 cli::run_worktree(&command, format, locale)
             }
+            Ok(invocation::Request::WindowTitle { title, format }) => {
+                cli::window_title::run(title, format, locale)
+            }
             Ok(invocation::Request::Notification { message, format }) => {
                 cli::notification::run(message, format, locale)
             }

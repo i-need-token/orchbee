@@ -279,6 +279,12 @@ fn run_prepared_surface(
             theme: &theme,
         },
         (&mut inputs, &mut |request| match request {
+            #[cfg(windows)]
+            ModeRequest::WindowTitle(title) => modes.set_window_title(
+                title
+                    .as_ref()
+                    .map_or("Orchbee", orchbee_workbench_protocol::WindowTitle::as_str),
+            ),
             ModeRequest::BracketedPaste(enabled) => modes.set_bracketed_paste(enabled),
             ModeRequest::PointerCapture(enabled) => modes.set_pointer_capture(enabled),
         }),
@@ -432,6 +438,10 @@ fn run_event_loop_with_modes<B: Backend + ResizableBackend>(
             )?;
             dispatcher.invalidate_hit_map();
             redraw = true;
+        }
+        #[cfg(windows)]
+        if let Some(snapshot) = view.window_title.take() {
+            mode(ModeRequest::WindowTitle(snapshot.title)).map_err(LoopFailure::Input)?;
         }
         if redraw {
             draw_surface(terminal, &mut view, chrome, terminal_input, &mut dispatcher)?;

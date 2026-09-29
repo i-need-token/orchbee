@@ -239,6 +239,7 @@ const FAMILY_VERBS: &[(&str, &[&str])] = &[
     (
         "terminal",
         &[
+            "title",
             "attach",
             "get",
             "list",
@@ -1121,6 +1122,7 @@ const PROVIDER_VALUES: &[&str] = &[
 
 /// `<family>:<verb>` paths that consume one positional operand.
 const OPERAND_PATHS: &[&str] = &[
+    "terminal:title:set",
     "notification:show",
     #[cfg(windows)]
     "panel:create-terminal",
@@ -1306,6 +1308,7 @@ const HELP_CHILDREN: &[(&str, &[&str])] = &[
     (
         "terminal",
         &[
+            "title",
             "attach",
             "get",
             "list",
@@ -1342,6 +1345,7 @@ const HELP_CHILDREN: &[(&str, &[&str])] = &[
 /// reach a third help level.
 const HELP_LEVEL3: &[(&str, &[&str])] = &[
     ("agent:integration", INTEGRATION_VERBS),
+    ("terminal:title", &["set", "clear"]),
     ("terminal:session", &["observe", "control"]),
 ];
 

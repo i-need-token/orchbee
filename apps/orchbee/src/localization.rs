@@ -1,5 +1,6 @@
 mod notification;
 mod runtime_configuration;
+mod window_title;
 #[cfg(test)]
 use crate::client_view::{PREFIX_CHORD, PrefixGroup};
 use std::ffi::OsString;

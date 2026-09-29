@@ -1,0 +1,66 @@
+import { z } from 'zod';
+import {
+	SiteIdSchema,
+	WorkbenchRequestIdSchema,
+	WorkbenchRevisionSchema,
+	WORKBENCH_PROTOCOL_VERSION,
+} from './workbench-semantic-contract';
+// Rust trim uses Unicode White_Space, unlike JS trim (which also strips BOM).
+export const WindowTitleSchema = z
+	.string()
+	.min(1)
+	.max(400)
+	.refine(
+		(value) =>
+			!/[\uD800-\uDFFF]/u.test(value) &&
+			[...value].length <= 200 &&
+			!/\p{Cc}/u.test(value) &&
+			!/^\p{White_Space}|\p{White_Space}$/u.test(value),
+	);
+const snapshot = z.strictObject({
+	revision: WorkbenchRevisionSchema.refine((value) => value !== '0'),
+	title: WindowTitleSchema.nullable(),
+});
+const correlation = {
+	protocolVersion: z.literal(WORKBENCH_PROTOCOL_VERSION),
+	requestId: WorkbenchRequestIdSchema,
+	siteId: SiteIdSchema,
+};
+export const WindowTitleRequestSchema = z
+	.strictObject({
+		kind: z.literal('workbench.window-title'),
+		...correlation,
+		action: z.discriminatedUnion('kind', [
+			z.strictObject({ kind: z.literal('set'), title: WindowTitleSchema }),
+			z.strictObject({ kind: z.literal('clear') }),
+			z.strictObject({ kind: z.literal('listen'), focused: z.boolean() }),
+		]),
+	})
+	.readonly();
+export const WindowTitleResultSchema = z
+	.strictObject({
+		kind: z.literal('workbench.window-title.result'),
+		...correlation,
+		outcome: z.discriminatedUnion('kind', [
+			z
+				.strictObject({
+					kind: z.literal('published'),
+					snapshot,
+					changed: z.boolean(),
+					reason: z.enum(['set', 'cleared', 'no-foreground-client']),
+				})
+				.refine((value) => {
+					if (!value.changed) return value.reason === 'no-foreground-client';
+					const expected = value.snapshot.title === null ? 'cleared' : 'set';
+					return value.reason === expected;
+				}),
+			z.strictObject({ kind: z.literal('listening'), snapshot: snapshot.nullable() }),
+			z.strictObject({
+				kind: z.literal('failed'),
+				reason: z.enum(['denied', 'unavailable', 'site-mismatch', 'conflict', 'busy']),
+			}),
+		]),
+	})
+	.readonly();
+export type WindowTitleRequest = z.infer<typeof WindowTitleRequestSchema>;
+export type WindowTitleResult = z.infer<typeof WindowTitleResultSchema>;

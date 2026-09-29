@@ -882,3 +882,7 @@ Windows `panel report-agent`, `report-agent-session`, `clear-agent-authority` an
 ## Windows CLI notifications
 
 `orchbee notification show "Build complete" --body "All checks passed" --position bottom-right --sound done` sends a short card to accepting main-TUI Clients on the running Site. Use `--format json` for the closed delivery receipt. See [delivery, limits and lifecycle](docs/windows-notifications.md); acceptance is queue admission, not a display or sound acknowledgement.
+
+## Windows outer terminal title
+
+`orchbee terminal title set "Build workspace"` publishes an override for the foreground main TUI; `orchbee terminal title clear` returns to `Orchbee`. Both accept `--format json` and retain publication when no Client is connected. See [title ownership and restoration](docs/windows-terminal-title.md) for remaining template and physical-host limits.

@@ -8,6 +8,7 @@ pub(crate) mod creation;
 pub(crate) mod notification;
 pub(crate) mod panel_agent;
 pub(crate) mod panel_metadata;
+mod window_title;
 #[cfg(windows)]
 pub(crate) mod workspace_metadata;
 use orchbee_local_ipc::LocalIo as BorrowedFd;

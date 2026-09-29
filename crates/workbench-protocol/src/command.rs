@@ -1,3 +1,8 @@
+mod window_title;
+pub use window_title::{
+    WindowTitle, WindowTitleAction, WindowTitleFailure, WindowTitleOutcome, WindowTitleReason,
+    WindowTitleRequest, WindowTitleResult, WindowTitleSnapshot,
+};
 pub(crate) mod notification;
 use notification::*;
 pub(crate) mod configuration;
@@ -855,6 +860,8 @@ pub enum WorkbenchRequest {
     Configuration(ConfigurationRequest),
     #[serde(rename = "workbench.notification")]
     Notification(NotificationRequest),
+    #[serde(rename = "workbench.window-title")]
+    WindowTitle(WindowTitleRequest),
     #[serde(rename = "workbench.agent-manifests")]
     AgentManifests(AgentManifestsRequest),
     #[serde(rename = "workbench.panel-agent")]
@@ -1226,6 +1233,8 @@ pub enum WorkbenchResponse {
     Configuration(ConfigurationResult),
     #[serde(rename = "workbench.notification.result")]
     Notification(NotificationResult),
+    #[serde(rename = "workbench.window-title.result")]
+    WindowTitle(WindowTitleResult),
     #[serde(rename = "workbench.agent-manifests.result")]
     AgentManifests(AgentManifestsResult),
     #[serde(rename = "workbench.panel-agent.result")]
@@ -1278,6 +1287,9 @@ pub fn parse_workbench_request(encoded: &[u8]) -> Result<WorkbenchRequest, Contr
 /// explicit `launch` and a `profile` selector are mutually exclusive on the
 /// terminal-launch actions.
 fn validate_request(request: &WorkbenchRequest) -> Result<(), ContractError> {
+    if let WorkbenchRequest::WindowTitle(request) = request {
+        request.validate()?;
+    }
     if let WorkbenchRequest::Notification(request) = request {
         return request.validate();
     }
@@ -1434,6 +1446,7 @@ fn validate_response(response: &WorkbenchResponse, encoded: &[u8]) -> Result<(),
         return Err(ContractError::InvalidDocument);
     }
     match response {
+        WorkbenchResponse::WindowTitle(result) => result.validate(),
         WorkbenchResponse::Notification(result) => result.validate(),
         WorkbenchResponse::Configuration(result) => {
             enforce_encoded_limit(encoded, MAXIMUM_CONFIGURATION_BYTES)?;

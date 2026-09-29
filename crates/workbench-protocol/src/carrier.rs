@@ -85,6 +85,7 @@ pub fn write_workbench_response(
 
 fn request_kind(request: &WorkbenchRequest) -> u16 {
     match request {
+        WorkbenchRequest::WindowTitle(_) => 43,
         WorkbenchRequest::Notification(_) => 41,
         WorkbenchRequest::Configuration(_) => 39,
         WorkbenchRequest::AgentManifests(_) => 37,
@@ -124,6 +125,7 @@ fn request_kind(request: &WorkbenchRequest) -> u16 {
 
 fn response_kind(response: &WorkbenchResponse) -> u16 {
     match response {
+        WorkbenchResponse::WindowTitle(_) => 44,
         WorkbenchResponse::Notification(_) => 42,
         WorkbenchResponse::Configuration(_) => 40,
         WorkbenchResponse::AgentManifests(_) => 38,
@@ -184,6 +186,7 @@ fn read_frame(reader: &mut impl Read, request: bool) -> Result<(u16, Vec<u8>), W
                     | 37
                     | 39
                     | 41
+                    | 43
             ))
         || (!request
             && !matches!(
@@ -207,6 +210,7 @@ fn read_frame(reader: &mut impl Read, request: bool) -> Result<(u16, Vec<u8>), W
                     | 38
                     | 40
                     | 42
+                    | 44
             ))
     {
         return Err(WorkbenchWireError::InvalidHeader);

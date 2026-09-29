@@ -632,6 +632,10 @@ mod workspace_setup_tests;
 
 impl NativeUi {
     #[cfg(windows)]
+    pub(super) fn outer_title_focused(&self) -> bool {
+        self.outer_focused.unwrap_or(false)
+    }
+    #[cfg(windows)]
     pub(super) fn configuration_clock(&self) -> LocalOperationClock {
         self.clock.clone()
     }

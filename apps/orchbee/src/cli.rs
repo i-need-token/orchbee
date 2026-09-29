@@ -10,6 +10,7 @@ pub(crate) mod panel_terminal_creation;
 mod report_target;
 pub(crate) mod runtime_configuration;
 mod schema_export;
+pub(crate) mod window_title;
 pub(crate) mod workspace_metadata;
 pub(crate) use schema_export::run as export_schema;
 mod client_control;

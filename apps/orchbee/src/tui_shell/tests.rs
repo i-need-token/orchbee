@@ -991,3 +991,6 @@ fn transient_zero_cells_never_report_a_geometry_to_the_session() -> io::Result<(
     );
     Ok(())
 }
+
+#[cfg(windows)]
+mod window_title;

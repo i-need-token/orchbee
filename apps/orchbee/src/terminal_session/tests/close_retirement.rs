@@ -81,6 +81,8 @@ fn panic_after_close_handoff_preserves_uncertainty_after_exact_join() -> TestRes
         #[cfg(windows)]
         notifications: None,
         #[cfg(windows)]
+        window_title: None,
+        #[cfg(windows)]
         client_control: None,
         backend: SessionBackend::Native(Box::new(ui::NativeUi::new(mailbox, clock))),
         task: Some(SessionTask::Native(task)),

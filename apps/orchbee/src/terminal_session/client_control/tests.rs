@@ -136,6 +136,8 @@ fn decoded_local_input_reaches_pending_focus_before_terminal_routing() {
                 configuration: None,
                 #[cfg(windows)]
                 notifications: None,
+                #[cfg(windows)]
+                window_title: None,
                 client_control: Some(control),
                 backend: SessionBackend::Native(Box::new(native)),
                 task: None,

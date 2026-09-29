@@ -39,6 +39,10 @@ pub(crate) const PROJECT_RENAME_RESULT_ID: &str = "orchbee.project.rename";
 /// `schema` id → embedded document, in dictionary order.
 const DOCUMENTS: &[(&str, &str)] = &[
     (
+        "orchbee.terminal.title",
+        include_str!("schemas/orchbee.terminal.title.json"),
+    ),
+    (
         "orchbee.notification.show",
         include_str!("schemas/orchbee.notification.show.json"),
     ),
@@ -482,8 +486,8 @@ pub(crate) fn answer(schema_id: Option<&str>, format: OutputFormat, locale: Loca
     };
     let document = json!({
         "schema": "orchbee.api.schema",
-        // Adds notification delivery receipts.
-        "version": 105,
+        // Adds outer terminal title publication receipts.
+        "version": 106,
         "source": embedded_source(),
         "result": result,
     });

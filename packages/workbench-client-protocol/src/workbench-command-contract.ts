@@ -1,4 +1,8 @@
 import {
+	WindowTitleRequestSchema,
+	WindowTitleResultSchema,
+} from './workbench-window-title-contract';
+import {
 	NotificationRequestSchema,
 	NotificationResultSchema,
 } from './workbench-notification-contract';
@@ -387,6 +391,7 @@ export const WorkbenchRequestSchema = z
 		WorkspaceMetadataRequestSchema,
 		AgentManifestsRequestSchema,
 		ConfigurationRequestSchema,
+		WindowTitleRequestSchema,
 		NotificationRequestSchema,
 		PanelAgentRequestSchema,
 		PanelMetadataRequestSchema,
@@ -769,6 +774,7 @@ export const WorkbenchResponseSchema = z
 		WorkspaceMetadataResultSchema,
 		AgentManifestsResultSchema,
 		ConfigurationResultSchema,
+		WindowTitleResultSchema,
 		NotificationResultSchema,
 		PanelAgentResultSchema,
 		PanelMetadataResultSchema,

@@ -510,3 +510,11 @@ export {
 	type NotificationRequest,
 	type NotificationResult,
 } from './workbench-notification-contract';
+
+export {
+	WindowTitleSchema,
+	WindowTitleRequestSchema,
+	WindowTitleResultSchema,
+	type WindowTitleRequest,
+	type WindowTitleResult,
+} from './workbench-window-title-contract';

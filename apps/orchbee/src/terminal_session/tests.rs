@@ -584,6 +584,8 @@ fn native_session_with_identity(
             #[cfg(windows)]
             notifications: None,
             #[cfg(windows)]
+            window_title: None,
+            #[cfg(windows)]
             client_control: None,
             backend: SessionBackend::Native(Box::new(ui::NativeUi::new(
                 Arc::clone(&mailbox),
@@ -1859,6 +1861,8 @@ fn input_admission_is_bounded_and_failure_cannot_accept_more_work() -> TestResul
         configuration: None,
         #[cfg(windows)]
         notifications: None,
+        #[cfg(windows)]
+        window_title: None,
         #[cfg(windows)]
         client_control: None,
         backend: SessionBackend::Legacy(Box::new(LegacySession {

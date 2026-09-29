@@ -392,6 +392,8 @@ fn fixed_outputs_are_far_below_the_bound() {
         CommandPath::SiteConfig,
         CommandPath::SiteReloadConfig,
         CommandPath::NotificationShow,
+        CommandPath::TerminalTitleSet,
+        CommandPath::TerminalTitleClear,
         CommandPath::SiteReloadAgentManifests,
         CommandPath::SiteUpdateAgentManifests,
         CommandPath::SiteAgentManifestsStatus,
@@ -476,6 +478,9 @@ fn fixed_outputs_are_far_below_the_bound() {
         "worktree",
     ];
     let verbs = [
+        "title",
+        "set",
+        "clear",
         "show",
         "config",
         "reload-config",
@@ -569,6 +574,10 @@ fn fixed_outputs_are_far_below_the_bound() {
     for verb in integration_verbs {
         collect(&["agent", "integration", verb, "--help"]);
         collect(&["help", "agent", "integration", verb]);
+    }
+    for verb in ["set", "clear"] {
+        collect(&["terminal", "title", verb, "--help"]);
+        collect(&["help", "terminal", "title", verb]);
     }
     for command in &topics {
         assert!(

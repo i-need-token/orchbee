@@ -799,3 +799,7 @@ Windows `panel report-agent`、`report-agent-session`、`clear-agent-authority` 
 ## Windows CLI 通知
 
 `orchbee notification show "Build complete" --body "All checks passed" --position bottom-right --sound done` 向运行中 Site 上可接收的主 TUI Client 发送短通知卡片。使用 `--format json` 获取封闭投递回执。详见[投递、边界与生命周期](docs/windows-notifications.zh-CN.md)；接收只表示入队，不确认显示或播放声音。
+
+## Windows 外层终端标题
+
+`orchbee terminal title set "Build workspace"` 向前台主 TUI 发布覆盖标题；`orchbee terminal title clear` 恢复为 `Orchbee`。两者接受 `--format json`，没有 Client 连接时仍保留发布状态。剩余模板及实际宿主限制见[标题归属与恢复](docs/windows-terminal-title.zh-CN.md)。

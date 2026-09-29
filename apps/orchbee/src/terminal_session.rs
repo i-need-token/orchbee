@@ -2,6 +2,8 @@
 mod client_control;
 #[cfg(windows)]
 mod configuration;
+#[cfg(windows)]
+mod window_title;
 #[cfg(test)]
 use crate::terminal_projection::TerminalProjection;
 use crate::{
@@ -155,6 +157,8 @@ pub(crate) struct TerminalSession {
     #[cfg(windows)]
     notifications: Option<crate::notifications::Subscription>,
     #[cfg(windows)]
+    window_title: Option<window_title::Subscription>,
+    #[cfg(windows)]
     client_control: Option<client_control::ClientControl>,
     backend: SessionBackend,
     task: Option<SessionTask>,
@@ -200,6 +204,8 @@ impl TerminalSession {
                     configuration: None,
                     #[cfg(windows)]
                     notifications: None,
+                    #[cfg(windows)]
+                    window_title: None,
                     #[cfg(windows)]
                     client_control,
                     backend: SessionBackend::Native(Box::new(native)),
@@ -263,6 +269,8 @@ impl TerminalSession {
             configuration: None,
             #[cfg(windows)]
             notifications: None,
+            #[cfg(windows)]
+            window_title: None,
             backend: SessionBackend::Legacy(Box::new(LegacySession {
                 commands: Some(commands),
                 events: Some(events),
@@ -360,6 +368,22 @@ impl TerminalSession {
                         site,
                     )
                     .ok();
+                }
+                if self.window_title.is_none()
+                    && let Some(origin) = &self.origin
+                    && let Some((site, _)) = native.control_observation(false)
+                {
+                    self.window_title = window_title::Subscription::spawn(
+                        origin.clone(),
+                        native.configuration_clock(),
+                        site,
+                    )
+                    .ok();
+                }
+                if let Some(watcher) = &self.window_title
+                    && let Some(snapshot) = watcher.poll(native.outer_title_focused())
+                {
+                    view.window_title = Some(snapshot);
                 }
                 let accepting = crate::notifications::available(
                     view,
@@ -765,6 +789,10 @@ impl TerminalInputPort for TerminalSession {
 
 impl Drop for TerminalSession {
     fn drop(&mut self) {
+        #[cfg(windows)]
+        if let Some(watcher) = &mut self.window_title {
+            watcher.close();
+        }
         #[cfg(windows)]
         if let Some(listener) = &mut self.notifications {
             listener.close();

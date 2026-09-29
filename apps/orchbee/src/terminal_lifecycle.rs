@@ -101,6 +101,15 @@ impl crossterm::Command for SynchronizedUpdateEnd {
 }
 
 pub(crate) trait TerminalModes: Send + Sync + 'static {
+    #[cfg(windows)]
+    fn set_window_title(&self, _title: &str) -> io::Result<()> {
+        Err(io::ErrorKind::Unsupported.into())
+    }
+    #[cfg(windows)]
+    fn restore_window_title(&self) -> io::Result<()> {
+        Ok(())
+    }
+
     fn disable_bracketed_paste(&self) -> io::Result<()>;
     fn enable_bracketed_paste(&self) -> io::Result<()>;
     fn disable_focus_reporting(&self) -> io::Result<()>;
@@ -118,6 +127,8 @@ pub(crate) trait TerminalModes: Send + Sync + 'static {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum RestorationStep {
+    #[cfg(windows)]
+    RestoreWindowTitle,
     DisableBracketedPaste,
     DisablePointerCapture,
     DisableFocusReporting,
@@ -130,6 +141,8 @@ enum RestorationStep {
 impl fmt::Display for RestorationStep {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            #[cfg(windows)]
+            Self::RestoreWindowTitle => formatter.write_str("restore window title"),
             Self::DisableBracketedPaste => formatter.write_str("disable bracketed paste"),
             Self::DisableFocusReporting => formatter.write_str("disable focus reporting"),
             Self::DisablePointerCapture => formatter.write_str("disable pointer capture"),
@@ -255,6 +268,8 @@ impl SynchronizedUpdateLease {
 
 #[derive(Debug)]
 struct TerminalModeState {
+    #[cfg(windows)]
+    window_title: ModeLease,
     bracketed_paste: ModeLease,
     pointer_capture: ModeLease,
     focus_reporting: ModeLease,
@@ -267,6 +282,8 @@ struct TerminalModeState {
 impl TerminalModeState {
     fn new() -> Self {
         Self {
+            #[cfg(windows)]
+            window_title: ModeLease::new(),
             bracketed_paste: ModeLease::new(),
             pointer_capture: ModeLease::new(),
             focus_reporting: ModeLease::new(),
@@ -356,6 +373,14 @@ impl<C: TerminalModes> TerminalModeGuard<C> {
         Arc::clone(&self.state.synchronized_update)
     }
 
+    #[cfg(windows)]
+    pub(crate) fn set_window_title(&mut self, title: &str) -> io::Result<()> {
+        if self.state.synchronized_update.frame_output_blocked() {
+            return Err(io::ErrorKind::BrokenPipe.into());
+        }
+        self.state.window_title.mark_operation_started();
+        self.control.set_window_title(title)
+    }
     pub(crate) fn set_bracketed_paste(&mut self, enabled: bool) -> io::Result<()> {
         if enabled {
             if self.bracketed_paste_enabled {
@@ -482,6 +507,13 @@ fn restore_modes<C: TerminalModes>(
         || control.end_synchronized_update(),
         &mut failures,
     );
+    #[cfg(windows)]
+    restore_mode(
+        &state.window_title,
+        RestorationStep::RestoreWindowTitle,
+        || control.restore_window_title(),
+        &mut failures,
+    );
     restore_mode(
         &state.bracketed_paste,
         RestorationStep::DisableBracketedPaste,
@@ -557,6 +589,8 @@ pub(crate) struct InheritedTerminalModes {
     original_termios: Arc<Mutex<Option<Termios>>>,
     #[cfg(windows)]
     original_console: Arc<Mutex<Option<(u32, u32)>>>,
+    #[cfg(windows)]
+    original_title: Arc<Mutex<Option<String>>>,
     terminal: InheritedTerminal,
 }
 
@@ -567,6 +601,8 @@ impl InheritedTerminalModes {
             original_termios: Arc::new(Mutex::new(None)),
             #[cfg(windows)]
             original_console: Arc::new(Mutex::new(None)),
+            #[cfg(windows)]
+            original_title: Arc::new(Mutex::new(None)),
             terminal,
         }
     }
@@ -578,6 +614,31 @@ impl InheritedTerminalModes {
 }
 
 impl TerminalModes for InheritedTerminalModes {
+    #[cfg(windows)]
+    fn set_window_title(&self, title: &str) -> io::Result<()> {
+        let mut original = self
+            .original_title
+            .lock()
+            .map_err(|_| io::Error::other("console title poisoned"))?;
+        if original.is_none() {
+            winsafe::SetLastError(winsafe::co::ERROR::SUCCESS);
+            *original = Some(captured_window_title(
+                win32console::console::WinConsole::get_title(),
+            )?);
+        }
+        win32console::console::WinConsole::set_title(title)
+    }
+    #[cfg(windows)]
+    fn restore_window_title(&self) -> io::Result<()> {
+        let original = self
+            .original_title
+            .lock()
+            .map_err(|_| io::Error::other("console title poisoned"))?;
+        original.as_ref().map_or(Ok(()), |title| {
+            win32console::console::WinConsole::set_title(title)
+        })
+    }
+
     fn disable_focus_reporting(&self) -> io::Result<()> {
         self.write_command(FocusReporting(false))
     }
@@ -823,3 +884,19 @@ fn process_panic_registry() -> &'static PanicRestorationRegistry {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(windows)]
+fn captured_window_title(result: io::Result<String>) -> io::Result<String> {
+    let raw = match result {
+        Ok(raw) => raw,
+        Err(error) if error.raw_os_error() == Some(0) => return Ok(String::new()),
+        Err(error) => return Err(error),
+    };
+    let (title, padding) = raw
+        .split_once('\0')
+        .ok_or_else(|| io::Error::other("console title capture may be truncated"))?;
+    if title.encode_utf16().count() >= 259 || padding.chars().any(|ch| ch != '\0') {
+        return Err(io::Error::other("console title capture may be truncated"));
+    }
+    Ok(title.to_owned())
+}

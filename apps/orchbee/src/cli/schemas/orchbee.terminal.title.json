@@ -1,0 +1,195 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "orchbee.terminal.title",
+	"type": "object",
+	"required": ["schema", "version", "source", "result"],
+	"additionalProperties": false,
+	"properties": {
+		"schema": {
+			"const": "orchbee.terminal.title"
+		},
+		"version": {
+			"const": 1
+		},
+		"source": {
+			"type": "object",
+			"required": ["kind"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": {
+					"const": "local-runtime"
+				}
+			}
+		},
+		"result": {
+			"type": "object",
+			"required": ["reply", "interrupted", "cleanupFailed"],
+			"additionalProperties": false,
+			"properties": {
+				"reply": {
+					"anyOf": [
+						{
+							"type": "null"
+						},
+						{
+							"type": "object",
+							"required": ["protocolVersion", "requestId", "siteId", "outcome"],
+							"additionalProperties": false,
+							"properties": {
+								"protocolVersion": {
+									"const": 1
+								},
+								"requestId": {
+									"type": "string",
+									"pattern": "^[0-9a-f]{32}$",
+									"not": {
+										"const": "00000000000000000000000000000000"
+									}
+								},
+								"siteId": {
+									"type": "string",
+									"pattern": "^[0-9a-f]{32}$",
+									"not": {
+										"const": "00000000000000000000000000000000"
+									}
+								},
+								"outcome": {
+									"oneOf": [
+										{
+											"type": "object",
+											"required": ["kind", "snapshot", "changed", "reason"],
+											"additionalProperties": false,
+											"properties": {
+												"kind": {
+													"const": "published"
+												},
+												"snapshot": {
+													"type": "object",
+													"required": ["revision", "title"],
+													"additionalProperties": false,
+													"properties": {
+														"revision": {
+															"type": "string",
+															"pattern": "^[1-9][0-9]*$",
+															"format": "orchbee-uint64",
+															"maxLength": 20
+														},
+														"title": {
+															"anyOf": [
+																{
+																	"type": "null"
+																},
+																{
+																	"type": "string",
+																	"minLength": 1,
+																	"maxLength": 200,
+																	"pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]+$"
+																}
+															]
+														}
+													}
+												},
+												"changed": {
+													"const": false
+												},
+												"reason": {
+													"const": "no-foreground-client"
+												}
+											}
+										},
+										{
+											"type": "object",
+											"required": ["kind", "snapshot", "changed", "reason"],
+											"additionalProperties": false,
+											"properties": {
+												"kind": {
+													"const": "published"
+												},
+												"snapshot": {
+													"type": "object",
+													"required": ["revision", "title"],
+													"additionalProperties": false,
+													"properties": {
+														"revision": {
+															"type": "string",
+															"pattern": "^[1-9][0-9]*$",
+															"format": "orchbee-uint64",
+															"maxLength": 20
+														},
+														"title": {
+															"type": "string",
+															"minLength": 1,
+															"maxLength": 200,
+															"pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]+$"
+														}
+													}
+												},
+												"changed": {
+													"const": true
+												},
+												"reason": {
+													"const": "set"
+												}
+											}
+										},
+										{
+											"type": "object",
+											"required": ["kind", "snapshot", "changed", "reason"],
+											"additionalProperties": false,
+											"properties": {
+												"kind": {
+													"const": "published"
+												},
+												"snapshot": {
+													"type": "object",
+													"required": ["revision", "title"],
+													"additionalProperties": false,
+													"properties": {
+														"revision": {
+															"type": "string",
+															"pattern": "^[1-9][0-9]*$",
+															"format": "orchbee-uint64",
+															"maxLength": 20
+														},
+														"title": {
+															"type": "null"
+														}
+													}
+												},
+												"changed": {
+													"const": true
+												},
+												"reason": {
+													"const": "cleared"
+												}
+											}
+										},
+										{
+											"type": "object",
+											"required": ["kind", "reason"],
+											"additionalProperties": false,
+											"properties": {
+												"kind": {
+													"const": "failed"
+												},
+												"reason": {
+													"enum": ["denied", "unavailable", "site-mismatch", "conflict", "busy"]
+												}
+											}
+										}
+									]
+								}
+							}
+						}
+					]
+				},
+				"interrupted": {
+					"type": "boolean"
+				},
+				"cleanupFailed": {
+					"type": "boolean"
+				}
+			}
+		}
+	}
+}

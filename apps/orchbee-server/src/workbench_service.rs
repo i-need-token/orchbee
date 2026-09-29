@@ -40,6 +40,8 @@ pub(crate) struct WorkbenchService {
     client_views: std::sync::Mutex<crate::client_view_registry::ClientViewRegistry>,
     #[cfg(windows)]
     notifications: std::sync::Mutex<crate::notification_registry::Registry>,
+    #[cfg(windows)]
+    window_titles: std::sync::Mutex<crate::window_title_registry::Registry>,
 }
 
 impl WorkbenchService {
@@ -51,6 +53,8 @@ impl WorkbenchService {
             client_views: std::sync::Mutex::default(),
             #[cfg(windows)]
             notifications: std::sync::Mutex::default(),
+            #[cfg(windows)]
+            window_titles: std::sync::Mutex::default(),
         }
     }
 
@@ -66,7 +70,7 @@ impl WorkbenchService {
 
     pub(crate) fn execute(&self, request: WorkbenchRequest) -> WorkbenchExecution {
         let permitted = match &request {
-            WorkbenchRequest::Notification(_) => false,
+            WorkbenchRequest::WindowTitle(_) | WorkbenchRequest::Notification(_) => false,
             WorkbenchRequest::Configuration(request) => match request.action { orchbee_workbench_protocol::ConfigurationAction::Reload => self.policy.manage_navigation, _ => self.policy.read },
             WorkbenchRequest::AgentManifests(request) => match request.action {
                 orchbee_workbench_protocol::AgentManifestsAction::Reload { .. } | orchbee_workbench_protocol::AgentManifestsAction::Update { .. } => self.policy.manage_navigation,
@@ -164,6 +168,7 @@ impl WorkbenchService {
         }
         match &request {
             WorkbenchRequest::Notification(request) => return WorkbenchExecution::Response(unavailable_or_denied(WorkbenchRequest::Notification(request.clone()), false)),
+            WorkbenchRequest::WindowTitle(request) => return WorkbenchExecution::Response(unavailable_or_denied(WorkbenchRequest::WindowTitle(request.clone()), false)),
         WorkbenchRequest::Configuration(request) => {
                 #[cfg(windows)]
                 return WorkbenchExecution::Response(WorkbenchResponse::Configuration(self.terminals.execute_configuration(request.clone())));
@@ -391,6 +396,20 @@ impl WorkbenchService {
 
 fn unavailable_or_denied(request: WorkbenchRequest, denied: bool) -> WorkbenchResponse {
     match request {
+        WorkbenchRequest::WindowTitle(request) => {
+            WorkbenchResponse::WindowTitle(orchbee_workbench_protocol::WindowTitleResult {
+                protocol_version: request.protocol_version,
+                request_id: request.request_id,
+                site_id: request.site_id,
+                outcome: orchbee_workbench_protocol::WindowTitleOutcome::Failed {
+                    reason: if denied {
+                        orchbee_workbench_protocol::WindowTitleFailure::Denied
+                    } else {
+                        orchbee_workbench_protocol::WindowTitleFailure::Unavailable
+                    },
+                },
+            })
+        }
         WorkbenchRequest::Notification(request) => {
             WorkbenchResponse::Notification(orchbee_workbench_protocol::NotificationResult {
                 protocol_version: request.protocol_version,
@@ -662,6 +681,51 @@ pub(crate) struct WorkbenchClientSession<'a> {
 impl WorkbenchClientSession<'_> {
     pub(crate) fn execute(&self, request: WorkbenchRequest) -> WorkbenchExecution {
         #[cfg(windows)]
+        if let WorkbenchRequest::WindowTitle(request) = &request {
+            use orchbee_workbench_protocol::{
+                WindowTitleAction, WindowTitleFailure as Failure, WindowTitleOutcome,
+                WindowTitleResult,
+            };
+            let allowed = self.service.policy.read
+                && (!matches!(
+                    request.action,
+                    WindowTitleAction::Set { .. } | WindowTitleAction::Clear {}
+                ) || self.service.policy.manage_navigation);
+            let outcome = if !allowed {
+                WindowTitleOutcome::Failed {
+                    reason: Failure::Denied,
+                }
+            } else if self
+                .service
+                .terminals
+                .workbench_site_matches(&request.site_id)
+                != Some(true)
+            {
+                WindowTitleOutcome::Failed {
+                    reason: Failure::SiteMismatch,
+                }
+            } else if let Ok(mut registry) = self.service.window_titles.lock() {
+                registry.execute(
+                    self.generation,
+                    request.request_id.clone(),
+                    request.action.clone(),
+                    std::time::Instant::now(),
+                )
+            } else {
+                WindowTitleOutcome::Failed {
+                    reason: Failure::Unavailable,
+                }
+            };
+            return WorkbenchExecution::Response(WorkbenchResponse::WindowTitle(
+                WindowTitleResult {
+                    protocol_version: request.protocol_version,
+                    request_id: request.request_id.clone(),
+                    site_id: request.site_id.clone(),
+                    outcome,
+                },
+            ));
+        }
+        #[cfg(windows)]
         if let WorkbenchRequest::Notification(request) = &request {
             use orchbee_workbench_protocol::{
                 NotificationAction, NotificationFailure as Failure, NotificationOutcome,
@@ -753,6 +817,11 @@ impl Drop for WorkbenchClientSession<'_> {
             drop(registry);
             self.service
                 .notifications
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .disconnect(self.generation);
+            self.service
+                .window_titles
                 .lock()
                 .unwrap_or_else(std::sync::PoisonError::into_inner)
                 .disconnect(self.generation);

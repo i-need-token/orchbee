@@ -80,7 +80,7 @@ fn failed_mode_write_precedes_and_prevents_native_draft_request_and_packet_tail(
         Instant::now(),
         |_, _| Ok(()),
         &mut |request| {
-            calls.borrow_mut().push(Call::Mode(request));
+            calls.borrow_mut().push(Call::Mode(request.clone()));
             if matches!(request, ModeRequest::BracketedPaste(true)) {
                 Err(io::Error::other("partial enable write"))
             } else {
@@ -534,7 +534,7 @@ fn unavailable_entry_restores_mode_and_preserves_ordinary_batch_order() {
                 Instant::now(),
                 |_, _| Ok::<_, io::Error>(()),
                 &mut |request| {
-                    calls.borrow_mut().push(Call::Mode(request));
+                    calls.borrow_mut().push(Call::Mode(request.clone()));
                     Ok(())
                 },
             )
@@ -572,7 +572,7 @@ fn prefixed_m_toggles_pointer_capture_through_the_mode_lease() {
                 Instant::now(),
                 |_, _| Ok::<_, io::Error>(()),
                 &mut |request| {
-                    calls.borrow_mut().push(Call::Mode(request));
+                    calls.borrow_mut().push(Call::Mode(request.clone()));
                     Ok(())
                 },
             )
@@ -617,7 +617,7 @@ fn workspace_shortcuts_acquire_the_modal_lease_and_leave_exit_bindings_intact() 
                 Instant::now(),
                 |_, _| Ok::<_, io::Error>(()),
                 &mut |request| {
-                    calls.borrow_mut().push(Call::Mode(request));
+                    calls.borrow_mut().push(Call::Mode(request.clone()));
                     Ok(())
                 },
             )

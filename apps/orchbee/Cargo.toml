@@ -36,6 +36,8 @@ rustix = { workspace = true, features = ["fs", "termios"] }
 signal-hook = { version = "0.3.18", default-features = false }
 
 [target.'cfg(windows)'.dependencies]
+# Original console-title capture/restoration through safe UTF-16 Windows wrappers.
+win32console.workspace = true
 base64.workspace = true
 serde_core = { version = "=1.0.229", default-features = false, features = ["std"] }
 # Complete, bounded provider-owned TOML configuration inspection.

@@ -251,6 +251,8 @@ pub(crate) struct ClientView {
     bindings: std::sync::Arc<Bindings>,
     #[cfg(windows)]
     pub(crate) notifications: crate::notifications::State,
+    #[cfg(windows)]
+    pub(crate) window_title: Option<orchbee_workbench_protocol::WindowTitleSnapshot>,
     notice: Option<Notice>,
     overlay: Option<Overlay>,
     prefix_active: bool,
@@ -282,6 +284,8 @@ impl ClientView {
             bindings: std::sync::Arc::new(Bindings::default()),
             #[cfg(windows)]
             notifications: crate::notifications::State::default(),
+            #[cfg(windows)]
+            window_title: None,
             notice: None,
             overlay: None,
             prefix_active: false,

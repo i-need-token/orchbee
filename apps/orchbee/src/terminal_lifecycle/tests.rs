@@ -26,6 +26,10 @@ enum Operation {
     HideCursor,
     LeaveAlternate,
     ShowCursor,
+    #[cfg(windows)]
+    SetTitle,
+    #[cfg(windows)]
+    RestoreTitle,
 }
 
 #[derive(Default)]
@@ -73,6 +77,14 @@ impl FakeTerminalModes {
 }
 
 impl TerminalModes for FakeTerminalModes {
+    #[cfg(windows)]
+    fn set_window_title(&self, _: &str) -> io::Result<()> {
+        self.perform(Operation::SetTitle)
+    }
+    #[cfg(windows)]
+    fn restore_window_title(&self) -> io::Result<()> {
+        self.perform(Operation::RestoreTitle)
+    }
     fn disable_focus_reporting(&self) -> io::Result<()> {
         self.perform(Operation::DisableFocus)
     }
@@ -1093,5 +1105,68 @@ fn failed_focus_restore_does_not_skip_other_terminal_modes() -> io::Result<()> {
     let operations = control.operations();
     assert!(operations.contains(&Operation::LeaveAlternate));
     assert!(operations.contains(&Operation::DisableRaw));
+    Ok(())
+}
+
+#[cfg(windows)]
+#[test]
+fn window_title_failed_write_retains_restore_debt_and_no_write_after_restore() -> io::Result<()> {
+    let control =
+        FakeTerminalModes::with_failures([(Operation::SetTitle, 1), (Operation::RestoreTitle, 1)]);
+    let mut guard = TerminalModeGuard::enter_without_panic_hook(control.clone())?;
+    assert!(guard.set_window_title("new").is_err());
+    guard.restore().map_err(io::Error::other)?;
+    let ops = control.operations();
+    assert_eq!(
+        ops.iter()
+            .filter(|op| **op == Operation::RestoreTitle)
+            .count(),
+        2
+    );
+    assert!(
+        ops.iter().position(|op| *op == Operation::RestoreTitle)
+            < ops.iter().position(|op| *op == Operation::LeaveAlternate)
+    );
+    assert!(guard.set_window_title("late").is_err());
+    assert_eq!(control.operations(), ops);
+    Ok(())
+}
+#[cfg(windows)]
+#[test]
+fn window_title_capture_preserves_unicode_and_rejects_ambiguous_truncation() {
+    use super::captured_window_title;
+    assert_eq!(
+        captured_window_title(Ok("你好😀\0\0".into())).unwrap(),
+        "你好😀"
+    );
+    assert_eq!(
+        captured_window_title(Err(io::Error::from_raw_os_error(0))).unwrap(),
+        ""
+    );
+    assert!(captured_window_title(Err(io::Error::from_raw_os_error(5))).is_err());
+    assert!(captured_window_title(Ok(format!("{}\0", "x".repeat(259)))).is_err());
+    assert!(captured_window_title(Ok("unbounded".into())).is_err());
+    assert!(captured_window_title(Ok("x\0not-padding".into())).is_err());
+}
+
+#[cfg(windows)]
+#[test]
+fn window_title_owner_panic_restores_exactly_once() -> io::Result<()> {
+    let _lock = lock_panic_hook_tests()?;
+    let control = FakeTerminalModes::default();
+    let mut guard = TerminalModeGuard::enter(control.clone())?;
+    guard.set_window_title("new")?;
+    assert!(catch_unwind(AssertUnwindSafe(|| panic!("title owner panic"))).is_err());
+    let count = || {
+        control
+            .operations()
+            .iter()
+            .filter(|op| **op == Operation::RestoreTitle)
+            .count()
+    };
+    assert_eq!(count(), 1);
+    assert!(guard.set_window_title("late").is_err());
+    drop(guard);
+    assert_eq!(count(), 1);
     Ok(())
 }

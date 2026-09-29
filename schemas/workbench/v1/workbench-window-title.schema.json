@@ -1,0 +1,273 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://orchbee.dev/schemas/workbench/v1/workbench-window-title.schema.json",
+	"$comment": "Bindings additionally enforce Rust Unicode whitespace trimming, Unicode scalar strings and the 16 KiB intent frame bound.",
+	"oneOf": [
+		{
+			"type": "object",
+			"required": ["kind", "protocolVersion", "requestId", "siteId", "action"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": {
+					"const": "workbench.window-title"
+				},
+				"protocolVersion": {
+					"const": 1
+				},
+				"requestId": {
+					"type": "string",
+					"pattern": "^[0-9a-f]{32}$",
+					"not": {
+						"const": "00000000000000000000000000000000"
+					}
+				},
+				"siteId": {
+					"type": "string",
+					"pattern": "^[0-9a-f]{32}$",
+					"not": {
+						"const": "00000000000000000000000000000000"
+					}
+				},
+				"action": {
+					"oneOf": [
+						{
+							"type": "object",
+							"required": ["kind", "title"],
+							"additionalProperties": false,
+							"properties": {
+								"kind": {
+									"const": "set"
+								},
+								"title": {
+									"type": "string",
+									"minLength": 1,
+									"maxLength": 200,
+									"pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]+$"
+								}
+							}
+						},
+						{
+							"type": "object",
+							"required": ["kind"],
+							"additionalProperties": false,
+							"properties": {
+								"kind": {
+									"const": "clear"
+								}
+							}
+						},
+						{
+							"type": "object",
+							"required": ["kind", "focused"],
+							"additionalProperties": false,
+							"properties": {
+								"kind": {
+									"const": "listen"
+								},
+								"focused": {
+									"type": "boolean"
+								}
+							}
+						}
+					]
+				}
+			}
+		},
+		{
+			"type": "object",
+			"required": ["kind", "protocolVersion", "requestId", "siteId", "outcome"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": {
+					"const": "workbench.window-title.result"
+				},
+				"protocolVersion": {
+					"const": 1
+				},
+				"requestId": {
+					"type": "string",
+					"pattern": "^[0-9a-f]{32}$",
+					"not": {
+						"const": "00000000000000000000000000000000"
+					}
+				},
+				"siteId": {
+					"type": "string",
+					"pattern": "^[0-9a-f]{32}$",
+					"not": {
+						"const": "00000000000000000000000000000000"
+					}
+				},
+				"outcome": {
+					"oneOf": [
+						{
+							"type": "object",
+							"required": ["kind", "snapshot", "changed", "reason"],
+							"additionalProperties": false,
+							"properties": {
+								"kind": {
+									"const": "published"
+								},
+								"snapshot": {
+									"type": "object",
+									"required": ["revision", "title"],
+									"additionalProperties": false,
+									"properties": {
+										"revision": {
+											"type": "string",
+											"pattern": "^[1-9][0-9]*$",
+											"format": "orchbee-uint64",
+											"maxLength": 20
+										},
+										"title": {
+											"anyOf": [
+												{
+													"type": "null"
+												},
+												{
+													"type": "string",
+													"minLength": 1,
+													"maxLength": 200,
+													"pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]+$"
+												}
+											]
+										}
+									}
+								},
+								"changed": {
+									"const": false
+								},
+								"reason": {
+									"const": "no-foreground-client"
+								}
+							}
+						},
+						{
+							"type": "object",
+							"required": ["kind", "snapshot", "changed", "reason"],
+							"additionalProperties": false,
+							"properties": {
+								"kind": {
+									"const": "published"
+								},
+								"snapshot": {
+									"type": "object",
+									"required": ["revision", "title"],
+									"additionalProperties": false,
+									"properties": {
+										"revision": {
+											"type": "string",
+											"pattern": "^[1-9][0-9]*$",
+											"format": "orchbee-uint64",
+											"maxLength": 20
+										},
+										"title": {
+											"type": "string",
+											"minLength": 1,
+											"maxLength": 200,
+											"pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]+$"
+										}
+									}
+								},
+								"changed": {
+									"const": true
+								},
+								"reason": {
+									"const": "set"
+								}
+							}
+						},
+						{
+							"type": "object",
+							"required": ["kind", "snapshot", "changed", "reason"],
+							"additionalProperties": false,
+							"properties": {
+								"kind": {
+									"const": "published"
+								},
+								"snapshot": {
+									"type": "object",
+									"required": ["revision", "title"],
+									"additionalProperties": false,
+									"properties": {
+										"revision": {
+											"type": "string",
+											"pattern": "^[1-9][0-9]*$",
+											"format": "orchbee-uint64",
+											"maxLength": 20
+										},
+										"title": {
+											"type": "null"
+										}
+									}
+								},
+								"changed": {
+									"const": true
+								},
+								"reason": {
+									"const": "cleared"
+								}
+							}
+						},
+						{
+							"type": "object",
+							"required": ["kind", "snapshot"],
+							"additionalProperties": false,
+							"properties": {
+								"kind": {
+									"const": "listening"
+								},
+								"snapshot": {
+									"anyOf": [
+										{
+											"type": "null"
+										},
+										{
+											"type": "object",
+											"required": ["revision", "title"],
+											"additionalProperties": false,
+											"properties": {
+												"revision": {
+													"type": "string",
+													"pattern": "^[1-9][0-9]*$",
+													"format": "orchbee-uint64",
+													"maxLength": 20
+												},
+												"title": {
+													"anyOf": [
+														{
+															"type": "null"
+														},
+														{
+															"type": "string",
+															"minLength": 1,
+															"maxLength": 200,
+															"pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]+$"
+														}
+													]
+												}
+											}
+										}
+									]
+								}
+							}
+						},
+						{
+							"type": "object",
+							"required": ["kind", "reason"],
+							"additionalProperties": false,
+							"properties": {
+								"kind": {
+									"const": "failed"
+								},
+								"reason": {
+									"enum": ["denied", "unavailable", "site-mismatch", "conflict", "busy"]
+								}
+							}
+						}
+					]
+				}
+			}
+		}
+	]
+}

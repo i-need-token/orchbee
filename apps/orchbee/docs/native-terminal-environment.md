@@ -95,3 +95,7 @@ is applied before the frame writer is dropped, so the writer's drop-time retry c
 the abandoned frame either. A clean close owes nothing and emits nothing extra. This contract
 promises neither a single operating-system write per frame nor visual atomicity on hosts that
 do not support the synchronized-update mode.
+
+## Outer title restoration
+
+[Windows title publication](windows-terminal-title.md) has its own lifecycle lease. The first title write captures the inherited title; restoration repays this lease after ending synchronized output and before disabling bracketed paste. Capture or write failure follows the terminal-control error exit and restoration path. No title writes occur after restoration starts. Before any publication no title capture or write occurs.

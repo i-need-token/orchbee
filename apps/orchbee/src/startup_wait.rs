@@ -177,6 +177,10 @@ where
                     (deps.clock)(),
                     |_, _| Ok(()),
                     &mut |request| match request {
+                        #[cfg(windows)]
+                        crate::terminal_input::ModeRequest::WindowTitle(_) => {
+                            Err(io::ErrorKind::Unsupported.into())
+                        }
                         crate::terminal_input::ModeRequest::BracketedPaste(enabled) => {
                             guard.set_bracketed_paste(enabled)
                         }

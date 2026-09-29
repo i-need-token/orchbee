@@ -22,6 +22,8 @@ mod site_coordinator;
 mod site_shutdown;
 #[cfg(any(unix, windows))]
 mod terminal_coordinator;
+#[cfg(windows)]
+mod window_title_registry;
 #[cfg(any(unix, windows))]
 mod workbench_service;
 #[cfg(any(unix, windows))]
