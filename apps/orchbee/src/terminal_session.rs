@@ -48,8 +48,8 @@ mod ui;
 mod workbench_projection;
 
 pub(crate) use workbench_projection::{
-    NativeContextLocation, NativeContextTarget, NativePanel, NativePanelTree, NativePresentation,
-    NativeStartupTarget,
+    NativeContextLocation, NativeContextTarget, NativeMemberTarget, NativePanel, NativePanelTree,
+    NativePresentation, NativeStartupTarget,
 };
 
 pub(crate) use ui::{

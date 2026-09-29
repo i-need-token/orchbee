@@ -2450,14 +2450,28 @@ fn launch_selection_enforces_count_and_byte_bounds() {
         Err(usage(FailureEnvelope::Text))
     );
 
-    // Aggregate bound: exec bytes + argument bytes at most 2048.
-    let over = tab_create_invocation(&["--exec", "/bin/sh", "--arg", &"a".repeat(2041)]);
-    assert!(parse_request(over.iter().map(OsString::from)).is_ok());
-    let over = tab_create_invocation(&["--exec", "/bin/sh", "--arg", &"a".repeat(2042)]);
-    assert_eq!(
-        parse_request(over.iter().map(OsString::from)),
-        Err(usage(FailureEnvelope::Text))
-    );
+    // The protocol's enlarged resume-command budget governs both raw UTF-8 and
+    // escaped JSON string contents; invocation must refuse either overflow.
+    let available = orchbee_workbench_protocol::MAXIMUM_LAUNCH_SELECTION_BYTES - "/bin/sh".len();
+    for (character, count) in [('a', available), ('"', available / 2)] {
+        let within = tab_create_invocation(&[
+            "--exec",
+            "/bin/sh",
+            "--arg",
+            &character.to_string().repeat(count),
+        ]);
+        assert!(parse_request(within.iter().map(OsString::from)).is_ok());
+        let over = tab_create_invocation(&[
+            "--exec",
+            "/bin/sh",
+            "--arg",
+            &character.to_string().repeat(count + 1),
+        ]);
+        assert_eq!(
+            parse_request(over.iter().map(OsString::from)),
+            Err(usage(FailureEnvelope::Text))
+        );
+    }
 }
 
 fn profile_selector(value: &str) -> LaunchProfileSelector {

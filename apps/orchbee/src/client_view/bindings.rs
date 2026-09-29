@@ -70,6 +70,8 @@ pub(crate) struct PrefixMember {
 pub(crate) enum PrefixDesc {
     #[cfg(windows)]
     Machines,
+    #[cfg(windows)]
+    AgentCycle,
     ReloadConfiguration,
     WorkspaceCreate,
     WorkspaceDirectory,
@@ -131,6 +133,14 @@ pub(crate) static PREFIX_GROUPS: &[PrefixGroup] = &[
     PrefixGroup {
         members: &[member(key(KeyCode::Char('M')), ClientAction::OpenMachines)],
         desc: PrefixDesc::Machines,
+    },
+    #[cfg(windows)]
+    PrefixGroup {
+        members: &[
+            member(key(KeyCode::Char('{')), ClientAction::PreviousAgent),
+            member(key(KeyCode::Char('}')), ClientAction::NextAgent),
+        ],
+        desc: PrefixDesc::AgentCycle,
     },
     PrefixGroup {
         members: &[member(

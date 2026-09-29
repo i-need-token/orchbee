@@ -1,4 +1,5 @@
 use super::*;
+use crate::client_view::KeyEvent;
 use orchbee_local_site_runtime::{
     WindowsKeyChord, WindowsKeyOverride, WindowsKeySettings, WindowsKeyTrigger,
 };
@@ -76,6 +77,43 @@ fn configured_actions_displace_defaults_and_preserve_passthrough_order() {
         calls.borrow().last(),
         Some(&Call::Action(ClientAction::UnknownPrefix))
     );
+}
+
+#[test]
+fn configured_agent_cycle_captures_packet_tail_and_never_acts_inside_picker() {
+    let keys = WindowsKeySettings::from_profile(
+        "[keys]\nprefix='ctrl+a'\nprevious_agent='alt+p'\nnext_agent=[]",
+    )
+    .unwrap();
+    let mut view = ClientView::new(100);
+    view.configure_keys(&keys);
+    view.machines.available = true;
+    let calls = Rc::new(RefCell::new(Vec::new()));
+    let mut port = UnavailablePort(Rc::clone(&calls));
+    let mut dispatcher = InputDispatcher::default();
+    run(&mut view, &mut dispatcher, &mut port, b"before\x1bptail");
+    assert!(view.machines.wants_agents());
+    assert_eq!(
+        *calls.borrow(),
+        [
+            Call::Forward(b"before".to_vec()),
+            Call::Action(ClientAction::PreviousAgent)
+        ]
+    );
+    run(&mut view, &mut dispatcher, &mut port, b"\x1bp");
+    assert_eq!(
+        calls.borrow().len(),
+        2,
+        "picker captures configured direct keys"
+    );
+    view.machines
+        .key(KeyEvent::press(KeyCode::Esc, Modifiers::NONE));
+    run(&mut view, &mut dispatcher, &mut port, b"\x01}");
+    assert_eq!(
+        calls.borrow().last(),
+        Some(&Call::Action(ClientAction::UnknownPrefix))
+    );
+    assert!(!view.machines.open);
 }
 
 #[test]

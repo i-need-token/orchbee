@@ -319,6 +319,8 @@ fn action(name: &str) -> (PrefixAction, PrefixDesc, ShellCommand) {
         "rename_workspace" => (A::RequestWorkspaceRename, D::WorkspaceRename),
         "previous_workspace" => (A::SelectPreviousContext, D::SelectContext),
         "next_workspace" => (A::SelectNextContext, D::SelectContext),
+        "previous_agent" => (A::PreviousAgent, D::AgentCycle),
+        "next_agent" => (A::NextAgent, D::AgentCycle),
         "new_tab" => (A::CreateTab, D::CreateTab),
         "rename_tab" => (A::RequestRenameTab, D::RenameTab),
         "previous_tab" => (A::SelectPreviousTab, D::SelectTabWrap),

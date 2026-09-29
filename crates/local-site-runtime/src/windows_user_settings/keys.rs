@@ -10,6 +10,8 @@ const ACTIONS: &[&str] = &[
     "detach",
     "previous_workspace",
     "next_workspace",
+    "previous_agent",
+    "next_agent",
     "new_tab",
     "rename_tab",
     "previous_tab",

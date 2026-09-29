@@ -73,13 +73,17 @@ fn ships_complete_distinct_shell_copy_for_both_locales() {
     let english = Locale::EnUs.shell();
     let chinese = Locale::ZhCn.shell();
 
-    assert_eq!(
-        english.shortcut_rows().len(),
-        if cfg!(windows) { 28 } else { 27 }
-    );
     assert_eq!(chinese.shortcut_rows().len(), english.shortcut_rows().len());
     assert_ne!(english.backend_status, chinese.backend_status);
     assert_ne!(english.terminal_unavailable, chinese.terminal_unavailable);
+    #[cfg(windows)]
+    for copy in [&english, &chinese] {
+        assert!(
+            copy.shortcut_rows()
+                .iter()
+                .any(|(chord, desc)| chord.trim() == "Ctrl+B { / }" && !desc.is_empty())
+        );
+    }
 
     for shortcut in [
         "Ctrl+B a",

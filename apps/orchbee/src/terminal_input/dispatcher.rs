@@ -429,10 +429,25 @@ impl InputDispatcher {
             applied.unwrap_or(SessionActionDisposition::KeepNavigator),
         );
         #[cfg(windows)]
-        if action == Some(ClientAction::OpenMachines) && view.machines.available {
-            view.machines.show();
-            self.machine_packet = true;
-            self.pointer.invalidate_map();
+        if view.machines.available {
+            match action {
+                Some(ClientAction::OpenMachines) => view.machines.show(),
+                Some(ClientAction::PreviousAgent | ClientAction::NextAgent) => view
+                    .machines
+                    .navigate_agent(action == Some(ClientAction::PreviousAgent), now),
+                _ => {}
+            }
+            if matches!(
+                action,
+                Some(
+                    ClientAction::OpenMachines
+                        | ClientAction::PreviousAgent
+                        | ClientAction::NextAgent
+                )
+            ) {
+                self.machine_packet = true;
+                self.pointer.invalidate_map();
+            }
         }
         if action == Some(ClientAction::TogglePointerCapture) {
             // The client-local release entry: the mode write must succeed

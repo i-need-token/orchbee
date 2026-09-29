@@ -119,6 +119,11 @@ fn peer(bad: u8) -> io::Result<FakeServer> {
         )
         .map_err(io::Error::other)?;
         for round in 0..=1 {
+            if round == 1 {
+                if !enrich(&mut stream, bad)? {
+                    return Ok(());
+                }
+            }
             let WorkbenchRequest::PanelAgent(request) =
                 read_workbench_request(&mut stream).map_err(io::Error::other)?
             else {
@@ -358,4 +363,155 @@ fn agent_checkpoint_cancel_interrupts_real_inflight_read_without_followup() -> i
     cancel.store(1, Ordering::Release);
     assert!(task.join().unwrap().is_err());
     peer.finish()
+}
+
+fn enrich(stream: &mut orchbee_local_ipc::LocalStream, bad: u8) -> io::Result<bool> {
+    for (step, metadata) in [(0, true), (1, false), (2, true), (3, false)] {
+        let request = read_workbench_request(stream).map_err(io::Error::other)?;
+        let response = if metadata {
+            let WorkbenchRequest::PanelMetadata(request) = request else {
+                panic!("metadata read only")
+            };
+            let PanelMetadataAction::ReadPresentations { presentation_ids } = request.action else {
+                panic!("exact metadata")
+            };
+            assert_eq!(presentation_ids.len(), if step == 0 { 4 } else { 0 });
+            let mut rows: Vec<_>=presentation_ids.iter().map(|member| {
+                let n=u64::from_str_radix(member.as_str(),16).unwrap();
+                PresentationMetadataRow { presentation_id:member.clone(), panel:PanelMetadataRow {
+                    panel_id:WorkbenchPanelId::parse(&id(n/10*10+1)).unwrap(), binding:presentation(n).binding,
+                    tokens:MetadataTokens::new([(MetadataTokenKey::parse("issue").unwrap(),MetadataTokenValue::parse(&format!("ORCH-{n}")).unwrap())].into()).unwrap(),
+                    presentations:vec![serde_json::from_value(serde_json::json!({"source":"hook","agent":"codex","appliesToSource":"hook","title":{"value":format!("Title {n}"),"order":"1"},"displayAgent":{"value":"Friendly Agent","order":"1"},"stateLabels":{"working":{"value":"Writing code","order":"1"}}})).unwrap()],
+                }}
+            }).collect();
+            if bad == 5 && step == 0 {
+                rows[0].panel.binding.as_mut().unwrap().terminal_id =
+                    TerminalId::parse(&id(999)).unwrap();
+            }
+            if bad == 8 && step == 0 {
+                for row in &mut rows {
+                    row.panel.presentations[0].applies_to_source =
+                        Some(MetadataSource::parse("other").unwrap());
+                }
+            }
+            WorkbenchResponse::PanelMetadata(PanelMetadataResult {
+                protocol_version: ProtocolVersion,
+                request_id: request.request_id,
+                site_id: request.site_id,
+                outcome: PanelMetadataOutcome::PresentationsRead {
+                    workbench_revision: WorkbenchRevision::new(1),
+                    metadata_revision: WorkbenchRevision::new(if bad == 3 && step == 2 {
+                        3
+                    } else {
+                        1
+                    }),
+                    presentations: rows,
+                },
+            })
+        } else {
+            let WorkbenchRequest::PanelAgent(request) = request else {
+                panic!("reports read only")
+            };
+            let PanelAgentAction::ReadPresentations { presentation_ids } = request.action else {
+                panic!("exact reports")
+            };
+            assert_eq!(presentation_ids.len(), if step == 1 { 4 } else { 0 });
+            let mut rows: Vec<_> = presentation_ids
+                .iter()
+                .map(|member| {
+                    let n = u64::from_str_radix(member.as_str(), 16).unwrap();
+                    let agent = (n == 12 || n == 23).then(|| "codex".to_owned());
+                    PresentationAgentRow {
+                        presentation_id: member.clone(),
+                        panel: PanelAgentRow {
+                            panel_id: WorkbenchPanelId::parse(&id(n / 10 * 10 + 1)).unwrap(),
+                            binding: presentation(n).binding,
+                            report: Some(PanelAgentView {
+                                authority_source: agent.as_ref().map(|_| "hook".into()),
+                                agent,
+                                state: PanelAgentState::Working,
+                                message: None,
+                                session: None,
+                            }),
+                        },
+                    }
+                })
+                .collect();
+            if bad == 6 && step == 1 {
+                rows[0].panel.panel_id = WorkbenchPanelId::parse(&id(999)).unwrap();
+            }
+            if bad == 7 && step == 1 {
+                rows[0].panel.report.as_mut().unwrap().agent = Some("other".into());
+            }
+            WorkbenchResponse::PanelAgent(PanelAgentResult {
+                protocol_version: ProtocolVersion,
+                request_id: request.request_id,
+                site_id: request.site_id,
+                outcome: PanelAgentOutcome::PresentationsRead {
+                    workbench_revision: WorkbenchRevision::new(1),
+                    report_revision: WorkbenchRevision::new(
+                        if (bad == 4 && step == 3) || bad == 9 {
+                            3
+                        } else {
+                            2
+                        },
+                    ),
+                    presentations: rows,
+                },
+            })
+        };
+        write_workbench_response(stream, &response).map_err(io::Error::other)?;
+        if (bad == 3 && step == 2)
+            || (bad == 4 && step == 3)
+            || (bad == 5 && step == 0)
+            || (bad == 6 && step == 1)
+            || (bad == 9 && step == 1)
+        {
+            return Ok(false);
+        }
+    }
+    Ok(true)
+}
+#[test]
+fn agent_checkpoint_metadata_requires_overlapping_revisions_exact_binding_and_matching_agent()
+-> io::Result<()> {
+    for bad in [3, 4, 5, 6, 7, 9] {
+        let peer = peer(bad)?;
+        let deadline = Instant::now() + Duration::from_secs(3);
+        let mut client = LocalClient::connect_before(peer.endpoint(), "test-cohort", deadline)
+            .map_err(io::Error::other)?;
+        assert!(read(&mut client, deadline, &AtomicU8::new(0)).is_err());
+        drop(client);
+        peer.finish()?;
+    }
+    Ok(())
+}
+#[test]
+fn agent_checkpoint_metadata_uses_authority_guards_without_losing_independent_tokens()
+-> io::Result<()> {
+    for bad in [0, 8] {
+        let peer = peer(bad)?;
+        let deadline = Instant::now() + Duration::from_secs(3);
+        let mut client = LocalClient::connect_before(peer.endpoint(), "test-cohort", deadline)
+            .map_err(io::Error::other)?;
+        let rows = read(&mut client, deadline, &AtomicU8::new(0)).unwrap();
+        assert_eq!(rows[1].sequence, WorkbenchRevision::new(8));
+        if bad == 0 {
+            assert_eq!(rows[1].title(), "Title 23");
+            assert_eq!(rows[1].provider(), "Friendly Agent");
+            assert_eq!(rows[1].state_label(), Some("Writing code"));
+        } else {
+            assert_eq!(rows[1].title(), rows[1].label);
+            assert_eq!(rows[1].provider(), "codex");
+            assert!(rows[1].state_label().is_none());
+        }
+        assert_eq!(
+            rows[1].tokens.as_map().values().next().unwrap().as_str(),
+            "ORCH-23"
+        );
+        assert_eq!(rows[1].target, target());
+        drop(client);
+        peer.finish()?;
+    }
+    Ok(())
 }

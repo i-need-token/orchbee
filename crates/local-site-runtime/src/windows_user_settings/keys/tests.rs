@@ -108,3 +108,40 @@ fn key_profile_roundtrip_preserves_expanded_ranges_and_reload_action() {
     assert!(WindowsKeySettings::from_profile("[keys]\n[terminal]\n").is_err());
     assert!(WindowsKeySettings::from_profile(&"x".repeat(65537)).is_err());
 }
+
+#[test]
+fn agent_cycle_actions_accept_prefix_direct_disable_and_publication_roundtrip() {
+    let keys = read("previous_agent=['prefix+{','alt+p']\nnext_agent=[]").unwrap();
+    assert_eq!(keys.overrides.len(), 2);
+    assert_eq!(
+        keys.overrides
+            .iter()
+            .find(|item| item.action == "previous_agent")
+            .unwrap()
+            .triggers
+            .len(),
+        2
+    );
+    assert!(
+        keys.overrides
+            .iter()
+            .find(|item| item.action == "next_agent")
+            .unwrap()
+            .triggers
+            .is_empty()
+    );
+    assert_eq!(
+        WindowsKeySettings::from_profile(&keys.profile()).unwrap(),
+        keys
+    );
+    assert_eq!(
+        read("previous_agent='alt+p'\nnext_agent='alt+p'")
+            .unwrap_err()
+            .reason,
+        "duplicate-binding"
+    );
+    assert_eq!(
+        read("focus_agent='prefix+1..9'").unwrap_err().reason,
+        "unknown-key"
+    );
+}

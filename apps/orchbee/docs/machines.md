@@ -224,8 +224,8 @@ only after commit. Cached machine-only selection preserves its selected context,
 including empty workspaces and unbound placeholders.
 A successful switch invalidates host input and painted regions through the
 existing machine handoff. The Agent mode described below shares this handoff;
-main-sidebar integration and global cross-machine next/previous bindings remain
-separate work.
+main-sidebar integration and ordinal focus remain separate work; Agent cycle
+bindings are described below.
 
 Evidence includes native snapshot-first exact bootstrap, absent/mismatched
 Site/context refusal before effects, empty-context membership, actual machine
@@ -246,7 +246,7 @@ binding; no name or row number grants navigation authority.
 
 At most four observation jobs run concurrently. Each job owns a separately
 admitted lane, a five-second total budget and one result slot; reads are bounded
-to 4096 bound Presentations and 8 MiB of serialized physical states, with a
+to 4096 bound Presentations and 8 MiB of serialized physical, report and metadata rows, with a
 two-second cooldown. Closing Agents mode
 cancels pending jobs. Removed/disabled/replaced sources discard their results;
 freshness expires ten seconds after worker completion, including time spent
@@ -260,6 +260,43 @@ requires drawable content. There is no replay of terminal input or mutations.
 Evidence must cover bounded complete reads, revision/membership/physical identity
 mismatch, primary and child placement, stale job cancellation and fairness,
 keyboard/mouse identity, exact bootstrap and Host mismatch before control.
-Custom Agent-view filters/sorts and metadata, unattached canonical sessions,
-main-sidebar/global-key integration and real SSH/OS visual acceptance remain
+Full source-owned Agent-view filter/sort DSL, unattached canonical sessions,
+main-sidebar/ordinal-key integration and real SSH/OS visual acceptance remain
 separate obligations. The existing per-Site Agent board remains available.
+
+## Agent metadata, view controls and navigation
+
+The Agent list joins physical-state and Agent-report facts with independently
+owned metadata only across overlapping stable reads: every batch has the same Workbench revision,
+exact member/parent/terminal binding, and one revision for each read owner. Physical
+and Agent-report reads share the report revision; metadata has its separate revision. After
+all initial batches, metadata, report and physical fences confirm those versions.
+Failure, missing members or a changed revision refuses the whole observation.
+All reads share the existing deadline, row and serialized-state byte bounds.
+Agent and authority facts guard effective metadata; display titles/providers/state
+labels and tokens never replace the physical navigation target.
+
+The Client owns ephemeral status/scope/order/search controls. `f` cycles status,
+`c` cycles all/current machine/current context, `s` cycles placement/priority/provider/
+title/state sequence, and slash edits a query of at most 128 safe scalars. Enter
+or Escape first leaves query editing; Ctrl+U clears it. Painted controls accept
+mouse activation. Filtering includes safe machine/location/title/provider/token
+text. Stable ordering preserves canonical placement for ties; priority orders
+Blocked, Working, Idle, Unknown. State sequence is a reported version, not a
+cross-machine wall clock. Missing observations stay distinct from no matches.
+Changing data, context or controls invalidates painted activation identities.
+
+Ctrl+B then `{` or `}` requests previous/next Agent across machines; the configured
+`previous_agent`/`next_agent` actions use the same projector. An eight-second intent
+waits for bounded observations, wraps relative to the exact current member, chooses
+last/first if it is absent, and excludes unavailable rows. Empty lists and a single
+already-focused target cause no attachment. Further keys or pointer input cancel a
+pending intent. Actual activation still uses the separately admitted, revalidated,
+drawable candidate and preserves the previous surface on failure.
+
+Evidence covers guarded metadata, overlapping revision fences and binding faults,
+stable ties and machine-qualified context/identity, query bounds and control
+cancellation, painted mouse/keyboard/narrow/localized rendering and global action
+input isolation. Full source-owned JSON view set/clear, arbitrary filter/multi-key
+sort DSL, Done/seen attention, unattached sessions, main sidebar, ordinal Agent
+focus and real-network/OS visual acceptance remain separate obligations.

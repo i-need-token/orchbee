@@ -83,6 +83,10 @@ pub(crate) enum ClientAction {
     OpenWorkbenchNavigator,
     #[cfg(windows)]
     OpenMachines,
+    #[cfg(windows)]
+    PreviousAgent,
+    #[cfg(windows)]
+    NextAgent,
     CloseWorkbenchNavigator,
     /// `Ctrl+B g` — toggles the session-owned Agent board overlay.
     ToggleAgentBoard,
@@ -200,7 +204,7 @@ impl ClientAction {
     pub(crate) fn backend_action(&self) -> Option<BackendAction> {
         match self {
             #[cfg(windows)]
-            Self::OpenMachines => None,
+            Self::OpenMachines | Self::PreviousAgent | Self::NextAgent => None,
             Self::ReloadConfiguration => Some(BackendAction::ReloadConfiguration),
             Self::RequestWorkspaceCreate => Some(BackendAction::CreateWorkspace),
             Self::RequestWorkspaceDirectory => Some(BackendAction::ConfigureWorkspaceDirectory),

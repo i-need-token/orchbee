@@ -17,6 +17,9 @@ use std::{
     time::{Duration, Instant},
 };
 
+mod metadata;
+pub(crate) mod view;
+
 const MAXIMUM_ROWS: usize = 4096;
 const MAXIMUM_BYTES: usize = 8 * 1024 * 1024;
 const FRESH_FOR: Duration = Duration::from_secs(10);
@@ -37,6 +40,9 @@ pub(crate) struct Row {
     pub(crate) label: String,
     pub(crate) workspace: String,
     pub(crate) state: PanelAgentState,
+    pub(crate) sequence: WorkbenchRevision,
+    pub(crate) metadata: PanelMetadataEffective,
+    pub(crate) tokens: MetadataTokens,
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum Observation {
@@ -236,11 +242,7 @@ pub(crate) fn read(
     let mut revision = None;
     let mut observed = std::collections::BTreeMap::new();
     let mut bytes = 0usize;
-    // The empty final read also fences a zero-member Site and the final report revision.
-    for chunk in ids
-        .chunks(MAXIMUM_TERMINAL_AGENT_STATE_ROWS)
-        .chain(std::iter::once([].as_slice()))
-    {
+    for chunk in ids.chunks(MAXIMUM_TERMINAL_AGENT_STATE_ROWS) {
         let (head, rows) = states(client, &snapshot, chunk, deadline, cancel)?;
         if revision.is_some_and(|old| old != head) {
             return Err(());
@@ -256,13 +258,37 @@ pub(crate) fn read(
             }
         }
     }
+    let mut metadata = metadata::read(
+        client,
+        &snapshot,
+        &placements,
+        deadline,
+        cancel,
+        &mut bytes,
+        revision,
+    )?;
+    let (head, fence) = states(client, &snapshot, &[], deadline, cancel)?;
+    if !fence.is_empty() || revision.is_some_and(|old| old != head) {
+        return Err(());
+    }
     check(deadline, cancel)?;
     let mut rows = Vec::new();
     for placement in placements {
         if let Some(Some(state)) = observed.remove(&placement.member)
             && let Some(agent) = state.agent
         {
+            let extra = metadata.remove(&placement.member).ok_or(())?;
+            let report = extra.report.ok_or(())?;
+            if report.agent.as_ref() != Some(&agent) || report.state != state.state {
+                return Err(());
+            }
+            let effective = extra
+                .metadata
+                .presentation(Some(&agent), report.authority_source.as_deref());
             rows.push(Row {
+                metadata: effective,
+                tokens: extra.metadata.tokens,
+                sequence: state.sequence,
                 target: Target {
                     context: placement.context,
                     tab: placement.tab,

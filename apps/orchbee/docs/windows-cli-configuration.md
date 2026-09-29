@@ -173,16 +173,19 @@ where available, otherwise original bytes, without a hardcoded Ctrl+B fallback.
 
 The resolved registry supplies dispatch, help rows and principal live hints. Disabled actions stay
 in help. Existing native defaults remain; unsupported Herdr fields fail explicitly. Complete reload parity,
-custom commands, navigation-mode mappings, Agent/indexed Workspace keys and other unsupported
+custom commands, navigation-mode mappings, ordinal Agent/indexed Workspace keys and other unsupported
 actions remain unfinished. Targeted evidence covers bounds, collisions/default precedence,
 ownership, dispatch and discovery; no full regression or visual acceptance is claimed.
 
 Supported action fields are `help`, `new_workspace`, `rename_workspace`, `workspace_picker`,
-`detach`, `previous_workspace`, `next_workspace`, `new_tab`, `rename_tab`, `previous_tab`,
+`detach`, `previous_workspace`, `next_workspace`, `previous_agent`, `next_agent`, `new_tab`, `rename_tab`, `previous_tab`,
 `next_tab`, `move_tab_previous`, `move_tab_next`, `switch_tab`, `close_tab`,
 `focus_pane_left/down/up/right` (four fields), `split_vertical`, `split_horizontal`,
 `close_pane`, `zoom` (alias `fullscreen`), `toggle_sidebar` and `reload_config`. They invoke existing native actions;
 Workspace means the native Workbench location, vertical split is rightward and horizontal is downward.
+Agent previous/next defaults to prefix `{`/`}` and uses the same ephemeral filtered/sorted
+[machine Agent list](machines.md#agent-metadata-view-controls-and-navigation), with exact physical
+target revalidation. These actions do not add ordinal Agent focus or the custom view JSON DSL.
 
 ```toml
 [keys]

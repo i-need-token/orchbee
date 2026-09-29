@@ -62,11 +62,11 @@ impl NativeStartupTarget {
         }
     }
 }
-#[derive(Clone, Debug)]
-pub(super) struct NativeMemberTarget {
-    pub(super) tab: WorkbenchTabId,
-    pub(super) panel: WorkbenchPanelId,
-    pub(super) presentation: TerminalPresentationId,
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct NativeMemberTarget {
+    pub(crate) tab: WorkbenchTabId,
+    pub(crate) panel: WorkbenchPanelId,
+    pub(crate) presentation: TerminalPresentationId,
 }
 
 impl NativeContextLocation {

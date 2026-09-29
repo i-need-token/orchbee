@@ -135,8 +135,11 @@ impl Manager {
             change.redraw |= view.machines.observe_local(local);
         }
         let active_context = active_context(surface.active());
-        change.redraw |= view.machines.current_context != active_context;
-        view.machines.current_context = active_context;
+        change.redraw |= view.machines.observe_focus(
+            choice(self.current.as_ref()),
+            active_context,
+            focused_member(surface.active()),
+        );
         self.discovery.tick(now);
         change.redraw |= view.machines.observe(&self.discovery.observations(now));
         let mut agent_sources = Vec::new();
@@ -159,6 +162,7 @@ impl Manager {
         change.redraw |= view
             .machines
             .observe_agents(self.agents.tick(agent_sources, now));
+        change.redraw |= view.machines.drive_agent_navigation(now);
         if !view.machines.open {
             self.cancel();
         }
@@ -457,8 +461,11 @@ impl Manager {
         let focus = surface.active().suspend_machine();
         next.surface.resume_machine(focus);
         let mut picker = view.machines.clone();
-        picker.current = next.choice();
-        picker.current_context = active_context(next.surface.as_ref());
+        picker.observe_focus(
+            next.choice(),
+            active_context(next.surface.as_ref()),
+            focused_member(next.surface.as_ref()),
+        );
         // A targeted fresh connection supersedes a cached surface of that same machine.
         self.cached
             .retain(|cached| cached.choice() != next.choice());
@@ -524,6 +531,15 @@ fn active_context(surface: &dyn TerminalSurface) -> Option<NativeContextTarget> 
         site_id: native.navigation_site()?.clone(),
         location,
     })
+}
+
+fn focused_member(
+    surface: &dyn TerminalSurface,
+) -> Option<crate::terminal_session::NativeMemberTarget> {
+    let Some(TerminalSessionView::Native(native)) = surface.view() else {
+        return None;
+    };
+    native.focused_member()
 }
 
 #[cfg(test)]

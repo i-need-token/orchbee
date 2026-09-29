@@ -124,15 +124,18 @@ Client 激活在提交前连同已有配置冻结这两个值。匹配版本的 
 
 解析后的注册表同时提供分发、帮助行和主要实时提示。禁用动作保留在帮助中。现有原生
 默认值保留；未支持的 Herdr 字段明确失败。完整重载对齐、自定义命令、导航模式映射、
-Agent/按序 Workspace 按键及其他未支持动作仍未完成。定向证据覆盖边界、冲突与默认
+按序 Agent/Workspace 按键及其他未支持动作仍未完成。定向证据覆盖边界、冲突与默认
 优先级、输入归属、分发及发现；不宣称全量回归或视觉验收通过。
 
 支持的动作字段为 `help`、`new_workspace`、`rename_workspace`、`workspace_picker`、
-`detach`、`previous_workspace`、`next_workspace`、`new_tab`、`rename_tab`、`previous_tab`、
+`detach`、`previous_workspace`、`next_workspace`、`previous_agent`、`next_agent`、`new_tab`、`rename_tab`、`previous_tab`、
 `next_tab`、`move_tab_previous`、`move_tab_next`、`switch_tab`、`close_tab`、
 `focus_pane_left/down/up/right`（四个字段）、`split_vertical`、`split_horizontal`、
 `close_pane`、`zoom`（别名 `fullscreen`）、`toggle_sidebar` 和 `reload_config`。它们调用现有原生动作；
 Workspace 对应原生 Workbench 位置，竖向分屏向右、横向分屏向下。
+Agent 上一个/下一个默认使用前缀 `{`/`}`，使用同一临时筛选/排序后的
+[机器 Agent 列表](machines.zh-CN.md#agent-元数据视图控制与导航)，并重新验证精确物理目标。
+这两个动作不增加按序 Agent 聚焦或自定义视图 JSON DSL。
 
 ```toml
 [keys]

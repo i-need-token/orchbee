@@ -1,5 +1,7 @@
 use super::*;
 use crate::terminal_input::TerminalInputUnavailable;
+#[cfg(windows)]
+use std::time::Duration;
 use std::{cell::RefCell, io, rc::Rc};
 
 #[cfg(windows)]
@@ -1096,4 +1098,55 @@ fn machine_picker_owns_closing_packet_and_split_paste_across_surface_switch() {
     view.machines.open = false;
     dispatch(&mut dispatcher, &mut view, &mut port, b"Aok");
     assert_eq!(*calls.borrow(), [Call::Forward(b"ok".to_vec())]);
+}
+
+#[cfg(windows)]
+#[test]
+fn default_agent_cycle_opens_filtered_navigation_and_query_completion_is_captured() {
+    for (shortcut, action) in [
+        (b'{', ClientAction::PreviousAgent),
+        (b'}', ClientAction::NextAgent),
+    ] {
+        let calls = Rc::new(RefCell::new(Vec::new()));
+        let mut port = UnavailablePort(Rc::clone(&calls));
+        let mut dispatcher = InputDispatcher::default();
+        let mut view = ClientView::new(100);
+        view.machines.available = true;
+        let now = Instant::now();
+        for packet in [
+            vec![2, shortcut, b'x'],
+            b"/same\r".to_vec(),
+            b"\x1b".to_vec(),
+        ] {
+            dispatcher
+                .dispatch(
+                    &mut view,
+                    &packet,
+                    &mut port,
+                    now,
+                    |_, _| Ok::<(), io::Error>(()),
+                    &mut |_| Ok(()),
+                )
+                .unwrap();
+        }
+        // Bare Escape is resolved after its bounded ambiguity window.
+        dispatcher
+            .dispatch(
+                &mut view,
+                &[],
+                &mut port,
+                now + Duration::from_secs(1),
+                |_, _| Ok::<(), io::Error>(()),
+                &mut |_| Ok(()),
+            )
+            .unwrap();
+        assert_eq!(*calls.borrow(), [Call::Action(action)]);
+        assert!(view.machines.request.is_none());
+        assert!(!view.machines.open);
+        assert!(
+            !view
+                .machines
+                .drive_agent_navigation(now + Duration::from_secs(2))
+        );
+    }
 }

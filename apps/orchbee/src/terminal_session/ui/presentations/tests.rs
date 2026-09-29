@@ -241,6 +241,15 @@ fn painted_member_arrows_select_exact_children_in_single_split_and_zoom_views() 
             .panel(usize::from(layout == 1))
             .unwrap();
         assert_eq!(view.focus_panel_id(), Some(&panel_id));
+        #[cfg(windows)]
+        assert_eq!(
+            view.focused_member(),
+            Some(crate::terminal_session::NativeMemberTarget {
+                tab: view.tab(0).unwrap().tab_id().clone(),
+                panel: panel_id.clone(),
+                presentation: destination.clone(),
+            })
+        );
         assert_eq!(
             view.selected_presentation(panel).presentation_id(),
             &destination

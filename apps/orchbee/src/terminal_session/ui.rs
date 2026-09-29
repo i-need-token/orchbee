@@ -496,6 +496,21 @@ impl<'a> NativeSessionView<'a> {
     pub(crate) const fn focus_panel_id(&self) -> Option<&'a WorkbenchPanelId> {
         self.focus
     }
+    #[cfg(windows)]
+    pub(crate) fn focused_member(&self) -> Option<super::NativeMemberTarget> {
+        if self.retirement.is_some() {
+            return None;
+        }
+        let tab = self.tab(self.active_position()?.checked_sub(1)?)?;
+        let panel = (0..tab.panel_count())
+            .filter_map(|i| tab.panel(i))
+            .find(|p| Some(p.panel_id()) == self.focus_panel_id())?;
+        Some(super::NativeMemberTarget {
+            tab: tab.tab_id().clone(),
+            panel: panel.panel_id().clone(),
+            presentation: self.selected_presentation(panel).presentation_id().clone(),
+        })
+    }
 
     /// The active Tab renders zoomed: the focused leaf draws across the
     /// whole pane content area while hidden leaves stay attached but
@@ -1738,7 +1753,9 @@ impl NativeUi {
         }
         match action {
             #[cfg(windows)]
-            ClientAction::OpenMachines => SessionActionDisposition::KeepNavigator,
+            ClientAction::OpenMachines | ClientAction::PreviousAgent | ClientAction::NextAgent => {
+                SessionActionDisposition::KeepNavigator
+            }
             ClientAction::RequestWorkspaceCreate
             | ClientAction::RequestWorkspaceDirectory
             | ClientAction::RequestWorkspaceRename

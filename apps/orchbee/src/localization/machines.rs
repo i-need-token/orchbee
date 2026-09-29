@@ -32,6 +32,40 @@ impl Locale {
             (Self::ZhCn, "agents-mode") => "Agent",
             (Self::EnUs, "no-agents") => "No agents",
             (Self::ZhCn, "no-agents") => "暂无 Agent",
+            (Self::EnUs, "agents-no-matches") => "No matching agents",
+            (Self::ZhCn, "agents-no-matches") => "暂无匹配的 Agent",
+            (Self::EnUs, "agent-search") => "Search",
+            (Self::ZhCn, "agent-search") => "搜索",
+            (Self::EnUs, "agent-query-hint") => {
+                "Type search · Backspace Erase · Ctrl+U Clear\nEnter/Esc Finish"
+            }
+            (Self::ZhCn, "agent-query-hint") => {
+                "输入搜索 · Backspace 删除 · Ctrl+U 清空\nEnter/Esc 完成输入"
+            }
+            (Self::EnUs, "agent-controls-hint") => {
+                "↑/↓ Choose · Enter Open · f State · s Sort\nc Scope · / Search · Tab Mode · Esc Close"
+            }
+            (Self::ZhCn, "agent-controls-hint") => {
+                "↑/↓ 选择 · Enter 打开 · f 状态 · s 排序\nc 范围 · / 搜索 · Tab 切换 · Esc 关闭"
+            }
+            (Self::EnUs, "agent-all-states") => "All states",
+            (Self::ZhCn, "agent-all-states") => "全部状态",
+            (Self::EnUs, "agent-scope-all") => "All machines",
+            (Self::ZhCn, "agent-scope-all") => "全部机器",
+            (Self::EnUs, "agent-scope-machine") => "Current machine",
+            (Self::ZhCn, "agent-scope-machine") => "当前机器",
+            (Self::EnUs, "agent-scope-context") => "Current location",
+            (Self::ZhCn, "agent-scope-context") => "当前位置",
+            (Self::EnUs, "agent-order-placement") => "Placement",
+            (Self::ZhCn, "agent-order-placement") => "布局顺序",
+            (Self::EnUs, "agent-order-priority") => "Status priority",
+            (Self::ZhCn, "agent-order-priority") => "状态优先",
+            (Self::EnUs, "agent-order-provider") => "Agent name",
+            (Self::ZhCn, "agent-order-provider") => "Agent 名称",
+            (Self::EnUs, "agent-order-title") => "Title",
+            (Self::ZhCn, "agent-order-title") => "标题",
+            (Self::EnUs, "agent-order-sequence") => "Update version",
+            (Self::ZhCn, "agent-order-sequence") => "更新序号",
             (Self::EnUs, "agents-loading") => "Reading agents",
             (Self::ZhCn, "agents-loading") => "读取 Agent 中",
             (Self::EnUs, "agents-unavailable") => "Agents unavailable",
@@ -68,6 +102,48 @@ impl Locale {
             (Self::ZhCn, "removed") => "机器已删除或禁用，请选择本地或其他机器。",
             _ => "",
         }
+    }
+
+    pub(crate) fn machine_agent_control(
+        self,
+        control: crate::machine_picker::Control,
+        view: &crate::machine_agents::view::View,
+    ) -> String {
+        use crate::machine_agents::view::{Order, Scope};
+        use crate::machine_picker::Control;
+        use orchbee_workbench_protocol::PanelAgentState as State;
+        let (shortcut, label) = match control {
+            Control::State => (
+                "f",
+                match view.state {
+                    None => "agent-all-states",
+                    Some(State::Blocked) => "agent-blocked",
+                    Some(State::Working) => "agent-working",
+                    Some(State::Idle) => "agent-idle",
+                    Some(State::Unknown) => "agent-unknown",
+                },
+            ),
+            Control::Scope => (
+                "c",
+                match view.scope {
+                    Scope::All => "agent-scope-all",
+                    Scope::Machine => "agent-scope-machine",
+                    Scope::Context => "agent-scope-context",
+                },
+            ),
+            Control::Order => (
+                "s",
+                match view.order {
+                    Order::Placement => "agent-order-placement",
+                    Order::Priority => "agent-order-priority",
+                    Order::Provider => "agent-order-provider",
+                    Order::Title => "agent-order-title",
+                    Order::Sequence => "agent-order-sequence",
+                },
+            ),
+            Control::Search => ("/", "agent-search"),
+        };
+        format!("{shortcut} {}", self.machine_picker_text(label))
     }
 
     pub(crate) fn machine_overview(

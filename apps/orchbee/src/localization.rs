@@ -40,6 +40,8 @@ fn en_us_prefix_desc(desc: PrefixDesc) -> &'static str {
     match desc {
         #[cfg(windows)]
         PrefixDesc::Machines => "Choose local or saved SSH machine",
+        #[cfg(windows)]
+        PrefixDesc::AgentCycle => "Select previous / next Agent in the filtered machine view",
         PrefixDesc::ReloadConfiguration => "Reload Site configuration",
         PrefixDesc::WorkspaceCreate => "Create a Workspace in an existing or new Project",
         PrefixDesc::WorkspaceDirectory => "Configure an empty Workspace's first directory",
@@ -77,6 +79,8 @@ fn zh_cn_prefix_desc(desc: PrefixDesc) -> &'static str {
     match desc {
         #[cfg(windows)]
         PrefixDesc::Machines => "选择本地或已保存的 SSH 机器",
+        #[cfg(windows)]
+        PrefixDesc::AgentCycle => "按机器视图的筛选顺序切换上一个 / 下一个 Agent",
         PrefixDesc::ReloadConfiguration => "重载 Site 配置",
         PrefixDesc::WorkspaceCreate => "在现有或新建 Project 中创建 Workspace",
         PrefixDesc::WorkspaceDirectory => "配置空 Workspace 的首个目录",
