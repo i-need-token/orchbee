@@ -12,6 +12,10 @@ pub(super) fn build() -> serde_json::Value {
     let global_flags = ["--site"].as_slice();
     #[cfg(not(windows))]
     let global_flags: &[&str] = &[];
+    #[cfg(windows)]
+    let prefix_flags = ["--machine"].as_slice();
+    #[cfg(not(windows))]
+    let prefix_flags: &[&str] = &[];
     let mut commands = Vec::new();
     for (family, verbs) in FAMILY_VERBS {
         for verb in *verbs {
@@ -46,6 +50,25 @@ pub(super) fn build() -> serde_json::Value {
         .push(json!({"words": ["tui"], "flags": ["--mouse"], "conflicts": [], "operand": 0, "directions": []}));
     for command in &mut commands {
         let words = command["words"].clone();
+        command["machine"] = json!(match words
+            .as_array()
+            .map(|w| w.iter().filter_map(|v| v.as_str()).collect::<Vec<_>>())
+            .unwrap_or_default()
+            .as_slice()
+        {
+            ["status"] | ["status", "server"] | ["api", "snapshot"] => true,
+            [
+                "project" | "workspace" | "tab" | "panel" | "client" | "worktree" | "notification"
+                | "launch-profile" | "layout",
+                ..,
+            ] => !matches!(words[1].as_str(), Some("apply" | "export")),
+            ["terminal", verb, ..] =>
+                !matches!(*verb, "observe" | "control" | "attach" | "session"),
+            ["agent", verb, ..] => !matches!(*verb, "doctor" | "attach" | "integration"),
+            ["plugin", verb, ..] => !matches!(*verb, "install" | "uninstall" | "config-dir"),
+            ["site", verb, ..] => !matches!(*verb, "start" | "diagnose"),
+            _ => false,
+        });
         command["format"] = json!(words != json!(["tui"]) && words != json!(["session", "attach"]));
         command["cwdValues"] = json!(if words == json!(["tab", "create"])
             || words == json!(["panel", "split"])
@@ -62,6 +85,7 @@ pub(super) fn build() -> serde_json::Value {
         "valueFlags": BUSINESS_FLAGS.iter().copied().filter(|flag| flag_value(flag).is_some()).chain(["--format", "--mouse"]).chain(global_flags.iter().copied()).collect::<Vec<_>>(),
         "flags": BUSINESS_FLAGS.iter().copied().chain(["--format", "--mouse"]).chain(global_flags.iter().copied()).collect::<Vec<_>>(),
         "globalFlags": global_flags,
+        "prefixFlags": prefix_flags,
         "repeatable": REPEATABLE_FLAGS,
         "shells": SHELLS,
         "formats": FORMAT_VALUES,

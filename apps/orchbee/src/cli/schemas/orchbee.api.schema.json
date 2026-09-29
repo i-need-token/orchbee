@@ -10,7 +10,7 @@
 			"const": "orchbee.api.schema"
 		},
 		"version": {
-			"const": 119
+			"const": 120
 		},
 		"source": {
 			"type": "object",
@@ -131,6 +131,7 @@
 						"orchbee.agent.changes",
 						"orchbee.workspace.creation",
 						"orchbee.cli.failure.configuration",
+						"orchbee.cli.failure.machine-route",
 						"orchbee.terminal.control.input",
 						"orchbee.session.list",
 						"orchbee.session.delete",
@@ -248,6 +249,7 @@
 				"orchbee.agent.changes",
 				"orchbee.workspace.creation",
 				"orchbee.cli.failure.configuration",
+				"orchbee.cli.failure.machine-route",
 				"orchbee.terminal.control.input",
 				"orchbee.session.list",
 				"orchbee.session.delete",

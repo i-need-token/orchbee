@@ -38,7 +38,7 @@
 			"properties": {
 				"scope": {
 					"type": "string",
-					"pattern": "^orchbee-native-[0-9a-f]{32}$"
+					"pattern": "^(orchbee-native-[0-9a-f]{32}|orchbee-session-[0-9a-f]{47})$"
 				},
 				"runtimeDirectory": {
 					"$ref": "#/$defs/path"

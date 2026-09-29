@@ -89,3 +89,8 @@ local-cohort mismatch/absence and old-Server rejection; offline Client/help/sche
 and actual matched-cohort PowerShell 5.1/7 probes with all owned Sites stopped afterward.
 Review is performed by the implementation author. TLA execution remains deferred, and neither
 independent review nor unexecuted formal proof is claimed.
+
+The Server status scope accepts both the default `orchbee-native-` identity
+(32 hex digits) and the named Windows `orchbee-session-` identity (47 hex digits),
+as produced by `WindowsSiteName::scope_for_user`. This observation does not
+activate a missing named Site. The version-1 schema admits both existing forms.

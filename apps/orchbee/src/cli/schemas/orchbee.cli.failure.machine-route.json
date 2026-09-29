@@ -1,0 +1,69 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "orchbee.cli.failure.machine-route",
+	"title": "Saved Windows machine command routing failure",
+	"type": "object",
+	"required": ["schema", "version", "failure"],
+	"additionalProperties": false,
+	"properties": {
+		"schema": {
+			"const": "orchbee.cli.failure.machine-route"
+		},
+		"version": {
+			"const": 1
+		},
+		"failure": {
+			"type": "object",
+			"required": ["kind", "details"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": {
+					"enum": [
+						"invalid-usage",
+						"timeout",
+						"cancelled",
+						"service-unavailable",
+						"outcome-unknown"
+					]
+				},
+				"details": {
+					"type": "object",
+					"required": ["stage", "reason", "remoteOutcome"],
+					"additionalProperties": false,
+					"properties": {
+						"stage": {
+							"const": "machine-route"
+						},
+						"reason": {
+							"enum": [
+								"configuration",
+								"invalid-catalog",
+								"storage",
+								"busy",
+								"not-found",
+								"capacity",
+								"revision-exhausted",
+								"ssh-unavailable",
+								"ssh-failed",
+								"remote-protocol",
+								"remote-incompatible",
+								"remote-not-ready",
+								"cancelled",
+								"timeout",
+								"physical-unknown",
+								"internal",
+								"ambiguous-machine",
+								"disabled-machine",
+								"input-source",
+								"remote-rejected-or-interrupted"
+							]
+						},
+						"remoteOutcome": {
+							"enum": ["not-submitted", "unknown"]
+						}
+					}
+				}
+			}
+		}
+	}
+}

@@ -104,5 +104,5 @@ mod windows_command_child;
 #[cfg(windows)]
 pub use windows_command_child::{
     WindowsCommandChild, WindowsCommandFailure, WindowsCommandOutput, WindowsCommandSpawnFailure,
-    resolve_windows_program, run_windows_command,
+    resolve_windows_program, run_windows_command, run_windows_command_exchange,
 };

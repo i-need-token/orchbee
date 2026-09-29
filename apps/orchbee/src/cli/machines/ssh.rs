@@ -9,9 +9,9 @@ use std::{
     process::Command,
 };
 
-struct Client {
-    executable: String,
-    cohort: String,
+pub(super) struct Client {
+    pub(super) executable: String,
+    pub(super) cohort: String,
 }
 pub(super) fn prepare(
     draft: &Draft,
@@ -58,7 +58,7 @@ fn prepare_session(
     *remote = Remote::Ready;
     Ok(())
 }
-fn client(value: &Value) -> Result<Client, Error> {
+pub(super) fn client(value: &Value) -> Result<Client, Error> {
     if value["schema"] != "orchbee.status.client" || value["version"] != 2 {
         return Err(Error::RemoteProtocol);
     }
@@ -121,10 +121,10 @@ fn hex64(s: &str) -> bool {
         && s.bytes()
             .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
 }
-fn literal(value: &str) -> String {
+pub(super) fn literal(value: &str) -> String {
     format!("'{}'", value.replace('\'', "''"))
 }
-fn program(executable: Option<&str>, session: &str, action: &str) -> String {
+pub(super) fn program(executable: Option<&str>, session: &str, action: &str) -> String {
     let resolve = executable.map_or_else(
         || "$program=(Get-Command orchbee.exe -CommandType Application -ErrorAction Stop | Select-Object -First 1).Path".to_owned(),
         |path| format!("$program={}", literal(path)));
@@ -149,7 +149,7 @@ fn program(executable: Option<&str>, session: &str, action: &str) -> String {
     );
     format!("powershell.exe -NoLogo -NoProfile -NonInteractive -EncodedCommand {encoded}")
 }
-fn command(ssh: &Path, target: &str, remote: &str) -> Command {
+pub(super) fn command(ssh: &Path, target: &str, remote: &str) -> Command {
     let mut command = Command::new(ssh);
     command.arg("-T");
     for option in [
@@ -175,7 +175,12 @@ fn command(ssh: &Path, target: &str, remote: &str) -> Command {
         .env("SSH_ASKPASS_REQUIRE", "never");
     command
 }
-fn exchange(ssh: &Path, target: &str, remote: &str, context: &mut Context) -> Result<Value, Error> {
+pub(super) fn exchange(
+    ssh: &Path,
+    target: &str,
+    remote: &str,
+    context: &mut Context,
+) -> Result<Value, Error> {
     context.check()?;
     let result = run_windows_command(command(ssh, target, remote), Some(context.deadline), || {
         context.interrupted()

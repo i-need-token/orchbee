@@ -1,4 +1,5 @@
 //! Saved-machine commands; remote readiness and local publication have separate outcomes.
+pub(crate) mod routing;
 mod ssh;
 use super::{
     Failure, FailureKind, Output, failure_output, output,

@@ -1,12 +1,23 @@
 use super::Locale;
 impl Locale {
+    pub(crate) fn cli_machine_route_failure(self, unknown: bool) -> &'static str {
+        match (self, unknown) {
+            (Self::EnUs, false) => "Remote command was not submitted.",
+            (Self::ZhCn, false) => "远端命令未提交。",
+            (Self::EnUs, true) => {
+                "Remote command outcome is unknown. Check remote state before retrying."
+            }
+            (Self::ZhCn, true) => "远端命令结果未知，请检查远端状态后再决定是否重试。",
+        }
+    }
+
     pub(crate) fn cli_machine_help(self, verb: Option<&str>) -> &'static str {
         match (self, verb) {
             (Self::EnUs, None) => {
-                "Usage: orchbee machine <list|add|rename|remove|enable|disable>\n\nManage saved Windows SSH machines. Add verifies an installed remote Client, starts the explicit Site, and verifies readiness before saving. SSH authentication and host trust must already work in batch mode. Removing or disabling a profile leaves remote sessions running. Saved profiles do not yet connect automatically in the local TUI.\n"
+                "Usage: orchbee machine <list|add|rename|remove|enable|disable>\n\nManage saved Windows SSH machines. Add verifies an installed remote Client, starts the explicit Site, and verifies readiness before saving. SSH authentication and host trust must already work in batch mode. Removing or disabling a profile leaves remote sessions running. Use orchbee --machine <label-or-id> <command> for remote commands. Help is local; duplicate labels and disabled profiles are refused. Terminal --file/--stdin are read locally; paths such as --cwd belong to the remote machine. TUI and terminal streams are not routed. Saved profiles do not yet connect automatically in the local TUI.\n"
             }
             (Self::ZhCn, None) => {
-                "用法：orchbee machine <list|add|rename|remove|enable|disable>\n\n管理已保存的 Windows SSH 机器。Add 检查已安装的远端 Client，启动指定 Site，并在保存前确认就绪。SSH 认证和主机信任须已能以批处理模式使用。删除或禁用配置不会停止远端会话。已保存配置暂不在本地 TUI 中自动连接。\n"
+                "用法：orchbee machine <list|add|rename|remove|enable|disable>\n\n管理已保存的 Windows SSH 机器。Add 检查已安装的远端 Client，启动指定 Site，并在保存前确认就绪。SSH 认证和主机信任须已能以批处理模式使用。删除或禁用配置不会停止远端会话。使用 orchbee --machine <标签或ID> <命令> 执行远端命令。帮助本地显示；拒绝重名标签及已禁用配置。终端 --file/--stdin 在本地读取，--cwd 等路径属于远端。不路由 TUI 和交互式终端流。已保存配置暂不在本地 TUI 中自动连接。\n"
             }
             (Self::EnUs, Some("list")) => {
                 "Usage: orchbee machine list [--json | --format text|json]\n\nRead the saved machine catalog without contacting SSH or creating directories. Enabled is a saved preference, not a live connection observation.\n"

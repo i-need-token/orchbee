@@ -39,6 +39,8 @@ signal-hook = { version = "0.3.18", default-features = false }
 # Original console-title capture/restoration through safe UTF-16 Windows wrappers.
 win32console.workspace = true
 base64.workspace = true
+# Closed Windows remote CLI relay envelopes; reuse the workspace-pinned serde.
+serde.workspace = true
 serde_core = { version = "=1.0.229", default-features = false, features = ["std"] }
 # Complete, bounded provider-owned TOML configuration inspection.
 toml = { version = "=1.1.6", default-features = false, features = ["std", "parse", "serde"] }

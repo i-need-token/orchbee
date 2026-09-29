@@ -183,6 +183,10 @@ const DOCUMENTS: &[(&str, &str)] = &[
         include_str!("schemas/orchbee.panel.input.json"),
     ),
     (
+        "orchbee.cli.failure.machine-route",
+        include_str!("schemas/orchbee.cli.failure.machine-route.json"),
+    ),
+    (
         "orchbee.cli.failure.configuration",
         include_str!("schemas/orchbee.cli.failure.configuration.json"),
     ),
@@ -515,7 +519,7 @@ pub(crate) fn answer(schema_id: Option<&str>, format: OutputFormat, locale: Loca
     let document = json!({
         "schema": "orchbee.api.schema",
         // Adds membership-checked plugin Pane focus and close.
-        "version": 119,
+        "version": 120,
         "source": embedded_source(),
         "result": result,
     });

@@ -105,6 +105,12 @@ fn main() -> ExitCode {
                 cli::process_result(present(Ok(Invocation::Tui), locale), locale)
             }
             #[cfg(windows)]
+            Ok(invocation::Request::MachineRoute(route)) => {
+                cli::machines::routing::run(route, locale)
+            }
+            #[cfg(windows)]
+            Ok(invocation::Request::MachineRelay) => cli::machines::routing::serve(locale),
+            #[cfg(windows)]
             Ok(invocation::Request::Machine { command, format }) => {
                 cli::machines::run(&command, format, locale)
             }

@@ -20,6 +20,8 @@ pub(crate) use layouts::{LayoutApplyCommand, LayoutDestination, LayoutExportComm
 #[cfg(windows)]
 pub(crate) use named_sessions::NamedSessionCommand;
 #[cfg(windows)]
+pub(crate) mod machine_routing;
+#[cfg(windows)]
 mod machines;
 #[cfg(windows)]
 pub(crate) use machines::MachineCommand;
@@ -1327,6 +1329,10 @@ pub(crate) enum RuntimeStatusScope {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum Request {
     #[cfg(windows)]
+    MachineRoute(machine_routing::Route),
+    #[cfg(windows)]
+    MachineRelay,
+    #[cfg(windows)]
     Machine {
         command: MachineCommand,
         format: OutputFormat,
@@ -2125,7 +2131,14 @@ pub(crate) fn parse_selected_request(
         }
         tokens.push(text.to_owned());
     }
-    scan(tokens)
+    #[cfg(windows)]
+    {
+        machine_routing::parse(tokens)
+    }
+    #[cfg(not(windows))]
+    {
+        scan(tokens)
+    }
 }
 
 #[cfg(test)]

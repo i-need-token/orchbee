@@ -20,6 +20,20 @@ __ORCHBEE_GRAMMAR__
             return
         }
     }
+    $machine = $false
+    if ($words.Count -gt 0 -and $grammar.prefixFlags -ccontains '--machine') {
+        if ($words[0] -ceq '--machine') {
+            if ($words.Count -lt 2) { return }
+            $selector = $words[1]
+            $words.RemoveRange(0, 2)
+            $machine = $true
+        } elseif ($words[0].StartsWith('--machine=')) {
+            $selector = $words[0].Substring(10)
+            $words.RemoveAt(0)
+            $machine = $true
+        }
+        if ($machine -and ($selector.Trim().Length -eq 0 -or $selector.StartsWith('-'))) { return }
+    }
     $positionals = [System.Collections.Generic.List[string]]::new()
     $seen = [System.Collections.Generic.List[string]]::new()
     $values = [System.Collections.Generic.Dictionary[string,string]]::new([System.StringComparer]::Ordinal)
@@ -51,11 +65,13 @@ __ORCHBEE_GRAMMAR__
         if ($name -cnotmatch '^[A-Za-z0-9._-]{1,64}$' -or $name -cin @('.', '..')) { return }
         if ($values.ContainsKey('--site') -and $values['--site'] -cne $name) { return }
     }
+    if ($machine -and $seen -ccontains '--site') { return }
     $businessSeen = @($seen | Where-Object { $grammar.globalFlags -cnotcontains $_ })
     $candidates = [System.Collections.Generic.List[string]]::new()
     if ($positionals.Count -gt 0 -and $positionals[0] -cin @('completion', 'help')) {
         if ($businessSeen.Count -gt 0 -or $pending.Length -gt 0) { return }
         if ($positionals[0] -ceq 'completion') {
+            if ($machine) { return }
             if ($positionals.Count -ne 1) { return }
             $candidates.AddRange([string[]]$grammar.shells)
             $candidates.Add('--help')
@@ -79,6 +95,7 @@ __ORCHBEE_GRAMMAR__
         }
         $viable = @($grammar.commands | Where-Object {
             $command = $_
+            if ($machine -and -not $command.machine) { return $false }
             $allowed = @($command.flags) + @($grammar.globalFlags)
             if ($command.format) { $allowed += '--format' }
             $valid = $true
@@ -126,6 +143,7 @@ __ORCHBEE_GRAMMAR__
             $allowed = @($command.flags) + @($grammar.globalFlags)
             if ($command.format) { $allowed += '--format' }
             foreach ($flag in $allowed) {
+                if ($machine -and $flag -ceq '--site') { continue }
                 if (($command.words -join ':') -cin @('panel:process-info', 'panel:create-terminal') -and $positionals.Count -gt $command.words.Count -and $flag -ceq '--client') { continue }
                 if (($command.words -join ':') -cin @('panel:process-info', 'panel:focus', 'panel:zoom', 'panel:layout', 'panel:neighbor', 'panel:edges', 'panel:resize', 'panel:swap', 'panel:input', 'panel:split', 'panel:create-terminal') -and $positionals.Count -gt $command.words.Count -and $flag -cin @('--panel', '--current')) { continue }
                 if (($command.words -join ':') -cin @('agent:attach', 'agent:get', 'agent:focus', 'agent:read', 'agent:send-keys', 'agent:prompt', 'agent:explain', 'agent:wait', 'agent:resolve', 'agent:rename')) {
@@ -179,10 +197,11 @@ __ORCHBEE_GRAMMAR__
         } else {
             $candidates.AddRange($offeredFlags)
             if ($positionals.Count -eq 0 -and $businessSeen.Count -eq 0) {
-                $candidates.AddRange([string[]]@('help', 'completion', '--version', '--skill'))
+                if ($machine) { $candidates.Add('help') } else { $candidates.AddRange([string[]]@('help', 'completion', '--version', '--skill')) }
             }
         }
     }
+    if (-not $machine -and $words.Count -eq 0) { $candidates.AddRange([string[]]$grammar.prefixFlags) }
     $candidates | Sort-Object -Unique -CaseSensitive | Where-Object {
         $_.StartsWith($wordToComplete, [System.StringComparison]::Ordinal)
     } | ForEach-Object {
