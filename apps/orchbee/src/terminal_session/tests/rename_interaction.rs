@@ -70,6 +70,7 @@ impl RenameServer {
                             | WorkbenchRequest::WorktreeOperation(_)
                             | WorkbenchRequest::WorktreeQuery(_)
                             | WorkbenchRequest::AgentManifests(_)
+                            | WorkbenchRequest::Configuration(_)
                             | WorkbenchRequest::PanelAgent(_)
                             | WorkbenchRequest::PanelMetadata(_)
                             | WorkbenchRequest::WorkspaceMetadata(_)

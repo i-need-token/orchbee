@@ -1,0 +1,219 @@
+{
+	"contractVersion": 1,
+	"valid": [
+		{
+			"name": "reload",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.configuration",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": "reload"
+			}
+		},
+		{
+			"name": "current",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.configuration",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": "current"
+			}
+		},
+		{
+			"name": "reloaded",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.configuration.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "reloaded",
+					"snapshot": {
+						"revision": "1",
+						"keysProfile": "[keys]\nprefix=\"ctrl+a\"\n",
+						"restartRequired": [],
+						"manifestCheck": true
+					},
+					"changed": true
+				}
+			}
+		},
+		{
+			"name": "startup-baseline",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.configuration.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "current",
+					"snapshot": {
+						"revision": "0",
+						"keysProfile": "[keys]\nprefix=\"ctrl+a\"\n",
+						"restartRequired": [],
+						"manifestCheck": true
+					}
+				}
+			}
+		},
+		{
+			"name": "load-failed",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.configuration.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "failed",
+					"reason": "load-failed",
+					"field": "keys",
+					"detail": "invalid-keybinding"
+				}
+			}
+		},
+		{
+			"name": "busy",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.configuration.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "failed",
+					"reason": "busy",
+					"field": null,
+					"detail": null
+				}
+			}
+		}
+	],
+	"invalid": [
+		{
+			"name": "unknown-field",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.configuration",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": "current",
+				"unexpected": true
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "unknown-action",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.configuration",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": "restart"
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "half-diagnostic",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.configuration.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "failed",
+					"reason": "busy",
+					"field": "keys",
+					"detail": null
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "busy-diagnostic",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.configuration.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "failed",
+					"reason": "busy",
+					"field": "keys",
+					"detail": "invalid"
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "duplicate-restart",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.configuration.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "current",
+					"snapshot": {
+						"revision": "1",
+						"keysProfile": "[keys]\nprefix=\"ctrl+a\"\n",
+						"restartRequired": ["terminal.default_shell", "terminal.default_shell"],
+						"manifestCheck": true
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "overflow-revision",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.configuration.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "current",
+					"snapshot": {
+						"revision": "18446744073709551616",
+						"keysProfile": "[keys]\nprefix=\"ctrl+a\"\n",
+						"restartRequired": [],
+						"manifestCheck": true
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "empty-profile",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.configuration.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "current",
+					"snapshot": {
+						"revision": "1",
+						"keysProfile": "",
+						"restartRequired": [],
+						"manifestCheck": true
+					}
+				}
+			},
+			"boundary": "schema"
+		}
+	]
+}

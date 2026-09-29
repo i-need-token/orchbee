@@ -1,0 +1,148 @@
+//! Site-owned runtime configuration publication; a revision is not a Client acknowledgement.
+use crate::{ContractError, ProtocolVersion, SiteId, WorkbenchRequestId, WorkbenchRevision};
+use serde::{Deserialize, Serialize};
+pub const MAXIMUM_CONFIGURATION_BYTES: usize = 128 * 1024;
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum ConfigurationAction {
+    Current,
+    Reload,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ConfigurationRequest {
+    pub protocol_version: ProtocolVersion,
+    pub request_id: WorkbenchRequestId,
+    pub site_id: SiteId,
+    pub action: ConfigurationAction,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub enum ConfigurationRestart {
+    #[serde(rename = "terminal.default_shell")]
+    DefaultShell,
+    #[serde(rename = "terminal.shell_mode")]
+    ShellMode,
+    #[serde(rename = "session.resume_agents_on_restore")]
+    ResumeAgents,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ConfigurationSnapshot {
+    pub revision: WorkbenchRevision,
+    /// Canonical [keys] only, never arbitrary configuration-file contents.
+    pub keys_profile: String,
+    pub restart_required: Vec<ConfigurationRestart>,
+    pub manifest_check: bool,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum ConfigurationFailure {
+    Denied,
+    Unavailable,
+    SiteMismatch,
+    Busy,
+    LoadFailed,
+    RevisionExhausted,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(
+    tag = "kind",
+    rename_all = "kebab-case",
+    rename_all_fields = "camelCase",
+    deny_unknown_fields
+)]
+pub enum ConfigurationOutcome {
+    Current {
+        snapshot: ConfigurationSnapshot,
+    },
+    Reloaded {
+        snapshot: ConfigurationSnapshot,
+        changed: bool,
+    },
+    Failed {
+        reason: ConfigurationFailure,
+        #[serde(deserialize_with = "super::agent_manifests::nullable")]
+        field: Option<String>,
+        #[serde(deserialize_with = "super::agent_manifests::nullable")]
+        detail: Option<String>,
+    },
+}
+impl ConfigurationOutcome {
+    pub fn failed(reason: ConfigurationFailure) -> Self {
+        Self::Failed {
+            reason,
+            field: None,
+            detail: None,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ConfigurationResult {
+    pub protocol_version: ProtocolVersion,
+    pub request_id: WorkbenchRequestId,
+    pub site_id: SiteId,
+    pub outcome: ConfigurationOutcome,
+}
+impl ConfigurationResult {
+    pub fn answers(&self, request: &ConfigurationRequest) -> bool {
+        self.request_id == request.request_id
+            && self.site_id == request.site_id
+            && matches!(
+                (&request.action, &self.outcome),
+                (_, ConfigurationOutcome::Failed { .. })
+                    | (
+                        ConfigurationAction::Current,
+                        ConfigurationOutcome::Current { .. }
+                    )
+                    | (
+                        ConfigurationAction::Reload,
+                        ConfigurationOutcome::Reloaded { .. }
+                    )
+            )
+    }
+    pub fn validate(&self) -> Result<(), ContractError> {
+        let valid = match &self.outcome {
+            ConfigurationOutcome::Current { snapshot }
+            | ConfigurationOutcome::Reloaded { snapshot, .. } => {
+                !snapshot.keys_profile.is_empty()
+                    && snapshot.keys_profile.len() <= 64 * 1024
+                    && snapshot.restart_required.len() <= 3
+                    && snapshot
+                        .restart_required
+                        .iter()
+                        .enumerate()
+                        .all(|(index, field)| !snapshot.restart_required[..index].contains(field))
+            }
+            ConfigurationOutcome::Failed {
+                reason,
+                field,
+                detail,
+            } => {
+                let bounded = |value: &Option<String>| {
+                    value.as_ref().is_none_or(|value| {
+                        !value.is_empty()
+                            && value.len() <= 128
+                            && !value.chars().any(char::is_control)
+                    })
+                };
+                bounded(field)
+                    && bounded(detail)
+                    && field.is_some() == detail.is_some()
+                    && (*reason == ConfigurationFailure::LoadFailed || field.is_none())
+            }
+        };
+        if valid {
+            Ok(())
+        } else {
+            Err(ContractError::InvalidDocument)
+        }
+    }
+}

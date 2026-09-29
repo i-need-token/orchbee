@@ -1,0 +1,210 @@
+//! A Client-owned publication watcher. Only the UI owner installs a validated key snapshot.
+use crate::{
+    client_view::{ClientView, Notice},
+    local_client::{LocalClientOrigin, LocalOperationClock},
+};
+use orchbee_local_ipc::{AsLocalIo, LocalStream};
+use orchbee_local_site_runtime::WindowsKeySettings;
+use orchbee_workbench_protocol::{
+    ConfigurationAction, ConfigurationOutcome, ConfigurationRequest, ConfigurationSnapshot,
+    ProtocolVersion, SiteId, WorkbenchRequestId,
+};
+use std::{
+    sync::{Arc, Condvar, Mutex},
+    thread::{self, JoinHandle},
+    time::Duration,
+};
+
+#[derive(Default)]
+struct Handoff {
+    stopped: bool,
+    reload: bool,
+    snapshot: Option<ConfigurationSnapshot>,
+    notice: Option<Notice>,
+}
+type Shared = Arc<(Mutex<Handoff>, Condvar)>;
+pub(super) struct Watcher {
+    shared: Shared,
+    wake: LocalStream,
+    task: Option<JoinHandle<()>>,
+    revision: u64,
+}
+impl Watcher {
+    pub(super) fn spawn(
+        origin: LocalClientOrigin,
+        clock: LocalOperationClock,
+        site: SiteId,
+    ) -> std::io::Result<Self> {
+        let shared = Arc::new((Mutex::new(Handoff::default()), Condvar::new()));
+        let (reader, wake) = LocalStream::pair()?;
+        let state = Arc::clone(&shared);
+        let task = thread::Builder::new()
+            .name("orchbee-client-config".into())
+            .spawn(move || run(state, origin, clock, site, reader))?;
+        Ok(Self {
+            shared,
+            wake,
+            task: Some(task),
+            revision: 0,
+        })
+    }
+    pub(super) fn reload(&self) -> bool {
+        let Ok(mut state) = self.shared.0.lock() else {
+            return false;
+        };
+        if state.stopped {
+            return false;
+        }
+        state.reload = true;
+        self.shared.1.notify_all();
+        true
+    }
+    pub(super) fn tick(&mut self, view: &mut ClientView) -> bool {
+        let Ok(mut state) = self.shared.0.lock() else {
+            return false;
+        };
+        let snapshot = state.snapshot.take();
+        let notice = state.notice.take();
+        drop(state);
+        let mut changed = false;
+        if let Some(snapshot) = snapshot
+            && snapshot.revision.value() > self.revision
+        {
+            match WindowsKeySettings::from_profile(&snapshot.keys_profile) {
+                Ok(keys) => {
+                    view.configure_keys(&keys);
+                    self.revision = snapshot.revision.value();
+                    changed = true;
+                }
+                Err(_) => {
+                    view.configuration_notice(Notice::ConfigurationFailed);
+                    return true;
+                }
+            }
+        }
+        if let Some(notice) = notice {
+            view.configuration_notice(notice);
+            changed = true;
+        }
+        changed
+    }
+    pub(super) fn close(&mut self) {
+        if self.task.is_none() {
+            return;
+        }
+        if let Ok(mut state) = self.shared.0.lock() {
+            state.stopped = true;
+        }
+        self.shared.1.notify_all();
+        let _ = self.wake.shutdown(std::net::Shutdown::Both);
+        if let Some(task) = self.task.take() {
+            let _ = task.join();
+        }
+    }
+}
+impl Drop for Watcher {
+    fn drop(&mut self) {
+        self.close();
+    }
+}
+
+fn run(
+    shared: Shared,
+    origin: LocalClientOrigin,
+    clock: LocalOperationClock,
+    site: SiteId,
+    wake: LocalStream,
+) {
+    let mut client = None;
+    let mut serial = 0_u64;
+    loop {
+        let reload = {
+            let Ok(mut state) = shared.0.lock() else {
+                return;
+            };
+            if state.stopped {
+                return;
+            }
+            std::mem::take(&mut state.reload)
+        };
+        if client.is_none() {
+            client = origin
+                .reconnect_before_cancellable(
+                    clock.now() + Duration::from_secs(2),
+                    clock.clone(),
+                    Some(wake.as_local_io()),
+                )
+                .ok();
+        }
+        let Some(next) = serial.checked_add(1) else {
+            return;
+        };
+        serial = next;
+        let request = ConfigurationRequest {
+            protocol_version: ProtocolVersion,
+            request_id: WorkbenchRequestId::parse(&format!("{serial:032x}"))
+                .expect("bounded request id"),
+            site_id: site.clone(),
+            action: if reload {
+                ConfigurationAction::Reload
+            } else {
+                ConfigurationAction::Current
+            },
+        };
+        let result = client.as_mut().map(|client| {
+            client.configuration(
+                request,
+                clock.now() + Duration::from_secs(2),
+                Some(wake.as_local_io()),
+            )
+        });
+        let mut submitted = false;
+        let outcome = match result {
+            Some(Ok(reply)) => Some(reply.outcome),
+            Some(Err(error)) => {
+                submitted = error.submitted;
+                client = None;
+                None
+            }
+            None => None,
+        };
+        let Ok(mut state) = shared.0.lock() else {
+            return;
+        };
+        if state.stopped {
+            return;
+        }
+        match outcome {
+            Some(
+                ConfigurationOutcome::Current { snapshot }
+                | ConfigurationOutcome::Reloaded { snapshot, .. },
+            ) => {
+                if reload {
+                    state.notice = Some(if snapshot.restart_required.is_empty() {
+                        Notice::ConfigurationPublished
+                    } else {
+                        Notice::ConfigurationRestart
+                    });
+                }
+                state.snapshot = Some(snapshot);
+            }
+            _ if reload => {
+                state.notice = Some(if submitted {
+                    Notice::ConfigurationUnknown
+                } else {
+                    Notice::ConfigurationFailed
+                });
+            }
+            _ => {}
+        }
+        if !state.reload
+            && let Ok((next, _)) = shared.1.wait_timeout(state, Duration::from_millis(500))
+            && next.stopped
+        {
+            return;
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests;

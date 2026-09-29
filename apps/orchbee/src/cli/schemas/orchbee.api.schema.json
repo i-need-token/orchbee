@@ -10,7 +10,7 @@
 			"const": "orchbee.api.schema"
 		},
 		"version": {
-			"const": 102
+			"const": 103
 		},
 		"source": {
 			"type": "object",
@@ -146,6 +146,7 @@
 						"orchbee.workspace.metadata",
 						"orchbee.panel.agent-report",
 						"orchbee.panel.metadata",
+						"orchbee.site.configuration",
 						"orchbee.site.agent-manifests",
 						"orchbee.panel.terminal-create",
 						"orchbee.config.reset-keys"
@@ -253,6 +254,7 @@
 				"orchbee.workspace.metadata",
 				"orchbee.panel.metadata",
 				"orchbee.panel.agent-report",
+				"orchbee.site.configuration",
 				"orchbee.site.agent-manifests",
 				"orchbee.panel.terminal-create",
 				"orchbee.config.reset-keys"

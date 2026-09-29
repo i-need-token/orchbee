@@ -104,7 +104,7 @@ Unneeded failed-attempt backups are removed; cleanup failure exposes their exact
 Site admission, reload, process launch or unrelated settings write occurs.
 
 Pure transformation tests, exclusive-file/backup checks, injected write/recovery failure witnesses
-and real Windows CLI processes cover this contract. Full keybindings, config reload and final
+and real Windows CLI processes cover this contract. Full keybindings, complete reload parity and final
 Windows replacement acceptance remain separate obligations.
 
 ## Configured Windows shell
@@ -130,8 +130,8 @@ Server forwards this private snapshot to Worker without rereading configuration.
 snapshot across lazy Host startup and later terminal preparation, including CLI/TUI creation and
 default-shell restore. Direct unmanaged Worker startup validates its configuration once before
 admission. Prepared operations and replay retain their resolved launch facts. Editing the file
-does not change live shells or running Worker policy; a new Site lifetime is required until general
-reload is implemented. Windows `config check` v5 reports `defaultShell` and `shellMode`; prior
+does not change live shells or running Worker policy; a new Site lifetime is still required for
+Worker shell defaults, and live reload reports these changes in `restartRequired`. Windows `config check` v5 reports `defaultShell` and `shellMode`; prior
 versions remain closed. Shell-specific creation errors use configuration failure v2; v1 keeps
 its original field/reason set. These are configured values, not a claim that a binary can launch.
 
@@ -153,7 +153,7 @@ cover this implementation; no ARM64 hardware acceptance is claimed.
 ## Windows Client key configuration
 
 The bounded shared settings reader admits `[keys]` before Client startup. Each Client owns an
-immutable binding snapshot; file edits/reset affect the next Client. The Client resolves implemented
+immutable binding snapshot until publication; file edits/reset affect the next Client or an explicit live reload. The Client resolves implemented
 semantic actions against its default registry. User overrides replace that action's defaults and
 conflicting default chords. Ambiguous user chords, unsupported actions and invalid syntax fail
 admission. This strict failure policy differs from Herdr's diagnostic-and-disable policy and remains
@@ -168,7 +168,7 @@ direct dispatch; paste and releases never invoke bindings. Double prefix forward
 where available, otherwise original bytes, without a hardcoded Ctrl+B fallback.
 
 The resolved registry supplies dispatch, help rows and principal live hints. Disabled actions stay
-in help. Existing native defaults remain; unsupported Herdr fields fail explicitly. General reload,
+in help. Existing native defaults remain; unsupported Herdr fields fail explicitly. Complete reload parity,
 custom commands, navigation-mode mappings, Agent/indexed Workspace keys and other unsupported
 actions remain unfinished. Targeted evidence covers bounds, collisions/default precedence,
 ownership, dispatch and discovery; no full regression or visual acceptance is claimed.
@@ -178,7 +178,7 @@ Supported action fields are `help`, `new_workspace`, `rename_workspace`, `worksp
 `detach`, `previous_workspace`, `next_workspace`, `new_tab`, `rename_tab`, `previous_tab`,
 `next_tab`, `move_tab_previous`, `move_tab_next`, `switch_tab`, `close_tab`,
 `focus_pane_left/down/up/right` (four fields), `split_vertical`, `split_horizontal`,
-`close_pane`, `zoom` (alias `fullscreen`) and `toggle_sidebar`. They invoke existing native actions;
+`close_pane`, `zoom` (alias `fullscreen`), `toggle_sidebar` and `reload_config`. They invoke existing native actions;
 Workspace means the native Workbench location, vertical split is rightward and horizontal is downward.
 
 ```toml
@@ -194,9 +194,35 @@ Windows `config check` v6 adds `keyPrefix` and `keyOverrides`; key configuration
 configuration failure v3. Older versions retain their closed field sets. The example lets new Tab
 replace the default next-Tab chord; empty `zoom` disables its shortcut. Bindings currently apply to
 the main TUI; CLI terminal-stream attach has a separate control-key path still to migrate. Complete
-keymap import, recovery through nonfatal diagnostics and hot reload remain future implementation.
+keymap import and recovery through nonfatal diagnostics remain future implementation.
 
 Function keys use the actual xterm F1–F12 sequence numbers (skipping 16 and 22), modified
 F1–F4, and kitty F1–F24. Modifier event tails retain press, repeat and release; invalid events or
 unrepresentable Hyper/Meta modifier bits never collapse into ordinary shortcuts. Availability of
 these keys still depends on the terminal host.
+
+## Live configuration reload
+
+Windows `site reload-config` requests a reload in the running Site; `site config` reads the last
+published revision. Neither activates a Site. Server freezes the startup configuration location,
+serializes reloads, validates the bounded whole file and prepares its canonical key profile before
+commit. Failure retains the previous revision, key profile and live manifest-check schedule.
+Revision 0 is a startup baseline, not a live publication. The first successful reload publishes revision 1; later revisions advance only when admitted settings change. Readers may observe busy
+while another reload owns admission. A submitted request with a lost reply is outcome-unknown;
+Clients do not automatically resubmit mutations and can read current state for recovery.
+
+Server commits the supported live manifest-check policy and publishes keys for connected main-TUI
+Clients. Publication is not an acknowledgement from every Client. Each Client owns a cancellable
+configuration watcher and applies only a validated newer profile between input packets; pending
+prefix state is cleared, editor/confirmation ownership and user drafts remain intact. Reload failure
+keeps current keys and produces a localized notice. The reload action itself is configurable through `reload_config`. The native default is prefix F5; Herdr uses prefix Shift+R, which conflicts with the existing native Project rename default. A profile such as `reload_config = "prefix+shift+r"` explicitly replaces that conflicting default.
+
+Changed default shell, shell mode or restore-on-start policy is explicitly returned in
+`restartRequired` relative to Site startup; existing Worker policy and already-restored sessions
+remain owned by their current lifetime. CLI directory/worktree defaults are caller reads on the next
+invocation. This is partial Herdr reload parity: strict whole-file rejection, Worker live defaults,
+unimplemented configuration families and Client-specific profile policy remain unfinished.
+The wire key profile is capped at 64 KiB; up to 144 expanded triggers per action preserve the user file limit of 16 indexed alternatives. Polling uses an independent cancellable connection every 500 ms, with a two-second exchange limit. A successful reload is published state, not an acknowledgement that every Client has applied it.
+
+No persisted configuration migration or automatic retry is introduced. Tests cover authorization,
+bounded serialization, failure retention, no-change reload, publication application and shutdown.

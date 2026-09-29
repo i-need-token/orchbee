@@ -41,6 +41,11 @@ import {
 } from './workbench-worktree-query-contract';
 import { z } from 'zod';
 import {
+	ConfigurationRequestSchema,
+	ConfigurationResultSchema,
+	WORKBENCH_MAXIMUM_ENCODED_CONFIGURATION_BYTES,
+} from './workbench-configuration-contract';
+import {
 	WorkbenchTerminalLaunchFieldsSchema,
 	normalizeWorkbenchTerminalLaunch,
 	WORKBENCH_MAXIMUM_ENCODED_LAUNCH_COMMAND_BYTES,
@@ -377,6 +382,7 @@ export const WorkbenchRequestSchema = z
 		WorkbenchWorktreeQuerySchema,
 		WorkspaceMetadataRequestSchema,
 		AgentManifestsRequestSchema,
+		ConfigurationRequestSchema,
 		PanelAgentRequestSchema,
 		PanelMetadataRequestSchema,
 		WorkbenchWorkspaceGroupCloseRequestSchema,
@@ -384,6 +390,8 @@ export const WorkbenchRequestSchema = z
 	])
 	.refine((value) => {
 		let maximum = WORKBENCH_MAXIMUM_ENCODED_INTENT_BYTES;
+		if (value.kind === 'workbench.configuration')
+			maximum = WORKBENCH_MAXIMUM_ENCODED_CONFIGURATION_BYTES;
 		if (value.kind === 'workbench.command' && value.action.kind === 'tab.create-layout')
 			maximum = WORKBENCH_MAXIMUM_ENCODED_LAYOUT_COMMAND_BYTES;
 		if (
@@ -755,6 +763,7 @@ export const WorkbenchResponseSchema = z
 		WorkbenchWorktreeQueryResultSchema,
 		WorkspaceMetadataResultSchema,
 		AgentManifestsResultSchema,
+		ConfigurationResultSchema,
 		PanelAgentResultSchema,
 		PanelMetadataResultSchema,
 		WorkbenchWorkspaceGroupCloseResultSchema,
@@ -776,6 +785,8 @@ export const WorkbenchResponseSchema = z
 			maximum = WORKBENCH_MAXIMUM_ENCODED_WORKSPACE_GROUP_CLOSE_RESULT_BYTES;
 		} else if (value.kind === 'workbench.agent-manifests.result') {
 			maximum = WORKBENCH_MAXIMUM_ENCODED_AGENT_MANIFESTS_BYTES;
+		} else if (value.kind === 'workbench.configuration.result') {
+			maximum = WORKBENCH_MAXIMUM_ENCODED_CONFIGURATION_BYTES;
 		} else if (value.kind === 'workbench.panel-agent.result') {
 			maximum = WORKBENCH_MAXIMUM_ENCODED_PANEL_AGENT_RESULT_BYTES;
 		} else if (value.kind === 'workbench.panel-metadata.result') {

@@ -68,6 +68,7 @@ pub(crate) struct PrefixMember {
 /// `localization.rs` behind this enum; grouped members share one row.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum PrefixDesc {
+    ReloadConfiguration,
     WorkspaceCreate,
     WorkspaceDirectory,
     WorkspaceRename,
@@ -338,6 +339,14 @@ pub(crate) static PREFIX_GROUPS: &[PrefixGroup] = &[
     PrefixGroup {
         members: &[member(key(KeyCode::Esc), ClientAction::DismissPrefix)],
         desc: PrefixDesc::DismissPrefix,
+    },
+    #[cfg(windows)]
+    PrefixGroup {
+        members: &[member(
+            key(KeyCode::F(5)),
+            ClientAction::ReloadConfiguration,
+        )],
+        desc: PrefixDesc::ReloadConfiguration,
     },
     // The exit binding stays last, per the keyboard-input standard.
     PrefixGroup {

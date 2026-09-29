@@ -7,6 +7,7 @@ mod panel_metadata_query;
 pub(crate) mod panel_terminal_creation;
 #[cfg(windows)]
 mod report_target;
+pub(crate) mod runtime_configuration;
 mod schema_export;
 pub(crate) mod workspace_metadata;
 pub(crate) use schema_export::run as export_schema;

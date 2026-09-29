@@ -326,3 +326,5 @@ Windows 设置也接纳严格布尔值 `[update] manifest_check`（默认 true�
 ## Windows 快捷键配置修复
 
 Windows 设置所有者提供有界离线快捷键恢复，保留配置语义，使用独占文件准入、已刷盘的私有备份和明确恢复结果。应用负责 CLI 回执与本地化；[配置契约](../../apps/orchbee/docs/windows-cli-configuration.zh-CN.md#恢复自定义快捷键) 负责策略、失败行为和备份生命周期。库不重载或启动进程。
+
+同一键位归属模块为 Client 在线发布编码和校验规范 `[keys]` 配置，上限 64 KiB、每动作 144 个展开触发键。用户文件仍限制 16 个候选；Server 和 Client 负责发布与安装。

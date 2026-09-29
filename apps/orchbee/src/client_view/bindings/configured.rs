@@ -291,6 +291,7 @@ fn action(name: &str) -> (PrefixAction, PrefixDesc, ShellCommand) {
     use ClientAction as A;
     use PrefixDesc as D;
     let (action, desc) = match name {
+        "reload_config" => (A::ReloadConfiguration, D::ReloadConfiguration),
         "help" => return (PrefixAction::ShowHelp, D::ShowHelp, ShellCommand::None),
         "workspace_picker" => {
             return (

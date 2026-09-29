@@ -473,6 +473,13 @@ export {
 	type AgentManifestUpdateReport,
 } from './workbench-agent-manifest-update-contract';
 export { AgentManifestActivationSchema } from './workbench-agent-manifests-contract';
+export {
+	ConfigurationRequestSchema,
+	ConfigurationResultSchema,
+	WORKBENCH_MAXIMUM_ENCODED_CONFIGURATION_BYTES,
+	type ConfigurationRequest,
+	type ConfigurationResult,
+} from './workbench-configuration-contract';
 
 export {
 	AgentManifestAutomaticSchema,

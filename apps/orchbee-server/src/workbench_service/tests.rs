@@ -13,6 +13,58 @@ fn response(execution: WorkbenchExecution) -> WorkbenchResponse {
     response
 }
 
+#[cfg(windows)]
+#[test]
+fn configuration_reads_and_reloads_require_their_own_grant_before_owner_admission() {
+    use orchbee_workbench_protocol::{
+        ConfigurationAction, ConfigurationFailure, ConfigurationOutcome, ConfigurationRequest,
+    };
+    let terminals = Arc::new(LocalTerminalService::new(Arc::new(Mutex::new(
+        WorkerRegistry::new(),
+    ))));
+    for (action, read, manage_navigation, denied) in [
+        (ConfigurationAction::Current, false, true, true),
+        (ConfigurationAction::Reload, true, false, true),
+        (ConfigurationAction::Current, true, false, false),
+        (ConfigurationAction::Reload, false, true, false),
+    ] {
+        let service = WorkbenchService::new(
+            WorkbenchPolicy {
+                read,
+                manage_navigation,
+                associate_directory: false,
+                create_terminal: false,
+                manage_terminal_lifecycle: false,
+            },
+            Arc::clone(&terminals),
+        );
+        let WorkbenchResponse::Configuration(result) = response(service.execute(
+            WorkbenchRequest::Configuration(ConfigurationRequest {
+                protocol_version: ProtocolVersion,
+                request_id: WorkbenchRequestId::parse(&format!("{:032x}", 1)).unwrap(),
+                site_id: orchbee_workbench_protocol::SiteId::parse(&format!("{:032x}", 2)).unwrap(),
+                action,
+            }),
+        )) else {
+            panic!("typed configuration result");
+        };
+        assert_eq!(
+            matches!(
+                result.outcome,
+                ConfigurationOutcome::Failed {
+                    reason: ConfigurationFailure::Denied,
+                    ..
+                }
+            ),
+            denied
+        );
+        assert!(
+            matches!(result.outcome, ConfigurationOutcome::Failed { .. }),
+            "uninitialized owner never fabricates publication"
+        );
+    }
+}
+
 #[test]
 fn navigation_permission_alone_denies_tab_create_before_terminal_or_ledger_effects() {
     let terminals = Arc::new(LocalTerminalService::new(Arc::new(Mutex::new(

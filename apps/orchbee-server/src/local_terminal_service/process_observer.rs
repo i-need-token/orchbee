@@ -32,6 +32,12 @@ pub(super) struct ProcessObserver {
     handle: Mutex<Option<JoinHandle<()>>>,
 }
 impl ProcessObserver {
+    pub(super) fn apply_configuration(
+        &self,
+        settings: &orchbee_local_site_runtime::WindowsUserSettings,
+    ) -> bool {
+        self.wake.manifests.apply_configuration(settings)
+    }
     fn cancel(&self) {
         self.wake.stop.store(true, Ordering::Release);
         self.wake.explanations.cancel();
@@ -64,6 +70,7 @@ impl ProcessObserver {
             background,
             !cfg!(debug_assertions) && !cfg!(test),
         )?;
+        service.configuration.initialize(&settings)?;
         let service = Arc::downgrade(service);
         let wake = Arc::clone(&self.wake);
         let spawned = thread::Builder::new()

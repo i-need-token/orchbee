@@ -39,6 +39,10 @@ pub(crate) const PROJECT_RENAME_RESULT_ID: &str = "orchbee.project.rename";
 /// `schema` id → embedded document, in dictionary order.
 const DOCUMENTS: &[(&str, &str)] = &[
     (
+        "orchbee.site.configuration",
+        include_str!("schemas/orchbee.site.configuration.json"),
+    ),
+    (
         "orchbee.config.reset-keys",
         include_str!("schemas/orchbee.config.reset-keys.json"),
     ),
@@ -474,8 +478,8 @@ pub(crate) fn answer(schema_id: Option<&str>, format: OutputFormat, locale: Loca
     };
     let document = json!({
         "schema": "orchbee.api.schema",
-        // Config check v5 and configuration failure v2 admit Windows shell settings.
-        "version": 102,
+        // Adds the running-Site configuration publication receipt.
+        "version": 103,
         "source": embedded_source(),
         "result": result,
     });

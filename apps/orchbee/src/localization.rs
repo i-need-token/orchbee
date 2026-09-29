@@ -1,3 +1,4 @@
+mod runtime_configuration;
 #[cfg(test)]
 use crate::client_view::{PREFIX_CHORD, PrefixGroup};
 use std::ffi::OsString;
@@ -29,6 +30,7 @@ const ZH_CN_USAGE_FAILURE: &str = "调用方式无效。请运行 ‘orchbee --h
 
 fn en_us_prefix_desc(desc: PrefixDesc) -> &'static str {
     match desc {
+        PrefixDesc::ReloadConfiguration => "Reload Site configuration",
         PrefixDesc::WorkspaceCreate => "Create a Workspace in an existing or new Project",
         PrefixDesc::WorkspaceDirectory => "Configure an empty Workspace's first directory",
         PrefixDesc::WorkspaceRename => "Rename current Workspace",
@@ -63,6 +65,7 @@ fn en_us_prefix_desc(desc: PrefixDesc) -> &'static str {
 
 fn zh_cn_prefix_desc(desc: PrefixDesc) -> &'static str {
     match desc {
+        PrefixDesc::ReloadConfiguration => "重载 Site 配置",
         PrefixDesc::WorkspaceCreate => "在现有或新建 Project 中创建 Workspace",
         PrefixDesc::WorkspaceDirectory => "配置空 Workspace 的首个目录",
         PrefixDesc::WorkspaceRename => "重命名当前 Workspace",
@@ -362,6 +365,34 @@ impl Locale {
 
     pub(crate) const fn shell_notice(self, notice: Option<Notice>) -> &'static str {
         match (self, notice) {
+            (Self::EnUs, Some(Notice::ConfigurationPublished)) => {
+                "Configuration published; keys updated"
+            }
+            (Self::ZhCn, Some(Notice::ConfigurationPublished)) => "配置已发布；键位已更新",
+            (Self::EnUs, Some(Notice::ConfigurationRestart)) => {
+                "Keys updated; some Site settings need a restart"
+            }
+            (Self::ZhCn, Some(Notice::ConfigurationRestart)) => {
+                "键位已更新；部分 Site 设置需要重启"
+            }
+            (Self::EnUs, Some(Notice::ConfigurationUnknown)) => {
+                "Reload outcome unknown; inspect site config"
+            }
+            (Self::ZhCn, Some(Notice::ConfigurationUnknown)) => "重载结果未知；请查看 site config",
+            (
+                Self::EnUs,
+                Some(
+                    Notice::ConfigurationFailed
+                    | Notice::BackendUnavailable(BackendAction::ReloadConfiguration),
+                ),
+            ) => "Reload failed; previous keys retained",
+            (
+                Self::ZhCn,
+                Some(
+                    Notice::ConfigurationFailed
+                    | Notice::BackendUnavailable(BackendAction::ReloadConfiguration),
+                ),
+            ) => "重载失败；保留此前键位",
             (Self::EnUs, Some(Notice::BackendUnavailable(BackendAction::RenameWorkspace))) => {
                 "Workspace rename unavailable · no command was sent"
             }

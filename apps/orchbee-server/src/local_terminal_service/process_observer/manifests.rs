@@ -57,6 +57,23 @@ struct State {
     stopped: bool,
 }
 impl Registry {
+    pub(super) fn apply_configuration(&self, settings: &WindowsUserSettings) -> bool {
+        let Ok(mut lock) = self.0.lock() else {
+            return false;
+        };
+        let Some(state) = lock.as_mut() else {
+            return false;
+        };
+        if state.stopped || state.active.is_some() {
+            return false;
+        }
+        let Some(schedule) = state.schedule.as_mut() else {
+            return false;
+        };
+        schedule.apply(settings, Instant::now());
+        true
+    }
+
     #[cfg(test)]
     pub(super) fn initialize(
         &self,
@@ -437,6 +454,49 @@ impl LocalTerminalService {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn configuration_apply_changes_live_schedule_but_refuses_active_or_stopped_maintenance() {
+        let registry = Registry::default();
+        let startup = WindowsUserSettings::default();
+        registry
+            .initialize_settings(&startup, &ScreenDetector::bundled().unwrap(), true, true)
+            .unwrap();
+        let disabled = WindowsUserSettings {
+            manifest_check: false,
+            manifest_check_source: "file",
+            ..startup.clone()
+        };
+        assert!(registry.apply_configuration(&disabled));
+        {
+            let mut slot = registry.0.lock().unwrap();
+            let state = slot.as_mut().unwrap();
+            assert!(!state.schedule.as_ref().unwrap().project(true).enabled);
+            state.active = Some(Owner::Automatic);
+        }
+        assert!(!registry.apply_configuration(&startup));
+        {
+            let mut slot = registry.0.lock().unwrap();
+            let state = slot.as_mut().unwrap();
+            assert!(!state.schedule.as_ref().unwrap().project(true).enabled);
+            state.active = None;
+        }
+        assert!(registry.apply_configuration(&startup));
+        assert!(
+            registry
+                .0
+                .lock()
+                .unwrap()
+                .as_ref()
+                .unwrap()
+                .schedule
+                .as_ref()
+                .unwrap()
+                .project(true)
+                .enabled
+        );
+        registry.cancel();
+        assert!(!registry.apply_configuration(&disabled));
+    }
     fn id(n: u64) -> WorkbenchRequestId {
         WorkbenchRequestId::parse(&format!("{n:032x}")).unwrap()
     }

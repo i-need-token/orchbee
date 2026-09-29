@@ -15,7 +15,7 @@ use std::{
 
 const LIMIT: u64 = 64 * 1024;
 
-#[derive(Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct WindowsUserSettings {
     pub keys: WindowsKeySettings,
     pub shell: WindowsShellSettings,

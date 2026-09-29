@@ -1,0 +1,198 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://orchbee.dev/schemas/workbench/v1/workbench-configuration.schema.json",
+	"title": "Site configuration publication",
+	"$comment": "Bindings additionally enforce 128 KiB encoded frames, Unicode scalar strings and UTF-8 byte bounds.",
+	"oneOf": [
+		{
+			"$ref": "#/$defs/request"
+		},
+		{
+			"$ref": "#/$defs/result"
+		}
+	],
+	"$defs": {
+		"identity": {
+			"type": "string",
+			"pattern": "^[0-9a-f]{32}$",
+			"not": {
+				"const": "00000000000000000000000000000000"
+			}
+		},
+		"diagnostic": {
+			"oneOf": [
+				{
+					"type": "null"
+				},
+				{
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 128,
+					"pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]+$"
+				}
+			]
+		},
+		"snapshot": {
+			"type": "object",
+			"required": ["revision", "keysProfile", "manifestCheck", "restartRequired"],
+			"additionalProperties": false,
+			"properties": {
+				"revision": {
+					"type": "string",
+					"pattern": "^(0|[1-9][0-9]{0,19})$",
+					"maxLength": 20,
+					"format": "orchbee-uint64"
+				},
+				"keysProfile": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 65536
+				},
+				"manifestCheck": {
+					"type": "boolean"
+				},
+				"restartRequired": {
+					"type": "array",
+					"maxItems": 3,
+					"uniqueItems": true,
+					"items": {
+						"enum": [
+							"terminal.default_shell",
+							"terminal.shell_mode",
+							"session.resume_agents_on_restore"
+						]
+					}
+				}
+			}
+		},
+		"request": {
+			"type": "object",
+			"required": ["kind", "protocolVersion", "requestId", "siteId", "action"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": {
+					"const": "workbench.configuration"
+				},
+				"protocolVersion": {
+					"const": 1
+				},
+				"requestId": {
+					"$ref": "#/$defs/identity"
+				},
+				"siteId": {
+					"$ref": "#/$defs/identity"
+				},
+				"action": {
+					"enum": ["current", "reload"]
+				}
+			}
+		},
+		"result": {
+			"type": "object",
+			"required": ["kind", "protocolVersion", "requestId", "siteId", "outcome"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": {
+					"const": "workbench.configuration.result"
+				},
+				"protocolVersion": {
+					"const": 1
+				},
+				"requestId": {
+					"$ref": "#/$defs/identity"
+				},
+				"siteId": {
+					"$ref": "#/$defs/identity"
+				},
+				"outcome": {
+					"oneOf": [
+						{
+							"type": "object",
+							"required": ["kind", "snapshot"],
+							"additionalProperties": false,
+							"properties": {
+								"kind": {
+									"const": "current"
+								},
+								"snapshot": {
+									"$ref": "#/$defs/snapshot"
+								}
+							}
+						},
+						{
+							"type": "object",
+							"required": ["kind", "snapshot", "changed"],
+							"additionalProperties": false,
+							"properties": {
+								"kind": {
+									"const": "reloaded"
+								},
+								"snapshot": {
+									"$ref": "#/$defs/snapshot"
+								},
+								"changed": {
+									"type": "boolean"
+								}
+							}
+						},
+						{
+							"type": "object",
+							"required": ["kind", "reason", "field", "detail"],
+							"additionalProperties": false,
+							"properties": {
+								"kind": {
+									"const": "failed"
+								},
+								"reason": {
+									"enum": [
+										"denied",
+										"unavailable",
+										"site-mismatch",
+										"busy",
+										"load-failed",
+										"revision-exhausted"
+									]
+								},
+								"field": {
+									"$ref": "#/$defs/diagnostic"
+								},
+								"detail": {
+									"$ref": "#/$defs/diagnostic"
+								}
+							},
+							"allOf": [
+								{
+									"oneOf": [
+										{
+											"properties": {
+												"field": {
+													"type": "null"
+												},
+												"detail": {
+													"type": "null"
+												}
+											}
+										},
+										{
+											"properties": {
+												"field": {
+													"type": "string"
+												},
+												"detail": {
+													"type": "string"
+												},
+												"reason": {
+													"const": "load-failed"
+												}
+											}
+										}
+									]
+								}
+							]
+						}
+					]
+				}
+			}
+		}
+	}
+}

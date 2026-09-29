@@ -92,7 +92,7 @@ Windows `config reset-keys [--format text|json]` 是离线配置修复操作，�
 删除；清理失败则暴露准确路径。不自动准入 Site、重载、启动进程或改写无关设置。
 
 纯变换、独占文件／备份检查、注入写入／恢复失败以及真实 Windows CLI 进程测试覆盖本契约。
-完整快捷键、配置重载和最终 Windows 替换验收仍是独立待办。
+完整快捷键、完整重载对齐和最终 Windows 替换验收仍是独立待办。
 
 ## Windows 配置 Shell
 
@@ -100,7 +100,7 @@ Windows `config reset-keys [--format text|json]` 是离线配置修复操作，�
 
 `terminal.shell_mode` 仅接受 `auto`（默认）、`login`、`non_login`。Windows 上 auto/non_login 不增加参数；login 只给 sh、bash、zsh、ksh、dash、ash、mksh、fish、csh、tcsh 添加 `-l`，名称忽略大小写和可选 `.exe` 后缀。其他 Shell 不加登录参数。已有 PowerShell 提示符集成在选择 Shell 后执行。显式可执行文件和 Launch Profile 保留原参数，绕过默认 Shell 选择。
 
-Client 激活在提交前连同已有配置冻结这两个值。匹配版本的 Server 把私有快照传给 Worker，不重读配置。Worker 持有快照，贯穿延迟 Host 启动、后续终端准备、CLI/TUI 新建和默认 Shell 恢复。非托管 Worker 直接启动在接入前读取并校验一次配置。已准备操作及重放保留确定的启动事实。编辑文件不改变运行中的 Shell 或 Worker 策略；通用热重载完成前需要新的 Site 生命周期。Windows `config check` v5 报告 `defaultShell`、`shellMode`，旧版本保持封闭。Shell 专属创建错误使用 configuration failure v2，v1 保留原字段和原因集合。这些值代表配置，不保证程序实际能启动。
+Client 激活在提交前连同已有配置冻结这两个值。匹配版本的 Server 把私有快照传给 Worker，不重读配置。Worker 持有快照，贯穿延迟 Host 启动、后续终端准备、CLI/TUI 新建和默认 Shell 恢复。非托管 Worker 直接启动在接入前读取并校验一次配置。已准备操作及重放保留确定的启动事实。编辑文件不改变运行中的 Shell 或 Worker 策略；Worker 的 Shell 默认值仍需新的 Site 生命周期生效，在线重载通过 `restartRequired` 明确返回这些变化。Windows `config check` v5 报告 `defaultShell`、`shellMode`，旧版本保持封闭。Shell 专属创建错误使用 configuration failure v2，v1 保留原字段和原因集合。这些值代表配置，不保证程序实际能启动。
 
 共享解析器、私有快照接入、Worker 启动解析、显式覆盖与运行循环测试，以及真实 Windows CLI 检查覆盖本契约。不修改公开线协议或持久化检查点；部署和回退均使用匹配的整套程序。
 
@@ -108,8 +108,8 @@ Client 激活在提交前连同已有配置冻结这两个值。匹配版本的 
 
 ## Windows Client 按键配置
 
-有界共享设置读取器在 Client 启动前接纳 `[keys]`。每个 Client 拥有不可变绑定快照；
-编辑文件或重置在下一个 Client 生效。Client 将已实现的语义动作映射到默认注册表。
+有界共享设置读取器在 Client 启动前接纳 `[keys]`。每个 Client 在在线发布前持有不可变绑定快照；
+编辑文件或重置在下一个 Client 或显式在线重载后生效。Client 将已实现的语义动作映射到默认注册表。
 用户覆盖替换该动作的默认绑定，并取代冲突的默认按键。用户绑定歧义、未支持动作或
 语法错误会拒绝接纳。这种严格失败策略与 Herdr 的诊断并禁用策略有差异，仍明确列为缺口。
 
@@ -120,7 +120,7 @@ Client 激活在提交前连同已有配置冻结这两个值。匹配版本的 
 双前缀优先发送规范 C0，否则发送原始字节，不再硬编码回退为 Ctrl+B。
 
 解析后的注册表同时提供分发、帮助行和主要实时提示。禁用动作保留在帮助中。现有原生
-默认值保留；未支持的 Herdr 字段明确失败。通用重载、自定义命令、导航模式映射、
+默认值保留；未支持的 Herdr 字段明确失败。完整重载对齐、自定义命令、导航模式映射、
 Agent/按序 Workspace 按键及其他未支持动作仍未完成。定向证据覆盖边界、冲突与默认
 优先级、输入归属、分发及发现；不宣称全量回归或视觉验收通过。
 
@@ -129,7 +129,7 @@ Agent/按序 Workspace 按键及其他未支持动作仍未完成。定向证据
 `detach`、`previous_workspace`、`next_workspace`、`new_tab`、`rename_tab`、`previous_tab`、
 `next_tab`、`move_tab_previous`、`move_tab_next`、`switch_tab`、`close_tab`、
 `focus_pane_left/down/up/right`（四个字段）、`split_vertical`、`split_horizontal`、
-`close_pane`、`zoom`（别名 `fullscreen`）和 `toggle_sidebar`。它们调用现有原生动作；
+`close_pane`、`zoom`（别名 `fullscreen`）、`toggle_sidebar` 和 `reload_config`。它们调用现有原生动作；
 Workspace 对应原生 Workbench 位置，竖向分屏向右、横向分屏向下。
 
 ```toml
@@ -144,8 +144,29 @@ zoom = ""
 Windows `config check` v6 增加 `keyPrefix`、`keyOverrides`，按键配置错误使用
 configuration failure v3；旧版本保留封闭字段集合。示例让新建 Tab 取代默认的下一 Tab
 快捷键；空 `zoom` 禁用放大快捷键。当前绑定只在主 TUI 使用，CLI 终端流 attach 的
-独立控制按键尚未迁移。全量键位导入、无害警告恢复和热重载仍需后续实现。
+独立控制按键尚未迁移。全量键位导入和无害警告恢复仍需后续实现。
 
 功能键使用 xterm 的实际 F1–F12 序列编号（跳过 16 和 22），带修饰符的 F1–F4
 以及 kitty F1–F24。修饰符事件尾部保留按下、重复和释放；无效事件或无法表示的
 Hyper/Meta 修饰位不会降级为普通快捷键。宿主是否实际提供这些按键仍取决于终端。
+
+## 在线配置重载
+
+Windows `site reload-config` 请求运行中 Site 重载；`site config` 读取最后发布的版本。
+两者均不激活 Site。Server 冻结启动配置位置，串行接纳重载，验证整个有界文件并准备
+规范键位配置后才提交。失败保留原版本、键位和在线 manifest-check 调度。版本 0 仅是启动基线，不是在线发布；首次成功重载发布版本 1，之后仅在已接纳设置变化时版本递增。另一重载持有接纳权时读取可返回忙。提交后丢失响应属于结果未知；
+Client 不自动重发变更，可通过读取当前状态恢复判断。
+
+Server 提交已支持的在线 manifest-check 策略，并向连接中的主 TUI Client 发布键位。
+发布不等于所有 Client 都已确认应用。每个 Client 拥有可取消的配置观察线程，仅在输入包
+之间应用已验证的新版本配置；清除待处理前缀，保留编辑器/确认归属和草稿。重载失败
+保留现有键位并显示本地化提示。重载动作可通过 `reload_config` 配置。原生默认是前缀 F5；Herdr 使用前缀 Shift+R，与原生已有的 Project 重命名默认冲突。配置 `reload_config = "prefix+shift+r"` 会明确替换该冲突默认。
+
+默认 Shell、Shell 模式和启动恢复策略相对 Site 启动时的变化通过 `restartRequired`
+明确返回；现有 Worker 策略和已恢复会话仍由当前生命周期拥有。CLI 目录/worktree 默认值
+在下一次调用读取。这是部分 Herdr 重载对齐：严格整文件拒绝、Worker 在线默认值、
+未实现的配置族和 Client 独立配置策略仍待补全。
+在线键位配置上限为 64 KiB；每动作最多 144 个展开触发键，容纳用户文件最多 16 个数字范围候选。独立可取消连接每 500 毫秒读取一次，单次交换限时两秒。成功重载表示已发布，不表示每个 Client 都已应用。
+
+不新增持久化格式迁移或自动重试。
+测试覆盖授权、有界序列化、失败保留、无变化重载、发布应用及关闭。

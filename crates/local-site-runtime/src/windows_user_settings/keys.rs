@@ -2,6 +2,7 @@
 use super::WindowsSettingsError;
 
 const ACTIONS: &[&str] = &[
+    "reload_config",
     "help",
     "new_workspace",
     "rename_workspace",
@@ -76,6 +77,9 @@ fn error(reason: &'static str) -> WindowsSettingsError {
 
 impl WindowsKeySettings {
     pub(super) fn parse(value: &toml::Value) -> Result<Self, WindowsSettingsError> {
+        Self::parse_with_limit(value, 16)
+    }
+    fn parse_with_limit(value: &toml::Value, limit: usize) -> Result<Self, WindowsSettingsError> {
         let table = value.as_table().ok_or(error("wrong-type"))?;
         let mut result = Self::default();
         if let Some(value) = table.get("prefix") {
@@ -100,7 +104,7 @@ impl WindowsKeySettings {
             }
             let values = match value {
                 toml::Value::String(value) => vec![value.as_str()],
-                toml::Value::Array(values) if values.len() <= 16 => values
+                toml::Value::Array(values) if values.len() <= limit => values
                     .iter()
                     .map(|value| value.as_str().ok_or(error("wrong-type")))
                     .collect::<Result<Vec<_>, _>>()?,
@@ -148,6 +152,9 @@ impl WindowsKeySettings {
                             .any(|entry| entry.triggers.contains(&trigger))
                     {
                         return Err(error("duplicate-binding"));
+                    }
+                    if triggers.len() >= 144 {
+                        return Err(error("too-many-bindings"));
                     }
                     triggers.push(trigger);
                 }
@@ -258,3 +265,54 @@ fn parse_chord(raw: &str) -> Result<WindowsKeyChord, WindowsSettingsError> {
 
 #[cfg(test)]
 mod tests;
+
+impl WindowsKeySettings {
+    pub fn from_profile(profile: &str) -> Result<Self, WindowsSettingsError> {
+        if profile.len() > 64 * 1024 {
+            return Err(error("too-large"));
+        }
+        let value: toml::Table = toml::from_str(profile).map_err(|_| error("invalid-toml"))?;
+        if value.len() != 1 {
+            return Err(error("unknown-key"));
+        }
+        Self::parse_with_limit(value.get("keys").ok_or(error("unknown-key"))?, 144)
+    }
+    pub fn profile(&self) -> String {
+        fn chord(value: &WindowsKeyChord) -> String {
+            let mut parts = Vec::new();
+            for (enabled, name) in [
+                (value.ctrl, "ctrl"),
+                (value.alt, "alt"),
+                (value.shift, "shift"),
+                (value.super_key, "super"),
+            ] {
+                if enabled {
+                    parts.push(name);
+                }
+            }
+            parts.push(match value.key.as_str() {
+                " " => "space",
+                "+" => "plus",
+                key => key,
+            });
+            parts.join("+")
+        }
+        let quoted = |value: &str| serde_json::to_string(value).expect("strings always encode");
+        let mut text = format!("[keys]\nprefix={}\n", quoted(&chord(&self.prefix)));
+        for setting in &self.overrides {
+            let values: Vec<_> = setting
+                .triggers
+                .iter()
+                .map(|trigger| {
+                    quoted(&format!(
+                        "{}{}",
+                        if trigger.prefix { "prefix+" } else { "" },
+                        chord(&trigger.chord)
+                    ))
+                })
+                .collect();
+            text.push_str(&format!("{}=[{}]\n", setting.action, values.join(",")));
+        }
+        text
+    }
+}

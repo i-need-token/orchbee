@@ -1,5 +1,7 @@
 #[cfg(windows)]
 mod client_control;
+#[cfg(windows)]
+mod configuration;
 #[cfg(test)]
 use crate::terminal_projection::TerminalProjection;
 use crate::{
@@ -149,6 +151,8 @@ enum SessionTask {
 
 pub(crate) struct TerminalSession {
     #[cfg(windows)]
+    configuration: Option<configuration::Watcher>,
+    #[cfg(windows)]
     client_control: Option<client_control::ClientControl>,
     backend: SessionBackend,
     task: Option<SessionTask>,
@@ -190,6 +194,8 @@ impl TerminalSession {
                 #[cfg(any(target_os = "linux", windows))]
                 native.set_agent_board_origin(origin.clone());
                 Ok(Self {
+                    #[cfg(windows)]
+                    configuration: None,
                     #[cfg(windows)]
                     client_control,
                     backend: SessionBackend::Native(Box::new(native)),
@@ -249,6 +255,8 @@ impl TerminalSession {
         Ok(Self {
             #[cfg(windows)]
             client_control: None,
+            #[cfg(windows)]
+            configuration: None,
             backend: SessionBackend::Legacy(Box::new(LegacySession {
                 commands: Some(commands),
                 events: Some(events),
@@ -319,6 +327,27 @@ impl TerminalSession {
         view: &mut crate::client_view::ClientView,
         viewport: ratatui::layout::Rect,
     ) -> bool {
+        let mut configuration_changed = false;
+        match &self.backend {
+            SessionBackend::Native(native) => {
+                if self.configuration.is_none()
+                    && let Some(origin) = &self.origin
+                    && let Some((site, _)) = native.control_observation(false)
+                {
+                    self.configuration = configuration::Watcher::spawn(
+                        origin.clone(),
+                        native.configuration_clock(),
+                        site,
+                    )
+                    .ok();
+                }
+                if let Some(watcher) = &mut self.configuration {
+                    configuration_changed = watcher.tick(view);
+                }
+            }
+            #[cfg(test)]
+            SessionBackend::Legacy(_) => {}
+        }
         match (&mut self.client_control, &mut self.backend) {
             (Some(control), SessionBackend::Native(native)) => {
                 control.observe_geometry(viewport, view.sidebar_surface());
@@ -327,9 +356,9 @@ impl TerminalSession {
                 if control.take_shell_mode_dismissal() {
                     view.dismiss_focus_modes();
                 }
-                changed
+                changed || configuration_changed
             }
-            _ => false,
+            _ => configuration_changed,
         }
     }
 
@@ -669,6 +698,14 @@ impl TerminalInputPort for TerminalSession {
 
     fn apply_client_action(&mut self, action: ClientAction) -> Option<SessionActionDisposition> {
         #[cfg(windows)]
+        if action == ClientAction::ReloadConfiguration {
+            return self
+                .configuration
+                .as_ref()
+                .filter(|watcher| watcher.reload())
+                .map(|_| SessionActionDisposition::KeepNavigator);
+        }
+        #[cfg(windows)]
         if let Some(control) = &mut self.client_control {
             control.interrupt();
         }
@@ -700,6 +737,10 @@ impl TerminalInputPort for TerminalSession {
 
 impl Drop for TerminalSession {
     fn drop(&mut self) {
+        #[cfg(windows)]
+        if let Some(watcher) = &mut self.configuration {
+            watcher.close();
+        }
         #[cfg(windows)]
         if let Some(control) = &mut self.client_control {
             control.close();

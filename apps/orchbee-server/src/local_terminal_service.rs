@@ -1,3 +1,5 @@
+#[cfg(windows)]
+mod configuration;
 use std::{
     num::NonZeroU64,
     sync::{Arc, Mutex},
@@ -67,6 +69,8 @@ const AGENT_DRAIN_READ_RETRY: Duration = Duration::from_millis(25);
 
 pub(crate) struct LocalTerminalService {
     #[cfg(windows)]
+    configuration: configuration::Registry,
+    #[cfg(windows)]
     process_observer: process_observer::ProcessObserver,
     close_maintenance: close_maintenance::CloseMaintenance,
     worktree_maintenance: operation_maintenance::OperationMaintenance,
@@ -103,6 +107,8 @@ impl LocalTerminalService {
         workbench: Option<orchbee_server::WorkbenchAuthority>,
     ) -> Self {
         Self {
+            #[cfg(windows)]
+            configuration: configuration::Registry::default(),
             close_maintenance: close_maintenance::CloseMaintenance::default(),
             #[cfg(windows)]
             process_observer: process_observer::ProcessObserver::default(),

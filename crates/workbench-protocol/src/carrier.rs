@@ -85,6 +85,7 @@ pub fn write_workbench_response(
 
 fn request_kind(request: &WorkbenchRequest) -> u16 {
     match request {
+        WorkbenchRequest::Configuration(_) => 39,
         WorkbenchRequest::AgentManifests(_) => 37,
         WorkbenchRequest::PanelAgent(_) => 35,
         WorkbenchRequest::PanelMetadata(_) => 33,
@@ -122,6 +123,7 @@ fn request_kind(request: &WorkbenchRequest) -> u16 {
 
 fn response_kind(response: &WorkbenchResponse) -> u16 {
     match response {
+        WorkbenchResponse::Configuration(_) => 40,
         WorkbenchResponse::AgentManifests(_) => 38,
         WorkbenchResponse::PanelAgent(_) => 36,
         WorkbenchResponse::PanelMetadata(_) => 34,
@@ -178,18 +180,38 @@ fn read_frame(reader: &mut impl Read, request: bool) -> Result<(u16, Vec<u8>), W
                     | 33
                     | 35
                     | 37
+                    | 39
             ))
         || (!request
             && !matches!(
                 kind,
-                3 | 4 | 6 | 8 | 10 | 12 | 14 | 16 | 18 | 20 | 22 | 24 | 26 | 28 | 32 | 34 | 36 | 38
+                3 | 4
+                    | 6
+                    | 8
+                    | 10
+                    | 12
+                    | 14
+                    | 16
+                    | 18
+                    | 20
+                    | 22
+                    | 24
+                    | 26
+                    | 28
+                    | 32
+                    | 34
+                    | 36
+                    | 38
+                    | 40
             ))
     {
         return Err(WorkbenchWireError::InvalidHeader);
     }
     let length = u32::from_be_bytes([header[8], header[9], header[10], header[11]]);
     let actual = usize::try_from(length).map_err(|_error| WorkbenchWireError::InvalidHeader)?;
-    let maximum = if kind == 38 {
+    let maximum = if matches!(kind, 39 | 40) {
+        crate::MAXIMUM_CONFIGURATION_BYTES
+    } else if kind == 38 {
         crate::MAXIMUM_ENCODED_AGENT_MANIFESTS_BYTES
     } else if kind == 36 {
         crate::MAXIMUM_ENCODED_PANEL_AGENT_RESULT_BYTES

@@ -41,6 +41,7 @@ pub(crate) enum PanelDirection {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum BackendAction {
+    ReloadConfiguration,
     CreateWorkspace,
     ConfigureWorkspaceDirectory,
     RenameWorkspace,
@@ -64,6 +65,7 @@ pub(crate) enum BackendAction {
 // Not `Copy`: `FocusPanel` carries a `WorkbenchPanelId` (heap identity).
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum ClientAction {
+    ReloadConfiguration,
     RequestWorkspaceCreate,
     RequestWorkspaceDirectory,
     RequestWorkspaceRename,
@@ -121,6 +123,10 @@ pub(crate) enum ClientAction {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum Notice {
+    ConfigurationPublished,
+    ConfigurationRestart,
+    ConfigurationFailed,
+    ConfigurationUnknown,
     BackendUnavailable(BackendAction),
     TerminalInputUnavailable,
     UnknownPrefix,
@@ -189,6 +195,7 @@ impl ClientTransition {
 impl ClientAction {
     pub(crate) fn backend_action(&self) -> Option<BackendAction> {
         match self {
+            Self::ReloadConfiguration => Some(BackendAction::ReloadConfiguration),
             Self::RequestWorkspaceCreate => Some(BackendAction::CreateWorkspace),
             Self::RequestWorkspaceDirectory => Some(BackendAction::ConfigureWorkspaceDirectory),
             Self::RequestWorkspaceRename => Some(BackendAction::RenameWorkspace),
@@ -371,6 +378,10 @@ impl ClientView {
         {
             self.overlay = None;
         }
+    }
+
+    pub(crate) fn configuration_notice(&mut self, notice: Notice) {
+        self.notice = Some(notice);
     }
 
     pub(crate) fn bindings(&self) -> &Bindings {

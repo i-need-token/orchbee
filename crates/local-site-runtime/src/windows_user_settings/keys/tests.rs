@@ -67,7 +67,6 @@ fn key_configuration_rejects_ambiguous_reserved_unsafe_and_unimplemented_values(
         ("help=3", "wrong-type"),
         ("help=['f1', false]", "wrong-type"),
         ("command=[]", "unknown-key"),
-        ("reload_config='prefix+R'", "unknown-key"),
     ] {
         assert_eq!(read(body).unwrap_err().reason, reason, "{body}");
     }
@@ -96,4 +95,16 @@ fn key_configuration_is_bounded_and_preserves_complete_modifiers() {
     assert_eq!(read(&body).unwrap_err().reason, "too-many-bindings");
     assert!(parse_chord(&"x".repeat(129)).is_err());
     assert!(parse_chord("ctrl+\nq").is_err());
+}
+
+#[test]
+fn key_profile_roundtrip_preserves_expanded_ranges_and_reload_action() {
+    let settings = read("prefix='ctrl+a'\nreload_config='prefix+R'\nswitch_tab=['alt+1..9','prefix+1..9']\nzoom='' ").unwrap();
+    assert_eq!(
+        WindowsKeySettings::from_profile(&settings.profile()).unwrap(),
+        settings
+    );
+    assert!(WindowsKeySettings::from_profile("[keys]\nhelp='ctrl+c'").is_err());
+    assert!(WindowsKeySettings::from_profile("[keys]\n[terminal]\n").is_err());
+    assert!(WindowsKeySettings::from_profile(&"x".repeat(65537)).is_err());
 }

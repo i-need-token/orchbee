@@ -1,3 +1,5 @@
+pub(crate) mod configuration;
+use configuration::*;
 pub(crate) mod agent_manifest_update;
 pub(crate) mod agent_manifests;
 use agent_manifests::*;
@@ -847,6 +849,8 @@ pub struct WorkbenchCommand {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind")]
 pub enum WorkbenchRequest {
+    #[serde(rename = "workbench.configuration")]
+    Configuration(ConfigurationRequest),
     #[serde(rename = "workbench.agent-manifests")]
     AgentManifests(AgentManifestsRequest),
     #[serde(rename = "workbench.panel-agent")]
@@ -1214,6 +1218,8 @@ pub struct WorkbenchSnapshotResult {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind")]
 pub enum WorkbenchResponse {
+    #[serde(rename = "workbench.configuration.result")]
+    Configuration(ConfigurationResult),
     #[serde(rename = "workbench.agent-manifests.result")]
     AgentManifests(AgentManifestsResult),
     #[serde(rename = "workbench.panel-agent.result")]
@@ -1327,6 +1333,9 @@ fn validate_request(request: &WorkbenchRequest) -> Result<(), ContractError> {
 }
 
 fn request_byte_limit(request: &WorkbenchRequest) -> usize {
+    if matches!(request, WorkbenchRequest::Configuration(_)) {
+        return MAXIMUM_CONFIGURATION_BYTES;
+    }
     if matches!(
         request,
         WorkbenchRequest::Command(WorkbenchCommand {
@@ -1416,6 +1425,10 @@ fn validate_response(response: &WorkbenchResponse, encoded: &[u8]) -> Result<(),
         return Err(ContractError::InvalidDocument);
     }
     match response {
+        WorkbenchResponse::Configuration(result) => {
+            enforce_encoded_limit(encoded, MAXIMUM_CONFIGURATION_BYTES)?;
+            result.validate()
+        }
         WorkbenchResponse::AgentManifests(result) => {
             enforce_encoded_limit(encoded, MAXIMUM_ENCODED_AGENT_MANIFESTS_BYTES)?;
             result.validate()

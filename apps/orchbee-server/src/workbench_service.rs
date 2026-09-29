@@ -62,6 +62,7 @@ impl WorkbenchService {
 
     pub(crate) fn execute(&self, request: WorkbenchRequest) -> WorkbenchExecution {
         let permitted = match &request {
+            WorkbenchRequest::Configuration(request) => match request.action { orchbee_workbench_protocol::ConfigurationAction::Reload => self.policy.manage_navigation, _ => self.policy.read },
             WorkbenchRequest::AgentManifests(request) => match request.action {
                 orchbee_workbench_protocol::AgentManifestsAction::Reload { .. } | orchbee_workbench_protocol::AgentManifestsAction::Update { .. } => self.policy.manage_navigation,
                 _ => self.policy.read,
@@ -157,6 +158,12 @@ impl WorkbenchService {
             return WorkbenchExecution::Response(unavailable_or_denied(request, true));
         }
         match &request {
+            WorkbenchRequest::Configuration(request) => {
+                #[cfg(windows)]
+                return WorkbenchExecution::Response(WorkbenchResponse::Configuration(self.terminals.execute_configuration(request.clone())));
+                #[cfg(not(windows))]
+                return WorkbenchExecution::Response(unavailable_or_denied(WorkbenchRequest::Configuration(request.clone()), false));
+            }
             WorkbenchRequest::AgentManifests(request) => {
                 #[cfg(windows)]
                 return WorkbenchExecution::Response(WorkbenchResponse::AgentManifests(self.terminals.execute_agent_manifests(request.clone())));
@@ -378,6 +385,18 @@ impl WorkbenchService {
 
 fn unavailable_or_denied(request: WorkbenchRequest, denied: bool) -> WorkbenchResponse {
     match request {
+        WorkbenchRequest::Configuration(request) => {
+            WorkbenchResponse::Configuration(orchbee_workbench_protocol::ConfigurationResult {
+                protocol_version: ProtocolVersion,
+                request_id: request.request_id,
+                site_id: request.site_id,
+                outcome: orchbee_workbench_protocol::ConfigurationOutcome::failed(if denied {
+                    orchbee_workbench_protocol::ConfigurationFailure::Denied
+                } else {
+                    orchbee_workbench_protocol::ConfigurationFailure::Unavailable
+                }),
+            })
+        }
         WorkbenchRequest::AgentManifests(request) => {
             WorkbenchResponse::AgentManifests(orchbee_workbench_protocol::AgentManifestsResult {
                 protocol_version: ProtocolVersion,

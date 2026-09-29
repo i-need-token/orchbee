@@ -192,6 +192,9 @@ fn main() -> ExitCode {
             Ok(invocation::Request::Worktree { command, format }) => {
                 cli::run_worktree(&command, format, locale)
             }
+            Ok(invocation::Request::RuntimeConfiguration { action, format }) => {
+                cli::runtime_configuration::run(action, format, locale)
+            }
             Ok(invocation::Request::AgentManifests { command, format }) => {
                 cli::agent_manifests::run(&command, format, locale)
             }

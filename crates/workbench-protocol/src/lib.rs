@@ -159,3 +159,8 @@ pub use command::agent_manifest_update::{
     AgentManifestProviderUpdate, AgentManifestUpdateDisposition, AgentManifestUpdateFailure,
     AgentManifestUpdateReport, valid_agent_manifest_catalog_url,
 };
+
+pub use command::configuration::{
+    ConfigurationAction, ConfigurationFailure, ConfigurationOutcome, ConfigurationRequest,
+    ConfigurationRestart, ConfigurationResult, ConfigurationSnapshot, MAXIMUM_CONFIGURATION_BYTES,
+};

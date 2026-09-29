@@ -631,6 +631,10 @@ mod client_viewport;
 mod workspace_setup_tests;
 
 impl NativeUi {
+    #[cfg(windows)]
+    pub(super) fn configuration_clock(&self) -> LocalOperationClock {
+        self.clock.clone()
+    }
     pub(super) fn new(mailbox: Arc<CommandMailbox>, clock: LocalOperationClock) -> Self {
         Self {
             mailbox: Some(mailbox),
@@ -1729,7 +1733,8 @@ impl NativeUi {
             }
             ClientAction::OpenWorkbenchNavigator => self.open_navigator(),
             ClientAction::ToggleAgentBoard => self.toggle_agent_board(),
-            ClientAction::ToggleBusinessSidebar
+            ClientAction::ReloadConfiguration
+            | ClientAction::ToggleBusinessSidebar
             | ClientAction::OpenShortcutHelp
             | ClientAction::CloseShortcutHelp
             | ClientAction::PageShortcutHelp

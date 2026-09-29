@@ -1706,7 +1706,7 @@
 									"keyOverrides": {
 										"type": "integer",
 										"minimum": 0,
-										"maximum": 24
+										"maximum": 25
 									}
 								}
 							}

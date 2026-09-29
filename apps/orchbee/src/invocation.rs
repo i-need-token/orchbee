@@ -336,6 +336,8 @@ pub(crate) enum CommandPath {
     ConfigResetKeys,
     SiteStart,
     SiteDiagnose,
+    SiteConfig,
+    SiteReloadConfig,
     SiteAgentManifests,
     SiteReloadAgentManifests,
     SiteUpdateAgentManifests,
@@ -462,6 +464,8 @@ impl CommandPath {
             Self::ConfigResetKeys => "config reset-keys",
             Self::SiteStart => "site start",
             Self::SiteDiagnose => "site diagnose",
+            Self::SiteConfig => "site config",
+            Self::SiteReloadConfig => "site reload-config",
             Self::SiteAgentManifests => "site agent-manifests",
             Self::SiteUpdateAgentManifests => "site update-agent-manifests",
             Self::SiteReloadAgentManifests => "site reload-agent-manifests",
@@ -1306,8 +1310,11 @@ pub(crate) enum Request {
     ConfigResetKeys {
         format: OutputFormat,
     },
-    /// `site diagnose`: the read-only runtime observation command —
-    /// neither a Workbench query nor a mutation; it never connects.
+    /// Read or reload the running Site's configuration; never activates a Site.
+    RuntimeConfiguration {
+        action: orchbee_workbench_protocol::ConfigurationAction,
+        format: OutputFormat,
+    },
     AgentManifests {
         command: ManifestCommand,
         format: OutputFormat,
@@ -3814,6 +3821,25 @@ fn resolve_words(
                 format: options.format.unwrap_or(OutputFormat::Text),
             })
         }
+        ["site", verb @ ("config" | "reload-config")] => {
+            reject_filters(
+                options,
+                UsageContext::Path(if *verb == "config" {
+                    "site config"
+                } else {
+                    "site reload-config"
+                }),
+                envelope,
+            )?;
+            Ok(Request::RuntimeConfiguration {
+                action: if *verb == "config" {
+                    orchbee_workbench_protocol::ConfigurationAction::Current
+                } else {
+                    orchbee_workbench_protocol::ConfigurationAction::Reload
+                },
+                format: options.format.unwrap_or(OutputFormat::Text),
+            })
+        }
         ["site", "agent-manifests"] => {
             reject_filters(
                 options,
@@ -4537,6 +4563,8 @@ fn help_topic(path: &[&str]) -> Option<HelpTopic> {
         ["site", "update-agent-manifests"] => {
             HelpTopic::Command(CommandPath::SiteUpdateAgentManifests)
         }
+        ["site", "config"] => HelpTopic::Command(CommandPath::SiteConfig),
+        ["site", "reload-config"] => HelpTopic::Command(CommandPath::SiteReloadConfig),
         ["site", "agent-manifests"] => HelpTopic::Command(CommandPath::SiteAgentManifests),
         ["site", "reload-agent-manifests"] => {
             HelpTopic::Command(CommandPath::SiteReloadAgentManifests)

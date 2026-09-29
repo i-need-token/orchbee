@@ -563,3 +563,9 @@ command is bounded to 1 MiB; other commands retain their individual limits even 
 command frame can carry the larger template. The Server owns atomic allocation and publication;
 physical member creation remains a separate retained command. This private contract alone does
 not establish the public CLI export/apply roundtrip.
+
+## Site configuration publication
+
+`workbench.configuration` (OBWP kind 39) carries `current` or `reload`; `workbench.configuration.result` (kind 40) carries a closed current/reloaded/failed outcome. Each frame is capped at 128 KiB. The [configuration schema](v1/workbench-configuration.schema.json), shared corpus and independent Rust/TypeScript bindings admit the same shapes and bounds. Snapshot revision 0 denotes the startup baseline; positive revisions denote explicit publications. The canonical keys-only profile is capped at 64 KiB, restart requirements are unique, and optional failure diagnostics are required nullable paired values (128 UTF-8 bytes, no controls, only for load failure). Request and Site identities must match; a successful result must match the requested action.
+
+The [Windows configuration owner](../../apps/orchbee/docs/windows-cli-configuration.md#live-configuration-reload) owns authorization, frozen path, candidate validation, publication, Client installation and shutdown. A publication is not an acknowledgement from every Client. Lost submitted reload replies remain unknown and are not retried automatically. No Desktop command is added; matched private cohorts roll out together without a persisted migration.
