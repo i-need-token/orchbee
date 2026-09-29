@@ -213,3 +213,5 @@ orchbee update --format json
 ```
 
 打包工具校验现有 cohort、适配器 capsule 和固定 ConPTY 包，清点有界普通文件，再独占写入同目录的 `release.json`，拒绝已有清单。HTTPS 分发需将此目录发布到清单 URL；相对文件 URL 沿用目录布局。版本必须匹配所打包 Client 的 `--version`；buildId 区分同版本号的不同发布。
+
+独立版本目录同时保存经过接纳的原始 `release.json`；该保留文件不属于文件清单条目，复用时核对其未改变。`status client` v2 将清单绑定到目录标识和已验证 cohort 后再投影实际安装来源，不以当前配置偏好替代。

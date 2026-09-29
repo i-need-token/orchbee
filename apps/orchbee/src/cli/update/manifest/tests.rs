@@ -43,6 +43,8 @@ fn incomplete_wrong_channel_aliasing_and_unbounded_releases_are_rejected() {
         assert!(!accepted(&changed), "{field}");
     }
     for path in [
+        "release.json",
+        "RELEASE.JSON",
         "../evil",
         "C:/evil",
         "a:stream",

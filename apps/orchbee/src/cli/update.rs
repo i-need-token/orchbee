@@ -1,12 +1,14 @@
 //! Explicit Windows cohort updates and save-then-update channel changes; never starts a Site.
 mod acquire;
 mod install;
+mod installed;
 mod manifest;
 use super::{
     Failure, FailureKind, Output, failure_output, output,
     source::{ArmedSignals, Finish, SignalWatch},
 };
 use crate::{invocation::OutputFormat, localization::Locale};
+pub(in crate::cli) use installed::{Installation, inspect as inspect_installation};
 use orchbee_local_site_runtime::{
     WindowsCommandFailure, WindowsCommandOutput, WindowsUpdateChannel, read_windows_user_settings,
     set_windows_update_channel,

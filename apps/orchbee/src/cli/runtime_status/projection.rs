@@ -58,7 +58,11 @@ pub(super) struct ServerReport {
     pub(super) cohort: Cohort,
 }
 pub(super) enum Report {
-    Client { executable: PathBuf, cohort: Cohort },
+    Client {
+        executable: PathBuf,
+        cohort: Cohort,
+        installation: crate::cli::update::Installation,
+    },
     Server(ServerReport),
 }
 fn path(value: &Path) -> Value {
@@ -78,12 +82,16 @@ fn features(value: u32, mode: ServerMode) -> Value {
 impl Report {
     pub(super) fn document(&self) -> Value {
         let (schema, result) = match self {
-            Self::Client { executable, cohort } => (
+            Self::Client {
+                executable,
+                cohort,
+                installation,
+            } => (
                 "orchbee.status.client",
                 json!({
                     "version":env!("CARGO_PKG_VERSION"),"platform":std::env::consts::OS,"architecture":std::env::consts::ARCH,
                     "buildProfile":if cfg!(debug_assertions) {"debug"} else {"release"},
-                    "delivery":"development-cohort","updateChannel":null,"executable":path(executable),
+                    "delivery":installation.delivery(),"updateChannel":installation.channel(),"installation":installation.json(),"executable":path(executable),
                     "protocols":protocols(orchbee_client_server_protocol::PROTOCOL_VERSION),"cohort":cohort.json(),
                 }),
             ),
@@ -129,7 +137,7 @@ impl Report {
                 )
             }
         };
-        json!({"schema":schema,"version":1,"source":config::local_runtime_source(),"result":result})
+        json!({"schema":schema,"version":if matches!(self, Self::Client { .. }) {2} else {1},"source":config::local_runtime_source(),"result":result})
     }
 }
 
@@ -147,6 +155,7 @@ pub(super) fn emit(report: Report, format: OutputFormat, locale: Locale) -> Outp
                     ("profile", &value["buildProfile"]),
                     ("delivery", &value["delivery"]),
                     ("channel", &value["updateChannel"]),
+                    ("installation", &value["installation"]),
                     ("executable", &value["executable"]),
                     ("protocols", &value["protocols"]),
                     ("local-cohort", &value["cohort"]),

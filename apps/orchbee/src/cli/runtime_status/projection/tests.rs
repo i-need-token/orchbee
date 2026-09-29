@@ -2,6 +2,41 @@ use super::*;
 use std::{ffi::OsString, os::windows::ffi::OsStringExt};
 
 #[test]
+fn installed_channel_is_bound_to_release_observation_without_widening_v1() {
+    let schema: Value =
+        serde_json::from_str(include_str!("../../schemas/orchbee.status.client.json")).unwrap();
+    let validator = jsonschema::validator_for(&schema).unwrap();
+    let report = Report::Client {
+        executable: PathBuf::from("C:/release/orchbee.exe"),
+        cohort: Cohort::Available("a".repeat(64)),
+        installation: crate::cli::update::Installation::Verified {
+            channel: orchbee_local_site_runtime::WindowsUpdateChannel::Preview,
+            version: "0.1.0".into(),
+            build_id: "test".into(),
+            manifest: "b".repeat(64),
+        },
+    };
+    let doc = report.document();
+    validator.validate(&doc).unwrap();
+    assert_eq!(doc["version"], 2);
+    assert_eq!(doc["result"]["delivery"], "native-release");
+    assert_eq!(doc["result"]["updateChannel"], "preview");
+    let mut bad = doc.clone();
+    bad["result"]["updateChannel"] = json!("stable");
+    assert!(!validator.is_valid(&bad));
+    let mut old = doc;
+    old["version"] = json!(1);
+    assert!(!validator.is_valid(&old));
+    old["result"]
+        .as_object_mut()
+        .unwrap()
+        .remove("installation");
+    old["result"]["delivery"] = json!("development-cohort");
+    old["result"]["updateChannel"] = Value::Null;
+    validator.validate(&old).unwrap();
+}
+
+#[test]
 fn local_metadata_preserves_non_unicode_paths_and_closed_unavailable_states() {
     let schema: Value =
         serde_json::from_str(include_str!("../../schemas/orchbee.status.client.json")).unwrap();
@@ -17,6 +52,7 @@ fn local_metadata_preserves_non_unicode_paths_and_closed_unavailable_states() {
         let report = Report::Client {
             executable: PathBuf::from(OsString::from_wide(&units)),
             cohort: Cohort::Unavailable(issue),
+            installation: crate::cli::update::Installation::Unavailable,
         };
         let doc = report.document();
         validator.validate(&doc).unwrap();

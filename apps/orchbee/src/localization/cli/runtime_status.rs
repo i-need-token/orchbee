@@ -4,10 +4,10 @@ use super::Locale;
 pub(super) fn help(locale: Locale, server: bool) -> &'static str {
     match (locale, server) {
         (Locale::EnUs, false) => {
-            "orchbee status client [--format text|json]\n\nWindows: inspect this executable's version, platform, architecture, path and\nvalidated native cohort without contacting a Server. Missing or invalid cohort\nmetadata is reported explicitly. Development delivery has no configured update\nchannel. One five-second collection budget; creates and changes nothing.\nJSON schema: orchbee.status.client (v1).\n"
+            "orchbee status client [--format text|json]\n\nWindows: inspect this executable's version, platform, architecture, path and\nvalidated native cohort without contacting a Server. Missing or invalid cohort\nmetadata is reported explicitly. Installed release identity is bound to its cohort;\nconfigured channel preference is independent. One five-second collection budget; creates and changes nothing.\nJSON schema: orchbee.status.client (v2).\n"
         }
         (Locale::ZhCn, false) => {
-            "orchbee status client [--format text|json]\n\nWindows：检查当前程序的版本、平台、架构、路径及已验证的原生 cohort，\n不联系 Server。明确报告缺失或无效的 cohort 元数据。开发交付尚未配置更新\n渠道。采集共用五秒时限，不创建或修改任何内容。\nJSON schema：orchbee.status.client（v1）。\n"
+            "orchbee status client [--format text|json]\n\nWindows：检查当前程序的版本、平台、架构、路径及已验证的原生 cohort，\n不联系 Server。明确报告缺失或无效的 cohort 元数据。已安装版本身份绑定对应 cohort，\n与配置的频道偏好相互独立。采集共用五秒时限，不创建或修改任何内容。\nJSON schema：orchbee.status.client（v2）。\n"
         }
         (Locale::EnUs, true) => {
             "orchbee status server [--format text|json]\n\nWindows: query the selected local Server's version, PID, terminal protocol,\ncohort and implementation capabilities before ordinary Client admission.\nCompare with the querying Client; unknown local metadata stays unknown.\nDoes not start a Site, allocate a Client Session or restart anything.\nOne five-second collection budget. No Server at this scope exits 0; an old\nServer without metadata support is incompatible (exit 6), not absent.\nJSON schema: orchbee.status.server (v1).\n"
@@ -46,6 +46,7 @@ impl Locale {
             "profile" => ("Build profile", "构建类型"),
             "delivery" => ("Delivery", "交付方式"),
             "channel" => ("Update channel", "更新渠道"),
+            "installation" => ("Installed release", "已安装版本"),
             "executable" => ("Executable", "程序路径"),
             "protocols" => ("Protocols", "协议版本"),
             "local-cohort" => ("Local cohort", "本地 cohort"),
@@ -97,6 +98,8 @@ impl Locale {
             "managed" => ("Managed", "托管"),
             "unmanaged" => ("Unmanaged", "非托管"),
             "development-cohort" => ("Development cohort", "开发 cohort"),
+            "native-release" => ("Installed native release", "已安装原生版本"),
+            "unknown" => ("Unknown", "未知"),
             "debug" => ("Debug", "调试"),
             "release" => ("Release", "发布"),
             _ => return token,

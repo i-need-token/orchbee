@@ -57,6 +57,8 @@ impl NativeArtifact {
 pub struct NativeCohort {
     directory: PathBuf,
     identity: String,
+    #[cfg(windows)]
+    artifact_hashes: [String; 4],
     observation_adapters: ObservationAdaptersSidecar,
 }
 
@@ -182,6 +184,8 @@ impl NativeCohort {
         Ok(Self {
             directory: directory.to_path_buf(),
             identity: format!("{:x}", identity.finalize()),
+            #[cfg(windows)]
+            artifact_hashes: ARTIFACTS.map(|artifact| manifest.artifacts.hash(artifact).to_owned()),
             observation_adapters: ObservationAdaptersSidecar {
                 directory: directory.join(OBSERVATION_ADAPTERS),
                 declared_payload_sha256: manifest.artifacts.observation_adapters,
@@ -190,6 +194,17 @@ impl NativeCohort {
     }
     pub fn identity(&self) -> &str {
         &self.identity
+    }
+    /// The digest independently verified during this Windows cohort admission.
+    /// Comparing retained observations never rereads mutable manifest bytes.
+    #[cfg(windows)]
+    pub fn artifact_sha256(&self, artifact: NativeArtifact) -> &str {
+        &self.artifact_hashes[match artifact {
+            NativeArtifact::Client => 0,
+            NativeArtifact::Server => 1,
+            NativeArtifact::Worker => 2,
+            NativeArtifact::TerminalHost => 3,
+        }]
     }
     pub fn executable(&self, artifact: NativeArtifact) -> PathBuf {
         self.directory.join(artifact.file_name())

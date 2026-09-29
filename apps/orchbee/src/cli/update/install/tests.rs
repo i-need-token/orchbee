@@ -171,6 +171,49 @@ fn offline_install_verifies_before_probe_reuses_without_overwrite_and_cleans_fai
         published
     );
     assert!(second.reused);
+    let admitted = NativeCohort::load(&published, context.deadline).unwrap();
+    let installed = crate::cli::update::inspect_installation(
+        &published.join("orchbee.exe"),
+        Some(&admitted),
+        "0.1.0",
+    );
+    assert_eq!(installed.delivery(), "native-release");
+    assert_eq!(installed.channel(), Some("stable"));
+    assert_eq!(installed.json()["buildId"], "test");
+    assert_eq!(
+        crate::cli::update::inspect_installation(&published.join("orchbee.exe"), None, "0.1.0")
+            .delivery(),
+        "unknown"
+    );
+    assert_eq!(
+        crate::cli::update::inspect_installation(
+            &published.join("orchbee.exe"),
+            Some(&admitted),
+            "9.0.0"
+        )
+        .delivery(),
+        "unknown"
+    );
+
+    let cohort_before = fs::read(published.join("cohort.json")).unwrap();
+    let peer_before = fs::read(published.join("orchbee-server.exe")).unwrap();
+    fs::write(published.join("orchbee-server.exe"), b"another cohort peer").unwrap();
+    let mut different: serde_json::Value = serde_json::from_slice(&cohort_before).unwrap();
+    different["artifacts"]["orchbee-server"] =
+        json!(format!("{:x}", Sha256::digest(b"another cohort peer")));
+    fs::write(published.join("cohort.json"), different.to_string()).unwrap();
+    let stale = NativeCohort::load(&published, context.deadline).unwrap();
+    fs::write(published.join("cohort.json"), cohort_before).unwrap();
+    fs::write(published.join("orchbee-server.exe"), peer_before).unwrap();
+    assert_eq!(
+        crate::cli::update::inspect_installation(
+            &published.join("orchbee.exe"),
+            Some(&stale),
+            "0.1.0"
+        )
+        .delivery(),
+        "unknown"
+    );
     let executable = fs::read(published.join("orchbee.exe")).unwrap();
     release.identity = "b".repeat(64);
     release.files[0].sha256 = "0".repeat(64);
@@ -187,6 +230,16 @@ fn offline_install_verifies_before_probe_reuses_without_overwrite_and_cleans_fai
             .to_string_lossy()
             .starts_with(".stage-")
     }));
+    fs::write(published.join("release.json"), b"corrupt metadata").unwrap();
+    assert_eq!(
+        crate::cli::update::inspect_installation(
+            &published.join("orchbee.exe"),
+            Some(&admitted),
+            "0.1.0"
+        )
+        .delivery(),
+        "unknown"
+    );
     drop(context);
     drop(lock);
 }

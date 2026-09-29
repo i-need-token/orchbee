@@ -10,6 +10,8 @@ const TOTAL_LIMIT: u64 = 2 * 1024 * 1024 * 1024;
 
 /// A complete bounded release admitted before creating an installation directory.
 pub(super) struct Release {
+    pub encoded: Vec<u8>,
+    pub channel: WindowsUpdateChannel,
     pub identity: String,
     pub version: String,
     pub build_id: String,
@@ -58,7 +60,10 @@ impl Release {
         for value in array {
             object(value, &["path", "url", "sha256", "size"])?;
             let path = value["path"].as_str()?;
-            if !valid_windows_release_path(path) || !paths.insert(path.to_ascii_lowercase()) {
+            if !valid_windows_release_path(path)
+                || path.eq_ignore_ascii_case("release.json")
+                || !paths.insert(path.to_ascii_lowercase())
+            {
                 return None;
             }
             let url = value["url"].as_str()?;
@@ -113,6 +118,8 @@ impl Release {
             }
         }
         Some(Self {
+            encoded: bytes.to_vec(),
+            channel,
             identity: format!("{:x}", Sha256::digest(bytes)),
             version,
             build_id,

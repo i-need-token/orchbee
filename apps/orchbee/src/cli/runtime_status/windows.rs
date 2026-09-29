@@ -53,9 +53,17 @@ fn collect(
     if scope == RuntimeStatusScope::Client {
         let executable =
             std::env::current_exe().map_err(|_| Failure::new(FailureKind::InternalFailure))?;
+        let admitted = admitted_cohort(deadline);
+        let installation = crate::cli::update::inspect_installation(
+            &executable,
+            admitted.as_ref().ok(),
+            env!("CARGO_PKG_VERSION"),
+        );
+        let cohort = project_cohort(admitted);
         return Ok(Report::Client {
             executable,
-            cohort: local_cohort(deadline),
+            cohort,
+            installation,
         });
     }
     let (base, scope) = crate::local_activation::runtime_location().map_err(|_| {
@@ -111,16 +119,22 @@ fn collect(
 }
 
 fn local_cohort(deadline: Instant) -> Cohort {
-    match NativeCohort::current(deadline) {
+    project_cohort(admitted_cohort(deadline))
+}
+fn project_cohort(admitted: Result<NativeCohort, CohortIssue>) -> Cohort {
+    match admitted {
         Ok(cohort) => Cohort::Available(cohort.identity().to_owned()),
-        Err(error) => Cohort::Unavailable(match error.kind() {
-            io::ErrorKind::NotFound => CohortIssue::Missing,
-            io::ErrorKind::InvalidData | io::ErrorKind::Unsupported => CohortIssue::Invalid,
-            io::ErrorKind::PermissionDenied => CohortIssue::Denied,
-            io::ErrorKind::TimedOut => CohortIssue::TimedOut,
-            _ => CohortIssue::Io,
-        }),
+        Err(reason) => Cohort::Unavailable(reason),
     }
+}
+fn admitted_cohort(deadline: Instant) -> Result<NativeCohort, CohortIssue> {
+    NativeCohort::current(deadline).map_err(|error| match error.kind() {
+        io::ErrorKind::NotFound => CohortIssue::Missing,
+        io::ErrorKind::InvalidData | io::ErrorKind::Unsupported => CohortIssue::Invalid,
+        io::ErrorKind::PermissionDenied => CohortIssue::Denied,
+        io::ErrorKind::TimedOut => CohortIssue::TimedOut,
+        _ => CohortIssue::Io,
+    })
 }
 
 fn classify(error: ConnectClientError) -> Failure {

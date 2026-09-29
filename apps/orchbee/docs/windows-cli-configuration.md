@@ -271,3 +271,5 @@ orchbee update --format json
 ```
 
 The packaging tool verifies the existing cohort, adapter capsule and pinned ConPTY bundle, inventories bounded regular files, and exclusively writes `release.json` beside them. It refuses an existing feed. For HTTPS distribution, publish that directory at the feed URL; relative file URLs retain the same directory layout. Version must match the packaged Client's `--version`; buildId distinguishes releases with the same version.
+
+The immutable release also stores the exact admitted `release.json`, reserved outside the inventory. Reuse checks that it has not changed. `status client` v2 binds this manifest to the directory identity and verified cohort before projecting installed release provenance; it never substitutes the current configured preference.

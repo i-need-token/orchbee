@@ -2,17 +2,7 @@
 
 ## Authority and grammar
 
-This reference owns Windows `status server` and `status client`, both with
-`--format text|json`. Bare `status` keeps its Workbench snapshot contract. Unknown operands,
-options and combinations fail before effects. Help, schema and completion stay offline.
-The new command runtimes are not implemented on macOS or Linux.
-
-`status client` reads this executable's compiled version, operating system, architecture,
-development delivery identity and lossless executable path. It independently validates the sibling
-native cohort. A missing, invalid (including an unsupported manifest version), denied, timed-out or unreadable cohort is explicit
-unavailable metadata, not an invented identity or a reason to start a Site. The development
-delivery has no configured stable/preview update channel; update-channel management remains a
-separate capability. This command never contacts the Server.
+This reference owns Windows `status server` and `status client` reads this executable's compiled version, operating system, architecture and lossless executable path, and independently validates its sibling native cohort. A missing, invalid, denied, timed-out or unreadable cohort is explicit unavailable metadata. With a valid cohort, a missing `release.json` means development delivery; an installed release must have an admitted manifest whose SHA-256 matches the immutable directory name, whose version matches the Client, and whose cohort.json digest binds the independently verified cohort. This yields actual installed channel, version, buildId and manifest identity. Corrupt, moved or inaccessible metadata yields unknown delivery and no guessed channel. The configured channel preference is independent. This read never contacts a Server or updates files.
 
 `status server` probes only the selected implicit local Windows Site. It does not start a Server,
 create a runtime directory or lock file, repair a marker, attach a terminal, change focus or create
@@ -83,8 +73,7 @@ durable state or migration is introduced.
 
 ## Public output and evidence
 
-`orchbee.status.client` and `orchbee.status.server` are v1 documents with local-runtime provenance;
-the catalog becomes v51 with 72 schemas and the native inventory has 86 command paths. Required
+`orchbee.status.client` emits v2 with a closed installation observation; historical v1 stays unchanged. `orchbee.status.server` remains v1. Both use local-runtime provenance; catalog v118 contains 102 schemas and 132 command paths. Required
 discriminated metadata fields distinguish observed Server data, absence and unavailable local
 cohort information. Paths use the existing lossless Windows path representation. Human strings
 and paths are escaped through the common text renderer; JSON bytes do not depend on locale.

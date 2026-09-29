@@ -12,7 +12,7 @@ use orchbee_local_site_runtime::{
 };
 use sha2::{Digest, Sha256};
 use std::{
-    io::Read,
+    io::{Read, Write},
     path::{Path, PathBuf},
     process::Command,
 };
@@ -51,6 +51,15 @@ pub(super) fn publish(
         .release_path(&release.identity)
         .map_err(|_| Error::Storage)?;
     if destination.try_exists().map_err(|_| Error::Storage)? {
+        let mut stored = Vec::new();
+        open_windows_release_file(&destination, "release.json")
+            .map_err(|_| Error::CohortInvalid)?
+            .take(super::manifest::MANIFEST_LIMIT as u64 + 1)
+            .read_to_end(&mut stored)
+            .map_err(|_| Error::Storage)?;
+        if stored != release.encoded {
+            return Err(Error::CohortInvalid);
+        }
         verify(&destination, release, context)?;
         report.published = Some(destination.clone());
         report.reused = true;
@@ -58,6 +67,14 @@ pub(super) fn publish(
     }
     let mut stage = store.stage().map_err(|_| Error::Storage)?;
     let result = (|| {
+        let (_, mut metadata) = stage
+            .create_file("release.json")
+            .map_err(|_| Error::Storage)?;
+        metadata
+            .write_all(&release.encoded)
+            .and_then(|()| metadata.sync_all())
+            .map_err(|_| Error::Storage)?;
+        drop(metadata);
         for artifact in &release.files {
             context.check()?;
             let (path, mut file) = stage

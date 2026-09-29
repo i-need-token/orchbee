@@ -2,14 +2,7 @@
 
 ## 权威与语法
 
-本参考拥有 Windows `status server` 和 `status client`，两者均支持
-`--format text|json`。裸 `status` 保持 Workbench 快照契约。未知操作数、选项及组合在产生
-效果前失败。帮助、schema 和补全保持离线。macOS 和 Linux 不实现新增命令运行时。
-
-`status client` 读取本可执行文件的编译版本、操作系统、架构、开发交付标识和无损可执行
-文件路径，并独立验证同目录原生 cohort。cohort 缺失、无效（含不支持的清单版本）、无权限、超时或不可读
-时，明确输出不可用元数据，不编造标识，也不因此启动 Site。开发交付尚无配置的
-stable/preview 更新渠道；渠道管理仍为单独能力。该命令不联系 Server。
+本参考拥有 Windows `status server` 和 `status client` 读取当前程序的编译版本、操作系统、架构及无损可执行文件路径，并独立验证同目录原生 cohort。cohort 缺失、无效、无权限、超时或不可读时，明确输出不可用元数据。cohort 有效时，缺少 `release.json` 表示开发交付；已安装版本要求清单通过接纳，其 SHA-256 与独立安装目录名一致、版本与 Client 一致，并通过 cohort.json 摘要绑定独立验证的 cohort，进而报告实际安装的频道、版本、buildId 和清单标识。元数据损坏、移位或不可访问时，交付状态为未知，不猜测频道。配置的频道偏好相互独立。读取不联系 Server，也不更新文件。
 
 `status server` 只探测选中的隐式本地 Windows Site。它不启动 Server、不创建运行时目录
 或锁文件、不修复标记、不附着终端、不改变焦点，也不创建 Client Session。成功答复报告
@@ -72,8 +65,7 @@ cohort 一起部署或回退。新增命令与 schema 为增量能力；裸 `sta
 
 ## 公共输出与证据
 
-`orchbee.status.client` 和 `orchbee.status.server` 为带 local-runtime 来源的 v1 文档；
-目录变为 v51／72 个 schema，原生命令清单为 85 条路径。必需的判别式元数据字段区分
+`orchbee.status.client` 当前输出 v2，新增封闭的安装观察；历史 v1 保持不变。`orchbee.status.server` 仍为 v1。两者均使用 local-runtime 来源；目录 v118 包含 102 个 schema、132 个命令路径。必需的判别式元数据字段区分
 已观察的 Server 数据、不存在和本地 cohort 不可用。路径使用既有无损 Windows 表示。
 人工文本和路径通过公共文本呈现器转义；JSON 字节不受语言影响。无 Server 和完整诊断
 观察退出 0。既有用法、权限、兼容性、协议／传输、超时和取消失败保留现有退出码与封套；
