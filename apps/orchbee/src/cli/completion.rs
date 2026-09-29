@@ -119,6 +119,8 @@ const ROOT_WORDS: &[&str] = &[
     "config",
     #[cfg(windows)]
     "channel",
+    #[cfg(windows)]
+    "update",
     "help",
     "panel",
     "project",
@@ -148,6 +150,8 @@ const FORMAT_ROOT_WORDS: &[&str] = &[
     "config",
     #[cfg(windows)]
     "channel",
+    #[cfg(windows)]
+    "update",
     "panel",
     "project",
     #[cfg(windows)]
@@ -211,7 +215,7 @@ const FAMILY_VERBS: &[(&str, &[&str])] = &[
     ("launch-profile", &["create", "delete", "get", "list"]),
     ("config", &["check", "reset-keys"]),
     #[cfg(windows)]
-    ("channel", &["show"]),
+    ("channel", &["show", "set"]),
     (
         "panel",
         &[
@@ -1202,6 +1206,8 @@ const PROVIDER_VALUES: &[&str] = &[
 /// `<family>:<verb>` paths that consume one positional operand.
 const OPERAND_PATHS: &[&str] = &[
     #[cfg(windows)]
+    "channel:set",
+    #[cfg(windows)]
     "plugin:pane:focus",
     #[cfg(windows)]
     "plugin:pane:close",
@@ -1316,6 +1322,8 @@ const HELP_TOPICS: &[&str] = &[
     "config",
     #[cfg(windows)]
     "channel",
+    #[cfg(windows)]
+    "update",
     "panel",
     "project",
     #[cfg(windows)]
@@ -1381,7 +1389,7 @@ const HELP_CHILDREN: &[(&str, &[&str])] = &[
     ("launch-profile", &["create", "delete", "get", "list"]),
     ("config", &["check", "reset-keys"]),
     #[cfg(windows)]
-    ("channel", &["show"]),
+    ("channel", &["show", "set"]),
     (
         "panel",
         &[

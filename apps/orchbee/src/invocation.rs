@@ -391,6 +391,10 @@ pub(crate) enum CommandPath {
     ConfigResetKeys,
     #[cfg(windows)]
     ChannelShow,
+    #[cfg(windows)]
+    ChannelSet,
+    #[cfg(windows)]
+    Update,
     SiteStart,
     SiteDiagnose,
     SiteConfig,
@@ -524,6 +528,10 @@ impl CommandPath {
             Self::ConfigResetKeys => "config reset-keys",
             #[cfg(windows)]
             Self::ChannelShow => "channel show",
+            #[cfg(windows)]
+            Self::ChannelSet => "channel set",
+            #[cfg(windows)]
+            Self::Update => "update",
             Self::SiteStart => "site start",
             Self::SiteDiagnose => "site diagnose",
             Self::SiteConfig => "site config",
@@ -1406,6 +1414,11 @@ pub(crate) enum Request {
     },
     #[cfg(windows)]
     ChannelShow {
+        format: OutputFormat,
+    },
+    #[cfg(windows)]
+    Update {
+        channel: Option<orchbee_local_site_runtime::WindowsUpdateChannel>,
         format: OutputFormat,
     },
     #[cfg(windows)]
@@ -3989,6 +4002,26 @@ fn resolve_words(
                 format: options.format.unwrap_or(OutputFormat::Text),
             })
         }
+        #[cfg(windows)]
+        ["update"] => {
+            reject_filters(options, UsageContext::Path("update"), envelope)?;
+            Ok(Request::Update {
+                channel: None,
+                format: options.format.unwrap_or(OutputFormat::Text),
+            })
+        }
+        #[cfg(windows)]
+        ["channel", "set", channel @ ("stable" | "preview")] => {
+            reject_filters(options, UsageContext::Path("channel set"), envelope)?;
+            Ok(Request::Update {
+                channel: Some(if *channel == "stable" {
+                    orchbee_local_site_runtime::WindowsUpdateChannel::Stable
+                } else {
+                    orchbee_local_site_runtime::WindowsUpdateChannel::Preview
+                }),
+                format: options.format.unwrap_or(OutputFormat::Text),
+            })
+        }
         ["config", "check"] => {
             reject_filters(options, UsageContext::Path("config check"), envelope)?;
             Ok(query(QueryCommand::ConfigCheck, options))
@@ -4618,6 +4651,20 @@ fn resolve_words(
         )),
         ["api", verb, ..] => Err(unknown_command(UsageContext::Path("api"), verb, envelope)),
         #[cfg(windows)]
+        ["update", extra, ..] => Err(unexpected_argument(
+            UsageContext::Path("update"),
+            extra,
+            envelope,
+        )),
+        #[cfg(windows)]
+        ["channel", "set"] => Err(missing_command(UsageContext::Path("channel set"), envelope)),
+        #[cfg(windows)]
+        ["channel", "set", extra, ..] => Err(unexpected_argument(
+            UsageContext::Path("channel set"),
+            extra,
+            envelope,
+        )),
+        #[cfg(windows)]
         ["channel"] => Err(missing_command(UsageContext::Path("channel"), envelope)),
         #[cfg(windows)]
         ["channel", "show", extra, ..] => Err(unexpected_argument(
@@ -4800,6 +4847,10 @@ fn help_topic(path: &[&str]) -> Option<HelpTopic> {
         ["channel"] => HelpTopic::Family(Family::Channel),
         #[cfg(windows)]
         ["channel", "show"] => HelpTopic::Command(CommandPath::ChannelShow),
+        #[cfg(windows)]
+        ["channel", "set"] => HelpTopic::Command(CommandPath::ChannelSet),
+        #[cfg(windows)]
+        ["update"] => HelpTopic::Command(CommandPath::Update),
         ["completion"] => HelpTopic::Family(Family::Completion),
         ["project", "list"] => HelpTopic::Command(CommandPath::ProjectList),
         ["project", "get"] => HelpTopic::Command(CommandPath::ProjectGet),

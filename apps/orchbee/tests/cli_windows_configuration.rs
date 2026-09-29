@@ -9,6 +9,95 @@ use serde_json::{Value, json};
 use support::{Fixture, assert_closed, peer, validate};
 
 #[test]
+fn channel_set_persists_before_failed_update_and_never_activates_a_site() {
+    use std::ffi::OsStr;
+    let fixture = Fixture::new();
+    let config = fixture.0.join("appdata/Orchbee/config.toml");
+    let install = fixture.0.join("installation");
+    let schema = include_str!("../src/cli/schemas/orchbee.update.json");
+    let env = [
+        ("ORCHBEE_UPDATE_MANIFEST", OsStr::new("")),
+        ("ORCHBEE_INSTALL_DIR", install.as_os_str()),
+    ];
+    let first = fixture.run_with_env(&["update", "--format=json"], None, None, &env);
+    assert_eq!(first.status.code(), Some(1));
+    let first = document(first);
+    validate(&first, schema);
+    assert_eq!(first["result"]["error"], "source-unconfigured");
+    assert_eq!(first["result"]["channelSaved"], false);
+    assert!(!config.exists());
+    assert!(!install.exists());
+    let changed = fixture.run_with_env(
+        &["channel", "set", "preview", "--format=json"],
+        None,
+        None,
+        &env,
+    );
+    assert_eq!(changed.status.code(), Some(1));
+    let changed = document(changed);
+    validate(&changed, schema);
+    assert_eq!(changed["operation"], "channel-set");
+    assert_eq!(changed["result"]["channelSaved"], true);
+    assert_eq!(changed["result"]["channel"], "preview");
+    assert_eq!(changed["result"]["error"], "source-unconfigured");
+    assert_eq!(
+        document(fixture.run(&["channel", "show", "--format=json"]))["result"]["channel"],
+        "preview"
+    );
+    let original = "# keep comment\n[update]\nmanifest_check=false # keep policy\nchannel='preview' # retained channel note\n[terminal]\nnew_cwd='home'\n";
+    std::fs::write(&config, original).unwrap();
+    let changed = document(fixture.run_with_env(
+        &["channel", "set", "stable", "--format=json"],
+        None,
+        None,
+        &env,
+    ));
+    validate(&changed, schema);
+    assert_eq!(changed["result"]["channelSaved"], true);
+    let text = std::fs::read_to_string(&config).unwrap();
+    assert!(
+        text.contains("# keep comment")
+            && text.contains("# keep policy")
+            && text.contains("# retained channel note")
+    );
+    assert!(text.contains("manifest_check=false") && text.contains("new_cwd='home'"));
+    for invalid in [
+        "[unknown]\nsecret='kept'",
+        "[update]\nchannel=true",
+        "not TOML",
+    ] {
+        std::fs::write(&config, invalid).unwrap();
+        let output = fixture.run_with_env(
+            &["channel", "set", "preview", "--format=json"],
+            None,
+            None,
+            &env,
+        );
+        assert_eq!(output.status.code(), Some(1));
+        let doc = document(output);
+        validate(&doc, schema);
+        assert_eq!(doc["result"]["channelSaved"], false);
+        assert_eq!(doc["result"]["error"], "configuration");
+        assert_eq!(std::fs::read_to_string(&config).unwrap(), invalid);
+    }
+    for args in [
+        vec!["channel", "set"],
+        vec!["channel", "set", "nightly"],
+        vec!["channel", "set", "stable", "extra"],
+        vec!["update", "extra"],
+        vec!["update", "--client", "bad"],
+    ] {
+        assert_eq!(
+            fixture.run_with_env(&args, None, None, &env).status.code(),
+            Some(2),
+            "{args:?}"
+        );
+    }
+    assert!(!install.exists());
+    assert!(!fixture.0.join("runtime").exists());
+}
+
+#[test]
 fn channel_show_reads_strict_shared_settings_without_a_site_or_writes() {
     let fixture = Fixture::new();
     let config = fixture.0.join("appdata/Orchbee/config.toml");

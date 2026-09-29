@@ -163,6 +163,10 @@ fn main() -> ExitCode {
             #[cfg(windows)]
             Ok(invocation::Request::ChannelShow { format }) => cli::channel::show(format, locale),
             #[cfg(windows)]
+            Ok(invocation::Request::Update { channel, format }) => {
+                cli::update::run(channel, 600_000, format, locale)
+            }
+            #[cfg(windows)]
             Ok(invocation::Request::ConfigResetKeys { format }) => {
                 cli::config_reset::run(format, locale)
             }

@@ -884,6 +884,7 @@ dependencies = [
  "serde_json",
  "sha2",
  "toml",
+ "toml_edit",
  "winapi-util",
  "windows",
  "windows-permissions",

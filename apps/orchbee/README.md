@@ -32,6 +32,8 @@ See [Windows Agent startup](docs/windows-agent-start.md) for setup, limits and r
 
 Windows `channel show [--format text|json]` reads the strict stable/preview preference from the shared user configuration without activating a Site. See [configuration and channel provenance](docs/windows-cli-configuration.md#rule-update-policy).
 
+Windows `update` and `channel set` share complete-cohort installation, explicit release sources, immutable publication and separate user PATH activation. See [Windows release installation](docs/windows-cli-configuration.md#windows-release-installation).
+
 ## Command surface
 
 Bare and explicit `tui` invocation first admit the inherited interactive terminal and valid
@@ -839,7 +841,7 @@ Detection remains plain text. It does not reproduce original PTY bytes, hyperlin
 The render request and prepared output each keep their existing 8 MiB bounds; oversized render
 resources fail without a fallback or retry. See the [output contract](docs/native-terminal-output.md).
 
-Windows `status server` reads actual Server build/protocol/cohort metadata before Client Session admission; `status client` checks this executable offline. Both accept `--format text|json` and never activate a Site. Bare `status` remains a Workbench query. The [runtime status contract](docs/native-runtime-status.md) owns the five-second budget, unknown metadata, compatibility, schemas and failures. Update-channel management remains unavailable.
+Windows `status server` reads actual Server build/protocol/cohort metadata before Client Session admission; `status client` checks this executable offline. Both accept `--format text|json` and never activate a Site. Bare `status` remains a Workbench query. The [runtime status contract](docs/native-runtime-status.md) owns the five-second budget, unknown metadata, compatibility, schemas and failures. Release preference and installation are owned by the explicit Windows update commands.
 
 ## Agent navigation
 

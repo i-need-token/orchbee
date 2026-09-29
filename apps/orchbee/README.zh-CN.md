@@ -29,6 +29,8 @@
 
 Windows `channel show [--format text|json]` 从共享用户配置读取严格的 stable/preview 偏好，不激活 Site。参见[配置及频道来源](docs/windows-cli-configuration.zh-CN.md#规则更新策略)。
 
+Windows `update` 与 `channel set` 共用完整 cohort 安装、显式发布源、独立版本发布和单独的用户 PATH 激活。详见 [Windows 版本安装](docs/windows-cli-configuration.zh-CN.md#windows-版本安装)。
+
 ## 命令面
 
 裸调用和显式 `tui` 调用先准入继承的交互终端和有效 cell geometry，再在 Windows 和 Linux 上运行下面的
@@ -756,7 +758,7 @@ Unicode，只生成 SGR；`recent-unwrapped` 拼接已验证的软换行。detec
 它不重现原始 PTY 字节、超链接或图形。渲染请求与预备输出各自保持既有 8 MiB 上限；
 渲染资源超限直接失败，不回退、不重试。参见[输出契约](docs/native-terminal-output.zh-CN.md)。
 
-Windows `status server` 在 Client Session 准入前读取实际 Server 构建／协议／cohort 元数据；`status client` 离线检查当前程序。两者支持 `--format text|json`，不激活 Site。裸 `status` 仍查询 Workbench。[运行时状态契约](docs/native-runtime-status.zh-CN.md) 拥有五秒时限、未知元数据、兼容性、schema 和失败语义。更新渠道管理仍未提供。
+Windows `status server` 在 Client Session 准入前读取实际 Server 构建／协议／cohort 元数据；`status client` 离线检查当前程序。两者支持 `--format text|json`，不激活 Site。裸 `status` 仍查询 Workbench。[运行时状态契约](docs/native-runtime-status.zh-CN.md) 拥有五秒时限、未知元数据、兼容性、schema 和失败语义。发布偏好与安装由显式 Windows 更新命令拥有。
 
 ## Agent 导航
 

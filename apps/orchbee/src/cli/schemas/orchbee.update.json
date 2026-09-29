@@ -1,0 +1,153 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "orchbee.update",
+	"title": "Windows native release update result",
+	"type": "object",
+	"additionalProperties": false,
+	"required": ["schema", "version", "source", "operation", "result"],
+	"properties": {
+		"schema": {
+			"const": "orchbee.update"
+		},
+		"version": {
+			"const": 1
+		},
+		"source": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["kind"],
+			"properties": {
+				"kind": {
+					"const": "local-installation"
+				}
+			}
+		},
+		"operation": {
+			"enum": ["update", "channel-set"]
+		},
+		"result": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": [
+				"channel",
+				"phase",
+				"channelSaved",
+				"configPath",
+				"releasePath",
+				"reused",
+				"activated",
+				"releaseVersion",
+				"buildId",
+				"cleanupPending",
+				"error",
+				"interrupted"
+			],
+			"properties": {
+				"channel": {
+					"enum": ["stable", "preview", null]
+				},
+				"phase": {
+					"enum": [
+						"configuration",
+						"source",
+						"manifest",
+						"download",
+						"verify",
+						"publish",
+						"activate",
+						"complete"
+					]
+				},
+				"channelSaved": {
+					"type": "boolean"
+				},
+				"configPath": {
+					"type": ["string", "null"]
+				},
+				"releasePath": {
+					"type": ["string", "null"]
+				},
+				"reused": {
+					"type": "boolean"
+				},
+				"activated": {
+					"type": "boolean"
+				},
+				"releaseVersion": {
+					"type": ["string", "null"]
+				},
+				"buildId": {
+					"type": ["string", "null"]
+				},
+				"cleanupPending": {
+					"type": ["string", "null"]
+				},
+				"error": {
+					"enum": [
+						null,
+						"configuration",
+						"source-unconfigured",
+						"source-invalid",
+						"manifest-invalid",
+						"download",
+						"checksum",
+						"storage",
+						"install-location",
+						"busy",
+						"cohort-invalid",
+						"smoke-failed",
+						"activation",
+						"activation-unknown",
+						"cancelled",
+						"timeout",
+						"physical-unknown",
+						"internal",
+						"download-unavailable"
+					]
+				},
+				"interrupted": {
+					"type": "boolean"
+				}
+			},
+			"allOf": [
+				{
+					"if": {
+						"properties": {
+							"activated": {
+								"const": true
+							}
+						}
+					},
+					"then": {
+						"properties": {
+							"releasePath": {
+								"type": "string",
+								"minLength": 1
+							},
+							"phase": {
+								"const": "complete"
+							}
+						}
+					}
+				},
+				{
+					"if": {
+						"properties": {
+							"channelSaved": {
+								"const": true
+							}
+						}
+					},
+					"then": {
+						"properties": {
+							"configPath": {
+								"type": "string",
+								"minLength": 1
+							}
+						}
+					}
+				}
+			]
+		}
+	}
+}

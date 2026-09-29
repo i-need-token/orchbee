@@ -67,6 +67,8 @@ mod site_stop;
 #[cfg(windows)]
 mod terminal_observation;
 #[cfg(windows)]
+pub(crate) mod update;
+#[cfg(windows)]
 mod workbench_agents;
 #[cfg(windows)]
 mod workbench_metadata;

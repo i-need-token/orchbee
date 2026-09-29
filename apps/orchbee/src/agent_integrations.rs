@@ -13,6 +13,12 @@
 
 #[cfg(any(unix, windows))]
 mod capsule;
+/// Checks a distribution sidecar's canonical digest without imposing this Client's
+/// supported provider payload version on a newer, separately installed Client.
+#[cfg(windows)]
+pub(crate) fn verify_distribution_capsule(root: &std::path::Path, expected: &str) -> bool {
+    capsule::verify_distribution(root, expected)
+}
 #[cfg(any(unix, windows))]
 mod copilot;
 #[cfg(any(unix, windows))]

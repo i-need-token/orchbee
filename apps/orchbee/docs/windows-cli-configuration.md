@@ -177,7 +177,6 @@ custom commands, navigation-mode mappings, Agent/indexed Workspace keys and othe
 actions remain unfinished. Targeted evidence covers bounds, collisions/default precedence,
 ownership, dispatch and discovery; no full regression or visual acceptance is claimed.
 
-
 Supported action fields are `help`, `new_workspace`, `rename_workspace`, `workspace_picker`,
 `detach`, `previous_workspace`, `next_workspace`, `new_tab`, `rename_tab`, `previous_tab`,
 `next_tab`, `move_tab_previous`, `move_tab_next`, `switch_tab`, `close_tab`,
@@ -250,3 +249,25 @@ Launch preparation failure records the existing known pre-handoff failure, retai
 ## Custom-notification configuration
 
 `ui.toast.delivery` accepts off (default), orchbee/herdr, terminal or system; legacy `ui.toast.enabled` supplies off/card only when delivery is absent. `ui.toast.herdr.position` selects the four-corner default. These settings configure custom CLI notifications, not Agent delay or clipboard policy. Startup is Client-local; explicit Site reload publishes a canonical bounded profile alongside keys, and Clients validate both before applying either. `site config`/reload v4 expose `notificationProfile`, `config check` v8 exposes delivery/position, and configuration failure v5 adds `ui.toast`. Earlier public versions remain closed. See [notification ownership](windows-notifications.md).
+
+## Windows release installation
+
+`orchbee update [--format text|json]` installs the configured channel. `orchbee channel set <stable|preview> [--format text|json]` validates and atomically saves the channel first, preserving comments and other TOML values, then runs the same updater. A missing explicitly selected file may be created by this writer. Update failure retains the saved preference. Both commands work without a Site; neither starts, stops, replaces or reconnects a running Site.
+
+Set `ORCHBEE_UPDATE_MANIFEST` to an explicit absolute local release manifest or HTTPS URL. `{channel}` expands to the selected token. There is no implicit public feed. The chosen manifest is the trust authority; per-file SHA-256 checks prove content integrity against it, not an independent publisher signature. `ORCHBEE_INSTALL_DIR` defaults to `LOCALAPPDATA/Programs/Orchbee`. Install paths reject PATH delimiters, expansion tokens and controls. Source acquisition has a shared 600-second deadline and Ctrl+C cancellation. HTTPS uses curl 8.4 or newer from the OS system directory with HTTPS-only bounded redirects, no curlrc or inherited proxy/credential environment, and bounded downloads.
+
+A release manifest is closed JSON with `schemaVersion: 1`, `product: "orchbee"`, `platform: "windows-x86_64"`, `channel`, `version`, `buildId` and `files`. Each file has exactly `path`, `url`, `sha256` (lowercase), and `size` (bytes). File URLs are HTTPS or portable relative paths resolved beside the manifest. The manifest is at most 64 KiB, with at most 4096 files, 512 MiB per file and 2 GiB total. Portable paths reject traversal, Windows devices, alternate streams, case aliases and file/directory collisions. Required contents include all four executables, schema-2 `cohort.json`, the adapter capsule, and the three ConPTY distribution files. Every declared file is copied into a private stage and hashed; cohort and capsule digests are admitted before the new Client executes its exact version smoke check.
+
+The installation owner serializes writers and publishes an immutable directory named by the manifest SHA-256. Existing releases are verified and reused, never overwritten. User PATH activation is a later effect: a failure or lost result retains the published path for explicit retry. Existing processes keep their original files. Older releases are installation state and are retained because they can still be running; automatic retention and live handoff are separate work. Unpublished stages are cleaned after child settlement; unconfirmed settlement or cleanup failure transfers the exact stage path to explicit recovery in the receipt. No old release is deleted as staging cleanup.
+
+`orchbee.update` v1 distinguishes channel saved, release published, PATH activated, reuse, interruption, failure phase/reason and pending cleanup. Status is 0 on completion, 1 on known failure, 2 on usage error, 7 on timeout, 8 on unconfirmed physical/activation outcome, and 130 on interruption. A published path can be used directly even when activation needs retry; a new sign-in refreshes inherited PATH. Full distribution publication, HTTPS source acceptance and real user PATH/whole-cohort startup acceptance are deployment obligations and are not implied by a local staging test.
+
+To prepare a feed from a completed Windows cohort without publishing it:
+
+```powershell
+node scripts/package-native-windows.mjs C:/path/to/cohort stable 0.1.0 build-id
+$env:ORCHBEE_UPDATE_MANIFEST = 'C:/path/to/cohort/release.json'
+orchbee update --format json
+```
+
+The packaging tool verifies the existing cohort, adapter capsule and pinned ConPTY bundle, inventories bounded regular files, and exclusively writes `release.json` beside them. It refuses an existing feed. For HTTPS distribution, publish that directory at the feed URL; relative file URLs retain the same directory layout. Version must match the packaged Client's `--version`; buildId distinguishes releases with the same version.

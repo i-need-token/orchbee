@@ -375,6 +375,10 @@ fn fixed_outputs_are_far_below_the_bound() {
         CommandPath::ApiSnapshot,
         #[cfg(windows)]
         CommandPath::ChannelShow,
+        #[cfg(windows)]
+        CommandPath::ChannelSet,
+        #[cfg(windows)]
+        CommandPath::Update,
         CommandPath::ConfigCheck,
         CommandPath::ConfigResetKeys,
         CommandPath::LaunchProfileCreate,
@@ -485,6 +489,8 @@ fn fixed_outputs_are_far_below_the_bound() {
     let roots = [
         #[cfg(windows)]
         "channel",
+        #[cfg(windows)]
+        "update",
         "plugin",
         "notification",
         "session",

@@ -2,6 +2,8 @@ mod notification;
 #[cfg(windows)]
 mod plugins;
 mod runtime_configuration;
+#[cfg(windows)]
+mod update;
 mod window_title;
 #[cfg(test)]
 use crate::client_view::{PREFIX_CHORD, PrefixGroup};

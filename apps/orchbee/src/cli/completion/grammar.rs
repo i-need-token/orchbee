@@ -35,6 +35,10 @@ pub(super) fn build() -> serde_json::Value {
             commands.push(json!({"words": words, "flags": command_flags(&path), "conflicts": [], "operand": usize::from(OPERAND_PATHS.contains(&path.as_str())), "directions": DIRECTION_VALUES.iter().find(|(key, _)| *key == path).map(|(_, values)| *values).unwrap_or(&[])}));
         }
     }
+    #[cfg(windows)]
+    commands.push(
+        json!({"words": ["update"], "flags": [], "conflicts": [], "operand": 0, "directions": []}),
+    );
     commands.push(
         json!({"words": ["status"], "flags": [], "conflicts": [], "operand": 0, "directions": []}),
     );

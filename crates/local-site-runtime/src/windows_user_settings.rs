@@ -18,6 +18,8 @@ use std::{
 pub use window_title::{DEFAULT_WINDOW_TITLE, WindowsWindowTitleTemplate};
 
 const LIMIT: u64 = 64 * 1024;
+mod channel;
+pub use channel::set_windows_update_channel;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct WindowsUserSettings {

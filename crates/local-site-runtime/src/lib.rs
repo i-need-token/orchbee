@@ -29,7 +29,7 @@ pub use windows_user_settings::{
     WindowsNotificationDelivery, WindowsNotificationSettings, WindowsSettingsError,
     WindowsShellMode, WindowsShellSettings, WindowsUpdateChannel, WindowsUserSettings,
     WindowsWindowTitleTemplate, read_windows_user_settings, read_windows_user_settings_at,
-    reset_windows_keybindings, windows_user_settings_path,
+    reset_windows_keybindings, set_windows_update_channel, windows_user_settings_path,
 };
 #[cfg(windows)]
 mod windows_directory;
@@ -74,12 +74,18 @@ pub use session_store_windows::WindowsSessionStore;
 mod windows_tests;
 
 pub use cohort::{NativeArtifact, NativeCohort, ObservationAdaptersSidecar};
+#[cfg(windows)]
+mod windows_release_store;
 pub use rendezvous::{
     CLIENT_PENDING_SOCKET_NAME, EntryKind, EntryObservation, HOST_ENDPOINT_ID, HOST_ENDPOINT_NAME,
     HOST_SCOPE_NAME, LockAttempt, LockKind, ModeCheckedLocalSiteRendezvous, ModeCheckedSiteLock,
     RendezvousError, SiteLifetimeObservation, SiteScope,
 };
 pub use retained_child::RetainedChild;
+#[cfg(windows)]
+pub use windows_release_store::{
+    WindowsReleaseStage, WindowsReleaseStore, open_windows_release_file, valid_windows_release_path,
+};
 
 #[cfg(target_os = "linux")]
 mod linux_permissions;

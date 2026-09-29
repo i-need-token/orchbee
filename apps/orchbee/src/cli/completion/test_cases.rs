@@ -1,6 +1,10 @@
 //! Shared observable completion obligations, independent of shell syntax.
 
 pub(super) const CASES: &[(&str, &str, bool)] = &[
+    ("orchbee up", "update", true),
+    ("orchbee channel ", "set", true),
+    ("orchbee help channel ", "set", true),
+    ("orchbee update --c", "--client", false),
     ("orchbee ch", "channel", true),
     ("orchbee channel ", "show", true),
     ("orchbee help channel ", "show", true),

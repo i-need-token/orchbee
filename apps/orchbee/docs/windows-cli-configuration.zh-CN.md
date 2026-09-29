@@ -127,7 +127,6 @@ Client 激活在提交前连同已有配置冻结这两个值。匹配版本的 
 Agent/按序 Workspace 按键及其他未支持动作仍未完成。定向证据覆盖边界、冲突与默认
 优先级、输入归属、分发及发现；不宣称全量回归或视觉验收通过。
 
-
 支持的动作字段为 `help`、`new_workspace`、`rename_workspace`、`workspace_picker`、
 `detach`、`previous_workspace`、`next_workspace`、`new_tab`、`rename_tab`、`previous_tab`、
 `next_tab`、`move_tab_previous`、`move_tab_next`、`switch_tab`、`close_tab`、
@@ -192,3 +191,25 @@ Client 独立配置策略仍待补全。
 ## 自定义通知配置
 
 `ui.toast.delivery` 接受 off（默认）、orchbee/herdr、terminal 或 system；仅在未指定 delivery 时，旧 `ui.toast.enabled` 提供关闭/卡片选择。`ui.toast.herdr.position` 选择四角默认位置。这些设置配置自定义 CLI 通知，不代表 Agent 延迟或剪贴板策略。启动配置属于 Client；显式 Site 重载与键位一起发布有界规范通知配置，Client 在同时校验两者之后应用。`site config`/重载 v4 暴露 `notificationProfile`，`config check` v8 暴露投递方式/位置，配置失败 v5 新增 `ui.toast`。旧公开版本保持封闭。详见[通知归属](windows-notifications.zh-CN.md)。
+
+## Windows 版本安装
+
+`orchbee update [--format text|json]` 安装配置的频道。`orchbee channel set <stable|preview> [--format text|json]` 先校验并原子保存频道，保留注释与其他 TOML 值，再运行同一更新器。该写入器可以创建显式指定但不存在的文件。更新失败保留已保存偏好。两个命令均无须 Site；不会启动、停止、替换或重新连接运行中的 Site。
+
+将 `ORCHBEE_UPDATE_MANIFEST` 设置为显式本地发布清单绝对路径或 HTTPS URL。`{channel}` 替换为所选频道。没有隐式公共发布源。选定的清单是信任依据；逐文件 SHA-256 校验保证与清单一致，不等于独立发布者签名。`ORCHBEE_INSTALL_DIR` 默认为 `LOCALAPPDATA/Programs/Orchbee`。安装路径拒绝 PATH 分隔符、展开变量和控制字符。获取来源共用 600 秒时限并支持 Ctrl+C 取消。HTTPS 使用系统目录中的 curl 8.4 或更新版本，仅允许 HTTPS 有界重定向，不读取 curlrc 或继承代理/凭据环境，并限制下载大小。
+
+发布清单为封闭 JSON，包含 `schemaVersion: 1`、`product: "orchbee"`、`platform: "windows-x86_64"`、`channel`、`version`、`buildId` 和 `files`。每文件恰含 `path`、`url`、小写 `sha256` 与字节数 `size`。文件 URL 为 HTTPS 或相对清单目录解析的可移植路径。清单最大 64 KiB，最多 4096 个文件，单文件最大 512 MiB，总量最大 2 GiB。可移植路径拒绝目录穿越、Windows 设备名、替代数据流、大小写别名及文件/目录冲突。必需内容包括四个程序、schema-2 `cohort.json`、适配器 capsule 及三个 ConPTY 分发文件。所有声明文件先复制到私有暂存区并计算哈希；通过 cohort 与 capsule 摘要接纳后，才执行新 Client 的精确版本启动检查。
+
+安装所有者串行化写入器，并以清单 SHA-256 为名发布独立目录。现有版本经过校验后复用，不覆盖。用户 PATH 激活是后续副作用：失败或结果丢失均保留发布路径以供显式重试。现有进程继续使用原文件。旧版本属于安装状态，因可能仍在运行而保留；自动保留策略和在线交接是独立工作。未发布暂存区在子进程结束确认后清理；结束未确认或清理失败通过回执移交确切路径供恢复，不把旧版本当暂存目录删除。
+
+`orchbee.update` v1 区分频道已保存、版本已发布、PATH 已激活、复用、中断、失败阶段/原因及待清理项。完成状态为 0，确定失败为 1，用法错误为 2，超时为 7，物理/激活结果未确认为 8，中断为 130。即使激活需重试，仍可直接使用已发布路径；重新登录可刷新继承的 PATH。完整分发发布、HTTPS 来源验收以及真实用户 PATH/整套 cohort 启动验收属于部署义务，本地暂存测试不代表这些义务已完成。
+
+从已完成的 Windows cohort 准备清单而不执行发布：
+
+```powershell
+node scripts/package-native-windows.mjs C:/path/to/cohort stable 0.1.0 build-id
+$env:ORCHBEE_UPDATE_MANIFEST = 'C:/path/to/cohort/release.json'
+orchbee update --format json
+```
+
+打包工具校验现有 cohort、适配器 capsule 和固定 ConPTY 包，清点有界普通文件，再独占写入同目录的 `release.json`，拒绝已有清单。HTTPS 分发需将此目录发布到清单 URL；相对文件 URL 沿用目录布局。版本必须匹配所打包 Client 的 `--version`；buildId 区分同版本号的不同发布。

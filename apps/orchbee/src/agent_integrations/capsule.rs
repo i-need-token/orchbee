@@ -71,6 +71,21 @@ fn valid_sha256(value: &Value) -> bool {
         && text.bytes().all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase()))
 }
 
+#[cfg(windows)]
+pub(super) fn verify_distribution(root: &Path, expected: &str) -> bool {
+    let Some(manifest) = read_manifest(root) else {
+        return false;
+    };
+    manifest.len() == 3
+        && manifest.get("contractVersion").and_then(Value::as_u64) == Some(CAPSULE_CONTRACT_VERSION)
+        && manifest.get("payloadSha256").and_then(Value::as_str) == Some(expected)
+        && manifest.get("payloadVersion").is_some_and(Value::is_string)
+        && REQUIRED_RUNTIME_FILES.iter().all(|relative| {
+            fs::symlink_metadata(root.join(relative)).is_ok_and(|metadata| metadata.is_file())
+        })
+        && payload_digest(root).as_deref() == Some(expected)
+}
+
 /// The bounded canonical digest of a payload tree: lexicographic path order,
 /// `/` separators, `capsule.json` excluded, symlinks or other non-file
 /// non-directory entries invalid, every bound enforced.
