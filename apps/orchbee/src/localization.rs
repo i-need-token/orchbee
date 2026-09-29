@@ -381,6 +381,12 @@ impl Locale {
                 "Reload outcome unknown; inspect site config"
             }
             (Self::ZhCn, Some(Notice::ConfigurationUnknown)) => "重载结果未知；请查看 site config",
+            (Self::EnUs, Some(Notice::NotificationUnavailable)) => {
+                "Notification transport unavailable; terminal remains usable"
+            }
+            (Self::ZhCn, Some(Notice::NotificationUnavailable)) => {
+                "通知投递方式不可用；终端仍可正常使用"
+            }
             (Self::EnUs, Some(Notice::WindowTitleUnavailable)) => {
                 "Window title unavailable; terminal remains usable"
             }

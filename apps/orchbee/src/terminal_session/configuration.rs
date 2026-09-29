@@ -4,7 +4,7 @@ use crate::{
     local_client::{LocalClientOrigin, LocalOperationClock},
 };
 use orchbee_local_ipc::{AsLocalIo, LocalStream};
-use orchbee_local_site_runtime::WindowsKeySettings;
+use orchbee_local_site_runtime::{WindowsKeySettings, WindowsNotificationSettings};
 use orchbee_workbench_protocol::{
     ConfigurationAction, ConfigurationOutcome, ConfigurationRequest, ConfigurationSnapshot,
     ProtocolVersion, SiteId, WorkbenchRequestId,
@@ -70,13 +70,17 @@ impl Watcher {
         if let Some(snapshot) = snapshot
             && snapshot.revision.value() > self.revision
         {
-            match WindowsKeySettings::from_profile(&snapshot.keys_profile) {
-                Ok(keys) => {
+            match (
+                WindowsKeySettings::from_profile(&snapshot.keys_profile),
+                WindowsNotificationSettings::from_profile(&snapshot.notification_profile),
+            ) {
+                (Ok(keys), Ok(notifications)) => {
+                    view.notifications.configure(notifications);
                     view.configure_keys(&keys);
                     self.revision = snapshot.revision.value();
                     changed = true;
                 }
-                Err(_) => {
+                _ => {
                     view.configuration_notice(Notice::ConfigurationFailed);
                     return true;
                 }

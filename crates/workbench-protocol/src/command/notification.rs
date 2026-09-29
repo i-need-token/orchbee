@@ -23,21 +23,22 @@ pub struct Notification {
     pub title: String,
     #[serde(deserialize_with = "super::json_fields::deserialize_nullable")]
     pub body: Option<String>,
-    pub position: NotificationPosition,
+    #[serde(deserialize_with = "super::json_fields::deserialize_nullable")]
+    pub position: Option<NotificationPosition>,
     pub sound: NotificationSound,
 }
 impl Notification {
     pub fn normalize(
         title: &str,
         body: Option<&str>,
-        position: NotificationPosition,
+        position: impl Into<Option<NotificationPosition>>,
         sound: NotificationSound,
     ) -> Result<Self, ContractError> {
         let title = normalize_text(title, 80).ok_or(ContractError::InvalidDocument)?;
         Ok(Self {
             title,
             body: body.and_then(|body| normalize_text(body, 240)),
-            position,
+            position: position.into(),
             sound,
         })
     }
@@ -112,6 +113,7 @@ impl NotificationRequest {
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum NotificationReason {
+    Disabled,
     Shown,
     Busy,
     RateLimited,

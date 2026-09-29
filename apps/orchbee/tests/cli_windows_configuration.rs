@@ -137,7 +137,7 @@ fn config_check_reports_the_actual_file_without_creating_it() {
         !validator.is_valid(&old),
         "v2 must not silently omit user configuration"
     );
-    assert_eq!(doc["version"], 7);
+    assert_eq!(doc["version"], 8);
     assert_eq!(doc["result"]["checks"][5]["details"]["defaultShell"], "");
     assert_eq!(doc["result"]["checks"][5]["details"]["shellMode"], "auto");
     assert_eq!(doc["result"]["checks"][5]["details"]["manifestCheck"], true);
@@ -173,6 +173,8 @@ fn config_check_reports_the_actual_file_without_creating_it() {
         "keyOverrides",
         "windowTitle",
         "windowTitleDiagnostic",
+        "notificationDelivery",
+        "notificationPosition",
     ] {
         old["result"]["checks"][5]["details"]
             .as_object_mut()
@@ -217,6 +219,8 @@ fn config_check_validates_keys_and_keeps_previous_envelopes_closed() {
         "keyOverrides",
         "windowTitle",
         "windowTitleDiagnostic",
+        "notificationDelivery",
+        "notificationPosition",
     ] {
         old["result"]["checks"][5]["details"]
             .as_object_mut()
@@ -572,7 +576,12 @@ fn config_check_window_title_diagnostics_and_closed_previous_versions() {
         let mut old = doc.clone();
         old["version"] = json!(6);
         assert!(!validator.is_valid(&old));
-        for key in ["windowTitle", "windowTitleDiagnostic"] {
+        for key in [
+            "windowTitle",
+            "windowTitleDiagnostic",
+            "notificationDelivery",
+            "notificationPosition",
+        ] {
             old["result"]["checks"][5]["details"]
                 .as_object_mut()
                 .unwrap()
@@ -588,4 +597,59 @@ fn config_check_window_title_diagnostics_and_closed_previous_versions() {
     );
     assert_eq!(doc["version"], 4);
     assert_eq!(doc["failure"]["details"]["field"], "ui.window_title");
+}
+
+#[test]
+fn config_check_notification_policy_validates_actual_file_and_closed_versions() {
+    let fixture = Fixture::new();
+    let config = fixture.0.join("appdata/Orchbee/config.toml");
+    std::fs::create_dir_all(config.parent().unwrap()).unwrap();
+    std::fs::write(
+        &config,
+        "[ui.toast]\ndelivery='herdr'\n[ui.toast.herdr]\nposition='top-left'",
+    )
+    .unwrap();
+    let doc = document(fixture.run(&["config", "check", "--format=json"]));
+    let schema = include_str!("../src/cli/schemas/orchbee.config.check.json");
+    validate(&doc, schema);
+    assert_eq!(
+        doc["result"]["checks"][5]["details"]["notificationDelivery"],
+        "orchbee"
+    );
+    assert_eq!(
+        doc["result"]["checks"][5]["details"]["notificationPosition"],
+        "top-left"
+    );
+    let validator =
+        jsonschema::validator_for(&serde_json::from_str::<Value>(schema).unwrap()).unwrap();
+    let mut old = doc;
+    old["version"] = json!(7);
+    assert!(!validator.is_valid(&old));
+    for name in ["notificationDelivery", "notificationPosition"] {
+        old["result"]["checks"][5]["details"]
+            .as_object_mut()
+            .unwrap()
+            .remove(name);
+    }
+    assert!(validator.is_valid(&old));
+    std::fs::write(&config, "[ui.toast]\ndelivery='bad'").unwrap();
+    let failure = document(fixture.run(&["workspace", "create", "--format=json"]));
+    validate(
+        &failure,
+        include_str!("../src/cli/schemas/orchbee.cli.failure.configuration.json"),
+    );
+    assert_eq!(failure["version"], 5);
+    assert_eq!(failure["failure"]["details"]["field"], "ui.toast");
+    let validator = jsonschema::validator_for(
+        &serde_json::from_str::<Value>(include_str!(
+            "../src/cli/schemas/orchbee.cli.failure.configuration.json"
+        ))
+        .unwrap(),
+    )
+    .unwrap();
+    let mut old_failure = failure;
+    for version in 1..=4 {
+        old_failure["version"] = json!(version);
+        assert!(!validator.is_valid(&old_failure));
+    }
 }

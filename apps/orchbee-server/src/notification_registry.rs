@@ -25,6 +25,7 @@ pub(crate) struct Registry {
     listeners: BTreeMap<NonZeroU64, Listener>,
     receipts: BTreeMap<WorkbenchRequestId, Receipt>,
     last: Option<Instant>,
+    pub(crate) disabled: bool,
 }
 fn outcome(reason: Reason) -> NotificationOutcome {
     NotificationOutcome::Show {
@@ -92,7 +93,11 @@ impl Registry {
                     return outcome(Reason::Busy);
                 }
                 let reason = if self.listeners.is_empty() {
-                    Reason::NoForegroundClient
+                    if self.disabled {
+                        Reason::Disabled
+                    } else {
+                        Reason::NoForegroundClient
+                    }
                 } else if self.last.is_some_and(|last| {
                     now.saturating_duration_since(last) < Duration::from_secs(1)
                 }) {

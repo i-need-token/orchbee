@@ -238,6 +238,7 @@ fn run_prepared_surface(
                 TuiFailure::Runtime(io::Error::new(io::ErrorKind::InvalidInput, error))
             })?;
         initial_view.configure_keys(&settings.keys);
+        initial_view.notifications.configure(settings.notifications);
     }
     let termination = TerminationSignal::install().map_err(TuiFailure::Runtime)?;
     let mut modes = TerminalModeGuard::enter(InheritedTerminalModes::new(inherited.clone()))
@@ -272,6 +273,8 @@ fn run_prepared_surface(
         .set_focus_reporting(true)
         .map_err(TuiFailure::Runtime)?;
 
+    #[cfg(windows)]
+    let mut system_notifications = crate::notifications::system::SystemNotifications::default();
     let run_result = run_event_loop_with_modes(
         &mut terminal,
         Chrome {
@@ -279,6 +282,17 @@ fn run_prepared_surface(
             theme: &theme,
         },
         (&mut inputs, &mut |request| match request {
+            #[cfg(windows)]
+            ModeRequest::Notification(effect) => {
+                use orchbee_local_site_runtime::WindowsNotificationDelivery as Delivery;
+                let result = match effect.delivery {
+                    Delivery::Terminal => modes.notify_terminal(&effect.message),
+                    Delivery::System => system_notifications.submit(effect.message.clone()),
+                    Delivery::Off | Delivery::Tui => Ok(()),
+                };
+                crate::notifications::sound(effect.message.sound);
+                result
+            }
             #[cfg(windows)]
             ModeRequest::WindowTitle(title) => modes.set_window_title(
                 title
@@ -301,6 +315,8 @@ fn run_prepared_surface(
         // output first; mode restoration still sends its own control bytes.
         modes.discard_frame_output();
     }
+    #[cfg(windows)]
+    drop(system_notifications);
     drop(terminal);
     drop(terminal_input);
     let restore_result = modes.restore().map_err(io::Error::other);
@@ -447,6 +463,13 @@ fn run_event_loop_with_modes<B: Backend + ResizableBackend>(
             redraw = true;
         }
         if redraw {
+            draw_surface(terminal, &mut view, chrome, terminal_input, &mut dispatcher)?;
+        }
+        #[cfg(windows)]
+        if let Some(effect) = view.notifications.take_effect()
+            && mode(ModeRequest::Notification(effect)).is_err()
+        {
+            view.notification_unavailable();
             draw_surface(terminal, &mut view, chrome, terminal_input, &mut dispatcher)?;
         }
     }

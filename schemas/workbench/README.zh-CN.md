@@ -511,7 +511,7 @@ Server 负责原子分配和发布；物理成员创建仍是独立的保留命�
 
 `workbench.notification`（OBWP kind 41）承载 show/listen；`workbench.notification.result`（kind 42）承载 show/listening/failed。帧保留 16 KiB intent 上限。[通知 schema](v1/workbench-notification.schema.json) 及共享语料约束 Rust 与 TypeScript 的封闭结构、必需可空的 body/pending 值、四角位置和 none/done/request 声音。规范化标题/正文至多包含 80/240 个 Unicode 标量，只保留合并后的 ASCII 空格且无控制字符。关联必须匹配两个身份及请求动作；shown 仅在 shown 原因时为 true。
 
-[Windows 通知归属](../../apps/orchbee/docs/windows-notifications.zh-CN.md) 定义授权、连接拥有的有界收件箱、过期、重放与 UI 交接。这是临时、匹配 cohort 的传输，不新增持久化迁移或 Desktop 命令。公开的 `orchbee.notification.show` v1 暴露提交事实，包括不确定提交后的 null 回应；不保证显示确认。
+[Windows 通知归属](../../apps/orchbee/docs/windows-notifications.zh-CN.md) 定义授权、连接拥有的有界收件箱、过期、重放与 UI 交接。这是临时、匹配 cohort 的传输，不新增持久化迁移或 Desktop 命令。公开的 `orchbee.notification.show` v2 保留 v1 并暴露提交事实，包括不确定提交后的 null 回应；不保证显示确认。
 
 ## 外层 Client 标题发布
 
@@ -522,3 +522,7 @@ Server 负责原子分配和发布；物理成员创建仍是独立的保留命�
 ## 窗口标题模板输入
 
 匹配 cohort 的 `workbench.window-title` listen 动作要求 `context`，包含 workspace/tab/pane/terminalTitle；每项为无控制字符且至多 200 个 Unicode 标量的字符串，允许为空。仅前台渲染使用这些展示值，不授予选择权限。`ConfigurationSnapshot.windowTitle` 是必需原始字符串，限制为 4096 个 UTF-8 字节，按文档中的建议性策略允许空值和无效模板。Rust/TypeScript 绑定执行字节/标量上限；schema 与语料保证字段存在及封闭结构。公开配置回执升级为 v3、检查为 v7、配置失败为 v4、目录为 v107；旧版本继续保持封闭。
+
+## 自定义通知策略投影
+
+匹配的私有通知消息要求可空 `position`，null 表示由接收 Client 策略决定。Show 结果新增 `disabled`，用于 Server 关闭且没有 Client 的情况；连接中的 Client 可以独立关闭视觉显示。配置快照要求非空且最多 1024 个 UTF-8 字节的 `notificationProfile`；Client 仅在通知配置和键位均有效时共同应用。公开通知回执升至 v2，Site 配置 v4，检查 v8，配置失败 v5，目录 v108。旧公开版本保持封闭。既有原生 Windows [通知归属](../../apps/orchbee/docs/windows-notifications.zh-CN.md) 管理效果与关闭。

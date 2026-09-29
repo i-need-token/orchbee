@@ -1,5 +1,7 @@
 //! Shared Windows user settings: bounded strict reads and explicitly invoked repair.
 mod keys;
+mod notifications;
+pub use notifications::{WindowsNotificationDelivery, WindowsNotificationSettings};
 mod reset_keys;
 mod shell;
 mod window_title;
@@ -20,6 +22,7 @@ const LIMIT: u64 = 64 * 1024;
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct WindowsUserSettings {
     pub window_title: String,
+    pub notifications: WindowsNotificationSettings,
     pub keys: WindowsKeySettings,
     pub shell: WindowsShellSettings,
     pub path: Option<PathBuf>,
@@ -37,6 +40,7 @@ impl Default for WindowsUserSettings {
     fn default() -> Self {
         Self {
             window_title: DEFAULT_WINDOW_TITLE.into(),
+            notifications: WindowsNotificationSettings::default(),
             keys: WindowsKeySettings::default(),
             shell: WindowsShellSettings::default(),
             path: None,
@@ -229,8 +233,14 @@ fn parse(
             let table = value
                 .as_table()
                 .ok_or(WindowsSettingsError::new("ui.window_title", "wrong-type"))?;
-            if table.keys().any(|key| key != "window_title") {
+            if table
+                .keys()
+                .any(|key| !matches!(key.as_str(), "window_title" | "toast"))
+            {
                 return Err(WindowsSettingsError::new("ui.window_title", "unknown-key"));
+            }
+            if let Some(value) = table.get("toast") {
+                settings.notifications = WindowsNotificationSettings::parse(value)?;
             }
             if let Some(value) = table.get("window_title") {
                 let value = value

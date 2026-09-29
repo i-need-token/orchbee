@@ -798,7 +798,7 @@ Windows `panel report-agent`、`report-agent-session`、`clear-agent-authority` 
 
 ## Windows CLI 通知
 
-`orchbee notification show "Build complete" --body "All checks passed" --position bottom-right --sound done` 向运行中 Site 上可接收的主 TUI Client 发送短通知卡片。使用 `--format json` 获取封闭投递回执。详见[投递、边界与生命周期](docs/windows-notifications.zh-CN.md)；接收只表示入队，不确认显示或播放声音。
+`orchbee notification show "Build complete" --body "All checks passed" --position bottom-right --sound done` 向运行中 Site 上可接收的主 TUI Client 排入自定义通知。配置 `[ui.toast] delivery="orchbee"` 显示卡片，`terminal` 或 `system` 使用外部投递；默认 `off`。使用 `--format json` 获取封闭投递回执。详见[投递、边界与生命周期](docs/windows-notifications.zh-CN.md)；接收只表示入队，不确认显示或播放声音。
 
 ## Windows 外层终端标题
 

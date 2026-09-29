@@ -29,6 +29,8 @@ enum Operation {
     #[cfg(windows)]
     SetTitle,
     #[cfg(windows)]
+    Notification,
+    #[cfg(windows)]
     RestoreTitle,
 }
 
@@ -77,6 +79,10 @@ impl FakeTerminalModes {
 }
 
 impl TerminalModes for FakeTerminalModes {
+    #[cfg(windows)]
+    fn notify_terminal(&self, _: &orchbee_workbench_protocol::Notification) -> io::Result<()> {
+        self.perform(Operation::Notification)
+    }
     #[cfg(windows)]
     fn set_window_title(&self, _: &str) -> io::Result<()> {
         self.perform(Operation::SetTitle)
@@ -1168,5 +1174,33 @@ fn window_title_owner_panic_restores_exactly_once() -> io::Result<()> {
     assert!(guard.set_window_title("late").is_err());
     drop(guard);
     assert_eq!(count(), 1);
+    Ok(())
+}
+
+#[cfg(windows)]
+#[test]
+fn notification_terminal_writer_is_fenced_after_restoration() -> io::Result<()> {
+    let control = FakeTerminalModes::default();
+    let mut guard = TerminalModeGuard::enter_without_panic_hook(control.clone())?;
+    let message = orchbee_workbench_protocol::Notification::normalize(
+        "Ready",
+        None,
+        None,
+        orchbee_workbench_protocol::NotificationSound::None,
+    )
+    .unwrap();
+    guard.notify_terminal(&message)?;
+    assert_eq!(
+        control
+            .operations()
+            .iter()
+            .filter(|op| **op == Operation::Notification)
+            .count(),
+        1
+    );
+    guard.restore().map_err(io::Error::other)?;
+    let before = control.operations();
+    assert!(guard.notify_terminal(&message).is_err());
+    assert_eq!(control.operations(), before);
     Ok(())
 }

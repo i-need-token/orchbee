@@ -881,7 +881,7 @@ Windows `panel report-agent`, `report-agent-session`, `clear-agent-authority` an
 
 ## Windows CLI notifications
 
-`orchbee notification show "Build complete" --body "All checks passed" --position bottom-right --sound done` sends a short card to accepting main-TUI Clients on the running Site. Use `--format json` for the closed delivery receipt. See [delivery, limits and lifecycle](docs/windows-notifications.md); acceptance is queue admission, not a display or sound acknowledgement.
+`orchbee notification show "Build complete" --body "All checks passed" --position bottom-right --sound done` queues a custom notification for accepting main-TUI Clients on the running Site. Configure `[ui.toast] delivery="orchbee"` for cards, `terminal` or `system` for external delivery; the default is `off`. Use `--format json` for the closed delivery receipt. See [delivery, limits and lifecycle](docs/windows-notifications.md); acceptance is queue admission, not a display or sound acknowledgement.
 
 ## Windows outer terminal title
 

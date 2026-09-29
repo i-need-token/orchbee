@@ -67,6 +67,40 @@
 					}
 				}
 			}
+		},
+		{
+			"name": "inherited-position",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.notification",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "show",
+					"notification": {
+						"title": "Build ready",
+						"body": "中 😀",
+						"position": null,
+						"sound": "none"
+					}
+				}
+			}
+		},
+		{
+			"name": "disabled",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.notification.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "show",
+					"shown": false,
+					"reason": "disabled"
+				}
+			}
 		}
 	],
 	"invalid": [
@@ -243,6 +277,24 @@
 				}
 			},
 			"boundary": "schema"
+		},
+		{
+			"name": "missing-position",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.notification",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "show",
+					"notification": {
+						"title": "Build ready",
+						"body": "中 😀",
+						"sound": "none"
+					}
+				}
+			}
 		}
 	]
 }

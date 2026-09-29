@@ -79,6 +79,7 @@ fn windows(message: Notification, format: OutputFormat, locale: Locale) -> Outpu
                 Some(NotificationOutcome::Show { reason, .. }) => (
                     0,
                     match reason {
+                        orchbee_workbench_protocol::NotificationReason::Disabled => "disabled",
                         orchbee_workbench_protocol::NotificationReason::Shown => "shown",
                         orchbee_workbench_protocol::NotificationReason::Busy => "busy",
                         orchbee_workbench_protocol::NotificationReason::RateLimited => {
@@ -99,7 +100,7 @@ fn windows(message: Notification, format: OutputFormat, locale: Locale) -> Outpu
                 ),
                 Some(NotificationOutcome::Listening { .. }) => (8, "unknown"),
             };
-            let document = serde_json::json!({"schema":"orchbee.notification.show","version":1,"source":{"kind":"local-runtime"},"result":{"reply":reply,"interrupted":interrupted,"cleanupFailed":cleanup_failed}});
+            let document = serde_json::json!({"schema":"orchbee.notification.show","version":2,"source":{"kind":"local-runtime"},"result":{"reply":reply,"interrupted":interrupted,"cleanupFailed":cleanup_failed}});
             let encoded = match format {
                 OutputFormat::Json => output::encode_document(&document),
                 OutputFormat::Text => output::encode_text(locale.notification_result(label)),

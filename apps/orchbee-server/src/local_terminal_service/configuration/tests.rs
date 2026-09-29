@@ -291,3 +291,45 @@ fn window_title_reload_publishes_invalid_syntax_without_losing_other_settings() 
     ));
     assert_eq!(current(&registry), before);
 }
+
+#[test]
+fn notification_reload_exposes_policy_and_rejects_bad_candidate_without_publication() {
+    let fixture = Fixture::new();
+    fixture.write("");
+    let registry = Registry::default();
+    registry.initialize(&fixture.settings(true)).unwrap();
+    for delivery in ["herdr", "terminal", "system", "off"] {
+        fixture.write(&format!(
+            "[ui.toast]\ndelivery='{delivery}'\n[ui.toast.herdr]\nposition='top-left'"
+        ));
+        let Outcome::Reloaded { snapshot, .. } =
+            registry.execute(&request(Action::Reload), |_| true)
+        else {
+            panic!()
+        };
+        let parsed = orchbee_local_site_runtime::WindowsNotificationSettings::from_profile(
+            &snapshot.notification_profile,
+        )
+        .unwrap();
+        assert_eq!(
+            parsed.delivery.as_str(),
+            if delivery == "herdr" {
+                "orchbee"
+            } else {
+                delivery
+            }
+        );
+        assert_eq!(parsed.position(), "top-left");
+        assert!(snapshot.restart_required.is_empty());
+    }
+    let retained = current(&registry);
+    fixture.write("[ui.toast]\ndelivery='bad'");
+    assert!(matches!(
+        registry.execute(&request(Action::Reload), |_| panic!()),
+        Outcome::Failed {
+            reason: Failure::LoadFailed,
+            ..
+        }
+    ));
+    assert_eq!(current(&registry), retained);
+}

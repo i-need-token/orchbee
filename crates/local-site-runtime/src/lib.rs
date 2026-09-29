@@ -15,9 +15,10 @@ mod windows_user_settings;
 pub use windows_user_settings::{
     DEFAULT_WINDOW_TITLE, WindowsDirectoryPolicy, WindowsKeyChord, WindowsKeyOverride,
     WindowsKeySettings, WindowsKeyTrigger, WindowsKeysResetOutcome, WindowsKeysResetReport,
-    WindowsSettingsError, WindowsShellMode, WindowsShellSettings, WindowsUserSettings,
-    WindowsWindowTitleTemplate, read_windows_user_settings, read_windows_user_settings_at,
-    reset_windows_keybindings, windows_user_settings_path,
+    WindowsNotificationDelivery, WindowsNotificationSettings, WindowsSettingsError,
+    WindowsShellMode, WindowsShellSettings, WindowsUserSettings, WindowsWindowTitleTemplate,
+    read_windows_user_settings, read_windows_user_settings_at, reset_windows_keybindings,
+    windows_user_settings_path,
 };
 #[cfg(windows)]
 mod windows_directory;

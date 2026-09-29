@@ -102,6 +102,13 @@ impl crossterm::Command for SynchronizedUpdateEnd {
 
 pub(crate) trait TerminalModes: Send + Sync + 'static {
     #[cfg(windows)]
+    fn notify_terminal(
+        &self,
+        _message: &orchbee_workbench_protocol::Notification,
+    ) -> io::Result<()> {
+        Err(io::ErrorKind::Unsupported.into())
+    }
+    #[cfg(windows)]
     fn set_window_title(&self, _title: &str) -> io::Result<()> {
         Err(io::ErrorKind::Unsupported.into())
     }
@@ -374,6 +381,16 @@ impl<C: TerminalModes> TerminalModeGuard<C> {
     }
 
     #[cfg(windows)]
+    pub(crate) fn notify_terminal(
+        &mut self,
+        message: &orchbee_workbench_protocol::Notification,
+    ) -> io::Result<()> {
+        if self.state.synchronized_update.frame_output_blocked() {
+            return Err(io::ErrorKind::BrokenPipe.into());
+        }
+        self.control.notify_terminal(message)
+    }
+    #[cfg(windows)]
     pub(crate) fn set_window_title(&mut self, title: &str) -> io::Result<()> {
         if self.state.synchronized_update.frame_output_blocked() {
             return Err(io::ErrorKind::BrokenPipe.into());
@@ -614,6 +631,17 @@ impl InheritedTerminalModes {
 }
 
 impl TerminalModes for InheritedTerminalModes {
+    #[cfg(windows)]
+    fn notify_terminal(
+        &self,
+        message: &orchbee_workbench_protocol::Notification,
+    ) -> io::Result<()> {
+        use std::io::Write;
+        let bytes = crate::notifications::terminal::sequence(message)?;
+        let mut output = self.terminal.output()?;
+        output.write_all(&bytes)?;
+        output.flush()
+    }
     #[cfg(windows)]
     fn set_window_title(&self, title: &str) -> io::Result<()> {
         let mut original = self

@@ -755,6 +755,13 @@ impl WorkbenchClientSession<'_> {
                     reason: Failure::SiteMismatch,
                 }
             } else if let Ok(mut registry) = self.service.notifications.lock() {
+                let Ok(disabled) = self.service.terminals.notifications_disabled() else {
+                    return WorkbenchExecution::Response(unavailable_or_denied(
+                        WorkbenchRequest::Notification(request.clone()),
+                        false,
+                    ));
+                };
+                registry.disabled = disabled;
                 registry.execute(
                     self.generation,
                     request.request_id.clone(),

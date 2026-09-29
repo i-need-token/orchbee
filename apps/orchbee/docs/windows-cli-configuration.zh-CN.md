@@ -184,4 +184,8 @@ Client 独立配置策略仍待补全。
 
 ## 外层窗口标题
 
-`[ui] window_title` 默认为 `{hostname}: {workspace}`，可在线重载。[标题所有者](windows-terminal-title.zh-CN.md#配置模板) 定义变量、字面花括号、无效/空策略、有界渲染及 CLI 覆盖优先级。`config check` v7 报告 `windowTitle` 及可空 `windowTitleDiagnostic`；模板语法错误提供建议性诊断，类型错误/未知 UI 键/超过 4096 字节则在接入前失败（`orchbee.cli.failure.configuration` v4）。`site config`/`site reload-config` v3 暴露已发布的原始模板，旧公开版本保持封闭。
+`[ui] window_title` 默认为 `{hostname}: {workspace}`，可在线重载。[标题所有者](windows-terminal-title.zh-CN.md#配置模板) 定义变量、字面花括号、无效/空策略、有界渲染及 CLI 覆盖优先级。`config check` v8 报告 `windowTitle` 及可空 `windowTitleDiagnostic`；模板语法错误提供建议性诊断，类型错误/未知 UI 键/超过 4096 字节则在接入前失败（`orchbee.cli.failure.configuration` v5）。`site config`/`site reload-config` v4 暴露已发布的原始模板，旧公开版本保持封闭。
+
+## 自定义通知配置
+
+`ui.toast.delivery` 接受 off（默认）、orchbee/herdr、terminal 或 system；仅在未指定 delivery 时，旧 `ui.toast.enabled` 提供关闭/卡片选择。`ui.toast.herdr.position` 选择四角默认位置。这些设置配置自定义 CLI 通知，不代表 Agent 延迟或剪贴板策略。启动配置属于 Client；显式 Site 重载与键位一起发布有界规范通知配置，Client 在同时校验两者之后应用。`site config`/重载 v4 暴露 `notificationProfile`，`config check` v8 暴露投递方式/位置，配置失败 v5 新增 `ui.toast`。旧公开版本保持封闭。详见[通知归属](windows-notifications.zh-CN.md)。

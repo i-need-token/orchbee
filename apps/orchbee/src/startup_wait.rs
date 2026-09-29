@@ -178,7 +178,8 @@ where
                     |_, _| Ok(()),
                     &mut |request| match request {
                         #[cfg(windows)]
-                        crate::terminal_input::ModeRequest::WindowTitle(_) => {
+                        crate::terminal_input::ModeRequest::WindowTitle(_)
+                        | crate::terminal_input::ModeRequest::Notification(_) => {
                             Err(io::ErrorKind::Unsupported.into())
                         }
                         crate::terminal_input::ModeRequest::BracketedPaste(enabled) => {

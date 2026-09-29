@@ -15,6 +15,7 @@ fn snapshot(revision: u64, profile: &str) -> ConfigurationSnapshot {
     ConfigurationSnapshot {
         revision: WorkbenchRevision::new(revision),
         keys_profile: profile.into(),
+        notification_profile: "[ui.toast]\ndelivery='off'\n".into(),
         window_title: "{hostname}: {workspace}".into(),
         restart_required: Vec::new(),
         default_shell: String::new(),
@@ -212,4 +213,29 @@ fn submitted_reload_loss_recovers_by_read_only_and_installs_the_observed_publica
     );
     watcher.close();
     server.finish().unwrap();
+}
+
+#[test]
+fn notification_policy_and_keys_are_applied_as_one_valid_publication() {
+    let (_reader, wake) = LocalStream::pair().unwrap();
+    let mut watcher = Watcher {
+        shared: Arc::new((Mutex::new(Handoff::default()), Condvar::new())),
+        wake,
+        task: None,
+        revision: 0,
+    };
+    let mut view = ClientView::new(100);
+    let mut next = snapshot(1, "[keys]\nprefix='ctrl+a'");
+    next.notification_profile = "[ui.toast]\ndelivery='herdr'".into();
+    watcher.shared.0.lock().unwrap().snapshot = Some(next);
+    assert!(watcher.tick(&mut view));
+    assert!(view.notifications.card_delivery());
+    let keys = view.bindings().clone();
+    let mut invalid = snapshot(2, "[keys]\nprefix='ctrl+x'");
+    invalid.notification_profile = "[ui.toast]\ndelivery='bad'".into();
+    watcher.shared.0.lock().unwrap().snapshot = Some(invalid);
+    assert!(watcher.tick(&mut view));
+    assert_eq!(watcher.revision, 1);
+    assert_eq!(view.bindings(), &keys);
+    assert!(view.notifications.card_delivery());
 }

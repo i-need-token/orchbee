@@ -13,6 +13,7 @@ fn notification_pipe_receipts_are_correlated_and_never_retried() {
     for case in [
         "shown",
         "busy",
+        "disabled",
         "rate",
         "absent",
         "denied",
@@ -36,7 +37,7 @@ fn notification_pipe_receipts_are_correlated_and_never_retried() {
                     notification: Notification {
                         title: "build ready".into(),
                         body: Some("all tests passed".into()),
-                        position: NotificationPosition::BottomLeft,
+                        position: Some(NotificationPosition::BottomLeft),
                         sound: NotificationSound::Done,
                     }
                 }
@@ -46,6 +47,7 @@ fn notification_pipe_receipts_are_correlated_and_never_retried() {
             }
             let reason = match case {
                 "busy" => NotificationReason::Busy,
+                "disabled" => NotificationReason::Disabled,
                 "rate" => NotificationReason::RateLimited,
                 "absent" => NotificationReason::NoForegroundClient,
                 _ => NotificationReason::Shown,
@@ -121,6 +123,7 @@ fn notification_pipe_receipts_are_correlated_and_never_retried() {
             );
         } else {
             let document: Value = serde_json::from_slice(&output.stdout).unwrap();
+            assert_eq!(document["version"], 2);
             validate(
                 &document,
                 include_str!("../src/cli/schemas/orchbee.notification.show.json"),

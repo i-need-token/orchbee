@@ -8007,7 +8007,7 @@ fn notification_defaults_and_joined_flags_normalize_before_any_effect() {
     };
     assert_eq!(message.title, "build ready");
     assert_eq!(message.body, None);
-    assert_eq!(message.position, NotificationPosition::BottomRight);
+    assert_eq!(message.position, None);
     assert_eq!(message.sound, NotificationSound::None);
     assert_eq!(format, OutputFormat::Text);
     let Request::Notification { message, format } = parse(&[
@@ -8023,7 +8023,7 @@ fn notification_defaults_and_joined_flags_normalize_before_any_effect() {
         panic!()
     };
     assert_eq!(message.body, None);
-    assert_eq!(message.position, NotificationPosition::TopLeft);
+    assert_eq!(message.position, Some(NotificationPosition::TopLeft));
     assert_eq!(message.sound, NotificationSound::Request);
     assert_eq!(format, OutputFormat::Json);
 }

@@ -20,7 +20,7 @@ const text = (maximum: number) =>
 export const NotificationSchema = z.strictObject({
 	title: text(80),
 	body: text(240).nullable(),
-	position: z.enum(['top-left', 'top-right', 'bottom-left', 'bottom-right']),
+	position: z.enum(['top-left', 'top-right', 'bottom-left', 'bottom-right']).nullable(),
 	sound: z.enum(['none', 'done', 'request']),
 });
 const correlation = {
@@ -47,7 +47,7 @@ export const NotificationResultSchema = z
 				.strictObject({
 					kind: z.literal('show'),
 					shown: z.boolean(),
-					reason: z.enum(['shown', 'busy', 'rate-limited', 'no-foreground-client']),
+					reason: z.enum(['shown', 'busy', 'rate-limited', 'no-foreground-client', 'disabled']),
 				})
 				.refine((value) => value.shown === (value.reason === 'shown')),
 			z.strictObject({ kind: z.literal('listening'), notification: NotificationSchema.nullable() }),

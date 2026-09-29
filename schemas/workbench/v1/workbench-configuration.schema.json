@@ -41,7 +41,8 @@
 				"restartRequired",
 				"defaultShell",
 				"shellMode",
-				"windowTitle"
+				"windowTitle",
+				"notificationProfile"
 			],
 			"additionalProperties": false,
 			"properties": {
@@ -83,6 +84,11 @@
 				"windowTitle": {
 					"type": "string",
 					"maxLength": 4096
+				},
+				"notificationProfile": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 1024
 				}
 			}
 		},

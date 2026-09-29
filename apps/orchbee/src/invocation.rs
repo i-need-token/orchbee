@@ -3932,16 +3932,13 @@ fn resolve_words(
                     envelope,
                 )
             };
-            let position = match options
-                .notification_position
-                .as_deref()
-                .unwrap_or("bottom-right")
-            {
-                "top-left" => Position::TopLeft,
-                "top-right" => Position::TopRight,
-                "bottom-left" => Position::BottomLeft,
-                "bottom-right" => Position::BottomRight,
-                value => {
+            let position = match options.notification_position.as_deref() {
+                None => None,
+                Some("top-left") => Some(Position::TopLeft),
+                Some("top-right") => Some(Position::TopRight),
+                Some("bottom-left") => Some(Position::BottomLeft),
+                Some("bottom-right") => Some(Position::BottomRight),
+                Some(value) => {
                     return Err(invalid(
                         "--position",
                         value,

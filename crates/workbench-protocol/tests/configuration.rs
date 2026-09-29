@@ -32,6 +32,7 @@ fn configuration_roundtrips_have_distinct_carrier_kinds_and_exact_correlation() 
                 default_shell: String::new(),
                 shell_mode: orchbee_workbench_protocol::ConfigurationShellMode::Auto,
                 manifest_check: true,
+                notification_profile: "[ui.toast]\ndelivery='off'\n".into(),
                 window_title: "{hostname}: {workspace}".into(),
                 restart_required: vec![],
             },
@@ -78,6 +79,7 @@ fn configuration_rejects_unknown_fields_oversize_and_invalid_failure_shapes() {
         snapshot: ConfigurationSnapshot {
             revision: WorkbenchRevision::new(1),
             keys_profile: "x".repeat(65537),
+            notification_profile: "[ui.toast]".into(),
             default_shell: String::new(),
             shell_mode: orchbee_workbench_protocol::ConfigurationShellMode::Auto,
             manifest_check: false,

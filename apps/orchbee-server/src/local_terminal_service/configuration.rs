@@ -121,6 +121,7 @@ fn snapshot(
         revision: WorkbenchRevision::new(revision),
         keys_profile: current.keys.profile(),
         window_title: current.window_title.clone(),
+        notification_profile: current.notifications.profile(),
         manifest_check: current.manifest_check,
         default_shell: current.shell.executable().into(),
         shell_mode: match current.shell.mode() {
@@ -134,6 +135,13 @@ fn snapshot(
     }
 }
 impl super::LocalTerminalService {
+    pub(crate) fn notifications_disabled(&self) -> Result<bool, ()> {
+        let slot = self.configuration.0.try_lock().map_err(|_| ())?;
+        Ok(slot.as_ref().is_some_and(|state| {
+            state.current.notifications.delivery
+                == orchbee_local_site_runtime::WindowsNotificationDelivery::Off
+        }))
+    }
     pub(crate) fn window_title_configuration(&self) -> Result<String, ()> {
         let slot = self.configuration.0.try_lock().map_err(|_| ())?;
         Ok(slot

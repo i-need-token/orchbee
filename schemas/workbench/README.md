@@ -576,7 +576,7 @@ Required `defaultShell` and `shellMode` expose admitted defaults for subsequent 
 
 `workbench.notification` (OBWP kind 41) carries show/listen; `workbench.notification.result` (kind 42) carries show/listening/failed. Frames retain the 16 KiB intent bound. The [notification schema](v1/workbench-notification.schema.json) and shared corpus bind Rust and TypeScript to closed shapes, required nullable body/pending values, four corner positions and none/done/request sound. Normalized title/body contain at most 80/240 Unicode scalar values, collapsed ASCII spaces and no controls. Correlation matches both identities and the requested action; shown is true exactly for the shown reason.
 
-The [Windows notification owner](../../apps/orchbee/docs/windows-notifications.md) defines authorization, connection-owned bounded inboxes, expiry, replay and UI handoff. This is ephemeral, matched-cohort transport, with no persistence migration or Desktop command. Public `orchbee.notification.show` v1 exposes submission facts, including null replies after uncertain submission; it does not promise display acknowledgement.
+The [Windows notification owner](../../apps/orchbee/docs/windows-notifications.md) defines authorization, connection-owned bounded inboxes, expiry, replay and UI handoff. This is ephemeral, matched-cohort transport, with no persistence migration or Desktop command. Public `orchbee.notification.show` v2 preserves v1 and exposes submission facts, including null replies after uncertain submission; it does not promise display acknowledgement.
 
 ## Outer Client title publications
 
@@ -587,3 +587,7 @@ The [Windows notification owner](../../apps/orchbee/docs/windows-notifications.m
 ## Window title template inputs
 
 The matched-cohort `workbench.window-title` listen action requires `context` with workspace/tab/pane/terminalTitle, each a control-free string of at most 200 Unicode scalars (empty allowed). Only foreground rendering consumes these display values; they never confer selection authority. `ConfigurationSnapshot.windowTitle` is a required raw string bounded to 4096 UTF-8 bytes, allowing empty and malformed templates for the documented advisory policy. Rust/TypeScript bindings enforce byte/scalar bounds; schema and corpus keep field presence and closed shapes. Public configuration receipts advance to v3, checks to v7, configuration failures to v4 and catalog to v107; previous versions stay closed.
+
+## Custom-notification policy projection
+
+The matched private notification message requires nullable `position`: null delegates to the receiving Client policy. Show outcomes add `disabled` for the Server-off/no-Client case; a connected Client may independently suppress visual display. Configuration snapshots require a nonempty `notificationProfile` bounded to 1024 UTF-8 bytes; the Client admits only a valid canonical toast policy together with valid keys. Public notification receipts advance to v2, Site configuration to v4, checks to v8, configuration failures to v5 and catalog to v108. Prior public versions remain closed. Existing native Windows [notification ownership](../../apps/orchbee/docs/windows-notifications.md) governs effects and shutdown.

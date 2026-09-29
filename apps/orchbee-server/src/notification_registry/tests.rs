@@ -199,3 +199,49 @@ fn registry_capacity_is_bounded_and_reclaimed_after_disconnect_and_expiry() {
     assert_eq!(r.receipts.len(), 1);
     assert!(r.listeners.is_empty());
 }
+
+#[test]
+fn notification_disabled_fallback_never_blocks_independent_client_policy_or_replays() {
+    let mut r = Registry {
+        disabled: true,
+        ..Default::default()
+    };
+    let now = Instant::now();
+    assert_eq!(
+        run(&mut r, 1, 1, message("First"), now),
+        outcome(Reason::Disabled)
+    );
+    r.disabled = false;
+    assert_eq!(
+        run(&mut r, 1, 1, message("First"), now),
+        outcome(Reason::Disabled)
+    );
+    assert_eq!(
+        run(&mut r, 1, 2, message("Second"), now),
+        outcome(Reason::NoForegroundClient)
+    );
+    r.disabled = true;
+    run(
+        &mut r,
+        2,
+        8,
+        NotificationAction::Listen { accepting: true },
+        now,
+    );
+    assert_eq!(
+        run(&mut r, 1, 3, message("Third"), now),
+        outcome(Reason::Shown)
+    );
+    assert!(matches!(
+        run(
+            &mut r,
+            2,
+            8,
+            NotificationAction::Listen { accepting: true },
+            now
+        ),
+        NotificationOutcome::Listening {
+            notification: Some(_)
+        }
+    ));
+}

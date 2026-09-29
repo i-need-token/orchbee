@@ -13,6 +13,7 @@ fn message(position: Position) -> Notification {
 fn expiry_requests_idle_redraw_and_sound_is_once_after_successful_paint_only() {
     let mut view = ClientView::new(120);
     view.settle_pointer_released(true);
+    view.notifications.configure(cards());
     let original = view.clone();
     let now = Instant::now();
     assert!(view.notifications.install(message(Position::TopRight), now));
@@ -48,6 +49,7 @@ fn all_corner_cards_keep_status_and_top_chrome_unicode_safe_at_required_sizes() 
             Position::BottomRight,
         ] {
             let mut state = State::default();
+            state.configure(cards());
             state.install(message(position), Instant::now());
             let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
             let mut painted = false;
@@ -81,5 +83,50 @@ fn all_corner_cards_keep_status_and_top_chrome_unicode_safe_at_required_sizes() 
                 assert_ne!(buffer[(x, y)].symbol(), ".", "corner placement");
             }
         }
+    }
+}
+
+fn cards() -> WindowsNotificationSettings {
+    WindowsNotificationSettings::from_profile(
+        "[ui.toast]\ndelivery='orchbee'\n[ui.toast.herdr]\nposition='top-left'",
+    )
+    .unwrap()
+}
+#[test]
+fn notification_policy_inherits_position_explicit_wins_and_off_keeps_custom_sound() {
+    let mut state = State::default();
+    let now = Instant::now();
+    let custom = Notification::normalize("Ready", None, None, NotificationSound::Done).unwrap();
+    state.install(custom.clone(), now);
+    assert!(state.visible.is_none());
+    let effect = state.take_effect().unwrap();
+    assert_eq!(effect.delivery, Delivery::Off);
+    assert_eq!(effect.message.sound, NotificationSound::Done);
+    state.configure(cards());
+    state.install(custom.clone(), now);
+    assert_eq!(
+        state.visible.as_ref().unwrap().message.position,
+        Some(Position::TopLeft)
+    );
+    state.configure(WindowsNotificationSettings::default());
+    assert!(state.empty());
+    state.configure(cards());
+    state.install(message(Position::BottomRight), now);
+    assert_eq!(
+        state.visible.as_ref().unwrap().message.position,
+        Some(Position::BottomRight)
+    );
+    for delivery in ["terminal", "system"] {
+        state.configure(
+            WindowsNotificationSettings::from_profile(&format!(
+                "[ui.toast]\ndelivery='{delivery}'"
+            ))
+            .unwrap(),
+        );
+        assert!(state.install(custom.clone(), now));
+        assert!(!state.install(custom.clone(), now));
+        assert!(state.visible.is_none());
+        assert_eq!(state.take_effect().unwrap().delivery.as_str(), delivery);
+        assert!(state.take_effect().is_none());
     }
 }

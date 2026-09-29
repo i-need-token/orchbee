@@ -30,6 +30,8 @@ pub(crate) struct TerminalInputUnavailable;
 pub(crate) enum ModeRequest {
     #[cfg(windows)]
     WindowTitle(Option<orchbee_workbench_protocol::WindowTitle>),
+    #[cfg(windows)]
+    Notification(crate::notifications::Effect),
     /// Bracketed-paste lease for modal capture.
     BracketedPaste(bool),
     /// Pointer reporting (`?1002` + `?1006`) armed or released.

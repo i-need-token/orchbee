@@ -388,10 +388,12 @@ impl TerminalSession {
                 {
                     view.window_title = Some(snapshot);
                 }
-                let accepting = crate::notifications::available(
-                    view,
-                    Some(TerminalSessionView::Native(native.view())),
-                ) && view.notifications.empty();
+                let accepting = (!view.notifications.card_delivery()
+                    || crate::notifications::available(
+                        view,
+                        Some(TerminalSessionView::Native(native.view())),
+                    ))
+                    && view.notifications.empty();
                 if let Some(listener) = &self.notifications
                     && let Some(message) = listener.poll(accepting)
                 {
