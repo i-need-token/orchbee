@@ -51,6 +51,11 @@ fn malformed_or_missing_explicit_configuration_stops_every_creation_before_ipc()
             "invalid-executable",
         ),
         (b"[terminal]\nshell_mode='INVALID'".to_vec(), "invalid-mode"),
+        (b"[keys]\nhelp='ctrl+d'".to_vec(), "unsafe-binding"),
+        (
+            b"[keys]\nhelp='prefix+Q'\nnew_tab='prefix+shift+q'".to_vec(),
+            "duplicate-binding",
+        ),
         (
             b"[terminal]\nnew_cwd='home'\nnew_cwd='follow'".to_vec(),
             "invalid-toml",
@@ -132,7 +137,7 @@ fn config_check_reports_the_actual_file_without_creating_it() {
         !validator.is_valid(&old),
         "v2 must not silently omit user configuration"
     );
-    assert_eq!(doc["version"], 5);
+    assert_eq!(doc["version"], 6);
     assert_eq!(doc["result"]["checks"][5]["details"]["defaultShell"], "");
     assert_eq!(doc["result"]["checks"][5]["details"]["shellMode"], "auto");
     assert_eq!(doc["result"]["checks"][5]["details"]["manifestCheck"], true);
@@ -161,7 +166,7 @@ fn config_check_reports_the_actual_file_without_creating_it() {
         !validator.is_valid(&old),
         "old config checks cannot carry shell policy"
     );
-    for key in ["defaultShell", "shellMode"] {
+    for key in ["defaultShell", "shellMode", "keyPrefix", "keyOverrides"] {
         old["result"]["checks"][5]["details"]
             .as_object_mut()
             .unwrap()
@@ -178,6 +183,44 @@ fn config_check_reports_the_actual_file_without_creating_it() {
     let doc = document(fixture.run(&["config", "check", "--format=json"]));
     validate(&doc, schema);
     assert_eq!(doc["result"]["checks"][5]["status"], "fail");
+}
+
+#[test]
+fn config_check_validates_keys_and_keeps_previous_envelopes_closed() {
+    let fixture = Fixture::new();
+    let config = fixture.0.join("appdata/Orchbee/config.toml");
+    std::fs::create_dir_all(config.parent().unwrap()).unwrap();
+    std::fs::write(
+        &config,
+        "[keys]\nprefix='ctrl+a'\nhelp=['prefix+?', 'f1']\nswitch_tab='alt+1..9'\nnew_tab=[]",
+    )
+    .unwrap();
+    let schema = include_str!("../src/cli/schemas/orchbee.config.check.json");
+    let validator =
+        jsonschema::validator_for(&serde_json::from_str::<Value>(schema).unwrap()).unwrap();
+    let doc = document(fixture.run(&["config", "check", "--format=json"]));
+    validate(&doc, schema);
+    assert_eq!(doc["result"]["checks"][5]["details"]["keyPrefix"], "Ctrl+A");
+    assert_eq!(doc["result"]["checks"][5]["details"]["keyOverrides"], 3);
+    let mut old = doc;
+    old["version"] = json!(5);
+    assert!(!validator.is_valid(&old));
+    for key in ["keyPrefix", "keyOverrides"] {
+        old["result"]["checks"][5]["details"]
+            .as_object_mut()
+            .unwrap()
+            .remove(key);
+    }
+    assert!(validator.is_valid(&old));
+    std::fs::write(&config, "[keys]\nhelp='ctrl+c'").unwrap();
+    let output = fixture.run(&["config", "check", "--format=json"]);
+    assert_eq!(output.status.code(), Some(1));
+    let doc = document(output);
+    validate(&doc, schema);
+    assert_eq!(
+        doc["result"]["checks"][5]["details"],
+        json!({"field":"keys", "reason":"unsafe-binding"})
+    );
 }
 
 #[test]

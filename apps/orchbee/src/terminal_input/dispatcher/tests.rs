@@ -2,6 +2,8 @@ use super::*;
 use crate::terminal_input::TerminalInputUnavailable;
 use std::{cell::RefCell, io, rc::Rc};
 
+#[cfg(windows)]
+mod configured;
 mod workspace_setup;
 
 #[derive(Debug, Eq, PartialEq)]

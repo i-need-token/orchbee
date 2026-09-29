@@ -1,0 +1,260 @@
+//! Bounded Windows key configuration. Semantic dispatch stays with the Client.
+use super::WindowsSettingsError;
+
+const ACTIONS: &[&str] = &[
+    "help",
+    "new_workspace",
+    "rename_workspace",
+    "workspace_picker",
+    "detach",
+    "previous_workspace",
+    "next_workspace",
+    "new_tab",
+    "rename_tab",
+    "previous_tab",
+    "next_tab",
+    "move_tab_previous",
+    "move_tab_next",
+    "switch_tab",
+    "close_tab",
+    "focus_pane_left",
+    "focus_pane_down",
+    "focus_pane_up",
+    "focus_pane_right",
+    "split_vertical",
+    "split_horizontal",
+    "close_pane",
+    "zoom",
+    "toggle_sidebar",
+];
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct WindowsKeyChord {
+    pub key: String,
+    pub ctrl: bool,
+    pub alt: bool,
+    pub shift: bool,
+    pub super_key: bool,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct WindowsKeyTrigger {
+    pub prefix: bool,
+    pub chord: WindowsKeyChord,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct WindowsKeyOverride {
+    pub action: &'static str,
+    pub triggers: Vec<WindowsKeyTrigger>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct WindowsKeySettings {
+    pub prefix: WindowsKeyChord,
+    pub overrides: Vec<WindowsKeyOverride>,
+}
+
+impl Default for WindowsKeySettings {
+    fn default() -> Self {
+        Self {
+            prefix: WindowsKeyChord {
+                key: "b".into(),
+                ctrl: true,
+                alt: false,
+                shift: false,
+                super_key: false,
+            },
+            overrides: Vec::new(),
+        }
+    }
+}
+
+fn error(reason: &'static str) -> WindowsSettingsError {
+    WindowsSettingsError::new("keys", reason)
+}
+
+impl WindowsKeySettings {
+    pub(super) fn parse(value: &toml::Value) -> Result<Self, WindowsSettingsError> {
+        let table = value.as_table().ok_or(error("wrong-type"))?;
+        let mut result = Self::default();
+        if let Some(value) = table.get("prefix") {
+            result.prefix = parse_chord(value.as_str().ok_or(error("wrong-type"))?)?;
+        }
+        for (field, value) in table {
+            if field == "prefix" {
+                continue;
+            }
+            let field = if field == "fullscreen" {
+                "zoom"
+            } else {
+                field.as_str()
+            };
+            let action = ACTIONS
+                .iter()
+                .find(|action| **action == field)
+                .copied()
+                .ok_or(error("unknown-key"))?;
+            if result.overrides.iter().any(|entry| entry.action == action) {
+                return Err(error("duplicate-binding"));
+            }
+            let values = match value {
+                toml::Value::String(value) => vec![value.as_str()],
+                toml::Value::Array(values) if values.len() <= 16 => values
+                    .iter()
+                    .map(|value| value.as_str().ok_or(error("wrong-type")))
+                    .collect::<Result<Vec<_>, _>>()?,
+                toml::Value::Array(_) => return Err(error("too-many-bindings")),
+                _ => return Err(error("wrong-type")),
+            };
+            let mut triggers = Vec::new();
+            for raw in values {
+                let raw = raw.trim();
+                if raw.is_empty() {
+                    continue;
+                }
+                let (prefix, body) = raw
+                    .strip_prefix("prefix+")
+                    .map_or((false, raw), |body| (true, body));
+                let bodies = if body.split('+').any(|part| part.trim() == "1..9") {
+                    if action != "switch_tab" {
+                        return Err(error("invalid-binding"));
+                    }
+                    (1..=9)
+                        .map(|digit| body.replace("1..9", &digit.to_string()))
+                        .collect()
+                } else {
+                    vec![body.to_owned()]
+                };
+                for body in bodies {
+                    let chord = parse_chord(&body)?;
+                    if action == "switch_tab"
+                        && !(chord.key.len() == 1 && matches!(chord.key.as_bytes()[0], b'1'..=b'9'))
+                    {
+                        return Err(error("invalid-binding"));
+                    }
+                    if chord == result.prefix || (prefix && chord.key == "esc" && !chord.modified())
+                    {
+                        return Err(error("reserved-binding"));
+                    }
+                    if !prefix && !chord.safe_direct() {
+                        return Err(error("unsafe-binding"));
+                    }
+                    let trigger = WindowsKeyTrigger { prefix, chord };
+                    if triggers.contains(&trigger)
+                        || result
+                            .overrides
+                            .iter()
+                            .any(|entry| entry.triggers.contains(&trigger))
+                    {
+                        return Err(error("duplicate-binding"));
+                    }
+                    triggers.push(trigger);
+                }
+            }
+            result
+                .overrides
+                .push(WindowsKeyOverride { action, triggers });
+        }
+        Ok(result)
+    }
+}
+
+impl WindowsKeyChord {
+    fn modified(&self) -> bool {
+        self.ctrl || self.alt || self.shift || self.super_key
+    }
+    fn safe_direct(&self) -> bool {
+        if !self.alt && !self.super_key {
+            if !self.ctrl && self.key.chars().count() == 1 {
+                return false;
+            }
+            if self.ctrl && !self.shift && matches!(self.key.as_str(), "c" | "d" | "z" | "i" | "m")
+            {
+                return false;
+            }
+            if !self.modified() && matches!(self.key.as_str(), "esc" | "backspace") {
+                return false;
+            }
+        }
+        true
+    }
+}
+
+fn parse_chord(raw: &str) -> Result<WindowsKeyChord, WindowsSettingsError> {
+    let raw = raw.trim();
+    if raw.is_empty() || raw.len() > 128 || raw.chars().any(char::is_control) {
+        return Err(error("invalid-binding"));
+    }
+    let mut chord = WindowsKeyChord {
+        key: String::new(),
+        ctrl: false,
+        alt: false,
+        shift: false,
+        super_key: false,
+    };
+    for part in raw.split('+').map(str::trim) {
+        match part.to_ascii_lowercase().as_str() {
+            "ctrl" | "control" => chord.ctrl = true,
+            "alt" | "option" | "meta" => chord.alt = true,
+            "shift" => chord.shift = true,
+            "super" | "cmd" | "command" => chord.super_key = true,
+            key => {
+                if !chord.key.is_empty() {
+                    return Err(error("invalid-binding"));
+                }
+                chord.key = match key {
+                    "escape" => "esc",
+                    "return" => "enter",
+                    "pgup" => "pageup",
+                    "pgdn" => "pagedown",
+                    "plus" => "+",
+                    "minus" => "-",
+                    "space" => " ",
+                    "esc" | "enter" | "tab" | "backspace" | "delete" | "insert" | "home"
+                    | "end" | "pageup" | "pagedown" | "up" | "down" | "left" | "right" => key,
+                    _ if key
+                        .strip_prefix('f')
+                        .and_then(|number| number.parse::<u8>().ok())
+                        .is_some_and(|number| (1..=24).contains(&number)) =>
+                    {
+                        key
+                    }
+                    _ if part.chars().count() == 1 => part,
+                    _ => return Err(error("invalid-binding")),
+                }
+                .to_owned();
+            }
+        }
+    }
+    if chord.key.is_empty() {
+        return Err(error("invalid-binding"));
+    }
+    if chord.key.len() == 1 && chord.key.as_bytes()[0].is_ascii_uppercase() {
+        chord.key.make_ascii_lowercase();
+        chord.shift = true;
+    }
+    if let Some(number) = chord
+        .key
+        .strip_prefix('f')
+        .and_then(|number| number.parse::<u8>().ok())
+    {
+        chord.key = format!("f{number}");
+    }
+    match chord.key.as_str() {
+        "enter" => {
+            chord.key = "m".into();
+            chord.ctrl = true;
+        }
+        "tab" => {
+            chord.key = "i".into();
+            chord.ctrl = true;
+        }
+        "5" if chord.ctrl => chord.key = "]".into(),
+        _ => {}
+    }
+    Ok(chord)
+}
+
+#[cfg(test)]
+mod tests;

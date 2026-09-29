@@ -1,7 +1,7 @@
 use std::time::Instant;
 
 use crate::client_view::{
-    ClientAction, ClientKey, ClientView, KeyCode, KeyKind, Modifiers, PREFIX_CHORD, PrefixInput,
+    ClientAction, ClientKey, ClientView, KeyCode, KeyKind, Modifiers, PrefixInput,
     SessionActionDisposition, ShellCommand,
 };
 use crate::tui_pointer::{FrameHitMap, PointerOutcome, PointerState};
@@ -213,8 +213,9 @@ impl InputDispatcher {
     /// Routes one decoded item through the ownership order: an open
     /// confirmation packet consumes the whole rest of the chunk, an armed
     /// prefix resolves the item against the binding registry, and anything
-    /// else joins `self.pending` so its source bytes forward in order. Only
-    /// the literal `Ctrl+B` event is intercepted in the ordinary layer.
+    /// else joins `self.pending` so its source bytes forward in order.
+    /// the configured prefix arms its layer; configured direct bindings run
+    /// after capture and history ownership.
     fn handle_item<Port: TerminalInputPort + ?Sized, Error>(
         &mut self,
         view: &mut ClientView,
@@ -280,7 +281,7 @@ impl InputDispatcher {
         }
         match item.kind {
             DecodedKind::Key(event)
-                if event.kind != KeyKind::Release && PREFIX_CHORD.matches(event) =>
+                if event.kind != KeyKind::Release && view.bindings().prefix.matches(event) =>
             {
                 self.flush_pending(view, port);
                 return self.decide(view, port, now, item, after_layout, mode);
@@ -333,6 +334,10 @@ impl InputDispatcher {
                 if event.kind != KeyKind::Release && port.history_key(&event) =>
             {
                 self.flush_pending(view, port);
+            }
+            DecodedKind::Key(event) if view.bindings().find(event, false).is_some() => {
+                self.flush_pending(view, port);
+                return self.decide(view, port, now, item, after_layout, mode);
             }
             _ => self.pending.extend_from_slice(&item.raw),
         }
@@ -409,8 +414,11 @@ impl InputDispatcher {
                 // The literal chord forwards its canonical C0 encoding, so a
                 // future kitty-encoded Ctrl+B still emits the byte a pane
                 // without keyboard negotiation understands.
-                let byte = literal_chord_byte(&item).unwrap_or(0x02);
-                forward_or_report(view, std::slice::from_ref(&byte), port);
+                if let Some(byte) = literal_chord_byte(&item) {
+                    forward_or_report(view, std::slice::from_ref(&byte), port);
+                } else {
+                    forward_or_report(view, &item.raw, port);
+                }
             }
             ShellCommand::None => {}
         }

@@ -122,6 +122,75 @@ fn kitty_u_decodes_modifiers_and_event_kinds() {
 }
 
 #[test]
+fn function_keys_use_actual_xterm_numbers_and_preserve_modified_event_kinds() {
+    for (number, key) in [
+        (11, 1),
+        (12, 2),
+        (13, 3),
+        (14, 4),
+        (15, 5),
+        (17, 6),
+        (18, 7),
+        (19, 8),
+        (20, 9),
+        (21, 10),
+        (23, 11),
+        (24, 12),
+    ] {
+        let raw = format!("\x1b[{number}~");
+        assert_eq!(decode(raw.as_bytes())[0].kind, press(KeyCode::F(key)));
+        for (kind, suffix) in [
+            (KeyKind::Press, 1),
+            (KeyKind::Repeat, 2),
+            (KeyKind::Release, 3),
+        ] {
+            let raw = format!("\x1b[{number};5:{suffix}~");
+            assert_eq!(
+                decode(raw.as_bytes())[0].kind,
+                DecodedKind::Key(KeyEvent {
+                    code: KeyCode::F(key),
+                    mods: Modifiers::CTRL,
+                    kind
+                })
+            );
+        }
+    }
+    for (letter, key) in [('P', 1), ('Q', 2), ('R', 3), ('S', 4)] {
+        let raw = format!("\x1b[1;3:3{letter}");
+        assert_eq!(
+            decode(raw.as_bytes())[0].kind,
+            DecodedKind::Key(KeyEvent {
+                code: KeyCode::F(key),
+                mods: Modifiers::NONE.with_alt(),
+                kind: KeyKind::Release
+            })
+        );
+    }
+    for key in 1..=24 {
+        let raw = format!("\x1b[{};1u", 57363 + u32::from(key));
+        assert_eq!(decode(raw.as_bytes())[0].kind, press(KeyCode::F(key)));
+    }
+}
+
+#[test]
+fn malformed_function_parameters_and_unsupported_modifiers_never_alias_bindings() {
+    for raw in [
+        "\x1b[16~",
+        "\x1b[22~",
+        "\x1b[1;0P",
+        "\x1b[1;5:9P",
+        "\x1b[15;17~",
+        "\x1b[15;33~",
+        "\x1b[57364;17u",
+        "\x1b[57364;1:9u",
+    ] {
+        let item = &decode(raw.as_bytes())[0];
+        assert_eq!(item.kind, DecodedKind::Nondecision, "{raw:?}");
+        assert_eq!(item.raw.as_ref(), raw.as_bytes());
+    }
+}
+
+#[test]
 fn alt_prefixed_bytes_decode_as_alt_events() {
     let items = decode(b"\x1ba");
     assert_eq!(

@@ -83,7 +83,7 @@ its nested tables and command arrays, or a safely removable top-level assignment
 comments outside the removed tables and line endings remain byte-for-byte. Invalid UTF-8/TOML, files over 64 KiB and edits whose
 parsed result differs from the original minus `keys` fail before writing. This allows recovery from
 custom keys that the current settings reader does not yet support; it does not validate or repair
-other settings, implement custom binding dispatch, or reload a running Client.
+other settings or reload a running Client.
 
 The shared Windows settings repair owner pins the private parent directory tree, rejects reparse
 points/nonregular or multiply linked files, and reopens the file exclusively before comparing its
@@ -149,3 +149,54 @@ reports emulated architecture for x86/x64 processes on ARM64; native ARM64 prefe
 emulated Worker is not claimed aligned with Herdr's IsWow64Process2 policy. Explicit configuration
 still selects that executable. Real x64 selection and synthetic header/architecture partitions
 cover this implementation; no ARM64 hardware acceptance is claimed.
+
+## Windows Client key configuration
+
+The bounded shared settings reader admits `[keys]` before Client startup. Each Client owns an
+immutable binding snapshot; file edits/reset affect the next Client. The Client resolves implemented
+semantic actions against its default registry. User overrides replace that action's defaults and
+conflicting default chords. Ambiguous user chords, unsupported actions and invalid syntax fail
+admission. This strict failure policy differs from Herdr's diagnostic-and-disable policy and remains
+an explicit parity gap.
+
+`prefix` accepts one chord. Action values accept a string or at most 16 alternatives; an empty
+string or array disables the action. `prefix+` selects the prefix layer; otherwise a safe direct
+chord is required. `switch_tab` admits `1..9` with modifiers. Complete modifiers and uppercase
+letters normalize before collision checks. The prefix itself is reserved in both layers. Direct
+printable keys, bare editing keys and Ctrl+C/D/Z are refused. Capture and mode ownership precede
+direct dispatch; paste and releases never invoke bindings. Double prefix forwards canonical C0
+where available, otherwise original bytes, without a hardcoded Ctrl+B fallback.
+
+The resolved registry supplies dispatch, help rows and principal live hints. Disabled actions stay
+in help. Existing native defaults remain; unsupported Herdr fields fail explicitly. General reload,
+custom commands, navigation-mode mappings, Agent/indexed Workspace keys and other unsupported
+actions remain unfinished. Targeted evidence covers bounds, collisions/default precedence,
+ownership, dispatch and discovery; no full regression or visual acceptance is claimed.
+
+
+Supported action fields are `help`, `new_workspace`, `rename_workspace`, `workspace_picker`,
+`detach`, `previous_workspace`, `next_workspace`, `new_tab`, `rename_tab`, `previous_tab`,
+`next_tab`, `move_tab_previous`, `move_tab_next`, `switch_tab`, `close_tab`,
+`focus_pane_left/down/up/right` (four fields), `split_vertical`, `split_horizontal`,
+`close_pane`, `zoom` (alias `fullscreen`) and `toggle_sidebar`. They invoke existing native actions;
+Workspace means the native Workbench location, vertical split is rightward and horizontal is downward.
+
+```toml
+[keys]
+prefix = "ctrl+a"
+help = ["prefix+?", "f1"]
+new_tab = "prefix+n"
+switch_tab = "alt+1..9"
+zoom = ""
+```
+
+Windows `config check` v6 adds `keyPrefix` and `keyOverrides`; key configuration failures use
+configuration failure v3. Older versions retain their closed field sets. The example lets new Tab
+replace the default next-Tab chord; empty `zoom` disables its shortcut. Bindings currently apply to
+the main TUI; CLI terminal-stream attach has a separate control-key path still to migrate. Complete
+keymap import, recovery through nonfatal diagnostics and hot reload remain future implementation.
+
+Function keys use the actual xterm F1–F12 sequence numbers (skipping 16 and 22), modified
+F1–F4, and kitty F1–F24. Modifier event tails retain press, repeat and release; invalid events or
+unrepresentable Hyper/Meta modifier bits never collapse into ordinary shortcuts. Availability of
+these keys still depends on the terminal host.

@@ -66,7 +66,9 @@ Ownership rules:
   reorders, merges, or drops passthrough input.
 - Outside an exclusive capture or a mode, the Client binds no unmodified printable key, no bare
   `Enter`, `Tab`, `Esc`, or `Backspace`, and no `Ctrl+C`, `Ctrl+D`, or `Ctrl+Z`. The prefix chord
-  is the only unconditional interception, and pressing it twice forwards the literal chord.
+  is the only default unconditional interception, and pressing it twice forwards the literal chord.
+  Explicit user configuration may add safe direct chords after capture and mode ownership;
+  the same printable/editing/signal-key exclusions apply and discovery must show the actual bindings.
 - An armed prefix has no timeout. `Esc` dismisses it. An unbound key after the prefix dismisses the
   prefix, forwards nothing, and shows a transient notice naming the help binding.
 - A named mode rebinds the keyboard for one domain. Entering a mode is visible in the status line
@@ -105,7 +107,7 @@ Every inline text editor honors this set. An editor may add bindings; it never r
 
 ## Discovery
 
-- The prefix layer binds `?` to shortcut help. Help lists every binding of the current owner from
+- The prefix layer defaults to `?` for shortcut help; user overrides must be reflected in hints. Help lists every binding of the current owner from
   the binding registry; it is never a hand-maintained string list.
 - Inside a mode, help shows that mode's bindings first and the exit binding last.
 - The status line shows the current owner's most useful hints through the tiers in

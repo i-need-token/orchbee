@@ -1,8 +1,9 @@
+#[cfg(test)]
+use crate::client_view::{PREFIX_CHORD, PrefixGroup};
 use std::ffi::OsString;
 
 use crate::client_view::{
-    BackendAction, LabelStyle, Notice, PREFIX_CHORD, PREFIX_GROUPS, PrefixDesc, PrefixGroup,
-    format_binding,
+    BackendAction, LabelStyle, Notice, PREFIX_GROUPS, PrefixDesc, format_binding,
 };
 
 mod agent_manifests;
@@ -54,7 +55,7 @@ fn en_us_prefix_desc(desc: PrefixDesc) -> &'static str {
         PrefixDesc::HelpPage => "Page this shortcut help while it is open",
         PrefixDesc::PointerCapture => "Release or restore mouse capture",
         PrefixDesc::Exit => "Close this shell",
-        PrefixDesc::LiteralPrefix => "Send literal Ctrl+B to the terminal input port",
+        PrefixDesc::LiteralPrefix => "Send the literal prefix to the terminal input port",
         PrefixDesc::DismissPrefix => "Dismiss the prefix without an action",
         PrefixDesc::OtherKeys => "Send to the terminal input port",
     }
@@ -86,7 +87,7 @@ fn zh_cn_prefix_desc(desc: PrefixDesc) -> &'static str {
         PrefixDesc::HelpPage => "在帮助打开时翻看此快捷键帮助的页面",
         PrefixDesc::PointerCapture => "释放或恢复鼠标捕获",
         PrefixDesc::Exit => "关闭此 shell",
-        PrefixDesc::LiteralPrefix => "向终端输入端口发送字面 Ctrl+B",
+        PrefixDesc::LiteralPrefix => "向终端输入端口发送字面前缀",
         PrefixDesc::DismissPrefix => "取消前缀而不执行动作",
         PrefixDesc::OtherKeys => "发送到终端输入端口",
     }
@@ -95,6 +96,7 @@ fn zh_cn_prefix_desc(desc: PrefixDesc) -> &'static str {
 /// The chord column for one binding group: the prefix label plus the member
 /// key labels, joined by the group separator. Derived from the registry, so
 /// help can never drift from dispatch.
+#[cfg(test)]
 fn group_chord(group: &PrefixGroup) -> String {
     let style = LabelStyle::for_host();
     let prefix = format_binding(&PREFIX_CHORD, style);
@@ -147,32 +149,33 @@ pub(crate) struct AgentBoardText {
 }
 
 #[derive(Clone, Copy, Debug)]
-pub(crate) struct ShellText {
+pub(crate) struct ShellText<'a> {
     pub(crate) agents: &'static str,
     pub(crate) app_title: &'static str,
     pub(crate) board: AgentBoardText,
     pub(crate) backend_status: &'static str,
     pub(crate) business_section: &'static str,
-    pub(crate) exit_hint: &'static str,
-    pub(crate) hint_short: &'static str,
+    pub(crate) exit_hint: &'a str,
+    pub(crate) hint_short: &'a str,
     pub(crate) other_keys_label: &'static str,
+    pub(crate) binding_unbound: &'static str,
     pub(crate) overlay_input_hint: &'static str,
-    pub(crate) help_dismiss_hint: &'static str,
-    pub(crate) help_dismiss_hint_short: &'static str,
-    pub(crate) help_paging_hint: &'static str,
+    pub(crate) help_dismiss_hint: &'a str,
+    pub(crate) help_dismiss_hint_short: &'a str,
+    pub(crate) help_paging_hint: &'a str,
     pub(crate) overlay_refused: &'static str,
     pub(crate) navigator_detail: &'static str,
     pub(crate) navigator_title: &'static str,
     pub(crate) no_client_session: &'static str,
     pub(crate) panel_title: &'static str,
-    pub(crate) pointer_released: &'static str,
-    pub(crate) prefix_active: &'static str,
+    pub(crate) pointer_released: &'a str,
+    pub(crate) prefix_active: &'a str,
     pub(crate) prefix_desc: fn(PrefixDesc) -> &'static str,
-    pub(crate) prefix_idle: &'static str,
+    pub(crate) prefix_idle: &'a str,
     pub(crate) projects: &'static str,
     pub(crate) shell_only_detail: &'static str,
     pub(crate) shortcut_title: &'static str,
-    pub(crate) sidebar_hint: &'static str,
+    pub(crate) sidebar_hint: &'a str,
     pub(crate) site_section: &'static str,
     pub(crate) standalone: &'static str,
     pub(crate) tabs_unavailable: &'static str,
@@ -181,15 +184,16 @@ pub(crate) struct ShellText {
     pub(crate) workbench_title: &'static str,
     pub(crate) pinned_tab: &'static str,
     pub(crate) workspaces: &'static str,
-    pub(crate) zoom_badge: &'static str,
+    pub(crate) zoom_badge: &'a str,
 }
 
-impl ShellText {
+impl ShellText<'_> {
     /// Builds the help rows from the same prefix binding registry that
     /// dispatch matches: `(padded chord, localized description)` pairs, with
     /// the localized "other keys" passthrough row appended last. The chord is
     /// padded to a uniform column so callers can align descriptions without
     /// re-deriving the split — chords may themselves contain spaces.
+    #[cfg(test)]
     pub(crate) fn shortcut_rows(&self) -> Vec<(String, String)> {
         let chords: Vec<String> = PREFIX_GROUPS.iter().map(group_chord).collect();
         let width = chords
@@ -239,7 +243,7 @@ const EN_US_BOARD: AgentBoardText = AgentBoardText {
     jump_expired: "Jump timed out",
 };
 
-const EN_US_SHELL: ShellText = ShellText {
+const EN_US_SHELL: ShellText<'static> = ShellText {
     agents: "Agents",
     app_title: "ORCHBEE",
     board: EN_US_BOARD,
@@ -252,6 +256,7 @@ const EN_US_SHELL: ShellText = ShellText {
     navigator_title: "Workbench navigator",
     no_client_session: "No Site or Client Session is connected.",
     other_keys_label: "Other keys",
+    binding_unbound: "Unbound",
     overlay_input_hint: "Terminal input continues while this overlay is visible.",
     help_dismiss_hint: "Ctrl+B ? closes help · typing still reaches the terminal",
     help_dismiss_hint_short: "Ctrl+B ? closes · typing continues",
@@ -299,7 +304,7 @@ const ZH_CN_BOARD: AgentBoardText = AgentBoardText {
     jump_expired: "跳转超时",
 };
 
-const ZH_CN_SHELL: ShellText = ShellText {
+const ZH_CN_SHELL: ShellText<'static> = ShellText {
     agents: "智能体",
     app_title: "ORCHBEE",
     board: ZH_CN_BOARD,
@@ -312,6 +317,7 @@ const ZH_CN_SHELL: ShellText = ShellText {
     navigator_title: "Workbench 导航器",
     no_client_session: "当前未连接 Site 或 Client Session。",
     other_keys_label: "其他按键",
+    binding_unbound: "未绑定",
     overlay_input_hint: "此浮层显示时，终端输入仍会继续传递。",
     help_dismiss_hint: "Ctrl+B ? 关闭此帮助 · 输入仍会传递到终端",
     help_dismiss_hint_short: "Ctrl+B ? 关闭 · 输入仍传递到终端",
@@ -347,7 +353,7 @@ impl Locale {
         self.cli_root_help()
     }
 
-    pub(crate) const fn shell(self) -> ShellText {
+    pub(crate) const fn shell(self) -> ShellText<'static> {
         match self {
             Self::EnUs => EN_US_SHELL,
             Self::ZhCn => ZH_CN_SHELL,
@@ -1194,5 +1200,118 @@ impl Locale {
             }
             (Self::ZhCn, StartupFailure::OutcomeUnknown) => "终端操作结果未知。未重放该操作。\n",
         }
+    }
+}
+
+/// Temporary render-owned strings; the borrowed shell text remains cheap to copy.
+pub(crate) struct BoundShellText {
+    base: ShellText<'static>,
+    hints: [String; 10],
+}
+
+impl BoundShellText {
+    pub(crate) fn text(&self) -> ShellText<'_> {
+        ShellText {
+            exit_hint: &self.hints[0],
+            hint_short: &self.hints[1],
+            help_dismiss_hint: &self.hints[2],
+            help_dismiss_hint_short: &self.hints[3],
+            help_paging_hint: &self.hints[4],
+            pointer_released: &self.hints[5],
+            prefix_active: &self.hints[6],
+            prefix_idle: &self.hints[7],
+            sidebar_hint: &self.hints[8],
+            zoom_badge: &self.hints[9],
+            ..self.base
+        }
+    }
+}
+
+impl ShellText<'static> {
+    pub(crate) fn bind(self, view: &crate::client_view::ClientView) -> BoundShellText {
+        let hints = [
+            self.exit_hint,
+            self.hint_short,
+            self.help_dismiss_hint,
+            self.help_dismiss_hint_short,
+            self.help_paging_hint,
+            self.pointer_released,
+            self.prefix_active,
+            self.prefix_idle,
+            self.sidebar_hint,
+            self.zoom_badge,
+        ]
+        .map(|hint| self.bound_hint(view, hint));
+        BoundShellText { base: self, hints }
+    }
+
+    pub(crate) fn bound_hint(&self, view: &crate::client_view::ClientView, hint: &str) -> String {
+        let bindings = view.bindings();
+        let mut result = hint.to_owned();
+        // Substitute complete default chords before the standalone prefix. The replacement
+        // values come from the same resolved entries dispatch uses, including disabled actions.
+        let replacements = [
+            ("Ctrl+B ?", PrefixDesc::ShowHelp),
+            ("Ctrl+B q", PrefixDesc::Exit),
+            ("Ctrl+B b", PrefixDesc::SidebarToggle),
+            ("Ctrl+B z", PrefixDesc::PanelZoom),
+            ("Ctrl+B w", PrefixDesc::NavigatorToggle),
+            ("Ctrl+B c", PrefixDesc::CreateTab),
+            ("Ctrl+B x", PrefixDesc::CloseTab),
+            ("Ctrl+B then q", PrefixDesc::Exit),
+            ("Ctrl+B 后按 q", PrefixDesc::Exit),
+            ("Ctrl+B 后按 c", PrefixDesc::CreateTab),
+            ("Ctrl+B 后按 x", PrefixDesc::CloseTab),
+            ("Ctrl+B 后按 w", PrefixDesc::NavigatorToggle),
+        ];
+        // Placeholders prevent one configured chord from being rewritten by a later replacement.
+        for (index, (old, _)) in replacements.iter().enumerate() {
+            result = result.replace(old, &format!("\u{e000}{index}\u{e001}"));
+        }
+        result = result.replace(
+            "Ctrl+B",
+            &format_binding(&bindings.prefix, LabelStyle::for_host()),
+        );
+        for (index, (_, desc)) in replacements.iter().enumerate() {
+            let actual = bindings
+                .labels(*desc)
+                .into_iter()
+                .next()
+                .unwrap_or_else(|| self.binding_unbound.into());
+            result = result.replace(&format!("\u{e000}{index}\u{e001}"), &actual);
+        }
+        result
+    }
+}
+
+impl ShellText<'_> {
+    pub(crate) fn configured_shortcut_rows(
+        &self,
+        view: &crate::client_view::ClientView,
+    ) -> Vec<(String, String)> {
+        let mut rows: Vec<_> = PREFIX_GROUPS
+            .iter()
+            .map(|group| {
+                let label = view
+                    .bindings()
+                    .group_label(group.desc, self.binding_unbound)
+                    .unwrap_or_else(|| self.binding_unbound.into());
+                (label, (self.prefix_desc)(group.desc).to_owned())
+            })
+            .collect();
+        let width = rows
+            .iter()
+            .map(|(key, _)| key.chars().count())
+            .max()
+            .unwrap_or(0)
+            + 1;
+        for (key, _) in &mut rows {
+            *key = format!("{key:<width$}");
+        }
+        rows.push((
+            format!("{:<width$}", self.other_keys_label),
+            (self.prefix_desc)(PrefixDesc::OtherKeys).to_owned(),
+        ));
+        rows
     }
 }

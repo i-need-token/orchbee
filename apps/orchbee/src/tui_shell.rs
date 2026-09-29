@@ -229,6 +229,16 @@ fn run_prepared_surface(
     mut terminal_input: Box<dyn TerminalSurface>,
     mouse: bool,
 ) -> Result<(), TuiFailure> {
+    let mut initial_view = ClientView::new(dimensions.columns);
+    #[cfg(windows)]
+    {
+        let settings =
+            orchbee_local_site_runtime::read_windows_user_settings(|name| std::env::var_os(name))
+                .map_err(|error| {
+                TuiFailure::Runtime(io::Error::new(io::ErrorKind::InvalidInput, error))
+            })?;
+        initial_view.configure_keys(&settings.keys);
+    }
     let termination = TerminationSignal::install().map_err(TuiFailure::Runtime)?;
     let mut modes = TerminalModeGuard::enter(InheritedTerminalModes::new(inherited.clone()))
         .map_err(TuiFailure::Runtime)?;
@@ -277,6 +287,7 @@ fn run_prepared_surface(
         &inherited,
         dimensions,
         mouse,
+        initial_view,
     )
     .map_err(LoopFailure::into_io_error);
     if run_result.is_err() {
@@ -327,6 +338,7 @@ fn run_event_loop<B: Backend + ResizableBackend>(
         viewport,
         dimensions,
         mouse,
+        ClientView::new(dimensions.columns),
     )
 }
 
@@ -343,9 +355,9 @@ fn run_event_loop_with_modes<B: Backend + ResizableBackend>(
     viewport: &impl ViewportSource,
     mut dimensions: WindowDimensions,
     mouse: bool,
+    mut view: ClientView,
 ) -> Result<LoopExit, LoopFailure<B::Error>> {
     let (inputs, mode) = input_runtime;
-    let mut view = ClientView::new(dimensions.columns);
     let mut dispatcher = InputDispatcher::default();
     // The lifecycle write already armed or released host reporting; the
     // dispatcher and the status indicator settle to the same truth here.

@@ -1,11 +1,13 @@
-//! The prefix-layer binding registry: the single source that both dispatch
-//! matching and help/status label generation consume. Localized descriptions
-//! stay in `localization`; this table only names them.
+//! Default prefix bindings. The owned resolved registry applies Client overrides
+//! and supplies both dispatch and discovery. Localized descriptions stay in
+//! `localization`; this table only names them.
 
 use super::{
     ClientAction, KeyCode, Modifiers, ShellCommand,
     keys::{Binding, KeyEvent},
 };
+mod configured;
+pub(crate) use configured::Bindings;
 
 /// The chord the ordinary layer intercepts unconditionally: `Ctrl+B`.
 pub(crate) const PREFIX_CHORD: Binding = Binding::new(KeyCode::Char('b'), Modifiers::CTRL);
@@ -55,7 +57,7 @@ impl KeySet {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct PrefixMember {
     pub(crate) keys: KeySet,
     pub(crate) action: PrefixAction,
@@ -356,6 +358,7 @@ pub(crate) static PREFIX_GROUPS: &[PrefixGroup] = &[
 ];
 
 /// Resolves a decoded event against the armed-prefix vocabulary.
+#[cfg(test)]
 pub(crate) fn match_prefix(event: KeyEvent) -> Option<&'static PrefixMember> {
     PREFIX_GROUPS
         .iter()

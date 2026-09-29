@@ -63,7 +63,8 @@ pub(crate) fn render_terminal_shell(
     hits: &mut HitMapBuilder,
 ) -> NativeDrawReceipt {
     let area = frame.area();
-    let text = locale.shell();
+    let bound_text = locale.shell().bind(view);
+    let text = bound_text.text();
     frame.render_widget(Block::new().style(theme.style(Role::SurfaceChrome)), area);
 
     let areas = project_shell_areas(area, view.sidebar_surface());
@@ -170,6 +171,7 @@ pub(crate) fn render_terminal_shell(
                     frame,
                     overlay_area(&areas),
                     text,
+                    view,
                     view.help_page(),
                     theme,
                 );
@@ -487,7 +489,8 @@ fn render_native_workbench(
     theme: &Theme,
     hits: &mut HitMapBuilder,
 ) {
-    let text = locale.shell();
+    let bound_text = locale.shell().bind(client_view);
+    let text = bound_text.text();
     let panel_area = areas.panel;
     let location = native_location_label(native, text.standalone);
     render_tab_strip(
@@ -1045,7 +1048,10 @@ fn render_status(
     }
     let secondary_notice = secondary_notice.filter(|_| !view.prefix_active());
     let (label, style) = if let Some(notice) = secondary_notice {
-        (notice.to_owned(), theme.style(Role::StatusWarning))
+        (
+            locale.shell().bound_hint(view, notice),
+            theme.style(Role::StatusWarning),
+        )
     } else if view.prefix_active() {
         (
             text.prefix_active.to_owned(),
@@ -1069,8 +1075,12 @@ fn render_status(
     let [status_area, right] =
         Layout::horizontal([Constraint::Min(0), Constraint::Length(right_width)]).areas(area);
     let status_label = view.notice().map_or_else(
-        || status.to_owned(),
-        |notice| locale.shell_notice(Some(notice)).to_owned(),
+        || locale.shell().bound_hint(view, status),
+        |notice| {
+            locale
+                .shell()
+                .bound_hint(view, locale.shell_notice(Some(notice)))
+        },
     );
     // A released pointer is a persistent mode, not a transient notice: it
     // rides the status label on every draw until capture re-arms.
@@ -1264,10 +1274,11 @@ fn render_shortcut_help(
     frame: &mut Frame<'_>,
     area: Rect,
     text: ShellText,
+    view: &ClientView,
     page: usize,
     theme: &Theme,
 ) -> Option<(Rect, usize)> {
-    let rows = text.shortcut_rows();
+    let rows = text.configured_shortcut_rows(view);
     let height = u16::try_from(rows.len())
         .unwrap_or(u16::MAX)
         .saturating_add(HELP_FOOTER_ROWS)

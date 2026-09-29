@@ -76,7 +76,7 @@ Windows `config reset-keys [--format text|json]` 是离线配置修复操作，�
 任何内容。它移除 `[keys]` 及其嵌套表、命令数组，或可以安全删除的顶层赋值；其他设置、
 被移除表之外的注释和行结束符逐字节保留。UTF-8／TOML 无效、文件超过 64 KiB，或编辑后解析结果不等于
 原配置去掉 `keys` 时，在写入前失败。这可用于从当前设置读取器尚不支持的自定义键位配置
-中恢复；不校验或修复其他设置，不实现自定义按键分发，也不重载正在运行的 Client。
+中恢复；重置操作不校验或修复其他设置，也不重载正在运行的 Client。
 
 共享 Windows 设置修复所有者固定私有父目录树，拒绝重解析点、非普通文件或多硬链接文件，
 独占重新打开文件后对比准备阶段的字节。输入变化或有并发文件持有者时拒绝编辑。相邻的
@@ -105,3 +105,47 @@ Client 激活在提交前连同已有配置冻结这两个值。匹配版本的 
 共享解析器、私有快照接入、Worker 启动解析、显式覆盖与运行循环测试，以及真实 Windows CLI 检查覆盖本契约。不修改公开线协议或持久化检查点；部署和回退均使用匹配的整套程序。
 
 自动 PATH 候选必须通过有界 DOS/PE/COFF、可选头检查，非空节表必须处于文件边界内，具有可执行映像且非 DLL 标志，x86/x64/ARM64 机器类型兼容。损坏、缺失、不可读或不兼容的候选会被跳过。这仅证明结构候选，不能保证依赖可加载。已有固定版本 `winsafe` kernel 安全包装获取系统架构，不添加自写 unsafe。[GetNativeSystemInfo](https://learn.microsoft.com/en-us/windows/win32/api/sysinfoapi/nf-sysinfoapi-getnativesysteminfo) 对 ARM64 上的 x86/x64 进程返回模拟架构；模拟 Worker 优先本机 ARM64 程序尚不声称与 Herdr 的 IsWow64Process2 策略完全对齐。显式配置仍可选择该程序。真实 x64 选择和合成头部/架构分区覆盖本实现，不声称通过 ARM64 硬件验收。
+
+## Windows Client 按键配置
+
+有界共享设置读取器在 Client 启动前接纳 `[keys]`。每个 Client 拥有不可变绑定快照；
+编辑文件或重置在下一个 Client 生效。Client 将已实现的语义动作映射到默认注册表。
+用户覆盖替换该动作的默认绑定，并取代冲突的默认按键。用户绑定歧义、未支持动作或
+语法错误会拒绝接纳。这种严格失败策略与 Herdr 的诊断并禁用策略有差异，仍明确列为缺口。
+
+`prefix` 接受一个按键。动作值接受字符串或最多 16 个候选；空字符串或空数组禁用动作。
+`prefix+` 指定前缀层，其余必须是安全直达按键。`switch_tab` 支持带修饰键的 `1..9`。
+完整修饰键及大写字母在冲突检查前归一化。前缀本身在两层均保留。直达可打印字符、
+裸编辑键及 Ctrl+C/D/Z 被拒绝。捕获与模式先于直达分发；粘贴及释放事件不触发绑定。
+双前缀优先发送规范 C0，否则发送原始字节，不再硬编码回退为 Ctrl+B。
+
+解析后的注册表同时提供分发、帮助行和主要实时提示。禁用动作保留在帮助中。现有原生
+默认值保留；未支持的 Herdr 字段明确失败。通用重载、自定义命令、导航模式映射、
+Agent/按序 Workspace 按键及其他未支持动作仍未完成。定向证据覆盖边界、冲突与默认
+优先级、输入归属、分发及发现；不宣称全量回归或视觉验收通过。
+
+
+支持的动作字段为 `help`、`new_workspace`、`rename_workspace`、`workspace_picker`、
+`detach`、`previous_workspace`、`next_workspace`、`new_tab`、`rename_tab`、`previous_tab`、
+`next_tab`、`move_tab_previous`、`move_tab_next`、`switch_tab`、`close_tab`、
+`focus_pane_left/down/up/right`（四个字段）、`split_vertical`、`split_horizontal`、
+`close_pane`、`zoom`（别名 `fullscreen`）和 `toggle_sidebar`。它们调用现有原生动作；
+Workspace 对应原生 Workbench 位置，竖向分屏向右、横向分屏向下。
+
+```toml
+[keys]
+prefix = "ctrl+a"
+help = ["prefix+?", "f1"]
+new_tab = "prefix+n"
+switch_tab = "alt+1..9"
+zoom = ""
+```
+
+Windows `config check` v6 增加 `keyPrefix`、`keyOverrides`，按键配置错误使用
+configuration failure v3；旧版本保留封闭字段集合。示例让新建 Tab 取代默认的下一 Tab
+快捷键；空 `zoom` 禁用放大快捷键。当前绑定只在主 TUI 使用，CLI 终端流 attach 的
+独立控制按键尚未迁移。全量键位导入、无害警告恢复和热重载仍需后续实现。
+
+功能键使用 xterm 的实际 F1–F12 序列编号（跳过 16 和 22），带修饰符的 F1–F4
+以及 kitty F1–F24。修饰符事件尾部保留按下、重复和释放；无效事件或无法表示的
+Hyper/Meta 修饰位不会降级为普通快捷键。宿主是否实际提供这些按键仍取决于终端。

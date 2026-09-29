@@ -70,6 +70,7 @@ pub(crate) fn run_native_rename_resize(
         &viewport,
         initial,
         true,
+        crate::client_view::ClientView::new(initial.columns),
     ) {
         Ok(LoopExit::User) => Ok(leases),
         Ok(other) => Err(io::Error::other(format!(

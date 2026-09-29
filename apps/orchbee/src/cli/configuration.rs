@@ -10,6 +10,7 @@ use std::path::PathBuf;
 #[derive(Debug)]
 pub(super) struct Settings {
     shell: orchbee_local_site_runtime::WindowsShellSettings,
+    keys: orchbee_local_site_runtime::WindowsKeySettings,
     pub(super) path: Option<PathBuf>,
     pub(super) exists: bool,
     pub(super) cwd: Option<(CreationDirectory, Option<WorkbenchDirectoryPath>)>,
@@ -32,13 +33,13 @@ impl Error {
     pub(super) fn failure(self) -> Failure {
         Failure::new(FailureKind::CheckFailed)
             .failure_schema("orchbee.cli.failure.configuration")
-            .version(
-                if matches!(self.field, "terminal.default_shell" | "terminal.shell_mode") {
-                    2
-                } else {
-                    1
-                },
-            )
+            .version(if self.field == "keys" {
+                3
+            } else if matches!(self.field, "terminal.default_shell" | "terminal.shell_mode") {
+                2
+            } else {
+                1
+            })
             .details(serde_json::Map::from_iter([
                 ("field".into(), self.field.into()),
                 ("reason".into(), self.reason.into()),
@@ -62,6 +63,7 @@ fn project(raw: WindowsUserSettings) -> Result<Settings, Error> {
     };
     Ok(Settings {
         shell: raw.shell,
+        keys: raw.keys,
         path: raw.path,
         exists: raw.exists,
         cwd: raw
@@ -107,6 +109,15 @@ impl Settings {
     }
     pub(super) fn check_details(&self) -> serde_json::Map<String, serde_json::Value> {
         serde_json::Map::from_iter([
+            ("keyOverrides".into(), self.keys.overrides.len().into()),
+            ("keyPrefix".into(), {
+                let bindings = crate::client_view::Bindings::configured(&self.keys);
+                crate::client_view::format_binding(
+                    &bindings.prefix,
+                    crate::client_view::LabelStyle::for_host(),
+                )
+                .into()
+            }),
             ("defaultShell".into(), self.shell.executable().into()),
             ("shellMode".into(), self.shell.mode().as_str().into()),
             ("manifestCheck".into(), self.manifest_check.into()),

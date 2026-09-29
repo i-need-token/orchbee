@@ -178,7 +178,7 @@ fn decides_each_completed_prefix_without_mutating_the_view() {
     for (key, expected_action, expected_notice) in fixed_cases {
         let mut view = ClientView::new(WIDE_VIEWPORT_MINIMUM_COLUMNS);
         enter_prefix(&mut view);
-        let before = view;
+        let before = view.clone();
         let transition = view.decide(key);
         assert_eq!(view, before);
         assert_eq!(transition.action(), Some(expected_action));

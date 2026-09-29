@@ -1,11 +1,11 @@
+#[cfg(test)]
+pub(crate) use bindings::{PREFIX_CHORD, PrefixGroup};
 pub(crate) const WIDE_VIEWPORT_MINIMUM_COLUMNS: u16 = 96;
 
 mod bindings;
 mod keys;
 
-pub(crate) use bindings::{
-    PREFIX_CHORD, PREFIX_GROUPS, PrefixAction, PrefixDesc, PrefixGroup, match_prefix,
-};
+pub(crate) use bindings::{Bindings, PREFIX_GROUPS, PrefixAction, PrefixDesc};
 pub(crate) use keys::{Binding, KeyCode, KeyEvent, KeyKind, LabelStyle, Modifiers, format_binding};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -239,8 +239,9 @@ pub(crate) enum SidebarSurface {
     Overlay,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct ClientView {
+    bindings: std::sync::Arc<Bindings>,
     notice: Option<Notice>,
     overlay: Option<Overlay>,
     prefix_active: bool,
@@ -267,8 +268,9 @@ impl ClientView {
     /// number of binding groups — no allocation scales with input.
     const HELP_PAGE_BOUND: usize = PREFIX_GROUPS.len();
 
-    pub(crate) const fn new(width: u16) -> Self {
+    pub(crate) fn new(width: u16) -> Self {
         Self {
+            bindings: std::sync::Arc::new(Bindings::default()),
             notice: None,
             overlay: None,
             prefix_active: false,
@@ -279,21 +281,21 @@ impl ClientView {
         }
     }
 
-    pub(crate) const fn notice(self) -> Option<Notice> {
+    pub(crate) const fn notice(&self) -> Option<Notice> {
         self.notice
     }
 
-    pub(crate) const fn overlay(self) -> Option<Overlay> {
+    pub(crate) const fn overlay(&self) -> Option<Overlay> {
         self.overlay
     }
 
-    pub(crate) const fn prefix_active(self) -> bool {
+    pub(crate) const fn prefix_active(&self) -> bool {
         self.prefix_active
     }
 
     /// The help page the renderer should draw. Consumed by the paged
     /// `render_shortcut_help` seam; always a bounded counter.
-    pub(crate) const fn help_page(self) -> usize {
+    pub(crate) const fn help_page(&self) -> usize {
         self.help_page
     }
 
@@ -305,7 +307,7 @@ impl ClientView {
         self.help_page = effective_page.min(Self::HELP_PAGE_BOUND);
     }
 
-    pub(crate) const fn sidebar_surface(self) -> SidebarSurface {
+    pub(crate) const fn sidebar_surface(&self) -> SidebarSurface {
         match self.viewport {
             ViewportClass::Wide if self.wide_sidebar_visible => SidebarSurface::Docked,
             ViewportClass::Narrow if matches!(self.overlay, Some(Overlay::BusinessSidebar)) => {
@@ -339,7 +341,7 @@ impl ClientView {
 
     /// Whether host pointer reporting is currently released (`Ctrl+B m` or
     /// `--mouse off`). Read by the status line's persistent indicator.
-    pub(crate) const fn pointer_released(self) -> bool {
+    pub(crate) const fn pointer_released(&self) -> bool {
         self.pointer_released
     }
 
@@ -371,21 +373,31 @@ impl ClientView {
         }
     }
 
+    pub(crate) fn bindings(&self) -> &Bindings {
+        &self.bindings
+    }
+
+    #[cfg(windows)]
+    pub(crate) fn configure_keys(&mut self, keys: &orchbee_local_site_runtime::WindowsKeySettings) {
+        self.bindings = std::sync::Arc::new(Bindings::configured(keys));
+        self.prefix_active = false;
+    }
+
     pub(crate) fn decide(&self, input: PrefixInput) -> ClientTransition {
-        let mut next = *self;
+        let mut next = self.clone();
         if self.prefix_active {
             let (action, shell) = next.decide_prefix(input);
             return ClientTransition {
-                next,
                 action: Some(action),
                 shell,
                 layout_changed: matches!(self.sidebar_surface(), SidebarSurface::Docked)
                     != matches!(next.sidebar_surface(), SidebarSurface::Docked),
+                next,
             };
         }
 
         if let PrefixInput::Key(event) = input
-            && PREFIX_CHORD.matches(event)
+            && self.bindings.prefix.matches(event)
         {
             next.prefix_active = true;
             return ClientTransition {
@@ -396,6 +408,17 @@ impl ClientView {
             };
         }
 
+        if let PrefixInput::Key(event) = input
+            && let Some(member) = self.bindings.find(event, false)
+        {
+            let (action, shell) = next.decide_member(input, Some(member));
+            return ClientTransition {
+                layout_changed: self.sidebar_surface() != next.sidebar_surface(),
+                next,
+                action: Some(action),
+                shell,
+            };
+        }
         ClientTransition {
             next,
             action: None,
@@ -423,9 +446,18 @@ impl ClientView {
         self.notice = None;
 
         let member = match input {
-            PrefixInput::Key(event) => match_prefix(event),
+            PrefixInput::Key(event) => self.bindings.find(event, true).cloned(),
             PrefixInput::NonKey => None,
         };
+        self.decide_member(input, member.as_ref())
+    }
+
+    fn decide_member(
+        &mut self,
+        input: PrefixInput,
+        member: Option<&bindings::PrefixMember>,
+    ) -> (ClientAction, ShellCommand) {
+        self.notice = None;
         let Some(member) = member else {
             self.notice = Some(Notice::UnknownPrefix);
             return (ClientAction::UnknownPrefix, ShellCommand::None);

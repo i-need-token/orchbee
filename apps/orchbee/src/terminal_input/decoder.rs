@@ -1000,45 +1000,40 @@ fn parse_csi(body: &[u8]) -> Csi {
         .iter()
         .position(|b| !(0x30..=0x3f).contains(b))
         .unwrap_or(body.len());
-    let params = split_params(&body[..param_len]);
+    let Some((number, mods, kind)) = special_key_parameters(&body[..param_len]) else {
+        return Csi::Nondecision;
+    };
     match last {
         b'~' => {
-            let mods = params
-                .get(1)
-                .copied()
-                .flatten()
-                .map_or(Modifiers::NONE, |n| mods_from_param(n, Modifiers::NONE));
-            let code = match params.first().copied().flatten() {
+            let code = match number {
                 Some(1 | 7) => Some(KeyCode::Home),
                 Some(2) => Some(KeyCode::Insert),
                 Some(3) => Some(KeyCode::Delete),
                 Some(4 | 8) => Some(KeyCode::End),
                 Some(5) => Some(KeyCode::PageUp),
                 Some(6) => Some(KeyCode::PageDown),
-                Some(n @ 11..=24) => Some(KeyCode::F((n - 10) as u8)),
+                Some(n @ 11..=15) => Some(KeyCode::F((n - 10) as u8)),
+                Some(n @ 17..=21) => Some(KeyCode::F((n - 11) as u8)),
+                Some(n @ 23..=24) => Some(KeyCode::F((n - 12) as u8)),
                 _ => None,
             };
             match code {
-                Some(code) => Csi::Key(KeyEvent::press(code, mods)),
+                Some(code) => Csi::Key(KeyEvent { code, mods, kind }),
                 None => Csi::Nondecision,
             }
         }
-        b'A' | b'B' | b'C' | b'D' | b'H' | b'F' => {
+        b'A' | b'B' | b'C' | b'D' | b'H' | b'F' | b'P' | b'Q' | b'R' | b'S' => {
             let code = match last {
                 b'A' => KeyCode::Up,
                 b'B' => KeyCode::Down,
                 b'C' => KeyCode::Right,
                 b'D' => KeyCode::Left,
                 b'H' => KeyCode::Home,
+                b'P'..=b'S' => KeyCode::F(last - b'P' + 1),
                 _ => KeyCode::End,
             };
-            let mods = params
-                .get(1)
-                .copied()
-                .flatten()
-                .map_or(Modifiers::NONE, |n| mods_from_param(n, Modifiers::NONE));
-            match params.first().copied().flatten() {
-                Some(1) | None => Csi::Key(KeyEvent::press(code, mods)),
+            match number {
+                Some(1) | None => Csi::Key(KeyEvent { code, mods, kind }),
                 _ => Csi::Nondecision,
             }
         }
@@ -1052,28 +1047,13 @@ fn parse_kitty_u(body: &[u8]) -> Csi {
     let Some(Some(number)) = key_params.first().copied() else {
         return Csi::Nondecision;
     };
-    // Tail form: `<mods>[:<event>]`. Repeat/release are decoded so owners can
-    // consume press+repeat and never dispatch release.
-    let (mods_param, kind) = if semicolon < body.len() {
-        let tail = &body[semicolon + 1..];
-        let colon = tail.iter().position(|b| *b == b':').unwrap_or(tail.len());
-        let mods = split_params(&tail[..colon])
-            .first()
-            .copied()
-            .flatten()
-            .unwrap_or(1);
-        let kind = if colon < tail.len() {
-            match split_params(&tail[colon + 1..]).first().copied().flatten() {
-                Some(2) => KeyKind::Repeat,
-                Some(3) => KeyKind::Release,
-                _ => KeyKind::Press,
-            }
-        } else {
-            KeyKind::Press
-        };
-        (mods, kind)
+    let tail = if semicolon < body.len() {
+        &body[semicolon + 1..]
     } else {
-        (1, KeyKind::Press)
+        b"1"
+    };
+    let Some((mods, kind)) = modifier_event(tail) else {
+        return Csi::Nondecision;
     };
     let code = match number {
         13 => KeyCode::Enter,
@@ -1094,15 +1074,52 @@ fn parse_kitty_u(body: &[u8]) -> Csi {
         57355 => KeyCode::PageDown,
         57356 => KeyCode::Home,
         57357 => KeyCode::End,
-        n @ 57364..=57375 => KeyCode::F((n - 57363) as u8),
+        n @ 57364..=57387 => KeyCode::F((n - 57363) as u8),
         n if n < 57344 => match char::from_u32(n) {
             Some(c) if !c.is_control() => KeyCode::Char(c),
             _ => return Csi::Nondecision,
         },
         _ => return Csi::Nondecision,
     };
-    let mods = mods_from_param(mods_param, Modifiers::NONE);
     Csi::Key(KeyEvent { code, mods, kind })
+}
+
+/// Xterm and kitty share the modifier/event tail. Unknown modifiers are not
+/// collapsed onto an ordinary shortcut, and malformed event kinds never become presses.
+fn modifier_event(bytes: &[u8]) -> Option<(Modifiers, KeyKind)> {
+    let mut parts = bytes.split(|byte| *byte == b':');
+    let modifier = decimal(parts.next()?)?;
+    if !(1..=256).contains(&modifier) || (modifier - 1) & 0x30 != 0 {
+        return None;
+    }
+    let kind = match parts.next() {
+        None | Some(b"1") => KeyKind::Press,
+        Some(b"2") => KeyKind::Repeat,
+        Some(b"3") => KeyKind::Release,
+        _ => return None,
+    };
+    if parts.next().is_some() {
+        return None;
+    }
+    Some((mods_from_param(modifier, Modifiers::NONE), kind))
+}
+
+fn decimal(bytes: &[u8]) -> Option<u32> {
+    let parts = split_params(bytes);
+    (parts.len() == 1).then(|| parts[0]).flatten()
+}
+
+fn special_key_parameters(bytes: &[u8]) -> Option<(Option<u32>, Modifiers, KeyKind)> {
+    if bytes.is_empty() {
+        return Some((None, Modifiers::NONE, KeyKind::Press));
+    }
+    let mut parts = bytes.split(|byte| *byte == b';');
+    let number = decimal(parts.next()?)?;
+    let (mods, kind) = modifier_event(parts.next().unwrap_or(b"1"))?;
+    if parts.next().is_some() {
+        return None;
+    }
+    Some((Some(number), mods, kind))
 }
 
 fn split_params(bytes: &[u8]) -> Vec<Option<u32>> {

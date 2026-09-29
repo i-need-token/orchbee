@@ -269,7 +269,14 @@ fn help_paginates_wrapped_rows_and_clamps_the_requested_page() {
     // Wrapped shortcut rows in an 8-line page budget -> several pages; the
     // requested page 99 clamps to the last one and the footer stays visible.
     infallible(terminal.draw(|frame| {
-        placed = super::render_shortcut_help(frame, frame.area(), text, 99, &theme);
+        placed = super::render_shortcut_help(
+            frame,
+            frame.area(),
+            text,
+            &ClientView::new(100),
+            99,
+            &theme,
+        );
     }));
     let (_, page) = placed.expect("help must fit in 60x12");
     assert!(page >= 1, "wrapped help must need more than one page");
@@ -288,7 +295,14 @@ fn help_paginates_wrapped_rows_and_clamps_the_requested_page() {
     assert!(!rows.iter().any(|row| row.contains("Ctrl+B a")));
 
     infallible(terminal.draw(|frame| {
-        placed = super::render_shortcut_help(frame, frame.area(), text, 0, &theme);
+        placed = super::render_shortcut_help(
+            frame,
+            frame.area(),
+            text,
+            &ClientView::new(100),
+            0,
+            &theme,
+        );
     }));
     let (_, page) = placed.expect("help must fit in 60x12");
     assert_eq!(page, 0);
@@ -306,7 +320,14 @@ fn help_wraps_long_descriptions_instead_of_clipping_them() {
     let mut terminal = infallible(Terminal::new(TestBackend::new(46, 20)));
     let mut placed = None;
     infallible(terminal.draw(|frame| {
-        placed = super::render_shortcut_help(frame, frame.area(), text, 0, &theme);
+        placed = super::render_shortcut_help(
+            frame,
+            frame.area(),
+            text,
+            &ClientView::new(100),
+            0,
+            &theme,
+        );
     }));
     placed.expect("46x20 help must fit with wrapping");
     let rows = buffer_rows(&terminal, 46, 20);
@@ -333,7 +354,14 @@ fn help_wraps_chinese_descriptions_on_grapheme_boundaries() {
     let mut terminal = infallible(Terminal::new(TestBackend::new(46, 20)));
     let mut placed = None;
     infallible(terminal.draw(|frame| {
-        placed = super::render_shortcut_help(frame, frame.area(), text, 0, &theme);
+        placed = super::render_shortcut_help(
+            frame,
+            frame.area(),
+            text,
+            &ClientView::new(100),
+            0,
+            &theme,
+        );
     }));
     placed.expect("zh help must fit with wrapping");
     let rows = buffer_rows(&terminal, 46, 20);
@@ -379,7 +407,14 @@ fn help_footer_falls_back_to_the_explicit_short_form_then_refuses() {
     let mut terminal = infallible(Terminal::new(TestBackend::new(46, 20)));
     let mut placed = None;
     infallible(terminal.draw(|frame| {
-        placed = super::render_shortcut_help(frame, frame.area(), text, 0, &theme);
+        placed = super::render_shortcut_help(
+            frame,
+            frame.area(),
+            text,
+            &ClientView::new(100),
+            0,
+            &theme,
+        );
     }));
     placed.expect("46x20 must fit the short footer");
     let rows = buffer_rows(&terminal, 46, 20).concat();
@@ -394,7 +429,14 @@ fn help_footer_falls_back_to_the_explicit_short_form_then_refuses() {
     let mut terminal = infallible(Terminal::new(TestBackend::new(38, 12)));
     let mut placed = Some((ratatui::layout::Rect::default(), 0usize));
     infallible(terminal.draw(|frame| {
-        placed = super::render_shortcut_help(frame, frame.area(), text, 0, &theme);
+        placed = super::render_shortcut_help(
+            frame,
+            frame.area(),
+            text,
+            &ClientView::new(100),
+            0,
+            &theme,
+        );
     }));
     assert_eq!(
         placed, None,
@@ -410,7 +452,7 @@ fn help_paging_line_leads_with_the_page_number() {
     // chord — it can never be clipped away by a right-edge cutoff.
     let mut terminal = infallible(Terminal::new(TestBackend::new(60, 12)));
     infallible(terminal.draw(|frame| {
-        super::render_shortcut_help(frame, frame.area(), text, 0, &theme);
+        super::render_shortcut_help(frame, frame.area(), text, &ClientView::new(100), 0, &theme);
     }));
     let rows = buffer_rows(&terminal, 60, 12);
     let paging = rows
@@ -455,7 +497,14 @@ fn help_refuses_placement_that_would_clip_rows_or_footer() {
     // A 5-row placed overlay leaves 3 inner rows — only 1 row per page, below
     // the 2-row minimum, so the overlay refuses instead of clipping.
     infallible(terminal.draw(|frame| {
-        placed = super::render_shortcut_help(frame, frame.area(), text, 0, &theme);
+        placed = super::render_shortcut_help(
+            frame,
+            frame.area(),
+            text,
+            &ClientView::new(100),
+            0,
+            &theme,
+        );
     }));
     assert_eq!(placed, None);
     let text = terminal

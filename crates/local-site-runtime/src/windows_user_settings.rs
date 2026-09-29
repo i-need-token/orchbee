@@ -1,7 +1,9 @@
 //! Shared Windows user settings: bounded strict reads and explicitly invoked repair.
+mod keys;
 mod reset_keys;
 mod shell;
 use crate::windows_user_path::{WINDOWS_USER_PATH_LIMIT, normalize_windows_user_path};
+pub use keys::{WindowsKeyChord, WindowsKeyOverride, WindowsKeySettings, WindowsKeyTrigger};
 pub use reset_keys::{WindowsKeysResetOutcome, WindowsKeysResetReport, reset_windows_keybindings};
 pub use shell::{WindowsShellMode, WindowsShellSettings};
 use std::{
@@ -15,6 +17,7 @@ const LIMIT: u64 = 64 * 1024;
 
 #[derive(Debug)]
 pub struct WindowsUserSettings {
+    pub keys: WindowsKeySettings,
     pub shell: WindowsShellSettings,
     pub path: Option<PathBuf>,
     pub exists: bool,
@@ -30,6 +33,7 @@ pub struct WindowsUserSettings {
 impl Default for WindowsUserSettings {
     fn default() -> Self {
         Self {
+            keys: WindowsKeySettings::default(),
             shell: WindowsShellSettings::default(),
             path: None,
             exists: false,
@@ -217,6 +221,10 @@ fn parse(
         ..WindowsUserSettings::default()
     };
     for (section, value) in table {
+        if section == "keys" {
+            settings.keys = WindowsKeySettings::parse(&value)?;
+            continue;
+        }
         let (key, field) = match section.as_str() {
             "terminal" => ("new_cwd", "terminal.new_cwd"),
             "update" => ("manifest_check", "update.manifest_check"),
