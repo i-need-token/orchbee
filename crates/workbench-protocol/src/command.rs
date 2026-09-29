@@ -1347,18 +1347,40 @@ fn validate_request(request: &WorkbenchRequest) -> Result<(), ContractError> {
         return Err(ContractError::InvalidDocument);
     }
     let conflicting = match &command.action {
-        WorkbenchAction::WorkspaceLaunch {
-            launch, profile, ..
-        }
-        | WorkbenchAction::TabCreate {
-            launch, profile, ..
+        WorkbenchAction::TabCreate {
+            launch,
+            profile,
+            options,
+            ..
         }
         | WorkbenchAction::PanelSplit {
-            launch, profile, ..
+            launch,
+            profile,
+            options,
+            ..
+        } => {
+            if let Some(selector) = &options.plugin_pane {
+                crate::PluginPaneSelector::new(
+                    selector.plugin_id.clone(),
+                    selector.entrypoint_id.clone(),
+                )
+                .map_err(|_| ContractError::InvalidDocument)?;
+            }
+            (launch.is_some() && profile.is_some())
+                || (options.plugin_pane.is_some() && (launch.is_some() || profile.is_some()))
+        }
+        WorkbenchAction::WorkspaceLaunch {
+            launch,
+            profile,
+            options,
+            ..
         }
         | WorkbenchAction::PanelCreateTerminal {
-            launch, profile, ..
-        } => launch.is_some() && profile.is_some(),
+            launch,
+            profile,
+            options,
+            ..
+        } => options.plugin_pane.is_some() || (launch.is_some() && profile.is_some()),
         _ => false,
     };
     if conflicting {

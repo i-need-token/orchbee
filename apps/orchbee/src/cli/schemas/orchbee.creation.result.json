@@ -10,7 +10,7 @@
 			"const": "orchbee.creation.result"
 		},
 		"version": {
-			"const": 2
+			"enum": [2, 3]
 		},
 		"source": {
 			"$ref": "#/$defs/canonical/$defs/commandSource"
@@ -174,7 +174,7 @@
 			"required": ["policy", "source", "path", "sourcePanelId"],
 			"properties": {
 				"policy": {
-					"enum": ["follow", "explicit", "home", "current", "workspace"]
+					"enum": ["follow", "explicit", "home", "current", "workspace", "plugin-root"]
 				},
 				"source": {
 					"enum": ["launch-default", "argument", "home", "current", "terminal-process"]
@@ -233,6 +233,28 @@
 							"sourcePanelId": {
 								"type": "string",
 								"pattern": "^[0-9a-f]{32}$"
+							}
+						}
+					}
+				},
+				{
+					"if": {
+						"properties": {
+							"policy": {
+								"const": "plugin-root"
+							}
+						}
+					},
+					"then": {
+						"properties": {
+							"source": {
+								"const": "launch-default"
+							},
+							"path": {
+								"type": "null"
+							},
+							"sourcePanelId": {
+								"type": "null"
 							}
 						}
 					}
@@ -295,6 +317,22 @@
 						},
 						"source": {
 							"enum": ["launch-default"]
+						},
+						"sourcePanelId": {
+							"type": "null"
+						}
+					}
+				},
+				{
+					"properties": {
+						"policy": {
+							"const": "plugin-root"
+						},
+						"source": {
+							"const": "launch-default"
+						},
+						"path": {
+							"type": "null"
 						},
 						"sourcePanelId": {
 							"type": "null"
@@ -1660,5 +1698,29 @@
 				}
 			}
 		}
-	}
+	},
+	"allOf": [
+		{
+			"if": {
+				"properties": {
+					"version": {
+						"const": 2
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"directory": {
+						"properties": {
+							"policy": {
+								"not": {
+									"const": "plugin-root"
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	]
 }

@@ -399,6 +399,7 @@ fn workspace_launch_requires_navigation_directory_and_terminal_grants() {
             launch: None,
             profile: None,
             options: Box::new(orchbee_workbench_protocol::LaunchOptions {
+                plugin_pane: None,
                 cwd: Some(
                     orchbee_workbench_protocol::WorkbenchDirectoryPath::parse(r"C:\workspace")
                         .unwrap(),

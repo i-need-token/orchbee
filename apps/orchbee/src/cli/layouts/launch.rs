@@ -79,6 +79,7 @@ pub(super) fn prepare(
             members.push(Some(Prepared {
                 launch,
                 options: LaunchOptions {
+                    plugin_pane: None,
                     cwd,
                     environment: leaf.environment.clone(),
                 },

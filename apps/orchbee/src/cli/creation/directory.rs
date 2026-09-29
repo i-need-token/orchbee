@@ -34,6 +34,14 @@ pub(super) fn resolve(
     deadline: Instant,
     signals: &mut ArmedSignals,
 ) -> Result<Resolution, Failure> {
+    if command.options.plugin_pane.is_some() && command.options.cwd.is_none() {
+        return Ok(Resolution {
+            policy: "plugin-root",
+            source: "launch-default",
+            path: None,
+            source_panel_id: None,
+        });
+    }
     let panel = if matches!(
         command.directory,
         CreationDirectory::Default | CreationDirectory::Follow

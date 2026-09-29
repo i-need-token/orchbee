@@ -4,10 +4,11 @@ mod windows_plugins;
 #[cfg(windows)]
 pub use windows_plugins::{
     PluginActionDefinition, PluginGithubSource, PluginManagedSource, PluginManifest,
-    PluginPlatform, PluginProvisionCommand, PluginProvisionExecutor, PluginProvisionFailure,
-    PluginProvisionOutput, PluginProvisionReport, PluginProvisionStage, PluginRegistry,
-    PluginRegistryEntry, PluginRegistryError, PluginRegistryMutation, PluginRegistryResult,
-    plugin_git_reference, plugin_identifier,
+    PluginPaneDefinition, PluginPanePlacement, PluginPlatform, PluginPopupSize,
+    PluginProvisionCommand, PluginProvisionExecutor, PluginProvisionFailure, PluginProvisionOutput,
+    PluginProvisionReport, PluginProvisionStage, PluginRegistry, PluginRegistryEntry,
+    PluginRegistryError, PluginRegistryMutation, PluginRegistryResult, plugin_git_reference,
+    plugin_identifier,
 };
 #[cfg(windows)]
 mod private_cache_windows;

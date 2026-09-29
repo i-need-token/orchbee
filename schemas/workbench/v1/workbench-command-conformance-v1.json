@@ -5357,6 +5357,34 @@
 					}
 				}
 			}
+		},
+		{
+			"name": "plugin-pane-tab-selector",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tab.create",
+					"terminalContextId": "00000000000000000000000000000004",
+					"label": "2",
+					"geometry": {
+						"columns": 120,
+						"rows": 36,
+						"cellPixelWidth": 9,
+						"cellPixelHeight": 18
+					},
+					"options": {
+						"pluginPane": {
+							"pluginId": "tools",
+							"entrypointId": "dashboard"
+						}
+					}
+				}
+			}
 		}
 	],
 	"invalid": [
@@ -17399,6 +17427,152 @@
 					},
 					"options": {
 						"cwd": "relative"
+					}
+				}
+			}
+		},
+		{
+			"name": "plugin-pane-empty-plugin",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tab.create",
+					"terminalContextId": "00000000000000000000000000000004",
+					"label": "2",
+					"geometry": {
+						"columns": 120,
+						"rows": 36,
+						"cellPixelWidth": 9,
+						"cellPixelHeight": 18
+					},
+					"options": {
+						"pluginPane": {
+							"pluginId": "",
+							"entrypointId": "dashboard"
+						}
+					}
+				}
+			}
+		},
+		{
+			"name": "plugin-pane-qualified-entrypoint",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tab.create",
+					"terminalContextId": "00000000000000000000000000000004",
+					"label": "2",
+					"geometry": {
+						"columns": 120,
+						"rows": 36,
+						"cellPixelWidth": 9,
+						"cellPixelHeight": 18
+					},
+					"options": {
+						"pluginPane": {
+							"pluginId": "tools",
+							"entrypointId": "tools.dashboard"
+						}
+					}
+				}
+			}
+		},
+		{
+			"name": "plugin-pane-extra-authority-field",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tab.create",
+					"terminalContextId": "00000000000000000000000000000004",
+					"label": "2",
+					"geometry": {
+						"columns": 120,
+						"rows": 36,
+						"cellPixelWidth": 9,
+						"cellPixelHeight": 18
+					},
+					"options": {
+						"pluginPane": {
+							"pluginId": "tools",
+							"entrypointId": "dashboard",
+							"exec": "C:/fake.exe"
+						}
+					}
+				}
+			}
+		},
+		{
+			"name": "plugin-pane-profile-conflict",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tab.create",
+					"terminalContextId": "00000000000000000000000000000004",
+					"label": "2",
+					"geometry": {
+						"columns": 120,
+						"rows": 36,
+						"cellPixelWidth": 9,
+						"cellPixelHeight": 18
+					},
+					"options": {
+						"pluginPane": {
+							"pluginId": "tools",
+							"entrypointId": "dashboard"
+						}
+					},
+					"profile": "default"
+				}
+			}
+		},
+		{
+			"name": "plugin-pane-exec-conflict",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tab.create",
+					"terminalContextId": "00000000000000000000000000000004",
+					"label": "2",
+					"geometry": {
+						"columns": 120,
+						"rows": 36,
+						"cellPixelWidth": 9,
+						"cellPixelHeight": 18
+					},
+					"options": {
+						"pluginPane": {
+							"pluginId": "tools",
+							"entrypointId": "dashboard"
+						}
+					},
+					"launch": {
+						"exec": "C:/fake.exe",
+						"args": []
 					}
 				}
 			}

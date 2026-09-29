@@ -312,6 +312,7 @@ mod tests {
             launch: None,
             profile: None,
             options: Box::new(orchbee_workbench_protocol::LaunchOptions {
+                plugin_pane: None,
                 cwd: Some(
                     orchbee_workbench_protocol::WorkbenchDirectoryPath::parse(r"C:\repo").unwrap(),
                 ),

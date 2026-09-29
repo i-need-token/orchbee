@@ -11,7 +11,7 @@ pub use workbench_authority::{
     CloseContinuationNext, CloseStepObservation, CloseStepPrequeueFailure, CloseStepToken,
     CloseStepTokenMismatch, CommittedWorkbenchPanelCreateMetadata, CommittedWorkbenchTabCreate,
     CommittedWorkbenchTabCreateMetadata, LaunchProfileUse, MAXIMUM_WORKBENCH_CHECKPOINT_BYTES,
-    ManagedAgentRestart, PendingWorkbenchPanelCreate, PendingWorkbenchTabCreate,
+    ManagedAgentRestart, PendingWorkbenchPanelCreate, PendingWorkbenchTabCreate, PluginPaneLaunch,
     PreparedManagedAgentClear, PreparedStandaloneIntent, PreparedWorkbenchPanelCreate,
     PreparedWorkbenchPanelCreateSettlement, PreparedWorkbenchPanelPlacement,
     PreparedWorkbenchPanelRelocate, PreparedWorkbenchRestoreBinding, PreparedWorkbenchTabClose,

@@ -1,3 +1,4 @@
+pub(crate) mod panes;
 use super::{
     ExpectedValue, FailureEnvelope, NO_OPTIONS, Options, OutputFormat, ParseFailure, Request,
     Scope, UsageContext, UsageReason, check_scope, missing_command, missing_required,
@@ -8,6 +9,7 @@ use orchbee_local_site_runtime::{
 };
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum PluginCommand {
+    PaneOpen(Box<panes::Open>),
     Install {
         source: orchbee_local_site_runtime::PluginGithubSource,
         reference: Option<String>,
@@ -34,6 +36,9 @@ pub(super) fn parse(
     options: &Options,
     envelope: FailureEnvelope,
 ) -> Result<Request, ParseFailure> {
+    if words.get(1) == Some(&"pane") {
+        return panes::parse(words, options, envelope);
+    }
     let (verb, args) = match words {
         ["plugin"] => return Err(missing_command(UsageContext::Path("plugin"), envelope)),
         ["plugin", "action"] => {

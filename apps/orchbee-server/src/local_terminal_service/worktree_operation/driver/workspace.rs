@@ -176,6 +176,7 @@ impl Driver<'_> {
                     launch: None,
                     profile: None,
                     options: Box::new(LaunchOptions {
+                        plugin_pane: None,
                         cwd: Some(checkout.path.clone()),
                         ..LaunchOptions::default()
                     }),

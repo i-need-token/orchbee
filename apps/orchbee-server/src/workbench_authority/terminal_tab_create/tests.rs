@@ -1262,6 +1262,7 @@ fn workspace_launch_command(authority: &WorkbenchAuthority) -> WorkbenchCommand 
         launch: None,
         profile: None,
         options: Box::new(orchbee_workbench_protocol::LaunchOptions {
+            plugin_pane: None,
             cwd: Some(WorkbenchDirectoryPath::parse(r"C:\project space").unwrap()),
             environment: Default::default(),
         }),

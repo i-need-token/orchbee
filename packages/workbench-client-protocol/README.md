@@ -308,3 +308,5 @@ no read allocates an epoch or viewer. Roll out this private extension with its m
 ## Native plugin runtime contract
 
 The exported plugin request/result schemas validate matched-cohort OBWP kinds 45/46, closed context/log shapes, UTF-8 byte bounds, process outcomes and Worker/sequence cursor consistency. Shared plugin conformance cases are checked against Rust and JSON Schema. [Native plugin behavior](../../apps/orchbee/docs/windows-plugins.md) owns execution authority, output limits and remaining integration.
+
+Plugin Pane selectors in launch options are closed, bounded catalog identities admitted only by Tab/split creation. Normalization preserves non-null selectors and removes null/absent values. The shared command corpus covers identity bounds, unknown execution fields and launch/profile conflicts; it does not imply support for every plugin placement.

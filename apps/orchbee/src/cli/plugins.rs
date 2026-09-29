@@ -1,6 +1,7 @@
 //! Offline catalog commands and admitted runtime invocation/log commands.
 #[cfg(windows)]
 mod context;
+mod panes;
 mod provision;
 mod runtime;
 use super::{Failure, FailureKind, Output, failure_output, output};
@@ -12,6 +13,9 @@ use orchbee_local_site_runtime::{PluginRegistry, PluginRegistryError, PluginRegi
 use serde_json::{Value, json};
 
 pub(crate) fn run(command: PluginCommand, format: OutputFormat, locale: Locale) -> Output {
+    if let PluginCommand::PaneOpen(command) = command {
+        return panes::open(*command, format, locale);
+    }
     if matches!(
         &command,
         PluginCommand::Install { .. } | PluginCommand::Uninstall(_)
@@ -25,7 +29,8 @@ pub(crate) fn run(command: PluginCommand, format: OutputFormat, locale: Locale) 
         return runtime::run(command, format, locale);
     }
     let operation = match &command {
-        PluginCommand::Invoke { .. }
+        PluginCommand::PaneOpen(_)
+        | PluginCommand::Invoke { .. }
         | PluginCommand::Logs { .. }
         | PluginCommand::Install { .. }
         | PluginCommand::Uninstall(_) => {
@@ -80,7 +85,8 @@ fn execute(
     command: PluginCommand,
 ) -> Result<Value, PluginRegistryError> {
     Ok(match command {
-        PluginCommand::Invoke { .. }
+        PluginCommand::PaneOpen(_)
+        | PluginCommand::Invoke { .. }
         | PluginCommand::Logs { .. }
         | PluginCommand::Install { .. }
         | PluginCommand::Uninstall(_) => {

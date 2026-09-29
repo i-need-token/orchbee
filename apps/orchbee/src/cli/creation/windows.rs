@@ -32,7 +32,9 @@ pub(super) fn run(command: &CreationCommand, format: OutputFormat, locale: Local
         Err(error) => return failure_output(error.failure(), Some(format), locale),
     };
     let mut configured = command.clone();
-    settings.apply_directory(&mut configured.directory, &mut configured.options);
+    if configured.options.plugin_pane.is_none() {
+        settings.apply_directory(&mut configured.directory, &mut configured.options);
+    }
     let command = &configured;
 
     let deadline = Instant::now() + Duration::from_millis(u64::from(command.timeout_ms));

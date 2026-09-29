@@ -2,7 +2,10 @@
 mod manifest;
 mod source;
 mod store;
-pub use manifest::{PluginActionDefinition, PluginManifest, PluginPlatform, plugin_identifier};
+pub use manifest::{
+    PluginActionDefinition, PluginManifest, PluginPaneDefinition, PluginPanePlacement,
+    PluginPlatform, PluginPopupSize, plugin_identifier,
+};
 use serde::{Deserialize, Serialize};
 pub use source::{PluginGithubSource, PluginManagedSource, plugin_git_reference};
 pub use store::{

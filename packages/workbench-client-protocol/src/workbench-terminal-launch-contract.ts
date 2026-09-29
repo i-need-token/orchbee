@@ -51,9 +51,16 @@ const environmentNameSchema = z
 			!['TERM', 'COLORTERM', 'TERM_PROGRAM'].includes(value.toUpperCase()),
 		'Launch environment cannot override a managed name',
 	);
+const pluginPaneSelectorSchema = z
+	.strictObject({
+		pluginId: z.string().regex(/^[A-Za-z0-9._:-]{1,120}$/u),
+		entrypointId: z.string().regex(/^[A-Za-z0-9_:-]{1,120}$/u),
+	})
+	.readonly();
 export const WorkbenchLaunchOptionsSchema = z
 	.strictObject({
 		cwd: WorkbenchDirectoryPathSchema.nullable().optional(),
+		pluginPane: pluginPaneSelectorSchema.nullable().optional(),
 		environment: z
 			.array(z.tuple([environmentNameSchema, literalLaunchStringSchema]).readonly())
 			.max(32)
@@ -86,6 +93,10 @@ export const WorkbenchTerminalLaunchFieldsSchema = z
 			value.profile === null ||
 			value.profile === undefined,
 		'Launch and profile are mutually exclusive',
+	)
+	.refine(
+		(value) => !value.options?.pluginPane || (!value.launch && !value.profile),
+		'Plugin Pane launch excludes executable/profile',
 	);
 
 type TerminalLaunchFields = z.output<typeof WorkbenchTerminalLaunchFieldsSchema>;
@@ -94,6 +105,7 @@ type CanonicalTerminalLaunchFields = Readonly<{
 	profile?: z.output<typeof WorkbenchLaunchProfileSelectorSchema>;
 	options?: Readonly<{
 		cwd?: z.output<typeof WorkbenchDirectoryPathSchema>;
+		pluginPane?: z.output<typeof pluginPaneSelectorSchema>;
 		environment?: NonNullable<z.output<typeof WorkbenchLaunchOptionsSchema>['environment']>;
 	}>;
 }>;
@@ -107,10 +119,11 @@ export function normalizeWorkbenchTerminalLaunch<T extends TerminalLaunchFields>
 		...action,
 		...(launch ? { launch } : {}),
 		...(profile ? { profile } : {}),
-		...(options && (options.cwd || options.environment?.length)
+		...(options && (options.cwd || options.environment?.length || options.pluginPane)
 			? {
 					options: {
 						...(options.cwd ? { cwd: options.cwd } : {}),
+						...(options.pluginPane ? { pluginPane: options.pluginPane } : {}),
 						...(options.environment?.length ? { environment: options.environment } : {}),
 					},
 				}

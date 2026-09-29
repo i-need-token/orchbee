@@ -35,6 +35,8 @@ pub use panel_agent::{
     TerminalAgentScreenObservation,
 };
 mod panel_metadata;
+mod plugin_panes;
+pub use plugin_panes::PluginPaneLaunch;
 mod terminal_membership;
 mod workspace_directory;
 mod workspace_group_close;

@@ -60,7 +60,7 @@ impl Receipt {
     pub(super) fn document(&self) -> Value {
         let mut document = self.canonical.document();
         document["schema"] = json!("orchbee.creation.result");
-        document["version"] = json!(2);
+        document["version"] = json!(3);
         document["directory"] = self.directory.document();
         document["postCreate"] = json!({
             "clientId":self.client_id,

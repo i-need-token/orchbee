@@ -181,6 +181,8 @@ pub(crate) enum Family {
     PluginAction,
     #[cfg(windows)]
     PluginLog,
+    #[cfg(windows)]
+    PluginPane,
     TerminalTitle,
     Notification,
     #[cfg(windows)]
@@ -229,6 +231,8 @@ impl Family {
             Self::PluginAction => "plugin action",
             #[cfg(windows)]
             Self::PluginLog => "plugin log",
+            #[cfg(windows)]
+            Self::PluginPane => "plugin pane",
             Self::Notification => "notification",
             Self::Site => "site",
             Self::Api => "api",
@@ -262,6 +266,8 @@ pub(crate) enum CommandPath {
     PluginActionInvoke,
     #[cfg(windows)]
     PluginLogList,
+    #[cfg(windows)]
+    PluginPaneOpen,
 
     #[cfg(windows)]
     SessionList,
@@ -534,6 +540,8 @@ impl CommandPath {
             Self::PluginActionInvoke => "plugin action invoke",
             #[cfg(windows)]
             Self::PluginLogList => "plugin log list",
+            #[cfg(windows)]
+            Self::PluginPaneOpen => "plugin pane open",
             Self::NotificationShow => "notification show",
             Self::SiteAgentManifests => "site agent-manifests",
             Self::SiteUpdateAgentManifests => "site update-agent-manifests",
@@ -1470,6 +1478,10 @@ pub(crate) enum ExpectedValue {
     #[cfg(windows)]
     PluginLogLimit,
     #[cfg(windows)]
+    PluginPanePlacement,
+    #[cfg(windows)]
+    PluginPaneDirection,
+    #[cfg(windows)]
     PluginGithubSource,
     #[cfg(windows)]
     PluginGitReference,
@@ -1714,6 +1726,9 @@ struct Options {
     plugin_disabled: bool,
     plugin_id: Option<String>,
     plugin_context: Option<String>,
+    plugin_entrypoint: Option<String>,
+    plugin_target: Option<String>,
+    plugin_placement: Option<String>,
     plugin_yes: bool,
     plugin_ref: Option<String>,
     notification_body: Option<String>,
@@ -1836,6 +1851,9 @@ struct Options {
 /// both the format-envelope walk and the option scan so ownership is decided
 /// identically in the two passes.
 const VALUE_FLAGS: &[&str] = &[
+    "--entrypoint",
+    "--placement",
+    "--target-pane",
     "--ref",
     "--body",
     "--position",
@@ -2510,6 +2528,9 @@ fn apply_value_flag(
         "--cwd" => &mut options.cwd,
         "--plugin" => &mut options.plugin_id,
         "--context" => &mut options.plugin_context,
+        "--entrypoint" => &mut options.plugin_entrypoint,
+        "--placement" => &mut options.plugin_placement,
+        "--target-pane" => &mut options.plugin_target,
         "--ref" => &mut options.plugin_ref,
         "--limit" => &mut options.limit,
         "--cursor" => &mut options.cursor,
@@ -4836,6 +4857,10 @@ fn help_topic(path: &[&str]) -> Option<HelpTopic> {
         #[cfg(windows)]
         ["plugin", "log"] => HelpTopic::Family(Family::PluginLog),
         #[cfg(windows)]
+        ["plugin", "pane"] => HelpTopic::Family(Family::PluginPane),
+        #[cfg(windows)]
+        ["plugin", "pane", "open"] => HelpTopic::Command(CommandPath::PluginPaneOpen),
+        #[cfg(windows)]
         ["plugin", "action", "invoke"] => HelpTopic::Command(CommandPath::PluginActionInvoke),
         #[cfg(windows)]
         ["plugin", "log", "list"] => HelpTopic::Command(CommandPath::PluginLogList),
@@ -4936,6 +4961,7 @@ struct Scope {
     plugin: bool,
     plugin_select: bool,
     plugin_context: bool,
+    plugin_pane: bool,
     plugin_install: bool,
     notification: bool,
     panel_terminal: bool,
@@ -5071,6 +5097,7 @@ const NO_OPTIONS: Scope = Scope {
     plugin: false,
     plugin_select: false,
     plugin_context: false,
+    plugin_pane: false,
     plugin_install: false,
     notification: false,
     panel_terminal: false,
@@ -5399,7 +5426,10 @@ const INTEGRATION_SCOPE: Scope = Scope {
 
 /// Any mutation-only option seen outside a mutation command.
 fn business_options(options: &Options) -> bool {
-    options.plugin_id.is_some()
+    options.plugin_target.is_some()
+        || options.plugin_entrypoint.is_some()
+        || options.plugin_placement.is_some()
+        || options.plugin_id.is_some()
         || options.plugin_context.is_some()
         || options.plugin_ref.is_some()
         || options.plugin_yes
@@ -5486,6 +5516,15 @@ fn first_out_of_scope(options: &Options, scope: Scope) -> Option<&'static str> {
         if options.plugin_ref.is_some() {
             return Some("--ref");
         }
+    }
+    if !scope.plugin_pane && options.plugin_target.is_some() {
+        return Some("--target-pane");
+    }
+    if !scope.plugin_pane && options.plugin_entrypoint.is_some() {
+        return Some("--entrypoint");
+    }
+    if !scope.plugin_pane && options.plugin_placement.is_some() {
+        return Some("--placement");
     }
     if !scope.plugin_select && options.plugin_id.is_some() {
         return Some("--plugin");
@@ -5884,7 +5923,11 @@ fn launch_options_with_directory(
         })
         .collect::<Result<Vec<_>, _>>()?;
     let environment = LaunchEnvironment::new(entries).map_err(|_| invalid_environment())?;
-    Ok(LaunchOptions { cwd, environment })
+    Ok(LaunchOptions {
+        plugin_pane: None,
+        cwd,
+        environment,
+    })
 }
 
 /// `--exec`/`--arg` build the optional explicit launch selection: `--exec`

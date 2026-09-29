@@ -53,6 +53,7 @@ fn panel_member_creation_dispatches_literal_launch_and_preserves_original_member
                 ),
                 profile: None,
                 options: Box::new(LaunchOptions {
+                    plugin_pane: None,
                     cwd: Some(WorkbenchDirectoryPath::parse("C:/work").unwrap()),
                     environment: LaunchEnvironment::new(vec![(
                         "VALUE".into(),

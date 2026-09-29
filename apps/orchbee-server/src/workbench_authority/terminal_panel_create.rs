@@ -193,6 +193,7 @@ pub struct WorkbenchPanelCreateAdmission<'a> {
     staged: StagedWorkbenchPanelCreateMetadata,
     last_identity: u128,
     profile_use: Option<super::LaunchProfileUse>,
+    plugin_use: Option<super::PluginPaneLaunch>,
 }
 
 impl<'a> WorkbenchPanelCreateAdmission<'a> {
@@ -207,6 +208,11 @@ impl<'a> WorkbenchPanelCreateAdmission<'a> {
     #[must_use]
     pub const fn profile_use(&self) -> Option<&super::LaunchProfileUse> {
         self.profile_use.as_ref()
+    }
+
+    #[must_use]
+    pub const fn plugin_use(&self) -> Option<&super::PluginPaneLaunch> {
+        self.plugin_use.as_ref()
     }
 
     #[must_use]
@@ -234,6 +240,7 @@ impl<'a> WorkbenchPanelCreateAdmission<'a> {
             staged,
             last_identity,
             profile_use: _,
+            plugin_use: _,
         } = self;
         let mut candidate = authority.projection.snapshot().clone();
         let Some(context) = candidate
@@ -737,6 +744,27 @@ impl WorkbenchAuthority {
         // its provenance are frozen before the asynchronous gap. Resolution
         // failures are journaled like every other settled outcome, so an
         // identical request replays the same answer.
+        let plugin_use = match &command.action {
+            WorkbenchAction::TabCreate { options, .. }
+            | WorkbenchAction::PanelSplit { options, .. } => {
+                match options
+                    .plugin_pane
+                    .as_ref()
+                    .map(|selector| {
+                        super::plugin_panes::resolve(self.projection.snapshot(), &command, selector)
+                    })
+                    .transpose()
+                {
+                    Ok(value) => value,
+                    Err(reason) => {
+                        return WorkbenchPanelCreateBegin::Ready(
+                            self.retain_outcome(command, unavailable(reason)),
+                        );
+                    }
+                }
+            }
+            _ => None,
+        };
         let profile_use = match &profile {
             None => None,
             Some(selector) => match super::resolve_profile_selector(&self.catalog, selector) {
@@ -776,6 +804,7 @@ impl WorkbenchAuthority {
             },
             last_identity,
             profile_use,
+            plugin_use,
         }))
     }
 

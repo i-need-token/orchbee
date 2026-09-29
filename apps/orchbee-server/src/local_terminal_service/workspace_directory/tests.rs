@@ -434,6 +434,7 @@ fn launch_command(service: &LocalTerminalService) -> WorkbenchCommand {
             launch: None,
             profile: None,
             options: Box::new(orchbee_workbench_protocol::LaunchOptions {
+                plugin_pane: None,
                 cwd: Some(path),
                 environment: Default::default(),
             }),

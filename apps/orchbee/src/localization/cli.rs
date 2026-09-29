@@ -669,6 +669,10 @@ impl Locale {
             #[cfg(windows)]
             (_, ExpectedValue::PluginLogLimit) => "1..200",
             #[cfg(windows)]
+            (_, ExpectedValue::PluginPanePlacement) => "tab|split|zoomed|overlay|popup",
+            #[cfg(windows)]
+            (_, ExpectedValue::PluginPaneDirection) => "right|down",
+            #[cfg(windows)]
             (_, ExpectedValue::PluginGithubSource) => "owner/repo[/subdir]",
             #[cfg(windows)]
             (Self::EnUs, ExpectedValue::PluginGitReference) => "a Git branch, tag or commit",
@@ -2532,9 +2536,12 @@ impl Locale {
             },
             (_, HelpTopic::Family(Family::TerminalTitle)) => self.window_title_help(),
             #[cfg(windows)]
-            (_, HelpTopic::Family(Family::Plugin | Family::PluginAction | Family::PluginLog)) => {
-                self.plugin_help()
-            }
+            (
+                _,
+                HelpTopic::Family(
+                    Family::Plugin | Family::PluginAction | Family::PluginLog | Family::PluginPane,
+                ),
+            ) => self.plugin_help(),
             (_, HelpTopic::Family(Family::Notification)) => self.notification_help(),
             (_, HelpTopic::Family(Family::Completion)) => match self {
                 Self::EnUs => HELP_COMPLETION_EN,
@@ -2561,6 +2568,7 @@ impl Locale {
                 | CommandPath::PluginConfigDir
                 | CommandPath::PluginActionList
                 | CommandPath::PluginActionInvoke
+                | CommandPath::PluginPaneOpen
                 | CommandPath::PluginLogList
                 | CommandPath::PluginInstall
                 | CommandPath::PluginUninstall,

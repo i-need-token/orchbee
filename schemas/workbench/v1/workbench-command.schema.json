@@ -222,7 +222,35 @@
 								"type": "string"
 							}
 						}
-					}
+					},
+					"allOf": [
+						{
+							"if": {
+								"required": ["options"],
+								"properties": {
+									"options": {
+										"required": ["pluginPane"],
+										"properties": {
+											"pluginPane": {
+												"type": "object"
+											}
+										},
+										"type": "object"
+									}
+								}
+							},
+							"then": {
+								"properties": {
+									"launch": {
+										"type": "null"
+									},
+									"profile": {
+										"type": "null"
+									}
+								}
+							}
+						}
+					]
 				},
 				{
 					"type": "object",
@@ -296,7 +324,35 @@
 								"type": "string"
 							}
 						}
-					}
+					},
+					"allOf": [
+						{
+							"if": {
+								"required": ["options"],
+								"properties": {
+									"options": {
+										"required": ["pluginPane"],
+										"properties": {
+											"pluginPane": {
+												"type": "object"
+											}
+										},
+										"type": "object"
+									}
+								}
+							},
+							"then": {
+								"properties": {
+									"launch": {
+										"type": "null"
+									},
+									"profile": {
+										"type": "null"
+									}
+								}
+							}
+						}
+					]
 				},
 				{
 					"type": "object",
@@ -674,7 +730,25 @@
 								"type": "string"
 							}
 						}
-					}
+					},
+					"allOf": [
+						{
+							"not": {
+								"required": ["options"],
+								"properties": {
+									"options": {
+										"required": ["pluginPane"],
+										"properties": {
+											"pluginPane": {
+												"type": "object"
+											}
+										},
+										"type": "object"
+									}
+								}
+							}
+						}
+					]
 				},
 				{
 					"type": "object",
@@ -2589,6 +2663,16 @@
 						"items": false
 					},
 					"$comment": "Rust and TypeScript additionally enforce ASCII-case-unique names and 1024 combined UTF-8 name/value bytes."
+				},
+				"pluginPane": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/pluginPaneSelector"
+						},
+						{
+							"type": "null"
+						}
+					]
 				}
 			},
 			"required": [],
@@ -2684,6 +2768,21 @@
 					"additionalProperties": false
 				}
 			]
+		},
+		"pluginPaneSelector": {
+			"type": "object",
+			"properties": {
+				"pluginId": {
+					"type": "string",
+					"pattern": "^[A-Za-z0-9._:-]{1,120}$"
+				},
+				"entrypointId": {
+					"type": "string",
+					"pattern": "^[A-Za-z0-9_:-]{1,120}$"
+				}
+			},
+			"required": ["pluginId", "entrypointId"],
+			"additionalProperties": false
 		}
 	}
 }

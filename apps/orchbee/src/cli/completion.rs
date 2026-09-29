@@ -172,6 +172,7 @@ const FAMILY_VERBS: &[(&str, &[&str])] = &[
             "list",
             "config-dir",
             "action",
+            "pane",
             "log",
         ],
     ),
@@ -297,6 +298,9 @@ const FAMILY_VERBS: &[(&str, &[&str])] = &[
 /// order the state machine records them.
 const BUSINESS_FLAGS: &[&str] = &[
     "--yes",
+    "--entrypoint",
+    "--placement",
+    "--target-pane",
     "--ref",
     "--plugin",
     "--context",
@@ -444,6 +448,28 @@ const COMMAND_FLAGS: &[(&str, &[&str])] = &[
     (
         "plugin:action:invoke",
         &["--plugin", "--client", "--context"],
+    ),
+    #[cfg(windows)]
+    (
+        "plugin:pane:open",
+        &[
+            "--plugin",
+            "--entrypoint",
+            "--placement",
+            "--workspace",
+            "--target-pane",
+            "--direction",
+            "--cwd",
+            "--env",
+            "--client",
+            "--focus",
+            "--no-focus",
+            "--cols",
+            "--rows",
+            "--cell-width",
+            "--cell-height",
+            "--timeout",
+        ],
     ),
     #[cfg(windows)]
     ("plugin:log:list", &["--plugin", "--limit"]),
@@ -1301,6 +1327,7 @@ const HELP_CHILDREN: &[(&str, &[&str])] = &[
             "list",
             "config-dir",
             "action",
+            "pane",
             "log",
         ],
     ),
@@ -1428,6 +1455,8 @@ const HELP_LEVEL3: &[(&str, &[&str])] = &[
     #[cfg(windows)]
     ("plugin:action", &["list", "invoke"]),
     #[cfg(windows)]
+    ("plugin:pane", &["open"]),
+    #[cfg(windows)]
     ("plugin:log", &["list"]),
     ("agent:integration", INTEGRATION_VERBS),
     ("terminal:title", &["set", "clear"]),
@@ -1450,6 +1479,9 @@ pub(crate) fn render(shell: CompletionShell) -> String {
 /// `flag` → the walker's one-shot seen bit for it.
 fn flag_bit(flag: &str) -> &'static str {
     match flag {
+        "--entrypoint" => "seen_plugin_entrypoint",
+        "--placement" => "seen_plugin_placement",
+        "--target-pane" => "seen_plugin_target",
         "--plugin" => "seen_plugin_id",
         "--context" => "seen_plugin_context",
         "--yes" => "seen_plugin_yes",

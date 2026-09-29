@@ -122,7 +122,7 @@ pub use validation::{
 };
 
 mod launch_options;
-pub use launch_options::LaunchOptions;
+pub use launch_options::{LaunchOptions, PluginPaneSelector};
 mod launch_environment;
 pub use launch_environment::{
     LaunchEnvironment, MAXIMUM_LAUNCH_ENVIRONMENT_BYTES, MAXIMUM_LAUNCH_ENVIRONMENT_ENTRIES,

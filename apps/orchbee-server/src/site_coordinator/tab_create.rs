@@ -40,6 +40,7 @@ pub(crate) struct PendingTerminalTabCreate {
     launch_cwd: Option<WorkingDirectory>,
     environment: orchbee_client_server_protocol::LaunchEnvironment,
     launch: Option<orchbee_client_server_protocol::LaunchSelection>,
+    plugin_environment: Option<orchbee_client_server_protocol::PluginTerminalEnvironment>,
 }
 
 impl PendingTerminalTabCreate {
@@ -62,6 +63,10 @@ impl PendingTerminalTabCreate {
             && pending_cwd_matches(self.terminal.command(), self.launch_cwd.as_ref())
             && pending_environment_matches(self.terminal.command(), &self.environment)
             && pending_launch_matches(self.terminal.command(), self.launch.as_ref())
+            && pending_plugin_environment_matches(
+                self.terminal.command(),
+                self.plugin_environment.as_ref(),
+            )
             && authorization.is_some_and(|authorization| {
                 authorization.worker_id() == self.worker.worker_id
                     && authorization.worker_generation() == self.worker.generation
@@ -192,6 +197,7 @@ impl SiteCoordinator {
             }
             WorkbenchTabCreateBegin::Admitted(admission) => admission,
         };
+        let plugin_use = admission.plugin_use().cloned();
         let (launch, profile_provenance) = match admission.profile_use() {
             Some(profile_use) => {
                 let launch = match orchbee_client_server_protocol::LaunchSelection::new(
@@ -220,6 +226,13 @@ impl SiteCoordinator {
             }
             None => (launch, None),
         };
+        let launch = plugin_use
+            .as_ref()
+            .map(|resolved| resolved.launch.clone())
+            .or(launch);
+        let plugin_environment = plugin_use
+            .as_ref()
+            .map(|resolved| resolved.environment.clone());
         let (worker_constraint, workspace_cwd, settles_first) = if let Some(membership) =
             admission.staged_metadata().standalone_membership()
         {
@@ -250,7 +263,13 @@ impl SiteCoordinator {
             .map(|cwd| WorkingDirectory::parse(cwd.as_str()))
             .transpose()
         {
-            Ok(cwd) => cwd.or_else(|| workspace_cwd.clone()),
+            Ok(cwd) => cwd
+                .or_else(|| {
+                    plugin_use
+                        .as_ref()
+                        .map(|resolved| resolved.directory.clone())
+                })
+                .or_else(|| workspace_cwd.clone()),
             Err(_) => {
                 return PreparedTerminalTabCreate::Ready(admission.retire_composition_failure());
             }
@@ -287,18 +306,22 @@ impl SiteCoordinator {
                     .runtime_unavailable(WorkbenchTabCreateRuntimeUnavailableReason::ServerBusy),
             );
         };
-        let mut terminal = match terminals.plan_create(
-            TerminalCreateRequest::new(
-                reference.clone(),
-                worker_constraint,
-                launch_cwd.clone(),
-                StartMode::Immediate { geometry },
-                launch.clone(),
-            )
-            .with_environment(environment.clone()),
-            Some(worker),
-            Some(expiry),
-        ) {
+        let request = match TerminalCreateRequest::new(
+            reference.clone(),
+            worker_constraint,
+            launch_cwd.clone(),
+            StartMode::Immediate { geometry },
+            launch.clone(),
+        )
+        .with_environment(environment.clone())
+        .with_plugin_environment(plugin_environment.clone())
+        {
+            Ok(request) => request,
+            Err(_) => {
+                return PreparedTerminalTabCreate::Ready(admission.retire_composition_failure());
+            }
+        };
+        let mut terminal = match terminals.plan_create(request, Some(worker), Some(expiry)) {
             Ok(plan) => plan,
             Err(result) => {
                 let reason = terminal_preflight_reason(&result);
@@ -332,6 +355,7 @@ impl SiteCoordinator {
             || !pending_cwd_matches(terminal.command(), launch_cwd.as_ref())
             || !pending_environment_matches(terminal.command(), &environment)
             || !pending_launch_matches(terminal.command(), launch.as_ref())
+            || !pending_plugin_environment_matches(terminal.command(), plugin_environment.as_ref())
             || metadata.binding() != &binding
             || authorization.worker_id() != worker.worker_id
             || authorization.worker_generation() != worker.generation
@@ -364,6 +388,7 @@ impl SiteCoordinator {
             launch_cwd,
             environment,
             launch,
+            plugin_environment,
         })
     }
 
@@ -404,6 +429,7 @@ impl SiteCoordinator {
             launch_cwd: _,
             environment: _,
             launch: _,
+            plugin_environment: _,
         } = pending;
         let terminal = terminals
             .prepare_completion(terminal, completion, current_worker)
@@ -583,6 +609,20 @@ pub(super) fn pending_environment_matches(
     match command {
         CapabilityNodeMessage::AuthorizedTerminalLaunch(launch) => {
             launch.environment().entries() == environment.entries()
+        }
+        _ => false,
+    }
+}
+
+/// Protected display metadata is part of the same frozen execution intent.
+pub(super) fn pending_plugin_environment_matches(
+    command: &CapabilityNodeMessage,
+    environment: Option<&orchbee_client_server_protocol::PluginTerminalEnvironment>,
+) -> bool {
+    match command {
+        CapabilityNodeMessage::AuthorizedTerminalLaunch(launch) => {
+            launch.plugin_environment().map(|value| value.entries())
+                == environment.map(|value| value.entries())
         }
         _ => false,
     }

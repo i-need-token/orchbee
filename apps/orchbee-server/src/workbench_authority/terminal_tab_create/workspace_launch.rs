@@ -190,6 +190,7 @@ impl WorkbenchAuthority {
             },
             last_identity,
             profile_use,
+            plugin_use: None,
             workspace: Some(WorkspaceLaunchPreparation {
                 candidate,
                 ids: WorkspaceLaunchIds {
