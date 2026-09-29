@@ -268,6 +268,10 @@ pub(crate) enum CommandPath {
     PluginLogList,
     #[cfg(windows)]
     PluginPaneOpen,
+    #[cfg(windows)]
+    PluginPaneFocus,
+    #[cfg(windows)]
+    PluginPaneClose,
 
     #[cfg(windows)]
     SessionList,
@@ -542,6 +546,10 @@ impl CommandPath {
             Self::PluginLogList => "plugin log list",
             #[cfg(windows)]
             Self::PluginPaneOpen => "plugin pane open",
+            #[cfg(windows)]
+            Self::PluginPaneFocus => "plugin pane focus",
+            #[cfg(windows)]
+            Self::PluginPaneClose => "plugin pane close",
             Self::NotificationShow => "notification show",
             Self::SiteAgentManifests => "site agent-manifests",
             Self::SiteUpdateAgentManifests => "site update-agent-manifests",
@@ -4860,6 +4868,10 @@ fn help_topic(path: &[&str]) -> Option<HelpTopic> {
         ["plugin", "pane"] => HelpTopic::Family(Family::PluginPane),
         #[cfg(windows)]
         ["plugin", "pane", "open"] => HelpTopic::Command(CommandPath::PluginPaneOpen),
+        #[cfg(windows)]
+        ["plugin", "pane", "focus"] => HelpTopic::Command(CommandPath::PluginPaneFocus),
+        #[cfg(windows)]
+        ["plugin", "pane", "close"] => HelpTopic::Command(CommandPath::PluginPaneClose),
         #[cfg(windows)]
         ["plugin", "action", "invoke"] => HelpTopic::Command(CommandPath::PluginActionInvoke),
         #[cfg(windows)]

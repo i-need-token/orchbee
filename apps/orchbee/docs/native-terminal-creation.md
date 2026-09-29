@@ -58,7 +58,7 @@ resize acknowledgment. The canonical terminal launch may still be pending or hav
 
 ## Receipts and recovery
 
-Windows creation emits `orchbee.creation.result` v2 after a known canonical commit. It preserves
+Windows creation emits `orchbee.creation.result` v3 after a known canonical commit. It preserves
 the existing canonical `source` and `result` facts and separately records `postCreate`: requested
 ratio/focus, exact Client when needed, each submitted Client observation, stage and failure.
 Only completion of every requested Client phase is process success; a canonical commit alone does
@@ -116,7 +116,7 @@ canonical retry. Attachment drop/detach, reads and mutation share the command de
 | Observing | One cancellable viewer sample has no controller, focus, resize or terminal input effect.                            |
 | Resolved  | A usable absolute cwd becomes the per-launch override; a known absence retains launch defaults.                     |
 | Creating  | The original Snapshot revision and existing canonical carrier fence the one submission.                             |
-| Finished  | Creation receipt v2 records requested policy, observed source/path and source Panel separately from launch success. |
+| Finished  | Creation receipt v3 records requested policy, observed source/path and source Panel separately from launch success. |
 
 Process cwd is a point-in-time observation, not a lease; a later process-directory change is allowed.
 Directory existence can change before launch, whose existing typed failure remains authoritative.

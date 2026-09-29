@@ -27,6 +27,14 @@ impl LocalTerminalService {
         if self.workbench_site_matches(&request.site_id) != Some(true) {
             return Err(Failure::SiteMismatch);
         }
+        if let PluginAction::PaneGet { panel_id } = &request.action {
+            return self
+                .coordinator
+                .lock()
+                .map_err(|_| Failure::Unavailable)?
+                .plugin_pane(panel_id)
+                .ok_or(Failure::Unavailable);
+        }
         let handle = self
             .workers
             .lock()

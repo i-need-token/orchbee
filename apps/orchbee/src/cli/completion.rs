@@ -437,6 +437,10 @@ const CONTROL_FLAGS: &[&str] = &["--cols", "--rows", "--timeout", "--takeover"];
 const OBSERVE_FLAGS: &[&str] = &["--cols", "--rows", "--timeout"];
 const COMMAND_FLAGS: &[(&str, &[&str])] = &[
     #[cfg(windows)]
+    ("plugin:pane:focus", &["--client", "--timeout"]),
+    #[cfg(windows)]
+    ("plugin:pane:close", &["--timeout"]),
+    #[cfg(windows)]
     ("plugin:install", &["--yes", "--ref", "--timeout"]),
     #[cfg(windows)]
     ("plugin:link", &["--enabled", "--disabled"]),
@@ -1077,6 +1081,8 @@ const COMMAND_FLAGS: &[(&str, &[&str])] = &[
 /// `<family>:<verb>` → the words its `--direction` flag accepts. Only
 /// direction-admitting commands appear.
 const DIRECTION_VALUES: &[(&str, &[&str])] = &[
+    #[cfg(windows)]
+    ("plugin:pane:open", &["right", "down"]),
     ("panel:focus", &["left", "right", "up", "down"]),
     ("panel:resize", &["left", "right", "up", "down"]),
     ("panel:swap", &["left", "right", "up", "down"]),
@@ -1189,6 +1195,10 @@ const PROVIDER_VALUES: &[&str] = &[
 
 /// `<family>:<verb>` paths that consume one positional operand.
 const OPERAND_PATHS: &[&str] = &[
+    #[cfg(windows)]
+    "plugin:pane:focus",
+    #[cfg(windows)]
+    "plugin:pane:close",
     #[cfg(windows)]
     "plugin:install",
     #[cfg(windows)]
@@ -1455,7 +1465,7 @@ const HELP_LEVEL3: &[(&str, &[&str])] = &[
     #[cfg(windows)]
     ("plugin:action", &["list", "invoke"]),
     #[cfg(windows)]
-    ("plugin:pane", &["open"]),
+    ("plugin:pane", &["open", "focus", "close"]),
     #[cfg(windows)]
     ("plugin:log", &["list"]),
     ("agent:integration", INTEGRATION_VERBS),

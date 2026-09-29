@@ -280,6 +280,7 @@ pub struct WorkbenchAuthority {
     workspace_metadata: workspace_metadata::WorkspaceMetadata,
     panel_metadata: panel_metadata::PanelMetadata,
     panel_agent: panel_agent::PanelAgents,
+    plugin_panes: plugin_panes::Membership,
     // Restart intent, consumed only after a fresh physical binding is admitted.
     restart_directories: BTreeMap<
         orchbee_workbench_protocol::TerminalPresentationId,
@@ -320,6 +321,7 @@ impl WorkbenchAuthority {
             workspace_metadata: workspace_metadata::WorkspaceMetadata::default(),
             panel_metadata: panel_metadata::PanelMetadata::default(),
             panel_agent: panel_agent::PanelAgents::default(),
+            plugin_panes: plugin_panes::Membership::default(),
             pending_agent_sessions: BTreeMap::new(),
             restart_directories: BTreeMap::new(),
         })

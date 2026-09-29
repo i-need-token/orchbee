@@ -796,3 +796,5 @@ Panel 展示上报通过 OBWP 33/34 在 Site 锁内运行，使用读取／导�
 Workbench 插件执行在解析源文件前要求读取、终端创建和生命周期权限。本地终端服务检查 Site/Worker 身份、已启用清单可用性、action 唯一性和 Windows 平台支持，固定 argv/cwd/context 后仅向 Worker 提交一次。它不拥有子进程。读取页面固定 Worker generation；修改回复丢失时保留未知状态。[原生插件行为](../orchbee/docs/windows-plugins.zh-CN.md) 管理完整契约及尚未接通的生命周期。
 
 插件 Pane 的 Tab／分屏受理在权限、修订号和重放检查后解析目录选择器，再冻结显式程序、插件根目录后备 cwd 及受保护的展示环境。终端规划与完成阶段均将环境与冻结的程序、cwd、普通环境和 Worker 代次进行关联核对。解析拒绝先于规范预留；保留请求重放时不重新读取已变化的清单。在有明确的 Windows shell 包装字面参数契约前，拒绝 batch 入口。
+
+插件 Pane 成员记录针对候选规范快照准备，与终端预留同时提交。有界临时映射跟随精确 Presentation／绑定标识；只读 PaneGet 清除丢失绑定，返回带修订号的事实，Worker 不可用时仍可读取。已退役的 authority 拒绝读取。

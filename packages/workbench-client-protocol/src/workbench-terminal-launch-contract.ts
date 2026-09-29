@@ -51,7 +51,7 @@ const environmentNameSchema = z
 			!['TERM', 'COLORTERM', 'TERM_PROGRAM'].includes(value.toUpperCase()),
 		'Launch environment cannot override a managed name',
 	);
-const pluginPaneSelectorSchema = z
+export const WorkbenchPluginPaneSelectorSchema = z
 	.strictObject({
 		pluginId: z.string().regex(/^[A-Za-z0-9._:-]{1,120}$/u),
 		entrypointId: z.string().regex(/^[A-Za-z0-9_:-]{1,120}$/u),
@@ -60,7 +60,7 @@ const pluginPaneSelectorSchema = z
 export const WorkbenchLaunchOptionsSchema = z
 	.strictObject({
 		cwd: WorkbenchDirectoryPathSchema.nullable().optional(),
-		pluginPane: pluginPaneSelectorSchema.nullable().optional(),
+		pluginPane: WorkbenchPluginPaneSelectorSchema.nullable().optional(),
 		environment: z
 			.array(z.tuple([environmentNameSchema, literalLaunchStringSchema]).readonly())
 			.max(32)
@@ -105,7 +105,7 @@ type CanonicalTerminalLaunchFields = Readonly<{
 	profile?: z.output<typeof WorkbenchLaunchProfileSelectorSchema>;
 	options?: Readonly<{
 		cwd?: z.output<typeof WorkbenchDirectoryPathSchema>;
-		pluginPane?: z.output<typeof pluginPaneSelectorSchema>;
+		pluginPane?: z.output<typeof WorkbenchPluginPaneSelectorSchema>;
 		environment?: NonNullable<z.output<typeof WorkbenchLaunchOptionsSchema>['environment']>;
 	}>;
 }>;

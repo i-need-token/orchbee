@@ -13,6 +13,9 @@ use orchbee_local_site_runtime::{PluginRegistry, PluginRegistryError, PluginRegi
 use serde_json::{Value, json};
 
 pub(crate) fn run(command: PluginCommand, format: OutputFormat, locale: Locale) -> Output {
+    if let PluginCommand::PaneManage(command) = &command {
+        return panes::manage(command, format, locale);
+    }
     if let PluginCommand::PaneOpen(command) = command {
         return panes::open(*command, format, locale);
     }
@@ -29,7 +32,8 @@ pub(crate) fn run(command: PluginCommand, format: OutputFormat, locale: Locale) 
         return runtime::run(command, format, locale);
     }
     let operation = match &command {
-        PluginCommand::PaneOpen(_)
+        PluginCommand::PaneManage(_)
+        | PluginCommand::PaneOpen(_)
         | PluginCommand::Invoke { .. }
         | PluginCommand::Logs { .. }
         | PluginCommand::Install { .. }
@@ -85,7 +89,8 @@ fn execute(
     command: PluginCommand,
 ) -> Result<Value, PluginRegistryError> {
     Ok(match command {
-        PluginCommand::PaneOpen(_)
+        PluginCommand::PaneManage(_)
+        | PluginCommand::PaneOpen(_)
         | PluginCommand::Invoke { .. }
         | PluginCommand::Logs { .. }
         | PluginCommand::Install { .. }

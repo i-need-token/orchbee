@@ -502,8 +502,8 @@ pub(crate) fn answer(schema_id: Option<&str>, format: OutputFormat, locale: Loca
     };
     let document = json!({
         "schema": "orchbee.api.schema",
-        // Adds plugin Pane creation and its explicit plugin-root directory policy.
-        "version": 113,
+        // Adds membership-checked plugin Pane focus and close.
+        "version": 114,
         "source": embedded_source(),
         "result": result,
     });

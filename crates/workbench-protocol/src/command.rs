@@ -2,7 +2,7 @@ mod plugins;
 pub use plugins::{
     MAXIMUM_ENCODED_PLUGIN_REQUEST_BYTES, MAXIMUM_ENCODED_PLUGIN_RESULT_BYTES, PluginAction,
     PluginCommandFailure, PluginCommandLog, PluginFailure, PluginInvocationContext,
-    PluginLogCursor, PluginOutcome, PluginRequest, PluginResult, PluginWorker,
+    PluginLogCursor, PluginOutcome, PluginPaneInfo, PluginRequest, PluginResult, PluginWorker,
     PluginWorktreeContext, plugin_identifier, plugin_job_identifier,
 };
 mod window_title;

@@ -14,12 +14,56 @@ pub(crate) struct Open {
     pub(crate) workspace: Option<TabContext>,
     pub(crate) creation: CreationCommand,
 }
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct Manage {
+    pub(crate) target: super::super::Target,
+    pub(crate) client: Option<orchbee_workbench_protocol::WorkbenchClientId>,
+    pub(crate) focus: bool,
+    pub(crate) timeout_ms: u32,
+}
 
 pub(super) fn parse(
     words: &[&str],
     options: &Options,
     envelope: FailureEnvelope,
 ) -> Result<Request, ParseFailure> {
+    if let ["plugin", "pane", verb @ ("focus" | "close"), rest @ ..] = words {
+        let focus = *verb == "focus";
+        let context = UsageContext::Path(if focus {
+            "plugin pane focus"
+        } else {
+            "plugin pane close"
+        });
+        check_scope(
+            options,
+            Scope {
+                client: focus,
+                timeout: true,
+                ..NO_OPTIONS
+            },
+            context,
+            envelope,
+        )?;
+        let value = rest
+            .first()
+            .ok_or_else(|| missing_required(context, "<pane-id>", envelope))?;
+        if let Some(extra) = rest.get(1) {
+            return Err(unexpected_argument(context, extra, envelope));
+        }
+        return Ok(Request::Plugin {
+            command: super::PluginCommand::PaneManage(Box::new(Manage {
+                target: target((*value).into(), Resource::Panel, envelope)?,
+                focus,
+                client: client_control::client_id(options, context, envelope)?,
+                timeout_ms: if options.timeout.is_some() {
+                    wait_timeout_option(options, context, envelope)?
+                } else {
+                    30_000
+                },
+            })),
+            format: options.format.unwrap_or(OutputFormat::Text),
+        });
+    }
     let context = UsageContext::Path("plugin pane open");
     match words {
         ["plugin", "pane"] => {

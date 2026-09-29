@@ -261,7 +261,7 @@ impl<'a> WorkbenchTabCreateAdmission<'a> {
             staged,
             last_identity,
             profile_use: _,
-            plugin_use: _,
+            plugin_use,
             workspace,
         } = self;
         let (mut candidate, workspace) = match workspace {
@@ -289,6 +289,25 @@ impl<'a> WorkbenchTabCreateAdmission<'a> {
         );
         append_simple_tab(context, &ids, &label, automatic_label, binding.clone());
         candidate.revision = staged.revision;
+        let plugins = match plugin_use
+            .map(|resolved| {
+                authority.plugin_panes.prepare(
+                    &candidate,
+                    &staged.presentation_id,
+                    &binding,
+                    resolved.selector,
+                )
+            })
+            .transpose()
+        {
+            Ok(value) => value,
+            Err(reason) => {
+                return WorkbenchTabCreatePreparation::Ready(retain_rejection(
+                    authority, command, reason,
+                ));
+            }
+        };
+
         let encoded = match serialize_document(&WorkbenchProtocolDocument::Snapshot(candidate)) {
             Ok(encoded) => encoded,
             Err(ContractError::EncodedValueTooLarge { .. }) => {
@@ -360,6 +379,7 @@ impl<'a> WorkbenchTabCreateAdmission<'a> {
             request_id,
             entry,
             pending,
+            plugins,
         }))
     }
 }
@@ -372,6 +392,7 @@ pub struct PreparedWorkbenchTabCreate<'a> {
     request_id: WorkbenchRequestId,
     entry: Box<PendingTabCreateEntry>,
     pending: PendingWorkbenchTabCreate,
+    plugins: Option<super::plugin_panes::Membership>,
 }
 
 impl PreparedWorkbenchTabCreate<'_> {
@@ -383,6 +404,9 @@ impl PreparedWorkbenchTabCreate<'_> {
     #[must_use]
     pub fn commit(self) -> CommittedWorkbenchTabCreate {
         self.authority.projection.commit_prepared(self.projection);
+        if let Some(plugins) = self.plugins {
+            self.authority.plugin_panes = plugins;
+        }
         self.authority.last_identity = self.last_identity;
         self.authority.ledger_bytes = self.next_ledger_bytes;
         self.authority.ledger.insert(

@@ -107,3 +107,37 @@ fn plugin_uncertain_cancellation_still_pins_worker_generation() {
     }
     assert!(!result.answers(&request));
 }
+
+#[test]
+fn plugin_pane_reads_correlate_the_exact_panel_without_mutation_authority() {
+    let corpus: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../schemas/workbench/v1/workbench-plugin-conformance-v1.json"
+    ))
+    .unwrap();
+    let doc = |name| {
+        corpus["valid"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|case| case["name"] == name)
+            .unwrap()["document"]
+            .clone()
+    };
+    let WorkbenchRequest::Plugin(request) =
+        parse_workbench_request(&serde_json::to_vec(&doc("pane-read")).unwrap()).unwrap()
+    else {
+        panic!()
+    };
+    let WorkbenchResponse::Plugin(mut reply) =
+        parse_workbench_response(&serde_json::to_vec(&doc("pane-membership")).unwrap()).unwrap()
+    else {
+        panic!()
+    };
+    assert!(!request.action.mutating());
+    assert!(reply.answers(&request));
+    let PluginOutcome::PaneFound { pane, .. } = &mut reply.outcome else {
+        panic!()
+    };
+    pane.panel_id = WorkbenchPanelId::parse("11111111111111111111111111111111").unwrap();
+    assert!(!reply.answers(&request));
+}

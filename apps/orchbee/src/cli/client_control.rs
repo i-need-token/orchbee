@@ -174,7 +174,7 @@ pub(crate) fn run(command: &ClientCommand, format: OutputFormat, locale: Locale)
     }
 }
 #[cfg(any(windows, test))]
-fn emit(answer: &Answer, format: OutputFormat, locale: Locale) -> Output {
+pub(super) fn emit(answer: &Answer, format: OutputFormat, locale: Locale) -> Output {
     let document = if answer.operation_id.is_some() {
         answer.document()
     } else {

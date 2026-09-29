@@ -403,7 +403,7 @@ pub(crate) fn run(command: &MutationCommand, format: OutputFormat, locale: Local
 }
 
 #[cfg(windows)]
-pub(super) use linux::{submit_action, submit_creation};
+pub(super) use linux::{submit_action, submit_creation, success_output};
 
 #[cfg(any(target_os = "linux", windows))]
 mod linux {
@@ -2365,7 +2365,11 @@ mod linux {
         }
     }
 
-    fn success_output(receipt: &Receipt, format: OutputFormat, locale: Locale) -> Output {
+    pub(in crate::cli) fn success_output(
+        receipt: &Receipt,
+        format: OutputFormat,
+        locale: Locale,
+    ) -> Output {
         let source = receipt.source();
         let too_large = || {
             failure_output(

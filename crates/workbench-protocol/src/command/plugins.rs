@@ -164,6 +164,9 @@ pub struct PluginLogCursor {
     deny_unknown_fields
 )]
 pub enum PluginAction {
+    PaneGet {
+        panel_id: crate::WorkbenchPanelId,
+    },
     Invoke {
         operation_id: String,
         #[serde(deserialize_with = "super::json_fields::deserialize_nullable")]
@@ -193,6 +196,7 @@ impl PluginAction {
     }
     pub fn validate(&self) -> Result<(), ContractError> {
         match self {
+            Self::PaneGet { .. } => Ok(()),
             Self::Invoke {
                 operation_id,
                 plugin_id,
@@ -352,6 +356,10 @@ pub enum PluginFailure {
     deny_unknown_fields
 )]
 pub enum PluginOutcome {
+    PaneFound {
+        revision: WorkbenchRevision,
+        pane: Box<PluginPaneInfo>,
+    },
     Started {
         worker: PluginWorker,
         log: Box<PluginCommandLog>,
@@ -375,6 +383,17 @@ pub enum PluginOutcome {
         worker: PluginWorker,
     },
 }
+/// Current canonical ownership, distinct from caller-provided plugin display data.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct PluginPaneInfo {
+    pub selector: crate::PluginPaneSelector,
+    pub terminal_context_id: crate::WorkbenchTerminalContextId,
+    pub tab_id: crate::WorkbenchTabId,
+    pub panel_id: crate::WorkbenchPanelId,
+    pub presentation_id: crate::TerminalPresentationId,
+    pub binding: crate::PresentationBinding,
+}
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct PluginResult {
@@ -386,6 +405,16 @@ pub struct PluginResult {
 impl PluginResult {
     pub fn validate(&self) -> Result<(), ContractError> {
         match &self.outcome {
+            PluginOutcome::PaneFound { revision, pane } => {
+                if revision.value() == 0 {
+                    return Err(ContractError::InvalidDocument);
+                }
+                crate::PluginPaneSelector::new(
+                    pane.selector.plugin_id.clone(),
+                    pane.selector.entrypoint_id.clone(),
+                )
+                .map_err(|_| ContractError::InvalidDocument)?;
+            }
             PluginOutcome::Started { worker, log, .. } => {
                 worker.validate()?;
                 log.validate()?;
@@ -423,6 +452,9 @@ impl PluginResult {
             && self.site_id == request.site_id
             && self.validate().is_ok()
             && match (&request.action, &self.outcome) {
+                (PluginAction::PaneGet { panel_id }, PluginOutcome::PaneFound { pane, .. }) => {
+                    *panel_id == pane.panel_id
+                }
                 (_, PluginOutcome::Failed { .. }) => true,
                 (PluginAction::Invoke { .. }, PluginOutcome::Unknown { .. }) => true,
                 (

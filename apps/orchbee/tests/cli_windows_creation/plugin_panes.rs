@@ -117,3 +117,165 @@ fn plugin_pane_open_submits_catalog_identity_once_and_preserves_canonical_receip
         }
     }
 }
+
+#[test]
+fn plugin_pane_focus_close_require_exact_membership_and_never_repeat_effects() {
+    for case in [
+        "focus",
+        "close",
+        "ordinary",
+        "stale",
+        "rebound",
+        "close-lost",
+    ] {
+        let fixture = Fixture::new();
+        let listener = LocalListener::bind(fixture.rendezvous().client_socket_path()).unwrap();
+        let handler = peer(&fixture, listener, move |mut stream| {
+            let mut snapshot = snapshot(false, false);
+            let PanelNode::Split { children, .. } = &mut snapshot.terminal_contexts[0].tabs[0].root
+            else {
+                panic!()
+            };
+            let PanelNode::Panel {
+                primary_presentation,
+                ..
+            } = &mut children[0].node
+            else {
+                panic!()
+            };
+            let binding = PresentationBinding {
+                worker_id: WorkerId::parse(&id(300)).unwrap(),
+                terminal_id: TerminalId::parse(&id(301)).unwrap(),
+            };
+            primary_presentation.binding = Some(binding.clone());
+            snapshot_reply(&mut stream, snapshot);
+            let WorkbenchRequest::Plugin(request) = read_workbench_request(&mut stream).unwrap()
+            else {
+                panic!("membership first")
+            };
+            assert_eq!(
+                request.action,
+                PluginAction::PaneGet {
+                    panel_id: WorkbenchPanelId::parse(&id(6)).unwrap()
+                }
+            );
+            let outcome = if case == "ordinary" {
+                PluginOutcome::Failed {
+                    reason: PluginFailure::NotFound,
+                }
+            } else {
+                PluginOutcome::PaneFound {
+                    revision: WorkbenchRevision::new(if case == "stale" { 13 } else { 12 }),
+                    pane: Box::new(PluginPaneInfo {
+                        selector: PluginPaneSelector::new("tools".into(), "dashboard".into())
+                            .unwrap(),
+                        terminal_context_id: WorkbenchTerminalContextId::parse(&id(4)).unwrap(),
+                        tab_id: WorkbenchTabId::parse(&id(5)).unwrap(),
+                        panel_id: WorkbenchPanelId::parse(&id(6)).unwrap(),
+                        presentation_id: TerminalPresentationId::parse(&id(106)).unwrap(),
+                        binding: if case == "rebound" {
+                            PresentationBinding {
+                                terminal_id: TerminalId::parse(&id(302)).unwrap(),
+                                ..binding
+                            }
+                        } else {
+                            binding
+                        },
+                    }),
+                }
+            };
+            write_workbench_response(
+                &mut stream,
+                &WorkbenchResponse::Plugin(PluginResult {
+                    protocol_version: ProtocolVersion,
+                    request_id: request.request_id,
+                    site_id: request.site_id,
+                    outcome,
+                }),
+            )
+            .unwrap();
+            if matches!(case, "ordinary" | "stale" | "rebound") {
+                assert_closed(&mut stream);
+                return;
+            }
+            if case == "focus" {
+                let request = view_request(&mut stream);
+                assert!(matches!(request.action, ClientViewAction::List {}));
+                view_reply(
+                    &mut stream,
+                    &request,
+                    json!({"kind":"listed","clients":[record(false,false,false)]}),
+                );
+                let request = view_request(&mut stream);
+                let ClientViewAction::Submit { command } = &request.action else {
+                    panic!()
+                };
+                assert_eq!(
+                    command.minimum_workbench_revision,
+                    WorkbenchRevision::new(12)
+                );
+                assert!(
+                    matches!(&command.intent, ClientViewIntent::Panel { panel_id, .. } if panel_id.as_str() == id(6))
+                );
+                view_reply(
+                    &mut stream,
+                    &request,
+                    json!({"kind":"operation","operation":{"command":command,"status":{"kind":"applied","view":record(false,false,false)["view"]}}}),
+                );
+            } else {
+                let WorkbenchRequest::Command(command) =
+                    read_workbench_request(&mut stream).unwrap()
+                else {
+                    panic!()
+                };
+                assert_eq!(command.expected_revision, WorkbenchRevision::new(12));
+                let WorkbenchAction::PanelClose {
+                    terminal_context_id,
+                    tab_id,
+                    panel_id,
+                } = command.action
+                else {
+                    panic!()
+                };
+                assert_eq!(panel_id.as_str(), id(6));
+                if case == "close-lost" {
+                    return;
+                }
+                write_workbench_response(
+                    &mut stream,
+                    &WorkbenchResponse::Command(WorkbenchCommandResult {
+                        protocol_version: ProtocolVersion,
+                        request_id: command.request_id.clone(),
+                        outcome: WorkbenchCommandOutcome::PanelCloseAccepted {
+                            close_request_id: command.request_id,
+                            terminal_context_id,
+                            tab_id,
+                            panel_id,
+                            accepted_revision: WorkbenchRevision::new(12),
+                        },
+                    }),
+                )
+                .unwrap();
+            }
+            assert_closed(&mut stream);
+        });
+        let panel = id(6);
+        let output = fixture.run(&[
+            "plugin",
+            "pane",
+            if case == "focus" { "focus" } else { "close" },
+            &panel,
+            "--format=json",
+        ]);
+        handler.join().unwrap();
+        let document: Value = serde_json::from_slice(&output.stdout).unwrap();
+        if matches!(case, "focus" | "close") {
+            assert!(output.status.success(), "{case}: {document}");
+        } else if case == "close-lost" {
+            assert_eq!(output.status.code(), Some(8), "{document}");
+        } else {
+            assert!(!output.status.success(), "{case}: {document}");
+            assert!(document["failure"].is_object());
+        }
+    }
+}

@@ -32,7 +32,7 @@ pub(super) fn build() -> serde_json::Value {
         for verb in *verbs {
             let path = format!("{parent}:{verb}");
             let words = path.split(':').collect::<Vec<_>>();
-            commands.push(json!({"words": words, "flags": command_flags(&path), "conflicts": [], "operand": usize::from(OPERAND_PATHS.contains(&path.as_str())), "directions": []}));
+            commands.push(json!({"words": words, "flags": command_flags(&path), "conflicts": [], "operand": usize::from(OPERAND_PATHS.contains(&path.as_str())), "directions": DIRECTION_VALUES.iter().find(|(key, _)| *key == path).map(|(_, values)| *values).unwrap_or(&[])}));
         }
     }
     commands.push(

@@ -9,6 +9,7 @@ use orchbee_workbench_protocol::{
 /// Frozen execution facts; display environment never supplies terminal authority.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PluginPaneLaunch {
+    pub selector: PluginPaneSelector,
     pub launch: LaunchSelection,
     pub directory: WorkingDirectory,
     pub environment: PluginTerminalEnvironment,
@@ -148,6 +149,7 @@ fn resolve_from(
         }
     }
     Ok(PluginPaneLaunch {
+        selector: selector.clone(),
         launch,
         directory: WorkingDirectory::parse(&entry.plugin_root).map_err(|_| unavailable)?,
         environment: PluginTerminalEnvironment::new(environment).map_err(|_| unavailable)?,
@@ -156,3 +158,6 @@ fn resolve_from(
 
 #[cfg(all(test, windows))]
 mod tests;
+
+mod membership;
+pub(super) use membership::Membership;

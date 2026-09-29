@@ -1,6 +1,12 @@
+import { WorkbenchPluginPaneSelectorSchema } from './workbench-terminal-launch-contract';
 import { z } from 'zod';
 import {
 	SiteIdSchema,
+	WorkbenchPanelIdSchema,
+	WorkbenchTabIdSchema,
+	WorkbenchTerminalContextIdSchema,
+	TerminalPresentationIdSchema,
+	WorkbenchPresentationBindingSchema,
 	WorkerIdSchema,
 	WorkbenchDirectoryPathSchema,
 	WorkbenchRequestIdSchema,
@@ -125,6 +131,7 @@ export const PluginRequestSchema = z
 		kind: z.literal('workbench.plugin'),
 		...correlation,
 		action: z.discriminatedUnion('kind', [
+			z.strictObject({ kind: z.literal('pane-get'), panelId: WorkbenchPanelIdSchema }),
 			z.strictObject({
 				kind: z.literal('invoke'),
 				operationId: jobId,
@@ -148,6 +155,18 @@ export const PluginResultSchema = z
 		kind: z.literal('workbench.plugin.result'),
 		...correlation,
 		outcome: z.discriminatedUnion('kind', [
+			z.strictObject({
+				kind: z.literal('pane-found'),
+				revision: WorkbenchRevisionSchema.refine((value) => value !== '0'),
+				pane: z.strictObject({
+					selector: WorkbenchPluginPaneSelectorSchema,
+					terminalContextId: WorkbenchTerminalContextIdSchema,
+					tabId: WorkbenchTabIdSchema,
+					panelId: WorkbenchPanelIdSchema,
+					presentationId: TerminalPresentationIdSchema,
+					binding: WorkbenchPresentationBindingSchema,
+				}),
+			}),
 			z.strictObject({
 				kind: z.literal('started'),
 				worker,

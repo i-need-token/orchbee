@@ -10,6 +10,7 @@ use orchbee_local_site_runtime::{
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum PluginCommand {
     PaneOpen(Box<panes::Open>),
+    PaneManage(Box<panes::Manage>),
     Install {
         source: orchbee_local_site_runtime::PluginGithubSource,
         reference: Option<String>,

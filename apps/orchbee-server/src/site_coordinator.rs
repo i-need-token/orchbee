@@ -97,6 +97,13 @@ impl SiteCoordinator {
         Some(self.workbench.as_ref()?.site_id() == site)
     }
 
+    #[cfg(windows)]
+    pub(crate) fn plugin_pane(
+        &mut self,
+        panel_id: &orchbee_workbench_protocol::WorkbenchPanelId,
+    ) -> Option<orchbee_workbench_protocol::PluginOutcome> {
+        Some(self.workbench.as_mut()?.plugin_pane(panel_id))
+    }
     pub(crate) fn workspace_metadata(
         &mut self,
         request: orchbee_workbench_protocol::WorkspaceMetadataRequest,

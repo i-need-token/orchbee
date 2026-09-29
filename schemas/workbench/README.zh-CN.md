@@ -528,3 +528,5 @@ Server 负责原子分配和发布；物理成员创建仍是独立的保留命�
 匹配的私有通知消息要求可空 `position`，null 表示由接收 Client 策略决定。Show 结果新增 `disabled`，用于 Server 关闭且没有 Client 的情况；连接中的 Client 可以独立关闭视觉显示。配置快照要求非空且最多 1024 个 UTF-8 字节的 `notificationProfile`；Client 仅在通知配置和键位均有效时共同应用。公开通知回执升至 v2，Site 配置 v4，检查 v8，配置失败 v5，目录 v108。旧公开版本保持封闭。既有原生 Windows [通知归属](../../apps/orchbee/docs/windows-notifications.zh-CN.md) 管理效果与关闭。
 
 命令启动选项 schema 仅在 `tab.create` 和 `panel.split` 上受理有界 `pluginPane` 选择器，与显式程序／profile 字段互斥。Rust 与 TypeScript 通过命令一致性语料共享选择器及冲突案例。这是匹配 cohort 的扩展，不增加线协议种类，也不受理子终端／Workspace 插件启动。
+
+插件 PaneGet／PaneFound 复用 OBWP 45／46，承载封闭成员事实，不新增修改权限。Rust 额外校验响应 Panel 与请求的关联；Pane 选择器沿用启动选项的标识规则。

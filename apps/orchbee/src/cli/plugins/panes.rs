@@ -64,3 +64,6 @@ pub(super) fn open(mut command: Open, format: OutputFormat, locale: Locale) -> O
         Err(failure) => failure_output(failure, Some(format), locale),
     }
 }
+
+mod manage;
+pub(super) use manage::run as manage;

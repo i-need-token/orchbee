@@ -240,7 +240,7 @@ impl<'a> WorkbenchPanelCreateAdmission<'a> {
             staged,
             last_identity,
             profile_use: _,
-            plugin_use: _,
+            plugin_use,
         } = self;
         let mut candidate = authority.projection.snapshot().clone();
         let Some(context) = candidate
@@ -267,6 +267,25 @@ impl<'a> WorkbenchPanelCreateAdmission<'a> {
             return WorkbenchPanelCreatePreparation::Ready(retire(authority, &command));
         }
         candidate.revision = staged.revision;
+        let plugins = match plugin_use
+            .map(|resolved| {
+                authority.plugin_panes.prepare(
+                    &candidate,
+                    &staged.presentation_id,
+                    &binding,
+                    resolved.selector,
+                )
+            })
+            .transpose()
+        {
+            Ok(value) => value,
+            Err(reason) => {
+                return WorkbenchPanelCreatePreparation::Ready(
+                    authority.retain_rejection(command, reason),
+                );
+            }
+        };
+
         let encoded = match serialize_document(&WorkbenchProtocolDocument::Snapshot(candidate)) {
             Ok(encoded) => encoded,
             Err(ContractError::EncodedValueTooLarge { .. }) => {
@@ -334,6 +353,7 @@ impl<'a> WorkbenchPanelCreateAdmission<'a> {
             request_id,
             entry,
             pending,
+            plugins,
         }))
     }
 }
@@ -346,6 +366,7 @@ pub struct PreparedWorkbenchPanelCreate<'a> {
     request_id: WorkbenchRequestId,
     entry: Box<PendingPanelCreateEntry>,
     pending: PendingWorkbenchPanelCreate,
+    plugins: Option<super::plugin_panes::Membership>,
 }
 
 impl PreparedWorkbenchPanelCreate<'_> {
@@ -373,8 +394,12 @@ impl PreparedWorkbenchPanelCreate<'_> {
             request_id,
             entry,
             pending,
+            plugins,
         } = self;
         authority.projection.commit_prepared(projection);
+        if let Some(plugins) = plugins {
+            authority.plugin_panes = plugins;
+        }
         authority.last_identity = last_identity;
         authority.ledger_bytes = next_ledger_bytes;
         let response = entry.pending_result.clone();

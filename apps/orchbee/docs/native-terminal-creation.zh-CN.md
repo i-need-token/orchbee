@@ -52,7 +52,7 @@ profile 和环境变量校验沿用原所有者。Windows 在创建前按下述�
 
 ## 回执与恢复
 
-Windows 创建在已知规范提交后输出 `orchbee.creation.result` v2。保留已有规范 `source`
+Windows 创建在已知规范提交后输出 `orchbee.creation.result` v3。保留已有规范 `source`
 和 `result` 事实，另以 `postCreate` 记录请求的比例／焦点、必要时的精确 Client、各次
 已提交 Client 观测、阶段与失败。只有全部请求的 Client 阶段完成才是进程成功；单独规范
 提交不代表聚焦成功。无 Client 请求的无界面创建在收到规范回执后完成。已知提交前的
@@ -101,7 +101,7 @@ Terminal 的 Windows Job，仅根 PID 对应行提供 cwd，不使用任意子�
 | Observing | 一次可取消 viewer 采样，不影响控制权、焦点、尺寸或终端输入。                     |
 | Resolved  | 可用绝对 cwd 成为单次启动覆盖；明确缺失则保留启动默认值。                        |
 | Creating  | 原 Snapshot 修订和既有规范载体约束唯一一次提交。                                 |
-| Finished  | 创建回执 v2 分别记录请求策略、观测来源／路径及来源 Panel，不将其等同于启动成功。 |
+| Finished  | 创建回执 v3 分别记录请求策略、观测来源／路径及来源 Panel，不将其等同于启动成功。 |
 
 进程 cwd 是某一时刻的观测，不是租约；之后改变进程目录是允许的。目录在启动前可能消失，
 启动的既有类型化失败仍为权威。Windows 交互式 PowerShell 通过 Worker 拥有的 prompt 集成
