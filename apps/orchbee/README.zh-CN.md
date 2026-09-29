@@ -158,8 +158,9 @@ node scripts/stage-native-site.mjs --output "$env:LOCALAPPDATA\OrchbeeNative"
 ```
 
 目录包含四个精确的同级 `.exe`、摘要清单和观察适配器 capsule，必须保存在一起。这是使用 Windows
-命名管道和 ConPTY 的原生开发 cohort；交互宿主为 Windows Terminal，无需 WSL。初始 Shell 使用绝对路径
-`COMSPEC`，否则回退到 `SystemRoot\System32\cmd.exe`。偏好 PowerShell 时，可在其中执行 `pwsh`。
+命名管道和 ConPTY 的原生开发 cohort；交互宿主为 Windows Terminal，无需 WSL。新终端使用配置的
+`terminal.default_shell`，否则选择绝对 PATH 中首个兼容的 PowerShell 7，再回退到系统 Windows PowerShell。
+Shell 模式及启动生命周期见 [Windows 配置](docs/windows-cli-configuration.zh-CN.md#windows-配置-shell)。
 `site start --format json` 也可在非交互控制台中运行。
 
 前缀键为 `Ctrl+B`，随后按 `|` 左右分屏、`-` 上下分屏、`h/j/k/l` 切换窗格，或 `d` 脱离。

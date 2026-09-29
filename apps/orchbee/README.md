@@ -174,9 +174,10 @@ node scripts/stage-native-site.mjs --output "$env:LOCALAPPDATA\OrchbeeNative"
 
 The directory contains the four exact `.exe` siblings, a hash manifest, and the observation-adapter
 capsule. Keep them together. This is a native development cohort using Windows named pipes and
-ConPTY. Windows Terminal is the interactive host; WSL is not required. The initial shell is the
-absolute `COMSPEC` executable, falling back to `SystemRoot\System32\cmd.exe`. Run `pwsh` inside it
-when PowerShell is preferred. `site start --format json` also works without an interactive console.
+ConPTY. Windows Terminal is the interactive host; WSL is not required. New terminals use the
+configured `terminal.default_shell`, otherwise the first compatible PowerShell 7 on absolute PATH
+or system Windows PowerShell. See [Windows configuration](docs/windows-cli-configuration.md#configured-windows-shell)
+for shell mode and startup lifetime. `site start --format json` also works without an interactive console.
 
 The prefix is `Ctrl+B`, followed by `|` for a side-by-side split, `-` for a stacked split,
 `h/j/k/l` for pane focus, or `d` to detach. Splitting preserves the current focus. Run the executable

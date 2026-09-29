@@ -8,12 +8,24 @@ use std::{
     path::{Path, PathBuf},
 };
 
-fn usable_shell_candidates(env: &impl Fn(&str) -> Option<OsString>) -> UsableShellCandidates {
-    // Windows defines COMSPEC as the command interpreter. Resolve no executable
-    // through PATH and accept only an existing absolute executable path.
-    let inherited = env("COMSPEC").and_then(|path| usable(Path::new(&path)));
-    let fallback = env("SystemRoot")
-        .and_then(|root| usable(&Path::new(&root).join("System32").join("cmd.exe")));
+#[path = "windows/pe.rs"]
+mod pe;
+
+fn usable_shell_candidates(
+    env: &impl Fn(&str) -> Option<OsString>,
+    machine: u16,
+) -> UsableShellCandidates {
+    let search = env("PATH");
+    let inherited = search
+        .as_deref()
+        .into_iter()
+        .flat_map(std::env::split_paths)
+        .filter(|directory| directory.is_absolute())
+        .map(|directory| directory.join("pwsh.exe"))
+        .find_map(|path| usable(&path).filter(|_| pe::compatible_image(&path, machine)));
+    let fallback = env("SystemRoot").and_then(|root| {
+        usable(&Path::new(&root).join("System32/WindowsPowerShell/v1.0/powershell.exe"))
+    });
     UsableShellCandidates {
         inherited,
         account: None,
@@ -26,7 +38,7 @@ pub(super) fn resolve(
     env: impl Fn(&str) -> Option<OsString>,
 ) -> Result<DefaultInteractiveLaunch, DefaultInteractiveLaunchError> {
     let mut launch = if shell.executable().is_empty() {
-        select_default_interactive_launch(usable_shell_candidates(&env))?
+        select_default_interactive_launch(usable_shell_candidates(&env, native_machine()))?
     } else {
         let executable = resolve_configured(shell.executable(), env("PATH"))
             .ok_or(DefaultInteractiveLaunchError::NoUsableShell)?;
@@ -36,6 +48,18 @@ pub(super) fn resolve(
         launch.arguments.push("-l".to_owned());
     }
     Ok(launch)
+}
+
+fn native_machine() -> u16 {
+    // This safe wrapper reports the emulated architecture on ARM64 for x86/x64 Workers.
+    let architecture = winsafe::GetNativeSystemInfo().wProcessorArchitecture;
+    if architecture == winsafe::co::PROCESSOR_ARCHITECTURE::ARM64 {
+        0xaa64
+    } else if architecture == winsafe::co::PROCESSOR_ARCHITECTURE::INTEL {
+        0x014c
+    } else {
+        0x8664
+    }
 }
 
 fn resolve_configured(executable: &str, path: Option<OsString>) -> Option<String> {

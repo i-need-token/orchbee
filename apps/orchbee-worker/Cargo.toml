@@ -21,8 +21,6 @@ nix = { workspace = true, features = ["fs", "poll", "socket", "user"] }
 [target.'cfg(windows)'.dependencies]
 process-wrap.workspace = true
 windows.workspace = true
-
-[target.'cfg(windows)'.dev-dependencies]
 winsafe = { workspace = true, features = ["kernel"] }
 
 [target.'cfg(target_os = "linux")'.dev-dependencies]

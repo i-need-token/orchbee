@@ -804,7 +804,7 @@ handle before releasing the root or cancelling, then require it already signaled
 the terminal result. Existing discovery tests cover binary output, cancellation,
 limits, failure cleanup and real Git execution.
 
-The managed native Windows path uses the same Worker authorization, receipts, replay fences, and Host protocol. Private named pipes replace Unix sockets. The exact sibling `orchbee-terminal-host.exe` starts lazily after authorized Launch and uses ConPTY. Default launch resolves absolute `COMSPEC` or `SystemRoot\System32\cmd.exe`, with `USERPROFILE` as the initial directory. Worktree discovery runs Windows Git through owned child-output pipes with bounded output, cancellation, deadlines, and kill/wait cleanup. Native tests cover real Host retention after broker loss and real Git discovery. See the [Client quick start](../orchbee/README.md#native-windows-quick-start) for staging and limits.
+The managed native Windows path uses the same Worker authorization, receipts, replay fences, and Host protocol. Private named pipes replace Unix sockets. The exact sibling `orchbee-terminal-host.exe` starts lazily after authorized Launch and uses ConPTY. Default launch uses the configured shell, or the first compatible PowerShell 7 on absolute PATH followed by system Windows PowerShell, with `USERPROFILE` as the initial directory. Worktree discovery runs Windows Git through owned child-output pipes with bounded output, cancellation, deadlines, and kill/wait cleanup. Native tests cover real Host retention after broker loss and real Git discovery. See the [Client quick start](../orchbee/README.md#native-windows-quick-start) for staging and limits.
 
 ## Windows child caller context
 

@@ -729,7 +729,7 @@ Drop 只请求终止，不阻塞也不证明退出。Worker 突然死亡和操�
 在放行根进程或取消前保留存活后代的句柄，要求终态返回时句柄已发出退出信号。
 现有发现测试覆盖二进制输出、取消、边界、失败清理与真实 Git 执行。
 
-Windows 托管原生路径沿用 Worker 授权、回执、重放栅栏及 Host 协议，以私有命名管道替换 Unix Socket。精确的同级 `orchbee-terminal-host.exe` 仅在授权 Launch 后惰性启动并使用 ConPTY。默认启动解析绝对 `COMSPEC` 或 `SystemRoot\System32\cmd.exe`，初始目录为 `USERPROFILE`。工作树发现通过自有子进程输出管道运行 Windows Git，具备输出边界、取消、截止时间及 kill/wait 清理。原生测试覆盖 broker 断开后的真实 Host 保留和真实 Git 发现。暂存和限制见 [Client 快速开始](../orchbee/README.zh-CN.md#windows-原生快速开始)。
+Windows 托管原生路径沿用 Worker 授权、回执、重放栅栏及 Host 协议，以私有命名管道替换 Unix Socket。精确的同级 `orchbee-terminal-host.exe` 仅在授权 Launch 后惰性启动并使用 ConPTY。默认启动使用配置的 Shell，或绝对 PATH 中首个兼容的 PowerShell 7，再回退到系统 Windows PowerShell，初始目录为 `USERPROFILE`。工作树发现通过自有子进程输出管道运行 Windows Git，具备输出边界、取消、截止时间及 kill/wait 清理。原生测试覆盖 broker 断开后的真实 Host 保留和真实 Git 发现。暂存和限制见 [Client 快速开始](../orchbee/README.zh-CN.md#windows-原生快速开始)。
 
 ## Windows 子进程调用者上下文
 
