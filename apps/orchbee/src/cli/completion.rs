@@ -292,6 +292,8 @@ const FAMILY_VERBS: &[(&str, &[&str])] = &[
             "get",
             "list",
             "read",
+            #[cfg(windows)]
+            "selection-read",
             "run",
             "send",
             "session",
@@ -324,6 +326,8 @@ const FAMILY_VERBS: &[(&str, &[&str])] = &[
 /// Every business flag the grammar admits (`--format` is orthogonal), in the
 /// order the state machine records them.
 const BUSINESS_FLAGS: &[&str] = &[
+    "--anchor",
+    "--content-revision",
     "--spec",
     #[cfg(windows)]
     "--remote-session",
@@ -1024,6 +1028,11 @@ const COMMAND_FLAGS: &[(&str, &[&str])] = &[
             "--timeout",
         ],
     ),
+    #[cfg(windows)]
+    (
+        "terminal:selection-read",
+        &["--anchor", "--cursor", "--content-revision", "--generation"],
+    ),
     (
         "terminal:read",
         &[
@@ -1346,6 +1355,8 @@ const OPERAND_PATHS: &[&str] = &[
     "panel:rename",
     "terminal:get",
     "terminal:read",
+    #[cfg(windows)]
+    "terminal:selection-read",
     "terminal:send",
     "terminal:run",
     "terminal:wait-output",
@@ -1512,6 +1523,8 @@ const HELP_CHILDREN: &[(&str, &[&str])] = &[
             "get",
             "list",
             "read",
+            #[cfg(windows)]
+            "selection-read",
             "run",
             "send",
             "session",
@@ -1672,6 +1685,8 @@ fn flag_bit(flag: &str) -> &'static str {
         "--outdated-only" => "seen_outdated_only",
         "--include-ended" => "seen_include_ended",
         "--limit" => "seen_limit",
+        "--anchor" => "seen_selection_anchor",
+        "--content-revision" => "seen_content_revision",
         "--cursor" => "seen_cursor",
         "--until" => "seen_until",
         "--after-revision" => "seen_after_revision",

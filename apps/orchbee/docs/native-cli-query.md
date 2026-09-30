@@ -17,6 +17,43 @@ Authority: this record owns the public grammar, result envelopes, failure matrix
 budgets, exchange state machines and output effects implemented under `src/invocation.rs`
 and `src/cli/**`. Prose and implementation must converge in the same change.
 
+## Read a terminal selection
+
+Windows `terminal selection-read <terminal> --anchor ROW:COL --cursor ROW:COL`
+reads an inclusive, nonrectangular range from an existing terminal. Coordinates
+are zero-based physical rows in the complete retained screen buffer, independent
+of any Client viewport; rows are unsigned 32-bit and columns unsigned 16-bit.
+Reversed endpoints are ordered before reading. The selected span admits at most
+4096 rows and one existing 8 MiB row-window budget. Invalid points, duplicate or
+foreign options, and a larger span fail before Site discovery.
+
+Optional `--content-revision <u64>` pins the expected content revision;
+`--generation <positive-u64>` additionally pins its geometry/store generation.
+Without these, the command captures a fresh frame. Every row read still uses the
+same exact frame revision, generation, attachment, Host epoch, dimensions and
+retained row count. Stale or evicted data fails whole without retry or partial text.
+Rows/columns outside that frame fail rather than selecting a nearby cell.
+
+The command owns one cancellable five-second existing-Site budget and one
+temporary read-only viewer, released after the last consumer on every outcome.
+It never takes a controller, changes selection/viewport, sends input, writes the
+clipboard, acknowledges a user's attention, starts a Site or navigates a Client.
+Cell byte mappings preserve complete wide and combining glyphs. Hard-line padding
+is trimmed; adjacent verified soft-wrap rows join without a newline. The result
+contains the original endpoints, exact terminal binding and captured content
+revision/generation/Host epoch. `orchbee.terminal.selection` v1 is a closed JSON
+receipt; text output escapes controls through the existing CLI presentation owner.
+Existing typed viewer/read-history failures retain stale-revision,
+stale-generation and history-evicted reasons. Cancellation exits 130; no replay
+or durable state is introduced.
+
+Evidence covers reversed/single-cell and blank ranges, wide/combining mappings,
+soft/hard wraps, geometry and span limits, parse/help/completion/schema admission,
+and real Windows CLI pipe traces for a successful read, stale expected content,
+wrong row routing and typed Host refusal with deterministic viewer release.
+Copy motion/search, external scrollback editing and final Host/emulator acceptance
+remain separate obligations.
+
 ## Workbench topology queries
 
 Windows `workspace list/get` return `number`, `tabCount`, and `panelCount`;
@@ -39,8 +76,8 @@ perform no navigation or mutation. Runtime observations are described below. Win
 remembered active Tab in each Workspace. The [Client query contract](windows-client-control.md#client-relative-workbench-queries)
 owns this bounded, read-only join and its provenance and consistency checks.
 Schema versions are `orchbee.workspace.list/get` 6, `orchbee.tab.list` 4,
-`orchbee.tab.get` 5 and `orchbee.panel.list/get` 9; the embedded catalog is version 100
-with 92 schemas. Retained selection-read controls use `orchbee.client.control` v2;
+`orchbee.tab.get` 5 and `orchbee.panel.list/get` 9; discover the complete embedded catalog
+with `api schema`. Retained selection-read controls use `orchbee.client.control` v2;
 viewport reads use v3; other controls retain v1. `orchbee.cli.failure.client-query` v1 identifies selected
 Client read failures; existing target and admission diagnostics remain intact.
 Process and worktree observations use their respective owners as described below;

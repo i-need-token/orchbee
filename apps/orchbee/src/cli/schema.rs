@@ -432,6 +432,10 @@ const DOCUMENTS: &[(&str, &str)] = &[
         include_str!("schemas/orchbee.terminal.read.json"),
     ),
     (
+        "orchbee.terminal.selection",
+        include_str!("schemas/orchbee.terminal.selection.json"),
+    ),
+    (
         "orchbee.terminal.send",
         include_str!("schemas/orchbee.terminal.send.json"),
     ),
@@ -526,8 +530,8 @@ pub(crate) fn answer(schema_id: Option<&str>, format: OutputFormat, locale: Loca
     };
     let document = json!({
         "schema": "orchbee.api.schema",
-        // Adds independent terminal popup receipts and Client control v9.
-        "version": 125,
+        // Adds the revision-pinned, read-only terminal selection receipt.
+        "version": 126,
         "source": embedded_source(),
         "result": result,
     });

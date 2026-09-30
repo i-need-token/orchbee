@@ -40,6 +40,10 @@ mod panel_input;
 pub(crate) use creation::{CreationCommand, CreationDirectory, CreationKind};
 mod schema_export;
 mod terminal_output;
+#[cfg(windows)]
+mod terminal_selection;
+#[cfg(windows)]
+pub(crate) use terminal_selection::{TerminalSelectionCommand, TerminalTextPoint};
 mod terminal_run;
 mod terminal_stream;
 pub(crate) use client_control::{
@@ -408,6 +412,8 @@ pub(crate) enum CommandPath {
     TerminalObserve,
     TerminalControl,
     TerminalRead,
+    #[cfg(windows)]
+    TerminalSelectionRead,
     TerminalWaitOutput,
     TerminalSend,
     TerminalRun,
@@ -551,6 +557,8 @@ impl CommandPath {
             Self::TerminalObserve => "terminal session observe",
             Self::TerminalControl => "terminal session control",
             Self::TerminalRead => "terminal read",
+            #[cfg(windows)]
+            Self::TerminalSelectionRead => "terminal selection-read",
             Self::TerminalWaitOutput => "terminal wait-output",
             Self::TerminalSend => "terminal send",
             Self::TerminalRun => "terminal run",
@@ -1351,6 +1359,11 @@ pub(crate) enum RuntimeStatusScope {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum Request {
     #[cfg(windows)]
+    TerminalSelection {
+        command: TerminalSelectionCommand,
+        format: OutputFormat,
+    },
+    #[cfg(windows)]
     AgentView {
         action: orchbee_workbench_protocol::AgentViewAction,
         format: OutputFormat,
@@ -1578,6 +1591,14 @@ pub(crate) enum UsageContext {
 /// expect; rendered per locale, never serialized.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum ExpectedValue {
+    #[cfg(windows)]
+    TerminalSelectionPoint,
+    #[cfg(windows)]
+    TerminalSelectionSpan,
+    #[cfg(windows)]
+    TerminalContentRevision,
+    #[cfg(windows)]
+    TerminalContentGeneration,
     AgentViewSpec,
     AgentViewSource,
     #[cfg(windows)]
@@ -1841,6 +1862,8 @@ enum Token {
 
 #[derive(Default)]
 struct Options {
+    selection_anchor: Option<String>,
+    content_revision: Option<String>,
     agent_view_spec: Option<String>,
     remote_session: Option<String>,
     machine_json: bool,
@@ -1975,6 +1998,8 @@ struct Options {
 /// both the format-envelope walk and the option scan so ownership is decided
 /// identically in the two passes.
 const VALUE_FLAGS: &[&str] = &[
+    "--anchor",
+    "--content-revision",
     "--spec",
     #[cfg(windows)]
     "--remote-session",
@@ -2684,6 +2709,8 @@ fn apply_value_flag(
         "--target-pane" => &mut options.plugin_target,
         "--ref" => &mut options.plugin_ref,
         "--limit" => &mut options.limit,
+        "--anchor" => &mut options.selection_anchor,
+        "--content-revision" => &mut options.content_revision,
         "--cursor" => &mut options.cursor,
         "--after-revision" => &mut options.after_revision,
         "--name" => &mut options.name,
@@ -3953,6 +3980,10 @@ fn resolve_words(
         ["terminal", "session", "observe", operands @ ..] => {
             terminal_stream::observe(operands, options, envelope)
         }
+        #[cfg(windows)]
+        ["terminal", "selection-read", value] => {
+            terminal_selection::parse(value, options, envelope)
+        }
         ["terminal", "read", value] => {
             check_scope(
                 options,
@@ -5056,6 +5087,8 @@ fn help_topic(path: &[&str]) -> Option<HelpTopic> {
         ["terminal", "observe"] => HelpTopic::Command(CommandPath::TerminalObserve),
         ["terminal", "control"] => HelpTopic::Command(CommandPath::TerminalControl),
         ["terminal", "read"] => HelpTopic::Command(CommandPath::TerminalRead),
+        #[cfg(windows)]
+        ["terminal", "selection-read"] => HelpTopic::Command(CommandPath::TerminalSelectionRead),
         ["terminal", "wait-output"] => HelpTopic::Command(CommandPath::TerminalWaitOutput),
         ["terminal", "send"] => HelpTopic::Command(CommandPath::TerminalSend),
         ["terminal", "run"] => HelpTopic::Command(CommandPath::TerminalRun),
@@ -5214,6 +5247,8 @@ fn mutation(command: MutationCommand, options: &Options) -> Request {
 /// is only meaningful whole.
 #[derive(Clone, Copy)]
 struct Scope {
+    selection_anchor: bool,
+    content_revision: bool,
     agent_view_spec: bool,
     remote_session: bool,
     machine_json: bool,
@@ -5353,6 +5388,8 @@ struct Scope {
 }
 
 const NO_OPTIONS: Scope = Scope {
+    selection_anchor: false,
+    content_revision: false,
     agent_view_spec: false,
     remote_session: false,
     machine_json: false,
@@ -5688,7 +5725,9 @@ const INTEGRATION_SCOPE: Scope = Scope {
 
 /// Any mutation-only option seen outside a mutation command.
 fn business_options(options: &Options) -> bool {
-    options.remote_session.is_some()
+    options.selection_anchor.is_some()
+        || options.content_revision.is_some()
+        || options.remote_session.is_some()
         || options.machine_json
         || options.plugin_target.is_some()
         || options.plugin_entrypoint.is_some()
@@ -5775,6 +5814,12 @@ fn business_options(options: &Options) -> bool {
 /// The first named option present but outside `scope`, in the fixed `Options`
 /// declaration order — deterministic without any argv-order state.
 fn first_out_of_scope(options: &Options, scope: Scope) -> Option<&'static str> {
+    if options.selection_anchor.is_some() && !scope.selection_anchor {
+        return Some("--anchor");
+    }
+    if options.content_revision.is_some() && !scope.content_revision {
+        return Some("--content-revision");
+    }
     if options.remote_session.is_some() && !scope.remote_session {
         return Some("--remote-session");
     }

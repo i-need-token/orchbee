@@ -13,6 +13,35 @@ Agent 状态来自 Server 的 canonical Agent 模型，不从终端文字推断�
 归属：本记录拥有 `src/invocation.rs` 与 `src/cli/**` 实现的公共语法、结果信封、失败矩阵、
 预算、交换状态机与输出副作用。文字与实现必须在同一变更中收敛。
 
+## 读取终端选区
+
+Windows `terminal selection-read <terminal> --anchor ROW:COL --cursor ROW:COL`
+从已有终端读取包含两个端点的非矩形范围。坐标以零开始，行指完整保留屏幕
+缓冲区的物理行，与 Client 视口无关；行是无符号 32 位、列是无符号 16 位整数。
+反向端点先排序。选区最多跨 4096 行，使用现有单次 8 MiB 行窗口预算。
+无效坐标、重复或其他命令选项、过大跨度均在发现 Site 前拒绝。
+
+可选 `--content-revision <u64>` 固定预期内容修订；
+`--generation <positive-u64>` 额外固定其几何／存储 generation。
+省略时捕获新帧。所有行读取仍固定同一帧的修订、generation、attachment、
+Host epoch、尺寸及保留行总数。过期或已回收数据整体失败，不重试或输出部分文本。
+超出帧的行／列会拒绝，不会改选邻近单元格。
+
+命令持有一次可取消的五秒既有 Site 总预算和一个临时只读 viewer，最后消费者
+结束后在所有结果路径释放。不取得控制者、不改变选区／视口、不发送输入、
+不写剪贴板、不确认用户已查看、不启动 Site，也不导航 Client。
+单元格字节映射保留完整宽字和组合字形；硬行尾填充被移除，相邻且经验证的
+软换行直接连接。结果包含原始端点、精确终端 binding 与捕获的内容修订／
+generation／Host epoch。`orchbee.terminal.selection` v1 为封闭 JSON 回执；
+文本经现有 CLI 展示所有者转义控制字符。已有 viewer／read-history 类型失败
+保留 stale-revision、stale-generation 和 history-evicted 原因。取消退出 130；
+不重放，也不引入持久状态。
+
+证据覆盖反向／单单元格／空白选区、宽字／组合字映射、软／硬换行、尺寸／跨度
+边界、解析／帮助／补全／schema admission，以及实际 Windows CLI 管道中的成功
+读取、过期预期内容、错误行路由、Host 类型拒绝及确定的 viewer 释放。
+Copy motion／search、外部 scrollback 编辑及最终 Host／模拟器验收仍为独立义务。
+
 ## Workbench 拓扑查询
 
 Windows `workspace list/get` 返回 `number`、`tabCount` 和 `panelCount`；
@@ -32,7 +61,7 @@ Windows `workspace list/get` 返回 `number`、`tabCount` 和 `panelCount`；
 查询中接受可选 `--client <id>`，补充全局焦点和 Client 在各 Workspace 记住的活动 Tab。
 [Client 查询契约](windows-client-control.zh-CN.md#client-相对-workbench-查询)定义这一有界只读关联、
 来源记录与一致性检查。Schema 版本为 `orchbee.workspace.list/get` 6、`orchbee.tab.list` 4、
-`orchbee.tab.get` 5 和 `orchbee.panel.list/get` 9；内嵌目录为版本100，含92份 schema。
+`orchbee.tab.get` 5 和 `orchbee.panel.list/get` 9；使用 `api schema` 发现完整内嵌目录。
 保留的选择读取控制使用 `orchbee.client.control` v2，视口读取使用 v3，其他控制保留 v1。
 `orchbee.cli.failure.client-query` v1 标识指定 Client 的读取失败，既有目标和准入诊断保持完整。
 进程和 worktree 观察使用下文所述的各自所有者；上报元数据仍由独立所有者负责，拓扑字段不代表已实现它。

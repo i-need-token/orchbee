@@ -5,6 +5,8 @@
 #[cfg(windows)]
 mod terminal_output;
 #[cfg(windows)]
+pub(super) mod terminal_selection;
+#[cfg(windows)]
 pub(crate) use terminal_output::read_output;
 #[cfg(not(windows))]
 pub(crate) fn read_output(

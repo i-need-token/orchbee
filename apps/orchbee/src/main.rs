@@ -148,6 +148,10 @@ fn main() -> ExitCode {
             Ok(invocation::Request::Help(topic)) => cli::help(topic, locale),
             Ok(invocation::Request::Skill) => cli::skill(locale),
             Ok(invocation::Request::Completion(shell)) => cli::completion(shell, locale),
+            #[cfg(windows)]
+            Ok(invocation::Request::TerminalSelection { command, format }) => {
+                cli::read_terminal_selection(&command, format, locale)
+            }
             Ok(invocation::Request::TerminalAttach { command }) => {
                 cli::terminal_attach(&command, locale)
             }

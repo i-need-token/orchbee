@@ -18,6 +18,8 @@ const ID: &str = "33333333333333333333333333333333";
 
 #[path = "cli_windows_terminal_output/ansi.rs"]
 mod ansi;
+#[path = "cli_windows_terminal_output/selection.rs"]
+mod selection;
 
 #[test]
 fn source_export_catalog_and_usage_failure_are_offline_machine_contracts() {

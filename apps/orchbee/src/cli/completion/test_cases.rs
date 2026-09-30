@@ -1,6 +1,25 @@
 //! Shared observable completion obligations, independent of shell syntax.
 
 pub(super) const CASES: &[(&str, &str, bool)] = &[
+    ("orchbee terminal sel", "selection-read", true),
+    ("orchbee help terminal sel", "selection-read", true),
+    ("orchbee terminal selection-read ", "--anchor", true),
+    (
+        "orchbee terminal selection-read --anchor 0:0 --c",
+        "--cursor",
+        true,
+    ),
+    (
+        "orchbee terminal selection-read --anchor 0:0 --a",
+        "--anchor",
+        false,
+    ),
+    ("orchbee terminal read --a", "--anchor", false),
+    (
+        "orchbee --machine remote terminal sel",
+        "selection-read",
+        true,
+    ),
     ("orchbee pop", "popup", true),
     ("orchbee popup ", "close", true),
     ("orchbee help popup ", "close", true),

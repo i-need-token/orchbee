@@ -98,6 +98,8 @@ pub(crate) use worktree_operation::run as run_worktree;
 pub(crate) mod source;
 mod terminal_output;
 #[cfg(windows)]
+pub(crate) use query::terminal_selection::run as read_terminal_selection;
+#[cfg(windows)]
 pub(crate) mod terminal_stream;
 
 pub(crate) fn terminal_attach(
