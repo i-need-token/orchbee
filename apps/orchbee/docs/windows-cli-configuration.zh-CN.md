@@ -117,7 +117,8 @@ Client 激活在提交前连同已有配置冻结这两个值。匹配版本的 
 语法错误会拒绝接纳。这种严格失败策略与 Herdr 的诊断并禁用策略有差异，仍明确列为缺口。
 
 `prefix` 接受一个按键。动作值接受字符串或最多 16 个候选；空字符串或空数组禁用动作。
-`prefix+` 指定前缀层，其余必须是安全直达按键。`switch_tab` 支持带修饰键的 `1..9`。
+`prefix+` 指定前缀层，其余必须是安全直达按键。`switch_tab` 和 `focus_agent` 支持带修饰键的 `1..9`。Agent 序号按过滤后的机器
+Agent 列表计算，`focus_agent` 默认未绑定。
 完整修饰键及大写字母在冲突检查前归一化。前缀本身在两层均保留。直达可打印字符、
 裸编辑键及 Ctrl+C/D/Z 被拒绝。捕获与模式先于直达分发；粘贴及释放事件不触发绑定。
 双前缀优先发送规范 C0，否则发送原始字节，不再硬编码回退为 Ctrl+B。
@@ -128,7 +129,7 @@ Client 激活在提交前连同已有配置冻结这两个值。匹配版本的 
 优先级、输入归属、分发及发现；不宣称全量回归或视觉验收通过。
 
 支持的动作字段为 `help`、`new_workspace`、`rename_workspace`、`workspace_picker`、
-`detach`、`previous_workspace`、`next_workspace`、`previous_agent`、`next_agent`、`new_tab`、`rename_tab`、`previous_tab`、
+`detach`、`previous_workspace`、`next_workspace`、`previous_agent`、`next_agent`、`focus_agent`、`new_tab`、`rename_tab`、`previous_tab`、
 `next_tab`、`move_tab_previous`、`move_tab_next`、`switch_tab`、`close_tab`、
 `focus_pane_left/down/up/right`（四个字段）、`split_vertical`、`split_horizontal`、
 `close_pane`、`zoom`（别名 `fullscreen`）、`toggle_sidebar` 和 `reload_config`。它们调用现有原生动作；
@@ -143,6 +144,7 @@ prefix = "ctrl+a"
 help = ["prefix+?", "f1"]
 new_tab = "prefix+n"
 switch_tab = "alt+1..9"
+focus_agent = "prefix+alt+1..9"
 zoom = ""
 ```
 

@@ -6,6 +6,137 @@ use crate::machine_agents::{
 use std::time::{Duration, Instant};
 
 #[test]
+fn ordinal_agent_focus_uses_source_sorted_targets_and_never_counts_placeholders() {
+    use crate::machine_agents::tests::checkpoint;
+    use orchbee_workbench_protocol::*;
+    let remote = profile(1, "remote", true);
+    let disabled = profile(2, "disabled", false);
+    let choice = Choice::Remote(remote.id.clone());
+    let mut picker = Picker {
+        available: true,
+        ..Picker::default()
+    };
+    picker.replace(&[remote, disabled.clone()]);
+    focus(&mut picker);
+    let mut local = checkpoint(vec![agent_row()]).as_ref().clone();
+    local.view.spec=Some(parse_agent_view_spec(br#"{"source":"tools.views","filter":{"op":"eq","field":"status","value":"blocked"},"sort":[{"field":{"token":"phase"},"order":"desc"}]}"#).unwrap());
+    let local = Agents::Ready(std::sync::Arc::new(local));
+    let now = Instant::now();
+    picker.observe_agents(vec![
+        (Choice::Local, local.clone()),
+        (choice.clone(), Agents::Loading),
+    ]);
+    picker.focus_agent(1, now);
+    assert!(!picker.drive_agent_navigation(now));
+    let mut first = agent_row();
+    first.state = PanelAgentState::Blocked;
+    first.tokens = MetadataTokens::new(
+        [(
+            MetadataTokenKey::parse("phase").unwrap(),
+            MetadataTokenValue::parse("10").unwrap(),
+        )]
+        .into(),
+    )
+    .unwrap();
+    let mut second = first.clone();
+    second.target.member = TerminalPresentationId::parse(&format!("{:032x}", 24)).unwrap();
+    second.target.physical = crate::machine_agents::tests::physical(24);
+    second.tokens = MetadataTokens::new(
+        [(
+            MetadataTokenKey::parse("phase").unwrap(),
+            MetadataTokenValue::parse("2").unwrap(),
+        )]
+        .into(),
+    )
+    .unwrap();
+    let observations = vec![
+        (Choice::Local, local),
+        (
+            choice.clone(),
+            Agents::Ready(checkpoint(vec![first.clone(), second.clone()])),
+        ),
+        (Choice::Remote(disabled.id), Agents::Loading),
+    ];
+    picker.observe_agents(observations.clone());
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        let text = paint(&mut picker, locale, 100, 30);
+        assert!(text.contains("1 remote /"));
+        assert!(text.contains("2 remote /"));
+        assert!(!text.contains("3 Local /") && !text.contains("3 本地 /"));
+    }
+    assert!(picker.drive_agent_navigation(now));
+    assert_eq!(
+        picker.request.take(),
+        Some(Selection {
+            machine: choice.clone(),
+            context: Some(NativeStartupTarget::Agent(Box::new(first.target)))
+        })
+    );
+    picker.focus_agent(0, now);
+    assert!(picker.drive_agent_navigation(now));
+    assert_eq!(
+        picker.request.take(),
+        Some(Selection {
+            machine: choice,
+            context: Some(NativeStartupTarget::Agent(Box::new(second.target)))
+        })
+    );
+    picker.agent_view.scope = Scope::Machine;
+    picker.rebuild_workspaces(None);
+    picker.focus_agent(0, now);
+    assert!(picker.drive_agent_navigation(now));
+    assert!(
+        !picker.open && picker.request.is_none(),
+        "filtered empty list has no fallback"
+    );
+    picker.observe_agents(vec![
+        (Choice::Local, Agents::Unavailable),
+        observations[1].clone(),
+    ]);
+    picker.focus_agent(0, now);
+    assert!(picker.drive_agent_navigation(now));
+    assert_eq!(picker.error, Some("agents-unavailable"));
+    assert!(
+        picker.request.is_none(),
+        "unknown current source cannot select a foreign Agent"
+    );
+}
+
+#[test]
+fn ordinal_intent_waits_cancels_expires_and_absent_or_current_indices_do_not_attach() {
+    use crate::machine_agents::tests::checkpoint;
+    let mut picker = picker();
+    focus(&mut picker);
+    let choice = Choice::Remote(profile(1, "remote", true).id);
+    let now = Instant::now();
+    picker.observe_agents(vec![
+        (Choice::Local, Agents::Ready(checkpoint(vec![agent_row()]))),
+        (choice.clone(), Agents::Loading),
+    ]);
+    picker.focus_agent(0, now);
+    assert!(!picker.drive_agent_navigation(now));
+    picker.key(KeyEvent::press(KeyCode::Esc, Modifiers::NONE));
+    assert!(!picker.drive_agent_navigation(now));
+    assert!(picker.request.is_none());
+    picker.focus_agent(0, now);
+    assert!(picker.drive_agent_navigation(now + Duration::from_secs(8)));
+    assert!(picker.request.is_none());
+    assert_eq!(picker.error, Some("agents-unavailable"));
+    picker.observe_agents(vec![
+        (Choice::Local, Agents::Ready(checkpoint(vec![agent_row()]))),
+        (choice, Agents::Ready(checkpoint(Vec::new()))),
+    ]);
+    for index in [0, 8, u8::MAX] {
+        picker.focus_agent(index, now);
+        assert!(picker.drive_agent_navigation(now));
+        assert!(
+            !picker.open && picker.request.is_none(),
+            "ordinal {index} must not reattach or wrap"
+        );
+    }
+}
+
+#[test]
 fn active_source_view_drives_list_and_global_cycle_and_failed_source_never_clears_it() {
     use crate::machine_agents::{Observation as Agents, tests::checkpoint};
     use orchbee_workbench_protocol::*;

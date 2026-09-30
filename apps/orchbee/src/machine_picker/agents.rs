@@ -14,8 +14,13 @@ pub(crate) enum Control {
 }
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(super) struct Navigation {
-    reverse: bool,
+    target: NavigationTarget,
     deadline: Instant,
+}
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(super) enum NavigationTarget {
+    Cycle { reverse: bool },
+    Index(u8),
 }
 impl Picker {
     fn source_spec(&self) -> Option<&orchbee_workbench_protocol::AgentViewSpec> {
@@ -197,10 +202,16 @@ impl Picker {
             })
     }
     pub(crate) fn navigate_agent(&mut self, reverse: bool, now: Instant) {
+        self.request_agent(NavigationTarget::Cycle { reverse }, now);
+    }
+    pub(crate) fn focus_agent(&mut self, index: u8, now: Instant) {
+        self.request_agent(NavigationTarget::Index(index), now);
+    }
+    fn request_agent(&mut self, target: NavigationTarget, now: Instant) {
         self.show();
         self.set_mode(Mode::Agents);
         self.pending_navigation = Some(Navigation {
-            reverse,
+            target,
             deadline: now + Duration::from_secs(8),
         });
     }
@@ -231,6 +242,16 @@ impl Picker {
             .filter(|r| r.enabled && r.agent.is_some())
             .collect();
         if rows.is_empty() {
+            if matches!(intent.target, NavigationTarget::Index(_))
+                && self
+                    .agent_rows
+                    .iter()
+                    .all(|r| matches!(r.agent_status, Some("no-agents" | "agents-no-matches")))
+            {
+                self.open = false;
+                self.invalidate();
+                return true;
+            }
             self.error = Some(
                 if self
                     .agent_rows
@@ -247,11 +268,19 @@ impl Picker {
         let current = rows
             .iter()
             .position(|r| self.current_agent(&r.choice, r.agent.as_ref().unwrap()));
-        let index = match (current, intent.reverse) {
-            (Some(i), true) => (i + rows.len() - 1) % rows.len(),
-            (Some(i), false) => (i + 1) % rows.len(),
-            (None, true) => rows.len() - 1,
-            (None, false) => 0,
+        let index = match intent.target {
+            NavigationTarget::Index(index) if usize::from(index) >= rows.len() => {
+                self.open = false;
+                self.invalidate();
+                return true;
+            }
+            NavigationTarget::Index(index) => usize::from(index),
+            NavigationTarget::Cycle { reverse } => match (current, reverse) {
+                (Some(i), true) => (i + rows.len() - 1) % rows.len(),
+                (Some(i), false) => (i + 1) % rows.len(),
+                (None, true) => rows.len() - 1,
+                (None, false) => 0,
+            },
         };
         if current == Some(index) {
             self.open = false;

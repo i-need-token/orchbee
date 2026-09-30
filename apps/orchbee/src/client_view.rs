@@ -87,6 +87,8 @@ pub(crate) enum ClientAction {
     PreviousAgent,
     #[cfg(windows)]
     NextAgent,
+    #[cfg(windows)]
+    FocusAgent(u8),
     CloseWorkbenchNavigator,
     /// `Ctrl+B g` — toggles the session-owned Agent board overlay.
     ToggleAgentBoard,
@@ -204,7 +206,9 @@ impl ClientAction {
     pub(crate) fn backend_action(&self) -> Option<BackendAction> {
         match self {
             #[cfg(windows)]
-            Self::OpenMachines | Self::PreviousAgent | Self::NextAgent => None,
+            Self::OpenMachines | Self::PreviousAgent | Self::NextAgent | Self::FocusAgent(_) => {
+                None
+            }
             Self::ReloadConfiguration => Some(BackendAction::ReloadConfiguration),
             Self::RequestWorkspaceCreate => Some(BackendAction::CreateWorkspace),
             Self::RequestWorkspaceDirectory => Some(BackendAction::ConfigureWorkspaceDirectory),
@@ -506,6 +510,18 @@ impl ClientView {
         };
         match &member.action {
             PrefixAction::Client(action) => (action.clone(), member.shell),
+            #[cfg(windows)]
+            PrefixAction::SelectAgentDigit => {
+                // The binding owns its digit even when Shift changes the input symbol.
+                let bindings::KeySet::One(Binding {
+                    code: KeyCode::Char(digit @ '1'..='9'),
+                    ..
+                }) = member.keys
+                else {
+                    return (ClientAction::UnknownPrefix, ShellCommand::None);
+                };
+                (ClientAction::FocusAgent(digit as u8 - b'1'), member.shell)
+            }
             PrefixAction::SelectTabDigit => {
                 let number = match input {
                     PrefixInput::Key(event) => match event.normalized() {

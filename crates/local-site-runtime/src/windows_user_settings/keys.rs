@@ -12,6 +12,7 @@ const ACTIONS: &[&str] = &[
     "next_workspace",
     "previous_agent",
     "next_agent",
+    "focus_agent",
     "new_tab",
     "rename_tab",
     "previous_tab",
@@ -123,7 +124,7 @@ impl WindowsKeySettings {
                     .strip_prefix("prefix+")
                     .map_or((false, raw), |body| (true, body));
                 let bodies = if body.split('+').any(|part| part.trim() == "1..9") {
-                    if action != "switch_tab" {
+                    if !matches!(action, "switch_tab" | "focus_agent") {
                         return Err(error("invalid-binding"));
                     }
                     (1..=9)
@@ -134,7 +135,7 @@ impl WindowsKeySettings {
                 };
                 for body in bodies {
                     let chord = parse_chord(&body)?;
-                    if action == "switch_tab"
+                    if matches!(action, "switch_tab" | "focus_agent")
                         && !(chord.key.len() == 1 && matches!(chord.key.as_bytes()[0], b'1'..=b'9'))
                     {
                         return Err(error("invalid-binding"));

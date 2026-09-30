@@ -165,7 +165,8 @@ an explicit parity gap.
 
 `prefix` accepts one chord. Action values accept a string or at most 16 alternatives; an empty
 string or array disables the action. `prefix+` selects the prefix layer; otherwise a safe direct
-chord is required. `switch_tab` admits `1..9` with modifiers. Complete modifiers and uppercase
+chord is required. `switch_tab` and `focus_agent` admit `1..9` with modifiers. Agent ordinals follow
+the filtered machine Agent list; `focus_agent` is unbound by default. Complete modifiers and uppercase
 letters normalize before collision checks. The prefix itself is reserved in both layers. Direct
 printable keys, bare editing keys and Ctrl+C/D/Z are refused. Capture and mode ownership precede
 direct dispatch; paste and releases never invoke bindings. Double prefix forwards canonical C0
@@ -178,7 +179,7 @@ actions remain unfinished. Targeted evidence covers bounds, collisions/default p
 ownership, dispatch and discovery; no full regression or visual acceptance is claimed.
 
 Supported action fields are `help`, `new_workspace`, `rename_workspace`, `workspace_picker`,
-`detach`, `previous_workspace`, `next_workspace`, `previous_agent`, `next_agent`, `new_tab`, `rename_tab`, `previous_tab`,
+`detach`, `previous_workspace`, `next_workspace`, `previous_agent`, `next_agent`, `focus_agent`, `new_tab`, `rename_tab`, `previous_tab`,
 `next_tab`, `move_tab_previous`, `move_tab_next`, `switch_tab`, `close_tab`,
 `focus_pane_left/down/up/right` (four fields), `split_vertical`, `split_horizontal`,
 `close_pane`, `zoom` (alias `fullscreen`), `toggle_sidebar` and `reload_config`. They invoke existing native actions;
@@ -193,6 +194,7 @@ prefix = "ctrl+a"
 help = ["prefix+?", "f1"]
 new_tab = "prefix+n"
 switch_tab = "alt+1..9"
+focus_agent = "prefix+alt+1..9"
 zoom = ""
 ```
 

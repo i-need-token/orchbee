@@ -224,7 +224,7 @@ only after commit. Cached machine-only selection preserves its selected context,
 including empty workspaces and unbound placeholders.
 A successful switch invalidates host input and painted regions through the
 existing machine handoff. The Agent mode described below shares this handoff;
-main-sidebar integration and ordinal focus remain separate work; Agent cycle
+main-sidebar integration remains separate work; Agent cycle
 bindings are described below.
 
 Evidence includes native snapshot-first exact bootstrap, absent/mismatched
@@ -261,7 +261,7 @@ Evidence must cover bounded complete reads, revision/membership/physical identit
 mismatch, primary and child placement, stale job cancellation and fairness,
 keyboard/mouse identity, exact bootstrap and Host mismatch before control.
 Unattached canonical sessions,
-main-sidebar/ordinal-key integration and real SSH/OS visual acceptance remain
+main-sidebar integration and real SSH/OS visual acceptance remain
 separate obligations. The existing per-Site Agent board remains available.
 
 ## Agent metadata, view controls and navigation
@@ -297,8 +297,7 @@ drawable candidate and preserves the previous surface on failure.
 Evidence covers guarded metadata, overlapping revision fences and binding faults,
 stable ties and machine-qualified context/identity, query bounds and control
 cancellation, painted mouse/keyboard/narrow/localized rendering and global action
-input isolation. Unattached sessions, main sidebar, ordinal Agent
-focus and real-network/OS visual acceptance remain separate obligations.
+input isolation. Unattached sessions, main sidebar and real-network/OS visual acceptance remain separate obligations.
 
 ## Source-owned Agent views
 
@@ -363,5 +362,28 @@ acknowledgements remain Client-owned, and removed/disabled sources are pruned.
 Evidence covers specification bounds/type rejection, source-guarded replacement
 and clear, plugin eligibility, revision and transport uncertainty, endpoint-scoped
 context, missing/tied multikey sorting, complete view fences and exact attention
-versions. Unattached sessions, main sidebar, ordinal Agent focus and real SSH/OS
+versions. Unattached sessions and main sidebar and real SSH/OS
 visual acceptance remain separate obligations.
+
+## Ordinal Agent focus
+
+Windows `[keys] focus_agent` accepts configured `1..9` digits or ranges, with
+prefix/direct modifiers and explicit disabling. It is unbound by default. A
+matched binding digit selects the corresponding zero-based entry in the same
+active-source-filtered, stable merged list used by previous/next actions. The
+first nine eligible Agent rows display those numbers; loading/unavailable/empty
+placeholders never take an ordinal. Configured shortcut help lists the actual
+triggers in both locales, including disabled bindings. Shifted digit symbols from
+legacy terminals resolve the binding digit; an exact configured symbol binding
+takes precedence over that compatibility path.
+
+The existing eight-second intent waits for loading observations. Unknown active
+sources remain explicit refusals; absent ordinals neither wrap nor clamp, and a
+target already focused causes no attachment. Further input cancels the pending
+intent. Once resolved, the selection freezes exact endpoint/member identity and
+uses the same revalidated drawable candidate as pointer and cycle navigation.
+No terminal acknowledgement follows from choosing or reading an ordinal.
+
+Evidence covers key/profile/conflict admission, complete-modifier dispatch and
+packet-tail capture, overlay priority, source-filtered numbering, loading,
+absent/current targets, cancellation and exact cross-machine identity.

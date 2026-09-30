@@ -35,6 +35,15 @@ impl Default for Bindings {
 }
 
 impl Bindings {
+    pub(crate) fn descriptions(&self) -> Vec<PrefixDesc> {
+        let mut result: Vec<_> = PREFIX_GROUPS.iter().map(|g| g.desc).collect();
+        for entry in &self.entries {
+            if !result.contains(&entry.desc) {
+                result.push(entry.desc);
+            }
+        }
+        result
+    }
     pub(crate) fn group_label(&self, desc: PrefixDesc, unbound: &str) -> Option<String> {
         let entries: Vec<_> = self
             .entries
@@ -89,7 +98,10 @@ impl Bindings {
                 }
             })
             .collect();
-        if desc == PrefixDesc::SelectTabDigit && entries.len() == 9 {
+        let indexed = desc == PrefixDesc::SelectTabDigit;
+        #[cfg(windows)]
+        let indexed = indexed || desc == PrefixDesc::AgentIndex;
+        if indexed && entries.len() == 9 {
             let keys: Vec<_> = entries
                 .iter()
                 .filter_map(|entry| match entry.member.keys {
@@ -130,12 +142,25 @@ impl Bindings {
     }
 
     pub(crate) fn find(&self, event: KeyEvent, prefix: bool) -> Option<&PrefixMember> {
-        self.entries
+        let exact = self
+            .entries
             .iter()
             .find(|entry| {
                 entry.enabled && entry.prefix == prefix && entry.member.keys.matches(event)
             })
-            .map(|entry| &entry.member)
+            .map(|entry| &entry.member);
+        #[cfg(windows)]
+        let exact = exact.or_else(|| {
+            self.entries
+                .iter()
+                .find(|entry| {
+                    entry.enabled
+                        && entry.prefix == prefix
+                        && shifted_agent_digit(&entry.member, event)
+                })
+                .map(|entry| &entry.member)
+        });
+        exact
     }
 
     pub(crate) fn labels(&self, desc: PrefixDesc) -> Vec<String> {
@@ -243,6 +268,10 @@ impl Bindings {
         user.extend(defaults);
         let order = Self::default().entries;
         user.sort_by_key(|entry| {
+            // Configured-only actions have no default chord to displace.
+            if entry.member.action == PrefixAction::SelectAgentDigit {
+                return order.len();
+            }
             order
                 .iter()
                 .position(|original| original.member.action == entry.member.action)
@@ -253,6 +282,36 @@ impl Bindings {
             entries: user,
         }
     }
+}
+
+#[cfg(windows)]
+fn shifted_agent_digit(member: &PrefixMember, event: KeyEvent) -> bool {
+    if member.action != PrefixAction::SelectAgentDigit {
+        return false;
+    }
+    let KeySet::One(binding) = member.keys else {
+        return false;
+    };
+    if !binding.mods.shift {
+        return false;
+    }
+    let digit = match event.code {
+        KeyCode::Char('!') => '1',
+        KeyCode::Char('@') => '2',
+        KeyCode::Char('#') => '3',
+        KeyCode::Char('$') => '4',
+        KeyCode::Char('%') => '5',
+        KeyCode::Char('^') => '6',
+        KeyCode::Char('&') => '7',
+        KeyCode::Char('*') => '8',
+        KeyCode::Char('(') => '9',
+        _ => return false,
+    };
+    binding.matches(KeyEvent {
+        code: KeyCode::Char(digit),
+        mods: event.mods.with_shift(),
+        ..event
+    })
 }
 
 #[cfg(windows)]
@@ -321,6 +380,13 @@ fn action(name: &str) -> (PrefixAction, PrefixDesc, ShellCommand) {
         "next_workspace" => (A::SelectNextContext, D::SelectContext),
         "previous_agent" => (A::PreviousAgent, D::AgentCycle),
         "next_agent" => (A::NextAgent, D::AgentCycle),
+        "focus_agent" => {
+            return (
+                PrefixAction::SelectAgentDigit,
+                D::AgentIndex,
+                ShellCommand::None,
+            );
+        }
         "new_tab" => (A::CreateTab, D::CreateTab),
         "rename_tab" => (A::RequestRenameTab, D::RenameTab),
         "previous_tab" => (A::SelectPreviousTab, D::SelectTabWrap),

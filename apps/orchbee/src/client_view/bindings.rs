@@ -19,6 +19,8 @@ pub(crate) const PREFIX_CHORD: Binding = Binding::new(KeyCode::Char('b'), Modifi
 pub(crate) enum PrefixAction {
     Client(ClientAction),
     SelectTabDigit,
+    #[cfg(windows)]
+    SelectAgentDigit,
     SidebarToggle,
     NavigatorToggle,
     BoardToggle,
@@ -72,6 +74,8 @@ pub(crate) enum PrefixDesc {
     Machines,
     #[cfg(windows)]
     AgentCycle,
+    #[cfg(windows)]
+    AgentIndex,
     ReloadConfiguration,
     WorkspaceCreate,
     WorkspaceDirectory,

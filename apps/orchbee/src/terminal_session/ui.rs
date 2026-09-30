@@ -1753,9 +1753,10 @@ impl NativeUi {
         }
         match action {
             #[cfg(windows)]
-            ClientAction::OpenMachines | ClientAction::PreviousAgent | ClientAction::NextAgent => {
-                SessionActionDisposition::KeepNavigator
-            }
+            ClientAction::OpenMachines
+            | ClientAction::PreviousAgent
+            | ClientAction::NextAgent
+            | ClientAction::FocusAgent(_) => SessionActionDisposition::KeepNavigator,
             ClientAction::RequestWorkspaceCreate
             | ClientAction::RequestWorkspaceDirectory
             | ClientAction::RequestWorkspaceRename

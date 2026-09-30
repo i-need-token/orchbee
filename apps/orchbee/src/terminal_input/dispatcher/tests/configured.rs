@@ -117,6 +117,86 @@ fn configured_agent_cycle_captures_packet_tail_and_never_acts_inside_picker() {
 }
 
 #[test]
+fn configured_agent_ordinal_uses_binding_digit_captures_tail_and_lists_actual_help() {
+    let keys = WindowsKeySettings::from_profile("[keys]\nprefix='ctrl+a'\nfocus_agent='alt+1..9'")
+        .unwrap();
+    let mut view = ClientView::new(100);
+    view.configure_keys(&keys);
+    view.machines.available = true;
+    let calls = Rc::new(RefCell::new(Vec::new()));
+    let mut port = UnavailablePort(Rc::clone(&calls));
+    let mut dispatcher = InputDispatcher::default();
+    run(&mut view, &mut dispatcher, &mut port, b"before\x1b3tail");
+    assert!(view.machines.wants_agents());
+    assert_eq!(
+        *calls.borrow(),
+        [
+            Call::Forward(b"before".to_vec()),
+            Call::Action(ClientAction::FocusAgent(2))
+        ]
+    );
+    run(&mut view, &mut dispatcher, &mut port, b"\x1b3");
+    assert_eq!(
+        calls.borrow().len(),
+        2,
+        "picker owns input while ordinal waits"
+    );
+    for locale in [
+        crate::localization::Locale::EnUs,
+        crate::localization::Locale::ZhCn,
+    ] {
+        let rows = locale.shell().configured_shortcut_rows(&view);
+        assert!(
+            rows.iter()
+                .any(|(key, desc)| key.contains("Alt+1..9") && desc.contains("Agent"))
+        );
+    }
+    view.machines
+        .key(KeyEvent::press(KeyCode::Esc, Modifiers::NONE));
+    let shifted = WindowsKeySettings::from_profile("[keys]\nfocus_agent='alt+shift+3'").unwrap();
+    view.configure_keys(&shifted);
+    let event = KeyEvent::press(
+        KeyCode::Char('3'),
+        Modifiers {
+            alt: true,
+            shift: true,
+            ..Modifiers::NONE
+        },
+    );
+    assert_eq!(
+        view.decide(crate::client_view::PrefixInput::Key(event))
+            .action(),
+        Some(ClientAction::FocusAgent(2))
+    );
+    run(&mut view, &mut dispatcher, &mut port, b"\x1b#tail");
+    assert_eq!(
+        calls.borrow().last(),
+        Some(&Call::Action(ClientAction::FocusAgent(2)))
+    );
+    view.machines
+        .key(KeyEvent::press(KeyCode::Esc, Modifiers::NONE));
+    let literal =
+        WindowsKeySettings::from_profile("[keys]\nfocus_agent='alt+shift+3'\nhelp='alt+#'")
+            .unwrap();
+    view.configure_keys(&literal);
+    run(&mut view, &mut dispatcher, &mut port, b"\x1b#");
+    assert_eq!(
+        calls.borrow().last(),
+        Some(&Call::Action(ClientAction::OpenShortcutHelp)),
+        "exact literal binding wins before shifted-digit compatibility"
+    );
+    let disabled = WindowsKeySettings::from_profile("[keys]\nfocus_agent=[]").unwrap();
+    view.configure_keys(&disabled);
+    assert!(
+        crate::localization::Locale::EnUs
+            .shell()
+            .configured_shortcut_rows(&view)
+            .iter()
+            .any(|(key, desc)| key.contains("Unbound") && desc.contains("numbered Agent"))
+    );
+}
+
+#[test]
 fn function_prefix_is_atomic_and_literal_forwarding_never_falls_back_to_control_b() {
     let keys = WindowsKeySettings {
         prefix: chord("f2", false),

@@ -8,12 +8,10 @@ mod runtime_configuration;
 mod update;
 mod window_title;
 #[cfg(test)]
-use crate::client_view::{PREFIX_CHORD, PrefixGroup};
+use crate::client_view::{PREFIX_CHORD, PREFIX_GROUPS, PrefixGroup};
 use std::ffi::OsString;
 
-use crate::client_view::{
-    BackendAction, LabelStyle, Notice, PREFIX_GROUPS, PrefixDesc, format_binding,
-};
+use crate::client_view::{BackendAction, LabelStyle, Notice, PrefixDesc, format_binding};
 
 mod agent_manifests;
 mod cli;
@@ -42,6 +40,8 @@ fn en_us_prefix_desc(desc: PrefixDesc) -> &'static str {
         PrefixDesc::Machines => "Choose local or saved SSH machine",
         #[cfg(windows)]
         PrefixDesc::AgentCycle => "Select previous / next Agent in the filtered machine view",
+        #[cfg(windows)]
+        PrefixDesc::AgentIndex => "Focus numbered Agent in the filtered machine view",
         PrefixDesc::ReloadConfiguration => "Reload Site configuration",
         PrefixDesc::WorkspaceCreate => "Create a Workspace in an existing or new Project",
         PrefixDesc::WorkspaceDirectory => "Configure an empty Workspace's first directory",
@@ -81,6 +81,8 @@ fn zh_cn_prefix_desc(desc: PrefixDesc) -> &'static str {
         PrefixDesc::Machines => "选择本地或已保存的 SSH 机器",
         #[cfg(windows)]
         PrefixDesc::AgentCycle => "按机器视图的筛选顺序切换上一个 / 下一个 Agent",
+        #[cfg(windows)]
+        PrefixDesc::AgentIndex => "按机器视图的筛选顺序聚焦编号 Agent",
         PrefixDesc::ReloadConfiguration => "重载 Site 配置",
         PrefixDesc::WorkspaceCreate => "在现有或新建 Project 中创建 Workspace",
         PrefixDesc::WorkspaceDirectory => "配置空 Workspace 的首个目录",
@@ -1348,14 +1350,16 @@ impl ShellText<'_> {
         &self,
         view: &crate::client_view::ClientView,
     ) -> Vec<(String, String)> {
-        let mut rows: Vec<_> = PREFIX_GROUPS
-            .iter()
-            .map(|group| {
+        let mut rows: Vec<_> = view
+            .bindings()
+            .descriptions()
+            .into_iter()
+            .map(|desc| {
                 let label = view
                     .bindings()
-                    .group_label(group.desc, self.binding_unbound)
+                    .group_label(desc, self.binding_unbound)
                     .unwrap_or_else(|| self.binding_unbound.into());
-                (label, (self.prefix_desc)(group.desc).to_owned())
+                (label, (self.prefix_desc)(desc).to_owned())
             })
             .collect();
         let width = rows

@@ -435,6 +435,7 @@ impl InputDispatcher {
                 Some(ClientAction::PreviousAgent | ClientAction::NextAgent) => view
                     .machines
                     .navigate_agent(action == Some(ClientAction::PreviousAgent), now),
+                Some(ClientAction::FocusAgent(index)) => view.machines.focus_agent(index, now),
                 _ => {}
             }
             if matches!(
@@ -443,6 +444,7 @@ impl InputDispatcher {
                     ClientAction::OpenMachines
                         | ClientAction::PreviousAgent
                         | ClientAction::NextAgent
+                        | ClientAction::FocusAgent(_)
                 )
             ) {
                 self.machine_packet = true;

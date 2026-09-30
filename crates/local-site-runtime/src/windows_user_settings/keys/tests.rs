@@ -140,8 +140,44 @@ fn agent_cycle_actions_accept_prefix_direct_disable_and_publication_roundtrip() 
             .reason,
         "duplicate-binding"
     );
+    assert!(read("focus_agent='prefix+1..9'").is_ok());
+}
+
+#[test]
+fn ordinal_agent_keys_admit_only_digits_preserve_modifiers_and_roundtrip_disabled_profiles() {
+    let keys = read("focus_agent=['alt+shift+1..9','prefix+1..9']").unwrap();
+    let entry = keys
+        .overrides
+        .iter()
+        .find(|o| o.action == "focus_agent")
+        .unwrap();
+    assert_eq!(entry.triggers.len(), 18);
+    assert!(entry.triggers[0].chord.alt && entry.triggers[0].chord.shift);
     assert_eq!(
-        read("focus_agent='prefix+1..9'").unwrap_err().reason,
-        "unknown-key"
+        WindowsKeySettings::from_profile(&keys.profile()).unwrap(),
+        keys
     );
+    let disabled = read("focus_agent=[]").unwrap();
+    assert!(disabled.overrides[0].triggers.is_empty());
+    assert_eq!(
+        WindowsKeySettings::from_profile(&disabled.profile()).unwrap(),
+        disabled
+    );
+    assert!(
+        !WindowsKeySettings::default()
+            .overrides
+            .iter()
+            .any(|o| o.action == "focus_agent")
+    );
+    for (body, reason) in [
+        ("focus_agent='prefix+0'", "invalid-binding"),
+        ("focus_agent='prefix+q'", "invalid-binding"),
+        ("focus_agent='1..9'", "unsafe-binding"),
+        (
+            "focus_agent='alt+1..9'\nswitch_tab='alt+5'",
+            "duplicate-binding",
+        ),
+    ] {
+        assert_eq!(read(body).unwrap_err().reason, reason, "{body}");
+    }
 }

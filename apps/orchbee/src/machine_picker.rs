@@ -530,7 +530,12 @@ impl Picker {
             };
             let name = if let Some(agent) = &row.agent {
                 format!(
-                    "{name} / {} · {}",
+                    "{}{name} / {} · {}",
+                    if index < 9 {
+                        format!("{} ", index + 1)
+                    } else {
+                        String::new()
+                    },
                     display_label(agent.provider()),
                     display_label(agent.title())
                 )
