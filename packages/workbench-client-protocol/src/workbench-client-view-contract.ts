@@ -22,6 +22,7 @@ import {
 	WorkbenchTerminalContextIdSchema,
 	WorkbenchTabIdSchema,
 	WorkbenchPanelIdSchema,
+	WorkbenchPresentationBindingSchema,
 	WorkbenchSplitIdSchema,
 	WorkbenchPanelSlotIdSchema,
 	WorkbenchRevisionSchema,
@@ -183,6 +184,24 @@ const clientNavigation = z
 	})
 	.readonly();
 export const ClientViewIntentSchema = z.discriminatedUnion('kind', [
+	z
+		.strictObject({
+			kind: z.literal('overlay'),
+			...panelTarget,
+			presentationId: TerminalPresentationIdSchema,
+			expectedBinding: WorkbenchPresentationBindingSchema,
+			returnTo: z.strictObject({
+				panelId: WorkbenchPanelIdSchema,
+				presentationId: TerminalPresentationIdSchema,
+				binding: WorkbenchPresentationBindingSchema.nullable(),
+			}),
+			previouslyZoomed: z.boolean(),
+		})
+		.refine(
+			(value) =>
+				value.panelId !== value.returnTo.panelId &&
+				value.presentationId !== value.returnTo.presentationId,
+		),
 	z
 		.strictObject({
 			kind: z.literal('agent-focus'),
@@ -650,7 +669,8 @@ export const ClientViewOperationSchema = z
 					intent.kind !== 'focus-direction' &&
 					intent.kind !== 'resize' &&
 					intent.kind !== 'set-split-ratio' &&
-					(intent.kind !== 'zoom' || selection?.zoomed === intent.enabled);
+					(intent.kind !== 'zoom' || selection?.zoomed === intent.enabled) &&
+					(intent.kind !== 'overlay' || (selection?.zoomed === true && selection.panelCount > 1));
 				break;
 		}
 

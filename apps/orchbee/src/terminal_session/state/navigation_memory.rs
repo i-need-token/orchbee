@@ -90,6 +90,40 @@ impl NavigationMemory {
             .as_ref()
     }
 
+    #[cfg(windows)]
+    pub(super) fn overlay_focus(
+        &self,
+        location: &NativeContextLocation,
+        tab: &WorkbenchTabId,
+    ) -> Option<&WorkbenchPanelId> {
+        self.contexts
+            .iter()
+            .find(|entry| &entry.location == location)?
+            .panels
+            .get(tab)
+    }
+
+    #[cfg(windows)]
+    pub(super) fn restore_overlay_focus(
+        &mut self,
+        location: &NativeContextLocation,
+        tab: &WorkbenchTabId,
+        from: &WorkbenchPanelId,
+        to: &orchbee_workbench_protocol::ClientOverlayMember,
+    ) {
+        if let Some(entry) = self
+            .contexts
+            .iter_mut()
+            .find(|entry| &entry.location == location)
+            && (entry.panels.get(tab) == Some(from) || entry.panels.get(tab) == Some(&to.panel_id))
+        {
+            entry.panels.insert(tab.clone(), to.panel_id.clone());
+            entry
+                .presentations
+                .insert(to.panel_id.clone(), to.presentation_id.clone());
+        }
+    }
+
     pub(super) fn panel_index(
         &self,
         location: &NativeContextLocation,

@@ -13,6 +13,13 @@ fn viewer_controls_round_trip_every_closed_action_and_outcome() -> TestResult {
         },
         TerminalViewerAction::Poll,
         TerminalViewerAction::ReadProcessInfo,
+        TerminalViewerAction::ReadLifecycle {
+            target: HostTerminalIdentity::new(
+                HostCreationId::from_bytes([2; 16])?,
+                HostEpoch::from_bytes([3; 16])?,
+                HostTerminalId::from_bytes([4; 16])?,
+            ),
+        },
         TerminalViewerAction::FrameApplied {
             sequence: NonZeroU64::MIN,
             generation: NonZeroU64::MIN,
@@ -109,6 +116,15 @@ fn viewer_controls_round_trip_every_closed_action_and_outcome() -> TestResult {
         TerminalViewerOutcome::Empty,
         TerminalViewerOutcome::FeedbackAccepted,
         TerminalViewerOutcome::Detached,
+        TerminalViewerOutcome::LifecycleObserved {
+            target: HostTerminalIdentity::new(
+                HostCreationId::from_bytes([2; 16])?,
+                HostEpoch::from_bytes([3; 16])?,
+                HostTerminalId::from_bytes([4; 16])?,
+            ),
+            revision: 9,
+            settled: false,
+        },
     ]
     .into_iter()
     .chain(
@@ -145,6 +161,37 @@ fn viewer_controls_round_trip_every_closed_action_and_outcome() -> TestResult {
         });
         assert_eq!(decode_message(&encode_message(&message)?)?, message);
     }
+    Ok(())
+}
+
+#[test]
+fn lifecycle_viewer_pins_all_host_identity_fields_and_rejects_non_boolean_settlement() -> TestResult
+{
+    let identity = HostTerminalIdentity::new(
+        HostCreationId::from_bytes([2; 16])?,
+        HostEpoch::from_bytes([3; 16])?,
+        HostTerminalId::from_bytes([4; 16])?,
+    );
+    let message = CapabilityNodeMessage::TerminalViewerResult(TerminalViewerResult {
+        request_id: OperationId::from_bytes([1; 16])?,
+        attachment_id: OperationId::from_bytes([5; 16])?,
+        outcome: TerminalViewerOutcome::LifecycleObserved {
+            target: identity,
+            revision: 42,
+            settled: true,
+        },
+    });
+    let encoded = encode_message(&message)?;
+    assert_eq!(decode_message(&encoded)?, message);
+    for end in 0..encoded.len() {
+        assert!(decode_message(&encoded[..end]).is_err());
+    }
+    let mut invalid = encoded.clone();
+    *invalid.last_mut().unwrap() = 2;
+    assert!(decode_message(&invalid).is_err());
+    invalid = encoded;
+    invalid.push(0);
+    assert!(decode_message(&invalid).is_err());
     Ok(())
 }
 

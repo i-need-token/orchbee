@@ -652,3 +652,7 @@ The Windows owner reuses the discovery slot, TTL, cancellation, settlement and
 retained receipt; unsupported platforms reject this action. No mutation/Host
 startup/input authority is added. Runtime ownership is in the
 [Workspace sidebar model](../../apps/orchbee/docs/machines.md#workspace-sidebar-model).
+
+## Read-only viewer lifecycle observation
+
+Private viewer action tag 15 `ReadLifecycle` pins Host creation ID, epoch and terminal ID (three 16-byte identities). Result tag 7 `LifecycleObserved` echoes that identity, a big-endian u64 revision and a closed 0/1 settled byte. Worker validates its admitted viewer target and walks Host inventory under one bounded budget; only exact Exited/Failed summaries mean settled. Absence, paging/identity conflict and transport failure do not mean exit. The read never enters the exclusive lifecycle kernel or claims Close ownership. Server checks Worker generation, exact target and temporary-viewer cleanup before publishing settlement. Older tags keep their bytes; old cohorts reject these additive tags. Upgrade and roll back the matched cohort together.

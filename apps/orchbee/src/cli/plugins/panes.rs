@@ -46,6 +46,20 @@ pub(super) fn open(mut command: Open, format: OutputFormat, locale: Locale) -> O
                 };
             }
             PluginPanePlacement::Split => {}
+            PluginPanePlacement::Overlay => {
+                if command.active_target_overrides {
+                    return Err(Failure::new(FailureKind::Rejected));
+                }
+                command.creation.kind = CreationKind::Split {
+                    right_click: Default::default(),
+                    target: None,
+                    direction: orchbee_workbench_protocol::WorkbenchPanelSplitDirection::Right,
+                    ratio: None,
+                };
+                command.creation.focus = true;
+                command.creation.zoom = true;
+                command.creation.overlay = true;
+            }
             PluginPanePlacement::Zoomed => {
                 command.creation.focus = true;
                 command.creation.zoom = true;

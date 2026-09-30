@@ -631,6 +631,8 @@ pub(super) struct NativeUi {
     attention: super::agent_attention::AgentAttention,
     #[cfg(windows)]
     reports: super::panel_reports::PanelReports,
+    #[cfg(windows)]
+    overlays: super::plugin_overlays::Driver,
     /// `presentation_id → workbench placement` over the freshest observed
     /// canonical snapshot — a pure function of that snapshot, rebuilt
     /// whole on every snapshot-bearing event.
@@ -708,6 +710,8 @@ impl NativeUi {
             attention: super::agent_attention::AgentAttention::new(clock.clone()),
             #[cfg(windows)]
             reports: super::panel_reports::PanelReports::new(clock.clone()),
+            #[cfg(windows)]
+            overlays: super::plugin_overlays::Driver::new(clock.clone()),
             agent_index: super::agent_board::PresentationIndex::default(),
             clock,
             state: None,
@@ -965,6 +969,12 @@ impl NativeUi {
             changed |= self.drive_agent_board();
             #[cfg(windows)]
             {
+                if let Some(state) = self.state.as_mut()
+                    && self.overlays.tick(state)
+                {
+                    state.note_publication_hint();
+                    changed = true;
+                }
                 changed |= self.attention.tick();
                 changed |= self.reports.tick(
                     self.state
@@ -2650,6 +2660,10 @@ impl NativeUi {
             Ok(MutationResult::Applied) => {
                 if rebuild_index && let Some(snapshot) = &index_snapshot {
                     self.agent_index = super::agent_board::PresentationIndex::rebuild(snapshot);
+                    #[cfg(windows)]
+                    if let Some(state) = self.state.as_mut() {
+                        state.observe_overlay_snapshot(snapshot);
+                    }
                 }
                 if clear_projection {
                     self.clear_projections();
@@ -2996,6 +3010,8 @@ impl NativeUi {
         self.board.close();
         #[cfg(windows)]
         self.reports.close();
+        #[cfg(windows)]
+        self.overlays.close();
         if let Some(state) = &mut self.state {
             state.close_carrier_retired();
             state.cancel_panel_close_confirmation();

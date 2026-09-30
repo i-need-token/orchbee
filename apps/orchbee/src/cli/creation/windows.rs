@@ -84,6 +84,7 @@ pub(super) fn run(command: &CreationCommand, format: OutputFormat, locale: Local
     output.finalization = finalization;
     output
 }
+mod overlay;
 fn internal() -> Failure {
     Failure::new(FailureKind::InternalFailure)
 }
@@ -142,7 +143,54 @@ fn execute(
     } else {
         None
     };
-    let mut canonical = targeting::resolve(command, &snapshot, caller.as_ref(), selected.as_ref())?;
+    let mut canonical = targeting::resolve(
+        command,
+        &snapshot,
+        if command.overlay {
+            None
+        } else {
+            caller.as_ref()
+        },
+        selected.as_ref(),
+    )?;
+    let overlay_return = if command.overlay {
+        let selected = selected.as_ref().ok_or_else(internal)?;
+        let panel = selected
+            .view
+            .selection
+            .as_ref()
+            .and_then(|s| s.panel_id.clone())
+            .ok_or_else(internal)?;
+        let answer = control::submit_control(
+            &mut client,
+            &snapshot.site_id,
+            ClientViewControl {
+                operation_id: query::request_id()?,
+                client_id: selected.client_id.clone(),
+                expected_view_revision: selected.view_revision,
+                minimum_workbench_revision: snapshot.revision,
+                intent: ClientViewIntent::Presentation { panel_id: panel },
+            },
+            deadline,
+            signals,
+        )?;
+        let member = match answer.reply.as_ref().map(|reply| &reply.outcome) {
+            Some(ClientViewOutcome::Operation { operation }) => match &operation.status {
+                orchbee_workbench_protocol::ClientViewControlStatus::PresentationRead {
+                    presentation,
+                    ..
+                } => presentation
+                    .presentation
+                    .as_ref()
+                    .ok_or_else(|| Failure::new(FailureKind::ServiceUnavailable))?,
+                _ => return Err(Failure::new(FailureKind::ServiceUnavailable)),
+            },
+            _ => return Err(Failure::new(FailureKind::ServiceUnavailable)),
+        };
+        Some(overlay::capture_return(&snapshot, selected, member)?)
+    } else {
+        None
+    };
     let directory = super::directory::resolve(
         command,
         &mut canonical,
@@ -167,6 +215,7 @@ fn execute(
         requested_ratio: ratio,
         requested_focus: command.focus,
         requested_zoom: command.zoom,
+        requested_overlay: command.overlay,
         ratio: None,
         focus: None,
         stage: "created",
@@ -266,6 +315,12 @@ fn execute(
         )?;
         check(signals, deadline)?;
         receipt.stage = "focus";
+        let overlay_intent = if let Some(return_to) = overlay_return {
+            let fresh = read_snapshot(&mut client, &snapshot.site_id, revision, deadline, signals)?;
+            Some(overlay::intent(&fresh, &created, return_to, selected)?)
+        } else {
+            None
+        };
         receipt.focus = Some(control::submit_control(
             &mut client,
             &snapshot.site_id,
@@ -274,7 +329,9 @@ fn execute(
                 client_id: selected.client_id.clone(),
                 expected_view_revision: current.view_revision,
                 minimum_workbench_revision: revision,
-                intent: if command.zoom {
+                intent: if let Some(intent) = overlay_intent {
+                    intent
+                } else if command.zoom {
                     ClientViewIntent::Zoom {
                         terminal_context_id: created.context,
                         tab_id: created.tab,

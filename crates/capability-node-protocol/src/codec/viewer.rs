@@ -25,6 +25,10 @@ pub(super) fn encode_request(value: TerminalViewerRequest) -> Vec<u8> {
         }
         TerminalViewerAction::Poll => bytes.push(2),
         TerminalViewerAction::ReadProcessInfo => bytes.push(12),
+        TerminalViewerAction::ReadLifecycle { target } => {
+            bytes.push(15);
+            super::encode_host_identity(&mut bytes, target);
+        }
         TerminalViewerAction::FrameApplied {
             sequence,
             generation,
@@ -144,6 +148,9 @@ pub(super) fn decode_request(bytes: &[u8]) -> Result<TerminalViewerRequest, Prot
         },
         2 => TerminalViewerAction::Poll,
         12 => TerminalViewerAction::ReadProcessInfo,
+        15 => TerminalViewerAction::ReadLifecycle {
+            target: super::decode_host_identity(&mut reader)?,
+        },
         3 => TerminalViewerAction::FrameApplied {
             sequence: positive(reader.read_u64()?)?,
             generation: positive(reader.read_u64()?)?,
@@ -264,6 +271,16 @@ pub(super) fn encode_result(value: &TerminalViewerResult) -> Vec<u8> {
         TerminalViewerOutcome::Attached => bytes.push(1),
         TerminalViewerOutcome::Empty => bytes.push(2),
         TerminalViewerOutcome::FeedbackAccepted => bytes.push(3),
+        TerminalViewerOutcome::LifecycleObserved {
+            target,
+            revision,
+            settled,
+        } => {
+            bytes.push(7);
+            super::encode_host_identity(&mut bytes, target);
+            bytes.extend_from_slice(&revision.to_be_bytes());
+            bytes.push(u8::from(settled));
+        }
         TerminalViewerOutcome::Detached => bytes.push(4),
         TerminalViewerOutcome::Rejected(reason) => {
             bytes.push(5);
@@ -325,6 +342,15 @@ pub(super) fn decode_result(bytes: &[u8]) -> Result<TerminalViewerResult, Protoc
         2 => TerminalViewerOutcome::Empty,
         3 => TerminalViewerOutcome::FeedbackAccepted,
         4 => TerminalViewerOutcome::Detached,
+        7 => TerminalViewerOutcome::LifecycleObserved {
+            target: super::decode_host_identity(&mut reader)?,
+            revision: reader.read_u64()?,
+            settled: match reader.read_u8()? {
+                0 => false,
+                1 => true,
+                _ => return Err(ProtocolError::InvalidPayload),
+            },
+        },
         5 => TerminalViewerOutcome::Rejected(match reader.read_u8()? {
             1 => ViewerRejection::WrongWorker,
             2 => ViewerRejection::StaleWorkerGeneration,

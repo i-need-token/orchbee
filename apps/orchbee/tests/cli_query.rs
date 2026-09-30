@@ -6183,7 +6183,7 @@ fn api_schema_catalog_is_v26_closed_and_self_consistent() -> TestResult {
     assert_eq!(output.status.code(), Some(0));
     let listed: serde_json::Value = serde_json::from_slice(&output.stdout)?;
     assert_eq!(listed["schema"], "orchbee.api.schema");
-    assert_eq!(listed["version"], 123, "catalog envelope is v123");
+    assert_eq!(listed["version"], 124, "catalog envelope is v124");
     assert_eq!(listed["source"]["kind"], "embedded");
     assert!(api_schema.is_valid(&listed), "listing self-validates");
     let schemas = listed["result"]["schemas"].as_object().unwrap();
@@ -6271,7 +6271,7 @@ fn api_schema_catalog_is_v26_closed_and_self_consistent() -> TestResult {
         serde_json::json!(24),
         serde_json::json!(25),
         serde_json::json!(26),
-        serde_json::json!(122),
+        serde_json::json!(123),
     ] {
         let mut stale = listed.clone();
         stale["version"] = stale_version.clone();

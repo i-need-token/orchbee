@@ -27,11 +27,15 @@ mod move_tab;
 mod navigation_memory;
 mod panel;
 mod panel_close;
+#[cfg(windows)]
+mod plugin_overlays;
 mod presentations;
 pub(super) mod rename_draft;
 #[cfg(any(target_os = "linux", windows))]
 pub(super) mod retired_membership;
 mod split_ratios;
+#[cfg(windows)]
+pub(super) use plugin_overlays::{OverlayJob, OverlayResult};
 mod switch_membership;
 mod tab_close;
 pub(super) mod tab_rename;
@@ -1141,6 +1145,8 @@ pub(super) struct NativeSessionState {
     /// Never wired, shared between Clients, or persisted; bounded by the
     /// same navigation retention the context snapshots already obey.
     zoomed_tabs: std::collections::BTreeSet<WorkbenchTabId>,
+    #[cfg(windows)]
+    plugin_overlays: Vec<plugin_overlays::Overlay>,
     split_ratios: split_ratios::SplitRatios,
 }
 
@@ -1277,6 +1283,8 @@ impl NativeSessionState {
             pending_membership: None,
             settled_create: None,
             zoomed_tabs: std::collections::BTreeSet::new(),
+            #[cfg(windows)]
+            plugin_overlays: Vec::new(),
             split_ratios: split_ratios::SplitRatios::default(),
         }
     }
@@ -3169,11 +3177,17 @@ impl NativeSessionState {
                 tab.has_replaced_terminals_from(self.cache.tabs().get(active.index)?)
                     .then_some(index)
             }
-            None => Some(
-                active
-                    .panel_index()
-                    .min(tab.panel_count().saturating_sub(1)),
-            ),
+            None => {
+                #[cfg(windows)]
+                if let Some(index) = self.overlay_return_index(tab, previous.panel_id()) {
+                    return Some(index);
+                }
+                Some(
+                    active
+                        .panel_index()
+                        .min(tab.panel_count().saturating_sub(1)),
+                )
+            }
         }
     }
 
@@ -3229,9 +3243,13 @@ impl NativeSessionState {
                     })
             })
             .collect();
+        #[cfg(windows)]
+        let overlay_focus = self.focus_panel_id().cloned();
         self.phase = phase;
         self.provenance = provenance;
         self.cache = candidate;
+        #[cfg(windows)]
+        self.prune_plugin_overlays(overlay_focus.as_ref());
         self.prune_zoomed_tabs();
         self.prune_navigation_memory();
         true
@@ -3482,6 +3500,12 @@ impl NativeSessionState {
             return false;
         }
         let tab_id = tab.tab_id().clone();
+        #[cfg(windows)]
+        for overlay in &mut self.plugin_overlays {
+            if overlay.tab == tab_id {
+                overlay.owns_zoom = false;
+            }
+        }
         if !self.zoomed_tabs.remove(&tab_id) {
             self.zoomed_tabs.insert(tab_id);
         }

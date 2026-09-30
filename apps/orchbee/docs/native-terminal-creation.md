@@ -130,3 +130,7 @@ and Windows ConPTY creation traces cover this model. Existing phase ordering rem
 after directory resolution. TLA execution remains deferred. Persistent configurable defaults remain separate;
 [automatic positional Tab labels](native-tab-labels.md) preserve raw creation facts. The receipt version requires a matching
 cohort; rollback does not rewrite user profiles or existing terminal processes.
+
+## Plugin overlays
+
+Windows plugin overlay creation uses an active-Client horizontal split and one guarded focus/zoom handoff. A passive member read pins the return Panel’s actual primary/child Presentation and binding before creation. Creation v5 records the overlay request; v2–v4 retain their original embedded Client-control v1 contract. Only v5 admits the additive Overlay control v8 answer. A stale member, failed focus handoff or unknown reply preserves known creation and never repeats it. [Windows plugins](windows-plugins.md#overlay-lifecycle-model) owns transient return chains, natural settlement, canonical removal and popup exclusions.

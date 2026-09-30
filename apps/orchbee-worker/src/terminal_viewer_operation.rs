@@ -26,6 +26,7 @@ use orchbee_terminal_protocol::{
 use crate::host_connection::{HostBrokerConnection, HostExchange, exchange};
 use crate::worker_identity::fresh_identity;
 
+mod lifecycle;
 mod process_info;
 
 fn invalid(error: impl std::fmt::Display) -> std::io::Error {
@@ -188,6 +189,9 @@ fn apply(
             Ok(TerminalViewerOutcome::Attached)
         }
         TerminalViewerAction::Poll => Ok(host.viewers.borrow_mut().poll(request.attachment_id)),
+        TerminalViewerAction::ReadLifecycle { target } => {
+            lifecycle::read(host, server, request.attachment_id, target)
+        }
         TerminalViewerAction::ReadProcessInfo => {
             process_info::read(host, server, request.attachment_id, correlation)
         }

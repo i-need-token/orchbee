@@ -21,7 +21,7 @@ fn source() -> Snapshot {
     source
 }
 
-fn choose(state: &mut NativeSessionState, generation: u64) -> AttachmentKey {
+pub(super) fn choose(state: &mut NativeSessionState, generation: u64) -> AttachmentKey {
     let (index, panel, presentation) = state.next_presentation(true).unwrap();
     let target = state
         .target_for_presentation(
@@ -39,7 +39,7 @@ fn choose(state: &mut NativeSessionState, generation: u64) -> AttachmentKey {
     key
 }
 
-fn finish(state: &mut NativeSessionState) {
+pub(super) fn finish(state: &mut NativeSessionState) {
     let pane = state.desired().unwrap().clone();
     assert!(state.install_projection_t(&pane));
     assert!(state.record_setup_configuration_t(&pane, controlling(), Some(geometry(80))));

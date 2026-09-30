@@ -40,10 +40,30 @@ Server 在解析调用前要求读取、终端创建和生命周期权限。确�
 
 定向证据覆盖解析上限、标识符/路径碰撞、源不可用时保留条目、缺失目录只读、目录原子转换及真实 Windows CLI 回执。测试夹具拥有并回收临时路径。完整 Windows 视觉/provider/多 Client 与全量回归验收另行执行。
 
+## 覆盖层生命周期模型
+
+Windows overlay placement 对所选实时 Client 的活动 Panel 创建规范水平 split，强制聚焦和 zoom，并保留该 Client 先前的焦点与 zoom。它不激活操作系统窗口。Popup 几何属于另一项能力。调用方环境不能将覆盖层定向到其他 Panel；显式 Workspace、target 和 direction 覆盖在创建前拒绝。创建与 Client 交接共用一个截止时间；交接中断或结果不明时保留已知创建，不再次启动。创建 v5 明确记录 overlay 请求；v2–v4 不接受该字段。
+
+Client 最多拥有 32 个临时覆盖层记录，以精确 context、Tab、Panel、Presentation 和 binding 为键。准入固定新建成员和返回成员，并在改变焦点前检查原始选择。记录在第一个焦点／zoom 效果前安装；之后中断仍保留记录。规范成员存活时记录跨本地导航保留，但不持久化，也不在 Client 重启后重建。嵌套覆盖层从最新移除的成员开始回退；返回成员被移除时折叠返回链，并保留最外层先前 zoom。不可用或重新绑定的返回成员绝不被选中。
+
+| 转换         | 守卫与结果                                                                                        |
+| ------------ | ------------------------------------------------------------------------------------------------- |
+| 打开         | 精确当前 Client、源选择与规范成员；在焦点／zoom 前预留有界记录                                    |
+| 观察         | 针对完整物理身份读取 Host inventory，限制页数和截止时间；不改变生命周期，也不占用独占关闭所有权   |
+| 自动关闭     | 已知终端 exited／failed 且插件成员未变；提交一次带规范 revision 守卫的 Panel Close，保留操作身份  |
+| 关闭回执丢失 | 保留不确定性并停止自动提交关闭；读取或断连不能证明清理完成                                        |
+| 规范移除     | 仅覆盖层仍拥有该 Tab 焦点时恢复先前焦点／zoom；保留当前其他 context／Tab，以及手动焦点／zoom 选择 |
+| 源／成员丢失 | 丢弃无效视图记录，沿用确定性选择修复，绝不选择复用身份                                            |
+| Client 关闭  | 中断并 join 独立生命周期通道；Server 继续拥有已接受 Close 和规范终端                              |
+
+Server 串行拥有临时观察 viewer，以及结果不明的清理，直到精确 detach／disposal 或 Site 物理关闭；清理未解决时拒绝另一次观察。生命周期通道一次拥有一个有限读取／关闭工作，不阻塞渲染，不重试结果不明的变更。测试必须区分自然终止、显式关闭、读取不可用、嵌套移除、导航和重新绑定，并覆盖实际渲染与 Windows CLI 传输。同作者定向证据不代表操作系统终端模拟器或已部署 Host 验收。
+
 ## 终端 Pane 创建
 
-`plugin pane open --plugin ID --entrypoint ID [--placement tab|split|zoomed]` 通过规范创建流程生成真实终端 Tab 或分屏。清单提供默认布局和标题；`--target-pane` 选择分屏目标，`--direction right|down` 控制方向，`--workspace` 选择 Tab 的目标 Workspace。默认聚焦；`--no-focus`、`--client`、`--cwd`、重复 `--env`、几何尺寸与超时沿用现有创建控制。默认目录为 Server 解析的插件根目录，不受普通 shell 的 cwd 配置影响；即使覆盖 cwd，清单程序仍相对插件根目录解析。原生回执使用 `orchbee.creation.result` v3，区分规范创建与 Client 聚焦结果；v2 不接受新增的 `plugin-root` 目录策略。 zoomed 布局通过一次受视图版本约束的 Client Zoom 请求强制聚焦（即使指定 `--no-focus`）；其 v4 回执增加 `postCreate.requested.zoom=true`，聚焦及放大的合并结果保留在 `postCreate.focus`。选区变化或 Client 回执丢失仍保留创建回执，不会重新创建终端。旧 v2/v3 回执不接受新增 zoom 请求。与 Herdr 一致，split/zoomed 忽略 `--workspace`，tab 忽略 `--target-pane`。
+`plugin pane open --plugin ID --entrypoint ID [--placement tab|split|zoomed|overlay]` 通过规范创建流程生成真实终端 Tab 或分屏。清单提供默认布局和标题；`--target-pane` 选择分屏目标，`--direction right|down` 控制方向，`--workspace` 选择 Tab 的目标 Workspace。默认聚焦；`--no-focus`、`--client`、`--cwd`、重复 `--env`、几何尺寸与超时沿用现有创建控制。默认目录为 Server 解析的插件根目录，不受普通 shell 的 cwd 配置影响；即使覆盖 cwd，清单程序仍相对插件根目录解析。原生回执使用 `orchbee.creation.result` v3，区分规范创建与 Client 聚焦结果；v2 不接受新增的 `plugin-root` 目录策略。 zoomed 布局通过一次受视图版本约束的 Client Zoom 请求强制聚焦（即使指定 `--no-focus`）；其 v4 回执增加 `postCreate.requested.zoom=true`，聚焦及放大的合并结果保留在 `postCreate.focus`。选区变化或 Client 回执丢失仍保留创建回执，不会重新创建终端。旧 v2/v3 回执不接受新增 zoom 请求。与 Herdr 一致，split/zoomed 忽略 `--workspace`，tab 忽略 `--target-pane`。
 
-CLI 提交目录标识，不提交程序执行权限。Server 受理时重新检查已启用、源有效且支持 Windows 的入口，在终端预留前冻结 argv、cwd 与受保护的插件环境。重放使用保留的规范请求。显式程序／profile 与插件 Pane 选择互斥；Workspace 启动和子终端创建拒绝此选择器。CLI 和 Server 保留程序／argv 标识；允许绝对 `.cmd`/`.bat` 入口，由 Host 使用系统命令处理器执行，禁用 AutoRun 与延迟展开。batch 参数编码保护元字符及百分号字面值，脚本自己负责其后续参数展开。含 NUL/CR/LF 的参数、不支持的 verbatim 路径写法或超过 8191 字节的编码命令行，在 Host 创建 PTY／进程前失败；规范创建回执仍保留已受理的启动。overlay、popup 布局暂未受理，其 CLI 拒绝不得创建终端。`plugin pane focus <pane-id> [--client ID] [--timeout MS]` 和 `plugin pane close <pane-id> [--timeout MS]` 先读取 Server 所有的成员记录。精确 Presentation／绑定及规范修订号必须与 CLI 快照一致；普通、重新绑定或过期目标在产生效果前拒绝。close 提交一次修订号围栏下的原生 Panel 关闭并返回其保留生命周期回执；focus 沿用 Client 选择与视图围栏。投递结果未知时不重试；稍后发生的取消保留已取得的回执并返回非零退出码。
+CLI 提交目录标识，不提交程序执行权限。Server 受理时重新检查已启用、源有效且支持 Windows 的入口，在终端预留前冻结 argv、cwd 与受保护的插件环境。重放使用保留的规范请求。显式程序／profile 与插件 Pane 选择互斥；Workspace 启动和子终端创建拒绝此选择器。CLI 和 Server 保留程序／argv 标识；允许绝对 `.cmd`/`.bat` 入口，由 Host 使用系统命令处理器执行，禁用 AutoRun 与延迟展开。batch 参数编码保护元字符及百分号字面值，脚本自己负责其后续参数展开。含 NUL/CR/LF 的参数、不支持的 verbatim 路径写法或超过 8191 字节的编码命令行，在 Host 创建 PTY／进程前失败；规范创建回执仍保留已受理的启动。popup 布局暂未受理，其 CLI 拒绝不得创建终端。`plugin pane focus <pane-id> [--client ID] [--timeout MS]` 和 `plugin pane close <pane-id> [--timeout MS]` 先读取 Server 所有的成员记录。精确 Presentation／绑定及规范修订号必须与 CLI 快照一致；普通、重新绑定或过期目标在产生效果前拒绝。close 提交一次修订号围栏下的原生 Panel 关闭并返回其保留生命周期回执；focus 沿用 Client 选择与视图围栏。投递结果未知时不重试；稍后发生的取消保留已取得的回执并返回非零退出码。
 
 成员记录为与终端预留同时提交的临时 Server 状态，以精确 Presentation／绑定为键，上限 4096 条。记录跟随移动，成员消失或重新绑定时清除。处于 pending、失败或物理结果未知状态的启动仍关联规范 Pane，交由正常生命周期清理。离线目录 unlink 不妨碍关闭已经创建的插件 Pane；重启／检查点恢复不会凭空制造插件成员记录。
+
+Overlay 在创建前通过被动读取固定源 Client 实际选中的主或子 Presentation。其 v5 回执在强制焦点／zoom 请求之外增加 `postCreate.requested.overlay=true`；已知 Overlay 答复使用 Client control v8。旧创建／控制变体保持原有契约。Server 在返回终止事实前 detach 临时 viewer；detach 结果不明时保留一个清理所有者并阻止替换。Host inventory 遍历共用两秒预算，最多八页、每页 128 个条目，核对稳定 generation／cursor、重复身份及完整身份。Client 通道使用十秒可取消作业并公平调度记录；现有 Server attach／detach 上限独立保留，因此这不是十秒内完成物理服务关闭的保证。手动关闭插件 Pane 也走相同的规范移除／恢复路径。

@@ -324,3 +324,7 @@ independent Rust binding; semantic byte/cross-field checks supplement JSON Schem
 Configuration snapshots require separate 32 KiB `spacesSidebarProfile` alongside
 the Agent profile, with a 256 KiB encoded budget. Runtime installation remains
 Client-owned and atomic. This binding adds no Desktop command or mutation permission.
+
+## Plugin overlay contract
+
+The closed plugin union additionally validates exact read-only `pane-observe`/`pane-observed` membership and boolean settlement. Client `overlay` intent pins created and return member identities, expected binding, required nullable return binding and prior zoom. Self-return identities and Applied without zoom/multiple leaves fail semantic validation. The shared Rust/JSON Schema corpus covers these additive shapes; runtime ownership stays with the [Windows native Client and Server](../../apps/orchbee/docs/windows-plugins.md#overlay-lifecycle-model), with no Desktop placement or mutation permission. Use a matched native cohort.

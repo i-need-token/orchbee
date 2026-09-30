@@ -15,6 +15,7 @@ pub(super) struct Receipt {
     pub(super) requested_ratio: Option<ClientSplitRatio>,
     pub(super) requested_focus: bool,
     pub(super) requested_zoom: bool,
+    pub(super) requested_overlay: bool,
     pub(super) ratio: Option<Answer>,
     pub(super) focus: Option<Answer>,
     pub(super) stage: &'static str,
@@ -61,7 +62,13 @@ impl Receipt {
     pub(super) fn document(&self) -> Value {
         let mut document = self.canonical.document();
         document["schema"] = json!("orchbee.creation.result");
-        document["version"] = json!(if self.requested_zoom { 4 } else { 3 });
+        document["version"] = json!(if self.requested_overlay {
+            5
+        } else if self.requested_zoom {
+            4
+        } else {
+            3
+        });
         document["directory"] = self.directory.document();
         document["postCreate"] = json!({
             "clientId":self.client_id,
@@ -74,6 +81,9 @@ impl Receipt {
         });
         if self.requested_zoom {
             document["postCreate"]["requested"]["zoom"] = json!(true);
+        }
+        if self.requested_overlay {
+            document["postCreate"]["requested"]["overlay"] = json!(true);
         }
         document
     }

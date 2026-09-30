@@ -73,12 +73,12 @@ pub use client_layout_adjustment::{
 };
 mod client_view;
 pub use client_view::{
-    ClientViewAction, ClientViewAvailability, ClientViewCompletion, ClientViewCompletionOutcome,
-    ClientViewControl, ClientViewControlReason, ClientViewControlStatus, ClientViewIntent,
-    ClientViewObservation, ClientViewOperation, ClientViewOutcome, ClientViewPhase,
-    ClientViewRecord, ClientViewSelection, ClientViewSequence, ClientViewUnavailable,
-    MAXIMUM_CLIENT_VIEWS, MAXIMUM_ENCODED_CLIENT_VIEW_RESULT_BYTES, WorkbenchClientViewRequest,
-    WorkbenchClientViewResult,
+    ClientOverlayMember, ClientViewAction, ClientViewAvailability, ClientViewCompletion,
+    ClientViewCompletionOutcome, ClientViewControl, ClientViewControlReason,
+    ClientViewControlStatus, ClientViewIntent, ClientViewObservation, ClientViewOperation,
+    ClientViewOutcome, ClientViewPhase, ClientViewRecord, ClientViewSelection, ClientViewSequence,
+    ClientViewUnavailable, MAXIMUM_CLIENT_VIEWS, MAXIMUM_ENCODED_CLIENT_VIEW_RESULT_BYTES,
+    WorkbenchClientViewRequest, WorkbenchClientViewResult,
 };
 mod workspace_group_close;
 pub use workspace_group_close::{

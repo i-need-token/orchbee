@@ -10,7 +10,7 @@
 			"const": "orchbee.creation.result"
 		},
 		"version": {
-			"enum": [2, 3, 4]
+			"enum": [2, 3, 4, 5]
 		},
 		"source": {
 			"$ref": "#/$defs/canonical/$defs/commandSource"
@@ -95,6 +95,9 @@
 						},
 						"zoom": {
 							"const": true
+						},
+						"overlay": {
+							"const": true
 						}
 					}
 				},
@@ -112,6 +115,9 @@
 					"anyOf": [
 						{
 							"$ref": "#/$defs/control"
+						},
+						{
+							"$ref": "#/$defs/overlayControl"
 						},
 						{
 							"type": "null"
@@ -1700,6 +1706,380 @@
 					"additionalProperties": false
 				}
 			}
+		},
+		"overlayControl": {
+			"title": "Native Client control observation",
+			"type": "object",
+			"properties": {
+				"schema": {
+					"const": "orchbee.client.control"
+				},
+				"version": {
+					"const": 8
+				},
+				"siteId": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/overlayControl/$defs/siteId"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"operationId": {
+					"$ref": "#/$defs/overlayControl/$defs/requestId"
+				},
+				"observation": {
+					"oneOf": [
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "server"
+								},
+								"reply": {
+									"type": "object",
+									"properties": {
+										"protocolVersion": {
+											"const": 1
+										},
+										"requestId": {
+											"$ref": "#/$defs/overlayControl/$defs/requestId"
+										},
+										"siteId": {
+											"$ref": "#/$defs/overlayControl/$defs/siteId"
+										},
+										"outcome": {
+											"$ref": "#/$defs/overlayControl/$defs/outcome"
+										}
+									},
+									"required": ["protocolVersion", "requestId", "siteId", "outcome"],
+									"additionalProperties": false
+								}
+							},
+							"required": ["kind", "reply"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "unknown"
+								}
+							},
+							"required": ["kind"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "not-submitted"
+								}
+							},
+							"required": ["kind"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "unobserved"
+								}
+							},
+							"required": ["kind"],
+							"additionalProperties": false
+						}
+					]
+				},
+				"wait": {
+					"anyOf": [
+						{
+							"enum": ["detached", "timed-out", "cancelled", "transport-lost", "observation-failed"]
+						},
+						{
+							"type": "null"
+						}
+					]
+				}
+			},
+			"required": ["schema", "version", "siteId", "operationId", "observation", "wait"],
+			"additionalProperties": false,
+			"$defs": {
+				"siteId": {
+					"$ref": "#/$defs/control/$defs/siteId"
+				},
+				"requestId": {
+					"$ref": "#/$defs/control/$defs/requestId"
+				},
+				"terminalContextId": {
+					"$ref": "#/$defs/control/$defs/terminalContextId"
+				},
+				"tabId": {
+					"$ref": "#/$defs/control/$defs/tabId"
+				},
+				"panelId": {
+					"$ref": "#/$defs/control/$defs/panelId"
+				},
+				"revision": {
+					"$ref": "#/$defs/control/$defs/revision"
+				},
+				"clientId": {
+					"$ref": "#/$defs/control/$defs/clientId"
+				},
+				"sequence": {
+					"$ref": "#/$defs/control/$defs/sequence"
+				},
+				"phase": {
+					"$ref": "#/$defs/control/$defs/phase"
+				},
+				"selection": {
+					"$ref": "#/$defs/control/$defs/selection"
+				},
+				"view": {
+					"$ref": "#/$defs/control/$defs/view"
+				},
+				"intent": {
+					"oneOf": [
+						{
+							"type": "object",
+							"additionalProperties": false,
+							"required": [
+								"kind",
+								"terminalContextId",
+								"tabId",
+								"panelId",
+								"presentationId",
+								"expectedBinding",
+								"returnTo",
+								"previouslyZoomed"
+							],
+							"properties": {
+								"kind": {
+									"const": "overlay"
+								},
+								"terminalContextId": {
+									"$ref": "#/$defs/overlayControl/$defs/terminalContextId"
+								},
+								"tabId": {
+									"$ref": "#/$defs/overlayControl/$defs/tabId"
+								},
+								"panelId": {
+									"$ref": "#/$defs/overlayControl/$defs/panelId"
+								},
+								"presentationId": {
+									"$ref": "#/$defs/overlayControl/$defs/identity"
+								},
+								"expectedBinding": {
+									"type": "object",
+									"additionalProperties": false,
+									"required": ["workerId", "terminalId"],
+									"properties": {
+										"workerId": {
+											"$ref": "#/$defs/overlayControl/$defs/identity"
+										},
+										"terminalId": {
+											"$ref": "#/$defs/overlayControl/$defs/identity"
+										}
+									}
+								},
+								"returnTo": {
+									"type": "object",
+									"additionalProperties": false,
+									"required": ["panelId", "presentationId", "binding"],
+									"properties": {
+										"panelId": {
+											"$ref": "#/$defs/overlayControl/$defs/panelId"
+										},
+										"presentationId": {
+											"$ref": "#/$defs/overlayControl/$defs/identity"
+										},
+										"binding": {
+											"anyOf": [
+												{
+													"type": "object",
+													"additionalProperties": false,
+													"required": ["workerId", "terminalId"],
+													"properties": {
+														"workerId": {
+															"$ref": "#/$defs/overlayControl/$defs/identity"
+														},
+														"terminalId": {
+															"$ref": "#/$defs/overlayControl/$defs/identity"
+														}
+													}
+												},
+												{
+													"type": "null"
+												}
+											]
+										}
+									}
+								},
+								"previouslyZoomed": {
+									"type": "boolean"
+								}
+							}
+						}
+					]
+				},
+				"control": {
+					"type": "object",
+					"properties": {
+						"operationId": {
+							"$ref": "#/$defs/overlayControl/$defs/requestId"
+						},
+						"clientId": {
+							"$ref": "#/$defs/overlayControl/$defs/clientId"
+						},
+						"expectedViewRevision": {
+							"$ref": "#/$defs/overlayControl/$defs/sequence"
+						},
+						"minimumWorkbenchRevision": {
+							"$ref": "#/$defs/overlayControl/$defs/revision"
+						},
+						"intent": {
+							"$ref": "#/$defs/overlayControl/$defs/intent"
+						}
+					},
+					"required": [
+						"operationId",
+						"clientId",
+						"expectedViewRevision",
+						"minimumWorkbenchRevision",
+						"intent"
+					],
+					"additionalProperties": false
+				},
+				"reason": {
+					"$ref": "#/$defs/control/$defs/reason"
+				},
+				"status": {
+					"$ref": "#/$defs/control/$defs/status"
+				},
+				"operation": {
+					"type": "object",
+					"properties": {
+						"command": {
+							"$ref": "#/$defs/overlayControl/$defs/control"
+						},
+						"status": {
+							"$ref": "#/$defs/overlayControl/$defs/status"
+						}
+					},
+					"required": ["command", "status"],
+					"additionalProperties": false
+				},
+				"outcome": {
+					"oneOf": [
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "operation"
+								},
+								"operation": {
+									"$ref": "#/$defs/overlayControl/$defs/operation"
+								}
+							},
+							"required": ["kind", "operation"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "not-found"
+								}
+							},
+							"required": ["kind"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "conflict"
+								}
+							},
+							"required": ["kind"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "denied"
+								}
+							},
+							"required": ["kind"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "unavailable"
+								},
+								"reason": {
+									"enum": [
+										"client-unavailable",
+										"server-busy",
+										"receipt-capacity",
+										"unsupported",
+										"sequence-exhausted"
+									]
+								}
+							},
+							"required": ["kind", "reason"],
+							"additionalProperties": false
+						}
+					]
+				},
+				"identity": {
+					"$ref": "#/$defs/control/$defs/identity"
+				},
+				"cellRect": {
+					"$ref": "#/$defs/control/$defs/cellRect"
+				},
+				"panelArea": {
+					"$ref": "#/$defs/control/$defs/panelArea"
+				},
+				"splitArea": {
+					"$ref": "#/$defs/control/$defs/splitArea"
+				},
+				"neighbors": {
+					"$ref": "#/$defs/control/$defs/neighbors"
+				},
+				"layout": {
+					"$ref": "#/$defs/control/$defs/layout"
+				},
+				"splitId": {
+					"$ref": "#/$defs/control/$defs/splitId"
+				},
+				"panelSlotId": {
+					"$ref": "#/$defs/control/$defs/panelSlotId"
+				},
+				"splitRatio": {
+					"$ref": "#/$defs/control/$defs/splitRatio"
+				},
+				"resizeAmount": {
+					"$ref": "#/$defs/control/$defs/resizeAmount"
+				},
+				"splitPath": {
+					"$ref": "#/$defs/control/$defs/splitPath"
+				},
+				"splitChange": {
+					"$ref": "#/$defs/control/$defs/splitChange"
+				},
+				"layoutChange": {
+					"$ref": "#/$defs/control/$defs/layoutChange"
+				},
+				"layoutAdjustment": {
+					"$ref": "#/$defs/control/$defs/layoutAdjustment"
+				}
+			}
 		}
 	},
 	"allOf": [
@@ -1729,7 +2109,7 @@
 			"if": {
 				"properties": {
 					"version": {
-						"const": 4
+						"enum": [4, 5]
 					}
 				}
 			},
@@ -1757,6 +2137,57 @@
 								"not": {
 									"required": ["zoom"]
 								}
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"version": {
+						"const": 5
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"postCreate": {
+						"properties": {
+							"requested": {
+								"required": ["overlay", "zoom"],
+								"properties": {
+									"focus": {
+										"const": true
+									},
+									"ratio": {
+										"type": "null"
+									}
+								}
+							}
+						}
+					}
+				}
+			},
+			"else": {
+				"properties": {
+					"postCreate": {
+						"properties": {
+							"requested": {
+								"not": {
+									"required": ["overlay"]
+								}
+							},
+							"focus": {
+								"anyOf": [
+									{
+										"$ref": "#/$defs/control"
+									},
+									{
+										"type": "null"
+									}
+								]
 							}
 						}
 					}

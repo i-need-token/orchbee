@@ -636,6 +636,7 @@ fn effect_kind(effect: &Effect) -> &'static str {
         Effect::Dispose(..) => "dispose",
         Effect::ProcessInfo(..) => "process-info",
         Effect::DetachRefused(..) => "detach-refused",
+        Effect::Lifecycle(..) => "lifecycle",
     }
 }
 fn effect_mismatch(expected: &[Effect], actual: &[Effect]) -> String {

@@ -195,7 +195,8 @@ fn run(
         let delivery = if let Some(control) = control {
             let workbench_snapshot = if matches!(
                 control.intent,
-                ClientViewIntent::Panel { .. }
+                ClientViewIntent::Overlay { .. }
+                    | ClientViewIntent::Panel { .. }
                     | ClientViewIntent::Selections { .. }
                     | ClientViewIntent::Presentation { .. }
                     | ClientViewIntent::Viewports { .. }

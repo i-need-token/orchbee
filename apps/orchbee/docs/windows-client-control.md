@@ -207,3 +207,7 @@ Workspace/Tab focus does not acquire Panel mode dismissal. No wire fields, publi
 activation, terminal input or persistent state are added. Focused controller, canonical-preflight,
 Server admission and Windows lane shutdown tests cover these boundaries; full Windows acceptance
 remains part of final regression.
+
+## Plugin overlay handoff
+
+The matched native cohort accepts a private `overlay` intent with exact context/Tab/Panel/Presentation, expected binding, required nullable return binding and prior zoom. The Client reserves one of 32 transient records before changing focus, and acknowledges only after the normal observed/drawn focus and zoom path. Canonical removal restores the exact surviving return member and prior zoom only while the overlay still owns focus; navigation, manual zoom and rebinds remain fenced. The isolated cancellable lifecycle lane observes full Host identity without input/resize or exclusive Close authority, retains uncertain Close identities and joins on shutdown. [Windows plugins](windows-plugins.md#overlay-lifecycle-model) owns the lifecycle contract. Known public Overlay answers use v8; v1–v7 remain closed to this intent. This adds no Desktop or OS-window activation.

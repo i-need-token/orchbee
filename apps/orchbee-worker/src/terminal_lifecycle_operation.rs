@@ -282,7 +282,7 @@ fn inventory_outcome(
     }
 }
 
-fn summary_observation(
+pub(crate) fn summary_observation(
     summary: &TerminalSummary,
 ) -> (
     &orchbee_terminal_protocol::TerminalSummaryCore,

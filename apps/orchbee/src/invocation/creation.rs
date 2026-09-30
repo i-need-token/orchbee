@@ -34,6 +34,7 @@ pub(crate) struct CreationCommand {
     pub(crate) client: Option<WorkbenchClientId>,
     pub(crate) focus: bool,
     pub(crate) zoom: bool,
+    pub(crate) overlay: bool,
     pub(crate) timeout_ms: u32,
 }
 
@@ -178,6 +179,7 @@ pub(super) fn parse(
             client: client_control::client_id(options, context, envelope)?,
             focus: options.focus,
             zoom: false,
+            overlay: false,
             timeout_ms: if options.timeout.is_some() {
                 wait_timeout_option(options, context, envelope)?
             } else {

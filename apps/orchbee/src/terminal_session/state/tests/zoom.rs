@@ -25,7 +25,7 @@ const SNAPSHOT: &[u8] = include_bytes!(
 
 /// A projection carrying the fixture frame — the live-paint stand-in the
 /// renderer's single-pane path requires.
-fn framed_projection() -> TerminalProjection {
+pub(super) fn framed_projection() -> TerminalProjection {
     let route = inspect_terminal_frame_route(SNAPSHOT).unwrap();
     let record = encode_transport_envelope(&Envelope {
         protocol: orchbee_terminal_protocol::CURRENT_PROTOCOL_VERSION,

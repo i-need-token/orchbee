@@ -84,7 +84,7 @@ impl LocalTerminalService {
         (directory, pending)
     }
 
-    fn with_observation_viewer(
+    pub(in crate::local_terminal_service) fn with_observation_viewer(
         &self,
         target: &ProcessObservationTarget,
         stop: &AtomicBool,

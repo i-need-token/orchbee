@@ -11,6 +11,7 @@ use orchbee_workbench_protocol::{PluginPaneSelector, WorkbenchPanelSplitDirectio
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct Open {
     pub(crate) placement: Option<PluginPanePlacement>,
+    pub(crate) active_target_overrides: bool,
     pub(crate) workspace: Option<TabContext>,
     pub(crate) creation: CreationCommand,
 }
@@ -170,6 +171,9 @@ pub(super) fn parse(
     Ok(Request::Plugin {
         command: super::PluginCommand::PaneOpen(Box::new(Open {
             placement,
+            active_target_overrides: options.workspace.is_some()
+                || options.plugin_target.is_some()
+                || options.direction.is_some(),
             workspace: options
                 .workspace
                 .clone()
@@ -199,6 +203,7 @@ pub(super) fn parse(
                 client: client_control::client_id(options, context, envelope)?,
                 focus: !options.no_focus,
                 zoom: false,
+                overlay: false,
                 timeout_ms: if options.timeout.is_some() {
                     wait_timeout_option(options, context, envelope)?
                 } else {

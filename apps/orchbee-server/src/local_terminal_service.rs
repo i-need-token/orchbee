@@ -74,6 +74,8 @@ pub(crate) struct LocalTerminalService {
     #[cfg(windows)]
     configuration: configuration::Registry,
     #[cfg(windows)]
+    plugin_observer: plugins::Observer,
+    #[cfg(windows)]
     process_observer: process_observer::ProcessObserver,
     close_maintenance: close_maintenance::CloseMaintenance,
     worktree_maintenance: operation_maintenance::OperationMaintenance,
@@ -112,6 +114,8 @@ impl LocalTerminalService {
         Self {
             #[cfg(windows)]
             configuration: configuration::Registry::default(),
+            #[cfg(windows)]
+            plugin_observer: plugins::Observer::default(),
             close_maintenance: close_maintenance::CloseMaintenance::default(),
             #[cfg(windows)]
             process_observer: process_observer::ProcessObserver::default(),

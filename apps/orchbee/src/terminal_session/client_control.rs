@@ -41,6 +41,7 @@ impl FocusModes {
 #[derive(Default)]
 pub(super) struct StepProgress {
     pub(super) refresh_requested: bool,
+    pub(super) overlay_registered: bool,
     pub(super) context_attempted: bool,
     pub(super) tab_attempted: bool,
     pub(super) had_effect: bool,

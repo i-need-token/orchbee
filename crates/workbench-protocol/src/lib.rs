@@ -38,8 +38,8 @@ pub use carrier::{
 pub use command::{
     ClientAgentAttentionEntry, ClientAgentAttentionSnapshot, ClientAgentAttentionVersion,
     ClientCellRect, ClientContextSelection, ClientLayoutAdjustment, ClientLayoutChange,
-    ClientNavigationSnapshot, ClientPanelArea, ClientPanelDirection, ClientPanelLayout,
-    ClientPanelNeighbors, ClientPanelViewport, ClientPresentationSelection,
+    ClientNavigationSnapshot, ClientOverlayMember, ClientPanelArea, ClientPanelDirection,
+    ClientPanelLayout, ClientPanelNeighbors, ClientPanelViewport, ClientPresentationSelection,
     ClientPresentationSnapshot, ClientResizeAmount, ClientScrollMetrics, ClientSplitArea,
     ClientSplitChange, ClientSplitIdentity, ClientSplitPath, ClientSplitRatio,
     ClientTerminalAgentAttentionEntry, ClientTerminalAgentAttentionSnapshot,

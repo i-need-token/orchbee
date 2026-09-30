@@ -32,6 +32,8 @@ mod agent_attention;
 mod agent_board;
 #[cfg(windows)]
 mod panel_reports;
+#[cfg(windows)]
+mod plugin_overlays;
 #[cfg(all(windows, test))]
 pub(crate) use panel_reports::PanelReport;
 #[cfg(windows)]

@@ -197,6 +197,8 @@ impl PreparedMembershipInstall<'_> {
                 .map(|tab| tab.leaf_panel_ids().into_iter().collect())
                 .unwrap_or_default()
         };
+        #[cfg(windows)]
+        let overlay_focus = self.state.focus_panel_id().cloned();
         self.state.cache = self.prepared.candidate;
         self.state.provenance = self.prepared.provenance;
         self.state.desired = self.desired.clone();
@@ -208,6 +210,8 @@ impl PreparedMembershipInstall<'_> {
                 .navigation_memory
                 .remember_presentation(&self.state.cache, &selected, id);
         }
+        #[cfg(windows)]
+        self.state.prune_plugin_overlays(overlay_focus.as_ref());
         self.state.prune_zoomed_tabs();
         self.state.prune_navigation_memory();
         if let Some(completion) = self.prepared.setup_completion {
@@ -650,7 +654,13 @@ impl NativeSessionState {
                 .panel(selected.panel_index())
                 .ok_or(CarrierFailure::Protocol)?;
             let member = if prepared.candidate.location() == self.cache.location() {
-                self.selected_presentation(panel)
+                #[cfg(windows)]
+                let returned = self
+                    .focus_panel_id()
+                    .and_then(|removed| self.overlay_return_presentation(tab, removed, panel));
+                #[cfg(not(windows))]
+                let returned = None;
+                returned.unwrap_or_else(|| self.selected_presentation(panel))
             } else {
                 self.navigation_memory
                     .presentation(prepared.candidate.location(), panel)

@@ -16,6 +16,8 @@ mod membership;
 mod move_tab;
 mod navigation_memory;
 mod panel;
+#[cfg(windows)]
+mod plugin_overlays;
 mod presentations;
 mod rename_draft;
 mod reorder;

@@ -97,6 +97,10 @@ pub enum TerminalViewerAction {
     },
     Poll,
     ReadProcessInfo,
+    /// Read-only inventory of the exact Host member; never acquires Close ownership.
+    ReadLifecycle {
+        target: crate::HostTerminalIdentity,
+    },
     FrameApplied {
         sequence: NonZeroU64,
         generation: NonZeroU64,
@@ -190,6 +194,11 @@ pub enum TerminalViewerOutcome {
     Empty,
     Record(Vec<u8>),
     FeedbackAccepted,
+    LifecycleObserved {
+        target: crate::HostTerminalIdentity,
+        revision: u64,
+        settled: bool,
+    },
     Detached,
     Rejected(ViewerRejection),
     RowsRejected(ViewerRowsRejectedReason),

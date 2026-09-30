@@ -1571,6 +1571,7 @@ fn mutation(command: MutationCommand, format: OutputFormat) -> Request {
             client: None,
             focus: false,
             zoom: false,
+            overlay: false,
             timeout_ms: 30_000,
         },
         format,

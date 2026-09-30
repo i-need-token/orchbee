@@ -13,6 +13,7 @@ pub(in crate::local_terminal_service::viewer_session::tests) enum Effect {
     Capacity,
     Poll([u8; 16]),
     ProcessInfo([u8; 16]),
+    Lifecycle([u8; 16]),
     DetachRefused([u8; 16]),
     Feedback([u8; 16]),
     Detach([u8; 16]),
@@ -69,6 +70,11 @@ pub(super) fn run(
                             }
                         }
                         WorkerAction::ReadProcessInfo => {effects.lock().unwrap().push(Effect::ProcessInfo(id));WorkerOutcome::Rejected(ViewerRejection::HostRejected)},
+                        WorkerAction::ReadLifecycle { target } => {
+                            assert!(viewers.contains_key(&id));
+                            effects.lock().unwrap().push(Effect::Lifecycle(id));
+                            WorkerOutcome::LifecycleObserved { target, revision: 42, settled: true }
+                        },
                         WorkerAction::FrameApplied { .. } | WorkerAction::NeedSnapshot { .. } => {
                             effects.lock().unwrap().push(Effect::Feedback(id));
                             if let Some((_, _, flight)) = viewers.get_mut(&id) {

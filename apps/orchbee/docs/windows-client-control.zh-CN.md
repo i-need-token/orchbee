@@ -182,3 +182,7 @@ Ready 绘制后确认已查看。稳定的未绑定选择可以进入，无需�
 Workspace／Tab 聚焦不继承 Panel 的模式取消行为。不新增协议字段、公开 schema、操作系统
 激活、终端输入或持久化状态。定向控制器、规范预检、Server 准入和 Windows 通道关闭测试
 覆盖这些边界；完整 Windows 验收仍属于最终回归。
+
+## 插件覆盖层交接
+
+匹配的原生 cohort 接受私有 `overlay` intent，携带精确 context／Tab／Panel／Presentation、预期 binding、必填可空的返回 binding 及先前 zoom。Client 在改变焦点前预留最多 32 个临时记录中的一个，仅在正常观测／绘制焦点与 zoom 路径完成后确认。规范移除时，仅覆盖层仍拥有焦点才恢复精确存活返回成员与先前 zoom；导航、手动 zoom 和重新绑定保留守卫。独立可取消生命周期通道读取完整 Host 身份，不持有 input／resize 或独占 Close 权限，保留结果不明的 Close 身份，并在关闭时 join。[Windows 插件](windows-plugins.zh-CN.md#覆盖层生命周期模型)负责生命周期契约。已知公开 Overlay 答复使用 v8；v1–v7 不接受此 intent。不新增 Desktop 或操作系统窗口激活。

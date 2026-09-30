@@ -59,20 +59,32 @@ impl LocalClient {
         request: WorkbenchPanelCloseRequest,
         deadline: Instant,
     ) -> WorkbenchPanelCloseSubmission {
+        self.submit_workbench_panel_close_cancellable(request, deadline, None)
+    }
+
+    pub(crate) fn submit_workbench_panel_close_cancellable(
+        &mut self,
+        request: WorkbenchPanelCloseRequest,
+        deadline: Instant,
+        wake: Option<orchbee_local_ipc::LocalIo<'_>>,
+    ) -> WorkbenchPanelCloseSubmission {
         let command = request.0;
-        let response =
-            match self.exchange_panel_close(WorkbenchRequest::Command(command.clone()), deadline) {
-                Ok(response) => response,
-                Err(PanelCloseExchangeError::NotSubmitted(reason)) => {
-                    return WorkbenchPanelCloseSubmission::DefinitelyNotSubmitted(reason);
-                }
-                Err(PanelCloseExchangeError::Failed(reason)) => {
-                    return WorkbenchPanelCloseSubmission::OutcomeUnknown {
-                        request_id: command.request_id,
-                        reason,
-                    };
-                }
-            };
+        let response = match self.exchange_panel_close(
+            WorkbenchRequest::Command(command.clone()),
+            deadline,
+            wake,
+        ) {
+            Ok(response) => response,
+            Err(PanelCloseExchangeError::NotSubmitted(reason)) => {
+                return WorkbenchPanelCloseSubmission::DefinitelyNotSubmitted(reason);
+            }
+            Err(PanelCloseExchangeError::Failed(reason)) => {
+                return WorkbenchPanelCloseSubmission::OutcomeUnknown {
+                    request_id: command.request_id,
+                    reason,
+                };
+            }
+        };
         match classify_command_result(&command, response) {
             Ok(result) => result,
             Err(reason) => {
@@ -89,6 +101,7 @@ impl LocalClient {
         &mut self,
         request: WorkbenchRequest,
         deadline: Instant,
+        wake: Option<orchbee_local_ipc::LocalIo<'_>>,
     ) -> Result<WorkbenchResponse, PanelCloseExchangeError> {
         if self.connection.is_none() {
             return Err(PanelCloseExchangeError::NotSubmitted(
@@ -116,7 +129,7 @@ impl LocalClient {
             &self.clock,
             deadline,
             self.io_chunk_limits,
-            None,
+            wake,
             &frame,
             |io| read_workbench_response(io),
         ) {

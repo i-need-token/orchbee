@@ -119,6 +119,15 @@ pub struct ClientViewRecord {
     deny_unknown_fields
 )]
 pub enum ClientViewIntent {
+    Overlay {
+        terminal_context_id: WorkbenchTerminalContextId,
+        tab_id: WorkbenchTabId,
+        panel_id: WorkbenchPanelId,
+        presentation_id: crate::TerminalPresentationId,
+        expected_binding: crate::PresentationBinding,
+        return_to: ClientOverlayMember,
+        previously_zoomed: bool,
+    },
     AgentFocus {
         terminal_context_id: WorkbenchTerminalContextId,
         tab_id: WorkbenchTabId,
@@ -194,6 +203,14 @@ pub enum ClientViewIntent {
         panel_id: WorkbenchPanelId,
         enabled: bool,
     },
+}
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ClientOverlayMember {
+    pub panel_id: WorkbenchPanelId,
+    pub presentation_id: crate::TerminalPresentationId,
+    #[serde(deserialize_with = "super::json_fields::deserialize_nullable")]
+    pub binding: Option<crate::PresentationBinding>,
 }
 impl ClientViewIntent {
     /// Panel and Agent focus own a cancellable-mode preflight in the Client, remaining effects.
@@ -353,6 +370,18 @@ impl ClientViewIntent {
                     && selection.tab_id.as_ref() == Some(tab_id)
                     && selection.panel_id.as_ref() == Some(panel_id)
             }
+            Self::Overlay {
+                terminal_context_id,
+                tab_id,
+                panel_id,
+                ..
+            } => {
+                selection.terminal_context_id == *terminal_context_id
+                    && selection.tab_id.as_ref() == Some(tab_id)
+                    && selection.panel_id.as_ref() == Some(panel_id)
+                    && selection.zoomed
+                    && selection.panel_count > 1
+            }
             Self::Zoom {
                 terminal_context_id,
                 tab_id,
@@ -379,6 +408,16 @@ pub struct ClientViewControl {
 }
 impl ClientViewControl {
     pub fn validate(&self) -> Result<(), ContractError> {
+        if let ClientViewIntent::Overlay {
+            panel_id,
+            presentation_id,
+            return_to,
+            ..
+        } = &self.intent
+            && (panel_id == &return_to.panel_id || presentation_id == &return_to.presentation_id)
+        {
+            return Err(ContractError::InvalidDocument);
+        }
         if let ClientViewIntent::AgentFocus {
             presentation_id,
             target: orchbee_agent_observation_protocol::AgentNameTarget::Terminal { binding },

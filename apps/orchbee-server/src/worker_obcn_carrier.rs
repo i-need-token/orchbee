@@ -1315,6 +1315,16 @@ fn validate_response(
             if actual.request_id != expected.request_id {
                 return Err(WorkerResponseFailure::MismatchedCorrelation);
             }
+            if let (
+                Action::ReadLifecycle { target },
+                Outcome::LifecycleObserved {
+                    target: observed, ..
+                },
+            ) = (&expected.action, &actual.outcome)
+                && target != observed
+            {
+                return Err(WorkerResponseFailure::MismatchedTarget);
+            }
             if actual.attachment_id != expected.attachment_id {
                 return Err(WorkerResponseFailure::MismatchedTarget);
             }
@@ -1323,6 +1333,10 @@ fn validate_response(
                 (Action::Attach { .. }, Outcome::Attached)
                     | (Action::Poll, Outcome::Empty | Outcome::Record(_))
                     | (Action::ReadProcessInfo, Outcome::Record(_))
+                    | (
+                        Action::ReadLifecycle { .. },
+                        Outcome::LifecycleObserved { .. }
+                    )
                     | (
                         Action::FrameApplied { .. } | Action::NeedSnapshot { .. },
                         Outcome::FeedbackAccepted

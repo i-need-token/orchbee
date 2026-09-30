@@ -296,7 +296,9 @@ impl LocalTerminalSession<'_> {
                 {
                     rejected(Rejected::HostRejected)
                 }
-                WorkerOutcome::Rejected(_) | WorkerOutcome::Attached => {
+                WorkerOutcome::Rejected(_)
+                | WorkerOutcome::Attached
+                | WorkerOutcome::LifecycleObserved { .. } => {
                     self.viewers[index].take();
                     unavailable(Unavailable::TerminalRuntimeUnavailable)
                 }

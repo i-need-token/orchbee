@@ -21,3 +21,7 @@ correlation is mandatory. The [schema and shared corpus](../../schemas/workbench
 cover both Rust and TypeScript. This read grants no mutation or Desktop command.
 Configuration publication additionally carries separate required 32 KiB
 `spacesSidebarProfile`; its matched-cohort frame budget is 256 KiB.
+
+## Plugin overlay observation and Client return identity
+
+Read-only `PaneObserve` carries exact `PluginPaneInfo`; `PaneObserved` echoes it with a nonzero canonical revision and a boolean settlement fact. Correlation includes selector, context/Tab/Panel/Presentation and binding. It grants no lifecycle mutation. Private Client `Overlay` control carries the created bound member, exact nullable return member and previous zoom. Validation rejects self-return identities; Applied requires the requested focused member, zoom and multiple leaves. Required nullability and semantic failures share the Rust/TypeScript corpus. [Windows plugins](../../apps/orchbee/docs/windows-plugins.md#overlay-lifecycle-model) owns runtime records, observation cleanup and canonical Close. These extensions require the matched native cohort and add no Desktop command.

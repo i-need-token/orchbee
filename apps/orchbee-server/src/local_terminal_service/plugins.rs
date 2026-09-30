@@ -10,6 +10,8 @@ use orchbee_workbench_protocol::{
     PluginLogCursor, PluginOutcome as Outcome, PluginRequest, PluginResult, PluginWorker,
     ProtocolVersion, WorkbenchRevision, WorkerId,
 };
+mod observation;
+pub(super) use observation::Observer;
 impl LocalTerminalService {
     pub(crate) fn execute_plugin(&self, request: PluginRequest) -> PluginResult {
         let outcome = self
@@ -26,6 +28,9 @@ impl LocalTerminalService {
         request.validate().map_err(|_| Failure::InvalidIntent)?;
         if self.workbench_site_matches(&request.site_id) != Some(true) {
             return Err(Failure::SiteMismatch);
+        }
+        if let PluginAction::PaneObserve { pane } = &request.action {
+            return self.observe_plugin_pane(request, pane);
         }
         if let PluginAction::PaneGet { panel_id } = &request.action {
             return self

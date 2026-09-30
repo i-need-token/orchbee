@@ -112,3 +112,7 @@ NoLogo／NoProfile／NoExit 开关的启动。不会改造现有终端或任意�
 核心策略／来源测试、实际 PowerShell 5.1／7 prompt 检查、命名管道取消／故障切面及 Windows
 ConPTY 创建轨迹覆盖此模型。目录解析后仍沿用既有阶段顺序。TLA 执行继续延期。持久默认配置仍是独立工作；
 [Tab 自动位置标签](native-tab-labels.zh-CN.md) 保留原始创建事实。回执版本需要匹配 cohort；回滚不会修改用户 profile 或现有终端进程。
+
+## 插件覆盖层
+
+Windows 插件覆盖层通过活动 Client 的水平 split 和一次带守卫的焦点／zoom 交接创建。创建前被动读取成员，固定返回 Panel 实际选中的主／子 Presentation 与 binding。创建 v5 记录 overlay 请求；v2–v4 保持原有内嵌 Client-control v1 契约。仅 v5 接受新增的 Overlay control v8 答复。成员过期、焦点交接失败或回执不明仍保留已知创建，绝不重复创建。[Windows 插件](windows-plugins.zh-CN.md#覆盖层生命周期模型)负责临时返回链、自然终止、规范移除和 popup 排除边界。

@@ -786,6 +786,230 @@ fn inventory_projects_every_exact_target_phase_and_rejects_conflicting_identitie
 }
 
 #[test]
+fn viewer_lifecycle_reads_only_exact_settlement_without_acquiring_a_close_owner() -> TestResult {
+    use orchbee_capability_node_protocol::{
+        TerminalViewerAction, TerminalViewerOutcome, TerminalViewerRequest,
+    };
+    use orchbee_terminal_protocol::{
+        ExitResult, FailureContainment, ProcessObservation, RuntimeFailure, TerminalGeometry,
+    };
+    let core = summary_core(5, 2)?;
+    let geometry = TerminalGeometry {
+        columns: 80,
+        rows: 24,
+    };
+    for (summary, settled) in [
+        (TerminalSummary::AwaitingStart { core: core.clone() }, false),
+        (
+            TerminalSummary::Running {
+                core: core.clone(),
+                geometry,
+                terminate_requested: false,
+            },
+            false,
+        ),
+        (
+            TerminalSummary::Finishing {
+                core: core.clone(),
+                geometry,
+                exit: None,
+                terminate_requested: true,
+            },
+            false,
+        ),
+        (
+            TerminalSummary::ContainingFailure {
+                core: core.clone(),
+                geometry,
+                failure: RuntimeFailure::ReadOutput,
+                failure_containment: FailureContainment::Stopping { process: None },
+            },
+            false,
+        ),
+        (
+            TerminalSummary::Exited {
+                core: core.clone(),
+                geometry,
+                exit: ExitResult::ExitCode(0),
+                terminate_requested: false,
+            },
+            true,
+        ),
+        (
+            TerminalSummary::Failed {
+                core: core.clone(),
+                geometry,
+                failure: RuntimeFailure::ReadOutput,
+                process: ProcessObservation::Unavailable,
+            },
+            true,
+        ),
+    ] {
+        let fixture = Fixture::new()?;
+        let lifecycle = request(TerminalLifecycleAction::Dispose)?;
+        let attach = TerminalViewerRequest {
+            request_id: OperationId::from_bytes([61; 16])?,
+            attachment_id: OperationId::from_bytes([60; 16])?,
+            worker_id: lifecycle.authorization.worker_id,
+            worker_generation: lifecycle.authorization.worker_generation,
+            action: TerminalViewerAction::Attach {
+                host_epoch: lifecycle.target.host_epoch(),
+                terminal_id: lifecycle.target.terminal_id(),
+            },
+        };
+        fixture.host.viewers.borrow_mut().admit(&attach).unwrap();
+        let mut peer = fixture.peer.try_clone()?;
+        let task = thread::spawn(move || -> Result<(), String> {
+            let run = || -> TestResult {
+                let bytes = read_record(&mut peer)?;
+                let envelope = decode_transport_envelope(&bytes)?;
+                assert_eq!(
+                    decode_inventory_control(envelope.kind, envelope.role, envelope.payload)?,
+                    InventoryControl::ListTerminals(ListTerminals {
+                        cursor: None,
+                        maximum_terminals: 128
+                    })
+                );
+                let control = encode_inventory_control(&InventoryControl::TerminalList(
+                    orchbee_terminal_protocol::TerminalList {
+                        inventory_generation: nz(7),
+                        next_cursor: None,
+                        terminals: vec![summary],
+                    },
+                ))?;
+                peer.write_all(&wire(
+                    control.kind,
+                    control.role,
+                    &control.payload,
+                    HostEpoch::from_bytes([4; 16])?,
+                    envelope.correlation_id.ok_or("correlation")?,
+                )?)?;
+                Ok(())
+            };
+            run().map_err(|e| e.to_string())
+        });
+        let read = TerminalViewerRequest {
+            action: TerminalViewerAction::ReadLifecycle {
+                target: lifecycle.target,
+            },
+            ..attach
+        };
+        let result = crate::terminal_viewer_operation::execute(
+            read,
+            orchbee_local_site_protocol::WorkerId::from_bytes([3; 16]),
+            nz(7),
+            &fixture.host,
+            &fixture.server,
+        );
+        task.join()
+            .map_err(|_| "observation peer panic")?
+            .map_err(io::Error::other)?;
+        assert_eq!(
+            result?.outcome,
+            TerminalViewerOutcome::LifecycleObserved {
+                target: lifecycle.target,
+                revision: 42,
+                settled
+            }
+        );
+        fixture
+            .host
+            .viewers
+            .borrow_mut()
+            .remove(attach.attachment_id);
+        // The read path has no lifecycle-kernel authority. Its first real close can still
+        // acquire an independent owner and must reach Host exactly once.
+        let mut kernel = kernel()?;
+        assert!(matches!(
+            kernel.admit_lifecycle(lifecycle, 100, lifecycle.target.host_epoch())?,
+            LifecycleAdmission::Dispatch(_)
+        ));
+    }
+    Ok(())
+}
+
+#[test]
+fn viewer_lifecycle_absence_and_recycled_host_identity_never_mean_exit() -> TestResult {
+    use orchbee_capability_node_protocol::{
+        TerminalViewerAction, TerminalViewerOutcome, TerminalViewerRequest, ViewerRejection,
+    };
+    for terminals in [
+        vec![],
+        vec![TerminalSummary::AwaitingStart {
+            core: summary_core(5, 99)?,
+        }],
+        vec![TerminalSummary::AwaitingStart {
+            core: summary_core(99, 2)?,
+        }],
+    ] {
+        let fixture = Fixture::new()?;
+        let target = request(TerminalLifecycleAction::Dispose)?.target;
+        let attach = TerminalViewerRequest {
+            request_id: OperationId::from_bytes([61; 16])?,
+            attachment_id: OperationId::from_bytes([60; 16])?,
+            worker_id: WorkerId::from_bytes([3; 16])?,
+            worker_generation: WorkerGeneration::new(nz(7)),
+            action: TerminalViewerAction::Attach {
+                host_epoch: target.host_epoch(),
+                terminal_id: target.terminal_id(),
+            },
+        };
+        fixture.host.viewers.borrow_mut().admit(&attach).unwrap();
+        let empty = terminals.is_empty();
+        let mut peer = fixture.peer.try_clone()?;
+        let task = thread::spawn(move || -> Result<(), String> {
+            let run = || -> TestResult {
+                let bytes = read_record(&mut peer)?;
+                let envelope = decode_transport_envelope(&bytes)?;
+                let control = encode_inventory_control(&InventoryControl::TerminalList(
+                    orchbee_terminal_protocol::TerminalList {
+                        inventory_generation: nz(7),
+                        next_cursor: None,
+                        terminals,
+                    },
+                ))?;
+                peer.write_all(&wire(
+                    control.kind,
+                    control.role,
+                    &control.payload,
+                    HostEpoch::from_bytes([4; 16])?,
+                    envelope.correlation_id.ok_or("correlation")?,
+                )?)?;
+                Ok(())
+            };
+            run().map_err(|e| e.to_string())
+        });
+        let result = crate::terminal_viewer_operation::execute(
+            TerminalViewerRequest {
+                action: TerminalViewerAction::ReadLifecycle { target },
+                ..attach
+            },
+            orchbee_local_site_protocol::WorkerId::from_bytes([3; 16]),
+            nz(7),
+            &fixture.host,
+            &fixture.server,
+        );
+        task.join()
+            .map_err(|_| "observation peer panic")?
+            .map_err(io::Error::other)?;
+        if empty {
+            assert_eq!(
+                result?.outcome,
+                TerminalViewerOutcome::Rejected(ViewerRejection::AttachmentUnavailable)
+            );
+        } else {
+            assert!(result.is_err());
+        }
+        fixture
+            .host
+            .viewers
+            .borrow_mut()
+            .remove(attach.attachment_id);
+    }
+    Ok(())
+}
+
+#[test]
 fn inventory_enforces_record_bytes_and_cursor_generation_offset_without_an_extra_query()
 -> TestResult {
     let request = request(TerminalLifecycleAction::InventoryPage {

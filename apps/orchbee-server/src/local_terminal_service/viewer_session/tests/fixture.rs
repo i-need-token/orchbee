@@ -39,7 +39,9 @@ pub(super) fn client_id(value: u128) -> RequestId {
 fn workbench_id(value: u128) -> WorkbenchRequestId {
     WorkbenchRequestId::parse(&format!("{value:032x}")).unwrap()
 }
-fn read_snapshot(service: &LocalTerminalService) -> orchbee_workbench_protocol::Snapshot {
+pub(super) fn read_snapshot(
+    service: &LocalTerminalService,
+) -> orchbee_workbench_protocol::Snapshot {
     let request = WorkbenchRequest::SnapshotRead(orchbee_workbench_protocol::SnapshotReadIntent {
         protocol_version: ProtocolVersion,
         request_id: workbench_id(9000),
@@ -63,6 +65,9 @@ fn placement_value() -> WorkerPlacement {
 }
 impl Fixture {
     pub(super) fn new() -> Self {
+        Self::with_plugin_panes(false)
+    }
+    pub(super) fn with_plugin_panes(plugin: bool) -> Self {
         let registry = Arc::new(Mutex::new(WorkerRegistry::new()));
         let worker_id = orchbee_local_site_protocol::WorkerId::from_bytes([9; 16]);
         let WorkerAdmission::Accepted { generation } = registry.lock().unwrap().admit(worker_id)
@@ -100,7 +105,9 @@ impl Fixture {
             peer: Mutex::new(Some(peer)),
         };
         for target in 0..10 {
-            fixture.targets.push(add_terminal(&fixture.service, target));
+            fixture
+                .targets
+                .push(add_terminal(&fixture.service, target, plugin));
         }
         fixture
     }
@@ -264,7 +271,7 @@ impl Drop for Fixture {
         }
     }
 }
-fn add_terminal(service: &LocalTerminalService, index: u8) -> WorkbenchCommand {
+fn add_terminal(service: &LocalTerminalService, index: u8, plugin: bool) -> WorkbenchCommand {
     let snapshot = read_snapshot(service);
     let create = WorkbenchCommand {
         protocol_version: ProtocolVersion,
@@ -278,7 +285,16 @@ fn add_terminal(service: &LocalTerminalService, index: u8) -> WorkbenchCommand {
             geometry: WorkbenchTerminalGeometry::new(80, 24, 8, 16).unwrap(),
             launch: None,
             profile: None,
-            options: Default::default(),
+            options: Box::new(orchbee_workbench_protocol::LaunchOptions {
+                plugin_pane: plugin.then(|| {
+                    orchbee_workbench_protocol::PluginPaneSelector::new(
+                        "tools".into(),
+                        "dashboard".into(),
+                    )
+                    .unwrap()
+                }),
+                ..Default::default()
+            }),
         },
     };
     let mut site = service.coordinator.lock().unwrap();

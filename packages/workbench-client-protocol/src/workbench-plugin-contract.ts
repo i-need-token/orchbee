@@ -126,12 +126,21 @@ export const PluginCommandLogSchema = z
 		if (value.failure === 'exit-failure') return value.exitCode !== 0;
 		return value.exitCode === null;
 	});
+const paneInfo = z.strictObject({
+	selector: WorkbenchPluginPaneSelectorSchema,
+	terminalContextId: WorkbenchTerminalContextIdSchema,
+	tabId: WorkbenchTabIdSchema,
+	panelId: WorkbenchPanelIdSchema,
+	presentationId: TerminalPresentationIdSchema,
+	binding: WorkbenchPresentationBindingSchema,
+});
 export const PluginRequestSchema = z
 	.strictObject({
 		kind: z.literal('workbench.plugin'),
 		...correlation,
 		action: z.discriminatedUnion('kind', [
 			z.strictObject({ kind: z.literal('pane-get'), panelId: WorkbenchPanelIdSchema }),
+			z.strictObject({ kind: z.literal('pane-observe'), pane: paneInfo }),
 			z.strictObject({
 				kind: z.literal('invoke'),
 				operationId: jobId,
@@ -155,6 +164,12 @@ export const PluginResultSchema = z
 		kind: z.literal('workbench.plugin.result'),
 		...correlation,
 		outcome: z.discriminatedUnion('kind', [
+			z.strictObject({
+				kind: z.literal('pane-observed'),
+				revision: WorkbenchRevisionSchema.refine((value) => value !== '0'),
+				pane: paneInfo,
+				settled: z.boolean(),
+			}),
 			z.strictObject({
 				kind: z.literal('pane-found'),
 				revision: WorkbenchRevisionSchema.refine((value) => value !== '0'),

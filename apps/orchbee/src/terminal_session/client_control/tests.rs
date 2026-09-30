@@ -42,6 +42,116 @@ fn command(control: &ClientControl, zoom: Option<bool>) -> ClientViewControl {
         ),
     }
 }
+
+#[test]
+fn plugin_overlay_control_reserves_before_focus_and_requires_an_uninterrupted_draw() {
+    use crate::terminal_session::ui::publication_hint_tests::{attach_split_peer, split_snapshot};
+    use orchbee_workbench_protocol::{ClientOverlayMember, PanelNode};
+    for case in ["applied", "interrupted", "wrong-binding"] {
+        let (mut native, mailbox, clock, _) = ready_split_ui();
+        let poll = mailbox.try_recv().unwrap().unwrap();
+        mailbox.finish_lease(poll).unwrap();
+        let mut control = controller(clock.clone());
+        control.tick(&mut native, false);
+        let before = native.control_observation(false).unwrap();
+        let mut command = command(&control, None);
+        let ClientViewIntent::Panel {
+            terminal_context_id,
+            tab_id,
+            panel_id,
+        } = command.intent
+        else {
+            unreachable!()
+        };
+        let snapshot = split_snapshot(1);
+        let PanelNode::Split { children, .. } = &snapshot.terminal_contexts[0].tabs[0].root else {
+            unreachable!()
+        };
+        let PanelNode::Panel {
+            primary_presentation: source,
+            ..
+        } = &children[0].node
+        else {
+            unreachable!()
+        };
+        let PanelNode::Panel {
+            panel_id: target,
+            primary_presentation: member,
+            ..
+        } = &children[1].node
+        else {
+            unreachable!()
+        };
+        let mut expected_binding = member.binding.clone().unwrap();
+        if case == "wrong-binding" {
+            expected_binding.terminal_id =
+                orchbee_workbench_protocol::TerminalId::parse(&format!("{:032x}", 999)).unwrap();
+        }
+        command.intent = ClientViewIntent::Overlay {
+            terminal_context_id,
+            tab_id,
+            panel_id: target.clone(),
+            presentation_id: member.presentation_id.clone(),
+            expected_binding,
+            return_to: ClientOverlayMember {
+                panel_id,
+                presentation_id: source.presentation_id.clone(),
+                binding: source.binding.clone(),
+            },
+            previously_zoomed: false,
+        };
+        let target = target.clone();
+        control
+            .lane
+            .as_ref()
+            .unwrap()
+            .inject_delivery_for_test(lane::Delivery {
+                command,
+                workbench_snapshot: Some(snapshot),
+            });
+        control.tick(&mut native, false);
+        if case == "wrong-binding" {
+            assert_eq!(native.control_observation(false).unwrap(), before);
+            assert_eq!(
+                completion(&control).unwrap().1.outcome,
+                ClientViewCompletionOutcome::Rejected {
+                    reason: Reason::TargetUnavailable
+                }
+            );
+            continue;
+        }
+        assert!(completion(&control).is_none());
+        attach_split_peer(&mut native, &mailbox, &clock);
+        // Focus, zoom and the observed draw candidate are distinct UI turns.
+        for _ in 0..3 {
+            control.tick(&mut native, false);
+        }
+        let selection = native
+            .control_observation(false)
+            .unwrap()
+            .1
+            .selection
+            .unwrap();
+        assert_eq!(selection.panel_id.as_ref(), Some(&target));
+        assert!(selection.zoomed);
+        assert!(completion(&control).is_none());
+        if case == "interrupted" {
+            control.interrupt();
+            control.tick(&mut native, false);
+        }
+        control.after_draw(&mut native);
+        assert_eq!(
+            completion(&control).unwrap().1.outcome,
+            if case == "applied" {
+                ClientViewCompletionOutcome::Applied {}
+            } else {
+                ClientViewCompletionOutcome::Incomplete {
+                    reason: Reason::Interrupted,
+                }
+            }
+        );
+    }
+}
 fn inject(control: &ClientControl, command: ClientViewControl) {
     let workbench_snapshot = matches!(command.intent, ClientViewIntent::Panel { .. }).then(|| {
         // These controller fixtures are either the two-Tab baseline or its split first Tab.

@@ -250,3 +250,7 @@ Server 屏幕模型拥有来源选择、下载、安装、取消和回执上限�
 语义字节／跨字段检查补充 JSON Schema。
 配置快照在 Agent profile 之外必需携带独立 32 KiB `spacesSidebarProfile`，编码预算为 256 KiB。
 运行时安装由 Client 拥有并保持原子性。不增加 Desktop 命令或变更权限。
+
+## 插件覆盖层契约
+
+封闭插件联合还验证精确只读 `pane-observe`／`pane-observed` 成员和布尔终止事实。Client `overlay` intent 固定新建与返回成员身份、预期 binding、必填可空返回 binding 及先前 zoom。返回自身或 Applied 缺少 zoom／多个叶节点会在语义验证失败。共享 Rust／JSON Schema 语料覆盖这些新增形状；运行时所有权仍由 [Windows 原生 Client 与 Server](../../apps/orchbee/docs/windows-plugins.zh-CN.md#覆盖层生命周期模型)负责，不增加 Desktop 布局或变更权限。使用匹配的原生 cohort。

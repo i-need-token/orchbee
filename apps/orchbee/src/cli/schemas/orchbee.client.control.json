@@ -8,7 +8,7 @@
 			"const": "orchbee.client.control"
 		},
 		"version": {
-			"enum": [1, 2, 3, 4, 5, 6, 7]
+			"enum": [1, 2, 3, 4, 5, 6, 7, 8]
 		},
 		"siteId": {
 			"anyOf": [
@@ -551,6 +551,86 @@
 					},
 					"required": ["kind", "panelId"],
 					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": [
+						"kind",
+						"terminalContextId",
+						"tabId",
+						"panelId",
+						"presentationId",
+						"expectedBinding",
+						"returnTo",
+						"previouslyZoomed"
+					],
+					"properties": {
+						"kind": {
+							"const": "overlay"
+						},
+						"terminalContextId": {
+							"$ref": "#/$defs/terminalContextId"
+						},
+						"tabId": {
+							"$ref": "#/$defs/tabId"
+						},
+						"panelId": {
+							"$ref": "#/$defs/panelId"
+						},
+						"presentationId": {
+							"$ref": "#/$defs/identity"
+						},
+						"expectedBinding": {
+							"type": "object",
+							"additionalProperties": false,
+							"required": ["workerId", "terminalId"],
+							"properties": {
+								"workerId": {
+									"$ref": "#/$defs/identity"
+								},
+								"terminalId": {
+									"$ref": "#/$defs/identity"
+								}
+							}
+						},
+						"returnTo": {
+							"type": "object",
+							"additionalProperties": false,
+							"required": ["panelId", "presentationId", "binding"],
+							"properties": {
+								"panelId": {
+									"$ref": "#/$defs/panelId"
+								},
+								"presentationId": {
+									"$ref": "#/$defs/identity"
+								},
+								"binding": {
+									"anyOf": [
+										{
+											"type": "object",
+											"additionalProperties": false,
+											"required": ["workerId", "terminalId"],
+											"properties": {
+												"workerId": {
+													"$ref": "#/$defs/identity"
+												},
+												"terminalId": {
+													"$ref": "#/$defs/identity"
+												}
+											}
+										},
+										{
+											"type": "null"
+										}
+									]
+								}
+							}
+						},
+						"previouslyZoomed": {
+							"type": "boolean"
+						}
+					}
 				}
 			]
 		},
@@ -2175,6 +2255,95 @@
 																			}
 																		]
 																	}
+																}
+															}
+														}
+													}
+												}
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"version": {
+						"const": 8
+					}
+				}
+			},
+			"then": {
+				"type": ["object", "null"],
+				"properties": {
+					"observation": {
+						"type": ["object", "null"],
+						"properties": {
+							"reply": {
+								"type": ["object", "null"],
+								"properties": {
+									"outcome": {
+										"type": ["object", "null"],
+										"properties": {
+											"operation": {
+												"type": ["object", "null"],
+												"properties": {
+													"command": {
+														"type": ["object", "null"],
+														"properties": {
+															"intent": {
+																"type": "object",
+																"properties": {
+																	"kind": {
+																		"const": "overlay"
+																	}
+																},
+																"required": ["kind"]
+															}
+														}
+													}
+												}
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			},
+			"else": {
+				"type": ["object", "null"],
+				"properties": {
+					"observation": {
+						"type": ["object", "null"],
+						"properties": {
+							"reply": {
+								"type": ["object", "null"],
+								"properties": {
+									"outcome": {
+										"type": ["object", "null"],
+										"properties": {
+											"operation": {
+												"type": ["object", "null"],
+												"properties": {
+													"command": {
+														"type": ["object", "null"],
+														"properties": {
+															"intent": {
+																"not": {
+																	"type": "object",
+																	"properties": {
+																		"kind": {
+																			"const": "overlay"
+																		}
+																	},
+																	"required": ["kind"]
 																}
 															}
 														}

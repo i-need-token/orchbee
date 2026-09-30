@@ -594,3 +594,7 @@ status/stderr 使用分别带 u16 长度前缀的字节字段，共用原有 793
 旧 Start/StartSource 编码不变。Windows 所有者复用发现槽、TTL、取消、结算及保留回执；
 不支持的平台拒绝该动作。不增加变更／Host 启动／输入权威。运行时所有权见
 [Workspace 侧栏模型](../../apps/orchbee/docs/machines.zh-CN.md#工作区侧栏模型)。
+
+## 只读 viewer 生命周期观察
+
+私有 viewer action tag 15 `ReadLifecycle` 固定 Host creation ID、epoch 和 terminal ID（三个 16 字节身份）。Result tag 7 `LifecycleObserved` 回显该身份、大端 u64 revision 及封闭的 0/1 settled 字节。Worker 核对已准入 viewer 目标，在一个有界预算内遍历 Host inventory；仅精确 Exited／Failed 摘要代表已终止。缺失、分页／身份冲突和传输失败不代表退出。读取不进入独占生命周期内核，也不占用 Close 所有权。Server 在发布终止事实前核对 Worker generation、精确目标和临时 viewer 清理。旧 tag 的字节保持不变；旧 cohort 拒绝这些新增 tag。匹配 cohort 须一起升级或回退。

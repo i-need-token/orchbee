@@ -87,7 +87,10 @@ impl Answer {
                 if matches!(&operation.status, ClientViewControlStatus::PresentationRead { presentation, .. }
                     if matches!(presentation.presentation, Some(orchbee_workbench_protocol::ClientPresentationSelection::Unbound { .. }))))
         });
-        let version = if unbound_read {
+        let overlay = self.reply.as_ref().is_some_and(|reply| matches!(&reply.outcome, ClientViewOutcome::Operation { operation } if matches!(operation.command.intent, orchbee_workbench_protocol::ClientViewIntent::Overlay { .. })));
+        let version = if overlay {
+            8
+        } else if unbound_read {
             7
         } else if presentation_read {
             6

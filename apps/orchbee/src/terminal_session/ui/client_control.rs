@@ -266,6 +266,17 @@ impl NativeUi {
             }
             return ControlStep::Failed(Reason::Busy);
         }
+        if matches!(command.intent, ClientViewIntent::Overlay { .. })
+            && !progress.overlay_registered
+        {
+            let Some(state) = self.state.as_mut() else {
+                return ControlStep::Failed(Reason::ProjectionUnavailable);
+            };
+            if let Err(reason) = state.register_plugin_overlay(&command.intent) {
+                return ControlStep::Failed(reason);
+            }
+            progress.overlay_registered = true;
+        }
         if command
             .intent
             .is_observed(&view, command.minimum_workbench_revision)
@@ -353,6 +364,12 @@ impl NativeUi {
                 terminal_context_id,
                 tab_id,
                 panel_id,
+            }
+            | ClientViewIntent::Overlay {
+                terminal_context_id,
+                tab_id,
+                panel_id,
+                ..
             }
             | ClientViewIntent::Zoom {
                 terminal_context_id,
@@ -443,12 +460,18 @@ impl NativeUi {
             return ControlStep::Failed(Reason::ProjectionUnavailable);
         }
         let enabled = match command.intent {
+            ClientViewIntent::Overlay { .. } => Some(true),
             ClientViewIntent::Zoom { enabled, .. } => Some(enabled),
             ClientViewIntent::ToggleZoom { .. } => progress.toggle_origin.map(|previous| !previous),
             _ => None,
         };
         if let Some(enabled) = enabled {
             self.toggle_zoom();
+            if let ClientViewIntent::Overlay { panel_id, .. } = &command.intent
+                && let Some(state) = self.state.as_mut()
+            {
+                state.arm_overlay_zoom(panel_id);
+            }
             if self
                 .state
                 .as_ref()

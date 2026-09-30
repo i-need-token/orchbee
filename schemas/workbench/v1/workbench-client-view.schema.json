@@ -474,6 +474,86 @@
 					},
 					"required": ["kind", "panelId"],
 					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": [
+						"kind",
+						"terminalContextId",
+						"tabId",
+						"panelId",
+						"presentationId",
+						"expectedBinding",
+						"returnTo",
+						"previouslyZoomed"
+					],
+					"properties": {
+						"kind": {
+							"const": "overlay"
+						},
+						"terminalContextId": {
+							"$ref": "#/$defs/terminalContextId"
+						},
+						"tabId": {
+							"$ref": "#/$defs/tabId"
+						},
+						"panelId": {
+							"$ref": "#/$defs/panelId"
+						},
+						"presentationId": {
+							"$ref": "#/$defs/physicalIdentity"
+						},
+						"expectedBinding": {
+							"type": "object",
+							"additionalProperties": false,
+							"required": ["workerId", "terminalId"],
+							"properties": {
+								"workerId": {
+									"$ref": "#/$defs/physicalIdentity"
+								},
+								"terminalId": {
+									"$ref": "#/$defs/physicalIdentity"
+								}
+							}
+						},
+						"returnTo": {
+							"type": "object",
+							"additionalProperties": false,
+							"required": ["panelId", "presentationId", "binding"],
+							"properties": {
+								"panelId": {
+									"$ref": "#/$defs/panelId"
+								},
+								"presentationId": {
+									"$ref": "#/$defs/physicalIdentity"
+								},
+								"binding": {
+									"anyOf": [
+										{
+											"type": "object",
+											"additionalProperties": false,
+											"required": ["workerId", "terminalId"],
+											"properties": {
+												"workerId": {
+													"$ref": "#/$defs/physicalIdentity"
+												},
+												"terminalId": {
+													"$ref": "#/$defs/physicalIdentity"
+												}
+											}
+										},
+										{
+											"type": "null"
+										}
+									]
+								}
+							}
+						},
+						"previouslyZoomed": {
+							"type": "boolean"
+						}
+					}
 				}
 			]
 		},

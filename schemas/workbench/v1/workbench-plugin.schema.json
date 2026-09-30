@@ -163,6 +163,19 @@
 									}
 								}
 							}
+						},
+						{
+							"type": "object",
+							"additionalProperties": false,
+							"required": ["kind", "pane"],
+							"properties": {
+								"kind": {
+									"const": "pane-observe"
+								},
+								"pane": {
+									"$ref": "#/$defs/paneInfo"
+								}
+							}
 						}
 					]
 				}
@@ -388,6 +401,26 @@
 											}
 										}
 									}
+								}
+							}
+						},
+						{
+							"type": "object",
+							"additionalProperties": false,
+							"required": ["kind", "revision", "pane", "settled"],
+							"properties": {
+								"kind": {
+									"const": "pane-observed"
+								},
+								"revision": {
+									"type": "string",
+									"pattern": "^[1-9][0-9]*$"
+								},
+								"pane": {
+									"$ref": "#/$defs/paneInfo"
+								},
+								"settled": {
+									"type": "boolean"
 								}
 							}
 						}
@@ -879,6 +912,72 @@
 			},
 			"required": ["pluginId", "entrypointId"],
 			"additionalProperties": false
+		},
+		"paneInfo": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": [
+				"selector",
+				"terminalContextId",
+				"tabId",
+				"panelId",
+				"presentationId",
+				"binding"
+			],
+			"properties": {
+				"selector": {
+					"$ref": "#/$defs/paneSelector"
+				},
+				"terminalContextId": {
+					"type": "string",
+					"pattern": "^[0-9a-f]{32}$",
+					"not": {
+						"const": "00000000000000000000000000000000"
+					}
+				},
+				"tabId": {
+					"type": "string",
+					"pattern": "^[0-9a-f]{32}$",
+					"not": {
+						"const": "00000000000000000000000000000000"
+					}
+				},
+				"panelId": {
+					"type": "string",
+					"pattern": "^[0-9a-f]{32}$",
+					"not": {
+						"const": "00000000000000000000000000000000"
+					}
+				},
+				"presentationId": {
+					"type": "string",
+					"pattern": "^[0-9a-f]{32}$",
+					"not": {
+						"const": "00000000000000000000000000000000"
+					}
+				},
+				"binding": {
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["workerId", "terminalId"],
+					"properties": {
+						"workerId": {
+							"type": "string",
+							"pattern": "^[0-9a-f]{32}$",
+							"not": {
+								"const": "00000000000000000000000000000000"
+							}
+						},
+						"terminalId": {
+							"type": "string",
+							"pattern": "^[0-9a-f]{32}$",
+							"not": {
+								"const": "00000000000000000000000000000000"
+							}
+						}
+					}
+				}
+			}
 		}
 	}
 }
