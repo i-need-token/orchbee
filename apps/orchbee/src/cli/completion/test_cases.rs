@@ -1,6 +1,46 @@
 //! Shared observable completion obligations, independent of shell syntax.
 
 pub(super) const CASES: &[(&str, &str, bool)] = &[
+    ("orchbee terminal copy-m", "copy-motion", true),
+    ("orchbee help terminal copy-s", "copy-search", true),
+    ("orchbee terminal copy-motion abc --mo", "--motion", true),
+    (
+        "orchbee terminal copy-motion abc --motion next-b",
+        "next-big-word-start",
+        true,
+    ),
+    (
+        "orchbee terminal copy-motion abc --motion=previous-p",
+        "--motion=previous-paragraph",
+        true,
+    ),
+    (
+        "orchbee terminal copy-search abc --direction b",
+        "backward",
+        true,
+    ),
+    (
+        "orchbee terminal copy-search abc --query literal --co",
+        "--content-revision",
+        true,
+    ),
+    ("orchbee terminal copy-search abc --pr", "--previous", true),
+    (
+        "orchbee terminal copy-motion abc --query literal --mo",
+        "--motion",
+        false,
+    ),
+    (
+        "orchbee terminal copy-motion abc --motion bad --cu",
+        "--cursor",
+        false,
+    ),
+    ("orchbee terminal read abc --mo", "--motion", false),
+    (
+        "orchbee --machine work terminal copy-s",
+        "copy-search",
+        true,
+    ),
     ("orchbee terminal sel", "selection-read", true),
     ("orchbee help terminal sel", "selection-read", true),
     ("orchbee terminal selection-read ", "--anchor", true),

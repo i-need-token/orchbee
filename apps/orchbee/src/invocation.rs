@@ -43,7 +43,17 @@ mod terminal_output;
 #[cfg(windows)]
 mod terminal_selection;
 #[cfg(windows)]
-pub(crate) use terminal_selection::{TerminalSelectionCommand, TerminalTextPoint};
+pub(crate) use terminal_selection::TerminalSelectionCommand;
+#[cfg(windows)]
+mod terminal_buffer;
+#[cfg(windows)]
+mod terminal_copy;
+#[cfg(windows)]
+pub(crate) use crate::terminal_copy::{
+    CopyMotion, CopySearchDirection, TerminalTextPoint, TerminalTextRange,
+};
+#[cfg(windows)]
+pub(crate) use terminal_copy::{TerminalCopyAction, TerminalCopyCommand};
 mod terminal_run;
 mod terminal_stream;
 pub(crate) use client_control::{
@@ -414,6 +424,10 @@ pub(crate) enum CommandPath {
     TerminalRead,
     #[cfg(windows)]
     TerminalSelectionRead,
+    #[cfg(windows)]
+    TerminalCopyMotion,
+    #[cfg(windows)]
+    TerminalCopySearch,
     TerminalWaitOutput,
     TerminalSend,
     TerminalRun,
@@ -559,6 +573,10 @@ impl CommandPath {
             Self::TerminalRead => "terminal read",
             #[cfg(windows)]
             Self::TerminalSelectionRead => "terminal selection-read",
+            #[cfg(windows)]
+            Self::TerminalCopyMotion => "terminal copy-motion",
+            #[cfg(windows)]
+            Self::TerminalCopySearch => "terminal copy-search",
             Self::TerminalWaitOutput => "terminal wait-output",
             Self::TerminalSend => "terminal send",
             Self::TerminalRun => "terminal run",
@@ -1359,6 +1377,11 @@ pub(crate) enum RuntimeStatusScope {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum Request {
     #[cfg(windows)]
+    TerminalCopy {
+        command: TerminalCopyCommand,
+        format: OutputFormat,
+    },
+    #[cfg(windows)]
     TerminalSelection {
         command: TerminalSelectionCommand,
         format: OutputFormat,
@@ -1591,6 +1614,14 @@ pub(crate) enum UsageContext {
 /// expect; rendered per locale, never serialized.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum ExpectedValue {
+    #[cfg(windows)]
+    TerminalCopyMotion,
+    #[cfg(windows)]
+    TerminalCopyQuery,
+    #[cfg(windows)]
+    TerminalCopyPrevious,
+    #[cfg(windows)]
+    TerminalCopyDirection,
     #[cfg(windows)]
     TerminalSelectionPoint,
     #[cfg(windows)]
@@ -1862,6 +1893,9 @@ enum Token {
 
 #[derive(Default)]
 struct Options {
+    copy_motion: Option<String>,
+    copy_query: Option<String>,
+    copy_previous: Option<String>,
     selection_anchor: Option<String>,
     content_revision: Option<String>,
     agent_view_spec: Option<String>,
@@ -1998,6 +2032,9 @@ struct Options {
 /// both the format-envelope walk and the option scan so ownership is decided
 /// identically in the two passes.
 const VALUE_FLAGS: &[&str] = &[
+    "--motion",
+    "--query",
+    "--previous",
     "--anchor",
     "--content-revision",
     "--spec",
@@ -2709,6 +2746,9 @@ fn apply_value_flag(
         "--target-pane" => &mut options.plugin_target,
         "--ref" => &mut options.plugin_ref,
         "--limit" => &mut options.limit,
+        "--motion" => &mut options.copy_motion,
+        "--query" => &mut options.copy_query,
+        "--previous" => &mut options.copy_previous,
         "--anchor" => &mut options.selection_anchor,
         "--content-revision" => &mut options.content_revision,
         "--cursor" => &mut options.cursor,
@@ -3981,6 +4021,10 @@ fn resolve_words(
             terminal_stream::observe(operands, options, envelope)
         }
         #[cfg(windows)]
+        ["terminal", "copy-motion", value] => terminal_copy::parse(value, options, false, envelope),
+        #[cfg(windows)]
+        ["terminal", "copy-search", value] => terminal_copy::parse(value, options, true, envelope),
+        #[cfg(windows)]
         ["terminal", "selection-read", value] => {
             terminal_selection::parse(value, options, envelope)
         }
@@ -5089,6 +5133,10 @@ fn help_topic(path: &[&str]) -> Option<HelpTopic> {
         ["terminal", "read"] => HelpTopic::Command(CommandPath::TerminalRead),
         #[cfg(windows)]
         ["terminal", "selection-read"] => HelpTopic::Command(CommandPath::TerminalSelectionRead),
+        #[cfg(windows)]
+        ["terminal", "copy-motion"] => HelpTopic::Command(CommandPath::TerminalCopyMotion),
+        #[cfg(windows)]
+        ["terminal", "copy-search"] => HelpTopic::Command(CommandPath::TerminalCopySearch),
         ["terminal", "wait-output"] => HelpTopic::Command(CommandPath::TerminalWaitOutput),
         ["terminal", "send"] => HelpTopic::Command(CommandPath::TerminalSend),
         ["terminal", "run"] => HelpTopic::Command(CommandPath::TerminalRun),
@@ -5247,6 +5295,9 @@ fn mutation(command: MutationCommand, options: &Options) -> Request {
 /// is only meaningful whole.
 #[derive(Clone, Copy)]
 struct Scope {
+    copy_motion: bool,
+    copy_query: bool,
+    copy_previous: bool,
     selection_anchor: bool,
     content_revision: bool,
     agent_view_spec: bool,
@@ -5388,6 +5439,9 @@ struct Scope {
 }
 
 const NO_OPTIONS: Scope = Scope {
+    copy_motion: false,
+    copy_query: false,
+    copy_previous: false,
     selection_anchor: false,
     content_revision: false,
     agent_view_spec: false,
@@ -5725,7 +5779,10 @@ const INTEGRATION_SCOPE: Scope = Scope {
 
 /// Any mutation-only option seen outside a mutation command.
 fn business_options(options: &Options) -> bool {
-    options.selection_anchor.is_some()
+    options.copy_motion.is_some()
+        || options.copy_query.is_some()
+        || options.copy_previous.is_some()
+        || options.selection_anchor.is_some()
         || options.content_revision.is_some()
         || options.remote_session.is_some()
         || options.machine_json
@@ -5814,6 +5871,15 @@ fn business_options(options: &Options) -> bool {
 /// The first named option present but outside `scope`, in the fixed `Options`
 /// declaration order — deterministic without any argv-order state.
 fn first_out_of_scope(options: &Options, scope: Scope) -> Option<&'static str> {
+    if options.copy_motion.is_some() && !scope.copy_motion {
+        return Some("--motion");
+    }
+    if options.copy_query.is_some() && !scope.copy_query {
+        return Some("--query");
+    }
+    if options.copy_previous.is_some() && !scope.copy_previous {
+        return Some("--previous");
+    }
     if options.selection_anchor.is_some() && !scope.selection_anchor {
         return Some("--anchor");
     }

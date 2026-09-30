@@ -75,7 +75,7 @@ fn selection_read_cli_reads_a_pinned_inclusive_range_and_releases_its_viewer() {
     }
 }
 
-fn selection_frame_without_ack(stream: &mut LocalStream) -> ViewerId {
+pub(super) fn selection_frame_without_ack(stream: &mut LocalStream) -> ViewerId {
     let route = inspect_terminal_frame_route(OBTF).unwrap();
     let viewer = ViewerId::parse(&route.attachment_id.to_text()).unwrap();
     let req = request(stream);

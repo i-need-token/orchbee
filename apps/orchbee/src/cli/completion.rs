@@ -294,6 +294,10 @@ const FAMILY_VERBS: &[(&str, &[&str])] = &[
             "read",
             #[cfg(windows)]
             "selection-read",
+            #[cfg(windows)]
+            "copy-motion",
+            #[cfg(windows)]
+            "copy-search",
             "run",
             "send",
             "session",
@@ -326,6 +330,9 @@ const FAMILY_VERBS: &[(&str, &[&str])] = &[
 /// Every business flag the grammar admits (`--format` is orthogonal), in the
 /// order the state machine records them.
 const BUSINESS_FLAGS: &[&str] = &[
+    "--motion",
+    "--query",
+    "--previous",
     "--anchor",
     "--content-revision",
     "--spec",
@@ -474,6 +481,23 @@ const REPEATABLE_FLAGS: &[&str] = &[
 const CONTROL_FLAGS: &[&str] = &["--cols", "--rows", "--timeout", "--takeover"];
 const OBSERVE_FLAGS: &[&str] = &["--cols", "--rows", "--timeout"];
 const COMMAND_FLAGS: &[(&str, &[&str])] = &[
+    #[cfg(windows)]
+    (
+        "terminal:copy-motion",
+        &["--cursor", "--motion", "--content-revision", "--generation"],
+    ),
+    #[cfg(windows)]
+    (
+        "terminal:copy-search",
+        &[
+            "--cursor",
+            "--query",
+            "--direction",
+            "--previous",
+            "--content-revision",
+            "--generation",
+        ],
+    ),
     #[cfg(windows)]
     ("agent:view:get", &[]),
     #[cfg(windows)]
@@ -1141,6 +1165,8 @@ const COMMAND_FLAGS: &[(&str, &[&str])] = &[
 /// direction-admitting commands appear.
 const DIRECTION_VALUES: &[(&str, &[&str])] = &[
     #[cfg(windows)]
+    ("terminal:copy-search", &["forward", "backward"]),
+    #[cfg(windows)]
     ("plugin:pane:open", &["right", "down"]),
     ("panel:focus", &["left", "right", "up", "down"]),
     ("panel:resize", &["left", "right", "up", "down"]),
@@ -1254,6 +1280,10 @@ const PROVIDER_VALUES: &[&str] = &[
 
 /// `<family>:<verb>` paths that consume one positional operand.
 const OPERAND_PATHS: &[&str] = &[
+    #[cfg(windows)]
+    "terminal:copy-motion",
+    #[cfg(windows)]
+    "terminal:copy-search",
     #[cfg(windows)]
     "machine:add",
     #[cfg(windows)]
@@ -1525,6 +1555,10 @@ const HELP_CHILDREN: &[(&str, &[&str])] = &[
             "read",
             #[cfg(windows)]
             "selection-read",
+            #[cfg(windows)]
+            "copy-motion",
+            #[cfg(windows)]
+            "copy-search",
             "run",
             "send",
             "session",
@@ -1583,6 +1617,19 @@ pub(crate) fn render(shell: CompletionShell) -> String {
 }
 
 /// `flag` → the walker's one-shot seen bit for it.
+const COPY_MOTION_VALUES: &[&str] = &[
+    "line-end",
+    "first-non-blank",
+    "next-word-start",
+    "previous-word-start",
+    "next-word-end",
+    "next-big-word-start",
+    "previous-big-word-start",
+    "next-big-word-end",
+    "previous-paragraph",
+    "next-paragraph",
+];
+
 fn flag_bit(flag: &str) -> &'static str {
     match flag {
         "--remote-session" => "seen_remote_session",
@@ -1685,6 +1732,9 @@ fn flag_bit(flag: &str) -> &'static str {
         "--outdated-only" => "seen_outdated_only",
         "--include-ended" => "seen_include_ended",
         "--limit" => "seen_limit",
+        "--motion" => "seen_copy_motion",
+        "--query" => "seen_copy_query",
+        "--previous" => "seen_copy_previous",
         "--anchor" => "seen_selection_anchor",
         "--content-revision" => "seen_content_revision",
         "--cursor" => "seen_cursor",
@@ -1726,6 +1776,7 @@ fn flag_value(flag: &str) -> Option<&'static str> {
         | "--plain"
         | "--ansi" => None,
         "--direction" => Some("direction"),
+        "--motion" => Some("copy_motion"),
         "--key" => Some("key"),
         "--until" => Some("until"),
         "--provider" => Some("provider"),
@@ -2305,8 +2356,10 @@ fn joined_offer_cases_bash() -> String {
     let key = joined("--key", KEY_VALUES);
     let until = joined("--until", UNTIL_VALUES);
     let provider = joined("--provider", PROVIDER_VALUES);
+    let copy_motion = joined("--motion", COPY_MOTION_VALUES);
     format!(
         concat!(
+            "            --motion) ((!seen_copy_motion)) && [[ $family:$sub == terminal:copy-motion ]] && candidates=\"{copy_motion}\" ;;\n",
             "            --cwd) ((!seen_cwd)) && [[ $family:$sub == tab:create || $family:$sub == panel:split || $family:$sub == workspace:create ]] && candidates=\"{cwd}\" ;;\n",
             "            --source)\n",
             "                if ((!seen_output_source)); then\n",
@@ -2371,6 +2424,7 @@ fn joined_offer_cases_bash() -> String {
         key = key,
         until = until,
         provider = provider,
+        copy_motion = copy_motion,
     )
 }
 
@@ -2649,6 +2703,7 @@ fn bash() -> String {
             "    elif [[ $value == key ]]; then candidates=\"{key_values}\"\n",
             "    elif [[ $value == until ]]; then candidates=\"{until_values}\"\n",
             "    elif [[ $value == provider ]]; then candidates=\"{provider_values}\"\n",
+            "    elif [[ $value == copy_motion ]]; then [[ $family:$sub == terminal:copy-motion ]] && candidates=\"{copy_motion_values}\"\n",
             "    elif [[ -n $value ]]; then candidates=\"\"\n",
             "    elif [[ $cur == --format=* ]]; then\n",
             "        if ((!seen_format)); then\n",
@@ -2741,6 +2796,7 @@ fn bash() -> String {
         key_values = KEY_VALUES.join(" "),
         until_values = UNTIL_VALUES.join(" "),
         provider_values = PROVIDER_VALUES.join(" "),
+        copy_motion_values = COPY_MOTION_VALUES.join(" "),
         roots = ROOT_WORDS.join(" "),
         format_roots = FORMAT_ROOT_WORDS.join(" "),
         shells = SHELLS.join(" "),
@@ -3018,6 +3074,7 @@ fn zsh() -> String {
             "    elif [[ $value == key ]]; then candidates=\"{key_values}\"\n",
             "    elif [[ $value == until ]]; then candidates=\"{until_values}\"\n",
             "    elif [[ $value == provider ]]; then candidates=\"{provider_values}\"\n",
+            "    elif [[ $value == copy_motion ]]; then [[ $family:$sub == terminal:copy-motion ]] && candidates=\"{copy_motion_values}\"\n",
             "    elif [[ -n $value ]]; then candidates=\"\"\n",
             "    elif [[ $cur == --format=* ]]; then\n",
             "        if ((!seen_format)); then\n",
@@ -3106,6 +3163,7 @@ fn zsh() -> String {
         key_values = KEY_VALUES.join(" "),
         until_values = UNTIL_VALUES.join(" "),
         provider_values = PROVIDER_VALUES.join(" "),
+        copy_motion_values = COPY_MOTION_VALUES.join(" "),
         roots = ROOT_WORDS.join(" "),
         format_roots = FORMAT_ROOT_WORDS.join(" "),
         shells = SHELLS.join(" "),
@@ -3534,8 +3592,10 @@ fn joined_offer_cases_fish() -> String {
     let key = joined("--key", KEY_VALUES);
     let until = joined("--until", UNTIL_VALUES);
     let provider = joined("--provider", PROVIDER_VALUES);
+    let copy_motion = joined("--motion", COPY_MOTION_VALUES);
     format!(
         concat!(
+            "            case '--motion'; if test $seen_copy_motion -eq 0; and test \"$family:$sub\" = terminal:copy-motion; set candidates {copy_motion}; end\n",
             "            case '--cwd'; if test $seen_cwd -eq 0; and contains -- \"$family:$sub\" tab:create panel:split panel:create-terminal workspace:create; set candidates {cwd}; end\n",
             "            case '--source'\n",
             "                if test $seen_output_source -eq 0\n",
@@ -3592,6 +3652,7 @@ fn joined_offer_cases_fish() -> String {
         key = key,
         until = until,
         provider = provider,
+        copy_motion = copy_motion,
     )
 }
 
@@ -3853,6 +3914,7 @@ fn fish() -> String {
             "    else if test \"$value\" = key; set candidates {key_values}\n",
             "    else if test \"$value\" = until; set candidates {until_values}\n",
             "    else if test \"$value\" = provider; set candidates {provider_values}\n",
+            "    else if test \"$value\" = copy_motion; if test \"$family:$sub\" = terminal:copy-motion; set candidates {copy_motion_values}; end\n",
             "    else if test -n \"$value\"; set candidates\n",
             "    else if string match -q -- '--format=*' $cur\n",
             "        if test $seen_format -eq 0\n",
@@ -3938,6 +4000,7 @@ fn fish() -> String {
         key_values = KEY_VALUES.join(" "),
         until_values = UNTIL_VALUES.join(" "),
         provider_values = PROVIDER_VALUES.join(" "),
+        copy_motion_values = COPY_MOTION_VALUES.join(" "),
         roots = ROOT_WORDS.join(" "),
         format_roots = FORMAT_ROOT_WORDS.join(" "),
         shells = SHELLS.join(" "),
@@ -4215,6 +4278,14 @@ mod tests {
 
     #[test]
     fn path_tables_agree_with_the_grammar() {
+        #[cfg(windows)]
+        assert_eq!(
+            super::COPY_MOTION_VALUES,
+            crate::terminal_copy::CopyMotion::ALL
+                .into_iter()
+                .map(crate::terminal_copy::CopyMotion::token)
+                .collect::<Vec<_>>()
+        );
         assert_eq!(
             BUSINESS_FLAGS.len(),
             BUSINESS_FLAGS

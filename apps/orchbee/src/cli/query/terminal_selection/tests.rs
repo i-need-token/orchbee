@@ -2,6 +2,7 @@ use super::*;
 use orchbee_terminal_protocol::{
     AttachmentId, HostEpoch, TerminalRowPromptClass, TerminalTextCellMapping,
 };
+use std::num::NonZeroU64;
 
 fn p(row: u32, col: u16) -> TerminalTextPoint {
     TerminalTextPoint { row, col }

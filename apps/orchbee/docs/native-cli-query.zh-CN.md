@@ -40,7 +40,48 @@ generation／Host epoch。`orchbee.terminal.selection` v1 为封闭 JSON 回执�
 证据覆盖反向／单单元格／空白选区、宽字／组合字映射、软／硬换行、尺寸／跨度
 边界、解析／帮助／补全／schema admission，以及实际 Windows CLI 管道中的成功
 读取、过期预期内容、错误行路由、Host 类型拒绝及确定的 viewer 释放。
-Copy motion／search、外部 scrollback 编辑及最终 Host／模拟器验收仍为独立义务。
+外部 scrollback 编辑及最终 Host／模拟器验收仍为独立义务；复制移动／搜索见下节。
+
+## 终端复制移动与搜索
+
+Windows `terminal copy-motion <terminal> --cursor ROW:COL --motion <motion>`
+计算新的屏幕缓冲区光标，不改变 Client 选区也不发送输入。移动名为
+`line-end`、`first-non-blank`、`next-word-start`、`previous-word-start`、
+`next-word-end`、`next-big-word-start`、`previous-big-word-start`、
+`next-big-word-end`、`previous-paragraph`、`next-paragraph`。
+两类词均跨越已验证软换行，硬行插入空白分隔。普通词区分空白、tmux ASCII
+标点（下划线除外）及其他字符；大词仅按空白分隔。结果保留完整字形头部，
+宽字尾与组合字均不拆开。行末是裁剪硬行尾填充后的最后字符；首非空白是首个
+非空白字形。依冻结参照，Kitty Unicode placeholder 单元格在复制移动／搜索中视为空白。段落移动找指定方向最近的空白物理行，保留列，依冻结参照最多
+检查 999 行。没有目标则返回原光标；缓冲区外坐标失败。
+
+Windows `terminal copy-search <terminal> --cursor ROW:COL --query <literal>`
+`--direction forward|backward --content-revision <u64>` 搜索完整保留逻辑文本。
+查询原样保留，最多 4096 UTF-8 字节，按字面量与 Unicode 智能大小写匹配：
+任意大写字符使其区分大小写。空查询在内容围栏通过后返回零匹配。
+可选 `--previous ROW:COL-ROW:COL` 是排序后的包含端点前次匹配；向前起点是
+其末端，向后是其始端；省略时使用传入光标。下一项必须起于向前起点之后，
+或终于向后起点之前；没有则环绕到首项／末项。匹配边界必须对应完整字形。
+硬逻辑行末裁剪填充；已验证宽字 spacer head 不增加文本或词边界。
+结果保留精确总数及全局当前位置，并返回最多 1024 项、以当前匹配居中的窗口
+及其局部索引。零匹配的当前索引为 null；u64 索引／计数使用十进制字符串。
+
+两命令复用 selection-read 的既有 Site、五秒取消、精确终端／帧修订／generation／
+Host／几何及 viewer 释放所有者。移动可选 `--content-revision`，搜索必须指定；
+二者另接受 `--generation <positive-u64>`。每次行请求有递增独立序号，使用既有
+逐窗口字节／单元格限制；相邻窗口的软换行连续标记必须一致。
+完整准入扫描完成后才输出：最多 65536 行、累计 8 MiB 编码行窗口／逻辑文本及 1048576
+个保留字形。超限或过期／回收／错误路由整体失败，不输出部分匹配、不重试，
+也不捏造无操作成功。行移动只读一行；段落与词移动先读 64 行，按需扩展：段落在最近空白行或 999 行距离处停止；
+只有词边界得到证实才返回，向前继续未结束的词末，向后继续软换行延续的词首。
+相邻批次保留同一帧及全局字节／字形预算。搜索覆盖完整保留缓冲区。
+
+`orchbee.terminal.copy-motion` 和 `orchbee.terminal.copy-search` v1 为独立封闭回执，
+保留原始请求、精确终端绑定与内容身份。默认文本本地化标签、转义查询／控制字符。
+确定性的 `terminal_copy` 域拥有单元格／词／逻辑行决策；只有 CLI 读取适配器拥有
+发现、交换、期限与清理。证据覆盖全部十种移动、Unicode／完整字形、行／窗口边界、
+字面量／智能大小写／空搜索、前次起点、环绕、超过 1024 项的精确总数、效果前参数
+限制及实际 Windows CLI 成功／过期／错误回包／释放轨迹；最终部署 Host／模拟器验收独立保留。
 
 ## Workbench 拓扑查询
 

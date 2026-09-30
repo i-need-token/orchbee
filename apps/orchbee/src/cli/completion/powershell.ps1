@@ -128,6 +128,7 @@ __ORCHBEE_GRAMMAR__
             for ($index = 0; $index -lt [Math]::Min($positionals.Count, $command.words.Count); $index++) {
                 if ($positionals[$index] -cne $command.words[$index]) { $valid = $false }
             }
+            if ($values.ContainsKey('--motion') -and $grammar.copyMotions -cnotcontains $values['--motion']) { $valid = $false }
             if ($values.ContainsKey('--direction') -and $command.directions -cnotcontains $values['--direction']) { $valid = $false }
             $valid
         })
@@ -183,6 +184,7 @@ __ORCHBEE_GRAMMAR__
                 '--mouse' { 'off'; 'on' }
                 '--cwd' { $viable | ForEach-Object { $_.cwdValues } }
                 '--direction' { $viable | ForEach-Object { $_.directions } }
+                '--motion' { $grammar.copyMotions }
                 '--right-click' { $grammar.rightClick }
                 '--position' { $grammar.notificationPositions }
                 '--sound' { $grammar.notificationSounds }

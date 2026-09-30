@@ -1,0 +1,146 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "orchbee.terminal.copy-motion",
+	"title": "orchbee.terminal.copy-motion",
+	"type": "object",
+	"required": ["schema", "version", "source", "result"],
+	"additionalProperties": false,
+	"properties": {
+		"schema": {
+			"const": "orchbee.terminal.copy-motion"
+		},
+		"version": {
+			"const": 1
+		},
+		"source": {
+			"$ref": "#/$defs/snapshotSource"
+		},
+		"result": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": [
+				"terminal",
+				"contentRevision",
+				"contentGeneration",
+				"hostEpoch",
+				"origin",
+				"motion",
+				"cursor"
+			],
+			"properties": {
+				"terminal": {
+					"$ref": "#/$defs/terminal"
+				},
+				"contentRevision": {
+					"$ref": "#/$defs/decimal"
+				},
+				"contentGeneration": {
+					"$ref": "#/$defs/positiveDecimal"
+				},
+				"hostEpoch": {
+					"$ref": "#/$defs/id"
+				},
+				"origin": {
+					"$ref": "#/$defs/point"
+				},
+				"motion": {
+					"enum": [
+						"line-end",
+						"first-non-blank",
+						"next-word-start",
+						"previous-word-start",
+						"next-word-end",
+						"next-big-word-start",
+						"previous-big-word-start",
+						"next-big-word-end",
+						"previous-paragraph",
+						"next-paragraph"
+					]
+				},
+				"cursor": {
+					"$ref": "#/$defs/point"
+				}
+			}
+		}
+	},
+	"$defs": {
+		"id": {
+			"type": "string",
+			"pattern": "^[0-9a-f]{32}$"
+		},
+		"decimal": {
+			"type": "string",
+			"pattern": "^(0|[1-9][0-9]*)$"
+		},
+		"positiveDecimal": {
+			"type": "string",
+			"pattern": "^[1-9][0-9]*$"
+		},
+		"terminal": {
+			"type": "object",
+			"required": ["terminalId", "workerId", "boundTo"],
+			"additionalProperties": false,
+			"properties": {
+				"terminalId": {
+					"$ref": "#/$defs/id"
+				},
+				"workerId": {
+					"$ref": "#/$defs/id"
+				},
+				"boundTo": {
+					"type": "object",
+					"required": ["presentationId", "panelId", "tabId", "terminalContextId"],
+					"additionalProperties": false,
+					"properties": {
+						"presentationId": {
+							"$ref": "#/$defs/id"
+						},
+						"panelId": {
+							"$ref": "#/$defs/id"
+						},
+						"tabId": {
+							"$ref": "#/$defs/id"
+						},
+						"terminalContextId": {
+							"$ref": "#/$defs/id"
+						}
+					}
+				}
+			}
+		},
+		"snapshotSource": {
+			"type": "object",
+			"required": ["kind", "siteId", "revision"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": {
+					"const": "workbench-snapshot"
+				},
+				"siteId": {
+					"$ref": "#/$defs/id"
+				},
+				"revision": {
+					"type": "string",
+					"pattern": "^(0|[1-9][0-9]*)$"
+				}
+			}
+		},
+		"point": {
+			"type": "object",
+			"required": ["row", "col"],
+			"additionalProperties": false,
+			"properties": {
+				"row": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 4294967295
+				},
+				"col": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 65535
+				}
+			}
+		}
+	}
+}

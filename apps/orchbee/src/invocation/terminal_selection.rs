@@ -1,15 +1,9 @@
 //! Public screen-buffer coordinates are admitted before runtime discovery.
 use super::{
     ExpectedValue, FailureEnvelope, NO_OPTIONS, Options, OutputFormat, ParseFailure, Request,
-    Resource, Scope, Target, UsageContext, UsageReason, check_scope, missing_required, target,
+    Resource, Scope, Target, TerminalTextPoint, UsageContext, UsageReason, check_scope, target,
     usage_with,
 };
-
-#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
-pub(crate) struct TerminalTextPoint {
-    pub(crate) row: u32,
-    pub(crate) col: u16,
-}
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct TerminalSelectionCommand {
@@ -39,20 +33,14 @@ pub(super) fn parse(
         CONTEXT,
         envelope,
     )?;
-    let point = |raw: Option<&str>, option| {
-        let raw = raw.ok_or_else(|| missing_required(CONTEXT, option, envelope))?;
-        let invalid = || invalid(raw, option, ExpectedValue::TerminalSelectionPoint, envelope);
-        let (row, col) = raw.split_once(':').ok_or_else(invalid)?;
-        if !digits(row) || !digits(col) {
-            return Err(invalid());
-        }
-        Ok(TerminalTextPoint {
-            row: row.parse().map_err(|_| invalid())?,
-            col: col.parse().map_err(|_| invalid())?,
-        })
-    };
-    let anchor = point(options.selection_anchor.as_deref(), "--anchor")?;
-    let cursor = point(options.cursor.as_deref(), "--cursor")?;
+    let anchor = super::terminal_buffer::point(
+        options.selection_anchor.as_deref(),
+        "--anchor",
+        CONTEXT,
+        envelope,
+    )?;
+    let cursor =
+        super::terminal_buffer::point(options.cursor.as_deref(), "--cursor", CONTEXT, envelope)?;
     if u64::from(anchor.row.abs_diff(cursor.row)) + 1 > 4096 {
         return Err(invalid(
             options.cursor.as_deref().expect("required cursor"),
@@ -61,22 +49,6 @@ pub(super) fn parse(
             envelope,
         ));
     }
-    let number = |raw: &str, option, positive| {
-        let expected = if positive {
-            ExpectedValue::TerminalContentGeneration
-        } else {
-            ExpectedValue::TerminalContentRevision
-        };
-        let invalid = || invalid(raw, option, expected, envelope);
-        if !digits(raw) {
-            return Err(invalid());
-        }
-        let number: u64 = raw.parse().map_err(|_| invalid())?;
-        if positive && number == 0 {
-            return Err(invalid());
-        }
-        Ok(number)
-    };
     Ok(Request::TerminalSelection {
         command: TerminalSelectionCommand {
             target: target(value.to_owned(), Resource::Terminal, envelope)?,
@@ -85,20 +57,26 @@ pub(super) fn parse(
             revision: options
                 .content_revision
                 .as_deref()
-                .map(|raw| number(raw, "--content-revision", false))
+                .map(|raw| {
+                    super::terminal_buffer::number(
+                        raw,
+                        "--content-revision",
+                        false,
+                        CONTEXT,
+                        envelope,
+                    )
+                })
                 .transpose()?,
             generation: options
                 .generation
                 .as_deref()
-                .map(|raw| number(raw, "--generation", true))
+                .map(|raw| {
+                    super::terminal_buffer::number(raw, "--generation", true, CONTEXT, envelope)
+                })
                 .transpose()?,
         },
         format: options.format.unwrap_or(OutputFormat::Text),
     })
-}
-
-fn digits(raw: &str) -> bool {
-    !raw.is_empty() && raw.bytes().all(|byte| byte.is_ascii_digit())
 }
 
 fn invalid(

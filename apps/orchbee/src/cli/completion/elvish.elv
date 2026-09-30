@@ -120,6 +120,7 @@
           if (has-value $seen --clear) { set limit = (- $limit 1) }
         }
         if (> $n (+ $width $limit)) { set valid = $false }
+        if (and (has-key $values --motion) (not (has-value $grammar[copyMotions] $values[--motion]))) { set valid = $false }
         if (and (has-key $values --direction) (not (has-value $command[directions] $values[--direction]))) { set valid = $false }
         if $valid { set viable = [$@viable $command] }
       }
@@ -164,7 +165,7 @@
         set candidates = []
         var source-values = []
         for command $viable { if (not-eq (str:join : $command[words]) workspace:report-metadata) { set source-values = $grammar[outputSources]; break } }
-        var enums = [&--format=$grammar[formats] &--mouse=[off on] &--right-click=$grammar[rightClick] &--source=$source-values &--key=$grammar[keys] &--until=$grammar[until] &--provider=$grammar[providers] &--kind=$grammar[agentKinds]]
+        var enums = [&--motion=$grammar[copyMotions] &--format=$grammar[formats] &--mouse=[off on] &--right-click=$grammar[rightClick] &--source=$source-values &--key=$grammar[keys] &--until=$grammar[until] &--provider=$grammar[providers] &--kind=$grammar[agentKinds]]
         if (has-key $enums $pending) {
           for value $enums[$pending] { set candidates = [$@candidates $joined$value] }
         } elif (eq $pending --cwd) {

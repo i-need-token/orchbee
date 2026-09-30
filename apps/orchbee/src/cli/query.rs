@@ -3,6 +3,10 @@
 //! Neither path activates a Site, starts a process, or mutates the Workbench.
 
 #[cfg(windows)]
+mod terminal_buffer;
+#[cfg(windows)]
+pub(super) mod terminal_copy;
+#[cfg(windows)]
 mod terminal_output;
 #[cfg(windows)]
 pub(super) mod terminal_selection;

@@ -436,6 +436,14 @@ const DOCUMENTS: &[(&str, &str)] = &[
         include_str!("schemas/orchbee.terminal.selection.json"),
     ),
     (
+        "orchbee.terminal.copy-motion",
+        include_str!("schemas/orchbee.terminal.copy-motion.json"),
+    ),
+    (
+        "orchbee.terminal.copy-search",
+        include_str!("schemas/orchbee.terminal.copy-search.json"),
+    ),
+    (
         "orchbee.terminal.send",
         include_str!("schemas/orchbee.terminal.send.json"),
     ),
@@ -530,8 +538,8 @@ pub(crate) fn answer(schema_id: Option<&str>, format: OutputFormat, locale: Loca
     };
     let document = json!({
         "schema": "orchbee.api.schema",
-        // Adds the revision-pinned, read-only terminal selection receipt.
-        "version": 126,
+        // Adds the revision-pinned copy motion/search receipts.
+        "version": 127,
         "source": embedded_source(),
         "result": result,
     });

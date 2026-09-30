@@ -24,6 +24,8 @@ use super::Locale;
 use crate::cli::Failure;
 use crate::invocation::HelpTopic;
 #[cfg(windows)]
+mod terminal_copy;
+#[cfg(windows)]
 mod workspace_creation;
 mod workspace_group_close;
 mod worktree;
@@ -686,6 +688,31 @@ impl Locale {
             (_, ExpectedValue::TerminalContentRevision) => "0..18446744073709551615",
             #[cfg(windows)]
             (_, ExpectedValue::TerminalContentGeneration) => "1..18446744073709551615",
+            #[cfg(windows)]
+            (Self::EnUs, ExpectedValue::TerminalCopyMotion) => {
+                "one of the ten motions listed by help terminal copy-motion"
+            }
+            #[cfg(windows)]
+            (Self::ZhCn, ExpectedValue::TerminalCopyMotion) => {
+                "help terminal copy-motion 列出的十种移动之一"
+            }
+            #[cfg(windows)]
+            (Self::EnUs, ExpectedValue::TerminalCopyQuery) => {
+                "a literal query of at most 4096 UTF-8 bytes"
+            }
+            #[cfg(windows)]
+            (Self::ZhCn, ExpectedValue::TerminalCopyQuery) => "最多 4096 UTF-8 字节的字面量查询",
+            #[cfg(windows)]
+            (_, ExpectedValue::TerminalCopyDirection) => "forward|backward",
+            #[cfg(windows)]
+            (Self::EnUs, ExpectedValue::TerminalCopyPrevious) => {
+                "ROW:COL-ROW:COL (inclusive buffer endpoints)"
+            }
+            #[cfg(windows)]
+            (Self::ZhCn, ExpectedValue::TerminalCopyPrevious) => {
+                "ROW:COL-ROW:COL（包含缓冲区端点）"
+            }
+
             #[cfg(windows)]
             (Self::EnUs, ExpectedValue::PluginActionId) => {
                 "an action ID or plugin.action ID (up to 241 ASCII characters)"
@@ -2813,6 +2840,15 @@ impl Locale {
             (Self::EnUs, CommandPath::TerminalSelectionRead) => HELP_TERMINAL_SELECTION_EN,
             #[cfg(windows)]
             (Self::ZhCn, CommandPath::TerminalSelectionRead) => HELP_TERMINAL_SELECTION_ZH,
+            #[cfg(windows)]
+            (Self::EnUs, CommandPath::TerminalCopyMotion) => terminal_copy::HELP_MOTION_EN,
+            #[cfg(windows)]
+            (Self::ZhCn, CommandPath::TerminalCopyMotion) => terminal_copy::HELP_MOTION_ZH,
+            #[cfg(windows)]
+            (Self::EnUs, CommandPath::TerminalCopySearch) => terminal_copy::HELP_SEARCH_EN,
+            #[cfg(windows)]
+            (Self::ZhCn, CommandPath::TerminalCopySearch) => terminal_copy::HELP_SEARCH_ZH,
+
             (Self::EnUs, CommandPath::TerminalWaitOutput) => HELP_TERMINAL_WAIT_OUTPUT_EN,
             (Self::ZhCn, CommandPath::TerminalWaitOutput) => HELP_TERMINAL_WAIT_OUTPUT_ZH,
             (Self::EnUs, CommandPath::TerminalRun) => HELP_TERMINAL_RUN_EN,
@@ -3048,8 +3084,8 @@ const HELP_PANEL_ZH: &str = "orchbee panel list|get|current|report-agent|report-
 
 const HELP_TERMINAL_OBSERVE_EN: &str = "Usage: orchbee terminal session observe <terminal> [--cols <n>] [--rows <n>] [--timeout <ms>]\n\nWindows: observe one existing terminal as NDJSON (orchbee.terminal.stream v2).\nTarget: complete terminal ID or @terminal:<suffix>. Default viewport: 120x40;\ndimensions: 1..4096, at most 262144 cells. Crops/pads without resizing the source.\nFrames contain full safe ANSI screens encoded as base64, not raw PTY output.\nThe stream does not read stdin or acquire control. Both formats emit NDJSON.\nNo total timeout by default; --timeout: 1..3600000 ms. Ctrl+C exits 130; timeout\nexits 7. Each transport/output stall is bounded to five seconds; cleanup may\ntake two seconds. A disconnected source is a failure, not a successful exit.\n";
 const HELP_TERMINAL_OBSERVE_ZH: &str = "用法：orchbee terminal session observe <terminal> [--cols <n>] [--rows <n>] [--timeout <ms>]\n\nWindows：以 NDJSON 持续观察一个已有终端（orchbee.terminal.stream v2）。\n目标：完整终端 ID 或 @terminal:<suffix>。默认视口为 120x40；单边尺寸为\n1..4096，总计最多 262144 个单元格。仅裁剪或填充，不改变源终端大小。\n帧包含以 base64 编码的完整安全 ANSI 屏幕，不是原始 PTY 输出。\n不读取 stdin，也不获取控制权。两种格式均输出 NDJSON。\n默认没有总超时；--timeout 范围为 1..3600000 毫秒。Ctrl+C 退出码为 130，\n超时为 7。每次传输或输出停滞最多五秒；清理可能需要两秒。\n源连接断开视为失败，不会报告成功退出。\n";
-const HELP_TERMINAL_EN: &str = "orchbee terminal list|get|read|selection-read|wait-output|send|run|session|attach|title\n\nQuery terminals bound by Workbench Presentations in the running local Site,\nor send one input record to one of them.\n  terminal title set <title> | clear   Set/clear the outer Windows TUI title\n  terminal list                List every bound terminal\n  terminal get <terminal-id>   Show one terminal by ID or @terminal:<suffix>\n  terminal read <terminal-id> [--history --rows <n>] [--unwrap] [--lines <n>]\n                               Read the terminal's visible content; the paired\n                               flags read retained history rows instead\n  terminal wait-output <terminal-id> --match <text> | --regex <pattern>\n                               Wait for text in the terminal's retained output\n  terminal run <target> <command>  Paste a quoted command then press Enter\n  terminal send <terminal-id>  Send text or one key to the terminal's input\n  terminal attach <terminal>  Windows interactive control; Ctrl+B then q detaches\nTerminal targets accept a complete typed ID or an @terminal:<suffix> selector.\nA terminal invisible to any Presentation binding cannot be listed, read,\nwaited on, or sent to; a binding proves structure only, not that a process\nis alive.\n";
-const HELP_TERMINAL_ZH: &str = "orchbee terminal list|get|read|selection-read|wait-output|send|run|session|attach|title\n  terminal title set <title> | clear   设置/清除 Windows TUI 外层标题\n\n查询本地 Site 中被 Workbench Presentation 绑定的终端，或向其中一个终端发送一条输入。\n  terminal list                列出所有已绑定终端\n  terminal get <terminal-id>   按完整类型化 ID 或 @terminal:<suffix> 显示一个终端\n  terminal read <terminal-id> [--history --rows <n>] [--unwrap] [--lines <n>]\n                               读取终端当前可见内容；成对 flag 时改为读取\n                               保留历史行\n  terminal wait-output <terminal-id> --match <text> | --regex <pattern>\n                               等待终端保留输出中出现匹配内容\n  terminal run <target> <command>  粘贴一个引号内命令，再按 Enter\n  terminal send <terminal-id>  向终端输入发送文本或一个按键\n  terminal attach <terminal>  Windows 交互控制；Ctrl+B 后按 q 脱离\n未被任何 Presentation 引用的终端不可见、不可读、不可等待也不可发送；绑定只证明结构，不证明进程存活。\n";
+const HELP_TERMINAL_EN: &str = "orchbee terminal list|get|read|selection-read|copy-motion|copy-search|wait-output|send|run|session|attach|title\n\nQuery terminals bound by Workbench Presentations in the running local Site,\nor send one input record to one of them.\n  terminal title set <title> | clear   Set/clear the outer Windows TUI title\n  terminal list                List every bound terminal\n  terminal get <terminal-id>   Show one terminal by ID or @terminal:<suffix>\n  terminal read <terminal-id> [--history --rows <n>] [--unwrap] [--lines <n>]\n                               Read the terminal's visible content; the paired\n                               flags read retained history rows instead\n  terminal wait-output <terminal-id> --match <text> | --regex <pattern>\n                               Wait for text in the terminal's retained output\n  terminal run <target> <command>  Paste a quoted command then press Enter\n  terminal send <terminal-id>  Send text or one key to the terminal's input\n  terminal attach <terminal>  Windows interactive control; Ctrl+B then q detaches\nTerminal targets accept a complete typed ID or an @terminal:<suffix> selector.\nA terminal invisible to any Presentation binding cannot be listed, read,\nwaited on, or sent to; a binding proves structure only, not that a process\nis alive.\n";
+const HELP_TERMINAL_ZH: &str = "orchbee terminal list|get|read|selection-read|copy-motion|copy-search|wait-output|send|run|session|attach|title\n  terminal title set <title> | clear   设置/清除 Windows TUI 外层标题\n\n查询本地 Site 中被 Workbench Presentation 绑定的终端，或向其中一个终端发送一条输入。\n  terminal list                列出所有已绑定终端\n  terminal get <terminal-id>   按完整类型化 ID 或 @terminal:<suffix> 显示一个终端\n  terminal read <terminal-id> [--history --rows <n>] [--unwrap] [--lines <n>]\n                               读取终端当前可见内容；成对 flag 时改为读取\n                               保留历史行\n  terminal wait-output <terminal-id> --match <text> | --regex <pattern>\n                               等待终端保留输出中出现匹配内容\n  terminal run <target> <command>  粘贴一个引号内命令，再按 Enter\n  terminal send <terminal-id>  向终端输入发送文本或一个按键\n  terminal attach <terminal>  Windows 交互控制；Ctrl+B 后按 q 脱离\n未被任何 Presentation 引用的终端不可见、不可读、不可等待也不可发送；绑定只证明结构，不证明进程存活。\n";
 
 const HELP_SITE_EN: &str = "orchbee site start|stop|stop-status|diagnose\n  orchbee site config|reload-config [--format text|json]\n  orchbee site agent-manifests [--format text|json]\n  orchbee site reload-agent-manifests [--request-id <id>] [--format text|json]\n  orchbee site update-agent-manifests [--request-id <id>] [--format text|json]\n  orchbee site agent-manifests-status <id> [--format text|json]\n\nManage the implicit per-user local Site's lifecycle.\n  site start     Ensure the local Site is running, activating it without a\n                TTY when needed\n  site stop      Stop the managed Windows Site and its terminals (--confirm)\n  site stop-status <id>  Inspect a stop attempt or completed receipt\n  site diagnose  Inspect the local Site runtime's finite paths and locks —\n                read-only facts, never a repair or a process claim\n";
 const HELP_SITE_ZH: &str = "orchbee site start|stop|stop-status|diagnose\n  orchbee site config|reload-config [--format text|json]\n  orchbee site agent-manifests [--format text|json]\n  orchbee site reload-agent-manifests [--request-id <id>] [--format text|json]\n  orchbee site update-agent-manifests [--request-id <id>] [--format text|json]\n  orchbee site agent-manifests-status <id> [--format text|json]\n\n管理隐式的每用户本地 Site 生命周期。\n  site start     确保本地 Site 正在运行，必要时在无 TTY 环境下激活\n  site stop      停止托管 Windows Site 及其终端（必须 --confirm）\n  site stop-status <id>  查询停止尝试或完成回执\n  site diagnose  检查本地 Site 运行时的有限路径与锁——只读事实，\n                绝不修复，也不对进程下断言\n";

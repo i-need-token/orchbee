@@ -1,229 +1,48 @@
 //! One revision-pinned buffer read; it does not own the user's selection.
-use super::{
-    LocalClient, TerminalTextFrame, TerminalViewerAction, TerminalViewerOutcome,
-    TerminalViewerRequest, ViewerId, attach_viewer_cancellable, classify_rows_rejected,
-    classify_viewer, classify_viewer_rejected, decode_history_window, obcs_request_id,
-    poll_terminal_frame_cancellable, stream_snapshot, viewer_protocol_invalid, viewer_unavailable,
-};
+use super::terminal_buffer::{self, ContentFence, Prepared};
+use super::viewer_protocol_invalid;
 use crate::{
-    cli::{
-        Failure, FailureKind, Output, failure_output, output, results,
-        source::{ArmedSignals, Finish, SignalWatch},
-    },
+    cli::{Failure, Output},
     invocation::{OutputFormat, TerminalSelectionCommand, TerminalTextPoint},
     localization::Locale,
 };
-use orchbee_client_server_protocol::{ViewerRowDetail, ViewerRowsRejectedReason};
 use orchbee_terminal_protocol::{TerminalTextRowWindow, TerminalTextWindowRow};
 use serde_json::{Value, json};
-use std::{
-    num::NonZeroU64,
-    time::{Duration, Instant},
-};
 
 pub(crate) fn run(
     command: &TerminalSelectionCommand,
     format: OutputFormat,
     locale: Locale,
 ) -> Output {
-    let deadline = Instant::now() + Duration::from_secs(5);
-    let mut signals = match ArmedSignals::arm_interrupts() {
-        Ok(signals) => signals,
-        Err(_) => {
-            return failure_output(
-                Failure::new(FailureKind::InternalFailure),
-                Some(format),
-                locale,
-            );
-        }
-    };
-    let mut result = execute(command, format, locale, deadline, &mut signals)
-        .unwrap_or_else(|failure| failure_output(failure, Some(format), locale));
-    match signals.finish() {
-        Ok(Finish::Clear) => {}
-        Ok(Finish::Cancelled { finalization, .. }) => {
-            result.status = 130;
-            result.finalization = Some(finalization);
-        }
-        Err(_) => result.status = 1,
-    }
-    result
-}
-
-fn execute(
-    command: &TerminalSelectionCommand,
-    format: OutputFormat,
-    locale: Locale,
-    deadline: Instant,
-    signals: &mut ArmedSignals,
-) -> Result<Output, Failure> {
-    signals.check_before(deadline)?;
-    let (mut client, snapshot) = stream_snapshot(deadline, signals.poll_fd())?;
-    let source = results::snapshot_source(&snapshot);
-    let (terminal, viewer, attachment, epoch, projection) = attach_viewer_cancellable(
-        &mut client,
-        deadline,
-        &snapshot,
+    terminal_buffer::run(
         &command.target,
-        signals.poll_fd(),
-    )
-    .map_err(|failure| failure.source(source.clone()))?;
-    let observed = (|| {
-        let frame = poll_terminal_frame_cancellable(
-            &mut client,
-            deadline,
-            &viewer,
-            projection,
-            signals.poll_fd(),
-        )?;
-        if command
-            .revision
-            .is_some_and(|revision| revision != frame.route.revision)
-        {
-            return Err(classify_rows_rejected(
-                ViewerRowsRejectedReason::StaleRevision,
-                "read-history",
-            ));
-        }
-        if command
-            .generation
-            .is_some_and(|generation| generation != frame.route.generation.get())
-        {
-            return Err(classify_rows_rejected(
-                ViewerRowsRejectedReason::StaleGeneration,
-                "read-history",
-            ));
-        }
-        let (start, end) = ordered(command.anchor, command.cursor);
-        let total = frame
-            .scrollback_rows
-            .checked_add(u64::from(frame.geometry.rows))
-            .ok_or_else(viewer_protocol_invalid)?;
-        if u64::from(end.row) >= total
-            || start.col >= frame.geometry.columns
-            || end.col >= frame.geometry.columns
-        {
-            return Err(classify_rows_rejected(
-                ViewerRowsRejectedReason::LimitExceeded,
-                "read-history",
-            ));
-        }
-        let feedback = TerminalViewerRequest::new(
-            obcs_request_id()?,
-            TerminalViewerAction::FrameApplied {
-                attachment_id: viewer.clone(),
-                sequence: frame.route.sequence,
-                generation: frame.route.generation,
-                revision: frame.route.revision,
-            },
-        );
-        match client
-            .submit_terminal_viewer_cancellable(feedback, Some(deadline), signals.poll_fd())
-            .map_err(classify_viewer)?
-            .outcome()
-        {
-            TerminalViewerOutcome::FeedbackAccepted {} => {}
-            TerminalViewerOutcome::Rejected { reason } => {
-                return Err(classify_viewer_rejected(*reason));
-            }
-            TerminalViewerOutcome::Unavailable { .. } => return Err(viewer_unavailable()),
-            _ => return Err(viewer_protocol_invalid()),
-        }
-        let window = read_window(&mut client, &viewer, &frame, start, end, deadline, signals)?;
-        if window.attachment_id != attachment || window.host_epoch != epoch {
-            return Err(viewer_protocol_invalid());
-        }
-        let text = extract(&window, start, end)?;
-        Ok((frame, text))
-    })();
-    // A cancelled/failed Detach still ends the connection's owned viewer on Drop.
-    if let Ok(id) = obcs_request_id() {
-        let _ = client.submit_terminal_viewer_cancellable(
-            TerminalViewerRequest::new(
-                id,
-                TerminalViewerAction::Detach {
-                    attachment_id: viewer,
-                },
-            ),
-            Some(deadline),
-            signals.poll_fd(),
-        );
-    }
-    drop(client);
-    let (frame, text) = observed.map_err(|failure| failure.source(source.clone()))?;
-    signals.check_before(deadline)?;
-    let document = json!({
-        "schema":"orchbee.terminal.selection", "version":1, "source":source,
-        "result":{
-            "terminal":results::terminal_row_json(&terminal),
-            "anchor":point(command.anchor), "cursor":point(command.cursor),
-            "contentRevision":frame.route.revision.to_string(),
-            "contentGeneration":frame.route.generation.get().to_string(),
-            "hostEpoch":frame.route.host_epoch.to_text(), "text":text,
+        ContentFence {
+            revision: command.revision,
+            generation: command.generation,
         },
-    });
-    let stdout = match format {
-        OutputFormat::Json => output::encode_document(&document),
-        OutputFormat::Text => output::encode_text(&locale.cli_terminal_selection(
-            &terminal.terminal_id,
-            frame.route.revision,
-            &text,
-        )),
-    }
-    .map_err(|_| Failure::new(FailureKind::OutputTooLarge).source(source))?;
-    Ok(Output {
-        status: 0,
-        stdout,
-        stderr: String::new(),
-        finalization: None,
-    })
+        format,
+        locale,
+        "orchbee.terminal.selection",
+        |reader| {
+            reader.validate_point(command.anchor)?;
+            reader.validate_point(command.cursor)?;
+            let (start, end) = ordered(command.anchor, command.cursor);
+            let count = (u64::from(end.row) - u64::from(start.row) + 1) as u16;
+            let window = reader.window(u64::from(start.row), count)?;
+            let text = extract(&window, start, end)?;
+            let rendered = locale.cli_terminal_selection(
+                &reader.terminal.terminal_id,
+                reader.frame.route.revision,
+                &text,
+            );
+            Ok(Prepared {
+                result: json!({"anchor":point(command.anchor),"cursor":point(command.cursor),"text":text}),
+                text: rendered,
+            })
+        },
+    )
 }
 
-fn read_window(
-    client: &mut LocalClient,
-    viewer: &ViewerId,
-    frame: &TerminalTextFrame,
-    start: TerminalTextPoint,
-    end: TerminalTextPoint,
-    deadline: Instant,
-    signals: &mut ArmedSignals,
-) -> Result<TerminalTextRowWindow, Failure> {
-    let count = u16::try_from(u64::from(end.row) - u64::from(start.row) + 1)
-        .map_err(|_| Failure::new(FailureKind::InvalidUsage))?;
-    let request = TerminalViewerRequest::new(
-        obcs_request_id()?,
-        TerminalViewerAction::ReadRows {
-            detail: ViewerRowDetail::Text,
-            attachment_id: viewer.clone(),
-            start_row: u64::from(start.row),
-            row_count: count,
-            revision: frame.route.revision,
-            generation: frame.route.generation,
-            request_sequence: NonZeroU64::MIN,
-            maximum_bytes: orchbee_client_server_protocol::MAXIMUM_READ_ROWS_BYTES,
-        },
-    );
-    let result = client
-        .submit_terminal_viewer_cancellable(request, Some(deadline), signals.poll_fd())
-        .map_err(classify_viewer)?;
-    match result.outcome() {
-        TerminalViewerOutcome::Record(record) => decode_history_window(
-            record.clone(),
-            frame.route.attachment_id,
-            frame.route.host_epoch,
-            frame,
-            u64::from(start.row),
-            u64::from(count),
-            NonZeroU64::MIN,
-        ),
-        TerminalViewerOutcome::RowsRejected { reason } => {
-            Err(classify_rows_rejected(*reason, "read-history"))
-        }
-        TerminalViewerOutcome::Rejected { reason } => Err(classify_viewer_rejected(*reason)),
-        TerminalViewerOutcome::Unavailable { .. } => Err(viewer_unavailable()),
-        _ => Err(viewer_protocol_invalid()),
-    }
-}
 fn ordered(a: TerminalTextPoint, b: TerminalTextPoint) -> (TerminalTextPoint, TerminalTextPoint) {
     if a <= b { (a, b) } else { (b, a) }
 }

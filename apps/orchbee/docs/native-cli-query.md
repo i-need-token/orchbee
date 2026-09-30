@@ -51,8 +51,66 @@ Evidence covers reversed/single-cell and blank ranges, wide/combining mappings,
 soft/hard wraps, geometry and span limits, parse/help/completion/schema admission,
 and real Windows CLI pipe traces for a successful read, stale expected content,
 wrong row routing and typed Host refusal with deterministic viewer release.
-Copy motion/search, external scrollback editing and final Host/emulator acceptance
-remain separate obligations.
+External scrollback editing and final Host/emulator acceptance remain separate
+obligations; copy motion/search are specified below.
+
+## Terminal copy motion and search
+
+Windows `terminal copy-motion <terminal> --cursor ROW:COL --motion <motion>`
+computes a new screen-buffer cursor without changing Client selection or sending
+input. Motion names are `line-end`, `first-non-blank`, `next-word-start`,
+`previous-word-start`, `next-word-end`, `next-big-word-start`,
+`previous-big-word-start`, `next-big-word-end`, `previous-paragraph` and
+`next-paragraph`. Both word classes cross verified soft wraps; hard rows insert
+whitespace. Ordinary words distinguish whitespace, tmux ASCII punctuation
+(excluding underscore), and other characters; big words distinguish only
+whitespace. Results remain at whole glyph heads, including wide tails and
+combining text. Line end is the last character after hard-row padding trim;
+first nonblank is the first non-whitespace glyph. Kitty Unicode placeholder
+cells are whitespace for copy motion/search, matching the pinned reference. Paragraph motion finds the
+nearest blank physical row in the requested direction, preserving column and
+checking at most 999 rows, as the pinned reference does. No target returns the
+original cursor. Out-of-buffer points fail.
+
+Windows `terminal copy-search <terminal> --cursor ROW:COL --query <literal>`
+`--direction forward|backward --content-revision <u64>` searches complete retained
+logical text. The query is preserved, admits at most 4096 UTF-8 bytes, and is
+literal with Unicode smart case: any uppercase character makes it case-sensitive.
+An empty query yields no matches after the content fence. Optional
+`--previous ROW:COL-ROW:COL` is an ordered inclusive prior match; forward origin
+is its end, backward origin its start. Without it the supplied cursor is the
+origin. The next match starts strictly after a forward origin, or ends strictly
+before a backward origin; absent one, search wraps to first/last. Match boundaries
+must coincide with complete glyph boundaries. Padding is trimmed at hard logical
+line endings; a verified wide spacer head adds neither text nor a word boundary.
+The result preserves the exact total and global current index, while returning
+at most 1024 matches centered around the current match and its local index.
+Zero matches have null current indexes. Index/count u64 values use decimal strings.
+
+Both commands share selection-read's existing-Site, five-second cancellation,
+exact terminal/frame revision/generation/Host/geometry and viewer release owner.
+Motion optionally pins `--content-revision`; search requires it. Both additionally
+accept `--generation <positive-u64>`. Each rows request has its own increasing
+sequence and uses the existing per-window byte/cell limits; adjacent windows
+must agree on soft-wrap continuation. A complete admitted scan precedes output:
+at most 65536 rows, 8 MiB of aggregate encoded row windows/logical text and 1048576 stored
+glyphs. Exceeding bounds or stale/evicted/misrouted data fails whole without
+partial matches, retry or an invented no-op. Line motions read one row;
+paragraph and word motion begin with 64 rows and extend only when needed.
+Paragraphs stop at the nearest blank or their 999-row distance; word starts/ends
+are returned only after their boundaries are proven, extending backward through
+soft continuations or forward through unfinished word ends. Adjacent chunks keep
+the same frame and global byte/glyph budgets. Search covers the complete retained buffer.
+
+`orchbee.terminal.copy-motion` and `orchbee.terminal.copy-search` v1 are separate
+closed receipts, retaining original request data, exact terminal binding and
+content identity. Default text localizes labels and escapes query/control text.
+The deterministic `terminal_copy` domain owns cell/word/logical-line decisions;
+the CLI read adapter alone owns discovery, exchange, deadline and cleanup.
+Evidence covers all ten motions, Unicode and whole glyphs, row/window boundaries,
+literal/smart-case/empty search, previous origins, wrapping and exact totals beyond
+1024, parse-before-effect limits, and actual Windows CLI success/stale/forged
+reply/release traces. Final deployed Host/emulator acceptance remains separate.
 
 ## Workbench topology queries
 

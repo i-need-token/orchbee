@@ -10,7 +10,7 @@
 			"const": "orchbee.api.schema"
 		},
 		"version": {
-			"const": 126
+			"const": 127
 		},
 		"source": {
 			"type": "object",
@@ -105,6 +105,8 @@
 						"orchbee.terminal.list",
 						"orchbee.terminal.read",
 						"orchbee.terminal.selection",
+						"orchbee.terminal.copy-motion",
+						"orchbee.terminal.copy-search",
 						"orchbee.terminal.send",
 						"orchbee.terminal.wait-output",
 						"orchbee.workspace.close-status",
@@ -226,6 +228,8 @@
 				"orchbee.terminal.list",
 				"orchbee.terminal.read",
 				"orchbee.terminal.selection",
+				"orchbee.terminal.copy-motion",
+				"orchbee.terminal.copy-search",
 				"orchbee.terminal.send",
 				"orchbee.terminal.wait-output",
 				"orchbee.workspace.close-status",

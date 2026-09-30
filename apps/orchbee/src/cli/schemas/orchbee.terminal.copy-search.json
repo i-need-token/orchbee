@@ -1,0 +1,236 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "orchbee.terminal.copy-search",
+	"title": "orchbee.terminal.copy-search",
+	"type": "object",
+	"required": ["schema", "version", "source", "result"],
+	"additionalProperties": false,
+	"properties": {
+		"schema": {
+			"const": "orchbee.terminal.copy-search"
+		},
+		"version": {
+			"const": 1
+		},
+		"source": {
+			"$ref": "#/$defs/snapshotSource"
+		},
+		"result": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": [
+				"terminal",
+				"contentRevision",
+				"contentGeneration",
+				"hostEpoch",
+				"origin",
+				"query",
+				"direction",
+				"previous",
+				"matches",
+				"total",
+				"current",
+				"currentGlobal"
+			],
+			"properties": {
+				"terminal": {
+					"$ref": "#/$defs/terminal"
+				},
+				"contentRevision": {
+					"$ref": "#/$defs/decimal"
+				},
+				"contentGeneration": {
+					"$ref": "#/$defs/positiveDecimal"
+				},
+				"hostEpoch": {
+					"$ref": "#/$defs/id"
+				},
+				"origin": {
+					"$ref": "#/$defs/point"
+				},
+				"query": {
+					"type": "string",
+					"maxLength": 4096
+				},
+				"direction": {
+					"enum": ["forward", "backward"]
+				},
+				"previous": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/range"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"matches": {
+					"type": "array",
+					"maxItems": 1024,
+					"items": {
+						"$ref": "#/$defs/range"
+					}
+				},
+				"total": {
+					"$ref": "#/$defs/decimal"
+				},
+				"current": {
+					"anyOf": [
+						{
+							"type": "integer",
+							"minimum": 0,
+							"maximum": 1023
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"currentGlobal": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/decimal"
+						},
+						{
+							"type": "null"
+						}
+					]
+				}
+			},
+			"allOf": [
+				{
+					"if": {
+						"properties": {
+							"total": {
+								"const": "0"
+							}
+						},
+						"required": ["total"]
+					},
+					"then": {
+						"properties": {
+							"matches": {
+								"maxItems": 0
+							},
+							"current": {
+								"type": "null"
+							},
+							"currentGlobal": {
+								"type": "null"
+							}
+						}
+					},
+					"else": {
+						"properties": {
+							"matches": {
+								"minItems": 1
+							},
+							"current": {
+								"type": "integer",
+								"minimum": 0,
+								"maximum": 1023
+							},
+							"currentGlobal": {
+								"$ref": "#/$defs/decimal"
+							}
+						}
+					}
+				}
+			]
+		}
+	},
+	"$defs": {
+		"id": {
+			"type": "string",
+			"pattern": "^[0-9a-f]{32}$"
+		},
+		"decimal": {
+			"type": "string",
+			"pattern": "^(0|[1-9][0-9]*)$"
+		},
+		"positiveDecimal": {
+			"type": "string",
+			"pattern": "^[1-9][0-9]*$"
+		},
+		"terminal": {
+			"type": "object",
+			"required": ["terminalId", "workerId", "boundTo"],
+			"additionalProperties": false,
+			"properties": {
+				"terminalId": {
+					"$ref": "#/$defs/id"
+				},
+				"workerId": {
+					"$ref": "#/$defs/id"
+				},
+				"boundTo": {
+					"type": "object",
+					"required": ["presentationId", "panelId", "tabId", "terminalContextId"],
+					"additionalProperties": false,
+					"properties": {
+						"presentationId": {
+							"$ref": "#/$defs/id"
+						},
+						"panelId": {
+							"$ref": "#/$defs/id"
+						},
+						"tabId": {
+							"$ref": "#/$defs/id"
+						},
+						"terminalContextId": {
+							"$ref": "#/$defs/id"
+						}
+					}
+				}
+			}
+		},
+		"snapshotSource": {
+			"type": "object",
+			"required": ["kind", "siteId", "revision"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": {
+					"const": "workbench-snapshot"
+				},
+				"siteId": {
+					"$ref": "#/$defs/id"
+				},
+				"revision": {
+					"type": "string",
+					"pattern": "^(0|[1-9][0-9]*)$"
+				}
+			}
+		},
+		"point": {
+			"type": "object",
+			"required": ["row", "col"],
+			"additionalProperties": false,
+			"properties": {
+				"row": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 4294967295
+				},
+				"col": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 65535
+				}
+			}
+		},
+		"range": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["start", "end"],
+			"properties": {
+				"start": {
+					"$ref": "#/$defs/point"
+				},
+				"end": {
+					"$ref": "#/$defs/point"
+				}
+			}
+		}
+	}
+}
