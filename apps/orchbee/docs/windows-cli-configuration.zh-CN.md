@@ -233,7 +233,7 @@ Windows 主 TUI 在启动及 `site reload-config` 后应用 `ui.sidebar.agents`�
 
 ```toml
 [ui.sidebar.agents]
-rows = [["state_icon", "state_text"], ["machine", "workspace", "tab"], ["pane", "$summary"]]
+rows = [["state_icon", "state_text"], ["machine", "workspace", "tab"], ["pane", "$summary"], ["terminal_title_stripped"]]
 row_gap = 1
 
 [ui.sidebar.agents.rows_by_agent]
@@ -242,8 +242,10 @@ claude = [["state_icon", "agent"], [{ token = "$model", fg = "#8bc", rules = [{ 
 
 省略布局保持已有双行默认，显式空布局保留身份及导航行；缺失或隐藏的值不占行。
 [侧栏模型](machines.zh-CN.md#agent-侧栏配置模型)定义 Provider 别名、规则、按实际高度
-计算的窗口及不变的物理权威。`terminal_title`/`terminal_title_stripped` 仍明确返回
-unsupported-token；`ui.sidebar.spaces` 属于另一个未实现配置族。
+计算的窗口及不变的物理权威。`terminal_title`/`terminal_title_stripped` 现在读取精确物理终端的 OSC 标题。
+原始形式保留活动符号；去动画形式移除一个提权前缀和一个已知前导活动符号。
+缺失或清除的标题消失；`$terminal_title` 仍是独立自定义值。
+`ui.sidebar.spaces` 属于另一个未实现配置族。
 
 `config check` v10 和 Site 配置回执 v5 必需携带 `agentSidebarProfile`（最多 32 KiB
 的封闭规范 JSON）。配置失败 v7 增加 `ui.sidebar.agents` 及布局/颜色/token/规则/Provider

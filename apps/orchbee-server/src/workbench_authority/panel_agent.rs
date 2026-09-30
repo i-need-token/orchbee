@@ -303,7 +303,7 @@ impl WorkbenchAuthority {
         };
         match &request.action {
             // Host diagnostics are composed by LocalTerminalService, never by the canonical owner.
-            Action::Explain { .. } => Err(Failure::Unavailable),
+            Action::Explain { .. } | Action::Titles { .. } => Err(Failure::Unavailable),
             Action::States { presentation_ids } => {
                 let outcome = self.agent_states(presentation_ids, &membership, &physical)?;
                 admit_result(&outcome)?;

@@ -87,6 +87,7 @@ impl WorkbenchService {
             WorkbenchRequest::PanelAgent(request) => match request.action {
                 orchbee_workbench_protocol::PanelAgentAction::Read { .. }
                 | orchbee_workbench_protocol::PanelAgentAction::ReadPresentations { .. }
+                | orchbee_workbench_protocol::PanelAgentAction::Titles { .. }
                 | orchbee_workbench_protocol::PanelAgentAction::Explain { .. }
                 | orchbee_workbench_protocol::PanelAgentAction::States { .. }
                 | orchbee_workbench_protocol::PanelAgentAction::Observe { .. } => self.policy.read,

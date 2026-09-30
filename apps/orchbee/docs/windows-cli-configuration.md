@@ -295,7 +295,7 @@ For example:
 
 ```toml
 [ui.sidebar.agents]
-rows = [["state_icon", "state_text"], ["machine", "workspace", "tab"], ["pane", "$summary"]]
+rows = [["state_icon", "state_text"], ["machine", "workspace", "tab"], ["pane", "$summary"], ["terminal_title_stripped"]]
 row_gap = 1
 
 [ui.sidebar.agents.rows_by_agent]
@@ -306,7 +306,10 @@ An omitted layout preserves the existing two-line default; an explicit empty lay
 keeps the identity/navigation line. Missing or hidden values do not consume rows.
 The full [sidebar model](machines.md#agent-sidebar-configuration-model) defines
 provider aliases, rules, actual-height windows and unchanged physical authority.
-Live `terminal_title`/`terminal_title_stripped` remain explicit unsupported-token errors.
+Live `terminal_title`/`terminal_title_stripped` now read the exact physical OSC title.
+The raw form retains activity glyphs; the stripped form removes one elevation prefix
+and one recognized leading activity glyph. Missing or cleared titles disappear;
+`$terminal_title` remains a separate custom value.
 `ui.sidebar.spaces` is a separate unimplemented configuration family.
 
 `config check` v10 and Site configuration receipts v5 expose required

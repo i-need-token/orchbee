@@ -71,6 +71,16 @@ export const TerminalAgentBindingSchema = z
 export const PanelAgentActionSchema = z.discriminatedUnion('kind', [
 	z
 		.strictObject({
+			kind: z.literal('titles'),
+			bindings: z
+				.array(TerminalAgentBindingSchema)
+				.max(4)
+				.refine((rows) => new Set(rows.map((r) => r.presentationId)).size === rows.length)
+				.readonly(),
+		})
+		.readonly(),
+	z
+		.strictObject({
 			kind: z.literal('read-presentations'),
 			presentationIds: z
 				.array(TerminalPresentationIdSchema)
@@ -453,7 +463,38 @@ export const PresentationAgentRowSchema = z
 		panel: PanelAgentRowSchema,
 	})
 	.readonly();
+const terminalTitleRow = z
+	.strictObject({
+		binding: TerminalAgentBindingSchema,
+		observation: z.discriminatedUnion('kind', [
+			z.strictObject({ kind: z.literal('unavailable') }).readonly(),
+			z
+				.strictObject({
+					kind: z.literal('observed'),
+					revision: WorkbenchRevisionSchema.refine((v) => v !== '0'),
+					title: z
+						.string()
+						.refine(
+							(v) => !/[\uD800-\uDFFF]/u.test(v) && new TextEncoder().encode(v).length <= 64 * 1024,
+						)
+						.nullable(),
+				})
+				.readonly(),
+		]),
+	})
+	.readonly();
 export const PanelAgentOutcomeSchema = z.discriminatedUnion('kind', [
+	z
+		.strictObject({
+			kind: z.literal('titles'),
+			workbenchRevision: WorkbenchRevisionSchema,
+			presentations: z
+				.array(terminalTitleRow)
+				.max(4)
+				.refine((rows) => new Set(rows.map((r) => r.binding.presentationId)).size === rows.length)
+				.readonly(),
+		})
+		.readonly(),
 	z
 		.strictObject({
 			kind: z.literal('presentations-read'),

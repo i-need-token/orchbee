@@ -84,6 +84,16 @@ pub(crate) fn run(
                     None,
                 );
             }
+            #[cfg(windows)]
+            if let CapabilityNodeMessage::TerminalTitlesRequest(request) = request {
+                let result = super::titles::execute(server, None, request, worker_id, generation)?;
+                let _no_host = server_transport::send(
+                    server,
+                    None,
+                    &CapabilityNodeMessage::TerminalTitlesResult(result),
+                )?;
+                continue;
+            }
             if let CapabilityNodeMessage::AgentDrainRequest(request) = request {
                 // Without a Host, send always reports host_closed=true; that flag
                 // is expected here and does not retire the Server connection.

@@ -45,6 +45,114 @@ const TEST_POLL_INTERVAL: Duration = Duration::from_millis(5);
 const TEST_COMPLETION_TIMEOUT: Duration = Duration::from_secs(2);
 
 #[test]
+fn physical_title_batch_uses_low_lane_and_carries_large_complete_values_on_windows_pipe()
+-> TestResult {
+    use orchbee_capability_node_protocol::{
+        TerminalTitleObservation, TerminalTitleRow, TerminalTitlesRequest, TerminalTitlesResult,
+    };
+    let (handle, owner, _shutdown, server, mut worker) = test_carrier()?;
+    let (sender, receiver) = mpsc::channel();
+    let owner_thread = spawn_owner(owner, server, sender);
+    let request = TerminalTitlesRequest {
+        request_id: OperationId::from_bytes([99; 16])?,
+        worker_id: CapabilityWorkerId::from_bytes(LOCAL_WORKER_ID.as_bytes())?,
+        worker_generation: WorkerGeneration::new(GENERATION),
+        identities: vec![host_identity(1)?, host_identity(2)?],
+    };
+    let result = TerminalTitlesResult {
+        request_id: request.request_id,
+        rows: request
+            .identities
+            .iter()
+            .map(|id| TerminalTitleRow {
+                identity: *id,
+                observation: TerminalTitleObservation::Observed {
+                    revision: NonZeroU64::new(u64::MAX).unwrap(),
+                    title: Some("🙂".repeat(16384)),
+                },
+            })
+            .collect(),
+    };
+    assert_eq!(
+        WorkerOperationRequest::Titles(request.clone()).lane(),
+        RequestLane::Low
+    );
+    let expected_request = request.clone();
+    let response = result.clone();
+    let worker_thread = thread::spawn(move || -> TestResult {
+        assert_eq!(
+            read_message(&mut worker)?,
+            CapabilityNodeMessage::TerminalTitlesRequest(expected_request)
+        );
+        write_message(
+            &mut worker,
+            &CapabilityNodeMessage::TerminalTitlesResult(response),
+        )?;
+        Ok(())
+    });
+    assert_eq!(
+        handle.request(WorkerOperationRequest::Titles(request))?,
+        WorkerOperationResult::Titles(result)
+    );
+    worker_thread.join().map_err(|_| "fake Worker panicked")??;
+    assert_eq!(
+        receiver.recv_timeout(TEST_COMPLETION_TIMEOUT)?,
+        WorkerWireExit::PeerClosed
+    );
+    owner_thread
+        .join()
+        .map_err(|_| "title wire owner panicked")?;
+    Ok(())
+}
+
+#[test]
+fn physical_title_reply_cannot_change_identity_order_or_operation() -> TestResult {
+    use orchbee_capability_node_protocol::{
+        TerminalTitleObservation, TerminalTitleRow, TerminalTitlesRequest, TerminalTitlesResult,
+    };
+    let request = TerminalTitlesRequest {
+        request_id: OperationId::from_bytes([99; 16])?,
+        worker_id: CapabilityWorkerId::from_bytes(LOCAL_WORKER_ID.as_bytes())?,
+        worker_generation: WorkerGeneration::new(GENERATION),
+        identities: vec![host_identity(1)?, host_identity(2)?],
+    };
+    let exact = TerminalTitlesResult {
+        request_id: request.request_id,
+        rows: request
+            .identities
+            .iter()
+            .map(|id| TerminalTitleRow {
+                identity: *id,
+                observation: TerminalTitleObservation::Unavailable,
+            })
+            .collect(),
+    };
+    assert!(
+        super::validate_response(
+            &WorkerOperationRequest::Titles(request.clone()),
+            CapabilityNodeMessage::TerminalTitlesResult(exact.clone())
+        )
+        .is_ok()
+    );
+    for bad in 0..3 {
+        let mut response = exact.clone();
+        match bad {
+            0 => response.rows.reverse(),
+            1 => response.request_id = OperationId::from_bytes([98; 16])?,
+            _ => response.rows[0].identity = host_identity(3)?,
+        }
+        assert!(
+            super::validate_response(
+                &WorkerOperationRequest::Titles(request.clone()),
+                CapabilityNodeMessage::TerminalTitlesResult(response)
+            )
+            .is_err()
+        );
+    }
+    Ok(())
+}
+
+#[test]
 fn shutdown_freezes_both_lanes_and_preserves_the_in_flight_request() -> TestResult {
     use orchbee_capability_node_protocol::{
         ShutdownBudget, WorkerShutdownOutcome, WorkerShutdownRequest, WorkerShutdownResult,

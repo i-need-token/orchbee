@@ -28,6 +28,7 @@ pub(crate) use events::{consume_event, validate_event};
 mod controllers;
 mod exchange;
 mod target_cleanup;
+mod titles;
 mod viewers;
 
 #[cfg(test)]
@@ -49,6 +50,7 @@ pub(crate) struct HostBrokerConnection {
     pub(crate) viewers: RefCell<HostViewers>,
     pub(crate) controllers: RefCell<controllers::HostControllers>,
     retired_targets: RefCell<target_cleanup::RetiredTargets>,
+    titles: RefCell<titles::Titles>,
     /// Shared handle to the admitted Server connection's Agent Drain queue.
     /// The broker only appends; the connection loop owns the watermark and
     /// outlives this Host attachment, so dropping the broker never resets it.
@@ -83,6 +85,7 @@ impl HostBrokerConnection {
             viewers: RefCell::new(HostViewers::default()),
             controllers: RefCell::new(controllers::HostControllers::default()),
             retired_targets: RefCell::new(target_cleanup::RetiredTargets::default()),
+            titles: RefCell::new(titles::Titles::default()),
             drain,
         })
     }
@@ -111,6 +114,7 @@ impl HostBrokerConnection {
             viewers: RefCell::new(HostViewers::default()),
             controllers: RefCell::new(controllers::HostControllers::default()),
             retired_targets: RefCell::new(target_cleanup::RetiredTargets::default()),
+            titles: RefCell::new(titles::Titles::default()),
             drain,
         })
     }
@@ -184,7 +188,24 @@ impl HostBrokerConnection {
                     .map_err(io::Error::other)?;
             return self.drain.borrow_mut().append(identity, signal.payload);
         }
+        if envelope.kind == 57 {
+            events::validate_event(&record, self.host_epoch)?;
+            let TerminalEffectEvent::MetadataChanged(event) =
+                decode_terminal_effect_event(envelope.kind, envelope.role, envelope.payload)
+                    .map_err(io::Error::other)?
+            else {
+                return Err(io::Error::other("invalid title event"));
+            };
+            return self.titles.borrow_mut().observe(event);
+        }
         self.viewers.borrow_mut().receive(record, self.host_epoch)
+    }
+
+    pub(crate) fn terminal_title(
+        &self,
+        identity: orchbee_capability_node_protocol::HostTerminalIdentity,
+    ) -> orchbee_capability_node_protocol::TerminalTitleObservation {
+        self.titles.borrow().read(identity)
     }
 
     pub(crate) const fn stream(&self) -> &UnixStream {

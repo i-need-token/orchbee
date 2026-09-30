@@ -5,6 +5,8 @@ use orchbee_workbench_protocol::{
 };
 #[cfg(windows)]
 mod explanation;
+#[cfg(windows)]
+mod titles;
 impl LocalTerminalService {
     pub(crate) fn execute_panel_agent(&self, request: PanelAgentRequest) -> PanelAgentResult {
         #[cfg(windows)]
@@ -13,6 +15,13 @@ impl LocalTerminalService {
             orchbee_workbench_protocol::PanelAgentAction::Explain { .. }
         ) {
             return self.explain_panel_agent(&request);
+        }
+        #[cfg(windows)]
+        if matches!(
+            request.action,
+            orchbee_workbench_protocol::PanelAgentAction::Titles { .. }
+        ) {
+            return self.read_panel_titles(&request);
         }
         let unavailable = PanelAgentResult {
             protocol_version: ProtocolVersion,

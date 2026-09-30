@@ -41,6 +41,8 @@ pub enum WindowsAgentSidebarTokenKind<'a> {
     Tab,
     Pane,
     Agent,
+    TerminalTitle,
+    TerminalTitleStripped,
     Custom(&'a str),
 }
 
@@ -100,7 +102,8 @@ fn token_kind(name: &str) -> Result<WindowsAgentSidebarTokenKind<'_>, WindowsSet
         "tab" => Tab,
         "pane" => Pane,
         "agent" => Agent,
-        "terminal_title" | "terminal_title_stripped" => return Err(error("unsupported-token")),
+        "terminal_title" => TerminalTitle,
+        "terminal_title_stripped" => TerminalTitleStripped,
         name => {
             let key = name.strip_prefix('$').ok_or(error("invalid-token"))?;
             if key.is_empty()

@@ -9,6 +9,135 @@ use crate::{
 };
 use ratatui::{Terminal, backend::TestBackend};
 
+#[test]
+fn live_raw_and_stripped_titles_and_custom_title_keep_distinct_values_and_exact_targets() {
+    use orchbee_workbench_protocol::{
+        MetadataTokenKey, MetadataTokenValue, MetadataTokens, TerminalTitleObservation,
+        WorkbenchRevision,
+    };
+    let mut view = view(120, 40, 0);
+    let mut agent = row(23);
+    agent.tokens = MetadataTokens::new(
+        [(
+            MetadataTokenKey::parse("terminal_title").unwrap(),
+            MetadataTokenValue::parse("custom title").unwrap(),
+        )]
+        .into(),
+    )
+    .unwrap();
+    let target = agent.target.clone();
+    configure(
+        &mut view,
+        serde_json::json!([
+            [configured_token("terminal_title")],
+            [configured_token("terminal_title_stripped")],
+            [configured_token("$terminal_title")]
+        ]),
+        serde_json::json!({}),
+        0,
+    );
+    for (revision, title, expected_height) in [
+        (1, Some("⠋ 修复🙂标题"), 3),
+        (2, Some("⠙ 修复🙂标题"), 3),
+        (3, None, 1),
+    ] {
+        agent.terminal_title = TerminalTitleObservation::Observed {
+            revision: WorkbenchRevision::new(revision),
+            title: title.map(str::to_owned),
+        };
+        view.machines.observe_agents(vec![(
+            Choice::Local,
+            Agents::Ready(checkpoint(vec![agent.clone()])),
+        )]);
+        for locale in [Locale::EnUs, Locale::ZhCn] {
+            for theme in [Theme::terminal_native(), Theme::rgb_test_dark()] {
+                let (rows, hits) = paint(&view, locale, &theme, 120, 40);
+                let text = rows.join("\n");
+                assert!(text.contains("custom title"));
+                if let Some(raw) = title {
+                    assert!(text.contains(raw));
+                    assert_eq!(rows.iter().filter(|s| s.contains("修复🙂标题")).count(), 2);
+                } else {
+                    assert!(!text.contains("修复🙂标题"));
+                }
+                let exact: Vec<_> = (0..40)
+                    .filter_map(|y| match hits.hit_target_at(2, y) {
+                        Some(HitTarget::MachineAgentRow { selected, .. }) => Some(selected),
+                        _ => None,
+                    })
+                    .collect();
+                assert_eq!(exact.len(), expected_height);
+                assert!(exact.iter().all(|s|matches!(&s.context,Some(crate::terminal_session::NativeStartupTarget::Agent(t)) if t.as_ref()==&target)));
+            }
+        }
+    }
+}
+
+#[test]
+fn title_rules_match_raw_or_stripped_forms_before_sanitizing_and_missing_never_borrows_pane_title()
+{
+    use orchbee_workbench_protocol::{TerminalTitleObservation, WorkbenchRevision};
+    let mut view = view(120, 40, 0);
+    let mut agent = row(23);
+    agent.terminal_title = TerminalTitleObservation::Observed {
+        revision: WorkbenchRevision::new(1),
+        title: Some("Administrator: ⠋ raw\u{202e}value".into()),
+    };
+    view.machines.observe_agents(vec![(
+        Choice::Local,
+        Agents::Ready(checkpoint(vec![agent.clone()])),
+    )]);
+    let hidden = |name, value| serde_json::json!({"name":name,"style":{"fg":null,"bold":null,"dim":null},"rules":[{"condition":{"kind":"Equals","value":value},"ignore_case":false,"style":{"fg":null,"bold":null,"dim":null},"hide":true}]});
+    configure(
+        &mut view,
+        serde_json::json!([
+            [hidden(
+                "terminal_title",
+                "Administrator: ⠋ raw\u{202e}value"
+            )],
+            [hidden("terminal_title_stripped", "raw\u{202e}value")]
+        ]),
+        serde_json::json!({}),
+        0,
+    );
+    let (rows, hits) = paint(&view, Locale::EnUs, &Theme::terminal_native(), 120, 40);
+    assert!(!rows.join("\n").contains("rawvalue"));
+    assert_eq!(
+        (0..40)
+            .filter(|y| matches!(
+                hits.hit_target_at(2, *y),
+                Some(HitTarget::MachineAgentRow { .. })
+            ))
+            .count(),
+        1
+    );
+    agent.terminal_title = TerminalTitleObservation::Unavailable {};
+    view.machines.observe_agents(vec![(
+        Choice::Local,
+        Agents::Ready(checkpoint(vec![agent])),
+    )]);
+    configure(
+        &mut view,
+        serde_json::json!([
+            [configured_token("terminal_title")],
+            [configured_token("terminal_title_stripped")]
+        ]),
+        serde_json::json!({}),
+        0,
+    );
+    let (rows, hits) = paint(&view, Locale::ZhCn, &Theme::terminal_native(), 120, 40);
+    assert!(!rows.join("\n").contains("build-23"));
+    assert_eq!(
+        (0..40)
+            .filter(|y| matches!(
+                hits.hit_target_at(2, *y),
+                Some(HitTarget::MachineAgentRow { .. })
+            ))
+            .count(),
+        1
+    );
+}
+
 fn configured_token(name: &str) -> serde_json::Value {
     serde_json::json!({"name":name,"style":{"fg":null,"bold":null,"dim":null},"rules":[]})
 }

@@ -19,7 +19,12 @@ mod terminal_cwd_validation;
 mod terminal_launch;
 mod terminal_lifecycle;
 mod terminal_send;
+mod terminal_titles;
 mod terminal_viewer;
+pub use terminal_titles::{
+    MAXIMUM_TERMINAL_TITLE_BYTES, MAXIMUM_TERMINAL_TITLE_ROWS, TerminalTitleObservation,
+    TerminalTitleRow, TerminalTitlesRequest, TerminalTitlesResult,
+};
 
 pub use terminal_viewer::{
     MAXIMUM_READ_ROWS, MAXIMUM_READ_ROWS_BYTES, MAXIMUM_VIEWER_RECORD_BYTES,

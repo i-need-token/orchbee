@@ -77,6 +77,7 @@ impl HostBrokerConnection {
             disposed: true,
             ..prepared.target
         };
+        self.titles.borrow_mut().remove(prepared.target.identity);
         let mut viewers = self.viewers.borrow_mut();
         for id in prepared.target.viewers.into_iter().flatten() {
             viewers.remove(id);

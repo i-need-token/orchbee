@@ -190,7 +190,7 @@ fn sidebar_configuration_check_projects_profiles_and_rejects_invalid_creation_be
     let fixture = Fixture::new();
     let config = fixture.0.join("appdata/Orchbee/config.toml");
     std::fs::create_dir_all(config.parent().unwrap()).unwrap();
-    let content = "[ui.sidebar.agents]\nrows=[['state_icon','state_text'],[{token='$issue',fg='#abc',bold=true,rules=[{starts_with='ORCH-',dim=false}]}]]\nrow_gap=1\n[ui.sidebar.agents.rows_by_agent]\nclaude=[['tab','pane']]\n";
+    let content = "[ui.sidebar.agents]\nrows=[['state_icon','state_text','terminal_title','terminal_title_stripped'],[{token='$issue',fg='#abc',bold=true,rules=[{starts_with='ORCH-',dim=false}]}]]\nrow_gap=1\n[ui.sidebar.agents.rows_by_agent]\nclaude=[['tab','pane']]\n";
     std::fs::write(&config, content).unwrap();
     let mut doc = document(fixture.run(&["config", "check", "--format=json"]));
     let schema = include_str!("../src/cli/schemas/orchbee.config.check.json");
@@ -218,7 +218,7 @@ fn sidebar_configuration_check_projects_profiles_and_rejects_invalid_creation_be
     assert!(validator.is_valid(&doc));
     assert_eq!(std::fs::read_to_string(&config).unwrap(), content);
     for (token, reason) in [
-        ("terminal_title", "unsupported-token"),
+        ("terminal_title_typo", "invalid-token"),
         ("unknown", "invalid-token"),
     ] {
         let invalid = format!("[ui.sidebar.agents]\nrows=[['{token}']]");

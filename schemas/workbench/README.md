@@ -597,3 +597,13 @@ The command launch-options schema admits a bounded `pluginPane` selector only on
 Plugin PaneGet/PaneFound reuse OBWP kinds 45/46 with closed membership facts and no new mutation permission. Rust additionally correlates the response Panel with its request; Pane selectors share the launch-option identifier rules.
 
 Agent sidebar publication adds required nonempty `agentSidebarProfile`, capped at 32 KiB of UTF-8. It is a closed canonical JSON profile admitted by the Windows settings owner; transport bindings enforce the string and frame budget, while Client installation validates its token/layout/rule semantics. Keys, notifications and sidebar install atomically; malformed sidebar profiles retain all previous Client settings. Matched cohorts update together. Public `config check` v10, configuration failure v7 and Site configuration receipt v5 keep older versions closed; catalog v122 retains 105 schemas and 141 command paths.
+
+Physical title reads extend the closed Panel Agent contract with `titles`, at most
+four exact physical bindings and one ordered observation per binding. Observations
+are unavailable or observed with positive metadata revision and required nullable
+title, capped at 64 KiB of UTF-8. Rust and TypeScript enforce unique presentation
+IDs and byte bounds in addition to JSON Schema. The Site fences retained physical
+identity before and after its Worker read. Titles do not alter report revision,
+Agent sequence, source filters or Client seen state; no public CLI output version
+changes. Matching private cohorts update together. Shared conformance cases cover
+raw Unicode, clear, absence, nullability, revision, closed fields and bounds.

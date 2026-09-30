@@ -70,6 +70,7 @@ pub(crate) fn row(n: u64) -> Row {
         label: "build".into(),
         workspace: "space".into(),
         tab_label: Some("Task".into()),
+        terminal_title: orchbee_workbench_protocol::TerminalTitleObservation::Unavailable {},
         state: PanelAgentState::Working,
         sequence: WorkbenchRevision::new(1),
         metadata: PanelMetadataEffective::default(),
@@ -173,6 +174,9 @@ fn peer(bad: u8) -> io::Result<FakeServer> {
         view_reply(&mut stream, false)?;
         for round in 0..=1 {
             if round == 1 {
+                if !title_reply(&mut stream, bad)? {
+                    return Ok(());
+                }
                 if !enrich(&mut stream, bad)? {
                     return Ok(());
                 }
@@ -229,13 +233,16 @@ fn agent_checkpoint_joins_exact_primary_and_child_without_terminal_effects() -> 
     assert_eq!(rows[1].target, target());
     assert_eq!(rows[0].target.member.as_str(), id(12));
     assert_eq!(rows[0].tab_label.as_deref(), Some("tab"));
+    assert!(
+        matches!(&rows[0].terminal_title,TerminalTitleObservation::Observed {title:Some(t),..} if t=="⠋ 修复🙂标题")
+    );
     assert!(!rows[0].label.contains('\u{202e}'));
     drop(client);
     peer.finish()
 }
 #[test]
 fn agent_checkpoint_rejects_partial_membership_and_spliced_report_revisions() -> io::Result<()> {
-    for bad in [1, 2, 11] {
+    for bad in [1, 2, 11, 12, 13] {
         let peer = peer(bad)?;
         let deadline = Instant::now() + Duration::from_secs(3);
         let mut client = LocalClient::connect_before(peer.endpoint(), "test-cohort", deadline)
@@ -438,6 +445,45 @@ fn agent_checkpoint_cancel_interrupts_real_inflight_read_without_followup() -> i
     peer.finish()
 }
 
+fn title_reply(stream: &mut orchbee_local_ipc::LocalStream, bad: u8) -> io::Result<bool> {
+    let WorkbenchRequest::PanelAgent(request) =
+        read_workbench_request(stream).map_err(io::Error::other)?
+    else {
+        panic!("titles read");
+    };
+    let PanelAgentAction::Titles { bindings } = request.action else {
+        panic!("no attachment or mutation");
+    };
+    assert_eq!(bindings.len(), 2);
+    let mut presentations: Vec<_> = bindings
+        .into_iter()
+        .map(|binding| TerminalTitleRow {
+            binding,
+            observation: TerminalTitleObservation::Observed {
+                revision: WorkbenchRevision::new(1),
+                title: Some("⠋ 修复🙂标题".into()),
+            },
+        })
+        .collect();
+    if bad == 13 {
+        presentations[0].binding.generation =
+            orchbee_agent_observation_protocol::AgentAttachmentGeneration::parse(&id(999)).unwrap();
+    }
+    write_workbench_response(
+        stream,
+        &WorkbenchResponse::PanelAgent(PanelAgentResult {
+            protocol_version: ProtocolVersion,
+            request_id: request.request_id,
+            site_id: request.site_id,
+            outcome: PanelAgentOutcome::Titles {
+                workbench_revision: WorkbenchRevision::new(if bad == 12 { 9 } else { 1 }),
+                presentations,
+            },
+        }),
+    )
+    .map_err(io::Error::other)?;
+    Ok(bad != 12 && bad != 13)
+}
 fn enrich(stream: &mut orchbee_local_ipc::LocalStream, bad: u8) -> io::Result<bool> {
     for (step, metadata) in [(0, true), (1, false), (2, true), (3, false)] {
         let request = read_workbench_request(stream).map_err(io::Error::other)?;

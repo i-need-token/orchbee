@@ -532,3 +532,12 @@ Server 负责原子分配和发布；物理成员创建仍是独立的保留命�
 插件 PaneGet／PaneFound 复用 OBWP 45／46，承载封闭成员事实，不新增修改权限。Rust 额外校验响应 Panel 与请求的关联；Pane 选择器沿用启动选项的标识规则。
 
 Agent 侧栏发布增加必需的非空 `agentSidebarProfile`，上限为 32 KiB UTF-8。它是共享 Windows 配置所有者接纳的封闭规范 JSON；传输绑定约束字符串和整帧边界，Client 安装时验证 token/布局/规则语义。键位、通知、侧栏原子安装；无效侧栏 profile 保留全部原 Client 设置。匹配 cohort 一起更新。公开 `config check` v10、配置失败 v7、Site 配置回执 v5 保持旧版本封闭；目录 v122 仍含 105 个 schema 和 141 条命令路径。
+
+物理标题读取以 `titles` 扩展封闭 Panel Agent 契约：至多四个精确物理
+绑定，每个绑定对应一个有序观察。观察为不可用，或携带正元数据版本及
+必需可空标题的已观察值，标题最多 64 KiB UTF-8。
+除 JSON Schema 外，Rust 和 TypeScript 校验展示 ID 唯一性及字节上限。
+Site 在 Worker 读取前后保护保留的物理身份。标题不改变报告版本、
+Agent 序号、源过滤或 Client 已读状态；公开 CLI 输出版本不变。
+匹配的私有 cohort 一起更新。共享一致性案例覆盖原始 Unicode、清除、
+缺失、可空、版本、封闭字段及上限。

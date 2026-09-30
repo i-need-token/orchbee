@@ -1,4 +1,36 @@
 use super::*;
+use orchbee_workbench_protocol::TerminalTitleObservation;
+#[test]
+fn raw_title_animation_and_clear_never_change_agent_seen_or_semantic_sequence() {
+    let mut attention = Attention::default();
+    let baseline = super::super::tests::checkpoint(vec![row()]);
+    assert!(attention.project(&Choice::Local, &baseline).unwrap()[0].seen);
+    let mut changed = baseline.as_ref().clone();
+    let mut rows = changed.rows.to_vec();
+    rows[0].sequence = WorkbenchRevision::new(2);
+    changed.rows = rows.into();
+    changed.report_revision = WorkbenchRevision::new(3);
+    assert!(
+        !attention
+            .project(&Choice::Local, &Arc::new(changed.clone()))
+            .unwrap()[0]
+            .seen
+    );
+    for (revision, title) in [(1, Some("⠋ task")), (2, Some("⠙ task")), (3, None)] {
+        let mut rows = changed.rows.to_vec();
+        rows[0].terminal_title = TerminalTitleObservation::Observed {
+            revision: WorkbenchRevision::new(revision),
+            title: title.map(str::to_owned),
+        };
+        changed.rows = rows.into();
+        let projected = attention
+            .project(&Choice::Local, &Arc::new(changed.clone()))
+            .unwrap();
+        assert!(!projected[0].seen);
+        assert_eq!(projected[0].sequence.value(), 2);
+        assert_eq!(projected[0].status(), "done");
+    }
+}
 fn row() -> Row {
     Row {
         seen: true,
@@ -7,6 +39,7 @@ fn row() -> Row {
         label: "terminal".into(),
         workspace: String::new(),
         tab_label: None,
+        terminal_title: orchbee_workbench_protocol::TerminalTitleObservation::Unavailable {},
         state: PanelAgentState::Idle,
         sequence: WorkbenchRevision::new(1),
         metadata: PanelMetadataEffective::default(),

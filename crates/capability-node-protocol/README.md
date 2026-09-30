@@ -623,3 +623,21 @@ Plugin requests/results use distinct `OBPJ` records: magic, encoding version 1 (
 ## Plugin terminal display environment
 
 An explicit terminal launch may carry a separate `PluginTerminalEnvironment` (`pluginEnvironment` in OBCS). It admits only plugin ID/root/entrypoint/config/state/context, native binary path and optional Workspace/Tab/Pane display IDs: ten unique named entries, seven required, at most 24 KiB combined UTF-8. These are display data, not authority or plugin registration. The ordinary caller environment retains its existing limits and reserved-name refusal. Runtime base/scope and Worker/terminal identities remain owned by the Worker adapter. A plugin environment requires an explicit executable. OBCN extension 3 transports the explicit selection, ordinary environment and plugin environment; legacy encodings and the 40 KiB frame limit stay unchanged. Server checks the complete encoded plugin launch before reserving a physical operation. Worker removes inherited known plugin display fields before applying this launch's values. Workbench plugin resolution, Pane association and Client placement remain separate integration responsibilities. Focused boundary and launch-fact tests cover this carrier; this is not a complete plugin Pane receipt.
+
+## Windows physical title observations
+
+`TerminalTitlesRequest` uses OBCN request kind 23 and carries operation identity,
+Worker identity/generation and at most four complete Host identities. The
+observation-only Windows adapter drains already queued Host metadata; it cannot
+start a Host, attach a viewer or claim input/resize. Replies echo operation and
+ordered physical identities, distinguishing unavailable from observed null clear.
+
+`TerminalTitlesResult` uses a separate OBNT version 1 frame: magic/version/zero
+reserved bytes, big-endian u32 payload length, 16-byte operation ID, u8 row count,
+then each 48-byte Host identity and u8 observation tag. Tag 0 is unavailable; tag 1
+adds positive u64 metadata revision and u8 nullable-title tag. A present title adds
+u32 UTF-8 byte length and complete bytes. Rows cap at four, each title at 64 KiB;
+the whole payload caps at 17 + 4 * (62 + 65536) bytes before allocation. Decoders
+reject bad tags, UTF-8, duplicates, versions, reserved bytes, zero revision,
+truncation and tails. Ordinary OBCN limits stay unchanged. Matched private cohorts
+ship/roll back together; no persisted data or Host protocol changes.

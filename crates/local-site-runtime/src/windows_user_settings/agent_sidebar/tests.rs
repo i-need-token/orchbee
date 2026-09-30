@@ -1,4 +1,20 @@
 use super::*;
+#[test]
+fn live_title_builtins_and_custom_title_are_distinct_admitted_profile_tokens() {
+    let configured =
+        parse("rows=[['terminal_title','terminal_title_stripped','$terminal_title']]").unwrap();
+    let profile = WindowsAgentSidebarSettings::from_profile(&configured.profile()).unwrap();
+    let row = &profile.rows_for_agent("codex", None).unwrap()[0];
+    assert_eq!(row[0].kind(), WindowsAgentSidebarTokenKind::TerminalTitle);
+    assert_eq!(
+        row[1].kind(),
+        WindowsAgentSidebarTokenKind::TerminalTitleStripped
+    );
+    assert_eq!(
+        row[2].kind(),
+        WindowsAgentSidebarTokenKind::Custom("terminal_title")
+    );
+}
 
 fn parse(text: &str) -> Result<WindowsAgentSidebarSettings, WindowsSettingsError> {
     WindowsAgentSidebarSettings::parse(&toml::from_str::<toml::Value>(text).unwrap())
@@ -53,8 +69,7 @@ fn malformed_and_unsupported_layouts_are_rejected_instead_of_silently_ignored() 
         "rows=[['typo']]",
         "rows=[['$']]",
         "rows=[['$a.b']]",
-        "rows=[['terminal_title']]",
-        "rows=[['terminal_title_stripped']]",
+        "rows=[['terminal_title_typo']]",
         "row_gap=-1",
         "row_gap=65536",
         "row_gap=1.5",

@@ -19,6 +19,7 @@ use std::{
 
 mod attention;
 mod metadata;
+mod titles;
 pub(crate) mod view;
 pub(crate) use attention::Attention;
 
@@ -44,6 +45,7 @@ pub(crate) struct Row {
     pub(crate) label: String,
     pub(crate) workspace: String,
     pub(crate) tab_label: Option<String>,
+    pub(crate) terminal_title: TerminalTitleObservation,
     pub(crate) state: PanelAgentState,
     pub(crate) sequence: WorkbenchRevision,
     pub(crate) metadata: PanelMetadataEffective,
@@ -322,6 +324,7 @@ pub(crate) fn read(
             }
         }
     }
+    let mut titles = titles::read(client, &snapshot, &observed, deadline, cancel, &mut bytes)?;
     let mut metadata = metadata::read(
         client,
         &snapshot,
@@ -344,6 +347,7 @@ pub(crate) fn read(
         if let Some(Some(state)) = observed.remove(&placement.member)
             && let Some(agent) = state.agent
         {
+            let terminal_title = titles.remove(&placement.member).ok_or(())?;
             let extra = metadata.remove(&placement.member).ok_or(())?;
             let report = extra.report.ok_or(())?;
             if report.agent.as_ref() != Some(&agent) || report.state != state.state {
@@ -370,6 +374,7 @@ pub(crate) fn read(
                 label: placement.label,
                 workspace: placement.workspace,
                 tab_label: placement.tab_label,
+                terminal_title,
                 state: state.state,
             });
         }

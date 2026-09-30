@@ -30,6 +30,8 @@ pub(crate) use lazy::run as run_lazy;
 mod server_transport;
 #[cfg(windows)]
 mod shutdown;
+#[cfg(windows)]
+mod titles;
 
 #[cfg(test)]
 mod drain_tests;
@@ -146,6 +148,18 @@ pub(crate) fn run_admitted(
                 },
                 aux.managed_host.map(|owner| (&*host, owner)),
             );
+        }
+        #[cfg(windows)]
+        if let CapabilityNodeMessage::TerminalTitlesRequest(request) = request {
+            let result = titles::execute(server, Some(host), request, worker_id, generation)?;
+            if server_transport::send(
+                server,
+                Some(host),
+                &CapabilityNodeMessage::TerminalTitlesResult(result),
+            )? {
+                return Err(peer_closed().into());
+            }
+            continue;
         }
         if let CapabilityNodeMessage::AgentDrainRequest(request) = request {
             let host_closed = dispatch_drain_request(
@@ -321,6 +335,8 @@ pub(crate) fn run_admitted(
             | CapabilityNodeMessage::WorkerShutdownResult(_)
             | CapabilityNodeMessage::AgentDrainRequest(_)
             | CapabilityNodeMessage::AgentDrainReply(_)
+            | CapabilityNodeMessage::TerminalTitlesRequest(_)
+            | CapabilityNodeMessage::TerminalTitlesResult(_)
             | CapabilityNodeMessage::TerminalControlRequest(_)
             | CapabilityNodeMessage::TerminalCwdValidationRequest(_)
             | CapabilityNodeMessage::TerminalCwdValidationResult(_)

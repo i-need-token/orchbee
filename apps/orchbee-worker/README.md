@@ -929,3 +929,20 @@ The admitted request loop also serves bounded plugin-job start/list/get/cancel r
 ## Plugin terminal launch environment
 
 An explicit terminal launch may carry a separate `PluginTerminalEnvironment` (`pluginEnvironment` in OBCS). It admits only plugin ID/root/entrypoint/config/state/context, native binary path and optional Workspace/Tab/Pane display IDs: ten unique named entries, seven required, at most 24 KiB combined UTF-8. These are display data, not authority or plugin registration. The ordinary caller environment retains its existing limits and reserved-name refusal. Runtime base/scope and Worker/terminal identities remain owned by the Worker adapter. A plugin environment requires an explicit executable. OBCN extension 3 transports the explicit selection, ordinary environment and plugin environment; legacy encodings and the 40 KiB frame limit stay unchanged. Server checks the complete encoded plugin launch before reserving a physical operation. Worker removes inherited known plugin display fields before applying this launch's values. Workbench plugin resolution, Pane association and Client placement remain separate integration responsibilities. Focused boundary and launch-fact tests cover this carrier; this is not a complete plugin Pane receipt.
+
+## Windows physical title projection
+
+The admitted Host connection retains exact `TerminalMetadataChanged` title
+observations before the viewer consumer. Its `Titles` projection owns at most
+1024 identities and 64 MiB of title text, rejects decreasing revisions and changed
+replays, and drops observations at confirmed physical disposal or connection end.
+The original title is presentation data, independent of Agent reports and input.
+
+A read-only title batch uses the existing low-priority carrier. The lazy Windows
+loop answers unavailable without starting a Host. The admitted loop drains queued
+events, capped at 32 per read so a busy stream cannot require global quiescence,
+and returns complete exact identities/revisions/nullable titles; it creates
+no attachment or new thread. Invalid/corrupt Host events retire the connection,
+with no stale title promotion. See the [title wire](../../crates/capability-node-protocol/README.md#windows-physical-title-observations)
+and [Client model](../orchbee/docs/machines.md#live-terminal-title-observation-model)
+for framing, Site fences, rendering and evidence limits.

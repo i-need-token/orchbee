@@ -438,14 +438,14 @@ validated publication. Bad candidates retain all previously installed settings.
 No renderer reads configuration files or starts background work.
 
 Rows contain `state_icon`, `state_text`, `machine`, `workspace`, `tab`, `pane`,
-`agent`, or `$name`. Missing values and tokens hidden by rules disappear; rows
+`agent`, `terminal_title`, `terminal_title_stripped`, or `$name`. Missing values and tokens hidden by rules disappear; rows
 with no remaining tokens disappear. An entry still retains its focus marker and
 ordinal, exact target and navigation eligibility. Custom values and custom state
 labels are read from the already-fenced presentation metadata. Text rules match
 the original value; only painting sanitizes controls and truncates graphemes.
-`terminal_title` and `terminal_title_stripped` remain rejected until their live
-physical read consumer is implemented; pane title and `$terminal_title` never
-substitute for those builtins.
+`terminal_title` and `terminal_title_stripped` use the live physical title
+observation below; pane title and `$terminal_title` never substitute for those
+builtins.
 
 | Input or event                                 | Decision and observable result                                                                                          |
 | ---------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
@@ -475,3 +475,51 @@ and exact hit targets. Adapter evidence must cover whole-publication retention,
 real configuration IPC, and both locales/themes at short and full heights.
 No new Agent authority, terminal acknowledgement, persistence migration, network
 acceptance or emulator visual proof follows from configurable painting.
+
+## Live terminal title observation model
+
+An Agent sidebar user may select `terminal_title` or
+`terminal_title_stripped` to follow the OSC title of the exact physical terminal.
+The existing Host metadata event is the only title writer. The Windows Worker
+keeps a connection-owned, bounded projection keyed by the complete Host identity
+and metadata revision, independent of Agent report sequence, view filters and
+Client seen state. Closing the Host connection drops that projection; confirmed
+physical disposal removes its entry. Missing observations remain unavailable,
+while an observed null title means a confirmed clear. Neither case substitutes a
+pane label or a custom `$terminal_title` token.
+
+A read workflow requests at most four exact physical bindings per batch on the
+existing owned observation lane. The Site checks membership and retained Worker,
+creation and Host generations before and after the Worker read. The Worker drains
+at most 32 queued Host events per read, yielding to a continuously active stream,
+without attaching a viewer, claiming input or
+resize, reading a terminal screen, starting a Host, or acknowledging a draw.
+Repeated exact physical identities across presentation aliases are read once
+and projected back to each independently fenced binding.
+Every reply echoes the operation and physical identities; changed bindings,
+invalid revisions, malformed frames and exceeded bounds reject the candidate.
+Titles are sequential observations rather than an atomic snapshot of all Host
+terminals. The sidebar refreshes through the existing approximately two-second
+observation cadence; raw glyphs are sampled, without promising every animation
+frame. The collector retains its existing total deadline, cancellation, row,
+byte and final membership/report/source-view fences.
+
+The projection admits at most 1024 physical titles and 64 MiB of title text per
+Host connection; each title follows the Host's 64 KiB metadata bound. A separate
+bounded Worker reply frame carries four complete values, avoiding truncation of
+raw values. Newer metadata replaces the prior value; identical replay is a no-op;
+a decreasing revision, changed replay or reused terminal identity is invalid.
+The Client paints raw and stripped forms from that same observation. Stripping
+removes one Windows elevation prefix and at most one recognized leading activity
+glyph followed by whitespace, preserving Unicode text. Rules inspect the selected
+original form before display sanitization and grapheme truncation. Title-only
+changes may alter row height and cancel pending old scroll geometry, but do not
+change Agent attention or navigation identity.
+
+Core evidence covers absence versus clear, monotonic revisions and replay,
+identity replacement, bounded framing and exact reply correlation, stripping,
+raw-value rules and custom-token separation. Adapter evidence covers actual
+Windows metadata events and pipes, Site before/after physical fences, collector
+cancellation and rendering. No new public CLI command, persisted title registry,
+Host protocol, input authority, or independent terminal acknowledgement follows
+from these presentation tokens.

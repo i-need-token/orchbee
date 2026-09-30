@@ -30,6 +30,20 @@ impl<'a> Context<'a> {
             Kind::Tab => self.agent.tab_label.as_deref(),
             Kind::Pane => Some(self.agent.title()),
             Kind::Agent => Some(self.agent.provider()),
+            Kind::TerminalTitle | Kind::TerminalTitleStripped => {
+                let orchbee_workbench_protocol::TerminalTitleObservation::Observed {
+                    title, ..
+                } = &self.agent.terminal_title
+                else {
+                    return None;
+                };
+                let value = title.as_deref()?;
+                if kind == Kind::TerminalTitle {
+                    Some(value)
+                } else {
+                    crate::terminal_title::stripped(value)
+                }
+            }
             Kind::Custom(key) => self
                 .agent
                 .tokens

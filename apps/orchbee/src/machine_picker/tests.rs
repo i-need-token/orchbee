@@ -228,6 +228,7 @@ fn agent_row() -> crate::machine_agents::Row {
         label: "same terminal".into(),
         workspace: "project / workspace".into(),
         tab_label: None,
+        terminal_title: orchbee_workbench_protocol::TerminalTitleObservation::Unavailable {},
         state: orchbee_workbench_protocol::PanelAgentState::Working,
         sequence: orchbee_workbench_protocol::WorkbenchRevision::new(1),
         metadata: orchbee_workbench_protocol::PanelMetadataEffective::default(),

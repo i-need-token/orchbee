@@ -7,6 +7,7 @@ fn row() -> Row {
         label: "terminal".into(),
         workspace: "project / workspace".into(),
         tab_label: None,
+        terminal_title: orchbee_workbench_protocol::TerminalTitleObservation::Unavailable {},
         state: PanelAgentState::Working,
         sequence: WorkbenchRevision::new(1),
         metadata: PanelMetadataEffective::default(),

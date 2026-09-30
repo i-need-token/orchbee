@@ -10,6 +10,34 @@ const caseSchema = z.strictObject({
 	boundary: z.enum(['schema', 'semantic']).optional(),
 });
 describe('Panel Agent reports', () => {
+	it('rejects unpaired title surrogates while admitting complete Unicode and explicit clear', () => {
+		const document = (title: string | null) => ({
+			kind: 'workbench.panel-agent.result',
+			protocolVersion: 1,
+			requestId: '1'.repeat(32),
+			siteId: '2'.repeat(32),
+			outcome: {
+				kind: 'titles',
+				workbenchRevision: '1',
+				presentations: [
+					{
+						binding: {
+							presentationId: '3'.repeat(32),
+							generation: '4'.repeat(32),
+							hostEpoch: '5'.repeat(32),
+							hostTerminalId: '6'.repeat(32),
+						},
+						observation: { kind: 'observed', revision: '1', title },
+					},
+				],
+			},
+		});
+		for (const title of ['⠋ 修复🙂标题', null]) {
+			expect(WorkbenchResponseSchema.safeParse(document(title)).success).toBe(true);
+		}
+		expect(WorkbenchResponseSchema.safeParse(document('bad\ud800')).success).toBe(false);
+	});
+
 	it('matches the shared Rust report corpus and closed shapes', async () => {
 		const corpus = z
 			.strictObject({

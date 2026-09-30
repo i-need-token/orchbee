@@ -21,11 +21,16 @@ pub use explanation::{
     AgentScreenExplanation, TerminalAgentExplanation,
 };
 mod state_snapshot;
+mod titles;
 pub use observation::{
     MAXIMUM_TERMINAL_AGENT_CHANGES, TerminalAgentChange, TerminalAgentObservation,
 };
 pub use state_snapshot::{
     MAXIMUM_TERMINAL_AGENT_STATE_ROWS, TerminalAgentStateRow, TerminalAgentStateSnapshot,
+};
+pub use titles::{
+    MAXIMUM_TERMINAL_TITLE_BYTES, MAXIMUM_TERMINAL_TITLE_ROWS, TerminalTitleObservation,
+    TerminalTitleRow,
 };
 
 pub const MAXIMUM_PANEL_AGENT_READ_ROWS: usize = 4;
@@ -116,6 +121,9 @@ impl PanelAgentReport {
     deny_unknown_fields
 )]
 pub enum PanelAgentAction {
+    Titles {
+        bindings: Vec<orchbee_agent_observation_protocol::AgentLaunchBinding>,
+    },
     ReadPresentations {
         presentation_ids: Vec<TerminalPresentationId>,
     },
@@ -156,6 +164,13 @@ pub struct PanelAgentRequest {
 impl PanelAgentRequest {
     pub fn validate(&self) -> Result<(), ContractError> {
         match &self.action {
+            PanelAgentAction::Titles { bindings } => {
+                if titles::valid_bindings(bindings) {
+                    Ok(())
+                } else {
+                    Err(ContractError::InvalidDocument)
+                }
+            }
             PanelAgentAction::ReadPresentations { presentation_ids } => {
                 if presentation_ids.len() > MAXIMUM_PANEL_AGENT_READ_ROWS
                     || presentation_ids.iter().collect::<BTreeSet<_>>().len()
@@ -299,6 +314,10 @@ pub enum PanelAgentFailure {
     deny_unknown_fields
 )]
 pub enum PanelAgentOutcome {
+    Titles {
+        workbench_revision: WorkbenchRevision,
+        presentations: Vec<TerminalTitleRow>,
+    },
     PresentationsRead {
         workbench_revision: WorkbenchRevision,
         report_revision: WorkbenchRevision,
@@ -358,6 +377,16 @@ pub struct PanelAgentResult {
 impl PanelAgentResult {
     pub fn validate(&self) -> Result<(), ContractError> {
         let valid = match &self.outcome {
+            PanelAgentOutcome::Titles { presentations, .. } => {
+                presentations.len() <= MAXIMUM_TERMINAL_TITLE_ROWS
+                    && presentations.iter().all(TerminalTitleRow::valid)
+                    && presentations
+                        .iter()
+                        .map(|r| &r.binding.presentation_id)
+                        .collect::<BTreeSet<_>>()
+                        .len()
+                        == presentations.len()
+            }
             PanelAgentOutcome::PresentationsRead { presentations, .. } => {
                 presentations.len() <= MAXIMUM_PANEL_AGENT_READ_ROWS
                     && presentations
@@ -408,6 +437,10 @@ impl PanelAgentResult {
             return false;
         }
         match (&request.action, &self.outcome) {
+            (
+                PanelAgentAction::Titles { bindings },
+                PanelAgentOutcome::Titles { presentations, .. },
+            ) => bindings.iter().eq(presentations.iter().map(|r| &r.binding)),
             (
                 PanelAgentAction::Explain { binding },
                 PanelAgentOutcome::Explained { explanation, .. },

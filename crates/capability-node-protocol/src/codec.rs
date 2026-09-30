@@ -26,6 +26,7 @@ mod lifecycle;
 mod plugin_job;
 mod send;
 mod shutdown;
+mod terminal_titles;
 mod viewer;
 mod worktree_job;
 mod worktree_mutation;
@@ -50,6 +51,8 @@ pub const MAXIMUM_FRAME_PAYLOAD_BYTES: usize = 40 * 1024;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum CapabilityNodeMessage {
+    TerminalTitlesRequest(crate::TerminalTitlesRequest),
+    TerminalTitlesResult(crate::TerminalTitlesResult),
     PluginJobRequest(crate::PluginJobRequest),
     PluginJobResult(crate::PluginJobResult),
     WorktreeMutationRequest(crate::WorktreeMutationRequest),
@@ -98,6 +101,12 @@ pub fn encode_message(message: &CapabilityNodeMessage) -> Result<Vec<u8>, Protoc
     if let CapabilityNodeMessage::TerminalSendRequest(request) = message {
         return send::encode_request_record(request);
     }
+    if let CapabilityNodeMessage::TerminalTitlesResult(value) = message {
+        return terminal_titles::encode_result(value);
+    }
+    if let CapabilityNodeMessage::TerminalTitlesRequest(value) = message {
+        value.validate()?;
+    }
     let payload = encode_payload(message);
     if payload.len() > MAXIMUM_FRAME_PAYLOAD_BYTES {
         return Err(ProtocolError::PayloadTooLarge {
@@ -119,6 +128,9 @@ pub fn encode_message(message: &CapabilityNodeMessage) -> Result<Vec<u8>, Protoc
 }
 
 pub fn decode_message(frame: &[u8]) -> Result<CapabilityNodeMessage, ProtocolError> {
+    if frame.starts_with(b"OBNT") {
+        return terminal_titles::decode_result(frame);
+    }
     if frame.starts_with(b"OBPJ") {
         return plugin_job::decode(frame);
     }
@@ -149,6 +161,9 @@ pub fn decode_message(frame: &[u8]) -> Result<CapabilityNodeMessage, ProtocolErr
 pub fn read_message(reader: &mut impl Read) -> Result<CapabilityNodeMessage, ReadMessageError> {
     let mut header = [0_u8; FRAME_HEADER_BYTES];
     reader.read_exact(&mut header)?;
+    if header.starts_with(b"OBNT") {
+        return terminal_titles::read_result(reader, header);
+    }
     if header.starts_with(b"OBPJ") {
         return plugin_job::read(reader, header);
     }
@@ -217,6 +232,10 @@ fn encode_payload(message: &CapabilityNodeMessage) -> Vec<u8> {
         }
         CapabilityNodeMessage::WorktreeJobRequest(value) => worktree_job::encode_request(value),
         CapabilityNodeMessage::WorktreeJobResult(value) => worktree_job::encode_result(value),
+        CapabilityNodeMessage::TerminalTitlesRequest(value) => {
+            terminal_titles::encode_request(value).expect("validated title request")
+        }
+        CapabilityNodeMessage::TerminalTitlesResult(_) => unreachable!("title results use OBNT"),
         CapabilityNodeMessage::AgentDrainRequest(value) => agent_drain::encode_request(value),
         CapabilityNodeMessage::AgentDrainReply(value) => {
             agent_drain::encode_reply(value).expect("validated agent drain reply")
@@ -244,6 +263,8 @@ fn decode_header(header: &[u8; FRAME_HEADER_BYTES]) -> Result<usize, ProtocolErr
 
 fn decode_payload(payload: &[u8]) -> Result<CapabilityNodeMessage, ProtocolError> {
     match payload.first().copied() {
+        Some(23) => terminal_titles::decode_request(payload)
+            .map(CapabilityNodeMessage::TerminalTitlesRequest),
         Some(21) => worktree_mutation::decode_request(payload)
             .map(CapabilityNodeMessage::WorktreeMutationRequest),
         Some(22) => worktree_mutation::decode_result(payload)

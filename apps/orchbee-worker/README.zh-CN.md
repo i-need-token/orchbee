@@ -830,3 +830,19 @@ Worker 在匹配版本的托管启动中接收自有 `WindowsShellSettings` 快�
 ## 插件终端启动环境
 
 显式终端启动可携带独立的 `PluginTerminalEnvironment`（OBCS 字段为 `pluginEnvironment`）。只允许插件 ID/root/entrypoint/config/state/context、原生二进制路径及可选 Workspace/Tab/Pane 展示 ID：十个唯一名称，七项必填，合计最多 24 KiB UTF-8。这些是展示数据，不是权限或插件登记。普通调用者环境保持原有上限及保留名称拒绝规则。runtime base/scope 和 Worker/终端身份仍由 Worker 适配器负责。插件环境必须配合显式可执行文件。OBCN 扩展 3 传递显式启动选择、普通环境和插件环境；旧编码及 40 KiB 帧上限不变。Server 在预留物理操作前校验完整插件启动编码。Worker 先清除继承的已知插件展示字段，再应用本次值。Workbench 插件解析、Pane 归属和 Client 布局仍是独立的集成职责。定向边界及启动事实测试覆盖此载荷，不代表插件 Pane 已完整接通。
+
+## Windows 物理标题投影
+
+已接纳的 Host 连接在 viewer 消费者之前保留精确的
+`TerminalMetadataChanged` 标题观察。其 `Titles` 投影拥有至多
+1024 个身份和 64 MiB 标题文本，拒绝版本倒退和同版本变化，
+并在确认物理处置或连接结束时释放观察。
+原始标题是展示数据，独立于 Agent 报告和输入。
+
+只读标题批次使用现有低优先级通道。Windows 懒启动循环返回不可用，
+不会启动 Host。已接纳循环每次消费至多 32 个排队事件，无需繁忙流整体静止，
+返回完整精确身份、版本与可空
+标题；不创建附着或新线程。无效/损坏的 Host 事件使连接退出，
+不会提升旧标题。详见[标题协议](../../crates/capability-node-protocol/README.zh-CN.md#windows-物理标题观察)
+及[Client 模型](../orchbee/docs/machines.zh-CN.md#实时终端标题观察模型)，
+了解帧、Site 栅栏、渲染及证据边界。

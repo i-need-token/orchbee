@@ -47,6 +47,7 @@ pub(crate) enum WorkerOperationRequest {
     WorktreeMutation(orchbee_capability_node_protocol::WorktreeMutationRequest),
     // The Server drain pump admits drains through admit_agent_drain.
     AgentDrain(orchbee_capability_node_protocol::AgentDrainRequest),
+    Titles(orchbee_capability_node_protocol::TerminalTitlesRequest),
 }
 
 impl WorkerOperationRequest {
@@ -79,12 +80,13 @@ impl WorkerOperationRequest {
             Self::PluginJob(request) => (request.worker_id, request.worker_generation),
             Self::WorktreeMutation(request) => (request.worker_id, request.worker_generation),
             Self::AgentDrain(request) => (request.worker_id, request.worker_generation),
+            Self::Titles(request) => (request.worker_id, request.worker_generation),
         }
     }
 
     const fn lane(&self) -> RequestLane {
         match self {
-            Self::AgentDrain(_) => RequestLane::Low,
+            Self::AgentDrain(_) | Self::Titles(_) => RequestLane::Low,
             Self::Viewer(_) => RequestLane::Low,
             #[cfg(any(windows, test))]
             Self::Shutdown(_) => RequestLane::High,
@@ -125,6 +127,7 @@ impl WorkerOperationRequest {
                 CapabilityNodeMessage::WorktreeJobRequest(request.clone())
             }
             Self::AgentDrain(request) => CapabilityNodeMessage::AgentDrainRequest(*request),
+            Self::Titles(request) => CapabilityNodeMessage::TerminalTitlesRequest(request.clone()),
         }
     }
 }
@@ -145,6 +148,7 @@ pub(crate) enum WorkerOperationResult {
     WorktreeMutation(orchbee_capability_node_protocol::WorktreeMutationResult),
     // Constructed by the Server drain pump's reply path.
     AgentDrain(orchbee_capability_node_protocol::AgentDrainReply),
+    Titles(orchbee_capability_node_protocol::TerminalTitlesResult),
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -1200,6 +1204,7 @@ fn validate_response(
             CapabilityNodeMessage::TerminalLifecycleResult(_)
             | CapabilityNodeMessage::TerminalControlResult(_)
             | CapabilityNodeMessage::TerminalViewerResult(_)
+            | CapabilityNodeMessage::TerminalTitlesResult(_)
             | CapabilityNodeMessage::TerminalLaunchResult(_)
             | CapabilityNodeMessage::TerminalStartResult(_)
             | CapabilityNodeMessage::TerminalSendResult(_),
@@ -1235,6 +1240,7 @@ fn validate_response(
             WorkerOperationRequest::Lifecycle(_),
             CapabilityNodeMessage::TerminalControlResult(_)
             | CapabilityNodeMessage::TerminalViewerResult(_)
+            | CapabilityNodeMessage::TerminalTitlesResult(_)
             | CapabilityNodeMessage::TerminalLaunchResult(_)
             | CapabilityNodeMessage::TerminalStartResult(_)
             | CapabilityNodeMessage::TerminalSendResult(_),
@@ -1284,6 +1290,7 @@ fn validate_response(
             CapabilityNodeMessage::TerminalLaunchResult(_)
             | CapabilityNodeMessage::TerminalStartResult(_)
             | CapabilityNodeMessage::TerminalViewerResult(_)
+            | CapabilityNodeMessage::TerminalTitlesResult(_)
             | CapabilityNodeMessage::TerminalSendResult(_),
         ) => Err(WorkerResponseFailure::WrongResultKind),
         (
@@ -1353,6 +1360,15 @@ fn validate_response(
             Ok(WorkerOperationResult::Send(actual))
         }
         (
+            WorkerOperationRequest::Titles(expected),
+            CapabilityNodeMessage::TerminalTitlesResult(actual),
+        ) => {
+            if !actual.answers(expected) {
+                return Err(WorkerResponseFailure::MismatchedCorrelation);
+            }
+            Ok(WorkerOperationResult::Titles(actual))
+        }
+        (
             WorkerOperationRequest::AgentDrain(expected),
             CapabilityNodeMessage::AgentDrainReply(actual),
         ) => {
@@ -1416,6 +1432,7 @@ fn validate_response(
             | CapabilityNodeMessage::TerminalViewerRequest(_)
             | CapabilityNodeMessage::TerminalSendRequest(_)
             | CapabilityNodeMessage::AgentDrainRequest(_)
+            | CapabilityNodeMessage::TerminalTitlesRequest(_)
             | CapabilityNodeMessage::WorktreeMutationRequest(_)
             | CapabilityNodeMessage::PluginJobRequest(_),
         ) => Err(WorkerResponseFailure::WrongDirection),
@@ -1433,6 +1450,7 @@ fn validate_response(
             | CapabilityNodeMessage::TerminalStartResult(_),
         )
         | (_, CapabilityNodeMessage::AgentDrainReply(_))
+        | (_, CapabilityNodeMessage::TerminalTitlesResult(_))
         | (_, CapabilityNodeMessage::TerminalSendResult(_))
         | (_, CapabilityNodeMessage::PluginJobResult(_))
         | (_, CapabilityNodeMessage::WorktreeMutationResult(_)) => {
@@ -1478,6 +1496,7 @@ fn validate_response(
             Err(WorkerResponseFailure::WrongDirection)
         }
         (_, CapabilityNodeMessage::WorktreeJobResult(_))
+        | (WorkerOperationRequest::Titles(_), _)
         | (WorkerOperationRequest::WorktreeJob(_), _)
         | (WorkerOperationRequest::PluginJob(_), _)
         | (WorkerOperationRequest::WorktreeMutation(_), _) => {

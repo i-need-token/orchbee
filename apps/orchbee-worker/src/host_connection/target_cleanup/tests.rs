@@ -26,6 +26,7 @@ fn host() -> TestResult<(HostBrokerConnection, UnixStream)> {
             viewers: RefCell::new(super::super::viewers::HostViewers::default()),
             controllers: RefCell::new(super::super::controllers::HostControllers::default()),
             retired_targets: RefCell::new(RetiredTargets::default()),
+            titles: RefCell::new(super::super::titles::Titles::default()),
             drain: Rc::new(RefCell::new(crate::agent_drain::AgentDrain::new())),
         },
         peer,

@@ -63,11 +63,25 @@ impl<'a> HostExchange<'a> {
     }
 
     pub(crate) fn prepare(&self) -> Result<(), PeerFailure> {
+        self.consume_pending(None)
+    }
+
+    /// A read-only cache observation must yield to a continuously active Host stream.
+    #[cfg(windows)]
+    pub(crate) fn observe_pending(&self, maximum_events: usize) -> Result<(), PeerFailure> {
+        self.consume_pending(Some(maximum_events))
+    }
+
+    fn consume_pending(&self, maximum_events: Option<usize>) -> Result<(), PeerFailure> {
         self.host
             .stream()
             .set_nonblocking(true)
             .map_err(|_error| PeerFailure::Host)?;
+        let mut consumed = 0usize;
         loop {
+            if maximum_events.is_some_and(|maximum| consumed >= maximum) {
+                return Ok(());
+            }
             let (server, host) = self.poll(PollFlags::POLLIN, PollTimeout::ZERO)?;
             if !server.is_empty() {
                 return Err(PeerFailure::Server);
@@ -81,6 +95,7 @@ impl<'a> HostExchange<'a> {
                         PeerFailure::Server
                     });
                 }
+                consumed = consumed.saturating_add(1);
                 continue;
             }
             if !host.is_empty() {
