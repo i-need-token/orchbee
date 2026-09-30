@@ -222,6 +222,8 @@ fn workspace_mode_scrolls_and_refuses_stale_hits_after_small_resize() {
 }
 fn agent_row() -> crate::machine_agents::Row {
     crate::machine_agents::Row {
+        seen: true,
+        order: crate::machine_agents::PlacementOrder::default(),
         target: crate::machine_agents::tests::target(),
         label: "same terminal".into(),
         workspace: "project / workspace".into(),
@@ -241,7 +243,7 @@ fn agent_mode_routes_duplicate_local_and_remote_identities_and_invalidates_stale
         ..Picker::default()
     };
     picker.replace(&[a.clone(), b.clone()]);
-    let rows: std::sync::Arc<[_]> = vec![agent_row()].into();
+    let rows = crate::machine_agents::tests::checkpoint(vec![agent_row()]);
     picker.observe_agents(vec![
         (Choice::Local, Agents::Ready(rows.clone())),
         (Choice::Remote(a.id.clone()), Agents::Ready(rows.clone())),
@@ -266,7 +268,7 @@ fn agent_mode_routes_duplicate_local_and_remote_identities_and_invalidates_stale
     let old = picker.painted[picker.selected].0;
     picker.observe_agents(vec![(
         Choice::Local,
-        Agents::Ready(vec![agent_row()].into()),
+        Agents::Ready(crate::machine_agents::tests::checkpoint(vec![agent_row()])),
     )]);
     picker.pointer(click(old));
     assert!(
@@ -292,7 +294,10 @@ fn agent_mode_distinguishes_empty_loading_and_unavailable_without_fallback_selec
     picker.pointer(click(picker.mode_hits[2].0));
     for (observation, key) in [
         (Agents::Loading, "agents-loading"),
-        (Agents::Ready(std::sync::Arc::from([])), "no-agents"),
+        (
+            Agents::Ready(crate::machine_agents::tests::checkpoint(Vec::new())),
+            "no-agents",
+        ),
         (Agents::Unavailable, "agents-unavailable"),
     ] {
         picker.observe_agents(vec![(Choice::Local, observation)]);

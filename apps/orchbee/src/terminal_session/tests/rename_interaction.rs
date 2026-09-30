@@ -75,6 +75,7 @@ impl RenameServer {
                             | WorkbenchRequest::WindowTitle(_)
                             | WorkbenchRequest::Notification(_)
                             | WorkbenchRequest::PanelAgent(_)
+                            | WorkbenchRequest::AgentView(_)
                             | WorkbenchRequest::PanelMetadata(_)
                             | WorkbenchRequest::WorkspaceMetadata(_)
                             | WorkbenchRequest::ClientView(_)

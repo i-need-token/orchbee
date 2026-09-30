@@ -181,8 +181,8 @@ expiry or Escape preserves the current surface. Escape cancels the selection,
 while discovery of enabled profiles continues. Retry applies only to observations,
 never submitted terminal input or Client mutations. The workspace mode below
 provides combined navigation, and Agents mode adds physical Agent navigation.
-Custom merged Agent views, remote bootstrap/authentication and real-network
-longevity acceptance remain separate obligations.
+Source-owned merged Agent views are described below. Remote bootstrap/authentication
+and real-network longevity acceptance remain separate obligations.
 
 Evidence must exercise retry timing/stability, permanent refusals, concurrency,
 profile replacement and corrupt catalogs, coalescing and cancellation, actual
@@ -260,7 +260,7 @@ requires drawable content. There is no replay of terminal input or mutations.
 Evidence must cover bounded complete reads, revision/membership/physical identity
 mismatch, primary and child placement, stale job cancellation and fairness,
 keyboard/mouse identity, exact bootstrap and Host mismatch before control.
-Full source-owned Agent-view filter/sort DSL, unattached canonical sessions,
+Unattached canonical sessions,
 main-sidebar/ordinal-key integration and real SSH/OS visual acceptance remain
 separate obligations. The existing per-Site Agent board remains available.
 
@@ -276,13 +276,13 @@ All reads share the existing deadline, row and serialized-state byte bounds.
 Agent and authority facts guard effective metadata; display titles/providers/state
 labels and tokens never replace the physical navigation target.
 
-The Client owns ephemeral status/scope/order/search controls. `f` cycles status,
+The Client owns ephemeral status/scope/order/search controls. `f` cycles status (including Done),
 `c` cycles all/current machine/current context, `s` cycles placement/priority/provider/
 title/state sequence, and slash edits a query of at most 128 safe scalars. Enter
 or Escape first leaves query editing; Ctrl+U clears it. Painted controls accept
 mouse activation. Filtering includes safe machine/location/title/provider/token
 text. Stable ordering preserves canonical placement for ties; priority orders
-Blocked, Working, Idle, Unknown. State sequence is a reported version, not a
+Blocked, Done, Working, Idle, Unknown. State sequence is a reported version, not a
 cross-machine wall clock. Missing observations stay distinct from no matches.
 Changing data, context or controls invalidates painted activation identities.
 
@@ -297,6 +297,71 @@ drawable candidate and preserves the previous surface on failure.
 Evidence covers guarded metadata, overlapping revision fences and binding faults,
 stable ties and machine-qualified context/identity, query bounds and control
 cancellation, painted mouse/keyboard/narrow/localized rendering and global action
-input isolation. Full source-owned JSON view set/clear, arbitrary filter/multi-key
-sort DSL, Done/seen attention, unattached sessions, main sidebar, ordinal Agent
+input isolation. Unattached sessions, main sidebar, ordinal Agent
 focus and real-network/OS visual acceptance remain separate obligations.
+
+## Source-owned Agent views
+
+`agent view set --spec <json>`, `agent view clear [--source <name>]` and
+`agent view get` operate on the selected Windows Site. The Server owns one
+transient revisioned specification: the latest valid set replaces it; a clear
+without a source removes it, and a source-qualified clear removes only an exact
+match. Restart removes the override. Reads require read permission; changes
+require navigation management. Invalid, denied or unavailable operations preserve
+the previous specification. No mutation is automatically retried after handoff;
+lost mutation replies report an unknown outcome. Read or pre-submission exchange
+failures have a distinct `exchange-failed` receipt and never claim a Server refusal
+or uncertain mutation. Plugin sources use `plugin:<id>` and
+require an installed enabled plugin; the next read clears a view whose
+plugin has been disabled or removed. Other source names are attribution, not an
+authentication credential.
+
+The specification has `source`, optional `label`, optional `filter`, and optional
+`sort`. Source is trimmed, 1–120 ASCII alphanumeric or `:._-` characters; labels
+are trimmed and controls removed, then require 1–32 scalars. A 64 KiB encoded
+specification limit also bounds string operands. Filters use `all`, `any`, `not`,
+`eq`, `in`, or `exists` in the `op` field; nonempty groups, at most eight levels,
+64 nodes and 32 `in` values are allowed. Fields are `status`, `workspace_id`,
+`tab_id`, `pane_id`, `agent`, `seen`, `state_change_seq`, or `{ "token": "name" }`.
+Values are strings, booleans for `seen`, full unsigned 64-bit integers for sequence,
+or `{ "context": "current_workspace_id" }` / `current_tab_id` for matching ID
+fields. Status admits idle, working, blocked, done and unknown.
+
+Up to eight sort entries contain `field` and optional `order` (`asc` by default,
+or `desc`). Fields are workspace_order, tab_order, pane_order, attention, status,
+agent, seen, state_change_seq, or a token object. Token names are 1–32 ASCII
+alphanumeric, underscore or hyphen characters. Values compare without display
+sanitation; missing values sort last in either direction, and complete ties
+preserve canonical placement. Attention ranks Blocked, Done, Working, Idle,
+Unknown. Sequence is an observation version, not a shared wall clock.
+
+The active machine's stable source specification filters the merged list and
+global Agent cycle; other machines' overrides do not stack. ID operands and
+current-context values are qualified by that active machine. Workspace IDs are
+native workspace identities (absent for standalone terminals), Tab IDs are native
+Tab identities, and pane IDs are exact Presentation identities, including child
+Presentations. Placement order comes from the snapshot's ordered workspace, Tab
+and pane placement. A missing context operand compares as missing, including the
+reference's missing-equals-missing behavior. UI presets/search further narrow the
+source filter; explicit source sorting wins and the sort control explains its owner, otherwise the UI ordering applies.
+The source specification is read before and fenced after physical checkpoints;
+a changed or unavailable source never silently means an empty override.
+
+Seen belongs to this Client. The first complete endpoint checkpoint is the seen
+baseline; new/changed binding versions are unseen. Idle plus unseen projects as
+Done. Existing native attention supplies exact binding/version acknowledgements
+from visible terminal drawing or explicit focus. Listing, filtering and ordinary
+read requests cannot acknowledge terminals. Endpoint replacement/restart and
+physical rebinding cannot inherit another identity's acknowledgement.
+
+Projection reuses unchanged source checkpoints and reconciles each attention
+batch once. Private paint-version stamps are scoped to the current machine and
+invalidated on Client handoff; a new Client cannot inherit an identical counter.
+Closing Agents mode releases cached rows/specifications; bounded binding-version
+acknowledgements remain Client-owned, and removed/disabled sources are pruned.
+
+Evidence covers specification bounds/type rejection, source-guarded replacement
+and clear, plugin eligibility, revision and transport uncertainty, endpoint-scoped
+context, missing/tied multikey sorting, complete view fences and exact attention
+versions. Unattached sessions, main sidebar, ordinal Agent focus and real SSH/OS
+visual acceptance remain separate obligations.

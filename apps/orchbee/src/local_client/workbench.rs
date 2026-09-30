@@ -1,5 +1,6 @@
 #[cfg(windows)]
 pub(crate) mod agent_manifests;
+mod agent_view;
 #[cfg(windows)]
 pub(crate) mod client_view;
 pub(crate) mod configuration;

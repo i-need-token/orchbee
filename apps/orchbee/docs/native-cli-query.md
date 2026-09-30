@@ -2637,3 +2637,13 @@ Catalog v97 contains 91 schemas; native grammar contains 108 command paths. The 
 owns cache safety, installation, cancellation and receipt limits.
 
 Five Windows Panel report commands also accept `--presentation <full-id>` for an exact primary or child member of the positional Panel. Omission retains primary targeting and v1 receipts; explicit members use v2 with required `presentationId`. [Agent reports](windows-panel-agent-reports.md#exact-member-targets) and [metadata reports](windows-panel-metadata.md#exact-member-targets) own identity checks, byte preflight and unknown-outcome handling. Catalog v97 still contains 91 schemas and 108 command paths.
+
+## Source-owned Agent view commands
+
+Windows `agent view get`, `agent view set --spec <json>` and
+`agent view clear [--source <name>]` use the selected Site, including `--machine`
+routing. The [source-owned view contract](machines.md#source-owned-agent-views)
+owns normalization, bounded filter/multikey-sort semantics, transient source
+replacement, plugin eligibility, Client attention and TUI projection. The
+`orchbee.agent.view` v1 receipt distinguishes Server failures, exchange failures and unknown mutations; catalog
+v121 includes 105 schemas and 141 native grammar paths.

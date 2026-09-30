@@ -99,6 +99,40 @@ pub(crate) fn accept(stream: &mut orchbee_local_ipc::LocalStream) -> io::Result<
     )
     .map_err(io::Error::other)
 }
+pub(crate) fn checkpoint(rows: Vec<Row>) -> Arc<Checkpoint> {
+    Arc::new(Checkpoint {
+        site_id: SiteId::parse(&id(1)).unwrap(),
+        report_revision: WorkbenchRevision::new(2),
+        view: AgentViewSnapshot {
+            revision: WorkbenchRevision::new(0),
+            spec: None,
+        },
+        rows: rows.into(),
+    })
+}
+fn view_reply(stream: &mut orchbee_local_ipc::LocalStream, changed: bool) -> io::Result<()> {
+    let WorkbenchRequest::AgentView(request) =
+        read_workbench_request(stream).map_err(io::Error::other)?
+    else {
+        panic!("view read")
+    };
+    assert_eq!(request.action, AgentViewAction::Read {});
+    write_workbench_response(
+        stream,
+        &WorkbenchResponse::AgentView(AgentViewResult {
+            protocol_version: ProtocolVersion,
+            request_id: request.request_id,
+            site_id: request.site_id,
+            outcome: AgentViewOutcome::Available {
+                snapshot: AgentViewSnapshot {
+                    revision: WorkbenchRevision::new(u64::from(changed)),
+                    spec: None,
+                },
+            },
+        }),
+    )
+    .map_err(io::Error::other)
+}
 fn peer(bad: u8) -> io::Result<FakeServer> {
     FakeServer::start(move |mut stream| {
         accept(&mut stream)?;
@@ -118,6 +152,7 @@ fn peer(bad: u8) -> io::Result<FakeServer> {
             }),
         )
         .map_err(io::Error::other)?;
+        view_reply(&mut stream, false)?;
         for round in 0..=1 {
             if round == 1 {
                 if !enrich(&mut stream, bad)? {
@@ -159,6 +194,9 @@ fn peer(bad: u8) -> io::Result<FakeServer> {
                 break;
             }
         }
+        if bad != 1 && bad != 2 {
+            view_reply(&mut stream, bad == 11)?;
+        }
         Ok(())
     })
 }
@@ -178,7 +216,7 @@ fn agent_checkpoint_joins_exact_primary_and_child_without_terminal_effects() -> 
 }
 #[test]
 fn agent_checkpoint_rejects_partial_membership_and_spliced_report_revisions() -> io::Result<()> {
-    for bad in [1, 2] {
+    for bad in [1, 2, 11] {
         let peer = peer(bad)?;
         let deadline = Instant::now() + Duration::from_secs(3);
         let mut client = LocalClient::connect_before(peer.endpoint(), "test-cohort", deadline)
@@ -245,7 +283,7 @@ fn sources(connection: &Connection, count: usize) -> Vec<Source> {
 fn completed(at: Instant) -> Job {
     let task = thread::spawn(move || Completed {
         at,
-        rows: Ok(Arc::from([])),
+        rows: Ok(checkpoint(Vec::new())),
     });
     let cutoff = Instant::now() + Duration::from_secs(3);
     while !task.is_finished() {
@@ -274,7 +312,7 @@ fn agent_collector_bounds_workers_and_cancels_removed_sources() -> io::Result<()
             }
             Completed {
                 at: Instant::now(),
-                rows: Ok(Arc::from([])),
+                rows: Ok(checkpoint(Vec::new())),
             }
         });
         Ok(Job {

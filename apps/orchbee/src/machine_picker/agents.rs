@@ -18,14 +18,53 @@ pub(super) struct Navigation {
     deadline: Instant,
 }
 impl Picker {
+    fn source_spec(&self) -> Option<&orchbee_workbench_protocol::AgentViewSpec> {
+        self.agent_observations
+            .iter()
+            .find(|(id, _)| id == &self.current)
+            .and_then(|(_, o)| match o {
+                Agents::Ready(c) => c.view.spec.as_ref(),
+                _ => None,
+            })
+    }
     pub(super) fn rebuild_agents(&mut self) {
+        let source = self
+            .agent_observations
+            .iter()
+            .find(|(id, _)| id == &self.current)
+            .and_then(|(_, o)| match o {
+                Agents::Ready(checkpoint) => Some(&checkpoint.view),
+                _ => None,
+            });
+        if source.is_none() {
+            let status = if self
+                .agent_observations
+                .iter()
+                .any(|(id, o)| id == &self.current && matches!(o, Agents::Unavailable))
+            {
+                "agents-unavailable"
+            } else {
+                "agents-loading"
+            };
+            self.agent_rows = vec![Row {
+                choice: self.current.clone(),
+                label: self.current_label.clone(),
+                enabled: false,
+                observation: None,
+                context: None,
+                agent: None,
+                agent_status: Some(status),
+            }]
+            .into();
+            return;
+        }
         let candidates = self.rows.iter().filter(|m| m.enabled).flat_map(|machine| {
             let rows = self
                 .agent_observations
                 .iter()
                 .find(|(id, _)| id == &machine.choice)
                 .and_then(|(_, o)| match o {
-                    Agents::Ready(rows) => Some(rows.as_ref()),
+                    Agents::Ready(rows) => Some(rows.rows.as_ref()),
                     _ => None,
                 })
                 .unwrap_or(&[]);
@@ -35,9 +74,13 @@ impl Picker {
                 row,
             })
         });
-        let eligible =
-            self.agent_view
-                .project(candidates, &self.current, self.current_context.as_ref());
+        let eligible = self.agent_view.project_source(
+            candidates.filter(|_| source.is_some()),
+            &self.current,
+            self.current_context.as_ref(),
+            self.current_member.as_ref(),
+            source.and_then(|s| s.spec.as_ref()),
+        );
         let mut rows: Vec<_> = eligible
             .into_iter()
             .map(|e| Row {
@@ -92,11 +135,57 @@ impl Picker {
             return false;
         }
         let selected = self.selection();
+        self.agent_attention_refresh = true;
         self.current = machine;
         self.current_context = context;
         self.current_member = member;
         self.rebuild_workspaces(selected);
         true
+    }
+    pub(crate) fn agent_attention_bindings(
+        &self,
+    ) -> Vec<orchbee_agent_observation_protocol::AgentLaunchBinding> {
+        self.agent_observations
+            .iter()
+            .find(|(id, _)| id == &self.current)
+            .and_then(|(_, o)| match o {
+                Agents::Ready(round) => Some(
+                    round
+                        .rows
+                        .iter()
+                        .map(|r| r.target.physical.clone())
+                        .collect(),
+                ),
+                _ => None,
+            })
+            .unwrap_or_default()
+    }
+    pub(crate) fn reset_agent_attention_read(&mut self) {
+        self.agent_attention_key = None;
+        self.agent_attention_refresh = true;
+    }
+    pub(crate) fn needs_agent_attention(&mut self, version: Option<(u64, usize)>) -> bool {
+        if !self.wants_agents() {
+            return false;
+        }
+        let key = (self.current.clone(), version);
+        let changed = self.agent_attention_key.as_ref() != Some(&key);
+        self.agent_attention_key = Some(key);
+        if version.is_none() {
+            return false;
+        }
+        let refresh = std::mem::take(&mut self.agent_attention_refresh);
+        changed || refresh
+    }
+    pub(crate) fn observe_agent_attention(
+        &mut self,
+        snapshots: &[orchbee_workbench_protocol::ClientTerminalAgentAttentionSnapshot],
+    ) -> bool {
+        let mut changed = false;
+        for snapshot in snapshots {
+            changed |= self.agent_attention.acknowledge(&self.current, snapshot);
+        }
+        changed && self.project_agent_observations(self.agent_sources.clone())
     }
     pub(super) fn current_agent(&self, machine: &Choice, row: &crate::machine_agents::Row) -> bool {
         machine == &self.current
@@ -178,6 +267,10 @@ impl Picker {
         match control {
             Control::State => self.agent_view.cycle_state(),
             Control::Scope => self.agent_view.cycle_scope(),
+            Control::Order if self.source_spec().is_some_and(|s| !s.sort.is_empty()) => {
+                self.error = Some("agent-source-sort");
+                return;
+            }
             Control::Order => self.agent_view.cycle_order(),
             Control::Search => self.editing_query = true,
         };
@@ -240,8 +333,16 @@ impl Picker {
             let width = inner.width / 3;
             let rect = Rect::new(inner.x + index as u16 * width, inner.y, width, 1);
             frame.render_widget(
-                Paragraph::new(locale.machine_agent_control(control, &self.agent_view))
-                    .style(theme.style(Role::AccentFocus)),
+                Paragraph::new(
+                    if control == Control::Order
+                        && self.source_spec().is_some_and(|s| !s.sort.is_empty())
+                    {
+                        format!("s {}", locale.machine_picker_text("agent-source-sort"))
+                    } else {
+                        locale.machine_agent_control(control, &self.agent_view)
+                    },
+                )
+                .style(theme.style(Role::AccentFocus)),
                 rect,
             );
             self.control_hits.push((rect, control));
@@ -261,8 +362,21 @@ impl Picker {
         }
         frame.render_widget(
             Paragraph::new(format!(
-                "{heading}{query}{}",
-                if self.editing_query { "▏" } else { "" }
+                "{heading}{query}{}{}",
+                if self.editing_query { "▏" } else { "" },
+                if self.editing_query {
+                    String::new()
+                } else {
+                    self.source_spec().map_or(String::new(), |s| {
+                        format!(
+                            " · {}: {}",
+                            locale.machine_picker_text("agent-source"),
+                            crate::machine_discovery::display_label(
+                                s.label.as_deref().unwrap_or(&s.source)
+                            )
+                        )
+                    })
+                }
             ))
             .style(theme.style(if self.editing_query {
                 Role::AccentFocus

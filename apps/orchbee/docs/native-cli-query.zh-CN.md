@@ -2242,3 +2242,12 @@ Server [屏幕契约](../../orchbee-server/docs/agent-screen-model.zh-CN.md#inst
 拥有缓存安全、安装、取消及回执上限的规则。
 
 五条 Windows Panel 报告命令另接受 `--presentation <full-id>`，指定位置参数 Panel 内精确的主项或子项成员。省略时保留主项目标及 v1 回执；显式成员使用 v2 并必需携带 `presentationId`。[Agent 上报](windows-panel-agent-reports.zh-CN.md#精确成员目标)和[元数据上报](windows-panel-metadata.zh-CN.md#精确成员目标)拥有身份校验、字节预检与未知结果处理。目录 v97 仍含 91 个 schema 和 108 条命令路径。
+
+## 来源所属 Agent 视图命令
+
+Windows `agent view get`、`agent view set --spec <json>` 和
+`agent view clear [--source <name>]` 使用所选 Site，包括 `--machine` 路由。
+[来源所属视图契约](machines.zh-CN.md#来源所属的-agent-视图)拥有归一化、有界
+过滤／多字段排序语义、临时来源替换、插件资格、Client 关注状态及 TUI 投影。
+`orchbee.agent.view` v1 回执区分服务端失败、交换失败和未知修改；目录 v121 包含 105 个 schema
+和 141 条原生语法路径。

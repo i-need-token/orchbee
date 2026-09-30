@@ -121,6 +121,45 @@ fn physical_seen(
         .seen
 }
 
+#[test]
+fn machine_view_reads_exact_physical_attention_without_consuming_it() {
+    let (mut ui, _, mut state) = physical_fixture();
+    let bindings = [state.binding.clone()];
+    let seen = |ui: &NativeUi| {
+        ui.view()
+            .machine_agent_attention(&bindings)
+            .unwrap()
+            .entries[0]
+            .state
+            .as_ref()
+            .unwrap()
+            .seen
+    };
+    assert!(!seen(&ui));
+    assert!(!seen(&ui), "reading a view cannot acknowledge it");
+    let shell = ClientView::new(120);
+    ui.after_close_draw(draw(&ui, 120, 40, &shell));
+    assert!(seen(&ui));
+    state.sequence = orchbee_workbench_protocol::WorkbenchRevision::new(2);
+    publish_physical(&mut ui, &state);
+    assert!(!seen(&ui));
+    ui.observe_focus(false);
+    ui.after_close_draw(draw(&ui, 120, 40, &shell));
+    assert!(!seen(&ui));
+    ui.observe_focus(true);
+    ui.after_close_draw(draw(&ui, 120, 40, &shell));
+    assert!(seen(&ui));
+    let mut other = state.binding.clone();
+    other.generation =
+        orchbee_agent_observation_protocol::AgentAttachmentGeneration::parse(&"9".repeat(32))
+            .unwrap();
+    assert!(
+        ui.view().machine_agent_attention(&[other]).unwrap().entries[0]
+            .state
+            .is_none()
+    );
+}
+
 fn focus_command(
     ui: &NativeUi,
     target: orchbee_agent_observation_protocol::AgentNameTarget,

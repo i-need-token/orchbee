@@ -1,3 +1,5 @@
+#[cfg(windows)]
+mod agent_view_spec;
 mod panel_agent;
 mod panel_metadata;
 #[cfg(windows)]
@@ -329,6 +331,12 @@ pub(crate) enum CommandPath {
     Status,
     StatusServer,
     StatusClient,
+    #[cfg(windows)]
+    AgentViewGet,
+    #[cfg(windows)]
+    AgentViewSet,
+    #[cfg(windows)]
+    AgentViewClear,
     AgentList,
     AgentChanges,
     AgentGet,
@@ -466,6 +474,12 @@ impl CommandPath {
             Self::Status => "status",
             Self::StatusServer => "status server",
             Self::StatusClient => "status client",
+            #[cfg(windows)]
+            Self::AgentViewGet => "agent view get",
+            #[cfg(windows)]
+            Self::AgentViewSet => "agent view set",
+            #[cfg(windows)]
+            Self::AgentViewClear => "agent view clear",
             Self::AgentList => "agent list",
             Self::AgentChanges => "agent changes",
             Self::AgentGet => "agent get",
@@ -1329,6 +1343,11 @@ pub(crate) enum RuntimeStatusScope {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum Request {
     #[cfg(windows)]
+    AgentView {
+        action: orchbee_workbench_protocol::AgentViewAction,
+        format: OutputFormat,
+    },
+    #[cfg(windows)]
     MachineRoute(machine_routing::Route),
     #[cfg(windows)]
     MachineRelay,
@@ -1551,6 +1570,8 @@ pub(crate) enum UsageContext {
 /// expect; rendered per locale, never serialized.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum ExpectedValue {
+    AgentViewSpec,
+    AgentViewSource,
     #[cfg(windows)]
     MachineId,
     #[cfg(windows)]
@@ -1810,6 +1831,7 @@ enum Token {
 
 #[derive(Default)]
 struct Options {
+    agent_view_spec: Option<String>,
     remote_session: Option<String>,
     machine_json: bool,
     plugin_enabled: bool,
@@ -1941,6 +1963,7 @@ struct Options {
 /// both the format-envelope walk and the option scan so ownership is decided
 /// identically in the two passes.
 const VALUE_FLAGS: &[&str] = &[
+    "--spec",
     #[cfg(windows)]
     "--remote-session",
     "--entrypoint",
@@ -2594,6 +2617,7 @@ fn apply_value_flag(
         return Ok(());
     }
     let slot = match option {
+        "--spec" => &mut options.agent_view_spec,
         "--presentation" => &mut options.report_presentation,
         "--agent" => &mut options.panel_metadata.agent,
         "--state" => &mut options.panel_agent.state,
@@ -2843,6 +2867,10 @@ fn resolve_words(
                 scope,
                 format: options.format.unwrap_or(OutputFormat::Text),
             })
+        }
+        #[cfg(windows)]
+        ["agent", "view", verb @ ("get" | "set" | "clear")] => {
+            agent_view_spec::parse(verb, options, envelope)
         }
         ["agent", "changes"] => {
             let context = UsageContext::Path("agent changes");
@@ -3962,6 +3990,7 @@ fn resolve_words(
             )?;
             let context = UsageContext::Path("terminal wait-output");
             if cfg!(windows)
+                || options.agent_view_spec.is_some()
                 || options.output_source.is_some()
                 || options.lines.is_some()
                 || options.forever
@@ -4886,6 +4915,14 @@ fn help_topic(path: &[&str]) -> Option<HelpTopic> {
         ["status", "server"] => HelpTopic::Command(CommandPath::StatusServer),
         ["status", "client"] => HelpTopic::Command(CommandPath::StatusClient),
         ["agent"] => HelpTopic::Family(Family::Agent),
+        #[cfg(windows)]
+        ["agent", "view"] | ["agent", "view", "get"] => {
+            HelpTopic::Command(CommandPath::AgentViewGet)
+        }
+        #[cfg(windows)]
+        ["agent", "view", "set"] => HelpTopic::Command(CommandPath::AgentViewSet),
+        #[cfg(windows)]
+        ["agent", "view", "clear"] => HelpTopic::Command(CommandPath::AgentViewClear),
         ["agent", "list"] => HelpTopic::Command(CommandPath::AgentList),
         ["agent", "changes"] => HelpTopic::Command(CommandPath::AgentChanges),
         ["agent", "get"] => HelpTopic::Command(CommandPath::AgentGet),
@@ -5155,6 +5192,7 @@ fn mutation(command: MutationCommand, options: &Options) -> Request {
 /// is only meaningful whole.
 #[derive(Clone, Copy)]
 struct Scope {
+    agent_view_spec: bool,
     remote_session: bool,
     machine_json: bool,
     plugin: bool,
@@ -5293,6 +5331,7 @@ struct Scope {
 }
 
 const NO_OPTIONS: Scope = Scope {
+    agent_view_spec: false,
     remote_session: false,
     machine_json: false,
     plugin: false,
@@ -5919,6 +5958,9 @@ fn first_out_of_scope(options: &Options, scope: Scope) -> Option<&'static str> {
     }
     if options.unwrap && !scope.unwrap {
         return Some("--unwrap");
+    }
+    if options.agent_view_spec.is_some() && !scope.agent_view_spec {
+        return Some("--spec");
     }
     if options.output_source.is_some() && !scope.output_source {
         return Some("--source");

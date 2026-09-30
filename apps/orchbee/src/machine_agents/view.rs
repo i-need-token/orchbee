@@ -1,5 +1,6 @@
 //! Pure machine-qualified Agent list projection, independent of network and input ownership.
 use super::*;
+mod source;
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub(crate) enum Scope {
@@ -19,7 +20,7 @@ pub(crate) enum Order {
 }
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub(crate) struct View {
-    pub(crate) state: Option<PanelAgentState>,
+    pub(crate) state: Option<MetadataState>,
     pub(crate) scope: Scope,
     pub(crate) order: Order,
     pub(crate) query: String,
@@ -30,18 +31,14 @@ pub(crate) struct Entry<'a> {
     pub(crate) row: &'a Row,
 }
 impl View {
+    #[cfg(test)]
     pub(crate) fn project<'a>(
         &self,
         candidates: impl IntoIterator<Item = Entry<'a>>,
         current: &Choice,
         context: Option<&NativeContextTarget>,
     ) -> Vec<Entry<'a>> {
-        let mut rows: Vec<_> = candidates
-            .into_iter()
-            .filter(|e| self.includes(e.machine, e.label, e.row, current, context))
-            .collect();
-        rows.sort_by(|a, b| self.compare(a.row, b.row));
-        rows
+        self.project_source(candidates, current, context, None, None)
     }
 
     pub(crate) fn push(&mut self, c: char) {
@@ -51,11 +48,12 @@ impl View {
     }
     pub(crate) fn cycle_state(&mut self) {
         self.state = match self.state {
-            None => Some(PanelAgentState::Blocked),
-            Some(PanelAgentState::Blocked) => Some(PanelAgentState::Working),
-            Some(PanelAgentState::Working) => Some(PanelAgentState::Idle),
-            Some(PanelAgentState::Idle) => Some(PanelAgentState::Unknown),
-            Some(PanelAgentState::Unknown) => None,
+            None => Some(MetadataState::Blocked),
+            Some(MetadataState::Blocked) => Some(MetadataState::Done),
+            Some(MetadataState::Done) => Some(MetadataState::Working),
+            Some(MetadataState::Working) => Some(MetadataState::Idle),
+            Some(MetadataState::Idle) => Some(MetadataState::Unknown),
+            Some(MetadataState::Unknown) => None,
         };
     }
     pub(crate) fn cycle_scope(&mut self) {
@@ -82,7 +80,7 @@ impl View {
         current: &Choice,
         context: Option<&NativeContextTarget>,
     ) -> bool {
-        if self.state.is_some_and(|state| state != row.state)
+        if self.state.is_some_and(|state| state != row.display_state())
             || (self.scope != Scope::All && machine != current)
             || (self.scope == Scope::Context && context != Some(&row.target.context))
         {
@@ -118,21 +116,23 @@ impl View {
     pub(crate) fn compare(&self, a: &Row, b: &Row) -> std::cmp::Ordering {
         match self.order {
             Order::Placement => std::cmp::Ordering::Equal,
-            Order::Priority => priority(b.state).cmp(&priority(a.state)),
+            Order::Priority => priority(b).cmp(&priority(a)),
             Order::Provider => display_label(a.provider()).cmp(&display_label(b.provider())),
             Order::Title => display_label(a.title()).cmp(&display_label(b.title())),
             Order::Sequence => b.sequence.cmp(&a.sequence),
         }
     }
 }
-fn priority(state: PanelAgentState) -> u8 {
-    match state {
-        PanelAgentState::Blocked => 4,
-        PanelAgentState::Working => 2,
-        PanelAgentState::Idle => 1,
-        PanelAgentState::Unknown => 0,
+fn priority(row: &Row) -> u8 {
+    match row.status() {
+        "blocked" => 4,
+        "done" => 3,
+        "working" => 2,
+        "idle" => 1,
+        _ => 0,
     }
 }
+
 impl Row {
     pub(crate) fn title(&self) -> &str {
         self.metadata
@@ -146,8 +146,18 @@ impl Row {
             .as_ref()
             .map_or(&self.target.agent, |v| v.as_str())
     }
+    pub(crate) fn display_state(&self) -> MetadataState {
+        match self.status() {
+            "blocked" => MetadataState::Blocked,
+            "done" => MetadataState::Done,
+            "working" => MetadataState::Working,
+            "idle" => MetadataState::Idle,
+            _ => MetadataState::Unknown,
+        }
+    }
     pub(crate) fn state_label(&self) -> Option<&str> {
         let state = match self.state {
+            PanelAgentState::Idle if !self.seen => MetadataState::Done,
             PanelAgentState::Blocked => MetadataState::Blocked,
             PanelAgentState::Working => MetadataState::Working,
             PanelAgentState::Idle => MetadataState::Idle,

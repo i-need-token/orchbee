@@ -34,6 +34,12 @@ impl Locale {
             (Self::ZhCn, "no-agents") => "暂无 Agent",
             (Self::EnUs, "agents-no-matches") => "No matching agents",
             (Self::ZhCn, "agents-no-matches") => "暂无匹配的 Agent",
+            (Self::EnUs, "agent-done") => "Done",
+            (Self::ZhCn, "agent-done") => "已完成",
+            (Self::EnUs, "agent-source-sort") => "Sort from view",
+            (Self::ZhCn, "agent-source-sort") => "排序由视图控制",
+            (Self::EnUs, "agent-source") => "View",
+            (Self::ZhCn, "agent-source") => "视图",
             (Self::EnUs, "agent-search") => "Search",
             (Self::ZhCn, "agent-search") => "搜索",
             (Self::EnUs, "agent-query-hint") => {
@@ -111,13 +117,14 @@ impl Locale {
     ) -> String {
         use crate::machine_agents::view::{Order, Scope};
         use crate::machine_picker::Control;
-        use orchbee_workbench_protocol::PanelAgentState as State;
+        use orchbee_workbench_protocol::MetadataState as State;
         let (shortcut, label) = match control {
             Control::State => (
                 "f",
                 match view.state {
                     None => "agent-all-states",
                     Some(State::Blocked) => "agent-blocked",
+                    Some(State::Done) => "agent-done",
                     Some(State::Working) => "agent-working",
                     Some(State::Idle) => "agent-idle",
                     Some(State::Unknown) => "agent-unknown",

@@ -1,3 +1,11 @@
+pub mod agent_view;
+pub use agent_view::{
+    AgentViewAction, AgentViewBuiltinField, AgentViewBuiltinSortField, AgentViewContextOperand,
+    AgentViewContextValue, AgentViewFailure, AgentViewField, AgentViewFilter, AgentViewOutcome,
+    AgentViewRequest, AgentViewResult, AgentViewSnapshot, AgentViewSort, AgentViewSortField,
+    AgentViewSortOrder, AgentViewSpec, AgentViewToken, AgentViewValue, MAXIMUM_AGENT_VIEW_BYTES,
+    MAXIMUM_AGENT_VIEW_SPEC_BYTES, parse_agent_view_spec,
+};
 mod carrier;
 mod command;
 mod directory;

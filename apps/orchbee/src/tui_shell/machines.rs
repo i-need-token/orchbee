@@ -162,6 +162,18 @@ impl Manager {
         change.redraw |= view
             .machines
             .observe_agents(self.agents.tick(agent_sources, now));
+        if let Some(TerminalSessionView::Native(native)) = surface.active().view()
+            && view
+                .machines
+                .needs_agent_attention(native.machine_attention_version())
+        {
+            let bindings = view.machines.agent_attention_bindings();
+            let snapshots: Vec<_> = bindings
+                .chunks(orchbee_workbench_protocol::MAXIMUM_CLIENT_ATTENTION_SESSIONS)
+                .filter_map(|chunk| native.machine_agent_attention(chunk))
+                .collect();
+            change.redraw |= view.machines.observe_agent_attention(&snapshots);
+        }
         change.redraw |= view.machines.drive_agent_navigation(now);
         if !view.machines.open {
             self.cancel();
@@ -461,6 +473,7 @@ impl Manager {
         let focus = surface.active().suspend_machine();
         next.surface.resume_machine(focus);
         let mut picker = view.machines.clone();
+        picker.reset_agent_attention_read();
         picker.observe_focus(
             next.choice(),
             active_context(next.surface.as_ref()),

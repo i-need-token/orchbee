@@ -194,6 +194,8 @@ const FAMILY_VERBS: &[(&str, &[&str])] = &[
         &[
             "attach",
             "attention",
+            #[cfg(windows)]
+            "view",
             "changes",
             "doctor",
             "explain",
@@ -316,6 +318,7 @@ const FAMILY_VERBS: &[(&str, &[&str])] = &[
 /// Every business flag the grammar admits (`--format` is orthogonal), in the
 /// order the state machine records them.
 const BUSINESS_FLAGS: &[&str] = &[
+    "--spec",
     #[cfg(windows)]
     "--remote-session",
     #[cfg(windows)]
@@ -459,6 +462,12 @@ const REPEATABLE_FLAGS: &[&str] = &[
 const CONTROL_FLAGS: &[&str] = &["--cols", "--rows", "--timeout", "--takeover"];
 const OBSERVE_FLAGS: &[&str] = &["--cols", "--rows", "--timeout"];
 const COMMAND_FLAGS: &[(&str, &[&str])] = &[
+    #[cfg(windows)]
+    ("agent:view:get", &[]),
+    #[cfg(windows)]
+    ("agent:view:set", &["--spec"]),
+    #[cfg(windows)]
+    ("agent:view:clear", &["--source"]),
     #[cfg(windows)]
     ("machine:list", &["--json"]),
     #[cfg(windows)]
@@ -1394,6 +1403,8 @@ const HELP_CHILDREN: &[(&str, &[&str])] = &[
         &[
             "attach",
             "attention",
+            #[cfg(windows)]
+            "view",
             "changes",
             "doctor",
             "explain",
@@ -1517,6 +1528,8 @@ const HELP_CHILDREN: &[(&str, &[&str])] = &[
 /// reach a third help level.
 const HELP_LEVEL3: &[(&str, &[&str])] = &[
     #[cfg(windows)]
+    ("agent:view", &["get", "set", "clear"]),
+    #[cfg(windows)]
     ("plugin:action", &["list", "invoke"]),
     #[cfg(windows)]
     ("plugin:pane", &["open", "focus", "close"]),
@@ -1582,6 +1595,7 @@ fn flag_bit(flag: &str) -> &'static str {
         "--position" => "seen_notification_position",
         "--sound" => "seen_notification_sound",
         "--right-click" => "seen_right_click",
+        "--spec" => "seen_agent_view_spec",
         "--source" => "seen_output_source",
         "--state" => "seen_panel_agent_state",
         "--message" => "seen_panel_agent_message",
@@ -1670,6 +1684,7 @@ fn flag_value(flag: &str) -> Option<&'static str> {
         "--on" | "--off" | "--toggle" | "--focus" | "--no-focus" => None,
         "--cwd" => Some("cwd"),
         "--right-click" => Some("right_click"),
+        "--spec" => Some("agent_view_spec"),
         "--source" => Some("output_source"),
         "--token" | "--clear-token" | "--seq" | "--ttl-ms" => Some("filter"),
         "--clear-title"

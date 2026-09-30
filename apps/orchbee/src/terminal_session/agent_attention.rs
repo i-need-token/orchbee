@@ -62,6 +62,10 @@ pub(super) struct AgentAttention {
 }
 
 impl AgentAttention {
+    pub(super) fn physical_view_version(&self) -> Option<(u64, usize)> {
+        self.physical.state.view_version()
+    }
+
     pub(super) fn focus_matches(
         &self,
         target: &orchbee_agent_observation_protocol::AgentNameTarget,

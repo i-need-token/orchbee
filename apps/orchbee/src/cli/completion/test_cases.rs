@@ -1,6 +1,14 @@
 //! Shared observable completion obligations, independent of shell syntax.
 
 pub(super) const CASES: &[(&str, &str, bool)] = &[
+    ("orchbee agent vi", "view", true),
+    ("orchbee agent view ", "set", true),
+    ("orchbee help agent view ", "clear", true),
+    ("orchbee agent view set --s", "--spec", true),
+    ("orchbee agent view set --so", "--source", false),
+    ("orchbee agent view clear --so", "--source", true),
+    ("orchbee agent view get --s", "--spec", false),
+    ("orchbee --machine remote agent view ", "clear", true),
     ("orchbee mach", "machine", true),
     ("orchbee machine ", "add", true),
     ("orchbee help machine ", "disable", true),

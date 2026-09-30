@@ -79,8 +79,12 @@ pub(crate) struct Picker {
     workspace_rows: std::sync::Arc<[Row]>,
     agent_rows: std::sync::Arc<[Row]>,
     agent_observations: Vec<(Choice, crate::machine_agents::Observation)>,
+    agent_sources: Vec<(Choice, crate::machine_agents::Observation)>,
+    agent_attention_key: Option<(Choice, Option<(u64, usize)>)>,
+    agent_attention_refresh: bool,
     mode: Mode,
     mode_hits: Vec<(Rect, Mode)>,
+    agent_attention: crate::machine_agents::Attention,
     agent_view: crate::machine_agents::view::View,
     editing_query: bool,
     control_hits: Vec<(Rect, Control)>,
@@ -115,8 +119,12 @@ impl Default for Picker {
             workspace_rows: std::sync::Arc::from([]),
             agent_rows: std::sync::Arc::from([]),
             agent_observations: Vec::new(),
+            agent_sources: Vec::new(),
+            agent_attention_key: None,
+            agent_attention_refresh: false,
             mode: Mode::Machines,
             mode_hits: Vec::new(),
+            agent_attention: crate::machine_agents::Attention::default(),
             agent_view: crate::machine_agents::view::View::default(),
             editing_query: false,
             control_hits: Vec::new(),
@@ -187,6 +195,34 @@ impl Picker {
         &mut self,
         observations: Vec<(Choice, crate::machine_agents::Observation)>,
     ) -> bool {
+        self.agent_attention
+            .retain(|id| self.rows.iter().any(|r| r.enabled && &r.choice == id));
+        if self.agent_sources == observations {
+            return false;
+        }
+        self.agent_sources = observations.clone();
+        self.agent_attention_refresh = true;
+        self.project_agent_observations(observations)
+    }
+    pub(super) fn project_agent_observations(
+        &mut self,
+        observations: Vec<(Choice, crate::machine_agents::Observation)>,
+    ) -> bool {
+        let observations = observations
+            .into_iter()
+            .map(|(id, o)| {
+                let projected = match o {
+                    crate::machine_agents::Observation::Ready(round) => {
+                        self.agent_attention.project(&id, &round).map_or(
+                            crate::machine_agents::Observation::Unavailable,
+                            crate::machine_agents::Observation::Ready,
+                        )
+                    }
+                    other => other,
+                };
+                (id, projected)
+            })
+            .collect::<Vec<_>>();
         if self.agent_observations == observations {
             return false;
         }
@@ -512,11 +548,12 @@ impl Picker {
             let suffix = if let Some(status) = row.agent_status {
                 locale.machine_picker_text(status).to_owned()
             } else if let Some(agent) = &row.agent {
-                let fallback = locale.machine_picker_text(match agent.state {
-                    orchbee_workbench_protocol::PanelAgentState::Idle => "agent-idle",
-                    orchbee_workbench_protocol::PanelAgentState::Working => "agent-working",
-                    orchbee_workbench_protocol::PanelAgentState::Blocked => "agent-blocked",
-                    orchbee_workbench_protocol::PanelAgentState::Unknown => "agent-unknown",
+                let fallback = locale.machine_picker_text(match agent.display_state() {
+                    orchbee_workbench_protocol::MetadataState::Idle => "agent-idle",
+                    orchbee_workbench_protocol::MetadataState::Done => "agent-done",
+                    orchbee_workbench_protocol::MetadataState::Working => "agent-working",
+                    orchbee_workbench_protocol::MetadataState::Blocked => "agent-blocked",
+                    orchbee_workbench_protocol::MetadataState::Unknown => "agent-unknown",
                 });
                 // Sanitize the owned label before it enters a terminal render widget.
                 agent

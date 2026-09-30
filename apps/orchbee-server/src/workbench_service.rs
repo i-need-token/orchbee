@@ -1,3 +1,5 @@
+#[cfg(windows)]
+mod agent_view;
 use crate::local_terminal_service::LocalTerminalService;
 use orchbee_server::WorkbenchReadOrNavigationRequest;
 use orchbee_workbench_protocol::{
@@ -34,6 +36,8 @@ pub(crate) enum WorkbenchExecution {
 mod tests;
 
 pub(crate) struct WorkbenchService {
+    #[cfg(windows)]
+    agent_views: std::sync::Mutex<agent_view::Registry>,
     terminals: Arc<LocalTerminalService>,
     policy: WorkbenchPolicy,
     #[cfg(windows)]
@@ -47,6 +51,8 @@ pub(crate) struct WorkbenchService {
 impl WorkbenchService {
     pub(crate) fn new(policy: WorkbenchPolicy, terminals: Arc<LocalTerminalService>) -> Self {
         Self {
+            #[cfg(windows)]
+            agent_views: std::sync::Mutex::default(),
             terminals,
             policy,
             #[cfg(windows)]
@@ -70,6 +76,7 @@ impl WorkbenchService {
 
     pub(crate) fn execute(&self, request: WorkbenchRequest) -> WorkbenchExecution {
         let permitted = match &request {
+            WorkbenchRequest::AgentView(request) => if request.action.mutating() { self.policy.manage_navigation } else { self.policy.read },
             WorkbenchRequest::Plugin(request) => self.policy.read && (!request.action.mutating() || (self.policy.create_terminal && self.policy.manage_terminal_lifecycle)),
             WorkbenchRequest::WindowTitle(_) | WorkbenchRequest::Notification(_) => false,
             WorkbenchRequest::Configuration(request) => match request.action { orchbee_workbench_protocol::ConfigurationAction::Reload => self.policy.manage_navigation, _ => self.policy.read },
@@ -176,7 +183,13 @@ impl WorkbenchService {
             }
             WorkbenchRequest::Notification(request) => return WorkbenchExecution::Response(unavailable_or_denied(WorkbenchRequest::Notification(request.clone()), false)),
             WorkbenchRequest::WindowTitle(request) => return WorkbenchExecution::Response(unavailable_or_denied(WorkbenchRequest::WindowTitle(request.clone()), false)),
-        WorkbenchRequest::Configuration(request) => {
+        WorkbenchRequest::AgentView(request) => {
+                #[cfg(windows)]
+                return WorkbenchExecution::Response(WorkbenchResponse::AgentView(self.agent_view(request)));
+                #[cfg(not(windows))]
+                return WorkbenchExecution::Response(unavailable_or_denied(WorkbenchRequest::AgentView(request.clone()), false));
+            }
+            WorkbenchRequest::Configuration(request) => {
                 #[cfg(windows)]
                 return WorkbenchExecution::Response(WorkbenchResponse::Configuration(self.terminals.execute_configuration(request.clone())));
                 #[cfg(not(windows))]
@@ -499,6 +512,20 @@ fn unavailable_or_denied(request: WorkbenchRequest, denied: bool) -> WorkbenchRe
                 },
             },
         ),
+        WorkbenchRequest::AgentView(request) => {
+            WorkbenchResponse::AgentView(orchbee_workbench_protocol::AgentViewResult {
+                protocol_version: ProtocolVersion,
+                request_id: request.request_id,
+                site_id: request.site_id,
+                outcome: orchbee_workbench_protocol::AgentViewOutcome::Failed {
+                    reason: if denied {
+                        orchbee_workbench_protocol::AgentViewFailure::Denied
+                    } else {
+                        orchbee_workbench_protocol::AgentViewFailure::Unavailable
+                    },
+                },
+            })
+        }
         WorkbenchRequest::PanelMetadata(request) => {
             WorkbenchResponse::PanelMetadata(orchbee_workbench_protocol::PanelMetadataResult {
                 protocol_version: ProtocolVersion,

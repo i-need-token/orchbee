@@ -144,7 +144,8 @@ impl TryFrom<WorkbenchRequest> for WorkbenchReadOrNavigationRequest {
                 };
                 Ok(Self(ReadOrNavigationRequest::Command { command, action }))
             }
-            request @ (WorkbenchRequest::TabCloseRead(_)
+            request @ (WorkbenchRequest::AgentView(_)
+            | WorkbenchRequest::TabCloseRead(_)
             | WorkbenchRequest::TabCloseResume(_)
             | WorkbenchRequest::WorkspaceCloseRead(_)
             | WorkbenchRequest::WorkspaceCloseResume(_)

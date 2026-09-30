@@ -4,6 +4,23 @@ use crate::terminal_session::agent_attention::{NativeAgentAttentionDraw, Painted
 use orchbee_workbench_protocol::WorkbenchPanelId;
 
 impl NativeSessionView<'_> {
+    pub(crate) fn machine_attention_version(&self) -> Option<(u64, usize)> {
+        if self.retirement.is_some() {
+            return None;
+        }
+        self.attention?.physical_view_version()
+    }
+
+    pub(crate) fn machine_agent_attention(
+        &self,
+        bindings: &[orchbee_agent_observation_protocol::AgentLaunchBinding],
+    ) -> Option<orchbee_workbench_protocol::ClientTerminalAgentAttentionSnapshot> {
+        if self.retirement.is_some() {
+            return None;
+        }
+        self.attention?.read_physical(bindings, None)
+    }
+
     fn attention_presentation(&self, pane: &PaneRef) -> Option<String> {
         let panel_id = pane.pane().panel();
         if self.pane_ref_for_panel(panel_id).as_ref() != Some(pane)

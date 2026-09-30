@@ -5,6 +5,68 @@ use crate::machine_agents::{
 };
 use std::time::{Duration, Instant};
 
+#[test]
+fn active_source_view_drives_list_and_global_cycle_and_failed_source_never_clears_it() {
+    use crate::machine_agents::{Observation as Agents, tests::checkpoint};
+    use orchbee_workbench_protocol::*;
+    let remote = profile(1, "remote", true);
+    let mut picker = Picker {
+        available: true,
+        ..Picker::default()
+    };
+    picker.replace(std::slice::from_ref(&remote));
+    let mut idle = agent_row();
+    idle.state = PanelAgentState::Idle;
+    let mut blocked = agent_row();
+    blocked.state = PanelAgentState::Blocked;
+    blocked.target.member = TerminalPresentationId::parse(&format!("{:032x}", 24)).unwrap();
+    blocked.target.physical = crate::machine_agents::tests::physical(24);
+    let mut local = checkpoint(vec![idle.clone(), blocked.clone()])
+        .as_ref()
+        .clone();
+    local.view=AgentViewSnapshot{revision:WorkbenchRevision::new(1),spec:Some(parse_agent_view_spec(br#"{"source":"cli.views","label":"Blocked","filter":{"op":"eq","field":"status","value":"blocked"},"sort":[{"field":"attention","order":"desc"}]}"#).unwrap())};
+    let observations = vec![
+        (Choice::Local, Agents::Ready(std::sync::Arc::new(local))),
+        (
+            Choice::Remote(remote.id.clone()),
+            Agents::Ready(checkpoint(vec![idle])),
+        ),
+    ];
+    picker.observe_agents(observations.clone());
+    picker.navigate_agent(false, Instant::now());
+    let candidates: Vec<_> = picker
+        .agent_rows
+        .iter()
+        .filter(|r| r.agent.is_some())
+        .collect();
+    assert_eq!(candidates.len(), 1);
+    assert_eq!(
+        candidates[0].agent.as_ref().unwrap().target.member,
+        blocked.target.member
+    );
+    let text = paint(&mut picker, Locale::EnUs, 90, 24);
+    assert!(text.contains("Blocked"));
+    assert!(text.contains("Sort from view"));
+    picker.agent_control(Control::Order);
+    assert_eq!(picker.error, Some("agent-source-sort"));
+    picker.navigate_agent(false, Instant::now());
+    assert!(picker.drive_agent_navigation(Instant::now()));
+    assert_eq!(
+        picker.request.take().unwrap().context,
+        Some(crate::terminal_session::NativeStartupTarget::Agent(
+            Box::new(blocked.target)
+        ))
+    );
+    picker.observe_agents(vec![
+        (Choice::Local, Agents::Unavailable),
+        observations[1].clone(),
+    ]);
+    assert!(
+        picker.agent_rows.iter().all(|r| r.agent.is_none()),
+        "unknown active source must not apply a cleared view to other machines"
+    );
+}
+
 fn picker() -> Picker {
     let mut picker = Picker {
         available: true,
@@ -12,15 +74,56 @@ fn picker() -> Picker {
     };
     picker.replace(&[profile(1, "remote", true), profile(2, "disabled", false)]);
     picker.observe_agents(vec![
-        (Choice::Local, Agents::Ready(vec![agent_row()].into())),
+        (
+            Choice::Local,
+            Agents::Ready(crate::machine_agents::tests::checkpoint(vec![agent_row()])),
+        ),
         (
             Choice::Remote(profile(1, "remote", true).id),
-            Agents::Ready(vec![agent_row()].into()),
+            Agents::Ready(crate::machine_agents::tests::checkpoint(vec![agent_row()])),
         ),
     ]);
     picker.show();
     picker.set_mode(Mode::Agents);
     picker
+}
+
+#[test]
+fn unchanged_source_and_attention_versions_skip_projection_but_ack_reprojects_once() {
+    let mut picker = picker();
+    let sources = picker.agent_sources.clone();
+    let rows = picker.agent_rows.clone();
+    assert!(!picker.observe_agents(sources.clone()));
+    assert!(std::sync::Arc::ptr_eq(&rows, &picker.agent_rows));
+    assert!(picker.needs_agent_attention(Some((1, 0))));
+    assert!(!picker.needs_agent_attention(Some((1, 0))));
+    let row = agent_row();
+    let attention = orchbee_workbench_protocol::ClientTerminalAgentAttentionSnapshot {
+        report_revision: orchbee_workbench_protocol::WorkbenchRevision::new(2),
+        outer_focused: None,
+        entries: vec![
+            orchbee_workbench_protocol::ClientTerminalAgentAttentionEntry {
+                binding: row.target.physical,
+                state: Some(
+                    orchbee_workbench_protocol::ClientTerminalAgentAttentionVersion {
+                        sequence: row.sequence,
+                        seen: false,
+                    },
+                ),
+            },
+        ],
+    };
+    assert!(picker.observe_agent_attention(&[attention]));
+    assert!(!picker.agent_rows[0].agent.as_ref().unwrap().seen);
+    assert!(!picker.observe_agents(sources));
+    assert!(!picker.agent_rows[0].agent.as_ref().unwrap().seen);
+    picker.reset_agent_attention_read();
+    assert!(
+        picker.needs_agent_attention(Some((1, 0))),
+        "a replacement Client cannot inherit an identical private version stamp"
+    );
+    picker.current = Choice::Remote(profile(1, "remote", true).id);
+    assert!(picker.needs_agent_attention(Some((1, 0))));
 }
 fn focus(picker: &mut Picker) {
     let target = agent_row().target;
@@ -84,7 +187,7 @@ fn drawn_controls_filter_without_reusing_old_mouse_authority() {
     picker.pointer(click(state));
     assert_eq!(
         picker.agent_view.state,
-        Some(orchbee_workbench_protocol::PanelAgentState::Blocked)
+        Some(orchbee_workbench_protocol::MetadataState::Blocked)
     );
     assert!(picker.painted.is_empty());
     assert!(picker.control_hits.is_empty());
@@ -92,6 +195,12 @@ fn drawn_controls_filter_without_reusing_old_mouse_authority() {
     assert!(picker.request.is_none());
     assert!(picker.visible_rows().iter().all(|r| !r.enabled));
     assert!(paint(&mut picker, Locale::EnUs, 100, 30).contains("No matching agents"));
+    picker.key(KeyEvent::press(KeyCode::Char('f'), Modifiers::NONE));
+    assert_eq!(
+        picker.agent_view.state,
+        Some(orchbee_workbench_protocol::MetadataState::Done)
+    );
+    assert!(picker.visible_rows().iter().all(|r| !r.enabled));
     picker.key(KeyEvent::press(KeyCode::Char('f'), Modifiers::NONE));
     assert_eq!(
         picker.visible_rows().iter().filter(|r| r.enabled).count(),
@@ -149,17 +258,29 @@ fn global_agent_navigation_waits_wraps_and_uses_filtered_stable_order() {
     let now = Instant::now();
     picker.navigate_agent(false, now);
     picker.observe_agents(vec![
-        (Choice::Local, Agents::Ready(vec![agent_row()].into())),
+        (
+            Choice::Local,
+            Agents::Ready(crate::machine_agents::tests::checkpoint(vec![agent_row()])),
+        ),
         (remote.clone(), Agents::Loading),
     ]);
     assert!(!picker.drive_agent_navigation(now));
     assert!(picker.request.is_none());
     let mut blocked = agent_row();
     blocked.state = orchbee_workbench_protocol::PanelAgentState::Blocked;
+    blocked.sequence = orchbee_workbench_protocol::WorkbenchRevision::new(2);
     picker.agent_view.order = Order::Priority;
     picker.observe_agents(vec![
-        (Choice::Local, Agents::Ready(vec![agent_row()].into())),
-        (remote.clone(), Agents::Ready(vec![blocked.clone()].into())),
+        (
+            Choice::Local,
+            Agents::Ready(crate::machine_agents::tests::checkpoint(vec![agent_row()])),
+        ),
+        (
+            remote.clone(),
+            Agents::Ready(crate::machine_agents::tests::checkpoint(vec![
+                blocked.clone(),
+            ])),
+        ),
     ]);
     assert!(picker.drive_agent_navigation(now));
     assert_eq!(
@@ -172,7 +293,7 @@ fn global_agent_navigation_waits_wraps_and_uses_filtered_stable_order() {
     picker.navigate_agent(true, now);
     assert!(picker.drive_agent_navigation(now));
     assert_eq!(picker.request.take().unwrap().machine, remote);
-    picker.agent_view.state = Some(orchbee_workbench_protocol::PanelAgentState::Working);
+    picker.agent_view.state = Some(orchbee_workbench_protocol::MetadataState::Working);
     picker.rebuild_workspaces(None);
     picker.navigate_agent(false, now);
     assert!(picker.drive_agent_navigation(now));
@@ -196,7 +317,10 @@ fn agent_navigation_cancels_expires_and_never_selects_unavailable_or_empty_rows(
     assert!(picker.drive_agent_navigation(now + Duration::from_secs(8)));
     assert_eq!(picker.error, Some("agents-unavailable"));
     assert!(picker.request.is_none());
-    for observation in [Agents::Unavailable, Agents::Ready(std::sync::Arc::from([]))] {
+    for observation in [
+        Agents::Unavailable,
+        Agents::Ready(crate::machine_agents::tests::checkpoint(Vec::new())),
+    ] {
         picker.observe_agents(vec![(Choice::Local, observation)]);
         picker.navigate_agent(true, now);
         assert!(picker.drive_agent_navigation(now));
@@ -204,7 +328,7 @@ fn agent_navigation_cancels_expires_and_never_selects_unavailable_or_empty_rows(
     }
     picker.observe_agents(vec![(
         Choice::Local,
-        Agents::Ready(vec![agent_row()].into()),
+        Agents::Ready(crate::machine_agents::tests::checkpoint(vec![agent_row()])),
     )]);
     for reverse in [false, true] {
         picker.navigate_agent(reverse, now);
@@ -221,11 +345,15 @@ fn sorting_preserves_selected_physical_identity_and_invalidates_pointer_hits() {
     let old = picker.painted[1].0;
     let mut other = agent_row();
     other.state = orchbee_workbench_protocol::PanelAgentState::Blocked;
+    other.sequence = orchbee_workbench_protocol::WorkbenchRevision::new(2);
     picker.observe_agents(vec![
-        (Choice::Local, Agents::Ready(vec![other].into())),
+        (
+            Choice::Local,
+            Agents::Ready(crate::machine_agents::tests::checkpoint(vec![other])),
+        ),
         (
             Choice::Remote(profile(1, "remote", true).id),
-            Agents::Ready(vec![agent_row()].into()),
+            Agents::Ready(crate::machine_agents::tests::checkpoint(vec![agent_row()])),
         ),
     ]);
     picker.agent_control(Control::Order);
@@ -258,7 +386,7 @@ fn agent_metadata_is_visible_without_changing_activation_identity() {
     .unwrap();
     picker.observe_agents(vec![(
         Choice::Local,
-        Agents::Ready(vec![row.clone()].into()),
+        Agents::Ready(crate::machine_agents::tests::checkpoint(vec![row.clone()])),
     )]);
     let text = paint(&mut picker, Locale::EnUs, 100, 30);
     for label in ["Fix docs", "Friendly Agent", "Reviewing", "issue: ORCH-42"] {

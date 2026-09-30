@@ -37,6 +37,15 @@ pub(super) struct PhysicalAttentionState {
 }
 
 impl PhysicalAttentionState {
+    pub(super) fn view_version(&self) -> Option<(u64, usize)> {
+        self.readable.then(|| {
+            (
+                self.serial,
+                self.entries.values().filter(|e| e.seen).count(),
+            )
+        })
+    }
+
     pub(super) fn focus_matches(&self, binding: &AgentLaunchBinding) -> Option<bool> {
         self.readable.then(|| {
             self.entries

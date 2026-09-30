@@ -17,8 +17,10 @@ use std::{
     time::{Duration, Instant},
 };
 
+mod attention;
 mod metadata;
 pub(crate) mod view;
+pub(crate) use attention::Attention;
 
 const MAXIMUM_ROWS: usize = 4096;
 const MAXIMUM_BYTES: usize = 8 * 1024 * 1024;
@@ -36,6 +38,8 @@ pub(crate) struct Target {
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct Row {
+    pub(crate) seen: bool,
+    pub(crate) order: PlacementOrder,
     pub(crate) target: Target,
     pub(crate) label: String,
     pub(crate) workspace: String,
@@ -44,10 +48,29 @@ pub(crate) struct Row {
     pub(crate) metadata: PanelMetadataEffective,
     pub(crate) tokens: MetadataTokens,
 }
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub(crate) struct PlacementOrder {
+    pub(crate) workspace: Option<u64>,
+    pub(crate) tab: u64,
+    pub(crate) pane: u64,
+}
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct Checkpoint {
+    pub(crate) site_id: SiteId,
+    pub(crate) report_revision: WorkbenchRevision,
+    pub(crate) view: AgentViewSnapshot,
+    pub(crate) rows: Arc<[Row]>,
+}
+impl std::ops::Deref for Checkpoint {
+    type Target = [Row];
+    fn deref(&self) -> &[Row] {
+        &self.rows
+    }
+}
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum Observation {
     Loading,
-    Ready(Arc<[Row]>),
+    Ready(Arc<Checkpoint>),
     Unavailable,
 }
 pub(crate) struct Source {
@@ -84,6 +107,31 @@ pub(crate) fn snapshot(
         .outcome
     {
         WorkbenchSnapshotOutcome::Available { snapshot } => Ok(snapshot),
+        _ => Err(()),
+    }
+}
+fn source_view(
+    client: &mut LocalClient,
+    snapshot: &Snapshot,
+    deadline: Instant,
+    cancel: &AtomicU8,
+) -> Result<AgentViewSnapshot, ()> {
+    check(deadline, cancel)?;
+    match client
+        .agent_view(
+            AgentViewRequest {
+                protocol_version: ProtocolVersion,
+                request_id: request_id()?,
+                site_id: snapshot.site_id.clone(),
+                action: AgentViewAction::Read {},
+            },
+            deadline,
+            Some(orchbee_local_ipc::LocalIo::Wake(cancel, 1)),
+        )
+        .map_err(|_| ())?
+        .outcome
+    {
+        AgentViewOutcome::Available { snapshot } => Ok(snapshot),
         _ => Err(()),
     }
 }
@@ -131,6 +179,7 @@ fn states(
     }
 }
 struct Placement {
+    order: PlacementOrder,
     context: NativeContextTarget,
     tab: WorkbenchTabId,
     panel: WorkbenchPanelId,
@@ -164,7 +213,7 @@ fn placements(snapshot: &Snapshot) -> Result<Vec<Placement>, ()> {
             }),
     );
     let mut result = Vec::new();
-    for (location, workspace) in locations {
+    for (workspace_order, (location, workspace)) in locations.into_iter().enumerate() {
         let id = match &location {
             NativeContextLocation::Standalone(id) => id,
             NativeContextLocation::Workspace {
@@ -181,8 +230,16 @@ fn placements(snapshot: &Snapshot) -> Result<Vec<Placement>, ()> {
             site_id: snapshot.site_id.clone(),
             location,
         };
-        for tab in &context.tabs {
+        for (tab_order, tab) in context.tabs.iter().enumerate() {
+            let start = result.len();
             collect(&tab.root, &target, &tab.tab_id, &workspace, &mut result)?;
+            for (pane_order, row) in result[start..].iter_mut().enumerate() {
+                row.order = PlacementOrder {
+                    workspace: workspace_order.checked_sub(1).map(|i| i as u64),
+                    tab: tab_order as u64,
+                    pane: pane_order as u64,
+                };
+            }
         }
     }
     Ok(result)
@@ -212,6 +269,7 @@ fn collect(
                         return Err(());
                     }
                     rows.push(Placement {
+                        order: PlacementOrder::default(),
                         context: context.clone(),
                         tab: tab.clone(),
                         panel: panel_id.clone(),
@@ -235,8 +293,9 @@ pub(crate) fn read(
     client: &mut LocalClient,
     deadline: Instant,
     cancel: &AtomicU8,
-) -> Result<Arc<[Row]>, ()> {
+) -> Result<Arc<Checkpoint>, ()> {
     let snapshot = snapshot(client, deadline, cancel)?;
+    let initial_view = source_view(client, &snapshot, deadline, cancel)?;
     let placements = placements(&snapshot)?;
     let ids: Vec<_> = placements.iter().map(|p| p.member.clone()).collect();
     let mut revision = None;
@@ -271,6 +330,9 @@ pub(crate) fn read(
     if !fence.is_empty() || revision.is_some_and(|old| old != head) {
         return Err(());
     }
+    if source_view(client, &snapshot, deadline, cancel)? != initial_view {
+        return Err(());
+    }
     check(deadline, cancel)?;
     let mut rows = Vec::new();
     for placement in placements {
@@ -286,6 +348,8 @@ pub(crate) fn read(
                 .metadata
                 .presentation(Some(&agent), report.authority_source.as_deref());
             rows.push(Row {
+                seen: true,
+                order: placement.order,
                 metadata: effective,
                 tokens: extra.metadata.tokens,
                 sequence: state.sequence,
@@ -304,7 +368,12 @@ pub(crate) fn read(
             });
         }
     }
-    Ok(rows.into())
+    Ok(Arc::new(Checkpoint {
+        site_id: snapshot.site_id,
+        report_revision: head,
+        view: initial_view,
+        rows: rows.into(),
+    }))
 }
 pub(crate) fn verify(
     client: &mut LocalClient,
@@ -343,7 +412,7 @@ pub(crate) fn verify(
 
 struct Completed {
     at: Instant,
-    rows: Result<Arc<[Row]>, ()>,
+    rows: Result<Arc<Checkpoint>, ()>,
 }
 struct Job {
     cancel: Arc<AtomicU8>,
