@@ -6,18 +6,24 @@ use super::{
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct TerminalLinkCommand {
+    pub(crate) activate: bool,
     pub(crate) target: Target,
     pub(crate) cursor: TerminalTextPoint,
     pub(crate) offset: u64,
     pub(crate) revision: Option<u64>,
     pub(crate) generation: Option<u64>,
 }
-const CONTEXT: UsageContext = UsageContext::Path("terminal link-resolve");
 pub(super) fn parse(
     value: &str,
     options: &Options,
     envelope: FailureEnvelope,
+    activate: bool,
 ) -> Result<Request, ParseFailure> {
+    let context = UsageContext::Path(if activate {
+        "terminal link-activate"
+    } else {
+        "terminal link-resolve"
+    });
     check_scope(
         options,
         Scope {
@@ -27,7 +33,7 @@ pub(super) fn parse(
             generation: true,
             ..NO_OPTIONS
         },
-        CONTEXT,
+        context,
         envelope,
     )?;
     let viewport_error = || {
@@ -35,11 +41,11 @@ pub(super) fn parse(
             options.cursor.as_deref().unwrap_or_default(),
             "--cursor",
             ExpectedValue::TerminalViewportPoint,
-            CONTEXT,
+            context,
             envelope,
         )
     };
-    let cursor = terminal_buffer::point(options.cursor.as_deref(), "--cursor", CONTEXT, envelope)
+    let cursor = terminal_buffer::point(options.cursor.as_deref(), "--cursor", context, envelope)
         .map_err(|failure| {
         if options.cursor.is_some() {
             viewport_error()
@@ -53,21 +59,22 @@ pub(super) fn parse(
     let offset = options
         .link_offset
         .as_deref()
-        .map(|raw| terminal_buffer::number(raw, "--offset-from-bottom", false, CONTEXT, envelope))
+        .map(|raw| terminal_buffer::number(raw, "--offset-from-bottom", false, context, envelope))
         .transpose()?
         .unwrap_or(0);
     let revision = options
         .content_revision
         .as_deref()
-        .map(|raw| terminal_buffer::number(raw, "--content-revision", false, CONTEXT, envelope))
+        .map(|raw| terminal_buffer::number(raw, "--content-revision", false, context, envelope))
         .transpose()?;
     let generation = options
         .generation
         .as_deref()
-        .map(|raw| terminal_buffer::number(raw, "--generation", true, CONTEXT, envelope))
+        .map(|raw| terminal_buffer::number(raw, "--generation", true, context, envelope))
         .transpose()?;
     Ok(Request::TerminalLink {
         command: TerminalLinkCommand {
+            activate,
             target: target(value.to_owned(), Resource::Terminal, envelope)?,
             cursor,
             offset,

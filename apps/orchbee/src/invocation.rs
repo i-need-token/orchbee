@@ -434,6 +434,8 @@ pub(crate) enum CommandPath {
     TerminalCopySearch,
     #[cfg(windows)]
     TerminalLinkResolve,
+    #[cfg(windows)]
+    TerminalLinkActivate,
     TerminalWaitOutput,
     TerminalSend,
     TerminalRun,
@@ -585,6 +587,8 @@ impl CommandPath {
             Self::TerminalCopySearch => "terminal copy-search",
             #[cfg(windows)]
             Self::TerminalLinkResolve => "terminal link-resolve",
+            #[cfg(windows)]
+            Self::TerminalLinkActivate => "terminal link-activate",
             Self::TerminalWaitOutput => "terminal wait-output",
             Self::TerminalSend => "terminal send",
             Self::TerminalRun => "terminal run",
@@ -4039,7 +4043,13 @@ fn resolve_words(
             terminal_stream::observe(operands, options, envelope)
         }
         #[cfg(windows)]
-        ["terminal", "link-resolve", value] => terminal_links::parse(value, options, envelope),
+        ["terminal", "link-resolve", value] => {
+            terminal_links::parse(value, options, envelope, false)
+        }
+        #[cfg(windows)]
+        ["terminal", "link-activate", value] => {
+            terminal_links::parse(value, options, envelope, true)
+        }
         #[cfg(windows)]
         ["terminal", "copy-motion", value] => terminal_copy::parse(value, options, false, envelope),
         #[cfg(windows)]
@@ -5159,6 +5169,8 @@ fn help_topic(path: &[&str]) -> Option<HelpTopic> {
         ["terminal", "copy-search"] => HelpTopic::Command(CommandPath::TerminalCopySearch),
         #[cfg(windows)]
         ["terminal", "link-resolve"] => HelpTopic::Command(CommandPath::TerminalLinkResolve),
+        #[cfg(windows)]
+        ["terminal", "link-activate"] => HelpTopic::Command(CommandPath::TerminalLinkActivate),
         ["terminal", "wait-output"] => HelpTopic::Command(CommandPath::TerminalWaitOutput),
         ["terminal", "send"] => HelpTopic::Command(CommandPath::TerminalSend),
         ["terminal", "run"] => HelpTopic::Command(CommandPath::TerminalRun),

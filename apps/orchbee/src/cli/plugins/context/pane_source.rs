@@ -23,6 +23,7 @@ enum TargetSource {
     Current,
     Panel(Target),
     Context(WorkbenchTerminalContextId),
+    Terminal(super::results::TerminalRow),
 }
 
 pub(in crate::cli) struct Source<'a> {
@@ -38,6 +39,12 @@ pub(super) struct Observation {
 }
 
 impl<'a> Source<'a> {
+    pub(in crate::cli) fn terminal(terminal: &super::results::TerminalRow) -> Self {
+        Self {
+            explicit: None,
+            target: TargetSource::Terminal(terminal.clone()),
+        }
+    }
     pub(in crate::cli) fn current(explicit: Option<&'a WorkbenchClientId>) -> Self {
         Self {
             explicit,
@@ -85,6 +92,7 @@ impl<'a> Source<'a> {
 
     fn contains(&self, snapshot: &Snapshot, panel: &Target) -> bool {
         match &self.target {
+            TargetSource::Terminal(terminal) => terminal.panel_id == panel.text(),
             TargetSource::Current => true,
             TargetSource::Panel(target) => target == panel,
             TargetSource::Context(id) => results::panel_entries(snapshot)
@@ -100,6 +108,31 @@ impl<'a> Source<'a> {
         deadline: Instant,
         signals: &mut ArmedSignals,
     ) -> Result<Observation, Failure> {
+        if let TargetSource::Terminal(terminal) = &self.target {
+            if !results::terminal_rows(snapshot).iter().any(|row| {
+                row.terminal_id == terminal.terminal_id
+                    && row.worker_id == terminal.worker_id
+                    && row.presentation_id == terminal.presentation_id
+                    && row.panel_id == terminal.panel_id
+                    && row.tab_id == terminal.tab_id
+                    && row.terminal_context_id == terminal.terminal_context_id
+            }) {
+                return Err(invalid());
+            }
+            let id = orchbee_workbench_protocol::TerminalId::parse(&terminal.terminal_id)
+                .map_err(|_| invalid())?;
+            let (context, panel) = infer(
+                snapshot,
+                None,
+                Some((Target::Id(terminal.panel_id.clone()), Some(id))),
+            )?;
+            return Ok(Observation {
+                context,
+                panel,
+                selected: None,
+                fence: None,
+            });
+        }
         let caller = if self.explicit.is_none() {
             PanelTarget::prepare_optional(|name| std::env::var_os(name))?
                 .map(|caller| caller.resolve_exact(snapshot))
@@ -139,6 +172,7 @@ impl<'a> Source<'a> {
         };
         let (current, panel) = infer(snapshot, selected.as_ref(), caller)?;
         let uses_current = match &self.target {
+            TargetSource::Terminal(_) => return Err(invalid()),
             TargetSource::Current => true,
             TargetSource::Panel(target) => panel.as_ref().is_some_and(|(p, _)| p == target),
             TargetSource::Context(id) => {
@@ -203,7 +237,7 @@ impl<'a> Source<'a> {
                 };
                 (context, panel, memory)
             }
-            TargetSource::Current => return Err(invalid()),
+            TargetSource::Current | TargetSource::Terminal(_) => return Err(invalid()),
         };
         Ok(Observation {
             context,

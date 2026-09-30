@@ -3,6 +3,33 @@ use crate::{
     localization::Locale, terminal_buffer_text::TerminalTextPoint, terminal_links::ResolvedLink,
 };
 impl Locale {
+    pub(crate) fn cli_terminal_link_activation(
+        self,
+        state: &str,
+        operation: Option<&str>,
+    ) -> String {
+        let label = match (self, state) {
+            (Self::EnUs, "no-link") => "No link to activate",
+            (Self::EnUs, "no-handler") => "No matching plugin handler",
+            (Self::EnUs, "started") => "Plugin Job admitted",
+            (Self::EnUs, "failed") => "Plugin invocation refused",
+            (Self::EnUs, _) => "Plugin outcome unknown; do not retry",
+            (Self::ZhCn, "no-link") => "没有可激活的链接",
+            (Self::ZhCn, "no-handler") => "没有匹配的插件处理器",
+            (Self::ZhCn, "started") => "插件 Job 已准入",
+            (Self::ZhCn, "failed") => "插件调用被拒绝",
+            (Self::ZhCn, _) => "插件结果未知；不要重试",
+        };
+        let mut text = format!("{label}\n");
+        if let Some(operation) = operation {
+            text.push_str(&format!(
+                "{}: {}\n",
+                self.plugin_runtime_state("operation-id"),
+                crate::cli::escape::escape(operation)
+            ));
+        }
+        text
+    }
     pub(crate) fn cli_terminal_link(
         self,
         terminal: &str,
@@ -74,4 +101,34 @@ http(s) 空白分隔 token，并处理尾部标点／平衡闭括号。保留宽
 五秒可取消总期限，严格路由围栏；65536 扫描行、合计 8 MiB 编码字节、1048576
 存储字形。过期／回收／格式错误／超限整体失败并释放，不重试。
 JSON：orchbee.terminal.link-resolve v1；文本转义控制字符。
+"#;
+
+pub(super) const ACTIVATE_EN: &str = r#"Usage: orchbee terminal link-activate <terminal> --cursor ROW:COL [--offset-from-bottom N] [--content-revision N] [--generation N] [--format text|json]
+
+Windows: resolve the exact whole cell, then invoke a matching enabled plugin handler.
+Same explicit native viewport/u16 cursor/u64 offset(default0)/revision/generation
+and OSC8/plain URL rules as link-resolve. Ordered by plugin ID then manifest handler
+order; handler and action must support Windows. No match is handled=false.
+Matched URL must fit4096 UTF-8 bytes and existing bounded plugin display context;
+exact clicked primary/child Panel context, never an unrelated Client focus.
+One existing5s viewer; strict final content and catalog preflight before one invoke.
+Server resolves argv/plugin-root/protected environment; Worker owns Job/logs.
+No browser/input/navigation/clipboard/Site start. Always Detach/EOF after reads.
+JSON: orchbee.terminal.link-activate v1. handled=true means known Job admission,
+not command success. Refusal exits3; lost/unknown outcome exits8 with operation ID;
+never retry unknown delivery. Ctrl+C exits130 without cancelling an admitted Job.
+"#;
+pub(super) const ACTIVATE_ZH: &str = r#"用法：orchbee terminal link-activate <terminal> --cursor ROW:COL [--offset-from-bottom N] [--content-revision N] [--generation N] [--format text|json]
+
+Windows：解析精确完整单元格，再调用匹配的已启用插件处理器。
+与 link-resolve 相同的显式原生 viewport／u16 光标／u64 offset（默认零）／
+修订／generation 和 OSC8／普通 URL 规则。按插件 ID 和 manifest 处理器顺序，
+处理器与动作都须支持 Windows；无匹配 handled=false。匹配 URL 至多4096 UTF-8
+字节，遵循既有插件显示上下文限制；上下文来自精确点击主／子终端 Panel，
+不是无关 Client 焦点。一个既有五秒 viewer，单次 invoke 前最终内容／清单预检。
+Server 解析 argv／插件根／保护环境，Worker 拥有 Job／日志；不打开浏览器、
+不输入／导航／改剪贴板／启动 Site，读取后总是 Detach／EOF 释放。
+JSON：orchbee.terminal.link-activate v1。handled=true 表示已知 Job 准入，
+不代表命令成功；拒绝退出3，丢失／未知结果退出8并保留操作ID，不重试未知投递。
+Ctrl+C 退出130，不取消已准入的 Job。
 "#;

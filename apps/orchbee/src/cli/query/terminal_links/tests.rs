@@ -1,6 +1,79 @@
 use super::*;
 use crate::terminal_links::LinkRegion;
 #[test]
+fn link_activation_receipt_requires_truthful_handled_and_closed_known_or_unknown_identity() {
+    let schema: serde_json::Value = serde_json::from_str(include_str!(
+        "../../schemas/orchbee.terminal.link-activate.json"
+    ))
+    .unwrap();
+    let validator = jsonschema::validator_for(&schema).unwrap();
+    let id = "11111111111111111111111111111111";
+    let base = json!({"schema":"orchbee.terminal.link-activate","version":1,"source":{"kind":"workbench-snapshot","siteId":id,"revision":"1"},"result":{"terminal":{"terminalId":id,"workerId":id,"boundTo":{"presentationId":id,"panelId":id,"tabId":id,"terminalContextId":id}},"contentRevision":"0","contentGeneration":"1","hostEpoch":id,"origin":{"row":0,"col":0},"offsetFromBottom":"0","viewportStartRow":"0","kind":"none","url":null,"regions":[],"handled":false,"activation":{"state":"no-link"}}});
+    validator.validate(&base).unwrap();
+    for state in ["no-handler", "started", "failed", "unknown"] {
+        let mut doc = base.clone();
+        doc["result"]["kind"] = json!("explicit");
+        doc["result"]["url"] = json!("custom://example");
+        let mut activation = json!({"state":state});
+        if state != "no-handler" {
+            activation["operationId"] = json!(id);
+            activation["pluginId"] = json!("tools");
+            activation["handlerId"] = json!("handler");
+            activation["actionId"] = json!("open");
+        }
+        match state {
+            "started" => {
+                activation["worker"] = json!({"workerId":id,"generation":"1"});
+                activation["jobId"] = json!(id);
+                activation["existing"] = json!(false);
+                doc["result"]["handled"] = json!(true);
+            }
+            "failed" => activation["reason"] = json!("disabled"),
+            "unknown" => activation["worker"] = serde_json::Value::Null,
+            _ => {}
+        }
+        doc["result"]["activation"] = activation;
+        validator.validate(&doc).unwrap();
+        let mut wrong = doc.clone();
+        wrong["result"]["handled"] = json!(state != "started");
+        assert!(!validator.is_valid(&wrong));
+        wrong = doc.clone();
+        wrong["result"]["activation"]["extra"] = json!(true);
+        assert!(!validator.is_valid(&wrong));
+        if state != "no-handler" {
+            doc["result"]["activation"]
+                .as_object_mut()
+                .unwrap()
+                .remove("operationId");
+            assert!(!validator.is_valid(&doc));
+        }
+    }
+    let mut read = base;
+    read["schema"] = json!("orchbee.terminal.link-resolve");
+    let old: serde_json::Value = serde_json::from_str(include_str!(
+        "../../schemas/orchbee.terminal.link-resolve.json"
+    ))
+    .unwrap();
+    assert!(!jsonschema::validator_for(&old).unwrap().is_valid(&read));
+}
+#[test]
+fn link_activation_text_distinguishes_admission_refusal_and_unknown_in_both_locales() {
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        for state in ["no-link", "no-handler", "started", "failed", "unknown"] {
+            let text = locale.cli_terminal_link_activation(state, Some("operation\u{1b}[31m"));
+            assert!(!text.contains('\u{1b}'));
+            assert!(text.contains("operation"));
+            if state == "unknown" {
+                assert!(text.contains(if locale == Locale::EnUs {
+                    "do not retry"
+                } else {
+                    "不要重试"
+                }));
+            }
+        }
+    }
+}
+#[test]
 fn link_resolve_receipt_is_closed_precise_and_distinguishes_explicit_plain_and_none() {
     let schema: serde_json::Value = serde_json::from_str(include_str!(
         "../../schemas/orchbee.terminal.link-resolve.json"

@@ -300,6 +300,8 @@ const FAMILY_VERBS: &[(&str, &[&str])] = &[
             "copy-search",
             #[cfg(windows)]
             "link-resolve",
+            #[cfg(windows)]
+            "link-activate",
             "run",
             "send",
             "session",
@@ -487,6 +489,16 @@ const COMMAND_FLAGS: &[(&str, &[&str])] = &[
     #[cfg(windows)]
     (
         "terminal:link-resolve",
+        &[
+            "--cursor",
+            "--offset-from-bottom",
+            "--content-revision",
+            "--generation",
+        ],
+    ),
+    #[cfg(windows)]
+    (
+        "terminal:link-activate",
         &[
             "--cursor",
             "--offset-from-bottom",
@@ -1296,6 +1308,8 @@ const OPERAND_PATHS: &[&str] = &[
     #[cfg(windows)]
     "terminal:link-resolve",
     #[cfg(windows)]
+    "terminal:link-activate",
+    #[cfg(windows)]
     "terminal:copy-motion",
     #[cfg(windows)]
     "terminal:copy-search",
@@ -1576,6 +1590,8 @@ const HELP_CHILDREN: &[(&str, &[&str])] = &[
             "copy-search",
             #[cfg(windows)]
             "link-resolve",
+            #[cfg(windows)]
+            "link-activate",
             "run",
             "send",
             "session",

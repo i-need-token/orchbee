@@ -36,6 +36,8 @@ pub(crate) fn run(
                 &text,
             );
             Ok(Prepared {
+                status: 0,
+                submitted: false,
                 result: json!({"anchor":point(command.anchor),"cursor":point(command.cursor),"text":text}),
                 text: rendered,
             })

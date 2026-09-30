@@ -36,7 +36,7 @@ Server 在解析调用前要求读取、终端创建和生命周期权限。确�
 
 ## 交付与证据
 
-原生已接通目录、action 调用、保留日志及托管源码安装/卸载。startup/event hook、链接处理器及插件 Pane 生命周期仍需集成，之后才能认定插件完整对齐。目录接受不代表命令已执行。参照固定 Herdr `e0507237ad8d41f60aece10d00ef29ce2339ca34`，主要为 `cli/plugin.rs`、`app/api/plugins/manifest.rs` 和 `persist/plugin_registry.rs`。
+原生已接通目录、action 调用、保留日志及托管源码安装/卸载。插件 Pane 生命周期如下。公开 `terminal link-activate` 通过现有执行边界，按顺序调用已启用的 Windows 链接处理器并带上精确点击终端上下文；读取围栏、无匹配／拒绝／未知回执和限制属于 [原生 CLI 查询](native-cli-query.zh-CN.md#激活终端链接)。TUI 悬停／点击集成和剩余插件 hook 义务继续单列。目录接受不代表命令已执行。参照固定 Herdr `e0507237ad8d41f60aece10d00ef29ce2339ca34`，主要为 `cli/plugin.rs`、`app/api/plugins/manifest.rs` 和 `persist/plugin_registry.rs`。
 
 定向证据覆盖解析上限、标识符/路径碰撞、源不可用时保留条目、缺失目录只读、目录原子转换及真实 Windows CLI 回执。测试夹具拥有并回收临时路径。完整 Windows 视觉/provider/多 Client 与全量回归验收另行执行。
 

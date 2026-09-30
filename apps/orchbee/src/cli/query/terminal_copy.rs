@@ -30,6 +30,8 @@ pub(crate) fn run(command: &TerminalCopyCommand, format: OutputFormat, locale: L
                 TerminalCopyAction::Motion { motion, .. } => {
                     let target = read_motion(reader, cursor, *motion)?;
                     Ok(Prepared {
+                        status: 0,
+                        submitted: false,
                         result: json!({"origin":point(cursor),"motion":motion.token(),"cursor":point(target)}),
                         text: locale.cli_terminal_copy_motion(
                             &reader.terminal.terminal_id,
@@ -76,6 +78,8 @@ pub(crate) fn run(command: &TerminalCopyCommand, format: OutputFormat, locale: L
                         &found,
                     );
                     Ok(Prepared {
+                        status: 0,
+                        submitted: false,
                         result: json!({
                             "origin":point(cursor),"query":query,"direction":direction.token(),
                             "previous":previous.map(range),

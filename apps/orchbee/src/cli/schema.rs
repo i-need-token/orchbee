@@ -440,6 +440,10 @@ const DOCUMENTS: &[(&str, &str)] = &[
         include_str!("schemas/orchbee.terminal.link-resolve.json"),
     ),
     (
+        "orchbee.terminal.link-activate",
+        include_str!("schemas/orchbee.terminal.link-activate.json"),
+    ),
+    (
         "orchbee.terminal.copy-motion",
         include_str!("schemas/orchbee.terminal.copy-motion.json"),
     ),
@@ -543,7 +547,7 @@ pub(crate) fn answer(schema_id: Option<&str>, format: OutputFormat, locale: Loca
     let document = json!({
         "schema": "orchbee.api.schema",
         // Includes immutable viewport link observations.
-        "version": 128,
+        "version": 129,
         "source": embedded_source(),
         "result": result,
     });

@@ -94,8 +94,50 @@ runtime discovery; stale/evicted/misrouted/incomplete records fail whole, with n
 retry or partial regions. This operation never obtains a controller, sends input,
 acknowledges user attention, changes selection/clipboard/focus, starts a Site or
 writes durable state. Schema/help/scoped Windows completion and machine read
-forwarding share the typed request. Plugin link activation, TUI hover/click wiring
+forwarding share the typed request. TUI hover/click wiring
 and physical Host/emulator acceptance remain separately scoped consumers.
+
+## Activate a terminal link
+
+Windows `terminal link-activate <terminal> --cursor ROW:COL` accepts the same
+offset, revision and generation options and explicit native viewport as resolve.
+It resolves the full clicked URI/URL before choosing an enabled, available Windows
+plugin handler. Plugin IDs are ordered lexically; handlers retain manifest order.
+Both handler and referenced action must support Windows. Invalid regex handlers
+are unavailable; matching uses the existing linear-time regex engine with a1MiB
+compiled-pattern ceiling and deadline/cancellation checks between handlers.
+No link or no matching handler returns `handled=false` without invoking a plugin.
+
+A match collects display context for the exact clicked primary or child terminal,
+including its canonical Panel/Tab/Workspace and corroborated cwd/Agent/worktree
+facts. Unrelated caller environment and Client focus do not select this source;
+unknown facts remain absent. `invocationSource=link_click`, the full clicked URL,
+handler ID and operation correlation are fixed by this workflow. Existing plugin
+context ceilings apply: URL4096 UTF-8 bytes, aggregate context16KiB and request32KiB.
+A matched URL that cannot be admitted fails before submission, without truncation.
+After context collection, a strict same-revision render-row read fences the clicked
+content, and the selected catalog entry is checked again before one existing
+plugin invocation. These are pre-submit observations, not an atomic catalog/content
+transaction or a content lock after submission.
+
+The Server alone resolves the current action executable, plugin-root cwd and
+protected environment. Existing Worker Jobs own launch, output logs and cancellation;
+display data cannot supply argv, directory policy or Worker authority. This command
+does not open a browser, send terminal input, navigate/focus, change clipboard or
+start a Site. One existing viewer and the entire preflight/submission share five
+seconds and cancellation; all outcomes release the viewer through Detach/EOF.
+An admitted plugin Job outlives that temporary viewer under its existing Job owner.
+
+Closed `orchbee.terminal.link-activate` v1 retains the resolved link, viewport and
+content/binding receipt, plus activation state and operation identity. `handled=true`
+requires a correlated known Started answer; it means Job admission, not command
+success. Known refusal exits3. A lost post-submit answer or unknown/malformed outcome
+exits8, preserves the operation identity and never retries; cancellation exits130.
+No-handler is a successful no-op. Existing plugin logs expose admitted Jobs; existing
+read receipts remain unchanged. Bilingual help/schema/scoped completion and machine
+relay share the typed command. Focused evidence covers ordered/platform matching,
+context bounds, exact target context, pre-submit stale data, start/refusal/loss and
+viewer release through actual Windows pipes; deployed Host/TUI acceptance remains.
 
 ## Terminal copy motion and search
 

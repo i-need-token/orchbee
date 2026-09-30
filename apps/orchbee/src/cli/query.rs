@@ -1,6 +1,7 @@
 //! Existing-only Site admission and bounded query exchanges. Snapshot queries
 //! are read-only; the names child owns one explicit Agent alias exchange.
-//! Neither path activates a Site, starts a process, or mutates the Workbench.
+//! No path activates a Site. Selection/copy/link reads do not start processes;
+//! explicit link activation delegates one plugin Job to the existing execution owner.
 
 #[cfg(windows)]
 mod terminal_buffer;

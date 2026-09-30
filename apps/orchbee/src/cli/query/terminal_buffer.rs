@@ -1,5 +1,6 @@
 //! One existing-Site viewer owns buffer reads, total budgets and deterministic
-//! release for public selection and copy queries; it never acquires input.
+//! release for public selection/copy/link queries and one explicit plugin activation;
+//! it never acquires terminal input.
 use super::{
     LocalClient, TerminalTextFrame, TerminalViewerAction, TerminalViewerOutcome,
     TerminalViewerRequest, ViewerId, attach_viewer_cancellable, classify_rows_rejected,
@@ -30,8 +31,11 @@ pub(super) struct ContentFence {
 pub(super) struct Prepared {
     pub(super) result: Value,
     pub(super) text: String,
+    pub(super) status: u8,
+    pub(super) submitted: bool,
 }
 pub(super) struct BufferReader<'a> {
+    snapshot: &'a orchbee_workbench_protocol::Snapshot,
     client: &'a mut LocalClient,
     viewer: &'a ViewerId,
     pub(super) frame: &'a TerminalTextFrame,
@@ -135,6 +139,7 @@ fn execute(
             .checked_add(u64::from(frame.geometry.rows))
             .ok_or_else(viewer_protocol_invalid)?;
         let mut reader = BufferReader {
+            snapshot: &snapshot,
             client: &mut client,
             viewer: &viewer,
             frame: &frame,
@@ -165,7 +170,9 @@ fn execute(
     }
     drop(client);
     let (frame, mut prepared) = observed.map_err(|failure| failure.source(source.clone()))?;
-    signals.check_before(deadline)?;
+    if !prepared.submitted {
+        signals.check_before(deadline)?;
+    }
     let result = prepared
         .result
         .as_object_mut()
@@ -188,13 +195,48 @@ fn execute(
     }
     .map_err(|_| Failure::new(FailureKind::OutputTooLarge).source(source))?;
     Ok(Output {
-        status: 0,
+        status: prepared.status,
         stdout,
         stderr: String::new(),
         finalization: None,
     })
 }
 impl BufferReader<'_> {
+    pub(super) fn activate_link(
+        &mut self,
+        url: Option<&str>,
+        row: u64,
+        col: u16,
+        explicit: bool,
+    ) -> Result<crate::cli::plugins::links::Activation, Failure> {
+        use crate::cli::plugins::links;
+        let Some(url) = url else {
+            return Ok(links::Activation::NoLink);
+        };
+        let Some(selection) = links::select(url, self.deadline, self.signals)? else {
+            return Ok(links::Activation::NoHandler);
+        };
+        let invocation = links::preflight(
+            self.client,
+            self.snapshot,
+            self.terminal,
+            url,
+            selection,
+            self.deadline,
+            self.signals,
+        )?;
+        let final_uri = self.hyperlink(row, col)?;
+        if final_uri.as_deref() != explicit.then_some(url) {
+            return Err(viewer_protocol_invalid());
+        }
+        links::submit(
+            self.client,
+            self.snapshot,
+            invocation,
+            self.deadline,
+            self.signals,
+        )
+    }
     pub(super) fn validate_point(&self, point: TerminalTextPoint) -> Result<(), Failure> {
         if u64::from(point.row) >= self.total || point.col >= self.frame.geometry.columns {
             Err(limit())

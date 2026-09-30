@@ -1,5 +1,7 @@
 //! Actual CLI processes prove strict link reads and effect-free viewer release.
 use super::*;
+#[path = "links/activation.rs"]
+mod activation;
 
 // Independent one-row OBPB/OBRW wire fixture; every generated valid frame is
 // admitted by the real decoder, including wide-head/tail shapes.

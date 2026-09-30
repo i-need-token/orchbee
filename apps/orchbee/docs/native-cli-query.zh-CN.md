@@ -71,8 +71,41 @@ Windows `terminal link-resolve <terminal> --cursor ROW:COL` 解析显式原生�
 错误／重复／外来参数在运行时发现前拒绝；过期／回收／误路由／不完整记录整体
 失败，不重试，也不返回部分区域。本操作不取得 controller、不发输入、不确认
 用户 attention、不改选区／剪贴板／焦点、不启动 Site、不写持久状态。
-Schema／帮助／限定范围 Windows 补全与机器只读转发共用类型化请求。插件链接
-激活、TUI 悬停／点击接线及物理 Host／模拟器验收是另外明确界定的消费路径。
+Schema／帮助／限定范围 Windows 补全与机器只读转发共用类型化请求。TUI 悬停／
+点击接线及物理 Host／模拟器验收是另外明确界定的消费路径。
+
+## 激活终端链接
+
+Windows `terminal link-activate <terminal> --cursor ROW:COL` 接受与 resolve 相同的
+offset、修订和 generation 参数及显式原生视口。先解析完整点击 URI／URL，再选择
+已启用、可用的 Windows 插件处理器。插件 ID 按字典序，处理器保留 manifest 顺序；
+处理器与引用动作都必须支持 Windows。非法正则处理器不可用；匹配使用已有的
+线性时间正则引擎，编译后 pattern 至多 1 MiB，处理器之间检查期限／取消。
+没有链接或匹配处理器返回 `handled=false`，不调用插件。
+
+匹配后收集精确点击的主／子终端显示上下文，包括规范 Panel／Tab／Workspace
+及已证实的 cwd／Agent／worktree 信息。无关 caller 环境或 Client 焦点不选择此
+来源；未知事实保持缺省。工作流固定 `invocationSource=link_click`、完整点击 URL、
+handler ID 和操作关联。适用已有插件上下文上限：URL 4096 UTF-8 字节、合计
+context 16 KiB、request 32 KiB；匹配 URL 无法准入时在提交前失败，不截断。
+收集上下文后严格重读相同修订的 render 行以保护点击内容，并在单次现有插件调用
+前复核选中的 catalog entry 未改变。这些是提交前观察，不承诺 catalog／内容原子
+事务或提交后的内容锁。
+
+Server 独自解析当前动作可执行文件、插件根 cwd 与保护环境；已有 Worker Job
+拥有启动、输出日志和取消。显示数据不能提供 argv、目录策略或 Worker 权限。
+本命令不打开浏览器、不发终端输入、不导航／聚焦、不改剪贴板、不启动 Site。
+一个既有 viewer 与全部预检／提交共用五秒和取消；任何结果都通过 Detach／EOF
+释放 viewer。已准入的插件 Job 由现有 Job 所有者管理，可在临时 viewer 结束后继续。
+
+封闭 `orchbee.terminal.link-activate` v1 保留已解析链接、视口、内容／绑定回执，
+并增加激活状态和操作身份。`handled=true` 必须有相关联且已知的 Started 回答，
+表示 Job 准入，不代表命令成功。已知拒绝退出 3；提交后回答丢失或未知／错误结果
+退出 8，保留操作身份且不重试；取消退出 130。没有处理器是成功无操作。
+已有插件日志可查看已准入 Job；原只读回执不变。双语帮助／schema／限定补全与
+机器转发共用类型化命令。定向证据覆盖顺序／平台匹配、上下文限制、精确目标
+上下文、提交前过期、启动／拒绝／丢失与实际 Windows 管道 viewer 释放；
+部署后的 Host／TUI 验收仍保留。
 
 ## 终端复制移动与搜索
 

@@ -36,7 +36,7 @@ Storage v2 preserves managed GitHub provenance and a bounded recovery list. Exis
 
 ## Delivery and evidence
 
-Catalog, action invocation, retained logs and managed source install/uninstall have native integration. Startup/event hooks, link handlers and plugin Pane lifecycle still require integration before complete plugin parity. Catalog acceptance is not an execution receipt. Reference behavior is pinned Herdr `e0507237ad8d41f60aece10d00ef29ce2339ca34`, especially `cli/plugin.rs`, `app/api/plugins/manifest.rs` and `persist/plugin_registry.rs`.
+Catalog, action invocation, retained logs and managed source install/uninstall have native integration. Plugin Pane lifecycle is specified below. Public `terminal link-activate` now invokes ordered enabled Windows link handlers with the exact clicked terminal context through this execution boundary; its read fences, no-match/refusal/unknown receipts and bounds belong to [Native CLI Query](native-cli-query.md#activate-a-terminal-link). TUI hover/click integration and remaining plugin hook obligations stay separate. Catalog acceptance is not an execution receipt. Reference behavior is pinned Herdr `e0507237ad8d41f60aece10d00ef29ce2339ca34`, especially `cli/plugin.rs`, `app/api/plugins/manifest.rs` and `persist/plugin_registry.rs`.
 
 Focused evidence covers parser limits, identity/path collisions, unavailable-source retention, read-only absence, atomic catalog transitions and actual Windows CLI receipts. Test fixtures own and remove their temporary paths. Full Windows visual/provider/multi-Client and aggregate regression acceptance remain separate.
 

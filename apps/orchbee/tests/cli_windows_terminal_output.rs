@@ -40,6 +40,7 @@ fn source_export_catalog_and_usage_failure_are_offline_machine_contracts() {
         "orchbee.terminal.copy-motion",
         "orchbee.terminal.copy-search",
         "orchbee.terminal.link-resolve",
+        "orchbee.terminal.link-activate",
     ] {
         assert_eq!(document["result"]["schemas"][id]["$id"], id);
     }
@@ -74,11 +75,14 @@ fn reply(stream: &mut LocalStream, request: &TerminalViewerRequest, outcome: Out
     .unwrap();
 }
 fn observed_frame(stream: &mut LocalStream) -> ViewerId {
+    observed_frame_for_terminal(stream, ID)
+}
+fn observed_frame_for_terminal(stream: &mut LocalStream, terminal: &str) -> ViewerId {
     let route = inspect_terminal_frame_route(OBTF).unwrap();
     let viewer = ViewerId::parse(&route.attachment_id.to_text()).unwrap();
     let req = request(stream);
     assert!(
-        matches!(req.action(), Action::AttachBinding { terminal_id, .. } if terminal_id.as_str()==ID)
+        matches!(req.action(), Action::AttachBinding { terminal_id, .. } if terminal_id.as_str()==terminal)
     );
     reply(
         stream,
