@@ -18,7 +18,7 @@ use orchbee_workbench_protocol::{
 };
 use std::time::Instant;
 
-pub(super) fn resolve(
+pub(in crate::cli) fn resolve(
     client: &mut LocalClient,
     snapshot: &Snapshot,
     explicit: Option<&WorkbenchClientId>,
@@ -27,6 +27,34 @@ pub(super) fn resolve(
     deadline: Instant,
     signals: &mut ArmedSignals,
 ) -> Result<PluginInvocationContext, Failure> {
+    observe(
+        client,
+        snapshot,
+        explicit,
+        provided,
+        operation_id,
+        deadline,
+        signals,
+    )
+    .map(|(context, _)| context)
+}
+
+/// Retain the actual passive Client member for callers that already pinned a source.
+pub(in crate::cli) fn observe(
+    client: &mut LocalClient,
+    snapshot: &Snapshot,
+    explicit: Option<&WorkbenchClientId>,
+    provided: PluginInvocationContext,
+    operation_id: &str,
+    deadline: Instant,
+    signals: &mut ArmedSignals,
+) -> Result<
+    (
+        PluginInvocationContext,
+        Option<orchbee_workbench_protocol::ClientPresentationSelection>,
+    ),
+    Failure,
+> {
     signals.check_before(deadline)?;
     let caller = if explicit.is_none() {
         PanelTarget::prepare_optional(|name| std::env::var_os(name))?
@@ -78,6 +106,7 @@ pub(super) fn resolve(
             context.worktree = worktrees.plugin_context(id)?;
         }
     }
+    let mut source_member = None;
     if let Some((target, terminal)) = panel {
         let projection = results::project(&QueryCommand::PanelGet(target), snapshot)?;
         let results::Projection::PanelGet(panel) = &projection else {
@@ -92,6 +121,7 @@ pub(super) fn resolve(
             terminal.map_or(Origin::Primary, Origin::Caller)
         };
         let member = Resolved::new(panel, origin)?;
+        source_member = member.client().map(|read| read.member.clone());
         let (_, document) = workbench_query::collect(
             client,
             snapshot,
@@ -137,7 +167,7 @@ pub(super) fn resolve(
     context
         .validate()
         .map_err(|_| Failure::new(FailureKind::Rejected))?;
-    Ok(context)
+    Ok((context, source_member))
 }
 
 type CurrentPanel = (Target, Option<TerminalId>);

@@ -23,3 +23,5 @@
 ## 插件覆盖层观察与 Client 返回身份
 
 只读 `PaneObserve` 携带精确 `PluginPaneInfo`；`PaneObserved` 回显该对象、非零规范 revision 及布尔终止事实。相关性包含 selector、context／Tab／Panel／Presentation 和 binding，不授予生命周期变更权限。私有 Client `Overlay` 控制携带新建已绑定成员、精确可空返回成员及先前 zoom。验证拒绝返回自身的身份；Applied 要求所请求焦点成员、zoom 和多个叶节点。必填可空与语义失败复用 Rust／TypeScript 语料。[Windows 插件](../../apps/orchbee/docs/windows-plugins.zh-CN.md#覆盖层生命周期模型)负责运行时记录、观察清理和规范 Close。这些扩展要求匹配原生 cohort，不新增 Desktop 命令。
+
+Pane 启动选项增加可选、有界的 `pluginContext`，仅允许与 Tab／分屏创建的 `pluginPane` 同时使用。共享命令语料覆盖 null 归一化、未知字段、UTF-8／整体上下文边界和不支持的创建类型。上下文是展示数据：Server 校验来源成员、提供规范标签，并在冻结受保护插件环境前固定调用来源与关联 ID。它不选择可执行程序、启动目录或 Worker 权限。省略字段保留旧准入。Rust 的启动 Debug 隐藏上下文；TypeScript 共享上下文 schema，避免启动／插件循环导入并保留已有插件导出。运行语义与验收范围归 [Pane 启动来源上下文](../../apps/orchbee/docs/windows-plugins.zh-CN.md#pane-启动来源上下文) 所有。

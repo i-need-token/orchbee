@@ -334,3 +334,182 @@ fn admission_witness(root: PathBuf) {
         PluginOutcome::Failed { .. }
     ));
 }
+
+fn source_fixture(snapshot: &mut Snapshot) -> PluginInvocationContext {
+    use serde_json::json;
+    let id = |n: u64| format!("{n:032x}");
+    snapshot.navigation.projects.push(serde_json::from_value(json!({"projectId":id(2),"label":"project","directories":[],"workspaces":[{"workspaceId":id(3),"terminalContextId":id(4),"label":"canonical workspace","primaryDirectoryId":null},{"workspaceId":id(12),"terminalContextId":id(11),"label":"other","primaryDirectoryId":null}]})).unwrap());
+    snapshot.terminal_contexts.push(serde_json::from_value(json!({"terminalContextId":id(4),"groups":[],"tabs":[{"tabId":id(5),"label":"canonical tab","pinned":false,"groupId":null,"root":{"kind":"panel","panelId":id(6),"primaryPresentation":{"presentationId":id(7),"label":"Agent","binding":{"workerId":id(8),"terminalId":id(9)}},"childPresentations":[]}}]})).unwrap());
+    snapshot.terminal_contexts.push(
+        serde_json::from_value(json!({"terminalContextId":id(11),"groups":[],"tabs":[]})).unwrap(),
+    );
+    orchbee_workbench_protocol::serialize_document(
+        &orchbee_workbench_protocol::WorkbenchProtocolDocument::Snapshot(snapshot.clone()),
+    )
+    .unwrap();
+    serde_json::from_value(json!({"workspaceId":id(3),"workspaceLabel":"forged workspace","workspaceCwd":"C:/observed-child","tabId":id(5),"tabLabel":"forged tab","focusedPaneId":id(6),"focusedPaneCwd":"C:/observed-child","focusedPaneAgent":"codex","focusedPaneStatus":"blocked","selectedText":"source selection","invocationSource":"forged source","correlationId":"forged correlation","worktree":{"workerId":id(8),"repositoryRoot":"C:/repo","commonDirectory":"C:/repo/.git","repositoryName":"repo","checkoutPath":"C:/source","linked":true}})).unwrap()
+}
+fn source_options(command: &mut WorkbenchCommand) -> &mut LaunchOptions {
+    let WorkbenchAction::TabCreate { options, .. } = &mut command.action else {
+        panic!()
+    };
+    options
+}
+fn frozen_context(frozen: &PluginPaneLaunch) -> PluginInvocationContext {
+    serde_json::from_str(
+        &frozen
+            .environment
+            .entries()
+            .iter()
+            .find(|(key, _)| key == "ORCHBEE_PLUGIN_CONTEXT_JSON")
+            .unwrap()
+            .1,
+    )
+    .unwrap()
+}
+
+#[test]
+fn plugin_pane_source_context_freezes_canonical_source_separately_from_destination_and_program() {
+    let (root, registry, mut snapshot, mut command, selector) = fixture();
+    let context = source_fixture(&mut snapshot);
+    source_options(&mut command).plugin_context = Some(Box::new(context.clone()));
+    let frozen = resolve_from(&registry, &snapshot, &command, &selector).unwrap();
+    let observed = frozen_context(&frozen);
+    assert_eq!(observed.workspace_id, context.workspace_id);
+    assert_eq!(observed.tab_id, context.tab_id);
+    assert_eq!(
+        observed.workspace_label.as_deref(),
+        Some("canonical workspace")
+    );
+    assert_eq!(observed.tab_label.as_deref(), Some("canonical tab"));
+    assert_eq!(observed.focused_pane_cwd, context.focused_pane_cwd);
+    assert_eq!(observed.focused_pane_agent, context.focused_pane_agent);
+    assert_eq!(observed.focused_pane_status, context.focused_pane_status);
+    assert_eq!(observed.worktree, context.worktree);
+    assert_eq!(observed.invocation_source.as_deref(), Some("plugin-pane"));
+    assert_eq!(
+        observed.correlation_id.as_deref(),
+        Some(command.request_id.as_str())
+    );
+    assert_eq!(
+        PathBuf::from(frozen.directory.as_str()),
+        fs::canonicalize(&root.0).unwrap()
+    );
+    assert_eq!(
+        PathBuf::from(frozen.launch.executable()),
+        fs::canonicalize(&root.0).unwrap().join("pane.exe")
+    );
+    for (key, expected) in [
+        (
+            "ORCHBEE_WORKSPACE_ID",
+            context.workspace_id.as_ref().unwrap(),
+        ),
+        ("ORCHBEE_TAB_ID", context.tab_id.as_ref().unwrap()),
+        ("ORCHBEE_PANE_ID", context.focused_pane_id.as_ref().unwrap()),
+    ] {
+        assert_eq!(
+            &frozen
+                .environment
+                .entries()
+                .iter()
+                .find(|(name, _)| name == key)
+                .unwrap()
+                .1,
+            expected
+        );
+    }
+    fs::write(
+        root.0.join("orchbee-plugin.toml"),
+        SOURCE.replace("hello world", "changed"),
+    )
+    .unwrap();
+    source_options(&mut command)
+        .plugin_context
+        .as_mut()
+        .unwrap()
+        .focused_pane_cwd = Some("C:/changed".into());
+    assert_eq!(frozen_context(&frozen), observed);
+    assert_eq!(frozen.launch.arguments()[0], "hello world");
+}
+
+#[test]
+fn plugin_pane_source_context_refuses_missing_or_mismatched_source_before_user_storage() {
+    for case in [
+        "workspace",
+        "tab",
+        "parent",
+        "panel",
+        "no-tab",
+        "no-panel",
+        "orphan-worktree",
+        "bounds",
+        "canonical-bounds",
+    ] {
+        let (root, registry, mut snapshot, mut command, selector) = fixture();
+        let mut context = source_fixture(&mut snapshot);
+        // Linking already creates user storage. Remove only this fixture's owned
+        // directories so refusal can witness that launch does not recreate them.
+        for suffix in ["catalog/config", "catalog/state"] {
+            let target = root.0.join(suffix);
+            assert!(target.starts_with(&root.0));
+            fs::remove_dir_all(target).unwrap();
+        }
+        match case {
+            "workspace" => context.workspace_id = Some(format!("{:032x}", 99)),
+            "tab" => context.tab_id = Some(format!("{:032x}", 99)),
+            "parent" => context.workspace_id = Some(format!("{:032x}", 12)),
+            "panel" => context.focused_pane_id = Some(format!("{:032x}", 99)),
+            "no-tab" => context.tab_id = None,
+            "no-panel" => context.focused_pane_id = None,
+            "orphan-worktree" => context.workspace_id = None,
+            "bounds" => context.focused_pane_agent = Some("界".repeat(1366)),
+            "canonical-bounds" => {
+                context.selected_text = Some("s".repeat(8192));
+                context.focused_pane_cwd = Some("c".repeat(4096));
+                snapshot.navigation.projects[0].workspaces[0].label = "🐝".repeat(512);
+                snapshot.terminal_contexts[1].tabs[0].label = "🐝".repeat(512);
+                assert!(context.validate().is_ok());
+            }
+            _ => unreachable!(),
+        }
+        source_options(&mut command).plugin_context = Some(Box::new(context));
+        assert!(
+            resolve_from(&registry, &snapshot, &command, &selector).is_err(),
+            "{case}"
+        );
+        assert!(!root.0.join("catalog/config").exists(), "{case}");
+        assert!(!root.0.join("catalog/state").exists(), "{case}");
+    }
+}
+
+#[test]
+fn plugin_pane_empty_source_context_never_fabricates_destination_as_source() {
+    let (_root, registry, mut snapshot, mut command, selector) = fixture();
+    source_fixture(&mut snapshot);
+    let WorkbenchAction::TabCreate {
+        terminal_context_id,
+        ..
+    } = &mut command.action
+    else {
+        panic!()
+    };
+    *terminal_context_id = snapshot.terminal_contexts[1].terminal_context_id.clone();
+    source_options(&mut command).plugin_context = Some(Box::default());
+    let context = frozen_context(&resolve_from(&registry, &snapshot, &command, &selector).unwrap());
+    assert!(
+        context.workspace_id.is_none()
+            && context.workspace_label.is_none()
+            && context.workspace_cwd.is_none()
+            && context.tab_id.is_none()
+            && context.focused_pane_id.is_none()
+            && context.selected_text.is_none()
+    );
+    assert_eq!(context.invocation_source.as_deref(), Some("plugin-pane"));
+    source_options(&mut command).plugin_context = None;
+    let legacy = frozen_context(&resolve_from(&registry, &snapshot, &command, &selector).unwrap());
+    assert_eq!(
+        legacy.workspace_id.as_deref(),
+        Some(format!("{:032x}", 3).as_str())
+    );
+    assert_eq!(legacy.invocation_source.as_deref(), Some("cli"));
+}

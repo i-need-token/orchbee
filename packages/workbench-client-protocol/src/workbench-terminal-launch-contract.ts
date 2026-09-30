@@ -1,4 +1,8 @@
 import { z } from 'zod';
+import {
+	PluginInvocationContextSchema,
+	normalizePluginInvocationContext,
+} from './workbench-plugin-context-contract';
 import { WorkbenchDirectoryPathSchema } from './workbench-semantic-contract';
 
 export const WORKBENCH_MAXIMUM_ENCODED_LAUNCH_COMMAND_BYTES = 96 * 1024;
@@ -61,6 +65,7 @@ export const WorkbenchLaunchOptionsSchema = z
 	.strictObject({
 		cwd: WorkbenchDirectoryPathSchema.nullable().optional(),
 		pluginPane: WorkbenchPluginPaneSelectorSchema.nullable().optional(),
+		pluginContext: PluginInvocationContextSchema.nullable().optional(),
 		environment: z
 			.array(z.tuple([environmentNameSchema, literalLaunchStringSchema]).readonly())
 			.max(32)
@@ -78,6 +83,10 @@ export const WorkbenchLaunchOptionsSchema = z
 			.readonly()
 			.optional(),
 	})
+	.refine(
+		(value) => !value.pluginContext || Boolean(value.pluginPane),
+		'Plugin source context requires a Plugin Pane selector',
+	)
 	.readonly();
 
 export const WorkbenchTerminalLaunchFieldsSchema = z
@@ -106,6 +115,7 @@ type CanonicalTerminalLaunchFields = Readonly<{
 	options?: Readonly<{
 		cwd?: z.output<typeof WorkbenchDirectoryPathSchema>;
 		pluginPane?: z.output<typeof WorkbenchPluginPaneSelectorSchema>;
+		pluginContext?: z.output<typeof PluginInvocationContextSchema>;
 		environment?: NonNullable<z.output<typeof WorkbenchLaunchOptionsSchema>['environment']>;
 	}>;
 }>;
@@ -119,11 +129,15 @@ export function normalizeWorkbenchTerminalLaunch<T extends TerminalLaunchFields>
 		...action,
 		...(launch ? { launch } : {}),
 		...(profile ? { profile } : {}),
-		...(options && (options.cwd || options.environment?.length || options.pluginPane)
+		...(options &&
+		(options.cwd || options.environment?.length || options.pluginPane || options.pluginContext)
 			? {
 					options: {
 						...(options.cwd ? { cwd: options.cwd } : {}),
 						...(options.pluginPane ? { pluginPane: options.pluginPane } : {}),
+						...(options.pluginContext
+							? { pluginContext: normalizePluginInvocationContext(options.pluginContext) }
+							: {}),
 						...(options.environment?.length ? { environment: options.environment } : {}),
 					},
 				}

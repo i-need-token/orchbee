@@ -69,6 +69,14 @@ fn plugin_overlay_open_pins_actual_source_member_and_preserves_creation_on_focus
                 &request,
                 json!({"kind":"operation","operation":{"command":command,"status":{"kind":"presentation-read","view":original["view"],"presentation":{"workbenchRevision":"12","panelId":id(6),"presentation":{"presentationId":id(if child {206} else {106}),"selectionGeneration":"1"}}}}}),
             );
+            source::read(
+                &mut stream,
+                &before,
+                Some(&original),
+                if child { 206 } else { 106 },
+                true,
+                false,
+            );
             let WorkbenchRequest::Command(command) = read_workbench_request(&mut stream).unwrap()
             else {
                 panic!("one canonical creation")
@@ -291,11 +299,31 @@ fn plugin_pane_open_submits_catalog_identity_once_and_preserves_canonical_receip
                     json!({"kind":"listed","clients":[record(false,split,false)]}),
                 );
             }
+            source::read(
+                &mut stream,
+                &snapshot(false, split),
+                Some(&record(false, split, false)),
+                106,
+                !split || focus || zoom,
+                false,
+            );
             let WorkbenchRequest::Command(command) = read_workbench_request(&mut stream).unwrap()
             else {
                 panic!()
             };
             let action = json!(command.action);
+            assert_eq!(action["options"]["pluginContext"]["tabId"], id(5));
+            assert_eq!(action["options"]["pluginContext"]["focusedPaneId"], id(6));
+            assert!(
+                action["options"]["pluginContext"]
+                    .get("focusedPaneCwd")
+                    .is_none()
+            );
+            assert!(
+                action["options"]["pluginContext"]
+                    .get("selectedText")
+                    .is_none()
+            );
             assert_eq!(
                 action["kind"],
                 if split { "panel.split" } else { "tab.create" }
@@ -602,3 +630,6 @@ fn plugin_pane_focus_close_require_exact_membership_and_never_repeat_effects() {
         }
     }
 }
+
+#[path = "plugin_panes/source.rs"]
+mod source;

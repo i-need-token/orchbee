@@ -1,3 +1,5 @@
+import { PluginInvocationContextSchema } from './workbench-plugin-context-contract';
+export { PluginInvocationContextSchema } from './workbench-plugin-context-contract';
 import { WorkbenchPluginPaneSelectorSchema } from './workbench-terminal-launch-contract';
 import { z } from 'zod';
 import {
@@ -8,7 +10,6 @@ import {
 	TerminalPresentationIdSchema,
 	WorkbenchPresentationBindingSchema,
 	WorkerIdSchema,
-	WorkbenchDirectoryPathSchema,
 	WorkbenchRequestIdSchema,
 	WorkbenchRevisionSchema,
 	WORKBENCH_PROTOCOL_VERSION,
@@ -34,43 +35,6 @@ const jobId = z
 	.string()
 	.regex(/^[0-9a-f]{32}$/u)
 	.refine((value) => value !== '0'.repeat(32));
-const optionalText = text(4096).nullable().optional();
-const worktreeContext = z.strictObject({
-	workerId: WorkerIdSchema,
-	repositoryRoot: WorkbenchDirectoryPathSchema,
-	commonDirectory: WorkbenchDirectoryPathSchema,
-	repositoryName: text(4096).refine((value) => value.length > 0),
-	checkoutPath: WorkbenchDirectoryPathSchema,
-	linked: z.boolean(),
-});
-export const PluginInvocationContextSchema = z
-	.strictObject({
-		workspaceId: optionalText,
-		workspaceLabel: optionalText,
-		workspaceCwd: optionalText,
-		worktree: worktreeContext.nullable().optional(),
-		tabId: optionalText,
-		tabLabel: optionalText,
-		focusedPaneId: optionalText,
-		focusedPaneCwd: optionalText,
-		focusedPaneAgent: optionalText,
-		focusedPaneStatus: optionalText,
-		selectedText: text(8192).nullable().optional(),
-		invocationSource: optionalText,
-		correlationId: optionalText,
-		clickedUrl: optionalText,
-		linkHandlerId: optionalText,
-	})
-	.refine(
-		(value) =>
-			bytes(
-				JSON.stringify(
-					Object.fromEntries(
-						Object.entries(value).filter(([, item]) => item !== null && item !== undefined),
-					),
-				),
-			) <= 16384,
-	);
 const worker = z.strictObject({
 	workerId: WorkerIdSchema,
 	generation: WorkbenchRevisionSchema.refine((value) => value !== '0'),

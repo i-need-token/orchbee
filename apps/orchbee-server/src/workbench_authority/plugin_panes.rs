@@ -112,6 +112,7 @@ fn resolve_from(
         .find(|candidate| &candidate.terminal_context_id == context_id)
         .and_then(|context| context.tabs.iter().find(|tab| Some(&tab.tab_id) == tab_id))
         .map(|tab| tab.label.clone());
+    context = source::resolve(snapshot, command, context)?;
     context.validate().map_err(|_| unavailable)?;
     let (config, state) = registry
         .user_directories(&entry.manifest.id)
@@ -153,4 +154,6 @@ fn resolve_from(
 mod tests;
 
 mod membership;
+#[cfg(windows)]
+mod source;
 pub(super) use membership::Membership;

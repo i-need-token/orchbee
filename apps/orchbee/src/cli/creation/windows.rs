@@ -153,7 +153,7 @@ fn execute(
         },
         selected.as_ref(),
     )?;
-    let overlay_return = if command.overlay {
+    let (overlay_return, overlay_source) = if command.overlay {
         let selected = selected.as_ref().ok_or_else(internal)?;
         let panel = selected
             .view
@@ -187,9 +187,12 @@ fn execute(
             },
             _ => return Err(Failure::new(FailureKind::ServiceUnavailable)),
         };
-        Some(overlay::capture_return(&snapshot, selected, member)?)
+        (
+            Some(overlay::capture_return(&snapshot, selected, member)?),
+            Some(member.clone()),
+        )
     } else {
-        None
+        (None, None)
     };
     let directory = super::directory::resolve(
         command,
@@ -200,6 +203,48 @@ fn execute(
         deadline,
         signals,
     )?;
+    if command.options.plugin_pane.is_some() {
+        let (context, observed_member) = crate::cli::plugins::context::observe(
+            &mut client,
+            &snapshot,
+            selected.as_ref().map(|record| &record.client_id),
+            Default::default(),
+            query::request_id()?.as_str(),
+            deadline,
+            signals,
+        )?;
+        if let Some(pinned) = overlay_source
+            && !observed_member
+                .as_ref()
+                .is_some_and(|member| pinned.same_member(member))
+        {
+            return Err(crate::cli::workbench_agents::failure("client-changed"));
+        }
+        if let Some(original) = &selected {
+            let fresh = control::exchange(
+                &mut client,
+                &snapshot.site_id,
+                ClientViewAction::Get {
+                    client_id: original.client_id.clone(),
+                },
+                deadline,
+                signals,
+            )?;
+            if !matches!(fresh.outcome, ClientViewOutcome::Found { client }
+                if client.availability == ClientViewAvailability::Current
+                    && client.view_revision == original.view_revision && client.view == original.view)
+            {
+                return Err(crate::cli::workbench_agents::failure("client-changed"));
+            }
+        }
+        match &mut canonical {
+            crate::invocation::MutationCommand::TabCreate { options, .. }
+            | crate::invocation::MutationCommand::PanelSplit { options, .. } => {
+                options.plugin_context = Some(Box::new(context));
+            }
+            _ => return Err(internal()),
+        }
+    }
     check(signals, deadline)?;
     let canonical = mutation::submit_creation(
         &mut client,

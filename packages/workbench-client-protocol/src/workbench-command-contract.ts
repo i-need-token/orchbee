@@ -159,7 +159,7 @@ export const WorkbenchActionSchema = z.discriminatedUnion('kind', [
 		geometry: WorkbenchTerminalGeometrySchema,
 	})
 		.refine(
-			(value) => !value.options?.pluginPane,
+			(value) => !value.options?.pluginPane && !value.options?.pluginContext,
 			'Plugin Pane creation requires tab.create or panel.split',
 		)
 		.transform(normalizeWorkbenchTerminalLaunch)

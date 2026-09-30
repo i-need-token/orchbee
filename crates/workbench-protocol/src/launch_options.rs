@@ -42,7 +42,7 @@ impl PluginPaneSelector {
 }
 
 /// Validated per-launch overrides; empty options preserve the legacy request.
-#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Default, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct LaunchOptions {
     /// Absolute literal launch directory, checked for existence by the execution owner.
@@ -54,11 +54,28 @@ pub struct LaunchOptions {
     /// Server-owned plugin Pane launch, exclusive with explicit launch/profile.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub plugin_pane: Option<PluginPaneSelector>,
+    /// Observed source display data; never executable, directory or Worker authority.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub plugin_context: Option<Box<crate::PluginInvocationContext>>,
 }
 impl LaunchOptions {
     /// Whether no per-launch override is requested.
     #[must_use]
     pub fn is_empty(&self) -> bool {
-        self.cwd.is_none() && self.environment.is_empty() && self.plugin_pane.is_none()
+        self.cwd.is_none()
+            && self.environment.is_empty()
+            && self.plugin_pane.is_none()
+            && self.plugin_context.is_none()
+    }
+}
+
+impl std::fmt::Debug for LaunchOptions {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("LaunchOptions")
+            .field("cwd", &self.cwd)
+            .field("environment", &self.environment)
+            .field("plugin_pane", &self.plugin_pane)
+            .field("plugin_context_present", &self.plugin_context.is_some())
+            .finish()
     }
 }

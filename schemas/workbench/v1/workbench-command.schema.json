@@ -747,6 +747,22 @@
 									}
 								}
 							}
+						},
+						{
+							"not": {
+								"required": ["options"],
+								"properties": {
+									"options": {
+										"required": ["pluginContext"],
+										"properties": {
+											"pluginContext": {
+												"type": "object"
+											}
+										},
+										"type": "object"
+									}
+								}
+							}
 						}
 					]
 				},
@@ -2673,10 +2689,40 @@
 							"type": "null"
 						}
 					]
+				},
+				"pluginContext": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/pluginInvocationContext"
+						},
+						{
+							"type": "null"
+						}
+					]
 				}
 			},
 			"required": [],
-			"additionalProperties": false
+			"additionalProperties": false,
+			"allOf": [
+				{
+					"if": {
+						"required": ["pluginContext"],
+						"properties": {
+							"pluginContext": {
+								"type": "object"
+							}
+						}
+					},
+					"then": {
+						"required": ["pluginPane"],
+						"properties": {
+							"pluginPane": {
+								"$ref": "#/$defs/pluginPaneSelector"
+							}
+						}
+					}
+				}
+			]
 		},
 		"panelTerminalTarget": {
 			"oneOf": [
@@ -2783,6 +2829,250 @@
 			},
 			"required": ["pluginId", "entrypointId"],
 			"additionalProperties": false
+		},
+		"pluginInvocationContext": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": [],
+			"properties": {
+				"workspaceId": {
+					"anyOf": [
+						{
+							"type": "string",
+							"maxLength": 4096,
+							"pattern": "^[^\\u0000]*$"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"workspaceLabel": {
+					"anyOf": [
+						{
+							"type": "string",
+							"maxLength": 4096,
+							"pattern": "^[^\\u0000]*$"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"workspaceCwd": {
+					"anyOf": [
+						{
+							"type": "string",
+							"maxLength": 4096,
+							"pattern": "^[^\\u0000]*$"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"tabId": {
+					"anyOf": [
+						{
+							"type": "string",
+							"maxLength": 4096,
+							"pattern": "^[^\\u0000]*$"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"tabLabel": {
+					"anyOf": [
+						{
+							"type": "string",
+							"maxLength": 4096,
+							"pattern": "^[^\\u0000]*$"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"focusedPaneId": {
+					"anyOf": [
+						{
+							"type": "string",
+							"maxLength": 4096,
+							"pattern": "^[^\\u0000]*$"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"focusedPaneCwd": {
+					"anyOf": [
+						{
+							"type": "string",
+							"maxLength": 4096,
+							"pattern": "^[^\\u0000]*$"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"focusedPaneAgent": {
+					"anyOf": [
+						{
+							"type": "string",
+							"maxLength": 4096,
+							"pattern": "^[^\\u0000]*$"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"focusedPaneStatus": {
+					"anyOf": [
+						{
+							"type": "string",
+							"maxLength": 4096,
+							"pattern": "^[^\\u0000]*$"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"selectedText": {
+					"anyOf": [
+						{
+							"type": "string",
+							"maxLength": 8192,
+							"pattern": "^[^\\u0000]*$"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"invocationSource": {
+					"anyOf": [
+						{
+							"type": "string",
+							"maxLength": 4096,
+							"pattern": "^[^\\u0000]*$"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"correlationId": {
+					"anyOf": [
+						{
+							"type": "string",
+							"maxLength": 4096,
+							"pattern": "^[^\\u0000]*$"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"clickedUrl": {
+					"anyOf": [
+						{
+							"type": "string",
+							"maxLength": 4096,
+							"pattern": "^[^\\u0000]*$"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"linkHandlerId": {
+					"anyOf": [
+						{
+							"type": "string",
+							"maxLength": 4096,
+							"pattern": "^[^\\u0000]*$"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"worktree": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/pluginWorktreeContext"
+						},
+						{
+							"type": "null"
+						}
+					]
+				}
+			}
+		},
+		"pluginWorktreeContext": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": [
+				"workerId",
+				"repositoryRoot",
+				"commonDirectory",
+				"repositoryName",
+				"checkoutPath",
+				"linked"
+			],
+			"properties": {
+				"workerId": {
+					"type": "string",
+					"pattern": "^[0-9a-f]{32}$",
+					"not": {
+						"const": "00000000000000000000000000000000"
+					}
+				},
+				"repositoryRoot": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 4096,
+					"pattern": "^(?:/|(?:\\\\\\\\\\?\\\\)?[A-Za-z]:[/\\\\])",
+					"not": {
+						"pattern": "\u0000"
+					}
+				},
+				"commonDirectory": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 4096,
+					"pattern": "^(?:/|(?:\\\\\\\\\\?\\\\)?[A-Za-z]:[/\\\\])",
+					"not": {
+						"pattern": "\u0000"
+					}
+				},
+				"repositoryName": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 4096,
+					"not": {
+						"pattern": "\u0000"
+					}
+				},
+				"checkoutPath": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 4096,
+					"pattern": "^(?:/|(?:\\\\\\\\\\?\\\\)?[A-Za-z]:[/\\\\])",
+					"not": {
+						"pattern": "\u0000"
+					}
+				},
+				"linked": {
+					"type": "boolean"
+				}
+			}
 		}
 	}
 }

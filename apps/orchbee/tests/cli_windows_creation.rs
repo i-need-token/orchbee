@@ -501,5 +501,9 @@ fn creation_phase_faults_preserve_known_effects_and_stop_later_submissions() {
     }
 }
 
+#[allow(dead_code)]
+#[path = "support/terminal_metadata_peer.rs"]
+mod terminal_metadata_peer;
+
 #[path = "cli_windows_creation/plugin_panes.rs"]
 mod plugin_panes;

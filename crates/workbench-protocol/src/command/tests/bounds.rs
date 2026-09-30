@@ -159,6 +159,7 @@ fn maximum_legal_launch_commands_fit_the_intent_bound() {
     let context = WorkbenchTerminalContextId::parse("ffffffffffffffffffffffffffffffff").unwrap();
     let options = crate::LaunchOptions {
         plugin_pane: None,
+        plugin_context: None,
         cwd: Some(WorkbenchDirectoryPath::parse(&format!("/{}", "\u{1}".repeat(4095))).unwrap()),
         environment: crate::LaunchEnvironment::new({
             let mut entries: Vec<_> = (0..32).map(|n| (format!("K{n}"), String::new())).collect();
@@ -354,4 +355,43 @@ fn layout_command_has_a_bounded_large_carrier_without_widening_ordinary_commands
     let mut padded = serde_json::to_vec(&ordinary).unwrap();
     padded.resize(MAXIMUM_ENCODED_INTENT_BYTES + 1, b' ');
     assert!(parse_workbench_request(&padded).is_err());
+}
+
+#[test]
+fn typed_plugin_launch_context_is_redacted_and_requires_supported_selector_owner() {
+    let mut options = crate::LaunchOptions {
+        cwd: Some(WorkbenchDirectoryPath::parse("C:/plugin").unwrap()),
+        plugin_pane: Some(
+            crate::PluginPaneSelector::new("tools".into(), "dashboard".into()).unwrap(),
+        ),
+        plugin_context: Some(Box::new(crate::PluginInvocationContext {
+            selected_text: Some("private-selection-sentinel".into()),
+            ..Default::default()
+        })),
+        ..Default::default()
+    };
+    let debug = format!("{options:?}");
+    assert!(!debug.contains("private-selection-sentinel"));
+    assert!(debug.contains("plugin_context_present: true"));
+    for with_selector in [false, true] {
+        if !with_selector {
+            options.plugin_pane = None;
+        }
+        let action = WorkbenchAction::WorkspaceLaunch {
+            project_id: WorkbenchProjectId::parse("11111111111111111111111111111111").unwrap(),
+            label: WorkbenchLabel::parse("workspace").unwrap(),
+            geometry: WorkbenchTerminalGeometry::new(80, 24, 0, 0).unwrap(),
+            launch: None,
+            profile: None,
+            options: Box::new(options.clone()),
+        };
+        assert_eq!(
+            serialize_workbench_request(&maximum_command(action)),
+            Err(ContractError::InvalidDocument)
+        );
+        if !with_selector {
+            options.plugin_pane =
+                Some(crate::PluginPaneSelector::new("tools".into(), "dashboard".into()).unwrap());
+        }
+    }
 }

@@ -1384,7 +1384,11 @@ fn validate_request(request: &WorkbenchRequest) -> Result<(), ContractError> {
                 )
                 .map_err(|_| ContractError::InvalidDocument)?;
             }
+            if let Some(context) = &options.plugin_context {
+                context.validate()?;
+            }
             (launch.is_some() && profile.is_some())
+                || (options.plugin_context.is_some() && options.plugin_pane.is_none())
                 || (options.plugin_pane.is_some() && (launch.is_some() || profile.is_some()))
         }
         WorkbenchAction::WorkspaceLaunch {
@@ -1398,7 +1402,11 @@ fn validate_request(request: &WorkbenchRequest) -> Result<(), ContractError> {
             profile,
             options,
             ..
-        } => options.plugin_pane.is_some() || (launch.is_some() && profile.is_some()),
+        } => {
+            options.plugin_pane.is_some()
+                || options.plugin_context.is_some()
+                || (launch.is_some() && profile.is_some())
+        }
         _ => false,
     };
     if conflicting {

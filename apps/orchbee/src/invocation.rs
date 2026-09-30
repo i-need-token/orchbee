@@ -6176,6 +6176,7 @@ fn launch_options_with_directory(
     let environment = LaunchEnvironment::new(entries).map_err(|_| invalid_environment())?;
     Ok(LaunchOptions {
         plugin_pane: None,
+        plugin_context: None,
         cwd,
         environment,
     })

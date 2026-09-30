@@ -67,3 +67,11 @@ CLI 提交目录标识，不提交程序执行权限。Server 受理时重新检
 成员记录为与终端预留同时提交的临时 Server 状态，以精确 Presentation／绑定为键，上限 4096 条。记录跟随移动，成员消失或重新绑定时清除。处于 pending、失败或物理结果未知状态的启动仍关联规范 Pane，交由正常生命周期清理。离线目录 unlink 不妨碍关闭已经创建的插件 Pane；重启／检查点恢复不会凭空制造插件成员记录。
 
 Overlay 在创建前通过被动读取固定源 Client 实际选中的主或子 Presentation。其 v5 回执在强制焦点／zoom 请求之外增加 `postCreate.requested.overlay=true`；已知 Overlay 答复使用 Client control v8。旧创建／控制变体保持原有契约。Server 在返回终止事实前 detach 临时 viewer；detach 结果不明时保留一个清理所有者并阻止替换。Host inventory 遍历共用两秒预算，最多八页、每页 128 个条目，核对稳定 generation／cursor、重复身份及完整身份。Client 通道使用十秒可取消作业并公平调度记录；现有 Server attach／detach 上限独立保留，因此这不是十秒内完成物理服务关闭的保证。手动关闭插件 Pane 也走相同的规范移除／恢复路径。
+
+## Pane 启动来源上下文
+
+插件 Pane 创建可携带 `LaunchOptions.pluginContext`，复用已有插件调用上下文契约的有界显示观察。仅在 Tab 创建或 Panel 分屏同时提供插件 Pane 选择器时接纳。CLI 在创建前通过规范成员以及被动 Client／调用者、主／子成员、物理 Agent／cwd 和 Workspace worktree 读取观察原始来源。同一个创建 deadline 覆盖这些读取与后续创建／交接；来源或 Client 观察过时则在提交前拒绝。空、headless、未绑定或不可用的观察不伪造聚焦终端或选中文本。
+
+Server 验证来源成员及规范标签，将 `invocationSource` 固定为 `plugin-pane`、correlation 固定为实际创建请求，并在 reservation 前冻结到已有受保护启动环境。上下文描述所观察的来源，可能与显式选择的目的地不同；不提供可执行文件、目录策略、Worker 或终端权限。未携带该字段的已有请求保持原有接纳。不会新增上下文存储或 replay 查询；冻结启动 intent 拥有上下文生命周期。Rust、TypeScript 与 JSON 对端需成套部署。独立 popup 的几何及 reservation、exposure、输入和关闭所有者仍是单独缺口。
+
+冻结的 Herdr 基线在 split／zoomed 上下文中选择显式目标 Pane，在 Tab 上下文中选择目的 Workspace 记住的焦点。本批补充当前调用者／Client 来源并固定 overlay 成员；选择不同目标或非活动目的地时，尚未实现这些目标上下文语义。这是明确保留的对齐工作，不宣称来源上下文已全部完成。已有私有上下文使用原生调用来源／关联约定。两边基线的 Pane 启动都不会自动复制选中文本。
