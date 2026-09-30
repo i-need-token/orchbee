@@ -28,6 +28,8 @@ use crate::{
 use crate::terminal_session::TerminalStatus;
 
 mod agent_board;
+#[cfg(windows)]
+mod agent_sidebar;
 mod contexts;
 mod panel_close;
 #[cfg(windows)]
@@ -159,6 +161,32 @@ pub(crate) fn render_terminal_shell(
                     .map(|summary| locale.agent_sidebar_line(summary, summary.at.elapsed())),
                 _ => None,
             };
+            #[cfg(windows)]
+            if view.machines.available {
+                let captured = session.as_ref().is_some_and(|session| match session {
+                    TerminalSessionView::Native(native) => {
+                        native.agent_board().is_some()
+                            || native.close_confirmation().is_some()
+                            || native.panel_close_confirmation().is_some()
+                            || native.rename_draft().is_some()
+                            || native.setup_draft().is_some()
+                    }
+                    #[cfg(test)]
+                    TerminalSessionView::Legacy { .. } => false,
+                });
+                agent_sidebar::render(
+                    frame,
+                    sidebar,
+                    view,
+                    locale,
+                    &sidebar_status,
+                    theme,
+                    (!captured).then_some(&mut *hits),
+                );
+            } else {
+                render_sidebar(frame, sidebar, text, &sidebar_status, agent_line, theme);
+            }
+            #[cfg(not(windows))]
             render_sidebar(frame, sidebar, text, &sidebar_status, agent_line, theme);
         }
 
@@ -356,7 +384,12 @@ pub(crate) fn render_terminal_shell(
         .with_agent_board(board_draw);
     #[cfg(windows)]
     let receipt = receipt.with_attention(match session.as_ref() {
-        Some(TerminalSessionView::Native(native)) if view.overlay().is_none() => {
+        Some(TerminalSessionView::Native(native))
+            if view.overlay().is_none()
+                && areas
+                    .sidebar
+                    .is_none_or(|sidebar| sidebar.layer != SidebarLayer::Overlay) =>
+        {
             native.attention_draw(hits.painted_panes())
         }
         _ => None,

@@ -307,7 +307,12 @@ fn help_paginates_wrapped_rows_and_clamps_the_requested_page() {
     let (_, page) = placed.expect("help must fit in 60x12");
     assert_eq!(page, 0);
     let rows = buffer_rows(&terminal, 60, 12);
-    assert!(rows.iter().any(|row| row.contains("Ctrl+B a")), "{rows:?}");
+    let first = if cfg!(windows) {
+        "Ctrl+B M"
+    } else {
+        "Ctrl+B a"
+    };
+    assert!(rows.iter().any(|row| row.contains(first)), "{rows:?}");
     assert!(rows[9].contains("1/"), "{:?}", rows[9]);
 }
 
@@ -331,7 +336,33 @@ fn help_wraps_long_descriptions_instead_of_clipping_them() {
     }));
     placed.expect("46x20 help must fit with wrapping");
     let rows = buffer_rows(&terminal, 46, 20);
-    let joined = rows.join("\n");
+    let mut all_rows = rows.clone();
+    infallible(terminal.draw(|frame| {
+        placed = super::render_shortcut_help(
+            frame,
+            frame.area(),
+            text,
+            &ClientView::new(100),
+            99,
+            &theme,
+        );
+    }));
+    let (_, last_page) = placed.expect("same geometry must retain help placement");
+    for page in 1..=last_page {
+        infallible(terminal.draw(|frame| {
+            placed = super::render_shortcut_help(
+                frame,
+                frame.area(),
+                text,
+                &ClientView::new(100),
+                page,
+                &theme,
+            );
+        }));
+        assert_eq!(placed.map(|(_, page)| page), Some(page));
+        all_rows.extend(buffer_rows(&terminal, 46, 20));
+    }
+    let joined = all_rows.join("\n");
     // The longest English descriptions appear whole across wrapped lines.
     for word in ["Workspace", "directory", "Project"] {
         assert!(joined.contains(word), "clipped {word}: {joined}");

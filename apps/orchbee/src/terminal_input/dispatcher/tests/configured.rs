@@ -117,6 +117,64 @@ fn configured_agent_cycle_captures_packet_tail_and_never_acts_inside_picker() {
 }
 
 #[test]
+fn sidebar_pointer_navigation_and_current_noop_capture_the_whole_packet_tail() {
+    use crate::machine_agents::{
+        Observation as Agents,
+        tests::{checkpoint, row},
+    };
+    use crate::machine_picker::Choice;
+    use crate::tui_pointer::{HitLayer, HitMapBuilder, HitTarget};
+    for current in [false, true] {
+        let agent = row(23);
+        let mut view = ClientView::new(120);
+        view.machines.available = true;
+        view.machines.observe_agent_sidebar(true);
+        view.machines.observe_agents(vec![(
+            Choice::Local,
+            Agents::Ready(checkpoint(vec![agent.clone()])),
+        )]);
+        if current {
+            view.machines.observe_focus(
+                Choice::Local,
+                Some(agent.target.context.clone()),
+                Some(crate::terminal_session::NativeMemberTarget {
+                    tab: agent.target.tab.clone(),
+                    panel: agent.target.panel.clone(),
+                    presentation: agent.target.member.clone(),
+                }),
+            );
+        }
+        let selected = view.machines.sidebar_rows()[0].selection();
+        let mut hits = HitMapBuilder::new();
+        hits.record(
+            HitLayer::Chrome,
+            ratatui::layout::Rect::new(2, 2, 26, 2),
+            HitTarget::MachineAgentRow {
+                selected: selected.clone(),
+                window: view.machines.sidebar_window(4),
+            },
+        );
+        let calls = Rc::new(RefCell::new(Vec::new()));
+        let mut port = UnavailablePort(Rc::clone(&calls));
+        let mut dispatcher = InputDispatcher::default();
+        dispatcher.set_pointer_capture(&mut view, true);
+        dispatcher.publish_hit_map(hits.finish());
+        run(
+            &mut view,
+            &mut dispatcher,
+            &mut port,
+            b"before\x1b[<0;3;3Mtail\x03",
+        );
+        assert_eq!(*calls.borrow(), [Call::Forward(b"before".to_vec())]);
+        assert_eq!(
+            view.machines.request.take(),
+            if current { None } else { Some(selected) }
+        );
+        assert_eq!(view.machines.open, !current);
+    }
+}
+
+#[test]
 fn configured_agent_ordinal_uses_binding_digit_captures_tail_and_lists_actual_help() {
     let keys = WindowsKeySettings::from_profile("[keys]\nprefix='ctrl+a'\nfocus_agent='alt+1..9'")
         .unwrap();

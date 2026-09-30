@@ -347,6 +347,11 @@ impl InputDispatcher {
                     PointerOutcome::Ignored => {}
                     outcome => {
                         after_layout(view, port)?;
+                        #[cfg(windows)]
+                        if outcome == PointerOutcome::MachineNavigation {
+                            self.machine_packet = true;
+                            self.pointer.invalidate_map();
+                        }
                         if outcome == PointerOutcome::RegionsChanged {
                             self.pointer.stale_map();
                         }

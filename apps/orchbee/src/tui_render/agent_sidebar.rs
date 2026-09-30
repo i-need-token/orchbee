@@ -1,0 +1,305 @@
+//! Paints the existing merged Agent projection; never reads or acknowledges terminals.
+use super::*;
+use crate::machine_discovery::display_label;
+use crate::{
+    client_view::Overlay,
+    machine_picker::{Choice, Row},
+};
+use orchbee_workbench_protocol::MetadataState;
+
+pub(super) fn render(
+    frame: &mut Frame<'_>,
+    sidebar: SidebarArea,
+    view: &ClientView,
+    locale: Locale,
+    backend_status: &str,
+    theme: &Theme,
+    mut hits: Option<&mut HitMapBuilder>,
+) {
+    if sidebar.layer == SidebarLayer::Overlay {
+        frame.render_widget(Clear, sidebar.area);
+    }
+    let text = locale.shell();
+    let block = Block::new()
+        .borders(Borders::RIGHT)
+        .border_style(theme.style(Role::FrameDivider))
+        .padding(Padding::new(2, 1, 1, 0))
+        .style(theme.style(Role::SurfaceChrome))
+        .title(Span::styled(
+            format!(" {} ", text.app_title),
+            theme.style(Role::AccentFocus).add_modifier(Modifier::BOLD),
+        ));
+    let inner = block.inner(sidebar.area);
+    frame.render_widget(block, sidebar.area);
+    let layer = if view.overlay() == Some(Overlay::BusinessSidebar) {
+        HitLayer::Overlay
+    } else {
+        HitLayer::Chrome
+    };
+    if layer == HitLayer::Chrome
+        && let Some(hits) = hits.as_deref_mut()
+    {
+        hits.record(
+            HitLayer::ChromeSurface,
+            sidebar.area,
+            HitTarget::OverlaySurface,
+        );
+    }
+    let labels = [
+        text.site_section.to_owned(),
+        format!("{} {backend_status}", theme.glyphs.status_bullet),
+        String::new(),
+        text.business_section.to_owned(),
+        format!("  {}", text.standalone),
+        format!("  {}", text.projects),
+        format!("  {}", text.workspaces),
+    ];
+    let prefix = if inner.height >= 16 { 7 } else { 2 }.min(inner.height);
+    let fit =
+        |label: &str| truncate_display(label, usize::from(inner.width), theme.glyphs.ellipsis);
+    frame.render_widget(
+        List::new(
+            labels
+                .iter()
+                .take(usize::from(prefix))
+                .enumerate()
+                .map(|(index, label)| {
+                    ListItem::new(Line::styled(
+                        fit(label),
+                        theme.style(if index == 1 {
+                            Role::StatusWarning
+                        } else {
+                            Role::TextSecondary
+                        }),
+                    ))
+                })
+                .collect::<Vec<_>>(),
+        ),
+        Rect::new(inner.x, inner.y, inner.width, prefix),
+    );
+    let area = Rect::new(
+        inner.x,
+        inner.y + prefix,
+        inner.width,
+        inner.height.saturating_sub(prefix),
+    );
+    if area.is_empty() {
+        return;
+    }
+    let rows = view.machines.sidebar_rows();
+    let count = rows
+        .iter()
+        .filter(|row| row.sidebar_agent().is_some())
+        .count();
+    let incomplete = rows.is_empty()
+        || rows.iter().any(|row| {
+            matches!(
+                row.sidebar_status(),
+                Some("agents-loading" | "agents-unavailable")
+            )
+        });
+    let title = if count == 0 && incomplete {
+        text.agents.to_owned()
+    } else {
+        format!(
+            "{} {count}{}",
+            text.agents,
+            if incomplete { "+" } else { "" }
+        )
+    };
+    let header = Rect::new(area.x, area.y, area.width, 1);
+    frame.render_widget(
+        Paragraph::new(fit(&title))
+            .style(theme.style(Role::AccentFocus).add_modifier(Modifier::BOLD)),
+        header,
+    );
+    if let Some(hits) = hits.as_deref_mut() {
+        hits.record(layer, header, HitTarget::OpenMachineAgents);
+    }
+    if area.height < 3 {
+        return;
+    }
+    let context = Rect::new(area.x, area.y + 1, area.width, 1);
+    frame.render_widget(
+        Paragraph::new(fit(&view.machines.sidebar_view_label(locale)))
+            .style(theme.style(Role::HintLabel)),
+        context,
+    );
+    if let Some(hits) = hits.as_deref_mut() {
+        hits.record(layer, context, HitTarget::OpenMachineAgents);
+    }
+    let body = Rect::new(
+        area.x,
+        area.y + 2,
+        area.width,
+        area.height.saturating_sub(3),
+    );
+    let window = view.machines.sidebar_window(usize::from(body.height / 2));
+    for (index, row) in rows
+        .iter()
+        .enumerate()
+        .skip(window.top)
+        .take(window.capacity)
+    {
+        let rect = Rect::new(
+            body.x,
+            body.y + ((index - window.top) * 2) as u16,
+            body.width,
+            2,
+        );
+        let (lines, role) = row_lines(view, row, index, locale, theme);
+        frame.render_widget(
+            Paragraph::new(
+                lines
+                    .into_iter()
+                    .map(|line| Line::from(fit(&line)))
+                    .collect::<Vec<_>>(),
+            )
+            .style(theme.style(role)),
+            rect,
+        );
+        if let Some(hits) = hits.as_deref_mut() {
+            let target = if row.enabled && row.sidebar_agent().is_some() {
+                HitTarget::MachineAgentRow {
+                    selected: row.selection(),
+                    window,
+                }
+            } else {
+                HitTarget::MachineAgentSurface(window)
+            };
+            hits.record(layer, rect, target);
+        }
+    }
+    let used = ((window.end() - window.top) * 2) as u16;
+    let rest = Rect::new(
+        body.x,
+        body.y + used,
+        body.width,
+        body.height.saturating_sub(used),
+    );
+    if rows.is_empty() && !rest.is_empty() {
+        frame.render_widget(
+            Paragraph::new(fit(locale.machine_picker_text("agents-loading")))
+                .style(theme.style(Role::TextDisabled)),
+            rest,
+        );
+    }
+    if let Some(hits) = hits.as_deref_mut() {
+        hits.record(layer, rest, HitTarget::MachineAgentSurface(window));
+    }
+    let footer = Rect::new(area.x, area.bottom() - 1, area.width, 1);
+    let range = format!(
+        "{}-{}/{}",
+        if window.end() > window.top {
+            window.top + 1
+        } else {
+            0
+        },
+        window.end(),
+        window.total
+    );
+    let range_width = display_width(&range).min(usize::from(footer.width)) as u16;
+    let label = Rect::new(
+        footer.x,
+        footer.y,
+        footer.width.saturating_sub(range_width + 1),
+        1,
+    );
+    frame.render_widget(
+        Paragraph::new(truncate_display(
+            locale.machine_picker_text("agent-sidebar-open"),
+            usize::from(label.width),
+            theme.glyphs.ellipsis,
+        ))
+        .style(theme.style(Role::HintKey)),
+        label,
+    );
+    frame.render_widget(
+        Paragraph::new(range)
+            .alignment(Alignment::Right)
+            .style(theme.style(Role::TextSecondary)),
+        Rect::new(footer.right() - range_width, footer.y, range_width, 1),
+    );
+    if let Some(hits) = hits {
+        hits.record(layer, footer, HitTarget::OpenMachineAgents);
+    }
+}
+
+fn row_lines(
+    view: &ClientView,
+    row: &Row,
+    index: usize,
+    locale: Locale,
+    theme: &Theme,
+) -> ([String; 2], Role) {
+    let machine = machine_label(view, row, locale);
+    let Some(agent) = row.sidebar_agent() else {
+        return (
+            [
+                machine,
+                locale
+                    .machine_picker_text(row.sidebar_status().unwrap_or("agents-unavailable"))
+                    .into(),
+            ],
+            Role::TextDisabled,
+        );
+    };
+    let (status, role) = match agent.display_state() {
+        MetadataState::Blocked => ("agent-blocked", Role::StatusWarning),
+        MetadataState::Done => ("agent-done", Role::StatusSuccess),
+        MetadataState::Working => ("agent-working", Role::StatusInfo),
+        MetadataState::Idle => ("agent-idle", Role::TextPrimary),
+        MetadataState::Unknown => ("agent-unknown", Role::TextSecondary),
+    };
+    let current = view.machines.current_agent(&row.choice, agent);
+    let ordinal = if index < 9 {
+        format!("{} ", index + 1)
+    } else {
+        String::new()
+    };
+    (
+        [
+            format!(
+                "{}{ordinal}{} {}",
+                if current {
+                    theme.glyphs.active_marker
+                } else {
+                    " "
+                },
+                locale.machine_picker_text(status),
+                display_label(agent.provider())
+            ),
+            format!(
+                "{machine} / {} / {}",
+                display_label(&agent.workspace),
+                display_label(agent.title())
+            ),
+        ],
+        if current { Role::AccentFocus } else { role },
+    )
+}
+
+fn machine_label(view: &ClientView, row: &Row, locale: Locale) -> String {
+    if row.choice == Choice::Local {
+        return locale.machine_picker_text("local").into();
+    }
+    let label = display_label(&row.label);
+    if let Choice::Remote(id) = &row.choice
+        && view
+            .machines
+            .rows
+            .iter()
+            .filter(|other| other.enabled && display_label(&other.label) == label)
+            .count()
+            > 1
+    {
+        let width = (8..=32).step_by(4).find(|width| view.machines.rows.iter().filter(|other|
+            matches!(&other.choice, Choice::Remote(other_id) if other.enabled && other_id.as_str()[..*width] == id.as_str()[..*width]))
+            .count() == 1).unwrap_or(32);
+        return format!("{label} [{}]", &id.as_str()[..width]);
+    }
+    label
+}
+
+#[cfg(test)]
+mod tests;

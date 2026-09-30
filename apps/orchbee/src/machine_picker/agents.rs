@@ -23,7 +23,7 @@ pub(super) enum NavigationTarget {
     Index(u8),
 }
 impl Picker {
-    fn source_spec(&self) -> Option<&orchbee_workbench_protocol::AgentViewSpec> {
+    pub(super) fn source_spec(&self) -> Option<&orchbee_workbench_protocol::AgentViewSpec> {
         self.agent_observations
             .iter()
             .find(|(id, _)| id == &self.current)
@@ -144,6 +144,7 @@ impl Picker {
         self.current = machine;
         self.current_context = context;
         self.current_member = member;
+        self.sidebar.reset();
         self.rebuild_workspaces(selected);
         true
     }
@@ -192,7 +193,7 @@ impl Picker {
         }
         changed && self.project_agent_observations(self.agent_sources.clone())
     }
-    pub(super) fn current_agent(&self, machine: &Choice, row: &crate::machine_agents::Row) -> bool {
+    pub(crate) fn current_agent(&self, machine: &Choice, row: &crate::machine_agents::Row) -> bool {
         machine == &self.current
             && self.current_context.as_ref() == Some(&row.target.context)
             && self.current_member.as_ref().is_some_and(|m| {
@@ -304,6 +305,7 @@ impl Picker {
             Control::Search => self.editing_query = true,
         };
         self.error = None;
+        self.sidebar.reset();
         self.rebuild_workspaces(selected);
     }
     pub(super) fn agent_key(&mut self, code: KeyCode, mods: Modifiers) -> bool {
@@ -329,6 +331,7 @@ impl Picker {
             }
             let selected = self.selection();
             self.error = None;
+            self.sidebar.reset();
             self.rebuild_workspaces(selected);
             return true;
         }

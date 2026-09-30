@@ -224,7 +224,7 @@ only after commit. Cached machine-only selection preserves its selected context,
 including empty workspaces and unbound placeholders.
 A successful switch invalidates host input and painted regions through the
 existing machine handoff. The Agent mode described below shares this handoff;
-main-sidebar integration remains separate work; Agent cycle
+the main sidebar shares the Agent projection described below; Agent cycle
 bindings are described below.
 
 Evidence includes native snapshot-first exact bootstrap, absent/mismatched
@@ -247,7 +247,7 @@ binding; no name or row number grants navigation authority.
 At most four observation jobs run concurrently. Each job owns a separately
 admitted lane, a five-second total budget and one result slot; reads are bounded
 to 4096 bound Presentations and 8 MiB of serialized physical, report and metadata rows, with a
-two-second cooldown. Closing Agents mode
+two-second cooldown. Hiding the last Agent read consumer
 cancels pending jobs. Removed/disabled/replaced sources discard their results;
 freshness expires ten seconds after worker completion, including time spent
 waiting for the UI to consume the result. Only explicit activation opens a terminal.
@@ -261,7 +261,7 @@ Evidence must cover bounded complete reads, revision/membership/physical identit
 mismatch, primary and child placement, stale job cancellation and fairness,
 keyboard/mouse identity, exact bootstrap and Host mismatch before control.
 Unattached canonical sessions,
-main-sidebar integration and real SSH/OS visual acceptance remain
+configurable sidebar token rows and real SSH/OS visual acceptance remain
 separate obligations. The existing per-Site Agent board remains available.
 
 ## Agent metadata, view controls and navigation
@@ -297,7 +297,7 @@ drawable candidate and preserves the previous surface on failure.
 Evidence covers guarded metadata, overlapping revision fences and binding faults,
 stable ties and machine-qualified context/identity, query bounds and control
 cancellation, painted mouse/keyboard/narrow/localized rendering and global action
-input isolation. Unattached sessions, main sidebar and real-network/OS visual acceptance remain separate obligations.
+input isolation. Unattached sessions, configurable sidebar token rows and real-network/OS visual acceptance remain separate obligations.
 
 ## Source-owned Agent views
 
@@ -356,13 +356,13 @@ physical rebinding cannot inherit another identity's acknowledgement.
 Projection reuses unchanged source checkpoints and reconciles each attention
 batch once. Private paint-version stamps are scoped to the current machine and
 invalidated on Client handoff; a new Client cannot inherit an identical counter.
-Closing Agents mode releases cached rows/specifications; bounded binding-version
+Hiding the last Agent read consumer releases cached rows/specifications; bounded binding-version
 acknowledgements remain Client-owned, and removed/disabled sources are pruned.
 
 Evidence covers specification bounds/type rejection, source-guarded replacement
 and clear, plugin eligibility, revision and transport uncertainty, endpoint-scoped
 context, missing/tied multikey sorting, complete view fences and exact attention
-versions. Unattached sessions and main sidebar and real SSH/OS
+versions. Unattached sessions, configurable sidebar token rows and real SSH/OS
 visual acceptance remain separate obligations.
 
 ## Ordinal Agent focus
@@ -387,3 +387,38 @@ No terminal acknowledgement follows from choosing or reading an ordinal.
 Evidence covers key/profile/conflict admission, complete-modifier dispatch and
 packet-tail capture, overlay priority, source-filtered numbering, loading,
 absent/current targets, cancellation and exact cross-machine identity.
+
+## Main Agent sidebar
+
+On Windows, the main sidebar presents the same endpoint-qualified Agent projection
+as the Agents picker, including the active machine's source view and Client-local
+status, scope, ordering and search. The first nine eligible entries keep their
+filtered-list ordinals; loading, unavailable, empty and no-match entries never
+receive numbers or navigation targets. The focused physical member is marked.
+The header opens the existing Agents picker for keyboard navigation, filtering,
+search and complete details; the configured machine-picker binding followed by
+Tab reaches that same mode. Sidebar rows are navigation entries: a left press
+freezes their painted endpoint/member/physical identity, re-resolves eligibility,
+and starts the existing revalidated drawable candidate. A current target is a
+no-op. Changed, removed, disabled or unavailable identities never redirect to a
+replacement row. Other buttons, modifiers, releases and drags cannot activate.
+
+The sidebar retains its 30-column Full/Compact layout and disappears at Minimal
+or too-small geometry. Optional business labels yield to the Agent list at short
+heights. Each entry occupies two complete lines, with grapheme-safe truncation;
+a fixed footer reports the visible range and opens the complete list. The default
+window follows the exact focused member; explicit wheel scrolling holds the
+window until focus or filters change. Wheel bursts queue three rows per notch,
+coalesce at the input cadence, and apply at most one painted viewport per pass;
+reversal cancels the old remainder. Overlay/modal ownership and released capture
+continue to precede sidebar gestures. Successful drawing publishes the same
+regions used to paint; resize invalidates them.
+
+Visible sidebar or open Agents mode is a read consumer. Their shared collector
+uses the existing endpoint, freshness, deadline, row/byte and cancellation bounds;
+closing only the picker leaves a visible sidebar current, while hiding the last
+consumer releases source rows/specifications and cancels reads. Sidebar rendering,
+scrolling and opening the list do not acknowledge terminal versions. Geometric
+sidebar overlays suppress terminal-draw acknowledgements even when short height
+has undocked a Wide Client's sidebar. Unattached sessions, configurable token row
+layouts and real SSH/emulator visual acceptance remain separate obligations.

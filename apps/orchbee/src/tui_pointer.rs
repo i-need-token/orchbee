@@ -59,6 +59,11 @@ pub(crate) enum HitLayer {
     /// The painted overlay body itself: inside the overlay but off every
     /// control — the click is swallowed without falling through.
     OverlaySurface,
+    /// Sidebar controls remain above panes when height undocks the sidebar.
+    #[cfg(windows)]
+    Chrome,
+    #[cfg(windows)]
+    ChromeSurface,
     /// Chrome and pane regions painted under any overlay: tab-strip
     /// tokens, pane leafs.
     Foreground,
@@ -99,6 +104,15 @@ pub(crate) enum HitTarget {
     /// The Agent board's painted body outside its rows — swallows the
     /// press, and a wheel notch scrolls the row window.
     AgentBoardSurface,
+    #[cfg(windows)]
+    MachineAgentRow {
+        selected: crate::machine_picker::Selection,
+        window: crate::machine_picker::SidebarWindow,
+    },
+    #[cfg(windows)]
+    MachineAgentSurface(crate::machine_picker::SidebarWindow),
+    #[cfg(windows)]
+    OpenMachineAgents,
 }
 
 #[derive(Clone, Debug)]
@@ -152,9 +166,17 @@ impl FrameHitMap {
             }
             return HitResolution::OverlayBackdrop;
         }
-        for region in &self.regions {
-            if region.layer == HitLayer::Foreground && contains(region.rect, column, row) {
-                return HitResolution::Region(&region.target);
+        for layer in [
+            #[cfg(windows)]
+            HitLayer::Chrome,
+            #[cfg(windows)]
+            HitLayer::ChromeSurface,
+            HitLayer::Foreground,
+        ] {
+            for region in &self.regions {
+                if region.layer == layer && contains(region.rect, column, row) {
+                    return HitResolution::Region(&region.target);
+                }
             }
         }
         HitResolution::Dead
@@ -418,6 +440,9 @@ pub(crate) enum PointerOutcome {
     /// overlay dismissed): the map is stale until the next draw. The
     /// gesture the event belongs to survives — release/motion follow it.
     RegionsChanged,
+    /// A sidebar navigation owns the remainder of its host input packet.
+    #[cfg(windows)]
+    MachineNavigation,
 }
 
 #[cfg(test)]
@@ -425,7 +450,7 @@ impl PointerOutcome {
     /// The event was consumed — the dispatcher runs the viewport-sync
     /// path. `Ignored` is the only outcome that skips it.
     pub(crate) const fn handled(self) -> bool {
-        matches!(self, Self::Handled | Self::RegionsChanged)
+        !matches!(self, Self::Ignored)
     }
 }
 
@@ -519,6 +544,8 @@ impl PointerState {
             // events are swallowed without producing gestures.
             self.gesture = Gesture::Idle;
             self.wheel.clear();
+            #[cfg(windows)]
+            view.machines.cancel_sidebar_scroll();
             return PointerOutcome::Ignored;
         }
         match self.gesture {
@@ -538,6 +565,15 @@ impl PointerState {
         now: Instant,
     ) -> bool {
         let probe = port.pointer_probe();
+        #[cfg(windows)]
+        if !self.capture
+            || probe.input_captured
+            || view
+                .overlay()
+                .is_some_and(|o| o != crate::client_view::Overlay::BusinessSidebar)
+        {
+            view.machines.cancel_sidebar_scroll();
+        }
         if probe.input_captured {
             let changed = !matches!(self.gesture, Gesture::Idle) || self.wheel.pending != 0;
             self.gesture = Gesture::Idle;
@@ -545,6 +581,12 @@ impl PointerState {
             return changed;
         }
         let mut changed = false;
+        #[cfg(windows)]
+        if view.machines.settle_sidebar_scroll() {
+            // The window changed at cadence, not per report; old row geometry drops.
+            self.stale_map();
+            changed = true;
+        }
         if matches!(self.gesture, Gesture::Pending(_)) {
             changed |= self.settle_pending(view, port, &probe, now);
         }
@@ -614,6 +656,53 @@ impl PointerState {
                 PointerOutcome::Ignored
             }
             HitResolution::Region(HitTarget::OverlaySurface) => PointerOutcome::Ignored,
+            #[cfg(windows)]
+            HitResolution::Region(HitTarget::OpenMachineAgents) => {
+                if event.action == MouseAction::Press
+                    && event.button == MouseButton::Left
+                    && event.mods == crate::client_view::Modifiers::NONE
+                    && view.machines.available
+                {
+                    view.dismiss_overlay();
+                    view.machines.show_agents();
+                    PointerOutcome::MachineNavigation
+                } else {
+                    PointerOutcome::Ignored
+                }
+            }
+            #[cfg(windows)]
+            HitResolution::Region(HitTarget::MachineAgentRow { selected, window }) => {
+                if event.action != MouseAction::Press
+                    || event.mods != crate::client_view::Modifiers::NONE
+                {
+                    return PointerOutcome::Ignored;
+                }
+                match event.button {
+                    MouseButton::WheelUp | MouseButton::WheelDown => {
+                        view.machines
+                            .queue_sidebar_scroll(*window, event.button == MouseButton::WheelUp);
+                        PointerOutcome::Handled
+                    }
+                    MouseButton::Left if view.machines.activate_sidebar_agent(selected) => {
+                        view.dismiss_overlay();
+                        PointerOutcome::MachineNavigation
+                    }
+                    _ => PointerOutcome::Ignored,
+                }
+            }
+            #[cfg(windows)]
+            HitResolution::Region(HitTarget::MachineAgentSurface(window)) => {
+                if event.action == MouseAction::Press
+                    && event.mods == crate::client_view::Modifiers::NONE
+                    && matches!(event.button, MouseButton::WheelUp | MouseButton::WheelDown)
+                {
+                    view.machines
+                        .queue_sidebar_scroll(*window, event.button == MouseButton::WheelUp);
+                    PointerOutcome::Handled
+                } else {
+                    PointerOutcome::Ignored
+                }
+            }
             HitResolution::Region(HitTarget::AgentBoardRow(session)) => {
                 if event.action != MouseAction::Press {
                     return PointerOutcome::Ignored;

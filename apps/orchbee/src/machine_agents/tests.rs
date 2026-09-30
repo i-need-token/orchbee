@@ -58,6 +58,23 @@ pub(crate) fn physical(n: u64) -> AgentLaunchBinding {
         host_terminal_id: AgentHostTerminalId::parse(&id(n + 100)).unwrap(),
     }
 }
+pub(crate) fn row(n: u64) -> Row {
+    let mut target = target();
+    target.member = TerminalPresentationId::parse(&id(n)).unwrap();
+    target.terminal = presentation(n).binding.unwrap();
+    target.physical = physical(n);
+    Row {
+        seen: true,
+        order: PlacementOrder::default(),
+        target,
+        label: "build".into(),
+        workspace: "space".into(),
+        state: PanelAgentState::Working,
+        sequence: WorkbenchRevision::new(1),
+        metadata: PanelMetadataEffective::default(),
+        tokens: MetadataTokens::default(),
+    }
+}
 pub(crate) fn target() -> Target {
     Target {
         context: NativeContextTarget {

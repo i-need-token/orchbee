@@ -13,6 +13,182 @@ use crate::client_view::{
     KeyCode, KeyEvent, Modifiers, Overlay, PrefixInput, SessionActionDisposition,
 };
 
+#[cfg(windows)]
+fn sidebar_fixture(count: u64) -> (ClientView, FrameHitMap) {
+    let mut view = ClientView::new(120);
+    view.machines.available = true;
+    view.machines.observe_agent_sidebar(true);
+    view.machines.observe_agents(vec![(
+        crate::machine_picker::Choice::Local,
+        crate::machine_agents::Observation::Ready(crate::machine_agents::tests::checkpoint(
+            (23..23 + count)
+                .map(crate::machine_agents::tests::row)
+                .collect(),
+        )),
+    )]);
+    let mut terminal = ratatui::Terminal::new(ratatui::backend::TestBackend::new(120, 40)).unwrap();
+    let mut hits = HitMapBuilder::new();
+    terminal
+        .draw(|frame| {
+            crate::tui_render::render_terminal_shell(
+                frame,
+                &view,
+                crate::localization::Locale::EnUs,
+                None,
+                &crate::tui_theme::Theme::terminal_native(),
+                &mut hits,
+            );
+        })
+        .unwrap();
+    (view, hits.finish())
+}
+
+#[cfg(windows)]
+#[test]
+fn sidebar_gestures_require_exact_plain_left_press_and_obey_capture_and_modals() {
+    for (action, button, mods) in [
+        (MouseAction::Press, MouseButton::Left, Modifiers::NONE),
+        (MouseAction::Press, MouseButton::Right, Modifiers::NONE),
+        (MouseAction::Press, MouseButton::Middle, Modifiers::NONE),
+        (MouseAction::Release, MouseButton::Left, Modifiers::NONE),
+        (MouseAction::Motion, MouseButton::Left, Modifiers::NONE),
+        (
+            MouseAction::Press,
+            MouseButton::Left,
+            Modifiers::NONE.with_shift(),
+        ),
+        (MouseAction::Press, MouseButton::Left, Modifiers::CTRL),
+    ] {
+        let (mut view, map) = sidebar_fixture(2);
+        let region = map
+            .regions
+            .iter()
+            .find(|r| matches!(r.target, HitTarget::MachineAgentRow { .. }))
+            .unwrap();
+        let selected = match &region.target {
+            HitTarget::MachineAgentRow { selected, .. } => selected.clone(),
+            _ => unreachable!(),
+        };
+        let mut input = event(action, button, region.rect.x, region.rect.y);
+        input.mods = mods;
+        let mut pointer = PointerState::default();
+        pointer.set_capture(true);
+        pointer.publish(map.clone());
+        let mut port = RecordingPort::default();
+        let outcome = pointer.event(&mut view, &mut port, Instant::now(), input);
+        if action == MouseAction::Press && button == MouseButton::Left && mods == Modifiers::NONE {
+            assert_eq!(outcome, PointerOutcome::MachineNavigation);
+            assert_eq!(view.machines.request.take(), Some(selected));
+        } else {
+            assert_eq!(outcome, PointerOutcome::Ignored);
+            assert!(!view.machines.open);
+        }
+        assert!(port.actions.is_empty() && port.forwarded.is_empty());
+        view.machines.open = false;
+        pointer.set_capture(false);
+        assert_eq!(
+            pointer.event(&mut view, &mut port, Instant::now(), input),
+            PointerOutcome::Ignored
+        );
+        pointer.set_capture(true);
+        port.probe.input_captured = true;
+        assert_eq!(
+            pointer.event(&mut view, &mut port, Instant::now(), input),
+            PointerOutcome::Ignored
+        );
+        assert!(!view.machines.open);
+    }
+}
+
+#[cfg(windows)]
+#[test]
+fn sidebar_scroll_is_cadence_bounded_and_never_forwards_mouse_to_a_pane() {
+    let (mut view, map) = sidebar_fixture(40);
+    let region = map
+        .regions
+        .iter()
+        .find(|r| matches!(r.target, HitTarget::MachineAgentRow { .. }))
+        .unwrap();
+    let window = match region.target {
+        HitTarget::MachineAgentRow { window, .. } => window,
+        _ => unreachable!(),
+    };
+    let down = event(
+        MouseAction::Press,
+        MouseButton::WheelDown,
+        region.rect.x,
+        region.rect.y,
+    );
+    let mut pointer = PointerState::default();
+    pointer.set_capture(true);
+    pointer.publish(map.clone());
+    let mut port = RecordingPort::default();
+    for _ in 0..10 {
+        assert_eq!(
+            pointer.event(&mut view, &mut port, Instant::now(), down),
+            PointerOutcome::Handled
+        );
+    }
+    assert_eq!(view.machines.sidebar_window(window.capacity).top, 0);
+    assert!(pointer.tick(&mut view, &mut port, Instant::now()));
+    assert_eq!(
+        view.machines.sidebar_window(window.capacity).top,
+        window.capacity
+    );
+    assert!(pointer.map.is_none());
+    assert!(view.machines.request.is_none() && port.bytes().is_empty());
+    pointer.set_capture(false);
+    assert!(!pointer.tick(&mut view, &mut port, Instant::now()));
+    let after = view.machines.sidebar_window(window.capacity);
+    pointer.set_capture(true);
+    assert!(!pointer.tick(&mut view, &mut port, Instant::now()));
+    assert_eq!(view.machines.sidebar_window(window.capacity), after);
+}
+
+#[cfg(windows)]
+#[test]
+fn sidebar_chrome_occludes_panes_but_a_capturing_overlay_occludes_sidebar() {
+    let (mut view, map) = sidebar_fixture(1);
+    let region = map
+        .regions
+        .iter()
+        .find(|r| matches!(r.target, HitTarget::MachineAgentRow { .. }))
+        .unwrap()
+        .clone();
+    let mut hits = HitMapBuilder::new();
+    hits.record(HitLayer::Foreground, region.rect, HitTarget::Tab(tab_id(1)));
+    hits.record(HitLayer::Chrome, region.rect, region.target.clone());
+    assert!(matches!(
+        hits.map.hit_target_at(region.rect.x, region.rect.y),
+        Some(HitTarget::MachineAgentRow { .. })
+    ));
+    hits.mark_overlay_active();
+    assert!(
+        hits.map
+            .hit_target_at(region.rect.x, region.rect.y)
+            .is_none()
+    );
+    let mut pointer = PointerState::default();
+    pointer.set_capture(true);
+    pointer.publish(hits.finish());
+    let mut port = RecordingPort::default();
+    assert_eq!(
+        pointer.event(
+            &mut view,
+            &mut port,
+            Instant::now(),
+            event(
+                MouseAction::Press,
+                MouseButton::Left,
+                region.rect.x,
+                region.rect.y
+            )
+        ),
+        PointerOutcome::RegionsChanged
+    );
+    assert!(view.machines.request.is_none() && !view.machines.open && port.actions.is_empty());
+}
+
 fn tab_id(value: u128) -> WorkbenchTabId {
     WorkbenchTabId::parse(&format!("{value:032x}")).unwrap()
 }

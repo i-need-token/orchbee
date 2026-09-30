@@ -14,8 +14,10 @@ use ratatui::{
     widgets::{Block, Borders, Clear, Paragraph},
 };
 mod agents;
+mod sidebar;
 pub(crate) use agents::Control;
 use agents::Navigation;
+pub(crate) use sidebar::SidebarWindow;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum Choice {
@@ -53,7 +55,7 @@ pub(crate) struct Row {
     agent_status: Option<&'static str>,
 }
 impl Row {
-    fn selection(&self) -> Selection {
+    pub(crate) fn selection(&self) -> Selection {
         Selection {
             machine: self.choice.clone(),
             context: self
@@ -86,6 +88,7 @@ pub(crate) struct Picker {
     mode_hits: Vec<(Rect, Mode)>,
     agent_attention: crate::machine_agents::Attention,
     agent_view: crate::machine_agents::view::View,
+    sidebar: sidebar::Sidebar,
     editing_query: bool,
     control_hits: Vec<(Rect, Control)>,
     current_member: Option<NativeMemberTarget>,
@@ -126,6 +129,7 @@ impl Default for Picker {
             mode_hits: Vec::new(),
             agent_attention: crate::machine_agents::Attention::default(),
             agent_view: crate::machine_agents::view::View::default(),
+            sidebar: sidebar::Sidebar::default(),
             editing_query: false,
             control_hits: Vec::new(),
             current_member: None,
@@ -189,7 +193,7 @@ impl Picker {
         true
     }
     pub(crate) fn wants_agents(&self) -> bool {
-        self.open && self.mode == Mode::Agents
+        self.sidebar.visible() || (self.open && self.mode == Mode::Agents)
     }
     pub(crate) fn observe_agents(
         &mut self,
@@ -199,6 +203,32 @@ impl Picker {
             .retain(|id| self.rows.iter().any(|r| r.enabled && &r.choice == id));
         if self.agent_sources == observations {
             return false;
+        }
+        let before =
+            self.agent_sources
+                .iter()
+                .find_map(|(choice, observation)| match observation {
+                    crate::machine_agents::Observation::Ready(round) if choice == &self.current => {
+                        Some(round)
+                    }
+                    _ => None,
+                });
+        let after = observations
+            .iter()
+            .find_map(|(choice, observation)| match observation {
+                crate::machine_agents::Observation::Ready(round) if choice == &self.current => {
+                    Some(round)
+                }
+                _ => None,
+            });
+        if match (before, after) {
+            (Some(before), Some(after)) => {
+                before.site_id != after.site_id || before.view != after.view
+            }
+            (None, None) => false,
+            _ => true,
+        } {
+            self.sidebar.reset();
         }
         self.agent_sources = observations.clone();
         self.agent_attention_refresh = true;

@@ -30,6 +30,8 @@ impl Locale {
             (Self::ZhCn, "workspaces-mode") => "工作区",
             (Self::EnUs, "agents-mode") => "Agents",
             (Self::ZhCn, "agents-mode") => "Agent",
+            (Self::EnUs, "agent-sidebar-open") => "List / filters",
+            (Self::ZhCn, "agent-sidebar-open") => "列表／筛选",
             (Self::EnUs, "no-agents") => "No agents",
             (Self::ZhCn, "no-agents") => "暂无 Agent",
             (Self::EnUs, "agents-no-matches") => "No matching agents",

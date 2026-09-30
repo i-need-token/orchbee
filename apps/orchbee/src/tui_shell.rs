@@ -630,7 +630,10 @@ fn synchronize_viewport<B: Backend + ResizableBackend>(
     let changed = next != *dimensions;
     if changed {
         #[cfg(windows)]
-        view.machines.invalidate();
+        {
+            view.machines.invalidate();
+            view.machines.cancel_sidebar_scroll();
+        }
         terminal_input.invalidate_close_display();
         terminal_input.invalidate_rename_display();
         terminal_input.invalidate_setup_display();

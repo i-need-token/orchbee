@@ -160,6 +160,29 @@ fn machine_view_reads_exact_physical_attention_without_consuming_it() {
     );
 }
 
+#[test]
+fn height_undocked_sidebar_cannot_acknowledge_covered_physical_terminals() {
+    for managed in [false, true] {
+        let (mut ui, _, mut state) = physical_fixture();
+        state.sequence = orchbee_workbench_protocol::WorkbenchRevision::new(2);
+        publish_physical(&mut ui, &state);
+        let mut shell = ClientView::new(120);
+        shell.machines.available = managed;
+        assert!(shell.overlay().is_none());
+        assert!(!physical_seen(&ui, &state));
+        ui.after_close_draw(draw(&ui, 120, 12, &shell));
+        assert!(
+            !physical_seen(&ui, &state),
+            "height caused a geometric sidebar overlay"
+        );
+        ui.after_close_draw(draw(&ui, 120, 40, &shell));
+        assert!(
+            physical_seen(&ui, &state),
+            "docked sidebar leaves the terminal visible"
+        );
+    }
+}
+
 fn focus_command(
     ui: &NativeUi,
     target: orchbee_agent_observation_protocol::AgentNameTarget,
