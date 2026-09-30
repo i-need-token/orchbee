@@ -2251,3 +2251,7 @@ Windows `agent view get`、`agent view set --spec <json>` 和
 过滤／多字段排序语义、临时来源替换、插件资格、Client 关注状态及 TUI 投影。
 `orchbee.agent.view` v1 回执区分服务端失败、交换失败和未知修改；目录 v121 包含 105 个 schema
 和 141 条原生语法路径。
+
+## Agent 侧栏配置发布
+
+Windows `config check` v10 与 `site config`/`site reload-config` v5 暴露必需的有界 `agentSidebarProfile`；配置失败 v7 增加侧栏接纳诊断。旧公开版本保持封闭。[Windows 配置所有者](windows-cli-configuration.zh-CN.md#windows-agent-侧栏布局)定义启动、严格整文件验证、规范发布及 Client 原子应用。目录 v122 仍含 105 个 schema 和 141 条命令路径。

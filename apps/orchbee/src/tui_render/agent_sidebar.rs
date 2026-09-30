@@ -6,6 +6,7 @@ use crate::{
     machine_picker::{Choice, Row},
 };
 use orchbee_workbench_protocol::MetadataState;
+mod tokens;
 
 pub(super) fn render(
     frame: &mut Frame<'_>,
@@ -134,28 +135,31 @@ pub(super) fn render(
         area.width,
         area.height.saturating_sub(3),
     );
-    let window = view.machines.sidebar_window(usize::from(body.height / 2));
+    let heights: Vec<_> = rows
+        .iter()
+        .map(|row| tokens::height(view, row, locale))
+        .collect();
+    let gap = view.machines.sidebar_settings().row_gap();
+    let window = view
+        .machines
+        .sidebar_window_for_heights(&heights, body.height, gap);
+    let mut y = body.y;
     for (index, row) in rows
         .iter()
         .enumerate()
         .skip(window.top)
         .take(window.capacity)
     {
-        let rect = Rect::new(
-            body.x,
-            body.y + ((index - window.top) * 2) as u16,
-            body.width,
-            2,
-        );
-        let (lines, role) = row_lines(view, row, index, locale, theme);
+        let rect = Rect::new(body.x, y, body.width, heights[index].min(body.height));
+        let lines = tokens::lines(view, row, index, locale, theme);
         frame.render_widget(
             Paragraph::new(
                 lines
                     .into_iter()
-                    .map(|line| Line::from(fit(&line)))
+                    .map(|line| tokens::fit(line, usize::from(body.width), theme.glyphs.ellipsis))
                     .collect::<Vec<_>>(),
             )
-            .style(theme.style(role)),
+            .style(theme.style(Role::TextPrimary)),
             rect,
         );
         if let Some(hits) = hits.as_deref_mut() {
@@ -169,8 +173,21 @@ pub(super) fn render(
             };
             hits.record(layer, rect, target);
         }
+        y = rect.bottom();
+        if index + 1 < window.end() {
+            let blank = Rect::new(
+                body.x,
+                y,
+                body.width,
+                gap.min(body.bottom().saturating_sub(y)),
+            );
+            if let Some(hits) = hits.as_deref_mut() {
+                hits.record(layer, blank, HitTarget::MachineAgentSurface(window));
+            }
+            y = blank.bottom();
+        }
     }
-    let used = ((window.end() - window.top) * 2) as u16;
+    let used = y.saturating_sub(body.y);
     let rest = Rect::new(
         body.x,
         body.y + used,
@@ -223,60 +240,6 @@ pub(super) fn render(
     if let Some(hits) = hits {
         hits.record(layer, footer, HitTarget::OpenMachineAgents);
     }
-}
-
-fn row_lines(
-    view: &ClientView,
-    row: &Row,
-    index: usize,
-    locale: Locale,
-    theme: &Theme,
-) -> ([String; 2], Role) {
-    let machine = machine_label(view, row, locale);
-    let Some(agent) = row.sidebar_agent() else {
-        return (
-            [
-                machine,
-                locale
-                    .machine_picker_text(row.sidebar_status().unwrap_or("agents-unavailable"))
-                    .into(),
-            ],
-            Role::TextDisabled,
-        );
-    };
-    let (status, role) = match agent.display_state() {
-        MetadataState::Blocked => ("agent-blocked", Role::StatusWarning),
-        MetadataState::Done => ("agent-done", Role::StatusSuccess),
-        MetadataState::Working => ("agent-working", Role::StatusInfo),
-        MetadataState::Idle => ("agent-idle", Role::TextPrimary),
-        MetadataState::Unknown => ("agent-unknown", Role::TextSecondary),
-    };
-    let current = view.machines.current_agent(&row.choice, agent);
-    let ordinal = if index < 9 {
-        format!("{} ", index + 1)
-    } else {
-        String::new()
-    };
-    (
-        [
-            format!(
-                "{}{ordinal}{} {}",
-                if current {
-                    theme.glyphs.active_marker
-                } else {
-                    " "
-                },
-                locale.machine_picker_text(status),
-                display_label(agent.provider())
-            ),
-            format!(
-                "{machine} / {} / {}",
-                display_label(&agent.workspace),
-                display_label(agent.title())
-            ),
-        ],
-        if current { Role::AccentFocus } else { role },
-    )
 }
 
 fn machine_label(view: &ClientView, row: &Row, locale: Locale) -> String {

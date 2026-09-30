@@ -9,6 +9,257 @@ use crate::{
 };
 use ratatui::{Terminal, backend::TestBackend};
 
+fn configured_token(name: &str) -> serde_json::Value {
+    serde_json::json!({"name":name,"style":{"fg":null,"bold":null,"dim":null},"rules":[]})
+}
+fn configure(
+    view: &mut ClientView,
+    rows: serde_json::Value,
+    overrides: serde_json::Value,
+    gap: u16,
+) {
+    let profile =
+        serde_json::json!({"rows":rows,"rows_by_agent":overrides,"row_gap":gap}).to_string();
+    view.machines.configure_agent_sidebar(
+        orchbee_local_site_runtime::WindowsAgentSidebarSettings::from_profile(&profile).unwrap(),
+    );
+}
+
+#[test]
+fn configured_sidebar_values_share_metadata_labels_and_keep_provider_identity_for_overrides() {
+    use orchbee_workbench_protocol::{
+        MetadataState, MetadataTokenKey, MetadataTokenValue, MetadataTokens, WorkbenchRevision,
+    };
+    let mut view = view(120, 40, 0);
+    let mut agent = row(23);
+    agent.target.agent = "claude-code".into();
+    agent.sequence = WorkbenchRevision::new(2);
+    agent.metadata.display_agent = Some(MetadataTokenValue::parse("codex").unwrap());
+    agent.metadata.title = Some(MetadataTokenValue::parse("Named pane").unwrap());
+    agent.metadata.state_labels.insert(
+        MetadataState::Working,
+        MetadataTokenValue::parse("Writing code").unwrap(),
+    );
+    agent.tokens = MetadataTokens::new(
+        [(
+            MetadataTokenKey::parse("issue").unwrap(),
+            MetadataTokenValue::parse("ORCH-42").unwrap(),
+        )]
+        .into(),
+    )
+    .unwrap();
+    let target = agent.target.clone();
+    let mut round = checkpoint(vec![agent]).as_ref().clone();
+    round.report_revision = WorkbenchRevision::new(2);
+    view.machines.observe_agents(vec![(
+        Choice::Local,
+        Agents::Ready(std::sync::Arc::new(round)),
+    )]);
+    let token = configured_token;
+    configure(
+        &mut view,
+        serde_json::json!([[token("agent")]]),
+        serde_json::json!({"codex":[[token("$missing")]],"claude":[[token("state_icon"),token("state_text")],[token("machine"),token("workspace")],[token("tab"),token("pane")],[token("agent"),token("$issue")]]}),
+        0,
+    );
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        for theme in [Theme::terminal_native(), Theme::rgb_test_dark()] {
+            let (rows, hits) = paint(&view, locale, &theme, 120, 40);
+            let joined = rows.join("\n");
+            assert!(
+                joined.contains("Writing code")
+                    && joined.contains("Task · Named pane")
+                    && joined.contains("codex · ORCH-42"),
+                "{rows:?}"
+            );
+            assert_eq!(
+                (0..40)
+                    .filter(|y| matches!(
+                        hits.hit_target_at(2, *y),
+                        Some(HitTarget::MachineAgentRow { .. })
+                    ))
+                    .count(),
+                4
+            );
+            assert!((0..40).filter_map(|y| match hits.hit_target_at(2,y) {Some(HitTarget::MachineAgentRow{selected,..})=>Some(selected),_=>None}).all(|selected| matches!(&selected.context,Some(crate::terminal_session::NativeStartupTarget::Agent(t)) if t.as_ref()==&target)));
+        }
+    }
+}
+
+#[test]
+fn configured_sidebar_hides_raw_token_matches_and_missing_rows_without_hiding_navigation() {
+    use orchbee_workbench_protocol::{MetadataTokenKey, MetadataTokenValue, MetadataTokens};
+    let mut view = view(120, 40, 0);
+    let mut agent = row(23);
+    agent.tokens = MetadataTokens::new(
+        [(
+            MetadataTokenKey::parse("hidden").unwrap(),
+            MetadataTokenValue::parse("raw\u{202e}value").unwrap(),
+        )]
+        .into(),
+    )
+    .unwrap();
+    let target = agent.target.clone();
+    view.machines.observe_agents(vec![(
+        Choice::Local,
+        Agents::Ready(checkpoint(vec![agent])),
+    )]);
+    let hidden = serde_json::json!({"name":"$hidden","style":{"fg":null,"bold":null,"dim":null},"rules":[{"condition":{"kind":"Equals","value":"raw\u{202e}value"},"ignore_case":false,"style":{"fg":null,"bold":null,"dim":null},"hide":true}]});
+    configure(
+        &mut view,
+        serde_json::json!([[configured_token("$missing")], [hidden]]),
+        serde_json::json!({}),
+        0,
+    );
+    let (rows, hits) = paint(&view, Locale::EnUs, &Theme::terminal_native(), 120, 40);
+    assert!(!rows.join("\n").contains("rawvalue"));
+    let hits = (0..40)
+        .filter_map(|y| match hits.hit_target_at(2, y) {
+            Some(HitTarget::MachineAgentRow { selected, .. }) => Some(selected),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(hits.len(), 1);
+    assert!(
+        matches!(&hits[0].context,Some(crate::terminal_session::NativeStartupTarget::Agent(t)) if t.as_ref()==&target)
+    );
+}
+
+#[test]
+fn variable_sidebar_heights_gaps_and_small_viewports_publish_exact_hit_geometry() {
+    use orchbee_workbench_protocol::WorkbenchRevision;
+    let mut view = view(120, 40, 0);
+    let mut agents: Vec<_> = (23..26).map(row).collect();
+    agents[1].target.agent = "claude".into();
+    agents[2].target.agent = "custom".into();
+    let mut round = checkpoint(agents).as_ref().clone();
+    round.report_revision = WorkbenchRevision::new(2);
+    view.machines.observe_agents(vec![(
+        Choice::Local,
+        Agents::Ready(std::sync::Arc::new(round)),
+    )]);
+    let token = configured_token;
+    configure(
+        &mut view,
+        serde_json::json!([[token("pane")], [token("agent")]]),
+        serde_json::json!({"codex":[[token("pane")]],"claude":[[token("state_text")],[token("pane")],[token("agent")]]}),
+        1,
+    );
+    let (rows, hits) = paint(&view, Locale::EnUs, &Theme::terminal_native(), 120, 40);
+    let mut spans = std::collections::BTreeMap::new();
+    for y in 0..40 {
+        if let Some(HitTarget::MachineAgentRow { selected, .. }) = hits.hit_target_at(2, y) {
+            let Some(crate::terminal_session::NativeStartupTarget::Agent(t)) = &selected.context
+            else {
+                panic!()
+            };
+            spans
+                .entry(t.member.clone())
+                .or_insert_with(Vec::new)
+                .push(y);
+        }
+    }
+    assert_eq!(
+        spans.values().map(Vec::len).collect::<Vec<_>>(),
+        vec![1, 3, 2]
+    );
+    for ys in spans.values().take(2) {
+        let gap = ys.last().unwrap() + 1;
+        assert!(matches!(
+            hits.hit_target_at(2, gap),
+            Some(HitTarget::MachineAgentSurface(_))
+        ));
+        assert!(
+            rows[usize::from(gap)]
+                .trim()
+                .trim_matches('│')
+                .trim()
+                .is_empty()
+        );
+    }
+    view.resize(60);
+    // Explicitly show the compact sidebar; the full-width view's intent was docked.
+    for key in [
+        KeyEvent::press(KeyCode::Char('b'), Modifiers::CTRL),
+        KeyEvent::press(KeyCode::Char('b'), Modifiers::NONE),
+    ] {
+        let t = view.decide(PrefixInput::Key(key));
+        view.commit(t, SessionActionDisposition::KeepNavigator);
+    }
+    let (_, hits) = paint(&view, Locale::EnUs, &Theme::terminal_native(), 60, 12);
+    let window = (0..12)
+        .find_map(|y| match hits.hit_target_at(2, y) {
+            Some(HitTarget::MachineAgentRow { window, .. }) => Some(*window),
+            _ => None,
+        })
+        .unwrap();
+    assert_eq!(window.capacity, 1);
+    view.machines.queue_sidebar_scroll(window, false);
+    assert!(view.machines.settle_sidebar_scroll());
+    let (_, hits) = paint(&view, Locale::EnUs, &Theme::terminal_native(), 60, 12);
+    let mut painted = 0;
+    for y in 0..12 {
+        if let Some(HitTarget::MachineAgentRow { selected, window }) = hits.hit_target_at(2, y) {
+            assert_eq!((window.top, window.end()), (1, 2));
+            assert!(
+                matches!(&selected.context,Some(crate::terminal_session::NativeStartupTarget::Agent(t)) if t.agent=="claude")
+            );
+            painted += 1;
+        }
+    }
+    assert_eq!(painted, 3);
+}
+
+#[test]
+fn sidebar_token_styles_survive_grapheme_truncation_and_do_not_style_identity_markers() {
+    let mut view = view(120, 40, 0);
+    let mut agent = row(23);
+    agent.label = "宽👩‍💻e\u{301}".repeat(20);
+    view.machines.observe_agents(vec![(
+        Choice::Local,
+        Agents::Ready(checkpoint(vec![agent])),
+    )]);
+    configure(
+        &mut view,
+        serde_json::json!([[{"name":"pane","style":{"fg":[16,32,48],"bold":true,"dim":false},"rules":[]}]]),
+        serde_json::json!({}),
+        0,
+    );
+    for theme in [Theme::terminal_native(), Theme::rgb_test_dark()] {
+        let mut terminal = Terminal::new(TestBackend::new(120, 40)).unwrap();
+        let mut hits = HitMapBuilder::new();
+        terminal
+            .draw(|frame| {
+                render_terminal_shell(frame, &view, Locale::ZhCn, None, &theme, &mut hits);
+            })
+            .unwrap();
+        let hits = hits.finish();
+        let y = (0..40)
+            .find(|y| {
+                matches!(
+                    hits.hit_target_at(2, *y),
+                    Some(HitTarget::MachineAgentRow { .. })
+                )
+            })
+            .unwrap();
+        let buffer = terminal.backend().buffer();
+        assert_eq!(buffer[(2, y)].fg, theme.style(Role::HintKey).fg.unwrap());
+        let expected = theme.sidebar_token_style(
+            Role::TextPrimary,
+            orchbee_local_site_runtime::WindowsSidebarTokenStyle {
+                fg: Some([16, 32, 48]),
+                bold: Some(true),
+                dim: Some(false),
+            },
+        );
+        assert_eq!(buffer[(5, y)].fg, expected.fg.unwrap());
+        assert!(buffer[(5, y)].modifier.contains(Modifier::BOLD));
+        assert!(!buffer[(5, y)].modifier.contains(Modifier::DIM));
+        assert!((2..28).any(|x| buffer[(x, y)].symbol() == "…"));
+        assert!((0..120).all(|x| !buffer[(x, y)].symbol().starts_with('\u{301}')));
+    }
+}
+
 fn view(width: u16, height: u16, count: u64) -> ClientView {
     let mut view = ClientView::new(width);
     view.machines.available = true;

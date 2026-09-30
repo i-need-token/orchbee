@@ -43,6 +43,7 @@ pub(crate) struct Row {
     pub(crate) target: Target,
     pub(crate) label: String,
     pub(crate) workspace: String,
+    pub(crate) tab_label: Option<String>,
     pub(crate) state: PanelAgentState,
     pub(crate) sequence: WorkbenchRevision,
     pub(crate) metadata: PanelMetadataEffective,
@@ -187,6 +188,7 @@ struct Placement {
     terminal: PresentationBinding,
     label: String,
     workspace: String,
+    tab_label: Option<String>,
 }
 fn placements(snapshot: &Snapshot) -> Result<Vec<Placement>, ()> {
     let mut locations = vec![(
@@ -234,6 +236,8 @@ fn placements(snapshot: &Snapshot) -> Result<Vec<Placement>, ()> {
             let start = result.len();
             collect(&tab.root, &target, &tab.tab_id, &workspace, &mut result)?;
             for (pane_order, row) in result[start..].iter_mut().enumerate() {
+                row.tab_label = (context.tabs.len() > 1 || !tab.automatic_label)
+                    .then(|| display_label(&tab.display_label(tab_order)));
                 row.order = PlacementOrder {
                     workspace: workspace_order.checked_sub(1).map(|i| i as u64),
                     tab: tab_order as u64,
@@ -282,6 +286,7 @@ fn collect(
                                 .map_or(member.label.as_str(), |l| l.as_str()),
                         ),
                         workspace: workspace.into(),
+                        tab_label: None,
                     });
                 }
             }
@@ -364,6 +369,7 @@ pub(crate) fn read(
                 },
                 label: placement.label,
                 workspace: placement.workspace,
+                tab_label: placement.tab_label,
                 state: state.state,
             });
         }

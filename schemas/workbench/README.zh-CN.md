@@ -530,3 +530,5 @@ Server 负责原子分配和发布；物理成员创建仍是独立的保留命�
 命令启动选项 schema 仅在 `tab.create` 和 `panel.split` 上受理有界 `pluginPane` 选择器，与显式程序／profile 字段互斥。Rust 与 TypeScript 通过命令一致性语料共享选择器及冲突案例。这是匹配 cohort 的扩展，不增加线协议种类，也不受理子终端／Workspace 插件启动。
 
 插件 PaneGet／PaneFound 复用 OBWP 45／46，承载封闭成员事实，不新增修改权限。Rust 额外校验响应 Panel 与请求的关联；Pane 选择器沿用启动选项的标识规则。
+
+Agent 侧栏发布增加必需的非空 `agentSidebarProfile`，上限为 32 KiB UTF-8。它是共享 Windows 配置所有者接纳的封闭规范 JSON；传输绑定约束字符串和整帧边界，Client 安装时验证 token/布局/规则语义。键位、通知、侧栏原子安装；无效侧栏 profile 保留全部原 Client 设置。匹配 cohort 一起更新。公开 `config check` v10、配置失败 v7、Site 配置回执 v5 保持旧版本封闭；目录 v122 仍含 105 个 schema 和 141 条命令路径。

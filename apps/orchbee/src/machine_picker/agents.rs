@@ -33,6 +33,8 @@ impl Picker {
             })
     }
     pub(super) fn rebuild_agents(&mut self) {
+        // A queued wheel packet owns the painted heights, not later metadata/state geometry.
+        self.cancel_sidebar_scroll();
         let source = self
             .agent_observations
             .iter()

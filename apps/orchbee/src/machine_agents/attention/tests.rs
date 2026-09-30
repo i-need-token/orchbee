@@ -6,6 +6,7 @@ fn row() -> Row {
         target: super::super::tests::target(),
         label: "terminal".into(),
         workspace: String::new(),
+        tab_label: None,
         state: PanelAgentState::Idle,
         sequence: WorkbenchRevision::new(1),
         metadata: PanelMetadataEffective::default(),

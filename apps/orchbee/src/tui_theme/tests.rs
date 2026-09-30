@@ -19,6 +19,38 @@ fn style_colors(theme: &Theme) -> Vec<(Role, Option<Color>, Option<Color>)> {
         .collect()
 }
 
+#[cfg(windows)]
+#[test]
+fn explicit_sidebar_styles_preserve_absence_and_clear_false_modifiers() {
+    use orchbee_local_site_runtime::WindowsSidebarTokenStyle;
+    for theme in [Theme::terminal_native(), Theme::rgb_test_dark()] {
+        assert_eq!(
+            theme.sidebar_token_style(Role::TextSecondary, WindowsSidebarTokenStyle::default()),
+            theme.style(Role::TextSecondary)
+        );
+        let explicit = theme.sidebar_token_style(
+            Role::HintKey,
+            WindowsSidebarTokenStyle {
+                fg: Some([16, 32, 48]),
+                bold: Some(false),
+                dim: Some(true),
+            },
+        );
+        assert_eq!(explicit.fg, Some(Color::Rgb(16, 32, 48)));
+        assert!(explicit.sub_modifier.contains(Modifier::BOLD));
+        assert!(explicit.add_modifier.contains(Modifier::DIM));
+        let cleared = theme.sidebar_token_style(
+            Role::TextSecondary,
+            WindowsSidebarTokenStyle {
+                dim: Some(false),
+                ..Default::default()
+            },
+        );
+        assert!(cleared.sub_modifier.contains(Modifier::DIM));
+        assert!(!cleared.add_modifier.contains(Modifier::DIM));
+    }
+}
+
 #[test]
 fn every_role_maps_to_a_style_in_both_themes() {
     for theme in [Theme::terminal_native(), Theme::rgb_test_dark()] {

@@ -47,6 +47,7 @@ fn current_reload_rejections_and_lost_reply_have_closed_typed_receipts_without_r
                 revision: WorkbenchRevision::new(if case == "startup" { 0 } else { 3 }),
                 keys_profile: "[keys]\nprefix='ctrl+a'\n".into(),
                 notification_profile: "[ui.toast]\ndelivery='off'\n".into(),
+                agent_sidebar_profile: r#"{"rows":null,"rows_by_agent":{},"row_gap":0}"#.into(),
                 window_title: if case == "en" {
                     "{tab}\n\u{202e}"
                 } else {
@@ -146,7 +147,7 @@ fn current_reload_rejections_and_lost_reply_have_closed_typed_receipts_without_r
                 &document,
                 include_str!("../src/cli/schemas/orchbee.site.configuration.json"),
             );
-            assert_eq!(document["version"], 4);
+            assert_eq!(document["version"], 5);
             if matches!(case, "startup" | "current" | "reload" | "restart") {
                 assert_eq!(
                     document["result"]["reply"]["outcome"]["snapshot"]["defaultShell"],
@@ -214,6 +215,18 @@ fn public_configuration_versions_keep_closed_independent_snapshots() {
     document["version"] = 4.into();
     assert!(!validator.is_valid(&document));
     document["result"]["reply"]["outcome"]["snapshot"]["notificationProfile"] = "[ui.toast]".into();
+    assert!(validator.is_valid(&document));
+    document["version"] = 5.into();
+    assert!(!validator.is_valid(&document));
+    document["result"]["reply"]["outcome"]["snapshot"]["agentSidebarProfile"] =
+        r#"{"rows":[],"rows_by_agent":{},"row_gap":2}"#.into();
+    assert!(validator.is_valid(&document));
+    document["version"] = 4.into();
+    assert!(!validator.is_valid(&document));
+    document["result"]["reply"]["outcome"]["snapshot"]
+        .as_object_mut()
+        .unwrap()
+        .remove("agentSidebarProfile");
     assert!(validator.is_valid(&document));
     document["version"] = 3.into();
     assert!(!validator.is_valid(&document));

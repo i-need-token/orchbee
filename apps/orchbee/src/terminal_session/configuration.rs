@@ -4,7 +4,9 @@ use crate::{
     local_client::{LocalClientOrigin, LocalOperationClock},
 };
 use orchbee_local_ipc::{AsLocalIo, LocalStream};
-use orchbee_local_site_runtime::{WindowsKeySettings, WindowsNotificationSettings};
+use orchbee_local_site_runtime::{
+    WindowsAgentSidebarSettings, WindowsKeySettings, WindowsNotificationSettings,
+};
 use orchbee_workbench_protocol::{
     ConfigurationAction, ConfigurationOutcome, ConfigurationRequest, ConfigurationSnapshot,
     ProtocolVersion, SiteId, WorkbenchRequestId,
@@ -73,8 +75,10 @@ impl Watcher {
             match (
                 WindowsKeySettings::from_profile(&snapshot.keys_profile),
                 WindowsNotificationSettings::from_profile(&snapshot.notification_profile),
+                WindowsAgentSidebarSettings::from_profile(&snapshot.agent_sidebar_profile),
             ) {
-                (Ok(keys), Ok(notifications)) => {
+                (Ok(keys), Ok(notifications), Ok(sidebar)) => {
+                    view.machines.configure_agent_sidebar(sidebar);
                     view.notifications.configure(notifications);
                     view.configure_keys(&keys);
                     self.revision = snapshot.revision.value();

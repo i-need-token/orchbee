@@ -186,7 +186,7 @@ Supported action fields are `help`, `new_workspace`, `rename_workspace`, `worksp
 Workspace means the native Workbench location, vertical split is rightward and horizontal is downward.
 Agent previous/next defaults to prefix `{`/`}` and uses the same ephemeral filtered/sorted
 [machine Agent list](machines.md#agent-metadata-view-controls-and-navigation), with exact physical
-target revalidation. These actions do not add ordinal Agent focus or the custom view JSON DSL.
+target revalidation. The same owning contract defines configured ordinal Agent focus and source-owned view JSON.
 
 ```toml
 [keys]
@@ -212,6 +212,15 @@ unrepresentable Hyper/Meta modifier bits never collapse into ordinary shortcuts.
 these keys still depends on the terminal host.
 
 ## Live configuration reload
+
+The sidebar profile participates in the same admission/publication transition:
+`ui.sidebar.agents.rows`, `rows_by_agent` and `row_gap` are validated by the shared
+Windows settings owner, then published as a bounded canonical profile. A Client
+validates keys, notifications and sidebar before installing any of them. A bad
+profile leaves the whole previous Client configuration intact. Startup applies
+the same admitted settings; configuration checking reports the supported layout
+and its bounds. See the [Agent sidebar configuration model](machines.md#agent-sidebar-configuration-model)
+for tokens, provider selection, rules, geometry and evidence obligations.
 
 Windows `site reload-config` requests a reload in the running Site; `site config` reads the last
 published revision. Neither activates a Site. Server freezes the startup configuration location,
@@ -278,3 +287,31 @@ orchbee update --format json
 The packaging tool verifies the existing cohort, adapter capsule and pinned ConPTY bundle, inventories bounded regular files, and exclusively writes `release.json` beside them. It refuses an existing feed. For HTTPS distribution, publish that directory at the feed URL; relative file URLs retain the same directory layout. Version must match the packaged Client's `--version`; buildId distinguishes releases with the same version.
 
 The immutable release also stores the exact admitted `release.json`, reserved outside the inventory. Reuse checks that it has not changed. `status client` v2 binds this manifest to the directory identity and verified cohort before projecting installed release provenance; it never substitutes the current configured preference.
+
+## Windows Agent sidebar layouts
+
+The main Windows TUI applies `ui.sidebar.agents` at startup and after `site reload-config`.
+For example:
+
+```toml
+[ui.sidebar.agents]
+rows = [["state_icon", "state_text"], ["machine", "workspace", "tab"], ["pane", "$summary"]]
+row_gap = 1
+
+[ui.sidebar.agents.rows_by_agent]
+claude = [["state_icon", "agent"], [{ token = "$model", fg = "#8bc", rules = [{ contains = "fast", ignore_case = true, bold = true }] }]]
+```
+
+An omitted layout preserves the existing two-line default; an explicit empty layout
+keeps the identity/navigation line. Missing or hidden values do not consume rows.
+The full [sidebar model](machines.md#agent-sidebar-configuration-model) defines
+provider aliases, rules, actual-height windows and unchanged physical authority.
+Live `terminal_title`/`terminal_title_stripped` remain explicit unsupported-token errors.
+`ui.sidebar.spaces` is a separate unimplemented configuration family.
+
+`config check` v10 and Site configuration receipts v5 expose required
+`agentSidebarProfile` (closed canonical JSON, at most 32 KiB). Configuration failure
+v7 includes `ui.sidebar.agents` and layout/color/token/rule/provider diagnostics.
+All prior public versions retain their closed fields. Catalog v122 keeps 105 schemas
+and 141 grammar paths. Matched private cohorts carry the new required profile
+together; deployment/rollback is by whole cohort, without persistent migration.

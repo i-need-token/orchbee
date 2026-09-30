@@ -25,6 +25,10 @@ Orchbee-drawn cells.
   values. Review enforces this rule; no automated check exists yet.
 - Every visible state has one role. Do not compose a state from two roles, borrow a status color
   for emphasis, or express hierarchy through color instead of modifiers.
+- Explicit user-configured token foreground/bold/dim overrides are presentation data. The theme
+  boundary applies them over each token's semantic role; rendering code still does not construct
+  colors. State tokens keep state roles, ordinary values keep text roles, and focus/ordinal
+  markers retain their separate roles. User overrides do not change state or identity.
 - If no role fits, stop and propose a role change through the theme owner. Do not add a local
   constant.
 

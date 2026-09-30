@@ -16,12 +16,54 @@ fn snapshot(revision: u64, profile: &str) -> ConfigurationSnapshot {
         revision: WorkbenchRevision::new(revision),
         keys_profile: profile.into(),
         notification_profile: "[ui.toast]\ndelivery='off'\n".into(),
+        agent_sidebar_profile: r#"{"rows":null,"rows_by_agent":{},"row_gap":0}"#.into(),
         window_title: "{hostname}: {workspace}".into(),
         restart_required: Vec::new(),
         default_shell: String::new(),
         shell_mode: orchbee_workbench_protocol::ConfigurationShellMode::Auto,
         manifest_check: true,
     }
+}
+
+#[test]
+fn bad_sidebar_publication_retains_keys_notifications_layout_and_revision_atomically() {
+    let (_reader, wake) = LocalStream::pair().unwrap();
+    let mut watcher = Watcher {
+        shared: Arc::new((Mutex::new(Handoff::default()), Condvar::new())),
+        wake,
+        task: None,
+        revision: 0,
+    };
+    let mut view = ClientView::new(120);
+    let before = view.clone();
+    let mut candidate = snapshot(1, "[keys]\nprefix='ctrl+a'");
+    candidate.notification_profile = "[ui.toast]\ndelivery='orchbee'".into();
+    candidate.agent_sidebar_profile = "{}".into();
+    watcher.shared.0.lock().unwrap().snapshot = Some(candidate.clone());
+    assert!(watcher.tick(&mut view));
+    assert_eq!(watcher.revision, 0);
+    assert_eq!(view.bindings(), before.bindings());
+    assert_eq!(view.notifications, before.notifications);
+    assert_eq!(view.machines, before.machines);
+    assert_eq!(view.notice(), Some(Notice::ConfigurationFailed));
+    candidate.agent_sidebar_profile = r#"{"rows":[],"rows_by_agent":{},"row_gap":2}"#.into();
+    watcher.shared.0.lock().unwrap().snapshot = Some(candidate);
+    assert!(watcher.tick(&mut view));
+    assert_eq!(watcher.revision, 1);
+    assert!(
+        view.bindings()
+            .prefix
+            .matches(KeyEvent::press(KeyCode::Char('a'), Modifiers::CTRL))
+    );
+    assert_ne!(view.notifications, before.notifications);
+    assert_eq!(view.machines.sidebar_settings().row_gap(), 2);
+    assert!(
+        view.machines
+            .sidebar_settings()
+            .rows_for_agent("codex", None)
+            .unwrap()
+            .is_empty()
+    );
 }
 
 #[test]

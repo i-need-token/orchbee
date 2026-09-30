@@ -1,5 +1,10 @@
 //! Shared Windows user settings: bounded strict reads and explicitly invoked repair.
+mod agent_sidebar;
 mod keys;
+pub use agent_sidebar::{
+    MAXIMUM_AGENT_SIDEBAR_PROFILE_BYTES, WindowsAgentSidebarSettings, WindowsAgentSidebarToken,
+    WindowsAgentSidebarTokenKind, WindowsSidebarTokenStyle,
+};
 mod notifications;
 pub use notifications::{WindowsNotificationDelivery, WindowsNotificationSettings};
 mod reset_keys;
@@ -24,6 +29,7 @@ pub use channel::set_windows_update_channel;
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct WindowsUserSettings {
     pub window_title: String,
+    pub agent_sidebar: WindowsAgentSidebarSettings,
     pub notifications: WindowsNotificationSettings,
     pub keys: WindowsKeySettings,
     pub shell: WindowsShellSettings,
@@ -59,6 +65,7 @@ impl Default for WindowsUserSettings {
     fn default() -> Self {
         Self {
             window_title: DEFAULT_WINDOW_TITLE.into(),
+            agent_sidebar: WindowsAgentSidebarSettings::default(),
             notifications: WindowsNotificationSettings::default(),
             keys: WindowsKeySettings::default(),
             shell: WindowsShellSettings::default(),
@@ -256,12 +263,23 @@ fn parse(
                 .ok_or(WindowsSettingsError::new("ui.window_title", "wrong-type"))?;
             if table
                 .keys()
-                .any(|key| !matches!(key.as_str(), "window_title" | "toast"))
+                .any(|key| !matches!(key.as_str(), "window_title" | "toast" | "sidebar"))
             {
                 return Err(WindowsSettingsError::new("ui.window_title", "unknown-key"));
             }
             if let Some(value) = table.get("toast") {
                 settings.notifications = WindowsNotificationSettings::parse(value)?;
+            }
+            if let Some(sidebar) = table.get("sidebar") {
+                let sidebar = sidebar
+                    .as_table()
+                    .ok_or(agent_sidebar::error("invalid-layout"))?;
+                if sidebar.keys().any(|key| key != "agents") {
+                    return Err(agent_sidebar::error("unknown-key"));
+                }
+                if let Some(agents) = sidebar.get("agents") {
+                    settings.agent_sidebar = WindowsAgentSidebarSettings::parse(agents)?;
+                }
             }
             if let Some(value) = table.get("window_title") {
                 let value = value

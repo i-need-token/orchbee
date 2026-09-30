@@ -37,6 +37,8 @@ pub struct ConfigurationSnapshot {
     pub keys_profile: String,
     pub window_title: String,
     pub notification_profile: String,
+    /// Canonical presentation-only JSON admitted by the Windows settings owner.
+    pub agent_sidebar_profile: String,
     pub restart_required: Vec<ConfigurationRestart>,
     pub manifest_check: bool,
     /// Admitted defaults for subsequent preparations, not resolved executable facts.
@@ -139,6 +141,8 @@ impl ConfigurationResult {
                     && snapshot.window_title.len() <= 4096
                     && !snapshot.notification_profile.is_empty()
                     && snapshot.notification_profile.len() <= 1024
+                    && !snapshot.agent_sidebar_profile.is_empty()
+                    && snapshot.agent_sidebar_profile.len() <= 32 * 1024
                     && snapshot.default_shell.len() <= 4096
                     && !snapshot.default_shell.chars().any(char::is_control)
                     && snapshot.restart_required.len() <= 3

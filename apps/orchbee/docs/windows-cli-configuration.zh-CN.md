@@ -160,6 +160,12 @@ Hyper/Meta 修饰位不会降级为普通快捷键。宿主是否实际提供这
 
 ## 在线配置重载
 
+侧栏 profile 使用同一接纳/发布转换：共享 Windows 配置所有者验证
+`ui.sidebar.agents.rows`、`rows_by_agent`、`row_gap`，再发布有界规范 profile。
+Client 在安装任何设置前同时验证键位、通知、侧栏；无效 profile 保留全部原配置。
+启动使用同一已接纳配置，配置检查报告支持的布局及边界。token、Provider 选择、
+规则、几何与证据见 [Agent 侧栏配置模型](machines.zh-CN.md#agent-侧栏配置模型)。
+
 Windows `site reload-config` 请求运行中 Site 重载；`site config` 读取最后发布的版本。
 两者均不激活 Site。Server 冻结启动配置位置，串行接纳重载，验证整个有界文件并准备
 规范键位配置后才提交。失败保留原版本、键位和在线 manifest-check 调度。版本 0 仅是启动基线，不是在线发布；首次成功重载发布版本 1，之后仅在已接纳设置变化时版本递增。另一重载持有接纳权时读取可返回忙。提交后丢失响应属于结果未知；
@@ -220,3 +226,26 @@ orchbee update --format json
 打包工具校验现有 cohort、适配器 capsule 和固定 ConPTY 包，清点有界普通文件，再独占写入同目录的 `release.json`，拒绝已有清单。HTTPS 分发需将此目录发布到清单 URL；相对文件 URL 沿用目录布局。版本必须匹配所打包 Client 的 `--version`；buildId 区分同版本号的不同发布。
 
 独立版本目录同时保存经过接纳的原始 `release.json`；该保留文件不属于文件清单条目，复用时核对其未改变。`status client` v2 将清单绑定到目录标识和已验证 cohort 后再投影实际安装来源，不以当前配置偏好替代。
+
+## Windows Agent 侧栏布局
+
+Windows 主 TUI 在启动及 `site reload-config` 后应用 `ui.sidebar.agents`。例如：
+
+```toml
+[ui.sidebar.agents]
+rows = [["state_icon", "state_text"], ["machine", "workspace", "tab"], ["pane", "$summary"]]
+row_gap = 1
+
+[ui.sidebar.agents.rows_by_agent]
+claude = [["state_icon", "agent"], [{ token = "$model", fg = "#8bc", rules = [{ contains = "fast", ignore_case = true, bold = true }] }]]
+```
+
+省略布局保持已有双行默认，显式空布局保留身份及导航行；缺失或隐藏的值不占行。
+[侧栏模型](machines.zh-CN.md#agent-侧栏配置模型)定义 Provider 别名、规则、按实际高度
+计算的窗口及不变的物理权威。`terminal_title`/`terminal_title_stripped` 仍明确返回
+unsupported-token；`ui.sidebar.spaces` 属于另一个未实现配置族。
+
+`config check` v10 和 Site 配置回执 v5 必需携带 `agentSidebarProfile`（最多 32 KiB
+的封闭规范 JSON）。配置失败 v7 增加 `ui.sidebar.agents` 及布局/颜色/token/规则/Provider
+诊断。旧公开版本保持原有封闭字段。目录 v122 仍有 105 个 schema、141 条语法路径。
+匹配的私有 cohort 一起携带新必需 profile，整套部署/回滚，无持久迁移。

@@ -42,7 +42,8 @@
 				"defaultShell",
 				"shellMode",
 				"windowTitle",
-				"notificationProfile"
+				"notificationProfile",
+				"agentSidebarProfile"
 			],
 			"additionalProperties": false,
 			"properties": {
@@ -89,6 +90,11 @@
 					"type": "string",
 					"minLength": 1,
 					"maxLength": 1024
+				},
+				"agentSidebarProfile": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 32768
 				}
 			}
 		},

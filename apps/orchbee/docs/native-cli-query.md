@@ -2647,3 +2647,7 @@ owns normalization, bounded filter/multikey-sort semantics, transient source
 replacement, plugin eligibility, Client attention and TUI projection. The
 `orchbee.agent.view` v1 receipt distinguishes Server failures, exchange failures and unknown mutations; catalog
 v121 includes 105 schemas and 141 native grammar paths.
+
+## Agent sidebar configuration publication
+
+Windows `config check` v10 and `site config`/`site reload-config` v5 expose the required bounded `agentSidebarProfile`; configuration failure v7 includes sidebar admission diagnostics. Older public versions remain closed. The [Windows configuration owner](windows-cli-configuration.md#windows-agent-sidebar-layouts) defines startup, strict whole-file validation, canonical publication and atomic Client application. Catalog v122 contains the same 105 schemas and 141 command paths.

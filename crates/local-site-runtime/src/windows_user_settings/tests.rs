@@ -2,6 +2,30 @@ use super::*;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 #[test]
+fn sidebar_admission_shares_the_whole_file_owner_with_keys_and_notifications() {
+    let read = |text: &str| parse(text, Path::new(r"C:\config.toml"), &|_| None);
+    let settings = read("[keys]\nprefix='ctrl+a'\n[ui.toast]\ndelivery='off'\n[ui.sidebar.agents]\nrows=[['$summary']]\nrow_gap=1\n").unwrap();
+    assert_eq!(settings.agent_sidebar.row_gap(), 1);
+    assert_eq!(
+        settings
+            .agent_sidebar
+            .rows_for_agent("codex", None)
+            .unwrap()[0][0]
+            .name(),
+        "$summary"
+    );
+    for text in [
+        "[ui.sidebar]\nother=1",
+        "[ui.sidebar.spaces]\nrows=[]",
+        "[ui.sidebar.agents]\nrows=[['typo']]",
+        "[ui]\nsidebar=42",
+    ] {
+        assert_eq!(read(text).unwrap_err().field, "ui.sidebar.agents");
+    }
+    assert!(read("[ui.sidebar.agents]\nrows=[['agent']]\n[keys]\nhelp='ctrl+c'").is_err());
+}
+
+#[test]
 fn update_channel_is_strict_and_independent_of_manifest_checks() {
     let read = |text: &str| parse(text, Path::new(r"C:\config.toml"), &|_| None);
     for text in ["", "[update]\nmanifest_check=false"] {

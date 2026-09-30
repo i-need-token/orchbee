@@ -6,6 +6,7 @@ pub(crate) struct SidebarWindow {
     pub(crate) top: usize,
     pub(crate) capacity: usize,
     pub(crate) total: usize,
+    pub(crate) maximum: usize,
 }
 impl SidebarWindow {
     pub(crate) fn end(self) -> usize {
@@ -19,12 +20,14 @@ pub(super) struct Sidebar {
     top: usize,
     follow_focus: bool,
     scroll: Option<Scroll>,
+    settings: std::sync::Arc<orchbee_local_site_runtime::WindowsAgentSidebarSettings>,
 }
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 struct Scroll {
     up: bool,
     pending: usize,
     capacity: usize,
+    maximum: usize,
 }
 impl Default for Sidebar {
     fn default() -> Self {
@@ -33,6 +36,7 @@ impl Default for Sidebar {
             top: 0,
             follow_focus: true,
             scroll: None,
+            settings: Default::default(),
         }
     }
 }
@@ -66,11 +70,45 @@ impl Picker {
     pub(crate) fn sidebar_rows(&self) -> &[Row] {
         &self.agent_rows
     }
+    #[cfg(test)]
     pub(crate) fn sidebar_window(&self, capacity: usize) -> SidebarWindow {
-        let total = self.agent_rows.len();
-        let mut top = self.sidebar.top.min(total.saturating_sub(capacity));
+        self.sidebar_window_for_heights(
+            &vec![1; self.agent_rows.len()],
+            capacity.min(usize::from(u16::MAX)) as u16,
+            0,
+        )
+    }
+    pub(crate) fn configure_agent_sidebar(
+        &mut self,
+        settings: orchbee_local_site_runtime::WindowsAgentSidebarSettings,
+    ) {
+        if self.sidebar.settings.as_ref() != &settings {
+            self.sidebar.settings = std::sync::Arc::new(settings);
+            self.sidebar.reset();
+            self.invalidate();
+        }
+    }
+    pub(crate) fn sidebar_settings(
+        &self,
+    ) -> &orchbee_local_site_runtime::WindowsAgentSidebarSettings {
+        &self.sidebar.settings
+    }
+    pub(crate) fn sidebar_window_for_heights(
+        &self,
+        heights: &[u16],
+        cells: u16,
+        gap: u16,
+    ) -> SidebarWindow {
+        let total = heights.len().min(self.agent_rows.len());
+        let heights = &heights[..total];
+        let maximum = if cells == 0 {
+            0
+        } else {
+            fit_backwards(heights, total, cells, gap)
+        };
+        let mut top = self.sidebar.top.min(maximum);
         if self.sidebar.follow_focus
-            && capacity > 0
+            && cells > 0
             && let Some(current) = self.agent_rows.iter().position(|row| {
                 row.agent
                     .as_ref()
@@ -79,14 +117,15 @@ impl Picker {
         {
             if current < top {
                 top = current;
-            } else if current >= top.saturating_add(capacity) {
-                top = current + 1 - capacity;
+            } else if current >= fit_end(heights, top, cells, gap) && current < total {
+                top = fit_backwards(heights, current + 1, cells, gap);
             }
         }
         SidebarWindow {
             top,
-            capacity,
+            capacity: fit_end(heights, top, cells, gap).saturating_sub(top),
             total,
+            maximum,
         }
     }
     pub(crate) fn queue_sidebar_scroll(&mut self, window: SidebarWindow, up: bool) {
@@ -104,6 +143,7 @@ impl Picker {
             up,
             pending: pending.saturating_add(3).min(window.total),
             capacity: window.capacity,
+            maximum: window.maximum,
         });
     }
     pub(crate) fn cancel_sidebar_scroll(&mut self) {
@@ -118,7 +158,7 @@ impl Picker {
             return false;
         };
         let count = scroll.pending.min(scroll.capacity);
-        let maximum = self.agent_rows.len().saturating_sub(scroll.capacity);
+        let maximum = scroll.maximum.min(self.agent_rows.len().saturating_sub(1));
         let before = self.sidebar.top.min(maximum);
         let next = if scroll.up {
             before.saturating_sub(count)
@@ -182,4 +222,39 @@ impl Picker {
             }
         )
     }
+}
+
+fn fit_end(heights: &[u16], top: usize, cells: u16, gap: u16) -> usize {
+    if cells == 0 {
+        return top;
+    }
+    let mut used = 0usize;
+    let mut end = top;
+    for &height in heights.iter().skip(top) {
+        let cost =
+            usize::from(height.max(1).min(cells)) + if end == top { 0 } else { usize::from(gap) };
+        if used + cost > usize::from(cells) {
+            break;
+        }
+        used += cost;
+        end += 1;
+    }
+    end
+}
+fn fit_backwards(heights: &[u16], end: usize, cells: u16, gap: u16) -> usize {
+    if cells == 0 {
+        return 0;
+    }
+    let mut top = end;
+    let mut used = 0usize;
+    for &height in heights[..end].iter().rev() {
+        let cost =
+            usize::from(height.max(1).min(cells)) + if top == end { 0 } else { usize::from(gap) };
+        if used + cost > usize::from(cells) {
+            break;
+        }
+        used += cost;
+        top -= 1;
+    }
+    top
 }

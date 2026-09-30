@@ -23,6 +23,51 @@ fn sidebar_picker(count: u64) -> Picker {
 }
 
 #[test]
+fn sidebar_variable_heights_fit_entries_gaps_final_page_and_exact_focus() {
+    let mut picker = sidebar_picker(7);
+    let heights = [1, 3, 2, 1, 4, 1, 2];
+    let window = picker.sidebar_window_for_heights(&heights, 6, 1);
+    assert_eq!((window.top, window.end(), window.maximum), (0, 2, 5));
+    picker.queue_sidebar_scroll(window, false);
+    assert!(picker.settle_sidebar_scroll());
+    let window = picker.sidebar_window_for_heights(&heights, 6, 1);
+    assert_eq!((window.top, window.end()), (2, 4));
+    for _ in 0..5 {
+        let window = picker.sidebar_window_for_heights(&heights, 6, 1);
+        picker.queue_sidebar_scroll(window, false);
+        picker.settle_sidebar_scroll();
+    }
+    let window = picker.sidebar_window_for_heights(&heights, 6, 1);
+    assert_eq!((window.top, window.end()), (5, 7));
+    let current = picker.agent_rows[4].agent.as_ref().unwrap().clone();
+    picker.observe_focus(
+        Choice::Local,
+        Some(current.target.context),
+        Some(NativeMemberTarget {
+            tab: current.target.tab,
+            panel: current.target.panel,
+            presentation: current.target.member,
+        }),
+    );
+    assert_eq!(
+        (
+            picker.sidebar_window_for_heights(&heights, 6, 1).top,
+            picker.sidebar_window_for_heights(&heights, 6, 1).end()
+        ),
+        (3, 5)
+    );
+    let oversized = picker.sidebar_window_for_heights(&[20; 7], 3, u16::MAX);
+    assert_eq!(
+        (oversized.top, oversized.capacity, oversized.maximum),
+        (4, 1, 6)
+    );
+    assert_eq!(
+        picker.sidebar_window_for_heights(&heights, 0, 0).capacity,
+        0
+    );
+}
+
+#[test]
 fn sidebar_and_picker_are_independent_read_consumers() {
     let mut picker = sidebar_picker(1);
     assert!(picker.wants_agents());
@@ -36,6 +81,50 @@ fn sidebar_and_picker_are_independent_read_consumers() {
     picker.observe_agent_sidebar(true);
     assert!(picker.wants_agents());
     assert!(picker.agent_rows.iter().all(|row| row.agent.is_none()));
+}
+
+#[test]
+fn sidebar_configuration_changes_cancel_old_geometry_without_changing_agent_authority() {
+    let mut picker = sidebar_picker(20);
+    let targets = picker
+        .sidebar_rows()
+        .iter()
+        .map(Row::selection)
+        .collect::<Vec<_>>();
+    picker.queue_sidebar_scroll(picker.sidebar_window(4), false);
+    assert!(picker.settle_sidebar_scroll());
+    let settings = orchbee_local_site_runtime::WindowsAgentSidebarSettings::from_profile(
+        r#"{"rows":[],"rows_by_agent":{},"row_gap":1}"#,
+    )
+    .unwrap();
+    picker.configure_agent_sidebar(settings.clone());
+    assert_eq!(picker.sidebar_window(4).top, 0);
+    assert!(!picker.settle_sidebar_scroll());
+    assert_eq!(
+        picker
+            .sidebar_rows()
+            .iter()
+            .map(Row::selection)
+            .collect::<Vec<_>>(),
+        targets
+    );
+    picker.queue_sidebar_scroll(picker.sidebar_window(4), false);
+    picker.settle_sidebar_scroll();
+    picker.configure_agent_sidebar(settings);
+    assert_eq!(
+        picker.sidebar_window(4).top,
+        3,
+        "an identical profile is a no-op"
+    );
+    // Metadata may change visible heights; old wheel work cannot own a new projection.
+    for _ in 0..3 {
+        picker.queue_sidebar_scroll(picker.sidebar_window(4), false);
+    }
+    picker.observe_agents(vec![(
+        Choice::Local,
+        Agents::Ready(checkpoint(vec![agent_row()])),
+    )]);
+    assert!(!picker.settle_sidebar_scroll());
 }
 
 #[test]

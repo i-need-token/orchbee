@@ -157,7 +157,7 @@ fn channel_show_reads_strict_shared_settings_without_a_site_or_writes() {
             &checked,
             include_str!("../src/cli/schemas/orchbee.config.check.json"),
         );
-        assert_eq!(checked["version"], 9);
+        assert_eq!(checked["version"], 10);
         assert_eq!(std::fs::read_to_string(&config).unwrap(), content);
     }
     let missing = fixture.0.join("explicit-missing.toml");
@@ -183,6 +183,65 @@ fn channel_show_reads_strict_shared_settings_without_a_site_or_writes() {
 
 fn id(n: u64) -> String {
     format!("{n:032x}")
+}
+
+#[test]
+fn sidebar_configuration_check_projects_profiles_and_rejects_invalid_creation_before_ipc() {
+    let fixture = Fixture::new();
+    let config = fixture.0.join("appdata/Orchbee/config.toml");
+    std::fs::create_dir_all(config.parent().unwrap()).unwrap();
+    let content = "[ui.sidebar.agents]\nrows=[['state_icon','state_text'],[{token='$issue',fg='#abc',bold=true,rules=[{starts_with='ORCH-',dim=false}]}]]\nrow_gap=1\n[ui.sidebar.agents.rows_by_agent]\nclaude=[['tab','pane']]\n";
+    std::fs::write(&config, content).unwrap();
+    let mut doc = document(fixture.run(&["config", "check", "--format=json"]));
+    let schema = include_str!("../src/cli/schemas/orchbee.config.check.json");
+    validate(&doc, schema);
+    assert_eq!(doc["version"], 10);
+    let profile = orchbee_local_site_runtime::WindowsAgentSidebarSettings::from_profile(
+        doc["result"]["checks"][5]["details"]["agentSidebarProfile"]
+            .as_str()
+            .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(profile.row_gap(), 1);
+    assert_eq!(
+        profile.rows_for_agent("claude", None).unwrap()[0][0].name(),
+        "tab"
+    );
+    doc["version"] = 9.into();
+    let validator =
+        jsonschema::validator_for(&serde_json::from_str::<Value>(schema).unwrap()).unwrap();
+    assert!(!validator.is_valid(&doc));
+    doc["result"]["checks"][5]["details"]
+        .as_object_mut()
+        .unwrap()
+        .remove("agentSidebarProfile");
+    assert!(validator.is_valid(&doc));
+    assert_eq!(std::fs::read_to_string(&config).unwrap(), content);
+    for (token, reason) in [
+        ("terminal_title", "unsupported-token"),
+        ("unknown", "invalid-token"),
+    ] {
+        let invalid = format!("[ui.sidebar.agents]\nrows=[['{token}']]");
+        std::fs::write(&config, &invalid).unwrap();
+        let checked = document(fixture.run(&["config", "check", "--format=json"]));
+        validate(&checked, schema);
+        assert_eq!(
+            checked["result"]["checks"][5]["details"]["field"],
+            "ui.sidebar.agents"
+        );
+        assert_eq!(checked["result"]["checks"][5]["details"]["reason"], reason);
+        let output = fixture.run(&["workspace", "create", "--cwd=C:/explicit", "--format=json"]);
+        assert_eq!(output.status.code(), Some(1));
+        let failure = document(output);
+        validate(
+            &failure,
+            include_str!("../src/cli/schemas/orchbee.cli.failure.configuration.json"),
+        );
+        assert_eq!(failure["version"], 7);
+        assert_eq!(failure["failure"]["details"]["field"], "ui.sidebar.agents");
+        assert_eq!(std::fs::read_to_string(&config).unwrap(), invalid);
+    }
+    assert!(!fixture.0.join("runtime").exists());
 }
 fn document(output: std::process::Output) -> Value {
     serde_json::from_slice(&output.stdout).unwrap_or_else(|_| {
@@ -310,7 +369,7 @@ fn config_check_reports_the_actual_file_without_creating_it() {
         !validator.is_valid(&old),
         "v2 must not silently omit user configuration"
     );
-    assert_eq!(doc["version"], 9);
+    assert_eq!(doc["version"], 10);
     assert_eq!(doc["result"]["checks"][5]["details"]["defaultShell"], "");
     assert_eq!(doc["result"]["checks"][5]["details"]["shellMode"], "auto");
     assert_eq!(doc["result"]["checks"][5]["details"]["manifestCheck"], true);
@@ -348,6 +407,7 @@ fn config_check_reports_the_actual_file_without_creating_it() {
         "windowTitleDiagnostic",
         "notificationDelivery",
         "notificationPosition",
+        "agentSidebarProfile",
     ] {
         old["result"]["checks"][5]["details"]
             .as_object_mut()
@@ -394,6 +454,7 @@ fn config_check_validates_keys_and_keeps_previous_envelopes_closed() {
         "windowTitleDiagnostic",
         "notificationDelivery",
         "notificationPosition",
+        "agentSidebarProfile",
     ] {
         old["result"]["checks"][5]["details"]
             .as_object_mut()
@@ -754,6 +815,7 @@ fn config_check_window_title_diagnostics_and_closed_previous_versions() {
             "windowTitleDiagnostic",
             "notificationDelivery",
             "notificationPosition",
+            "agentSidebarProfile",
         ] {
             old["result"]["checks"][5]["details"]
                 .as_object_mut()
@@ -798,7 +860,11 @@ fn config_check_notification_policy_validates_actual_file_and_closed_versions() 
     let mut old = doc;
     old["version"] = json!(7);
     assert!(!validator.is_valid(&old));
-    for name in ["notificationDelivery", "notificationPosition"] {
+    for name in [
+        "notificationDelivery",
+        "notificationPosition",
+        "agentSidebarProfile",
+    ] {
         old["result"]["checks"][5]["details"]
             .as_object_mut()
             .unwrap()

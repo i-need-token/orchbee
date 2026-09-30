@@ -24,6 +24,7 @@ const snapshot = z.strictObject({
 	keysProfile: bounded(65536),
 	windowTitle: bounded(4096, 0),
 	notificationProfile: bounded(1024),
+	agentSidebarProfile: bounded(32768),
 	manifestCheck: z.boolean(),
 	defaultShell: bounded(4096, 0).refine((value) => !/\p{Cc}/u.test(value)),
 	shellMode: z.enum(['auto', 'login', 'non_login']),

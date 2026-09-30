@@ -341,6 +341,27 @@ impl Theme {
         self.styles.style(role)
     }
 
+    /// Explicit user token styles remain data owned by the theme boundary.
+    #[cfg(windows)]
+    pub(crate) fn sidebar_token_style(
+        &self,
+        role: Role,
+        token: orchbee_local_site_runtime::WindowsSidebarTokenStyle,
+    ) -> Style {
+        let mut style = self.style(role);
+        if let Some([r, g, b]) = token.fg {
+            style = style.fg(Color::Rgb(r, g, b));
+        }
+        for (enabled, modifier) in [(token.bold, Modifier::BOLD), (token.dim, Modifier::DIM)] {
+            style = match enabled {
+                Some(true) => style.add_modifier(modifier),
+                Some(false) => style.remove_modifier(modifier),
+                None => style,
+            };
+        }
+        style
+    }
+
     /// The role's color: the background for `surface-*` roles, the foreground
     /// for every other family.
     #[must_use]

@@ -6,6 +6,7 @@ fn row() -> Row {
         target: crate::machine_agents::tests::target(),
         label: "terminal".into(),
         workspace: "project / workspace".into(),
+        tab_label: None,
         state: PanelAgentState::Working,
         sequence: WorkbenchRevision::new(1),
         metadata: PanelMetadataEffective::default(),

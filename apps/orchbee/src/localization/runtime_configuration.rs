@@ -57,13 +57,19 @@ impl Locale {
             Self::ZhCn => format!("窗口标题模板：\"{escaped_template}\"\n"),
         }
     }
+    pub(crate) fn cli_configuration_sidebar(self, escaped_profile: &str) -> String {
+        match self {
+            Self::EnUs => format!("Agent sidebar layout: \"{escaped_profile}\"\n"),
+            Self::ZhCn => format!("Agent 侧栏布局：\"{escaped_profile}\"\n"),
+        }
+    }
     pub(crate) const fn runtime_configuration_help(self) -> &'static str {
         match self {
             Self::EnUs => {
-                "orchbee site config|reload-config [--format text|json]\n\nRead the running Site's published configuration or reload its frozen config path.\nLive keys, window-title templates and notification policy update main TUI Clients; manifest-check policy updates online.\nShell defaults apply to subsequent terminals; changed startup restore policy requires restart. No Site is started.\nInvalid configuration keeps the previous publication. A lost reply is not retried.\n"
+                "orchbee site config|reload-config [--format text|json]\n\nRead the running Site's published configuration or reload its frozen config path.\nLive keys, window-title templates, Agent sidebar layouts and notification policy update main TUI Clients; manifest-check policy updates online.\nShell defaults apply to subsequent terminals; changed startup restore policy requires restart. No Site is started.\nInvalid configuration keeps the previous publication. A lost reply is not retried.\n"
             }
             Self::ZhCn => {
-                "orchbee site config|reload-config [--format text|json]\n\n读取运行中 Site 已发布的配置，或重载其冻结的配置路径。\n键位、窗口标题模板和通知策略在线更新主 TUI Client；manifest-check 策略在线更新。\nShell 默认值用于后续新终端；启动恢复策略变化需要重启。不启动 Site。\n无效配置保留旧发布；丢失响应不会自动重试。\n"
+                "orchbee site config|reload-config [--format text|json]\n\n读取运行中 Site 已发布的配置，或重载其冻结的配置路径。\n键位、窗口标题模板、Agent 侧栏布局和通知策略在线更新主 TUI Client；manifest-check 策略在线更新。\nShell 默认值用于后续新终端；启动恢复策略变化需要重启。不启动 Site。\n无效配置保留旧发布；丢失响应不会自动重试。\n"
             }
         }
     }

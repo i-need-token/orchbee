@@ -69,6 +69,7 @@ pub(crate) fn row(n: u64) -> Row {
         target,
         label: "build".into(),
         workspace: "space".into(),
+        tab_label: Some("Task".into()),
         state: PanelAgentState::Working,
         sequence: WorkbenchRevision::new(1),
         metadata: PanelMetadataEffective::default(),
@@ -227,6 +228,7 @@ fn agent_checkpoint_joins_exact_primary_and_child_without_terminal_effects() -> 
     assert_eq!(rows.len(), 2);
     assert_eq!(rows[1].target, target());
     assert_eq!(rows[0].target.member.as_str(), id(12));
+    assert_eq!(rows[0].tab_label.as_deref(), Some("tab"));
     assert!(!rows[0].label.contains('\u{202e}'));
     drop(client);
     peer.finish()
@@ -248,6 +250,22 @@ fn agent_checkpoint_rejects_partial_membership_and_spliced_report_revisions() ->
 fn agent_placements_respect_membership_and_row_capacity() {
     let mut snapshot = fixture();
     assert_eq!(placements(&snapshot).unwrap().len(), 4);
+    snapshot.terminal_contexts[0].tabs.truncate(1);
+    snapshot.terminal_contexts[0].tabs[0].automatic_label = true;
+    assert!(
+        placements(&snapshot)
+            .unwrap()
+            .iter()
+            .all(|p| p.tab_label.is_none())
+    );
+    snapshot.terminal_contexts[0].tabs[0].automatic_label = false;
+    snapshot.terminal_contexts[0].tabs[0].label = "Manual".into();
+    assert!(
+        placements(&snapshot)
+            .unwrap()
+            .iter()
+            .all(|p| p.tab_label.as_deref() == Some("Manual"))
+    );
     snapshot.terminal_contexts.clear();
     assert!(placements(&snapshot).is_err());
     let snapshot = fixture();

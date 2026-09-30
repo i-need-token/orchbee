@@ -260,9 +260,11 @@ requires drawable content. There is no replay of terminal input or mutations.
 Evidence must cover bounded complete reads, revision/membership/physical identity
 mismatch, primary and child placement, stale job cancellation and fairness,
 keyboard/mouse identity, exact bootstrap and Host mismatch before control.
-Unattached canonical sessions,
-configurable sidebar token rows and real SSH/OS visual acceptance remain
-separate obligations. The existing per-Site Agent board remains available.
+Live terminal-title tokens and real SSH/OS visual acceptance remain
+separate obligations. Herdr's list and aggregate sidebar enumerate physical panes,
+not unattached canonical sessions. The native canonical Agent list and per-Site
+Agent board already retain those sessions; cross-machine aggregation of them is
+an architectural extension, not a Herdr replacement gap.
 
 ## Agent metadata, view controls and navigation
 
@@ -297,7 +299,7 @@ drawable candidate and preserves the previous surface on failure.
 Evidence covers guarded metadata, overlapping revision fences and binding faults,
 stable ties and machine-qualified context/identity, query bounds and control
 cancellation, painted mouse/keyboard/narrow/localized rendering and global action
-input isolation. Unattached sessions, configurable sidebar token rows and real-network/OS visual acceptance remain separate obligations.
+input isolation. Live terminal-title tokens and real-network/OS visual acceptance remain separate obligations.
 
 ## Source-owned Agent views
 
@@ -362,7 +364,7 @@ acknowledgements remain Client-owned, and removed/disabled sources are pruned.
 Evidence covers specification bounds/type rejection, source-guarded replacement
 and clear, plugin eligibility, revision and transport uncertainty, endpoint-scoped
 context, missing/tied multikey sorting, complete view fences and exact attention
-versions. Unattached sessions, configurable sidebar token rows and real SSH/OS
+versions. Live terminal-title tokens and real SSH/OS
 visual acceptance remain separate obligations.
 
 ## Ordinal Agent focus
@@ -405,10 +407,12 @@ replacement row. Other buttons, modifiers, releases and drags cannot activate.
 
 The sidebar retains its 30-column Full/Compact layout and disappears at Minimal
 or too-small geometry. Optional business labels yield to the Agent list at short
-heights. Each entry occupies two complete lines, with grapheme-safe truncation;
+heights. Default entries occupy two lines; configured entries use their resolved heights
+and gaps. Whole entries fit when possible; an oversized entry is clipped to the
+actual body, with grapheme-safe horizontal truncation;
 a fixed footer reports the visible range and opens the complete list. The default
 window follows the exact focused member; explicit wheel scrolling holds the
-window until focus or filters change. Wheel bursts queue three rows per notch,
+window until focus or filters change. Wheel bursts queue three entries per notch,
 coalesce at the input cadence, and apply at most one painted viewport per pass;
 reversal cancels the old remainder. Overlay/modal ownership and released capture
 continue to precede sidebar gestures. Successful drawing publishes the same
@@ -420,5 +424,54 @@ closing only the picker leaves a visible sidebar current, while hiding the last
 consumer releases source rows/specifications and cancels reads. Sidebar rendering,
 scrolling and opening the list do not acknowledge terminal versions. Geometric
 sidebar overlays suppress terminal-draw acknowledgements even when short height
-has undocked a Wide Client's sidebar. Unattached sessions, configurable token row
-layouts and real SSH/emulator visual acceptance remain separate obligations.
+has undocked a Wide Client's sidebar. Live terminal-title tokens and real
+SSH/emulator visual acceptance remain separate obligations.
+
+## Agent sidebar configuration model
+
+Windows users can select sidebar content through `ui.sidebar.agents.rows`,
+`rows_by_agent` and `row_gap`. The shared Windows settings owner admits the
+bounded whole file and a canonical, closed JSON profile of at most 32 KiB.
+The existing Site configuration owner publishes that profile alongside keys and
+notification policy; only the Client UI owner installs a newer, completely
+validated publication. Bad candidates retain all previously installed settings.
+No renderer reads configuration files or starts background work.
+
+Rows contain `state_icon`, `state_text`, `machine`, `workspace`, `tab`, `pane`,
+`agent`, or `$name`. Missing values and tokens hidden by rules disappear; rows
+with no remaining tokens disappear. An entry still retains its focus marker and
+ordinal, exact target and navigation eligibility. Custom values and custom state
+labels are read from the already-fenced presentation metadata. Text rules match
+the original value; only painting sanitizes controls and truncates graphemes.
+`terminal_title` and `terminal_title_stripped` remain rejected until their live
+physical read consumer is implemented; pane title and `$terminal_title` never
+substitute for those builtins.
+
+| Input or event                                 | Decision and observable result                                                                                          |
+| ---------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| No rows setting or matching override           | Preserve the existing two-line default                                                                                  |
+| Provider override                              | Exact physical Agent label first, then its canonical report label; displayAgent cannot select an override               |
+| Empty rows, missing custom value, or hide rule | Remove configured text, preserving at least the identity line and exact hit target                                      |
+| Styled text token                              | Apply base foreground/bold/dim, then the first matching rule; `hide=true` removes that token                            |
+| Text rule                                      | Exactly one of equals/contains/starts_with; optional ASCII case folding                                                 |
+| Numeric rule                                   | Exactly one finite gt/lt threshold; strict finite number parsing without trimming or case folding                       |
+| Layout or publication changes                  | Reset follow-focus window and pending scroll; do not alter filters, seen state or physical identity                     |
+| Variable-height viewport                       | Fit whole entries and inter-entry gaps; an oversized single entry is clipped to the actual body                         |
+| Scroll                                         | Move by entries, at most the painted entry count per cadence; clamp against the final page computed from actual heights |
+| Invalid file/profile/reload                    | Reject before publication or UI installation; retain previous keys, notification policy and sidebar                     |
+
+At most 16 rows, 16 tokens per row, 16 rules per token and 64 provider overrides
+are admitted. Custom keys use the metadata ASCII grammar; provider keys are
+bounded native IDs. Foreground accepts `#rgb` or `#rrggbb`. The theme owner maps
+explicit user foregrounds and modifiers; default presentation remains semantic
+theme roles. Nonnegative `row_gap` fits u16 and is applied only between entries.
+Empty trailing space and gaps are non-activating sidebar surfaces. Paint geometry
+and input geometry share the same resolved window, including clipped entries.
+
+Core evidence must cover strict admission and canonical profile roundtrips,
+first-match/hide/case/numeric rules, raw-value matching, provider identity,
+missing/empty content, final-page and focus windows, bounded/reversed wheel,
+and exact hit targets. Adapter evidence must cover whole-publication retention,
+real configuration IPC, and both locales/themes at short and full heights.
+No new Agent authority, terminal acknowledgement, persistence migration, network
+acceptance or emulator visual proof follows from configurable painting.

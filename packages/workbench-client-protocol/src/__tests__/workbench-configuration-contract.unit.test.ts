@@ -22,6 +22,9 @@ describe('Site configuration publication', () => {
 					snapshot: {
 						revision: '0',
 						keysProfile: '[keys]',
+						windowTitle: '',
+						notificationProfile: '[ui.toast]',
+						agentSidebarProfile: '{}',
 						manifestCheck: true,
 						restartRequired: [],
 						defaultShell: '\ud800',
