@@ -2,6 +2,7 @@
 #[cfg(windows)]
 pub(in crate::cli) mod context;
 mod panes;
+mod popup;
 mod provision;
 mod runtime;
 use super::{Failure, FailureKind, Output, failure_output, output};
@@ -13,6 +14,9 @@ use orchbee_local_site_runtime::{PluginRegistry, PluginRegistryError, PluginRegi
 use serde_json::{Value, json};
 
 pub(crate) fn run(command: PluginCommand, format: OutputFormat, locale: Locale) -> Output {
+    if let PluginCommand::PopupClose { client, timeout_ms } = &command {
+        return popup::close(client.as_ref(), *timeout_ms, format, locale);
+    }
     if let PluginCommand::PaneManage(command) = &command {
         return panes::manage(command, format, locale);
     }
@@ -32,7 +36,8 @@ pub(crate) fn run(command: PluginCommand, format: OutputFormat, locale: Locale) 
         return runtime::run(command, format, locale);
     }
     let operation = match &command {
-        PluginCommand::PaneManage(_)
+        PluginCommand::PopupClose { .. }
+        | PluginCommand::PaneManage(_)
         | PluginCommand::PaneOpen(_)
         | PluginCommand::Invoke { .. }
         | PluginCommand::Logs { .. }
@@ -89,7 +94,8 @@ fn execute(
     command: PluginCommand,
 ) -> Result<Value, PluginRegistryError> {
     Ok(match command {
-        PluginCommand::PaneManage(_)
+        PluginCommand::PopupClose { .. }
+        | PluginCommand::PaneManage(_)
         | PluginCommand::PaneOpen(_)
         | PluginCommand::Invoke { .. }
         | PluginCommand::Logs { .. }

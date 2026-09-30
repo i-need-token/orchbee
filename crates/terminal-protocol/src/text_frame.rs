@@ -36,7 +36,7 @@ pub struct TerminalTextCursor {
     pub row: u16,
     pub visible: bool,
 }
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct TerminalTextFrame {
     pub route: TerminalFrameRoute,
     pub geometry: TerminalPixelGeometry,

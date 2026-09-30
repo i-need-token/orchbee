@@ -61,27 +61,28 @@ export const WorkbenchPluginPaneSelectorSchema = z
 		entrypointId: z.string().regex(/^[A-Za-z0-9_:-]{1,120}$/u),
 	})
 	.readonly();
+export const WorkbenchLaunchEnvironmentSchema = z
+	.array(z.tuple([environmentNameSchema, literalLaunchStringSchema]).readonly())
+	.max(32)
+	.refine((entries) => {
+		const names = new Set<string>();
+		let bytes = 0;
+		for (const [name, value] of entries) {
+			const key = name.toUpperCase();
+			if (names.has(key)) return false;
+			names.add(key);
+			bytes += utf8.encode(name).length + utf8.encode(value).length;
+		}
+		return bytes <= 1024;
+	}, 'Launch environment has duplicate names or exceeds its byte budget')
+	.readonly();
+
 export const WorkbenchLaunchOptionsSchema = z
 	.strictObject({
 		cwd: WorkbenchDirectoryPathSchema.nullable().optional(),
 		pluginPane: WorkbenchPluginPaneSelectorSchema.nullable().optional(),
 		pluginContext: PluginInvocationContextSchema.nullable().optional(),
-		environment: z
-			.array(z.tuple([environmentNameSchema, literalLaunchStringSchema]).readonly())
-			.max(32)
-			.refine((entries) => {
-				const names = new Set<string>();
-				let bytes = 0;
-				for (const [name, value] of entries) {
-					const key = name.toUpperCase();
-					if (names.has(key)) return false;
-					names.add(key);
-					bytes += utf8.encode(name).length + utf8.encode(value).length;
-				}
-				return bytes <= 1024;
-			}, 'Launch environment has duplicate names or exceeds its byte budget')
-			.readonly()
-			.optional(),
+		environment: WorkbenchLaunchEnvironmentSchema.optional(),
 	})
 	.refine(
 		(value) => !value.pluginContext || Boolean(value.pluginPane),

@@ -193,6 +193,8 @@ pub(crate) enum Family {
     PluginLog,
     #[cfg(windows)]
     PluginPane,
+    #[cfg(windows)]
+    Popup,
     TerminalTitle,
     Notification,
     #[cfg(windows)]
@@ -245,6 +247,8 @@ impl Family {
             Self::PluginLog => "plugin log",
             #[cfg(windows)]
             Self::PluginPane => "plugin pane",
+            #[cfg(windows)]
+            Self::Popup => "popup",
             Self::Notification => "notification",
             Self::Site => "site",
             Self::Api => "api",
@@ -297,6 +301,8 @@ pub(crate) enum CommandPath {
     PluginLogList,
     #[cfg(windows)]
     PluginPaneOpen,
+    #[cfg(windows)]
+    PopupClose,
     #[cfg(windows)]
     PluginPaneFocus,
     #[cfg(windows)]
@@ -612,6 +618,8 @@ impl CommandPath {
             Self::PluginLogList => "plugin log list",
             #[cfg(windows)]
             Self::PluginPaneOpen => "plugin pane open",
+            #[cfg(windows)]
+            Self::PopupClose => "popup close",
             #[cfg(windows)]
             Self::PluginPaneFocus => "plugin pane focus",
             #[cfg(windows)]
@@ -1589,6 +1597,8 @@ pub(crate) enum ExpectedValue {
     #[cfg(windows)]
     PluginPanePlacement,
     #[cfg(windows)]
+    PluginPopupSize,
+    #[cfg(windows)]
     PluginPaneDirection,
     #[cfg(windows)]
     PluginGithubSource,
@@ -1841,6 +1851,8 @@ struct Options {
     plugin_entrypoint: Option<String>,
     plugin_target: Option<String>,
     plugin_placement: Option<String>,
+    plugin_width: Option<String>,
+    plugin_height: Option<String>,
     plugin_yes: bool,
     plugin_ref: Option<String>,
     notification_body: Option<String>,
@@ -1968,6 +1980,8 @@ const VALUE_FLAGS: &[&str] = &[
     "--remote-session",
     "--entrypoint",
     "--placement",
+    "--width",
+    "--height",
     "--target-pane",
     "--ref",
     "--body",
@@ -2665,6 +2679,8 @@ fn apply_value_flag(
         "--context" => &mut options.plugin_context,
         "--entrypoint" => &mut options.plugin_entrypoint,
         "--placement" => &mut options.plugin_placement,
+        "--width" => &mut options.plugin_width,
+        "--height" => &mut options.plugin_height,
         "--target-pane" => &mut options.plugin_target,
         "--ref" => &mut options.plugin_ref,
         "--limit" => &mut options.limit,
@@ -2813,6 +2829,8 @@ fn resolve_words(
     match words {
         #[cfg(windows)]
         ["plugin", ..] => plugins::parse(words, options, envelope),
+        #[cfg(windows)]
+        ["popup", ..] => plugins::panes::parse_close(words, options, envelope),
         #[cfg(windows)]
         ["layout", "export"] => layouts::export(options, envelope),
         #[cfg(windows)]
@@ -5091,6 +5109,10 @@ fn help_topic(path: &[&str]) -> Option<HelpTopic> {
         #[cfg(windows)]
         ["plugin", "pane", "open"] => HelpTopic::Command(CommandPath::PluginPaneOpen),
         #[cfg(windows)]
+        ["popup"] => HelpTopic::Family(Family::Popup),
+        #[cfg(windows)]
+        ["popup", "close"] => HelpTopic::Command(CommandPath::PopupClose),
+        #[cfg(windows)]
         ["plugin", "pane", "focus"] => HelpTopic::Command(CommandPath::PluginPaneFocus),
         #[cfg(windows)]
         ["plugin", "pane", "close"] => HelpTopic::Command(CommandPath::PluginPaneClose),
@@ -5671,6 +5693,8 @@ fn business_options(options: &Options) -> bool {
         || options.plugin_target.is_some()
         || options.plugin_entrypoint.is_some()
         || options.plugin_placement.is_some()
+        || options.plugin_width.is_some()
+        || options.plugin_height.is_some()
         || options.plugin_id.is_some()
         || options.plugin_context.is_some()
         || options.plugin_ref.is_some()
@@ -5770,6 +5794,12 @@ fn first_out_of_scope(options: &Options, scope: Scope) -> Option<&'static str> {
     }
     if !scope.plugin_pane && options.plugin_entrypoint.is_some() {
         return Some("--entrypoint");
+    }
+    if !scope.plugin_pane && options.plugin_width.is_some() {
+        return Some("--width");
+    }
+    if !scope.plugin_pane && options.plugin_height.is_some() {
+        return Some("--height");
     }
     if !scope.plugin_pane && options.plugin_placement.is_some() {
         return Some("--placement");

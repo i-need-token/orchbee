@@ -221,7 +221,8 @@ impl Locale {
     }
 
     pub(crate) fn cli_client_control(self, document: &Value) -> String {
-        let control = document["schema"] == "orchbee.client.control";
+        let control = document["schema"] == "orchbee.client.control"
+            || document["schema"] == "orchbee.popup.result";
         let outcome = if control {
             &document["observation"]["reply"]["outcome"]
         } else {
@@ -386,6 +387,10 @@ impl Locale {
     }
     fn client_control_state(self, value: &str) -> &'static str {
         match (self, value) {
+            (Self::EnUs, "popup-opened") => "Popup opened and drawn",
+            (Self::ZhCn, "popup-opened") => "popup 已打开并绘制",
+            (Self::EnUs, "popup-closed") => "Popup close completed",
+            (Self::ZhCn, "popup-closed") => "popup 关闭操作已完成",
             (Self::EnUs, "attention-read") => "Client Agent observation",
             (Self::ZhCn, "attention-read") => "客户端 Agent 观察",
             (Self::EnUs, "current") => "Current",

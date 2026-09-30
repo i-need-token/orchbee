@@ -62,7 +62,7 @@ Server 串行拥有临时观察 viewer，以及结果不明的清理，直到精
 
 `plugin pane open --plugin ID --entrypoint ID [--placement tab|split|zoomed|overlay]` 通过规范创建流程生成真实终端 Tab 或分屏。清单提供默认布局和标题；`--target-pane` 选择分屏目标，`--direction right|down` 控制方向，`--workspace` 选择 Tab 的目标 Workspace。默认聚焦；`--no-focus`、`--client`、`--cwd`、重复 `--env`、几何尺寸与超时沿用现有创建控制。默认目录为 Server 解析的插件根目录，不受普通 shell 的 cwd 配置影响；即使覆盖 cwd，清单程序仍相对插件根目录解析。原生回执使用 `orchbee.creation.result` v3，区分规范创建与 Client 聚焦结果；v2 不接受新增的 `plugin-root` 目录策略。 zoomed 布局通过一次受视图版本约束的 Client Zoom 请求强制聚焦（即使指定 `--no-focus`）；其 v4 回执增加 `postCreate.requested.zoom=true`，聚焦及放大的合并结果保留在 `postCreate.focus`。选区变化或 Client 回执丢失仍保留创建回执，不会重新创建终端。旧 v2/v3 回执不接受新增 zoom 请求。与 Herdr 一致，split/zoomed 忽略 `--workspace`，tab 忽略 `--target-pane`。
 
-CLI 提交目录标识，不提交程序执行权限。Server 受理时重新检查已启用、源有效且支持 Windows 的入口，在终端预留前冻结 argv、cwd 与受保护的插件环境。重放使用保留的规范请求。显式程序／profile 与插件 Pane 选择互斥；Workspace 启动和子终端创建拒绝此选择器。CLI 和 Server 保留程序／argv 标识；允许绝对 `.cmd`/`.bat` 入口，由 Host 使用系统命令处理器执行，禁用 AutoRun 与延迟展开。batch 参数编码保护元字符及百分号字面值，脚本自己负责其后续参数展开。含 NUL/CR/LF 的参数、不支持的 verbatim 路径写法或超过 8191 字节的编码命令行，在 Host 创建 PTY／进程前失败；规范创建回执仍保留已受理的启动。popup 布局暂未受理，其 CLI 拒绝不得创建终端。`plugin pane focus <pane-id> [--client ID] [--timeout MS]` 和 `plugin pane close <pane-id> [--timeout MS]` 先读取 Server 所有的成员记录。精确 Presentation／绑定及规范修订号必须与 CLI 快照一致；普通、重新绑定或过期目标在产生效果前拒绝。close 提交一次修订号围栏下的原生 Panel 关闭并返回其保留生命周期回执；focus 沿用 Client 选择与视图围栏。投递结果未知时不重试；稍后发生的取消保留已取得的回执并返回非零退出码。
+CLI 提交目录标识，不提交程序执行权限。Server 受理时重新检查已启用、源有效且支持 Windows 的入口，在终端预留前冻结 argv、cwd 与受保护的插件环境。重放使用保留的规范请求。显式程序／profile 与插件 Pane 选择互斥；Workspace 启动和子终端创建拒绝此选择器。CLI 和 Server 保留程序／argv 标识；允许绝对 `.cmd`/`.bat` 入口，由 Host 使用系统命令处理器执行，禁用 AutoRun 与延迟展开。batch 参数编码保护元字符及百分号字面值，脚本自己负责其后续参数展开。含 NUL/CR/LF 的参数、不支持的 verbatim 路径写法或超过 8191 字节的编码命令行，在 Host 创建 PTY／进程前失败；规范创建回执仍保留已受理的启动。独立 popup 布局使用下文单独的 popup 生命周期。`plugin pane focus <pane-id> [--client ID] [--timeout MS]` 和 `plugin pane close <pane-id> [--timeout MS]` 先读取 Server 所有的成员记录。精确 Presentation／绑定及规范修订号必须与 CLI 快照一致；普通、重新绑定或过期目标在产生效果前拒绝。close 提交一次修订号围栏下的原生 Panel 关闭并返回其保留生命周期回执；focus 沿用 Client 选择与视图围栏。投递结果未知时不重试；稍后发生的取消保留已取得的回执并返回非零退出码。
 
 成员记录为与终端预留同时提交的临时 Server 状态，以精确 Presentation／绑定为键，上限 4096 条。记录跟随移动，成员消失或重新绑定时清除。处于 pending、失败或物理结果未知状态的启动仍关联规范 Pane，交由正常生命周期清理。离线目录 unlink 不妨碍关闭已经创建的插件 Pane；重启／检查点恢复不会凭空制造插件成员记录。
 
@@ -72,7 +72,7 @@ Overlay 在创建前通过被动读取固定源 Client 实际选中的主或子 
 
 插件 Pane 创建可携带 `LaunchOptions.pluginContext`，复用已有插件调用上下文契约的有界显示观察。仅在 Tab 创建或 Panel 分屏同时提供插件 Pane 选择器时接纳。CLI 在创建前通过规范成员以及被动 Client／调用者、主／子成员、物理 Agent／cwd 和 Workspace worktree 读取观察原始来源。同一个创建 deadline 覆盖这些读取与后续创建／交接；来源或 Client 观察过时则在提交前拒绝。空、headless、未绑定或不可用的观察不伪造聚焦终端或选中文本。
 
-Server 验证来源成员及规范标签，将 `invocationSource` 固定为 `plugin-pane`、correlation 固定为实际创建请求，并在 reservation 前冻结到已有受保护启动环境。上下文描述 placement 在创建前选定的来源；不提供可执行文件、目录策略、Worker 或终端权限。未携带该字段的已有请求保持原有接纳。不会新增上下文存储或 replay 查询；冻结启动 intent 拥有上下文生命周期。Rust、TypeScript 与 JSON 对端需成套部署。独立 popup 的几何及 reservation、exposure、输入和关闭所有者仍是单独缺口。
+Server 验证来源成员及规范标签，将 `invocationSource` 固定为 `plugin-pane`、correlation 固定为实际创建请求，并在 reservation 前冻结到已有受保护启动环境。上下文描述 placement 在创建前选定的来源；不提供可执行文件、目录策略、Worker 或终端权限。未携带该字段的已有请求保持原有接纳。不会新增上下文存储或 replay 查询；冻结启动 intent 拥有上下文生命周期。Rust、TypeScript 与 JSON 对端需成套部署。独立 popup 的几何、reservation、exposure、输入和关闭使用下文的生命周期。
 
 冻结于 `e0507237` 的 Herdr 基线在 split／zoomed 上下文中选择显式目标 Pane，在 Tab 上下文中选择目的 Workspace 记住的焦点。CLI 从已解析的规范创建命令推导来源，不使用显示标签或待执行导航 intent。Overlay 保留原始选中的主／子成员。已有私有上下文使用原生调用来源／关联约定。两边基线的 Pane 启动都不会自动复制选中文本。
 
@@ -86,3 +86,27 @@ Server 验证来源成员及规范标签，将 `invocationSource` 固定为 `plu
 Client 拥有记住的 Tab／焦点；Site 拥有规范成员和标签；已有物理收集器拥有经核实的 cwd／Agent 观察及临时 viewer 清理。后台布局探测仅将规范 Panel 用作查询锚点，不将它当作焦点 fallback。非活动上下文中的原生子终端选择未由这些只读记忆契约暴露，因此后台来源为规范主成员，对齐 Herdr 每个 Pane 一个终端的模型。
 
 来源流程依次解析规范目标、观察精确记忆／成员、收集物理事实、重新读取后台 Tab／焦点及原始 Client，最后提交已有的单次创建请求。所有阶段共用创建 deadline 和取消所有者。父级错误、revision 过时、记住的 Tab／焦点或原始 Client 变化均在创建前拒绝；读取不会导航、聚焦、zoom、启动或重试 mutation。来源上下文仍为显示数据，不能改变 plugin-root cwd、program／argv 或 Worker 权限。聚焦证据必须覆盖不同显式目标、记住的 Tab 和 Pane 都不是首项的非活动目的地、当前／调用者子成员保留、空／headless 缺省，以及变化或无效记忆时拒绝。这些检查证明原生 Windows CLI 传输和有主观察投影，不证明已部署 Host／模拟器验收。
+
+## 独立终端 popup
+
+Windows 支持独立插件 popup 终端及原生关闭入口。冻结的 Herdr 基线在当前 Pane 区域上方创建一个独立终端，不改变规范 Tab／分屏成员；外框宽高默认各占可用区域的一半，支持单元格数和 1–100 百分比，并在终端结束后关闭。popup 的按键和粘贴先于普通绑定处理：Escape 和配置的前缀键属于其中的程序。区域外鼠标事件不能激活底下布局。原生标题栏关闭按钮是额外的明确关闭入口。
+
+既有终端协调器负责身份分配和独立 Terminal Create；popup 不预留隐藏 Tab、Panel 或 Presentation。一个独立且已认证的 Client 连接最多持有一个 popup；Site 最多保留 32 个 popup 所有者，含清理不确定项。Server 在预留之前解析已启用的 Windows 目录入口，冻结 argv、插件根 cwd、受保护环境及已验证的来源展示上下文。调用输入只有选择器、有界上下文、可选 cwd 和普通启动环境，不能提供受保护环境或物理身份。UI 另按精确 Client／视图版本和来源成员准入一个 popup。来源身份复用完整 Client Presentation selection：已绑定 attachment generation／incarnation，或未绑定 selection generation；帧和滚动更新不改变成员身份。尺寸是有类型的单元格数或百分比；省略时先采用清单值，再采用半区域默认值。外框居中并限制在至少 6×4 单元格，原生边框内容宽高各减两个单元格。视口过小时暂停 popup 输入和尺寸调整，不把终端缩成零。
+
+| 状态／转换         | 归属与守卫                                                                                              |
+| ------------------ | ------------------------------------------------------------------------------------------------------- |
+| 无到打开中         | 一次 UI 预留；精确来源／视图围栏、足够区域、无冲突对话框；Server 连接在一次启动派发前预留所有者         |
+| 打开中到活动       | 关联且已知的立即启动，以精确创建引用附加，获取控制权，接纳可绘制的有界投影                              |
+| 活动输入／调整尺寸 | 独立串行通道，精确 attachment／controller／frame 围栏；按键和粘贴只到 popup，鼠标使用最近完整绘制的矩形 |
+| 终端结束           | 只读观察精确物理生命周期；安排一次关闭，不把缺帧或断连当作进程结束                                      |
+| 显式关闭／断连     | 先撤销输入；Server 将关闭责任交给既有 Site 维护通道                                                     |
+| 已知释放           | 完整 Worker 代际、binding fence 和 Host 身份；已知物理释放后才删除 popup binding 和所有者               |
+| 启动或关闭不确定   | 保留有界 Server 所有者并停止重放变更；不宣称清理成功，也不在同一连接启动替代 popup                      |
+| Client 退出        | 取消并回收独立通道；连接析构把已接纳的终端交给 Site 清理                                                |
+| Site 退出          | 既有物理 Site／Worker 关闭收尾保留的不确定所有者；状态不持久化，也不伪造恢复                            |
+
+`plugin pane open --placement popup [--width CELLS|PERCENT%] [--height CELLS|PERCENT%]` 使用清单尺寸默认值，可由参数覆盖。popup 布局在产生效果前拒绝规范几何、target、Workspace 和 direction 覆盖。`popup close [--client ID] [--timeout MS]` 即使从无规范 Pane 的终端调用，也按 Client 定位。两者使用 `orchbee.popup.result` v1；通用 Client control 使用 v9。打开完成要求已接纳帧及完成绘制；关闭完成等待已知物理释放。没有 popup 时关闭返回 `hadPopup=false`，保留其他对话框。旧创建及 Client-control CLI schema 保持封闭。
+
+私有 Workbench 插件协议提供连接归属的 popup 打开、生命周期读取和关闭动作及封闭的有类型结果。Open 需要 read、create 和 lifecycle 权限；Read 需要 read；Close 需要 read 和 lifecycle 权限。自然结束观察按精确独立创建引用附着，不占用独占生命周期关闭所有者。显式关闭先撤销输入并围栏 binding，Site 维护再提交 Force，通过有界 inventory 观察精确目标 exited／failed，最后提交 Dispose。Inventory 观察采用协作式五秒窗口，每次遍历最多八页、最多 32 个生命周期步骤；进行中的 Worker 交换仍有独立传输界限。只有已知 Dispose 才释放保留的 binding。启动或关闭回执丢失时保留不确定状态，不重放变更；UI 显示重启 Site 提示并阻止替代 popup。启动前已知拒绝允许重试。Rust／TypeScript 对端需一起部署；不宣称 Herdr RPC 名称或 Desktop 功能相同。不引入新 Host 能力、依赖、进程框架或持久化存储。
+
+定向验收覆盖重复准入、来源／目录拒绝时不启动、规范布局不变、丢失启动／关闭答复、完整身份释放、连接退休、尺寸、已解码按键／粘贴／鼠标归属、实际 Ratatui 组合绘制和原生 Windows CLI 传输。测试拥有其根目录、管道、线程和 Job，直到最后消费者结束。定向 fixture 证据不代表已部署 Host／终端模拟器验收；最终集成需通过更广的 Windows 验收流程。

@@ -39,6 +39,10 @@ pub(crate) const PROJECT_RENAME_RESULT_ID: &str = "orchbee.project.rename";
 /// `schema` id → embedded document, in dictionary order.
 const DOCUMENTS: &[(&str, &str)] = &[
     (
+        "orchbee.popup.result",
+        include_str!("schemas/orchbee.popup.result.json"),
+    ),
+    (
         "orchbee.agent.view",
         include_str!("schemas/orchbee.agent.view.json"),
     ),
@@ -522,8 +526,8 @@ pub(crate) fn answer(schema_id: Option<&str>, format: OutputFormat, locale: Loca
     };
     let document = json!({
         "schema": "orchbee.api.schema",
-        // Adds source-owned Agent view filtering, sorting and guarded clear.
-        "version": 124,
+        // Adds independent terminal popup receipts and Client control v9.
+        "version": 125,
         "source": embedded_source(),
         "result": result,
     });

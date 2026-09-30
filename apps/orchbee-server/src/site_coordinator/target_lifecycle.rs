@@ -30,6 +30,10 @@ impl SiteCoordinator {
         let Some(authority) = self.workbench.as_ref() else {
             return TargetLifecycle::Unfenced;
         };
+        #[cfg(windows)]
+        if self.terminals.target_retired(target) {
+            return TargetLifecycle::Fenced;
+        }
         let terminal_id = orchbee_workbench_protocol::TerminalId::parse(&format!(
             "{:032x}",
             u128::from_be_bytes(target.terminal_id.as_bytes())

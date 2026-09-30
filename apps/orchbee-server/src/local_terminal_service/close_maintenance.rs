@@ -238,8 +238,15 @@ fn run(service: Weak<LocalTerminalService>, wake: Arc<Wake>) {
         let Some(service) = service.upgrade() else {
             return;
         };
+        #[cfg(windows)]
+        let popup_due = service.popup_maintenance_turn();
         let Ok(due) = service.close_maintenance_turn(&mut cursor) else {
             return;
+        };
+        #[cfg(windows)]
+        let due = match (due, popup_due) {
+            (Some(a), Some(b)) => Some(a.min(b)),
+            (a, b) => a.or(b),
         };
         #[cfg(test)]
         {

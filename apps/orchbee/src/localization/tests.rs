@@ -891,3 +891,40 @@ fn cli_cohort_failure_reports_the_observed_io_kind() {
         })
     );
 }
+#[test]
+fn popup_receipt_text_preserves_incomplete_reason_status_and_query_guidance_in_both_locales() {
+    let id = "a".repeat(32);
+    for (locale, incomplete, reason, opened, closed) in [
+        (
+            Locale::EnUs,
+            "Incomplete",
+            "Projection unavailable",
+            "Popup opened and drawn",
+            "Popup close completed",
+        ),
+        (
+            Locale::ZhCn,
+            "未完成",
+            "界面数据不可用",
+            "popup 已打开并绘制",
+            "popup 关闭操作已完成",
+        ),
+    ] {
+        let mut document = serde_json::json!({"schema":"orchbee.popup.result","operationId":id,
+            "observation":{"kind":"known","reply":{"outcome":{"kind":"operation","operation":{
+                "command":{"clientId":"b".repeat(32)},"status":{"kind":"incomplete","reason":"projection-unavailable"}
+            }}}},"wait":"timed-out"});
+        let text = locale.cli_client_control(&document);
+        assert!(text.contains(incomplete) && text.contains(reason), "{text}");
+        assert!(
+            text.contains(&format!("orchbee client control-status {id}")),
+            "{text}"
+        );
+        document["schema"] = serde_json::json!("orchbee.client.control");
+        for (state, label) in [("popup-opened", opened), ("popup-closed", closed)] {
+            document["observation"]["reply"]["outcome"]["operation"]["status"]["kind"] =
+                serde_json::json!(state);
+            assert!(locale.cli_client_control(&document).contains(label));
+        }
+    }
+}

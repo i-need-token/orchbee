@@ -224,7 +224,7 @@ fn plugin_overlay_open_pins_actual_source_member_and_preserves_creation_on_focus
 }
 
 #[test]
-fn plugin_overlay_active_target_overrides_and_popup_are_refused_before_runtime() {
+fn plugin_overlay_target_overrides_and_popup_canonical_geometry_are_refused_before_runtime() {
     for extra in [
         vec!["--placement", "overlay", "--workspace", "any"],
         vec![
@@ -234,7 +234,7 @@ fn plugin_overlay_active_target_overrides_and_popup_are_refused_before_runtime()
             "00000000000000000000000000000001",
         ],
         vec!["--placement", "overlay", "--direction", "down"],
-        vec!["--placement", "popup"],
+        vec!["--placement", "popup", "--cols", "60"],
     ] {
         let fixture = Fixture::new();
         let manifest = fixture.0.join("orchbee-plugin.toml");
@@ -636,3 +636,6 @@ mod source;
 
 #[path = "plugin_panes/targets.rs"]
 mod targets;
+
+#[path = "plugin_panes/popup.rs"]
+mod popup;

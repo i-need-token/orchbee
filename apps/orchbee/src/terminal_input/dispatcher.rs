@@ -27,6 +27,10 @@ pub(crate) struct InputDispatcher {
     confirm_packet: bool,
     #[cfg(windows)]
     machine_packet: bool,
+    #[cfg(windows)]
+    popup_packet: bool,
+    #[cfg(windows)]
+    popup_owned: Option<orchbee_workbench_protocol::WorkbenchRequestId>,
     /// The board's input ownership as last observed — an open or close
     /// edge rewrites what the painted regions mean, so the recorded hit
     /// map drops until the next frame publishes.
@@ -115,6 +119,15 @@ impl InputDispatcher {
     /// map could otherwise route a click into a board that is no longer
     /// there, or past one that just appeared.
     fn settle_board_edge<Port: TerminalInputPort + ?Sized>(&mut self, port: &mut Port) {
+        #[cfg(windows)]
+        {
+            let popup = port.popup_identity();
+            if popup != self.popup_owned.as_ref() {
+                self.popup_owned = popup.cloned();
+                self.keys.capture_pending();
+                self.pointer.invalidate_map();
+            }
+        }
         let owned = port.agent_board_input();
         if owned != self.board_owned {
             self.board_owned = owned;
@@ -148,6 +161,7 @@ impl InputDispatcher {
         #[cfg(windows)]
         {
             self.machine_packet = false;
+            self.popup_packet = false;
         }
         for item in self.keys.tick(now) {
             changed = true;
@@ -209,7 +223,7 @@ impl InputDispatcher {
             // later read, while genuinely later input decodes normally.
             let owned = self.confirm_packet;
             #[cfg(windows)]
-            let owned = owned || self.machine_packet;
+            let owned = owned || self.machine_packet || self.popup_packet;
             for item in self.keys.push(byte, now, owned) {
                 if let DispatchOutcome::Exit =
                     self.handle_item(view, port, now, item, &mut after_layout, mode)?
@@ -250,6 +264,22 @@ impl InputDispatcher {
             // The item completes a frame that began inside a captured
             // packet: consumed by that capture, never forwarded or decided.
             self.flush_pending(view, port);
+            return Ok(DispatchOutcome::Continue);
+        }
+        #[cfg(windows)]
+        if self.popup_packet || port.popup_captured() {
+            self.flush_pending(view, port);
+            if !self.popup_packet {
+                if let DecodedKind::Mouse(event) = item.kind {
+                    self.pointer.popup_event(port, event);
+                } else {
+                    port.popup_input(&item);
+                }
+                if !port.popup_captured() {
+                    self.popup_packet = true;
+                    self.pointer.invalidate_map();
+                }
+            }
             return Ok(DispatchOutcome::Continue);
         }
         #[cfg(windows)]

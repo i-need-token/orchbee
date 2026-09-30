@@ -182,7 +182,8 @@ impl NativeUi {
         let tab = state
             .active()
             .and_then(|active| cache.tabs().get(active.index()));
-        let phase = if shell_blocked
+        let phase = if self.popup.captured()
+            || shell_blocked
             || self.control_modal()
             || state.mutation_blocks_structure()
             || state.rename_draft_blocks_structure()
@@ -339,7 +340,9 @@ impl NativeUi {
             | ClientViewIntent::Layout { .. }
             | ClientViewIntent::FocusDirection { .. }
             | ClientViewIntent::Resize { .. }
-            | ClientViewIntent::SetSplitRatio { .. } => {
+            | ClientViewIntent::SetSplitRatio { .. }
+            | ClientViewIntent::PopupOpen { .. }
+            | ClientViewIntent::PopupClose { .. } => {
                 return ControlStep::Failed(Reason::Unsupported);
             }
             ClientViewIntent::Context {

@@ -238,3 +238,45 @@ fn configuration_v4_requires_update_policy_without_widening_v3() {
             .is_valid(&check)
     );
 }
+
+#[test]
+fn popup_receipts_and_client_control_v9_keep_older_versions_closed() {
+    use serde_json::json;
+    let corpus: Value = serde_json::from_str(include_str!(
+        "../../../../../schemas/workbench/v1/workbench-client-view-conformance-v1.json"
+    ))
+    .unwrap();
+    let mut reply = corpus["valid"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|case| case["name"] == "popup-opened-actual-source")
+        .unwrap()["document"]
+        .clone();
+    reply.as_object_mut().unwrap().remove("kind");
+    let mut document = json!({"schema":"orchbee.client.control","version":9,
+        "siteId": reply["siteId"],"operationId":reply["outcome"]["operation"]["command"]["operationId"],
+        "observation":{"kind":"server","reply":reply},"wait":null});
+    let schema: Value =
+        serde_json::from_str(super::document("orchbee.client.control").unwrap()).unwrap();
+    let validator = jsonschema::validator_for(&schema).unwrap();
+    assert!(validator.is_valid(&document));
+    for version in 1..=8 {
+        document["version"] = json!(version);
+        assert!(
+            !validator.is_valid(&document),
+            "old version {version} accepted popup"
+        );
+    }
+    document["schema"] = json!("orchbee.popup.result");
+    document["version"] = json!(1);
+    let schema: Value =
+        serde_json::from_str(super::document("orchbee.popup.result").unwrap()).unwrap();
+    let validator = jsonschema::validator_for(&schema).unwrap();
+    assert!(validator.is_valid(&document));
+    document["observation"]["reply"]["outcome"]["operation"]["command"]["intent"]["spec"]
+        .as_object_mut()
+        .unwrap()
+        .remove("width");
+    assert!(!validator.is_valid(&document));
+}

@@ -124,6 +124,8 @@ pub(crate) enum NativeSessionNotice {
     ModalOwnsInput,
     HistoryRecovering,
     HistoryUnavailable,
+    #[cfg(windows)]
+    PopupUnavailable,
 }
 
 /// What one pane's retained-history surface paints right now. `Window`
@@ -235,6 +237,10 @@ pub(crate) struct NativeSessionView<'a> {
     attention: Option<&'a super::agent_attention::AgentAttention>,
     #[cfg(windows)]
     reports: Option<&'a super::panel_reports::PanelReports>,
+    #[cfg(windows)]
+    popup_failed: bool,
+    #[cfg(windows)]
+    popup: Option<super::plugin_popup::PopupView<'a>>,
 }
 
 impl<'a> NativeSessionView<'a> {
@@ -376,6 +382,10 @@ impl<'a> NativeSessionView<'a> {
     }
 
     pub(crate) fn notice(&self) -> Option<NativeSessionNotice> {
+        #[cfg(windows)]
+        if self.popup_failed {
+            return Some(NativeSessionNotice::PopupUnavailable);
+        }
         self.state.as_ref()?.notice().map(|notice| match notice {
             SessionNotice::LocalBusy => NativeSessionNotice::LocalBusy,
             SessionNotice::NoTabAtPosition(position) => {
@@ -561,6 +571,10 @@ impl<'a> NativeSessionView<'a> {
             attention: None,
             #[cfg(windows)]
             reports: None,
+            #[cfg(windows)]
+            popup_failed: false,
+            #[cfg(windows)]
+            popup: None,
         }
     }
 }
@@ -633,6 +647,8 @@ pub(super) struct NativeUi {
     reports: super::panel_reports::PanelReports,
     #[cfg(windows)]
     overlays: super::plugin_overlays::Driver,
+    #[cfg(windows)]
+    popup: super::plugin_popup::Driver,
     /// `presentation_id → workbench placement` over the freshest observed
     /// canonical snapshot — a pure function of that snapshot, rebuilt
     /// whole on every snapshot-bearing event.
@@ -686,6 +702,8 @@ mod viewport_tests;
 
 mod client_presentation;
 mod client_viewport;
+#[cfg(windows)]
+mod plugin_popup;
 #[cfg(test)]
 mod workspace_setup_tests;
 
@@ -712,6 +730,8 @@ impl NativeUi {
             reports: super::panel_reports::PanelReports::new(clock.clone()),
             #[cfg(windows)]
             overlays: super::plugin_overlays::Driver::new(clock.clone()),
+            #[cfg(windows)]
+            popup: super::plugin_popup::Driver::new(clock.clone()),
             agent_index: super::agent_board::PresentationIndex::default(),
             clock,
             state: None,
@@ -768,6 +788,10 @@ impl NativeUi {
             reports: state
                 .filter(|s| self.reports.matches(s))
                 .map(|_| &self.reports),
+            #[cfg(windows)]
+            popup_failed: self.popup.failed(),
+            #[cfg(windows)]
+            popup: self.popup.view(),
         }
     }
 
@@ -975,6 +999,7 @@ impl NativeUi {
                     state.note_publication_hint();
                     changed = true;
                 }
+                changed |= self.popup.tick();
                 changed |= self.attention.tick();
                 changed |= self.reports.tick(
                     self.state
@@ -3012,6 +3037,8 @@ impl NativeUi {
         self.reports.close();
         #[cfg(windows)]
         self.overlays.close();
+        #[cfg(windows)]
+        self.popup.shutdown();
         if let Some(state) = &mut self.state {
             state.close_carrier_retired();
             state.cancel_panel_close_confirmation();

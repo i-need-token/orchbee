@@ -20,6 +20,8 @@ use orchbee_workbench_protocol::{
 
 #[cfg(any(windows, test))]
 mod checkpoint_restore;
+#[cfg(windows)]
+mod plugin_popup;
 mod standalone;
 pub(crate) use standalone::PreparedOpen;
 mod tab_close;

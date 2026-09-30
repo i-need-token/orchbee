@@ -17,9 +17,17 @@ pub(super) fn resolve(
     let Some(supplied) = &options.plugin_context else {
         return Ok(legacy);
     };
+    observed(snapshot, &command.request_id, supplied)
+}
+
+pub(super) fn observed(
+    snapshot: &Snapshot,
+    request_id: &orchbee_workbench_protocol::WorkbenchRequestId,
+    supplied: &PluginInvocationContext,
+) -> Result<PluginInvocationContext, Failure> {
     let invalid = Failure::ServiceUnavailable;
     supplied.validate().map_err(|_| invalid)?;
-    let mut context = supplied.as_ref().clone();
+    let mut context = supplied.clone();
     let workspace = context
         .workspace_id
         .as_ref()
@@ -68,7 +76,7 @@ pub(super) fn resolve(
     context.workspace_label = workspace.map(|w| w.label.clone());
     context.tab_label = tab.map(|(_, t)| t.label.clone());
     context.invocation_source = Some("plugin-pane".into());
-    context.correlation_id = Some(command.request_id.to_string());
+    context.correlation_id = Some(request_id.to_string());
     Ok(context)
 }
 fn contains(node: &PanelNode, id: &str) -> bool {

@@ -88,7 +88,12 @@ impl Answer {
                     if matches!(presentation.presentation, Some(orchbee_workbench_protocol::ClientPresentationSelection::Unbound { .. }))))
         });
         let overlay = self.reply.as_ref().is_some_and(|reply| matches!(&reply.outcome, ClientViewOutcome::Operation { operation } if matches!(operation.command.intent, orchbee_workbench_protocol::ClientViewIntent::Overlay { .. })));
-        let version = if overlay {
+        let popup = self.reply.as_ref().is_some_and(|reply| matches!(&reply.outcome, ClientViewOutcome::Operation { operation }
+            if matches!(operation.command.intent, orchbee_workbench_protocol::ClientViewIntent::PopupOpen { .. }
+                | orchbee_workbench_protocol::ClientViewIntent::PopupClose {})));
+        let version = if popup {
+            9
+        } else if overlay {
             8
         } else if unbound_read {
             7
@@ -129,7 +134,9 @@ fn outcome_exit(outcome: &ClientViewOutcome) -> u8 {
     match outcome {
         ClientViewOutcome::Listed { .. } | ClientViewOutcome::Found { .. } => 0,
         ClientViewOutcome::Operation { operation } => match &operation.status {
-            ClientViewControlStatus::Queued {}
+            ClientViewControlStatus::PopupOpened { .. }
+            | ClientViewControlStatus::PopupClosed { .. }
+            | ClientViewControlStatus::Queued {}
             | ClientViewControlStatus::Delivered {}
             | ClientViewControlStatus::LayoutAdjusted { .. }
             | ClientViewControlStatus::DirectionFocused { .. }

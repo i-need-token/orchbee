@@ -536,3 +536,10 @@ export {
 	type PluginRequest,
 	type PluginResult,
 } from './workbench-plugin-contract';
+
+export {
+	PluginPopupSizeSchema,
+	PluginPopupSpecSchema,
+	type PluginPopupSize,
+	type PluginPopupSpec,
+} from './workbench-plugin-popup-contract';

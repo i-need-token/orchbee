@@ -656,6 +656,31 @@ fn synchronize_viewport<B: Backend + ResizableBackend>(
             let panes =
                 pane_geometries(*dimensions, view, &native).map_err(LoopFailure::Viewport)?;
             terminal_input.observe_panes(&panes);
+            #[cfg(windows)]
+            {
+                let areas = crate::tui_layout::project_shell_areas(
+                    to_area(*dimensions),
+                    view.sidebar_surface(),
+                );
+                let area =
+                    crate::tui_layout::terminal_area(areas.panel, areas.tier.shows_panel_frame());
+                let pixels = (
+                    dimensions
+                        .pixel_width
+                        .checked_div(dimensions.columns)
+                        .unwrap_or(0),
+                    dimensions
+                        .pixel_height
+                        .checked_div(dimensions.rows)
+                        .unwrap_or(0),
+                );
+                let pixels = if pixels.0 == 0 || pixels.1 == 0 {
+                    (0, 0)
+                } else {
+                    pixels
+                };
+                terminal_input.popup_surface(area, pixels);
+            }
         }
         _ => {
             let geometry = terminal_geometry(*dimensions, view, session_view)
@@ -836,6 +861,9 @@ pub(crate) fn pane_geometries(
 
 trait TerminalSurface: crate::terminal_input::TerminalInputPort {
     #[cfg(windows)]
+    fn popup_surface(&mut self, _area: Rect, _pixels: (u16, u16)) {}
+
+    #[cfg(windows)]
     fn machine_source(
         &self,
     ) -> Option<(
@@ -879,6 +907,11 @@ trait TerminalSurface: crate::terminal_input::TerminalInputPort {
 }
 impl TerminalSurface for UnavailableTerminalInputPort {}
 impl TerminalSurface for crate::terminal_session::TerminalSession {
+    #[cfg(windows)]
+    fn popup_surface(&mut self, area: Rect, pixels: (u16, u16)) {
+        self.observe_popup_surface(area, pixels);
+    }
+
     #[cfg(windows)]
     fn machine_source(
         &self,

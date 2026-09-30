@@ -217,6 +217,10 @@ impl TerminalPhase {
 
 #[derive(Debug)]
 struct TerminalBinding {
+    #[cfg(windows)]
+    popup_owned: bool,
+    #[cfg(windows)]
+    popup_closing: bool,
     authorization: TerminalOperationAuthorization,
     completion_seal: Arc<TerminalCompletionSeal>,
     deferred: bool,
@@ -297,6 +301,65 @@ impl TerminalCoordinator {
         }
     }
 
+    #[cfg(windows)]
+    pub(crate) fn mark_popup(
+        &mut self,
+        reference: &RequestId,
+    ) -> Option<TerminalOperationAuthorization> {
+        let binding = self.bindings.get_mut(reference)?;
+        if binding.popup_owned || binding.phase != TerminalPhase::Creating {
+            return None;
+        }
+        binding.popup_owned = true;
+        Some(binding.authorization)
+    }
+
+    #[cfg(windows)]
+    pub(crate) fn fence_popup(
+        &mut self,
+        reference: &RequestId,
+        expected: TerminalOperationAuthorization,
+    ) -> bool {
+        let Some(binding) = self
+            .bindings
+            .get_mut(reference)
+            .filter(|binding| binding.popup_owned && binding.authorization == expected)
+        else {
+            return false;
+        };
+        binding.popup_closing = true;
+        true
+    }
+
+    #[cfg(windows)]
+    pub(crate) fn target_retired(&self, target: BindingViewerTarget) -> bool {
+        !self.bindings.values().any(|binding| {
+            binding.authorization.terminal_id() == target.terminal_id
+                && binding.authorization.worker_id() == target.worker.worker_id
+                && binding.authorization.worker_generation() == target.worker.generation
+                && !binding.popup_closing
+                && matches!(binding.phase, TerminalPhase::AwaitingStart(identity)
+                    | TerminalPhase::Started { identity, .. } if identity == target.identity)
+        })
+    }
+
+    #[cfg(windows)]
+    pub(crate) fn release_popup(
+        &mut self,
+        reference: &RequestId,
+        expected: TerminalOperationAuthorization,
+    ) -> bool {
+        if !self
+            .bindings
+            .get(reference)
+            .is_some_and(|binding| binding.popup_owned && binding.authorization == expected)
+        {
+            return false;
+        }
+        self.bindings.remove(reference);
+        true
+    }
+
     pub(crate) fn retained_authorization(
         &self,
         reference: &RequestId,
@@ -308,6 +371,10 @@ impl TerminalCoordinator {
 
     pub(crate) fn has_retained_binding(&self, expected: &PresentationBinding) -> bool {
         self.bindings.values().any(|binding| {
+            #[cfg(windows)]
+            if binding.popup_owned {
+                return false;
+            }
             format!(
                 "{:032x}",
                 u128::from_be_bytes(binding.authorization.terminal_id().as_bytes())
@@ -722,6 +789,10 @@ impl TerminalCoordinator {
                 completion_seal: Arc::clone(&completion_seal),
             }),
             binding: TerminalBinding {
+                #[cfg(windows)]
+                popup_owned: false,
+                #[cfg(windows)]
+                popup_closing: false,
                 authorization,
                 completion_seal,
                 deferred: matches!(mode, TerminalLaunchMode::Deferred),

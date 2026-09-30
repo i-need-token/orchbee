@@ -670,6 +670,8 @@ impl Locale {
             #[cfg(windows)]
             (_, ExpectedValue::PluginLogLimit) => "1..200",
             #[cfg(windows)]
+            (_, ExpectedValue::PluginPopupSize) => "0..65535 | 1%..100%",
+            #[cfg(windows)]
             (_, ExpectedValue::PluginPanePlacement) => "tab|split|zoomed|overlay|popup",
             #[cfg(windows)]
             (_, ExpectedValue::PluginPaneDirection) => "right|down",
@@ -2582,7 +2584,11 @@ impl Locale {
             (
                 _,
                 HelpTopic::Family(
-                    Family::Plugin | Family::PluginAction | Family::PluginLog | Family::PluginPane,
+                    Family::Popup
+                    | Family::Plugin
+                    | Family::PluginAction
+                    | Family::PluginLog
+                    | Family::PluginPane,
                 ),
             ) => self.plugin_help(),
             (_, HelpTopic::Family(Family::Notification)) => self.notification_help(),
@@ -2613,6 +2619,7 @@ impl Locale {
                 | CommandPath::PluginActionInvoke
                 | CommandPath::PluginPaneFocus
                 | CommandPath::PluginPaneClose
+                | CommandPath::PopupClose
                 | CommandPath::PluginPaneOpen
                 | CommandPath::PluginLogList
                 | CommandPath::PluginInstall

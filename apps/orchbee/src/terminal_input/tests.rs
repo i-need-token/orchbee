@@ -448,3 +448,109 @@ fn exits_only_after_the_completed_prefixed_exit_action() {
         ]
     );
 }
+
+#[cfg(windows)]
+#[test]
+fn popup_captures_prefix_escape_paste_and_retires_cross_packet_fragments() {
+    use orchbee_workbench_protocol::WorkbenchRequestId;
+    struct PopupPort {
+        id: Option<WorkbenchRequestId>,
+        decoded: Vec<Vec<u8>>,
+        forwarded: Vec<Vec<u8>>,
+    }
+    impl TerminalInputPort for PopupPort {
+        fn forward(&mut self, bytes: &[u8]) -> Result<(), TerminalInputUnavailable> {
+            self.forwarded.push(bytes.to_vec());
+            Ok(())
+        }
+        fn popup_captured(&self) -> bool {
+            self.id.is_some()
+        }
+        fn popup_identity(&self) -> Option<&WorkbenchRequestId> {
+            self.id.as_ref()
+        }
+        fn popup_input(&mut self, item: &super::DecodedItem) {
+            self.decoded.push(item.raw.to_vec());
+        }
+    }
+    let mut dispatcher = InputDispatcher::default();
+    let mut view = ClientView::new(100);
+    let mut port = PopupPort {
+        id: Some(WorkbenchRequestId::parse(&format!("{:032x}", 1)).unwrap()),
+        decoded: Vec::new(),
+        forwarded: Vec::new(),
+    };
+    let now = Instant::now();
+    dispatch_input(
+        &mut dispatcher,
+        &mut view,
+        b"\x02q\x1b[200~hello\nworld\x1b[201~",
+        &mut port,
+        now,
+        |_, _| Ok::<_, Infallible>(()),
+    )
+    .unwrap();
+    assert_eq!(
+        port.decoded.concat(),
+        b"\x02q\x1b[200~hello\nworld\x1b[201~"
+    );
+    assert!(port.forwarded.is_empty());
+    assert!(!view.prefix_active());
+    dispatch_input(
+        &mut dispatcher,
+        &mut view,
+        b"\x1b",
+        &mut port,
+        now,
+        |_, _| Ok::<_, Infallible>(()),
+    )
+    .unwrap();
+    dispatcher
+        .synchronize(
+            &mut view,
+            &mut port,
+            now + std::time::Duration::from_millis(100),
+            &mut |_| Ok::<_, Infallible>(()),
+        )
+        .unwrap();
+    assert_eq!(port.decoded.last().unwrap(), b"\x1b");
+    // A paste from the old popup must never migrate to a replacement.
+    let now = now + std::time::Duration::from_millis(200);
+    dispatch_input(
+        &mut dispatcher,
+        &mut view,
+        b"\x1b[200~stale",
+        &mut port,
+        now,
+        |_, _| Ok::<_, Infallible>(()),
+    )
+    .unwrap();
+    port.id = Some(WorkbenchRequestId::parse(&format!("{:032x}", 2)).unwrap());
+    let count = port.decoded.len();
+    dispatch_input(
+        &mut dispatcher,
+        &mut view,
+        b"tail\x1b[201~new",
+        &mut port,
+        now,
+        |_, _| Ok::<_, Infallible>(()),
+    )
+    .unwrap();
+    assert_eq!(port.decoded[count..].concat(), b"new");
+    // Closing claims unfinished CSI; only a later ordinary key reaches the Pane.
+    dispatch_input(
+        &mut dispatcher,
+        &mut view,
+        b"\x1b[",
+        &mut port,
+        now,
+        |_, _| Ok::<_, Infallible>(()),
+    )
+    .unwrap();
+    port.id = None;
+    dispatch_input(&mut dispatcher, &mut view, b"AZ", &mut port, now, |_, _| {
+        Ok::<_, Infallible>(())
+    })
+    .unwrap();
+    assert_eq!(port.forwarded.concat(), b"Z");
+}

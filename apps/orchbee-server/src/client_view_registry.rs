@@ -338,6 +338,18 @@ impl ClientViewRegistry {
                 ClientViewCompletionOutcome::ZoomUnchanged {} => {
                     ClientViewControlStatus::ZoomUnchanged { view: view.clone() }
                 }
+                ClientViewCompletionOutcome::PopupOpened { popup_id } => {
+                    ClientViewControlStatus::PopupOpened {
+                        popup_id: popup_id.clone(),
+                        view: view.clone(),
+                    }
+                }
+                ClientViewCompletionOutcome::PopupClosed { had_popup } => {
+                    ClientViewControlStatus::PopupClosed {
+                        had_popup: *had_popup,
+                        view: view.clone(),
+                    }
+                }
                 ClientViewCompletionOutcome::Applied {} => {
                     ClientViewControlStatus::Applied { view: view.clone() }
                 }

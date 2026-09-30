@@ -1,8 +1,8 @@
 //! One temporary process/screen viewer; unsettled cleanup blocks the sampler's next attachment.
 use super::{
-    BindingViewerTarget, ClientSiteId, ClientTerminalId, ClientWorkerId, LocalTerminalService,
-    TargetLifecycle, WorkerOperationRequest, WorkerOperationResult, WorkerOutcome, WorkerRequest,
-    WorkerRequestError, WorkerRequestHandle,
+    BindingViewerTarget, ClientSiteId, ClientTerminalId, ClientWorkerId, IssuedViewer,
+    LocalTerminalService, TargetLifecycle, WorkerOperationRequest, WorkerOperationResult,
+    WorkerOutcome, WorkerRequest, WorkerRequestError, WorkerRequestHandle,
 };
 use crate::agent_screen::ScreenDetector;
 use crate::site_coordinator::ProcessObservationTarget;
@@ -22,6 +22,13 @@ pub(in crate::local_terminal_service) struct PendingCleanup {
     template: WorkerRequest,
 }
 impl PendingCleanup {
+    #[cfg(windows)]
+    pub(in crate::local_terminal_service) fn matches_target(
+        &self,
+        target: BindingViewerTarget,
+    ) -> bool {
+        self.target == target
+    }
     pub(in crate::local_terminal_service) fn matches_worker(
         &self,
         handle: &WorkerRequestHandle,
@@ -100,9 +107,36 @@ impl LocalTerminalService {
         ) else {
             return None;
         };
-        let Ok(mut issued) = self.issue_binding_viewer(&site, &worker, &terminal) else {
+        let Ok(issued) = self.issue_binding_viewer(&site, &worker, &terminal) else {
             return None;
         };
+        self.with_issued_observation_viewer(target, stop, issued, observe)
+    }
+
+    #[cfg(windows)]
+    pub(in crate::local_terminal_service) fn with_reference_observation_viewer(
+        &self,
+        target: &ProcessObservationTarget,
+        reference: &orchbee_client_server_protocol::RequestId,
+        stop: &AtomicBool,
+        observe: impl FnOnce(&mut super::ViewerAttachment<'_>, WorkerRequest),
+    ) -> Option<PendingCleanup> {
+        if stop.load(Ordering::Acquire) {
+            return None;
+        }
+        let Ok(issued) = self.issue_viewer(reference) else {
+            return None;
+        };
+        self.with_issued_observation_viewer(target, stop, issued, observe)
+    }
+
+    fn with_issued_observation_viewer(
+        &self,
+        target: &ProcessObservationTarget,
+        stop: &AtomicBool,
+        mut issued: IssuedViewer<'_>,
+        observe: impl FnOnce(&mut super::ViewerAttachment<'_>, WorkerRequest),
+    ) -> Option<PendingCleanup> {
         if issued.viewer.target != target.target || stop.load(Ordering::Acquire) {
             // Nothing was submitted; this candidate never owned an attachment.
             issued.viewer.cleanup = None;

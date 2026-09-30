@@ -1,3 +1,5 @@
+mod plugin_popup;
+pub use plugin_popup::{ClientPopupSource, PluginPopupSize, PluginPopupSpec};
 mod plugins;
 pub use plugins::{
     MAXIMUM_ENCODED_PLUGIN_REQUEST_BYTES, MAXIMUM_ENCODED_PLUGIN_RESULT_BYTES, PluginAction,

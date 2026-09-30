@@ -749,6 +749,35 @@ pub(crate) struct WorkbenchClientSession<'a> {
 impl WorkbenchClientSession<'_> {
     pub(crate) fn execute(&self, request: WorkbenchRequest) -> WorkbenchExecution {
         #[cfg(windows)]
+        if let WorkbenchRequest::Plugin(plugin) = &request
+            && matches!(
+                plugin.action,
+                orchbee_workbench_protocol::PluginAction::PopupOpen { .. }
+                    | orchbee_workbench_protocol::PluginAction::PopupRead { .. }
+                    | orchbee_workbench_protocol::PluginAction::PopupClose { .. }
+            )
+        {
+            let allowed = self.service.policy.read
+                && match plugin.action {
+                    orchbee_workbench_protocol::PluginAction::PopupOpen { .. } => {
+                        self.service.policy.create_terminal
+                            && self.service.policy.manage_terminal_lifecycle
+                    }
+                    orchbee_workbench_protocol::PluginAction::PopupClose { .. } => {
+                        self.service.policy.manage_terminal_lifecycle
+                    }
+                    _ => true,
+                };
+            if !allowed {
+                return WorkbenchExecution::Response(unavailable_or_denied(request, true));
+            }
+            return WorkbenchExecution::Response(WorkbenchResponse::Plugin(
+                self.service
+                    .terminals
+                    .execute_popup(self.generation, plugin.clone()),
+            ));
+        }
+        #[cfg(windows)]
         if let WorkbenchRequest::WindowTitle(request) = &request {
             use orchbee_workbench_protocol::{
                 WindowTitleAction, WindowTitleFailure as Failure, WindowTitleOutcome,
@@ -888,6 +917,8 @@ impl WorkbenchClientSession<'_> {
 }
 impl Drop for WorkbenchClientSession<'_> {
     fn drop(&mut self) {
+        #[cfg(windows)]
+        self.service.terminals.disconnect_popup(self.generation);
         #[cfg(windows)]
         {
             let mut registry = self

@@ -74,6 +74,13 @@ pub(crate) enum HitLayer {
 /// state so a reorder between paint and click cannot misroute.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum HitTarget {
+    #[cfg(windows)]
+    Popup {
+        id: orchbee_workbench_protocol::WorkbenchRequestId,
+        content: Rect,
+    },
+    #[cfg(windows)]
+    PopupClose(orchbee_workbench_protocol::WorkbenchRequestId),
     /// A compact tab-strip token or a navigator tab row.
     Tab(WorkbenchTabId),
     /// A navigator context row.
@@ -484,10 +491,74 @@ pub(crate) struct PointerState {
     capture: bool,
     map: Option<FrameHitMap>,
     gesture: Gesture,
+    #[cfg(windows)]
+    popup_gesture: Option<(
+        orchbee_workbench_protocol::WorkbenchRequestId,
+        Rect,
+        MouseButton,
+    )>,
     wheel: WheelStream,
 }
 
 impl PointerState {
+    #[cfg(windows)]
+    pub(crate) fn popup_event(
+        &mut self,
+        port: &mut (impl TerminalInputPort + ?Sized),
+        event: MouseEvent,
+    ) {
+        if !self.capture {
+            return;
+        }
+        let Some(map) = &self.map else {
+            return;
+        };
+        if let Some((id, content, button)) = &self.popup_gesture {
+            let alive = map.regions.iter().any(|region| {
+                matches!(&region.target, HitTarget::Popup { id: painted, content: rect }
+                    if painted == id && rect == content)
+            });
+            if alive
+                && matches!(event.action, MouseAction::Motion | MouseAction::Release)
+                && (event.button == *button || event.button == MouseButton::None)
+            {
+                port.popup_mouse(id, *content, event, false);
+                if event.action == MouseAction::Release {
+                    self.popup_gesture = None;
+                }
+                return;
+            }
+            if !alive {
+                self.popup_gesture = None;
+            }
+        }
+        match map.hit(event.column, event.row) {
+            HitResolution::Region(HitTarget::Popup { id, content }) => {
+                if event.action == MouseAction::Release
+                    || event.action == MouseAction::Motion && event.button != MouseButton::None
+                {
+                    return;
+                }
+                port.popup_mouse(id, *content, event, false);
+                if event.action == MouseAction::Press
+                    && matches!(
+                        event.button,
+                        MouseButton::Left
+                            | MouseButton::Middle
+                            | MouseButton::Right
+                            | MouseButton::Extended(_)
+                    )
+                {
+                    self.popup_gesture = Some((id.clone(), *content, event.button));
+                }
+            }
+            HitResolution::Region(HitTarget::PopupClose(id)) => {
+                port.popup_mouse(id, Rect::default(), event, true)
+            }
+            _ => {}
+        }
+    }
+
     pub(crate) const fn capture_enabled(&self) -> bool {
         self.capture
     }
@@ -502,6 +573,10 @@ impl PointerState {
         self.capture = enabled;
         if !enabled {
             self.gesture = Gesture::Idle;
+            #[cfg(windows)]
+            {
+                self.popup_gesture = None;
+            }
             self.wheel.clear();
         }
     }
@@ -520,6 +595,10 @@ impl PointerState {
     /// the next publish every pointer event drops.
     pub(crate) fn invalidate_map(&mut self) {
         self.map = None;
+        #[cfg(windows)]
+        {
+            self.popup_gesture = None;
+        }
         self.gesture = Gesture::Idle;
         self.wheel.clear();
     }
@@ -662,6 +741,10 @@ impl PointerState {
                     }
                     return PointerOutcome::RegionsChanged;
                 }
+                PointerOutcome::Ignored
+            }
+            #[cfg(windows)]
+            HitResolution::Region(HitTarget::Popup { .. } | HitTarget::PopupClose(_)) => {
                 PointerOutcome::Ignored
             }
             HitResolution::Region(HitTarget::OverlaySurface) => PointerOutcome::Ignored,

@@ -11,22 +11,24 @@ use std::sync::{Mutex, atomic::AtomicBool};
 pub(in crate::local_terminal_service) struct Observer(Mutex<Option<PendingCleanup>>);
 
 impl LocalTerminalService {
+    /// Only an exact known physical Dispose can discharge an uncertain temporary viewer.
+    pub(super) fn settle_plugin_observer_disposed(
+        &self,
+        target: crate::terminal_coordinator::BindingViewerTarget,
+    ) {
+        if let Ok(mut pending) = self.plugin_observer.0.lock()
+            && pending
+                .as_ref()
+                .is_some_and(|cleanup| cleanup.matches_target(target))
+        {
+            *pending = None;
+        }
+    }
     pub(in crate::local_terminal_service) fn observe_plugin_pane(
         &self,
         request: &PluginRequest,
         pane: &PluginPaneInfo,
     ) -> Result<Outcome, Failure> {
-        let mut pending = self
-            .plugin_observer
-            .0
-            .try_lock()
-            .map_err(|_| Failure::Busy)?;
-        if let Some(cleanup) = pending.as_ref() {
-            if !cleanup.settle(self) {
-                return Err(Failure::PhysicalUnknown);
-            }
-            *pending = None;
-        }
         let target = {
             let workers = self.workers.lock().map_err(|_| Failure::Unavailable)?;
             let mut coordinator = self.coordinator.lock().map_err(|_| Failure::Unavailable)?;
@@ -59,40 +61,7 @@ impl LocalTerminalService {
                 target: prepared.target,
             }
         };
-        let mut sampled = None;
-        *pending =
-            self.with_observation_viewer(&target, &AtomicBool::new(false), |viewer, template| {
-                let Some(id) = self.next_viewer_operation() else {
-                    return;
-                };
-                let dispatch = node::TerminalViewerRequest {
-                    request_id: id,
-                    action: node::TerminalViewerAction::ReadLifecycle {
-                        target: target.target.identity,
-                    },
-                    ..template
-                };
-                if let Ok(WorkerOperationResult::Viewer(result)) = viewer
-                    .handle
-                    .request(WorkerOperationRequest::Viewer(dispatch))
-                    && result.request_id == id
-                    && result.attachment_id == template.attachment_id
-                    && let node::TerminalViewerOutcome::LifecycleObserved {
-                        target: actual,
-                        settled,
-                        ..
-                    } = result.outcome
-                    && actual == target.target.identity
-                    && self.viewer_worker_is_current(&viewer.handle)
-                {
-                    sampled = Some(settled);
-                }
-            });
-        // No settlement claim can escape while the observer still owns uncertain cleanup.
-        if pending.is_some() {
-            return Err(Failure::PhysicalUnknown);
-        }
-        let settled = sampled.ok_or(Failure::Unavailable)?;
+        let settled = self.observe_plugin_runtime(&target, None)?;
         let workers = self.workers.lock().map_err(|_| Failure::Unavailable)?;
         if placement(workers.request_handle().as_ref()) != Some(target.target.worker) {
             return Err(Failure::WorkerChanged);
@@ -129,5 +98,64 @@ impl LocalTerminalService {
             }
             _ => Err(Failure::Conflict),
         }
+    }
+    pub(super) fn observe_plugin_runtime(
+        &self,
+        target: &ProcessObservationTarget,
+        reference: Option<&orchbee_client_server_protocol::RequestId>,
+    ) -> Result<bool, Failure> {
+        let mut pending = self
+            .plugin_observer
+            .0
+            .try_lock()
+            .map_err(|_| Failure::Busy)?;
+        if let Some(cleanup) = pending.as_ref() {
+            if !cleanup.settle(self) {
+                return Err(Failure::PhysicalUnknown);
+            }
+            *pending = None;
+        }
+        let mut sampled = None;
+        let observe =
+            |viewer: &mut crate::local_terminal_service::viewer_session::ViewerAttachment<'_>,
+             template: node::TerminalViewerRequest| {
+                let Some(id) = self.next_viewer_operation() else {
+                    return;
+                };
+                let dispatch = node::TerminalViewerRequest {
+                    request_id: id,
+                    action: node::TerminalViewerAction::ReadLifecycle {
+                        target: target.target.identity,
+                    },
+                    ..template
+                };
+                if let Ok(WorkerOperationResult::Viewer(result)) = viewer
+                    .handle
+                    .request(WorkerOperationRequest::Viewer(dispatch))
+                    && result.request_id == id
+                    && result.attachment_id == template.attachment_id
+                    && let node::TerminalViewerOutcome::LifecycleObserved {
+                        target: actual,
+                        settled,
+                        ..
+                    } = result.outcome
+                    && actual == target.target.identity
+                    && self.viewer_worker_is_current(&viewer.handle)
+                {
+                    sampled = Some(settled);
+                }
+            };
+        let stop = AtomicBool::new(false);
+        *pending = if let Some(reference) = reference {
+            self.with_reference_observation_viewer(target, reference, &stop, observe)
+        } else {
+            self.with_observation_viewer(target, &stop, observe)
+        };
+        // No settlement claim can escape while the observer still owns uncertain cleanup.
+        if pending.is_some() {
+            return Err(Failure::PhysicalUnknown);
+        }
+        let settled = sampled.ok_or(Failure::Unavailable)?;
+        Ok(settled)
     }
 }

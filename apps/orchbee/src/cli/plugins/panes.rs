@@ -8,6 +8,7 @@ use orchbee_local_site_runtime::{PluginPanePlacement, PluginRegistry};
 use orchbee_workbench_protocol::WorkbenchLabel;
 
 pub(super) fn open(mut command: Open, format: OutputFormat, locale: Locale) -> Output {
+    let mut popup = false;
     let prepared = (|| {
         let selector = command
             .creation
@@ -39,10 +40,34 @@ pub(super) fn open(mut command: Open, format: OutputFormat, locale: Locale) -> O
         command.creation.label = Some(
             WorkbenchLabel::parse(&pane.title).map_err(|_| Failure::new(FailureKind::Rejected))?,
         );
-        match command.placement.unwrap_or(pane.placement) {
+        let placement = command.placement.unwrap_or(pane.placement);
+        if placement != PluginPanePlacement::Popup
+            && (command.width.is_some() || command.height.is_some())
+        {
+            return Err(Failure::new(FailureKind::Rejected));
+        }
+        match placement {
+            PluginPanePlacement::Popup => {
+                if command.active_target_overrides || command.popup_geometry_override {
+                    return Err(Failure::new(FailureKind::Rejected));
+                }
+                let size = |size: &orchbee_local_site_runtime::PluginPopupSize| match size {
+                    orchbee_local_site_runtime::PluginPopupSize::Cells(value) => {
+                        Some(orchbee_workbench_protocol::PluginPopupSize::Cells(*value))
+                    }
+                    orchbee_local_site_runtime::PluginPopupSize::Percentage(value) => {
+                        orchbee_workbench_protocol::PluginPopupSize::parse(value)
+                    }
+                };
+                command.width = command.width.or_else(|| pane.width.as_ref().and_then(size));
+                command.height = command
+                    .height
+                    .or_else(|| pane.height.as_ref().and_then(size));
+                popup = true;
+            }
             PluginPanePlacement::Tab => {
                 command.creation.kind = CreationKind::Tab {
-                    context: command.workspace,
+                    context: command.workspace.clone(),
                 };
             }
             PluginPanePlacement::Split => {}
@@ -64,11 +89,11 @@ pub(super) fn open(mut command: Open, format: OutputFormat, locale: Locale) -> O
                 command.creation.focus = true;
                 command.creation.zoom = true;
             }
-            _ => return Err(Failure::new(FailureKind::Rejected)),
         }
         Ok(())
     })();
     match prepared {
+        Ok(()) if popup => super::popup::open(&command, format, locale),
         Ok(()) => creation::run(&command.creation, format, locale),
         Err(failure) => failure_output(failure, Some(format), locale),
     }

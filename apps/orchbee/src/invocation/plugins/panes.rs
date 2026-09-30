@@ -11,6 +11,9 @@ use orchbee_workbench_protocol::{PluginPaneSelector, WorkbenchPanelSplitDirectio
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct Open {
     pub(crate) placement: Option<PluginPanePlacement>,
+    pub(crate) width: Option<orchbee_workbench_protocol::PluginPopupSize>,
+    pub(crate) height: Option<orchbee_workbench_protocol::PluginPopupSize>,
+    pub(crate) popup_geometry_override: bool,
     pub(crate) active_target_overrides: bool,
     pub(crate) workspace: Option<TabContext>,
     pub(crate) creation: CreationCommand,
@@ -171,6 +174,26 @@ pub(super) fn parse(
     Ok(Request::Plugin {
         command: super::PluginCommand::PaneOpen(Box::new(Open {
             placement,
+            width: options
+                .plugin_width
+                .as_deref()
+                .map(|value| {
+                    orchbee_workbench_protocol::PluginPopupSize::parse(value)
+                        .ok_or_else(|| invalid("--width", value, ExpectedValue::PluginPopupSize))
+                })
+                .transpose()?,
+            height: options
+                .plugin_height
+                .as_deref()
+                .map(|value| {
+                    orchbee_workbench_protocol::PluginPopupSize::parse(value)
+                        .ok_or_else(|| invalid("--height", value, ExpectedValue::PluginPopupSize))
+                })
+                .transpose()?,
+            popup_geometry_override: options.cols.is_some()
+                || options.rows.is_some()
+                || options.cell_width.is_some()
+                || options.cell_height.is_some(),
             active_target_overrides: options.workspace.is_some()
                 || options.plugin_target.is_some()
                 || options.direction.is_some(),
@@ -220,6 +243,73 @@ mod tests {
     use super::*;
     fn request(args: &[&str]) -> Result<Request, ParseFailure> {
         crate::invocation::parse_request(args.iter().map(std::ffi::OsString::from))
+    }
+    #[test]
+    fn popup_sizes_and_close_options_are_typed_and_scoped() {
+        let Request::Plugin {
+            command: super::super::PluginCommand::PaneOpen(open),
+            ..
+        } = request(&[
+            "plugin",
+            "pane",
+            "open",
+            "--plugin",
+            "tools",
+            "--entrypoint",
+            "dashboard",
+            "--placement",
+            "popup",
+            "--width",
+            "75%",
+            "--height",
+            "0",
+        ])
+        .unwrap()
+        else {
+            panic!()
+        };
+        assert_eq!(
+            open.width,
+            Some(orchbee_workbench_protocol::PluginPopupSize::Percent(75))
+        );
+        assert_eq!(
+            open.height,
+            Some(orchbee_workbench_protocol::PluginPopupSize::Cells(0))
+        );
+        assert_eq!(open.placement, Some(PluginPanePlacement::Popup));
+        for size in ["0%", "101%", "65536", "-1", "1.5%", "x"] {
+            assert!(
+                request(&[
+                    "plugin",
+                    "pane",
+                    "open",
+                    "--plugin",
+                    "tools",
+                    "--entrypoint",
+                    "dashboard",
+                    "--width",
+                    size
+                ])
+                .is_err()
+            );
+        }
+        assert!(matches!(
+            request(&["popup", "close", "--timeout", "100"]),
+            Ok(Request::Plugin {
+                command: super::super::PluginCommand::PopupClose {
+                    timeout_ms: 100,
+                    ..
+                },
+                ..
+            })
+        ));
+        for args in [
+            &["popup", "close", "--width", "20"][..],
+            &["plugin", "list", "--height", "4"][..],
+            &["popup", "close", "unexpected"][..],
+        ] {
+            assert!(request(args).is_err(), "{args:?}");
+        }
     }
     #[test]
     fn pane_open_defaults_and_scoped_launch_overrides() {
@@ -290,4 +380,42 @@ mod tests {
             .is_err()
         );
     }
+}
+
+pub(in crate::invocation) fn parse_close(
+    words: &[&str],
+    options: &Options,
+    envelope: FailureEnvelope,
+) -> Result<Request, ParseFailure> {
+    let context = UsageContext::Path("popup close");
+    match words {
+        ["popup"] => return Err(missing_command(UsageContext::Path("popup"), envelope)),
+        ["popup", "close"] => {}
+        ["popup", "close", extra, ..] => return Err(unexpected_argument(context, extra, envelope)),
+        ["popup", verb, ..] => {
+            return Err(unknown_command(UsageContext::Path("popup"), verb, envelope));
+        }
+        _ => unreachable!("popup family routed here"),
+    }
+    check_scope(
+        options,
+        Scope {
+            client: true,
+            timeout: true,
+            ..NO_OPTIONS
+        },
+        context,
+        envelope,
+    )?;
+    Ok(Request::Plugin {
+        command: super::PluginCommand::PopupClose {
+            client: client_control::client_id(options, context, envelope)?,
+            timeout_ms: if options.timeout.is_some() {
+                wait_timeout_option(options, context, envelope)?
+            } else {
+                30_000
+            },
+        },
+        format: options.format.unwrap_or(OutputFormat::Text),
+    })
 }

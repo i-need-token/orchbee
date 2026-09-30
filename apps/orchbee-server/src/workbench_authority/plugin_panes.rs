@@ -43,29 +43,7 @@ fn resolve_from(
     selector: &PluginPaneSelector,
 ) -> Result<PluginPaneLaunch, WorkbenchCommandUnavailableReason> {
     use orchbee_workbench_protocol::{PluginInvocationContext, WorkbenchAction};
-    use std::path::Path;
     let unavailable = WorkbenchCommandUnavailableReason::ServiceUnavailable;
-    let catalog = registry
-        .list(Some(&selector.plugin_id))
-        .map_err(|_| unavailable)?;
-    let entry = catalog.plugins.first().ok_or(unavailable)?;
-    if !entry.enabled || entry.warning.is_some() {
-        return Err(unavailable);
-    }
-    let pane = entry
-        .manifest
-        .panes
-        .iter()
-        .find(|pane| pane.id == selector.entrypoint_id)
-        .ok_or(unavailable)?;
-    if !entry.manifest.supports_windows(&pane.platforms) {
-        return Err(WorkbenchCommandUnavailableReason::NoCompatibleWorker);
-    }
-    let root = Path::new(&entry.plugin_root);
-    let program = orchbee_local_site_runtime::resolve_windows_program(&pane.command[0], root);
-    let path = |path: &Path| path.to_str().map(str::to_owned).ok_or(unavailable);
-    let launch = LaunchSelection::new(path(&program)?, pane.command[1..].to_vec())
-        .map_err(|_| unavailable)?;
     let (context_id, tab_id, panel_id) = match &command.action {
         WorkbenchAction::TabCreate {
             terminal_context_id,
@@ -113,6 +91,38 @@ fn resolve_from(
         .and_then(|context| context.tabs.iter().find(|tab| Some(&tab.tab_id) == tab_id))
         .map(|tab| tab.label.clone());
     context = source::resolve(snapshot, command, context)?;
+    freeze(registry, selector, context).map(|(launch, _)| launch)
+}
+
+#[cfg(windows)]
+fn freeze(
+    registry: &orchbee_local_site_runtime::PluginRegistry,
+    selector: &PluginPaneSelector,
+    context: orchbee_workbench_protocol::PluginInvocationContext,
+) -> Result<(PluginPaneLaunch, String), WorkbenchCommandUnavailableReason> {
+    use std::path::Path;
+    let unavailable = WorkbenchCommandUnavailableReason::ServiceUnavailable;
+    let catalog = registry
+        .list(Some(&selector.plugin_id))
+        .map_err(|_| unavailable)?;
+    let entry = catalog.plugins.first().ok_or(unavailable)?;
+    if !entry.enabled || entry.warning.is_some() {
+        return Err(unavailable);
+    }
+    let pane = entry
+        .manifest
+        .panes
+        .iter()
+        .find(|pane| pane.id == selector.entrypoint_id)
+        .ok_or(unavailable)?;
+    if !entry.manifest.supports_windows(&pane.platforms) {
+        return Err(WorkbenchCommandUnavailableReason::NoCompatibleWorker);
+    }
+    let root = Path::new(&entry.plugin_root);
+    let program = orchbee_local_site_runtime::resolve_windows_program(&pane.command[0], root);
+    let path = |path: &Path| path.to_str().map(str::to_owned).ok_or(unavailable);
+    let launch = LaunchSelection::new(path(&program)?, pane.command[1..].to_vec())
+        .map_err(|_| unavailable)?;
     context.validate().map_err(|_| unavailable)?;
     let (config, state) = registry
         .user_directories(&entry.manifest.id)
@@ -142,12 +152,77 @@ fn resolve_from(
             environment.push((key.into(), value));
         }
     }
-    Ok(PluginPaneLaunch {
-        selector: selector.clone(),
-        launch,
-        directory: WorkingDirectory::parse(&entry.plugin_root).map_err(|_| unavailable)?,
-        environment: PluginTerminalEnvironment::new(environment).map_err(|_| unavailable)?,
-    })
+    Ok((
+        PluginPaneLaunch {
+            selector: selector.clone(),
+            launch,
+            directory: WorkingDirectory::parse(&entry.plugin_root).map_err(|_| unavailable)?,
+            environment: PluginTerminalEnvironment::new(environment).map_err(|_| unavailable)?,
+        },
+        pane.title.clone(),
+    ))
+}
+
+#[cfg(windows)]
+impl super::WorkbenchAuthority {
+    /// An independent terminal never acquires canonical plugin Pane membership.
+    pub fn resolve_plugin_popup(
+        &self,
+        popup_id: &orchbee_workbench_protocol::WorkbenchRequestId,
+        spec: &orchbee_workbench_protocol::PluginPopupSpec,
+    ) -> Result<(PluginPaneLaunch, String), WorkbenchCommandUnavailableReason> {
+        use orchbee_workbench_protocol::PanelNode;
+        let unavailable = WorkbenchCommandUnavailableReason::ServiceUnavailable;
+        spec.validate().map_err(|_| unavailable)?;
+        if self.retired {
+            return Err(unavailable);
+        }
+        let snapshot = self.snapshot();
+        let tab = snapshot
+            .terminal_contexts
+            .iter()
+            .find(|context| context.terminal_context_id == spec.source.terminal_context_id)
+            .and_then(|context| {
+                context
+                    .tabs
+                    .iter()
+                    .find(|tab| tab.tab_id == spec.source.tab_id)
+            })
+            .ok_or(unavailable)?;
+        fn contains(
+            node: &PanelNode,
+            source: &orchbee_workbench_protocol::ClientPopupSource,
+        ) -> bool {
+            match node {
+                PanelNode::Panel {
+                    panel_id,
+                    primary_presentation,
+                    child_presentations,
+                    ..
+                } => {
+                    *panel_id == source.panel_id
+                        && std::iter::once(primary_presentation)
+                            .chain(child_presentations)
+                            .any(|candidate| {
+                                &candidate.presentation_id == source.member.presentation_id()
+                                    && candidate.binding.as_ref() == source.member.binding()
+                            })
+                }
+                PanelNode::Split { children, .. } => {
+                    children.iter().any(|child| contains(&child.node, source))
+                }
+            }
+        }
+        if !contains(&tab.root, &spec.source) {
+            return Err(unavailable);
+        }
+        let context = source::observed(snapshot, popup_id, &spec.context)?;
+        let registry = orchbee_local_site_runtime::PluginRegistry::from_environment(|name| {
+            std::env::var_os(name)
+        })
+        .map_err(|_| unavailable)?;
+        freeze(&registry, &spec.selector, context)
+    }
 }
 
 #[cfg(all(test, windows))]

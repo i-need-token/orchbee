@@ -11,7 +11,9 @@ use orchbee_workbench_protocol::{
     ProtocolVersion, WorkbenchRevision, WorkerId,
 };
 mod observation;
+mod popup;
 pub(super) use observation::Observer;
+pub(super) use popup::Popups;
 impl LocalTerminalService {
     pub(crate) fn execute_plugin(&self, request: PluginRequest) -> PluginResult {
         let outcome = self
@@ -28,6 +30,14 @@ impl LocalTerminalService {
         request.validate().map_err(|_| Failure::InvalidIntent)?;
         if self.workbench_site_matches(&request.site_id) != Some(true) {
             return Err(Failure::SiteMismatch);
+        }
+        if matches!(
+            request.action,
+            PluginAction::PopupOpen { .. }
+                | PluginAction::PopupRead { .. }
+                | PluginAction::PopupClose { .. }
+        ) {
+            return Err(Failure::Denied);
         }
         if let PluginAction::PaneObserve { pane } = &request.action {
             return self.observe_plugin_pane(request, pane);

@@ -960,6 +960,14 @@ impl Locale {
                 Self::EnUs => "History position lost · returning to live".to_owned(),
                 Self::ZhCn => "历史位置已失效 · 正在返回实时".to_owned(),
             },
+            #[cfg(windows)]
+            NativeSessionNotice::PopupUnavailable => match self {
+                Self::EnUs => {
+                    "Popup connection or cleanup uncertain · restart the Site before reopening"
+                        .to_owned()
+                }
+                Self::ZhCn => "popup 连接或清理状态不确定 · 重启 Site 后再打开".to_owned(),
+            },
             NativeSessionNotice::HistoryUnavailable => match self {
                 Self::EnUs => "History is not available on this pane".to_owned(),
                 Self::ZhCn => "此窗格历史不可用".to_owned(),

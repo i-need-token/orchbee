@@ -637,6 +637,9 @@ fn effect_kind(effect: &Effect) -> &'static str {
         Effect::ProcessInfo(..) => "process-info",
         Effect::DetachRefused(..) => "detach-refused",
         Effect::Lifecycle(..) => "lifecycle",
+        Effect::PopupLaunch(..) => "popup-launch",
+        Effect::PopupForce(..) => "popup-force",
+        Effect::PopupInventory(..) => "popup-inventory",
     }
 }
 fn effect_mismatch(expected: &[Effect], actual: &[Effect]) -> String {

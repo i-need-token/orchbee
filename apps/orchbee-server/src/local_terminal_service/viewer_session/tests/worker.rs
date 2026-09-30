@@ -23,11 +23,15 @@ pub(in crate::local_terminal_service::viewer_session::tests) enum Effect {
     Paste([u8; 16], [u8; 16], u64),
     Release([u8; 16], [u8; 16]),
     Dispose(usize),
+    PopupLaunch([u8; 16]),
+    PopupForce(usize),
+    PopupInventory(usize, u8),
 }
 pub(super) fn run(
     mut peer: UnixStream,
     effects: Arc<Mutex<Vec<Effect>>>,
     detach_refusals: Arc<std::sync::atomic::AtomicUsize>,
+    popup_fault: Arc<std::sync::atomic::AtomicU8>,
 ) {
     let mut viewers: BTreeMap<[u8; 16], (usize, u64, bool)> = BTreeMap::new();
     loop {
@@ -154,7 +158,20 @@ pub(super) fn run(
             CapabilityNodeMessage::TerminalLifecycleRequest(request) => {
                 let target = usize::from(request.target.terminal_id().as_bytes()[0] - 5);
                 let outcome = match request.action {
+                    TerminalLifecycleAction::Force if target >= 10 => {
+                        effects.lock().unwrap().push(Effect::PopupForce(target));
+                        if popup_fault.load(std::sync::atomic::Ordering::Acquire) == 2 {
+                            return;
+                        }
+                        TerminalLifecycleOutcome::ForceAccepted
+                    }
                     TerminalLifecycleAction::InventoryPage { .. } => {
+                        if target >= 10 {
+                            effects
+                                .lock()
+                                .unwrap()
+                                .push(Effect::PopupInventory(target, request.step_ordinal.get()));
+                        }
                         TerminalLifecycleOutcome::InventoryPage(LifecycleInventoryPage {
                             inventory_generation: NonZeroU64::MIN,
                             next_cursor: None,
@@ -176,6 +193,34 @@ pub(super) fn run(
                 };
                 CapabilityNodeMessage::TerminalLifecycleResult(
                     TerminalLifecycleResult::new(request, outcome).unwrap(),
+                )
+            }
+            CapabilityNodeMessage::AuthorizedTerminalLaunch(launch) => {
+                assert!(launch.plugin_environment().is_some());
+                assert!(launch.launch().unwrap().executable().ends_with("pane.exe"));
+                effects.lock().unwrap().push(Effect::PopupLaunch(
+                    launch.authorization().terminal_id().as_bytes(),
+                ));
+                if popup_fault.load(std::sync::atomic::Ordering::Acquire) == 1 {
+                    return;
+                }
+                let TerminalLaunchMode::Immediate(geometry) = launch.mode() else {
+                    panic!("popup immediate");
+                };
+                let identity = HostTerminalIdentity::new(
+                    HostCreationId::from_bytes([20; 16]).unwrap(),
+                    orchbee_capability_node_protocol::HostEpoch::from_bytes([4; 16]).unwrap(),
+                    HostTerminalId::from_bytes([15; 16]).unwrap(),
+                );
+                CapabilityNodeMessage::TerminalLaunchResult(
+                    TerminalLaunchResult::new(
+                        launch.authorization(),
+                        TerminalLaunchOutcome::HostAccepted(HostLaunchAccepted::new(
+                            identity,
+                            HostLaunchState::Started(geometry),
+                        )),
+                    )
+                    .unwrap(),
                 )
             }
             other => panic!("unexpected Worker message {other:?}"),

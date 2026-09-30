@@ -31,6 +31,8 @@ impl NativeUi {
         self.reports.set_origin(origin.clone());
         #[cfg(windows)]
         self.overlays.set_origin(origin.clone());
+        #[cfg(windows)]
+        self.popup.set_origin(origin.clone());
         self.board.set_origin(origin);
     }
 

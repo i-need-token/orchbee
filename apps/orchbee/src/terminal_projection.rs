@@ -9,6 +9,7 @@ use orchbee_terminal_protocol::{
 };
 use std::{collections::HashSet, sync::Arc};
 
+#[derive(Clone)]
 pub(crate) struct TerminalProjection {
     attachment: AttachmentId,
     epoch: HostEpoch,

@@ -173,6 +173,26 @@ pub(crate) fn legacy_pane_ref() -> crate::terminal_session::state::PaneRef {
 }
 
 pub(crate) trait TerminalInputPort {
+    #[cfg(windows)]
+    fn popup_captured(&self) -> bool {
+        false
+    }
+    #[cfg(windows)]
+    fn popup_identity(&self) -> Option<&orchbee_workbench_protocol::WorkbenchRequestId> {
+        None
+    }
+    #[cfg(windows)]
+    fn popup_input(&mut self, _item: &DecodedItem) {}
+    #[cfg(windows)]
+    fn popup_mouse(
+        &mut self,
+        _id: &orchbee_workbench_protocol::WorkbenchRequestId,
+        _content: ratatui::layout::Rect,
+        _event: MouseEvent,
+        _close: bool,
+    ) {
+    }
+
     fn forward(&mut self, input: &[u8]) -> Result<(), TerminalInputUnavailable>;
 
     /// Decoded human intent, before routing; host metadata and captured tails are excluded.

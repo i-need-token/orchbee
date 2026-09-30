@@ -995,3 +995,84 @@ fn history_preserves_styles_defaults_wide_cells_and_sanitization() {
     );
     assert_eq!(clipped[1], "A ");
 }
+
+#[cfg(windows)]
+#[test]
+fn popup_draw_clears_the_underlying_cells_and_records_only_its_painted_close_and_body() {
+    use crate::{
+        terminal_input::{
+            MouseAction, MouseButton, MouseEvent, TerminalInputPort, TerminalInputUnavailable,
+        },
+        terminal_session::PopupView,
+        tui_pointer::{HitMapBuilder, PointerState},
+    };
+    use orchbee_workbench_protocol::{PluginPopupSize, WorkbenchRequestId};
+    use ratatui::{layout::Rect, widgets::Paragraph};
+    let mut terminal = infallible(Terminal::new(TestBackend::new(40, 12)));
+    let id = WorkbenchRequestId::parse(&format!("{:032x}", 1)).unwrap();
+    let popup = PopupView {
+        id: &id,
+        title: "Dashboard",
+        projection: None,
+        width: Some(PluginPopupSize::Cells(20)),
+        height: Some(PluginPopupSize::Cells(8)),
+        closing: true,
+    };
+    let mut hits = HitMapBuilder::new();
+    infallible(terminal.draw(|frame| {
+        frame.render_widget(
+            Paragraph::new("XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX\n".repeat(12)),
+            frame.area(),
+        );
+        super::render_popup(
+            frame,
+            Rect::new(0, 0, 40, 12),
+            &popup,
+            Locale::EnUs,
+            &crate::tui_theme::Theme::rgb_test_dark(),
+            &mut hits,
+        );
+    }));
+    let buffer = terminal.backend().buffer();
+    assert_eq!(buffer[(11, 3)].symbol(), "C");
+    assert_ne!(buffer[(11, 8)].symbol(), "X");
+    assert_eq!(buffer[(9, 3)].symbol(), "X");
+    assert_eq!(buffer[(27, 2)].symbol(), "×");
+    struct Port(Vec<(WorkbenchRequestId, Rect, bool)>);
+    impl TerminalInputPort for Port {
+        fn forward(&mut self, _: &[u8]) -> Result<(), TerminalInputUnavailable> {
+            panic!("popup paint leaked input");
+        }
+        fn popup_mouse(&mut self, id: &WorkbenchRequestId, rect: Rect, _: MouseEvent, close: bool) {
+            self.0.push((id.clone(), rect, close));
+        }
+    }
+    let mut pointer = PointerState::default();
+    pointer.set_capture(true);
+    pointer.publish(hits.finish());
+    let mut port = Port(Vec::new());
+    for (column, row, action) in [
+        (11, 3, MouseAction::Press),
+        (11, 3, MouseAction::Release),
+        (27, 2, MouseAction::Press),
+    ] {
+        pointer.popup_event(
+            &mut port,
+            MouseEvent {
+                column,
+                row,
+                action,
+                button: MouseButton::Left,
+                mods: Modifiers::NONE,
+            },
+        );
+    }
+    assert_eq!(
+        port.0,
+        [
+            (id.clone(), Rect::new(11, 3, 18, 6), false),
+            (id.clone(), Rect::new(11, 3, 18, 6), false),
+            (id, Rect::default(), true)
+        ]
+    );
+}

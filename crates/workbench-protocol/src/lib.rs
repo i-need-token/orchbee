@@ -191,8 +191,9 @@ pub use command::{
 };
 
 pub use command::{
-    MAXIMUM_ENCODED_PLUGIN_REQUEST_BYTES, MAXIMUM_ENCODED_PLUGIN_RESULT_BYTES, PluginAction,
-    PluginCommandFailure, PluginCommandLog, PluginFailure, PluginInvocationContext,
-    PluginLogCursor, PluginOutcome, PluginPaneInfo, PluginRequest, PluginResult, PluginWorker,
-    PluginWorktreeContext, plugin_identifier, plugin_job_identifier,
+    ClientPopupSource, MAXIMUM_ENCODED_PLUGIN_REQUEST_BYTES, MAXIMUM_ENCODED_PLUGIN_RESULT_BYTES,
+    PluginAction, PluginCommandFailure, PluginCommandLog, PluginFailure, PluginInvocationContext,
+    PluginLogCursor, PluginOutcome, PluginPaneInfo, PluginPopupSize, PluginPopupSpec,
+    PluginRequest, PluginResult, PluginWorker, PluginWorktreeContext, plugin_identifier,
+    plugin_job_identifier,
 };

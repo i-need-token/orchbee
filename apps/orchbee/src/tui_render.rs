@@ -389,7 +389,8 @@ pub(crate) fn render_terminal_shell(
     #[cfg(windows)]
     let receipt = receipt.with_attention(match session.as_ref() {
         Some(TerminalSessionView::Native(native))
-            if view.overlay().is_none()
+            if native.popup().is_none()
+                && view.overlay().is_none()
                 && areas
                     .sidebar
                     .is_none_or(|sidebar| sidebar.layer != SidebarLayer::Overlay) =>
@@ -398,7 +399,80 @@ pub(crate) fn render_terminal_shell(
         }
         _ => None,
     });
+    #[cfg(windows)]
+    if let Some(TerminalSessionView::Native(native)) = session.as_ref()
+        && let Some(popup) = native.popup()
+    {
+        render_popup(
+            frame,
+            terminal_area(areas.panel, areas.tier.shows_panel_frame()),
+            popup,
+            locale,
+            theme,
+            hits,
+        );
+    }
     receipt
+}
+
+#[cfg(windows)]
+fn render_popup(
+    frame: &mut Frame<'_>,
+    area: Rect,
+    popup: &crate::terminal_session::PopupView<'_>,
+    locale: Locale,
+    theme: &Theme,
+    hits: &mut HitMapBuilder,
+) {
+    let Some((outer, inner)) =
+        crate::terminal_session::popup_geometry(popup.width, popup.height, area)
+    else {
+        return;
+    };
+    frame.render_widget(Clear, outer);
+    frame.render_widget(
+        Block::default()
+            .borders(Borders::ALL)
+            .title(truncate_display(
+                popup.title,
+                usize::from(outer.width.saturating_sub(5)),
+                theme.glyphs.ellipsis,
+            ))
+            .border_style(theme.style(Role::TextSecondary)),
+        outer,
+    );
+    let close = Rect::new(outer.right().saturating_sub(4), outer.y, 3, 1);
+    frame.render_widget(
+        Paragraph::new("[×]").style(theme.style(Role::TextPrimary)),
+        close,
+    );
+    if let Some(terminal) = popup
+        .projection
+        .and_then(crate::terminal_projection::TerminalProjection::frame)
+    {
+        terminal_cells::render(frame, inner, terminal, !popup.closing);
+    } else {
+        frame.render_widget(
+            Paragraph::new(locale.plugin_popup_pending(popup.closing))
+                .style(theme.style(Role::TextSecondary)),
+            inner,
+        );
+    }
+    hits.mark_overlay_active();
+    hits.record(
+        HitLayer::Overlay,
+        inner,
+        HitTarget::Popup {
+            id: popup.id.clone(),
+            content: inner,
+        },
+    );
+    hits.record(
+        HitLayer::Overlay,
+        close,
+        HitTarget::PopupClose(popup.id.clone()),
+    );
+    hits.record(HitLayer::OverlaySurface, outer, HitTarget::OverlaySurface);
 }
 
 fn render_too_small_notice(frame: &mut Frame<'_>, body: Rect, text: ShellText, theme: &Theme) {
@@ -528,6 +602,12 @@ fn render_native_workbench(
 ) {
     let bound_text = locale.shell().bind(client_view);
     let text = bound_text.text();
+    let input_enabled = client_view.overlay().is_none()
+        && native.close_confirmation().is_none()
+        && native.rename_draft().is_none()
+        && native.setup_draft().is_none();
+    #[cfg(windows)]
+    let input_enabled = input_enabled && native.popup().is_none();
     let panel_area = areas.panel;
     let location = native_location_label(native, text.standalone);
     render_tab_strip(
@@ -641,10 +721,7 @@ fn render_native_workbench(
                 frame,
                 leaf,
                 tab,
-                client_view.overlay().is_none()
-                    && native.close_confirmation().is_none()
-                    && native.rename_draft().is_none()
-                    && native.setup_draft().is_none(),
+                input_enabled,
                 text,
                 phase_status,
                 locale,
@@ -695,10 +772,7 @@ fn render_native_workbench(
                 content_area,
                 surface,
                 terminal,
-                client_view.overlay().is_none()
-                    && native.close_confirmation().is_none()
-                    && native.rename_draft().is_none()
-                    && native.setup_draft().is_none(),
+                input_enabled,
                 locale,
                 theme,
             );
@@ -716,15 +790,7 @@ fn render_native_workbench(
                 );
             }
         } else if let Some(terminal) = terminal {
-            terminal_cells::render(
-                frame,
-                content_area,
-                terminal,
-                client_view.overlay().is_none()
-                    && native.close_confirmation().is_none()
-                    && native.rename_draft().is_none()
-                    && native.setup_draft().is_none(),
-            );
+            terminal_cells::render(frame, content_area, terminal, input_enabled);
             // The single-pane paint covers the whole content area; the frame
             // border around it stays Client chrome and records nothing. The
             // recorded region carries the pane's exact live incarnation.

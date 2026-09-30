@@ -24,6 +24,24 @@ pub enum ClientPresentationSelection {
     },
 }
 impl ClientPresentationSelection {
+    pub fn validate(&self) -> Result<(), ContractError> {
+        match self {
+            Self::Bound { viewport, .. } => viewport.validate()?,
+            Self::Unbound {
+                selection_generation,
+                ..
+            } if selection_generation.value() == 0 => return Err(ContractError::InvalidDocument),
+            _ => {}
+        }
+        if serde_json::to_vec(self)
+            .map_err(|_| ContractError::InvalidDocument)?
+            .len()
+            > MAXIMUM_ENCODED_CLIENT_PRESENTATION_BYTES
+        {
+            return Err(ContractError::InvalidDocument);
+        }
+        Ok(())
+    }
     #[must_use]
     pub const fn presentation_id(&self) -> &TerminalPresentationId {
         match self {

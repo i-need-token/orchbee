@@ -1,3 +1,4 @@
+import { PluginPopupSpecSchema } from './workbench-plugin-popup-contract';
 import { ClientPresentationSnapshotSchema } from './workbench-client-presentation-contract';
 import { TerminalAgentBindingSchema } from './workbench-panel-agent-contract';
 import {
@@ -184,6 +185,8 @@ const clientNavigation = z
 	})
 	.readonly();
 export const ClientViewIntentSchema = z.discriminatedUnion('kind', [
+	z.strictObject({ kind: z.literal('popup-open'), spec: PluginPopupSpecSchema }).readonly(),
+	z.strictObject({ kind: z.literal('popup-close') }).readonly(),
 	z
 		.strictObject({
 			kind: z.literal('overlay'),
@@ -287,6 +290,10 @@ export const ClientViewCompletionSchema = z
 		operationId: WorkbenchRequestIdSchema,
 		outcome: z.discriminatedUnion('kind', [
 			z
+				.strictObject({ kind: z.literal('popup-opened'), popupId: WorkbenchRequestIdSchema })
+				.readonly(),
+			z.strictObject({ kind: z.literal('popup-closed'), hadPopup: z.boolean() }).readonly(),
+			z
 				.strictObject({
 					kind: z.literal('presentation-read'),
 					presentation: ClientPresentationSnapshotSchema,
@@ -340,6 +347,20 @@ export const ClientViewCompletionSchema = z
 	})
 	.readonly();
 export const ClientViewControlStatusSchema = z.discriminatedUnion('kind', [
+	z
+		.strictObject({
+			kind: z.literal('popup-opened'),
+			popupId: WorkbenchRequestIdSchema,
+			view: ClientViewObservationSchema,
+		})
+		.readonly(),
+	z
+		.strictObject({
+			kind: z.literal('popup-closed'),
+			hadPopup: z.boolean(),
+			view: ClientViewObservationSchema,
+		})
+		.readonly(),
 	z
 		.strictObject({
 			kind: z.literal('presentation-read'),
@@ -432,6 +453,28 @@ export const ClientViewOperationSchema = z
 		status: ClientViewControlStatusSchema,
 	})
 	.superRefine(({ command, status }, context) => {
+		if (status.kind === 'popup-opened' || status.kind === 'popup-closed') {
+			const { intent } = command;
+			const { view } = status;
+			const valid =
+				BigInt(view.workbenchRevision) >= BigInt(command.minimumWorkbenchRevision) &&
+				(status.kind === 'popup-opened'
+					? intent.kind === 'popup-open' &&
+						status.popupId === command.operationId &&
+						view.phase === 'busy' &&
+						view.selection?.terminalContextId === intent.spec.source.terminalContextId &&
+						view.selection.tabId === intent.spec.source.tabId &&
+						view.selection.panelId === intent.spec.source.panelId
+					: intent.kind === 'popup-close' &&
+						view.phase !== 'starting' &&
+						(!status.hadPopup || view.phase !== 'busy'));
+			if (!valid)
+				context.addIssue({
+					code: 'custom',
+					message: 'Popup receipt does not match its intent, source or revision',
+				});
+			return;
+		}
 		if (status.kind === 'layout-adjusted') {
 			const { intent } = command;
 			if (intent.kind !== 'resize' && intent.kind !== 'set-split-ratio') {
@@ -675,6 +718,8 @@ export const ClientViewOperationSchema = z
 		}
 
 		if (
+			intent.kind === 'popup-open' ||
+			intent.kind === 'popup-close' ||
 			intent.kind === 'agent-attention' ||
 			intent.kind === 'terminal-agent-attention' ||
 			intent.kind === 'selections' ||

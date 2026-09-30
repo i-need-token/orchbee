@@ -2,7 +2,7 @@ use super::fixture::{Effect, Fixture};
 use orchbee_workbench_protocol::*;
 use std::sync::atomic::Ordering;
 
-fn enter_isolated_catalog() -> bool {
+pub(super) fn enter_isolated_catalog() -> bool {
     const KEY: &str = "ORCHBEE_OVERLAY_SERVER_FIXTURE";
     if let Some(root) = std::env::var_os(KEY) {
         orchbee_local_site_runtime::PluginRegistry::from_environment(|name| std::env::var_os(name))

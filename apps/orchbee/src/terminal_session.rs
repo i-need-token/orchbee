@@ -34,10 +34,14 @@ mod agent_board;
 mod panel_reports;
 #[cfg(windows)]
 mod plugin_overlays;
+#[cfg(windows)]
+mod plugin_popup;
 #[cfg(all(windows, test))]
 pub(crate) use panel_reports::PanelReport;
 #[cfg(windows)]
 pub(crate) use panel_reports::PanelReportView;
+#[cfg(windows)]
+pub(crate) use plugin_popup::{PopupView, resolve_geometry as popup_geometry};
 #[cfg(any(target_os = "linux", windows))]
 mod agent_read_lane;
 mod connection;
@@ -493,6 +497,16 @@ impl TerminalSession {
         }
     }
 
+    #[cfg(windows)]
+    pub(crate) fn observe_popup_surface(
+        &mut self,
+        area: ratatui::layout::Rect,
+        pixels: (u16, u16),
+    ) {
+        if let Some(native) = self.backend.native_mut() {
+            native.popup_surface(area, pixels);
+        }
+    }
     pub(crate) fn after_draw(&mut self) {
         self.retirement_redraw_pending = false;
         match &mut self.backend {
@@ -641,6 +655,37 @@ impl TerminalSession {
 }
 
 impl TerminalInputPort for TerminalSession {
+    #[cfg(windows)]
+    fn popup_identity(&self) -> Option<&orchbee_workbench_protocol::WorkbenchRequestId> {
+        match &self.backend {
+            SessionBackend::Native(native) => native.popup_identity(),
+            #[cfg(test)]
+            SessionBackend::Legacy(_) => None,
+        }
+    }
+    #[cfg(windows)]
+    fn popup_captured(&self) -> bool {
+        matches!(&self.backend, SessionBackend::Native(native) if native.popup_captured())
+    }
+    #[cfg(windows)]
+    fn popup_input(&mut self, item: &crate::terminal_input::DecodedItem) {
+        if let Some(native) = self.backend.native_mut() {
+            native.popup_input(item);
+        }
+    }
+    #[cfg(windows)]
+    fn popup_mouse(
+        &mut self,
+        id: &orchbee_workbench_protocol::WorkbenchRequestId,
+        content: ratatui::layout::Rect,
+        event: crate::terminal_input::MouseEvent,
+        close: bool,
+    ) {
+        if let Some(native) = self.backend.native_mut() {
+            native.popup_mouse(id, content, event, close);
+        }
+    }
+
     fn observe_focus(&mut self, focused: bool) {
         if let Some(native) = self.backend.native_mut() {
             native.observe_focus(focused);

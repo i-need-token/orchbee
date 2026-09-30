@@ -10,6 +10,10 @@ use orchbee_local_site_runtime::{
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum PluginCommand {
     PaneOpen(Box<panes::Open>),
+    PopupClose {
+        client: Option<orchbee_workbench_protocol::WorkbenchClientId>,
+        timeout_ms: u32,
+    },
     PaneManage(Box<panes::Manage>),
     Install {
         source: orchbee_local_site_runtime::PluginGithubSource,

@@ -110,6 +110,8 @@ use crate::invocation::CompletionShell;
 const ROOT_WORDS: &[&str] = &[
     #[cfg(windows)]
     "plugin",
+    #[cfg(windows)]
+    "popup",
     "notification",
     "layout",
     "client",
@@ -144,6 +146,8 @@ const ROOT_WORDS: &[&str] = &[
 const FORMAT_ROOT_WORDS: &[&str] = &[
     #[cfg(windows)]
     "plugin",
+    #[cfg(windows)]
+    "popup",
     "notification",
     "layout",
     "client",
@@ -171,6 +175,8 @@ const FORMAT_ROOT_WORDS: &[&str] = &[
 
 /// family → the verbs it implements.
 const FAMILY_VERBS: &[(&str, &[&str])] = &[
+    #[cfg(windows)]
+    ("popup", &["close"]),
     #[cfg(windows)]
     (
         "plugin",
@@ -326,6 +332,8 @@ const BUSINESS_FLAGS: &[&str] = &[
     "--yes",
     "--entrypoint",
     "--placement",
+    "--width",
+    "--height",
     "--target-pane",
     "--ref",
     "--plugin",
@@ -479,6 +487,8 @@ const COMMAND_FLAGS: &[(&str, &[&str])] = &[
     #[cfg(windows)]
     ("plugin:pane:close", &["--timeout"]),
     #[cfg(windows)]
+    ("popup:close", &["--client", "--timeout"]),
+    #[cfg(windows)]
     ("plugin:install", &["--yes", "--ref", "--timeout"]),
     #[cfg(windows)]
     ("plugin:link", &["--enabled", "--disabled"]),
@@ -498,6 +508,8 @@ const COMMAND_FLAGS: &[(&str, &[&str])] = &[
             "--plugin",
             "--entrypoint",
             "--placement",
+            "--width",
+            "--height",
             "--workspace",
             "--target-pane",
             "--direction",
@@ -1351,6 +1363,8 @@ const OPERAND_PATHS: &[&str] = &[
 const HELP_TOPICS: &[&str] = &[
     #[cfg(windows)]
     "plugin",
+    #[cfg(windows)]
+    "popup",
     "notification",
     "layout",
     "client",
@@ -1380,6 +1394,8 @@ const HELP_TOPICS: &[&str] = &[
 
 /// `help <topic>` → the deeper words that complete a help path.
 const HELP_CHILDREN: &[(&str, &[&str])] = &[
+    #[cfg(windows)]
+    ("popup", &["close"]),
     #[cfg(windows)]
     (
         "plugin",
@@ -1561,6 +1577,8 @@ fn flag_bit(flag: &str) -> &'static str {
         "--format" => "seen_format",
         "--entrypoint" => "seen_plugin_entrypoint",
         "--placement" => "seen_plugin_placement",
+        "--width" => "seen_popup_width",
+        "--height" => "seen_popup_height",
         "--target-pane" => "seen_plugin_target",
         "--plugin" => "seen_plugin_id",
         "--context" => "seen_plugin_context",

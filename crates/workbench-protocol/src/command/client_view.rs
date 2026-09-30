@@ -119,6 +119,10 @@ pub struct ClientViewRecord {
     deny_unknown_fields
 )]
 pub enum ClientViewIntent {
+    PopupOpen {
+        spec: Box<crate::PluginPopupSpec>,
+    },
+    PopupClose {},
     Overlay {
         terminal_context_id: WorkbenchTerminalContextId,
         tab_id: WorkbenchTabId,
@@ -221,7 +225,10 @@ impl ClientViewIntent {
                 ClientViewPhase::Starting => true,
                 ClientViewPhase::Busy => !matches!(
                     self,
-                    Self::AgentFocus { .. } | Self::Panel { .. } | Self::FocusDirection { .. }
+                    Self::AgentFocus { .. }
+                        | Self::Panel { .. }
+                        | Self::FocusDirection { .. }
+                        | Self::PopupClose {}
                 ),
                 _ => false,
             }
@@ -335,7 +342,9 @@ impl ClientViewIntent {
             return false;
         };
         match self {
-            Self::TerminalAgentAttention { .. }
+            Self::PopupOpen { .. }
+            | Self::PopupClose {}
+            | Self::TerminalAgentAttention { .. }
             | Self::AgentAttention { .. }
             | Self::Presentation { .. }
             | Self::Viewports { .. }
@@ -408,6 +417,9 @@ pub struct ClientViewControl {
 }
 impl ClientViewControl {
     pub fn validate(&self) -> Result<(), ContractError> {
+        if let ClientViewIntent::PopupOpen { spec } = &self.intent {
+            spec.validate()?;
+        }
         if let ClientViewIntent::Overlay {
             panel_id,
             presentation_id,
@@ -483,6 +495,12 @@ pub enum ClientViewControlReason {
     deny_unknown_fields
 )]
 pub enum ClientViewCompletionOutcome {
+    PopupOpened {
+        popup_id: WorkbenchRequestId,
+    },
+    PopupClosed {
+        had_popup: bool,
+    },
     PresentationRead {
         presentation: Box<super::client_presentation::ClientPresentationSnapshot>,
     },
@@ -536,6 +554,14 @@ pub struct ClientViewCompletion {
     deny_unknown_fields
 )]
 pub enum ClientViewControlStatus {
+    PopupOpened {
+        popup_id: WorkbenchRequestId,
+        view: ClientViewObservation,
+    },
+    PopupClosed {
+        had_popup: bool,
+        view: ClientViewObservation,
+    },
     PresentationRead {
         presentation: Box<super::client_presentation::ClientPresentationSnapshot>,
         view: ClientViewObservation,
@@ -609,6 +635,33 @@ impl ClientViewOperation {
     pub fn validate(&self) -> Result<(), ContractError> {
         self.command.validate()?;
         match &self.status {
+            ClientViewControlStatus::PopupOpened { popup_id, view } => {
+                let ClientViewIntent::PopupOpen { spec } = &self.command.intent else {
+                    return Err(ContractError::InvalidDocument);
+                };
+                view.validate()?;
+                if *popup_id != self.command.operation_id
+                    || view.phase != ClientViewPhase::Busy
+                    || view.workbench_revision < self.command.minimum_workbench_revision
+                    || !view.selection.as_ref().is_some_and(|selected| {
+                        selected.terminal_context_id == spec.source.terminal_context_id
+                            && selected.tab_id.as_ref() == Some(&spec.source.tab_id)
+                            && selected.panel_id.as_ref() == Some(&spec.source.panel_id)
+                    })
+                {
+                    return Err(ContractError::InvalidDocument);
+                }
+            }
+            ClientViewControlStatus::PopupClosed { had_popup, view } => {
+                if !matches!(self.command.intent, ClientViewIntent::PopupClose {})
+                    || view.phase == ClientViewPhase::Starting
+                    || *had_popup && view.phase == ClientViewPhase::Busy
+                    || view.workbench_revision < self.command.minimum_workbench_revision
+                {
+                    return Err(ContractError::InvalidDocument);
+                }
+                view.validate()?;
+            }
             ClientViewControlStatus::PresentationRead { presentation, view } => {
                 view.validate()?;
                 let ClientViewIntent::Presentation { panel_id } = &self.command.intent else {

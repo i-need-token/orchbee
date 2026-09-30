@@ -59,7 +59,7 @@ pub(super) fn build() -> serde_json::Value {
             ["status"] | ["status", "server"] | ["api", "snapshot"] => true,
             [
                 "project" | "workspace" | "tab" | "panel" | "client" | "worktree" | "notification"
-                | "launch-profile" | "layout",
+                | "launch-profile" | "layout" | "popup",
                 ..,
             ] => !matches!(words[1].as_str(), Some("apply" | "export")),
             ["terminal", verb, ..] =>

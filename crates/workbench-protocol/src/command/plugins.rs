@@ -164,6 +164,17 @@ pub struct PluginLogCursor {
     deny_unknown_fields
 )]
 pub enum PluginAction {
+    PopupOpen {
+        popup_id: WorkbenchRequestId,
+        spec: Box<crate::PluginPopupSpec>,
+        geometry: crate::WorkbenchTerminalGeometry,
+    },
+    PopupRead {
+        popup_id: WorkbenchRequestId,
+    },
+    PopupClose {
+        popup_id: WorkbenchRequestId,
+    },
     PaneObserve {
         pane: Box<PluginPaneInfo>,
     },
@@ -195,10 +206,18 @@ pub enum PluginAction {
 }
 impl PluginAction {
     pub fn mutating(&self) -> bool {
-        matches!(self, Self::Invoke { .. } | Self::Cancel { .. })
+        matches!(
+            self,
+            Self::Invoke { .. }
+                | Self::Cancel { .. }
+                | Self::PopupOpen { .. }
+                | Self::PopupClose { .. }
+        )
     }
     pub fn validate(&self) -> Result<(), ContractError> {
         match self {
+            Self::PopupOpen { spec, .. } => spec.validate(),
+            Self::PopupRead { .. } | Self::PopupClose { .. } => Ok(()),
             Self::PaneGet { .. } => Ok(()),
             Self::PaneObserve { pane } => pane.validate(),
             Self::Invoke {
@@ -360,6 +379,23 @@ pub enum PluginFailure {
     deny_unknown_fields
 )]
 pub enum PluginOutcome {
+    PopupOpened {
+        popup_id: WorkbenchRequestId,
+        title: String,
+    },
+    PopupState {
+        popup_id: WorkbenchRequestId,
+        settled: bool,
+    },
+    PopupClosed {
+        popup_id: WorkbenchRequestId,
+    },
+    PopupClosing {
+        popup_id: WorkbenchRequestId,
+    },
+    PopupUnknown {
+        popup_id: WorkbenchRequestId,
+    },
     PaneObserved {
         revision: WorkbenchRevision,
         pane: Box<PluginPaneInfo>,
@@ -424,6 +460,13 @@ pub struct PluginResult {
 impl PluginResult {
     pub fn validate(&self) -> Result<(), ContractError> {
         match &self.outcome {
+            PluginOutcome::PopupOpened { title, .. } => {
+                crate::WorkbenchLabel::parse(title).map_err(|_| ContractError::InvalidDocument)?;
+            }
+            PluginOutcome::PopupState { .. }
+            | PluginOutcome::PopupClosed { .. }
+            | PluginOutcome::PopupUnknown { .. }
+            | PluginOutcome::PopupClosing { .. } => {}
             PluginOutcome::PaneFound { revision, pane }
             | PluginOutcome::PaneObserved { revision, pane, .. } => {
                 if revision.value() == 0 {
@@ -468,6 +511,36 @@ impl PluginResult {
             && self.site_id == request.site_id
             && self.validate().is_ok()
             && match (&request.action, &self.outcome) {
+                (
+                    PluginAction::PopupOpen { popup_id, .. },
+                    PluginOutcome::PopupOpened {
+                        popup_id: actual, ..
+                    },
+                )
+                | (
+                    PluginAction::PopupRead { popup_id },
+                    PluginOutcome::PopupState {
+                        popup_id: actual, ..
+                    },
+                )
+                | (
+                    PluginAction::PopupClose { popup_id },
+                    PluginOutcome::PopupClosing { popup_id: actual },
+                )
+                | (
+                    PluginAction::PopupRead { popup_id },
+                    PluginOutcome::PopupClosed { popup_id: actual },
+                )
+                | (
+                    PluginAction::PopupClose { popup_id },
+                    PluginOutcome::PopupClosed { popup_id: actual },
+                )
+                | (
+                    PluginAction::PopupOpen { popup_id, .. }
+                    | PluginAction::PopupClose { popup_id }
+                    | PluginAction::PopupRead { popup_id },
+                    PluginOutcome::PopupUnknown { popup_id: actual },
+                ) => popup_id == actual,
                 (
                     PluginAction::PaneObserve { pane },
                     PluginOutcome::PaneObserved { pane: actual, .. },

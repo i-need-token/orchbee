@@ -1,9 +1,14 @@
 import { PluginInvocationContextSchema } from './workbench-plugin-context-contract';
 export { PluginInvocationContextSchema } from './workbench-plugin-context-contract';
-import { WorkbenchPluginPaneSelectorSchema } from './workbench-terminal-launch-contract';
+import { PluginPopupSpecSchema } from './workbench-plugin-popup-contract';
+import {
+	WorkbenchTerminalGeometrySchema,
+	WorkbenchPluginPaneSelectorSchema,
+} from './workbench-terminal-launch-contract';
 import { z } from 'zod';
 import {
 	SiteIdSchema,
+	WorkbenchLabelSchema,
 	WorkbenchPanelIdSchema,
 	WorkbenchTabIdSchema,
 	WorkbenchTerminalContextIdSchema,
@@ -103,6 +108,14 @@ export const PluginRequestSchema = z
 		kind: z.literal('workbench.plugin'),
 		...correlation,
 		action: z.discriminatedUnion('kind', [
+			z.strictObject({
+				kind: z.literal('popup-open'),
+				popupId: WorkbenchRequestIdSchema,
+				spec: PluginPopupSpecSchema,
+				geometry: WorkbenchTerminalGeometrySchema,
+			}),
+			z.strictObject({ kind: z.literal('popup-read'), popupId: WorkbenchRequestIdSchema }),
+			z.strictObject({ kind: z.literal('popup-close'), popupId: WorkbenchRequestIdSchema }),
 			z.strictObject({ kind: z.literal('pane-get'), panelId: WorkbenchPanelIdSchema }),
 			z.strictObject({ kind: z.literal('pane-observe'), pane: paneInfo }),
 			z.strictObject({
@@ -128,6 +141,19 @@ export const PluginResultSchema = z
 		kind: z.literal('workbench.plugin.result'),
 		...correlation,
 		outcome: z.discriminatedUnion('kind', [
+			z.strictObject({
+				kind: z.literal('popup-opened'),
+				popupId: WorkbenchRequestIdSchema,
+				title: WorkbenchLabelSchema,
+			}),
+			z.strictObject({
+				kind: z.literal('popup-state'),
+				popupId: WorkbenchRequestIdSchema,
+				settled: z.boolean(),
+			}),
+			z.strictObject({ kind: z.literal('popup-closed'), popupId: WorkbenchRequestIdSchema }),
+			z.strictObject({ kind: z.literal('popup-closing'), popupId: WorkbenchRequestIdSchema }),
+			z.strictObject({ kind: z.literal('popup-unknown'), popupId: WorkbenchRequestIdSchema }),
 			z.strictObject({
 				kind: z.literal('pane-observed'),
 				revision: WorkbenchRevisionSchema.refine((value) => value !== '0'),

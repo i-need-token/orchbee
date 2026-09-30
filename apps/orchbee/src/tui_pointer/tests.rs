@@ -2054,3 +2054,79 @@ fn workspace_sidebar_wheel_advances_only_its_window_and_capture_cancels_remainin
     );
     assert!(view.machines.request.is_none() && port.bytes().is_empty());
 }
+
+#[cfg(windows)]
+#[test]
+fn popup_mouse_keeps_drag_release_with_the_painted_owner_and_drops_stale_geometry() {
+    use orchbee_workbench_protocol::WorkbenchRequestId;
+    struct Port(Vec<(WorkbenchRequestId, Rect, MouseEvent, bool)>);
+    impl TerminalInputPort for Port {
+        fn forward(
+            &mut self,
+            _: &[u8],
+        ) -> Result<(), crate::terminal_input::TerminalInputUnavailable> {
+            panic!("popup mouse leaked");
+        }
+        fn popup_mouse(
+            &mut self,
+            id: &WorkbenchRequestId,
+            rect: Rect,
+            event: MouseEvent,
+            close: bool,
+        ) {
+            self.0.push((id.clone(), rect, event, close));
+        }
+    }
+    let id = WorkbenchRequestId::parse(&format!("{:032x}", 1)).unwrap();
+    let rect = Rect::new(20, 10, 10, 5);
+    let mut hits = HitMapBuilder::new();
+    hits.mark_overlay_active();
+    hits.record(
+        HitLayer::Overlay,
+        rect,
+        HitTarget::Popup {
+            id: id.clone(),
+            content: rect,
+        },
+    );
+    let mut pointer = PointerState::default();
+    pointer.set_capture(true);
+    pointer.publish(hits.finish());
+    let mut port = Port(Vec::new());
+    let event = |action, button, column, row| MouseEvent {
+        action,
+        button,
+        column,
+        row,
+        mods: crate::client_view::Modifiers::NONE,
+    };
+    pointer.popup_event(
+        &mut port,
+        event(MouseAction::Press, MouseButton::Left, 21, 11),
+    );
+    pointer.popup_event(
+        &mut port,
+        event(MouseAction::Motion, MouseButton::Left, 70, 40),
+    );
+    pointer.popup_event(
+        &mut port,
+        event(MouseAction::Release, MouseButton::None, 70, 40),
+    );
+    assert_eq!(port.0.len(), 3);
+    assert!(
+        port.0
+            .iter()
+            .all(|(owner, area, _, close)| owner == &id && area == &rect && !close)
+    );
+    pointer.popup_event(
+        &mut port,
+        event(MouseAction::Release, MouseButton::None, 21, 11),
+    );
+    assert_eq!(port.0.len(), 3);
+    pointer.invalidate_map();
+    pointer.popup_event(
+        &mut port,
+        event(MouseAction::Press, MouseButton::Left, 21, 11),
+    );
+    assert_eq!(port.0.len(), 3);
+}

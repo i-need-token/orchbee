@@ -56,6 +56,9 @@ pub(super) enum ControlStep {
     Failed(Reason),
 }
 enum Execution {
+    Popup {
+        target: ClientViewControl,
+    },
     Navigation {
         target: ClientViewControl,
         progress: StepProgress,
@@ -84,6 +87,7 @@ impl Execution {
     }
     fn had_effect(&self) -> bool {
         match self {
+            Self::Popup { .. } => true,
             Self::Navigation { progress, .. } => progress.had_effect,
             Self::Adjustment { .. } => true,
         }
@@ -96,6 +100,16 @@ impl Execution {
         dismiss_shell_modes: &mut bool,
     ) -> ControlStep {
         match self {
+            Self::Popup { target } => {
+                if shell_mode || too_small {
+                    return ControlStep::Failed(Reason::Interrupted);
+                }
+                if native.popup_control_outcome(target).is_some() {
+                    ControlStep::Observed
+                } else {
+                    ControlStep::Waiting
+                }
+            }
             Self::Navigation { target, progress }
                 if matches!(
                     target.intent,
@@ -152,6 +166,7 @@ impl Execution {
         view: &ClientViewObservation,
     ) -> Option<ClientViewCompletionOutcome> {
         match self {
+            Self::Popup { target } => native.popup_control_outcome(target),
             Self::Adjustment { adjustment, before } => native
                 .adjustment_observed(adjustment, before)
                 .then(|| ClientViewCompletionOutcome::LayoutAdjusted {
@@ -321,6 +336,27 @@ impl ClientControl {
                 return false;
             }
             let execution = if matches!(
+                command.intent,
+                ClientViewIntent::PopupOpen { .. } | ClientViewIntent::PopupClose {}
+            ) {
+                if let Err(reason) =
+                    native.begin_popup_control(&command, delivery.workbench_snapshot.as_ref())
+                {
+                    if !lane.complete(
+                        sample,
+                        ClientViewCompletion {
+                            operation_id: command.operation_id,
+                            outcome: ClientViewCompletionOutcome::Rejected { reason },
+                        },
+                    ) {
+                        self.close();
+                    }
+                    return false;
+                }
+                Execution::Popup {
+                    target: command.clone(),
+                }
+            } else if matches!(
                 command.intent,
                 ClientViewIntent::Resize { .. } | ClientViewIntent::SetSplitRatio { .. }
             ) {
@@ -511,6 +547,11 @@ fn prepare_control(
     snapshot: Option<&orchbee_workbench_protocol::Snapshot>,
     viewport: Option<(ratatui::layout::Rect, crate::client_view::SidebarSurface)>,
 ) -> Result<ClientViewControl, Box<ClientViewCompletionOutcome>> {
+    if native.popup_captured() && !command.intent.is_passive_read() {
+        return Err(Box::new(ClientViewCompletionOutcome::Rejected {
+            reason: Reason::Busy,
+        }));
+    }
     native
         .agent_focus_source(command)
         .map_err(|reason| Box::new(ClientViewCompletionOutcome::Rejected { reason }))?;

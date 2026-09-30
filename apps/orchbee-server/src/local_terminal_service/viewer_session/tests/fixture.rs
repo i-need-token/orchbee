@@ -23,10 +23,11 @@ mod worker;
 pub(super) use worker::Effect;
 
 pub(super) struct Fixture {
-    pub(super) service: LocalTerminalService,
+    pub(super) service: Arc<LocalTerminalService>,
     targets: Vec<WorkbenchCommand>,
     pub(super) effects: Arc<Mutex<Vec<Effect>>>,
     pub(super) detach_refusals: Arc<std::sync::atomic::AtomicUsize>,
+    pub(super) popup_fault: Arc<std::sync::atomic::AtomicU8>,
     stop: Mutex<UnixStream>,
     marker_sequence: std::sync::atomic::AtomicU64,
     owner: Mutex<Option<thread::JoinHandle<crate::worker_obcn_carrier::WorkerWireExit>>>,
@@ -89,16 +90,19 @@ impl Fixture {
         let observation = Arc::clone(&effects);
         let detach_refusals = Arc::new(std::sync::atomic::AtomicUsize::new(0));
         let refusals = Arc::clone(&detach_refusals);
-        let peer = thread::spawn(move || worker::run(peer, observation, refusals));
-        let service = LocalTerminalService::from_identity(
+        let popup_fault = Arc::new(std::sync::atomic::AtomicU8::new(0));
+        let faults = Arc::clone(&popup_fault);
+        let peer = thread::spawn(move || worker::run(peer, observation, refusals, faults));
+        let service = Arc::new(LocalTerminalService::from_identity(
             registry,
             Ok(orchbee_workbench_protocol::SiteId::parse(&format!("{:032x}", 1)).unwrap()),
-        );
+        ));
         let mut fixture = Self {
             service,
             targets: Vec::new(),
             effects,
             detach_refusals,
+            popup_fault,
             stop: Mutex::new(stop),
             marker_sequence: std::sync::atomic::AtomicU64::new(1),
             owner: Mutex::new(Some(owner)),
@@ -252,12 +256,15 @@ impl Fixture {
         *self.owner.lock().unwrap() = Some(thread::spawn(move || owner.run(server)));
         let effects = Arc::clone(&self.effects);
         let refusals = Arc::clone(&self.detach_refusals);
-        *self.peer.lock().unwrap() =
-            Some(thread::spawn(move || worker::run(peer, effects, refusals)));
+        let faults = Arc::clone(&self.popup_fault);
+        *self.peer.lock().unwrap() = Some(thread::spawn(move || {
+            worker::run(peer, effects, refusals, faults)
+        }));
     }
 }
 impl Drop for Fixture {
     fn drop(&mut self) {
+        self.service.stop_close_maintenance();
         let _ = self
             .stop
             .get_mut()
