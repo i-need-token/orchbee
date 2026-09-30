@@ -42,6 +42,8 @@ mod presentation;
 #[cfg(any(unix, windows))]
 mod startup_wait;
 #[cfg(windows)]
+mod terminal_buffer_text;
+#[cfg(windows)]
 mod terminal_copy;
 #[cfg(any(unix, windows))]
 mod terminal_device;
@@ -49,6 +51,8 @@ mod terminal_device;
 mod terminal_input;
 #[cfg(any(unix, windows))]
 mod terminal_lifecycle;
+#[cfg(windows)]
+mod terminal_links;
 #[cfg(any(unix, windows))]
 mod terminal_projection;
 #[cfg(any(unix, windows))]
@@ -150,6 +154,10 @@ fn main() -> ExitCode {
             Ok(invocation::Request::Help(topic)) => cli::help(topic, locale),
             Ok(invocation::Request::Skill) => cli::skill(locale),
             Ok(invocation::Request::Completion(shell)) => cli::completion(shell, locale),
+            #[cfg(windows)]
+            Ok(invocation::Request::TerminalLink { command, format }) => {
+                cli::resolve_terminal_link(&command, format, locale)
+            }
             #[cfg(windows)]
             Ok(invocation::Request::TerminalCopy { command, format }) => {
                 cli::copy_terminal(&command, format, locale)

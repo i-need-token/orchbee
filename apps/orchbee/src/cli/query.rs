@@ -7,6 +7,8 @@ mod terminal_buffer;
 #[cfg(windows)]
 pub(super) mod terminal_copy;
 #[cfg(windows)]
+pub(super) mod terminal_links;
+#[cfg(windows)]
 mod terminal_output;
 #[cfg(windows)]
 pub(super) mod terminal_selection;

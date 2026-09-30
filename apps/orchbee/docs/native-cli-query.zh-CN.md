@@ -42,6 +42,38 @@ generation／Host epoch。`orchbee.terminal.selection` v1 为封闭 JSON 回执�
 读取、过期预期内容、错误行路由、Host 类型拒绝及确定的 viewer 释放。
 外部 scrollback 编辑及最终 Host／模拟器验收仍为独立义务；复制移动／搜索见下节。
 
+## 解析终端链接
+
+Windows `terminal link-resolve <terminal> --cursor ROW:COL` 解析显式原生视口
+中的单元格，不打开浏览器，也不调用插件。视口坐标为零起点的无符号 16 位；
+可选 `--offset-from-bottom <u64>` 默认零，视口首个物理行为捕获的 scrollback
+行数减去 offset。Offset 超出保留历史或光标超出捕获尺寸均失败。这个 CLI
+拥有的视口独立于 TUI Client 的焦点和滚动，不改变任何 Client 视口。精确绑定
+的主／子终端目标、可选完整 u64 `--content-revision` 与正 u64 `--generation`
+沿用选区／复制的既有 Site 只读五秒 viewer 和完整帧／Host／绑定围栏。
+
+解析器先严格读取一行 render，检查被点击完整字形的 OSC 8 目标，包括宽字尾。
+显式超链接返回完整 URI 与空 regions，遵循参考实现将帧拥有的 OSC 8 高亮和
+服务端解析的纯文本区域分开的规则。没有 OSC 8 时，只按需读取完整映射文本行，
+以证明跨已验证软换行的空白分隔 token，包括请求视口之外的 token 端点。
+缺少邻接上下文时有限扩展；硬行边界与 Unicode 空白结束 token，已验证宽字头
+占位不增加文本。纯文本识别遵循固定 Herdr：小写 http／https 前缀、裁剪尾部
+引号／标点、保留平衡的圆／方／花括号，点击最终 URL 之外返回无链接。
+参考实现的共享 8192 单元格探查预算计算选中的物理格、宽字头占位／尾格及双向
+边界探查；预算耗尽返回无链接，不返回截断 URL。原生编码字节／
+字形／65536 扫描行限制仍明确失败，不返回未证明的空结果。可见的包含端点区域
+保留完整宽字／组合字，并裁剪到请求视口。
+
+封闭 `orchbee.terminal.link-resolve` v1 包含完整 URL 或 null、
+`plain-text`／`explicit`／`none` 类型、可见区域、视口起点／offset 与捕获的
+内容修订／generation／Host／终端绑定。空结果是参考实现有界 token 策略下的
+成功无链接结果，包括其探查预算耗尽的情况。
+错误／重复／外来参数在运行时发现前拒绝；过期／回收／误路由／不完整记录整体
+失败，不重试，也不返回部分区域。本操作不取得 controller、不发输入、不确认
+用户 attention、不改选区／剪贴板／焦点、不启动 Site、不写持久状态。
+Schema／帮助／限定范围 Windows 补全与机器只读转发共用类型化请求。插件链接
+激活、TUI 悬停／点击接线及物理 Host／模拟器验收是另外明确界定的消费路径。
+
 ## 终端复制移动与搜索
 
 Windows `terminal copy-motion <terminal> --cursor ROW:COL --motion <motion>`

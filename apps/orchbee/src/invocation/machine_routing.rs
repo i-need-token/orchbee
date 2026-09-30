@@ -105,6 +105,7 @@ pub(crate) fn admit(request: &Request) -> Option<(OutputFormat, Option<TerminalS
         Request::Query { format, .. }
         | Request::TerminalSelection { format, .. }
         | Request::TerminalCopy { format, .. }
+        | Request::TerminalLink { format, .. }
         | Request::ClientQuery { format, .. }
         | Request::Client { format, .. }
         | Request::PanelAgent { format, .. }

@@ -207,6 +207,68 @@ impl BufferReader<'_> {
         start: u64,
         count: u16,
     ) -> Result<TerminalTextRowWindow, Failure> {
+        let record = self.window_record(start, count, ViewerRowDetail::Text)?;
+        decode_history_window(
+            record,
+            self.frame.route.attachment_id,
+            self.frame.route.host_epoch,
+            self.frame,
+            start,
+            u64::from(count),
+            NonZeroU64::new(self.sequence).ok_or_else(viewer_protocol_invalid)?,
+        )
+    }
+    pub(super) fn hyperlink(&mut self, row: u64, col: u16) -> Result<Option<String>, Failure> {
+        let record = self.window_record(row, 1, ViewerRowDetail::Render)?;
+        let envelope = orchbee_terminal_protocol::decode_transport_envelope(&record)
+            .map_err(|_| viewer_protocol_invalid())?;
+        if envelope.protocol != orchbee_terminal_protocol::CURRENT_PROTOCOL_VERSION
+            || envelope.role != orchbee_terminal_protocol::MessageRole::Response
+            || envelope.optional_message
+            || envelope.payload_encoding != orchbee_terminal_protocol::PayloadEncoding::RowWindow
+            || envelope.host_epoch != Some(self.frame.route.host_epoch)
+        {
+            return Err(viewer_protocol_invalid());
+        }
+        let window = orchbee_terminal_protocol::decode_terminal_render_row_window(envelope.payload)
+            .map_err(|_| viewer_protocol_invalid())?;
+        let route = window.route();
+        if route.attachment_id != self.frame.route.attachment_id
+            || route.host_epoch != self.frame.route.host_epoch
+            || route.sequence.get() != self.sequence
+            || route.revision != self.frame.route.revision
+            || route.generation != self.frame.route.generation
+            || route.total_rows != self.total
+            || route.start_row != row
+            || route.row_count != 1
+            || route.columns != self.frame.geometry.columns
+        {
+            return Err(viewer_protocol_invalid());
+        }
+        let row = window
+            .projection()
+            .rows()
+            .next()
+            .ok_or_else(viewer_protocol_invalid)?;
+        let cell = row
+            .cells()
+            .nth(usize::from(col))
+            .ok_or_else(viewer_protocol_invalid)?;
+        let cell = if cell.width == 2 && col > 0 {
+            row.cells()
+                .nth(usize::from(col - 1))
+                .ok_or_else(viewer_protocol_invalid)?
+        } else {
+            cell
+        };
+        Ok(cell.hyperlink.map(str::to_owned))
+    }
+    fn window_record(
+        &mut self,
+        start: u64,
+        count: u16,
+        detail: ViewerRowDetail,
+    ) -> Result<Vec<u8>, Failure> {
         self.signals.check_before(self.deadline)?;
         if count == 0
             || count > 4096
@@ -251,7 +313,7 @@ impl BufferReader<'_> {
         let request = TerminalViewerRequest::new(
             obcs_request_id()?,
             TerminalViewerAction::ReadRows {
-                detail: ViewerRowDetail::Text,
+                detail,
                 attachment_id: self.viewer.clone(),
                 start_row: start,
                 row_count: count,
@@ -278,15 +340,7 @@ impl BufferReader<'_> {
                     return Err(limit());
                 }
                 self.remaining_bytes -= payload.len();
-                decode_history_window(
-                    record.clone(),
-                    self.frame.route.attachment_id,
-                    self.frame.route.host_epoch,
-                    self.frame,
-                    start,
-                    u64::from(count),
-                    sequence,
-                )
+                Ok(record.clone())
             }
             TerminalViewerOutcome::RowsRejected { reason } => {
                 Err(classify_rows_rejected(*reason, "read-history"))

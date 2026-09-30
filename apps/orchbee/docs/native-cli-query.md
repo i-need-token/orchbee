@@ -54,6 +54,49 @@ wrong row routing and typed Host refusal with deterministic viewer release.
 External scrollback editing and final Host/emulator acceptance remain separate
 obligations; copy motion/search are specified below.
 
+## Resolve a terminal link
+
+Windows `terminal link-resolve <terminal> --cursor ROW:COL` resolves the cell in
+an explicit native viewport without opening a browser or invoking a plugin.
+Viewport coordinates are unsigned 16-bit, zero-based; optional
+`--offset-from-bottom <u64>` defaults to zero and defines the viewport's first
+physical row as captured scrollback rows minus offset. An offset past retained
+history or a cursor outside captured dimensions fails. This CLI-owned viewport
+is independent of a TUI Client's focus and scroll; no Client viewport is changed.
+Exact bound primary/child terminal targets, optional full-u64 `--content-revision`
+and positive-u64 `--generation` use the same existing-Site read-only five-second
+viewer and full frame/Host/binding fences as selection and copy.
+
+The resolver first reads one strictly validated render row to inspect the clicked
+whole glyph's OSC 8 target, including wide tails. An explicit hyperlink returns
+its complete URI and an empty regions list, matching the reference's separation
+between frame-owned OSC 8 highlighting and server-resolved plain-text regions.
+Without OSC 8, complete mapped text rows are read only as needed to prove the
+whitespace-delimited token across verified soft wraps, including token ends
+outside the requested viewport. Missing neighboring context triggers a bounded
+extension; hard row boundaries and Unicode whitespace stop the token. Verified
+wide spacer heads add no text. Plain detection follows pinned Herdr: lowercase
+http/https prefixes, trailing quotes/punctuation trimmed, balanced round/square/
+curly closers retained, and a click outside the resulting URL yields no link.
+The reference shared8192-cell inspection budget includes selected physical
+cells, wide spacer/tail cells and boundary probes in both directions; exhausted
+inspection yields no link rather than a truncated URL. Native
+encoded-byte/glyph/65536-row scan limits still fail explicitly rather than
+returning an unproven empty result. Visible inclusive regions preserve full
+wide/combining cells and are clipped to the requested viewport.
+
+Closed `orchbee.terminal.link-resolve` v1 includes the complete URL or null,
+`plain-text`/`explicit`/`none` kind, visible regions, viewport origin/offset and
+captured content revision/generation/Host/terminal binding. Empty is a successful
+no-link result under the reference's bounded token policy, including exhaustion
+of its inspection budget. Malformed/duplicate/foreign options fail before
+runtime discovery; stale/evicted/misrouted/incomplete records fail whole, with no
+retry or partial regions. This operation never obtains a controller, sends input,
+acknowledges user attention, changes selection/clipboard/focus, starts a Site or
+writes durable state. Schema/help/scoped Windows completion and machine read
+forwarding share the typed request. Plugin link activation, TUI hover/click wiring
+and physical Host/emulator acceptance remain separately scoped consumers.
+
 ## Terminal copy motion and search
 
 Windows `terminal copy-motion <terminal> --cursor ROW:COL --motion <motion>`

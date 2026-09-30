@@ -49,11 +49,15 @@ mod terminal_buffer;
 #[cfg(windows)]
 mod terminal_copy;
 #[cfg(windows)]
+mod terminal_links;
+#[cfg(windows)]
 pub(crate) use crate::terminal_copy::{
     CopyMotion, CopySearchDirection, TerminalTextPoint, TerminalTextRange,
 };
 #[cfg(windows)]
 pub(crate) use terminal_copy::{TerminalCopyAction, TerminalCopyCommand};
+#[cfg(windows)]
+pub(crate) use terminal_links::TerminalLinkCommand;
 mod terminal_run;
 mod terminal_stream;
 pub(crate) use client_control::{
@@ -428,6 +432,8 @@ pub(crate) enum CommandPath {
     TerminalCopyMotion,
     #[cfg(windows)]
     TerminalCopySearch,
+    #[cfg(windows)]
+    TerminalLinkResolve,
     TerminalWaitOutput,
     TerminalSend,
     TerminalRun,
@@ -577,6 +583,8 @@ impl CommandPath {
             Self::TerminalCopyMotion => "terminal copy-motion",
             #[cfg(windows)]
             Self::TerminalCopySearch => "terminal copy-search",
+            #[cfg(windows)]
+            Self::TerminalLinkResolve => "terminal link-resolve",
             Self::TerminalWaitOutput => "terminal wait-output",
             Self::TerminalSend => "terminal send",
             Self::TerminalRun => "terminal run",
@@ -1377,6 +1385,11 @@ pub(crate) enum RuntimeStatusScope {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum Request {
     #[cfg(windows)]
+    TerminalLink {
+        command: TerminalLinkCommand,
+        format: OutputFormat,
+    },
+    #[cfg(windows)]
     TerminalCopy {
         command: TerminalCopyCommand,
         format: OutputFormat,
@@ -1614,6 +1627,8 @@ pub(crate) enum UsageContext {
 /// expect; rendered per locale, never serialized.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum ExpectedValue {
+    #[cfg(windows)]
+    TerminalViewportPoint,
     #[cfg(windows)]
     TerminalCopyMotion,
     #[cfg(windows)]
@@ -1893,6 +1908,7 @@ enum Token {
 
 #[derive(Default)]
 struct Options {
+    link_offset: Option<String>,
     copy_motion: Option<String>,
     copy_query: Option<String>,
     copy_previous: Option<String>,
@@ -2032,6 +2048,7 @@ struct Options {
 /// both the format-envelope walk and the option scan so ownership is decided
 /// identically in the two passes.
 const VALUE_FLAGS: &[&str] = &[
+    "--offset-from-bottom",
     "--motion",
     "--query",
     "--previous",
@@ -2746,6 +2763,7 @@ fn apply_value_flag(
         "--target-pane" => &mut options.plugin_target,
         "--ref" => &mut options.plugin_ref,
         "--limit" => &mut options.limit,
+        "--offset-from-bottom" => &mut options.link_offset,
         "--motion" => &mut options.copy_motion,
         "--query" => &mut options.copy_query,
         "--previous" => &mut options.copy_previous,
@@ -4021,6 +4039,8 @@ fn resolve_words(
             terminal_stream::observe(operands, options, envelope)
         }
         #[cfg(windows)]
+        ["terminal", "link-resolve", value] => terminal_links::parse(value, options, envelope),
+        #[cfg(windows)]
         ["terminal", "copy-motion", value] => terminal_copy::parse(value, options, false, envelope),
         #[cfg(windows)]
         ["terminal", "copy-search", value] => terminal_copy::parse(value, options, true, envelope),
@@ -5137,6 +5157,8 @@ fn help_topic(path: &[&str]) -> Option<HelpTopic> {
         ["terminal", "copy-motion"] => HelpTopic::Command(CommandPath::TerminalCopyMotion),
         #[cfg(windows)]
         ["terminal", "copy-search"] => HelpTopic::Command(CommandPath::TerminalCopySearch),
+        #[cfg(windows)]
+        ["terminal", "link-resolve"] => HelpTopic::Command(CommandPath::TerminalLinkResolve),
         ["terminal", "wait-output"] => HelpTopic::Command(CommandPath::TerminalWaitOutput),
         ["terminal", "send"] => HelpTopic::Command(CommandPath::TerminalSend),
         ["terminal", "run"] => HelpTopic::Command(CommandPath::TerminalRun),
@@ -5295,6 +5317,7 @@ fn mutation(command: MutationCommand, options: &Options) -> Request {
 /// is only meaningful whole.
 #[derive(Clone, Copy)]
 struct Scope {
+    link_offset: bool,
     copy_motion: bool,
     copy_query: bool,
     copy_previous: bool,
@@ -5439,6 +5462,7 @@ struct Scope {
 }
 
 const NO_OPTIONS: Scope = Scope {
+    link_offset: false,
     copy_motion: false,
     copy_query: false,
     copy_previous: false,
@@ -5779,7 +5803,8 @@ const INTEGRATION_SCOPE: Scope = Scope {
 
 /// Any mutation-only option seen outside a mutation command.
 fn business_options(options: &Options) -> bool {
-    options.copy_motion.is_some()
+    options.link_offset.is_some()
+        || options.copy_motion.is_some()
         || options.copy_query.is_some()
         || options.copy_previous.is_some()
         || options.selection_anchor.is_some()
@@ -5871,6 +5896,9 @@ fn business_options(options: &Options) -> bool {
 /// The first named option present but outside `scope`, in the fixed `Options`
 /// declaration order — deterministic without any argv-order state.
 fn first_out_of_scope(options: &Options, scope: Scope) -> Option<&'static str> {
+    if options.link_offset.is_some() && !scope.link_offset {
+        return Some("--offset-from-bottom");
+    }
     if options.copy_motion.is_some() && !scope.copy_motion {
         return Some("--motion");
     }

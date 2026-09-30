@@ -10,7 +10,7 @@
 			"const": "orchbee.api.schema"
 		},
 		"version": {
-			"const": 127
+			"const": 128
 		},
 		"source": {
 			"type": "object",
@@ -164,7 +164,8 @@
 						"orchbee.update",
 						"orchbee.machine",
 						"orchbee.agent.view",
-						"orchbee.popup.result"
+						"orchbee.popup.result",
+						"orchbee.terminal.link-resolve"
 					],
 					"propertyNames": {
 						"$ref": "#/$defs/schemaId"
@@ -287,7 +288,8 @@
 				"orchbee.update",
 				"orchbee.machine",
 				"orchbee.agent.view",
-				"orchbee.popup.result"
+				"orchbee.popup.result",
+				"orchbee.terminal.link-resolve"
 			]
 		}
 	}

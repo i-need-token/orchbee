@@ -1,6 +1,38 @@
 //! Shared observable completion obligations, independent of shell syntax.
 
 pub(super) const CASES: &[(&str, &str, bool)] = &[
+    ("orchbee terminal link-r", "link-resolve", true),
+    ("orchbee help terminal link-r", "link-resolve", true),
+    (
+        "orchbee terminal link-resolve abc --off",
+        "--offset-from-bottom",
+        true,
+    ),
+    (
+        "orchbee terminal link-resolve abc --offset-from-bottom=1 --off",
+        "--offset-from-bottom",
+        false,
+    ),
+    (
+        "orchbee terminal link-resolve abc --offset-from-bottom 1 --cu",
+        "--cursor",
+        true,
+    ),
+    (
+        "orchbee terminal link-resolve abc --motion line-end --cu",
+        "--cursor",
+        false,
+    ),
+    (
+        "orchbee terminal read abc --off",
+        "--offset-from-bottom",
+        false,
+    ),
+    (
+        "orchbee --machine work terminal link-r",
+        "link-resolve",
+        true,
+    ),
     ("orchbee terminal copy-m", "copy-motion", true),
     ("orchbee help terminal copy-s", "copy-search", true),
     ("orchbee terminal copy-motion abc --mo", "--motion", true),

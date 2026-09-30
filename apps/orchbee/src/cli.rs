@@ -100,6 +100,8 @@ mod terminal_output;
 #[cfg(windows)]
 pub(crate) use query::terminal_copy::run as copy_terminal;
 #[cfg(windows)]
+pub(crate) use query::terminal_links::run as resolve_terminal_link;
+#[cfg(windows)]
 pub(crate) use query::terminal_selection::run as read_terminal_selection;
 #[cfg(windows)]
 pub(crate) mod terminal_stream;

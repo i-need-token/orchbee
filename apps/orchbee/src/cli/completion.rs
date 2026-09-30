@@ -298,6 +298,8 @@ const FAMILY_VERBS: &[(&str, &[&str])] = &[
             "copy-motion",
             #[cfg(windows)]
             "copy-search",
+            #[cfg(windows)]
+            "link-resolve",
             "run",
             "send",
             "session",
@@ -330,6 +332,7 @@ const FAMILY_VERBS: &[(&str, &[&str])] = &[
 /// Every business flag the grammar admits (`--format` is orthogonal), in the
 /// order the state machine records them.
 const BUSINESS_FLAGS: &[&str] = &[
+    "--offset-from-bottom",
     "--motion",
     "--query",
     "--previous",
@@ -481,6 +484,16 @@ const REPEATABLE_FLAGS: &[&str] = &[
 const CONTROL_FLAGS: &[&str] = &["--cols", "--rows", "--timeout", "--takeover"];
 const OBSERVE_FLAGS: &[&str] = &["--cols", "--rows", "--timeout"];
 const COMMAND_FLAGS: &[(&str, &[&str])] = &[
+    #[cfg(windows)]
+    (
+        "terminal:link-resolve",
+        &[
+            "--cursor",
+            "--offset-from-bottom",
+            "--content-revision",
+            "--generation",
+        ],
+    ),
     #[cfg(windows)]
     (
         "terminal:copy-motion",
@@ -1281,6 +1294,8 @@ const PROVIDER_VALUES: &[&str] = &[
 /// `<family>:<verb>` paths that consume one positional operand.
 const OPERAND_PATHS: &[&str] = &[
     #[cfg(windows)]
+    "terminal:link-resolve",
+    #[cfg(windows)]
     "terminal:copy-motion",
     #[cfg(windows)]
     "terminal:copy-search",
@@ -1559,6 +1574,8 @@ const HELP_CHILDREN: &[(&str, &[&str])] = &[
             "copy-motion",
             #[cfg(windows)]
             "copy-search",
+            #[cfg(windows)]
+            "link-resolve",
             "run",
             "send",
             "session",
@@ -1735,6 +1752,7 @@ fn flag_bit(flag: &str) -> &'static str {
         "--motion" => "seen_copy_motion",
         "--query" => "seen_copy_query",
         "--previous" => "seen_copy_previous",
+        "--offset-from-bottom" => "seen_link_offset",
         "--anchor" => "seen_selection_anchor",
         "--content-revision" => "seen_content_revision",
         "--cursor" => "seen_cursor",
