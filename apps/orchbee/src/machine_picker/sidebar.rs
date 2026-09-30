@@ -15,21 +15,21 @@ impl SidebarWindow {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(super) struct Sidebar {
-    visible: bool,
+pub(super) struct Sidebar<S = orchbee_local_site_runtime::WindowsAgentSidebarSettings> {
+    pub(super) visible: bool,
     top: usize,
     follow_focus: bool,
-    scroll: Option<Scroll>,
-    settings: std::sync::Arc<orchbee_local_site_runtime::WindowsAgentSidebarSettings>,
+    pub(super) scroll: Option<Scroll>,
+    pub(super) settings: std::sync::Arc<S>,
 }
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-struct Scroll {
+pub(super) struct Scroll {
     up: bool,
     pending: usize,
     capacity: usize,
     maximum: usize,
 }
-impl Default for Sidebar {
+impl<S: Default> Default for Sidebar<S> {
     fn default() -> Self {
         Self {
             visible: false,
@@ -40,7 +40,7 @@ impl Default for Sidebar {
         }
     }
 }
-impl Sidebar {
+impl<S> Sidebar<S> {
     pub(super) fn reset(&mut self) {
         self.top = 0;
         self.follow_focus = true;
@@ -62,6 +62,10 @@ impl Row {
 impl Picker {
     /// Demand follows the actual height/width tier, not the sidebar intent alone.
     pub(crate) fn observe_agent_sidebar(&mut self, visible: bool) {
+        if self.spaces.visible != visible {
+            self.spaces.visible = visible;
+            self.spaces.reset();
+        }
         if self.sidebar.visible != visible {
             self.sidebar.visible = visible;
             self.sidebar.reset();
@@ -101,76 +105,30 @@ impl Picker {
     ) -> SidebarWindow {
         let total = heights.len().min(self.agent_rows.len());
         let heights = &heights[..total];
-        let maximum = if cells == 0 {
-            0
-        } else {
-            fit_backwards(heights, total, cells, gap)
-        };
-        let mut top = self.sidebar.top.min(maximum);
-        if self.sidebar.follow_focus
-            && cells > 0
-            && let Some(current) = self.agent_rows.iter().position(|row| {
-                row.agent
-                    .as_ref()
-                    .is_some_and(|agent| self.current_agent(&row.choice, agent))
-            })
-        {
-            if current < top {
-                top = current;
-            } else if current >= fit_end(heights, top, cells, gap) && current < total {
-                top = fit_backwards(heights, current + 1, cells, gap);
-            }
-        }
-        SidebarWindow {
-            top,
-            capacity: fit_end(heights, top, cells, gap).saturating_sub(top),
-            total,
-            maximum,
-        }
+        let current = self.agent_rows.iter().position(|row| {
+            row.agent
+                .as_ref()
+                .is_some_and(|agent| self.current_agent(&row.choice, agent))
+        });
+        self.sidebar.window(&heights[..total], cells, gap, current)
     }
     pub(crate) fn queue_sidebar_scroll(&mut self, window: SidebarWindow, up: bool) {
-        if !self.available || !self.sidebar.visible || self.open || window.capacity == 0 {
-            return;
+        if self.available && self.sidebar.visible && !self.open {
+            self.sidebar.queue(window, up);
         }
-        self.sidebar.top = window.top;
-        self.sidebar.follow_focus = false;
-        let pending = self
-            .sidebar
-            .scroll
-            .filter(|scroll| scroll.up == up)
-            .map_or(0, |scroll| scroll.pending);
-        self.sidebar.scroll = Some(Scroll {
-            up,
-            pending: pending.saturating_add(3).min(window.total),
-            capacity: window.capacity,
-            maximum: window.maximum,
-        });
     }
     pub(crate) fn cancel_sidebar_scroll(&mut self) {
         self.sidebar.scroll = None;
+        self.spaces.scroll = None;
     }
     pub(crate) fn settle_sidebar_scroll(&mut self) -> bool {
-        if !self.sidebar.visible || self.open {
+        if self.open {
             self.cancel_sidebar_scroll();
             return false;
         }
-        let Some(mut scroll) = self.sidebar.scroll.take() else {
-            return false;
-        };
-        let count = scroll.pending.min(scroll.capacity);
-        let maximum = scroll.maximum.min(self.agent_rows.len().saturating_sub(1));
-        let before = self.sidebar.top.min(maximum);
-        let next = if scroll.up {
-            before.saturating_sub(count)
-        } else {
-            before.saturating_add(count).min(maximum)
-        };
-        self.sidebar.top = next;
-        scroll.pending -= count;
-        if scroll.pending > 0 && next != before {
-            self.sidebar.scroll = Some(scroll);
-        }
-        next != before
+        let agents = self.sidebar.settle(self.agent_rows.len());
+        let spaces = self.spaces.settle(self.workspace_rows.len());
+        agents | spaces
     }
     pub(crate) fn show_agents(&mut self) {
         self.cancel_sidebar_scroll();
@@ -257,4 +215,75 @@ fn fit_backwards(heights: &[u16], end: usize, cells: u16, gap: u16) -> usize {
         top -= 1;
     }
     top
+}
+
+impl<S> Sidebar<S> {
+    pub(super) fn window(
+        &self,
+        heights: &[u16],
+        cells: u16,
+        gap: u16,
+        current: Option<usize>,
+    ) -> SidebarWindow {
+        let total = heights.len();
+        let maximum = if cells == 0 {
+            0
+        } else {
+            fit_backwards(heights, total, cells, gap)
+        };
+        let mut top = self.top.min(maximum);
+        if self.follow_focus
+            && cells > 0
+            && let Some(current) = current.filter(|&i| i < total)
+        {
+            if current < top {
+                top = current;
+            } else if current >= fit_end(heights, top, cells, gap) {
+                top = fit_backwards(heights, current + 1, cells, gap);
+            }
+        }
+        SidebarWindow {
+            top,
+            capacity: fit_end(heights, top, cells, gap).saturating_sub(top),
+            total,
+            maximum,
+        }
+    }
+    pub(super) fn queue(&mut self, window: SidebarWindow, up: bool) {
+        if window.capacity == 0 {
+            return;
+        }
+        self.top = window.top;
+        self.follow_focus = false;
+        let pending = self.scroll.filter(|s| s.up == up).map_or(0, |s| s.pending);
+        self.scroll = Some(Scroll {
+            up,
+            pending: pending.saturating_add(3).min(window.total),
+            capacity: window.capacity,
+            maximum: window.maximum,
+        });
+    }
+    fn settle(&mut self, total: usize) -> bool {
+        if !self.visible {
+            self.scroll = None;
+            return false;
+        }
+        let Some(mut scroll) = self.scroll.take() else {
+            return false;
+        };
+        let count = scroll.pending.min(scroll.capacity);
+        let maximum = scroll.maximum.min(total.saturating_sub(1));
+        let before = self.top.min(maximum);
+        let next = if scroll.up {
+            before.saturating_sub(count)
+        } else {
+            before.saturating_add(count).min(maximum)
+        };
+        self.top = next;
+        scroll.pending -= count;
+        if scroll.pending > 0 && next != before {
+            self.scroll = Some(scroll);
+        }
+        next != before
+    }
 }

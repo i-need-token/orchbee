@@ -21,7 +21,7 @@ channel = "stable"
 manifest_check = true
 ```
 
-Only the sections and keys shown here are accepted. `terminal.new_cwd` accepts `follow`, `home`, `current`, `workspace`, or a path. An empty value means `follow`. Paths use the Windows CLI path adapter: relative paths resolve against the configuration file's parent, tilde paths use Windows home, and ambiguous drive-relative, UNC and device paths are rejected. A missing `APPDATA` leaves defaults available; an explicit malformed value does not silently fall back.
+Only documented sections and keys are accepted, including the `[keys]` and `[ui]` families described below. `terminal.new_cwd` accepts `follow`, `home`, `current`, `workspace`, or a path. An empty value means `follow`. Paths use the Windows CLI path adapter: relative paths resolve against the configuration file's parent, tilde paths use Windows home, and ambiguous drive-relative, UNC and device paths are rejected. A missing `APPDATA` leaves defaults available; an explicit malformed value does not silently fall back.
 
 ## Creation policy
 
@@ -310,11 +310,47 @@ Live `terminal_title`/`terminal_title_stripped` now read the exact physical OSC 
 The raw form retains activity glyphs; the stripped form removes one elevation prefix
 and one recognized leading activity glyph. Missing or cleared titles disappear;
 `$terminal_title` remains a separate custom value.
-`ui.sidebar.spaces` is a separate unimplemented configuration family.
+`ui.sidebar.spaces` has its own Workspace layout and profile, described below.
 
-`config check` v10 and Site configuration receipts v5 expose required
-`agentSidebarProfile` (closed canonical JSON, at most 32 KiB). Configuration failure
+`config check` v11 and Site configuration receipts v6 expose required
+`agentSidebarProfile` and `spacesSidebarProfile` (closed canonical JSON, at most 32 KiB). Configuration failure
 v7 includes `ui.sidebar.agents` and layout/color/token/rule/provider diagnostics.
-All prior public versions retain their closed fields. Catalog v122 keeps 105 schemas
+All prior public versions retain their closed fields. Catalog v123 keeps 105 schemas
 and 141 grammar paths. Matched private cohorts carry the new required profile
 together; deployment/rollback is by whole cohort, without persistent migration.
+
+## Windows Workspace sidebar layouts
+
+The main sidebar has a Workspace section above Agents, with independent scrolling.
+Use the Workspace picker for keyboard navigation (open Machines, then Tab), or
+click its header/footer. Row clicks retain complete machine/Site/context identity,
+even when names coincide. The native standalone context is also a navigation row;
+canonical Workspaces remain flat, without inventing Herdr parent/child grouping.
+
+```toml
+[ui.sidebar.spaces]
+rows = [["state_icon", "workspace"], [{ token = "branch", fg = "#8bc", rules = [{ starts_with = "worktree/", dim = true }] }, "git_status"], ["$issue"]]
+row_gap = 1
+```
+
+Defaults are `[["state_icon", "workspace"], ["branch", "git_status"]]`, gap 0.
+An explicit `rows = []` keeps an identity/navigation row. The other builtin is
+`state_text`; `$name` reads Workspace reports and never replaces a builtin.
+Styles and first-match rules share Agent admission, but icons/Git counts reject
+text rules and Workspace layouts have no `rows_by_agent`. Limit 16 rows, 16 tokens
+per row, 16 rules per text token and `row_gap` 0–65535. Missing/hidden values collapse.
+Long text shares the available cells after reserving icon/Git-count widths.
+
+State uses the complete physical Agent checkpoint after Client seen projection,
+independent of list/source filters. Git reads the committed Workspace directory
+on its Worker, showing nonzero ahead/behind against the local upstream. Missing
+upstream supplies no counts; nonrepositories supply no Git observation. Detached
+has no branch; unborn keeps its branch name. No fetch, configuration write, hook/fsmonitor execution, terminal
+startup or per-draw I/O occurs. Custom `$branch`/`$git_status` stay distinct.
+See the [Workspace sidebar model](machines.md#workspace-sidebar-model) for fences,
+aggregation, budgets, exact activation and acceptance limits.
+
+Configuration failure v8 admits `ui.sidebar.spaces`. Site/Client reload validates
+keys, notifications and both sidebar profiles before publishing any of them.
+Each profile caps at 32 KiB; the matched-cohort configuration frame caps at 256 KiB
+including escaping. Older public CLI versions retain their closed fields.

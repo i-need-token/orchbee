@@ -1,7 +1,7 @@
 //! Site-owned runtime configuration publication; a revision is not a Client acknowledgement.
 use crate::{ContractError, ProtocolVersion, SiteId, WorkbenchRequestId, WorkbenchRevision};
 use serde::{Deserialize, Serialize};
-pub const MAXIMUM_CONFIGURATION_BYTES: usize = 128 * 1024;
+pub const MAXIMUM_CONFIGURATION_BYTES: usize = 256 * 1024;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
@@ -39,6 +39,7 @@ pub struct ConfigurationSnapshot {
     pub notification_profile: String,
     /// Canonical presentation-only JSON admitted by the Windows settings owner.
     pub agent_sidebar_profile: String,
+    pub spaces_sidebar_profile: String,
     pub restart_required: Vec<ConfigurationRestart>,
     pub manifest_check: bool,
     /// Admitted defaults for subsequent preparations, not resolved executable facts.
@@ -141,6 +142,8 @@ impl ConfigurationResult {
                     && snapshot.window_title.len() <= 4096
                     && !snapshot.notification_profile.is_empty()
                     && snapshot.notification_profile.len() <= 1024
+                    && !snapshot.spaces_sidebar_profile.is_empty()
+                    && snapshot.spaces_sidebar_profile.len() <= 32 * 1024
                     && !snapshot.agent_sidebar_profile.is_empty()
                     && snapshot.agent_sidebar_profile.len() <= 32 * 1024
                     && snapshot.default_shell.len() <= 4096

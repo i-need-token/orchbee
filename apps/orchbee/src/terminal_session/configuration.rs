@@ -6,6 +6,7 @@ use crate::{
 use orchbee_local_ipc::{AsLocalIo, LocalStream};
 use orchbee_local_site_runtime::{
     WindowsAgentSidebarSettings, WindowsKeySettings, WindowsNotificationSettings,
+    WindowsSpaceSidebarSettings,
 };
 use orchbee_workbench_protocol::{
     ConfigurationAction, ConfigurationOutcome, ConfigurationRequest, ConfigurationSnapshot,
@@ -76,8 +77,10 @@ impl Watcher {
                 WindowsKeySettings::from_profile(&snapshot.keys_profile),
                 WindowsNotificationSettings::from_profile(&snapshot.notification_profile),
                 WindowsAgentSidebarSettings::from_profile(&snapshot.agent_sidebar_profile),
+                WindowsSpaceSidebarSettings::from_profile(&snapshot.spaces_sidebar_profile),
             ) {
-                (Ok(keys), Ok(notifications), Ok(sidebar)) => {
+                (Ok(keys), Ok(notifications), Ok(sidebar), Ok(spaces)) => {
+                    view.machines.configure_space_sidebar(spaces);
                     view.machines.configure_agent_sidebar(sidebar);
                     view.notifications.configure(notifications);
                     view.configure_keys(&keys);

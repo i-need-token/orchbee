@@ -13,6 +13,63 @@ fn response(execution: WorkbenchExecution) -> WorkbenchResponse {
     response
 }
 
+#[test]
+fn workspace_git_requires_only_read_grant_and_never_changes_canonical_state() {
+    use orchbee_workbench_protocol::{
+        WorkbenchWorkspaceId, WorkspaceGitFailure, WorkspaceGitOutcome, WorkspaceGitRequest,
+    };
+    let terminals = Arc::new(LocalTerminalService::new(Arc::new(Mutex::new(
+        WorkerRegistry::new(),
+    ))));
+    let service = |read| {
+        WorkbenchService::new(
+            WorkbenchPolicy {
+                read,
+                manage_navigation: false,
+                associate_directory: false,
+                create_terminal: false,
+                manage_terminal_lifecycle: false,
+            },
+            terminals.clone(),
+        )
+    };
+    let reader = service(true);
+    let snapshot = || {
+        let WorkbenchResponse::Snapshot(reply) = response(reader.execute(
+            WorkbenchRequest::SnapshotRead(SnapshotReadIntent {
+                protocol_version: ProtocolVersion,
+                request_id: WorkbenchRequestId::parse(&format!("{:032x}", 1)).unwrap(),
+            }),
+        )) else {
+            panic!("snapshot")
+        };
+        let WorkbenchSnapshotOutcome::Available { snapshot } = reply.outcome else {
+            panic!("available snapshot")
+        };
+        snapshot
+    };
+    let before = snapshot();
+    for (read, reason) in [
+        (false, WorkspaceGitFailure::Denied),
+        (true, WorkspaceGitFailure::Unavailable),
+    ] {
+        let request = WorkspaceGitRequest {
+            protocol_version: ProtocolVersion,
+            request_id: WorkbenchRequestId::parse(&format!("{:032x}", 2)).unwrap(),
+            site_id: before.site_id.clone(),
+            workspace_id: WorkbenchWorkspaceId::parse(&format!("{:032x}", 3)).unwrap(),
+        };
+        let WorkbenchResponse::WorkspaceGit(reply) =
+            response(service(read).execute(WorkbenchRequest::WorkspaceGit(request.clone())))
+        else {
+            panic!("typed Git result")
+        };
+        assert!(reply.answers(&request));
+        assert_eq!(reply.outcome, WorkspaceGitOutcome::Failed { reason });
+        assert_eq!(snapshot(), before);
+    }
+}
+
 #[cfg(windows)]
 #[test]
 fn configuration_reads_and_reloads_require_their_own_grant_before_owner_admission() {

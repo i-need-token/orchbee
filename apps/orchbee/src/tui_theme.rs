@@ -103,6 +103,8 @@ pub(crate) struct GlyphSet {
     pub middle_dot: &'static str,
     /// Status glyph used in the sidebar site section.
     pub status_bullet: &'static str,
+    pub git_ahead: &'static str,
+    pub git_behind: &'static str,
     /// Active marker in compact tab and context lists.
     pub active_marker: &'static str,
 }
@@ -112,6 +114,8 @@ impl GlyphSet {
         ellipsis: "…",
         middle_dot: "·",
         status_bullet: "●",
+        git_ahead: "↑",
+        git_behind: "↓",
         active_marker: "*",
     };
 
@@ -120,6 +124,8 @@ impl GlyphSet {
         ellipsis: "..",
         middle_dot: "-",
         status_bullet: "*",
+        git_ahead: "+",
+        git_behind: "-",
         active_marker: "*",
     };
 

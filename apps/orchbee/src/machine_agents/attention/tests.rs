@@ -1,4 +1,5 @@
 use super::*;
+use crate::machines::ProfileId;
 use orchbee_workbench_protocol::TerminalTitleObservation;
 #[test]
 fn raw_title_animation_and_clear_never_change_agent_seen_or_semantic_sequence() {

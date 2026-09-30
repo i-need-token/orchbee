@@ -6,6 +6,19 @@ fn sidebar_admission_shares_the_whole_file_owner_with_keys_and_notifications() {
     let read = |text: &str| parse(text, Path::new(r"C:\config.toml"), &|_| None);
     let settings = read("[keys]\nprefix='ctrl+a'\n[ui.toast]\ndelivery='off'\n[ui.sidebar.agents]\nrows=[['$summary']]\nrow_gap=1\n").unwrap();
     assert_eq!(settings.agent_sidebar.row_gap(), 1);
+    assert!(
+        read("[ui.sidebar.spaces]\nrows=[]")
+            .unwrap()
+            .space_sidebar
+            .rows()
+            .is_empty()
+    );
+    assert_eq!(
+        read("[ui.sidebar.spaces]\nrows=[[\"agent\"]]")
+            .unwrap_err()
+            .field,
+        "ui.sidebar.spaces"
+    );
     assert_eq!(
         settings
             .agent_sidebar
@@ -16,7 +29,6 @@ fn sidebar_admission_shares_the_whole_file_owner_with_keys_and_notifications() {
     );
     for text in [
         "[ui.sidebar]\nother=1",
-        "[ui.sidebar.spaces]\nrows=[]",
         "[ui.sidebar.agents]\nrows=[['typo']]",
         "[ui]\nsidebar=42",
     ] {

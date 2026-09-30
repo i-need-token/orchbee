@@ -156,9 +156,9 @@ impl Fixture {
     }
     fn reply(&mut self, request: &WorktreeJobRequest, outcome: WorktreeJobOutcome) {
         let job_id = match request.action {
-            WorktreeJobAction::Start { .. } | WorktreeJobAction::StartSource { .. } => {
-                request.operation_id
-            }
+            WorktreeJobAction::Start { .. }
+            | WorktreeJobAction::StartSource { .. }
+            | WorktreeJobAction::StartStatus { .. } => request.operation_id,
             WorktreeJobAction::Poll { job_id } | WorktreeJobAction::Cancel { job_id } => job_id,
         };
         write_message(
@@ -342,4 +342,187 @@ fn wrong_site_malformed_result_and_lost_worker_never_report_found() {
             reason: Failure::TransportLoss {} | Failure::Unavailable { .. }
         }
     ));
+}
+
+fn spawn_workspace_git(
+    fixture: &Fixture,
+    workspace_id: WorkbenchWorkspaceId,
+) -> JoinHandle<orchbee_workbench_protocol::WorkspaceGitResult> {
+    let snapshot = fixture.snapshot();
+    let service = fixture.service.clone();
+    thread::spawn(move || {
+        service.execute_workspace_git(orchbee_workbench_protocol::WorkspaceGitRequest {
+            protocol_version: ProtocolVersion,
+            request_id: id(900),
+            site_id: snapshot.site_id,
+            workspace_id,
+        })
+    })
+}
+fn status_poll(fixture: &mut Fixture, path: &str) -> WorktreeJobRequest {
+    let start = fixture.receive();
+    assert_eq!(
+        start.action,
+        WorktreeJobAction::StartStatus {
+            directory: path.as_bytes().to_vec()
+        }
+    );
+    assert!(fixture.service.coordinator.try_lock().is_ok());
+    assert!(fixture.service.workers.try_lock().is_ok());
+    fixture.reply(
+        &start,
+        WorktreeJobOutcome::Start(WorktreeJobStartOutcome::Accepted),
+    );
+    let poll = fixture.receive();
+    assert!(matches!(poll.action,WorktreeJobAction::Poll{job_id} if job_id==start.operation_id));
+    poll
+}
+#[test]
+fn workspace_git_status_is_read_only_and_rejects_topology_changes_after_worker_settlement() {
+    use orchbee_workbench_protocol::{
+        WorkspaceGitFailure as GitFailure, WorkspaceGitOutcome as GitOutcome,
+    };
+    for changed in [false, true] {
+        let mut fixture = Fixture::new();
+        let project = fixture.project();
+        let workspace = fixture.workspace(&project, 10, "C:/w/sub");
+        let before = fixture.snapshot();
+        let read = spawn_workspace_git(&fixture, workspace.clone());
+        let poll = status_poll(&mut fixture, "C:/w/sub");
+        if changed {
+            fixture.navigate(
+                40,
+                WorkbenchAction::WorkspaceRename {
+                    project_id: project,
+                    workspace_id: workspace,
+                    label: WorkbenchLabel::parse("renamed").unwrap(),
+                },
+            );
+        }
+        fixture.reply(&poll,WorktreeJobOutcome::Poll(WorktreeJobPollOutcome::status_completed(format!("# branch.oid {}\n# branch.head feature\n# branch.upstream main\n# branch.ab +2 -3\n","a".repeat(40)).into_bytes(),vec![]).unwrap()));
+        let result = read.join().unwrap();
+        assert!(result.validate().is_ok());
+        if changed {
+            assert_eq!(
+                result.outcome,
+                GitOutcome::Failed {
+                    reason: GitFailure::SourceChanged
+                }
+            );
+        } else {
+            assert!(
+                matches!(result.outcome,GitOutcome::Observed {workbench_revision,branch:Some(ref b),divergence:Some(ref d)} if workbench_revision==before.revision && b=="feature" && d.ahead==2 && d.behind==3)
+            );
+            assert_eq!(fixture.snapshot(), before);
+        }
+    }
+}
+#[test]
+fn workspace_git_status_denies_wrong_site_and_fences_lost_worker_without_retrying_start() {
+    use orchbee_workbench_protocol::{
+        WorkspaceGitFailure as GitFailure, WorkspaceGitOutcome as GitOutcome, WorkspaceGitRequest,
+    };
+    let mut fixture = Fixture::new();
+    let project = fixture.project();
+    let workspace = fixture.workspace(&project, 10, "C:/w");
+    let denied = fixture.service.execute_workspace_git(WorkspaceGitRequest {
+        protocol_version: ProtocolVersion,
+        request_id: id(910),
+        site_id: orchbee_workbench_protocol::SiteId::parse(&"aa".repeat(16)).unwrap(),
+        workspace_id: workspace.clone(),
+    });
+    assert_eq!(
+        denied.outcome,
+        GitOutcome::Failed {
+            reason: GitFailure::Denied
+        }
+    );
+    let read = spawn_workspace_git(&fixture, workspace);
+    let _poll = status_poll(&mut fixture, "C:/w");
+    fixture.peer.shutdown(Shutdown::Both).unwrap();
+    assert_eq!(
+        read.join().unwrap().outcome,
+        GitOutcome::Failed {
+            reason: GitFailure::Unavailable
+        }
+    );
+}
+
+#[test]
+fn workspace_git_deadline_returns_before_start_or_poll_reply_and_late_cleanup_keeps_carrier_live() {
+    use orchbee_capability_node_protocol::WorktreeJobCancelOutcome;
+    use orchbee_workbench_protocol::{
+        WorkspaceGitFailure as GitFailure, WorkspaceGitOutcome as GitOutcome, WorkspaceGitRequest,
+    };
+    for stall_start in [true, false] {
+        let mut fixture = Fixture::new();
+        let project = fixture.project();
+        let workspace = fixture.workspace(&project, 10, "C:/w");
+        let request = WorkspaceGitRequest {
+            protocol_version: ProtocolVersion,
+            request_id: id(950),
+            site_id: fixture.snapshot().site_id,
+            workspace_id: workspace.clone(),
+        };
+        let service = fixture.service.clone();
+        let began = Instant::now();
+        let deadline = began + Duration::from_millis(500);
+        let read = thread::spawn(move || service.execute_workspace_git_until(request, deadline));
+        let start = fixture.receive();
+        assert!(matches!(
+            start.action,
+            WorktreeJobAction::StartStatus { .. }
+        ));
+        let stalled = if stall_start {
+            start.clone()
+        } else {
+            fixture.reply(
+                &start,
+                WorktreeJobOutcome::Start(WorktreeJobStartOutcome::Accepted),
+            );
+            fixture.receive()
+        };
+        // No Worker reply is sent until the real handler has returned. Drop
+        // cannot wait for start acceptance, poll settlement or cancel delivery.
+        assert_eq!(
+            read.join().unwrap().outcome,
+            GitOutcome::Failed {
+                reason: GitFailure::Timeout
+            }
+        );
+        assert!(began.elapsed() < Duration::from_secs(2));
+        fixture.reply(
+            &stalled,
+            if stall_start {
+                WorktreeJobOutcome::Start(WorktreeJobStartOutcome::Accepted)
+            } else {
+                WorktreeJobOutcome::Poll(WorktreeJobPollOutcome::Pending)
+            },
+        );
+        let cancel = fixture.receive();
+        assert!(
+            matches!(cancel.action, WorktreeJobAction::Cancel { job_id } if job_id == start.operation_id)
+        );
+        fixture.reply(
+            &cancel,
+            WorktreeJobOutcome::Cancel(WorktreeJobCancelOutcome::Registered),
+        );
+        // Checked late start/poll/cancel replies were consumed. A new real read
+        // on the same carrier works, without retrying the timed-out start.
+        let next = spawn_workspace_git(&fixture, workspace);
+        let poll = status_poll(&mut fixture, "C:/w");
+        fixture.reply(
+            &poll,
+            WorktreeJobOutcome::Poll(
+                WorktreeJobPollOutcome::status_completed(
+                    b"# branch.oid (initial)\n# branch.head next\n".to_vec(),
+                    vec![],
+                )
+                .unwrap(),
+            ),
+        );
+        assert!(
+            matches!(next.join().unwrap().outcome, GitOutcome::Observed { branch: Some(ref b), .. } if b == "next")
+        );
+    }
 }

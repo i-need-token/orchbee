@@ -266,7 +266,7 @@ fn machine_local_workspace_selection_reuses_local_origin_and_replaces_only_after
     let snapshot = snapshot(true);
     let destination = target(&snapshot);
     let mut retained = None;
-    let server = FakeServer::start_connections(3, move |index, mut stream| {
+    let server = FakeServer::start_connections(4, move |index, mut stream| {
         stream.set_read_timeout(Some(Duration::from_secs(5)))?;
         assert!(matches!(
             read_message(&mut stream).map_err(io::Error::other)?,
@@ -299,19 +299,30 @@ fn machine_local_workspace_selection_reuses_local_origin_and_replaces_only_after
             }),
         )
         .map_err(io::Error::other)?;
-        // The visible sidebar owns a separate read consumer. Both it and
-        // the destination start with a snapshot; only the sidebar follows
-        // with a source-view read. Refuse that read without affecting the
-        // independent destination lane or treating it as an empty view.
+        // Agent and Workspace sidebars have independent read consumers.
+        // Both and the destination start with a snapshot. Refuse each
+        // observation without affecting destination admission or treating
+        // an unavailable read as an empty successful checkpoint.
         match read_workbench_request(&mut stream) {
             Ok(WorkbenchRequest::AgentView(AgentViewRequest {
                 action: AgentViewAction::Read {},
                 ..
             })) => {}
+            Ok(WorkbenchRequest::WorkspaceMetadata(WorkspaceMetadataRequest {
+                action: WorkspaceMetadataAction::Read { workspace_ids },
+                ..
+            })) => assert_eq!(
+                workspace_ids,
+                vec![
+                    snapshot.navigation.projects[0].workspaces[0]
+                        .workspace_id
+                        .clone()
+                ]
+            ),
             Err(WorkbenchWireError::Io(error)) if error.kind() == io::ErrorKind::UnexpectedEof => {}
             other => panic!("unexpected post-snapshot request: {other:?}"),
         }
-        if index == 2 {
+        if index == 3 {
             drop(retained.take());
         }
         Ok(())
@@ -321,7 +332,7 @@ fn machine_local_workspace_selection_reuses_local_origin_and_replaces_only_after
         .map_err(io::Error::other)?;
     // An admitted local origin is sufficient to reopen a native lane. Keep the
     // source inert so native attention observers do not open unrelated lanes.
-    // The three admissions cover origin, destination and live sidebar reads.
+    // The four admissions cover origin, destination and both sidebar reads.
     struct SourceSurface(
         crate::local_client::LocalClientOrigin,
         crate::local_client::LocalOperationClock,

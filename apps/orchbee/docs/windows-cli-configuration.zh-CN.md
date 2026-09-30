@@ -21,7 +21,7 @@ channel = "stable"
 manifest_check = true
 ```
 
-仅接受这四个配置段及对应键。`terminal.new_cwd` 接受 `follow`、`home`、`current`、`workspace` 或路径。空值表示 `follow`。路径使用 Windows CLI 路径适配器：相对路径基于配置文件父目录，波浪线路径使用 Windows 主目录，拒绝有歧义的驱动器相对路径、UNC 和设备路径。缺少 `APPDATA` 时仍可使用默认值；显式值无效时不会静默回退。
+仅接受本文记录的配置段和键，包括下文的 `[keys]` 与 `[ui]` 配置族。`terminal.new_cwd` 接受 `follow`、`home`、`current`、`workspace` 或路径。空值表示 `follow`。路径使用 Windows CLI 路径适配器：相对路径基于配置文件父目录，波浪线路径使用 Windows 主目录，拒绝有歧义的驱动器相对路径、UNC 和设备路径。缺少 `APPDATA` 时仍可使用默认值；显式值无效时不会静默回退。
 
 ## 创建策略
 
@@ -245,9 +245,40 @@ claude = [["state_icon", "agent"], [{ token = "$model", fg = "#8bc", rules = [{ 
 计算的窗口及不变的物理权威。`terminal_title`/`terminal_title_stripped` 现在读取精确物理终端的 OSC 标题。
 原始形式保留活动符号；去动画形式移除一个提权前缀和一个已知前导活动符号。
 缺失或清除的标题消失；`$terminal_title` 仍是独立自定义值。
-`ui.sidebar.spaces` 属于另一个未实现配置族。
+`ui.sidebar.spaces` 使用独立 Workspace 布局与 profile，见下文。
 
-`config check` v10 和 Site 配置回执 v5 必需携带 `agentSidebarProfile`（最多 32 KiB
+`config check` v11 和 Site 配置回执 v6 必需携带 `agentSidebarProfile` 与 `spacesSidebarProfile`（最多 32 KiB
 的封闭规范 JSON）。配置失败 v7 增加 `ui.sidebar.agents` 及布局/颜色/token/规则/Provider
-诊断。旧公开版本保持原有封闭字段。目录 v122 仍有 105 个 schema、141 条语法路径。
+诊断。旧公开版本保持原有封闭字段。目录 v123 仍有 105 个 schema、141 条语法路径。
 匹配的私有 cohort 一起携带新必需 profile，整套部署/回滚，无持久迁移。
+
+## Windows Workspace 侧栏布局
+
+主侧栏在 Agent 上方显示 Workspace 区，两者独立滚动。
+键盘导航使用 Workspace 选择器（打开 Machines 后按 Tab），或点击该区标题／页脚。
+即使重名，点击行仍保留完整机器／Site/context 身份。原生 standalone context 也有导航行；
+规范 Workspace 保持平铺，不编造 Herdr 的父子分组。
+
+```toml
+[ui.sidebar.spaces]
+rows = [["state_icon", "workspace"], [{ token = "branch", fg = "#8bc", rules = [{ starts_with = "worktree/", dim = true }] }, "git_status"], ["$issue"]]
+row_gap = 1
+```
+
+默认值为 `[["state_icon", "workspace"], ["branch", "git_status"]]`，间隔 0。
+显式 `rows = []` 保留身份／导航行。另一个内置值是 `state_text`；
+`$name` 读取 Workspace 报告，不替代内置值。样式与首条匹配规则共用 Agent 接纳机制，
+但图标／Git 计数拒绝文字规则，Workspace 布局没有 `rows_by_agent`。
+最多 16 行、每行 16 个 token、每个文字 token 16 条规则，`row_gap` 范围 0–65535。
+缺失／隐藏值折叠；图标／Git 计数预留宽度后，文字共享剩余单元格。
+
+状态使用 Client 已读投影后的完整物理 Agent 快照，不受列表／来源过滤影响。
+Git 在所属 Worker 上读取已提交的 Workspace 目录，显示相对本地 upstream 的非零 ahead／behind；
+缺少 upstream 时无计数；非仓库无 Git 观测。游离时无分支名，未出生分支保留名字。
+不 fetch、不改配置、不执行 hook/fsmonitor、不启动终端，绘制时无 I/O。
+自定义 `$branch`／`$git_status` 保持独立。
+[Workspace 侧栏模型](machines.zh-CN.md#工作区侧栏模型)定义保护、聚合、预算、精确激活及验收限制。
+
+配置失败 v8 接纳 `ui.sidebar.spaces`。Site／Client 重载先验证键位、通知及两个侧栏 profile，
+再统一发布。每个 profile 最多 32 KiB；匹配 cohort 的配置帧包括转义最多 256 KiB。
+旧公开 CLI 版本保持原有封闭字段。

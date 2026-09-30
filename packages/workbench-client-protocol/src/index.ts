@@ -1,4 +1,13 @@
 export {
+	WorkspaceGitRequestSchema,
+	WorkspaceGitResultSchema,
+	WorkspaceGitOutcomeSchema,
+	GitDivergenceSchema,
+	type WorkspaceGitRequest,
+	type WorkspaceGitResult,
+	type GitDivergence,
+} from './workbench-workspace-git-contract';
+export {
 	ClientCellRectSchema,
 	ClientPanelDirectionSchema,
 	ClientPanelAreaSchema,

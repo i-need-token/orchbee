@@ -1,0 +1,215 @@
+{
+	"contractVersion": 1,
+	"valid": [
+		{
+			"name": "read",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.workspace-git",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003"
+			}
+		},
+		{
+			"name": "observed",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-git.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "observed",
+					"workbenchRevision": "1",
+					"branch": "测试/main",
+					"divergence": {
+						"ahead": 1,
+						"behind": 2
+					}
+				}
+			}
+		},
+		{
+			"name": "detached",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-git.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "observed",
+					"workbenchRevision": "1",
+					"branch": null,
+					"divergence": null
+				}
+			}
+		},
+		{
+			"name": "unborn",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-git.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "observed",
+					"workbenchRevision": "1",
+					"branch": "first",
+					"divergence": null
+				}
+			}
+		},
+		{
+			"name": "zero",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-git.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "observed",
+					"workbenchRevision": "1",
+					"branch": "main",
+					"divergence": {
+						"ahead": 0,
+						"behind": 0
+					}
+				}
+			}
+		}
+	],
+	"invalid": [
+		{
+			"name": "required-null",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-git.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "observed",
+					"workbenchRevision": "1",
+					"divergence": {
+						"ahead": 1,
+						"behind": 2
+					}
+				}
+			}
+		},
+		{
+			"name": "counts-bound",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-git.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "observed",
+					"workbenchRevision": "1",
+					"branch": "测试/main",
+					"divergence": {
+						"ahead": 4294967296,
+						"behind": 2
+					}
+				}
+			}
+		},
+		{
+			"name": "extra-field",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-git.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "observed",
+					"workbenchRevision": "1",
+					"branch": "测试/main",
+					"divergence": {
+						"ahead": 1,
+						"behind": 2
+					}
+				},
+				"trusted": true
+			}
+		},
+		{
+			"name": "detached-counts",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-git.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "observed",
+					"workbenchRevision": "1",
+					"branch": null,
+					"divergence": {
+						"ahead": 1,
+						"behind": 2
+					}
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "control-branch",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-git.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "observed",
+					"workbenchRevision": "1",
+					"branch": "a\nb",
+					"divergence": {
+						"ahead": 1,
+						"behind": 2
+					}
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "utf8-branch-bound",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-git.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "observed",
+					"workbenchRevision": "1",
+					"branch": "😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀",
+					"divergence": {
+						"ahead": 1,
+						"behind": 2
+					}
+				}
+			},
+			"boundary": "semantic"
+		}
+	]
+}

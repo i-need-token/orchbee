@@ -585,3 +585,12 @@ Host 身份及 u8 观察标签。标签 0 表示不可用；标签 1 增加正 u
 17 + 4 * (62 + 65536) 字节。解码器拒绝错误标签、UTF-8、重复身份、
 版本、保留字节、零版本、截断及尾随数据。普通 OBCN 上限不变。
 匹配的私有 cohort 整套部署/回滚；不改变持久数据或 Host 协议。
+
+## Windows Workspace Git 状态观测
+
+现有 Worktree 作业请求／结果 kind 15/16 增加 `StartStatus` 动作 tag 5
+与 `StatusCompleted` 轮询 tag 14。目录验证和身份／代际保护不变；
+status/stderr 使用分别带 u16 长度前缀的字节字段，共用原有 7936 字节总预算。
+旧 Start/StartSource 编码不变。Windows 所有者复用发现槽、TTL、取消、结算及保留回执；
+不支持的平台拒绝该动作。不增加变更／Host 启动／输入权威。运行时所有权见
+[Workspace 侧栏模型](../../apps/orchbee/docs/machines.zh-CN.md#工作区侧栏模型)。

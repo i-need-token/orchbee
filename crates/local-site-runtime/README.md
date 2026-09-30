@@ -405,3 +405,12 @@ The Windows plugin catalog boundary supplies bounded manifest parsing, normalize
 `set_windows_update_channel` is the shared explicit settings writer: it validates the entire current file, preserves TOML syntax with the already pinned toml_edit parser, serializes cooperating writers, rechecks for edits, and flushes an atomic private replacement. It may create the selected absent file. It never downloads or rolls back a saved preference after a caller's update failure.
 
 On Windows, `NativeCohort::artifact_sha256` retains each executable digest from successful admission. Installation provenance compares its declared digests against these observations, so a cohort change between reads cannot be presented as the previously admitted release.
+
+## Windows sidebar presentation settings
+
+The shared settings owner admits separate `ui.sidebar.agents` and `ui.sidebar.spaces`
+layouts. Token styling/raw-value first-match rules have one common admission owner;
+family-specific wrappers reject unsupported tokens and non-text rules. Each closed
+canonical profile caps at 32 KiB independently. Workspace layouts use rows/row_gap;
+Agent layouts retain provider overrides. Startup, CLI checks and Site reload all
+consume this owner. See the [user guide](../../apps/orchbee/docs/windows-cli-configuration.md#windows-workspace-sidebar-layouts).

@@ -44,6 +44,26 @@ pub(crate) fn execute(
             };
             (job_id, WorktreeJobOutcome::Start(outcome))
         }
+        WorktreeJobAction::StartStatus { directory } => {
+            let job_id = JobId(request.operation_id.as_bytes());
+            let outcome = if fenced {
+                WorktreeJobStartOutcome::RejectedFencing
+            } else {
+                #[cfg(windows)]
+                {
+                    match directory_path(&directory) {
+                        Some(path) => map_start(slot.start_status(job_id, path)),
+                        None => WorktreeJobStartOutcome::InvalidDirectory,
+                    }
+                }
+                #[cfg(not(windows))]
+                {
+                    let _ = directory;
+                    WorktreeJobStartOutcome::Unsupported
+                }
+            };
+            (job_id, WorktreeJobOutcome::Start(outcome))
+        }
         WorktreeJobAction::Start { directory } => {
             let job_id = JobId(request.operation_id.as_bytes());
             let outcome = if fenced {
@@ -121,6 +141,10 @@ fn map_stage(stage: Stage) -> WorktreeJobStage {
 
 fn map_job(outcome: JobOutcome) -> WorktreeJobPollOutcome {
     match outcome {
+        JobOutcome::StatusCompleted { status, stderr } => {
+            WorktreeJobPollOutcome::status_completed(status, stderr)
+                .unwrap_or(WorktreeJobPollOutcome::TooLarge { stage: None })
+        }
         JobOutcome::SourceCompleted {
             common_dir,
             source_checkout,
@@ -251,6 +275,11 @@ mod tests {
             ),
         ] {
             for (operation, action, expected) in [
+                (
+                    45,
+                    WorktreeJobAction::start_status(b"C:/repo".to_vec())?,
+                    WorktreeJobOutcome::Start(WorktreeJobStartOutcome::RejectedFencing),
+                ),
                 (
                     42,
                     WorktreeJobAction::start_source(b"C:/repo".to_vec(), true)?,

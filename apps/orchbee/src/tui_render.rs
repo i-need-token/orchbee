@@ -35,12 +35,16 @@ mod panel_close;
 #[cfg(windows)]
 mod panel_reports;
 mod presentation_selector;
+#[cfg(windows)]
+mod sidebar_text;
 mod tab_close;
 mod tab_rename;
 mod tabs;
 mod terminal_cells;
 mod viewport;
 mod workspace_setup;
+#[cfg(windows)]
+mod workspace_sidebar;
 
 #[cfg(test)]
 pub(crate) fn render_shell(

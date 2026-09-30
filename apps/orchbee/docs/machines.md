@@ -523,3 +523,61 @@ Windows metadata events and pipes, Site before/after physical fences, collector
 cancellation and rendering. No new public CLI command, persisted title registry,
 Host protocol, input authority, or independent terminal acknowledgement follows
 from these presentation tokens.
+
+## Workspace sidebar model
+
+The Windows main sidebar resolves workspace rows from exact Site/context identities,
+not display labels or Agent source-view filtering. The settings owner admits
+`ui.sidebar.spaces` rows and `row_gap`, with at most 16 rows and 16 tokens per row.
+Builtins are `state_icon`, `state_text`, `workspace`, `branch` and `git_status`;
+`$custom` values come from the Workspace report owner. Styles and first-match
+text rules inspect original values before terminal sanitization. Icon and Git
+count tokens do not admit text rules. Missing and hidden values collapse rows;
+at least one identity row remains available for navigation.
+
+Workspace state aggregates the complete physical Agent observation after the
+Client's seen projection, using blocked, done, working, idle, unknown priority.
+An unavailable Agent observation or a context absent from that complete round stays
+unknown; an empty completed observation of that exact context is idle. Source filters and custom display labels do not change this authority.
+Git observations come from the canonical Workspace directory on the selected
+Worker. `git_status` is ahead/behind relative to the local upstream; neither a
+dirty-file count nor a zero invented for an unavailable repository. Detached
+and unborn branches, absent upstream, and nonrepositories remain explicit.
+Reads never fetch, change configuration, start a terminal or execute a plugin.
+
+The Git read reuses the owned Windows discovery slot: checked start, poll,
+cancel, five-second deadline, retained receipt and child/pipe settlement.
+Server discovery exchanges use nonblocking queue admission and absolute-deadline
+waits. Late checked discovery replies may be discarded without retiring a healthy
+carrier; effectful operations retain required completion delivery. A timed-out
+start is never resubmitted. Its known operation/job identity is cancelled once
+through the same FIFO high lane without waiting; if admission or transport fails,
+the Worker still owns the physical job and its five-second TTL. The Server does
+not report that cleanup has been confirmed.
+Literal Git arguments use command-local repository selection without trust
+expansion. Site membership, directory and Worker generation are checked before
+and after I/O. Branch text is control-free UTF-8 capped at 1024 bytes;
+ahead/behind counts are uint32. Metadata reads retain their own revision and an empty final
+fence; topology is rechecked before admitting a complete candidate.
+
+Agent and workspace observations share the bounded job lifecycle, with separate
+four-job pools (at most eight combined), five-second operation budgets,
+ten-second freshness, cancellation and joined disposal. Rendering performs no
+I/O. Workspace and Agent scrolling are independent Client state. Resolved row
+heights and gaps determine focus reveal, the final page, wheel flushing and
+exact hit rectangles; one wheel flush advances at most a viewport. Changed
+identity, data or settings cancel old pending geometry. Activation rechecks the
+exact machine/Site/context; labels cannot redirect it. The workspace picker
+provides the keyboard navigation path. Small viewports retain that path while
+reducing sidebar sections. Text-token widths reserve fixed icon/Git-count widths;
+long branch/custom values shrink before readable ahead/behind counts.
+
+The Site publishes keys, notifications and both bounded canonical sidebar
+profiles as one candidate. Invalid publication retains every prior Client
+setting. The two 32 KiB sidebar profiles use a 256 KiB configuration frame,
+including JSON escaping; field budgets remain separate. Matched cohorts update
+together; public versioned CLI documents keep
+older variants closed. Core and adapter evidence cover strict admission,
+revision/generation replacement, cancellation, real Windows Git and pipes,
+null/unknown distinctions, style/Unicode rendering and navigation geometry.
+Whole-cohort and real emulator/SSH acceptance remain separate evidence.

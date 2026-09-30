@@ -381,3 +381,40 @@ Worker 每次消费至多 32 个排队 Host 事件，向持续活跃的事件流
 适配器证据覆盖实际 Windows 元数据事件和管道、Site 读取前后物理栅栏、
 收集器取消与渲染。这些展示 token 不引入新的公开 CLI 命令、
 持久标题注册表、Host 协议、输入权限或独立终端确认。
+
+## 工作区侧栏模型
+
+Windows 主侧栏按精确 Site/context 身份解析工作区行，不按显示标签或 Agent 来源视图过滤。
+配置所有者接纳 `ui.sidebar.spaces` 行与 `row_gap`，最多 16 行、每行 16 个 token。
+内置值为 `state_icon`、`state_text`、`workspace`、`branch` 和 `git_status`；
+`$custom` 值来自 Workspace 报告所有者。样式与首条文本规则在终端净化前检查原始值。
+图标和 Git 计数 token 不接纳文本规则。缺失或隐藏值折叠行；仍保留至少一行身份供导航。
+
+工作区状态聚合 Client 已读投影后的完整物理 Agent 观测，优先级为 blocked、done、working、idle、unknown。
+Agent 观测不可用或完整轮次未包含该 context 时保持 unknown；该精确 context 的完成空观测为 idle。来源过滤与自定义显示标签不改变权威。
+Git 观测来自选定 Worker 上的规范 Workspace 目录。`git_status` 是相对本地 upstream 的 ahead/behind；
+不是脏文件计数，也不为不可用仓库编造零。游离或未出生分支、缺少 upstream、非仓库均明确区分。
+读取不 fetch、不修改配置、不启动终端或执行插件。
+
+Git 读取复用 Windows 自有发现槽：受检启动、轮询、取消、五秒截止时间、保留回执及子进程／管道结算。
+Server 发现交换采用非阻塞队列接纳和绝对截止时间等待。晚到的受检发现回复可丢弃，
+不因此退役健康 carrier；有副作用的操作仍要求送达完成结果。超时启动绝不重发。
+已知 operation/job 身份只通过同一 FIFO 高优先级队列发出一次取消，不等待回复；
+接纳或传输失败时，物理作业及五秒 TTL 仍由 Worker 所有。Server 不报告清理已确认。
+Git 字面参数采用命令局部仓库选择，不扩大信任。Site 成员、目录及 Worker 代际在 I/O 前后检查。
+分支为不含控制字符、最多 1024 字节的 UTF-8；ahead/behind 计数为 uint32。
+元数据读取保留独立修订及空批次最终保护；接纳完整候选前重新核对拓扑。
+
+Agent 与工作区观测复用有界作业生命周期，使用独立四作业池（合计最多八个），
+五秒操作预算、十秒新鲜期、取消及 join 后释放。绘制无 I/O。
+工作区与 Agent 滚动是独立 Client 状态。实际行高与间隔决定焦点显示、末页、滚动刷新和精确点击区域；
+每次滚动刷新最多推进一屏。身份、数据或配置改变会取消旧待处理几何。
+激活重新检查精确机器／Site/context，标签不能重定向。工作区选择器提供键盘导航路径。
+小视口缩减侧栏区域时仍保留此路径。文字 token 分配宽度时为固定图标／Git 计数留空间；
+长分支名／自定义值先缩短，避免挤掉可读的 ahead／behind 计数。
+
+Site 将键位、通知及两种有界规范侧栏 profile 作为一个候选发布。无效发布保留全部先前 Client 配置。
+两个各限 32 KiB 的侧栏 profile 使用 256 KiB 配置帧，包含 JSON 转义；字段预算保持独立。
+匹配 cohort 一起更新；公开版本化 CLI 文档保持旧变体封闭。
+核心与适配器证据覆盖严格接纳、修订／代际替换、取消、真实 Windows Git 与管道、
+null/unknown 区分、样式／Unicode 绘制及导航几何。整套 cohort 与真实模拟器／SSH 验收仍是独立证据。

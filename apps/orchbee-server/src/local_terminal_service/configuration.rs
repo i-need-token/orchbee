@@ -80,6 +80,10 @@ impl Registry {
         // Prepare the exact bounded outbound representation before changing the live scheduler.
         if orchbee_local_site_runtime::WindowsKeySettings::from_profile(&next.keys_profile).is_err()
             || next.keys_profile.len() > 64 * 1024
+            || orchbee_local_site_runtime::WindowsSpaceSidebarSettings::from_profile(
+                &next.spaces_sidebar_profile,
+            )
+            .is_err()
             || orchbee_local_site_runtime::WindowsAgentSidebarSettings::from_profile(
                 &next.agent_sidebar_profile,
             )
@@ -127,6 +131,7 @@ fn snapshot(
         window_title: current.window_title.clone(),
         notification_profile: current.notifications.profile(),
         agent_sidebar_profile: current.agent_sidebar.profile(),
+        spaces_sidebar_profile: current.space_sidebar.profile(),
         manifest_check: current.manifest_check,
         default_shell: current.shell.executable().into(),
         shell_mode: match current.shell.mode() {

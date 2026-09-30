@@ -1901,3 +1901,156 @@ fn unbound_clicks_require_exact_empty_member_and_never_forward_input() {
         }
     }
 }
+
+#[cfg(windows)]
+fn workspace_fixture(count: u64) -> (ClientView, FrameHitMap) {
+    use crate::{
+        machine_discovery::Context,
+        terminal_session::{NativeContextLocation, NativeContextTarget},
+    };
+    use orchbee_workbench_protocol::*;
+    let (mut view, _) = sidebar_fixture(10);
+    view.machines.observe_local(
+        (0..count)
+            .map(|n| Context {
+                target: NativeContextTarget {
+                    site_id: SiteId::parse(&format!("{:032x}", 1)).unwrap(),
+                    location: NativeContextLocation::Workspace {
+                        project_id: WorkbenchProjectId::parse(&format!("{:032x}", 50)).unwrap(),
+                        workspace_id: WorkbenchWorkspaceId::parse(&format!("{:032x}", 100 + n))
+                            .unwrap(),
+                        terminal_context_id: WorkbenchTerminalContextId::parse(&format!(
+                            "{:032x}",
+                            200 + n
+                        ))
+                        .unwrap(),
+                    },
+                },
+                project: Some("Repo".into()),
+                workspace: Some("same label".into()),
+            })
+            .collect(),
+    );
+    let mut terminal = ratatui::Terminal::new(ratatui::backend::TestBackend::new(120, 40)).unwrap();
+    let mut hits = HitMapBuilder::new();
+    terminal
+        .draw(|frame| {
+            crate::tui_render::render_terminal_shell(
+                frame,
+                &view,
+                crate::localization::Locale::EnUs,
+                None,
+                &crate::tui_theme::Theme::terminal_native(),
+                &mut hits,
+            );
+        })
+        .unwrap();
+    (view, hits.finish())
+}
+#[cfg(windows)]
+#[test]
+fn workspace_sidebar_pointer_requires_plain_left_press_and_revalidates_old_duplicate_labels() {
+    for (action, button, mods) in [
+        (MouseAction::Press, MouseButton::Left, Modifiers::NONE),
+        (MouseAction::Press, MouseButton::Right, Modifiers::NONE),
+        (MouseAction::Release, MouseButton::Left, Modifiers::NONE),
+        (MouseAction::Motion, MouseButton::Left, Modifiers::NONE),
+        (MouseAction::Press, MouseButton::Left, Modifiers::CTRL),
+    ] {
+        let (mut view, map) = workspace_fixture(2);
+        let region = map
+            .regions
+            .iter()
+            .find(|r| matches!(r.target, HitTarget::MachineWorkspaceRow { .. }))
+            .unwrap();
+        let exact = match &region.target {
+            HitTarget::MachineWorkspaceRow { selected, .. } => selected.clone(),
+            _ => unreachable!(),
+        };
+        let mut input = event(action, button, region.rect.x, region.rect.y);
+        input.mods = mods;
+        let mut pointer = PointerState::default();
+        pointer.set_capture(true);
+        pointer.publish(map.clone());
+        let mut port = RecordingPort::default();
+        let result = pointer.event(&mut view, &mut port, Instant::now(), input);
+        if action == MouseAction::Press && button == MouseButton::Left && mods == Modifiers::NONE {
+            assert_eq!(result, PointerOutcome::MachineNavigation);
+            assert_eq!(view.machines.request, Some(exact));
+        } else {
+            assert_eq!(result, PointerOutcome::Ignored);
+            assert!(view.machines.request.is_none());
+        }
+        assert!(port.actions.is_empty() && port.bytes().is_empty());
+    }
+    let (mut view, map) = workspace_fixture(2);
+    let region = map
+        .regions
+        .iter()
+        .find(|r| matches!(r.target, HitTarget::MachineWorkspaceRow { .. }))
+        .unwrap();
+    let input = event(
+        MouseAction::Press,
+        MouseButton::Left,
+        region.rect.x,
+        region.rect.y,
+    );
+    view.machines.observe_local(Vec::new());
+    let mut pointer = PointerState::default();
+    pointer.set_capture(true);
+    pointer.publish(map);
+    let mut port = RecordingPort::default();
+    assert_eq!(
+        pointer.event(&mut view, &mut port, Instant::now(), input),
+        PointerOutcome::Ignored
+    );
+    assert!(view.machines.request.is_none());
+}
+#[cfg(windows)]
+#[test]
+fn workspace_sidebar_wheel_advances_only_its_window_and_capture_cancels_remaining_packets() {
+    let (mut view, map) = workspace_fixture(40);
+    let region = map
+        .regions
+        .iter()
+        .find(|r| matches!(r.target, HitTarget::MachineWorkspaceRow { .. }))
+        .unwrap();
+    let window = match region.target {
+        HitTarget::MachineWorkspaceRow { window, .. } => window,
+        _ => unreachable!(),
+    };
+    let agents = view.machines.sidebar_window(3);
+    let down = event(
+        MouseAction::Press,
+        MouseButton::WheelDown,
+        region.rect.x,
+        region.rect.y,
+    );
+    let mut pointer = PointerState::default();
+    pointer.set_capture(true);
+    pointer.publish(map.clone());
+    let mut port = RecordingPort::default();
+    for _ in 0..10 {
+        assert_eq!(
+            pointer.event(&mut view, &mut port, Instant::now(), down),
+            PointerOutcome::Handled
+        );
+    }
+    assert!(pointer.tick(&mut view, &mut port, Instant::now()));
+    let spaces = view
+        .machines
+        .space_window_for_heights(&[1; 40], window.capacity as u16, 0);
+    assert_eq!(spaces.top, window.capacity);
+    assert_eq!(view.machines.sidebar_window(3), agents);
+    assert!(pointer.map.is_none());
+    pointer.set_capture(false);
+    assert!(!pointer.tick(&mut view, &mut port, Instant::now()));
+    pointer.set_capture(true);
+    assert!(!pointer.tick(&mut view, &mut port, Instant::now()));
+    assert_eq!(
+        view.machines
+            .space_window_for_heights(&[1; 40], window.capacity as u16, 0),
+        spaces
+    );
+    assert!(view.machines.request.is_none() && port.bytes().is_empty());
+}

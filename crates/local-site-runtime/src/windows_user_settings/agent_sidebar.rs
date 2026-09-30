@@ -1,7 +1,6 @@
 //! Admission and canonical publication of Windows Agent sidebar presentation.
-mod rules;
 use super::WindowsSettingsError;
-use rules::{RawRule, Rule};
+use super::sidebar_tokens::{RawToken, Token, custom_key};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
@@ -16,21 +15,9 @@ pub struct WindowsAgentSidebarSettings {
     row_gap: u16,
 }
 
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct WindowsSidebarTokenStyle {
-    pub fg: Option<[u8; 3]>,
-    pub bold: Option<bool>,
-    pub dim: Option<bool>,
-}
-
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct WindowsAgentSidebarToken {
-    name: String,
-    style: WindowsSidebarTokenStyle,
-    rules: Vec<Rule>,
-}
+#[serde(transparent)]
+pub struct WindowsAgentSidebarToken(Token);
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum WindowsAgentSidebarTokenKind<'a> {
@@ -53,44 +40,8 @@ struct RawSettings {
     rows_by_agent: BTreeMap<String, Vec<Vec<RawToken>>>,
     row_gap: u16,
 }
-#[derive(Deserialize)]
-#[serde(untagged)]
-enum RawToken {
-    Plain(String),
-    Styled(RawStyled),
-}
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct RawStyled {
-    token: String,
-    fg: Option<String>,
-    bold: Option<bool>,
-    dim: Option<bool>,
-    #[serde(default)]
-    rules: Vec<RawRule>,
-}
-
 pub(super) fn error(reason: &'static str) -> WindowsSettingsError {
     WindowsSettingsError::new("ui.sidebar.agents", reason)
-}
-pub(super) fn color(value: Option<String>) -> Result<Option<[u8; 3]>, WindowsSettingsError> {
-    value
-        .map(|value| {
-            let hex = value.strip_prefix('#').ok_or(error("invalid-color"))?;
-            if !matches!(hex.len(), 3 | 6) || !hex.bytes().all(|b| b.is_ascii_hexdigit()) {
-                return Err(error("invalid-color"));
-            }
-            let hex = if hex.len() == 3 {
-                hex.chars().flat_map(|c| [c, c]).collect::<String>()
-            } else {
-                hex.into()
-            };
-            let component = |offset| {
-                u8::from_str_radix(&hex[offset..offset + 2], 16).map_err(|_| error("invalid-color"))
-            };
-            Ok([component(0)?, component(2)?, component(4)?])
-        })
-        .transpose()
 }
 fn token_kind(name: &str) -> Result<WindowsAgentSidebarTokenKind<'_>, WindowsSettingsError> {
     use WindowsAgentSidebarTokenKind::*;
@@ -105,77 +56,34 @@ fn token_kind(name: &str) -> Result<WindowsAgentSidebarTokenKind<'_>, WindowsSet
         "terminal_title" => TerminalTitle,
         "terminal_title_stripped" => TerminalTitleStripped,
         name => {
-            let key = name.strip_prefix('$').ok_or(error("invalid-token"))?;
-            if key.is_empty()
-                || key.len() > 32
-                || !key
-                    .bytes()
-                    .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'_' | b'-'))
-            {
-                return Err(error("invalid-token"));
-            }
+            let key = custom_key(name).map_err(error)?;
             Custom(key)
         }
     })
 }
 impl WindowsAgentSidebarToken {
     fn admit(raw: RawToken) -> Result<Self, WindowsSettingsError> {
-        let raw = match raw {
-            RawToken::Plain(token) => RawStyled {
-                token,
-                fg: None,
-                bold: None,
-                dim: None,
-                rules: Vec::new(),
-            },
-            RawToken::Styled(raw) => raw,
-        };
-        let token = Self {
-            name: raw.token,
-            style: WindowsSidebarTokenStyle {
-                fg: color(raw.fg)?,
-                bold: raw.bold,
-                dim: raw.dim,
-            },
-            rules: raw
-                .rules
-                .into_iter()
-                .map(Rule::admit)
-                .collect::<Result<_, _>>()?,
-        };
+        let token = Self(Token::admit(raw).map_err(error)?);
         token.validate()?;
         Ok(token)
     }
     fn validate(&self) -> Result<(), WindowsSettingsError> {
-        let kind = token_kind(&self.name)?;
-        if self.rules.len() > 16
-            || (kind == WindowsAgentSidebarTokenKind::StateIcon && !self.rules.is_empty())
-        {
-            return Err(error("invalid-rules"));
-        }
-        for rule in &self.rules {
-            rule.validate()?;
-        }
-        Ok(())
+        let kind = token_kind(self.0.name())?;
+        self.0
+            .validate(kind == WindowsAgentSidebarTokenKind::StateIcon)
+            .map_err(error)
     }
     pub fn name(&self) -> &str {
-        &self.name
+        self.0.name()
     }
     pub fn kind(&self) -> WindowsAgentSidebarTokenKind<'_> {
-        token_kind(&self.name).expect("admitted token")
+        token_kind(self.0.name()).expect("admitted token")
     }
-    /// Rules inspect the original value, before display sanitization. Icons have no text value.
-    pub fn style_for_value(&self, value: Option<&str>) -> Option<WindowsSidebarTokenStyle> {
-        if let Some(value) = value {
-            for rule in &self.rules {
-                if rule.matches(value) {
-                    return rule.style(self.style);
-                }
-            }
-        }
-        Some(self.style)
+    pub fn style_for_value(&self, value: Option<&str>) -> Option<super::WindowsSidebarTokenStyle> {
+        self.0.style_for_value(value)
     }
 }
+
 fn rows(raw: Vec<Vec<RawToken>>) -> Result<Rows, WindowsSettingsError> {
     if raw.len() > 16 || raw.iter().any(|r| r.len() > 16) {
         return Err(error("invalid-layout"));

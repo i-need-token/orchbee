@@ -245,6 +245,9 @@ fn run_prepared_surface(
         initial_view
             .machines
             .configure_agent_sidebar(settings.agent_sidebar);
+        initial_view
+            .machines
+            .configure_space_sidebar(settings.space_sidebar);
     }
     let termination = TerminationSignal::install().map_err(TuiFailure::Runtime)?;
     let mut modes = TerminalModeGuard::enter(InheritedTerminalModes::new(inherited.clone()))

@@ -76,6 +76,8 @@ pub(super) struct Manager {
     queued: Option<Queued>,
     discovery: Discovery,
     agents: crate::machine_agents::Collector,
+    spaces: crate::machine_spaces::Collector,
+    space_git: Option<bool>,
 }
 impl Manager {
     pub(super) fn new(view: &mut ClientView) -> Self {
@@ -92,6 +94,8 @@ impl Manager {
             queued: None,
             discovery: Discovery::default(),
             agents: crate::machine_agents::Collector::default(),
+            spaces: crate::machine_spaces::Collector::default(),
+            space_git: None,
         }
     }
     fn valid(&self, profile: &Profile) -> bool {
@@ -151,25 +155,46 @@ impl Manager {
         self.discovery.tick(now);
         change.redraw |= view.machines.observe(&self.discovery.observations(now));
         let mut agent_sources = Vec::new();
-        if view.machines.wants_agents() {
+        if view.machines.wants_agents() || view.machines.wants_spaces() {
             if let Some(connection) = self.local_source(surface) {
-                agent_sources.push(crate::machine_agents::Source {
+                agent_sources.push(crate::machine_observation::Source {
                     choice: Choice::Local,
                     connection,
                 });
             }
             for profile in &self.profiles {
                 if let Some(connection) = self.discovery.connection(profile, now) {
-                    agent_sources.push(crate::machine_agents::Source {
+                    agent_sources.push(crate::machine_observation::Source {
                         choice: Choice::Remote(profile.id.clone()),
                         connection,
                     });
                 }
             }
         }
-        change.redraw |= view
-            .machines
-            .observe_agents(self.agents.tick(agent_sources, now));
+        change.redraw |= view.machines.observe_agents(self.agents.tick(
+            agent_sources.clone(),
+            now,
+            crate::machine_agents::read,
+        ));
+        let space_git = view.machines.space_settings().needs_git();
+        if self.space_git != Some(space_git) {
+            self.spaces.clear();
+            self.space_git = Some(space_git);
+        }
+        let space_sources = if view.machines.wants_spaces() {
+            agent_sources
+        } else {
+            Vec::new()
+        };
+        change.redraw |= view.machines.observe_spaces(self.spaces.tick(
+            space_sources,
+            now,
+            if space_git {
+                crate::machine_spaces::read_with_git
+            } else {
+                crate::machine_spaces::read_metadata
+            },
+        ));
         if let Some(TerminalSessionView::Native(native)) = surface.active().view()
             && view
                 .machines
@@ -355,6 +380,7 @@ impl Manager {
                         .any(|p| p.enabled && same_endpoint(p, old))
                 }) {
                     self.agents.clear();
+                    self.spaces.clear();
                 }
                 // Input is decoded before this refresh. A pending click still
                 // belongs to the previously painted endpoint, never its replacement.
@@ -409,6 +435,7 @@ impl Manager {
             Err(_) => {
                 self.catalog_ok = false;
                 self.agents.clear();
+                self.spaces.clear();
                 if view
                     .machines
                     .request

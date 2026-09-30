@@ -11,6 +11,7 @@ use std::path::PathBuf;
 pub(super) struct Settings {
     window_title: String,
     agent_sidebar: orchbee_local_site_runtime::WindowsAgentSidebarSettings,
+    space_sidebar: orchbee_local_site_runtime::WindowsSpaceSidebarSettings,
     notifications: orchbee_local_site_runtime::WindowsNotificationSettings,
     shell: orchbee_local_site_runtime::WindowsShellSettings,
     keys: orchbee_local_site_runtime::WindowsKeySettings,
@@ -36,7 +37,9 @@ impl Error {
     pub(super) fn failure(self) -> Failure {
         Failure::new(FailureKind::CheckFailed)
             .failure_schema("orchbee.cli.failure.configuration")
-            .version(if self.field == "ui.sidebar.agents" {
+            .version(if self.field == "ui.sidebar.spaces" {
+                8
+            } else if self.field == "ui.sidebar.agents" {
                 7
             } else if self.field == "update.channel" {
                 6
@@ -75,6 +78,7 @@ fn project(raw: WindowsUserSettings) -> Result<Settings, Error> {
     Ok(Settings {
         window_title: raw.window_title,
         agent_sidebar: raw.agent_sidebar,
+        space_sidebar: raw.space_sidebar,
         notifications: raw.notifications,
         shell: raw.shell,
         keys: raw.keys,
@@ -123,6 +127,10 @@ impl Settings {
     }
     pub(super) fn check_details(&self) -> serde_json::Map<String, serde_json::Value> {
         serde_json::Map::from_iter([
+            (
+                "spacesSidebarProfile".into(),
+                self.space_sidebar.profile().into(),
+            ),
             (
                 "agentSidebarProfile".into(),
                 self.agent_sidebar.profile().into(),

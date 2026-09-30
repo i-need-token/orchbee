@@ -1,5 +1,5 @@
 //! Strict first-match text/numeric rules; presentation never alters the matched value.
-use super::{WindowsSettingsError, WindowsSidebarTokenStyle, color, error};
+use super::{WindowsSidebarTokenStyle, color};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -36,7 +36,7 @@ pub(super) struct RawRule {
     hide: Option<bool>,
 }
 impl Rule {
-    pub(super) fn admit(raw: RawRule) -> Result<Self, WindowsSettingsError> {
+    pub(super) fn admit(raw: RawRule) -> Result<Self, &'static str> {
         if [
             raw.equals.is_some(),
             raw.contains.is_some(),
@@ -49,7 +49,7 @@ impl Rule {
         .count()
             != 1
         {
-            return Err(error("invalid-rules"));
+            return Err("invalid-rules");
         }
         let condition = match (raw.equals, raw.contains, raw.starts_with, raw.gt, raw.lt) {
             (Some(s), ..) => Condition::Equals(s),
@@ -57,17 +57,17 @@ impl Rule {
             (_, _, Some(s), ..) => Condition::StartsWith(s),
             (_, _, _, Some(n), _) => {
                 if raw.ignore_case.is_some() {
-                    return Err(error("invalid-rules"));
+                    return Err("invalid-rules");
                 }
                 Condition::GreaterThan(n)
             }
             (_, _, _, _, Some(n)) => {
                 if raw.ignore_case.is_some() {
-                    return Err(error("invalid-rules"));
+                    return Err("invalid-rules");
                 }
                 Condition::LessThan(n)
             }
-            _ => return Err(error("invalid-rules")),
+            _ => return Err("invalid-rules"),
         };
         let rule = Self {
             condition,
@@ -82,7 +82,7 @@ impl Rule {
         rule.validate()?;
         Ok(rule)
     }
-    pub(super) fn validate(&self) -> Result<(), WindowsSettingsError> {
+    pub(super) fn validate(&self) -> Result<(), &'static str> {
         let valid = match &self.condition {
             Condition::Equals(s) | Condition::Contains(s) | Condition::StartsWith(s) => {
                 s.len() <= 4096
@@ -91,11 +91,7 @@ impl Rule {
                 n.is_finite() && !self.ignore_case
             }
         };
-        if valid {
-            Ok(())
-        } else {
-            Err(error("invalid-rules"))
-        }
+        if valid { Ok(()) } else { Err("invalid-rules") }
     }
     pub(super) fn matches(&self, value: &str) -> bool {
         match &self.condition {

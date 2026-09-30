@@ -9,7 +9,52 @@ const caseSchema = z.strictObject({
 	document: z.unknown(),
 	boundary: z.enum(['schema', 'semantic']).optional(),
 });
+
+const profile = (name: string) =>
+	JSON.stringify({
+		rows: [
+			[
+				{
+					name,
+					style: { fg: null, bold: null, dim: null },
+					rules: Array.from({ length: 4 }, () => ({
+						condition: { kind: 'Equals', value: '\\'.repeat(3600) },
+						ignore_case: false,
+						style: { fg: null, bold: null, dim: null },
+						hide: false,
+					})),
+				},
+			],
+		],
+		row_gap: 0,
+	});
+
 describe('Site configuration publication', () => {
+	it('fits two independently bounded escaped sidebar profiles in the shared frame', () => {
+		const snapshot = {
+			revision: '1',
+			keysProfile: 'x'.repeat(20000),
+			windowTitle: '',
+			notificationProfile: '[ui.toast]',
+			agentSidebarProfile: profile('agent'),
+			spacesSidebarProfile: profile('workspace'),
+			manifestCheck: true,
+			defaultShell: '',
+			shellMode: 'auto',
+			restartRequired: [],
+		};
+		const document = {
+			kind: 'workbench.configuration.result',
+			protocolVersion: 1,
+			requestId: '00000000000000000000000000000001',
+			siteId: '00000000000000000000000000000002',
+			outcome: { kind: 'current', snapshot },
+		};
+		expect(new TextEncoder().encode(JSON.stringify(document)).length).toBeGreaterThan(128 * 1024);
+		expect(WorkbenchResponseSchema.safeParse(document).success).toBe(true);
+		snapshot.spacesSidebarProfile = 'x'.repeat(32769);
+		expect(WorkbenchResponseSchema.safeParse(document).success).toBe(false);
+	});
 	it('rejects unpaired Unicode before admitting a shell snapshot', () => {
 		expect(
 			WorkbenchResponseSchema.safeParse({
@@ -25,6 +70,7 @@ describe('Site configuration publication', () => {
 						windowTitle: '',
 						notificationProfile: '[ui.toast]',
 						agentSidebarProfile: '{}',
+						spacesSidebarProfile: '{}',
 						manifestCheck: true,
 						restartRequired: [],
 						defaultShell: '\ud800',

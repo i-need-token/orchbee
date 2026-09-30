@@ -24,14 +24,16 @@ pub use windows_user_path::{
 mod windows_user_settings;
 #[cfg(windows)]
 pub use windows_user_settings::{
-    DEFAULT_WINDOW_TITLE, MAXIMUM_AGENT_SIDEBAR_PROFILE_BYTES, WindowsAgentSidebarSettings,
-    WindowsAgentSidebarToken, WindowsAgentSidebarTokenKind, WindowsDirectoryPolicy,
-    WindowsKeyChord, WindowsKeyOverride, WindowsKeySettings, WindowsKeyTrigger,
-    WindowsKeysResetOutcome, WindowsKeysResetReport, WindowsNotificationDelivery,
-    WindowsNotificationSettings, WindowsSettingsError, WindowsShellMode, WindowsShellSettings,
-    WindowsSidebarTokenStyle, WindowsUpdateChannel, WindowsUserSettings,
-    WindowsWindowTitleTemplate, read_windows_user_settings, read_windows_user_settings_at,
-    reset_windows_keybindings, set_windows_update_channel, windows_user_settings_path,
+    DEFAULT_WINDOW_TITLE, MAXIMUM_AGENT_SIDEBAR_PROFILE_BYTES, MAXIMUM_SPACE_SIDEBAR_PROFILE_BYTES,
+    WindowsAgentSidebarSettings, WindowsAgentSidebarToken, WindowsAgentSidebarTokenKind,
+    WindowsDirectoryPolicy, WindowsKeyChord, WindowsKeyOverride, WindowsKeySettings,
+    WindowsKeyTrigger, WindowsKeysResetOutcome, WindowsKeysResetReport,
+    WindowsNotificationDelivery, WindowsNotificationSettings, WindowsSettingsError,
+    WindowsShellMode, WindowsShellSettings, WindowsSidebarTokenStyle, WindowsSpaceSidebarSettings,
+    WindowsSpaceSidebarToken, WindowsSpaceSidebarTokenKind, WindowsUpdateChannel,
+    WindowsUserSettings, WindowsWindowTitleTemplate, read_windows_user_settings,
+    read_windows_user_settings_at, reset_windows_keybindings, set_windows_update_channel,
+    windows_user_settings_path,
 };
 #[cfg(windows)]
 mod windows_directory;

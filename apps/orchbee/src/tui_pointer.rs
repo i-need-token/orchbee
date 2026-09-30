@@ -105,6 +105,15 @@ pub(crate) enum HitTarget {
     /// press, and a wheel notch scrolls the row window.
     AgentBoardSurface,
     #[cfg(windows)]
+    MachineWorkspaceRow {
+        selected: crate::machine_picker::Selection,
+        window: crate::machine_picker::SidebarWindow,
+    },
+    #[cfg(windows)]
+    MachineWorkspaceSurface(crate::machine_picker::SidebarWindow),
+    #[cfg(windows)]
+    OpenMachineWorkspaces,
+    #[cfg(windows)]
     MachineAgentRow {
         selected: crate::machine_picker::Selection,
         window: crate::machine_picker::SidebarWindow,
@@ -656,6 +665,53 @@ impl PointerState {
                 PointerOutcome::Ignored
             }
             HitResolution::Region(HitTarget::OverlaySurface) => PointerOutcome::Ignored,
+            #[cfg(windows)]
+            HitResolution::Region(HitTarget::OpenMachineWorkspaces) => {
+                if event.action == MouseAction::Press
+                    && event.button == MouseButton::Left
+                    && event.mods == crate::client_view::Modifiers::NONE
+                    && view.machines.available
+                {
+                    view.dismiss_overlay();
+                    view.machines.show_workspaces();
+                    PointerOutcome::MachineNavigation
+                } else {
+                    PointerOutcome::Ignored
+                }
+            }
+            #[cfg(windows)]
+            HitResolution::Region(HitTarget::MachineWorkspaceRow { selected, window }) => {
+                if event.action != MouseAction::Press
+                    || event.mods != crate::client_view::Modifiers::NONE
+                {
+                    return PointerOutcome::Ignored;
+                }
+                match event.button {
+                    MouseButton::WheelUp | MouseButton::WheelDown => {
+                        view.machines
+                            .queue_space_scroll(*window, event.button == MouseButton::WheelUp);
+                        PointerOutcome::Handled
+                    }
+                    MouseButton::Left if view.machines.activate_sidebar_workspace(selected) => {
+                        view.dismiss_overlay();
+                        PointerOutcome::MachineNavigation
+                    }
+                    _ => PointerOutcome::Ignored,
+                }
+            }
+            #[cfg(windows)]
+            HitResolution::Region(HitTarget::MachineWorkspaceSurface(window)) => {
+                if event.action == MouseAction::Press
+                    && event.mods == crate::client_view::Modifiers::NONE
+                    && matches!(event.button, MouseButton::WheelUp | MouseButton::WheelDown)
+                {
+                    view.machines
+                        .queue_space_scroll(*window, event.button == MouseButton::WheelUp);
+                    PointerOutcome::Handled
+                } else {
+                    PointerOutcome::Ignored
+                }
+            }
             #[cfg(windows)]
             HitResolution::Region(HitTarget::OpenMachineAgents) => {
                 if event.action == MouseAction::Press

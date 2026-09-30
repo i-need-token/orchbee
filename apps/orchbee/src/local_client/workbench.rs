@@ -12,6 +12,8 @@ pub(crate) mod panel_metadata;
 mod plugins;
 mod window_title;
 #[cfg(windows)]
+mod workspace_git;
+#[cfg(windows)]
 pub(crate) mod workspace_metadata;
 use orchbee_local_ipc::LocalIo as BorrowedFd;
 use std::{fmt, io, time::Instant};

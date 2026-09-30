@@ -900,3 +900,21 @@ Workbench plugin execution requires read, terminal-creation and lifecycle grants
 Plugin Pane Tab/split admission resolves catalog selectors after grant, revision and replay guards, then freezes an explicit program, plugin-root fallback cwd and protected display environment. Both terminal planning and completion corroborate that environment with the frozen launch, cwd, ordinary environment and Worker generation. Resolution refusal precedes canonical reservation; retained requests replay without reading a changed manifest. Batch entrypoints are refused until a literal Windows shell-wrapper contract is available.
 
 Plugin Pane membership is prepared against the candidate canonical snapshot and committed with its terminal reservation. The bounded ephemeral map follows exact Presentation/binding identity; read-only PaneGet prunes lost bindings and returns revision-correlated facts, including when the Worker is unavailable. A retired authority refuses the read.
+
+## Workspace Git observations
+
+`workbench.workspace-git` is a read-granted query of a canonical Workspace's
+committed directory and Worker incarnation. Site, directory, canonical revision
+and Worker generation are checked before and after the discovery job; no topology
+or metadata report is mutated. Status headers supply branch and local upstream
+counts, with explicit absence. The [Workspace sidebar model](../orchbee/docs/machines.md#workspace-sidebar-model)
+owns the complete consumer and evidence limits.
+
+Discovery exchanges use nonblocking high-lane admission and absolute-deadline
+waits. WorktreeJob and AgentDrain replies remain checked on the sole wire owner,
+but an abandoned read completion does not retire a healthy carrier. Effectful
+operations retain required delivery. The status reader never resubmits a timed-out
+start and queues one nonblocking cancel for its known job identity; physical TTL,
+reaping and retained receipt remain Worker-owned if cleanup cannot be admitted.
+The read budget does not preempt mutex acquisition or process suspension, and
+cancel admission is not confirmed physical cleanup.

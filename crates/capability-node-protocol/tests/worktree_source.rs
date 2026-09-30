@@ -84,3 +84,23 @@ fn source_results_bound_all_four_fields_and_keep_unsupported_typed() {
         WorktreeJobPollOutcome::source_completed(vec![1; cap], vec![2], vec![], vec![]).is_err()
     );
 }
+
+#[test]
+fn status_action_and_terminal_receipt_are_separate_bounded_and_closed() {
+    let start = conformance(request(
+        WorktreeJobAction::start_status(b"C:/r".to_vec()).unwrap(),
+    ));
+    assert_eq!(&start[49..], b"\x05\x00\x04C:/r");
+    assert!(WorktreeJobAction::start_status(b"relative".to_vec()).is_err());
+    let completed =
+        WorktreeJobPollOutcome::status_completed(b"# branch.head main\n".to_vec(), vec![]).unwrap();
+    let frame = conformance(result(WorktreeJobOutcome::Poll(completed)));
+    assert_eq!(frame[42], 14);
+    assert!(
+        WorktreeJobPollOutcome::status_completed(
+            vec![0; MAXIMUM_WORKTREE_JOB_RESULT_FIELDS_BYTES],
+            vec![1]
+        )
+        .is_err()
+    );
+}

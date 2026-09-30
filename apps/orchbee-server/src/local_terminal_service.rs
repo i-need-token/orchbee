@@ -48,6 +48,7 @@ mod tab_close;
 mod tab_create;
 mod viewer_session;
 mod workspace_directory;
+mod workspace_git;
 mod workspace_group_close;
 mod workspace_metadata;
 mod worktree_list;

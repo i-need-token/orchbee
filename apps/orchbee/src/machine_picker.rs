@@ -15,6 +15,7 @@ use ratatui::{
 };
 mod agents;
 mod sidebar;
+mod spaces;
 pub(crate) use agents::Control;
 use agents::Navigation;
 pub(crate) use sidebar::SidebarWindow;
@@ -89,6 +90,8 @@ pub(crate) struct Picker {
     agent_attention: crate::machine_agents::Attention,
     agent_view: crate::machine_agents::view::View,
     sidebar: sidebar::Sidebar,
+    spaces: sidebar::Sidebar<orchbee_local_site_runtime::WindowsSpaceSidebarSettings>,
+    space_observations: Vec<(Choice, crate::machine_spaces::Observation)>,
     editing_query: bool,
     control_hits: Vec<(Rect, Control)>,
     current_member: Option<NativeMemberTarget>,
@@ -130,6 +133,8 @@ impl Default for Picker {
             agent_attention: crate::machine_agents::Attention::default(),
             agent_view: crate::machine_agents::view::View::default(),
             sidebar: sidebar::Sidebar::default(),
+            spaces: sidebar::Sidebar::default(),
+            space_observations: Vec::new(),
             editing_query: false,
             control_hits: Vec::new(),
             current_member: None,
@@ -172,6 +177,15 @@ impl Picker {
                 agent_status: None,
             }));
         }
+        if self
+            .workspace_rows
+            .iter()
+            .map(Row::selection)
+            .ne(rows.iter().map(Row::selection))
+        {
+            self.spaces.reset();
+        }
+        self.cancel_sidebar_scroll();
         self.workspace_rows = rows.into();
         self.rebuild_agents();
         self.selected = selected
@@ -193,7 +207,8 @@ impl Picker {
         true
     }
     pub(crate) fn wants_agents(&self) -> bool {
-        self.sidebar.visible() || (self.open && self.mode == Mode::Agents)
+        self.sidebar.visible()
+            || (self.open && matches!(self.mode, Mode::Agents | Mode::Workspaces))
     }
     pub(crate) fn observe_agents(
         &mut self,

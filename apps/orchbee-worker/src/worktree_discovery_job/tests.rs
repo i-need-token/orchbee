@@ -32,14 +32,15 @@ fn commands(probe: &str, list: &str) -> super::JobCommands {
     super::JobCommands {
         source: None,
         probe: sh(probe),
-        list: sh(list),
+        list: Some(sh(list)),
+        status: false,
         test_hooks: None,
     }
 }
 
 fn hooked(
     probe: &str,
-    list: &str,
+    list: Some(&str),
     faults: Faults,
 ) -> (Duration, super::JobCommands, Arc<Mutex<JobWitness>>) {
     let witness = Arc::new(Mutex::new(JobWitness::default()));
@@ -314,7 +315,8 @@ fn spawn_unavailable_is_distinct_from_other_failures() -> TestResult {
             program: OsString::from("/nonexistent-orchbee-fixture"),
             args: Vec::new(),
         },
-        list: sh("true"),
+        list: Some(sh("true")),
+        status: false,
         test_hooks: None,
     };
     assert_eq!(

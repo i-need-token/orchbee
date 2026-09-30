@@ -17,6 +17,8 @@ fn snapshot(revision: u64, profile: &str) -> ConfigurationSnapshot {
         keys_profile: profile.into(),
         notification_profile: "[ui.toast]\ndelivery='off'\n".into(),
         agent_sidebar_profile: r#"{"rows":null,"rows_by_agent":{},"row_gap":0}"#.into(),
+        spaces_sidebar_profile: orchbee_local_site_runtime::WindowsSpaceSidebarSettings::default()
+            .profile(),
         window_title: "{hostname}: {workspace}".into(),
         restart_required: Vec::new(),
         default_shell: String::new(),
@@ -47,6 +49,14 @@ fn bad_sidebar_publication_retains_keys_notifications_layout_and_revision_atomic
     assert_eq!(view.machines, before.machines);
     assert_eq!(view.notice(), Some(Notice::ConfigurationFailed));
     candidate.agent_sidebar_profile = r#"{"rows":[],"rows_by_agent":{},"row_gap":2}"#.into();
+    candidate.spaces_sidebar_profile = "{}".into();
+    watcher.shared.0.lock().unwrap().snapshot = Some(candidate.clone());
+    assert!(watcher.tick(&mut view));
+    assert_eq!(watcher.revision, 0);
+    assert_eq!(view.bindings(), before.bindings());
+    assert_eq!(view.notifications, before.notifications);
+    assert_eq!(view.machines, before.machines);
+    candidate.spaces_sidebar_profile = r#"{"rows":[],"row_gap":3}"#.into();
     watcher.shared.0.lock().unwrap().snapshot = Some(candidate);
     assert!(watcher.tick(&mut view));
     assert_eq!(watcher.revision, 1);
@@ -57,6 +67,7 @@ fn bad_sidebar_publication_retains_keys_notifications_layout_and_revision_atomic
     );
     assert_ne!(view.notifications, before.notifications);
     assert_eq!(view.machines.sidebar_settings().row_gap(), 2);
+    assert_eq!(view.machines.space_settings().row_gap(), 3);
     assert!(
         view.machines
             .sidebar_settings()

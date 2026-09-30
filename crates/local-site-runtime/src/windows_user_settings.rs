@@ -1,9 +1,16 @@
 //! Shared Windows user settings: bounded strict reads and explicitly invoked repair.
 mod agent_sidebar;
+mod sidebar_tokens;
+mod space_sidebar;
+pub use sidebar_tokens::WindowsSidebarTokenStyle;
+pub use space_sidebar::{
+    MAXIMUM_SPACE_SIDEBAR_PROFILE_BYTES, WindowsSpaceSidebarSettings, WindowsSpaceSidebarToken,
+    WindowsSpaceSidebarTokenKind,
+};
 mod keys;
 pub use agent_sidebar::{
     MAXIMUM_AGENT_SIDEBAR_PROFILE_BYTES, WindowsAgentSidebarSettings, WindowsAgentSidebarToken,
-    WindowsAgentSidebarTokenKind, WindowsSidebarTokenStyle,
+    WindowsAgentSidebarTokenKind,
 };
 mod notifications;
 pub use notifications::{WindowsNotificationDelivery, WindowsNotificationSettings};
@@ -30,6 +37,7 @@ pub use channel::set_windows_update_channel;
 pub struct WindowsUserSettings {
     pub window_title: String,
     pub agent_sidebar: WindowsAgentSidebarSettings,
+    pub space_sidebar: WindowsSpaceSidebarSettings,
     pub notifications: WindowsNotificationSettings,
     pub keys: WindowsKeySettings,
     pub shell: WindowsShellSettings,
@@ -66,6 +74,7 @@ impl Default for WindowsUserSettings {
         Self {
             window_title: DEFAULT_WINDOW_TITLE.into(),
             agent_sidebar: WindowsAgentSidebarSettings::default(),
+            space_sidebar: WindowsSpaceSidebarSettings::default(),
             notifications: WindowsNotificationSettings::default(),
             keys: WindowsKeySettings::default(),
             shell: WindowsShellSettings::default(),
@@ -274,8 +283,14 @@ fn parse(
                 let sidebar = sidebar
                     .as_table()
                     .ok_or(agent_sidebar::error("invalid-layout"))?;
-                if sidebar.keys().any(|key| key != "agents") {
+                if sidebar
+                    .keys()
+                    .any(|key| !matches!(key.as_str(), "agents" | "spaces"))
+                {
                     return Err(agent_sidebar::error("unknown-key"));
+                }
+                if let Some(spaces) = sidebar.get("spaces") {
+                    settings.space_sidebar = WindowsSpaceSidebarSettings::parse(spaces)?;
                 }
                 if let Some(agents) = sidebar.get("agents") {
                     settings.agent_sidebar = WindowsAgentSidebarSettings::parse(agents)?;

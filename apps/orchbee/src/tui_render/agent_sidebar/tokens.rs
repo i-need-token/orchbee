@@ -12,7 +12,7 @@ struct Context<'a> {
 impl<'a> Context<'a> {
     fn new(view: &ClientView, row: &'a Row, locale: Locale) -> Option<Self> {
         let agent = row.sidebar_agent()?;
-        let (key, _) = state_role(agent);
+        let (key, _) = super::super::sidebar_text::state_role(agent.display_state());
         Some(Self {
             agent,
             machine: machine_label(view, row, locale),
@@ -109,7 +109,7 @@ pub(super) fn lines(
             ),
         ];
     };
-    let (_, state_role) = state_role(context.agent);
+    let (_, state_role) = super::super::sidebar_text::state_role(context.agent.display_state());
     let role = if view.machines.current_agent(&row.choice, context.agent) {
         Role::AccentFocus
     } else {
@@ -195,42 +195,4 @@ pub(super) fn lines(
     );
     lines
 }
-fn state_role(agent: &crate::machine_agents::Row) -> (&'static str, Role) {
-    match agent.display_state() {
-        MetadataState::Blocked => ("agent-blocked", Role::StatusWarning),
-        MetadataState::Done => ("agent-done", Role::StatusSuccess),
-        MetadataState::Working => ("agent-working", Role::StatusInfo),
-        MetadataState::Idle => ("agent-idle", Role::TextPrimary),
-        MetadataState::Unknown => ("agent-unknown", Role::TextSecondary),
-    }
-}
-/// Preserve style boundaries while truncating the entire line at a grapheme boundary.
-pub(super) fn fit(line: Line<'static>, width: usize, ellipsis: &str) -> Line<'static> {
-    let text = line
-        .spans
-        .iter()
-        .map(|s| s.content.as_ref())
-        .collect::<String>();
-    let clipped = truncate_display(&text, width, ellipsis);
-    if clipped == text {
-        return line;
-    }
-    let mut remaining = clipped
-        .strip_suffix(ellipsis)
-        .map_or(clipped.len(), str::len);
-    let mut spans = Vec::new();
-    for span in line.spans {
-        let length = remaining.min(span.content.len());
-        if length > 0 {
-            spans.push(Span::styled(span.content[..length].to_owned(), span.style));
-        }
-        remaining -= length;
-        if remaining == 0 {
-            break;
-        }
-    }
-    if clipped.ends_with(ellipsis) {
-        spans.push(Span::styled(ellipsis.to_owned(), line.style));
-    }
-    Line { spans, ..line }
-}
+pub(super) use super::super::sidebar_text::fit;

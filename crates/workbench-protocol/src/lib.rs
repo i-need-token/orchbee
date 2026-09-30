@@ -8,6 +8,10 @@ pub use agent_view::{
 };
 mod carrier;
 mod command;
+pub use command::{
+    GitDivergence, MAXIMUM_WORKSPACE_GIT_BYTES, WorkspaceGitFailure, WorkspaceGitOutcome,
+    WorkspaceGitRequest, WorkspaceGitResult,
+};
 mod directory;
 mod identity;
 mod layout_template;

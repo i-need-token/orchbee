@@ -340,3 +340,11 @@ Windows 插件目录边界为原生插件管理提供有界清单解析、规范
 `set_windows_update_channel` 是共享显式设置写入器：校验完整当前文件，通过已有固定版本 toml_edit 解析器保留 TOML 语法，串行化配合的写入器，复核外部修改并刷新原子私有替换。可以创建指定的不存在文件，不下载，也不会因调用方更新失败而回滚已保存偏好。
 
 Windows 的 `NativeCohort::artifact_sha256` 保留成功接纳时各程序的摘要。安装来源将其声明摘要与这些观察比较，避免把两次读取间发生变化的 cohort 呈现为先前已接纳的版本。
+
+## Windows 侧栏呈现配置
+
+共享配置所有者分别接纳 `ui.sidebar.agents` 与 `ui.sidebar.spaces` 布局。
+token 样式／原始值首条匹配规则共用接纳所有者；各配置族包装器拒绝不支持的 token 和非文字规则。
+每个封闭规范 profile 独立限制 32 KiB。Workspace 布局使用 rows/row_gap；
+Agent 布局保留 Provider 覆盖。启动、CLI 检查及 Site 重载共同消费该所有者。
+参见[用户指南](../../apps/orchbee/docs/windows-cli-configuration.zh-CN.md#windows-workspace-侧栏布局)。

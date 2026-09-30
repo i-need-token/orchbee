@@ -6,7 +6,7 @@ import {
 	WORKBENCH_PROTOCOL_VERSION,
 } from './workbench-semantic-contract';
 
-export const WORKBENCH_MAXIMUM_ENCODED_CONFIGURATION_BYTES = 128 * 1024;
+export const WORKBENCH_MAXIMUM_ENCODED_CONFIGURATION_BYTES = 256 * 1024;
 const bounded = (maximum: number, minimum = 1) =>
 	z
 		.string()
@@ -25,6 +25,7 @@ const snapshot = z.strictObject({
 	windowTitle: bounded(4096, 0),
 	notificationProfile: bounded(1024),
 	agentSidebarProfile: bounded(32768),
+	spacesSidebarProfile: bounded(32768),
 	manifestCheck: z.boolean(),
 	defaultShell: bounded(4096, 0).refine((value) => !/\p{Cc}/u.test(value)),
 	shellMode: z.enum(['auto', 'login', 'non_login']),

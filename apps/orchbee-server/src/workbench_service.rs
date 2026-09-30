@@ -93,6 +93,7 @@ impl WorkbenchService {
                 | orchbee_workbench_protocol::PanelAgentAction::Observe { .. } => self.policy.read,
                 orchbee_workbench_protocol::PanelAgentAction::Report { .. } | orchbee_workbench_protocol::PanelAgentAction::ReportPresentation { .. } => self.policy.manage_navigation,
             },
+            WorkbenchRequest::WorkspaceGit(_) => self.policy.read,
             WorkbenchRequest::WorkspaceMetadata(request) => match request.action {
                 orchbee_workbench_protocol::WorkspaceMetadataAction::Read { .. } => self.policy.read,
                 orchbee_workbench_protocol::WorkspaceMetadataAction::Report { .. } => self.policy.manage_navigation,
@@ -208,6 +209,9 @@ impl WorkbenchService {
                 ));
             }
 
+            WorkbenchRequest::WorkspaceGit(request) => {
+                return WorkbenchExecution::Response(WorkbenchResponse::WorkspaceGit(self.terminals.execute_workspace_git(request.clone())));
+            }
             WorkbenchRequest::WorkspaceMetadata(request) => {
                 return WorkbenchExecution::Response(WorkbenchResponse::WorkspaceMetadata(
                     self.terminals.execute_workspace_metadata(request.clone()),
@@ -495,6 +499,21 @@ fn unavailable_or_denied(request: WorkbenchRequest, denied: bool) -> WorkbenchRe
                         orchbee_workbench_protocol::PanelAgentFailure::Denied
                     } else {
                         orchbee_workbench_protocol::PanelAgentFailure::Unavailable
+                    },
+                },
+            })
+        }
+        WorkbenchRequest::WorkspaceGit(request) => {
+            WorkbenchResponse::WorkspaceGit(orchbee_workbench_protocol::WorkspaceGitResult {
+                protocol_version: ProtocolVersion,
+                request_id: request.request_id.clone(),
+                site_id: request.site_id.clone(),
+                workspace_id: request.workspace_id.clone(),
+                outcome: orchbee_workbench_protocol::WorkspaceGitOutcome::Failed {
+                    reason: if denied {
+                        orchbee_workbench_protocol::WorkspaceGitFailure::Denied
+                    } else {
+                        orchbee_workbench_protocol::WorkspaceGitFailure::Unavailable
                     },
                 },
             })

@@ -95,7 +95,13 @@ pub use worktree_query::{
     WorkbenchWorktreeQueryOutcome, WorkbenchWorktreeQueryResult, WorktreeQueryEntry,
     WorktreeQueryFailure, WorktreeQuerySource, WorktreeWorkspaceAssociation,
 };
+mod workspace_git;
 mod workspace_metadata;
+pub use workspace_git::{
+    GitDivergence, MAXIMUM_WORKSPACE_GIT_BYTES, WorkspaceGitFailure, WorkspaceGitOutcome,
+    WorkspaceGitRequest, WorkspaceGitResult,
+};
+
 mod worktree_operation;
 use std::fmt;
 pub use workspace_metadata::{
@@ -882,6 +888,8 @@ pub enum WorkbenchRequest {
     PanelMetadata(PanelMetadataRequest),
     #[serde(rename = "workbench.workspace-metadata")]
     WorkspaceMetadata(WorkspaceMetadataRequest),
+    #[serde(rename = "workbench.workspace-git")]
+    WorkspaceGit(WorkspaceGitRequest),
     #[serde(rename = "workbench.client-view")]
     ClientView(WorkbenchClientViewRequest),
     #[serde(rename = "workbench.workspace-group-close")]
@@ -1259,6 +1267,8 @@ pub enum WorkbenchResponse {
     PanelMetadata(PanelMetadataResult),
     #[serde(rename = "workbench.workspace-metadata.result")]
     WorkspaceMetadata(WorkspaceMetadataResult),
+    #[serde(rename = "workbench.workspace-git.result")]
+    WorkspaceGit(WorkspaceGitResult),
     #[serde(rename = "workbench.client-view.result")]
     ClientView(WorkbenchClientViewResult),
     #[serde(rename = "workbench.workspace-group-close.result")]
@@ -1523,6 +1533,10 @@ fn validate_response(response: &WorkbenchResponse, encoded: &[u8]) -> Result<(),
         }
         WorkbenchResponse::PanelMetadata(result) => {
             enforce_encoded_limit(encoded, MAXIMUM_ENCODED_PANEL_METADATA_RESULT_BYTES)?;
+            result.validate()
+        }
+        WorkbenchResponse::WorkspaceGit(result) => {
+            enforce_encoded_limit(encoded, MAXIMUM_WORKSPACE_GIT_BYTES)?;
             result.validate()
         }
         WorkbenchResponse::WorkspaceMetadata(result) => {

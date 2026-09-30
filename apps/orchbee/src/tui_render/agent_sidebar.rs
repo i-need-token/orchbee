@@ -1,11 +1,8 @@
 //! Paints the existing merged Agent projection; never reads or acknowledges terminals.
+use super::sidebar_text::machine_label;
 use super::*;
 use crate::machine_discovery::display_label;
-use crate::{
-    client_view::Overlay,
-    machine_picker::{Choice, Row},
-};
-use orchbee_workbench_protocol::MetadataState;
+use crate::{client_view::Overlay, machine_picker::Row};
 mod tokens;
 
 pub(super) fn render(
@@ -55,7 +52,12 @@ pub(super) fn render(
         format!("  {}", text.projects),
         format!("  {}", text.workspaces),
     ];
-    let prefix = if inner.height >= 16 { 7 } else { 2 }.min(inner.height);
+    let prefix = if inner.height >= 16 && view.machines.space_rows().is_empty() {
+        7
+    } else {
+        2
+    }
+    .min(inner.height);
     let fit =
         |label: &str| truncate_display(label, usize::from(inner.width), theme.glyphs.ellipsis);
     frame.render_widget(
@@ -78,12 +80,37 @@ pub(super) fn render(
         ),
         Rect::new(inner.x, inner.y, inner.width, prefix),
     );
-    let area = Rect::new(
+    let mut area = Rect::new(
         inner.x,
         inner.y + prefix,
         inner.width,
         inner.height.saturating_sub(prefix),
     );
+    if area.is_empty() {
+        return;
+    }
+    if !view.machines.space_rows().is_empty() {
+        let height = if area.height >= 6 {
+            (area.height / 2).max(3)
+        } else if area.height >= 2 {
+            1
+        } else {
+            0
+        };
+        if height > 0 {
+            super::workspace_sidebar::render(
+                frame,
+                Rect::new(area.x, area.y, area.width, height),
+                view,
+                locale,
+                theme,
+                layer,
+                hits.as_deref_mut(),
+            );
+            area.y += height;
+            area.height -= height;
+        }
+    }
     if area.is_empty() {
         return;
     }
@@ -240,28 +267,6 @@ pub(super) fn render(
     if let Some(hits) = hits {
         hits.record(layer, footer, HitTarget::OpenMachineAgents);
     }
-}
-
-fn machine_label(view: &ClientView, row: &Row, locale: Locale) -> String {
-    if row.choice == Choice::Local {
-        return locale.machine_picker_text("local").into();
-    }
-    let label = display_label(&row.label);
-    if let Choice::Remote(id) = &row.choice
-        && view
-            .machines
-            .rows
-            .iter()
-            .filter(|other| other.enabled && display_label(&other.label) == label)
-            .count()
-            > 1
-    {
-        let width = (8..=32).step_by(4).find(|width| view.machines.rows.iter().filter(|other|
-            matches!(&other.choice, Choice::Remote(other_id) if other.enabled && other_id.as_str()[..*width] == id.as_str()[..*width]))
-            .count() == 1).unwrap_or(32);
-        return format!("{label} [{}]", &id.as_str()[..width]);
-    }
-    label
 }
 
 #[cfg(test)]

@@ -29,7 +29,8 @@ fn commands(probe: &str, list: &str) -> JobCommands {
     JobCommands {
         source: None,
         probe: shell(probe),
-        list: shell(list),
+        list: Some(shell(list)),
+        status: false,
         test_hooks: None,
     }
 }

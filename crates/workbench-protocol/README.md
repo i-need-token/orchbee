@@ -9,3 +9,15 @@ Closed plugin invocation/log/get/cancel requests and replies use matched-cohort 
 Plugin Pane launch options may carry `pluginPane: { pluginId, entrypointId }` on `tab.create` and `panel.split`. Both identities are bounded ASCII catalog names (120 bytes; entrypoint excludes dots). The selector is exclusive with executable/profile and rejected on Workspace or child-terminal creation. Empty and null optional selectors normalize away; legacy request serialization remains unchanged. Server resolution and protected execution environment belong to terminal admission, not this display-free selector.
 
 Plugin PaneGet is read-only and returns PaneFound with a nonzero canonical revision, closed selector, exact context/Tab/Panel/Presentation and binding. Response correlation requires the requested Panel; the result is not an action Job receipt or caller display context.
+
+## Workspace Git status reads
+
+`WorkspaceGitRequest`/`WorkspaceGitResult` add the closed `workbench.workspace-git`
+and `workbench.workspace-git.result` directions, OBWP kinds 49/50, with independent
+8 KiB pre-allocation limits. Required nullable branch/divergence fields distinguish
+absence from zero; branch text is control-free UTF-8 at most 1024 bytes, counts are
+uint32, and detached branches cannot carry counts. Exact request/Site/Workspace
+correlation is mandatory. The [schema and shared corpus](../../schemas/workbench/README.md#workspace-git-status-reads)
+cover both Rust and TypeScript. This read grants no mutation or Desktop command.
+Configuration publication additionally carries separate required 32 KiB
+`spacesSidebarProfile`; its matched-cohort frame budget is 256 KiB.

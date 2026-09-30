@@ -62,7 +62,7 @@ fn current(registry: &Registry) -> ConfigurationSnapshot {
 fn sidebar_reload_publishes_exact_profile_and_invalid_layout_retains_whole_publication() {
     let fixture = Fixture::new();
     fixture.write(
-        "[keys]\nprefix='ctrl+a'\n[ui.sidebar.agents]\nrows=[['state_text','$summary']]\nrow_gap=1",
+        "[keys]\nprefix='ctrl+a'\n[ui.sidebar.agents]\nrows=[['state_text','$summary']]\nrow_gap=1\n[ui.sidebar.spaces]\nrows=[['workspace','$summary']]\nrow_gap=3",
     );
     let registry = Registry::default();
     registry.initialize(&fixture.settings(true)).unwrap();
@@ -82,6 +82,19 @@ fn sidebar_reload_publishes_exact_profile_and_invalid_layout_retains_whole_publi
     fixture.write("[keys]\nprefix='ctrl+x'\n[ui.toast]\ndelivery='terminal'\n[ui.sidebar.agents]\nrows=[['invalid-token']]");
     assert!(
         matches!(registry.execute(&request(Action::Reload), |_| panic!("invalid candidate cannot apply")), Outcome::Failed { reason: Failure::LoadFailed, field: Some(field), .. } if field == "ui.sidebar.agents")
+    );
+    assert_eq!(current(&registry), snapshot);
+    assert_eq!(
+        orchbee_local_site_runtime::WindowsSpaceSidebarSettings::from_profile(
+            &snapshot.spaces_sidebar_profile
+        )
+        .unwrap()
+        .row_gap(),
+        3
+    );
+    fixture.write("[keys]\nprefix='ctrl+x'\n[ui.toast]\ndelivery='terminal'\n[ui.sidebar.agents]\nrows=[]\n[ui.sidebar.spaces]\nrows=[['agent']]");
+    assert!(
+        matches!(registry.execute(&request(Action::Reload), |_| panic!("invalid spaces cannot apply")), Outcome::Failed { reason: Failure::LoadFailed, field: Some(field), .. } if field == "ui.sidebar.spaces")
     );
     assert_eq!(current(&registry), snapshot);
     fixture.write("[keys]\nprefix='ctrl+x'\n[ui.sidebar.agents]\nrows=[]\nrow_gap=2");

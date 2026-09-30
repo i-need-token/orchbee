@@ -240,3 +240,13 @@ Server 屏幕模型拥有来源选择、下载、安装、取消和回执上限�
 启动选项中的插件 Pane 选择器是封闭、有界的目录标识，仅由 Tab／分屏创建受理。规范化保留非 null 选择器，移除 null／缺省值。共享命令语料覆盖标识边界、未知执行字段及程序／profile 冲突，不代表已支持所有插件布局。
 
 插件契约还承载只读 Pane 成员查询及精确修订号／绑定响应。共享语料拒绝零修订号、无绑定成员与带插件前缀的本地入口名称。
+
+## Workspace Git 状态读取
+
+`workbench-workspace-git-contract.ts` 加入主请求／响应联合，保留封闭身份／修订／nullable／失败语义，
+使用独立 8 KiB 帧、1024 字节分支文字及 uint32 ahead/behind 计数。
+它与独立 Rust 绑定共同消费[共享语料](../../schemas/workbench/v1/workbench-workspace-git-conformance-v1.json)
+及 [Schema](../../schemas/workbench/v1/workbench-workspace-git.schema.json)；
+语义字节／跨字段检查补充 JSON Schema。
+配置快照在 Agent profile 之外必需携带独立 32 KiB `spacesSidebarProfile`，编码预算为 256 KiB。
+运行时安装由 Client 拥有并保持原子性。不增加 Desktop 命令或变更权限。

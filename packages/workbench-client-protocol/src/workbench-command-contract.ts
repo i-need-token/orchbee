@@ -1,3 +1,7 @@
+import {
+	WorkspaceGitRequestSchema,
+	WorkspaceGitResultSchema,
+} from './workbench-workspace-git-contract';
 import { PluginRequestSchema, PluginResultSchema } from './workbench-plugin-contract';
 import {
 	WindowTitleRequestSchema,
@@ -394,6 +398,7 @@ export const WorkbenchRequestSchema = z
 		WorkbenchWorktreeRequestSchema,
 		WorkbenchWorktreeQuerySchema,
 		WorkspaceMetadataRequestSchema,
+		WorkspaceGitRequestSchema,
 		AgentManifestsRequestSchema,
 		ConfigurationRequestSchema,
 		PluginRequestSchema,
@@ -778,6 +783,7 @@ export const WorkbenchResponseSchema = z
 		WorkbenchWorktreeResultSchema,
 		WorkbenchWorktreeQueryResultSchema,
 		WorkspaceMetadataResultSchema,
+		WorkspaceGitResultSchema,
 		AgentManifestsResultSchema,
 		ConfigurationResultSchema,
 		PluginResultSchema,

@@ -47,6 +47,10 @@ pub(crate) enum Stage {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum JobOutcome {
+    StatusCompleted {
+        status: Vec<u8>,
+        stderr: Vec<u8>,
+    },
     SourceCompleted {
         common_dir: Vec<u8>,
         source_checkout: Vec<u8>,
@@ -186,7 +190,8 @@ struct SpawnedChild {
 struct JobCommands {
     source: Option<CommandSpec>,
     probe: CommandSpec,
-    list: CommandSpec,
+    list: Option<CommandSpec>,
+    status: bool,
     test_hooks: Option<TestHooks>,
 }
 
@@ -230,7 +235,7 @@ fn git_commands(directory: &Path) -> JobCommands {
                 "--git-common-dir".into(),
             ],
         },
-        list: CommandSpec {
+        list: Some(CommandSpec {
             #[cfg(windows)]
             git_context: None,
             program: "git".into(),
@@ -243,7 +248,8 @@ fn git_commands(directory: &Path) -> JobCommands {
                 "--porcelain".into(),
                 "-z".into(),
             ],
-        },
+        }),
+        status: false,
         test_hooks: None,
     }
 }
@@ -262,7 +268,38 @@ fn source_commands(directory: &Path, trust: bool) -> JobCommands {
             "--path-format=absolute",
             "--show-toplevel",
         ])),
-        list: git(&["worktree", "list", "--porcelain", "-z"]),
+        list: Some(git(&["worktree", "list", "--porcelain", "-z"])),
+        status: false,
+        test_hooks: None,
+    }
+}
+
+#[cfg(windows)]
+fn status_commands(directory: &Path) -> JobCommands {
+    JobCommands {
+        source: None,
+        probe: CommandSpec {
+            git_context: Some((directory.to_owned(), false)),
+            program: "git.exe".into(),
+            args: [
+                "-c",
+                "core.fsmonitor=false",
+                "-c",
+                "core.untrackedCache=false",
+                "status",
+                "--porcelain=v2",
+                "--branch",
+                "--untracked-files=no",
+                "--ignore-submodules=all",
+                "--",
+                ":(top,exclude)**",
+            ]
+            .into_iter()
+            .map(OsString::from)
+            .collect(),
+        },
+        list: None,
+        status: true,
         test_hooks: None,
     }
 }
@@ -326,6 +363,14 @@ impl WorktreeDiscoverySlot {
             JOB_TTL,
             source_commands(directory, trust),
         )
+    }
+
+    #[cfg(windows)]
+    pub(crate) fn start_status(&self, job_id: JobId, directory: &Path) -> StartOutcome {
+        if !crate::git_repository_windows::is_drive_path(directory) {
+            return StartOutcome::InvalidDirectory;
+        }
+        self.start_with(job_id, directory, JOB_TTL, status_commands(directory))
     }
 
     fn start_with(
@@ -497,7 +542,7 @@ fn run_owner(commands: JobCommands, cancel: Arc<AtomicBool>, deadline: Instant) 
     for (stage, spec, source) in [
         (Stage::Probe, Some(&commands.probe), false),
         (Stage::Probe, commands.source.as_ref(), true),
-        (Stage::List, Some(&commands.list), false),
+        (Stage::List, commands.list.as_ref(), false),
     ] {
         let Some(spec) = spec else { continue };
         if cancel.load(Ordering::Relaxed) {
@@ -570,6 +615,12 @@ fn run_owner(commands: JobCommands, cancel: Arc<AtomicBool>, deadline: Instant) 
                 };
             }
         }
+    }
+    if commands.status {
+        return owner_report(JobOutcome::StatusCompleted {
+            status: probe_stdout.unwrap_or_default(),
+            stderr,
+        });
     }
     if let Some(source_checkout) = source_stdout {
         return owner_report(JobOutcome::SourceCompleted {

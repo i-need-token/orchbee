@@ -16,6 +16,7 @@ const ACTION_START: u8 = 1;
 const ACTION_POLL: u8 = 2;
 const ACTION_CANCEL: u8 = 3;
 const ACTION_START_SOURCE: u8 = 4;
+const ACTION_START_STATUS: u8 = 5;
 
 const START_ACCEPTED: u8 = 1;
 const START_BUSY: u8 = 2;
@@ -36,6 +37,7 @@ const POLL_OWNER_IO: u8 = 9;
 const POLL_UNKNOWN: u8 = 10;
 const POLL_PHYSICAL_UNKNOWN: u8 = 11;
 const POLL_SOURCE_COMPLETED: u8 = 13;
+const POLL_STATUS_COMPLETED: u8 = 14;
 
 const CANCEL_REGISTERED: u8 = 1;
 const CANCEL_ALREADY_TERMINAL: u8 = 2;
@@ -55,6 +57,11 @@ pub(super) fn encode_request(request: &WorktreeJobRequest) -> Vec<u8> {
         } => {
             bytes.push(ACTION_START_SOURCE);
             bytes.push(u8::from(*trust_repository));
+            bytes.extend_from_slice(&(directory.len() as u16).to_be_bytes());
+            bytes.extend_from_slice(directory);
+        }
+        WorktreeJobAction::StartStatus { directory } => {
+            bytes.push(ACTION_START_STATUS);
             bytes.extend_from_slice(&(directory.len() as u16).to_be_bytes());
             bytes.extend_from_slice(directory);
         }
@@ -91,6 +98,10 @@ pub(super) fn decode_request(bytes: &[u8]) -> Result<WorktreeJobRequest, Protoco
             };
             let length = usize::from(reader.read_u16()?);
             WorktreeJobAction::start_source(reader.read_slice(length)?.to_vec(), trust)?
+        }
+        ACTION_START_STATUS => {
+            let length = usize::from(reader.read_u16()?);
+            WorktreeJobAction::start_status(reader.read_slice(length)?.to_vec())?
         }
         ACTION_START => {
             let length = usize::from(reader.read_u16()?);
@@ -156,6 +167,13 @@ fn encode_poll_outcome(bytes: &mut Vec<u8>, outcome: &WorktreeJobPollOutcome) {
         } => {
             bytes.push(POLL_SOURCE_COMPLETED);
             for field in [common_dir, source_checkout, listing, stderr] {
+                bytes.extend_from_slice(&(field.len() as u16).to_be_bytes());
+                bytes.extend_from_slice(field);
+            }
+        }
+        WorktreeJobPollOutcome::StatusCompleted { status, stderr } => {
+            bytes.push(POLL_STATUS_COMPLETED);
+            for field in [status, stderr] {
                 bytes.extend_from_slice(&(field.len() as u16).to_be_bytes());
                 bytes.extend_from_slice(field);
             }
@@ -255,6 +273,11 @@ fn decode_poll_outcome(
             let listing = read_field(reader)?.to_vec();
             let stderr = read_field(reader)?.to_vec();
             WorktreeJobPollOutcome::source_completed(common_dir, source_checkout, listing, stderr)?
+        }
+        POLL_STATUS_COMPLETED => {
+            let status = read_field(reader)?.to_vec();
+            let stderr = read_field(reader)?.to_vec();
+            WorktreeJobPollOutcome::status_completed(status, stderr)?
         }
         POLL_COMPLETED => {
             let common_dir = read_field(reader)?.to_vec();

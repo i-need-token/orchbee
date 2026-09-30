@@ -220,3 +220,109 @@ fn unavailable_directory_is_prepared_by_the_owner_and_late_cancellation_never_sp
     assert!(report.child_reaped && report.pipes_closed);
     assert!(witness.lock().unwrap().spawned.is_empty());
 }
+
+fn observe_status(fixture: &Fixture, job: u8, path: &Path) -> JobOutcome {
+    assert_eq!(
+        fixture.slot.start_status(JobId([job; 16]), path),
+        StartOutcome::Accepted
+    );
+    let cutoff = Instant::now() + Duration::from_secs(10);
+    loop {
+        match fixture.slot.poll(JobId([job; 16])) {
+            PollOutcome::Pending if Instant::now() < cutoff => thread::sleep(POLL_SLICE),
+            PollOutcome::Completed(outcome) => return outcome,
+            other => panic!("status failed to settle: {other:?}"),
+        }
+    }
+}
+#[test]
+fn status_observation_reads_real_divergence_without_files_hooks_or_config_mutation() {
+    let fixture = Fixture::new();
+    fixture.git(&["branch", "upstream"]);
+    fixture.git(&["branch", "--set-upstream-to=upstream", "main"]);
+    fixture.git(&["commit", "--allow-empty", "-m", "ahead"]);
+    fs::write(fixture.root.join("repo/untracked.txt"), "keep").unwrap();
+    fixture.git(&[
+        "config",
+        "core.fsmonitor",
+        fixture.root.join("must-not-execute.cmd").to_str().unwrap(),
+    ]);
+    let before = fs::read(fixture.root.join("repo/.git/config")).unwrap();
+    let JobOutcome::StatusCompleted { status, stderr } =
+        observe_status(&fixture, 30, &fixture.root.join("repo"))
+    else {
+        panic!("expected status")
+    };
+    assert!(stderr.is_empty(), "fsmonitor must not execute: {stderr:?}");
+    let text = String::from_utf8(status).unwrap();
+    assert!(text.contains("# branch.head main\n"));
+    assert!(text.contains("# branch.ab +1 -0\n"));
+    assert!(text.lines().all(|l| l.starts_with("# branch.")));
+    assert_eq!(
+        fs::read(fixture.root.join("repo/.git/config")).unwrap(),
+        before
+    );
+    assert_eq!(
+        fs::read_to_string(fixture.root.join("repo/untracked.txt")).unwrap(),
+        "keep"
+    );
+    fixture.git(&["config", "--unset", "core.fsmonitor"]);
+    fixture.git(&["checkout", "upstream"]);
+    fixture.git(&["commit", "--allow-empty", "-m", "upstream diverges"]);
+    fixture.git(&["checkout", "main"]);
+    let JobOutcome::StatusCompleted { status, .. } =
+        observe_status(&fixture, 35, &fixture.root.join("repo"))
+    else {
+        panic!("divergent status");
+    };
+    assert!(
+        String::from_utf8(status)
+            .unwrap()
+            .contains("# branch.ab +1 -1\n")
+    );
+    fixture.git(&["checkout", "--detach"]);
+    let JobOutcome::StatusCompleted { status, .. } =
+        observe_status(&fixture, 31, &fixture.root.join("repo"))
+    else {
+        panic!("expected detached")
+    };
+    assert!(
+        String::from_utf8(status)
+            .unwrap()
+            .contains("# branch.head (detached)\n")
+    );
+    let bare = fixture.root.join("empty");
+    fs::create_dir(&bare).unwrap();
+    assert!(matches!(
+        observe_status(&fixture, 32, &bare),
+        JobOutcome::GitFailed { .. }
+    ));
+}
+#[test]
+fn status_observation_handles_unborn_and_linked_checkouts() {
+    let fixture = Fixture::new();
+    let unborn = fixture.root.join("unborn");
+    fixture.git(&["init", "-b", "first", unborn.to_str().unwrap()]);
+    let JobOutcome::StatusCompleted { status, .. } = observe_status(&fixture, 33, &unborn) else {
+        panic!("expected unborn")
+    };
+    let text = String::from_utf8(status).unwrap();
+    assert!(text.contains("# branch.oid (initial)\n# branch.head first\n"));
+    assert!(!text.contains("branch.ab"));
+    let linked = fixture.root.join("linked-status");
+    fixture.git(&[
+        "worktree",
+        "add",
+        "-b",
+        "worktree/feature",
+        linked.to_str().unwrap(),
+    ]);
+    let JobOutcome::StatusCompleted { status, .. } = observe_status(&fixture, 34, &linked) else {
+        panic!("expected linked")
+    };
+    assert!(
+        String::from_utf8(status)
+            .unwrap()
+            .contains("# branch.head worktree/feature\n")
+    );
+}

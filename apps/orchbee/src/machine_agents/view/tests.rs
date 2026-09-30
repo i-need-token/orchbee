@@ -1,4 +1,5 @@
 use super::*;
+use crate::machines::ProfileId;
 fn row() -> Row {
     Row {
         seen: true,

@@ -312,3 +312,15 @@ The exported plugin request/result schemas validate matched-cohort OBWP kinds 45
 Plugin Pane selectors in launch options are closed, bounded catalog identities admitted only by Tab/split creation. Normalization preserves non-null selectors and removes null/absent values. The shared command corpus covers identity bounds, unknown execution fields and launch/profile conflicts; it does not imply support for every plugin placement.
 
 The plugin contract also carries read-only Pane membership requests and exact revision/binding responses. The shared corpus rejects zero revisions, unbound members and qualified local entrypoint names.
+
+## Workspace Git status reads
+
+`workbench-workspace-git-contract.ts` joins the main request/response unions with
+closed identity/revision/nullability/failure semantics, independent 8 KiB frames,
+1024-byte branch text and uint32 ahead/behind counts. It consumes the
+[shared corpus](../../schemas/workbench/v1/workbench-workspace-git-conformance-v1.json)
+and [schema](../../schemas/workbench/v1/workbench-workspace-git.schema.json) with the
+independent Rust binding; semantic byte/cross-field checks supplement JSON Schema.
+Configuration snapshots require separate 32 KiB `spacesSidebarProfile` alongside
+the Agent profile, with a 256 KiB encoded budget. Runtime installation remains
+Client-owned and atomic. This binding adds no Desktop command or mutation permission.

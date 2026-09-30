@@ -798,3 +798,17 @@ Workbench 插件执行在解析源文件前要求读取、终端创建和生命�
 插件 Pane 的 Tab／分屏受理在权限、修订号和重放检查后解析目录选择器，再冻结显式程序、插件根目录后备 cwd 及受保护的展示环境。终端规划与完成阶段均将环境与冻结的程序、cwd、普通环境和 Worker 代次进行关联核对。解析拒绝先于规范预留；保留请求重放时不重新读取已变化的清单。在有明确的 Windows shell 包装字面参数契约前，拒绝 batch 入口。
 
 插件 Pane 成员记录针对候选规范快照准备，与终端预留同时提交。有界临时映射跟随精确 Presentation／绑定标识；只读 PaneGet 清除丢失绑定，返回带修订号的事实，Worker 不可用时仍可读取。已退役的 authority 拒绝读取。
+
+## Workspace Git 观测
+
+`workbench.workspace-git` 按读取授权查询规范 Workspace 已提交目录及 Worker 实例。
+Site、目录、规范修订和 Worker 代际在发现 job 前后检查；不修改拓扑或元数据报告。
+状态头提供分支及本地 upstream 计数，明确保留缺失语义。
+[工作区侧栏模型](../orchbee/docs/machines.zh-CN.md#工作区侧栏模型) 拥有完整消费者和证据边界。
+
+发现交换采用非阻塞高优先级队列接纳及绝对截止时间等待。
+WorktreeJob 与 AgentDrain 回复仍由唯一 wire owner 受检，
+但放弃的读取完成结果不会因此退役健康 carrier；有副作用的操作仍要求送达结果。
+状态读取器不重发超时启动，只为已知 job 身份排队一次非阻塞取消；
+无法接纳清理时，物理 TTL、reap 及保留回执仍归 Worker 所有。
+读取预算不抢占 mutex 获取或进程挂起，取消接纳不代表已确认物理清理。

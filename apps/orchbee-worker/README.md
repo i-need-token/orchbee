@@ -946,3 +946,16 @@ no attachment or new thread. Invalid/corrupt Host events retire the connection,
 with no stale title promotion. See the [title wire](../../crates/capability-node-protocol/README.md#windows-physical-title-observations)
 and [Client model](../orchbee/docs/machines.md#live-terminal-title-observation-model)
 for framing, Site fences, rendering and evidence limits.
+
+## Workspace Git status reads
+
+`StartStatus` uses the same owned discovery slot and five-second budget as source
+queries. Literal `git status --porcelain=v2 --branch --untracked-files=no
+--ignore-submodules=all -- :(top,exclude)**` emits branch headers only. Command-local
+`core.fsmonitor=false`, `core.untrackedCache=false`, optional locks off, isolated
+Git environment and no trust expansion prevent incidental hooks/cache/configuration
+writes; no fetch occurs. Terminal receipts require child/pipes settlement and
+retain exact status/stderr bounds. Real Windows Git tests cover ahead/behind,
+no upstream, detached/unborn/linked/nonrepository states and unchanged data/config.
+See the [status wire](../../crates/capability-node-protocol/README.md#windows-workspace-git-status-observations)
+and [Client model](../orchbee/docs/machines.md#workspace-sidebar-model).

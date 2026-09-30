@@ -48,6 +48,8 @@ fn current_reload_rejections_and_lost_reply_have_closed_typed_receipts_without_r
                 keys_profile: "[keys]\nprefix='ctrl+a'\n".into(),
                 notification_profile: "[ui.toast]\ndelivery='off'\n".into(),
                 agent_sidebar_profile: r#"{"rows":null,"rows_by_agent":{},"row_gap":0}"#.into(),
+                spaces_sidebar_profile:
+                    orchbee_local_site_runtime::WindowsSpaceSidebarSettings::default().profile(),
                 window_title: if case == "en" {
                     "{tab}\n\u{202e}"
                 } else {
@@ -147,7 +149,7 @@ fn current_reload_rejections_and_lost_reply_have_closed_typed_receipts_without_r
                 &document,
                 include_str!("../src/cli/schemas/orchbee.site.configuration.json"),
             );
-            assert_eq!(document["version"], 5);
+            assert_eq!(document["version"], 6);
             if matches!(case, "startup" | "current" | "reload" | "restart") {
                 assert_eq!(
                     document["result"]["reply"]["outcome"]["snapshot"]["defaultShell"],
@@ -220,6 +222,18 @@ fn public_configuration_versions_keep_closed_independent_snapshots() {
     assert!(!validator.is_valid(&document));
     document["result"]["reply"]["outcome"]["snapshot"]["agentSidebarProfile"] =
         r#"{"rows":[],"rows_by_agent":{},"row_gap":2}"#.into();
+    assert!(validator.is_valid(&document));
+    document["version"] = 6.into();
+    assert!(!validator.is_valid(&document));
+    document["result"]["reply"]["outcome"]["snapshot"]["spacesSidebarProfile"] =
+        "{\"rows\":[],\"row_gap\":0}".into();
+    assert!(validator.is_valid(&document));
+    document["version"] = 5.into();
+    assert!(!validator.is_valid(&document));
+    document["result"]["reply"]["outcome"]["snapshot"]
+        .as_object_mut()
+        .unwrap()
+        .remove("spacesSidebarProfile");
     assert!(validator.is_valid(&document));
     document["version"] = 4.into();
     assert!(!validator.is_valid(&document));

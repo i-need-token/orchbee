@@ -846,3 +846,14 @@ Worker 在匹配版本的托管启动中接收自有 `WindowsShellSettings` 快�
 不会提升旧标题。详见[标题协议](../../crates/capability-node-protocol/README.zh-CN.md#windows-物理标题观察)
 及[Client 模型](../orchbee/docs/machines.zh-CN.md#实时终端标题观察模型)，
 了解帧、Site 栅栏、渲染及证据边界。
+
+## Workspace Git 状态读取
+
+`StartStatus` 与来源查询共用自有发现槽及五秒预算。
+字面 `git status --porcelain=v2 --branch --untracked-files=no
+--ignore-submodules=all -- :(top,exclude)**` 仅输出分支头。
+命令局部 `core.fsmonitor=false`、`core.untrackedCache=false`、关闭可选锁、隔离 Git 环境及不扩大信任，
+防止意外 hook／缓存／配置写入；不 fetch。终态回执要求子进程／管道结算，保留精确 status/stderr 边界。
+真实 Windows Git 测试覆盖 ahead/behind、无 upstream、游离／未出生／关联／非仓库状态及数据／配置不变。
+参见[状态协议](../../crates/capability-node-protocol/README.zh-CN.md#windows-workspace-git-状态观测)
+及 [Client 模型](../orchbee/docs/machines.zh-CN.md#工作区侧栏模型)。

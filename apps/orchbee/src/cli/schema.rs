@@ -523,7 +523,7 @@ pub(crate) fn answer(schema_id: Option<&str>, format: OutputFormat, locale: Loca
     let document = json!({
         "schema": "orchbee.api.schema",
         // Adds source-owned Agent view filtering, sorting and guarded clear.
-        "version": 122,
+        "version": 123,
         "source": embedded_source(),
         "result": result,
     });

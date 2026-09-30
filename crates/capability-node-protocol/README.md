@@ -641,3 +641,14 @@ the whole payload caps at 17 + 4 * (62 + 65536) bytes before allocation. Decoder
 reject bad tags, UTF-8, duplicates, versions, reserved bytes, zero revision,
 truncation and tails. Ordinary OBCN limits stay unchanged. Matched private cohorts
 ship/roll back together; no persisted data or Host protocol changes.
+
+## Windows Workspace Git status observations
+
+The existing Worktree job request/result kinds 15/16 add `StartStatus` action tag 5
+and `StatusCompleted` poll tag 14. Directory validation and identity/generation
+fences are unchanged; status/stderr use separate u16-prefixed byte fields with the
+existing 7936-byte summed budget. Legacy Start/StartSource encodings stay unchanged.
+The Windows owner reuses the discovery slot, TTL, cancellation, settlement and
+retained receipt; unsupported platforms reject this action. No mutation/Host
+startup/input authority is added. Runtime ownership is in the
+[Workspace sidebar model](../../apps/orchbee/docs/machines.md#workspace-sidebar-model).

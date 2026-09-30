@@ -501,7 +501,7 @@ Server 负责原子分配和发布；物理成员创建仍是独立的保留命�
 
 ## Site 配置发布
 
-`workbench.configuration`（OBWP 类型 39）携带 `current` 或 `reload`；`workbench.configuration.result`（类型 40）携带封闭的 current/reloaded/failed 结果。每帧上限 128 KiB。[配置 schema](v1/workbench-configuration.schema.json)、共享语料和独立 Rust/TypeScript 绑定接纳相同形状和边界。快照版本 0 表示启动基线，正版本表示显式发布。仅含键位的规范配置上限 64 KiB；重启字段不可重复；可选失败诊断为必需但可空的成对字段（128 个 UTF-8 字节、无控制字符，仅载入失败允许）。请求和 Site 标识必须匹配，成功结果必须对应请求动作。
+`workbench.configuration`（OBWP 类型 39）携带 `current` 或 `reload`；`workbench.configuration.result`（类型 40）携带封闭的 current/reloaded/failed 结果。每帧上限 256 KiB。[配置 schema](v1/workbench-configuration.schema.json)、共享语料和独立 Rust/TypeScript 绑定接纳相同形状和边界。快照版本 0 表示启动基线，正版本表示显式发布。仅含键位的规范配置上限 64 KiB；重启字段不可重复；可选失败诊断为必需但可空的成对字段（128 个 UTF-8 字节、无控制字符，仅载入失败允许）。请求和 Site 标识必须匹配，成功结果必须对应请求动作。
 
 [Windows 配置归属契约](../../apps/orchbee/docs/windows-cli-configuration.zh-CN.md#在线配置重载) 负责授权、冻结路径、候选校验、发布、Client 应用和关闭。发布不表示所有 Client 已确认。已提交重载丢失响应仍为未知，不自动重试。不新增 Desktop 命令；匹配的私有版本整套交付，不迁移持久化格式。
 
@@ -541,3 +541,20 @@ Site 在 Worker 读取前后保护保留的物理身份。标题不改变报告�
 Agent 序号、源过滤或 Client 已读状态；公开 CLI 输出版本不变。
 匹配的私有 cohort 一起更新。共享一致性案例覆盖原始 Unicode、清除、
 缺失、可空、版本、封闭字段及上限。
+
+## Workspace Git 状态读取
+
+[`workbench-workspace-git.schema.json`](v1/workbench-workspace-git.schema.json)
+拥有 `workbench.workspace-git` 及 `.result`，OBWP kind 49/50，分别在分配前限制 8 KiB。
+观测回执保留 Workbench 修订及必需 nullable branch/divergence；
+失败为 denied/unavailable/not-found/source-changed/timeout/malformed。
+分支最多 1024 个 UTF-8 字节，计数为 uint32；null 分支禁止计数。
+[共享语料](v1/workbench-workspace-git-conformance-v1.json)检查封闭形状、nullable 字段、字节／计数边界及精确身份；
+绑定还验证结构 JSON Schema 之外的语义约束。
+[Workspace 侧栏所有者](../../apps/orchbee/docs/machines.zh-CN.md#工作区侧栏模型)
+定义规范目录／Worker 保护、Git 生命周期及可见消费。
+
+Workspace 侧栏发布增加必需非空 `spacesSidebarProfile`，独立于 `agentSidebarProfile` 限制 32 KiB。
+配置帧包含 JSON 转义限制 256 KiB；Client 安装前先验证全部四个 profile。
+公开 config check v11、配置失败 v8 和 Site 配置回执 v6 保持所有旧变体封闭。
+目录 v123 仍有 105 个 schema／141 条路径。

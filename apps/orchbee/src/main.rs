@@ -25,7 +25,11 @@ mod machine_agents;
 #[cfg(windows)]
 mod machine_discovery;
 #[cfg(windows)]
+mod machine_observation;
+#[cfg(windows)]
 mod machine_picker;
+#[cfg(windows)]
+mod machine_spaces;
 #[cfg(windows)]
 mod machine_ssh;
 #[cfg(windows)]

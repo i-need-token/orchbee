@@ -42,6 +42,10 @@ pub enum WorktreeJobAction {
         directory: Vec<u8>,
         trust_repository: bool,
     },
+    /// Windows read-only branch/upstream observation; no repository trust expansion.
+    StartStatus {
+        directory: Vec<u8>,
+    },
     Poll {
         job_id: OperationId,
     },
@@ -51,6 +55,11 @@ pub enum WorktreeJobAction {
 }
 
 impl WorktreeJobAction {
+    pub fn start_status(directory: Vec<u8>) -> Result<Self, ProtocolError> {
+        Self::start(directory.clone())?;
+        Ok(Self::StartStatus { directory })
+    }
+
     pub fn start_source(directory: Vec<u8>, trust_repository: bool) -> Result<Self, ProtocolError> {
         Self::start(directory.clone())?;
         Ok(Self::StartSource {
@@ -106,6 +115,10 @@ pub enum WorktreeJobStartOutcome {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum WorktreeJobPollOutcome {
     Pending,
+    StatusCompleted {
+        status: Vec<u8>,
+        stderr: Vec<u8>,
+    },
     SourceCompleted {
         common_dir: Vec<u8>,
         source_checkout: Vec<u8>,
@@ -144,6 +157,11 @@ pub enum WorktreeJobPollOutcome {
 }
 
 impl WorktreeJobPollOutcome {
+    pub fn status_completed(status: Vec<u8>, stderr: Vec<u8>) -> Result<Self, ProtocolError> {
+        check_fields(status.len() + stderr.len())?;
+        Ok(Self::StatusCompleted { status, stderr })
+    }
+
     pub fn source_completed(
         common_dir: Vec<u8>,
         source_checkout: Vec<u8>,

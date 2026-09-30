@@ -456,6 +456,9 @@ fn request_failure(error: WorkerRequestError) -> WorkbenchWorktreeListOutcome {
 fn poll_step(outcome: WorktreeJobPollOutcome) -> PollStep {
     match outcome {
         WorktreeJobPollOutcome::Pending => PollStep::Pending,
+        WorktreeJobPollOutcome::StatusCompleted { .. } => PollStep::Done(JobTerminal::Failed(
+            WorkbenchWorktreeListOutcome::MalformedListing {},
+        )),
         WorktreeJobPollOutcome::SourceCompleted {
             common_dir,
             source_checkout,

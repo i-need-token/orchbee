@@ -334,6 +334,16 @@ impl WorkerRequestHandle {
         self.admit(WorkerOperationRequest::AgentDrain(request), false)
     }
 
+    /// Read-only discovery jobs retain their physical TTL and receipt in the
+    /// Worker. A bounded Server reader may abandon this exchange; the wire owner
+    /// still validates and consumes its late reply. Admission never waits.
+    pub(crate) fn admit_worktree_job(
+        &self,
+        request: WorktreeJobRequest,
+    ) -> Result<PendingExchange, WorkerRequestError> {
+        self.admit(WorkerOperationRequest::WorktreeJob(request), false)
+    }
+
     /// Admit one request through the existing worker/generation fence and lane
     /// rules, returning the exchange that receives its result. Completion
     /// ownership is fixed by the admitted request kind.
@@ -429,28 +439,30 @@ impl WorkerRequestHandle {
 }
 
 /// Who owns the completion delivery for one admitted request. A Required
-/// result must reach a live receiver or the carrier dies; a DiscardableDrain
-/// result may be consumed and dropped when its Server drain reader abandoned
-/// the wait, keeping healthy carrier traffic alive. Detached requests carry
+/// result must reach a live receiver or the carrier dies; a DiscardableRead
+/// result may be consumed and dropped when its bounded Server reader abandoned
+/// the wait, keeping healthy carrier traffic alive. Discovery physical jobs and
+/// their TTL remain Worker-owned. Detached requests carry
 /// no receiver at all.
 #[derive(Debug)]
 enum CompletionDelivery {
     Required(SyncSender<Result<WorkerOperationResult, WorkerRequestError>>),
-    // The drain pump's discardable delivery lane.
-    DiscardableDrain(SyncSender<Result<WorkerOperationResult, WorkerRequestError>>),
+    DiscardableRead(SyncSender<Result<WorkerOperationResult, WorkerRequestError>>),
     Detached,
 }
 
 impl CompletionDelivery {
     /// Completion ownership is derived from the admitted request kind, never
-    /// chosen by the caller: only a typed AgentDrain request gets a discardable
-    /// completion.
+    /// chosen by the caller: typed AgentDrain and read-only WorktreeJob requests
+    /// get discardable completion; effects still require a live receiver.
     fn for_request(
         request: &WorkerOperationRequest,
         completion: SyncSender<Result<WorkerOperationResult, WorkerRequestError>>,
     ) -> Self {
         match request {
-            WorkerOperationRequest::AgentDrain(_) => Self::DiscardableDrain(completion),
+            WorkerOperationRequest::AgentDrain(_) | WorkerOperationRequest::WorktreeJob(_) => {
+                Self::DiscardableRead(completion)
+            }
             _ => Self::Required(completion),
         }
     }
@@ -1029,10 +1041,10 @@ fn send_completion(
     match pending.completion {
         CompletionDelivery::Detached => true,
         CompletionDelivery::Required(completion) => completion.send(result).is_ok(),
-        // An abandoned drain read must not kill healthy carrier traffic: the
+        // An abandoned observation must not kill healthy carrier traffic: the
         // reply is still consumed off the wire, then discarded when its
         // receiver is gone.
-        CompletionDelivery::DiscardableDrain(completion) => {
+        CompletionDelivery::DiscardableRead(completion) => {
             let _delivered = completion.send(result);
             true
         }
@@ -1467,9 +1479,9 @@ fn validate_response(
             let expected_job = match &expected.action {
                 // Start mints the Job identity: the echoed Job ID is the
                 // request's own operation identity.
-                WorktreeJobAction::Start { .. } | WorktreeJobAction::StartSource { .. } => {
-                    expected.operation_id
-                }
+                WorktreeJobAction::Start { .. }
+                | WorktreeJobAction::StartSource { .. }
+                | WorktreeJobAction::StartStatus { .. } => expected.operation_id,
                 WorktreeJobAction::Poll { job_id } | WorktreeJobAction::Cancel { job_id } => {
                     *job_id
                 }
@@ -1480,7 +1492,9 @@ fn validate_response(
             if !matches!(
                 (&expected.action, &actual.outcome),
                 (
-                    WorktreeJobAction::Start { .. } | WorktreeJobAction::StartSource { .. },
+                    WorktreeJobAction::Start { .. }
+                        | WorktreeJobAction::StartSource { .. }
+                        | WorktreeJobAction::StartStatus { .. },
                     WorktreeJobOutcome::Start(_)
                 ) | (WorktreeJobAction::Poll { .. }, WorktreeJobOutcome::Poll(_))
                     | (

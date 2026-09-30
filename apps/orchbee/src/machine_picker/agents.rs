@@ -147,6 +147,7 @@ impl Picker {
         self.current_context = context;
         self.current_member = member;
         self.sidebar.reset();
+        self.spaces.reset();
         self.rebuild_workspaces(selected);
         true
     }
@@ -308,6 +309,7 @@ impl Picker {
         };
         self.error = None;
         self.sidebar.reset();
+        self.spaces.reset();
         self.rebuild_workspaces(selected);
     }
     pub(super) fn agent_key(&mut self, code: KeyCode, mods: Modifiers) -> bool {

@@ -45,6 +45,42 @@ const TEST_POLL_INTERVAL: Duration = Duration::from_millis(5);
 const TEST_COMPLETION_TIMEOUT: Duration = Duration::from_secs(2);
 
 #[test]
+fn bounded_discovery_admission_fences_route_and_preserves_the_high_lane_capacity() -> TestResult {
+    use orchbee_capability_node_protocol::{WorktreeJobAction, WorktreeJobRequest};
+    let (handle, _owner, _shutdown, _server, _worker) = test_carrier()?;
+    let request = WorktreeJobRequest {
+        operation_id: OperationId::from_bytes([1; 16])?,
+        worker_id: CapabilityWorkerId::from_bytes(LOCAL_WORKER_ID.as_bytes())?,
+        worker_generation: WorkerGeneration::new(GENERATION),
+        action: WorktreeJobAction::start_status(b"C:/w".to_vec())?,
+    };
+    let mut stale = request.clone();
+    stale.worker_generation = WorkerGeneration::new(nonzero(GENERATION.get() + 1)?);
+    assert!(matches!(
+        handle.admit_worktree_job(stale),
+        Err(WorkerRequestError::WrongGeneration)
+    ));
+    let mut wrong = request.clone();
+    wrong.worker_id = CapabilityWorkerId::from_bytes([9; 16])?;
+    assert!(matches!(
+        handle.admit_worktree_job(wrong),
+        Err(WorkerRequestError::WrongWorker)
+    ));
+    let mut retained = Vec::new();
+    for n in 1..=8 {
+        retained.push(handle.admit_worktree_job(WorktreeJobRequest {
+            operation_id: OperationId::from_bytes([n; 16])?,
+            ..request.clone()
+        })?);
+    }
+    assert!(matches!(
+        handle.admit_worktree_job(request),
+        Err(WorkerRequestError::Backpressure)
+    ));
+    Ok(())
+}
+
+#[test]
 fn physical_title_batch_uses_low_lane_and_carries_large_complete_values_on_windows_pipe()
 -> TestResult {
     use orchbee_capability_node_protocol::{

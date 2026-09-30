@@ -1,20 +1,15 @@
 //! Bounded physical Agent checkpoints and UI-owned cross-machine observation jobs.
 use crate::{
     local_client::LocalClient,
-    machine_discovery::{Connection, display_label},
+    machine_discovery::display_label,
     machine_picker::Choice,
-    machines::ProfileId,
     terminal_session::{NativeContextLocation, NativeContextTarget},
 };
 use orchbee_agent_observation_protocol::AgentLaunchBinding;
 use orchbee_workbench_protocol::*;
 use std::{
-    sync::{
-        Arc,
-        atomic::{AtomicU8, Ordering},
-    },
-    thread::{self, JoinHandle},
-    time::{Duration, Instant},
+    sync::{Arc, atomic::AtomicU8},
+    time::Instant,
 };
 
 mod attention;
@@ -25,7 +20,6 @@ pub(crate) use attention::Attention;
 
 const MAXIMUM_ROWS: usize = 4096;
 const MAXIMUM_BYTES: usize = 8 * 1024 * 1024;
-const FRESH_FOR: Duration = Duration::from_secs(10);
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct Target {
@@ -61,6 +55,7 @@ pub(crate) struct PlacementOrder {
 pub(crate) struct Checkpoint {
     pub(crate) site_id: SiteId,
     pub(crate) report_revision: WorkbenchRevision,
+    pub(crate) contexts: Arc<[NativeContextTarget]>,
     pub(crate) view: AgentViewSnapshot,
     pub(crate) rows: Arc<[Row]>,
 }
@@ -70,49 +65,11 @@ impl std::ops::Deref for Checkpoint {
         &self.rows
     }
 }
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) enum Observation {
-    Loading,
-    Ready(Arc<Checkpoint>),
-    Unavailable,
-}
-pub(crate) struct Source {
-    pub(crate) choice: Choice,
-    pub(crate) connection: Connection,
-}
+pub(crate) type Observation = crate::machine_observation::Observation<Checkpoint>;
+pub(crate) type Collector = crate::machine_observation::Collector<Checkpoint>;
+pub(crate) use crate::machine_observation::snapshot;
+use crate::machine_observation::{check, request_id};
 
-fn request_id() -> Result<WorkbenchRequestId, ()> {
-    WorkbenchRequestId::parse(ProfileId::generate().map_err(|_| ())?.as_str()).map_err(|_| ())
-}
-fn check(deadline: Instant, cancel: &AtomicU8) -> Result<(), ()> {
-    if Instant::now() >= deadline || cancel.load(Ordering::Acquire) != 0 {
-        Err(())
-    } else {
-        Ok(())
-    }
-}
-pub(crate) fn snapshot(
-    client: &mut LocalClient,
-    deadline: Instant,
-    cancel: &AtomicU8,
-) -> Result<Snapshot, ()> {
-    check(deadline, cancel)?;
-    match client
-        .submit_workbench_snapshot_read_before_cancellable(
-            SnapshotReadIntent {
-                protocol_version: ProtocolVersion,
-                request_id: request_id()?,
-            },
-            deadline,
-            Some(orchbee_local_ipc::LocalIo::Wake(cancel, 1)),
-        )
-        .map_err(|_| ())?
-        .outcome
-    {
-        WorkbenchSnapshotOutcome::Available { snapshot } => Ok(snapshot),
-        _ => Err(()),
-    }
-}
 fn source_view(
     client: &mut LocalClient,
     snapshot: &Snapshot,
@@ -379,7 +336,29 @@ pub(crate) fn read(
             });
         }
     }
+    let mut contexts = vec![NativeContextTarget {
+        site_id: snapshot.site_id.clone(),
+        location: NativeContextLocation::Standalone(
+            snapshot.navigation.standalone_terminal_context_id.clone(),
+        ),
+    }];
+    contexts.extend(
+        snapshot
+            .navigation
+            .ordered_workspaces()
+            .map_err(|_| ())?
+            .into_iter()
+            .map(|(p, w)| NativeContextTarget {
+                site_id: snapshot.site_id.clone(),
+                location: NativeContextLocation::Workspace {
+                    project_id: p.project_id.clone(),
+                    workspace_id: w.workspace_id.clone(),
+                    terminal_context_id: w.terminal_context_id.clone(),
+                },
+            }),
+    );
     Ok(Arc::new(Checkpoint {
+        contexts: contexts.into(),
         site_id: snapshot.site_id,
         report_revision: head,
         view: initial_view,
@@ -419,179 +398,6 @@ pub(crate) fn verify(
         return Err(());
     }
     check(deadline, cancel)
-}
-
-struct Completed {
-    at: Instant,
-    rows: Result<Arc<Checkpoint>, ()>,
-}
-struct Job {
-    cancel: Arc<AtomicU8>,
-    task: Option<JoinHandle<Completed>>,
-}
-impl Job {
-    fn start(source: Connection, deadline: Instant) -> Result<Self, ()> {
-        let cancel = Arc::new(AtomicU8::new(0));
-        let flag = cancel.clone();
-        let task = thread::Builder::new()
-            .name("orchbee-machine-agents".into())
-            .spawn(move || {
-                let result = (|| {
-                    let mut client = source.reconnect(deadline, &flag).map_err(|_| ())?;
-                    read(&mut client, deadline, &flag)
-                })();
-                Completed {
-                    at: Instant::now(),
-                    rows: result,
-                }
-            })
-            .map_err(|_| ())?;
-        Ok(Self {
-            cancel,
-            task: Some(task),
-        })
-    }
-    fn stop(&self) {
-        self.cancel.store(1, Ordering::Release);
-    }
-    fn finished(&self) -> bool {
-        self.task.as_ref().is_none_or(JoinHandle::is_finished)
-    }
-}
-impl Drop for Job {
-    fn drop(&mut self) {
-        self.stop();
-        if let Some(task) = self.task.take() {
-            let _settled = task.join();
-        }
-    }
-}
-struct Entry {
-    choice: Choice,
-    job: Option<Job>,
-    observation: Observation,
-    observed: Option<Instant>,
-    next: Instant,
-}
-#[derive(Default)]
-pub(crate) struct Collector {
-    entries: Vec<Entry>,
-    retired: Vec<Job>,
-    cursor: usize,
-}
-impl Collector {
-    pub(crate) fn clear(&mut self) {
-        for mut entry in self.entries.drain(..) {
-            if let Some(job) = entry.job.take() {
-                job.stop();
-                self.retired.push(job);
-            }
-        }
-    }
-    pub(crate) fn tick(
-        &mut self,
-        sources: Vec<Source>,
-        now: Instant,
-    ) -> Vec<(Choice, Observation)> {
-        self.tick_with_start(sources, now, Job::start)
-    }
-    fn tick_with_start(
-        &mut self,
-        sources: Vec<Source>,
-        now: Instant,
-        mut start: impl FnMut(Connection, Instant) -> Result<Job, ()>,
-    ) -> Vec<(Choice, Observation)> {
-        self.retired.retain(|job| !job.finished());
-        let mut old = std::mem::take(&mut self.entries);
-        for source in &sources {
-            let entry = old
-                .iter()
-                .position(|e| e.choice == source.choice)
-                .map(|i| old.remove(i))
-                .unwrap_or_else(|| Entry {
-                    choice: source.choice.clone(),
-                    job: None,
-                    observation: Observation::Loading,
-                    observed: None,
-                    next: now,
-                });
-            self.entries.push(entry);
-        }
-        for mut entry in old {
-            if let Some(job) = entry.job.take() {
-                job.stop();
-                self.retired.push(job);
-            }
-        }
-        for entry in &mut self.entries {
-            if entry.job.as_ref().is_some_and(Job::finished) {
-                let mut job = entry.job.take().expect("finished job");
-                entry.observation = match job.task.take().expect("owned job").join() {
-                    Ok(Completed { at, rows: Ok(rows) }) => {
-                        entry.observed = Some(at);
-                        Observation::Ready(rows)
-                    }
-                    _ => {
-                        entry.observed = None;
-                        Observation::Unavailable
-                    }
-                };
-                entry.next = now + Duration::from_secs(2);
-            }
-        }
-        let mut active =
-            self.retired.len() + self.entries.iter().filter(|e| e.job.is_some()).count();
-        let len = self.entries.len();
-        for offset in 0..len {
-            let index = (self.cursor + offset) % len;
-            let entry = &mut self.entries[index];
-            if active >= 4 {
-                break;
-            }
-            if entry.job.is_none() && now >= entry.next {
-                match start(
-                    sources[index].connection.clone(),
-                    now + Duration::from_secs(5),
-                ) {
-                    Ok(job) => {
-                        entry.job = Some(job);
-                        active += 1;
-                    }
-                    Err(()) => {
-                        entry.observation = Observation::Unavailable;
-                        entry.next = now + Duration::from_secs(2);
-                    }
-                }
-            }
-        }
-        if len > 0 {
-            self.cursor = (self.cursor + 1) % len;
-        }
-        self.entries
-            .iter()
-            .map(|entry| {
-                (
-                    entry.choice.clone(),
-                    if entry
-                        .observed
-                        .is_some_and(|at| now.saturating_duration_since(at) > FRESH_FOR)
-                    {
-                        Observation::Unavailable
-                    } else {
-                        entry.observation.clone()
-                    },
-                )
-            })
-            .collect()
-    }
-}
-impl Drop for Collector {
-    fn drop(&mut self) {
-        self.clear();
-        for job in &self.retired {
-            job.stop();
-        }
-    }
 }
 
 #[cfg(test)]
