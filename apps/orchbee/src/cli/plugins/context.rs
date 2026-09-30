@@ -2,7 +2,6 @@
 use crate::{
     cli::{
         Failure, FailureKind,
-        caller_context::PanelTarget,
         client_control::{selection, windows::exchange},
         current_presentation::{self, Origin, Resolved},
         query, results,
@@ -15,8 +14,12 @@ use crate::{
 use orchbee_workbench_protocol::{
     ClientViewAction, ClientViewAvailability, ClientViewOutcome, ClientViewPhase, ClientViewRecord,
     PluginInvocationContext, Snapshot, TerminalId, WorkbenchClientId, WorkbenchPanelId,
+    WorkbenchTerminalContextId,
 };
 use std::time::Instant;
+
+mod pane_source;
+pub(in crate::cli) use pane_source::Source;
 
 pub(in crate::cli) fn resolve(
     client: &mut LocalClient,
@@ -30,7 +33,7 @@ pub(in crate::cli) fn resolve(
     observe(
         client,
         snapshot,
-        explicit,
+        Source::current(explicit),
         provided,
         operation_id,
         deadline,
@@ -43,7 +46,7 @@ pub(in crate::cli) fn resolve(
 pub(in crate::cli) fn observe(
     client: &mut LocalClient,
     snapshot: &Snapshot,
-    explicit: Option<&WorkbenchClientId>,
+    source: Source<'_>,
     provided: PluginInvocationContext,
     operation_id: &str,
     deadline: Instant,
@@ -56,43 +59,13 @@ pub(in crate::cli) fn observe(
     Failure,
 > {
     signals.check_before(deadline)?;
-    let caller = if explicit.is_none() {
-        PanelTarget::prepare_optional(|name| std::env::var_os(name))?
-            .map(|caller| caller.resolve_exact(snapshot))
-            .transpose()?
-    } else {
-        None
-    };
-    let selected = if caller.is_none() {
-        let response = exchange(
-            client,
-            &snapshot.site_id,
-            ClientViewAction::List {},
-            deadline,
-            signals,
-        )?;
-        let ClientViewOutcome::Listed { clients } = response.outcome else {
-            return Err(Failure::new(
-                if matches!(response.outcome, ClientViewOutcome::Denied {}) {
-                    FailureKind::Denied
-                } else {
-                    FailureKind::ServiceUnavailable
-                },
-            ));
-        };
-        if explicit.is_none()
-            && !clients
-                .iter()
-                .any(|c| c.availability == ClientViewAvailability::Current)
-        {
-            None
-        } else {
-            Some(selection::select(&clients, explicit, None)?.clone())
-        }
-    } else {
-        None
-    };
-    let (mut context, panel) = infer(snapshot, selected.as_ref(), caller)?;
+    let observed = source.prepare(client, snapshot, deadline, signals)?;
+    let pane_source::Observation {
+        mut context,
+        panel,
+        selected,
+        fence,
+    } = observed;
     context.invocation_source = Some("cli".into());
     context.correlation_id = Some(operation_id.into());
     if let Some(id) = &context.workspace_id {
@@ -161,6 +134,9 @@ pub(in crate::cli) fn observe(
                 return Err(crate::cli::workbench_agents::failure("client-changed"));
             }
         }
+    }
+    if let Some(fence) = fence {
+        fence.verify(client, snapshot, deadline, signals)?;
     }
     signals.check_before(deadline)?;
     let context = context.with_overrides(provided);
@@ -234,11 +210,30 @@ fn infer(
         None if !context.tabs.is_empty() || panel.is_some() => return Err(invalid()),
         None => {}
     }
+    let canonical = infer_context(snapshot, context_id)?;
+    result.workspace_id = canonical.workspace_id;
+    result.workspace_label = canonical.workspace_label;
+    result.workspace_cwd = canonical.workspace_cwd;
+    Ok((result, panel))
+}
+
+fn infer_context(
+    snapshot: &Snapshot,
+    id: &WorkbenchTerminalContextId,
+) -> Result<PluginInvocationContext, Failure> {
+    if !snapshot
+        .terminal_contexts
+        .iter()
+        .any(|c| &c.terminal_context_id == id)
+    {
+        return Err(invalid());
+    }
+    let mut result = PluginInvocationContext::default();
     if let Some((project, workspace)) = snapshot.navigation.projects.iter().find_map(|project| {
         project
             .workspaces
             .iter()
-            .find(|workspace| &workspace.terminal_context_id == context_id)
+            .find(|workspace| &workspace.terminal_context_id == id)
             .map(|workspace| (project, workspace))
     }) {
         result.workspace_id = Some(workspace.workspace_id.to_string());
@@ -251,7 +246,7 @@ fn infer(
                 .map(|directory| directory.path.as_str().to_owned())
         });
     }
-    Ok((result, panel))
+    Ok(result)
 }
 
 fn enrich(context: &mut PluginInvocationContext, document: &serde_json::Value) {

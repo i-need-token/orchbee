@@ -1,6 +1,29 @@
 //! Exact source-context reads through actual Windows CLI processes.
 use super::*;
 
+fn member(snapshot: &Snapshot, presentation: u64) -> (WorkbenchPanelId, Presentation) {
+    fn find(node: &PanelNode, id: &str) -> Option<(WorkbenchPanelId, Presentation)> {
+        match node {
+            PanelNode::Panel {
+                panel_id,
+                primary_presentation,
+                child_presentations,
+                ..
+            } => std::iter::once(primary_presentation)
+                .chain(child_presentations)
+                .find(|p| p.presentation_id.as_str() == id)
+                .map(|p| (panel_id.clone(), p.clone())),
+            PanelNode::Split { children, .. } => children.iter().find_map(|s| find(&s.node, id)),
+        }
+    }
+    snapshot
+        .terminal_contexts
+        .iter()
+        .flat_map(|c| &c.tabs)
+        .find_map(|t| find(&t.root, &id(presentation)))
+        .unwrap()
+}
+
 fn passive_member(
     stream: &mut LocalStream,
     source: &Value,
@@ -13,41 +36,26 @@ fn passive_member(
     };
     assert_eq!(
         json!(command.intent),
-        json!({"kind":"presentation","panelId":id(6)})
+        json!({"kind":"presentation","panelId":member(snapshot, presentation).0})
     );
     assert_eq!(
         json!(command.expected_view_revision),
         source["viewRevision"]
     );
-    let root = &snapshot.terminal_contexts[0].tabs[0].root;
-    fn member(node: &PanelNode, id: &str) -> Option<Presentation> {
-        match node {
-            PanelNode::Panel {
-                primary_presentation,
-                child_presentations,
-                ..
-            } => std::iter::once(primary_presentation)
-                .chain(child_presentations)
-                .find(|p| p.presentation_id.as_str() == id)
-                .cloned(),
-            PanelNode::Split { children, .. } => {
-                children.iter().find_map(|slot| member(&slot.node, id))
-            }
-        }
-    }
-    let selected = member(root, &id(presentation)).unwrap();
+    let (panel, selected) = member(snapshot, presentation);
     let physical = selected.binding.map(|binding| json!({"presentationId":id(presentation),"binding":binding,"attachmentGeneration":"7","incarnation":0,"viewport":{"state":"unavailable","reason":"frame-unavailable"}}));
     let selected = physical
         .unwrap_or_else(|| json!({"presentationId":id(presentation),"selectionGeneration":"1"}));
     view_reply(
         stream,
         &request,
-        json!({"kind":"operation","operation":{"command":command,"status":{"kind":"presentation-read","view":source["view"],"presentation":{"workbenchRevision":"12","panelId":id(6),"presentation":selected}}}}),
+        json!({"kind":"operation","operation":{"command":command,"status":{"kind":"presentation-read","view":source["view"],"presentation":{"workbenchRevision":"12", "panelId":panel,"presentation":selected}}}}),
     );
 }
 
 fn source_reports(
     stream: &mut LocalStream,
+    panel: &WorkbenchPanelId,
     presentation: u64,
     binding: Option<PresentationBinding>,
     fence: bool,
@@ -66,7 +74,7 @@ fn source_reports(
     let outcome = if fence {
         json!({"kind":"read","workbenchRevision":"12","metadataRevision":"5","panels":[]})
     } else {
-        json!({"kind":"presentations-read","workbenchRevision":"12","metadataRevision":"5","presentations":[{"presentationId":id(presentation),"panel":{"panelId":id(6),"binding":binding,"tokens":{},"presentations":[]}}]})
+        json!({"kind":"presentations-read","workbenchRevision":"12","metadataRevision":"5","presentations":[{"presentationId":id(presentation),"panel":{"panelId":panel,"binding":binding,"tokens":{},"presentations":[]}}]})
     };
     write_workbench_response(
         stream,
@@ -93,7 +101,7 @@ fn source_reports(
     let outcome = if fence {
         json!({"kind":"read","workbenchRevision":"12","reportRevision":"5","panels":[]})
     } else {
-        json!({"kind":"presentations-read","workbenchRevision":"12","reportRevision":"5","presentations":[{"presentationId":id(presentation),"panel":{"panelId":id(6),"binding":binding,"report":report}}]})
+        json!({"kind":"presentations-read","workbenchRevision":"12","reportRevision":"5","presentations":[{"presentationId":id(presentation),"panel":{"panelId":panel,"binding":binding,"report":report}}]})
     };
     write_workbench_response(
         stream,
@@ -133,24 +141,8 @@ pub(super) fn read(
     };
     assert_eq!(json!(request)["kind"], "agent.session.list.request");
     write_agent_result(stream,&AgentResult::Read(serde_json::from_value(json!({"kind":"agent.session.list.result","requestId":request.request_id(),"result":{"outcome":{"kind":"listed","revision":3,"items":[],"nextCursor":null}}})).unwrap())).unwrap();
-    fn binding(node: &PanelNode, id: &str) -> Option<Option<PresentationBinding>> {
-        match node {
-            PanelNode::Panel {
-                primary_presentation,
-                child_presentations,
-                ..
-            } => std::iter::once(primary_presentation)
-                .chain(child_presentations)
-                .find(|p| p.presentation_id.as_str() == id)
-                .map(|p| p.binding.clone()),
-            PanelNode::Split { children, .. } => children.iter().find_map(|s| binding(&s.node, id)),
-        }
-    }
-    let binding = binding(
-        &snapshot.terminal_contexts[0].tabs[0].root,
-        &id(presentation),
-    )
-    .unwrap();
+    let (panel, selected) = member(snapshot, presentation);
+    let binding = selected.binding;
     if let Some(binding) = &binding {
         terminal_metadata_peer::sample_for(
             stream,
@@ -159,8 +151,8 @@ pub(super) fn read(
             Some(binding.terminal_id.as_str()),
         );
     }
-    source_reports(stream, presentation, binding, false);
-    source_reports(stream, presentation, None, true);
+    source_reports(stream, &panel, presentation, binding, false);
+    source_reports(stream, &panel, presentation, None, true);
     snapshot_reply(stream, snapshot.clone());
     if let Some(source) = source {
         passive_member(stream, source, snapshot, presentation);
@@ -366,14 +358,8 @@ fn plugin_pane_explicit_destination_preserves_headless_and_empty_workspace_sourc
             };
             assert_eq!(terminal_context_id.as_str(), id(11));
             let context = options.plugin_context.as_ref().unwrap();
-            assert_eq!(
-                context.workspace_id.as_deref(),
-                (!headless).then(|| id(12)).as_deref()
-            );
-            assert_eq!(
-                context.workspace_label.as_deref(),
-                (!headless).then_some("empty source")
-            );
+            assert_eq!(context.workspace_id.as_deref(), Some(id(12)).as_deref());
+            assert_eq!(context.workspace_label.as_deref(), Some("empty source"));
             assert!(
                 context.tab_id.is_none()
                     && context.focused_pane_id.is_none()

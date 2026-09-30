@@ -633,3 +633,6 @@ fn plugin_pane_focus_close_require_exact_membership_and_never_repeat_effects() {
 
 #[path = "plugin_panes/source.rs"]
 mod source;
+
+#[path = "plugin_panes/targets.rs"]
+mod targets;

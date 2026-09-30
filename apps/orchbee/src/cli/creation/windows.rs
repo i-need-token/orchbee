@@ -207,7 +207,12 @@ fn execute(
         let (context, observed_member) = crate::cli::plugins::context::observe(
             &mut client,
             &snapshot,
-            selected.as_ref().map(|record| &record.client_id),
+            crate::cli::plugins::context::Source::creation(
+                &canonical,
+                &snapshot,
+                command.overlay,
+                selected.as_ref().map(|record| &record.client_id),
+            )?,
             Default::default(),
             query::request_id()?.as_str(),
             deadline,

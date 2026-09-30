@@ -73,3 +73,24 @@ fn runtime_context_uses_observed_cwd_and_unambiguous_member_agent() {
     assert_eq!(fresh.focused_pane_agent.as_deref(), Some("Team Agent"));
     assert_eq!(fresh.focused_pane_status.as_deref(), Some("blocked"));
 }
+
+#[test]
+fn headless_destination_keeps_canonical_workspace_without_guessing_tab_or_focus() {
+    let snapshot = snapshot();
+    let context = infer_context(
+        &snapshot,
+        &snapshot.terminal_contexts[1].terminal_context_id,
+    )
+    .unwrap();
+    assert_eq!(context.workspace_id, Some(id(6)));
+    assert_eq!(context.workspace_label.as_deref(), Some("workspace"));
+    assert_eq!(context.workspace_cwd.as_deref(), Some("C:/repo"));
+    assert!(
+        context.tab_id.is_none()
+            && context.focused_pane_id.is_none()
+            && context.focused_pane_cwd.is_none()
+            && context.focused_pane_agent.is_none()
+    );
+    let unknown = WorkbenchTerminalContextId::parse(&id(999)).unwrap();
+    assert!(infer_context(&snapshot, &unknown).is_err());
+}

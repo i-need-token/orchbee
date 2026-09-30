@@ -72,6 +72,17 @@ Overlay 在创建前通过被动读取固定源 Client 实际选中的主或子 
 
 插件 Pane 创建可携带 `LaunchOptions.pluginContext`，复用已有插件调用上下文契约的有界显示观察。仅在 Tab 创建或 Panel 分屏同时提供插件 Pane 选择器时接纳。CLI 在创建前通过规范成员以及被动 Client／调用者、主／子成员、物理 Agent／cwd 和 Workspace worktree 读取观察原始来源。同一个创建 deadline 覆盖这些读取与后续创建／交接；来源或 Client 观察过时则在提交前拒绝。空、headless、未绑定或不可用的观察不伪造聚焦终端或选中文本。
 
-Server 验证来源成员及规范标签，将 `invocationSource` 固定为 `plugin-pane`、correlation 固定为实际创建请求，并在 reservation 前冻结到已有受保护启动环境。上下文描述所观察的来源，可能与显式选择的目的地不同；不提供可执行文件、目录策略、Worker 或终端权限。未携带该字段的已有请求保持原有接纳。不会新增上下文存储或 replay 查询；冻结启动 intent 拥有上下文生命周期。Rust、TypeScript 与 JSON 对端需成套部署。独立 popup 的几何及 reservation、exposure、输入和关闭所有者仍是单独缺口。
+Server 验证来源成员及规范标签，将 `invocationSource` 固定为 `plugin-pane`、correlation 固定为实际创建请求，并在 reservation 前冻结到已有受保护启动环境。上下文描述 placement 在创建前选定的来源；不提供可执行文件、目录策略、Worker 或终端权限。未携带该字段的已有请求保持原有接纳。不会新增上下文存储或 replay 查询；冻结启动 intent 拥有上下文生命周期。Rust、TypeScript 与 JSON 对端需成套部署。独立 popup 的几何及 reservation、exposure、输入和关闭所有者仍是单独缺口。
 
-冻结的 Herdr 基线在 split／zoomed 上下文中选择显式目标 Pane，在 Tab 上下文中选择目的 Workspace 记住的焦点。本批补充当前调用者／Client 来源并固定 overlay 成员；选择不同目标或非活动目的地时，尚未实现这些目标上下文语义。这是明确保留的对齐工作，不宣称来源上下文已全部完成。已有私有上下文使用原生调用来源／关联约定。两边基线的 Pane 启动都不会自动复制选中文本。
+冻结于 `e0507237` 的 Herdr 基线在 split／zoomed 上下文中选择显式目标 Pane，在 Tab 上下文中选择目的 Workspace 记住的焦点。CLI 从已解析的规范创建命令推导来源，不使用显示标签或待执行导航 intent。Overlay 保留原始选中的主／子成员。已有私有上下文使用原生调用来源／关联约定。两边基线的 Pane 启动都不会自动复制选中文本。
+
+| 创建来源             | 观察与缺省策略                                                                                                  |
+| -------------------- | --------------------------------------------------------------------------------------------------------------- |
+| Split 或 zoomed      | 精确目标 Panel 及其规范 Tab／Workspace；仅当实际调用者／Client 主或子成员属于该目标时使用它，否则观察规范主成员 |
+| 当前上下文中的 Tab   | 调用者或所选 Client 的实际焦点及主／子成员                                                                      |
+| 非活动上下文中的 Tab | 精确观察 Client 以只读方式记住的活动 Tab 和布局焦点；核对规范父级成员后观察该 Panel 的主成员                    |
+| 空或 headless 目的地 | 可用时提供规范 Workspace 标签、cwd 和 worktree；省略未知 Tab、焦点和物理事实，不猜测树中的第一个成员            |
+
+Client 拥有记住的 Tab／焦点；Site 拥有规范成员和标签；已有物理收集器拥有经核实的 cwd／Agent 观察及临时 viewer 清理。后台布局探测仅将规范 Panel 用作查询锚点，不将它当作焦点 fallback。非活动上下文中的原生子终端选择未由这些只读记忆契约暴露，因此后台来源为规范主成员，对齐 Herdr 每个 Pane 一个终端的模型。
+
+来源流程依次解析规范目标、观察精确记忆／成员、收集物理事实、重新读取后台 Tab／焦点及原始 Client，最后提交已有的单次创建请求。所有阶段共用创建 deadline 和取消所有者。父级错误、revision 过时、记住的 Tab／焦点或原始 Client 变化均在创建前拒绝；读取不会导航、聚焦、zoom、启动或重试 mutation。来源上下文仍为显示数据，不能改变 plugin-root cwd、program／argv 或 Worker 权限。聚焦证据必须覆盖不同显式目标、记住的 Tab 和 Pane 都不是首项的非活动目的地、当前／调用者子成员保留、空／headless 缺省，以及变化或无效记忆时拒绝。这些检查证明原生 Windows CLI 传输和有主观察投影，不证明已部署 Host／模拟器验收。
