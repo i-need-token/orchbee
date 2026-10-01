@@ -821,3 +821,7 @@ Windows `panel report-agent`、`report-agent-session`、`clear-agent-authority` 
 `orchbee terminal title set "Build workspace"` 向前台主 TUI 发布覆盖标题；`orchbee terminal title clear` 恢复在线 `ui.window_title` 模板（回退为 `Orchbee`）。两者接受 `--format json`，没有 Client 连接时仍保留发布状态。模板规则及实际宿主限制见[标题归属与恢复](docs/windows-terminal-title.zh-CN.md)。
 
 Windows 的 `plugin link/unlink/enable/disable/list/config-dir` 和 `plugin action list` 离线管理用户共享目录。`plugin action invoke` 向已有 Site 提交具有归属的命令，`plugin log list` 查询保留结果。上下文、进程归属、有界输出、托管安装/卸载及剩余 hook/Pane 集成见 [Windows 插件](docs/windows-plugins.zh-CN.md)。启动回执确认受理，执行结果由日志提供。
+
+## Windows Panel 图形命令
+
+`panel graphics set|clear|info|stream` 支持封闭图片输入、文件/管道读取与有界原始帧流，通过现有 Workbench 归属提交一次。参见 [Windows Panel 图形 CLI](docs/windows-panel-graphics.zh-CN.md) 了解参数、未知回执与流清理。命令入口不单独构成实际渲染验收。

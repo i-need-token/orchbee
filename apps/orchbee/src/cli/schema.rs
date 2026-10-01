@@ -39,6 +39,18 @@ pub(crate) const PROJECT_RENAME_RESULT_ID: &str = "orchbee.project.rename";
 /// `schema` id → embedded document, in dictionary order.
 const DOCUMENTS: &[(&str, &str)] = &[
     (
+        "orchbee.panel.graphics",
+        include_str!("schemas/orchbee.panel.graphics.json"),
+    ),
+    (
+        "orchbee.panel.graphics.stream",
+        include_str!("schemas/orchbee.panel.graphics.stream.json"),
+    ),
+    (
+        "orchbee.cli.failure.graphics",
+        include_str!("schemas/orchbee.cli.failure.graphics.json"),
+    ),
+    (
         "orchbee.cli.failure.events",
         include_str!("schemas/orchbee.cli.failure.events.json"),
     ),
@@ -570,8 +582,8 @@ pub(crate) fn answer(schema_id: Option<&str>, format: OutputFormat, locale: Loca
     };
     let document = json!({
         "schema": "orchbee.api.schema",
-        // Includes installed custom commands, Client control v11 and semantic events.
-        "version": 135,
+        // Includes installed commands, Client control v11, events and Panel graphics.
+        "version": 136,
         "source": embedded_source(),
         "result": result,
     });

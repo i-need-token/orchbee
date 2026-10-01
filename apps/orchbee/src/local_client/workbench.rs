@@ -10,6 +10,8 @@ pub(crate) mod creation;
 #[cfg(windows)]
 mod events;
 pub(crate) mod notification;
+#[cfg(windows)]
+mod pane_graphics;
 pub(crate) mod panel_agent;
 pub(crate) mod panel_metadata;
 mod plugins;

@@ -1,0 +1,808 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "orchbee.panel.graphics",
+	"type": "object",
+	"additionalProperties": false,
+	"properties": {
+		"schema": {
+			"const": "orchbee.panel.graphics"
+		},
+		"version": {
+			"const": 1
+		},
+		"operation": {
+			"enum": [
+				"set",
+				"clear",
+				"info"
+			]
+		},
+		"requestId": {
+			"$ref": "#/$defs/wb_requestId"
+		},
+		"siteId": {
+			"$ref": "#/$defs/wb_siteId"
+		},
+		"target": {
+			"$ref": "#/$defs/gfx_target"
+		},
+		"observation": {
+			"oneOf": [
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "server"
+						},
+						"reply": {
+							"$ref": "#/$defs/gfx_result"
+						}
+					},
+					"required": [
+						"kind",
+						"reply"
+					]
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "unknown"
+						},
+						"reason": {
+							"enum": [
+								"session-unavailable",
+								"request-encoding",
+								"request-deadline",
+								"request-not-submitted",
+								"request-write",
+								"response-read",
+								"response-deadline",
+								"response-correlation",
+								"response-protocol"
+							]
+						}
+					},
+					"required": [
+						"kind",
+						"reason"
+					]
+				}
+			]
+		}
+	},
+	"required": [
+		"schema",
+		"version",
+		"operation",
+		"requestId",
+		"siteId",
+		"target",
+		"observation"
+	],
+	"$defs": {
+		"gfx_result": {
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+				"protocolVersion": {
+					"const": 1
+				},
+				"requestId": {
+					"$ref": "#/$defs/wb_requestId"
+				},
+				"siteId": {
+					"$ref": "#/$defs/wb_siteId"
+				},
+				"outcome": {
+					"$ref": "#/$defs/gfx_outcome"
+				}
+			},
+			"required": [
+				"protocolVersion",
+				"requestId",
+				"siteId",
+				"outcome"
+			]
+		},
+		"wb_requestId": {
+			"title": "WorkbenchRequestId",
+			"$ref": "#/$defs/wb_identity"
+		},
+		"wb_identity": {
+			"type": "string",
+			"pattern": "^[0-9a-f]{32}$",
+			"not": {
+				"const": "00000000000000000000000000000000"
+			}
+		},
+		"wb_siteId": {
+			"title": "SiteId",
+			"$ref": "#/$defs/wb_identity"
+		},
+		"gfx_outcome": {
+			"oneOf": [
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "info"
+						},
+						"target": {
+							"$ref": "#/$defs/gfx_resolved"
+						},
+						"revision": {
+							"$ref": "#/$defs/wb_revision"
+						},
+						"layerCount": {
+							"type": "integer",
+							"minimum": 0,
+							"maximum": 16
+						},
+						"clientId": {
+							"oneOf": [
+								{
+									"$ref": "#/$defs/cv_clientId"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"capabilities": {
+							"oneOf": [
+								{
+									"$ref": "#/$defs/gfx_capabilities"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"paneVisible": {
+							"oneOf": [
+								{
+									"type": "boolean"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"drawnRevision": {
+							"oneOf": [
+								{
+									"$ref": "#/$defs/wb_revision"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"fileFrameDirectory": {
+							"oneOf": [
+								{
+									"$ref": "#/$defs/wb_directoryPath"
+								},
+								{
+									"type": "null"
+								}
+							]
+						}
+					},
+					"required": [
+						"kind",
+						"target",
+						"revision",
+						"layerCount",
+						"clientId",
+						"capabilities",
+						"paneVisible",
+						"drawnRevision",
+						"fileFrameDirectory"
+					],
+					"allOf": [
+						{
+							"if": {
+								"properties": {
+									"clientId": {
+										"type": "null"
+									}
+								},
+								"required": [
+									"clientId"
+								]
+							},
+							"then": {
+								"properties": {
+									"capabilities": {
+										"type": "null"
+									},
+									"paneVisible": {
+										"type": "null"
+									},
+									"drawnRevision": {
+										"type": "null"
+									}
+								}
+							}
+						}
+					]
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "catalog"
+						},
+						"target": {
+							"$ref": "#/$defs/gfx_resolved"
+						},
+						"revision": {
+							"$ref": "#/$defs/wb_revision"
+						},
+						"layers": {
+							"type": "array",
+							"maxItems": 16,
+							"items": {
+								"$ref": "#/$defs/gfx_layer"
+							}
+						}
+					},
+					"required": [
+						"kind",
+						"target",
+						"revision",
+						"layers"
+					]
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "pixels"
+						},
+						"target": {
+							"$ref": "#/$defs/gfx_resolved"
+						},
+						"layerId": {
+							"$ref": "#/$defs/gfx_layerId"
+						},
+						"resourceRevision": {
+							"allOf": [
+								{
+									"$ref": "#/$defs/wb_revision"
+								},
+								{
+									"not": {
+										"const": "0"
+									}
+								}
+							]
+						},
+						"width": {
+							"type": "integer",
+							"minimum": 1,
+							"maximum": 4096
+						},
+						"height": {
+							"type": "integer",
+							"minimum": 1,
+							"maximum": 4096
+						},
+						"offset": {
+							"type": "integer",
+							"minimum": 0,
+							"maximum": 4294967295,
+							"multipleOf": 4
+						},
+						"totalBytes": {
+							"type": "integer",
+							"minimum": 4,
+							"maximum": 33554432
+						},
+						"dataBase64": {
+							"type": "string",
+							"minLength": 4,
+							"maxLength": 349528,
+							"pattern": "^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}[AEIMQUYcgkosw048]=|[A-Za-z0-9+/][AQgw]==)?$"
+						},
+						"complete": {
+							"type": "boolean"
+						}
+					},
+					"required": [
+						"kind",
+						"target",
+						"layerId",
+						"resourceRevision",
+						"width",
+						"height",
+						"offset",
+						"totalBytes",
+						"dataBase64",
+						"complete"
+					]
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "applied"
+						},
+						"target": {
+							"$ref": "#/$defs/gfx_resolved"
+						},
+						"layerId": {
+							"$ref": "#/$defs/gfx_layerId"
+						},
+						"revision": {
+							"$ref": "#/$defs/wb_revision"
+						},
+						"changed": {
+							"type": "boolean"
+						}
+					},
+					"required": [
+						"kind",
+						"target",
+						"layerId",
+						"revision",
+						"changed"
+					],
+					"allOf": [
+						{
+							"if": {
+								"properties": {
+									"changed": {
+										"const": true
+									}
+								},
+								"required": [
+									"changed"
+								]
+							},
+							"then": {
+								"properties": {
+									"revision": {
+										"allOf": [
+											{
+												"$ref": "#/$defs/wb_revision"
+											},
+											{
+												"not": {
+													"const": "0"
+												}
+											}
+										]
+									}
+								}
+							}
+						}
+					]
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "stream-opened"
+						},
+						"streamId": {
+							"$ref": "#/$defs/wb_requestId"
+						},
+						"target": {
+							"$ref": "#/$defs/gfx_resolved"
+						},
+						"layerId": {
+							"$ref": "#/$defs/gfx_layerId"
+						},
+						"zIndex": {
+							"type": "integer",
+							"minimum": -2147483648,
+							"maximum": 2147483647
+						},
+						"revision": {
+							"allOf": [
+								{
+									"$ref": "#/$defs/wb_revision"
+								},
+								{
+									"not": {
+										"const": "0"
+									}
+								}
+							]
+						},
+						"fileFrameDirectory": {
+							"oneOf": [
+								{
+									"$ref": "#/$defs/wb_directoryPath"
+								},
+								{
+									"type": "null"
+								}
+							]
+						}
+					},
+					"required": [
+						"kind",
+						"streamId",
+						"target",
+						"layerId",
+						"zIndex",
+						"revision",
+						"fileFrameDirectory"
+					]
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "frame-applied"
+						},
+						"streamId": {
+							"$ref": "#/$defs/wb_requestId"
+						},
+						"target": {
+							"$ref": "#/$defs/gfx_resolved"
+						},
+						"layerId": {
+							"$ref": "#/$defs/gfx_layerId"
+						},
+						"sequence": {
+							"allOf": [
+								{
+									"$ref": "#/$defs/wb_revision"
+								},
+								{
+									"not": {
+										"const": "0"
+									}
+								}
+							]
+						},
+						"frameRevision": {
+							"$ref": "#/$defs/wb_revision"
+						},
+						"revision": {
+							"allOf": [
+								{
+									"$ref": "#/$defs/wb_revision"
+								},
+								{
+									"not": {
+										"const": "0"
+									}
+								}
+							]
+						},
+						"changed": {
+							"type": "boolean"
+						}
+					},
+					"required": [
+						"kind",
+						"streamId",
+						"target",
+						"layerId",
+						"sequence",
+						"frameRevision",
+						"revision",
+						"changed"
+					]
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "closed"
+						},
+						"streamId": {
+							"$ref": "#/$defs/wb_requestId"
+						},
+						"revision": {
+							"$ref": "#/$defs/wb_revision"
+						},
+						"removed": {
+							"type": "boolean"
+						}
+					},
+					"required": [
+						"kind",
+						"streamId",
+						"revision",
+						"removed"
+					]
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "failed"
+						},
+						"reason": {
+							"type": "string",
+							"enum": [
+								"denied",
+								"invalid-intent",
+								"site-mismatch",
+								"unavailable",
+								"busy",
+								"not-found",
+								"conflict",
+								"source-changed",
+								"source-unavailable",
+								"invalid-image",
+								"image-too-large",
+								"layer-limit",
+								"memory-limit",
+								"stale-resource",
+								"invalid-sequence",
+								"stream-closed",
+								"physical-unknown",
+								"revision-exhausted",
+								"invalid-file",
+								"cell-size-unavailable"
+							]
+						}
+					},
+					"required": [
+						"kind",
+						"reason"
+					]
+				}
+			]
+		},
+		"gfx_resolved": {
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+				"panelId": {
+					"$ref": "#/$defs/wb_panelId"
+				},
+				"presentationId": {
+					"$ref": "#/$defs/wb_presentationId"
+				}
+			},
+			"required": [
+				"panelId",
+				"presentationId"
+			]
+		},
+		"wb_panelId": {
+			"title": "WorkbenchPanelId",
+			"$ref": "#/$defs/wb_identity"
+		},
+		"wb_presentationId": {
+			"title": "TerminalPresentationId",
+			"$ref": "#/$defs/wb_identity"
+		},
+		"wb_revision": {
+			"title": "WorkbenchRevision",
+			"type": "string",
+			"minLength": 1,
+			"maxLength": 20,
+			"pattern": "^(?:0|[1-9][0-9]{0,19})$",
+			"format": "orchbee-uint64"
+		},
+		"cv_clientId": {
+			"type": "string",
+			"pattern": "^[0-9a-f]{32}$",
+			"not": {
+				"const": "00000000000000000000000000000000"
+			}
+		},
+		"gfx_capabilities": {
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+				"transport": {
+					"enum": [
+						"cell-raster",
+						"kitty",
+						"sixel"
+					]
+				},
+				"cellPixels": {
+					"oneOf": [
+						{
+							"type": "object",
+							"additionalProperties": false,
+							"properties": {
+								"width": {
+									"type": "integer",
+									"minimum": 1,
+									"maximum": 65535
+								},
+								"height": {
+									"type": "integer",
+									"minimum": 1,
+									"maximum": 65535
+								}
+							},
+							"required": [
+								"width",
+								"height"
+							]
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"pixelMouse": {
+					"type": "boolean"
+				}
+			},
+			"required": [
+				"transport",
+				"cellPixels",
+				"pixelMouse"
+			],
+			"allOf": [
+				{
+					"if": {
+						"properties": {
+							"pixelMouse": {
+								"const": true
+							}
+						},
+						"required": [
+							"pixelMouse"
+						]
+					},
+					"then": {
+						"properties": {
+							"transport": {
+								"enum": [
+									"kitty",
+									"sixel"
+								]
+							},
+							"cellPixels": {
+								"type": "object"
+							}
+						}
+					}
+				}
+			]
+		},
+		"wb_directoryPath": {
+			"title": "WorkbenchDirectoryPath",
+			"$comment": "The independent bindings additionally enforce the 4096-byte UTF-8 limit.",
+			"type": "string",
+			"minLength": 1,
+			"maxLength": 4096,
+			"pattern": "^(?:/|(?:\\\\\\\\\\?\\\\)?[A-Za-z]:[/\\\\])[^\\u0000]*$"
+		},
+		"gfx_layer": {
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+				"layerId": {
+					"$ref": "#/$defs/gfx_layerId"
+				},
+				"zIndex": {
+					"type": "integer",
+					"minimum": -2147483648,
+					"maximum": 2147483647
+				},
+				"width": {
+					"type": "integer",
+					"minimum": 1,
+					"maximum": 4096
+				},
+				"height": {
+					"type": "integer",
+					"minimum": 1,
+					"maximum": 4096
+				},
+				"placement": {
+					"$ref": "#/$defs/gfx_placement"
+				},
+				"resourceRevision": {
+					"allOf": [
+						{
+							"$ref": "#/$defs/wb_revision"
+						},
+						{
+							"not": {
+								"const": "0"
+							}
+						}
+					]
+				},
+				"streamId": {
+					"oneOf": [
+						{
+							"$ref": "#/$defs/wb_requestId"
+						},
+						{
+							"type": "null"
+						}
+					]
+				}
+			},
+			"required": [
+				"layerId",
+				"zIndex",
+				"width",
+				"height",
+				"placement",
+				"resourceRevision",
+				"streamId"
+			]
+		},
+		"gfx_layerId": {
+			"type": "string",
+			"minLength": 1,
+			"maxLength": 80,
+			"pattern": "^[A-Za-z0-9_.-]+$"
+		},
+		"gfx_placement": {
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+				"viewportColumn": {
+					"type": "integer",
+					"minimum": -2147483648,
+					"maximum": 2147483647
+				},
+				"viewportRow": {
+					"type": "integer",
+					"minimum": -2147483648,
+					"maximum": 2147483647
+				},
+				"gridColumns": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 65535
+				},
+				"gridRows": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 65535
+				}
+			},
+			"required": [
+				"viewportColumn",
+				"viewportRow",
+				"gridColumns",
+				"gridRows"
+			]
+		},
+		"gfx_target": {
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+				"panelId": {
+					"$ref": "#/$defs/wb_panelId"
+				},
+				"presentationId": {
+					"oneOf": [
+						{
+							"$ref": "#/$defs/wb_presentationId"
+						},
+						{
+							"type": "null"
+						}
+					]
+				}
+			},
+			"required": [
+				"panelId",
+				"presentationId"
+			]
+		}
+	}
+}

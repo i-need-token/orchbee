@@ -20,6 +20,8 @@ mod configured_commands;
 #[cfg(windows)]
 mod events;
 #[cfg(windows)]
+mod pane_graphics;
+#[cfg(windows)]
 mod panel_reports;
 pub(crate) use cli::CliLabels;
 #[cfg(any(unix, windows))]

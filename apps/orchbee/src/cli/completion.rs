@@ -245,6 +245,8 @@ const FAMILY_VERBS: &[(&str, &[&str])] = &[
         "panel",
         &[
             #[cfg(windows)]
+            "graphics",
+            #[cfg(windows)]
             "create-terminal",
             "report-agent",
             "report-agent-session",
@@ -508,6 +510,26 @@ const REPEATABLE_FLAGS: &[&str] = &[
 const CONTROL_FLAGS: &[&str] = &["--cols", "--rows", "--timeout", "--takeover"];
 const OBSERVE_FLAGS: &[&str] = &["--cols", "--rows", "--timeout"];
 const COMMAND_FLAGS: &[(&str, &[&str])] = &[
+    #[cfg(windows)]
+    (
+        "panel:graphics:set",
+        &["--spec", "--presentation", "--timeout"],
+    ),
+    #[cfg(windows)]
+    (
+        "panel:graphics:clear",
+        &["--spec", "--presentation", "--timeout"],
+    ),
+    #[cfg(windows)]
+    (
+        "panel:graphics:info",
+        &["--client", "--presentation", "--timeout"],
+    ),
+    #[cfg(windows)]
+    (
+        "panel:graphics:stream",
+        &["--spec", "--presentation", "--timeout"],
+    ),
     #[cfg(windows)]
     (
         "events:subscribe",
@@ -1389,6 +1411,14 @@ const PROVIDER_VALUES: &[&str] = &[
 /// `<family>:<verb>` paths that consume one positional operand.
 const OPERAND_PATHS: &[&str] = &[
     #[cfg(windows)]
+    "panel:graphics:set",
+    #[cfg(windows)]
+    "panel:graphics:clear",
+    #[cfg(windows)]
+    "panel:graphics:info",
+    #[cfg(windows)]
+    "panel:graphics:stream",
+    #[cfg(windows)]
     "command:invoke",
     #[cfg(windows)]
     "terminal:link-resolve",
@@ -1624,6 +1654,8 @@ const HELP_CHILDREN: &[(&str, &[&str])] = &[
         "panel",
         &[
             #[cfg(windows)]
+            "graphics",
+            #[cfg(windows)]
             "create-terminal",
             "report-agent",
             "report-agent-session",
@@ -1724,6 +1756,8 @@ const HELP_CHILDREN: &[(&str, &[&str])] = &[
 /// `help <topic> <child>` → third-level words. Nested command families
 /// reach a third help level.
 const HELP_LEVEL3: &[(&str, &[&str])] = &[
+    #[cfg(windows)]
+    ("panel:graphics", &["set", "clear", "info", "stream"]),
     #[cfg(windows)]
     ("agent:view", &["get", "set", "clear"]),
     #[cfg(windows)]

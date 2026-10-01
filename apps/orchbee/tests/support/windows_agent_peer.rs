@@ -90,6 +90,17 @@ impl Fixture {
         worker: Option<&str>,
         environment: &[(&str, &std::ffi::OsStr)],
     ) -> Output {
+        self.run_process(arguments, terminal, worker, environment, None)
+    }
+
+    pub(super) fn run_process(
+        &self,
+        arguments: &[&str],
+        terminal: Option<&str>,
+        worker: Option<&str>,
+        environment: &[(&str, &std::ffi::OsStr)],
+        input: Option<&[u8]>,
+    ) -> Output {
         let mut command = Command::new(self.0.join("orchbee.exe"));
         command
             .args(arguments)
@@ -99,7 +110,11 @@ impl Fixture {
             .env_remove("ORCHBEE_CONFIG_FILE")
             .env_remove("ORCHBEE_TERMINAL_ID")
             .env_remove("ORCHBEE_WORKER_ID")
-            .stdin(Stdio::null())
+            .stdin(if input.is_some() {
+                Stdio::piped()
+            } else {
+                Stdio::null()
+            })
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
         if let Some(value) = terminal {
@@ -109,10 +124,14 @@ impl Fixture {
             command.env("ORCHBEE_WORKER_ID", value);
         }
         command.envs(environment.iter().copied());
-        let child = command.spawn().unwrap();
+        let mut child = command.spawn().unwrap();
         if let Some(launched) = self.1.lock().unwrap().take() {
             // The peer may already have accepted before CreateProcess returns.
             let _ = launched.send(Instant::now());
+        }
+        if let Some(bytes) = input {
+            use std::io::Write;
+            child.stdin.take().unwrap().write_all(bytes).unwrap();
         }
         child.wait_with_output().unwrap()
     }

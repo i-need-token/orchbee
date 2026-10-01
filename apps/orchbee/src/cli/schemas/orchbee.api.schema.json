@@ -15,7 +15,7 @@
 			"const": "orchbee.api.schema"
 		},
 		"version": {
-			"const": 135
+			"const": 136
 		},
 		"source": {
 			"type": "object",
@@ -97,7 +97,10 @@
 						"orchbee.cli.failure.client-control",
 						"orchbee.cli.failure.client-query",
 						"orchbee.cli.failure.close",
+						"orchbee.cli.failure.command",
 						"orchbee.cli.failure.configuration",
+						"orchbee.cli.failure.events",
+						"orchbee.cli.failure.graphics",
 						"orchbee.cli.failure.launch-profile",
 						"orchbee.cli.failure.layout",
 						"orchbee.cli.failure.layout-apply",
@@ -111,9 +114,12 @@
 						"orchbee.cli.failure.worktree",
 						"orchbee.client.control",
 						"orchbee.client.view",
+						"orchbee.command",
 						"orchbee.config.check",
 						"orchbee.config.reset-keys",
 						"orchbee.creation.result",
+						"orchbee.events.stream",
+						"orchbee.events.wait",
 						"orchbee.launch-profile.get",
 						"orchbee.launch-profile.list",
 						"orchbee.layout.apply",
@@ -124,6 +130,8 @@
 						"orchbee.panel.agent-report",
 						"orchbee.panel.current",
 						"orchbee.panel.get",
+						"orchbee.panel.graphics",
+						"orchbee.panel.graphics.stream",
 						"orchbee.panel.input",
 						"orchbee.panel.layout",
 						"orchbee.panel.list",
@@ -181,12 +189,7 @@
 						"orchbee.workspace.move",
 						"orchbee.worktree.list",
 						"orchbee.worktree.operation",
-						"orchbee.worktree.query",
-						"orchbee.cli.failure.events",
-						"orchbee.events.wait",
-						"orchbee.events.stream",
-						"orchbee.cli.failure.command",
-						"orchbee.command"
+						"orchbee.worktree.query"
 					],
 					"propertyNames": {
 						"$ref": "#/$defs/schemaId"
@@ -228,7 +231,10 @@
 				"orchbee.cli.failure.client-control",
 				"orchbee.cli.failure.client-query",
 				"orchbee.cli.failure.close",
+				"orchbee.cli.failure.command",
 				"orchbee.cli.failure.configuration",
+				"orchbee.cli.failure.events",
+				"orchbee.cli.failure.graphics",
 				"orchbee.cli.failure.launch-profile",
 				"orchbee.cli.failure.layout",
 				"orchbee.cli.failure.layout-apply",
@@ -242,9 +248,12 @@
 				"orchbee.cli.failure.worktree",
 				"orchbee.client.control",
 				"orchbee.client.view",
+				"orchbee.command",
 				"orchbee.config.check",
 				"orchbee.config.reset-keys",
 				"orchbee.creation.result",
+				"orchbee.events.stream",
+				"orchbee.events.wait",
 				"orchbee.launch-profile.get",
 				"orchbee.launch-profile.list",
 				"orchbee.layout.apply",
@@ -255,6 +264,8 @@
 				"orchbee.panel.agent-report",
 				"orchbee.panel.current",
 				"orchbee.panel.get",
+				"orchbee.panel.graphics",
+				"orchbee.panel.graphics.stream",
 				"orchbee.panel.input",
 				"orchbee.panel.layout",
 				"orchbee.panel.list",
@@ -312,12 +323,7 @@
 				"orchbee.workspace.move",
 				"orchbee.worktree.list",
 				"orchbee.worktree.operation",
-				"orchbee.worktree.query",
-				"orchbee.events.wait",
-				"orchbee.events.stream",
-				"orchbee.cli.failure.events",
-				"orchbee.cli.failure.command",
-				"orchbee.command"
+				"orchbee.worktree.query"
 			]
 		}
 	}

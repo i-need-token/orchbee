@@ -96,3 +96,7 @@ OBWP kinds 57/58 carry closed requests and results. OBNG carries a bounded viewe
 The Client renderer, actual render observations, native CLI upload/stream entry points and private file-frame producer leases are still pending. Information therefore returns nullable renderer facts and no file-frame directory; file-frame requests are refused. These four comparison rows remain missing until an actual consumer and Windows acceptance establish the behavior. The complete native cohort is versioned and restaged for final integration; no main integration or old-cohort substitution is authorized by this checkpoint.
 
 Focused evidence includes the 50-case Rust/TypeScript/JSON Schema corpus, image and carrier bounds, six layer-owner tests, two production Server session/observer witnesses, and five Host PNG/graphics tests including actual Windows PTY creation and PNG decoding. This is component evidence, not composed renderer or final acceptance.
+
+## Consumer implementation order
+
+Within the same authorized Windows replacement outcome, the foundation is followed by CLI upload and retained streams, then actual TUI rendering and capability facts; composed acceptance follows both. The [Windows Panel graphics CLI](../../orchbee/docs/windows-panel-graphics.md) owns grammar and input rules. This scheduling adjustment does not change alignment completion criteria.

@@ -1,6 +1,19 @@
 //! Shared observable completion obligations, independent of shell syntax.
 
 pub(super) const CASES: &[(&str, &str, bool)] = &[
+    ("orchbee panel gr", "graphics", true),
+    ("orchbee panel graphics s", "set", true),
+    ("orchbee help panel graphics i", "info", true),
+    ("orchbee panel graphics set abc --sp", "--spec", true),
+    ("orchbee panel graphics info abc --sp", "--spec", false),
+    ("orchbee panel graphics info abc --cl", "--client", true),
+    (
+        "orchbee panel graphics stream abc --pre",
+        "--presentation",
+        true,
+    ),
+    ("orchbee panel graphics clear abc --exec", "--exec", false),
+    ("orchbee --machine work panel graphics s", "set", false),
     ("orchbee terminal edit-s", "edit-scrollback", true),
     ("orchbee help terminal edit-s", "edit-scrollback", true),
     (

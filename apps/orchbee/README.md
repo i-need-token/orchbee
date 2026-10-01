@@ -905,3 +905,7 @@ Windows `panel report-agent`, `report-agent-session`, `clear-agent-authority` an
 `orchbee terminal title set "Build workspace"` publishes an override for the foreground main TUI; `orchbee terminal title clear` returns to the live `ui.window_title` template (fallback `Orchbee`). Both accept `--format json` and retain publication when no Client is connected. See [title ownership and restoration](docs/windows-terminal-title.md) for configured templates and physical-host limits.
 
 Windows `plugin link/unlink/enable/disable/list/config-dir` and `plugin action list` manage the shared user catalog offline. `plugin action invoke` submits owned commands to an existing Site; `plugin log list` reads retained results. See [Windows plugins](docs/windows-plugins.md) for context, process ownership, bounded output, managed install/uninstall and remaining hook/Pane integration. A start receipt confirms admission; logs report execution results.
+
+## Windows Panel graphics commands
+
+`panel graphics set|clear|info|stream` admits closed image inputs, file/pipe acquisition and bounded raw frame streams, with one submission through existing Workbench ownership. See [Windows Panel graphics CLI](docs/windows-panel-graphics.md) for parameters, unknown receipts and producer cleanup. Command ingress alone is not actual rendering acceptance.

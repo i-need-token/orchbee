@@ -1,19 +1,14 @@
 //! Bounded NDJSON commands and an invocation-owned cancellable Windows stdin reader.
+use crate::cli::windows_stdin::{Poll as BytePoll, Reader as ByteReader};
 use base64::Engine;
 use orchbee_client_server_protocol::Geometry;
-use orchbee_local_ipc::ChildOutputReader;
 use serde_core::{
     Deserialize, Deserializer,
     de::{self, MapAccess, Visitor},
 };
 use serde_json::Value;
 use std::{collections::BTreeMap, fmt};
-use std::{
-    io::{self, Read},
-    os::windows::process::CommandExt,
-    path::PathBuf,
-    process::{Child, Command as ProcessCommand, Stdio},
-};
+use std::{io, process::Stdio};
 
 pub(super) const MAX_INPUT: usize = 256 * 1024;
 const MAX_LINE: usize = 2 * 1024 * 1024;
@@ -167,19 +162,13 @@ pub(super) fn parse(line: &[u8]) -> Result<Command, &'static str> {
     Ok(command)
 }
 
-const READER: &str = r#"$ErrorActionPreference='Stop'; try {
-$i=[Console]::OpenStandardInput(); $o=[Console]::OpenStandardOutput(); $b=[byte[]]::new(8192)
-while ($true) { $n=$i.Read($b,0,$b.Length); if ($n -eq 0) { exit 0 }; $o.Write($b,0,$n); $o.Flush() }
-} catch { exit 1 }"#;
-
 pub(super) enum Poll {
     Pending,
     Line(Vec<u8>),
     Eof,
 }
 pub(super) struct Reader {
-    child: Child,
-    output: ChildOutputReader,
+    bytes: ByteReader,
     pending: Vec<u8>,
     eof: bool,
     first: bool,
@@ -189,27 +178,9 @@ impl Reader {
         Self::with_input(Stdio::inherit())
     }
     pub(super) fn with_input(input: Stdio) -> io::Result<Self> {
-        let executable = PathBuf::from(winsafe::GetSystemDirectory().map_err(io::Error::other)?)
-            .join("WindowsPowerShell/v1.0/powershell.exe");
-        let (output, child_output) = ChildOutputReader::pipe()?;
-        let mut command = ProcessCommand::new(executable);
-        command
-            .args([
-                "-NoLogo",
-                "-NoProfile",
-                "-NonInteractive",
-                "-Command",
-                READER,
-            ])
-            .stdin(input)
-            .stdout(child_output)
-            .stderr(Stdio::null())
-            .creation_flags(0x0800_0000);
-        let child = command.spawn()?;
-        drop(command);
+        let bytes = ByteReader::with_input(input)?;
         Ok(Self {
-            child,
-            output,
+            bytes,
             pending: Vec::new(),
             eof: false,
             first: true,
@@ -223,16 +194,16 @@ impl Reader {
             return self.ending();
         }
         let mut buffer = [0; 8192];
-        match self.output.read(&mut buffer) {
-            Ok(0) => {
+        match self.bytes.poll(&mut buffer) {
+            Ok(BytePoll::Eof) => {
                 self.eof = true;
                 self.ending()
             }
-            Ok(n) => {
+            Ok(BytePoll::Bytes(n)) => {
                 self.pending.extend_from_slice(&buffer[..n]);
                 Ok(self.line()?.map_or(Poll::Pending, Poll::Line))
             }
-            Err(e) if e.kind() == io::ErrorKind::WouldBlock => Ok(Poll::Pending),
+            Ok(BytePoll::Pending) => Ok(Poll::Pending),
             Err(e) => Err(e),
         }
     }
@@ -258,21 +229,12 @@ impl Reader {
         line
     }
     fn ending(&mut self) -> io::Result<Poll> {
-        match self.child.try_wait()? {
-            None => Ok(Poll::Pending),
-            Some(status) if !status.success() => Err(io::ErrorKind::BrokenPipe.into()),
-            Some(_) if self.pending.is_empty() => Ok(Poll::Eof),
-            Some(_) => {
-                let line = std::mem::take(&mut self.pending);
-                Ok(Poll::Line(self.strip_bom(line)))
-            }
+        if self.pending.is_empty() {
+            Ok(Poll::Eof)
+        } else {
+            let line = std::mem::take(&mut self.pending);
+            Ok(Poll::Line(self.strip_bom(line)))
         }
-    }
-}
-impl Drop for Reader {
-    fn drop(&mut self) {
-        let _ = self.child.kill();
-        let _ = self.child.wait();
     }
 }
 

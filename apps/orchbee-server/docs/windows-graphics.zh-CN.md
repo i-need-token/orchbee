@@ -83,3 +83,7 @@ OBWP 57/58 承载封闭的请求和结果。OBNG 承载受限、由 viewer 定�
 Client 渲染器、实际渲染观察、原生 CLI 上传／流入口和私有文件帧生产者租约仍待实现。因此信息读取中的渲染事实允许为空，不提供文件帧目录，并拒绝文件帧请求。四项对比行继续保持缺失，直至实际消费者和 Windows 验收证明行为。最终集成时统一确定原生 cohort 版本并重新打包；本检查点不授权合入 main 或替换旧 cohort。
 
 定向证据包括 Rust／TypeScript／JSON Schema 共用的 50 个案例、图片与载体边界、6 个图层所有者测试、2 个生产 Server 会话／观察者案例，以及 5 个 Host PNG／图形测试（含真实 Windows PTY 创建和 PNG 解码）。这是组件证据，尚非组合渲染或最终验收。
+
+## 消费者实现顺序
+
+在同一已授权 Windows 补齐目标下，基础完成后先接入 CLI 上传及保留流，再接入实际 TUI 渲染与能力事实；两项均完成之后才进行组合验收。CLI 语法与输入规范由 [Windows Panel 图形 CLI](../../orchbee/docs/windows-panel-graphics.zh-CN.md) 拥有。实现顺序调整不改变对齐完成条件。

@@ -57,6 +57,7 @@ pub(super) fn build() -> serde_json::Value {
             .as_slice()
         {
             ["status"] | ["status", "server"] | ["api", "snapshot"] => true,
+            ["panel", "graphics", ..] => false,
             [
                 "project" | "workspace" | "tab" | "panel" | "client" | "worktree" | "notification"
                 | "launch-profile" | "layout" | "popup",

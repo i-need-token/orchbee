@@ -33,6 +33,9 @@ pub(crate) enum Finish {
 }
 pub(crate) struct ArmedSignals(ControlInterrupt);
 impl ArmedSignals {
+    pub(in crate::cli) fn requested(&self) -> bool {
+        self.0.requested()
+    }
     pub(in crate::cli) fn check_before(&mut self, deadline: Instant) -> Result<(), Failure> {
         if self
             .take()

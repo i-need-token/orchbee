@@ -24,6 +24,10 @@ mod client_control;
 pub(crate) mod configured_commands;
 #[cfg(windows)]
 pub(crate) mod events;
+#[cfg(windows)]
+pub(crate) mod pane_graphics;
+#[cfg(windows)]
+mod windows_stdin;
 pub(crate) use client_control::run as run_client_control;
 pub(crate) mod agent_names;
 mod agent_prompt;

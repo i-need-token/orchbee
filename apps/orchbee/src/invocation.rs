@@ -20,6 +20,8 @@ pub(crate) mod events;
 mod layouts;
 #[cfg(windows)]
 mod named_sessions;
+#[cfg(windows)]
+pub(crate) mod pane_graphics;
 mod send_key;
 #[cfg(windows)]
 pub(crate) use layouts::{LayoutApplyCommand, LayoutDestination, LayoutExportCommand};
@@ -296,6 +298,14 @@ impl Family {
 pub(crate) enum CommandPath {
     #[cfg(windows)]
     EventsSubscribe,
+    #[cfg(windows)]
+    PanelGraphicsSet,
+    #[cfg(windows)]
+    PanelGraphicsClear,
+    #[cfg(windows)]
+    PanelGraphicsInfo,
+    #[cfg(windows)]
+    PanelGraphicsStream,
     #[cfg(windows)]
     EventsWait,
     #[cfg(windows)]
@@ -621,6 +631,14 @@ impl CommandPath {
             Self::CommandList => "command list",
             #[cfg(windows)]
             Self::EventsSubscribe => "events subscribe",
+            #[cfg(windows)]
+            Self::PanelGraphicsSet => "panel graphics set",
+            #[cfg(windows)]
+            Self::PanelGraphicsClear => "panel graphics clear",
+            #[cfg(windows)]
+            Self::PanelGraphicsInfo => "panel graphics info",
+            #[cfg(windows)]
+            Self::PanelGraphicsStream => "panel graphics stream",
             #[cfg(windows)]
             Self::EventsWait => "events wait",
             #[cfg(windows)]
@@ -1425,6 +1443,11 @@ pub(crate) enum RuntimeStatusScope {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum Request {
     #[cfg(windows)]
+    PaneGraphics {
+        command: pane_graphics::Command,
+        format: OutputFormat,
+    },
+    #[cfg(windows)]
     Events {
         command: events::Command,
         format: OutputFormat,
@@ -1689,6 +1712,8 @@ pub(crate) enum UsageContext {
 /// expect; rendered per locale, never serialized.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum ExpectedValue {
+    #[cfg(windows)]
+    GraphicsSpecification,
     #[cfg(windows)]
     EventsSpecification,
     #[cfg(windows)]
@@ -3001,6 +3026,8 @@ fn resolve_words(
         ["command", ..] => configured_commands::parse(words, options, envelope),
         #[cfg(windows)]
         ["events", ..] => events::parse(words, options, envelope),
+        #[cfg(windows)]
+        ["panel", "graphics", ..] => pane_graphics::parse(words, options, envelope),
         #[cfg(windows)]
         ["plugin", ..] => plugins::parse(words, options, envelope),
         #[cfg(windows)]
@@ -5132,6 +5159,16 @@ fn resolve_help_path(
 /// their command help. Anything else is not a help path at all.
 fn help_topic(path: &[&str]) -> Option<HelpTopic> {
     Some(match path {
+        #[cfg(windows)]
+        ["panel", "graphics"] | ["panel", "graphics", "set"] => {
+            HelpTopic::Command(CommandPath::PanelGraphicsSet)
+        }
+        #[cfg(windows)]
+        ["panel", "graphics", "clear"] => HelpTopic::Command(CommandPath::PanelGraphicsClear),
+        #[cfg(windows)]
+        ["panel", "graphics", "info"] => HelpTopic::Command(CommandPath::PanelGraphicsInfo),
+        #[cfg(windows)]
+        ["panel", "graphics", "stream"] => HelpTopic::Command(CommandPath::PanelGraphicsStream),
         ["client"] => HelpTopic::Family(Family::Client),
         ["client", "list"] => HelpTopic::Command(CommandPath::ClientList),
         ["client", "get"] => HelpTopic::Command(CommandPath::ClientGet),
@@ -5464,6 +5501,8 @@ fn mutation(command: MutationCommand, options: &Options) -> Request {
 #[derive(Clone, Copy)]
 struct Scope {
     #[cfg(windows)]
+    graphics: bool,
+    #[cfg(windows)]
     events: bool,
     link_offset: bool,
     copy_motion: bool,
@@ -5610,6 +5649,8 @@ struct Scope {
 }
 
 const NO_OPTIONS: Scope = Scope {
+    #[cfg(windows)]
+    graphics: false,
     #[cfg(windows)]
     events: false,
     link_offset: false,
@@ -6138,7 +6179,16 @@ fn first_out_of_scope(options: &Options, scope: Scope) -> Option<&'static str> {
         return Some("--child");
     }
     if options.report_presentation.is_some()
-        && !(scope.panel_agent || scope.panel_metadata || scope.panel_terminal)
+        && !(scope.panel_agent || scope.panel_metadata || scope.panel_terminal || {
+            #[cfg(windows)]
+            {
+                scope.graphics
+            }
+            #[cfg(not(windows))]
+            {
+                false
+            }
+        })
     {
         return Some("--presentation");
     }
