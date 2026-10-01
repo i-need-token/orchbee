@@ -52,33 +52,35 @@ describe('ephemeral Client view and acknowledged control', () => {
 				),
 			);
 		const ajv = new Ajv2020({ allErrors: true, strict: false });
-		for (const name of ['workbench.schema.json', 'workbench-command.schema.json']) {
-			const dependency = z
-				.record(z.string(), z.unknown())
-				.parse(
-					JSON.parse(
-						await readFile(
-							new URL(`../../../../schemas/workbench/v1/${name}`, import.meta.url),
-							'utf8',
+		const dependencies = await Promise.all(
+			['workbench.schema.json', 'workbench-command.schema.json'].map(async (name) =>
+				z
+					.record(z.string(), z.unknown())
+					.parse(
+						JSON.parse(
+							await readFile(
+								new URL(`../../../../schemas/workbench/v1/${name}`, import.meta.url),
+								'utf8',
+							),
 						),
 					),
-				);
-			ajv.addSchema(dependency);
-		}
+			),
+		);
+		for (const dependency of dependencies) ajv.addSchema(dependency);
 		const validate = ajv.compile(schema);
 		for (const test of corpus.valid) {
 			const binding =
 				test.direction === 'request' ? WorkbenchRequestSchema : WorkbenchResponseSchema;
-			expect(binding.safeParse(test.document).success).toBe(true);
-			expect(validate(test.document)).toBe(true);
+			expect([test.name, binding.safeParse(test.document).success]).toEqual([test.name, true]);
+			expect([test.name, validate(test.document)]).toEqual([test.name, true]);
 		}
 		for (const test of corpus.invalid) {
 			const binding =
 				test.direction === 'request' ? WorkbenchRequestSchema : WorkbenchResponseSchema;
-			expect(binding.safeParse(test.document).success).toBe(false);
+			expect([test.name, binding.safeParse(test.document).success]).toEqual([test.name, false]);
 		}
 		for (const test of corpus.invalid.filter((entry) => entry.boundary === 'schema')) {
-			expect(validate(test.document)).toBe(false);
+			expect([test.name, validate(test.document)]).toEqual([test.name, false]);
 		}
 		for (const test of corpus.validJson) {
 			const binding =

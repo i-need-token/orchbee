@@ -1,6 +1,23 @@
 //! Shared observable completion obligations, independent of shell syntax.
 
 pub(super) const CASES: &[(&str, &str, bool)] = &[
+    ("orchbee terminal edit-s", "edit-scrollback", true),
+    ("orchbee help terminal edit-s", "edit-scrollback", true),
+    (
+        "orchbee terminal edit-scrollback abc --cl",
+        "--client",
+        true,
+    ),
+    (
+        "orchbee terminal edit-scrollback abc --ti",
+        "--timeout",
+        true,
+    ),
+    (
+        "orchbee terminal edit-scrollback abc --ta",
+        "--takeover",
+        false,
+    ),
     ("orchbee terminal cl", "clear", true),
     ("orchbee help terminal cl", "clear", true),
     ("orchbee terminal clear abc --ta", "--takeover", false),

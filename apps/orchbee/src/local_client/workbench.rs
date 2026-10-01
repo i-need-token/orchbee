@@ -10,6 +10,7 @@ pub(crate) mod notification;
 pub(crate) mod panel_agent;
 pub(crate) mod panel_metadata;
 mod plugins;
+mod terminal_editor;
 mod window_title;
 #[cfg(windows)]
 mod workspace_git;

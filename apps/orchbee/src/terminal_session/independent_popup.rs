@@ -15,8 +15,8 @@ use orchbee_local_ipc::{AsLocalIo, LocalStream};
 use orchbee_terminal_protocol::{AttachmentId, HostEpoch, MouseTracking};
 use orchbee_workbench_protocol::{
     ClientViewCompletionOutcome, ClientViewControlReason as Reason, PluginAction, PluginOutcome,
-    PluginPopupSize, PluginPopupSpec, PluginRequest, ProtocolVersion, SiteId, WorkbenchRequestId,
-    WorkbenchTerminalGeometry,
+    PluginPopupSize, PluginPopupSpec, PluginRequest, ProtocolVersion, ScrollbackEditorSpec, SiteId,
+    WorkbenchRequestId, WorkbenchTerminalGeometry,
 };
 use ratatui::layout::Rect;
 use std::{
@@ -29,6 +29,42 @@ use std::{
     thread::{self, JoinHandle},
     time::{Duration, Instant},
 };
+
+mod editor;
+mod protocol;
+use protocol::{PopupKind, PopupOutcome};
+
+#[derive(Clone)]
+enum PopupSpec {
+    Plugin(Box<PluginPopupSpec>),
+    Editor(Box<ScrollbackEditorSpec>),
+}
+impl PopupSpec {
+    fn kind(&self) -> PopupKind {
+        match self {
+            Self::Plugin(_) => PopupKind::Plugin,
+            Self::Editor(_) => PopupKind::Editor,
+        }
+    }
+    fn width(&self) -> Option<PluginPopupSize> {
+        match self {
+            Self::Plugin(spec) => spec.width,
+            Self::Editor(_) => Some(PluginPopupSize::Percent(100)),
+        }
+    }
+    fn height(&self) -> Option<PluginPopupSize> {
+        match self {
+            Self::Plugin(spec) => spec.height,
+            Self::Editor(_) => Some(PluginPopupSize::Percent(100)),
+        }
+    }
+    fn title(&self) -> String {
+        match self {
+            Self::Plugin(spec) => spec.selector.entrypoint_id.clone(),
+            Self::Editor(_) => String::new(),
+        }
+    }
+}
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum Phase {
@@ -116,7 +152,7 @@ pub(super) struct Driver {
     clock: LocalOperationClock,
     lane: Option<Lane>,
     id: Option<WorkbenchRequestId>,
-    spec: Option<PluginPopupSpec>,
+    spec: Option<PopupSpec>,
     latest: Option<Latest>,
     surface: Option<(Rect, u16, u16)>,
     close_had_popup: bool,
@@ -184,7 +220,7 @@ impl Driver {
             &self.lane,
             self.spec
                 .as_ref()
-                .and_then(|spec| resolve_geometry(spec.width, spec.height, area)),
+                .and_then(|spec| resolve_geometry(spec.width(), spec.height(), area)),
         ) && let Ok(geometry) = Geometry::new(inner.width, inner.height, pixels.0, pixels.1)
             && let Ok(mut desired) = lane.resize.lock()
         {
@@ -197,19 +233,37 @@ impl Driver {
         id: WorkbenchRequestId,
         spec: PluginPopupSpec,
     ) -> Result<(), Reason> {
+        self.begin_spec(site, id, PopupSpec::Plugin(Box::new(spec)))
+    }
+    pub(super) fn begin_editor(
+        &mut self,
+        site: SiteId,
+        id: WorkbenchRequestId,
+        spec: ScrollbackEditorSpec,
+    ) -> Result<(), Reason> {
+        spec.validate().map_err(|_| Reason::StaleView)?;
+        self.begin_spec(site, id, PopupSpec::Editor(Box::new(spec)))
+    }
+    fn begin_spec(
+        &mut self,
+        site: SiteId,
+        id: WorkbenchRequestId,
+        spec: PopupSpec,
+    ) -> Result<(), Reason> {
         if self.busy() {
             return Err(Reason::Busy);
         }
         let origin = self.origin.clone().ok_or(Reason::ProjectionUnavailable)?;
         let (surface, width, height) = self.surface.ok_or(Reason::Busy)?;
-        let (_, inner) = resolve_geometry(spec.width, spec.height, surface).ok_or(Reason::Busy)?;
+        let (_, inner) =
+            resolve_geometry(spec.width(), spec.height(), surface).ok_or(Reason::Busy)?;
         let geometry =
             Geometry::new(inner.width, inner.height, width, height).map_err(|_| Reason::Busy)?;
         self.lane.take();
         let latest = Arc::new(Mutex::new(Latest {
             serial: 1,
             phase: Phase::Opening,
-            title: spec.selector.entrypoint_id.clone(),
+            title: spec.title(),
             projection: None,
             geometry,
         }));
@@ -226,7 +280,7 @@ impl Driver {
         let launch_id = id.clone();
         let launch_spec = spec.clone();
         let task = thread::Builder::new()
-            .name("orchbee-plugin-popup".into())
+            .name("orchbee-independent-popup".into())
             .spawn(move || {
                 let mut session = PopupSession {
                     site,
@@ -344,8 +398,8 @@ impl Driver {
                 .input_ready()
                 .then_some(latest.projection.as_deref())
                 .flatten(),
-            width: spec.width,
-            height: spec.height,
+            width: spec.width(),
+            height: spec.height(),
             closing: latest.phase == Phase::Closing,
         })
     }
@@ -390,7 +444,7 @@ impl Driver {
         };
         self.spec
             .as_ref()
-            .and_then(|spec| resolve_geometry(spec.width, spec.height, surface))
+            .and_then(|spec| resolve_geometry(spec.width(), spec.height(), surface))
             .and_then(|(_, inner)| Geometry::new(inner.width, inner.height, width, height).ok())
             == Some(latest.geometry)
     }
@@ -432,7 +486,7 @@ impl Driver {
         let Some((_, inner)) = self
             .spec
             .as_ref()
-            .and_then(|spec| resolve_geometry(spec.width, spec.height, surface))
+            .and_then(|spec| resolve_geometry(spec.width(), spec.height(), surface))
         else {
             return;
         };
@@ -582,7 +636,7 @@ impl PopupSession {
     fn run(
         &mut self,
         origin: LocalClientOrigin,
-        spec: PluginPopupSpec,
+        spec: PopupSpec,
         mut geometry: Geometry,
     ) -> Result<(), Reason> {
         let mut client = origin
@@ -602,17 +656,28 @@ impl PopupSession {
             geometry.cell_pixel_height(),
         )
         .map_err(|_| Reason::Busy)?;
-        let title = match self.plugin(
-            &mut client,
-            PluginAction::PopupOpen {
-                popup_id: self.id.clone(),
-                spec: Box::new(spec),
-                geometry: launch_geometry,
-            },
-        )? {
-            PluginOutcome::PopupOpened { title, .. } => title,
-            PluginOutcome::Failed { .. } => {
-                self.publish(Phase::Refused(Reason::TargetUnavailable), None, None);
+        let kind = spec.kind();
+        let opened = match spec {
+            PopupSpec::Plugin(spec) => self
+                .plugin(
+                    &mut client,
+                    PluginAction::PopupOpen {
+                        popup_id: self.id.clone(),
+                        spec,
+                        geometry: launch_geometry,
+                    },
+                )
+                .and_then(PopupOutcome::plugin),
+            PopupSpec::Editor(spec) => self.open_editor(&mut client, spec, launch_geometry),
+        }?;
+        let title = match opened {
+            PopupOutcome::Opened(title) => title,
+            PopupOutcome::Refused(reason) => {
+                self.publish(Phase::Refused(reason), None, None);
+                return Ok(());
+            }
+            PopupOutcome::Closed => {
+                self.publish(Phase::Closed, None, None);
                 return Ok(());
             }
             _ => return Err(Reason::Interrupted),
@@ -730,13 +795,12 @@ impl PopupSession {
                 _ => return Err(Reason::ProjectionUnavailable),
             }
             if self.clock.now() >= observe_at {
-                if let Ok(PluginOutcome::PopupState { settled: true, .. }) = self.plugin(
-                    &mut client,
-                    PluginAction::PopupRead {
-                        popup_id: self.id.clone(),
-                    },
-                ) {
-                    self.close.store(true, Ordering::Release);
+                match self.observe_popup(&mut client, kind, false)? {
+                    PopupOutcome::State(true) | PopupOutcome::Closed => {
+                        self.close.store(true, Ordering::Release)
+                    }
+                    PopupOutcome::State(false) => {}
+                    _ => return Err(Reason::Interrupted),
                 }
                 observe_at = self.clock.now() + Duration::from_secs(1);
             }
@@ -750,29 +814,17 @@ impl PopupSession {
         ) {
             return Err(Reason::Interrupted);
         }
-        match self.plugin(
-            &mut client,
-            PluginAction::PopupClose {
-                popup_id: self.id.clone(),
-            },
-        )? {
-            PluginOutcome::PopupClosed { .. } => {}
-            PluginOutcome::PopupClosing { .. } => {
+        match self.observe_popup(&mut client, kind, true)? {
+            PopupOutcome::Closed => {}
+            PopupOutcome::Closing => {
                 let deadline = self.clock.now() + Duration::from_secs(30);
                 loop {
                     if self.stop.load(Ordering::Acquire) || self.clock.now() >= deadline {
                         return Err(Reason::Expired);
                     }
-                    match self.plugin(
-                        &mut client,
-                        PluginAction::PopupRead {
-                            popup_id: self.id.clone(),
-                        },
-                    )? {
-                        PluginOutcome::PopupClosed { .. } => break,
-                        PluginOutcome::PopupState { .. } => {
-                            thread::sleep(Duration::from_millis(100))
-                        }
+                    match self.observe_popup(&mut client, kind, false)? {
+                        PopupOutcome::Closed => break,
+                        PopupOutcome::State(_) => thread::sleep(Duration::from_millis(100)),
                         _ => return Err(Reason::Interrupted),
                     }
                 }

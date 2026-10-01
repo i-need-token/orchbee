@@ -174,8 +174,8 @@
 			"zhCnSha256": "2a12a37183a225aa5e65fa62d2c7d19a32aa21654d46a519cfdffe19995d587c"
 		},
 		"apps/orchbee/docs/cli-workflows.md": {
-			"englishSha256": "32fd3f74fc533b60982bbb49a9fc71055947eba8cb5c624cc02f1e21a4697733",
-			"zhCnSha256": "6ecb3d7f777096562680f4e11c5fb10455560cd009292afed2f0efdc339d0d12"
+			"englishSha256": "ff6f173ccd8b1acafb05c3acecf7af1e60e64e1579f1973d2521f8b4d87158a6",
+			"zhCnSha256": "ef88b6960e07dffae129b803f0f0e4da29c7eace640b631eecc499533c4688a3"
 		},
 		"apps/orchbee/docs/machines.md": {
 			"englishSha256": "46b94b62346c52cb45c38a48855da02de40fb3a3deba139af8a0ac1d56503afa",
@@ -294,8 +294,8 @@
 			"zhCnSha256": "d994961af62c26b0e53f0947e4bc5b40e26af569ea2faa4bdc6bf95f693dce92"
 		},
 		"apps/orchbee/docs/windows-client-control.md": {
-			"englishSha256": "77cb6fef821ba990e8c7a5a60be6e3b8601b0d7c46a2bcc640a0e60dfc5e7c8d",
-			"zhCnSha256": "c9cc12e44f60c7d026460017448d266bcebcebd30156bf69e4d0a5d646e82736"
+			"englishSha256": "1cfb8c56ab47a8bad79fdf2e7fb9e545f245585148a51f65de94b60bc8b1f72f",
+			"zhCnSha256": "e569afd5ce65ae98144851a55dff60e11b8427d89f7bf040fe729d155af1ae97"
 		},
 		"apps/orchbee/docs/windows-client-layout.md": {
 			"englishSha256": "32ab07d27ecad146e3b9dd49f96c469a8490e9e333711bf5f14ae44183d784e5",
@@ -418,8 +418,8 @@
 			"zhCnSha256": "7ef92f6c32b5173dc5cb0e4519825b381bb22cb812106b4baa10935263387d6b"
 		},
 		"crates/workbench-protocol/README.md": {
-			"englishSha256": "968381d03230c6cbbc98dca1dc8c3413e4cecfd983500f535589a9eda9edc74d",
-			"zhCnSha256": "d0a2c7f7a88a81bf2ad27e708d551ba674289412d16a5f40fae57db0448cde35"
+			"englishSha256": "02decbd1617e230153512c5dd22c81d631e29d9a2d40e305ca106e3d8fc48283",
+			"zhCnSha256": "345e0b0c5364eaec47c92784ef5b8bed4a4b5ccfc440c16fc1585aa71d28a497"
 		},
 		"docs/APPLICATIONS.md": {
 			"englishSha256": "c04e2ffff82703bfdfd8af2ccbdb8e774df26d0c6629bbe928affc84fd713710",
@@ -702,8 +702,8 @@
 			"zhCnSha256": "5f39c7edce88095411070851ba9359fa88f26053a3b3e2ef35c69ee51eb3ab61"
 		},
 		"packages/workbench-client-protocol/README.md": {
-			"englishSha256": "9c46a7e9f135d1067f7bcac1da33486e7029deb6eab3564aeeee1f1d87eb36ec",
-			"zhCnSha256": "5864913dc7138624ae81d5957a76f910170afe0da15494b7bb4825b0e3338187"
+			"englishSha256": "3ca485bcc95d885f0e2b655041ac7b614f564bcd8cb77f3cf030de06a7191847",
+			"zhCnSha256": "353ea6bc0eea7a9bf2dab3d413282b56ff44917c06c98934865b7fe149e952c9"
 		},
 		"packages/workbench/README.md": {
 			"englishSha256": "ff7d467f5f6d2691cf972093984f8f8d557a316af61ceaf4a1f48467d051c1d6",

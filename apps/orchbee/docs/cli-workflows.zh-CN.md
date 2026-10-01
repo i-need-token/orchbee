@@ -255,3 +255,13 @@ orchbee workspace close-resume --project <project-id> --workspace <workspace-id>
   `orchbee help <family> <command>`。
 
 原生 Windows Cursor 使用 `agent integration enable --provider cursor`，再运行 `agent doctor --provider cursor`。这会配置会话身份 Hook；工作和空闲识别属于独立能力。
+
+## 编辑当前聚焦终端的滚动记录
+
+`orchbee terminal edit-scrollback <terminal> [--client <id>] [--timeout <ms>] [--format json|text]` 请求一个当前 Windows TUI，在所选编辑器中打开其聚焦的已绑定主终端或子终端完整保留纯 UTF-8 滚动记录。终端目标使用常规完整 ID、带类型后缀选择器或精确标签解析。需要已有 Site 和 Ready TUI；CLI 不启动两者，也不通过切换焦点让目标变成可用。显式 `--client` 只选择该 Client，否则采用既有调用者上下文／唯一当前 Client 规则。目标与当前选择的原生成员不同时，在提交编辑器前失败。
+
+一次调用期限覆盖快照、准确目标／Client 选择、被动当前 Presentation 读取、Client 视图不变检查、一次编辑器控制提交及保留状态读取。`--timeout` 默认 30000 毫秒，接受 1–3600000 毫秒。不接受 stdin、可执行文件、cwd、环境、尺寸或 controller 参数。CLI 不附着、控制或缩放来源终端，TUI 拥有独立只读捕获连接；不向来源发送按键或确认焦点已读。
+
+Worker 从继承环境依次选择非空 VISUAL、EDITOR，否则使用 Windows 系统目录 notepad.exe。修改 CLI 进程环境不会改变已运行 Worker 的偏好。参数保持字面值，Host 追加独占临时文档路径。捕获使用当前主／备用屏幕，解开软换行，超过 32 MiB 时整项拒绝。配置的编辑器可以是 popup 中的控制台编辑器，也可以是拥有独立窗口的 GUI 编辑器。
+
+保留编辑器控制操作的已知答复为 `orchbee.client.control` v10，保留准确操作／来源／成员、观察视图和等待状态；文本使用本地化 popup／控制结果。`popup-opened` 要求编辑器帧已安装；保留的 queued／delivered、拒绝、超时、取消和 unknown 结果不宣称编辑器就绪。未知提交绝不自动重放，应保留操作 ID 供 `client control-status` 查询。Ctrl+C 以退出码130停止等待，不撤销已提交请求。通过既有 popup 关闭控制／按钮关闭；恢复普通来源输入要求已知结算或模型规定的连接清理路径。实际编辑器／GUI 验收仍属于最终 Windows 验证。

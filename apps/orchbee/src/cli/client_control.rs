@@ -43,6 +43,16 @@ pub(super) struct Answer {
 }
 #[cfg(any(windows, test))]
 impl Answer {
+    pub(super) fn retain_matching_command(
+        &mut self,
+        command: &orchbee_workbench_protocol::ClientViewControl,
+    ) {
+        if matches!(&self.reply,Some(reply) if matches!(&reply.outcome,ClientViewOutcome::Operation { operation } if &operation.command!=command))
+        {
+            self.reply = None;
+            self.unknown = true;
+        }
+    }
     fn pending(&self) -> bool {
         self.reply.as_ref().is_some_and(|reply| {
             matches!(&reply.outcome,
@@ -91,7 +101,14 @@ impl Answer {
         let popup = self.reply.as_ref().is_some_and(|reply| matches!(&reply.outcome, ClientViewOutcome::Operation { operation }
             if matches!(operation.command.intent, orchbee_workbench_protocol::ClientViewIntent::PopupOpen { .. }
                 | orchbee_workbench_protocol::ClientViewIntent::PopupClose {})));
-        let version = if popup {
+        let editor = self.reply.as_ref().is_some_and(|reply| {
+            matches!(&reply.outcome,
+            ClientViewOutcome::Operation { operation } if matches!(operation.command.intent,
+                orchbee_workbench_protocol::ClientViewIntent::EditorOpen { .. }))
+        });
+        let version = if editor {
+            10
+        } else if popup {
             9
         } else if overlay {
             8

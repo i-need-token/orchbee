@@ -31,17 +31,17 @@ use std::sync::mpsc::{self, Receiver, SyncSender, TryRecvError};
 mod agent_attention;
 mod agent_board;
 #[cfg(windows)]
+mod independent_popup;
+#[cfg(windows)]
 mod panel_reports;
 #[cfg(windows)]
 mod plugin_overlays;
 #[cfg(windows)]
-mod plugin_popup;
+pub(crate) use independent_popup::{PopupView, resolve_geometry as popup_geometry};
 #[cfg(all(windows, test))]
 pub(crate) use panel_reports::PanelReport;
 #[cfg(windows)]
 pub(crate) use panel_reports::PanelReportView;
-#[cfg(windows)]
-pub(crate) use plugin_popup::{PopupView, resolve_geometry as popup_geometry};
 #[cfg(any(target_os = "linux", windows))]
 mod agent_read_lane;
 mod connection;

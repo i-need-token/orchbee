@@ -186,3 +186,15 @@ Workspace／Tab 聚焦不继承 Panel 的模式取消行为。不新增协议字
 ## 插件覆盖层交接
 
 匹配的原生 cohort 接受私有 `overlay` intent，携带精确 context／Tab／Panel／Presentation、预期 binding、必填可空的返回 binding 及先前 zoom。Client 在改变焦点前预留最多 32 个临时记录中的一个，仅在正常观测／绘制焦点与 zoom 路径完成后确认。规范移除时，仅覆盖层仍拥有焦点才恢复精确存活返回成员与先前 zoom；导航、手动 zoom 和重新绑定保留守卫。独立可取消生命周期通道读取完整 Host 身份，不持有 input／resize 或独占 Close 权限，保留结果不明的 Close 身份，并在关闭时 join。[Windows 插件](windows-plugins.zh-CN.md#覆盖层生命周期模型)负责生命周期契约。已知公开 Overlay 答复使用 v8；v1–v7 不接受此 intent。不新增 Desktop 或操作系统窗口激活。
+
+## Scrollback 编辑器 popup 模型
+
+私有 `editor-open` Client 意图只包含 `ScrollbackEditorSpec.source`：准确的当前 Context、Tab、Panel 和已绑定原生 Presentation 成员。它使用既有保留控制操作和 `popup-opened` 完成；此完成与插件 popup 一样要求相同来源、最低规范修订、操作 ID 和 Busy 视图。其公开控制回执为 v10；v1–v9 保持封闭，不接受 `editor-open`。通用 `popup-close` 关闭当前任一种独立 popup。
+
+Client 拥有一个独立 popup lane，由明确类型的插件和编辑器变体共用。编辑器几何填满已准入内容区域，保留既有边框；插件尺寸与默认值不变。准入要求 Ready、足够大的 Client，没有竞争 modal／popup，且准确成员新鲜。它不改变规范 Pane 拓扑／选择，也不控制或缩放来源终端。Opening 隐藏来源光标并捕获输入；只有匹配的编辑器帧已安装并绘制后才准入输入。既有 popup 键盘、粘贴、鼠标、缩放和关闭路径负责编辑器交互，结算后恢复普通来源输入。
+
+编辑器 lane 只重连一次，为来源 binding 附着只读 viewer，解码并确认完整来源帧，再在同一连接上提交一次私有编辑器 Open，携带该 attachment 与准确 generation／revision。来源捕获共用二十秒预算，拒绝受阻／非法投影；不提交可执行文件、环境、文件路径或正文。明确 Open 答复先于来源 Detach 和目的终端 attachment／controller 获取。投递后答复丢失或畸形为 unknown，绝不重放。来源 viewer 保留所有权直到明确 detach 或连接 EOF；Server／Host 负责不确定创建和文档清理。
+
+状态转换为 Opening -> Active -> Closing -> Closed。已知拒绝允许新的显式意图；传输不确定为 Failed，并关闭 lane 连接交由 Server 所有者恢复。编辑器提交前观察到 Close，只 detach 来源并关闭，不创建编辑器。Open 已提交时收到 Close，等待唯一答复后退役该准确 popup。Shutdown 中断正在进行的 I/O、加入 actor，依赖既有 EOF 清理所有者，不能靠时间经过宣布处置成功。Active 完成要求匹配的目的帧已安装，而非仅进程创建；自然退出使用同一处置确认路径。
+
+证据使用原生 Windows 管道，覆盖 Rust／TypeScript／JSON 意图和回执封闭、准确来源准入、同连接先来源帧确认后 Open、无来源控制／缩放、一次提交、投影／输入／缩放／关闭、拒绝、畸形／丢失答复和加入式 shutdown。这些定向夹具不证明实际 GUI／编辑器可用或部署后 TUI 验收；后者保留为最终 Windows 用户流程义务。当前用户指示暂不执行 TLA。

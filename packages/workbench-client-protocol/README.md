@@ -342,3 +342,13 @@ The [Rust contract](../../crates/workbench-protocol/README.md#private-scrollback
 and [Server model](../../apps/orchbee-server/README.md#windows-scrollback-editor-popup-model)
 own authorization and physical lifecycle; this is private native ingress, not a
 new Desktop operation or a completed public CLI capability.
+
+The matched Client view contract also admits private `editor-open` with only a
+bound `ScrollbackEditorSpec.source`. It shares the exact-source `popup-opened`
+completion and generic `popup-close` with typed plugin/editor actors. The
+[Client popup model](../../apps/orchbee/docs/windows-client-control.md#scrollback-editor-popup-model)
+owns same-connection read-only capture, full-content geometry, input, cancellation
+and cleanup. Public editor operation receipts use control v10; v1-v9 reject this
+intent. The public Windows `terminal edit-scrollback` path is defined in
+[CLI workflows](../../apps/orchbee/docs/cli-workflows.md#edit-the-focused-terminals-scrollback).
+Focused wire/actor evidence does not establish final GUI/cohort acceptance.

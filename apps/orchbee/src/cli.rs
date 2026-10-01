@@ -46,7 +46,11 @@ mod completion;
 #[cfg(windows)]
 mod terminal_clear;
 #[cfg(windows)]
+mod terminal_editor;
+#[cfg(windows)]
 pub(crate) use terminal_clear::run as clear_terminal;
+#[cfg(windows)]
+pub(crate) use terminal_editor::run as edit_terminal_scrollback;
 pub(crate) mod config;
 #[cfg(windows)]
 pub(crate) mod config_reset;

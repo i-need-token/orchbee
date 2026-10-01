@@ -266,7 +266,7 @@ fn sidebar_source_failures_and_disabled_endpoints_never_activate_foreign_targets
     let mut picker = sidebar_picker(1);
     let remote = profile(1, "remote", true);
     let choice = Choice::Remote(remote.id.clone());
-    picker.replace(&[remote.clone()]);
+    picker.replace(std::slice::from_ref(&remote));
     picker.observe_agents(vec![
         (Choice::Local, Agents::Ready(checkpoint(vec![agent_row()]))),
         (choice.clone(), Agents::Ready(checkpoint(vec![agent_row()]))),

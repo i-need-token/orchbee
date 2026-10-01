@@ -8,7 +8,7 @@
 			"const": "orchbee.client.control"
 		},
 		"version": {
-			"enum": [1, 2, 3, 4, 5, 6, 7, 8, 9]
+			"enum": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
 		},
 		"siteId": {
 			"anyOf": [
@@ -653,6 +653,19 @@
 						}
 					},
 					"required": ["kind"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "editor-open"
+						},
+						"spec": {
+							"$ref": "#/$defs/editorSpec"
+						}
+					},
+					"required": ["kind", "spec"],
 					"additionalProperties": false
 				}
 			]
@@ -2279,6 +2292,35 @@
 			"required": ["selector", "source", "context", "cwd", "environment", "width", "height"],
 			"additionalProperties": false,
 			"$comment": "Rust and TypeScript additionally require context.tabId and focusedPaneId to equal the source Tab and Panel, and enforce aggregate context/environment UTF-8 budgets."
+		},
+		"editorSource": {
+			"type": "object",
+			"properties": {
+				"terminalContextId": {
+					"$ref": "#/$defs/terminalContextId"
+				},
+				"tabId": {
+					"$ref": "#/$defs/tabId"
+				},
+				"member": {
+					"$ref": "#/$defs/boundPresentationSelection"
+				},
+				"panelId": {
+					"$ref": "#/$defs/panelId"
+				}
+			},
+			"required": ["terminalContextId", "tabId", "member", "panelId"],
+			"additionalProperties": false
+		},
+		"editorSpec": {
+			"type": "object",
+			"properties": {
+				"source": {
+					"$ref": "#/$defs/editorSource"
+				}
+			},
+			"required": ["source"],
+			"additionalProperties": false
 		}
 	},
 	"allOf": [
@@ -2821,7 +2863,7 @@
 			"if": {
 				"properties": {
 					"version": {
-						"const": 9
+						"enum": [9, 10]
 					}
 				}
 			},
@@ -2847,7 +2889,7 @@
 																"type": "object",
 																"properties": {
 																	"kind": {
-																		"enum": ["popup-open", "popup-close"]
+																		"enum": ["popup-open", "popup-close", "editor-open"]
 																	}
 																},
 																"required": ["kind"]
@@ -2944,6 +2986,95 @@
 						}
 					}
 				]
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"version": {
+						"const": 10
+					}
+				}
+			},
+			"then": {
+				"type": ["object", "null"],
+				"properties": {
+					"observation": {
+						"type": ["object", "null"],
+						"properties": {
+							"reply": {
+								"type": ["object", "null"],
+								"properties": {
+									"outcome": {
+										"type": ["object", "null"],
+										"properties": {
+											"operation": {
+												"type": ["object", "null"],
+												"properties": {
+													"command": {
+														"type": "object",
+														"properties": {
+															"intent": {
+																"type": "object",
+																"properties": {
+																	"kind": {
+																		"const": "editor-open"
+																	}
+																},
+																"required": ["kind"]
+															}
+														}
+													}
+												}
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			},
+			"else": {
+				"type": ["object", "null"],
+				"properties": {
+					"observation": {
+						"type": ["object", "null"],
+						"properties": {
+							"reply": {
+								"type": ["object", "null"],
+								"properties": {
+									"outcome": {
+										"type": ["object", "null"],
+										"properties": {
+											"operation": {
+												"type": ["object", "null"],
+												"properties": {
+													"command": {
+														"type": "object",
+														"properties": {
+															"intent": {
+																"not": {
+																	"type": "object",
+																	"properties": {
+																		"kind": {
+																			"const": "editor-open"
+																		}
+																	},
+																	"required": ["kind"]
+																}
+															}
+														}
+													}
+												}
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+				}
 			}
 		}
 	]

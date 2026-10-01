@@ -649,7 +649,7 @@ pub(crate) fn render(
             Ok(())
         }
         Projection::AgentChanges(outcome) => agent_changes(out, outcome, locale),
-        #[cfg(any(not(windows), test))]
+        #[cfg(not(windows))]
         Projection::AgentGet(outcome) => agent_get(out, outcome, text, locale),
         #[cfg(windows)]
         Projection::AgentTerminalInspection {

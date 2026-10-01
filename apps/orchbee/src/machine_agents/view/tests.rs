@@ -25,7 +25,7 @@ fn source_view_uses_canonical_agent_exact_member_and_raw_multikey_ties() {
     second.state = PanelAgentState::Blocked;
     second.target.member = TerminalPresentationId::parse(&format!("{:032x}", 24)).unwrap();
     second.target.physical = crate::machine_agents::tests::physical(24);
-    let candidates = vec![
+    let candidates = [
         (Choice::Local, first.clone()),
         (remote.clone(), second.clone()),
     ];

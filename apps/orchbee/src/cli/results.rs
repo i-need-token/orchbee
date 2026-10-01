@@ -2,7 +2,7 @@
 //! model. Everything here is total over a snapshot the transport already
 //! verified; no fabricated fields appear where no authoritative source exists.
 
-#[cfg(any(not(windows), test))]
+#[cfg(not(windows))]
 use orchbee_agent_observation_protocol::AgentGetOutcome;
 use std::collections::HashMap;
 
@@ -1063,7 +1063,7 @@ pub(crate) enum Projection {
     AgentClientList(Box<AgentClientListDoc>),
     AgentChanges(orchbee_agent_observation_protocol::AgentChangesOutcome),
     /// The typed `found` outcome, verbatim from the wire.
-    #[cfg(any(not(windows), test))]
+    #[cfg(not(windows))]
     AgentGet(AgentGetOutcome),
     AgentInspection(Box<AgentInspectionDoc>),
     #[cfg(windows)]
@@ -1301,7 +1301,7 @@ impl Projection {
                 "items":doc.items.iter().map(|(summary,client)| { let mut row=json!(summary);row["client"]=client.document();row }).collect::<Vec<_>>() })
             }
             Self::AgentChanges(outcome) => json!(outcome),
-            #[cfg(any(not(windows), test))]
+            #[cfg(not(windows))]
             Self::AgentGet(outcome) => json!(outcome),
             #[cfg(windows)]
             Self::AgentTerminalInspection {

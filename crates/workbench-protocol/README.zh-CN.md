@@ -41,3 +41,12 @@ CLI 定义。闭合 Open／Read／Close 消息携带 Site／request／popup 关�
 字段及非零身份。[Server popup 模型](../../apps/orchbee-server/README.zh-CN.md#windows-scrollback-编辑器-popup-模型)
 拥有来源授权、延迟创建／启动和清理。私有契约不证明 Client 焦点或公开编辑器
 完整对齐。
+
+匹配 Client 视图契约也接受私有 `editor-open`，只携带已绑定的
+`ScrollbackEditorSpec.source`。明确类型的插件／编辑器 actor 共用准确来源的
+`popup-opened` 完成和通用 `popup-close`。
+[Client popup 模型](../../apps/orchbee/docs/windows-client-control.zh-CN.md#scrollback-编辑器-popup-模型)
+负责同连接只读捕获、完整内容区几何、输入、取消和清理。公开编辑器操作回执使用控制 v10；
+v1–v9 拒绝此意图。公开 Windows `terminal edit-scrollback` 路径由
+[CLI 工作流程](../../apps/orchbee/docs/cli-workflows.zh-CN.md#编辑当前聚焦终端的滚动记录)
+定义。定向管道／actor 证据不等于最终 GUI／cohort 验收。

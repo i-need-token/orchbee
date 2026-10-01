@@ -1122,3 +1122,56 @@ fn presentation_receipts_keep_bound_v6_and_empty_v7_closed() {
         }
     }
 }
+
+#[test]
+fn editor_control_v10_is_closed_and_legacy_versions_reject_editor_intent() {
+    let corpus: Value = serde_json::from_str(include_str!(
+        "../../../../../schemas/workbench/v1/workbench-client-view-conformance-v1.json"
+    ))
+    .unwrap();
+    let sample = corpus["valid"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|c| c["name"] == "editor-opened-acknowledged-source")
+        .unwrap();
+    let orchbee_workbench_protocol::WorkbenchResponse::ClientView(reply) =
+        orchbee_workbench_protocol::parse_workbench_response(
+            &serde_json::to_vec(&sample["document"]).unwrap(),
+        )
+        .unwrap()
+    else {
+        panic!()
+    };
+    let ClientViewOutcome::Operation { operation } = &reply.outcome else {
+        panic!()
+    };
+    let answer = super::Answer {
+        status_only: false,
+        operation_id: Some(operation.command.operation_id.clone()),
+        site_id: Some(reply.site_id.clone()),
+        reply: Some(reply),
+        unknown: false,
+        wait: None,
+    };
+    let document = answer.document();
+    assert_eq!(document["version"], 10);
+    assert_eq!(answer.exit_code(), 0);
+    let schema: Value =
+        serde_json::from_str(include_str!("../schemas/orchbee.client.control.json")).unwrap();
+    let validator = jsonschema::validator_for(&schema).unwrap();
+    assert!(
+        validator.is_valid(&document),
+        "{:?}",
+        validator.iter_errors(&document).collect::<Vec<_>>()
+    );
+    for version in 1..=9 {
+        let mut old = document.clone();
+        old["version"] = json!(version);
+        assert!(!validator.is_valid(&old), "v{version}");
+    }
+    let mut extra = document.clone();
+    extra["observation"]["reply"]["outcome"]["operation"]["command"]["intent"]["spec"]["program"] =
+        json!("notepad.exe");
+    assert!(!validator.is_valid(&extra));
+}

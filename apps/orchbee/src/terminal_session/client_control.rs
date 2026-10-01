@@ -337,7 +337,9 @@ impl ClientControl {
             }
             let execution = if matches!(
                 command.intent,
-                ClientViewIntent::PopupOpen { .. } | ClientViewIntent::PopupClose {}
+                ClientViewIntent::PopupOpen { .. }
+                    | ClientViewIntent::PopupClose {}
+                    | ClientViewIntent::EditorOpen { .. }
             ) {
                 if let Err(reason) =
                     native.begin_popup_control(&command, delivery.workbench_snapshot.as_ref())

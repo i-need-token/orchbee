@@ -304,6 +304,8 @@ const FAMILY_VERBS: &[(&str, &[&str])] = &[
             "link-activate",
             #[cfg(windows)]
             "clear",
+            #[cfg(windows)]
+            "edit-scrollback",
             "run",
             "send",
             "session",
@@ -488,6 +490,8 @@ const REPEATABLE_FLAGS: &[&str] = &[
 const CONTROL_FLAGS: &[&str] = &["--cols", "--rows", "--timeout", "--takeover"];
 const OBSERVE_FLAGS: &[&str] = &["--cols", "--rows", "--timeout"];
 const COMMAND_FLAGS: &[(&str, &[&str])] = &[
+    #[cfg(windows)]
+    ("terminal:edit-scrollback", &["--client", "--timeout"]),
     #[cfg(windows)]
     (
         "terminal:link-resolve",
@@ -1314,6 +1318,8 @@ const OPERAND_PATHS: &[&str] = &[
     #[cfg(windows)]
     "terminal:clear",
     #[cfg(windows)]
+    "terminal:edit-scrollback",
+    #[cfg(windows)]
     "terminal:copy-motion",
     #[cfg(windows)]
     "terminal:copy-search",
@@ -1598,6 +1604,8 @@ const HELP_CHILDREN: &[(&str, &[&str])] = &[
             "link-activate",
             #[cfg(windows)]
             "clear",
+            #[cfg(windows)]
+            "edit-scrollback",
             "run",
             "send",
             "session",

@@ -28,6 +28,8 @@ mod terminal_clear;
 #[cfg(windows)]
 mod terminal_copy;
 #[cfg(windows)]
+mod terminal_editor;
+#[cfg(windows)]
 mod terminal_links;
 #[cfg(windows)]
 mod workspace_creation;
@@ -2858,6 +2860,10 @@ impl Locale {
             (Self::EnUs, CommandPath::TerminalClear) => terminal_clear::HELP_EN,
             #[cfg(windows)]
             (Self::ZhCn, CommandPath::TerminalClear) => terminal_clear::HELP_ZH,
+            #[cfg(windows)]
+            (Self::EnUs, CommandPath::TerminalEditScrollback) => terminal_editor::HELP_EN,
+            #[cfg(windows)]
+            (Self::ZhCn, CommandPath::TerminalEditScrollback) => terminal_editor::HELP_ZH,
             #[cfg(windows)]
             (Self::EnUs, CommandPath::TerminalLinkActivate) => terminal_links::ACTIVATE_EN,
             #[cfg(windows)]

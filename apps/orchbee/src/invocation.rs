@@ -438,6 +438,8 @@ pub(crate) enum CommandPath {
     TerminalLinkActivate,
     #[cfg(windows)]
     TerminalClear,
+    #[cfg(windows)]
+    TerminalEditScrollback,
     TerminalWaitOutput,
     TerminalSend,
     TerminalRun,
@@ -593,6 +595,8 @@ impl CommandPath {
             Self::TerminalLinkActivate => "terminal link-activate",
             #[cfg(windows)]
             Self::TerminalClear => "terminal clear",
+            #[cfg(windows)]
+            Self::TerminalEditScrollback => "terminal edit-scrollback",
             Self::TerminalWaitOutput => "terminal wait-output",
             Self::TerminalSend => "terminal send",
             Self::TerminalRun => "terminal run",
@@ -1392,6 +1396,13 @@ pub(crate) enum RuntimeStatusScope {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum Request {
+    #[cfg(windows)]
+    TerminalEditor {
+        target: Target,
+        client: Option<orchbee_workbench_protocol::WorkbenchClientId>,
+        timeout_ms: u32,
+        format: OutputFormat,
+    },
     #[cfg(windows)]
     TerminalClear {
         target: Target,
@@ -4065,6 +4076,26 @@ fn resolve_words(
             })
         }
         #[cfg(windows)]
+        ["terminal", "edit-scrollback", value] => {
+            let context = UsageContext::Path("terminal edit-scrollback");
+            check_scope(
+                options,
+                Scope {
+                    client: true,
+                    timeout: true,
+                    ..NO_OPTIONS
+                },
+                context,
+                envelope,
+            )?;
+            Ok(Request::TerminalEditor {
+                target: target((*value).to_owned(), Resource::Terminal, envelope)?,
+                client: client_control::client_id(options, context, envelope)?,
+                timeout_ms: wait_timeout_option(options, context, envelope)?,
+                format: options.format.unwrap_or(OutputFormat::Text),
+            })
+        }
+        #[cfg(windows)]
         ["terminal", "link-resolve", value] => {
             terminal_links::parse(value, options, envelope, false)
         }
@@ -5195,6 +5226,8 @@ fn help_topic(path: &[&str]) -> Option<HelpTopic> {
         ["terminal", "link-activate"] => HelpTopic::Command(CommandPath::TerminalLinkActivate),
         #[cfg(windows)]
         ["terminal", "clear"] => HelpTopic::Command(CommandPath::TerminalClear),
+        #[cfg(windows)]
+        ["terminal", "edit-scrollback"] => HelpTopic::Command(CommandPath::TerminalEditScrollback),
         ["terminal", "wait-output"] => HelpTopic::Command(CommandPath::TerminalWaitOutput),
         ["terminal", "send"] => HelpTopic::Command(CommandPath::TerminalSend),
         ["terminal", "run"] => HelpTopic::Command(CommandPath::TerminalRun),

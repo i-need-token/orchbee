@@ -45,7 +45,8 @@ impl NativeUi {
                 self.popup.begin_close();
                 Ok(())
             }
-            ClientViewIntent::PopupOpen { spec } => {
+            ClientViewIntent::PopupOpen { .. } | ClientViewIntent::EditorOpen { .. } => {
+                let source = command.intent.popup_source().ok_or(Reason::Unsupported)?;
                 if self.popup.busy() || self.control_modal() {
                     return Err(Reason::Busy);
                 }
@@ -58,15 +59,15 @@ impl NativeUi {
                     return Err(Reason::Busy);
                 }
                 let selected = view.selection.ok_or(Reason::ProjectionUnavailable)?;
-                if selected.terminal_context_id != spec.source.terminal_context_id
-                    || selected.tab_id.as_ref() != Some(&spec.source.tab_id)
-                    || selected.panel_id.as_ref() != Some(&spec.source.panel_id)
+                if selected.terminal_context_id != source.terminal_context_id
+                    || selected.tab_id.as_ref() != Some(&source.tab_id)
+                    || selected.panel_id.as_ref() != Some(&source.panel_id)
                 {
                     return Err(Reason::StaleView);
                 }
                 let read = ClientViewControl {
                     intent: ClientViewIntent::Presentation {
-                        panel_id: spec.source.panel_id.clone(),
+                        panel_id: source.panel_id.clone(),
                     },
                     ..command.clone()
                 };
@@ -77,12 +78,23 @@ impl NativeUi {
                 let matches = member
                     .presentation
                     .as_ref()
-                    .is_some_and(|current| current.same_member(&spec.source.member));
+                    .is_some_and(|current| current.same_member(&source.member));
                 if !matches {
                     return Err(Reason::StaleView);
                 }
-                self.popup
-                    .begin_open(site, command.operation_id.clone(), spec.as_ref().clone())
+                match &command.intent {
+                    ClientViewIntent::PopupOpen { spec } => self.popup.begin_open(
+                        site,
+                        command.operation_id.clone(),
+                        spec.as_ref().clone(),
+                    ),
+                    ClientViewIntent::EditorOpen { spec } => self.popup.begin_editor(
+                        site,
+                        command.operation_id.clone(),
+                        spec.as_ref().clone(),
+                    ),
+                    _ => Err(Reason::Unsupported),
+                }
             }
             _ => Err(Reason::Unsupported),
         }
@@ -93,7 +105,7 @@ impl NativeUi {
     ) -> Option<ClientViewCompletionOutcome> {
         self.popup.completion(
             &command.operation_id,
-            matches!(command.intent, ClientViewIntent::PopupOpen { .. }),
+            command.intent.popup_source().is_some(),
         )
     }
 }

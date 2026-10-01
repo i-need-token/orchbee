@@ -240,7 +240,7 @@ pub(crate) struct NativeSessionView<'a> {
     #[cfg(windows)]
     popup_failed: bool,
     #[cfg(windows)]
-    popup: Option<super::plugin_popup::PopupView<'a>>,
+    popup: Option<super::independent_popup::PopupView<'a>>,
 }
 
 impl<'a> NativeSessionView<'a> {
@@ -648,7 +648,7 @@ pub(super) struct NativeUi {
     #[cfg(windows)]
     overlays: super::plugin_overlays::Driver,
     #[cfg(windows)]
-    popup: super::plugin_popup::Driver,
+    popup: super::independent_popup::Driver,
     /// `presentation_id → workbench placement` over the freshest observed
     /// canonical snapshot — a pure function of that snapshot, rebuilt
     /// whole on every snapshot-bearing event.
@@ -703,7 +703,7 @@ mod viewport_tests;
 mod client_presentation;
 mod client_viewport;
 #[cfg(windows)]
-mod plugin_popup;
+mod independent_popup;
 #[cfg(test)]
 mod workspace_setup_tests;
 
@@ -731,7 +731,7 @@ impl NativeUi {
             #[cfg(windows)]
             overlays: super::plugin_overlays::Driver::new(clock.clone()),
             #[cfg(windows)]
-            popup: super::plugin_popup::Driver::new(clock.clone()),
+            popup: super::independent_popup::Driver::new(clock.clone()),
             agent_index: super::agent_board::PresentationIndex::default(),
             clock,
             state: None,

@@ -60,14 +60,24 @@ fn popup_admission_rejects_changed_source_generation_or_incarnation_before_a_lan
         } else {
             *attachment_generation = WorkbenchRevision::new(attachment_generation.value() + 1);
         }
-        command.intent = ClientViewIntent::PopupOpen {
-            spec: Box::new(stale),
-        };
-        assert_eq!(
-            ui.begin_popup_control(&command, Some(&source)),
-            Err(Reason::StaleView)
-        );
-        assert!(!ui.popup.busy());
+        for editor in [false, true] {
+            command.intent = if editor {
+                ClientViewIntent::EditorOpen {
+                    spec: Box::new(orchbee_workbench_protocol::ScrollbackEditorSpec {
+                        source: stale.source.clone(),
+                    }),
+                }
+            } else {
+                ClientViewIntent::PopupOpen {
+                    spec: Box::new(stale.clone()),
+                }
+            };
+            assert_eq!(
+                ui.begin_popup_control(&command, Some(&source)),
+                Err(Reason::StaleView)
+            );
+            assert!(!ui.popup.busy());
+        }
     }
 }
 
@@ -77,29 +87,34 @@ fn popup_pending_and_closing_composition_hide_the_underlying_terminal_cursor() {
     super::super::viewport_tests::install_projection(&mut ui, Some((9, false, 24)), 0);
     let id = WorkbenchRequestId::parse(&"a".repeat(32)).unwrap();
     for popup in [None, Some(false), Some(true)] {
-        let mut terminal =
-            ratatui::Terminal::new(ratatui::backend::TestBackend::new(120, 40)).unwrap();
-        terminal
-            .draw(|frame| {
-                let mut view = ui.view();
-                view.popup = popup.map(|closing| crate::terminal_session::PopupView {
-                    id: &id,
-                    title: "Dashboard",
-                    projection: None,
-                    width: None,
-                    height: None,
-                    closing,
-                });
-                crate::tui_render::render_terminal_shell(
-                    frame,
-                    &crate::client_view::ClientView::new(120),
-                    crate::localization::Locale::EnUs,
-                    Some(crate::terminal_session::TerminalSessionView::Native(view)),
-                    &crate::tui_theme::Theme::rgb_test_dark(),
-                    &mut crate::tui_pointer::HitMapBuilder::new(),
-                );
-            })
-            .unwrap();
-        assert_eq!(terminal.backend().cursor_visible(), popup.is_none());
+        for size in [
+            None,
+            Some(orchbee_workbench_protocol::PluginPopupSize::Percent(100)),
+        ] {
+            let mut terminal =
+                ratatui::Terminal::new(ratatui::backend::TestBackend::new(120, 40)).unwrap();
+            terminal
+                .draw(|frame| {
+                    let mut view = ui.view();
+                    view.popup = popup.map(|closing| crate::terminal_session::PopupView {
+                        id: &id,
+                        title: "Dashboard",
+                        projection: None,
+                        width: size,
+                        height: size,
+                        closing,
+                    });
+                    crate::tui_render::render_terminal_shell(
+                        frame,
+                        &crate::client_view::ClientView::new(120),
+                        crate::localization::Locale::EnUs,
+                        Some(crate::terminal_session::TerminalSessionView::Native(view)),
+                        &crate::tui_theme::Theme::rgb_test_dark(),
+                        &mut crate::tui_pointer::HitMapBuilder::new(),
+                    );
+                })
+                .unwrap();
+            assert_eq!(terminal.backend().cursor_visible(), popup.is_none());
+        }
     }
 }

@@ -196,6 +196,7 @@ fn run(
             let workbench_snapshot = if matches!(
                 control.intent,
                 ClientViewIntent::PopupOpen { .. }
+                    | ClientViewIntent::EditorOpen { .. }
                     | ClientViewIntent::Overlay { .. }
                     | ClientViewIntent::Panel { .. }
                     | ClientViewIntent::Selections { .. }

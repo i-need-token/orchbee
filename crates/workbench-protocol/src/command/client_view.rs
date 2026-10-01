@@ -119,6 +119,9 @@ pub struct ClientViewRecord {
     deny_unknown_fields
 )]
 pub enum ClientViewIntent {
+    EditorOpen {
+        spec: Box<crate::ScrollbackEditorSpec>,
+    },
     PopupOpen {
         spec: Box<crate::PluginPopupSpec>,
     },
@@ -217,6 +220,14 @@ pub struct ClientOverlayMember {
     pub binding: Option<crate::PresentationBinding>,
 }
 impl ClientViewIntent {
+    #[must_use]
+    pub fn popup_source(&self) -> Option<&crate::ClientPopupSource> {
+        match self {
+            Self::EditorOpen { spec } => Some(&spec.source),
+            Self::PopupOpen { spec } => Some(&spec.source),
+            _ => None,
+        }
+    }
     /// Panel and Agent focus own a cancellable-mode preflight in the Client, remaining effects.
     #[must_use]
     pub fn blocked_by_busy_phase(&self, phase: ClientViewPhase) -> bool {
@@ -342,7 +353,8 @@ impl ClientViewIntent {
             return false;
         };
         match self {
-            Self::PopupOpen { .. }
+            Self::EditorOpen { .. }
+            | Self::PopupOpen { .. }
             | Self::PopupClose {}
             | Self::TerminalAgentAttention { .. }
             | Self::AgentAttention { .. }
@@ -417,6 +429,9 @@ pub struct ClientViewControl {
 }
 impl ClientViewControl {
     pub fn validate(&self) -> Result<(), ContractError> {
+        if let ClientViewIntent::EditorOpen { spec } = &self.intent {
+            spec.validate()?;
+        }
         if let ClientViewIntent::PopupOpen { spec } = &self.intent {
             spec.validate()?;
         }
@@ -636,7 +651,7 @@ impl ClientViewOperation {
         self.command.validate()?;
         match &self.status {
             ClientViewControlStatus::PopupOpened { popup_id, view } => {
-                let ClientViewIntent::PopupOpen { spec } = &self.command.intent else {
+                let Some(source) = self.command.intent.popup_source() else {
                     return Err(ContractError::InvalidDocument);
                 };
                 view.validate()?;
@@ -644,9 +659,9 @@ impl ClientViewOperation {
                     || view.phase != ClientViewPhase::Busy
                     || view.workbench_revision < self.command.minimum_workbench_revision
                     || !view.selection.as_ref().is_some_and(|selected| {
-                        selected.terminal_context_id == spec.source.terminal_context_id
-                            && selected.tab_id.as_ref() == Some(&spec.source.tab_id)
-                            && selected.panel_id.as_ref() == Some(&spec.source.panel_id)
+                        selected.terminal_context_id == source.terminal_context_id
+                            && selected.tab_id.as_ref() == Some(&source.tab_id)
+                            && selected.panel_id.as_ref() == Some(&source.panel_id)
                     })
                 {
                     return Err(ContractError::InvalidDocument);

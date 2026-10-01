@@ -159,6 +159,15 @@ fn main() -> ExitCode {
                 cli::clear_terminal(&target, format, locale)
             }
             #[cfg(windows)]
+            Ok(invocation::Request::TerminalEditor {
+                target,
+                client,
+                timeout_ms,
+                format,
+            }) => {
+                cli::edit_terminal_scrollback(&target, client.as_ref(), timeout_ms, format, locale)
+            }
+            #[cfg(windows)]
             Ok(invocation::Request::TerminalLink { command, format }) => {
                 cli::resolve_terminal_link(&command, format, locale)
             }

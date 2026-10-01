@@ -342,6 +342,7 @@ impl NativeUi {
             | ClientViewIntent::Resize { .. }
             | ClientViewIntent::SetSplitRatio { .. }
             | ClientViewIntent::PopupOpen { .. }
+            | ClientViewIntent::EditorOpen { .. }
             | ClientViewIntent::PopupClose { .. } => {
                 return ControlStep::Failed(Reason::Unsupported);
             }

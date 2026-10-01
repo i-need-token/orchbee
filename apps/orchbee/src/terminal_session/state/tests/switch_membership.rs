@@ -160,12 +160,12 @@ fn rollback_does_not_revive_a_sibling_that_was_already_departing() {
     let marker = state.desired().unwrap().clone();
     {
         let _prepared = state
-            .prepare_switch_restore(&marker, &[focus.clone()])
+            .prepare_switch_restore(&marker, std::slice::from_ref(&focus))
             .unwrap();
     }
     assert_eq!(state.desired(), Some(&marker));
     state
-        .prepare_switch_restore(&marker, &[focus.clone()])
+        .prepare_switch_restore(&marker, std::slice::from_ref(&focus))
         .unwrap()
         .commit();
     assert_eq!(state.pollable_panes(), vec![focus]);

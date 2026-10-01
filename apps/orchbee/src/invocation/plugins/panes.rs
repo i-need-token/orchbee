@@ -238,6 +238,44 @@ pub(super) fn parse(
     })
 }
 
+pub(in crate::invocation) fn parse_close(
+    words: &[&str],
+    options: &Options,
+    envelope: FailureEnvelope,
+) -> Result<Request, ParseFailure> {
+    let context = UsageContext::Path("popup close");
+    match words {
+        ["popup"] => return Err(missing_command(UsageContext::Path("popup"), envelope)),
+        ["popup", "close"] => {}
+        ["popup", "close", extra, ..] => return Err(unexpected_argument(context, extra, envelope)),
+        ["popup", verb, ..] => {
+            return Err(unknown_command(UsageContext::Path("popup"), verb, envelope));
+        }
+        _ => unreachable!("popup family routed here"),
+    }
+    check_scope(
+        options,
+        Scope {
+            client: true,
+            timeout: true,
+            ..NO_OPTIONS
+        },
+        context,
+        envelope,
+    )?;
+    Ok(Request::Plugin {
+        command: super::PluginCommand::PopupClose {
+            client: client_control::client_id(options, context, envelope)?,
+            timeout_ms: if options.timeout.is_some() {
+                wait_timeout_option(options, context, envelope)?
+            } else {
+                30_000
+            },
+        },
+        format: options.format.unwrap_or(OutputFormat::Text),
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -380,42 +418,4 @@ mod tests {
             .is_err()
         );
     }
-}
-
-pub(in crate::invocation) fn parse_close(
-    words: &[&str],
-    options: &Options,
-    envelope: FailureEnvelope,
-) -> Result<Request, ParseFailure> {
-    let context = UsageContext::Path("popup close");
-    match words {
-        ["popup"] => return Err(missing_command(UsageContext::Path("popup"), envelope)),
-        ["popup", "close"] => {}
-        ["popup", "close", extra, ..] => return Err(unexpected_argument(context, extra, envelope)),
-        ["popup", verb, ..] => {
-            return Err(unknown_command(UsageContext::Path("popup"), verb, envelope));
-        }
-        _ => unreachable!("popup family routed here"),
-    }
-    check_scope(
-        options,
-        Scope {
-            client: true,
-            timeout: true,
-            ..NO_OPTIONS
-        },
-        context,
-        envelope,
-    )?;
-    Ok(Request::Plugin {
-        command: super::PluginCommand::PopupClose {
-            client: client_control::client_id(options, context, envelope)?,
-            timeout_ms: if options.timeout.is_some() {
-                wait_timeout_option(options, context, envelope)?
-            } else {
-                30_000
-            },
-        },
-        format: options.format.unwrap_or(OutputFormat::Text),
-    })
 }

@@ -188,6 +188,16 @@ fn probe_exit_kind(code: Option<i32>, stderr: &[u8]) -> io::ErrorKind {
     }
 }
 
+/// The OS OpenSSH client, retaining the user's authentication/configuration owner.
+pub(crate) fn executable() -> io::Result<PathBuf> {
+    let path = PathBuf::from(winsafe::GetSystemDirectory().map_err(io::Error::other)?)
+        .join("OpenSSH/ssh.exe");
+    if !path.is_file() {
+        return Err(io::ErrorKind::NotFound.into());
+    }
+    Ok(path)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -207,13 +217,4 @@ mod tests {
             io::ErrorKind::ConnectionRefused
         );
     }
-}
-/// The OS OpenSSH client, retaining the user's authentication/configuration owner.
-pub(crate) fn executable() -> io::Result<PathBuf> {
-    let path = PathBuf::from(winsafe::GetSystemDirectory().map_err(io::Error::other)?)
-        .join("OpenSSH/ssh.exe");
-    if !path.is_file() {
-        return Err(io::ErrorKind::NotFound.into());
-    }
-    Ok(path)
 }

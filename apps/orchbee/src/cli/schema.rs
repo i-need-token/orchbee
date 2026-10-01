@@ -550,8 +550,8 @@ pub(crate) fn answer(schema_id: Option<&str>, format: OutputFormat, locale: Loca
     };
     let document = json!({
         "schema": "orchbee.api.schema",
-        // Includes prompt-preserving terminal clear receipts.
-        "version": 130,
+        // Includes the public scrollback editor command and control v10.
+        "version": 131,
         "source": embedded_source(),
         "result": result,
     });
