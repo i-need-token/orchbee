@@ -18,7 +18,7 @@ use crate::{
     },
     terminal_host_launch_adapter::{
         HostLaunchAdapterError, ObservedTerminalHostResponse, ResolvedTerminalLaunchFacts,
-        TerminalHostResponse, map_launch_dispatch, map_launch_host_response, map_start_dispatch,
+        TerminalHostResponse, map_launch_creation, map_launch_host_response, map_start_dispatch,
         map_start_host_response,
     },
 };
@@ -93,6 +93,7 @@ pub(crate) struct PreparedHostOperation {
     kind: u16,
     payload: Vec<u8>,
     expected: ExpectedResponse,
+    editor_source: Option<orchbee_capability_node_protocol::TerminalEditorSource>,
 }
 
 impl PreparedHostOperation {
@@ -102,17 +103,28 @@ impl PreparedHostOperation {
         correlation: CorrelationId,
         site_runtime: Option<&std::path::Path>,
     ) -> Result<Self, HostOperationError> {
-        let request = map_launch_dispatch(dispatch, facts, site_runtime)?;
-        let expected = ExpectedResponse::Created(request.creation_id);
-        let control = encode_terminal_creation_control(&TerminalCreationControl::CreateTerminal(
-            Box::new(request),
-        ))?;
+        let creation = map_launch_creation(dispatch, facts, site_runtime)?;
+        let expected = ExpectedResponse::Created(match &creation {
+            TerminalCreationControl::CreateTerminal(request) => request.creation_id,
+            TerminalCreationControl::CreateScrollbackEditor(editor) => editor.creation.creation_id,
+            TerminalCreationControl::TerminalCreated(_) => {
+                return Err(HostLaunchAdapterError::UnexpectedHostResponse.into());
+            }
+        });
+        let editor_source = match dispatch.operation() {
+            crate::terminal_authorization::AuthorizedHostOperation::Launch(launch) => {
+                launch.editor_source()
+            }
+            crate::terminal_authorization::AuthorizedHostOperation::Start(_) => None,
+        };
+        let control = encode_terminal_creation_control(&creation)?;
         Ok(Self {
             dispatch: dispatch.clone(),
             correlation,
             kind: control.kind,
             payload: control.payload,
             expected,
+            editor_source,
         })
     }
 
@@ -129,6 +141,7 @@ impl PreparedHostOperation {
             kind: control.kind,
             payload: control.payload,
             expected: ExpectedResponse::Started,
+            editor_source: None,
         })
     }
 
@@ -141,6 +154,14 @@ impl PreparedHostOperation {
         budget: Duration,
     ) -> Result<HostOperationDisposition, HostOperationError> {
         let epoch = host.host_epoch();
+        if let Some(source) = self.editor_source
+            && (source.host_epoch.as_bytes() != *epoch.as_bytes()
+                || host.viewers.borrow().target(source.attachment_id) != Some(source.terminal_id)
+                || host.disposed_terminal(source.terminal_id))
+        {
+            kernel.record_pre_handoff_failure(&self.dispatch, now_unix_milliseconds())?;
+            return Ok(HostOperationDisposition::ResultReady);
+        }
         let record = encode_transport_envelope(&Envelope {
             correlation_id: Some(self.correlation),
             host_epoch: Some(epoch),

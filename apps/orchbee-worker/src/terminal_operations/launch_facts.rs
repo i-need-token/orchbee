@@ -24,6 +24,7 @@ pub(super) fn resolve(
     selection: Option<&orchbee_capability_node_protocol::LaunchSelection>,
     environment: &orchbee_capability_node_protocol::LaunchEnvironment,
     plugin_environment: Option<&orchbee_capability_node_protocol::PluginTerminalEnvironment>,
+    #[cfg(windows)] editor_launch: bool,
     #[cfg(windows)] shell: &orchbee_local_site_runtime::WindowsShellSettings,
 ) -> Result<ResolvedTerminalLaunchFacts, Box<dyn Error>> {
     if plugin_environment.is_some() && (!cfg!(windows) || selection.is_none()) {
@@ -51,7 +52,11 @@ pub(super) fn resolve(
         }
     };
     #[cfg(windows)]
-    let arguments = powershell::interactive_arguments(&executable, arguments);
+    let arguments = if editor_launch {
+        arguments
+    } else {
+        powershell::interactive_arguments(&executable, arguments)
+    };
     // An explicit authorized path requires no home-directory lookup or translation.
     let cwd = match explicit_cwd {
         Some(cwd) => cwd.clone(),

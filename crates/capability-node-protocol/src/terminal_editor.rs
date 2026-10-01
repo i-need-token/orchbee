@@ -1,5 +1,16 @@
 //! Read-only machine editor selection; resolving argv grants no source or launch authority.
-use crate::{LaunchSelection, OperationId, WorkerGeneration, WorkerId};
+use crate::{HostEpoch, HostTerminalId, LaunchSelection, OperationId, WorkerGeneration, WorkerId};
+use std::num::NonZeroU64;
+
+/// Pins capture to an existing read viewer and the exact immutable Host content version.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct TerminalEditorSource {
+    pub attachment_id: OperationId,
+    pub host_epoch: HostEpoch,
+    pub terminal_id: HostTerminalId,
+    pub generation: NonZeroU64,
+    pub revision: u64,
+}
 
 /// Pins one editor-preference observation to the admitted Worker incarnation.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

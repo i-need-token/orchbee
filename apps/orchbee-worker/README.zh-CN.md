@@ -22,6 +22,12 @@
 当前 Client／焦点校验、确切授权捕获、独立 overlay 与公开 CLI 仍是上游责任；
 仅 Host 追加一个生成文档路径，并持有延迟终端直到清理完成。
 
+已授权延迟启动可以携带现有可读 viewer 来源。Worker 在移交前核对确切已打开 attachment 目标、
+当前 Host epoch 与未释放状态；Host 独立核对实际读取权限及不可变捕获的代次／修订。
+不创建来源，也不跨 Worker incarnation 借用来源。Host 创建适配器发送 `CreateScrollbackEditor`；
+Worker 不创建文件、不追加路径，也不对字面编辑器 argv 增补 PowerShell 参数。
+延迟模式在 Host 启动前拒绝此类启动。准备失败保留已有移交前回执；移交后丢失保持未知且不重放。
+
 ## Windows 子终端 CLI 路由
 
 托管 Windows 启动从准入后的 Site 运行时目录覆盖 `ORCHBEE_RUNTIME_BASE` 和

@@ -10,6 +10,139 @@ fn request() -> TerminalEditorCommandRequest {
     }
 }
 
+fn editor_launch() -> crate::AuthorizedTerminalLaunch {
+    use crate::*;
+    AuthorizedTerminalLaunch::new(
+        TerminalOperationAuthorization::new(
+            TerminalId::from_bytes([1; 16]).unwrap(),
+            OperationId::from_bytes([2; 16]).unwrap(),
+            WorkerId::from_bytes([3; 16]).unwrap(),
+            WorkerGeneration::new(NonZeroU64::MIN),
+            TerminalFence::new(NonZeroU64::MIN),
+            TerminalOperationLease::new(
+                LeaseId::from_bytes([4; 16]).unwrap(),
+                LeaseExpiresAtUnixMilliseconds::new(NonZeroU64::MAX),
+            ),
+            TERMINAL_LAUNCH_CAPABILITY_VERSION,
+        ),
+        None,
+        TerminalLaunchMode::Deferred,
+        Some(
+            LaunchSelection::new(r"C:\editor.exe".into(), vec!["".into(), "--wait".into()])
+                .unwrap(),
+        ),
+    )
+}
+fn editor_source() -> TerminalEditorSource {
+    TerminalEditorSource {
+        attachment_id: OperationId::from_bytes([9; 16]).unwrap(),
+        host_epoch: crate::HostEpoch::from_bytes([10; 16]).unwrap(),
+        terminal_id: crate::HostTerminalId::from_bytes([11; 16]).unwrap(),
+        generation: NonZeroU64::MAX,
+        revision: 0,
+    }
+}
+
+#[test]
+fn editor_source_extension_preserves_all_fences_and_omitted_legacy_bytes() {
+    let base = editor_launch();
+    let plain = encode_message(&Message::AuthorizedTerminalLaunch(base.clone())).unwrap();
+    for revision in [0, u64::MAX] {
+        let source = TerminalEditorSource {
+            revision,
+            ..editor_source()
+        };
+        let launch = base.clone().with_editor_source(Some(source)).unwrap();
+        let message = Message::AuthorizedTerminalLaunch(launch.clone());
+        let frame = encode_message(&message).unwrap();
+        assert_eq!(decode_message(&frame).unwrap(), message);
+        assert_eq!(
+            encode_message(&Message::AuthorizedTerminalLaunch(
+                launch.with_editor_source(None).unwrap()
+            ))
+            .unwrap(),
+            plain
+        );
+        assert_eq!(&frame[frame.len() - 8..], &revision.to_be_bytes());
+    }
+}
+
+#[test]
+fn editor_source_extension_refuses_invalid_tail_identity_geometry_and_ambiguous_launch() {
+    use crate::*;
+    let source = editor_source();
+    let base = editor_launch();
+    let valid = base.clone().with_editor_source(Some(source)).unwrap();
+    let frame = encode_message(&Message::AuthorizedTerminalLaunch(valid.clone())).unwrap();
+    let start = frame.len() - 64;
+    for range in [
+        start..start + 16,
+        start + 16..start + 32,
+        start + 32..start + 48,
+        start + 48..start + 56,
+    ] {
+        let mut bad = frame.clone();
+        bad[range].fill(0);
+        assert!(decode_message(&bad).is_err());
+    }
+    for end in start..frame.len() {
+        let mut bad = frame[..end].to_vec();
+        bad[6..8].copy_from_slice(&((end - 8) as u16).to_be_bytes());
+        assert!(decode_message(&bad).is_err());
+    }
+    let mut bad = frame.clone();
+    bad.push(0);
+    let len = (bad.len() - 8) as u16;
+    bad[6..8].copy_from_slice(&len.to_be_bytes());
+    assert!(decode_message(&bad).is_err());
+    assert_eq!(frame[101], 2);
+    let mut immediate = frame.clone();
+    immediate[101] = 1;
+    immediate.splice(102..102, [0, 80, 0, 24, 0, 8, 0, 16]);
+    let len = (immediate.len() - 8) as u16;
+    immediate[6..8].copy_from_slice(&len.to_be_bytes());
+    assert!(decode_message(&immediate).is_err());
+    let mut unknown = frame.clone();
+    unknown[104] = 5;
+    assert!(decode_message(&unknown).is_err());
+    let no_program = AuthorizedTerminalLaunch::new(
+        base.authorization(),
+        None,
+        TerminalLaunchMode::Deferred,
+        None,
+    );
+    assert!(no_program.with_editor_source(Some(source)).is_err());
+    let immediate = AuthorizedTerminalLaunch::new(
+        base.authorization(),
+        None,
+        TerminalLaunchMode::Immediate(TerminalPixelGeometry::new(80, 24, 8, 16).unwrap()),
+        base.launch().cloned(),
+    );
+    assert!(immediate.with_editor_source(Some(source)).is_err());
+    let plugin = PluginTerminalEnvironment::new(
+        PLUGIN_TERMINAL_ENVIRONMENT_NAMES[..7]
+            .iter()
+            .map(|name| ((*name).into(), "v".into()))
+            .collect(),
+    )
+    .unwrap();
+    assert!(
+        base.clone()
+            .with_plugin_environment(Some(plugin.clone()))
+            .unwrap()
+            .with_editor_source(Some(source))
+            .is_err()
+    );
+    assert!(valid.clone().with_plugin_environment(Some(plugin)).is_err());
+    assert!(
+        valid
+            .with_default_shell(Some(
+                DefaultShellSelection::new("cmd.exe".into(), DefaultShellMode::Auto).unwrap()
+            ))
+            .is_err()
+    );
+}
+
 #[test]
 fn editor_command_round_trips_all_outcomes_and_rejects_every_strict_prefix_and_tail() {
     let mut messages = vec![Message::TerminalEditorCommandRequest(request())];

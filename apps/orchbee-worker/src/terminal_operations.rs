@@ -495,7 +495,7 @@ fn prepare(
     match dispatch.operation() {
         AuthorizedHostOperation::Launch(launch) => {
             #[cfg(not(windows))]
-            if launch.default_shell().is_some() {
+            if launch.default_shell().is_some() || launch.editor_source().is_some() {
                 return Err(io::Error::new(
                     io::ErrorKind::Unsupported,
                     "Windows shell policy is unsupported",
@@ -521,6 +521,8 @@ fn prepare(
                     launch.launch(),
                     launch.environment(),
                     launch.plugin_environment(),
+                    #[cfg(windows)]
+                    launch.editor_source().is_some(),
                     #[cfg(windows)]
                     shell,
                 )?,

@@ -339,7 +339,22 @@ fn encode_authorized_terminal_launch(value: &AuthorizedTerminalLaunch) -> Vec<u8
     encode_authorization(&mut payload, value.authorization());
     encode_cwd(&mut payload, value.cwd());
     encode_launch_mode(&mut payload, value.mode());
-    if let Some(plugin) = value.plugin_environment() {
+    if let Some(source) = value.editor_source() {
+        payload.extend_from_slice(&0u16.to_be_bytes());
+        payload.push(4);
+        encode_launch_selection(
+            &mut payload,
+            value
+                .launch()
+                .expect("editor source requires explicit launch"),
+        );
+        encode_launch_environment(&mut payload, value.environment());
+        payload.extend(source.attachment_id.as_bytes());
+        payload.extend(source.host_epoch.as_bytes());
+        payload.extend(source.terminal_id.as_bytes());
+        payload.extend(source.generation.get().to_be_bytes());
+        payload.extend(source.revision.to_be_bytes());
+    } else if let Some(plugin) = value.plugin_environment() {
         payload.extend_from_slice(&0u16.to_be_bytes());
         payload.push(3);
         encode_launch_selection(
@@ -389,13 +404,26 @@ fn decode_authorized_terminal_launch(
     let cwd = decode_cwd(&mut reader)?;
     let mode = decode_launch_mode(&mut reader)?;
     let mut plugin_environment = None;
+    let mut editor_source = None;
     let (launch, environment, shell) = if reader.is_exhausted() {
         (None, crate::LaunchEnvironment::empty(), None)
     } else {
         let executable_length = usize::from(reader.read_u16()?);
         if executable_length == 0 {
             let version = reader.read_u8()?;
-            if version == 3 {
+            if version == 4 {
+                let launch = decode_launch_selection(&mut reader)?;
+                let environment = decode_launch_environment(&mut reader)?;
+                editor_source = Some(crate::TerminalEditorSource {
+                    attachment_id: OperationId::from_bytes(reader.read_array()?)?,
+                    host_epoch: HostEpoch::from_bytes(reader.read_array()?)?,
+                    terminal_id: HostTerminalId::from_bytes(reader.read_array()?)?,
+                    generation: NonZeroU64::new(reader.read_u64()?)
+                        .ok_or(ProtocolError::InvalidPayload)?,
+                    revision: reader.read_u64()?,
+                });
+                (Some(launch), environment, None)
+            } else if version == 3 {
                 let launch = decode_launch_selection(&mut reader)?;
                 let environment = decode_launch_environment(&mut reader)?;
                 plugin_environment = Some(crate::PluginTerminalEnvironment::new(
@@ -450,7 +478,8 @@ fn decode_authorized_terminal_launch(
     AuthorizedTerminalLaunch::new(authorization, cwd, mode, launch)
         .with_environment(environment)
         .with_default_shell(shell)?
-        .with_plugin_environment(plugin_environment)
+        .with_plugin_environment(plugin_environment)?
+        .with_editor_source(editor_source)
 }
 
 fn encode_terminal_launch_result(value: TerminalLaunchResult) -> Vec<u8> {

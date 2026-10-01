@@ -33,6 +33,24 @@ document path. [Worker selection](../../apps/orchbee-worker/README.md#windows-sc
 owns Windows lookup and quoting; current-Client/focus admission, authorized capture,
 independent overlay and public CLI remain separate workflow obligations.
 
+## Authorized editor source capture
+
+An editor launch uses deferred mode, an explicit resolved `LaunchSelection` and
+one `TerminalEditorSource`: existing read attachment ID, Host epoch/terminal ID,
+positive generation and full u64 content revision (including zero).
+It excludes plugin metadata and default-shell selection. Launch extension 4 uses
+zero u16, byte 4, existing selection and environment encoding, then three 16-byte
+IDs and two big-endian u64 fences. Omission preserves every ordinary launch byte.
+The complete source is part of the retained authorized launch's replay identity.
+
+Worker checks the exact open viewer target, current Host epoch and non-disposal
+before Create handoff. Host repeats connection-owned read authority and same-lock
+content fences; the Worker cache never grants Host attachment authority. Editor
+argv stays literal with no PowerShell augmentation or Worker-generated path.
+Pre-Host lazy launch refuses before startup. Existing unknown-receipt rules and
+Host document lifecycle remain authoritative; current-Client/focus admission,
+independent overlay and public CLI remain upstream obligations.
+
 ## Transient terminal clear
 
 Control action tag 6 is `Clear`, using the request viewer plus a newly allocated transient attachment in `controller_id`; it never names or changes a controller reservation. Result tag 7 is `Cleared` with positive u64 generation/revision and a canonical one-byte cleanup Boolean; tag 8 is `ClearOutcomeUnknown` and is valid only for Clear. Rejection tag 12 denotes an alternate screen. Old tags and framing remain unchanged. The carrier validates the complete request/viewer/transient identity and result kind before delivery. [Native clear](../../apps/orchbee/docs/native-cli-query.md#clear-terminal-output) owns the end-to-end state machine; same-cohort deployment is required.

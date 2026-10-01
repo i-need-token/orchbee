@@ -43,6 +43,7 @@ fn configured_and_explicit_shells_reach_real_host_launch_preparation() -> Result
             selection.as_ref(),
             &environment,
             plugin.as_ref(),
+            false,
             &snapshot,
         )?;
         let n = NonZeroU64::MIN;

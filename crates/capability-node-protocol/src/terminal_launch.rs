@@ -330,6 +330,7 @@ pub struct AuthorizedTerminalLaunch {
     environment: crate::LaunchEnvironment,
     default_shell: Option<crate::DefaultShellSelection>,
     plugin_environment: Option<crate::PluginTerminalEnvironment>,
+    editor_source: Option<crate::TerminalEditorSource>,
 }
 
 impl AuthorizedTerminalLaunch {
@@ -348,6 +349,7 @@ impl AuthorizedTerminalLaunch {
             environment: crate::LaunchEnvironment::empty(),
             default_shell: None,
             plugin_environment: None,
+            editor_source: None,
         }
     }
 
@@ -381,7 +383,7 @@ impl AuthorizedTerminalLaunch {
         mut self,
         environment: Option<crate::PluginTerminalEnvironment>,
     ) -> Result<Self, ProtocolError> {
-        if environment.is_some() && self.launch.is_none() {
+        if environment.is_some() && (self.launch.is_none() || self.editor_source.is_some()) {
             return Err(ProtocolError::InvalidPayload);
         }
         self.plugin_environment = environment;
@@ -407,6 +409,32 @@ impl AuthorizedTerminalLaunch {
     }
     pub const fn default_shell(&self) -> Option<&crate::DefaultShellSelection> {
         self.default_shell.as_ref()
+    }
+
+    /// Admits immutable capture only for an explicit deferred editor launch.
+    ///
+    /// # Errors
+    /// Refuses immediate geometry, default-shell selection or plugin metadata.
+    pub fn with_editor_source(
+        mut self,
+        source: Option<crate::TerminalEditorSource>,
+    ) -> Result<Self, ProtocolError> {
+        if source.is_some()
+            && (self.mode != TerminalLaunchMode::Deferred
+                || self.launch.is_none()
+                || self.default_shell.is_some()
+                || self.plugin_environment.is_some())
+        {
+            return Err(ProtocolError::InvalidPayload);
+        }
+        self.editor_source = source;
+        Ok(self)
+    }
+
+    /// The exact existing read source; omission keeps ordinary launch semantics.
+    #[must_use]
+    pub const fn editor_source(&self) -> Option<crate::TerminalEditorSource> {
+        self.editor_source
     }
 }
 

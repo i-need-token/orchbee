@@ -195,6 +195,15 @@ pub(crate) fn run(
                 }
             };
             // Preserve this exact kernel and dispatch across preparation and startup.
+            if let crate::terminal_authorization::AuthorizedHostOperation::Launch(launch) =
+                dispatch.operation()
+                && launch.editor_source().is_some()
+            {
+                kernel.record_pre_handoff_failure(&dispatch, unix_milliseconds())?;
+                let result = super::take_result(&mut kernel)?;
+                let _no_host = server_transport::send(server, None, &result)?;
+                continue;
+            }
             let prepared = super::prepare_or_fail(
                 &mut kernel,
                 &dispatch,

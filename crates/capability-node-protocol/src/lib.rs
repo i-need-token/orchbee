@@ -19,7 +19,7 @@ mod terminal_cwd_validation;
 mod terminal_editor;
 pub use terminal_editor::{
     TerminalEditorCommandOutcome, TerminalEditorCommandRefusal, TerminalEditorCommandRequest,
-    TerminalEditorCommandResult, TerminalEditorCommandSource,
+    TerminalEditorCommandResult, TerminalEditorCommandSource, TerminalEditorSource,
 };
 mod terminal_launch;
 mod terminal_lifecycle;

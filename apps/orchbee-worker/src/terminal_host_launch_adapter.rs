@@ -165,6 +165,40 @@ impl From<HostProtocolError> for HostLaunchAdapterError {
 const OBSERVATION_SOCKET_NAME: &str = "agent-observation-v3.sock";
 const OBSERVATION_SOCKET_ENV: &str = "ORCHBEE_AGENT_OBSERVATION_SOCKET_V3";
 
+/// Maps an authorized launch to its closed ordinary or source-capturing Host request.
+///
+/// # Errors
+/// Rejects wrong operation kinds and values outside the Host creation contract.
+pub(crate) fn map_launch_creation(
+    dispatch: &AuthorizedHostDispatch,
+    facts: ResolvedTerminalLaunchFacts,
+    site_runtime: Option<&Path>,
+) -> Result<TerminalCreationControl, HostLaunchAdapterError> {
+    let request = map_launch_dispatch(dispatch, facts, site_runtime)?;
+    let AuthorizedHostOperation::Launch(launch) = dispatch.operation() else {
+        return Err(HostLaunchAdapterError::OperationKindMismatch);
+    };
+    let creation = if let Some(source) = launch.editor_source() {
+        TerminalCreationControl::CreateScrollbackEditor(Box::new(
+            orchbee_terminal_protocol::CreateScrollbackEditor {
+                creation: request,
+                source: orchbee_terminal_protocol::ScrollbackSource {
+                    attachment_id: orchbee_terminal_protocol::AttachmentId::from_bytes(
+                        source.attachment_id.as_bytes(),
+                    )?,
+                    terminal_id: ProtocolTerminalId::from_bytes(source.terminal_id.as_bytes())?,
+                    generation: source.generation,
+                    revision: source.revision,
+                },
+            },
+        ))
+    } else {
+        TerminalCreationControl::CreateTerminal(Box::new(request))
+    };
+    encode_terminal_creation_control(&creation)?;
+    Ok(creation)
+}
+
 pub(crate) fn map_launch_dispatch(
     dispatch: &AuthorizedHostDispatch,
     facts: ResolvedTerminalLaunchFacts,

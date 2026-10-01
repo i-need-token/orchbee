@@ -42,6 +42,312 @@ fn launch(id: u8, executable: &str) -> AuthorizedTerminalLaunch {
     ))
     .unwrap()
 }
+
+fn editor_source() -> TerminalEditorSource {
+    TerminalEditorSource {
+        attachment_id: OperationId::from_bytes([70; 16]).unwrap(),
+        host_epoch: node::HostEpoch::from_bytes([4; 16]).unwrap(),
+        terminal_id: HostTerminalId::from_bytes([71; 16]).unwrap(),
+        generation: NonZeroU64::MIN,
+        revision: 7,
+    }
+}
+fn editor_launch(id: u8, source: TerminalEditorSource) -> AuthorizedTerminalLaunch {
+    let ordinary = launch(id, "unused.exe");
+    AuthorizedTerminalLaunch::new(
+        ordinary.authorization(),
+        ordinary.cwd().cloned(),
+        TerminalLaunchMode::Deferred,
+        Some(
+            LaunchSelection::new(
+                "C:/powershell.exe".into(),
+                vec!["--wait".into(), "".into(), "literal & % 字".into()],
+            )
+            .unwrap(),
+        ),
+    )
+    .with_editor_source(Some(source))
+    .unwrap()
+}
+
+#[test]
+fn editor_source_launch_reaches_host_capture_with_literal_argv_and_retains_known_or_unknown_receipts()
+ {
+    for mode in ["confirmed", "lost", "wrong-target"] {
+        let (mut host, drain, mut host_peer) = connected_host();
+        let (server, mut peer) = LocalStream::pair().unwrap();
+        timeout(&peer);
+        let driver = thread::spawn(move || {
+            let source = editor_source();
+            let attach = TerminalViewerRequest {
+                request_id: OperationId::from_bytes([69; 16]).unwrap(),
+                worker_id: node::WorkerId::from_bytes([3; 16]).unwrap(),
+                worker_generation: WorkerGeneration::new(NonZeroU64::MIN),
+                attachment_id: source.attachment_id,
+                action: TerminalViewerAction::Attach {
+                    host_epoch: source.host_epoch,
+                    terminal_id: source.terminal_id,
+                },
+            };
+            node::write_message(
+                &mut peer,
+                &CapabilityNodeMessage::TerminalViewerRequest(attach),
+            )
+            .unwrap();
+            let bytes = record(&mut host_peer);
+            let envelope = decode_transport_envelope(&bytes).unwrap();
+            let terminal::AttachmentControl::AttachTerminal(request) =
+                terminal::decode_attachment_control(envelope.kind, envelope.role, envelope.payload)
+                    .unwrap()
+            else {
+                panic!("source attach")
+            };
+            assert!(
+                request.capabilities.read
+                    && !request.capabilities.input
+                    && !request.capabilities.resize
+                    && !request.request_resize_lease
+            );
+            let granted = terminal::encode_attachment_control(
+                &terminal::AttachmentControl::AttachmentCapabilities(
+                    terminal::AttachmentCapabilities {
+                        attachment_id: request.attachment_id,
+                        terminal_id: request.terminal_id,
+                        capabilities: request.capabilities,
+                        capability_revision: NonZeroU64::MIN,
+                        resize_lease: false,
+                    },
+                ),
+            )
+            .unwrap();
+            reply(&mut host_peer, &bytes, granted.kind, &granted.payload);
+            let bytes = record(&mut host_peer);
+            let envelope = decode_transport_envelope(&bytes).unwrap();
+            let terminal::ProjectionDemandControl::SetProjectionDemand(demand) =
+                terminal::decode_projection_demand_control(
+                    envelope.kind,
+                    envelope.role,
+                    envelope.payload,
+                )
+                .unwrap()
+            else {
+                panic!("source demand")
+            };
+            let accepted = terminal::encode_projection_demand_control(
+                &terminal::ProjectionDemandControl::ProjectionDemandAccepted(
+                    terminal::ProjectionDemandAccepted {
+                        attachment_id: demand.attachment_id,
+                        demand: demand.demand,
+                    },
+                ),
+            )
+            .unwrap();
+            reply(&mut host_peer, &bytes, accepted.kind, &accepted.payload);
+            assert!(
+                matches!(node::read_message(&mut peer).unwrap(),CapabilityNodeMessage::TerminalViewerResult(result) if result.outcome==TerminalViewerOutcome::Attached)
+            );
+            let launch = editor_launch(72, source);
+            send(&mut peer, &launch);
+            let bytes = record(&mut host_peer);
+            let envelope = decode_transport_envelope(&bytes).unwrap();
+            let TerminalCreationControl::CreateScrollbackEditor(editor) =
+                decode_terminal_creation_control(envelope.kind, envelope.role, envelope.payload)
+                    .unwrap()
+            else {
+                panic!("editor capture create")
+            };
+            assert_eq!(
+                editor.creation.launch.start_mode,
+                terminal::LaunchStartMode::Deferred
+            );
+            assert_eq!(
+                editor.creation.launch.arguments,
+                ["--wait", "", "literal & % 字"]
+            );
+            assert_eq!(
+                *editor.source.attachment_id.as_bytes(),
+                source.attachment_id.as_bytes()
+            );
+            assert_eq!(
+                *editor.source.terminal_id.as_bytes(),
+                source.terminal_id.as_bytes()
+            );
+            assert_eq!(
+                (editor.source.generation, editor.source.revision),
+                (source.generation, source.revision)
+            );
+            if mode == "lost" {
+                host_peer.shutdown(std::net::Shutdown::Both).unwrap();
+                assert!(matches!(
+                    outcome(&mut peer),
+                    TerminalLaunchOutcome::OutcomeUnknown { .. }
+                ));
+                return;
+            }
+            let accepted = terminal::encode_terminal_creation_control(
+                &TerminalCreationControl::TerminalCreated(terminal::TerminalIdentity {
+                    creation_id: if mode == "wrong-target" {
+                        terminal::CreationId::from_bytes([73; 16]).unwrap()
+                    } else {
+                        editor.creation.creation_id
+                    },
+                    host_epoch: terminal::HostEpoch::from_bytes([4; 16]).unwrap(),
+                    terminal_id: terminal::TerminalId::from_bytes([74; 16]).unwrap(),
+                }),
+            )
+            .unwrap();
+            reply(&mut host_peer, &bytes, accepted.kind, &accepted.payload);
+            let result = outcome(&mut peer);
+            if mode == "wrong-target" {
+                assert!(matches!(
+                    result,
+                    TerminalLaunchOutcome::OutcomeUnknown { .. }
+                ));
+                return;
+            }
+            assert!(
+                matches!(result,TerminalLaunchOutcome::HostAccepted(value) if value.state()==HostLaunchState::AwaitingStart)
+            );
+            for field in 0..3 {
+                let mut invalid = source;
+                match field {
+                    0 => invalid.host_epoch = node::HostEpoch::from_bytes([77; 16]).unwrap(),
+                    1 => invalid.terminal_id = HostTerminalId::from_bytes([78; 16]).unwrap(),
+                    _ => invalid.attachment_id = OperationId::from_bytes([79; 16]).unwrap(),
+                }
+                send(&mut peer, &editor_launch(80 + field, invalid));
+                assert_eq!(
+                    outcome(&mut peer),
+                    TerminalLaunchOutcome::Failed(
+                        TerminalLaunchFailure::HostUnavailableBeforeHandoff
+                    )
+                );
+            }
+            node::write_message(
+                &mut peer,
+                &CapabilityNodeMessage::TerminalViewerRequest(TerminalViewerRequest {
+                    request_id: OperationId::from_bytes([83; 16]).unwrap(),
+                    action: TerminalViewerAction::Detach,
+                    ..attach
+                }),
+            )
+            .unwrap();
+            let bytes = record(&mut host_peer);
+            let envelope = decode_transport_envelope(&bytes).unwrap();
+            let terminal::AttachmentControl::DetachTerminal(target) =
+                terminal::decode_attachment_control(envelope.kind, envelope.role, envelope.payload)
+                    .unwrap()
+            else {
+                panic!("source detach")
+            };
+            let released = terminal::encode_attachment_control(
+                &terminal::AttachmentControl::DetachTerminalAccepted(target),
+            )
+            .unwrap();
+            reply(&mut host_peer, &bytes, released.kind, &released.payload);
+            assert!(
+                matches!(node::read_message(&mut peer).unwrap(),CapabilityNodeMessage::TerminalViewerResult(result) if result.outcome==TerminalViewerOutcome::Detached)
+            );
+            send(&mut peer, &editor_launch(84, source));
+            assert_eq!(
+                outcome(&mut peer),
+                TerminalLaunchOutcome::Failed(TerminalLaunchFailure::HostUnavailableBeforeHandoff)
+            );
+            send(&mut peer, &launch);
+            assert_eq!(outcome(&mut peer), result);
+            for field in 0..5 {
+                let mut changed = source;
+                match field {
+                    0 => changed.attachment_id = OperationId::from_bytes([85; 16]).unwrap(),
+                    1 => changed.host_epoch = node::HostEpoch::from_bytes([86; 16]).unwrap(),
+                    2 => changed.terminal_id = HostTerminalId::from_bytes([87; 16]).unwrap(),
+                    3 => changed.generation = NonZeroU64::MAX,
+                    _ => changed.revision = source.revision + 1,
+                }
+                send(&mut peer, &editor_launch(72, changed));
+                assert_eq!(
+                    outcome(&mut peer),
+                    TerminalLaunchOutcome::Rejected(TerminalLaunchRejection::ConflictingReplay)
+                );
+            }
+            host_peer.set_nonblocking(true).unwrap();
+            assert_eq!(
+                host_peer.read(&mut [0]).unwrap_err().kind(),
+                io::ErrorKind::WouldBlock
+            );
+            peer.shutdown(std::net::Shutdown::Both).unwrap();
+        });
+        let result = run(
+            &server,
+            &mut host,
+            WORKER,
+            NonZeroU64::MIN,
+            &drain,
+            &WindowsShellSettings::default(),
+        );
+        driver.join().unwrap();
+        assert!(result.is_err());
+    }
+}
+
+#[test]
+fn editor_source_missing_viewer_fails_before_host_create_or_lazy_startup() {
+    let (mut host, drain, mut host_peer) = connected_host();
+    let (server, mut peer) = LocalStream::pair().unwrap();
+    timeout(&peer);
+    let driver = thread::spawn(move || {
+        send(&mut peer, &editor_launch(75, editor_source()));
+        assert_eq!(
+            outcome(&mut peer),
+            TerminalLaunchOutcome::Failed(TerminalLaunchFailure::HostUnavailableBeforeHandoff)
+        );
+        host_peer.set_nonblocking(true).unwrap();
+        assert_eq!(
+            host_peer.read(&mut [0]).unwrap_err().kind(),
+            io::ErrorKind::WouldBlock
+        );
+        peer.shutdown(std::net::Shutdown::Both).unwrap();
+    });
+    let result = run(
+        &server,
+        &mut host,
+        WORKER,
+        NonZeroU64::MIN,
+        &drain,
+        &WindowsShellSettings::default(),
+    );
+    driver.join().unwrap();
+    assert!(result.is_err());
+    let fixture = CohortFixture::new();
+    let cohort = NativeCohort::load(&fixture.0, Instant::now() + Duration::from_secs(3)).unwrap();
+    let runtime = fixture.0.join("runtime");
+    let (server, mut peer) = LocalStream::pair().unwrap();
+    timeout(&peer);
+    let driver = thread::spawn(move || {
+        send(&mut peer, &editor_launch(76, editor_source()));
+        assert_eq!(
+            outcome(&mut peer),
+            TerminalLaunchOutcome::Failed(TerminalLaunchFailure::HostUnavailableBeforeHandoff)
+        );
+        peer.shutdown(std::net::Shutdown::Both).unwrap();
+    });
+    let result = lazy::run(
+        &server,
+        WORKER,
+        NonZeroU64::MIN,
+        &cohort,
+        &runtime,
+        &WindowsShellSettings::default(),
+    );
+    driver.join().unwrap();
+    assert!(result.is_err());
+    assert!(
+        !orchbee_local_site_runtime::ModeCheckedLocalSiteRendezvous::host_runtime_directory(
+            &runtime
+        )
+        .exists()
+    );
+}
 fn send(peer: &mut LocalStream, launch: &AuthorizedTerminalLaunch) {
     node::write_message(
         peer,

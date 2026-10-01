@@ -28,6 +28,15 @@ read or launch authority. Current Client/focus admission, exact authorized captu
 independent overlay and public CLI remain upstream obligations; only Host appends
 its one generated document path and owns the deferred terminal through cleanup.
 
+An authorized deferred launch can carry an existing read-viewer source. Worker
+checks its exact open attachment target, current Host epoch and non-disposal before
+handoff; Host independently checks actual read authority and immutable capture
+generation/revision. No source is created or borrowed across Worker incarnations.
+The Host creation adapter emits `CreateScrollbackEditor`; Worker creates no file,
+appends no path and preserves literal editor argv without PowerShell augmentation.
+Lazy mode refuses such a launch before Host startup. Failed preparation preserves
+the existing pre-handoff receipt; post-handoff loss stays unknown without replay.
+
 ## Windows child CLI routing
 
 Managed Windows launches overlay `ORCHBEE_RUNTIME_BASE` and `ORCHBEE_RUNTIME_SCOPE` from the

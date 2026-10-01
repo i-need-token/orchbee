@@ -29,6 +29,20 @@ Server carrier 在交付前核对操作、Worker 与代次。
 拥有 Windows 查找／引用规则；当前 Client／焦点校验、授权捕获、独立 overlay 与公开 CLI
 仍是单独的流程责任。
 
+## 已授权编辑器来源捕获
+
+编辑器启动使用延迟模式、显式已解析 `LaunchSelection` 和一个 `TerminalEditorSource`：
+现有可读 attachment ID、Host epoch／终端 ID、正数代次，以及完整 u64 内容修订（包括零）。
+它排除插件元数据和默认 Shell 选择。启动扩展 4 使用零 u16、字节 4、
+已有选择与环境编码，然后是三个 16 字节 ID 和两个大端 u64 条件。
+省略时保留所有普通启动字节。完整来源属于已保留授权启动的重放身份。
+
+Worker 在 Create 移交前核对确切已打开 viewer 目标、当前 Host epoch 和未释放状态。
+Host 重复核对连接持有的读取权限和同一次锁内的内容条件；Worker 缓存不授予 Host attachment 权限。
+编辑器 argv 保持字面值，不追加 PowerShell 参数或 Worker 生成路径。
+Host 尚未启动时，延迟启动流程在启动前拒绝。已有未知回执规则与 Host 文档生命周期仍是权威；
+当前 Client／焦点校验、独立 overlay 与公开 CLI 仍是上游责任。
+
 ## 临时终端清空
 
 控制动作标签 6 为 `Clear`，使用请求 viewer 以及 `controller_id` 中新分配的临时 attachment；它不指向或改变控制权预留。结果标签 7 为 `Cleared`，包含正数 u64 代次／修订和规范的单字节清理布尔值；标签 8 为 `ClearOutcomeUnknown`，仅对 Clear 有效。拒绝标签 12 表示备用屏幕。旧标签和帧格式不变。通道在交付前核对完整请求／viewer／临时标识及结果种类。[原生清空](../../apps/orchbee/docs/native-cli-query.zh-CN.md#清空终端输出) 拥有端到端状态机；需要相同 cohort 部署。
