@@ -52,6 +52,30 @@ pub(crate) fn run(
     let outcome = (|| {
         loop {
             let request = server_transport::receive(server, None)?;
+            if let CapabilityNodeMessage::TerminalGraphicsDecodeRequest(request) = request {
+                let refusal = if request.worker_id.as_bytes() != worker_id.as_bytes() {
+                    orchbee_capability_node_protocol::ViewerRejection::WrongWorker
+                } else if request.worker_generation.get() != generation.get() {
+                    orchbee_capability_node_protocol::ViewerRejection::StaleWorkerGeneration
+                } else {
+                    orchbee_capability_node_protocol::ViewerRejection::AttachmentUnavailable
+                };
+                let _no_host = server_transport::send(
+                    server,
+                    None,
+                    &CapabilityNodeMessage::TerminalViewerResult(
+                        orchbee_capability_node_protocol::TerminalViewerResult {
+                            request_id: request.request_id,
+                            attachment_id: request.attachment_id,
+                            outcome:
+                                orchbee_capability_node_protocol::TerminalViewerOutcome::Rejected(
+                                    refusal,
+                                ),
+                        },
+                    ),
+                )?;
+                continue;
+            }
             if let CapabilityNodeMessage::TerminalEditorCommandRequest(request) = request {
                 let result =
                     crate::terminal_editor_operation::execute(request, worker_id, generation);

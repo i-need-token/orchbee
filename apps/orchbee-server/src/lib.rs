@@ -4,7 +4,9 @@
 // docs/agent-canonical-model.md.
 #[cfg(test)]
 mod agent;
+mod pane_graphics;
 mod semantic_events;
+pub use pane_graphics::{DecodedGraphicsImage, PaneGraphicsAuthority, PaneGraphicsFrameCommit};
 mod workbench_authority;
 mod workbench_projection;
 pub use semantic_events::{

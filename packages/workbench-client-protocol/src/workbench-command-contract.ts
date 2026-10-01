@@ -1,3 +1,5 @@
+import { PaneGraphicsRequestSchema, PaneGraphicsResultSchema } from './workbench-pane-graphics-contract';
+import { GRAPHICS_REQUEST_BYTES, GRAPHICS_RESULT_BYTES } from './workbench-graphics-image-contract';
 import {
 	ConfiguredCommandRequestSchema,
 	ConfiguredCommandResultSchema,
@@ -421,6 +423,7 @@ export const WorkbenchRequestSchema = z
 		TerminalEditorRequestSchema,
 		ConfiguredCommandRequestSchema,
 		SemanticEventsRequestSchema,
+		PaneGraphicsRequestSchema,
 		PluginRequestSchema,
 		WindowTitleRequestSchema,
 		NotificationRequestSchema,
@@ -436,6 +439,7 @@ export const WorkbenchRequestSchema = z
 		if (value.kind === 'workbench.configured-command')
 			maximum = WORKBENCH_MAXIMUM_CONFIGURED_COMMAND_BYTES;
 		if (value.kind === 'workbench.events') maximum = WORKBENCH_MAXIMUM_EVENTS_BYTES;
+		if (value.kind === 'workbench.pane-graphics') maximum = GRAPHICS_REQUEST_BYTES;
 		if (value.kind === 'workbench.command' && value.action.kind === 'tab.create-layout')
 			maximum = WORKBENCH_MAXIMUM_ENCODED_LAYOUT_COMMAND_BYTES;
 		if (
@@ -547,6 +551,7 @@ export const WorkbenchResponseSchema = z
 		TerminalEditorResultSchema,
 		ConfiguredCommandResultSchema,
 		SemanticEventsResultSchema,
+		PaneGraphicsResultSchema,
 		PluginResultSchema,
 		WindowTitleResultSchema,
 		NotificationResultSchema,
@@ -564,6 +569,8 @@ export const WorkbenchResponseSchema = z
 			maximum = WORKBENCH_MAXIMUM_ENCODED_SNAPSHOT_RESULT_BYTES;
 		} else if (value.kind === 'workbench.configured-command.result') {
 			maximum = WORKBENCH_MAXIMUM_CONFIGURED_COMMAND_BYTES;
+		} else if (value.kind === 'workbench.pane-graphics.result') {
+			maximum = GRAPHICS_RESULT_BYTES;
 		} else if (value.kind === 'workbench.events.result') {
 			maximum = WORKBENCH_MAXIMUM_EVENTS_BYTES;
 		} else if (value.kind === 'workbench.client-view.result') {

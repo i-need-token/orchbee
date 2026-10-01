@@ -1,4 +1,6 @@
 export const MessageKind = {
+	decodeGraphicsPng: 80,
+	graphicsPngDecoded: 81,
 	readProcessInfo: 79,
 	applyTerminalTheme: 77,
 	attachTerminal: 20,
@@ -75,6 +77,7 @@ export const PayloadEncoding = {
 	controlJson: 'control-json',
 	rawBytes: 'raw-bytes',
 	rowWindow: 'row-window',
+	graphicsImage: 'graphics-image',
 	terminalFrame: 'terminal-frame',
 } as const;
 
@@ -102,6 +105,8 @@ const raw = PayloadEncoding.rawBytes;
  * its successful response kind, so producers do not repeat that association.
  */
 export const MESSAGE_CONTRACTS = {
+	[MessageKind.decodeGraphicsPng]: { eventEncoding: null, name: 'DecodeGraphicsPng', request: { payloadEncoding: PayloadEncoding.graphicsImage, successKind: MessageKind.graphicsPngDecoded }, responseEncoding: null },
+	[MessageKind.graphicsPngDecoded]: { eventEncoding: null, name: 'GraphicsPngDecoded', request: null, responseEncoding: PayloadEncoding.graphicsImage },
 	[MessageKind.readProcessInfo]: {
 		eventEncoding: null,
 		name: 'ReadProcessInfo',

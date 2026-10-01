@@ -21,11 +21,13 @@ pub use terminal_editor::{
     TerminalEditorCommandOutcome, TerminalEditorCommandRefusal, TerminalEditorCommandRequest,
     TerminalEditorCommandResult, TerminalEditorCommandSource, TerminalEditorSource,
 };
+mod terminal_graphics_decode;
 mod terminal_launch;
 mod terminal_lifecycle;
 mod terminal_send;
 mod terminal_titles;
 mod terminal_viewer;
+pub use terminal_graphics_decode::{MAXIMUM_GRAPHICS_PNG_BYTES, TerminalGraphicsDecodeRequest};
 pub use terminal_titles::{
     MAXIMUM_TERMINAL_TITLE_BYTES, MAXIMUM_TERMINAL_TITLE_ROWS, TerminalTitleObservation,
     TerminalTitleRow, TerminalTitlesRequest, TerminalTitlesResult,

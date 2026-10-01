@@ -717,3 +717,7 @@ startup/input authority is added. Runtime ownership is in the
 ## Read-only viewer lifecycle observation
 
 Private viewer action tag 15 `ReadLifecycle` pins Host creation ID, epoch and terminal ID (three 16-byte identities). Result tag 7 `LifecycleObserved` echoes that identity, a big-endian u64 revision and a closed 0/1 settled byte. Worker validates its admitted viewer target and walks Host inventory under one bounded budget; only exact Exited/Failed summaries mean settled. Absence, paging/identity conflict and transport failure do not mean exit. The read never enters the exclusive lifecycle kernel or claims Close ownership. Server checks Worker generation, exact target and temporary-viewer cleanup before publishing settlement. Older tags keep their bytes; old cohorts reject these additive tags. Upgrade and roll back the matched cohort together.
+
+## Viewer-scoped PNG requests
+
+`TerminalGraphicsDecodeRequest` is a read-only operation on an already admitted attachment. OBNG v1 uses a 12-byte header and 64-byte identity/dimension prefix, followed by at most 16 MiB of PNG. The length bound is checked before reading or allocating the body. A result reuses the exact request/attachment-correlated viewer carrier (OBNR), containing either the bounded Host reply or a typed viewer rejection. The operation does not authorize a Host start, PTY input, lifecycle change or another connection’s attachment.

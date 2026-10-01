@@ -1,0 +1,1395 @@
+{
+	"contractVersion": 1,
+	"valid": [
+		{
+			"name": "set-rgba",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.pane-graphics",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "set",
+					"target": {
+						"panelId": "00000000000000000000000000000003",
+						"presentationId": null
+					},
+					"layerId": "primary",
+					"zIndex": -1,
+					"image": {
+						"format": "rgba",
+						"width": 1,
+						"height": 1,
+						"dataBase64": "/wAA/w==",
+						"placement": {
+							"viewportColumn": -1,
+							"viewportRow": 0,
+							"gridColumns": 0,
+							"gridRows": 0
+						}
+					}
+				}
+			}
+		},
+		{
+			"name": "set-rgb",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.pane-graphics",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "set",
+					"target": {
+						"panelId": "00000000000000000000000000000003",
+						"presentationId": null
+					},
+					"layerId": "primary",
+					"zIndex": -1,
+					"image": {
+						"format": "rgb",
+						"width": 1,
+						"height": 1,
+						"dataBase64": "/wAA",
+						"placement": {
+							"viewportColumn": -1,
+							"viewportRow": 0,
+							"gridColumns": 0,
+							"gridRows": 0
+						}
+					}
+				}
+			}
+		},
+		{
+			"name": "set-bgra",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.pane-graphics",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "set",
+					"target": {
+						"panelId": "00000000000000000000000000000003",
+						"presentationId": null
+					},
+					"layerId": "primary",
+					"zIndex": -1,
+					"image": {
+						"format": "bgra",
+						"width": 1,
+						"height": 1,
+						"dataBase64": "AAD//w==",
+						"placement": {
+							"viewportColumn": -1,
+							"viewportRow": 0,
+							"gridColumns": 0,
+							"gridRows": 0
+						}
+					}
+				}
+			}
+		},
+		{
+			"name": "set-png",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.pane-graphics",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "set",
+					"target": {
+						"panelId": "00000000000000000000000000000003",
+						"presentationId": null
+					},
+					"layerId": "primary",
+					"zIndex": -1,
+					"image": {
+						"format": "png",
+						"width": 1,
+						"height": 1,
+						"dataBase64": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/iZk9HQAAAABJRU5ErkJggg==",
+						"placement": {
+							"viewportColumn": -1,
+							"viewportRow": 0,
+							"gridColumns": 0,
+							"gridRows": 0
+						}
+					}
+				}
+			}
+		},
+		{
+			"name": "info-unknown-client",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.pane-graphics",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "info",
+					"target": {
+						"panelId": "00000000000000000000000000000003",
+						"presentationId": null
+					},
+					"clientId": null
+				}
+			}
+		},
+		{
+			"name": "catalog",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.pane-graphics",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "catalog",
+					"target": {
+						"panelId": "00000000000000000000000000000003",
+						"presentationId": "00000000000000000000000000000004"
+					}
+				}
+			}
+		},
+		{
+			"name": "clear",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.pane-graphics",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "clear",
+					"target": {
+						"panelId": "00000000000000000000000000000003",
+						"presentationId": null
+					},
+					"layerId": "primary"
+				}
+			}
+		},
+		{
+			"name": "pixels-at-resource-revision",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.pane-graphics",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "pixels",
+					"target": {
+						"panelId": "00000000000000000000000000000003",
+						"presentationId": "00000000000000000000000000000004"
+					},
+					"layerId": "primary",
+					"resourceRevision": "18446744073709551615",
+					"offset": 0,
+					"maximumBytes": 262144
+				}
+			}
+		},
+		{
+			"name": "stream-open",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.pane-graphics",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "stream-open",
+					"streamId": "00000000000000000000000000000005",
+					"target": {
+						"panelId": "00000000000000000000000000000003",
+						"presentationId": null
+					},
+					"layerId": "primary",
+					"zIndex": 0
+				}
+			}
+		},
+		{
+			"name": "stream-complete-inline",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.pane-graphics",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "stream-frame",
+					"streamId": "00000000000000000000000000000005",
+					"sequence": "18446744073709551615",
+					"revision": "0",
+					"image": {
+						"kind": "inline",
+						"image": {
+							"format": "rgba",
+							"width": 1,
+							"height": 1,
+							"dataBase64": "/wAA/w==",
+							"placement": {
+								"viewportColumn": -1,
+								"viewportRow": 0,
+								"gridColumns": 0,
+								"gridRows": 0
+							}
+						}
+					},
+					"damage": [
+						{
+							"x": 0,
+							"y": 0,
+							"width": 1,
+							"height": 1
+						}
+					]
+				}
+			}
+		},
+		{
+			"name": "stream-file-shape-requires-runtime-lease",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.pane-graphics",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "stream-frame",
+					"streamId": "00000000000000000000000000000005",
+					"sequence": "18446744073709551615",
+					"revision": "0",
+					"image": {
+						"kind": "file",
+						"format": "bgra",
+						"width": 1,
+						"height": 1,
+						"path": "C:/producer/frame.rgba",
+						"placement": {
+							"viewportColumn": -1,
+							"viewportRow": 0,
+							"gridColumns": 0,
+							"gridRows": 0
+						}
+					},
+					"damage": [
+						{
+							"x": 0,
+							"y": 0,
+							"width": 1,
+							"height": 1
+						}
+					]
+				}
+			}
+		},
+		{
+			"name": "stream-close",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.pane-graphics",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "stream-close",
+					"streamId": "00000000000000000000000000000005"
+				}
+			}
+		},
+		{
+			"name": "info-without-invented-renderer",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.pane-graphics.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "info",
+					"target": {
+						"panelId": "00000000000000000000000000000003",
+						"presentationId": "00000000000000000000000000000004"
+					},
+					"revision": "0",
+					"layerCount": 0,
+					"clientId": null,
+					"capabilities": null,
+					"paneVisible": null,
+					"drawnRevision": null,
+					"fileFrameDirectory": null
+				}
+			}
+		},
+		{
+			"name": "cell-raster-observation-shape",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.pane-graphics.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "info",
+					"target": {
+						"panelId": "00000000000000000000000000000003",
+						"presentationId": "00000000000000000000000000000004"
+					},
+					"revision": "1",
+					"layerCount": 0,
+					"clientId": "00000000000000000000000000000007",
+					"capabilities": {
+						"transport": "cell-raster",
+						"cellPixels": null,
+						"pixelMouse": false
+					},
+					"paneVisible": true,
+					"drawnRevision": "1",
+					"fileFrameDirectory": null
+				}
+			}
+		},
+		{
+			"name": "catalog-metadata",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.pane-graphics.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "catalog",
+					"target": {
+						"panelId": "00000000000000000000000000000003",
+						"presentationId": "00000000000000000000000000000004"
+					},
+					"revision": "1",
+					"layers": [
+						{
+							"layerId": "primary",
+							"zIndex": -1,
+							"width": 1,
+							"height": 1,
+							"placement": {
+								"viewportColumn": -1,
+								"viewportRow": 0,
+								"gridColumns": 0,
+								"gridRows": 0
+							},
+							"resourceRevision": "1",
+							"streamId": null
+						}
+					]
+				}
+			}
+		},
+		{
+			"name": "pixels-complete",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.pane-graphics.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "pixels",
+					"target": {
+						"panelId": "00000000000000000000000000000003",
+						"presentationId": "00000000000000000000000000000004"
+					},
+					"layerId": "primary",
+					"resourceRevision": "1",
+					"width": 1,
+					"height": 1,
+					"offset": 0,
+					"totalBytes": 4,
+					"dataBase64": "/wAA/w==",
+					"complete": true
+				}
+			}
+		},
+		{
+			"name": "static-applied",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.pane-graphics.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "applied",
+					"target": {
+						"panelId": "00000000000000000000000000000003",
+						"presentationId": "00000000000000000000000000000004"
+					},
+					"layerId": "primary",
+					"revision": "1",
+					"changed": true
+				}
+			}
+		},
+		{
+			"name": "clear-absent-no-revision-invented",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.pane-graphics.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "applied",
+					"target": {
+						"panelId": "00000000000000000000000000000003",
+						"presentationId": "00000000000000000000000000000004"
+					},
+					"layerId": "primary",
+					"revision": "0",
+					"changed": false
+				}
+			}
+		},
+		{
+			"name": "stream-opened",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.pane-graphics.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "stream-opened",
+					"streamId": "00000000000000000000000000000005",
+					"target": {
+						"panelId": "00000000000000000000000000000003",
+						"presentationId": "00000000000000000000000000000004"
+					},
+					"layerId": "primary",
+					"zIndex": 0,
+					"revision": "1",
+					"fileFrameDirectory": null
+				}
+			}
+		},
+		{
+			"name": "frame-ack-u64-producer-revision",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.pane-graphics.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "frame-applied",
+					"streamId": "00000000000000000000000000000005",
+					"target": {
+						"panelId": "00000000000000000000000000000003",
+						"presentationId": "00000000000000000000000000000004"
+					},
+					"layerId": "primary",
+					"sequence": "18446744073709551615",
+					"frameRevision": "18446744073709551615",
+					"revision": "1",
+					"changed": true
+				}
+			}
+		},
+		{
+			"name": "closed-cleanup",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.pane-graphics.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "closed",
+					"streamId": "00000000000000000000000000000005",
+					"revision": "1",
+					"removed": true
+				}
+			}
+		},
+		{
+			"name": "typed-invalid-file",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.pane-graphics.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "failed",
+					"reason": "invalid-file"
+				}
+			}
+		}
+	],
+	"invalid": [
+		{
+			"name": "unknown-field",
+			"direction": "request",
+			"boundary": "shape",
+			"document": {
+				"kind": "workbench.pane-graphics",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "set",
+					"target": {
+						"panelId": "00000000000000000000000000000003",
+						"presentationId": null
+					},
+					"layerId": "primary",
+					"zIndex": -1,
+					"image": {
+						"format": "rgba",
+						"width": 1,
+						"height": 1,
+						"dataBase64": "/wAA/w==",
+						"placement": {
+							"viewportColumn": -1,
+							"viewportRow": 0,
+							"gridColumns": 0,
+							"gridRows": 0
+						}
+					}
+				},
+				"extra": true
+			}
+		},
+		{
+			"name": "missing-required-null",
+			"direction": "request",
+			"boundary": "shape",
+			"document": {
+				"kind": "workbench.pane-graphics",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "set",
+					"target": {
+						"panelId": "00000000000000000000000000000003"
+					},
+					"layerId": "primary",
+					"zIndex": -1,
+					"image": {
+						"format": "rgba",
+						"width": 1,
+						"height": 1,
+						"dataBase64": "/wAA/w==",
+						"placement": {
+							"viewportColumn": -1,
+							"viewportRow": 0,
+							"gridColumns": 0,
+							"gridRows": 0
+						}
+					}
+				}
+			}
+		},
+		{
+			"name": "invalid-layer",
+			"direction": "request",
+			"boundary": "shape",
+			"document": {
+				"kind": "workbench.pane-graphics",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "set",
+					"target": {
+						"panelId": "00000000000000000000000000000003",
+						"presentationId": null
+					},
+					"layerId": "../frame",
+					"zIndex": -1,
+					"image": {
+						"format": "rgba",
+						"width": 1,
+						"height": 1,
+						"dataBase64": "/wAA/w==",
+						"placement": {
+							"viewportColumn": -1,
+							"viewportRow": 0,
+							"gridColumns": 0,
+							"gridRows": 0
+						}
+					}
+				}
+			}
+		},
+		{
+			"name": "bad-base64-pad-bits",
+			"direction": "request",
+			"boundary": "shape",
+			"document": {
+				"kind": "workbench.pane-graphics",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "set",
+					"target": {
+						"panelId": "00000000000000000000000000000003",
+						"presentationId": null
+					},
+					"layerId": "primary",
+					"zIndex": -1,
+					"image": {
+						"format": "rgba",
+						"width": 1,
+						"height": 1,
+						"dataBase64": "/wAA/x==",
+						"placement": {
+							"viewportColumn": -1,
+							"viewportRow": 0,
+							"gridColumns": 0,
+							"gridRows": 0
+						}
+					}
+				}
+			}
+		},
+		{
+			"name": "bad-base64-whitespace",
+			"direction": "request",
+			"boundary": "shape",
+			"document": {
+				"kind": "workbench.pane-graphics",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "set",
+					"target": {
+						"panelId": "00000000000000000000000000000003",
+						"presentationId": null
+					},
+					"layerId": "primary",
+					"zIndex": -1,
+					"image": {
+						"format": "rgba",
+						"width": 1,
+						"height": 1,
+						"dataBase64": "/wAA /w==",
+						"placement": {
+							"viewportColumn": -1,
+							"viewportRow": 0,
+							"gridColumns": 0,
+							"gridRows": 0
+						}
+					}
+				}
+			}
+		},
+		{
+			"name": "wrong-raw-channel-length",
+			"direction": "request",
+			"boundary": "semantic",
+			"document": {
+				"kind": "workbench.pane-graphics",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "set",
+					"target": {
+						"panelId": "00000000000000000000000000000003",
+						"presentationId": null
+					},
+					"layerId": "primary",
+					"zIndex": -1,
+					"image": {
+						"format": "rgba",
+						"width": 1,
+						"height": 1,
+						"dataBase64": "/wAA",
+						"placement": {
+							"viewportColumn": -1,
+							"viewportRow": 0,
+							"gridColumns": 0,
+							"gridRows": 0
+						}
+					}
+				}
+			}
+		},
+		{
+			"name": "zero-dimension",
+			"direction": "request",
+			"boundary": "shape",
+			"document": {
+				"kind": "workbench.pane-graphics",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "set",
+					"target": {
+						"panelId": "00000000000000000000000000000003",
+						"presentationId": null
+					},
+					"layerId": "primary",
+					"zIndex": -1,
+					"image": {
+						"format": "rgba",
+						"width": 0,
+						"height": 1,
+						"dataBase64": "/wAA/w==",
+						"placement": {
+							"viewportColumn": -1,
+							"viewportRow": 0,
+							"gridColumns": 0,
+							"gridRows": 0
+						}
+					}
+				}
+			}
+		},
+		{
+			"name": "over-dimension",
+			"direction": "request",
+			"boundary": "shape",
+			"document": {
+				"kind": "workbench.pane-graphics",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "set",
+					"target": {
+						"panelId": "00000000000000000000000000000003",
+						"presentationId": null
+					},
+					"layerId": "primary",
+					"zIndex": -1,
+					"image": {
+						"format": "rgba",
+						"width": 4097,
+						"height": 1,
+						"dataBase64": "/wAA/w==",
+						"placement": {
+							"viewportColumn": -1,
+							"viewportRow": 0,
+							"gridColumns": 0,
+							"gridRows": 0
+						}
+					}
+				}
+			}
+		},
+		{
+			"name": "decoded-image-too-large",
+			"direction": "request",
+			"boundary": "semantic",
+			"document": {
+				"kind": "workbench.pane-graphics",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "set",
+					"target": {
+						"panelId": "00000000000000000000000000000003",
+						"presentationId": null
+					},
+					"layerId": "primary",
+					"zIndex": -1,
+					"image": {
+						"format": "rgba",
+						"width": 4096,
+						"height": 4096,
+						"dataBase64": "/wAA/w==",
+						"placement": {
+							"viewportColumn": -1,
+							"viewportRow": 0,
+							"gridColumns": 0,
+							"gridRows": 0
+						}
+					}
+				}
+			}
+		},
+		{
+			"name": "unknown-format",
+			"direction": "request",
+			"boundary": "shape",
+			"document": {
+				"kind": "workbench.pane-graphics",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "set",
+					"target": {
+						"panelId": "00000000000000000000000000000003",
+						"presentationId": null
+					},
+					"layerId": "primary",
+					"zIndex": -1,
+					"image": {
+						"format": "jpeg",
+						"width": 1,
+						"height": 1,
+						"dataBase64": "/wAA/w==",
+						"placement": {
+							"viewportColumn": -1,
+							"viewportRow": 0,
+							"gridColumns": 0,
+							"gridRows": 0
+						}
+					}
+				}
+			}
+		},
+		{
+			"name": "offset-not-aligned",
+			"direction": "request",
+			"boundary": "shape",
+			"document": {
+				"kind": "workbench.pane-graphics",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "pixels",
+					"target": {
+						"panelId": "00000000000000000000000000000003",
+						"presentationId": "00000000000000000000000000000004"
+					},
+					"layerId": "primary",
+					"resourceRevision": "18446744073709551615",
+					"offset": 1,
+					"maximumBytes": 262144
+				}
+			}
+		},
+		{
+			"name": "oversize-chunk-request",
+			"direction": "request",
+			"boundary": "shape",
+			"document": {
+				"kind": "workbench.pane-graphics",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "pixels",
+					"target": {
+						"panelId": "00000000000000000000000000000003",
+						"presentationId": "00000000000000000000000000000004"
+					},
+					"layerId": "primary",
+					"resourceRevision": "18446744073709551615",
+					"offset": 0,
+					"maximumBytes": 262148
+				}
+			}
+		},
+		{
+			"name": "zero-resource-revision",
+			"direction": "request",
+			"boundary": "shape",
+			"document": {
+				"kind": "workbench.pane-graphics",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "pixels",
+					"target": {
+						"panelId": "00000000000000000000000000000003",
+						"presentationId": "00000000000000000000000000000004"
+					},
+					"layerId": "primary",
+					"resourceRevision": "0",
+					"offset": 0,
+					"maximumBytes": 262144
+				}
+			}
+		},
+		{
+			"name": "u64-overflow",
+			"direction": "request",
+			"boundary": "shape",
+			"document": {
+				"kind": "workbench.pane-graphics",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "pixels",
+					"target": {
+						"panelId": "00000000000000000000000000000003",
+						"presentationId": "00000000000000000000000000000004"
+					},
+					"layerId": "primary",
+					"resourceRevision": "18446744073709551616",
+					"offset": 0,
+					"maximumBytes": 262144
+				}
+			}
+		},
+		{
+			"name": "zero-producer-sequence",
+			"direction": "request",
+			"boundary": "shape",
+			"document": {
+				"kind": "workbench.pane-graphics",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "stream-frame",
+					"streamId": "00000000000000000000000000000005",
+					"sequence": "0",
+					"revision": "0",
+					"image": {
+						"kind": "inline",
+						"image": {
+							"format": "rgba",
+							"width": 1,
+							"height": 1,
+							"dataBase64": "/wAA/w==",
+							"placement": {
+								"viewportColumn": -1,
+								"viewportRow": 0,
+								"gridColumns": 0,
+								"gridRows": 0
+							}
+						}
+					},
+					"damage": [
+						{
+							"x": 0,
+							"y": 0,
+							"width": 1,
+							"height": 1
+						}
+					]
+				}
+			}
+		},
+		{
+			"name": "damage-outside-frame",
+			"direction": "request",
+			"boundary": "semantic",
+			"document": {
+				"kind": "workbench.pane-graphics",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "stream-frame",
+					"streamId": "00000000000000000000000000000005",
+					"sequence": "18446744073709551615",
+					"revision": "0",
+					"image": {
+						"kind": "inline",
+						"image": {
+							"format": "rgba",
+							"width": 1,
+							"height": 1,
+							"dataBase64": "/wAA/w==",
+							"placement": {
+								"viewportColumn": -1,
+								"viewportRow": 0,
+								"gridColumns": 0,
+								"gridRows": 0
+							}
+						}
+					},
+					"damage": [
+						{
+							"x": 0,
+							"y": 0,
+							"width": 2,
+							"height": 1
+						}
+					]
+				}
+			}
+		},
+		{
+			"name": "invalid-file-format",
+			"direction": "request",
+			"boundary": "shape",
+			"document": {
+				"kind": "workbench.pane-graphics",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "stream-frame",
+					"streamId": "00000000000000000000000000000005",
+					"sequence": "18446744073709551615",
+					"revision": "0",
+					"image": {
+						"kind": "file",
+						"format": "png",
+						"width": 1,
+						"height": 1,
+						"path": "C:/producer/frame.rgba",
+						"placement": {
+							"viewportColumn": -1,
+							"viewportRow": 0,
+							"gridColumns": 0,
+							"gridRows": 0
+						}
+					},
+					"damage": [
+						{
+							"x": 0,
+							"y": 0,
+							"width": 1,
+							"height": 1
+						}
+					]
+				}
+			}
+		},
+		{
+			"name": "relative-file",
+			"direction": "request",
+			"boundary": "shape",
+			"document": {
+				"kind": "workbench.pane-graphics",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "stream-frame",
+					"streamId": "00000000000000000000000000000005",
+					"sequence": "18446744073709551615",
+					"revision": "0",
+					"image": {
+						"kind": "file",
+						"format": "bgra",
+						"width": 1,
+						"height": 1,
+						"path": "frame.rgba",
+						"placement": {
+							"viewportColumn": -1,
+							"viewportRow": 0,
+							"gridColumns": 0,
+							"gridRows": 0
+						}
+					},
+					"damage": [
+						{
+							"x": 0,
+							"y": 0,
+							"width": 1,
+							"height": 1
+						}
+					]
+				}
+			}
+		},
+		{
+			"name": "fabricated-renderer-without-client",
+			"direction": "response",
+			"boundary": "shape",
+			"document": {
+				"kind": "workbench.pane-graphics.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "info",
+					"target": {
+						"panelId": "00000000000000000000000000000003",
+						"presentationId": "00000000000000000000000000000004"
+					},
+					"revision": "0",
+					"layerCount": 0,
+					"clientId": null,
+					"capabilities": null,
+					"paneVisible": true,
+					"drawnRevision": null,
+					"fileFrameDirectory": null
+				}
+			}
+		},
+		{
+			"name": "invented-pixel-mouse",
+			"direction": "response",
+			"boundary": "shape",
+			"document": {
+				"kind": "workbench.pane-graphics.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "info",
+					"target": {
+						"panelId": "00000000000000000000000000000003",
+						"presentationId": "00000000000000000000000000000004"
+					},
+					"revision": "1",
+					"layerCount": 0,
+					"clientId": "00000000000000000000000000000007",
+					"capabilities": {
+						"transport": "cell-raster",
+						"cellPixels": null,
+						"pixelMouse": true
+					},
+					"paneVisible": true,
+					"drawnRevision": "1",
+					"fileFrameDirectory": null
+				}
+			}
+		},
+		{
+			"name": "drawn-ahead",
+			"direction": "response",
+			"boundary": "semantic",
+			"document": {
+				"kind": "workbench.pane-graphics.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "info",
+					"target": {
+						"panelId": "00000000000000000000000000000003",
+						"presentationId": "00000000000000000000000000000004"
+					},
+					"revision": "1",
+					"layerCount": 0,
+					"clientId": "00000000000000000000000000000007",
+					"capabilities": {
+						"transport": "cell-raster",
+						"cellPixels": null,
+						"pixelMouse": false
+					},
+					"paneVisible": true,
+					"drawnRevision": "2",
+					"fileFrameDirectory": null
+				}
+			}
+		},
+		{
+			"name": "duplicate-layer",
+			"direction": "response",
+			"boundary": "semantic",
+			"document": {
+				"kind": "workbench.pane-graphics.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "catalog",
+					"target": {
+						"panelId": "00000000000000000000000000000003",
+						"presentationId": "00000000000000000000000000000004"
+					},
+					"revision": "1",
+					"layers": [
+						{
+							"layerId": "primary",
+							"zIndex": -1,
+							"width": 1,
+							"height": 1,
+							"placement": {
+								"viewportColumn": -1,
+								"viewportRow": 0,
+								"gridColumns": 0,
+								"gridRows": 0
+							},
+							"resourceRevision": "1",
+							"streamId": null
+						},
+						{
+							"layerId": "primary",
+							"zIndex": -1,
+							"width": 1,
+							"height": 1,
+							"placement": {
+								"viewportColumn": -1,
+								"viewportRow": 0,
+								"gridColumns": 0,
+								"gridRows": 0
+							},
+							"resourceRevision": "1",
+							"streamId": null
+						}
+					]
+				}
+			}
+		},
+		{
+			"name": "resource-ahead-of-catalog",
+			"direction": "response",
+			"boundary": "semantic",
+			"document": {
+				"kind": "workbench.pane-graphics.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "catalog",
+					"target": {
+						"panelId": "00000000000000000000000000000003",
+						"presentationId": "00000000000000000000000000000004"
+					},
+					"revision": "1",
+					"layers": [
+						{
+							"layerId": "primary",
+							"zIndex": -1,
+							"width": 1,
+							"height": 1,
+							"placement": {
+								"viewportColumn": -1,
+								"viewportRow": 0,
+								"gridColumns": 0,
+								"gridRows": 0
+							},
+							"resourceRevision": "2",
+							"streamId": null
+						}
+					]
+				}
+			}
+		},
+		{
+			"name": "unresolved-response-source",
+			"direction": "response",
+			"boundary": "shape",
+			"document": {
+				"kind": "workbench.pane-graphics.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "catalog",
+					"target": {
+						"panelId": "00000000000000000000000000000003",
+						"presentationId": null
+					},
+					"revision": "1",
+					"layers": [
+						{
+							"layerId": "primary",
+							"zIndex": -1,
+							"width": 1,
+							"height": 1,
+							"placement": {
+								"viewportColumn": -1,
+								"viewportRow": 0,
+								"gridColumns": 0,
+								"gridRows": 0
+							},
+							"resourceRevision": "1",
+							"streamId": null
+						}
+					]
+				}
+			}
+		},
+		{
+			"name": "wrong-total-byte-shape",
+			"direction": "response",
+			"boundary": "semantic",
+			"document": {
+				"kind": "workbench.pane-graphics.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "pixels",
+					"target": {
+						"panelId": "00000000000000000000000000000003",
+						"presentationId": "00000000000000000000000000000004"
+					},
+					"layerId": "primary",
+					"resourceRevision": "1",
+					"width": 1,
+					"height": 1,
+					"offset": 0,
+					"totalBytes": 8,
+					"dataBase64": "/wAA/w==",
+					"complete": true
+				}
+			}
+		},
+		{
+			"name": "false-chunk-completion",
+			"direction": "response",
+			"boundary": "semantic",
+			"document": {
+				"kind": "workbench.pane-graphics.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "pixels",
+					"target": {
+						"panelId": "00000000000000000000000000000003",
+						"presentationId": "00000000000000000000000000000004"
+					},
+					"layerId": "primary",
+					"resourceRevision": "1",
+					"width": 1,
+					"height": 1,
+					"offset": 0,
+					"totalBytes": 4,
+					"dataBase64": "/wAA/w==",
+					"complete": false
+				}
+			}
+		},
+		{
+			"name": "applied-zero-changed-revision",
+			"direction": "response",
+			"boundary": "shape",
+			"document": {
+				"kind": "workbench.pane-graphics.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "applied",
+					"target": {
+						"panelId": "00000000000000000000000000000003",
+						"presentationId": "00000000000000000000000000000004"
+					},
+					"layerId": "primary",
+					"revision": "0",
+					"changed": true
+				}
+			}
+		},
+		{
+			"name": "unknown-failure",
+			"direction": "response",
+			"boundary": "shape",
+			"document": {
+				"kind": "workbench.pane-graphics.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "failed",
+					"reason": "unsupported"
+				}
+			}
+		}
+	]
+}

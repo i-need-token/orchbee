@@ -9,6 +9,7 @@ pub enum PayloadEncoding {
     RawBytes,
     TerminalFrame,
     RowWindow,
+    GraphicsImage,
 }
 
 impl PayloadEncoding {
@@ -18,6 +19,7 @@ impl PayloadEncoding {
             Self::RawBytes => 2,
             Self::TerminalFrame => 3,
             Self::RowWindow => 4,
+            Self::GraphicsImage => 5,
         }
     }
 
@@ -27,6 +29,7 @@ impl PayloadEncoding {
             2 => Some(Self::RawBytes),
             3 => Some(Self::TerminalFrame),
             4 => Some(Self::RowWindow),
+            5 => Some(Self::GraphicsImage),
             _ => None,
         }
     }
@@ -37,6 +40,9 @@ impl PayloadEncoding {
             Self::RawBytes => MAXIMUM_RAW_PAYLOAD_BYTES,
             Self::TerminalFrame => MAXIMUM_TERMINAL_FRAME_BYTES,
             Self::RowWindow => MAXIMUM_ROW_WINDOW_BYTES,
+            Self::GraphicsImage => {
+                crate::MAXIMUM_GRAPHICS_RGBA_BYTES + crate::GRAPHICS_DECODE_RESULT_HEADER_BYTES
+            }
         }
     }
 }
@@ -565,6 +571,20 @@ pub const MESSAGE_CONTRACTS: &[MessageContract] = &[
         None,
         None,
         Some(PayloadEncoding::ControlJson)
+    ),
+    contract!(
+        80,
+        "DecodeGraphicsPng",
+        None,
+        Some(request(PayloadEncoding::GraphicsImage, 81)),
+        None
+    ),
+    contract!(
+        81,
+        "GraphicsPngDecoded",
+        None,
+        None,
+        Some(PayloadEncoding::GraphicsImage)
     ),
     contract!(
         79,

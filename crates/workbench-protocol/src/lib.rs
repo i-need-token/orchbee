@@ -31,6 +31,16 @@ pub use command::{
     SemanticEventsRequest, SemanticEventsResult, SemanticOutputMatch, SemanticOutputSource,
     SemanticPane, matches_semantic_filter,
 };
+pub use command::{
+    MAXIMUM_GRAPHICS_CHUNK_BYTES, MAXIMUM_GRAPHICS_DECODED_BYTES, MAXIMUM_GRAPHICS_LAYERS,
+    MAXIMUM_GRAPHICS_LAYERS_PER_PANE, MAXIMUM_GRAPHICS_REQUEST_BYTES,
+    MAXIMUM_GRAPHICS_RESIDENT_BYTES, MAXIMUM_GRAPHICS_RESULT_BYTES, MAXIMUM_GRAPHICS_SET_BYTES,
+    MAXIMUM_GRAPHICS_STREAM_BYTES, PaneGraphicsAction, PaneGraphicsCapabilities,
+    PaneGraphicsCellPixels, PaneGraphicsDamage, PaneGraphicsFailure, PaneGraphicsFormat,
+    PaneGraphicsFrame, PaneGraphicsLayer, PaneGraphicsOutcome, PaneGraphicsPlacement,
+    PaneGraphicsRequest, PaneGraphicsResult, PaneGraphicsStreamImage, PaneGraphicsTarget,
+    PaneGraphicsTransport, graphics_base64_bytes, graphics_layer_id, graphics_rgba_bytes,
+};
 mod directory;
 mod identity;
 mod layout_template;

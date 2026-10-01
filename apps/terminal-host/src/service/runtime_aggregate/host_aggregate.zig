@@ -138,6 +138,7 @@ pub const HostRuntimeAggregate = struct {
     pub const prepareSemanticInput = input_admission.prepareSemanticInput;
 
     // interaction-access boundary.
+    pub const graphicsDecodeTarget = interaction_access.graphicsDecodeTarget;
     pub const historyAccess = interaction_access.historyAccess;
     pub const sampleTerminalProcesses = interaction_access.sampleTerminalProcesses;
     pub const selectionAccess = interaction_access.selectionAccess;

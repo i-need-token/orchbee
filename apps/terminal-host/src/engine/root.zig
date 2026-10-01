@@ -1,5 +1,6 @@
 const builtin = @import("builtin");
 
+pub const decodeGraphicsPng = @import("png_decoder.zig").decodeGraphicsPng;
 pub const history = @import("history/root.zig");
 pub const launch = @import("launch.zig");
 pub const profile = @import("profile.zig");

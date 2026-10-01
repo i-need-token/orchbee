@@ -1,6 +1,8 @@
 // Exact current-version numeric registry mirrored by the TypeScript contract
 // and generated cross-language conformance fixture.
 pub const MessageKind = struct {
+    pub const decode_graphics_png: u16 = 80;
+    pub const graphics_png_decoded: u16 = 81;
     pub const hello: u16 = 1;
     pub const hello_accepted: u16 = 2;
     pub const protocol_rejected: u16 = 3;

@@ -22,6 +22,7 @@ use crate::{
 mod agent_drain;
 mod control;
 mod cwd_validation;
+mod graphics_decode;
 mod lifecycle;
 mod plugin_job;
 mod send;
@@ -52,6 +53,7 @@ pub const MAXIMUM_FRAME_PAYLOAD_BYTES: usize = 40 * 1024;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum CapabilityNodeMessage {
+    TerminalGraphicsDecodeRequest(crate::TerminalGraphicsDecodeRequest),
     TerminalEditorCommandRequest(crate::TerminalEditorCommandRequest),
     TerminalEditorCommandResult(crate::TerminalEditorCommandResult),
     TerminalTitlesRequest(crate::TerminalTitlesRequest),
@@ -83,6 +85,9 @@ pub enum CapabilityNodeMessage {
 }
 
 pub fn encode_message(message: &CapabilityNodeMessage) -> Result<Vec<u8>, ProtocolError> {
+    if let CapabilityNodeMessage::TerminalGraphicsDecodeRequest(request) = message {
+        return graphics_decode::encode(request);
+    }
     if matches!(
         message,
         CapabilityNodeMessage::PluginJobRequest(_) | CapabilityNodeMessage::PluginJobResult(_)
@@ -131,6 +136,9 @@ pub fn encode_message(message: &CapabilityNodeMessage) -> Result<Vec<u8>, Protoc
 }
 
 pub fn decode_message(frame: &[u8]) -> Result<CapabilityNodeMessage, ProtocolError> {
+    if frame.starts_with(b"OBNG") {
+        return graphics_decode::decode(frame);
+    }
     if frame.starts_with(b"OBNT") {
         return terminal_titles::decode_result(frame);
     }
@@ -164,6 +172,9 @@ pub fn decode_message(frame: &[u8]) -> Result<CapabilityNodeMessage, ProtocolErr
 pub fn read_message(reader: &mut impl Read) -> Result<CapabilityNodeMessage, ReadMessageError> {
     let mut header = [0_u8; FRAME_HEADER_BYTES];
     reader.read_exact(&mut header)?;
+    if header.starts_with(b"OBNG") {
+        return graphics_decode::read(reader, header);
+    }
     if header.starts_with(b"OBNT") {
         return terminal_titles::read_result(reader, header);
     }
@@ -231,6 +242,9 @@ fn encode_payload(message: &CapabilityNodeMessage) -> Vec<u8> {
             encode_authorized_terminal_start(*value)
         }
         CapabilityNodeMessage::TerminalStartResult(value) => encode_terminal_start_result(*value),
+        CapabilityNodeMessage::TerminalGraphicsDecodeRequest(value) => {
+            graphics_decode::encode(value).expect("validated graphics request")
+        }
         CapabilityNodeMessage::TerminalViewerRequest(value) => viewer::encode_request(*value),
         CapabilityNodeMessage::TerminalViewerResult(value) => viewer::encode_result(value),
         CapabilityNodeMessage::TerminalSendRequest(_) => {

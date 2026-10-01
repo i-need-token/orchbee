@@ -127,6 +127,8 @@ const EnvelopeFlag = {
 
 function maximumPayloadBytes(encoding: PayloadEncodingValue): number {
 	switch (encoding) {
+		case PayloadEncoding.graphicsImage:
+			return PROTOCOL_LIMITS.maxGraphicsImageBytes;
 		case PayloadEncoding.controlJson:
 			return PROTOCOL_LIMITS.maxControlJsonBytes;
 		case PayloadEncoding.rawBytes:
@@ -140,6 +142,8 @@ function maximumPayloadBytes(encoding: PayloadEncodingValue): number {
 
 function payloadEncodingCode(encoding: PayloadEncodingValue): number {
 	switch (encoding) {
+		case PayloadEncoding.graphicsImage:
+			return 5;
 		case PayloadEncoding.controlJson:
 			return 1;
 		case PayloadEncoding.rawBytes:
@@ -153,6 +157,8 @@ function payloadEncodingCode(encoding: PayloadEncodingValue): number {
 
 function payloadEncodingFromCode(code: number): ProtocolResult<PayloadEncodingValue> {
 	switch (code) {
+		case 5:
+			return protocolSuccess(PayloadEncoding.graphicsImage);
 		case 1:
 			return protocolSuccess(PayloadEncoding.controlJson);
 		case 2:

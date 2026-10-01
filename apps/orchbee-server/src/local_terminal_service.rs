@@ -7,6 +7,8 @@ mod independent_popup;
 #[cfg(windows)]
 mod observation;
 #[cfg(windows)]
+mod pane_graphics;
+#[cfg(windows)]
 mod plugins;
 #[cfg(windows)]
 pub(crate) mod semantic_events;
@@ -85,6 +87,8 @@ pub(crate) struct LocalTerminalService {
     #[cfg(windows)]
     observer: observation::Observer,
     #[cfg(windows)]
+    graphics_preparation: Mutex<()>,
+    #[cfg(windows)]
     popups: independent_popup::Popups,
     #[cfg(windows)]
     process_observer: process_observer::ProcessObserver,
@@ -127,6 +131,8 @@ impl LocalTerminalService {
             configuration: configuration::Registry::default(),
             #[cfg(windows)]
             observer: observation::Observer::default(),
+            #[cfg(windows)]
+            graphics_preparation: Mutex::default(),
             #[cfg(windows)]
             popups: independent_popup::Popups::default(),
             close_maintenance: close_maintenance::CloseMaintenance::default(),

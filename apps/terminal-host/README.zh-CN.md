@@ -243,3 +243,9 @@ pnpm --filter @orchbee/terminal-host benchmark -- \
 ## 程序化按键编码检查
 
 用 `zig build test-input-encoding` 运行旧模式/Kitty 语义按键的针对性回归。Host 从终端当前模式派生编码。旧模式的 Super 字符按下使用既有 CSI-u 编码器保留组合，不改变协商模式，也不报告旧模式松开事件。Shift 可打印文本与 Kitty 完整报告的按键身份分别保留；Worker send 适配器负责逻辑字符规范化。
+
+## 只读 PNG 图片服务
+
+`DecodeGraphicsPng` 解析请求连接的可读附件，复用现有 Wuffs PNG 解码器，不写入终端输入或修改终端图形。服务先预留受限输出空间，验证完整图片，返回带关联标识及真实终端身份的 RGBA 像素。无效 PNG、尺寸不匹配和其他连接的附件返回明确失败。输入最多 16 MiB、解码像素最多 32 MiB，每个尺寸轴最多 4096。
+
+`zig build test-graphics` 检查 PNG 服务、附件授权、终端文本保持及已有直接图形投影。Windows 服务测试自行创建并释放 ConPTY 进程和运行时，不打开 Desktop 窗口。

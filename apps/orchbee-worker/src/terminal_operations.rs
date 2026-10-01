@@ -304,6 +304,19 @@ pub(crate) fn run_admitted(
             }
             continue;
         }
+        if let CapabilityNodeMessage::TerminalGraphicsDecodeRequest(request) = request {
+            let result = crate::terminal_viewer_operation::decode_graphics(
+                request, worker_id, generation, host, server,
+            )?;
+            if server_transport::send(
+                server,
+                Some(host),
+                &CapabilityNodeMessage::TerminalViewerResult(result),
+            )? {
+                return Err(peer_closed().into());
+            }
+            continue;
+        }
         if let CapabilityNodeMessage::TerminalViewerRequest(request) = request {
             let result = crate::terminal_viewer_operation::execute(
                 request, worker_id, generation, host, server,
@@ -360,6 +373,7 @@ pub(crate) fn run_admitted(
             | CapabilityNodeMessage::TerminalSendRequest(_)
             | CapabilityNodeMessage::TerminalSendResult(_)
             | CapabilityNodeMessage::TerminalStartResult(_)
+            | CapabilityNodeMessage::TerminalGraphicsDecodeRequest(_)
             | CapabilityNodeMessage::TerminalViewerRequest(_)
             | CapabilityNodeMessage::TerminalViewerResult(_)
             | CapabilityNodeMessage::WorktreeJobRequest(_)

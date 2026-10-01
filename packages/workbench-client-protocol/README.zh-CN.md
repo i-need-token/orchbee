@@ -288,3 +288,7 @@ v1–v9 拒绝此意图。公开 Windows `terminal edit-scrollback` 路径由
 ## Windows配置命令契约
 
 configured-command请求／结果绑定与Client的 `command-popup-open` 意图共享严格popup规格。原生已安装keys profile拥有不透明ID，解码值从不携带可执行命令文本。四种动作分别保留Worker启动、规范Pane创建、plugin调用及Client popup控制回执。可选plugin选区固定两个行列端点和准确终端内容版本，要求已绑定当前来源，最多捕获4096行及8192 UTF-8字节。请求／结果上限256 KiB。Client control v11接受配置popup意图，较旧原生输出版本保持封闭。Server解析、临时观察器回收、物理作业及TUI执行见 [Windows自定义命令](../../apps/orchbee/docs/windows-custom-commands.zh-CN.md)。
+
+## Panel 图片绑定
+
+pane graphics 绑定与 Rust 共用封闭的图片、图层、像素块和生产者协议。它检查编码及解码字节上限、规范 base64、资源排序、损伤矩形和完整宽度序号字符串。元数据目录不包含像素。渲染能力和可见性字段来自真实 Client 观察；空字段不表示已有渲染支持。共享图形案例检查 TypeScript、Rust 和 JSON Schema 的边界。

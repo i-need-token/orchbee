@@ -5,6 +5,13 @@ mod envelope;
 mod error;
 mod frame_route;
 mod geometry;
+mod graphics_decode;
+pub use graphics_decode::{
+    GRAPHICS_DECODE_REQUEST_HEADER_BYTES, GRAPHICS_DECODE_RESULT_HEADER_BYTES,
+    GraphicsDecodeRequest, GraphicsDecodeResult, MAXIMUM_GRAPHICS_PNG_BYTES,
+    MAXIMUM_GRAPHICS_RGBA_BYTES, decode_graphics_decode_request, decode_graphics_decode_result,
+    encode_graphics_decode_request, encode_graphics_decode_result,
+};
 mod history;
 mod identity;
 mod input;

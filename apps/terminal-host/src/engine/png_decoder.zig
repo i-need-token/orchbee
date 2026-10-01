@@ -26,6 +26,8 @@ fn installDecoder() void {
     ghostty_vt.sys.decode_png = decodePng;
 }
 
+pub const decodeGraphicsPng = decodePng;
+
 fn decodePng(
     allocator: std.mem.Allocator,
     data: []const u8,

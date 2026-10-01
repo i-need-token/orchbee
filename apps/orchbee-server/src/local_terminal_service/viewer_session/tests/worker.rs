@@ -13,6 +13,7 @@ pub(in crate::local_terminal_service::viewer_session::tests) enum Effect {
     Capacity,
     Poll([u8; 16]),
     ProcessInfo([u8; 16]),
+    GraphicsDecode([u8; 16]),
     Lifecycle([u8; 16]),
     DetachRefused([u8; 16]),
     Feedback([u8; 16]),
@@ -44,6 +45,18 @@ pub(super) fn run(
             Err(_) => return,
         };
         let reply = match message {
+            CapabilityNodeMessage::TerminalGraphicsDecodeRequest(request) => {
+                assert!(viewers.contains_key(&request.attachment_id.as_bytes()));
+                effects
+                    .lock()
+                    .unwrap()
+                    .push(Effect::GraphicsDecode(request.attachment_id.as_bytes()));
+                CapabilityNodeMessage::TerminalViewerResult(TerminalViewerResult {
+                    request_id: request.request_id,
+                    attachment_id: request.attachment_id,
+                    outcome: WorkerOutcome::Rejected(ViewerRejection::HostRejected),
+                })
+            }
             CapabilityNodeMessage::TerminalViewerRequest(request) => {
                 let id = request.attachment_id.as_bytes();
                 let outcome = if request.request_id.as_bytes()[..8] == [250; 8] {

@@ -62,6 +62,7 @@ impl From<ContractError> for ProjectionAdvanceError {
 #[derive(Clone, Debug)]
 pub(crate) struct WorkbenchProjectionStore {
     events: crate::semantic_events::SiteEventJournal,
+    graphics: std::sync::Arc<std::sync::Mutex<crate::PaneGraphicsAuthority>>,
     snapshot: Snapshot,
     /// Bounded journal of committed publications, in revision order. A retained Snapshot entry is a
     /// replay boundary: everything committed before it is subsumed, so it is stored alone at the
@@ -79,6 +80,7 @@ impl WorkbenchProjectionStore {
         let snapshot = parse_snapshot(encoded_snapshot)?;
         Ok(Self {
             events: crate::semantic_events::SiteEventJournal::new(&snapshot)?,
+            graphics: std::sync::Arc::default(),
             snapshot,
             publications: VecDeque::new(),
         })
@@ -86,6 +88,11 @@ impl WorkbenchProjectionStore {
 
     pub(crate) fn snapshot(&self) -> &Snapshot {
         &self.snapshot
+    }
+    pub(crate) fn graphics(
+        &self,
+    ) -> std::sync::Arc<std::sync::Mutex<crate::PaneGraphicsAuthority>> {
+        self.graphics.clone()
     }
     pub(crate) fn events(&self) -> crate::semantic_events::SiteEventJournal {
         self.events.clone()
@@ -153,6 +160,12 @@ impl WorkbenchProjectionStore {
         prepared: PreparedProjectionAdvance,
     ) -> WorkbenchPublication {
         let before = std::mem::replace(&mut self.snapshot, prepared.candidate);
+        // Canonical owner always precedes the layer lock. Retirement cannot await a future graphics read.
+        let _ = self
+            .graphics
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .retain(&self.snapshot);
         self.events.projection_committed(&before, &self.snapshot);
         if matches!(prepared.publication, WorkbenchPublication::Snapshot(_)) {
             self.publications.clear();

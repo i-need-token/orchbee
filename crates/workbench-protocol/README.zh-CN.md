@@ -73,3 +73,7 @@ CLI 定义。闭合 Open／Read／Close 消息携带 Site／request／popup 关�
 v1–v9 拒绝此意图。公开 Windows `terminal edit-scrollback` 路径由
 [CLI 工作流程](../../apps/orchbee/docs/cli-workflows.zh-CN.md#编辑当前聚焦终端的滚动记录)
 定义。定向管道／actor 证据不等于最终 GUI／cohort 验收。
+
+## Panel 图片协议
+
+`PaneGraphicsRequest` 和 `PaneGraphicsResult` 使用 OBWP 57/58，并在分配前独立限制方向（请求 24 MiB、结果 512 KiB）。它们覆盖完整 PNG／RGB／RGBA／BGRA 上传、静态图层、元数据目录、按资源版本读取的像素块以及连接所属的生产者。在没有渲染或文件副作用的情况下验证结构、规范 base64、通道长度、损伤范围、完整宽度生产者序号及响应关联。运行时所有者提供 PNG 解码、来源约束、文件租约和真实 Client 能力。共享案例位于 `schemas/workbench/v1/workbench-pane-graphics-conformance-v1.json`。

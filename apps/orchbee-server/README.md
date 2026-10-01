@@ -964,3 +964,7 @@ Deferred Start admission renews the terminal authorization/fence. The popup owne
 is locked before that admission and updated with the exact prepared Start
 authorization before dispatch, so failure/unknown receipts and later lifecycle
 cleanup retain the current owner rather than the obsolete Create authority.
+
+## Windows Panel image ownership
+
+The accepted model and current implementation boundary are maintained in [Windows Panel graphics](docs/windows-graphics.md). Canonical commits retire invalid layers immediately; authenticated connections own producers, and the shared temporary-viewer observer retains uncertain PNG-read cleanup. UI pixels, capability observations, CLI producers and final composed acceptance remain separately required.

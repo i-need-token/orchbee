@@ -52,6 +52,7 @@ pub const Dispatcher = struct {
         const success = try host_response.resolveSuccessResponse(request_contract);
         switch (request_contract.operation) {
             .hello => unreachable,
+            .decode_graphics_png => try @import("graphics_decode.zig").dispatch(&self.context, connection_id, envelope, correlation_id, outgoing),
             .ping,
             .read_process_info,
             .list_terminals,

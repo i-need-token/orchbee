@@ -41,6 +41,7 @@ pub(crate) enum WorkerOperationRequest {
     Launch(AuthorizedTerminalLaunch),
     Start(AuthorizedTerminalStart),
     Viewer(orchbee_capability_node_protocol::TerminalViewerRequest),
+    GraphicsDecode(orchbee_capability_node_protocol::TerminalGraphicsDecodeRequest),
     Send(orchbee_capability_node_protocol::TerminalSendRequest),
     WorktreeJob(WorktreeJobRequest),
     PluginJob(orchbee_capability_node_protocol::PluginJobRequest),
@@ -75,6 +76,7 @@ impl WorkerOperationRequest {
                 request.authorization().worker_id(),
                 request.authorization().worker_generation(),
             ),
+            Self::GraphicsDecode(request) => (request.worker_id, request.worker_generation),
             Self::Viewer(request) => (request.worker_id, request.worker_generation),
             Self::Send(request) => (request.worker_id, request.worker_generation),
             Self::WorktreeJob(request) => (request.worker_id, request.worker_generation),
@@ -89,7 +91,7 @@ impl WorkerOperationRequest {
     const fn lane(&self) -> RequestLane {
         match self {
             Self::AgentDrain(_) | Self::Titles(_) | Self::EditorCommand(_) => RequestLane::Low,
-            Self::Viewer(_) => RequestLane::Low,
+            Self::Viewer(_) | Self::GraphicsDecode(_) => RequestLane::Low,
             #[cfg(any(windows, test))]
             Self::Shutdown(_) => RequestLane::High,
             Self::CwdValidation(_)
@@ -119,6 +121,9 @@ impl WorkerOperationRequest {
                 CapabilityNodeMessage::AuthorizedTerminalLaunch(request.clone())
             }
             Self::Start(request) => CapabilityNodeMessage::AuthorizedTerminalStart(*request),
+            Self::GraphicsDecode(request) => {
+                CapabilityNodeMessage::TerminalGraphicsDecodeRequest(request.clone())
+            }
             Self::Viewer(request) => CapabilityNodeMessage::TerminalViewerRequest(*request),
             Self::Send(request) => CapabilityNodeMessage::TerminalSendRequest(request.clone()),
             Self::PluginJob(request) => CapabilityNodeMessage::PluginJobRequest(request.clone()),
@@ -1313,6 +1318,24 @@ fn validate_response(
             | CapabilityNodeMessage::TerminalSendResult(_),
         ) => Err(WorkerResponseFailure::WrongResultKind),
         (
+            WorkerOperationRequest::GraphicsDecode(expected),
+            CapabilityNodeMessage::TerminalViewerResult(actual),
+        ) => {
+            if actual.request_id != expected.request_id
+                || actual.attachment_id != expected.attachment_id
+            {
+                return Err(WorkerResponseFailure::MismatchedCorrelation);
+            }
+            if !matches!(
+                actual.outcome,
+                orchbee_capability_node_protocol::TerminalViewerOutcome::Record(_)
+                    | orchbee_capability_node_protocol::TerminalViewerOutcome::Rejected(_)
+            ) {
+                return Err(WorkerResponseFailure::WrongResultKind);
+            }
+            Ok(WorkerOperationResult::Viewer(actual))
+        }
+        (
             WorkerOperationRequest::Viewer(expected),
             CapabilityNodeMessage::TerminalViewerResult(actual),
         ) => {
@@ -1476,6 +1499,7 @@ fn validate_response(
             _,
             CapabilityNodeMessage::AuthorizedTerminalLaunch(_)
             | CapabilityNodeMessage::AuthorizedTerminalStart(_)
+            | CapabilityNodeMessage::TerminalGraphicsDecodeRequest(_)
             | CapabilityNodeMessage::TerminalViewerRequest(_)
             | CapabilityNodeMessage::TerminalSendRequest(_)
             | CapabilityNodeMessage::AgentDrainRequest(_)
@@ -1485,7 +1509,7 @@ fn validate_response(
             | CapabilityNodeMessage::PluginJobRequest(_),
         ) => Err(WorkerResponseFailure::WrongDirection),
         (
-            WorkerOperationRequest::Viewer(_),
+            WorkerOperationRequest::Viewer(_) | WorkerOperationRequest::GraphicsDecode(_),
             CapabilityNodeMessage::TerminalLaunchResult(_)
             | CapabilityNodeMessage::TerminalStartResult(_),
         )

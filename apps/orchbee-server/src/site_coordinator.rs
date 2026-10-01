@@ -53,6 +53,8 @@ pub(crate) use target_lifecycle::TargetLifecycle;
 mod agent_names;
 mod agent_registration;
 #[cfg(windows)]
+mod pane_graphics;
+#[cfg(windows)]
 mod process_observation;
 #[cfg(windows)]
 mod semantic_events;

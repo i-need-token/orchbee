@@ -1,0 +1,1336 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "urn:orchbee:schema:workbench-pane-graphics:v1",
+	"$comment": "OBWP57/58 bounds requests at 24MiB and results at 512KiB before allocation. Rust and TypeScript additionally enforce decoded channel lengths, pixel and resident budgets, damage bounds, resource ordering, unique layers and exact chunk completion. PNG bytes are decoded only by the admitted Host. File frames additionally require the producer private-root lease. No renderer or file directory is inferred from protocol availability.",
+	"oneOf": [
+		{
+			"$ref": "#/$defs/request"
+		},
+		{
+			"$ref": "#/$defs/result"
+		}
+	],
+	"$defs": {
+		"layerId": {
+			"type": "string",
+			"minLength": 1,
+			"maxLength": 80,
+			"pattern": "^[A-Za-z0-9_.-]+$"
+		},
+		"placement": {
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+				"viewportColumn": {
+					"type": "integer",
+					"minimum": -2147483648,
+					"maximum": 2147483647
+				},
+				"viewportRow": {
+					"type": "integer",
+					"minimum": -2147483648,
+					"maximum": 2147483647
+				},
+				"gridColumns": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 65535
+				},
+				"gridRows": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 65535
+				}
+			},
+			"required": [
+				"viewportColumn",
+				"viewportRow",
+				"gridColumns",
+				"gridRows"
+			]
+		},
+		"target": {
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+				"panelId": {
+					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/panelId"
+				},
+				"presentationId": {
+					"oneOf": [
+						{
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/presentationId"
+						},
+						{
+							"type": "null"
+						}
+					]
+				}
+			},
+			"required": [
+				"panelId",
+				"presentationId"
+			]
+		},
+		"resolved": {
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+				"panelId": {
+					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/panelId"
+				},
+				"presentationId": {
+					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/presentationId"
+				}
+			},
+			"required": [
+				"panelId",
+				"presentationId"
+			]
+		},
+		"setFrame": {
+			"oneOf": [
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"properties": {
+						"format": {
+							"const": "png"
+						},
+						"width": {
+							"type": "integer",
+							"minimum": 1,
+							"maximum": 4096
+						},
+						"height": {
+							"type": "integer",
+							"minimum": 1,
+							"maximum": 4096
+						},
+						"dataBase64": {
+							"type": "string",
+							"minLength": 44,
+							"maxLength": 699052,
+							"pattern": "^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}[AEIMQUYcgkosw048]=|[A-Za-z0-9+/][AQgw]==)?$"
+						},
+						"placement": {
+							"$ref": "#/$defs/placement"
+						}
+					},
+					"required": [
+						"format",
+						"width",
+						"height",
+						"dataBase64",
+						"placement"
+					]
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"properties": {
+						"format": {
+							"const": "rgb"
+						},
+						"width": {
+							"type": "integer",
+							"minimum": 1,
+							"maximum": 4096
+						},
+						"height": {
+							"type": "integer",
+							"minimum": 1,
+							"maximum": 4096
+						},
+						"dataBase64": {
+							"type": "string",
+							"minLength": 4,
+							"maxLength": 699052,
+							"pattern": "^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}[AEIMQUYcgkosw048]=|[A-Za-z0-9+/][AQgw]==)?$"
+						},
+						"placement": {
+							"$ref": "#/$defs/placement"
+						}
+					},
+					"required": [
+						"format",
+						"width",
+						"height",
+						"dataBase64",
+						"placement"
+					]
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"properties": {
+						"format": {
+							"const": "rgba"
+						},
+						"width": {
+							"type": "integer",
+							"minimum": 1,
+							"maximum": 4096
+						},
+						"height": {
+							"type": "integer",
+							"minimum": 1,
+							"maximum": 4096
+						},
+						"dataBase64": {
+							"type": "string",
+							"minLength": 4,
+							"maxLength": 699052,
+							"pattern": "^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}[AEIMQUYcgkosw048]=|[A-Za-z0-9+/][AQgw]==)?$"
+						},
+						"placement": {
+							"$ref": "#/$defs/placement"
+						}
+					},
+					"required": [
+						"format",
+						"width",
+						"height",
+						"dataBase64",
+						"placement"
+					]
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"properties": {
+						"format": {
+							"const": "bgra"
+						},
+						"width": {
+							"type": "integer",
+							"minimum": 1,
+							"maximum": 4096
+						},
+						"height": {
+							"type": "integer",
+							"minimum": 1,
+							"maximum": 4096
+						},
+						"dataBase64": {
+							"type": "string",
+							"minLength": 4,
+							"maxLength": 699052,
+							"pattern": "^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}[AEIMQUYcgkosw048]=|[A-Za-z0-9+/][AQgw]==)?$"
+						},
+						"placement": {
+							"$ref": "#/$defs/placement"
+						}
+					},
+					"required": [
+						"format",
+						"width",
+						"height",
+						"dataBase64",
+						"placement"
+					]
+				}
+			]
+		},
+		"streamFrame": {
+			"oneOf": [
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"properties": {
+						"format": {
+							"const": "png"
+						},
+						"width": {
+							"type": "integer",
+							"minimum": 1,
+							"maximum": 4096
+						},
+						"height": {
+							"type": "integer",
+							"minimum": 1,
+							"maximum": 4096
+						},
+						"dataBase64": {
+							"type": "string",
+							"minLength": 44,
+							"maxLength": 22369624,
+							"pattern": "^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}[AEIMQUYcgkosw048]=|[A-Za-z0-9+/][AQgw]==)?$"
+						},
+						"placement": {
+							"$ref": "#/$defs/placement"
+						}
+					},
+					"required": [
+						"format",
+						"width",
+						"height",
+						"dataBase64",
+						"placement"
+					]
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"properties": {
+						"format": {
+							"const": "rgb"
+						},
+						"width": {
+							"type": "integer",
+							"minimum": 1,
+							"maximum": 4096
+						},
+						"height": {
+							"type": "integer",
+							"minimum": 1,
+							"maximum": 4096
+						},
+						"dataBase64": {
+							"type": "string",
+							"minLength": 4,
+							"maxLength": 22369624,
+							"pattern": "^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}[AEIMQUYcgkosw048]=|[A-Za-z0-9+/][AQgw]==)?$"
+						},
+						"placement": {
+							"$ref": "#/$defs/placement"
+						}
+					},
+					"required": [
+						"format",
+						"width",
+						"height",
+						"dataBase64",
+						"placement"
+					]
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"properties": {
+						"format": {
+							"const": "rgba"
+						},
+						"width": {
+							"type": "integer",
+							"minimum": 1,
+							"maximum": 4096
+						},
+						"height": {
+							"type": "integer",
+							"minimum": 1,
+							"maximum": 4096
+						},
+						"dataBase64": {
+							"type": "string",
+							"minLength": 4,
+							"maxLength": 22369624,
+							"pattern": "^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}[AEIMQUYcgkosw048]=|[A-Za-z0-9+/][AQgw]==)?$"
+						},
+						"placement": {
+							"$ref": "#/$defs/placement"
+						}
+					},
+					"required": [
+						"format",
+						"width",
+						"height",
+						"dataBase64",
+						"placement"
+					]
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"properties": {
+						"format": {
+							"const": "bgra"
+						},
+						"width": {
+							"type": "integer",
+							"minimum": 1,
+							"maximum": 4096
+						},
+						"height": {
+							"type": "integer",
+							"minimum": 1,
+							"maximum": 4096
+						},
+						"dataBase64": {
+							"type": "string",
+							"minLength": 4,
+							"maxLength": 22369624,
+							"pattern": "^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}[AEIMQUYcgkosw048]=|[A-Za-z0-9+/][AQgw]==)?$"
+						},
+						"placement": {
+							"$ref": "#/$defs/placement"
+						}
+					},
+					"required": [
+						"format",
+						"width",
+						"height",
+						"dataBase64",
+						"placement"
+					]
+				}
+			]
+		},
+		"streamImage": {
+			"oneOf": [
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "inline"
+						},
+						"image": {
+							"$ref": "#/$defs/streamFrame"
+						}
+					},
+					"required": [
+						"kind",
+						"image"
+					]
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "file"
+						},
+						"format": {
+							"enum": [
+								"rgba",
+								"bgra"
+							]
+						},
+						"width": {
+							"type": "integer",
+							"minimum": 1,
+							"maximum": 4096
+						},
+						"height": {
+							"type": "integer",
+							"minimum": 1,
+							"maximum": 4096
+						},
+						"path": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/directoryPath"
+						},
+						"placement": {
+							"$ref": "#/$defs/placement"
+						}
+					},
+					"required": [
+						"kind",
+						"format",
+						"width",
+						"height",
+						"path",
+						"placement"
+					]
+				}
+			]
+		},
+		"damage": {
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+				"x": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 4294967295
+				},
+				"y": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 4294967295
+				},
+				"width": {
+					"type": "integer",
+					"minimum": 1,
+					"maximum": 4294967295
+				},
+				"height": {
+					"type": "integer",
+					"minimum": 1,
+					"maximum": 4294967295
+				}
+			},
+			"required": [
+				"x",
+				"y",
+				"width",
+				"height"
+			]
+		},
+		"capabilities": {
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+				"transport": {
+					"enum": [
+						"cell-raster",
+						"kitty",
+						"sixel"
+					]
+				},
+				"cellPixels": {
+					"oneOf": [
+						{
+							"type": "object",
+							"additionalProperties": false,
+							"properties": {
+								"width": {
+									"type": "integer",
+									"minimum": 1,
+									"maximum": 65535
+								},
+								"height": {
+									"type": "integer",
+									"minimum": 1,
+									"maximum": 65535
+								}
+							},
+							"required": [
+								"width",
+								"height"
+							]
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"pixelMouse": {
+					"type": "boolean"
+				}
+			},
+			"required": [
+				"transport",
+				"cellPixels",
+				"pixelMouse"
+			],
+			"allOf": [
+				{
+					"if": {
+						"properties": {
+							"pixelMouse": {
+								"const": true
+							}
+						},
+						"required": [
+							"pixelMouse"
+						]
+					},
+					"then": {
+						"properties": {
+							"transport": {
+								"enum": [
+									"kitty",
+									"sixel"
+								]
+							},
+							"cellPixels": {
+								"type": "object"
+							}
+						}
+					}
+				}
+			]
+		},
+		"layer": {
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+				"layerId": {
+					"$ref": "#/$defs/layerId"
+				},
+				"zIndex": {
+					"type": "integer",
+					"minimum": -2147483648,
+					"maximum": 2147483647
+				},
+				"width": {
+					"type": "integer",
+					"minimum": 1,
+					"maximum": 4096
+				},
+				"height": {
+					"type": "integer",
+					"minimum": 1,
+					"maximum": 4096
+				},
+				"placement": {
+					"$ref": "#/$defs/placement"
+				},
+				"resourceRevision": {
+					"allOf": [
+						{
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/revision"
+						},
+						{
+							"not": {
+								"const": "0"
+							}
+						}
+					]
+				},
+				"streamId": {
+					"oneOf": [
+						{
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/requestId"
+						},
+						{
+							"type": "null"
+						}
+					]
+				}
+			},
+			"required": [
+				"layerId",
+				"zIndex",
+				"width",
+				"height",
+				"placement",
+				"resourceRevision",
+				"streamId"
+			]
+		},
+		"action": {
+			"oneOf": [
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "info"
+						},
+						"target": {
+							"$ref": "#/$defs/target"
+						},
+						"clientId": {
+							"oneOf": [
+								{
+									"$ref": "urn:orchbee:schema:workbench-client-view:v1#/$defs/clientId"
+								},
+								{
+									"type": "null"
+								}
+							]
+						}
+					},
+					"required": [
+						"kind",
+						"target",
+						"clientId"
+					]
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "catalog"
+						},
+						"target": {
+							"$ref": "#/$defs/target"
+						}
+					},
+					"required": [
+						"kind",
+						"target"
+					]
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "set"
+						},
+						"target": {
+							"$ref": "#/$defs/target"
+						},
+						"layerId": {
+							"$ref": "#/$defs/layerId"
+						},
+						"zIndex": {
+							"type": "integer",
+							"minimum": -2147483648,
+							"maximum": 2147483647
+						},
+						"image": {
+							"$ref": "#/$defs/setFrame"
+						}
+					},
+					"required": [
+						"kind",
+						"target",
+						"layerId",
+						"zIndex",
+						"image"
+					]
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "clear"
+						},
+						"target": {
+							"$ref": "#/$defs/target"
+						},
+						"layerId": {
+							"$ref": "#/$defs/layerId"
+						}
+					},
+					"required": [
+						"kind",
+						"target",
+						"layerId"
+					]
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "pixels"
+						},
+						"target": {
+							"$ref": "#/$defs/target"
+						},
+						"layerId": {
+							"$ref": "#/$defs/layerId"
+						},
+						"resourceRevision": {
+							"allOf": [
+								{
+									"$ref": "urn:orchbee:schema:workbench:v1#/$defs/revision"
+								},
+								{
+									"not": {
+										"const": "0"
+									}
+								}
+							]
+						},
+						"offset": {
+							"type": "integer",
+							"minimum": 0,
+							"maximum": 4294967295,
+							"multipleOf": 4
+						},
+						"maximumBytes": {
+							"type": "integer",
+							"minimum": 4,
+							"maximum": 262144,
+							"multipleOf": 4
+						}
+					},
+					"required": [
+						"kind",
+						"target",
+						"layerId",
+						"resourceRevision",
+						"offset",
+						"maximumBytes"
+					]
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "stream-open"
+						},
+						"streamId": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/requestId"
+						},
+						"target": {
+							"$ref": "#/$defs/target"
+						},
+						"layerId": {
+							"$ref": "#/$defs/layerId"
+						},
+						"zIndex": {
+							"type": "integer",
+							"minimum": -2147483648,
+							"maximum": 2147483647
+						}
+					},
+					"required": [
+						"kind",
+						"streamId",
+						"target",
+						"layerId",
+						"zIndex"
+					]
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "stream-frame"
+						},
+						"streamId": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/requestId"
+						},
+						"sequence": {
+							"allOf": [
+								{
+									"$ref": "urn:orchbee:schema:workbench:v1#/$defs/revision"
+								},
+								{
+									"not": {
+										"const": "0"
+									}
+								}
+							]
+						},
+						"revision": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/revision"
+						},
+						"image": {
+							"$ref": "#/$defs/streamImage"
+						},
+						"damage": {
+							"type": "array",
+							"maxItems": 64,
+							"items": {
+								"$ref": "#/$defs/damage"
+							}
+						}
+					},
+					"required": [
+						"kind",
+						"streamId",
+						"sequence",
+						"revision",
+						"image",
+						"damage"
+					]
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "stream-close"
+						},
+						"streamId": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/requestId"
+						}
+					},
+					"required": [
+						"kind",
+						"streamId"
+					]
+				}
+			]
+		},
+		"outcome": {
+			"oneOf": [
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "info"
+						},
+						"target": {
+							"$ref": "#/$defs/resolved"
+						},
+						"revision": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/revision"
+						},
+						"layerCount": {
+							"type": "integer",
+							"minimum": 0,
+							"maximum": 16
+						},
+						"clientId": {
+							"oneOf": [
+								{
+									"$ref": "urn:orchbee:schema:workbench-client-view:v1#/$defs/clientId"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"capabilities": {
+							"oneOf": [
+								{
+									"$ref": "#/$defs/capabilities"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"paneVisible": {
+							"oneOf": [
+								{
+									"type": "boolean"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"drawnRevision": {
+							"oneOf": [
+								{
+									"$ref": "urn:orchbee:schema:workbench:v1#/$defs/revision"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"fileFrameDirectory": {
+							"oneOf": [
+								{
+									"$ref": "urn:orchbee:schema:workbench:v1#/$defs/directoryPath"
+								},
+								{
+									"type": "null"
+								}
+							]
+						}
+					},
+					"required": [
+						"kind",
+						"target",
+						"revision",
+						"layerCount",
+						"clientId",
+						"capabilities",
+						"paneVisible",
+						"drawnRevision",
+						"fileFrameDirectory"
+					],
+					"allOf": [
+						{
+							"if": {
+								"properties": {
+									"clientId": {
+										"type": "null"
+									}
+								},
+								"required": [
+									"clientId"
+								]
+							},
+							"then": {
+								"properties": {
+									"capabilities": {
+										"type": "null"
+									},
+									"paneVisible": {
+										"type": "null"
+									},
+									"drawnRevision": {
+										"type": "null"
+									}
+								}
+							}
+						}
+					]
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "catalog"
+						},
+						"target": {
+							"$ref": "#/$defs/resolved"
+						},
+						"revision": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/revision"
+						},
+						"layers": {
+							"type": "array",
+							"maxItems": 16,
+							"items": {
+								"$ref": "#/$defs/layer"
+							}
+						}
+					},
+					"required": [
+						"kind",
+						"target",
+						"revision",
+						"layers"
+					]
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "pixels"
+						},
+						"target": {
+							"$ref": "#/$defs/resolved"
+						},
+						"layerId": {
+							"$ref": "#/$defs/layerId"
+						},
+						"resourceRevision": {
+							"allOf": [
+								{
+									"$ref": "urn:orchbee:schema:workbench:v1#/$defs/revision"
+								},
+								{
+									"not": {
+										"const": "0"
+									}
+								}
+							]
+						},
+						"width": {
+							"type": "integer",
+							"minimum": 1,
+							"maximum": 4096
+						},
+						"height": {
+							"type": "integer",
+							"minimum": 1,
+							"maximum": 4096
+						},
+						"offset": {
+							"type": "integer",
+							"minimum": 0,
+							"maximum": 4294967295,
+							"multipleOf": 4
+						},
+						"totalBytes": {
+							"type": "integer",
+							"minimum": 4,
+							"maximum": 33554432
+						},
+						"dataBase64": {
+							"type": "string",
+							"minLength": 4,
+							"maxLength": 349528,
+							"pattern": "^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}[AEIMQUYcgkosw048]=|[A-Za-z0-9+/][AQgw]==)?$"
+						},
+						"complete": {
+							"type": "boolean"
+						}
+					},
+					"required": [
+						"kind",
+						"target",
+						"layerId",
+						"resourceRevision",
+						"width",
+						"height",
+						"offset",
+						"totalBytes",
+						"dataBase64",
+						"complete"
+					]
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "applied"
+						},
+						"target": {
+							"$ref": "#/$defs/resolved"
+						},
+						"layerId": {
+							"$ref": "#/$defs/layerId"
+						},
+						"revision": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/revision"
+						},
+						"changed": {
+							"type": "boolean"
+						}
+					},
+					"required": [
+						"kind",
+						"target",
+						"layerId",
+						"revision",
+						"changed"
+					],
+					"allOf": [
+						{
+							"if": {
+								"properties": {
+									"changed": {
+										"const": true
+									}
+								},
+								"required": [
+									"changed"
+								]
+							},
+							"then": {
+								"properties": {
+									"revision": {
+										"allOf": [
+											{
+												"$ref": "urn:orchbee:schema:workbench:v1#/$defs/revision"
+											},
+											{
+												"not": {
+													"const": "0"
+												}
+											}
+										]
+									}
+								}
+							}
+						}
+					]
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "stream-opened"
+						},
+						"streamId": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/requestId"
+						},
+						"target": {
+							"$ref": "#/$defs/resolved"
+						},
+						"layerId": {
+							"$ref": "#/$defs/layerId"
+						},
+						"zIndex": {
+							"type": "integer",
+							"minimum": -2147483648,
+							"maximum": 2147483647
+						},
+						"revision": {
+							"allOf": [
+								{
+									"$ref": "urn:orchbee:schema:workbench:v1#/$defs/revision"
+								},
+								{
+									"not": {
+										"const": "0"
+									}
+								}
+							]
+						},
+						"fileFrameDirectory": {
+							"oneOf": [
+								{
+									"$ref": "urn:orchbee:schema:workbench:v1#/$defs/directoryPath"
+								},
+								{
+									"type": "null"
+								}
+							]
+						}
+					},
+					"required": [
+						"kind",
+						"streamId",
+						"target",
+						"layerId",
+						"zIndex",
+						"revision",
+						"fileFrameDirectory"
+					]
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "frame-applied"
+						},
+						"streamId": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/requestId"
+						},
+						"target": {
+							"$ref": "#/$defs/resolved"
+						},
+						"layerId": {
+							"$ref": "#/$defs/layerId"
+						},
+						"sequence": {
+							"allOf": [
+								{
+									"$ref": "urn:orchbee:schema:workbench:v1#/$defs/revision"
+								},
+								{
+									"not": {
+										"const": "0"
+									}
+								}
+							]
+						},
+						"frameRevision": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/revision"
+						},
+						"revision": {
+							"allOf": [
+								{
+									"$ref": "urn:orchbee:schema:workbench:v1#/$defs/revision"
+								},
+								{
+									"not": {
+										"const": "0"
+									}
+								}
+							]
+						},
+						"changed": {
+							"type": "boolean"
+						}
+					},
+					"required": [
+						"kind",
+						"streamId",
+						"target",
+						"layerId",
+						"sequence",
+						"frameRevision",
+						"revision",
+						"changed"
+					]
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "closed"
+						},
+						"streamId": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/requestId"
+						},
+						"revision": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/revision"
+						},
+						"removed": {
+							"type": "boolean"
+						}
+					},
+					"required": [
+						"kind",
+						"streamId",
+						"revision",
+						"removed"
+					]
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "failed"
+						},
+						"reason": {
+							"type": "string",
+							"enum": [
+								"denied",
+								"invalid-intent",
+								"site-mismatch",
+								"unavailable",
+								"busy",
+								"not-found",
+								"conflict",
+								"source-changed",
+								"source-unavailable",
+								"invalid-image",
+								"image-too-large",
+								"layer-limit",
+								"memory-limit",
+								"stale-resource",
+								"invalid-sequence",
+								"stream-closed",
+								"physical-unknown",
+								"revision-exhausted",
+								"invalid-file",
+								"cell-size-unavailable"
+							]
+						}
+					},
+					"required": [
+						"kind",
+						"reason"
+					]
+				}
+			]
+		},
+		"request": {
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+				"kind": {
+					"const": "workbench.pane-graphics"
+				},
+				"protocolVersion": {
+					"const": 1
+				},
+				"requestId": {
+					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/requestId"
+				},
+				"siteId": {
+					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/siteId"
+				},
+				"action": {
+					"$ref": "#/$defs/action"
+				}
+			},
+			"required": [
+				"kind",
+				"protocolVersion",
+				"requestId",
+				"siteId",
+				"action"
+			]
+		},
+		"result": {
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+				"kind": {
+					"const": "workbench.pane-graphics.result"
+				},
+				"protocolVersion": {
+					"const": 1
+				},
+				"requestId": {
+					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/requestId"
+				},
+				"siteId": {
+					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/siteId"
+				},
+				"outcome": {
+					"$ref": "#/$defs/outcome"
+				}
+			},
+			"required": [
+				"kind",
+				"protocolVersion",
+				"requestId",
+				"siteId",
+				"outcome"
+			]
+		}
+	}
+}

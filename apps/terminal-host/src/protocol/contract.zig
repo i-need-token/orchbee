@@ -106,11 +106,13 @@ pub const PayloadEncoding = enum(u8) {
     raw_bytes = 2,
     terminal_frame = 3,
     row_window = 4,
+    graphics_image = 5,
 };
 
 /// Native dispatch operation owned by the protocol adapter. It is not a wire
 /// field; it makes Host request coverage exhaustive when the registry grows.
 pub const RequestOperation = enum {
+    decode_graphics_png,
     read_process_info,
     apply_terminal_theme,
     attach_terminal,
@@ -208,6 +210,8 @@ fn responseAndEvent(name: []const u8, encoding: PayloadEncoding) MessageContract
 pub fn messageContract(kind: u16) ?MessageContract {
     const M = MessageKind;
     return switch (kind) {
+        M.decode_graphics_png => requestOnly("DecodeGraphicsPng", .decode_graphics_png, .graphics_image, M.graphics_png_decoded),
+        M.graphics_png_decoded => responseOnly("GraphicsPngDecoded", .graphics_image),
         M.hello => requestOnly("Hello", .hello, .control_json, M.hello_accepted),
         M.hello_accepted => responseOnly("HelloAccepted", .control_json),
         M.protocol_rejected => responseOnly("ProtocolRejected", .control_json),
@@ -456,6 +460,7 @@ pub fn isKnownMessageKind(kind: u16) bool {
 pub fn maximumPayloadBytes(encoding: u8) ProtocolError!usize {
     return switch (encoding) {
         @intFromEnum(PayloadEncoding.control_json) => Limits.control_json_bytes,
+        @intFromEnum(PayloadEncoding.graphics_image) => 32 * 1024 * 1024 + 56,
         @intFromEnum(PayloadEncoding.raw_bytes) => Limits.raw_payload_bytes,
         @intFromEnum(PayloadEncoding.terminal_frame) => Limits.frame_bytes,
         @intFromEnum(PayloadEncoding.row_window) => Limits.row_window_bytes,

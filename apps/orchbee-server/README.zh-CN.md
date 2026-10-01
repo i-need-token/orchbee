@@ -849,3 +849,7 @@ GUI、TUI／模拟器或完整 cohort 验收。Client overlay 和公开 CLI 入�
 延迟 Start 准入会更新终端授权／fence。popup 所有者在该准入前锁定，交接前同步
 准确的已准备 Start 授权；失败／未知回执及后续生命周期清理保留当前所有者，
 不会继续使用过时的 Create 权限。
+
+## Windows Panel 图片所有权
+
+已接受模型和当前实现边界由 [Windows Panel 图形](docs/windows-graphics.zh-CN.md) 维护。规范状态提交立即清理无效图层；已认证连接拥有生产者，共用临时 viewer 观察者保留不确定的 PNG 读取清理责任。UI 像素、能力观察、CLI 生产者和最终组合验收仍各自需要完成。

@@ -354,3 +354,7 @@ Packed OBTF and OBPB geometry preserves unknown cell pixels as `(0, 0)`, matchin
 control geometry contract. Otherwise both dimensions are positive; mixed zero/positive pairs are
 invalid. Grid and pixel-extent bounds remain unchanged. A terminal snapshot never invents pixel
 dimensions merely to export text or styles.
+
+## Bounded image decoding envelopes
+
+The message registry includes read-only PNG request/result kinds 80/81 and graphics-image payload encoding (5). Its maximum payload is 32 MiB plus the 56-byte result header, independently of keyboard/paste and frame limits. Runtime producers validate the OBPI/OBPX body and physical attachment; consumers cannot treat an arbitrary decoded envelope as an authorized image. Native Host, Worker and Server own this operation’s current consumers.

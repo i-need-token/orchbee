@@ -352,3 +352,9 @@ directories, named Zig modules, allowed imports, and test placement.
 ## Programmatic key encoding checks
 
 Run `zig build test-input-encoding` for the focused legacy/Kitty semantic-key regression. Host derives encoding from the current terminal mode. Legacy Super character presses use the existing CSI-u encoder to preserve the chord, without changing negotiated mode or reporting legacy releases. Printable Shift text and full-report Kitty identity remain distinct inputs; the Worker send adapter owns logical character normalization.
+
+## Read-only PNG image service
+
+`DecodeGraphicsPng` resolves the requesting connection’s readable attachment and reuses the existing Wuffs PNG decoder without terminal input or terminal graphics mutation. It reserves bounded outgoing capacity, validates the complete image and returns correlated RGBA pixels with the actual terminal identity. Invalid PNG, mismatched dimensions and foreign attachments return typed failures. Input is at most 16 MiB, decoded pixels at most 32 MiB, and dimensions at most 4096 on either axis.
+
+`zig build test-graphics` exercises the PNG service, attachment authorization, terminal text preservation and existing direct graphics projections. Windows service fixtures create and release their own ConPTY process and runtime; they do not open a Desktop window.

@@ -1,6 +1,17 @@
 mod configured_command;
 mod events;
 pub use events::*;
+mod graphics;
+pub use graphics::{
+    MAXIMUM_GRAPHICS_CHUNK_BYTES, MAXIMUM_GRAPHICS_DECODED_BYTES, MAXIMUM_GRAPHICS_LAYERS,
+    MAXIMUM_GRAPHICS_LAYERS_PER_PANE, MAXIMUM_GRAPHICS_REQUEST_BYTES,
+    MAXIMUM_GRAPHICS_RESIDENT_BYTES, MAXIMUM_GRAPHICS_RESULT_BYTES, MAXIMUM_GRAPHICS_SET_BYTES,
+    MAXIMUM_GRAPHICS_STREAM_BYTES, PaneGraphicsAction, PaneGraphicsCapabilities,
+    PaneGraphicsCellPixels, PaneGraphicsDamage, PaneGraphicsFailure, PaneGraphicsFormat,
+    PaneGraphicsFrame, PaneGraphicsLayer, PaneGraphicsOutcome, PaneGraphicsPlacement,
+    PaneGraphicsRequest, PaneGraphicsResult, PaneGraphicsStreamImage, PaneGraphicsTarget,
+    PaneGraphicsTransport, graphics_base64_bytes, graphics_layer_id, graphics_rgba_bytes,
+};
 mod terminal_editor;
 pub use configured_command::*;
 pub use terminal_editor::{
@@ -881,6 +892,8 @@ pub struct WorkbenchCommand {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind")]
 pub enum WorkbenchRequest {
+    #[serde(rename = "workbench.pane-graphics")]
+    PaneGraphics(PaneGraphicsRequest),
     #[serde(rename = "workbench.events")]
     Events(SemanticEventsRequest),
     #[serde(rename = "workbench.configured-command")]
@@ -1266,6 +1279,8 @@ pub struct WorkbenchSnapshotResult {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind")]
 pub enum WorkbenchResponse {
+    #[serde(rename = "workbench.pane-graphics.result")]
+    PaneGraphics(PaneGraphicsResult),
     #[serde(rename = "workbench.events.result")]
     Events(SemanticEventsResult),
     #[serde(rename = "workbench.configured-command.result")]
@@ -1323,7 +1338,9 @@ pub enum WorkbenchResponse {
 pub fn parse_workbench_request(encoded: &[u8]) -> Result<WorkbenchRequest, ContractError> {
     enforce_encoded_limit(
         encoded,
-        MAXIMUM_ENCODED_CLIENT_LAYOUT_BYTES.max(crate::MAXIMUM_ENCODED_LAYOUT_COMMAND_BYTES),
+        MAXIMUM_ENCODED_CLIENT_LAYOUT_BYTES
+            .max(crate::MAXIMUM_ENCODED_LAYOUT_COMMAND_BYTES)
+            .max(MAXIMUM_GRAPHICS_REQUEST_BYTES),
     )?;
     let request: WorkbenchRequest =
         serde_json::from_slice(encoded).map_err(|_error| ContractError::InvalidDocument)?;
@@ -1336,6 +1353,9 @@ pub fn parse_workbench_request(encoded: &[u8]) -> Result<WorkbenchRequest, Contr
 /// explicit `launch` and a `profile` selector are mutually exclusive on the
 /// terminal-launch actions.
 fn validate_request(request: &WorkbenchRequest) -> Result<(), ContractError> {
+    if let WorkbenchRequest::PaneGraphics(request) = request {
+        return request.validate();
+    }
     if let WorkbenchRequest::Events(request) = request {
         return request.validate();
     }
@@ -1448,6 +1468,9 @@ fn validate_request(request: &WorkbenchRequest) -> Result<(), ContractError> {
 }
 
 fn request_byte_limit(request: &WorkbenchRequest) -> usize {
+    if matches!(request, WorkbenchRequest::PaneGraphics(_)) {
+        return MAXIMUM_GRAPHICS_REQUEST_BYTES;
+    }
     if matches!(request, WorkbenchRequest::Events(_)) {
         return MAXIMUM_EVENTS_BYTES;
     }
@@ -1558,6 +1581,10 @@ fn validate_response(response: &WorkbenchResponse, encoded: &[u8]) -> Result<(),
         return Err(ContractError::InvalidDocument);
     }
     match response {
+        WorkbenchResponse::PaneGraphics(result) => {
+            enforce_encoded_limit(encoded, MAXIMUM_GRAPHICS_RESULT_BYTES)?;
+            result.validate()
+        }
         WorkbenchResponse::Events(result) => {
             enforce_encoded_limit(encoded, MAXIMUM_EVENTS_BYTES)?;
             result.validate()

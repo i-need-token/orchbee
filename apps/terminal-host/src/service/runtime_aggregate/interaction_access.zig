@@ -38,6 +38,10 @@ fn resolveAccess(
     };
 }
 
+pub fn graphicsDecodeTarget(self: anytype, connection_id: core_module.ConnectionId, attachment_id: core_module.AttachmentId) InteractionAccessError!core_module.TerminalId {
+    return (try resolveAccess(self, connection_id, attachment_id)).terminal_id;
+}
+
 pub fn sampleTerminalProcesses(
     self: anytype,
     allocator: @import("std").mem.Allocator,

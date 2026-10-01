@@ -19,3 +19,7 @@
 调用者负责物理来源成员关系、内容版本准入及 viewer 回收。
 原生 CLI 选区与 Server 配置式插件命令共用这一纯提取器；各自不同的输出／上下文字节预算
 在相应边界保持明确。
+
+## 只读 PNG 解码
+
+80/81 消息使用 graphics-image 编码（5）以及借用视图 `GraphicsDecodeRequest`／`GraphicsDecodeResult`。OBPI 请求有 40 字节头，包含附件、声明尺寸和精确 PNG 长度；OBPX 结果有 56 字节头，包含附件、终端、尺寸和精确 RGBA 长度。绑定检查非零身份、PNG 头一致性、1–4096 尺寸、16 MiB 输入和 32 MiB 解码像素。PNG 内容解码和物理读取授权归 Host 所有；Worker 和 Server 在消费像素前检查信封关联、epoch 和目标。此编码有独立上限，不扩大原始键盘或粘贴限制。

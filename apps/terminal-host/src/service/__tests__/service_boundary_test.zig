@@ -4,6 +4,7 @@ comptime {
     _ = @import("composition_refinement_test.zig");
     _ = @import("composition_state_machine_test.zig");
     _ = @import("connection_request_test.zig");
+    _ = @import("graphics_decode_test.zig");
     _ = @import("event_delivery_test.zig");
     _ = @import("input_request_test.zig");
     _ = @import("interaction_delivery_test.zig");

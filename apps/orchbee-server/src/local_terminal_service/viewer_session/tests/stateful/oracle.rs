@@ -637,6 +637,7 @@ fn effect_kind(effect: &Effect) -> &'static str {
         Effect::Clear(..) => "clear",
         Effect::Dispose(..) => "dispose",
         Effect::ProcessInfo(..) => "process-info",
+        Effect::GraphicsDecode(..) => "graphics-decode",
         Effect::DetachRefused(..) => "detach-refused",
         Effect::Lifecycle(..) => "lifecycle",
         Effect::PopupLaunch(..) => "popup-launch",

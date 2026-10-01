@@ -86,7 +86,7 @@ impl WorkbenchService {
 
     pub(crate) fn execute(&self, request: WorkbenchRequest) -> WorkbenchExecution {
         let permitted = match &request {
-            WorkbenchRequest::ConfiguredCommand(_) | WorkbenchRequest::Events(_) => false,
+            WorkbenchRequest::PaneGraphics(_) | WorkbenchRequest::ConfiguredCommand(_) | WorkbenchRequest::Events(_) => false,
             WorkbenchRequest::AgentView(request) => if request.action.mutating() { self.policy.manage_navigation } else { self.policy.read },
             WorkbenchRequest::Plugin(request) => self.policy.read && (!request.action.mutating() || (self.policy.create_terminal && self.policy.manage_terminal_lifecycle)),
             WorkbenchRequest::TerminalEditor(_) | WorkbenchRequest::WindowTitle(_) | WorkbenchRequest::Notification(_) => false,
@@ -188,7 +188,7 @@ impl WorkbenchService {
             return WorkbenchExecution::Response(unavailable_or_denied(request, true));
         }
         match &request {
-            WorkbenchRequest::ConfiguredCommand(_) | WorkbenchRequest::Events(_) => return WorkbenchExecution::Response(unavailable_or_denied(request, true)),
+            WorkbenchRequest::PaneGraphics(_) | WorkbenchRequest::ConfiguredCommand(_) | WorkbenchRequest::Events(_) => return WorkbenchExecution::Response(unavailable_or_denied(request, true)),
             WorkbenchRequest::TerminalEditor(_) => return WorkbenchExecution::Response(unavailable_or_denied(request, true)),
         WorkbenchRequest::Plugin(request) => {
                 #[cfg(windows)]
@@ -434,6 +434,20 @@ impl WorkbenchService {
 
 fn unavailable_or_denied(request: WorkbenchRequest, denied: bool) -> WorkbenchResponse {
     match request {
+        WorkbenchRequest::PaneGraphics(request) => {
+            WorkbenchResponse::PaneGraphics(orchbee_workbench_protocol::PaneGraphicsResult {
+                protocol_version: ProtocolVersion,
+                request_id: request.request_id,
+                site_id: request.site_id,
+                outcome: orchbee_workbench_protocol::PaneGraphicsOutcome::Failed {
+                    reason: if denied {
+                        orchbee_workbench_protocol::PaneGraphicsFailure::Denied
+                    } else {
+                        orchbee_workbench_protocol::PaneGraphicsFailure::Unavailable
+                    },
+                },
+            })
+        }
         WorkbenchRequest::Events(request) => {
             WorkbenchResponse::Events(orchbee_workbench_protocol::SemanticEventsResult {
                 protocol_version: ProtocolVersion,
@@ -837,6 +851,22 @@ impl WorkbenchClientSession<'_> {
 
     pub(crate) fn execute(&self, request: WorkbenchRequest) -> WorkbenchExecution {
         #[cfg(windows)]
+        if let WorkbenchRequest::PaneGraphics(graphics) = &request {
+            let allowed = if graphics.action.writes() {
+                self.service.policy.manage_navigation
+            } else {
+                self.service.policy.read
+            };
+            if !allowed {
+                return WorkbenchExecution::Response(unavailable_or_denied(request, true));
+            }
+            return WorkbenchExecution::Response(WorkbenchResponse::PaneGraphics(
+                self.service
+                    .terminals
+                    .execute_graphics(self.generation, graphics.clone()),
+            ));
+        }
+        #[cfg(windows)]
         if let WorkbenchRequest::Events(events) = &request {
             return WorkbenchExecution::Response(WorkbenchResponse::Events(
                 self.semantic_events(events.clone()),
@@ -1017,6 +1047,8 @@ impl WorkbenchClientSession<'_> {
 }
 impl Drop for WorkbenchClientSession<'_> {
     fn drop(&mut self) {
+        #[cfg(windows)]
+        self.service.terminals.disconnect_graphics(self.generation);
         #[cfg(windows)]
         self.service.terminals.disconnect_popup(self.generation);
         #[cfg(windows)]

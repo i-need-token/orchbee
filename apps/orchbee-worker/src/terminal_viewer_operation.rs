@@ -26,7 +26,9 @@ use orchbee_terminal_protocol::{
 use crate::host_connection::{HostBrokerConnection, HostExchange, exchange};
 use crate::worker_identity::fresh_identity;
 
+mod graphics_decode;
 mod lifecycle;
+pub(crate) use graphics_decode::execute as decode_graphics;
 mod process_info;
 
 fn invalid(error: impl std::fmt::Display) -> std::io::Error {

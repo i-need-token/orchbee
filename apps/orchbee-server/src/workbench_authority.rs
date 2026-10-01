@@ -167,7 +167,8 @@ impl TryFrom<WorkbenchRequest> for WorkbenchReadOrNavigationRequest {
             | WorkbenchRequest::ClientView(_)
             | WorkbenchRequest::WorkspaceGit(_)
             | WorkbenchRequest::ConfiguredCommand(_)
-            | WorkbenchRequest::Events(_)) => Err(request),
+            | WorkbenchRequest::Events(_)
+            | WorkbenchRequest::PaneGraphics(_)) => Err(request),
         }
     }
 }
@@ -345,6 +346,10 @@ impl WorkbenchAuthority {
     #[must_use]
     pub fn snapshot(&self) -> &Snapshot {
         self.projection.snapshot()
+    }
+    /// Shared ephemeral visual owner; production consumers hold the canonical owner before this lock.
+    pub fn graphics_owner(&self) -> std::sync::Arc<std::sync::Mutex<crate::PaneGraphicsAuthority>> {
+        self.projection.graphics()
     }
     pub fn event_journal(&self) -> crate::SiteEventJournal {
         self.projection.events()
