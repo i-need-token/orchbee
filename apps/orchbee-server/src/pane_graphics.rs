@@ -15,6 +15,7 @@ struct Producer {
     connection: NonZeroU64,
     id: WorkbenchRequestId,
     sequence: u64,
+    file_directory: Option<String>,
 }
 #[derive(Debug)]
 struct Layer {
@@ -40,6 +41,19 @@ pub struct PaneGraphicsFrameCommit<'a> {
     pub sequence: WorkbenchRevision,
     pub frame_revision: WorkbenchRevision,
     pub image: DecodedGraphicsImage,
+}
+/// Immutable producer intent; platform preparation cannot change its canonical source or identity.
+pub struct PaneGraphicsOpen<'a> {
+    pub connection: NonZeroU64,
+    pub stream_id: &'a WorkbenchRequestId,
+    pub target: &'a PaneGraphicsTarget,
+    pub layer_id: &'a str,
+    pub z_index: i32,
+}
+/// Pure admission result, before any file allocation or replacement of an existing image.
+pub enum PaneGraphicsOpenPreparation {
+    Existing(Outcome),
+    Ready(SemanticPane),
 }
 impl PaneGraphicsAuthority {
     /// Installed Site revision; exhausted owners cannot publish renderer facts.
@@ -206,7 +220,7 @@ impl PaneGraphicsAuthority {
             changed,
         })
     }
-    /// Admits one immutable producer identity on a connection and reserves its layer slot.
+    /// Opens an inline-only producer; platform adapters use prepare/commit for private files.
     pub fn open(
         &mut self,
         snapshot: &Snapshot,
@@ -216,24 +230,48 @@ impl PaneGraphicsAuthority {
         layer_id: &str,
         z: i32,
     ) -> Result<Outcome, Failure> {
+        let intent = PaneGraphicsOpen {
+            connection,
+            stream_id: id,
+            target,
+            layer_id,
+            z_index: z,
+        };
+        match self.prepare_open(snapshot, &intent)? {
+            PaneGraphicsOpenPreparation::Existing(outcome) => Ok(outcome),
+            PaneGraphicsOpenPreparation::Ready(source) => {
+                self.commit_open(snapshot, &intent, &source, None)
+            }
+        }
+    }
+    /// Proves source, producer conflict, capacity and revision before platform file effects.
+    pub fn prepare_open(
+        &mut self,
+        snapshot: &Snapshot,
+        intent: &PaneGraphicsOpen<'_>,
+    ) -> Result<PaneGraphicsOpenPreparation, Failure> {
         self.retain(snapshot)?;
-        let source = Self::resolve(snapshot, target)?;
-        let key = key(&source, layer_id);
+        let source = Self::resolve(snapshot, intent.target)?;
+        let key = key(&source, intent.layer_id);
         if let Some((owned_key, owned)) = self.layers.iter().find(|(_, layer)| {
-            layer
-                .producer
-                .as_ref()
-                .is_some_and(|owner| owner.connection == connection && &owner.id == id)
+            layer.producer.as_ref().is_some_and(|owner| {
+                owner.connection == intent.connection && &owner.id == intent.stream_id
+            })
         }) {
-            if *owned_key == key && owned.z == z {
-                return Ok(Outcome::StreamOpened {
-                    stream_id: id.clone(),
-                    target: resolved(&source),
-                    layer_id: layer_id.into(),
-                    z_index: z,
-                    revision: WorkbenchRevision::new(self.revision),
-                    file_frame_directory: None,
-                });
+            if *owned_key == key && owned.z == intent.z_index {
+                return Ok(PaneGraphicsOpenPreparation::Existing(
+                    Outcome::StreamOpened {
+                        stream_id: intent.stream_id.clone(),
+                        target: resolved(&source),
+                        layer_id: intent.layer_id.into(),
+                        z_index: intent.z_index,
+                        revision: WorkbenchRevision::new(self.revision),
+                        file_frame_directory: owned
+                            .producer
+                            .as_ref()
+                            .and_then(|owner| owner.file_directory.clone()),
+                    },
+                ));
             }
             return Err(Failure::Conflict);
         }
@@ -241,11 +279,8 @@ impl PaneGraphicsAuthority {
             layer
                 .producer
                 .as_ref()
-                .is_some_and(|owner| owner.connection == connection)
-        }) {
-            return Err(Failure::Conflict);
-        }
-        if self
+                .is_some_and(|owner| owner.connection == intent.connection)
+        }) || self
             .layers
             .get(&key)
             .is_some_and(|layer| layer.producer.is_some())
@@ -253,30 +288,109 @@ impl PaneGraphicsAuthority {
             return Err(Failure::Conflict);
         }
         self.capacity(&key, 0)?;
+        if self.revision == u64::MAX {
+            return Err(Failure::RevisionExhausted);
+        }
+        Ok(PaneGraphicsOpenPreparation::Ready(source))
+    }
+    /// Commits a prepared producer only if source and ownership still match; platform handles stay outside this owner.
+    pub fn commit_open(
+        &mut self,
+        snapshot: &Snapshot,
+        intent: &PaneGraphicsOpen<'_>,
+        prepared: &SemanticPane,
+        file_directory: Option<String>,
+    ) -> Result<Outcome, Failure> {
+        let preparation = self.prepare_open(snapshot, intent)?;
+        let current = Self::resolve(snapshot, intent.target)?;
+        if !same_source(&current, prepared) {
+            return Err(Failure::SourceChanged);
+        }
+        if let PaneGraphicsOpenPreparation::Existing(outcome) = preparation {
+            return Ok(outcome);
+        }
+        let key = key(&current, intent.layer_id);
         let revision = self.advance()?;
         self.remove(&key);
         self.layers.insert(
             key,
             Layer {
-                source: source.clone(),
-                z,
+                source: current.clone(),
+                z: intent.z_index,
                 image: None,
                 resource_revision: revision,
                 producer: Some(Producer {
-                    connection,
-                    id: id.clone(),
+                    connection: intent.connection,
+                    id: intent.stream_id.clone(),
                     sequence: 0,
+                    file_directory: file_directory.clone(),
                 }),
             },
         );
         Ok(Outcome::StreamOpened {
-            stream_id: id.clone(),
-            target: resolved(&source),
-            layer_id: layer_id.into(),
-            z_index: z,
+            stream_id: intent.stream_id.clone(),
+            target: resolved(&current),
+            layer_id: intent.layer_id.into(),
+            z_index: intent.z_index,
             revision,
-            file_frame_directory: None,
+            file_frame_directory: file_directory,
         })
+    }
+    /// Returns only the exact retained producer's directory, never a caller-selected file root.
+    pub fn producer_file_directory(
+        &self,
+        connection: NonZeroU64,
+        id: &WorkbenchRequestId,
+    ) -> Result<Option<String>, Failure> {
+        Ok(self
+            .producer(connection, id)?
+            .1
+            .producer
+            .as_ref()
+            .and_then(|owner| owner.file_directory.clone()))
+    }
+    /// A connection can discover its own existing producer root on the selected canonical surface.
+    pub fn connection_file_directory(
+        &mut self,
+        snapshot: &Snapshot,
+        target: &PaneGraphicsTarget,
+        connection: NonZeroU64,
+    ) -> Result<Option<String>, Failure> {
+        self.retain(snapshot)?;
+        let source = Self::resolve(snapshot, target)?;
+        Ok(self.layers.values().find_map(|layer| {
+            layer
+                .producer
+                .as_ref()
+                .filter(|owner| {
+                    owner.connection == connection && same_source(&layer.source, &source)
+                })
+                .and_then(|owner| owner.file_directory.clone())
+        }))
+    }
+    /// Bounded root identities for platform maintenance; canonical retirement contains no filesystem effects.
+    pub fn retained_file_directories(&self) -> Vec<String> {
+        self.layers
+            .values()
+            .filter_map(|layer| {
+                layer
+                    .producer
+                    .as_ref()
+                    .and_then(|owner| owner.file_directory.clone())
+            })
+            .collect()
+    }
+    /// Shutdown retires every producer even after revision exhaustion; static images remain Site-owned.
+    pub fn retire_streams(&mut self) {
+        let keys = self
+            .layers
+            .iter()
+            .filter(|(_, layer)| layer.producer.is_some())
+            .map(|(key, _)| key.clone())
+            .collect::<Vec<_>>();
+        for key in keys {
+            self.release(&key);
+        }
     }
     /// Returns the pinned producer source before decoding; a foreign connection cannot address it.
     pub fn producer_source(

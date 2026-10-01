@@ -69,6 +69,12 @@ impl Fixture {
         Self::with_plugin_panes(false)
     }
     pub(super) fn with_plugin_panes(plugin: bool) -> Self {
+        Self::with_runtime(plugin, None)
+    }
+    pub(super) fn with_graphics_runtime(runtime: &std::path::Path) -> Self {
+        Self::with_runtime(false, Some(runtime))
+    }
+    fn with_runtime(plugin: bool, runtime: Option<&std::path::Path>) -> Self {
         let registry = Arc::new(Mutex::new(WorkerRegistry::new()));
         let worker_id = orchbee_local_site_protocol::WorkerId::from_bytes([9; 16]);
         let WorkerAdmission::Accepted { generation } = registry.lock().unwrap().admit(worker_id)
@@ -93,10 +99,14 @@ impl Fixture {
         let popup_fault = Arc::new(std::sync::atomic::AtomicU8::new(0));
         let faults = Arc::clone(&popup_fault);
         let peer = thread::spawn(move || worker::run(peer, observation, refusals, faults));
-        let service = Arc::new(LocalTerminalService::from_identity(
+        let mut service = LocalTerminalService::from_identity(
             registry,
             Ok(orchbee_workbench_protocol::SiteId::parse(&format!("{:032x}", 1)).unwrap()),
-        ));
+        );
+        if let Some(runtime) = runtime {
+            service.configure_graphics_files(runtime);
+        }
+        let service = Arc::new(service);
         let mut fixture = Self {
             service,
             targets: Vec::new(),
@@ -265,6 +275,11 @@ impl Fixture {
 impl Drop for Fixture {
     fn drop(&mut self) {
         self.service.stop_close_maintenance();
+        if self.service.graphics_files.is_some() {
+            self.service
+                .stop_graphics_before(std::time::Instant::now() + std::time::Duration::from_secs(5))
+                .unwrap();
+        }
         let _ = self
             .stop
             .get_mut()

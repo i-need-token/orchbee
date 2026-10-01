@@ -1,13 +1,26 @@
 //! Serial graphics preparation; canonical lock is held only for membership and atomic commit.
 use super::{LocalTerminalService, viewer_session::process_sampling::screen};
-use orchbee_server::{DecodedGraphicsImage, PaneGraphicsAuthority, PaneGraphicsFrameCommit};
+use orchbee_server::{
+    DecodedGraphicsImage, PaneGraphicsAuthority, PaneGraphicsFrameCommit, PaneGraphicsOpen,
+    PaneGraphicsOpenPreparation,
+};
 use orchbee_workbench_protocol::{
     MAXIMUM_GRAPHICS_SET_BYTES, MAXIMUM_GRAPHICS_STREAM_BYTES, PaneGraphicsAction as Action,
     PaneGraphicsFailure as Failure, PaneGraphicsOutcome as Outcome, PaneGraphicsRequest,
     PaneGraphicsResult, PaneGraphicsStreamImage, SemanticEventSource, SemanticEventsFailure,
     SemanticPane, SiteId, Snapshot,
 };
-use std::{num::NonZeroU64, sync::atomic::AtomicBool};
+use std::{
+    collections::BTreeSet,
+    io,
+    num::NonZeroU64,
+    path::Path,
+    sync::atomic::{AtomicBool, Ordering},
+    thread,
+    time::{Duration, Instant},
+};
+mod files_windows;
+pub(super) use files_windows::GraphicsFiles;
 
 impl LocalTerminalService {
     fn graphics_snapshot<T>(
@@ -29,6 +42,9 @@ impl LocalTerminalService {
         let outcome = self
             .apply_graphics(connection, &request)
             .unwrap_or_else(|reason| Outcome::Failed { reason });
+        if request.action.writes() {
+            self.close_maintenance.notify();
+        }
         PaneGraphicsResult {
             protocol_version: request.protocol_version,
             request_id: request.request_id,
@@ -46,6 +62,9 @@ impl LocalTerminalService {
             return Err(Failure::SiteMismatch);
         }
         let _preparation = if request.action.writes() {
+            if self.graphics_stopping.load(Ordering::Acquire) {
+                return Err(Failure::Unavailable);
+            }
             Some(
                 self.graphics_preparation
                     .try_lock()
@@ -54,16 +73,25 @@ impl LocalTerminalService {
         } else {
             None
         };
+        if request.action.writes() && self.graphics_stopping.load(Ordering::Acquire) {
+            return Err(Failure::Unavailable);
+        }
         let site = &request.site_id;
         match &request.action {
             Action::Observe { .. } => Err(Failure::InvalidIntent),
             Action::Info { target, .. } => {
+                let (catalog, file_frame_directory) =
+                    self.graphics_snapshot(site, |snapshot, layers| {
+                        let catalog = layers.catalog(snapshot, target)?;
+                        let directory =
+                            layers.connection_file_directory(snapshot, target, connection)?;
+                        Ok((catalog, directory))
+                    })?;
                 let Outcome::Catalog {
                     target,
                     revision,
                     layers: catalog,
-                } = self
-                    .graphics_snapshot(site, |snapshot, layers| layers.catalog(snapshot, target))?
+                } = catalog
                 else {
                     return Err(Failure::Unavailable);
                 };
@@ -76,7 +104,7 @@ impl LocalTerminalService {
                     capabilities: None,
                     pane_visible: None,
                     drawn_revision: None,
-                    file_frame_directory: None,
+                    file_frame_directory,
                 })
             }
             Action::Catalog { target } => {
@@ -133,9 +161,37 @@ impl LocalTerminalService {
                 target,
                 layer_id,
                 z_index,
-            } => self.graphics_snapshot(site, |snapshot, layers| {
-                layers.open(snapshot, connection, stream_id, target, layer_id, *z_index)
-            }),
+            } => {
+                let intent = PaneGraphicsOpen {
+                    connection,
+                    stream_id,
+                    target,
+                    layer_id,
+                    z_index: *z_index,
+                };
+                let source = match self.graphics_snapshot(site, |snapshot, layers| {
+                    layers.prepare_open(snapshot, &intent)
+                })? {
+                    PaneGraphicsOpenPreparation::Existing(outcome) => return Ok(outcome),
+                    PaneGraphicsOpenPreparation::Ready(source) => source,
+                };
+                let lease = self
+                    .graphics_files
+                    .as_ref()
+                    .map(|files| files.create(site, &source, connection, stream_id))
+                    .transpose()?;
+                let directory = lease
+                    .as_ref()
+                    .map(|lease| {
+                        lease
+                            .directory()
+                            .map(|path| path.to_string_lossy().into_owned())
+                    })
+                    .transpose()?;
+                self.graphics_snapshot(site, |snapshot, layers| {
+                    layers.commit_open(snapshot, &intent, &source, directory)
+                })
+            }
             Action::StreamFrame {
                 stream_id,
                 sequence,
@@ -143,19 +199,41 @@ impl LocalTerminalService {
                 image,
                 ..
             } => {
-                let source = self.graphics_snapshot(site, |snapshot, layers| {
-                    layers.producer_source(snapshot, connection, stream_id, *sequence)
+                let (source, directory) = self.graphics_snapshot(site, |snapshot, layers| {
+                    let source =
+                        layers.producer_source(snapshot, connection, stream_id, *sequence)?;
+                    Ok((
+                        source,
+                        layers.producer_file_directory(connection, stream_id)?,
+                    ))
                 })?;
-                let PaneGraphicsStreamImage::Inline { image } = image else {
-                    return Err(Failure::InvalidFile);
+                let decoded = match image {
+                    PaneGraphicsStreamImage::Inline { image } => DecodedGraphicsImage::decode(
+                        image,
+                        MAXIMUM_GRAPHICS_STREAM_BYTES,
+                        |png, width, height| {
+                            self.decode_graphics_png(site, &source, png, width, height)
+                        },
+                    )?,
+                    PaneGraphicsStreamImage::File {
+                        format,
+                        width,
+                        height,
+                        path,
+                        placement,
+                    } => {
+                        let directory = directory.ok_or(Failure::InvalidFile)?;
+                        let files = self.graphics_files.as_ref().ok_or(Failure::InvalidFile)?;
+                        let lease = files.lease(&directory)?;
+                        let bytes =
+                            orchbee_workbench_protocol::graphics_rgba_bytes(*width, *height)
+                                .map_err(|_| Failure::InvalidImage)?;
+                        let pixels = lease.read(Path::new(path), bytes)?;
+                        DecodedGraphicsImage::from_file_pixels(
+                            *format, *width, *height, *placement, pixels,
+                        )?
+                    }
                 };
-                let decoded = DecodedGraphicsImage::decode(
-                    image,
-                    MAXIMUM_GRAPHICS_STREAM_BYTES,
-                    |png, width, height| {
-                        self.decode_graphics_png(site, &source, png, width, height)
-                    },
-                )?;
                 self.graphics_snapshot(site, |snapshot, layers| {
                     layers.frame(
                         snapshot,
@@ -216,6 +294,81 @@ impl LocalTerminalService {
                 .lock()
                 .unwrap_or_else(std::sync::PoisonError::into_inner)
                 .disconnect(connection);
+        }
+        drop(coordinator);
+        self.close_maintenance.notify();
+    }
+    /// Enables private file frames only for the managed, already admitted runtime; creation stays lazy.
+    pub(crate) fn configure_graphics_files(&mut self, runtime: &Path) {
+        self.graphics_files = Some(GraphicsFiles::new(
+            runtime,
+            self.close_maintenance.release_waker(),
+        ));
+    }
+    fn graphics_directories(&self) -> io::Result<BTreeSet<String>> {
+        let coordinator = self
+            .coordinator
+            .lock()
+            .map_err(|_| io::Error::other("graphics canonical owner poisoned"))?;
+        let owner = coordinator
+            .graphics_owner()
+            .ok_or_else(|| io::Error::other("graphics canonical owner unavailable"))?;
+        let directories = owner
+            .lock()
+            .map_err(|_| io::Error::other("graphics layer owner poisoned"))?
+            .retained_file_directories();
+        Ok(directories.into_iter().collect())
+    }
+    /// Retires filesystem resources outside canonical locks; unavailable source facts preserve all roots.
+    pub(super) fn graphics_maintenance_turn(&self) -> Option<Instant> {
+        let files = self.graphics_files.as_ref()?;
+        let pending = self
+            .graphics_directories()
+            .and_then(|active| files.reap(&active))
+            .unwrap_or(true);
+        pending.then(|| Instant::now() + Duration::from_millis(250))
+    }
+    /// Settles all preparing/read tokens and owned directories before managed clean-stop publication.
+    pub(crate) fn stop_graphics_before(&self, deadline: Instant) -> io::Result<()> {
+        self.graphics_stopping.store(true, Ordering::Release);
+        loop {
+            match self.graphics_preparation.try_lock() {
+                Ok(preparation) => {
+                    let coordinator = self
+                        .coordinator
+                        .lock()
+                        .map_err(|_| io::Error::other("graphics canonical owner poisoned"))?;
+                    if let Some(owner) = coordinator.graphics_owner() {
+                        owner
+                            .lock()
+                            .map_err(|_| io::Error::other("graphics layer owner poisoned"))?
+                            .retire_streams();
+                    }
+                    drop(coordinator);
+                    drop(preparation);
+                    break;
+                }
+                Err(std::sync::TryLockError::Poisoned(_)) => {
+                    return Err(io::Error::other("graphics preparation owner poisoned"));
+                }
+                Err(std::sync::TryLockError::WouldBlock) => {}
+            }
+            if Instant::now() >= deadline {
+                return Err(io::ErrorKind::TimedOut.into());
+            }
+            thread::sleep(Duration::from_millis(10));
+        }
+        let Some(files) = &self.graphics_files else {
+            return Ok(());
+        };
+        loop {
+            if files.reap(&BTreeSet::new()).is_ok_and(|pending| !pending) {
+                return Ok(());
+            }
+            if Instant::now() >= deadline {
+                return Err(io::ErrorKind::TimedOut.into());
+            }
+            thread::sleep(Duration::from_millis(10));
         }
     }
     fn decode_graphics_png(

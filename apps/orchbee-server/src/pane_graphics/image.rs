@@ -14,6 +14,35 @@ pub struct DecodedGraphicsImage {
     rgba: Arc<[u8]>,
 }
 impl DecodedGraphicsImage {
+    /// Consumes a complete private RGBA/BGRA file copy without encoding it again; malformed input stays uncommitted.
+    pub fn from_file_pixels(
+        format: PaneGraphicsFormat,
+        width: u32,
+        height: u32,
+        placement: PaneGraphicsPlacement,
+        mut bytes: Vec<u8>,
+    ) -> Result<Self, Failure> {
+        let expected = graphics_rgba_bytes(width, height).map_err(|_| Failure::InvalidImage)?;
+        if bytes.len() > orchbee_workbench_protocol::MAXIMUM_GRAPHICS_STREAM_BYTES {
+            return Err(Failure::ImageTooLarge);
+        }
+        if bytes.len() != expected
+            || !matches!(format, PaneGraphicsFormat::Rgba | PaneGraphicsFormat::Bgra)
+        {
+            return Err(Failure::InvalidImage);
+        }
+        if format == PaneGraphicsFormat::Bgra {
+            for pixel in bytes.chunks_exact_mut(4) {
+                pixel.swap(0, 2);
+            }
+        }
+        Ok(Self {
+            width,
+            height,
+            placement,
+            rgba: Arc::from(bytes),
+        })
+    }
     /// Normalizes raw formats, or consumes a complete correlated Host PNG decode, within exact image bounds.
     pub fn decode(
         image: &PaneGraphicsFrame,

@@ -6,7 +6,7 @@
 
 Set SPEC 是封闭 JSON 对象，含 `image` 及可选 `layerId`（默认 `primary`）、`zIndex`（默认零）。图片采用共享 camelCase PNG/RGB/RGBA/BGRA 帧，含尺寸、规范 `dataBase64` 和 placement。`@PATH` 有界读取包含对象或 PNG 的普通文件；`-` 读取非交互继承管道或普通 stdin。在 PNG 模式下使用实际 IHDR 尺寸及默认图层/位置。输入在 Site 发现之前读取、提交之前校验。单次原始图片最多 512 KiB；编码 JSON 文档最多 768 KiB。内联 argv 保持已有 64 KiB 参数预算。Clear SPEC 只允许可选 `layerId`；stream SPEC 还允许 `zIndex`；info 不允许 SPEC。
 
-Stream 读取 LF 结尾 JSON 头，再读取恰好 `dataLength` 原始字节。头字段为 `format`、`width`、`height`、`dataLength`，可选 `sequence`、`revision`、`placement`、`damage`；接受参照实现的 snake_case 图片/数据/位置字段别名。头最多 8 KiB，每帧主体最多 16 MiB。省略 sequence 递增最后已受理序号；明确 sequence 必须递增，可用十进制字符串或安全 JSON 整数。Revision 支持完整宽度十进制字符串或安全 JSON 整数，默认零。Damage 对照完整提供的帧校验。空头忽略；截断头/主体、重复/未知字段、无效尺寸或过期序号会结束生产者。文件头仅在租约能力可用后使用 Server 提供的私有生产者目录；任意路径不会成为 Server 读取入口。
+Stream 读取 LF 结尾 JSON 头，再读取恰好 `dataLength` 原始字节。头字段为 `format`、`width`、`height`、`dataLength`，可选 `sequence`、`revision`、`placement`、`damage`；接受参照实现的 snake_case 图片/数据/位置字段别名。Damage 接受单个矩形或最多 64 个矩形的数组。参照浏览器的 `transport: "direct-kitty"` 字段作为忽略的兼容提示被接受，不作为能力证据或渲染器选择。头最多 64 KiB，每帧主体最多 16 MiB。省略 sequence 递增最后已受理序号；明确 sequence 必须递增，可用十进制字符串或安全 JSON 整数。Revision 支持完整宽度十进制字符串或安全 JSON 整数，默认零。Damage 对照完整提供的帧校验。空头忽略；截断头/主体、重复/未知字段、无效尺寸或过期序号会结束生产者。托管 Windows 的 stream-open 回执公布私有生产者目录。文件头用 `file: {"path":"<directory>/frame.rgba"}` 替代 `dataLength` 和主体，仅接受 RGBA/BGRA。文件必须是目录的精确直接子文件，并具有声明的完整像素长度；提交前关闭写入句柄。Server 持有根目录租约时复制并归一化完整文件。非托管 endpoint 模式不公布目录，任意路径不会成为 Server 读取入口。
 
 Set/clear/info 默认总截止时间五秒；stream 不指定时没有总截止，但单帧读取的空闲/总预算为 30 秒。每次交换与 stdout 记录另有界限。固定的隐藏 Windows 字节中继只转交继承字节；调用拥有者在所有退出路径 kill 并 wait。辅助程序不解码图片，不执行调用者文字。Ctrl+C 停止输入并关闭生产者；EOF 仅关闭本连接的流并释放图层。静态图层在上传 CLI 退出后保留。
 
@@ -22,4 +22,4 @@ Set/clear/info 默认总截止时间五秒；stream 不指定时没有总截止�
 
 ## 当前实现与定向证据
 
-四个原生命令、帮助、补全、严格输入、相关回执与 EOF 清理已实现，使用已有只读/导航授权。真实 Windows CLI 命名管道测试覆盖 11 个交换/流场景及输入先于 Site 发现；三端基础图形契约仍由共享拥有者负责。原生字典 v138 包含 120 份文档，新增两种输出及独立图形失败规范。原生 TUI 已通过独立读取连接消费完整资源、绘制裁剪字符栅格并发布经认证的绘制事实，见 [原生 Panel 图形渲染](native-panel-graphics.zh-CN.md)。私有文件帧租约尚待完成；这些定向证据不替代最后的组合和全量验收。空闲且没有未完成帧时不耗用单帧截止预算。
+四个原生命令、帮助、补全、严格输入、相关回执与 EOF 清理已实现，使用已有只读/导航授权。真实 Windows CLI 命名管道测试覆盖 15 个交换/流场景及输入先于 Site 发现；三端基础图形契约仍由共享拥有者负责。原生字典 v138 包含 120 份文档，新增两种输出及独立图形失败规范。原生 TUI 已通过独立读取连接消费完整资源、绘制裁剪字符栅格并发布经认证的绘制事实，见 [原生 Panel 图形渲染](native-panel-graphics.zh-CN.md)。私有文件帧租约、真实文件头 CLI 管道及对外部／遍历路径的提前拒绝已实现；物理像素传输及最终组合／全量验收仍待完成。定向证据不替代该验收。空闲且没有未完成帧时不耗用单帧截止预算。

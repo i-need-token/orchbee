@@ -146,11 +146,12 @@ pub(super) fn run(
             .map_err(|_| io::Error::other("Worker registry failed"))?
             .request_handle()
             .ok_or_else(|| io::Error::other("Worker carrier disappeared"))?;
-        let (terminals, pending) = LocalTerminalService::from_checkpoint(
+        let (mut terminals, pending) = LocalTerminalService::from_checkpoint(
             registry,
             checkpoint,
             settings.resume_agents_on_restore,
         )?;
+        terminals.configure_graphics_files(runtime);
         Ok::<_, io::Error>((handle, Arc::new(terminals), pending))
     })();
     #[cfg(not(windows))]

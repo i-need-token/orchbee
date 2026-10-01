@@ -6,7 +6,10 @@
 mod agent;
 mod pane_graphics;
 mod semantic_events;
-pub use pane_graphics::{DecodedGraphicsImage, PaneGraphicsAuthority, PaneGraphicsFrameCommit};
+pub use pane_graphics::{
+    DecodedGraphicsImage, PaneGraphicsAuthority, PaneGraphicsFrameCommit, PaneGraphicsOpen,
+    PaneGraphicsOpenPreparation,
+};
 mod workbench_authority;
 mod workbench_projection;
 pub use semantic_events::{

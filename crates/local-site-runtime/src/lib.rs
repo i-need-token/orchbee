@@ -15,6 +15,10 @@ mod private_cache_windows;
 #[cfg(windows)]
 pub use private_cache_windows::WindowsPrivateCache;
 #[cfg(windows)]
+mod windows_frame_directory;
+#[cfg(windows)]
+pub use windows_frame_directory::{WINDOWS_FRAME_MAXIMUM_BYTES, WindowsPrivateFrameDirectory};
+#[cfg(windows)]
 mod windows_user_path;
 #[cfg(windows)]
 pub use windows_user_path::{

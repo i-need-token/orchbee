@@ -4,6 +4,30 @@ Private native runtime facilities shared by the Client, Server, and Worker. This
 owns descriptor-relative runtime admission, lock/marker primitives, and immutable development
 cohort verification. Applications own process launch, service state, and terminal authorization.
 
+## Windows private frame directories
+
+`WindowsPrivateFrameDirectory` owns one ephemeral `graphics-<32-hex-nonce>` leaf beneath an
+already admitted private runtime. `reserve` pins its ancestors without creating the leaf;
+`create` exclusively creates it and writes the application's bounded owner record. Failed
+creation keeps the same explicit owner until `reap` confirms absence. An existing leaf is never
+adopted, repaired or deleted. Applications own producer admission, nonce generation, retention,
+retry and shutdown; this facility starts no process or cleanup thread.
+
+Only an admitted directory reads frames. The supplied path must be one exact direct child,
+with a normal Windows filename; traversal, alternate streams, reserved names, reparse points,
+hard links, nonregular files and foreign ACLs are refused. A read opens without write/delete
+sharing, checks the exact declared length, copies at most 16 MiB and confirms EOF. The immutable
+copy has no remaining file dependency. Producers must close their writer before submitting it.
+
+The lifecycle is Reserved → Preparing → Ready → Releasing → Released. Preparation failure moves
+to Releasing under the same owner. Releasing closes the root pin, checks the saved directory
+identity and removes only its derived owned leaf while retaining pinned ancestors. A busy or
+redirected root remains owned for retry; dropping the object is not cleanup evidence. Application
+leases keep Ready alive until the last reader finishes. Windows handle traces cover bounded reads,
+private admission, writer/rename exclusion, creation refusal and failed-removal retry. Same-user
+malicious ACL changes, process crashes and replacement during the final delete syscall are outside
+this per-user development boundary; a crash does not prove clean runtime shutdown.
+
 ## Windows literal command encoding
 
 The pure Windows command encoder is shared by CLI Agent start and Server restart. It emits a bounded UTF-16LE Base64 script with one literal argument array. Native, batch and PowerShell script dispatch preserve argument boundaries, including empty values, quotes and percent signs. It excludes aliases/functions, rejects control characters, caps encoded text at 30,000 characters and refuses batch command lines over 8,000 characters. Applications select programs, shells, interactive flags and stricter carrier limits; this library starts no process. Helper functions and error preferences remain in a child scope when the caller keeps PowerShell open. The embedded PowerShell asset is maintained with this encoder and the CLI's real Windows argv test.

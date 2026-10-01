@@ -126,7 +126,18 @@ pub(super) fn run(
                             return Err((3, "file-unavailable"));
                         };
                         // Server owns the lease and authoritative path check. Refuse unsolicited paths early.
-                        if !std::path::Path::new(path).starts_with(root) {
+                        let file = std::path::Path::new(path);
+                        if file.parent() != Some(std::path::Path::new(root))
+                            || file.components().any(|part| {
+                                matches!(
+                                    part,
+                                    std::path::Component::CurDir | std::path::Component::ParentDir
+                                )
+                            })
+                            || path
+                                .split(['/', '\\'])
+                                .any(|part| matches!(part, "." | ".."))
+                        {
                             return Err((2, "invalid-frame"));
                         }
                     }

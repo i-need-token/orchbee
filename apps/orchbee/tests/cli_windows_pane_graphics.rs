@@ -146,9 +146,23 @@ fn graphics_upload_clear_info_and_unknown_submission_keep_closed_receipts_withou
 #[test]
 fn actual_graphics_raw_pipe_frames_keep_owner_sequence_and_cleanup_on_eof_bad_frame_or_unknown_reply()
  {
-    for mode in ["eof", "truncated", "lost", "wrong-target", "older-sequence"] {
+    for mode in [
+        "eof",
+        "truncated",
+        "lost",
+        "wrong-target",
+        "older-sequence",
+        "file",
+        "file-numeric",
+        "file-unavailable",
+        "file-external",
+    ] {
         let fixture = Fixture::new();
         let listener = LocalListener::bind(fixture.rendezvous().client_socket_path()).unwrap();
+        let file_root = fixture.0.join("producer");
+        let file_path = file_root.join("帧.bgra");
+        let expected_file = file_path.to_str().unwrap().to_owned();
+        let returned_root = file_root.to_str().unwrap().to_owned();
         let handler = peer(&fixture, listener, move |mut stream| {
             bound_snapshot_reply(&mut stream);
             let open = request(&mut stream);
@@ -173,10 +187,11 @@ fn actual_graphics_raw_pipe_frames_keep_owner_sequence_and_cleanup_on_eof_bad_fr
                     layer_id: layer_id.clone(),
                     z_index,
                     revision: WorkbenchRevision::new(1),
-                    file_frame_directory: None,
+                    file_frame_directory: matches!(mode, "file" | "file-numeric" | "file-external")
+                        .then_some(returned_root),
                 },
             );
-            if mode != "truncated" {
+            if !matches!(mode, "truncated" | "file-unavailable" | "file-external") {
                 let frame = request(&mut stream);
                 let PaneGraphicsAction::StreamFrame {
                     stream_id: owner,
@@ -190,11 +205,29 @@ fn actual_graphics_raw_pipe_frames_keep_owner_sequence_and_cleanup_on_eof_bad_fr
                 };
                 assert_eq!(owner, &stream_id);
                 assert_eq!(sequence.value(), 1);
-                assert_eq!(revision.value(), u64::MAX);
-                assert!(damage.is_empty());
-                assert!(
-                    matches!(image, PaneGraphicsStreamImage::Inline { image } if image.data_base64=="AP8KgA==")
+                assert_eq!(
+                    revision.value(),
+                    if mode == "file-numeric" { 8 } else { u64::MAX }
                 );
+                if matches!(mode, "file" | "file-numeric") {
+                    assert_eq!(
+                        damage,
+                        &[PaneGraphicsDamage {
+                            x: 0,
+                            y: 0,
+                            width: 1,
+                            height: 1
+                        }]
+                    );
+                    assert!(
+                        matches!(image, PaneGraphicsStreamImage::File { format: PaneGraphicsFormat::Bgra, path, width: 1, height: 1, .. } if path == &expected_file)
+                    );
+                } else {
+                    assert!(damage.is_empty());
+                    assert!(
+                        matches!(image, PaneGraphicsStreamImage::Inline { image } if image.data_base64=="AP8KgA==")
+                    );
+                }
                 if mode == "lost" {
                     drop(stream);
                     return;
@@ -212,7 +245,11 @@ fn actual_graphics_raw_pipe_frames_keep_owner_sequence_and_cleanup_on_eof_bad_fr
                         target: returned_target,
                         layer_id,
                         sequence: WorkbenchRevision::new(1),
-                        frame_revision: WorkbenchRevision::new(u64::MAX),
+                        frame_revision: WorkbenchRevision::new(if mode == "file-numeric" {
+                            8
+                        } else {
+                            u64::MAX
+                        }),
                         revision: WorkbenchRevision::new(2),
                         changed: true,
                     },
@@ -242,6 +279,26 @@ fn actual_graphics_raw_pipe_frames_keep_owner_sequence_and_cleanup_on_eof_bad_fr
         if mode == "older-sequence" {
             bytes.extend(b"{\"format\":\"rgba\",\"width\":1,\"height\":1,\"dataLength\":4,\"sequence\":\"1\"}\n");
         }
+        if matches!(
+            mode,
+            "file" | "file-numeric" | "file-unavailable" | "file-external"
+        ) {
+            let path = if mode == "file-external" {
+                file_root.join("../outside.bgra")
+            } else {
+                file_path
+            };
+            bytes = serde_json::to_vec(&json!({"format":"bgra", "image_width":1, "image_height":1,
+                "revision":u64::MAX.to_string(), "file":{"path":path.to_str().unwrap()}, "damage":{"x":0,"y":0,"width":1,"height":1}, "transport":"direct-kitty"}))
+            .unwrap();
+            if mode == "file-numeric" {
+                let mut document: Value = serde_json::from_slice(&bytes).unwrap();
+                document["sequence"] = json!(1);
+                document["revision"] = json!(8);
+                bytes = serde_json::to_vec(&document).unwrap();
+            }
+            bytes.push(b'\n');
+        }
         let output = fixture.run_process(
             &["panel", "graphics", "stream", "@panel:22", "--format=json"],
             None,
@@ -252,7 +309,8 @@ fn actual_graphics_raw_pipe_frames_keep_owner_sequence_and_cleanup_on_eof_bad_fr
         assert_eq!(
             output.status.code(),
             Some(match mode {
-                "truncated" | "older-sequence" => 2,
+                "truncated" | "older-sequence" | "file-external" => 2,
+                "file-unavailable" => 3,
                 "lost" => 8,
                 "wrong-target" => 5,
                 _ => 0,
@@ -282,8 +340,8 @@ fn actual_graphics_raw_pipe_frames_keep_owner_sequence_and_cleanup_on_eof_bad_fr
                 "closed"
             }
         );
-        if mode == "truncated" {
-            assert_eq!(records.len(), 2, "no partial image submitted");
+        if matches!(mode, "truncated" | "file-unavailable" | "file-external") {
+            assert_eq!(records.len(), 2, "no unadmitted image submitted");
         }
         handler.join().unwrap();
     }

@@ -89,6 +89,10 @@ pub(crate) struct LocalTerminalService {
     #[cfg(windows)]
     graphics_preparation: Mutex<()>,
     #[cfg(windows)]
+    graphics_files: Option<pane_graphics::GraphicsFiles>,
+    #[cfg(windows)]
+    graphics_stopping: std::sync::atomic::AtomicBool,
+    #[cfg(windows)]
     popups: independent_popup::Popups,
     #[cfg(windows)]
     process_observer: process_observer::ProcessObserver,
@@ -133,6 +137,10 @@ impl LocalTerminalService {
             observer: observation::Observer::default(),
             #[cfg(windows)]
             graphics_preparation: Mutex::default(),
+            #[cfg(windows)]
+            graphics_files: None,
+            #[cfg(windows)]
+            graphics_stopping: std::sync::atomic::AtomicBool::new(false),
             #[cfg(windows)]
             popups: independent_popup::Popups::default(),
             close_maintenance: close_maintenance::CloseMaintenance::default(),

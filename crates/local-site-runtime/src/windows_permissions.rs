@@ -135,13 +135,28 @@ pub(crate) fn open_file(path: &Path, create: bool, write: bool) -> io::Result<Fi
         .share_mode(3)
         .custom_flags(OPEN_REPARSE_POINT)
         .open(path)?;
+    require_regular_private(&file)?;
+    Ok(file)
+}
+
+/// Pins a complete frame against concurrent write/delete handles until its copy is finished.
+pub(crate) fn open_snapshot_file(path: &Path) -> io::Result<File> {
+    let file = OpenOptions::new()
+        .read(true)
+        .share_mode(1)
+        .custom_flags(OPEN_REPARSE_POINT)
+        .open(path)?;
+    require_regular_private(&file)?;
+    Ok(file)
+}
+
+fn require_regular_private(file: &File) -> io::Result<()> {
     let metadata = file.metadata()?;
     if !metadata.is_file()
         || metadata.file_attributes() & REPARSE_POINT != 0
-        || winapi_util::file::information(&file)?.number_of_links() != 1
+        || winapi_util::file::information(file)?.number_of_links() != 1
     {
         return Err(denied());
     }
-    require_private(&file)?;
-    Ok(file)
+    require_private(file)
 }

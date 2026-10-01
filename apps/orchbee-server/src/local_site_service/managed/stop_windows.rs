@@ -175,6 +175,10 @@ fn settle(
         .terminals
         .stop_close_before(deadline)
         .map_err(|error| failure(StopPhase::BackgroundJobs, error))?;
+    owners
+        .terminals
+        .stop_graphics_before(deadline)
+        .map_err(|error| failure(StopPhase::BackgroundJobs, error))?;
     if !*worker_completed {
         let worker = orchbee_workbench_protocol::WorkerId::parse(&format!(
             "{:032x}",
@@ -307,6 +311,7 @@ fn abort_startup(mut owners: Owners, startup: io::Error) -> io::Error {
     let cleanup = (|| -> io::Result<()> {
         owners.terminals.stop_process_observer_before(deadline)?;
         owners.terminals.stop_close_before(deadline)?;
+        owners.terminals.stop_graphics_before(deadline)?;
         let mut bytes = [0; 16];
         getrandom::fill(&mut bytes).map_err(|error| io::Error::other(error.to_string()))?;
         let operation_id = OperationId::from_bytes(bytes).map_err(io::Error::other)?;

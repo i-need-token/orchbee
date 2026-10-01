@@ -10,6 +10,7 @@ use orchbee_workbench_protocol::{
     WorkbenchRequestId, WorkbenchResponse, WorkbenchRevision,
 };
 use std::{num::NonZeroU64, sync::Arc};
+mod files;
 fn id(n: u128) -> WorkbenchRequestId {
     WorkbenchRequestId::parse(&format!("{n:032x}")).unwrap()
 }

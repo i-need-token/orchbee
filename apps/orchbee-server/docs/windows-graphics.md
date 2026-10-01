@@ -67,6 +67,37 @@ only exact regular files within the Site-owned producer root, with pinned size a
 consumed leases and producer roots are released after their last consumer. External paths are not
 an upload shortcut. A lost write receipt remains unknown and is not replayed.
 
+## Windows producer file ownership
+
+Managed Windows Sites lazily allocate one private directory for each admitted producer. A pure
+open preparation first proves canonical source, connection ownership and capacity; directory I/O
+then runs outside canonical locks, and commit repeats the source and producer checks. Idempotent
+open returns the same directory. Allocation failure preserves the old static layer. Unmanaged
+endpoint mode advertises no file directory and refuses file frames.
+
+The Server file owner retains at most 128 roots, including failed or retired roots, with at most
+64 live producers. A preparing token prevents an uncommitted root from being collected. The
+canonical layer owner retains only the directory identity, with no Windows handles or filesystem
+effects. Frame preparation leases that exact root after producer/source/sequence admission;
+RGBA/BGRA bytes are copied and normalized before atomic commit. No base64 round trip or partial
+patch is required. The frame header remains bounded at 16 MiB and damage is only a complete-frame
+hint. Info returns a directory only for an existing producer on the requesting connection; a
+reader cannot obtain another producer's root.
+
+Canonical removal, close and EOF retire the producer immediately. The existing Close maintenance
+owner checks retained directories at most every 250 ms while roots exist, then reaps retired
+roots outside locks only after their last preparing/reading token ends. Failed deletion retains
+the exact owner record and retries; no retired root can admit a new frame. Shutdown closes write
+admission, settles preparation, retires producers and reaps all owned roots before publishing
+Stopped. A busy lease/root or failed cleanup cannot prove clean shutdown. Crash recovery follows
+the existing Active-record refusal and never adopts unknown graphics roots.
+
+Focused evidence maps ownership to real Windows file/handle traces and production Workbench
+sessions: source changes and foreign producers cannot read, malformed files preserve pixels and
+sequence, complete BGRA normalizes correctly, idempotent open is stable, EOF/topology removal
+releases roots, and busy cleanup retains responsibility. Final composed/full acceptance and
+physical pixel transports remain separate obligations.
+
 ## Client rendering and truthful information
 
 The native Windows Client must consume the installed layer catalog and complete pixels. Its
@@ -93,9 +124,9 @@ The Windows Site layer transactions and read-only Host PNG adapter are implement
 
 OBWP kinds 57/58 carry closed requests and results. OBNG carries a bounded viewer-scoped PNG request; existing correlated OBNR records carry its result. Terminal Host kinds 80/81 use the distinct graphics-image encoding (5), bounded at 32 MiB plus its 56-byte result header; ordinary input bounds are unchanged.
 
-The native CLI upload/stream paths and [native TUI cell raster consumer](../../orchbee/docs/native-panel-graphics.md) are implemented. The dedicated read lane stages complete, revision-pinned resources; the authenticated Client publisher records successful uncovered draw observations. Info uses fresh matching Client facts and leaves unknown physical pixel geometry null. Private file-frame producer leases remain pending, no directory is advertised, and file-frame requests are refused. These four comparison rows remain missing until an actual consumer and Windows acceptance establish the behavior. The complete native cohort is versioned and restaged for final integration; no main integration or old-cohort substitution is authorized by this checkpoint.
+The native CLI upload/stream paths and [native TUI cell raster consumer](../../orchbee/docs/native-panel-graphics.md) are implemented. The dedicated read lane stages complete, revision-pinned resources; the authenticated Client publisher records successful uncovered draw observations. Info uses fresh matching Client facts and leaves unknown physical pixel geometry null. Managed Windows producers now own private file-frame directories and complete bounded copies, with preparation/read tokens, maintenance retry and clean-stop settlement. Unmanaged endpoint mode advertises no directory. Physical pixel transports and final composed/full acceptance remain pending; these four comparison rows still await exact reference review and Windows acceptance. The complete native cohort is versioned and restaged for final integration; no main integration or old-cohort substitution is authorized by this checkpoint.
 
-Focused evidence includes the 62-case Rust/TypeScript/JSON Schema corpus, image and carrier bounds, six layer-owner tests, three production Server session/observer witnesses and a Client freshness/scope test, and five Host PNG/graphics tests including actual Windows PTY creation and PNG decoding. This is component evidence, not composed renderer or final acceptance.
+Focused evidence includes the 62-case Rust/TypeScript/JSON Schema corpus, image and carrier bounds, eight layer-owner tests, seven production Server session/observer/file witnesses and a Client freshness/scope test, and five Host PNG/graphics tests including actual Windows PTY creation and PNG decoding. This is component evidence, not composed renderer or final acceptance.
 
 ## Consumer implementation order
 

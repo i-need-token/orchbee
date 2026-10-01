@@ -36,6 +36,17 @@ pub(super) struct CloseMaintenance {
 }
 
 impl CloseMaintenance {
+    /// Nonblocking release notification; resource destructors never perform filesystem cleanup.
+    #[cfg(windows)]
+    pub(super) fn release_waker(&self) -> Arc<dyn Fn() + Send + Sync> {
+        let wake = Arc::clone(&self.wake);
+        Arc::new(move || {
+            if let Ok(mut state) = wake.state.lock() {
+                state.pending = true;
+                wake.changed.notify_one();
+            }
+        })
+    }
     pub(super) fn available(&self) -> bool {
         self.wake.available.load(Ordering::Acquire)
     }
@@ -240,14 +251,13 @@ fn run(service: Weak<LocalTerminalService>, wake: Arc<Wake>) {
         };
         #[cfg(windows)]
         let popup_due = service.popup_maintenance_turn();
+        #[cfg(windows)]
+        let graphics_due = service.graphics_maintenance_turn();
         let Ok(due) = service.close_maintenance_turn(&mut cursor) else {
             return;
         };
         #[cfg(windows)]
-        let due = match (due, popup_due) {
-            (Some(a), Some(b)) => Some(a.min(b)),
-            (a, b) => a.or(b),
-        };
+        let due = [due, popup_due, graphics_due].into_iter().flatten().min();
         #[cfg(test)]
         {
             let hook = service

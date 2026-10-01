@@ -181,6 +181,145 @@ fn id(value: u128) -> WorkbenchRequestId {
 fn connection(value: u64) -> NonZeroU64 {
     NonZeroU64::new(value).unwrap()
 }
+
+#[test]
+fn graphics_prepared_file_open_preserves_pixels_and_rechecks_primary_identity_before_commit() {
+    let (snapshot, target) = fixture();
+    let source = PaneGraphicsAuthority::resolve(&snapshot, &target).unwrap();
+    let stream = id(200);
+    let intent = PaneGraphicsOpen {
+        connection: connection(1),
+        stream_id: &stream,
+        target: &target,
+        layer_id: "primary",
+        z_index: 0,
+    };
+    let mut owner = PaneGraphicsAuthority::default();
+    owner
+        .set(&snapshot, &source, "primary", 0, image(&[1, 2, 3, 255]))
+        .unwrap();
+    assert!(matches!(
+        owner.prepare_open(&snapshot, &intent).unwrap(),
+        PaneGraphicsOpenPreparation::Ready(_)
+    ));
+    assert_eq!(owner.bytes, 4);
+    assert_eq!(layers(&mut owner, &snapshot, &target).len(), 1);
+    let mut changed = snapshot.clone();
+    let PanelNode::Panel {
+        primary_presentation,
+        child_presentations,
+        ..
+    } = &mut changed.terminal_contexts[0].tabs[0].root
+    else {
+        panic!("Panel");
+    };
+    child_presentations.push(primary_presentation.clone());
+    primary_presentation.presentation_id =
+        TerminalPresentationId::parse(&format!("{:032x}", 6)).unwrap();
+    assert_eq!(
+        owner.commit_open(
+            &changed,
+            &intent,
+            &source,
+            Some("C:\\private\\unused".into())
+        ),
+        Err(Failure::SourceChanged)
+    );
+    assert_eq!(owner.bytes, 4);
+    assert!(owner.retained_file_directories().is_empty());
+    let old = PaneGraphicsTarget {
+        panel_id: source.panel_id,
+        presentation_id: Some(source.presentation_id),
+    };
+    assert_eq!(layers(&mut owner, &changed, &old).len(), 1);
+}
+
+#[test]
+fn graphics_file_directory_identity_is_stable_connection_owned_and_retired_with_its_producer() {
+    let (snapshot, target) = fixture();
+    let stream = id(201);
+    let intent = PaneGraphicsOpen {
+        connection: connection(1),
+        stream_id: &stream,
+        target: &target,
+        layer_id: "live",
+        z_index: 0,
+    };
+    let mut owner = PaneGraphicsAuthority::default();
+    let PaneGraphicsOpenPreparation::Ready(source) =
+        owner.prepare_open(&snapshot, &intent).unwrap()
+    else {
+        panic!("new stream");
+    };
+    let opened = owner
+        .commit_open(
+            &snapshot,
+            &intent,
+            &source,
+            Some("C:\\private\\producer".into()),
+        )
+        .unwrap();
+    assert_eq!(
+        owner
+            .commit_open(&snapshot, &intent, &source, Some("C:\\foreign".into()))
+            .unwrap(),
+        opened
+    );
+    assert_eq!(
+        owner
+            .producer_file_directory(connection(1), &stream)
+            .unwrap()
+            .as_deref(),
+        Some("C:\\private\\producer")
+    );
+    assert_eq!(
+        owner.producer_file_directory(connection(2), &stream),
+        Err(Failure::StreamClosed)
+    );
+    assert_eq!(
+        owner
+            .connection_file_directory(&snapshot, &target, connection(2))
+            .unwrap(),
+        None
+    );
+    assert_eq!(
+        owner
+            .connection_file_directory(&snapshot, &target, connection(1))
+            .unwrap()
+            .as_deref(),
+        Some("C:\\private\\producer")
+    );
+    let image = DecodedGraphicsImage::from_file_pixels(
+        PaneGraphicsFormat::Bgra,
+        1,
+        1,
+        PaneGraphicsPlacement::default(),
+        vec![3, 2, 1, 255],
+    )
+    .unwrap();
+    assert_eq!(image.bytes(), [1, 2, 3, 255]);
+    owner
+        .frame(
+            &snapshot,
+            PaneGraphicsFrameCommit {
+                connection: connection(1),
+                stream_id: &stream,
+                source: &source,
+                sequence: WorkbenchRevision::new(1),
+                frame_revision: WorkbenchRevision::new(u64::MAX),
+                image,
+            },
+        )
+        .unwrap();
+    assert_eq!(owner.retained_file_directories(), ["C:\\private\\producer"]);
+    owner.retire_streams();
+    assert!(owner.retained_file_directories().is_empty());
+    assert_eq!(owner.bytes, 0);
+    assert_eq!(
+        owner.close(connection(1), &stream),
+        Err(Failure::StreamClosed)
+    );
+}
 fn layers(
     owner: &mut PaneGraphicsAuthority,
     snapshot: &Snapshot,
