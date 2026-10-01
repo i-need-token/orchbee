@@ -16,6 +16,11 @@ pub use worker_shutdown::{
     WorkerShutdownRequest, WorkerShutdownResult,
 };
 mod terminal_cwd_validation;
+mod terminal_editor;
+pub use terminal_editor::{
+    TerminalEditorCommandOutcome, TerminalEditorCommandRefusal, TerminalEditorCommandRequest,
+    TerminalEditorCommandResult, TerminalEditorCommandSource,
+};
 mod terminal_launch;
 mod terminal_lifecycle;
 mod terminal_send;

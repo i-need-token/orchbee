@@ -15,6 +15,8 @@ mod terminal_authorization;
 mod terminal_control_operation;
 #[cfg(any(unix, windows))]
 mod terminal_cwd_validation;
+#[cfg(any(unix, windows))]
+mod terminal_editor_operation;
 #[cfg(any(unix, windows, test))]
 mod terminal_host_launch_adapter;
 #[cfg(any(unix, windows))]

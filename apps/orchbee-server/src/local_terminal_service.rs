@@ -323,9 +323,9 @@ fn submit(handle: &WorkerRequestHandle, message: &CapabilityNodeMessage) -> Comp
         ) => Completion::Unknown,
         // The drain variant can never come back from the Launch/Start
         // requests submitted here; it exists for the Agent drain pump.
-        Ok(WorkerOperationResult::Titles(_)) | Ok(WorkerOperationResult::AgentDrain(_)) => {
-            Completion::Unknown
-        }
+        Ok(WorkerOperationResult::EditorCommand(_))
+        | Ok(WorkerOperationResult::Titles(_))
+        | Ok(WorkerOperationResult::AgentDrain(_)) => Completion::Unknown,
         Err(WorkerRequestError::Backpressure) => Completion::Busy,
         Err(WorkerRequestError::PostDeliveryOutcomeUnknown(_)) => Completion::Unknown,
         Err(

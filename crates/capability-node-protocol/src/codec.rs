@@ -26,6 +26,7 @@ mod lifecycle;
 mod plugin_job;
 mod send;
 mod shutdown;
+mod terminal_editor;
 mod terminal_titles;
 mod viewer;
 mod worktree_job;
@@ -51,6 +52,8 @@ pub const MAXIMUM_FRAME_PAYLOAD_BYTES: usize = 40 * 1024;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum CapabilityNodeMessage {
+    TerminalEditorCommandRequest(crate::TerminalEditorCommandRequest),
+    TerminalEditorCommandResult(crate::TerminalEditorCommandResult),
     TerminalTitlesRequest(crate::TerminalTitlesRequest),
     TerminalTitlesResult(crate::TerminalTitlesResult),
     PluginJobRequest(crate::PluginJobRequest),
@@ -193,6 +196,12 @@ pub fn write_message(
 
 fn encode_payload(message: &CapabilityNodeMessage) -> Vec<u8> {
     match message {
+        CapabilityNodeMessage::TerminalEditorCommandRequest(value) => {
+            terminal_editor::encode_request(*value)
+        }
+        CapabilityNodeMessage::TerminalEditorCommandResult(value) => {
+            terminal_editor::encode_result(value)
+        }
         CapabilityNodeMessage::PluginJobRequest(_) | CapabilityNodeMessage::PluginJobResult(_) => {
             unreachable!("plugin jobs use OBPJ records")
         }
@@ -263,6 +272,10 @@ fn decode_header(header: &[u8; FRAME_HEADER_BYTES]) -> Result<usize, ProtocolErr
 
 fn decode_payload(payload: &[u8]) -> Result<CapabilityNodeMessage, ProtocolError> {
     match payload.first().copied() {
+        Some(24) => terminal_editor::decode_request(payload)
+            .map(CapabilityNodeMessage::TerminalEditorCommandRequest),
+        Some(25) => terminal_editor::decode_result(payload)
+            .map(CapabilityNodeMessage::TerminalEditorCommandResult),
         Some(23) => terminal_titles::decode_request(payload)
             .map(CapabilityNodeMessage::TerminalTitlesRequest),
         Some(21) => worktree_mutation::decode_request(payload)

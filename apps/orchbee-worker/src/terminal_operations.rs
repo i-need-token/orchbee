@@ -114,6 +114,17 @@ pub(crate) fn run_admitted(
     let epoch = HostEpoch::from_bytes(*host.host_epoch().as_bytes())?;
     loop {
         let request = server_transport::receive(server, Some(host))?;
+        if let CapabilityNodeMessage::TerminalEditorCommandRequest(request) = request {
+            let result = crate::terminal_editor_operation::execute(request, worker_id, generation);
+            if server_transport::send(
+                server,
+                Some(host),
+                &CapabilityNodeMessage::TerminalEditorCommandResult(result),
+            )? {
+                return Err(peer_closed().into());
+            }
+            continue;
+        }
         #[cfg(windows)]
         if let CapabilityNodeMessage::WorkerShutdownRequest(request) = request {
             if let Some(reason) =
@@ -336,6 +347,8 @@ pub(crate) fn run_admitted(
             | CapabilityNodeMessage::AgentDrainRequest(_)
             | CapabilityNodeMessage::AgentDrainReply(_)
             | CapabilityNodeMessage::TerminalTitlesRequest(_)
+            | CapabilityNodeMessage::TerminalEditorCommandRequest(_)
+            | CapabilityNodeMessage::TerminalEditorCommandResult(_)
             | CapabilityNodeMessage::TerminalTitlesResult(_)
             | CapabilityNodeMessage::TerminalControlRequest(_)
             | CapabilityNodeMessage::TerminalCwdValidationRequest(_)

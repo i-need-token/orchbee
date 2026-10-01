@@ -150,8 +150,8 @@
 			"zhCnSha256": "6794c35c8fc01dda60ed78ff2c6fdd76576450892ebe31086d48c529df0a63e1"
 		},
 		"apps/orchbee-worker/README.md": {
-			"englishSha256": "028202cdff99ab2b057b96403935487b8f84509109ea13a1c27e203e623b034f",
-			"zhCnSha256": "7f76bd791dedc2a35be28900dff4a0a84d30ac09d1133462b657261aff67c5d4"
+			"englishSha256": "8e09199fa6fee51a65266caebe91b1b4c4f99eba1ad05a3e65839cca263d6211",
+			"zhCnSha256": "d99320a1644183274ef5b4df9acdc985bb0aca119790d38c168f486b393d3d66"
 		},
 		"apps/orchbee-worker/docs/viewer-capacity-and-record-budget.md": {
 			"englishSha256": "279cfc6c4d09b946cecef57aebd2612fe6606b725632834d89f63f5231f1467c",
@@ -390,8 +390,8 @@
 			"zhCnSha256": "8f90a8c7b8902fedb4f39d5f992af685beecdb53519f6143be422fbbb7e24b63"
 		},
 		"crates/capability-node-protocol/README.md": {
-			"englishSha256": "063aeef20d5491e1fb94351d4ba8cda69e48d3b3cbbe236976ced57b94156d30",
-			"zhCnSha256": "7ee601522d2d7f550ff2d2d03425aff0225b204fffcfacabadc1cf95aa623c8e"
+			"englishSha256": "12f4a113eedefcfbc144a5bdedd629b5a3dea974c1f8f724bd0485d5ac5793f9",
+			"zhCnSha256": "7fc596761c719993526fdaba6205b9a091e1fd1dc909553bca3122937295d83b"
 		},
 		"crates/client-server-protocol/README.md": {
 			"englishSha256": "ab6b67ce1f0738c492d9c19e2d500e9db2a5bcfeda42481536cb8dd7c818b8a4",

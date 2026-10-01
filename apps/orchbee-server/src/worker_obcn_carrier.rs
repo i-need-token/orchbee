@@ -48,6 +48,14 @@ pub(crate) enum WorkerOperationRequest {
     // The Server drain pump admits drains through admit_agent_drain.
     AgentDrain(orchbee_capability_node_protocol::AgentDrainRequest),
     Titles(orchbee_capability_node_protocol::TerminalTitlesRequest),
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "editor overlay admission must bind source authority before submitting this private query"
+        )
+    )]
+    EditorCommand(orchbee_capability_node_protocol::TerminalEditorCommandRequest),
 }
 
 impl WorkerOperationRequest {
@@ -81,12 +89,13 @@ impl WorkerOperationRequest {
             Self::WorktreeMutation(request) => (request.worker_id, request.worker_generation),
             Self::AgentDrain(request) => (request.worker_id, request.worker_generation),
             Self::Titles(request) => (request.worker_id, request.worker_generation),
+            Self::EditorCommand(request) => (request.worker_id, request.worker_generation),
         }
     }
 
     const fn lane(&self) -> RequestLane {
         match self {
-            Self::AgentDrain(_) | Self::Titles(_) => RequestLane::Low,
+            Self::AgentDrain(_) | Self::Titles(_) | Self::EditorCommand(_) => RequestLane::Low,
             Self::Viewer(_) => RequestLane::Low,
             #[cfg(any(windows, test))]
             Self::Shutdown(_) => RequestLane::High,
@@ -128,6 +137,9 @@ impl WorkerOperationRequest {
             }
             Self::AgentDrain(request) => CapabilityNodeMessage::AgentDrainRequest(*request),
             Self::Titles(request) => CapabilityNodeMessage::TerminalTitlesRequest(request.clone()),
+            Self::EditorCommand(request) => {
+                CapabilityNodeMessage::TerminalEditorCommandRequest(*request)
+            }
         }
     }
 }
@@ -149,6 +161,7 @@ pub(crate) enum WorkerOperationResult {
     // Constructed by the Server drain pump's reply path.
     AgentDrain(orchbee_capability_node_protocol::AgentDrainReply),
     Titles(orchbee_capability_node_protocol::TerminalTitlesResult),
+    EditorCommand(orchbee_capability_node_protocol::TerminalEditorCommandResult),
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -1396,6 +1409,20 @@ fn validate_response(
             Ok(WorkerOperationResult::Titles(actual))
         }
         (
+            WorkerOperationRequest::EditorCommand(expected),
+            CapabilityNodeMessage::TerminalEditorCommandResult(actual),
+        ) => {
+            if actual.request.request_id != expected.request_id {
+                return Err(WorkerResponseFailure::MismatchedCorrelation);
+            }
+            if actual.request.worker_id != expected.worker_id
+                || actual.request.worker_generation != expected.worker_generation
+            {
+                return Err(WorkerResponseFailure::MismatchedTarget);
+            }
+            Ok(WorkerOperationResult::EditorCommand(actual))
+        }
+        (
             WorkerOperationRequest::AgentDrain(expected),
             CapabilityNodeMessage::AgentDrainReply(actual),
         ) => {
@@ -1460,6 +1487,7 @@ fn validate_response(
             | CapabilityNodeMessage::TerminalSendRequest(_)
             | CapabilityNodeMessage::AgentDrainRequest(_)
             | CapabilityNodeMessage::TerminalTitlesRequest(_)
+            | CapabilityNodeMessage::TerminalEditorCommandRequest(_)
             | CapabilityNodeMessage::WorktreeMutationRequest(_)
             | CapabilityNodeMessage::PluginJobRequest(_),
         ) => Err(WorkerResponseFailure::WrongDirection),
@@ -1478,6 +1506,7 @@ fn validate_response(
         )
         | (_, CapabilityNodeMessage::AgentDrainReply(_))
         | (_, CapabilityNodeMessage::TerminalTitlesResult(_))
+        | (_, CapabilityNodeMessage::TerminalEditorCommandResult(_))
         | (_, CapabilityNodeMessage::TerminalSendResult(_))
         | (_, CapabilityNodeMessage::PluginJobResult(_))
         | (_, CapabilityNodeMessage::WorktreeMutationResult(_)) => {
@@ -1526,6 +1555,7 @@ fn validate_response(
         }
         (_, CapabilityNodeMessage::WorktreeJobResult(_))
         | (WorkerOperationRequest::Titles(_), _)
+        | (WorkerOperationRequest::EditorCommand(_), _)
         | (WorkerOperationRequest::WorktreeJob(_), _)
         | (WorkerOperationRequest::PluginJob(_), _)
         | (WorkerOperationRequest::WorktreeMutation(_), _) => {

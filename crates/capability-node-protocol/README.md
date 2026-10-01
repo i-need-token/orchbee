@@ -11,6 +11,28 @@ Simplified Chinese maintenance translation:
 [README.zh-CN.md](README.zh-CN.md).
 English remains canonical.
 
+## Private editor-command resolution
+
+OBCN kind 24 requests Windows editor-command resolution with a nonzero operation
+ID, Worker ID and positive full-width Worker generation. Kind 25 echoes the entire
+request and returns a validated `LaunchSelection` with `visual`, `editor` or
+`default` provenance, or a closed refusal: wrong Worker, stale generation,
+unsupported platform, invalid command or unavailable program. Frame version 2
+and the 40 KiB payload bound remain unchanged; old cohorts reject these tags.
+
+Integers are big-endian. Requests contain kind, two 16-byte IDs and u64 generation.
+Results contain kind, the same 40 request bytes and an outcome byte: 1 is resolved
+(source byte 1/2/3, then existing executable/argv encoding), 2 is refused
+(reason byte 1 through 5 in the order above). Missing/trailing bytes, unknown tags,
+invalid IDs/generation and malformed selections are refused. The Server carrier
+verifies operation, Worker and generation before delivery.
+
+This read-only, machine-owned preference query is available before Host startup.
+It grants no source attachment or launch authority, creates no file and carries no
+document path. [Worker selection](../../apps/orchbee-worker/README.md#windows-scrollback-editor-selection)
+owns Windows lookup and quoting; current-Client/focus admission, authorized capture,
+independent overlay and public CLI remain separate workflow obligations.
+
 ## Transient terminal clear
 
 Control action tag 6 is `Clear`, using the request viewer plus a newly allocated transient attachment in `controller_id`; it never names or changes a controller reservation. Result tag 7 is `Cleared` with positive u64 generation/revision and a canonical one-byte cleanup Boolean; tag 8 is `ClearOutcomeUnknown` and is valid only for Clear. Rejection tag 12 denotes an alternate screen. Old tags and framing remain unchanged. The carrier validates the complete request/viewer/transient identity and result kind before delivery. [Native clear](../../apps/orchbee/docs/native-cli-query.md#clear-terminal-output) owns the end-to-end state machine; same-cohort deployment is required.

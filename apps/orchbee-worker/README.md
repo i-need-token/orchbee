@@ -8,6 +8,26 @@ Simplified Chinese maintenance translation:
 [README.zh-CN.md](README.zh-CN.md).
 English remains canonical.
 
+## Windows scrollback editor selection
+
+The private editor-command query resolves a launch on the admitted Worker without
+starting a Host, creating a document or launching an editor. It selects nonblank
+`VISUAL`, then nonblank `EDITOR`, then the system directory's `notepad.exe`.
+Native `CommandLineToArgvW` preserves literal argv. Invalid selected values refuse
+whole rather than trying the next preference. Non-UTF-8 and NUL are refused;
+the existing 128-argument and 30 KiB escaped launch-selection limits apply.
+
+Absolute programs must exist. Bare names search only absolute inherited `PATH`
+directories, using the literal name and an `.exe` candidate when no extension is
+present. Relative program paths, current-directory lookup, `PATHEXT`, `ComSpec`
+and shell reparsing never select an executable. The default uses `GetSystemDirectory`,
+independent of inherited `SystemRoot` or `PATH`. No PowerShell arguments are added.
+
+The private reply echoes the entire generation-fenced request and grants no source
+read or launch authority. Current Client/focus admission, exact authorized capture,
+independent overlay and public CLI remain upstream obligations; only Host appends
+its one generated document path and owns the deferred terminal through cleanup.
+
 ## Windows child CLI routing
 
 Managed Windows launches overlay `ORCHBEE_RUNTIME_BASE` and `ORCHBEE_RUNTIME_SCOPE` from the

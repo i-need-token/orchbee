@@ -308,3 +308,123 @@ fn lazy_worker_retains_invalid_launch_receipt_and_answers_next_request_without_s
         .exists()
     );
 }
+
+#[test]
+fn lazy_editor_command_query_echoes_refusals_and_current_resolution_without_starting_host() {
+    let fixture = CohortFixture::new();
+    let cohort = NativeCohort::load(&fixture.0, Instant::now() + Duration::from_secs(3)).unwrap();
+    let runtime = fixture.0.join("runtime");
+    let (server, mut peer) = LocalStream::pair().unwrap();
+    timeout(&peer);
+    let driver = thread::spawn(move || {
+        let request = TerminalEditorCommandRequest {
+            request_id: OperationId::from_bytes([67; 16]).unwrap(),
+            worker_id: node::WorkerId::from_bytes([3; 16]).unwrap(),
+            worker_generation: WorkerGeneration::new(NonZeroU64::MIN),
+        };
+        for field in 0..3 {
+            let mut current = request;
+            if field == 0 {
+                current.worker_id = node::WorkerId::from_bytes([8; 16]).unwrap();
+            }
+            if field == 1 {
+                current.worker_generation = WorkerGeneration::new(NonZeroU64::MAX);
+            }
+            node::write_message(
+                &mut peer,
+                &CapabilityNodeMessage::TerminalEditorCommandRequest(current),
+            )
+            .unwrap();
+            let CapabilityNodeMessage::TerminalEditorCommandResult(result) =
+                node::read_message(&mut peer).unwrap()
+            else {
+                panic!("missing editor response")
+            };
+            assert_eq!(result.request, current);
+            match field {
+                0 => assert_eq!(
+                    result.outcome,
+                    TerminalEditorCommandOutcome::Refused(
+                        TerminalEditorCommandRefusal::WrongWorker
+                    )
+                ),
+                1 => assert_eq!(
+                    result.outcome,
+                    TerminalEditorCommandOutcome::Refused(
+                        TerminalEditorCommandRefusal::StaleWorkerGeneration
+                    )
+                ),
+                _ => assert!(matches!(
+                    result.outcome,
+                    TerminalEditorCommandOutcome::Resolved { .. }
+                        | TerminalEditorCommandOutcome::Refused(
+                            TerminalEditorCommandRefusal::InvalidCommand
+                                | TerminalEditorCommandRefusal::ProgramUnavailable
+                        )
+                )),
+            }
+        }
+        peer.shutdown(std::net::Shutdown::Both).unwrap();
+    });
+    let result = lazy::run(
+        &server,
+        WORKER,
+        NonZeroU64::MIN,
+        &cohort,
+        &runtime,
+        &WindowsShellSettings::default(),
+    );
+    driver.join().unwrap();
+    assert!(result.is_err());
+    assert!(
+        !orchbee_local_site_runtime::ModeCheckedLocalSiteRendezvous::host_runtime_directory(
+            &runtime
+        )
+        .exists()
+    );
+}
+
+#[test]
+fn admitted_editor_command_query_uses_no_host_request_or_terminal_effect() {
+    let (mut host, drain, mut host_peer) = connected_host();
+    let (server, mut peer) = LocalStream::pair().unwrap();
+    timeout(&peer);
+    let driver = thread::spawn(move || {
+        let request = TerminalEditorCommandRequest {
+            request_id: OperationId::from_bytes([68; 16]).unwrap(),
+            worker_id: node::WorkerId::from_bytes([3; 16]).unwrap(),
+            worker_generation: WorkerGeneration::new(NonZeroU64::MIN),
+        };
+        node::write_message(
+            &mut peer,
+            &CapabilityNodeMessage::TerminalEditorCommandRequest(request),
+        )
+        .unwrap();
+        let CapabilityNodeMessage::TerminalEditorCommandResult(result) =
+            node::read_message(&mut peer).unwrap()
+        else {
+            panic!("missing editor response")
+        };
+        assert_eq!(result.request, request);
+        peer.shutdown(std::net::Shutdown::Both).unwrap();
+    });
+    let outcome = run(
+        &server,
+        &mut host,
+        WORKER,
+        NonZeroU64::MIN,
+        &drain,
+        &WindowsShellSettings::default(),
+    );
+    driver.join().unwrap();
+    assert!(outcome.is_err());
+    host_peer
+        .set_read_timeout(Some(Duration::from_millis(40)))
+        .unwrap();
+    let mut byte = [0];
+    let error = host_peer.read(&mut byte).unwrap_err();
+    assert!(matches!(
+        error.kind(),
+        io::ErrorKind::TimedOut | io::ErrorKind::WouldBlock
+    ));
+}

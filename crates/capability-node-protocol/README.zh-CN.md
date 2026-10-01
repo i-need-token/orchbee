@@ -10,6 +10,25 @@ Create/Start 与绑定代次的 cwd validation。它不是 public API 或 compat
 [README.md](README.md)。
 如有冲突，以英文为准。
 
+## 私有编辑器命令解析
+
+OBCN kind 24 请求解析 Windows 编辑器命令，携带非零操作 ID、Worker ID 与正数完整宽度 Worker 代次。
+Kind 25 完整回显请求，返回已验证 `LaunchSelection` 和 `visual`、`editor` 或 `default` 来源，
+或封闭拒绝原因：Worker 不匹配、代次过期、平台不支持、命令非法、程序不可用。
+帧版本 2 和 40 KiB payload 上限不变；旧 cohort 拒绝这些 tag。
+
+整数使用大端序。请求包含 kind、两个 16 字节 ID 和 u64 代次。
+结果包含 kind、相同的 40 字节请求与结局字节：1 表示已解析
+（来源字节 1／2／3，随后沿用已有程序／argv 编码），2 表示拒绝
+（按上述顺序使用原因字节 1 至 5）。缺失／尾随字节、未知 tag、非法 ID／代次和非法选择均拒绝。
+Server carrier 在交付前核对操作、Worker 与代次。
+
+此只读机器偏好查询在 Host 启动前也可用。
+它不授予来源 attachment 或启动权限，不创建文件，也不携带文档路径。
+[Worker 选择](../../apps/orchbee-worker/README.md#windows-scrollback-editor-selection)
+拥有 Windows 查找／引用规则；当前 Client／焦点校验、授权捕获、独立 overlay 与公开 CLI
+仍是单独的流程责任。
+
 ## 临时终端清空
 
 控制动作标签 6 为 `Clear`，使用请求 viewer 以及 `controller_id` 中新分配的临时 attachment；它不指向或改变控制权预留。结果标签 7 为 `Cleared`，包含正数 u64 代次／修订和规范的单字节清理布尔值；标签 8 为 `ClearOutcomeUnknown`，仅对 Clear 有效。拒绝标签 12 表示备用屏幕。旧标签和帧格式不变。通道在交付前核对完整请求／viewer／临时标识及结果种类。[原生清空](../../apps/orchbee/docs/native-cli-query.zh-CN.md#清空终端输出) 拥有端到端状态机；需要相同 cohort 部署。

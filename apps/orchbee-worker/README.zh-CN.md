@@ -7,6 +7,21 @@
 [README.md](README.md)。
 如有冲突，以英文为准。
 
+## Windows 回滚编辑器选择
+
+私有编辑器命令查询在已接纳 Worker 上解析启动选择，不启动 Host、创建文档或启动编辑器。
+依次选择非空白 `VISUAL`、非空白 `EDITOR`，最后使用系统目录的 `notepad.exe`。
+原生 `CommandLineToArgvW` 保留字面 argv。选中值非法时整项拒绝，不尝试下一项。
+非 UTF-8 和 NUL 均拒绝；遵循已有 128 参数与转义后 30 KiB 启动选择上限。
+
+绝对程序必须存在。裸名称只搜索继承 `PATH` 中的绝对目录，无扩展名时尝试字面名称与 `.exe` 候选。
+相对程序路径、当前目录搜索、`PATHEXT`、`ComSpec` 和 shell 重解析均不参与程序选择。
+默认选择使用 `GetSystemDirectory`，独立于继承的 `SystemRoot` 或 `PATH`，不追加 PowerShell 参数。
+
+私有回复完整回显代次受限请求，不授予来源读取或启动权限。
+当前 Client／焦点校验、确切授权捕获、独立 overlay 与公开 CLI 仍是上游责任；
+仅 Host 追加一个生成文档路径，并持有延迟终端直到清理完成。
+
 ## Windows 子终端 CLI 路由
 
 托管 Windows 启动从准入后的 Site 运行时目录覆盖 `ORCHBEE_RUNTIME_BASE` 和

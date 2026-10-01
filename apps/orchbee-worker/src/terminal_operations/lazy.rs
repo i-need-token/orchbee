@@ -52,6 +52,16 @@ pub(crate) fn run(
     let outcome = (|| {
         loop {
             let request = server_transport::receive(server, None)?;
+            if let CapabilityNodeMessage::TerminalEditorCommandRequest(request) = request {
+                let result =
+                    crate::terminal_editor_operation::execute(request, worker_id, generation);
+                let _no_host = server_transport::send(
+                    server,
+                    None,
+                    &CapabilityNodeMessage::TerminalEditorCommandResult(result),
+                )?;
+                continue;
+            }
             #[cfg(windows)]
             if let CapabilityNodeMessage::WorkerShutdownRequest(request) = request {
                 if let Some(reason) = super::shutdown::refusal(request, worker_id, generation, true)
