@@ -82,7 +82,7 @@ OBWP 57/58 承载封闭的请求和结果。OBNG 承载受限、由 viewer 定�
 
 原生 CLI 上传／流入口及 [原生 TUI 字符栅格消费者](../../orchbee/docs/native-panel-graphics.zh-CN.md) 已实现。独立读取通道暂存按版本定位的完整资源；已认证 Client 发布者记录成功且未遮挡的绘制观察。Info 采用新鲜且匹配的 Client 事实，未知物理像素尺寸保持 null。私有文件帧生产者租约尚待完成，不公布目录，并拒绝文件帧请求。四项对比行继续保持缺失，直至实际消费者和 Windows 验收证明行为。最终集成时统一确定原生 cohort 版本并重新打包；本检查点不授权合入 main 或替换旧 cohort。
 
-定向证据包括 Rust／TypeScript／JSON Schema 共用的 60 个案例、图片与载体边界、6 个图层所有者测试、3 个生产 Server 会话／观察者案例及 Client 新鲜度／范围测试，以及 5 个 Host PNG／图形测试（含真实 Windows PTY 创建和 PNG 解码）。这是组件证据，尚非组合渲染或最终验收。
+定向证据包括 Rust／TypeScript／JSON Schema 共用的 62 个案例、图片与载体边界、6 个图层所有者测试、3 个生产 Server 会话／观察者案例及 Client 新鲜度／范围测试，以及 5 个 Host PNG／图形测试（含真实 Windows PTY 创建和 PNG 解码）。这是组件证据，尚非组合渲染或最终验收。
 
 ## 消费者实现顺序
 

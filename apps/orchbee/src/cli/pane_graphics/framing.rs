@@ -38,9 +38,9 @@ struct Placement {
     #[serde(default, alias = "viewport_row")]
     viewport_row: i32,
     #[serde(default, alias = "grid_cols", alias = "gridCols")]
-    grid_columns: u16,
+    grid_columns: u32,
     #[serde(default, alias = "grid_rows")]
-    grid_rows: u16,
+    grid_rows: u32,
 }
 impl From<Placement> for PaneGraphicsPlacement {
     fn from(p: Placement) -> Self {
@@ -227,7 +227,7 @@ mod tests {
     #[test]
     fn fragmented_binary_frames_pin_full_sequences_and_reject_truncation_without_partial_image() {
         let mut parser = Parser::new();
-        let mut bytes = b"{\"format\":\"rgba\",\"image_width\":1,\"image_height\":1,\"data_length\":4,\"sequence\":\"18446744073709551614\",\"revision\":\"18446744073709551615\"}\r\n".to_vec();
+        let mut bytes = b"{\"format\":\"rgba\",\"image_width\":1,\"image_height\":1,\"data_length\":4,\"sequence\":\"18446744073709551614\",\"revision\":\"18446744073709551615\",\"placement\":{\"grid_cols\":4294967295,\"grid_rows\":4294967295}}\r\n".to_vec();
         bytes.extend([0, 10, 255, 128]);
         let mut frames = Vec::new();
         for byte in bytes {
@@ -240,6 +240,11 @@ mod tests {
         assert_eq!(frames.len(), 1);
         assert_eq!(frames[0].sequence.value(), u64::MAX - 1);
         assert_eq!(frames[0].revision.value(), u64::MAX);
+        let PaneGraphicsStreamImage::Inline { image } = &frames[0].image else {
+            panic!("inline image");
+        };
+        assert_eq!(image.placement.grid_columns, u32::MAX);
+        assert_eq!(image.placement.grid_rows, u32::MAX);
         parser.finish().unwrap();
         parser
             .feed(b"{\"format\":\"rgba\",\"width\":1,\"height\":1,\"dataLength\":4}\n\0")

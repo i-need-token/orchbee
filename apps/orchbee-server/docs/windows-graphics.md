@@ -95,7 +95,7 @@ OBWP kinds 57/58 carry closed requests and results. OBNG carries a bounded viewe
 
 The native CLI upload/stream paths and [native TUI cell raster consumer](../../orchbee/docs/native-panel-graphics.md) are implemented. The dedicated read lane stages complete, revision-pinned resources; the authenticated Client publisher records successful uncovered draw observations. Info uses fresh matching Client facts and leaves unknown physical pixel geometry null. Private file-frame producer leases remain pending, no directory is advertised, and file-frame requests are refused. These four comparison rows remain missing until an actual consumer and Windows acceptance establish the behavior. The complete native cohort is versioned and restaged for final integration; no main integration or old-cohort substitution is authorized by this checkpoint.
 
-Focused evidence includes the 60-case Rust/TypeScript/JSON Schema corpus, image and carrier bounds, six layer-owner tests, three production Server session/observer witnesses and a Client freshness/scope test, and five Host PNG/graphics tests including actual Windows PTY creation and PNG decoding. This is component evidence, not composed renderer or final acceptance.
+Focused evidence includes the 62-case Rust/TypeScript/JSON Schema corpus, image and carrier bounds, six layer-owner tests, three production Server session/observer witnesses and a Client freshness/scope test, and five Host PNG/graphics tests including actual Windows PTY creation and PNG decoding. This is component evidence, not composed renderer or final acceptance.
 
 ## Consumer implementation order
 

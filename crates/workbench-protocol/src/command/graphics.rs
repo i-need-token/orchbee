@@ -36,8 +36,8 @@ pub enum PaneGraphicsFormat {
 pub struct PaneGraphicsPlacement {
     pub viewport_column: i32,
     pub viewport_row: i32,
-    pub grid_columns: u16,
-    pub grid_rows: u16,
+    pub grid_columns: u32,
+    pub grid_rows: u32,
 }
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]

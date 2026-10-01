@@ -319,7 +319,7 @@ fn malformed_input_stays_before_site_discovery_and_dictionary_contains_graphics_
         &document,
         include_str!("../src/cli/schemas/orchbee.api.schema.json"),
     );
-    assert_eq!(document["version"], 137);
+    assert_eq!(document["version"], 138);
     for id in [
         "orchbee.panel.graphics",
         "orchbee.panel.graphics.stream",

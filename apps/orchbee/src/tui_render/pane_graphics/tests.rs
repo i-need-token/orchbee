@@ -81,8 +81,8 @@ fn actual_frame_clips_to_panel_body_at_every_viewport_tier() {
             PaneGraphicsPlacement {
                 viewport_column: -1,
                 viewport_row: -1,
-                grid_columns: width,
-                grid_rows: height,
+                grid_columns: u32::from(width),
+                grid_rows: u32::from(height),
             },
         );
         terminal
@@ -213,14 +213,33 @@ fn extreme_signed_placement_is_clipped_without_overflow() {
                 PaneGraphicsPlacement {
                     viewport_column: x,
                     viewport_row: y,
-                    grid_columns: u16::MAX,
-                    grid_rows: u16::MAX,
+                    grid_columns: u32::MAX,
+                    grid_rows: u32::MAX,
                 },
             ),
             RED_BLUE,
         );
         assert_eq!(buffer, before);
     }
+    let area = Rect::new(1, 1, 3, 2);
+    let mut buffer = Buffer::empty(Rect::new(0, 0, 5, 3));
+    paint(
+        &mut buffer,
+        area,
+        &layer(
+            0,
+            PaneGraphicsPlacement {
+                viewport_column: i32::MIN,
+                viewport_row: i32::MIN,
+                grid_columns: u32::MAX,
+                grid_rows: u32::MAX,
+            },
+        ),
+        RED_BLUE,
+    );
+    assert_eq!(buffer[(1, 1)].symbol(), "▀");
+    assert_eq!(buffer[(3, 2)].fg, Color::Rgb(0, 0, 255));
+    assert_eq!(buffer[(0, 0)].symbol(), " ");
 }
 
 #[test]

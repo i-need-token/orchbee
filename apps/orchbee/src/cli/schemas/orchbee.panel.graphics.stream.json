@@ -822,12 +822,12 @@
 				"gridColumns": {
 					"type": "integer",
 					"minimum": 0,
-					"maximum": 65535
+					"maximum": 4294967295
 				},
 				"gridRows": {
 					"type": "integer",
 					"minimum": 0,
-					"maximum": 65535
+					"maximum": 4294967295
 				}
 			},
 			"required": ["viewportColumn", "viewportRow", "gridColumns", "gridRows"]
