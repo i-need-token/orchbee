@@ -104,6 +104,9 @@ pub enum TerminalControlAction {
     Takeover {
         attachment_id: ViewerId,
     },
+    Clear {
+        attachment_id: ViewerId,
+    },
     Input {
         attachment_id: ViewerId,
         controller_id: ControllerId,
@@ -140,6 +143,9 @@ enum WireControlAction {
     Takeover {
         attachment_id: ViewerId,
     },
+    Clear {
+        attachment_id: ViewerId,
+    },
     Input {
         attachment_id: ViewerId,
         controller_id: ControllerId,
@@ -160,6 +166,9 @@ impl Serialize for TerminalControlAction {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Takeover { attachment_id } => WireControlAction::Takeover {
+                attachment_id: attachment_id.clone(),
+            },
+            Self::Clear { attachment_id } => WireControlAction::Clear {
                 attachment_id: attachment_id.clone(),
             },
             Self::Acquire { attachment_id } => WireControlAction::Acquire {
@@ -199,6 +208,7 @@ impl Serialize for TerminalControlAction {
 impl<'de> Deserialize<'de> for TerminalControlAction {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         Ok(match WireControlAction::deserialize(deserializer)? {
+            WireControlAction::Clear { attachment_id } => Self::Clear { attachment_id },
             WireControlAction::Acquire { attachment_id } => Self::Acquire { attachment_id },
             WireControlAction::Takeover { attachment_id } => Self::Takeover { attachment_id },
             WireControlAction::Input {
@@ -232,6 +242,7 @@ impl TerminalControlAction {
     pub const fn attachment_id(&self) -> &ViewerId {
         match self {
             Self::Acquire { attachment_id }
+            | Self::Clear { attachment_id }
             | Self::Takeover { attachment_id }
             | Self::Input { attachment_id, .. }
             | Self::Resize { attachment_id, .. }
@@ -251,6 +262,7 @@ pub enum ControlRejectedReason {
     NotController,
     SequenceMismatch,
     HostRejected,
+    HostClearAlternateScreen,
     HostInputInvalid,
     HostInputLimitExceeded,
     HostInputBackpressure,
@@ -270,12 +282,29 @@ pub enum ControlUnavailableReason {
     deny_unknown_fields
 )]
 pub enum TerminalControlOutcome {
-    Acquired { controller_id: ControllerId },
+    Acquired {
+        controller_id: ControllerId,
+    },
     InputAccepted {},
-    Resized { geometry: Geometry },
-    Pasted { accepted_bytes: PasteAcceptedBytes },
-    Rejected { reason: ControlRejectedReason },
-    Unavailable { reason: ControlUnavailableReason },
+    Resized {
+        geometry: Geometry,
+    },
+    Pasted {
+        accepted_bytes: PasteAcceptedBytes,
+    },
+    Cleared {
+        #[serde(with = "crate::number::positive_decimal")]
+        generation: NonZeroU64,
+        #[serde(with = "crate::number::positive_decimal")]
+        revision: NonZeroU64,
+        cleanup_confirmed: bool,
+    },
+    Rejected {
+        reason: ControlRejectedReason,
+    },
+    Unavailable {
+        reason: ControlUnavailableReason,
+    },
     OutcomeUnknown {},
 }
 #[derive(Clone, Debug, Eq, PartialEq)]

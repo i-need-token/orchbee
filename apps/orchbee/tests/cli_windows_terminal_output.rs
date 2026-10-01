@@ -18,6 +18,8 @@ const ID: &str = "33333333333333333333333333333333";
 
 #[path = "cli_windows_terminal_output/ansi.rs"]
 mod ansi;
+#[path = "cli_windows_terminal_output/clear.rs"]
+mod clear;
 #[path = "cli_windows_terminal_output/copy.rs"]
 mod copy;
 #[path = "cli_windows_terminal_output/links.rs"]
@@ -41,6 +43,7 @@ fn source_export_catalog_and_usage_failure_are_offline_machine_contracts() {
         "orchbee.terminal.copy-search",
         "orchbee.terminal.link-resolve",
         "orchbee.terminal.link-activate",
+        "orchbee.terminal.clear",
     ] {
         assert_eq!(document["result"]["schemas"][id]["$id"], id);
     }

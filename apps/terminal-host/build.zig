@@ -538,6 +538,15 @@ pub fn build(builder: *std.Build) void {
         "Compile terminal Host local-transport tests without running them",
     );
     focused_transport_compile_step.dependOn(&focused_transport_tests.step);
+    const screen_control_step = builder.step("test-screen-control", "Run screen mutation, authorization and wire regressions");
+    for ([_]*std.Build.Module{ engine_test_module, service_test_module, control_test_module }) |module| {
+        const clear_tests = builder.addTest(.{
+            .root_module = module,
+            .filters = &.{ "prompt-preserving", "application clear", "terminal control" },
+        });
+        clear_tests.root_module.link_libc = true;
+        screen_control_step.dependOn(&builder.addRunArtifact(clear_tests).step);
+    }
     const input_tests = builder.addTest(.{
         .root_module = engine_test_module,
         .filters = &.{"programmatic key"},

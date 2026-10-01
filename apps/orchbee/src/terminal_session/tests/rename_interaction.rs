@@ -237,6 +237,9 @@ impl RenameServer {
                         }
                         ClientMessage::TerminalControl(request) => {
                             let outcome = match request.action() {
+                                TerminalControlAction::Clear { .. } => {
+                                    panic!("unexpected clear in controller fixture")
+                                }
                                 TerminalControlAction::Takeover { .. } => {
                                     panic!("unexpected takeover in rename fixture")
                                 }

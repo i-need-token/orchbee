@@ -1,5 +1,9 @@
 # Client-Server Protocol Rust Binding
 
+## 临时终端清空
+
+新增的 `clear` 控制动作仅携带已有 viewer 的 `attachmentId`，不获取或转移控制权。`cleared` 结果携带正数十进制 `generation` 和 `revision`，以及 `cleanupConfirmed`；投递未知使用已有 `outcome-unknown` 类别。其他结果保留封闭含义。Server 拥有 Site 暴露、物理绑定和 Worker 代次隔离和新临时 attachment 标识；Worker 拥有仅输入附加 → Host 保留提示行的清空 → 分离。[原生清空](../../apps/orchbee/docs/native-cli-query.zh-CN.md#清空终端输出) 拥有公开命令、预算和回执。需要匹配的开发 cohort。
+
 ## 范围
 
 `orchbee-client-server-protocol` 拥有原生 OBCS v2 Rust binding。语言中立 v2 schema 与 JSON/binary corpus

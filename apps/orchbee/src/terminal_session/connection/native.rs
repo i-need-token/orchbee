@@ -616,7 +616,8 @@ impl NativeExecutor {
             }
             TerminalControlOutcome::InputAccepted {}
             | TerminalControlOutcome::Resized { .. }
-            | TerminalControlOutcome::Pasted { .. } => {
+            | TerminalControlOutcome::Pasted { .. }
+            | TerminalControlOutcome::Cleared { .. } => {
                 return Err(CarrierFailure::Protocol);
             }
             TerminalControlOutcome::OutcomeUnknown {} => {
@@ -904,6 +905,7 @@ impl NativeExecutor {
             TerminalControlOutcome::Acquired { .. }
             | TerminalControlOutcome::Resized { .. }
             | TerminalControlOutcome::Pasted { .. }
+            | TerminalControlOutcome::Cleared { .. }
             | TerminalControlOutcome::Unavailable { .. } => {
                 Err(ReadyFlowError::Carrier(CarrierFailure::Protocol))
             }
@@ -961,6 +963,7 @@ impl NativeExecutor {
             | TerminalControlOutcome::InputAccepted {}
             | TerminalControlOutcome::Resized { .. }
             | TerminalControlOutcome::Pasted { .. }
+            | TerminalControlOutcome::Cleared { .. }
             | TerminalControlOutcome::Unavailable { .. } => {
                 return Err(ReadyFlowError::Carrier(CarrierFailure::Protocol));
             }
@@ -2182,7 +2185,8 @@ impl NativeExecutor {
             TerminalControlOutcome::Acquired { .. }
             | TerminalControlOutcome::InputAccepted {}
             | TerminalControlOutcome::Resized { .. }
-            | TerminalControlOutcome::Pasted { .. } => {
+            | TerminalControlOutcome::Pasted { .. }
+            | TerminalControlOutcome::Cleared { .. } => {
                 return Err(CarrierFailure::Protocol);
             }
             TerminalControlOutcome::OutcomeUnknown {} => {
@@ -2699,7 +2703,8 @@ impl NativeExecutor {
                 content,
             }),
             action @ (TerminalControlAction::Acquire { .. }
-            | TerminalControlAction::Takeover { .. }) => Ok(action),
+            | TerminalControlAction::Takeover { .. }
+            | TerminalControlAction::Clear { .. }) => Ok(action),
         }
     }
 

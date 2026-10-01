@@ -100,29 +100,31 @@ const Handler = struct {
         outgoing: *Outgoing,
     ) !void {
         if (!try self.context.requireControl(envelope, correlation_id, outgoing)) return;
-        var decoded = control_decode.decodeTerminalControl(
-            self.context.allocator,
-            envelope.payload,
-        ) catch |err| return self.context.rejectControlDecode(
-            outgoing,
-            correlation_id,
-            err,
-            if (operation == .clear)
-                "ClearTerminal payload is invalid"
-            else
-                "ResetTerminal payload is invalid",
-        );
-        defer decoded.deinit();
+        var attachment_id: core_module.AttachmentId = undefined;
+        var selected_operation = operation;
+        if (operation == .clear) {
+            var decoded = control_decode.decodeClearTerminal(self.context.allocator, envelope.payload) catch |err|
+                return self.context.rejectControlDecode(outgoing, correlation_id, err, "ClearTerminal payload is invalid");
+            defer decoded.deinit();
+            attachment_id = decoded.value.attachment_id;
+            if (decoded.value.preserve_prompt) selected_operation = .clear_prompt;
+        } else {
+            var decoded = control_decode.decodeTerminalControl(self.context.allocator, envelope.payload) catch |err|
+                return self.context.rejectControlDecode(outgoing, correlation_id, err, "ResetTerminal payload is invalid");
+            defer decoded.deinit();
+            attachment_id = decoded.value;
+        }
         var response = try prepareControlResponse(outgoing, correlation_id, self.context.hostEpoch());
         defer response.deinit();
         const update = self.context.runtime_aggregate.applyTerminalControl(
             connection_id,
-            decoded.value,
-            operation,
+            attachment_id,
+            selected_operation,
         ) catch |err| {
             response.commitFailure(switch (err) {
                 error.RuntimeStateDiverged => host_failure.runtime_state_diverged,
                 error.TerminalRuntimeMissing => unreachable,
+                error.TerminalClearAlternateScreen => .{ .code = "terminal-clear-alternate-screen", .message = "prompt-preserving clear requires the primary screen", .retryable = false },
                 else => coreError(@errorCast(err)),
             });
             return;

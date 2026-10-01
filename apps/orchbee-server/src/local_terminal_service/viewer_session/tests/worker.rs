@@ -18,6 +18,7 @@ pub(in crate::local_terminal_service::viewer_session::tests) enum Effect {
     Feedback([u8; 16]),
     Detach([u8; 16]),
     Acquire([u8; 16], [u8; 16]),
+    Clear([u8; 16], [u8; 16]),
     Input([u8; 16], [u8; 16], u64),
     Resize([u8; 16], [u8; 16], u64),
     Paste([u8; 16], [u8; 16], u64),
@@ -121,6 +122,18 @@ pub(super) fn run(
                 let v = request.viewer_id.as_bytes();
                 let c = request.controller_id.as_bytes();
                 let (effect, outcome) = match request.action {
+                    TerminalControlAction::Clear => {
+                        assert!(viewers.contains_key(&v));
+                        assert_ne!(v, c);
+                        (
+                            Effect::Clear(v, c),
+                            TerminalControlOutcome::Cleared {
+                                generation: std::num::NonZeroU64::new(2).unwrap(),
+                                revision: std::num::NonZeroU64::new(7).unwrap(),
+                                cleanup_confirmed: true,
+                            },
+                        )
+                    }
                     TerminalControlAction::Takeover { .. } => {
                         panic!("unexpected takeover in viewer fixture")
                     }

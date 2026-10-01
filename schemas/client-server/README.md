@@ -1,5 +1,9 @@
 # Client-Server Terminal Control Contract
 
+## Transient terminal clear
+
+The same-cohort additive `terminal-control` action `{kind:"clear", attachmentId}` is a one-shot prompt-preserving terminal mutation through the admitted viewer binding, independent of session controller acquisition. `cleared` reports canonical positive decimal generation/revision and a Boolean cleanup confirmation. Server validates current Site exposure, exact physical binding and Worker identity; Worker opens a fresh input-only Host attachment without resizing or transferring a controller. Known clears survive cleanup uncertainty, while missing effect acknowledgements remain unknown without retry. [Native clear](../../apps/orchbee/docs/native-cli-query.md#clear-terminal-output) owns the command and resource deadlines.
+
 ## Authority and boundary
 
 [`v2/client-server.schema.json`](v2/client-server.schema.json) and this document are the

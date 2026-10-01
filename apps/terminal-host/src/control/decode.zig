@@ -38,6 +38,7 @@ pub const decodeUpdateAttachmentInputCapability =
     terminal.decodeUpdateAttachmentInputCapability;
 pub const decodeClaimResizeLease = terminal.decodeClaimResizeLease;
 pub const decodeTerminalControl = terminal.decodeTerminalControl;
+pub const decodeClearTerminal = terminal.decodeClearTerminal;
 pub const decodeResizeTerminal = terminal.decodeResizeTerminal;
 
 pub const ApplyTerminalTheme = theme.ApplyTerminalTheme;

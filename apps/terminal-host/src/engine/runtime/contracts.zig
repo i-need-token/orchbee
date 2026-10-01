@@ -268,6 +268,7 @@ pub const ThemeUpdate = struct {
 
 pub const TerminalControlOperation = enum {
     clear,
+    clear_prompt,
     reset,
 };
 

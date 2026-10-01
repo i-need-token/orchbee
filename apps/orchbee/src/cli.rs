@@ -43,6 +43,10 @@ pub(crate) use creation::run as run_creation;
 #[cfg(windows)]
 pub(crate) mod channel;
 mod completion;
+#[cfg(windows)]
+mod terminal_clear;
+#[cfg(windows)]
+pub(crate) use terminal_clear::run as clear_terminal;
 pub(crate) mod config;
 #[cfg(windows)]
 pub(crate) mod config_reset;

@@ -35,7 +35,7 @@ mod viewers;
 mod controller_takeover_tests;
 #[cfg(test)]
 mod read_rows_tests;
-pub(crate) use exchange::{HostExchange, PeerFailure, exchange};
+pub(crate) use exchange::{HostExchange, PeerFailure, exchange, exchange_before};
 pub(crate) use target_cleanup::PreparedTargetCleanup;
 use viewers::HostViewers;
 

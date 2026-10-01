@@ -37,6 +37,39 @@ pub(crate) struct PreparedSendTarget {
 }
 
 impl SiteCoordinator {
+    /// Recheck Site exposure and the exact physical viewer target without allocating a viewer.
+    pub(crate) fn binding_viewer_is_current(
+        &self,
+        target: BindingViewerTarget,
+        current_worker: Option<WorkerPlacement>,
+    ) -> bool {
+        let Some(workbench) = self.workbench.as_ref() else {
+            return false;
+        };
+        let terminal_id = WorkbenchTerminalId::parse(&format!(
+            "{:032x}",
+            u128::from_be_bytes(target.terminal_id.as_bytes())
+        ));
+        let worker_id = WorkbenchWorkerId::parse(&format!(
+            "{:032x}",
+            u128::from_be_bytes(target.worker.worker_id.as_bytes())
+        ));
+        let (Ok(terminal_id), Ok(worker_id)) = (terminal_id, worker_id) else {
+            return false;
+        };
+        let binding = PresentationBinding {
+            terminal_id,
+            worker_id,
+        };
+        workbench.terminal_binding_exposure(workbench.site_id(), &binding)
+            == WorkbenchBindingExposure::Exposed
+            && !self.binding_has_close(&binding)
+            && self
+                .terminals
+                .binding_viewer_target(target.terminal_id, target.worker.worker_id, current_worker)
+                .is_ok_and(|current| current == target)
+    }
+
     pub(crate) fn prepare_binding_viewer(
         &mut self,
         site_id: &ClientSiteId,

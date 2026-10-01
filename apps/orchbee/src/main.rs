@@ -155,6 +155,10 @@ fn main() -> ExitCode {
             Ok(invocation::Request::Skill) => cli::skill(locale),
             Ok(invocation::Request::Completion(shell)) => cli::completion(shell, locale),
             #[cfg(windows)]
+            Ok(invocation::Request::TerminalClear { target, format }) => {
+                cli::clear_terminal(&target, format, locale)
+            }
+            #[cfg(windows)]
             Ok(invocation::Request::TerminalLink { command, format }) => {
                 cli::resolve_terminal_link(&command, format, locale)
             }

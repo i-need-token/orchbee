@@ -1969,3 +1969,50 @@ fn launch_environment_extension_roundtrips_and_rejects_hostile_tails()
     }
     Ok(())
 }
+
+#[test]
+fn transient_clear_control_codec_keeps_old_tags_and_closes_new_result_boundaries() {
+    use crate::{
+        TerminalControlAction as Action, TerminalControlOutcome as Outcome, TerminalControlRequest,
+        TerminalControlResult,
+    };
+    let request = TerminalControlRequest {
+        request_id: OperationId::from_bytes([1; 16]).unwrap(),
+        worker_id: WorkerId::from_bytes([2; 16]).unwrap(),
+        worker_generation: WorkerGeneration::new(NonZeroU64::MIN),
+        viewer_id: OperationId::from_bytes([3; 16]).unwrap(),
+        controller_id: OperationId::from_bytes([4; 16]).unwrap(),
+        action: Action::Clear,
+    };
+    let message = CapabilityNodeMessage::TerminalControlRequest(request.clone());
+    let bytes = encode_message(&message).unwrap();
+    assert_eq!(*bytes.last().unwrap(), 6);
+    assert_eq!(decode_message(&bytes).unwrap(), message);
+    for outcome in [
+        Outcome::Cleared {
+            generation: NonZeroU64::MAX,
+            revision: NonZeroU64::MIN,
+            cleanup_confirmed: true,
+        },
+        Outcome::Cleared {
+            generation: NonZeroU64::MIN,
+            revision: NonZeroU64::MAX,
+            cleanup_confirmed: false,
+        },
+        Outcome::ClearOutcomeUnknown,
+        Outcome::Rejected(crate::ControlRejection::HostClearAlternateScreen),
+    ] {
+        let result = CapabilityNodeMessage::TerminalControlResult(TerminalControlResult {
+            request_id: request.request_id,
+            viewer_id: request.viewer_id,
+            controller_id: request.controller_id,
+            outcome,
+        });
+        let mut encoded = encode_message(&result).unwrap();
+        assert_eq!(decode_message(&encoded).unwrap(), result);
+        if matches!(outcome, Outcome::Cleared { .. }) {
+            *encoded.last_mut().unwrap() = 2;
+            assert!(decode_message(&encoded).is_err());
+        }
+    }
+}

@@ -302,6 +302,8 @@ const FAMILY_VERBS: &[(&str, &[&str])] = &[
             "link-resolve",
             #[cfg(windows)]
             "link-activate",
+            #[cfg(windows)]
+            "clear",
             "run",
             "send",
             "session",
@@ -1310,6 +1312,8 @@ const OPERAND_PATHS: &[&str] = &[
     #[cfg(windows)]
     "terminal:link-activate",
     #[cfg(windows)]
+    "terminal:clear",
+    #[cfg(windows)]
     "terminal:copy-motion",
     #[cfg(windows)]
     "terminal:copy-search",
@@ -1592,6 +1596,8 @@ const HELP_CHILDREN: &[(&str, &[&str])] = &[
             "link-resolve",
             #[cfg(windows)]
             "link-activate",
+            #[cfg(windows)]
+            "clear",
             "run",
             "send",
             "session",

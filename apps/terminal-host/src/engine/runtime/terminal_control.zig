@@ -23,6 +23,10 @@ pub fn applyTerminalControl(
         return error.TerminalExited;
     }
     const current_revision = self.revision.load(.monotonic);
+    if (operation == .clear_prompt and self.terminal.screens.active_key == .alternate) {
+        self.terminal_mutex.unlock();
+        return error.TerminalClearAlternateScreen;
+    }
     if (self.generation == std.math.maxInt(u64) or
         current_revision == std.math.maxInt(u64))
     {
@@ -43,6 +47,7 @@ pub fn applyTerminalControl(
             self.terminal.eraseDisplay(.complete, false);
             self.terminal.setCursorPos(1, 1);
         },
+        .clear_prompt => clearPromptLocked(self),
         .reset => {
             self.terminal.fullReset();
             std.debug.assert(mode_effects.resetLocked(self));
@@ -62,6 +67,37 @@ pub fn applyTerminalControl(
     self.terminal_mutex.unlock();
     completion_ops.markNormalCompletionReady(self);
     return update;
+}
+
+// Preserve the entire cursor logical line, including continuations on either side.
+// Pins and cursor are reloaded by Ghostty's erase operations, under terminal_mutex.
+fn clearPromptLocked(self: *state.State) void {
+    const terminal = &self.terminal;
+    const screen = terminal.screens.active;
+    var first = screen.cursor.y;
+    while (first > 0) {
+        const pin = screen.pages.pin(.{ .active = .{ .y = first } }).?;
+        if (!pin.rowAndCell().row.wrap_continuation) break;
+        first -= 1;
+    }
+    var last = screen.cursor.y;
+    while (last + 1 < terminal.rows) {
+        const pin = screen.pages.pin(.{ .active = .{ .y = last } }).?;
+        if (!pin.rowAndCell().row.wrap) break;
+        last += 1;
+    }
+    screen.clearSelection();
+    if (last + 1 < terminal.rows) {
+        screen.clearRows(.{ .active = .{ .y = last + 1 } }, null, false);
+    }
+    screen.eraseHistory(null);
+    if (first > 0) screen.eraseActive(first - 1);
+    screen.pages.pin(.{ .active = .{} }).?.rowAndCell().row.wrap_continuation = false;
+    screen.scroll(.active);
+    if (comptime @TypeOf(screen.kitty_images) != void) {
+        screen.kitty_images.delete(terminal.io(), screen.alloc, terminal, .{ .all = true });
+    }
+    terminal.flags.dirty.clear = true;
 }
 
 pub fn configuration(self: *state.State) terminal_configuration.Configuration {

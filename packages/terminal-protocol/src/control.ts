@@ -502,7 +502,10 @@ const terminalControlTargetShape = {
 	attachmentId: AttachmentIdSchema,
 } as const;
 
-export const ClearTerminalSchema = z.strictObject(terminalControlTargetShape);
+export const ClearTerminalSchema = z.strictObject({
+	...terminalControlTargetShape,
+	preservePrompt: z.boolean().optional(),
+});
 export const ResetTerminalSchema = z.strictObject(terminalControlTargetShape);
 export const TerminalControlOperationSchema = z.enum(['clear', 'reset']);
 

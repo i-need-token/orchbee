@@ -2,6 +2,7 @@ use crate::{
     host_connection::{HostBrokerConnection, exchange},
     worker_identity::fresh_identity,
 };
+mod clear;
 use orchbee_capability_node_protocol::{
     ControlRejection as Rejection, OperationId, TerminalControlAction as Action,
     TerminalControlOutcome as Outcome, TerminalControlRequest, TerminalControlResult,
@@ -46,6 +47,9 @@ fn apply(
     host: &HostBrokerConnection,
     server: &UnixStream,
 ) -> Result<Outcome, Box<dyn Error>> {
+    if request.action == Action::Clear {
+        return clear::apply(request, host, server);
+    }
     if matches!(request.action, Action::Release) {
         let grant = host.controllers.borrow().for_viewer(request.viewer_id);
         return match grant {

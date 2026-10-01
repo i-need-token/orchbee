@@ -479,6 +479,7 @@ impl LocalClient {
                 TerminalControlOutcome::Acquired { .. },
             )
             | (TerminalControlAction::Input { .. }, TerminalControlOutcome::InputAccepted {})
+            | (TerminalControlAction::Clear { .. }, TerminalControlOutcome::Cleared { .. })
             | (TerminalControlAction::Paste { .. }, TerminalControlOutcome::Pasted { .. }) => true,
             (
                 TerminalControlAction::Resize { geometry, .. },

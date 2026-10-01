@@ -1,0 +1,165 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "orchbee.terminal.clear",
+	"title": "orchbee.terminal.clear",
+	"type": "object",
+	"additionalProperties": false,
+	"required": ["schema", "version", "source", "result"],
+	"properties": {
+		"schema": {
+			"const": "orchbee.terminal.clear"
+		},
+		"version": {
+			"const": 1
+		},
+		"source": {
+			"$ref": "#/$defs/snapshotSource"
+		},
+		"result": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["terminal", "operationId", "outcome"],
+			"properties": {
+				"terminal": {
+					"$ref": "#/$defs/terminal"
+				},
+				"operationId": {
+					"$ref": "#/$defs/id"
+				},
+				"outcome": {
+					"oneOf": [
+						{
+							"type": "object",
+							"additionalProperties": false,
+							"required": ["kind", "reason"],
+							"properties": {
+								"kind": {
+									"const": "rejected"
+								},
+								"reason": {
+									"enum": [
+										"viewer-unavailable",
+										"controller-busy",
+										"not-controller",
+										"sequence-mismatch",
+										"host-rejected",
+										"host-input-invalid",
+										"host-input-limit-exceeded",
+										"host-input-backpressure",
+										"host-input-unavailable",
+										"host-clear-alternate-screen"
+									]
+								}
+							}
+						},
+						{
+							"type": "object",
+							"additionalProperties": false,
+							"required": ["kind", "reason"],
+							"properties": {
+								"kind": {
+									"const": "unavailable"
+								},
+								"reason": {
+									"enum": ["server-busy", "terminal-runtime-unavailable"]
+								}
+							}
+						},
+						{
+							"type": "object",
+							"additionalProperties": false,
+							"required": ["kind"],
+							"properties": {
+								"kind": {
+									"const": "outcome-unknown"
+								}
+							}
+						},
+						{
+							"type": "object",
+							"additionalProperties": false,
+							"required": ["kind", "generation", "revision", "cleanupConfirmed"],
+							"properties": {
+								"kind": {
+									"const": "cleared"
+								},
+								"generation": {
+									"$ref": "#/$defs/positiveDecimal"
+								},
+								"revision": {
+									"$ref": "#/$defs/positiveDecimal"
+								},
+								"cleanupConfirmed": {
+									"type": "boolean"
+								}
+							}
+						}
+					]
+				}
+			}
+		}
+	},
+	"$defs": {
+		"snapshotSource": {
+			"type": "object",
+			"required": ["kind", "siteId", "revision"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": {
+					"const": "workbench-snapshot"
+				},
+				"siteId": {
+					"$ref": "#/$defs/id"
+				},
+				"revision": {
+					"type": "string",
+					"pattern": "^(0|[1-9][0-9]*)$"
+				}
+			}
+		},
+		"terminal": {
+			"type": "object",
+			"required": ["terminalId", "workerId", "boundTo"],
+			"additionalProperties": false,
+			"properties": {
+				"terminalId": {
+					"$ref": "#/$defs/id"
+				},
+				"workerId": {
+					"$ref": "#/$defs/id"
+				},
+				"boundTo": {
+					"type": "object",
+					"required": ["presentationId", "panelId", "tabId", "terminalContextId"],
+					"additionalProperties": false,
+					"properties": {
+						"presentationId": {
+							"$ref": "#/$defs/id"
+						},
+						"panelId": {
+							"$ref": "#/$defs/id"
+						},
+						"tabId": {
+							"$ref": "#/$defs/id"
+						},
+						"terminalContextId": {
+							"$ref": "#/$defs/id"
+						}
+					}
+				}
+			}
+		},
+		"id": {
+			"type": "string",
+			"pattern": "^[0-9a-f]{32}$"
+		},
+		"decimal": {
+			"type": "string",
+			"pattern": "^(0|[1-9][0-9]*)$"
+		},
+		"positiveDecimal": {
+			"type": "string",
+			"pattern": "^[1-9][0-9]*$"
+		}
+	}
+}

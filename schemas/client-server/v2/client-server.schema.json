@@ -1044,6 +1044,19 @@
 							"$ref": "#/$defs/geometry"
 						}
 					}
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["kind", "attachmentId"],
+					"properties": {
+						"kind": {
+							"const": "clear"
+						},
+						"attachmentId": {
+							"$ref": "#/$defs/viewerId"
+						}
+					}
 				}
 			]
 		},
@@ -1118,7 +1131,8 @@
 								"host-input-invalid",
 								"host-input-limit-exceeded",
 								"host-input-backpressure",
-								"host-input-unavailable"
+								"host-input-unavailable",
+								"host-clear-alternate-screen"
 							]
 						}
 					}
@@ -1143,6 +1157,25 @@
 					"properties": {
 						"kind": {
 							"const": "outcome-unknown"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["kind", "generation", "revision", "cleanupConfirmed"],
+					"properties": {
+						"kind": {
+							"const": "cleared"
+						},
+						"generation": {
+							"$ref": "#/$defs/projectionPositive"
+						},
+						"revision": {
+							"$ref": "#/$defs/projectionPositive"
+						},
+						"cleanupConfirmed": {
+							"type": "boolean"
 						}
 					}
 				}

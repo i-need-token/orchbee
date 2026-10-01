@@ -144,6 +144,7 @@ pub(super) fn encode_request(request: &TerminalControlRequest) -> Vec<u8> {
     bytes.extend(request.controller_id.as_bytes());
     match &request.action {
         Action::Acquire => bytes.push(1),
+        Action::Clear => bytes.push(6),
         Action::Takeover {
             previous_controller_id,
         } => {
@@ -182,6 +183,7 @@ pub(super) fn decode_request(bytes: &[u8]) -> Result<TerminalControlRequest, Pro
     let controller_id = OperationId::from_bytes(reader.read_array()?)?;
     let action = match reader.read_u8()? {
         1 => Action::Acquire,
+        6 => Action::Clear,
         5 => Action::Takeover {
             previous_controller_id: OperationId::from_bytes(reader.read_array()?)?,
         },
@@ -217,6 +219,17 @@ pub(super) fn encode_result(result: TerminalControlResult) -> Vec<u8> {
     bytes.extend(result.controller_id.as_bytes());
     match result.outcome {
         Outcome::Acquired => bytes.push(1),
+        Outcome::Cleared {
+            generation,
+            revision,
+            cleanup_confirmed,
+        } => {
+            bytes.push(7);
+            bytes.extend(generation.get().to_be_bytes());
+            bytes.extend(revision.get().to_be_bytes());
+            bytes.push(u8::from(cleanup_confirmed));
+        }
+        Outcome::ClearOutcomeUnknown => bytes.push(8),
         Outcome::Released => bytes.push(2),
         Outcome::InputAccepted => bytes.push(3),
         Outcome::Resized(geometry) => {
@@ -233,6 +246,7 @@ pub(super) fn encode_result(result: TerminalControlResult) -> Vec<u8> {
                 ControlRejection::NotController => 5,
                 ControlRejection::SequenceMismatch => 6,
                 ControlRejection::HostRejected => 7,
+                ControlRejection::HostClearAlternateScreen => 12,
                 ControlRejection::HostInputInvalid => 8,
                 ControlRejection::HostInputLimitExceeded => 9,
                 ControlRejection::HostInputBackpressure => 10,
@@ -253,6 +267,16 @@ pub(super) fn decode_result(bytes: &[u8]) -> Result<TerminalControlResult, Proto
     let controller_id = OperationId::from_bytes(reader.read_array()?)?;
     let outcome = match reader.read_u8()? {
         1 => Outcome::Acquired,
+        7 => Outcome::Cleared {
+            generation: positive(reader.read_u64()?)?,
+            revision: positive(reader.read_u64()?)?,
+            cleanup_confirmed: match reader.read_u8()? {
+                0 => false,
+                1 => true,
+                _ => return Err(ProtocolError::InvalidPayload),
+            },
+        },
+        8 => Outcome::ClearOutcomeUnknown,
         2 => Outcome::Released,
         3 => Outcome::InputAccepted,
         4 => Outcome::Resized(decode_geometry(&mut reader)?),
@@ -264,6 +288,7 @@ pub(super) fn decode_result(bytes: &[u8]) -> Result<TerminalControlResult, Proto
             5 => ControlRejection::NotController,
             6 => ControlRejection::SequenceMismatch,
             7 => ControlRejection::HostRejected,
+            12 => ControlRejection::HostClearAlternateScreen,
             8 => ControlRejection::HostInputInvalid,
             9 => ControlRejection::HostInputLimitExceeded,
             10 => ControlRejection::HostInputBackpressure,

@@ -293,6 +293,7 @@ pub const ResizeError = core_module.CoreError || error{
 pub const TerminalControlError = core_module.CoreError || error{
     RuntimeStateDiverged,
     TerminalRuntimeMissing,
+    TerminalClearAlternateScreen,
 };
 
 pub const TerminalThemeError = core_module.CoreError || error{

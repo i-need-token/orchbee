@@ -55,6 +55,8 @@ impl ControlInput {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum TerminalControlAction {
     Acquire,
+    /// Independent transient input attachment; never acquires a controller lease.
+    Clear,
     Takeover {
         previous_controller_id: OperationId,
     },
@@ -90,6 +92,7 @@ pub enum ControlRejection {
     NotController,
     SequenceMismatch,
     HostRejected,
+    HostClearAlternateScreen,
     HostInputInvalid,
     HostInputLimitExceeded,
     HostInputBackpressure,
@@ -98,10 +101,18 @@ pub enum ControlRejection {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum TerminalControlOutcome {
     Acquired,
+    Cleared {
+        generation: NonZeroU64,
+        revision: NonZeroU64,
+        cleanup_confirmed: bool,
+    },
+    ClearOutcomeUnknown,
     Released,
     InputAccepted,
     Resized(TerminalPixelGeometry),
-    Pasted { accepted_bytes: PasteAcceptedBytes },
+    Pasted {
+        accepted_bytes: PasteAcceptedBytes,
+    },
     Rejected(ControlRejection),
 }
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

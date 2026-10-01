@@ -13,6 +13,36 @@ Agent 状态来自 Server 的 canonical Agent 模型，不从终端文字推断�
 归属：本记录拥有 `src/invocation.rs` 与 `src/cli/**` 实现的公共语法、结果信封、失败矩阵、
 预算、交换状态机与输出副作用。文字与实现必须在同一变更中收敛。
 
+## 清空终端输出
+
+Windows `terminal clear <terminal>` 在已有 Site 中清空一个精确绑定的主终端或子终端。
+保留光标所在的完整软折行提示行，删除此前历史及其他输出，清除选区并将视口返回活动屏幕。
+备用屏幕会被拒绝，内容不变。终端模式、标题、工作目录和子进程保持不变。
+该行为遵循固定版本 Herdr 的 `pane.clear` 实现，不通过注入终端输入模拟。
+
+公开终端控制动作 `clear` 指定一个已准入的只读 viewer。Server 核对当前 Site 暴露、
+精确物理绑定和 Worker 代次，然后分配独立的临时输入 attachment 标识。
+Worker 使用该 viewer 的精确 Host 目标，附加仅输入权限且不申请尺寸租约，
+提交一次带 `preservePrompt: true` 的 Host `ClearTerminal`，验证 attachment/terminal
+以及正数代次／修订确认，再分离。已有控制权和终端尺寸不变。
+省略 `preservePrompt` 时，旧 Host 清屏操作保留默认行为。
+
+CLI 发现和提交共用一个可取消的五秒预算。Host 操作使用三秒效果预算和独立的一秒清理预算。
+提交前失败不会清空内容；提交后确认丢失或畸形则结果未知，绝不重放。
+已确认清空但清理未确认时保留已知效果并退出 8。失败 Host 通道会关闭，
+由连接释放临时 attachment，避免累积状态不明的 attachment。
+CLI 在最后一个消费者结束后于所有结果路径释放 viewer。
+取消保留已提交回执并退出 130。清空不启动 Site、不聚焦 Client、不接管控制权、
+不发送 PTY 输入、不重置进程，也不触发浏览器效果。
+
+封闭的 `orchbee.terminal.clear` v1 携带精确目标、操作标识和类型化结果；
+已知清空包括新内容修订／代次以及清理确认。成功退出 0、类型化拒绝 3、不可用 4、效果未知 8。
+已有控制编解码器拥有新增的清空请求／结果；Host 协议对等端拥有可选的保留提示行字段。
+定向契约、Host 运行时和 Windows 管道测试验证这些边界；部署后 Host/TUI 验收和全仓验证
+仍按用户持续授权留至最后阶段。
+
+操作标识是请求关联标识，不是持久保留的幂等回执；不提供状态查询或自动重试。
+
 ## 读取终端选区
 
 Windows `terminal selection-read <terminal> --anchor ROW:COL --cursor ROW:COL`

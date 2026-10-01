@@ -82,6 +82,7 @@ fn tag(message: &ServerMessage) -> String {
             ControlOutcome::Rejected { reason } => format!("control:{reason:?}"),
             ControlOutcome::Unavailable { reason } => format!("unavailable:{reason:?}"),
             ControlOutcome::OutcomeUnknown {} => "unknown".into(),
+            ControlOutcome::Cleared { .. } => "clear".into(),
         },
         _ => "wrong-message".into(),
     }
@@ -633,6 +634,7 @@ fn effect_kind(effect: &Effect) -> &'static str {
         Effect::Resize(..) => "resize",
         Effect::Paste(..) => "paste",
         Effect::Release(..) => "release",
+        Effect::Clear(..) => "clear",
         Effect::Dispose(..) => "dispose",
         Effect::ProcessInfo(..) => "process-info",
         Effect::DetachRefused(..) => "detach-refused",
@@ -668,14 +670,16 @@ fn effect_mismatch(expected: &[Effect], actual: &[Effect]) -> String {
                         | Effect::Acquire(viewer, _)
                         | Effect::Input(viewer, _, _)
                         | Effect::Resize(viewer, _, _)
-                        | Effect::Release(viewer, _),
+                        | Effect::Release(viewer, _)
+                        | Effect::Clear(viewer, _),
                     ) => u128::from_be_bytes(*viewer),
                     (
                         1,
                         Effect::Acquire(_, grant)
                         | Effect::Input(_, grant, _)
                         | Effect::Resize(_, grant, _)
-                        | Effect::Release(_, grant),
+                        | Effect::Release(_, grant)
+                        | Effect::Clear(_, grant),
                     ) => u128::from_be_bytes(*grant),
                     (2, Effect::Attach(_, target) | Effect::Dispose(target)) => *target as u128,
                     (3, Effect::Input(_, _, sequence) | Effect::Resize(_, _, sequence)) => {

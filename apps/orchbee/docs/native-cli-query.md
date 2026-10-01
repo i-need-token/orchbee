@@ -17,6 +17,44 @@ Authority: this record owns the public grammar, result envelopes, failure matrix
 budgets, exchange state machines and output effects implemented under `src/invocation.rs`
 and `src/cli/**`. Prose and implementation must converge in the same change.
 
+## Clear terminal output
+
+Windows `terminal clear <terminal>` clears one exact bound primary or child terminal
+in an existing Site. It preserves the cursor's complete soft-wrapped prompt line,
+removes preceding history and other output, clears selection and returns the viewport
+to the active screen. An alternate screen is refused without changing content.
+Terminal modes, title, working directory and child process remain intact. This follows
+the pinned Herdr `pane.clear` implementation, rather than injecting terminal input.
+
+The public terminal control action `clear` names an admitted read viewer. The Server
+checks its current Site exposure, exact physical binding and Worker generation,
+then allocates an independent transient input attachment identity. The Worker uses
+that viewer's exact Host target, attaches input-only without a resize lease, submits
+one Host `ClearTerminal` with `preservePrompt: true`, validates attachment/terminal
+and positive generation/revision acknowledgement, and detaches. Existing controller
+ownership and resize geometry are unchanged. The legacy Host screen-clear operation
+retains its default behavior when `preservePrompt` is omitted.
+
+One cancellable five-second CLI budget covers discovery and submission. Host work
+has a three-second effect budget and a separate one-second cleanup allowance.
+Pre-submission failures cannot clear content; a missing or malformed acknowledgement
+after submission is unknown and never replayed. A known clear with unconfirmed
+cleanup retains the confirmed effect and exits 8. Closing a failed Host carrier
+releases its transient attachment instead of stacking uncertain attachments.
+The CLI releases its viewer after the last consumer on every outcome. Cancellation
+retains an already submitted receipt and exits 130. No Site startup, Client focus,
+controller takeover, PTY input, process reset or browser effect is part of clear.
+
+Closed `orchbee.terminal.clear` v1 carries the exact target, operation identity and
+typed outcome, including the new content revision/generation and cleanup confirmation
+for a known clear. Success exits 0, typed refusal 3, unavailable 4 and unknown effect 8.
+The existing controller codecs own the additive clear request/result; Host protocol
+peers own the optional prompt-preserving field. Scoped contract, Host runtime and
+Windows pipe tests establish these boundaries; deployed Host/TUI acceptance and the
+whole repository gate remain final-stage work under the User's standing authorization.
+
+The operation identity is a request correlation, not a retained idempotent receipt; no status lookup or automatic retry is advertised.
+
 ## Read a terminal selection
 
 Windows `terminal selection-read <terminal> --anchor ROW:COL --cursor ROW:COL`

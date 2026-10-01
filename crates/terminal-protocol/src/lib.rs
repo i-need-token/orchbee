@@ -20,6 +20,7 @@ mod projection_feedback;
 mod resize;
 mod row_access;
 mod row_window;
+mod screen_control;
 mod selection;
 mod selection_export;
 mod selection_export_chunk;
@@ -129,6 +130,10 @@ pub use row_window::{
     TerminalRowWindowRoute, TerminalTextCellMapping, TerminalTextRowWindow, TerminalTextWindowRow,
     decode_terminal_render_row_window, decode_terminal_text_row_window,
     inspect_terminal_row_window_route,
+};
+pub use screen_control::{
+    ClearTerminal, EncodedScreenControl, ScreenControl, ScreenControlOperation,
+    TerminalControlAccepted, decode_screen_control, encode_screen_control,
 };
 pub use selection::{
     EncodedSelectionControl, SelectionChanged, SelectionChangedState, SelectionCommand,

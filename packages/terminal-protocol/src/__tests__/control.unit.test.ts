@@ -219,6 +219,19 @@ describe('control schemas', () => {
 			}).success,
 		).toBe(false);
 	});
+	it('admits an optional prompt-preserving clear without widening reset or coercing fields', () => {
+		const attachmentId = '11'.repeat(16);
+		for (const preservePrompt of [true, false]) {
+			expect(ClearTerminalSchema.parse({ attachmentId, preservePrompt })).toEqual({
+				attachmentId,
+				preservePrompt,
+			});
+			expect(ResetTerminalSchema.safeParse({ attachmentId, preservePrompt }).success).toBe(false);
+		}
+		for (const preservePrompt of [null, 'true', 1]) {
+			expect(ClearTerminalSchema.safeParse({ attachmentId, preservePrompt }).success).toBe(false);
+		}
+	});
 	it('scopes every bell to one attachment and one positive terminal sequence', () => {
 		const bell = { attachmentId: '11'.repeat(16), sequence: '7' };
 

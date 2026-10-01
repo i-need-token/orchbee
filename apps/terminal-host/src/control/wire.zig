@@ -282,6 +282,10 @@ pub const UpdateAttachmentInputCapability = struct {
 pub const ClaimResizeLease = struct { attachmentId: []const u8 };
 
 pub const TerminalControl = struct { attachmentId: []const u8 };
+pub const ClearTerminal = struct {
+    attachmentId: []const u8,
+    preservePrompt: bool = false,
+};
 
 pub const Resize = struct {
     attachmentId: []const u8,

@@ -1,5 +1,9 @@
 # Client-Server Protocol Rust Binding
 
+## Transient terminal clear
+
+The additive `clear` control action carries only an existing viewer `attachmentId`. It does not acquire or transfer a controller. A `cleared` outcome carries positive decimal `generation` and `revision`, and `cleanupConfirmed`; unknown delivery uses the existing `outcome-unknown` class. Other outcomes retain their closed meanings. The Server owns Site-exposure, physical-binding and Worker-generation fencing and fresh transient attachment identity; the Worker owns input-only attach → prompt-preserving Host clear → detach. [Native clear](../../apps/orchbee/docs/native-cli-query.md#clear-terminal-output) owns public command, deadlines and receipts. Matching development cohorts are required.
+
 ## Scope
 
 `orchbee-client-server-protocol` owns the native OBCS v2 Rust binding. The language-neutral

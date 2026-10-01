@@ -257,18 +257,45 @@ pub(crate) fn exchange(
     payload: &[u8],
     encoding: PayloadEncoding,
 ) -> Result<Vec<u8>, Box<dyn Error>> {
-    let record = encode_transport_envelope(&Envelope {
-        correlation_id: Some(correlation),
-        host_epoch: Some(host.host_epoch()),
-        kind,
-        optional_message: false,
-        payload,
-        payload_encoding: encoding,
-        protocol: CURRENT_PROTOCOL_VERSION,
-        role: MessageRole::Request,
-    })?;
-    let mut exchange = HostExchange::new(host, server, Duration::from_secs(1))
-        .ok_or_else(|| io::Error::other("invalid Host request budget"))?;
+    exchange_before(
+        host,
+        server,
+        Envelope {
+            correlation_id: Some(correlation),
+            host_epoch: Some(host.host_epoch()),
+            kind,
+            optional_message: false,
+            payload,
+            payload_encoding: encoding,
+            protocol: CURRENT_PROTOCOL_VERSION,
+            role: MessageRole::Request,
+        },
+        Instant::now() + Duration::from_secs(1),
+    )
+}
+
+pub(crate) fn exchange_before(
+    host: &HostBrokerConnection,
+    server: &UnixStream,
+    request: Envelope<'_>,
+    deadline: Instant,
+) -> Result<Vec<u8>, Box<dyn Error>> {
+    let correlation = request.correlation_id;
+    if correlation.is_none()
+        || request.host_epoch != Some(host.host_epoch())
+        || request.protocol != CURRENT_PROTOCOL_VERSION
+        || request.role != MessageRole::Request
+        || request.optional_message
+    {
+        return Err(io::Error::other("invalid Host request envelope").into());
+    }
+    let record = encode_transport_envelope(&request)?;
+    let mut exchange = HostExchange::new(
+        host,
+        server,
+        deadline.saturating_duration_since(Instant::now()),
+    )
+    .ok_or_else(|| io::Error::other("invalid Host request budget"))?;
     exchange
         .prepare()
         .map_err(|_| io::Error::other("Host request preflight failed"))?;
@@ -276,7 +303,7 @@ pub(crate) fn exchange(
         .round_trip(&record)
         .map_err(|_| io::Error::other("Host request exchange failed"))?;
     let envelope = decode_transport_envelope(&record)?;
-    if envelope.correlation_id != Some(correlation)
+    if envelope.correlation_id != correlation
         || envelope.host_epoch != Some(host.host_epoch())
         || envelope.role != MessageRole::Response
         || envelope.protocol != CURRENT_PROTOCOL_VERSION

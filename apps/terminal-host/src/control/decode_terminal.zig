@@ -363,6 +363,23 @@ pub fn decodeClaimResizeLease(
     };
 }
 
+pub const ClearTerminal = struct {
+    attachment_id: identifiers.AttachmentId,
+    preserve_prompt: bool,
+};
+
+pub fn decodeClearTerminal(
+    allocator: std.mem.Allocator,
+    payload: []const u8,
+) decode_common.Error!decode_common.Decoded(control_wire.ClearTerminal, ClearTerminal) {
+    const parsed = try control_wire.decode(control_wire.ClearTerminal, allocator, payload);
+    errdefer parsed.deinit();
+    return .{ .parsed = parsed, .value = .{
+        .attachment_id = try identifiers.parseLowerHex(identifiers.AttachmentId, parsed.value.attachmentId),
+        .preserve_prompt = parsed.value.preservePrompt,
+    } };
+}
+
 pub fn decodeTerminalControl(
     allocator: std.mem.Allocator,
     payload: []const u8,

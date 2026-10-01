@@ -11,6 +11,10 @@ Simplified Chinese maintenance translation:
 [README.zh-CN.md](README.zh-CN.md).
 English remains canonical.
 
+## Transient terminal clear
+
+Control action tag 6 is `Clear`, using the request viewer plus a newly allocated transient attachment in `controller_id`; it never names or changes a controller reservation. Result tag 7 is `Cleared` with positive u64 generation/revision and a canonical one-byte cleanup Boolean; tag 8 is `ClearOutcomeUnknown` and is valid only for Clear. Rejection tag 12 denotes an alternate screen. Old tags and framing remain unchanged. The carrier validates the complete request/viewer/transient identity and result kind before delivery. [Native clear](../../apps/orchbee/docs/native-cli-query.md#clear-terminal-output) owns the end-to-end state machine; same-cohort deployment is required.
+
 ## Local Close lifecycle step
 
 [Canonical terminal Tab Close](../../apps/orchbee-server/docs/terminal-tab-close.md) owns the accepted

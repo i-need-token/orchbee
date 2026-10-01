@@ -250,6 +250,9 @@ fn canonical_corpus_reaches_every_closed_message_and_result_variant()
     }
     let expected = BTreeSet::from([
         "control-acquire",
+        "control-clear",
+        "control-cleared",
+        "control-rejected-host-clear-alternate-screen",
         "control-takeover",
         "control-input",
         "control-resize",
@@ -635,6 +638,7 @@ fn record_coverage(message: &DecodedMessage, reached: &mut BTreeSet<&'static str
             reached.insert(match request.action() {
                 Action::Acquire { .. } => "control-acquire",
                 Action::Takeover { .. } => "control-takeover",
+                Action::Clear { .. } => "control-clear",
                 Action::Input { .. } => "control-input",
                 Action::Resize { .. } => "control-resize",
                 Action::Paste { .. } => "control-paste",
@@ -649,6 +653,7 @@ fn record_coverage(message: &DecodedMessage, reached: &mut BTreeSet<&'static str
                 Outcome::Acquired { .. } => "control-acquired",
                 Outcome::InputAccepted {} => "control-input-accepted",
                 Outcome::Resized { .. } => "control-resized",
+                Outcome::Cleared { .. } => "control-cleared",
                 Outcome::Pasted { .. } => "control-pasted",
                 Outcome::OutcomeUnknown {} => "control-outcome-unknown",
                 Outcome::Rejected { reason } => match reason {
@@ -657,6 +662,9 @@ fn record_coverage(message: &DecodedMessage, reached: &mut BTreeSet<&'static str
                     Rejected::NotController => "control-rejected-not-controller",
                     Rejected::SequenceMismatch => "control-rejected-sequence-mismatch",
                     Rejected::HostRejected => "control-rejected-host-rejected",
+                    Rejected::HostClearAlternateScreen => {
+                        "control-rejected-host-clear-alternate-screen"
+                    }
                     Rejected::HostInputInvalid => "control-rejected-host-input-invalid",
                     Rejected::HostInputLimitExceeded => {
                         "control-rejected-host-input-limit-exceeded"

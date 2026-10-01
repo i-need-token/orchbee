@@ -162,6 +162,7 @@ fn control_busy_uses_fresh_ids_and_consumes_each_effect_sequence_once() -> TestR
                     }
                 } else {
                     match expected {
+                        Control::Clear { .. } => panic!("unexpected clear in controller fixture"),
                         Control::Takeover { .. } => {
                             panic!("unexpected takeover in backpressure fixture")
                         }

@@ -2,6 +2,10 @@
 
 On Windows, absolute `.cmd`/`.bat` selections use the system directory’s `cmd.exe` with `/e:ON /v:OFF /d /c`. The private command-line adapter distinguishes script quoting from ordinary executable argv, protects percent literals and metacharacters, and rejects NUL/CR/LF parameters and encoded lines above 8191 bytes before creating a PTY. Canonical verbatim drive/UNC paths are converted only when component meaning is preserved; device paths, relative script paths and ambiguous verbatim components are refused. The script remains responsible for its own parameter expansion. Neither `ComSpec` nor `PATH` can replace the command processor. The same suspended launch, Job containment, exit observation and cleanup own the script and descendants; no wrapper supervisor is introduced.
 
+## Prompt-preserving clear
+
+An optional `preservePrompt: true` on `ClearTerminal` preserves the complete soft-wrapped cursor line on the primary screen, erases earlier history and other output, clears selection/images and restores the active viewport. Alternate screens fail with `terminal-clear-alternate-screen` before mutation. Legacy omission retains erase/home semantics; ResetTerminal never accepts this field. The same runtime lock owns mutation and one generation/revision advance, preserving modes and metadata. Input-capable attachment authorization is required; no resize lease or synthetic child bytes are used.
+
 ## Status and authority
 
 This document is the authoritative runtime model for `terminal-host`. The accepted contract is

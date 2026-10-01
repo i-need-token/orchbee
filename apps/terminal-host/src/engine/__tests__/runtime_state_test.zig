@@ -2223,3 +2223,44 @@ test "reset and successful resize release synchronized output" {
     std.testing.allocator.free(ris.allocation);
     try runtime.forceTerminate();
 }
+
+test "prompt-preserving clear removes history and output while retaining the complete logical cursor line" {
+    const runtime = try createIdleRuntimeWithGeometry(8, 6, .{});
+    defer runtime.destroy();
+    try std.testing.expectEqual(ReaderBatchOutcome.committed, commitReaderBatch(runtime, "old0\r\nold1\r\nold2\r\nold3\r\nold4\r\nold5\r\nold6\r\n" ++
+        "\x1b[3;1Habcdefghijklmno\x1b[5;1HREMOVE\x1b[3;4H" ++
+        "\x1b]2;Prompt title\x1b\\\x1b]7;file:///prompt\x1b\\\x1b[?2004h"));
+    const before = runtime.geometry();
+    const update = try runtime.applyTerminalControl(.clear_prompt);
+    try std.testing.expectEqual(before.revision + 1, update.revision);
+    try std.testing.expectEqual(before.generation + 1, update.generation);
+    const plain = try runtime.plainString(std.testing.allocator);
+    defer std.testing.allocator.free(plain);
+    try std.testing.expectEqualStrings("abcdefgh\nijklmno", std.mem.trim(u8, plain, " \r\n\t"));
+    const terminal = &runtimeState(runtime).terminal;
+    try std.testing.expectEqual(@as(u16, 0), terminal.screens.active.cursor.y);
+    try std.testing.expectEqual(@as(u16, 3), terminal.screens.active.cursor.x);
+    try std.testing.expectEqual(@as(usize, 6), terminal.screens.active.pages.total_rows);
+    try std.testing.expectEqualStrings("Prompt title", terminal.getTitle().?);
+    try std.testing.expectEqualStrings("file:///prompt", terminal.getPwd().?);
+    try std.testing.expect(terminal.modes.get(.bracketed_paste));
+    try std.testing.expectEqual(@as(usize, 0), runtime.pendingInputBytes());
+    try std.testing.expectEqual(@as(usize, 0), runtime.takeWrittenBytes());
+}
+
+test "prompt-preserving clear refuses alternate screen without changing content or revision" {
+    const runtime = try createIdleRuntimeWithGeometry(8, 6, .{});
+    defer runtime.destroy();
+    try std.testing.expectEqual(ReaderBatchOutcome.committed, commitReaderBatch(runtime, "\x1b[?1049hALTERNATE"));
+    const before = runtime.geometry();
+    const plain_before = try runtime.plainString(std.testing.allocator);
+    defer std.testing.allocator.free(plain_before);
+    try std.testing.expectError(error.TerminalClearAlternateScreen, runtime.applyTerminalControl(.clear_prompt));
+    const plain_after = try runtime.plainString(std.testing.allocator);
+    defer std.testing.allocator.free(plain_after);
+    try std.testing.expectEqualStrings(plain_before, plain_after);
+    const after = runtime.geometry();
+    try std.testing.expectEqual(before.revision, after.revision);
+    try std.testing.expectEqual(before.generation, after.generation);
+    try std.testing.expectEqual(@as(usize, 0), runtime.pendingInputBytes());
+}

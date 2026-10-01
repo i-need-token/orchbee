@@ -1,6 +1,9 @@
 //! Shared observable completion obligations, independent of shell syntax.
 
 pub(super) const CASES: &[(&str, &str, bool)] = &[
+    ("orchbee terminal cl", "clear", true),
+    ("orchbee help terminal cl", "clear", true),
+    ("orchbee terminal clear abc --ta", "--takeover", false),
     ("orchbee terminal link-a", "link-activate", true),
     ("orchbee help terminal link-a", "link-activate", true),
     (

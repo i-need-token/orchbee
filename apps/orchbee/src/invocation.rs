@@ -436,6 +436,8 @@ pub(crate) enum CommandPath {
     TerminalLinkResolve,
     #[cfg(windows)]
     TerminalLinkActivate,
+    #[cfg(windows)]
+    TerminalClear,
     TerminalWaitOutput,
     TerminalSend,
     TerminalRun,
@@ -589,6 +591,8 @@ impl CommandPath {
             Self::TerminalLinkResolve => "terminal link-resolve",
             #[cfg(windows)]
             Self::TerminalLinkActivate => "terminal link-activate",
+            #[cfg(windows)]
+            Self::TerminalClear => "terminal clear",
             Self::TerminalWaitOutput => "terminal wait-output",
             Self::TerminalSend => "terminal send",
             Self::TerminalRun => "terminal run",
@@ -1388,6 +1392,11 @@ pub(crate) enum RuntimeStatusScope {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum Request {
+    #[cfg(windows)]
+    TerminalClear {
+        target: Target,
+        format: OutputFormat,
+    },
     #[cfg(windows)]
     TerminalLink {
         command: TerminalLinkCommand,
@@ -4043,6 +4052,19 @@ fn resolve_words(
             terminal_stream::observe(operands, options, envelope)
         }
         #[cfg(windows)]
+        ["terminal", "clear", value] => {
+            check_scope(
+                options,
+                NO_OPTIONS,
+                UsageContext::Path("terminal clear"),
+                envelope,
+            )?;
+            Ok(Request::TerminalClear {
+                target: target((*value).to_owned(), Resource::Terminal, envelope)?,
+                format: options.format.unwrap_or(OutputFormat::Text),
+            })
+        }
+        #[cfg(windows)]
         ["terminal", "link-resolve", value] => {
             terminal_links::parse(value, options, envelope, false)
         }
@@ -5171,6 +5193,8 @@ fn help_topic(path: &[&str]) -> Option<HelpTopic> {
         ["terminal", "link-resolve"] => HelpTopic::Command(CommandPath::TerminalLinkResolve),
         #[cfg(windows)]
         ["terminal", "link-activate"] => HelpTopic::Command(CommandPath::TerminalLinkActivate),
+        #[cfg(windows)]
+        ["terminal", "clear"] => HelpTopic::Command(CommandPath::TerminalClear),
         ["terminal", "wait-output"] => HelpTopic::Command(CommandPath::TerminalWaitOutput),
         ["terminal", "send"] => HelpTopic::Command(CommandPath::TerminalSend),
         ["terminal", "run"] => HelpTopic::Command(CommandPath::TerminalRun),

@@ -2820,3 +2820,80 @@ fn drain_exchanges_fill_the_low_lane_and_rotate_after_four_highs() -> TestResult
     drop(retained);
     Ok(())
 }
+
+#[test]
+fn transient_clear_carrier_refuses_wrong_operation_and_request_viewer_attachment_echo() -> TestResult
+{
+    use orchbee_capability_node_protocol::{
+        TerminalControlAction as Action, TerminalControlOutcome as Outcome, TerminalControlRequest,
+        TerminalControlResult,
+    };
+    let request = TerminalControlRequest {
+        request_id: OperationId::from_bytes([1; 16])?,
+        worker_id: CapabilityWorkerId::from_bytes(LOCAL_WORKER_ID.as_bytes())?,
+        worker_generation: WorkerGeneration::new(GENERATION),
+        viewer_id: OperationId::from_bytes([2; 16])?,
+        controller_id: OperationId::from_bytes([3; 16])?,
+        action: Action::Clear,
+    };
+    let base = TerminalControlResult {
+        request_id: request.request_id,
+        viewer_id: request.viewer_id,
+        controller_id: request.controller_id,
+        outcome: Outcome::Cleared {
+            generation: NonZeroU64::MIN,
+            revision: NonZeroU64::MIN,
+            cleanup_confirmed: true,
+        },
+    };
+    let wrong = OperationId::from_bytes([9; 16])?;
+    for (response, failure) in [
+        (
+            TerminalControlResult {
+                outcome: Outcome::InputAccepted,
+                ..base
+            },
+            WorkerResponseFailure::WrongResultKind,
+        ),
+        (
+            TerminalControlResult {
+                request_id: wrong,
+                ..base
+            },
+            WorkerResponseFailure::MismatchedCorrelation,
+        ),
+        (
+            TerminalControlResult {
+                viewer_id: wrong,
+                ..base
+            },
+            WorkerResponseFailure::MismatchedTarget,
+        ),
+        (
+            TerminalControlResult {
+                controller_id: wrong,
+                ..base
+            },
+            WorkerResponseFailure::MismatchedTarget,
+        ),
+    ] {
+        assert_post_delivery_failure(
+            WorkerOperationRequest::Control(request.clone()),
+            CapabilityNodeMessage::TerminalControlResult(response),
+            failure,
+        )?;
+    }
+    let mut input = request;
+    input.action = Action::Input {
+        sequence: NonZeroU64::MIN,
+        bytes: orchbee_capability_node_protocol::ControlInput::new(vec![b'x'])?,
+    };
+    for outcome in [base.outcome, Outcome::ClearOutcomeUnknown] {
+        assert_post_delivery_failure(
+            WorkerOperationRequest::Control(input.clone()),
+            CapabilityNodeMessage::TerminalControlResult(TerminalControlResult { outcome, ..base }),
+            WorkerResponseFailure::WrongResultKind,
+        )?;
+    }
+    Ok(())
+}

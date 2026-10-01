@@ -10,6 +10,10 @@ Create/Start 与绑定代次的 cwd validation。它不是 public API 或 compat
 [README.md](README.md)。
 如有冲突，以英文为准。
 
+## 临时终端清空
+
+控制动作标签 6 为 `Clear`，使用请求 viewer 以及 `controller_id` 中新分配的临时 attachment；它不指向或改变控制权预留。结果标签 7 为 `Cleared`，包含正数 u64 代次／修订和规范的单字节清理布尔值；标签 8 为 `ClearOutcomeUnknown`，仅对 Clear 有效。拒绝标签 12 表示备用屏幕。旧标签和帧格式不变。通道在交付前核对完整请求／viewer／临时标识及结果种类。[原生清空](../../apps/orchbee/docs/native-cli-query.zh-CN.md#清空终端输出) 拥有端到端状态机；需要相同 cohort 部署。
+
 ## 本地 Close 生命周期步骤
 
 [规范终端 Tab Close](../../apps/orchbee-server/docs/terminal-tab-close.zh-CN.md) 拥有已接受的

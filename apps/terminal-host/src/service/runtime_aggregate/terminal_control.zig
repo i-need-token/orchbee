@@ -19,6 +19,7 @@ pub fn applyTerminalControl(
         return error.RuntimeStateDiverged;
     const update = runtime.applyTerminalControl(operation) catch |err| return switch (err) {
         error.RevisionOverflow => error.RevisionOverflow,
+        error.TerminalClearAlternateScreen => error.TerminalClearAlternateScreen,
         error.TerminalExited,
         error.TerminalResizeFailed,
         error.TerminalRuntimeUnavailable,
@@ -30,7 +31,7 @@ pub fn applyTerminalControl(
     return .{
         .attachment_id = attachment_id,
         .generation = update.generation,
-        .operation = operation,
+        .operation = if (operation == .clear_prompt) .clear else operation,
         .revision = update.revision,
         .terminal_id = terminal_id,
     };

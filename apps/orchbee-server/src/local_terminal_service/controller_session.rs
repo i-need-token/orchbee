@@ -13,6 +13,7 @@ use orchbee_client_server_protocol::{
     TerminalControlAction as Action, TerminalControlOutcome as Outcome, TerminalControlRequest,
 };
 use std::collections::BTreeMap;
+mod clear;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd)]
 pub(super) struct ControlTarget {
@@ -129,6 +130,9 @@ pub(super) fn execute<'service>(
             matches!(request.action(), Action::Takeover { .. }),
         );
     }
+    if matches!(request.action(), Action::Clear { .. }) {
+        return clear::execute(service, viewer);
+    }
     let Some(controller) = viewer.controller.as_mut() else {
         return rejected(Rejected::NotController);
     };
@@ -148,7 +152,9 @@ pub(super) fn execute<'service>(
             sequence,
             ..
         } => (controller_id, *sequence),
-        Action::Acquire { .. } | Action::Takeover { .. } => unreachable!("acquisition handled"),
+        Action::Acquire { .. } | Action::Takeover { .. } | Action::Clear { .. } => {
+            unreachable!("standalone action handled")
+        }
     };
     if id.as_str()
         != format!(
@@ -185,7 +191,9 @@ pub(super) fn execute<'service>(
                 Err(_) => return rejected(Rejected::HostRejected),
             }
         }
-        Action::Acquire { .. } | Action::Takeover { .. } => unreachable!("effect matched"),
+        Action::Acquire { .. } | Action::Takeover { .. } | Action::Clear { .. } => {
+            unreachable!("effect matched")
+        }
     };
     let request_id = {
         let Ok(workers) = service.workers.lock() else {
@@ -513,6 +521,7 @@ fn worker_rejection(reason: ControlRejection) -> Rejected {
         ControlRejection::NotController => Rejected::NotController,
         ControlRejection::SequenceMismatch => Rejected::SequenceMismatch,
         ControlRejection::HostRejected => Rejected::HostRejected,
+        ControlRejection::HostClearAlternateScreen => Rejected::HostClearAlternateScreen,
         ControlRejection::HostInputInvalid => Rejected::HostInputInvalid,
         ControlRejection::HostInputLimitExceeded => Rejected::HostInputLimitExceeded,
         ControlRejection::HostInputBackpressure => Rejected::HostInputBackpressure,

@@ -46,6 +46,10 @@ export-chunk sequencing or acknowledgement behavior, queue state or effects, sem
 terminal encoding, terminal-default or configuration mutation and persistence, terminal output,
 IPC, or Worker behavior.
 
+## Application screen control
+
+The independent Rust `ScreenControl` binding mirrors kinds 74–76: ClearTerminal, ResetTerminal and TerminalControlAccepted. Clear accepts optional Boolean `preservePrompt`; omission retains screen erase/home. Reset stays closed to this field. Accepted generation is positive and revision retains the general canonical u64 wire domain; the prompt-preserving operation consumer separately requires a positive advanced revision. [Host runtime](../../apps/terminal-host/docs/runtime-model.md#prompt-preserving-clear) owns semantics; [native clear](../../apps/orchbee/docs/native-cli-query.md#clear-terminal-output) owns transient input capability, deadlines and uncertainty. Matching development cohorts are required.
+
 ## Rust text-frame binding
 
 `decode_terminal_text_frame` consumes the unchanged OBTF 0.0.3 encoding for the private native TUI.

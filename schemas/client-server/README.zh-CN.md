@@ -1,5 +1,9 @@
 # Client-Server Terminal Control Contract
 
+## 临时终端清空
+
+同 cohort 新增的 `terminal-control` 动作 `{kind:"clear", attachmentId}` 通过已准入 viewer 绑定执行一次保留提示行的终端变异，独立于会话控制权获取。`cleared` 报告规范正数十进制代次／修订和布尔清理确认。Server 核对当前 Site 暴露、精确物理绑定以及 Worker 标识；Worker 打开新的仅输入 Host attachment，不调整尺寸或转移控制权。已知清空在清理不明时保留，缺失效果确认则保持未知且不重试。[原生清空](../../apps/orchbee/docs/native-cli-query.zh-CN.md#清空终端输出) 拥有命令和资源预算。
+
 ## 权威与边界
 
 [`v2/client-server.schema.json`](v2/client-server.schema.json) 与本文档是 Orchbee Client-Server

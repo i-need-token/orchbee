@@ -72,6 +72,9 @@ fn preadmitted_input_and_resize_keep_success_while_new_effects_are_fenced_withou
                     }
                     CapabilityNodeMessage::TerminalControlRequest(request) => {
                         let outcome = match request.action {
+                            WorkerControlAction::Clear => {
+                                panic!("unexpected clear in admitted controller fixture")
+                            }
                             WorkerControlAction::Takeover { .. } => {
                                 panic!("unexpected takeover in close fixture")
                             }

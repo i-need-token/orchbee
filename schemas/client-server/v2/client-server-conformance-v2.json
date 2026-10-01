@@ -620,6 +620,21 @@
 			"name": "launch-read-program-long-resume",
 			"direction": "server-to-client",
 			"payload": "{\"kind\":\"terminal.launch.read.result\",\"protocolVersion\":2,\"requestId\":\"90909090909090909090909090909090\",\"outcome\":{\"kind\":\"found\",\"siteId\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"workbenchRevision\":\"7\",\"terminal\":{\"terminalId\":\"30303030303030303030303030303030\",\"workerId\":\"6f7263686265652d6c6f63616c2d7631\",\"boundTo\":{\"presentationId\":\"28282828282828282828282828282828\",\"panelId\":\"27272727272727272727272727272727\",\"tabId\":\"21212121212121212121212121212121\",\"terminalContextId\":\"20202020202020202020202020202020\"}},\"launch\":{\"state\":\"started\",\"workerGeneration\":\"1\",\"createOutcome\":{\"kind\":\"accepted\",\"state\":{\"kind\":\"started\",\"geometry\":{\"columns\":120,\"rows\":40,\"cellPixelWidth\":8,\"cellPixelHeight\":16}}},\"geometry\":{\"columns\":120,\"rows\":40,\"cellPixelWidth\":8,\"cellPixelHeight\":16}},\"launchSelection\":{\"exec\":\"C:\\\\shell.exe\",\"args\":[\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"]}}}"
+		},
+		{
+			"direction": "client-to-server",
+			"name": "clear-transient",
+			"payload": "{\"kind\":\"terminal.control\",\"protocolVersion\":2,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"clear\",\"attachmentId\":\"22222222222222222222222222222222\"}}"
+		},
+		{
+			"direction": "server-to-client",
+			"name": "clear-known",
+			"payload": "{\"kind\":\"terminal.control.result\",\"protocolVersion\":2,\"requestId\":\"11111111111111111111111111111111\",\"outcome\":{\"kind\":\"cleared\",\"generation\":\"18446744073709551615\",\"revision\":\"1\",\"cleanupConfirmed\":true}}"
+		},
+		{
+			"direction": "server-to-client",
+			"name": "clear-rejected-alternate-screen",
+			"payload": "{\"kind\":\"terminal.control.result\",\"protocolVersion\":2,\"requestId\":\"11111111111111111111111111111111\",\"outcome\":{\"kind\":\"rejected\",\"reason\":\"host-clear-alternate-screen\"}}"
 		}
 	],
 	"equivalentMessages": [
@@ -2219,6 +2234,24 @@
 			"direction": "server-to-client",
 			"name": "launch-read-program-untracked",
 			"payload": "{\"kind\":\"terminal.launch.read.result\",\"protocolVersion\":2,\"requestId\":\"90909090909090909090909090909090\",\"outcome\":{\"kind\":\"found\",\"siteId\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"workbenchRevision\":\"7\",\"terminal\":{\"terminalId\":\"30303030303030303030303030303030\",\"workerId\":\"6f7263686265652d6c6f63616c2d7631\",\"boundTo\":{\"presentationId\":\"28282828282828282828282828282828\",\"panelId\":\"27272727272727272727272727272727\",\"tabId\":\"21212121212121212121212121212121\",\"terminalContextId\":\"20202020202020202020202020202020\"}},\"launch\":{\"state\":\"not-tracked\",\"workerGeneration\":null,\"createOutcome\":null,\"geometry\":null},\"launchSelection\":{\"exec\":\"/sh\",\"args\":[]}}}",
+			"boundary": "schema"
+		},
+		{
+			"direction": "client-to-server",
+			"name": "clear-has-no-controller",
+			"payload": "{\"kind\":\"terminal.control\",\"protocolVersion\":2,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"clear\",\"attachmentId\":\"22222222222222222222222222222222\",\"controllerId\":\"33333333333333333333333333333333\"}}",
+			"boundary": "schema"
+		},
+		{
+			"direction": "server-to-client",
+			"name": "clear-zero-generation",
+			"payload": "{\"kind\":\"terminal.control.result\",\"protocolVersion\":2,\"requestId\":\"11111111111111111111111111111111\",\"outcome\":{\"kind\":\"cleared\",\"generation\":\"0\",\"revision\":\"1\",\"cleanupConfirmed\":true}}",
+			"boundary": "schema"
+		},
+		{
+			"direction": "server-to-client",
+			"name": "clear-nonboolean-cleanup",
+			"payload": "{\"kind\":\"terminal.control.result\",\"protocolVersion\":2,\"requestId\":\"11111111111111111111111111111111\",\"outcome\":{\"kind\":\"cleared\",\"generation\":\"18446744073709551615\",\"revision\":\"1\",\"cleanupConfirmed\":\"true\"}}",
 			"boundary": "schema"
 		}
 	],
