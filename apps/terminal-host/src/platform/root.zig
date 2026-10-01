@@ -5,6 +5,7 @@ pub const monotonic = @import("monotonic.zig");
 pub const posix_compat = @import("posix_compat.zig");
 pub const thread_sync = @import("thread_sync.zig");
 pub const temp_directory = @import("temp_directory.zig");
+pub const editor_document = @import("editor_document.zig");
 
 pub const testing = if (builtin.is_test) struct {
     pub const conpty = @import("conpty_windows.zig").testing;

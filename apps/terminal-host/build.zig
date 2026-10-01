@@ -554,6 +554,13 @@ pub fn build(builder: *std.Build) void {
     });
     scrollback_capture_tests.root_module.link_libc = true;
     scrollback_capture_step.dependOn(&builder.addRunArtifact(scrollback_capture_tests).step);
+    const editor_document_tests = builder.addTest(.{
+        .root_module = platform_test_module,
+        .filters = &.{"Windows editor document"},
+    });
+    editor_document_tests.root_module.link_libc = true;
+    builder.step("test-editor-document", "Run Windows editor document ownership checks")
+        .dependOn(&builder.addRunArtifact(editor_document_tests).step);
     const input_tests = builder.addTest(.{
         .root_module = engine_test_module,
         .filters = &.{"programmatic key"},

@@ -25,7 +25,25 @@ The next consumer is Host editor creation: an exclusively created document must
 remain owned by the editor runtime through confirmed Job containment and thread
 joining. This capture boundary alone is not a public editor or Herdr parity claim;
 document ownership, authorized creation and live-Client overlay integration are
-the remaining workflow slices. Focused runtime tests establish capture consistency,
+the remaining workflow slices. Document reservation owns an open canonical temporary
+directory and a generated leaf name before creating a file. Materialization uses
+exclusive creation and plain UTF-8; a collision never grants ownership of the existing
+file. Reserved → writing → ready → released state distinguishes a partial write from
+a ready document, and a ready document is never rewritten. Cleanup failure retains
+the path, directory handle and ownership for retry; handoff moves the sole owner.
+No recursive deletion or transcript-selected path is permitted.
+
+Editor creation must retain this state in an acknowledged deferred Host terminal
+before materialization. Start failure retains it there; successful runtime startup
+transfers it after all fallible startup steps. Confirmed Job containment and joined
+workers precede document release, which precedes terminal Dispose acknowledgement.
+These creation/lifecycle adapters are still pending; the platform document owner
+alone does not claim that an editor has been launched. Focused Windows filesystem
+tests cover immutable UTF-8 and empty documents, literal paths containing spaces
+and Unicode, exclusive collisions, sole-owner handoff, allocation rollback, and
+blocked deletion followed by successful owner retry.
+
+Focused runtime tests establish capture consistency,
 Unicode/wrap/retained-history behavior, exact byte limits and read purity. Full
 repository and deployed Host/TUI acceptance remain final-stage work; TLA is excluded
 by the User's standing instruction.
