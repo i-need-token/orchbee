@@ -7,6 +7,8 @@ pub(crate) mod configuration;
 mod configured_command;
 #[cfg(windows)]
 pub(crate) mod creation;
+#[cfg(windows)]
+mod events;
 pub(crate) mod notification;
 pub(crate) mod panel_agent;
 pub(crate) mod panel_metadata;

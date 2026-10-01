@@ -59,8 +59,9 @@ impl From<ContractError> for ProjectionAdvanceError {
     }
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug)]
 pub(crate) struct WorkbenchProjectionStore {
+    events: crate::semantic_events::SiteEventJournal,
     snapshot: Snapshot,
     /// Bounded journal of committed publications, in revision order. A retained Snapshot entry is a
     /// replay boundary: everything committed before it is subsumed, so it is stored alone at the
@@ -75,14 +76,19 @@ pub(crate) struct PreparedProjectionAdvance {
 
 impl WorkbenchProjectionStore {
     pub(crate) fn load(encoded_snapshot: &[u8]) -> Result<Self, ContractError> {
+        let snapshot = parse_snapshot(encoded_snapshot)?;
         Ok(Self {
-            snapshot: parse_snapshot(encoded_snapshot)?,
+            events: crate::semantic_events::SiteEventJournal::new(&snapshot)?,
+            snapshot,
             publications: VecDeque::new(),
         })
     }
 
     pub(crate) fn snapshot(&self) -> &Snapshot {
         &self.snapshot
+    }
+    pub(crate) fn events(&self) -> crate::semantic_events::SiteEventJournal {
+        self.events.clone()
     }
 
     #[cfg(test)]
@@ -146,7 +152,8 @@ impl WorkbenchProjectionStore {
         &mut self,
         prepared: PreparedProjectionAdvance,
     ) -> WorkbenchPublication {
-        self.snapshot = prepared.candidate;
+        let before = std::mem::replace(&mut self.snapshot, prepared.candidate);
+        self.events.projection_committed(&before, &self.snapshot);
         if matches!(prepared.publication, WorkbenchPublication::Snapshot(_)) {
             self.publications.clear();
         }

@@ -115,6 +115,74 @@ fn acknowledge(id: u64) -> ClientViewAction {
 }
 
 #[test]
+fn semantic_events_publish_admitted_focus_and_client_ratio_changes_without_heartbeat_noise() {
+    use orchbee_workbench_protocol::{
+        SemanticEventFilter, SemanticEventKind as K, SemanticEventMatch, SemanticEventScope,
+    };
+    let authority =
+        orchbee_server::WorkbenchAuthority::new(SiteId::parse(&format!("{:032x}", 1)).unwrap())
+            .unwrap();
+    let journal = authority.event_journal();
+    let cursor = journal.head().unwrap();
+    let mut registry = ClientViewRegistry::with_events(Some(journal.clone()));
+    let mut action = sample();
+    let ClientViewAction::Synchronize { view, .. } = &mut action else {
+        panic!();
+    };
+    view.split_revision = Some(WorkbenchRevision::new(0));
+    let now = Instant::now();
+    execute(&mut registry, 1, action.clone(), now);
+    let filters = [
+        K::WorkspaceFocused,
+        K::TabFocused,
+        K::PaneFocused,
+        K::LayoutUpdated,
+    ]
+    .map(|event| SemanticEventFilter::Event {
+        event,
+        scope: SemanticEventScope::All {},
+        condition: SemanticEventMatch::Any {},
+    });
+    let focused = journal.read(&cursor, &filters, 32).unwrap();
+    assert_eq!(
+        focused
+            .events
+            .iter()
+            .map(|event| event.event)
+            .collect::<Vec<_>>(),
+        [K::WorkspaceFocused, K::TabFocused, K::PaneFocused]
+    );
+    let ClientViewAction::Synchronize {
+        heartbeat,
+        view,
+        view_revision,
+        ..
+    } = &mut action
+    else {
+        panic!()
+    };
+    *heartbeat = ClientViewSequence::new(2).unwrap();
+    view.split_revision = Some(WorkbenchRevision::new(u64::MAX));
+    *view_revision = ClientViewSequence::new(view_revision.value() + 1).unwrap();
+    execute(&mut registry, 1, action.clone(), now);
+    let ratio = journal.read(&focused.cursor, &filters, 32).unwrap();
+    assert_eq!(ratio.events.len(), 1);
+    assert_eq!(ratio.events[0].event, K::LayoutUpdated);
+    let ClientViewAction::Synchronize { heartbeat, .. } = &mut action else {
+        panic!()
+    };
+    *heartbeat = ClientViewSequence::new(3).unwrap();
+    execute(&mut registry, 1, action, now);
+    assert!(
+        journal
+            .read(&ratio.cursor, &filters, 32)
+            .unwrap()
+            .events
+            .is_empty()
+    );
+}
+
+#[test]
 fn agent_focus_can_be_delivered_while_busy_but_still_owns_the_single_effect_slot() {
     for phase in [
         ClientViewPhase::Ready,

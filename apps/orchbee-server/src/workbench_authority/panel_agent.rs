@@ -237,6 +237,65 @@ fn event(report: &Report, absolute: fn(&str) -> bool) -> Result<Event, Failure> 
     })
 }
 impl WorkbenchAuthority {
+    fn publish_agent_change(
+        &self,
+        binding: &PresentationBinding,
+        before: &orchbee_workbench_protocol::PanelAgentView,
+        after: &orchbee_workbench_protocol::PanelAgentView,
+    ) {
+        if before == after {
+            return;
+        }
+        let membership = ReportMembership::read(self.snapshot());
+        let journal = self.event_journal();
+        for (id, panel_id) in &membership.owners {
+            if membership
+                .presentations
+                .get(id.as_str())
+                .and_then(Option::as_ref)
+                != Some(binding)
+            {
+                continue;
+            }
+            let Some(pane) = crate::semantic_events::semantic_pane(
+                self.snapshot(),
+                &orchbee_workbench_protocol::SemanticEventSource {
+                    panel_id: panel_id.clone(),
+                    presentation_id: Some(id.clone()),
+                },
+            ) else {
+                continue;
+            };
+            let workspace = journal.workspace_for_context(&pane.terminal_context_id);
+            let data = orchbee_workbench_protocol::SemanticEventData::Agent {
+                pane,
+                report: after.clone(),
+                exited: false,
+            };
+            if before.agent != after.agent && after.agent.is_some() {
+                journal.publish(
+                    self.snapshot().revision,
+                    workspace.clone(),
+                    orchbee_workbench_protocol::SemanticEventKind::PaneAgentDetected,
+                    data.clone(),
+                );
+            }
+            if before.agent != after.agent || before.state != after.state {
+                journal.publish(
+                    self.snapshot().revision,
+                    workspace.clone(),
+                    orchbee_workbench_protocol::SemanticEventKind::PaneAgentStatusChanged,
+                    data.clone(),
+                );
+            }
+            journal.publish(
+                self.snapshot().revision,
+                workspace,
+                orchbee_workbench_protocol::SemanticEventKind::PaneUpdated,
+                data,
+            );
+        }
+    }
     /// Executes an explicit report or read against current committed membership and retained facts.
     /// The caller holds the Site gate; source strings never supply physical or process proof.
     pub fn panel_agent(
@@ -411,6 +470,7 @@ impl WorkbenchAuthority {
                 let physical = physical.get(&key).ok_or(Failure::Unavailable)?;
                 let prior = self.panel_agent.resources.get(&key);
                 let current = prior.map_or_else(Reports::default, |r| r.reports.clone());
+                let before_view = current.view();
                 let transition =
                     current.transition(event(report, absolute)?, self.panel_agent.time(now)?);
                 let mut candidate =
@@ -465,6 +525,7 @@ impl WorkbenchAuthority {
                     }
                 };
                 admit_result(&outcome)?;
+                let after_view = candidate.reports.view();
                 if transition.changed {
                     if next_bytes == 0 {
                         self.panel_agent.resources.remove(&key);
@@ -476,6 +537,7 @@ impl WorkbenchAuthority {
                     self.panel_agent.revision = revision;
                     self.panel_agent.origin.get_or_insert(now);
                 }
+                self.publish_agent_change(binding, &before_view, &after_view);
                 Ok(outcome)
             }
         }
@@ -587,6 +649,7 @@ impl WorkbenchAuthority {
         let current = prior
             .filter(|r| &r.physical == target)
             .map_or_else(Reports::default, |r| r.reports.clone());
+        let before_view = current.view();
         let observation_tick = self.panel_agent.time_from(observation.observed_at, now)?;
         let transition = current.transition(
             Event::Process(super::agent_reports::Process {
@@ -656,6 +719,7 @@ impl WorkbenchAuthority {
             (0, self.panel_agent.bytes, self.panel_agent.revision)
         };
         let any_changed = changed || metadata.is_some();
+        let after_view = candidate.reports.view();
         if changed {
             if next_bytes == 0 {
                 self.panel_agent.resources.remove(&key);
@@ -669,6 +733,7 @@ impl WorkbenchAuthority {
         if let Some(metadata) = metadata {
             self.panel_metadata.commit_exit(metadata);
         }
+        self.publish_agent_change(&target.binding, &before_view, &after_view);
         Ok(TerminalAgentProcessOutcome {
             changed: any_changed,
             agent_released: transition.released,

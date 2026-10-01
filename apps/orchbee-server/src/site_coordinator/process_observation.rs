@@ -254,6 +254,7 @@ impl SiteCoordinator {
         use orchbee_server::WorkbenchTerminalInvariantError as Invalid;
         let Some(workbench) = self.workbench.as_ref() else {
             self.process_samples.clear();
+            self.terminal_observations.clear();
             return Ok(vec![]);
         };
         let site_id = workbench.site_id().clone();
@@ -297,6 +298,8 @@ impl SiteCoordinator {
         }
         self.process_samples
             .retain(|_, s| retained.contains(&s.target));
+        self.terminal_observations
+            .retain(|_, s| retained.contains(&s.physical));
         Ok(targets.into_values().collect())
     }
 }

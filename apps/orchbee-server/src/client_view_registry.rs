@@ -66,10 +66,89 @@ impl Receipt {
 
 #[derive(Default)]
 pub(crate) struct ClientViewRegistry {
+    events: Option<orchbee_server::SiteEventJournal>,
     clients: BTreeMap<WorkbenchClientId, PublishedView>,
     receipts: BTreeMap<WorkbenchRequestId, Receipt>,
 }
 impl ClientViewRegistry {
+    pub(crate) fn with_events(events: Option<orchbee_server::SiteEventJournal>) -> Self {
+        Self {
+            events,
+            ..Self::default()
+        }
+    }
+    pub(crate) fn observation_busy(&self, id: &WorkbenchClientId) -> bool {
+        self.receipts.values().any(|receipt| {
+            &receipt.operation.command.client_id == id && receipt.operation.status.pending()
+        })
+    }
+    pub(crate) fn finish_observation(&mut self, id: &WorkbenchRequestId, now: Instant) {
+        if let Some(receipt) = self.receipts.get_mut(id)
+            && matches!(
+                receipt.operation.command.intent,
+                ClientViewIntent::Viewports { .. }
+            )
+            && !receipt.operation.status.pending()
+        {
+            // Preserve a short exact-completion replay window for the Client heartbeat owner.
+            receipt.completed_at = now.checked_sub(RECEIPT_RETENTION - QUEUE_LIFETIME);
+        }
+    }
+    fn publish_view(
+        &self,
+        previous: Option<&ClientViewObservation>,
+        current: &ClientViewRecord,
+        completion: Option<&ClientViewControlStatus>,
+    ) {
+        use orchbee_workbench_protocol::{SemanticEventData as Data, SemanticEventKind as Kind};
+        let Some(journal) = &self.events else {
+            return;
+        };
+        let old = previous.and_then(|view| view.selection.as_ref());
+        let new = current.view.selection.as_ref();
+        let workspace =
+            new.and_then(|selection| journal.workspace_for_context(&selection.terminal_context_id));
+        let data = Data::Client {
+            client_id: current.client_id.clone(),
+            view: current.view.clone(),
+            workspace_id: workspace.clone(),
+        };
+        let emit = |kind| {
+            journal.publish(
+                current.view.workbench_revision,
+                workspace.clone(),
+                kind,
+                data.clone(),
+            );
+        };
+        if new.is_some_and(|new| {
+            old.is_none_or(|old| old.terminal_context_id != new.terminal_context_id)
+        }) {
+            emit(Kind::WorkspaceFocused);
+        }
+        if new.and_then(|new| new.tab_id.as_ref()).is_some()
+            && old.and_then(|old| old.tab_id.as_ref()) != new.and_then(|new| new.tab_id.as_ref())
+        {
+            emit(Kind::TabFocused);
+        }
+        if new.and_then(|new| new.panel_id.as_ref()).is_some()
+            && old.and_then(|old| old.panel_id.as_ref())
+                != new.and_then(|new| new.panel_id.as_ref())
+        {
+            emit(Kind::PaneFocused);
+        }
+        let adjusted = matches!(completion, Some(ClientViewControlStatus::LayoutAdjusted { adjustment, .. }) if adjustment.change.changed());
+        let changed = previous.is_some_and(|previous| {
+            previous.split_revision.is_some()
+                && current.view.split_revision.is_some()
+                && previous.split_revision != current.view.split_revision
+        }) || old.zip(new).is_some_and(|(old, new)| {
+            old.zoomed != new.zoomed || old.panel_count != new.panel_count
+        });
+        if changed || adjusted {
+            emit(Kind::LayoutUpdated);
+        }
+    }
     pub(crate) fn execute(
         &mut self,
         generation: NonZeroU64,
@@ -392,7 +471,12 @@ impl ClientViewRegistry {
             sampled_at,
         };
         let client = published.observe(now);
+        let previous = self
+            .clients
+            .get(&client_id)
+            .map(|previous| previous.record.view.clone());
         self.clients.insert(client_id.clone(), published);
+        self.publish_view(previous.as_ref(), &client, completion_status.as_ref());
         if let (Some(completion), Some(status)) = (completion, completion_status)
             && let Some(receipt) = self.receipts.get_mut(&completion.operation_id)
         {

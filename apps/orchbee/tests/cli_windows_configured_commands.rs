@@ -6,6 +6,8 @@ mod support;
 use orchbee_local_ipc::LocalListener;
 use orchbee_workbench_protocol::*;
 use support::{Fixture, assert_closed, bound_snapshot_reply, peer, validate};
+#[path = "cli_windows_configured_commands/events.rs"]
+mod events;
 
 #[test]
 fn configured_command_cli_catalog_refusal_and_delivery_unknown_never_replay() {

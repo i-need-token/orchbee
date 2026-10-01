@@ -1,5 +1,11 @@
 # Terminal protocol Rust 绑定
 
+## 共享 SGR 样式投影
+
+`terminal_sgr_style` 无分配地格式化一份有效 cell 样式。原生 CLI 终端导出与 Server 事件匹配
+共用其规范 reset、标志、下划线和 RGB 序列。这些序列描述已捕获样式，不宣称与历史 PTY
+输入字节相同。
+
 本 crate 解码并校验原生运行时所有者使用的有界终端帧与行窗口契约，
 不执行进程、viewer、文件或终端 I/O。
 

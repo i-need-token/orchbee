@@ -570,7 +570,7 @@ impl LocalTerminalService {
             // A known Dispose ACK remains authoritative even if the current Worker was replaced.
             if popup.phase == Phase::Closed {
                 if let Some(target) = popup.target {
-                    self.settle_plugin_observer_disposed(target);
+                    self.settle_observation_disposed(target);
                 }
                 if let (Some(authorization), Ok(mut coordinator)) =
                     (popup.authorization, self.coordinator.lock())

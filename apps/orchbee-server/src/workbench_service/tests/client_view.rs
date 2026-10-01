@@ -62,6 +62,7 @@ fn sample(
         view_revision: ClientViewSequence::new(1).unwrap(),
         view: Box::new(ClientViewObservation {
             workbench_revision: snapshot.revision,
+            split_revision: None,
             phase: ClientViewPhase::Ready,
             selection: Some(ClientViewSelection {
                 terminal_context_id: snapshot.navigation.standalone_terminal_context_id.clone(),

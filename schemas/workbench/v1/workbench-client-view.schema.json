@@ -99,6 +99,16 @@
 							"type": "null"
 						}
 					]
+				},
+				"splitRevision": {
+					"anyOf": [
+						{
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/revision"
+						},
+						{
+							"type": "null"
+						}
+					]
 				}
 			},
 			"required": ["workbenchRevision", "phase", "selection"],

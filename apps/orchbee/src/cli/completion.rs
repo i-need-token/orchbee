@@ -180,6 +180,8 @@ const FORMAT_ROOT_WORDS: &[&str] = &[
 /// family → the verbs it implements.
 const FAMILY_VERBS: &[(&str, &[&str])] = &[
     #[cfg(windows)]
+    ("events", &["subscribe", "wait"]),
+    #[cfg(windows)]
     ("command", &["list", "invoke"]),
     #[cfg(windows)]
     ("popup", &["close"]),
@@ -344,6 +346,12 @@ const FAMILY_VERBS: &[(&str, &[&str])] = &[
 /// Every business flag the grammar admits (`--format` is orthogonal), in the
 /// order the state machine records them.
 const BUSINESS_FLAGS: &[&str] = &[
+    #[cfg(windows)]
+    "--event",
+    #[cfg(windows)]
+    "--filter",
+    #[cfg(windows)]
+    "--after-cursor",
     "--offset-from-bottom",
     "--motion",
     "--query",
@@ -480,6 +488,10 @@ const INTEGRATION_VERBS: &[&str] = &["disable", "enable", "explain", "list"];
 /// Business flags whose seen bit never makes a repeat `done` — they stay
 /// offerable and keep consuming values while remaining scope-tracked.
 const REPEATABLE_FLAGS: &[&str] = &[
+    #[cfg(windows)]
+    "--event",
+    #[cfg(windows)]
+    "--filter",
     "--state-label",
     "--token",
     "--clear-token",
@@ -496,6 +508,48 @@ const REPEATABLE_FLAGS: &[&str] = &[
 const CONTROL_FLAGS: &[&str] = &["--cols", "--rows", "--timeout", "--takeover"];
 const OBSERVE_FLAGS: &[&str] = &["--cols", "--rows", "--timeout"];
 const COMMAND_FLAGS: &[(&str, &[&str])] = &[
+    #[cfg(windows)]
+    (
+        "events:subscribe",
+        &[
+            "--event",
+            "--filter",
+            "--after-cursor",
+            "--workspace",
+            "--tab",
+            "--panel",
+            "--client",
+            "--match",
+            "--regex",
+            "--source",
+            "--lines",
+            "--plain",
+            "--ansi",
+            "--until",
+            "--timeout",
+        ],
+    ),
+    #[cfg(windows)]
+    (
+        "events:wait",
+        &[
+            "--event",
+            "--filter",
+            "--after-cursor",
+            "--workspace",
+            "--tab",
+            "--panel",
+            "--client",
+            "--match",
+            "--regex",
+            "--source",
+            "--lines",
+            "--plain",
+            "--ansi",
+            "--until",
+            "--timeout",
+        ],
+    ),
     #[cfg(windows)]
     ("command:list", &[]),
     #[cfg(windows)]
@@ -1467,6 +1521,8 @@ const OPERAND_PATHS: &[&str] = &[
 /// deeper word.
 const HELP_TOPICS: &[&str] = &[
     #[cfg(windows)]
+    "events",
+    #[cfg(windows)]
     "command",
     #[cfg(windows)]
     "plugin",
@@ -1501,6 +1557,8 @@ const HELP_TOPICS: &[&str] = &[
 
 /// `help <topic>` → the deeper words that complete a help path.
 const HELP_CHILDREN: &[(&str, &[&str])] = &[
+    #[cfg(windows)]
+    ("events", &["subscribe", "wait"]),
     #[cfg(windows)]
     ("command", &["list", "invoke"]),
     #[cfg(windows)]
@@ -1718,6 +1776,12 @@ fn flag_bit(flag: &str) -> &'static str {
         "--target-pane" => "seen_plugin_target",
         "--plugin" => "seen_plugin_id",
         "--context" => "seen_plugin_context",
+        #[cfg(windows)]
+        "--event" => "seen_event",
+        #[cfg(windows)]
+        "--filter" => "seen_event_filter",
+        #[cfg(windows)]
+        "--after-cursor" => "seen_event_cursor",
         "--yes" => "seen_plugin_yes",
         "--ref" => "seen_plugin_ref",
         "--enabled" => "seen_plugin_enabled",
@@ -2442,8 +2506,8 @@ fn joined_offer_cases_bash() -> String {
             "                if ((!seen_output_source)); then\n",
             "                    case \"$state\" in\n",
             "                        verb) candidates=\"{output_source}\" ;;\n",
-            "                        sub) [[ ( $family == terminal || $family == agent ) && ( \" $verbs \" == *\" read \"* || \" $verbs \" == *\" wait-output \"* ) ]] && candidates=\"{output_source}\" ;;\n",
-            "                        after|operand|operand2) [[ $family:$sub == terminal:read || $family:$sub == terminal:wait-output || $family:$sub == agent:read ]] && candidates=\"{output_source}\" ;;\n",
+            "                        sub) [[ $family == events || ( ( $family == terminal || $family == agent ) && ( \" $verbs \" == *\" read \"* || \" $verbs \" == *\" wait-output \"* ) ) ]] && candidates=\"{output_source}\" ;;\n",
+            "                        after|operand|operand2) [[ $family:$sub == terminal:read || $family:$sub == terminal:wait-output || $family:$sub == agent:read || $family:$sub == events:subscribe || $family:$sub == events:wait ]] && candidates=\"{output_source}\" ;;\n",
             "                    esac\n",
             "                fi ;;\n",
             "            --right-click)\n",
@@ -3678,8 +3742,8 @@ fn joined_offer_cases_fish() -> String {
             "                if test $seen_output_source -eq 0\n",
             "                    switch \"$state\"\n",
             "                        case verb; set candidates {output_source}\n",
-            "                        case sub; if contains -- $family terminal agent; and begin; contains -- read $verbs; or contains -- wait-output $verbs; end; set candidates {output_source}; end\n",
-            "                        case after operand operand2; if contains -- \"$family:$sub\" terminal:read terminal:wait-output agent:read; set candidates {output_source}; end\n",
+            "                        case sub; if test $family = events; or begin; contains -- $family terminal agent; and begin; contains -- read $verbs; or contains -- wait-output $verbs; end; end; set candidates {output_source}; end\n",
+            "                        case after operand operand2; if contains -- \"$family:$sub\" terminal:read terminal:wait-output agent:read events:subscribe events:wait; set candidates {output_source}; end\n",
             "                    end\n",
             "                end\n",
             "            case '--right-click'\n",

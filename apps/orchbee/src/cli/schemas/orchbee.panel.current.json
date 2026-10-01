@@ -564,6 +564,16 @@
 							"type": "null"
 						}
 					]
+				},
+				"splitRevision": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/revision"
+						},
+						{
+							"type": "null"
+						}
+					]
 				}
 			},
 			"required": ["workbenchRevision", "phase", "selection"],

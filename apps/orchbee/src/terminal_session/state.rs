@@ -3534,6 +3534,10 @@ impl NativeSessionState {
         }
         self.split_ratios.commit(snapshot, adjustment)
     }
+    #[cfg(windows)]
+    pub(super) fn split_revision(&self) -> WorkbenchRevision {
+        self.split_ratios.sequence()
+    }
 
     /// Read-side adjudication: the active Tab draws zoomed exactly while its
     /// flag survives AND its current cache membership stays multi-leaf — a

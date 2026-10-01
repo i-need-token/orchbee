@@ -61,15 +61,20 @@ fn explanation_process_refusal_releases_viewer_and_uncertain_detach_keeps_owners
     assert_eq!(c, d);
 }
 #[test]
-fn periodic_turns_use_one_process_only_viewer_and_release_before_next_attach() {
+fn periodic_turns_observe_lifecycle_and_content_before_process_refusal_and_release_before_next_attach()
+ {
     let fixture = Fixture::new();
     let mut cursor = None;
     fixture.service.process_observer_turn_for_test(&mut cursor);
     let effects = fixture.barrier().unwrap();
-    assert_eq!(effects.len(), 24);
-    for events in effects.chunks_exact(3) {
+    assert_eq!(effects.len(), 56);
+    for events in effects.chunks_exact(7) {
         let [
             Effect::Attach(a, _),
+            Effect::Lifecycle(l),
+            Effect::Poll(p1),
+            Effect::Feedback(f),
+            Effect::Poll(p2),
             Effect::ProcessInfo(b),
             Effect::Detach(c),
         ] = events
@@ -78,6 +83,7 @@ fn periodic_turns_use_one_process_only_viewer_and_release_before_next_attach() {
         };
         assert_eq!(a, b);
         assert_eq!(b, c);
+        assert!([l, p1, f, p2].iter().all(|id| *id == a));
     }
     assert!(!fixture.service.process_observer_pending_for_test());
     fixture.service.process_observer_turn_for_test(&mut cursor);
@@ -93,6 +99,230 @@ fn periodic_turns_use_one_process_only_viewer_and_release_before_next_attach() {
         })
         .collect();
     assert_eq!(targets.len(), 10);
+}
+
+#[test]
+fn semantic_events_keep_real_settlement_independent_of_process_refusal_and_reject_old_versions() {
+    use orchbee_workbench_protocol::{
+        SemanticEventFilter, SemanticEventKind as K, SemanticEventMatch, SemanticEventScope,
+    };
+    let fixture = Fixture::new();
+    let journal = fixture.service.event_journal().unwrap();
+    let cursor = journal.head().unwrap();
+    let mut round = None;
+    fixture.service.process_observer_turn_for_test(&mut round);
+    let filters = [K::PaneExited, K::PaneOutputChanged].map(|event| SemanticEventFilter::Event {
+        event,
+        scope: SemanticEventScope::All {},
+        condition: SemanticEventMatch::Any {},
+    });
+    let page = journal.read(&cursor, &filters, 32).unwrap();
+    assert_eq!(page.events.len(), 8);
+    assert!(page.events.iter().all(|event| event.event == K::PaneExited));
+    let mut coordinator = fixture.service.coordinator.lock().unwrap();
+    let target = coordinator.process_observation_targets().unwrap().remove(0);
+    let baseline = journal.head().unwrap();
+    let started = Instant::now();
+    assert!(coordinator.observe_terminal_projection(
+        target.target,
+        Some((u64::MAX, 7)),
+        Some((42, true)),
+        started,
+        started
+    ));
+    let changed = journal.read(&baseline, &filters, 32).unwrap();
+    assert_eq!(changed.events.len(), 1);
+    assert_eq!(changed.events[0].event, K::PaneOutputChanged);
+    let started = Instant::now();
+    assert!(!coordinator.observe_terminal_projection(
+        target.target,
+        Some((1, 9)),
+        Some((41, false)),
+        started,
+        started
+    ));
+    assert!(
+        journal
+            .read(&changed.cursor, &filters, 32)
+            .unwrap()
+            .events
+            .is_empty()
+    );
+}
+
+#[test]
+fn semantic_events_pending_physical_baseline_is_busy_and_real_source_refusal_never_becomes_timeout()
+{
+    use crate::workbench_service::{WorkbenchExecution, WorkbenchPolicy, WorkbenchService};
+    use orchbee_workbench_protocol::{
+        ProtocolVersion, SemanticEventFilter, SemanticEventSource, SemanticEventsAction,
+        SemanticEventsFailure, SemanticEventsOutcome, SemanticEventsRequest, SemanticOutputMatch,
+        SemanticOutputSource, WorkbenchRequest, WorkbenchRequestId, WorkbenchResponse,
+    };
+    let fixture = Fixture::new();
+    let snapshot = super::fixture::read_snapshot(&fixture.service);
+    let target = fixture
+        .service
+        .coordinator
+        .lock()
+        .unwrap()
+        .process_observation_targets()
+        .unwrap()
+        .remove(0);
+    let pane = orchbee_server::semantic_panes_for_binding(&snapshot, &target.binding).remove(0);
+    let service = WorkbenchService::new(
+        WorkbenchPolicy {
+            read: true,
+            manage_navigation: false,
+            associate_directory: false,
+            create_terminal: false,
+            manage_terminal_lifecycle: false,
+        },
+        std::sync::Arc::clone(&fixture.service),
+    );
+    let session = service.client_session(std::num::NonZeroU64::MIN);
+    let id = WorkbenchRequestId::parse(&"a".repeat(32)).unwrap();
+    let exchange = |action| {
+        let request = SemanticEventsRequest {
+            protocol_version: ProtocolVersion,
+            request_id: id.clone(),
+            site_id: snapshot.site_id.clone(),
+            action,
+        };
+        let WorkbenchExecution::Response(WorkbenchResponse::Events(result)) =
+            session.execute(WorkbenchRequest::Events(request.clone()))
+        else {
+            panic!("event reply")
+        };
+        assert!(result.answers(&request));
+        result.outcome
+    };
+    assert!(matches!(
+        exchange(SemanticEventsAction::Subscribe {
+            subscription_id: id.clone(),
+            filters: vec![SemanticEventFilter::OutputMatched {
+                target: SemanticEventSource {
+                    panel_id: pane.panel_id,
+                    presentation_id: Some(pane.presentation_id)
+                },
+                source: SemanticOutputSource::Recent,
+                lines: 80,
+                matcher: SemanticOutputMatch::Substring {
+                    value: "match".into()
+                },
+                strip_ansi: true,
+                client_id: None,
+            }],
+            after: None,
+        }),
+        SemanticEventsOutcome::Opened { .. }
+    ));
+    assert!(matches!(
+        exchange(SemanticEventsAction::Wait {
+            subscription_id: id.clone(),
+            timeout_milliseconds: 0
+        }),
+        SemanticEventsOutcome::Failed {
+            reason: SemanticEventsFailure::Busy
+        }
+    ));
+    assert!(matches!(
+        exchange(SemanticEventsAction::Wait {
+            subscription_id: id.clone(),
+            timeout_milliseconds: 1000
+        }),
+        SemanticEventsOutcome::Failed {
+            reason: SemanticEventsFailure::SourceUnavailable
+        }
+    ));
+    assert!(matches!(
+        exchange(SemanticEventsAction::Close {
+            subscription_id: id.clone()
+        }),
+        SemanticEventsOutcome::Closed { .. }
+    ));
+    let effects = fixture.barrier().unwrap();
+    assert_eq!(
+        effects
+            .iter()
+            .filter(|effect| matches!(effect, Effect::Attach(..)))
+            .count(),
+        1
+    );
+    assert_eq!(
+        effects
+            .iter()
+            .filter(|effect| matches!(effect, Effect::Detach(..)))
+            .count(),
+        1
+    );
+}
+
+#[test]
+fn semantic_events_output_refusal_is_not_a_false_timeout_and_uncertain_cleanup_blocks_replacement()
+{
+    use crate::local_terminal_service::semantic_events::OutputRead;
+    use orchbee_workbench_protocol::{SemanticEventsFailure as F, SemanticOutputSource};
+    let fixture = Fixture::new();
+    let target = fixture
+        .service
+        .coordinator
+        .lock()
+        .unwrap()
+        .process_observation_targets()
+        .unwrap()
+        .remove(0);
+    let snapshot = super::fixture::read_snapshot(&fixture.service);
+    let pane = orchbee_server::semantic_panes_for_binding(&snapshot, &target.binding).remove(0);
+    let stop = std::sync::atomic::AtomicBool::new(false);
+    let read = OutputRead {
+        source: SemanticOutputSource::Recent,
+        lines: 80,
+        strip_ansi: true,
+        viewport: None,
+    };
+    assert!(matches!(
+        fixture.service.capture_event_output(
+            &target,
+            pane.clone(),
+            snapshot.revision,
+            &read,
+            &stop
+        ),
+        Err(F::SourceUnavailable)
+    ));
+    fixture.detach_refusals.store(1, Ordering::Release);
+    assert!(matches!(
+        fixture.service.capture_event_output(
+            &target,
+            pane.clone(),
+            snapshot.revision,
+            &read,
+            &stop
+        ),
+        Err(F::PhysicalUnknown)
+    ));
+    let effects = fixture.barrier().unwrap();
+    assert_eq!(
+        effects
+            .iter()
+            .filter(|effect| matches!(effect, Effect::Attach(..)))
+            .count(),
+        2
+    );
+    assert!(matches!(
+        fixture
+            .service
+            .capture_event_output(&target, pane, snapshot.revision, &read, &stop),
+        Err(F::SourceUnavailable)
+    ));
+    let effects = fixture.barrier().unwrap();
+    let refused = effects
+        .iter()
+        .position(|effect| matches!(effect, Effect::DetachRefused(..)))
+        .unwrap();
+    assert!(matches!(effects[refused + 1], Effect::Detach(..)));
+    assert!(matches!(effects[refused + 2], Effect::Attach(..)));
 }
 #[test]
 fn uncertain_cleanup_blocks_new_attachments_and_transfers_to_matching_worker_shutdown() {

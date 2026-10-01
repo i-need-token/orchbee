@@ -16,6 +16,10 @@ use std::{
     sync::atomic::{AtomicBool, Ordering},
     time::{Duration, Instant},
 };
+#[cfg(windows)]
+mod events;
+#[cfg(windows)]
+pub(in crate::local_terminal_service) use events::event_capture;
 
 fn request(
     viewer: &ViewerAttachment<'_>,
@@ -42,7 +46,12 @@ fn request(
         return None;
     }
     match result.ok()? {
-        WorkerOperationResult::Viewer(result) => Some((request_id, result.outcome)),
+        WorkerOperationResult::Viewer(result)
+            if result.request_id == request_id
+                && result.attachment_id == template.attachment_id =>
+        {
+            Some((request_id, result.outcome))
+        }
         _ => None,
     }
 }
@@ -416,6 +425,33 @@ pub(super) fn observe(
     detector: &ScreenDetector,
 ) {
     let started = Instant::now();
+    let lifecycle = request(
+        viewer,
+        template,
+        stop,
+        WorkerAction::ReadLifecycle {
+            target: viewer.target.identity,
+        },
+    )
+    .and_then(|(_, outcome)| match outcome {
+        WorkerOutcome::LifecycleObserved {
+            target,
+            revision,
+            settled,
+        } if target == viewer.target.identity => Some((revision, settled)),
+        _ => None,
+    });
+    let version = fresh_frame(viewer, template, stop)
+        .map(|frame| (frame.route.generation.get(), frame.route.revision));
+    if !stop.load(Ordering::Acquire) {
+        viewer.service.observe_terminal_projection(
+            &viewer.handle,
+            viewer.target,
+            version,
+            lifecycle,
+            started,
+        );
+    }
     let Some(before) = process(viewer, template, stop) else {
         return;
     };

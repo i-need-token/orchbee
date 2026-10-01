@@ -417,6 +417,10 @@ fn fixed_outputs_are_far_below_the_bound() {
         #[cfg(windows)]
         CommandPath::CommandList,
         #[cfg(windows)]
+        CommandPath::EventsSubscribe,
+        #[cfg(windows)]
+        CommandPath::EventsWait,
+        #[cfg(windows)]
         CommandPath::CommandInvoke,
         #[cfg(windows)]
         CommandPath::PluginLink,

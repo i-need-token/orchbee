@@ -75,13 +75,17 @@ pub struct ClientViewSelection {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ClientViewObservation {
     pub workbench_revision: WorkbenchRevision,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub split_revision: Option<WorkbenchRevision>,
     pub phase: ClientViewPhase,
     #[serde(deserialize_with = "deserialize_nullable")]
     pub selection: Option<ClientViewSelection>,
 }
 impl ClientViewObservation {
     pub fn validate(&self) -> Result<(), ContractError> {
-        if self.phase == ClientViewPhase::Ready && self.selection.is_none() {
+        if (self.phase == ClientViewPhase::Ready || self.split_revision.is_some())
+            && self.selection.is_none()
+        {
             return Err(ContractError::InvalidDocument);
         }
         if self.selection.as_ref().is_some_and(|selection| {

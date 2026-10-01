@@ -166,7 +166,8 @@ impl TryFrom<WorkbenchRequest> for WorkbenchReadOrNavigationRequest {
             | WorkbenchRequest::WorkspaceMetadata(_)
             | WorkbenchRequest::ClientView(_)
             | WorkbenchRequest::WorkspaceGit(_)
-            | WorkbenchRequest::ConfiguredCommand(_)) => Err(request),
+            | WorkbenchRequest::ConfiguredCommand(_)
+            | WorkbenchRequest::Events(_)) => Err(request),
         }
     }
 }
@@ -344,6 +345,9 @@ impl WorkbenchAuthority {
     #[must_use]
     pub fn snapshot(&self) -> &Snapshot {
         self.projection.snapshot()
+    }
+    pub fn event_journal(&self) -> crate::SiteEventJournal {
+        self.projection.events()
     }
 
     /// Resolves committed `project -> directory` membership for the Worktree

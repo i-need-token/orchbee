@@ -4,8 +4,12 @@
 // docs/agent-canonical-model.md.
 #[cfg(test)]
 mod agent;
+mod semantic_events;
 mod workbench_authority;
 mod workbench_projection;
+pub use semantic_events::{
+    SiteEventJournal, SiteEventPage, matches_filter, semantic_pane, semantic_panes_for_binding,
+};
 
 pub use workbench_authority::{
     CloseContinuationNext, CloseStepObservation, CloseStepPrequeueFailure, CloseStepToken,

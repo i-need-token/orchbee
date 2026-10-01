@@ -1,5 +1,14 @@
 # Rust Orchbee Server
 
+## Windows semantic events
+
+The Site journal records actual accepted topology, metadata, worktree, Agent and Client changes.
+An authenticated connection owns one bounded subscription; read/wait retain its cursor and probes,
+while close/EOF releases the owner. Terminal output and exit use admitted Host observations, and
+Client scroll/visible output use the exact read-only Client viewport. History gaps, unavailable
+sources and uncertain observer cleanup remain explicit. [Event ownership and acceptance](docs/windows-events.md)
+defines the lifecycle, bounds and Windows evidence; Desktop receives no new consumer here.
+
 ## Windows runtime metadata
 
 The same-user OBLC metadata request reads this process's compiled version, retained expected

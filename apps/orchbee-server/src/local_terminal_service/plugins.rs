@@ -11,7 +11,6 @@ use orchbee_workbench_protocol::{
     ProtocolVersion, WorkbenchRevision, WorkerId,
 };
 mod observation;
-pub(super) use observation::Observer;
 impl LocalTerminalService {
     pub(crate) fn execute_plugin(&self, request: PluginRequest) -> PluginResult {
         let outcome = self

@@ -63,7 +63,7 @@ impl WorkspaceMetadata {
         &mut self,
         live: &BTreeSet<WorkbenchWorkspaceId>,
         now: Instant,
-    ) -> Result<(), Failure> {
+    ) -> Result<Vec<(WorkbenchWorkspaceId, MetadataTokens)>, Failure> {
         let changed = self.resources.iter().any(|(id, resource)| {
             !live.contains(id)
                 || resource
@@ -72,24 +72,29 @@ impl WorkspaceMetadata {
                     .any(|token| token.expires_at.is_some_and(|deadline| deadline <= now))
         });
         if !changed {
-            return Ok(());
+            return Ok(Vec::new());
         }
         let revision = self
             .revision
             .checked_add(1)
             .ok_or(Failure::RevisionExhausted)?;
+        let mut expired = Vec::new();
         self.resources.retain(|id, resource| {
             if !live.contains(id) {
                 return false;
             }
+            let before = resource.tokens.len();
             resource
                 .tokens
                 .retain(|_, token| token.expires_at.is_none_or(|deadline| deadline > now));
+            if before != resource.tokens.len() {
+                expired.push((id.clone(), resource.values()));
+            }
             !resource.empty()
         });
         self.bytes = self.resources.values().map(Resource::bytes).sum();
         self.revision = revision;
-        Ok(())
+        Ok(expired)
     }
     fn report(
         &mut self,
@@ -170,6 +175,44 @@ impl WorkspaceMetadata {
 }
 
 impl WorkbenchAuthority {
+    /// Expiry commits are observed even when subscribers are the only active readers.
+    pub fn maintain_workspace_metadata(&mut self, now: Instant) -> Result<(), Failure> {
+        if self.retired {
+            return Err(Failure::Unavailable);
+        }
+        let live = self.workspace_metadata_ids();
+        self.expire_workspace_metadata(&live, now)
+    }
+    fn workspace_metadata_ids(&self) -> BTreeSet<WorkbenchWorkspaceId> {
+        self.snapshot()
+            .navigation
+            .projects
+            .iter()
+            .flat_map(|project| &project.workspaces)
+            .map(|workspace| workspace.workspace_id.clone())
+            .collect()
+    }
+    fn publish_workspace_tokens(&self, id: WorkbenchWorkspaceId, tokens: MetadataTokens) {
+        self.event_journal().publish(
+            self.snapshot().revision,
+            Some(id.clone()),
+            orchbee_workbench_protocol::SemanticEventKind::WorkspaceMetadataUpdated,
+            orchbee_workbench_protocol::SemanticEventData::WorkspaceMetadata {
+                workspace_id: id,
+                tokens,
+            },
+        );
+    }
+    fn expire_workspace_metadata(
+        &mut self,
+        live: &BTreeSet<WorkbenchWorkspaceId>,
+        now: Instant,
+    ) -> Result<(), Failure> {
+        for (id, tokens) in self.workspace_metadata.maintain(live, now)? {
+            self.publish_workspace_tokens(id, tokens);
+        }
+        Ok(())
+    }
     /// Caller holds the Site gate and supplies its monotonic observation time.
     pub fn workspace_metadata(
         &mut self,
@@ -198,15 +241,8 @@ impl WorkbenchAuthority {
         if request.site_id != *self.site_id() {
             return Err(Failure::SiteMismatch);
         }
-        let live = self
-            .snapshot()
-            .navigation
-            .projects
-            .iter()
-            .flat_map(|project| &project.workspaces)
-            .map(|workspace| workspace.workspace_id.clone())
-            .collect::<BTreeSet<_>>();
-        self.workspace_metadata.maintain(&live, now)?;
+        let live = self.workspace_metadata_ids();
+        self.expire_workspace_metadata(&live, now)?;
         let workbench_revision = self.snapshot().revision;
         match &request.action {
             Action::Read { workspace_ids } => {
@@ -239,6 +275,11 @@ impl WorkbenchAuthority {
                 if !live.contains(workspace_id) {
                     return Err(Failure::NotFound);
                 }
+                let before = self
+                    .workspace_metadata
+                    .resources
+                    .get(workspace_id)
+                    .map_or_else(MetadataTokens::default, Resource::values);
                 let disposition = self.workspace_metadata.report(
                     workspace_id,
                     source,
@@ -247,6 +288,14 @@ impl WorkbenchAuthority {
                     *ttl_milliseconds,
                     now,
                 )?;
+                let after = self
+                    .workspace_metadata
+                    .resources
+                    .get(workspace_id)
+                    .map_or_else(MetadataTokens::default, Resource::values);
+                if before != after {
+                    self.publish_workspace_tokens(workspace_id.clone(), after);
+                }
                 Ok(Outcome::Reported {
                     workbench_revision,
                     metadata_revision: WorkbenchRevision::new(self.workspace_metadata.revision),

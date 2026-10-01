@@ -2923,6 +2923,16 @@
 							"type": "null"
 						}
 					]
+				},
+				"splitRevision": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/physicalClient_revision"
+						},
+						{
+							"type": "null"
+						}
+					]
 				}
 			},
 			"required": ["workbenchRevision", "phase", "selection"],

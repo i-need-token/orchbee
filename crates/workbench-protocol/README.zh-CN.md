@@ -1,5 +1,14 @@
 # Workbench 协议
 
+## 语义事件契约
+
+封闭 `workbench.events` 请求／结果 kind 55／56 各自上限 256 KiB。Subscribe、read、有界 wait
+与 close 携带准确的连接持有订阅身份。日志 cursor 固定启动 epoch 与全宽十进制序号；
+探测位置使用独立订阅序号。过滤条件、事件／数据 kind、来源版本、有序分页及明确 gap
+在解释前验证。`matches_semantic_filter` 为运行时发布者与原生 CLI 回执检查共享纯语义匹配。
+[Windows 事件模型](../../apps/orchbee-server/docs/windows-events.zh-CN.md) 管理真实发布与观察副作用。
+可选 Client `splitRevision` 是全宽比例所有者计数；旧观察省略该字段不能证明比例变化。
+
 本 crate 管理原生 Workbench 客户端与 Server 共用的请求、响应、校验和帧传输契约。它不打开套接字或执行操作；运行时所有者负责处理已受理请求。
 
 ## 配置式命令调用

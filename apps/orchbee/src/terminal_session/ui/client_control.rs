@@ -282,6 +282,7 @@ impl NativeUi {
         };
         let observation = ClientViewObservation {
             workbench_revision: cache.revision(),
+            split_revision: Some(state.split_revision()),
             phase,
             selection: Some(selection),
         };

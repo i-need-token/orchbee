@@ -21,8 +21,13 @@ struct Entry {
 pub(super) struct SplitRatios {
     entries: BTreeMap<Key, Entry>,
     revision: Option<WorkbenchRevision>,
+    sequence: u64,
 }
 impl SplitRatios {
+    #[cfg(windows)]
+    pub(super) fn sequence(&self) -> WorkbenchRevision {
+        WorkbenchRevision::new(self.sequence)
+    }
     pub(super) fn get(
         &self,
         context: &WorkbenchTerminalContextId,
@@ -90,8 +95,10 @@ impl SplitRatios {
                 },
             );
         }
+        let sequence = self.sequence.checked_add(1).ok_or(Reason::Busy)?;
         self.entries = entries;
         self.revision = Some(snapshot.revision);
+        self.sequence = sequence;
         Ok(())
     }
 }

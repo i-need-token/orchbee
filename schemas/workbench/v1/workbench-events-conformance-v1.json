@@ -1,0 +1,1851 @@
+{
+	"contractVersion": 1,
+	"valid": [
+		{
+			"name": "full-width retained cursor subscribe",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.events",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "subscribe",
+					"subscriptionId": "00000000000000000000000000000003",
+					"filters": [
+						{
+							"kind": "event",
+							"event": "tab.renamed",
+							"scope": {
+								"kind": "all"
+							},
+							"condition": {
+								"kind": "any"
+							}
+						}
+					],
+					"after": {
+						"epoch": "00000000000000000000000000000004",
+						"sequence": "18446744073709551615"
+					}
+				}
+			}
+		},
+		{
+			"name": "literal output matching",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.events",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "subscribe",
+					"subscriptionId": "00000000000000000000000000000003",
+					"filters": [
+						{
+							"kind": "output-matched",
+							"target": {
+								"panelId": "00000000000000000000000000000005",
+								"presentationId": null
+							},
+							"source": "recent-unwrapped",
+							"lines": 4096,
+							"matcher": {
+								"kind": "substring",
+								"value": "完成"
+							},
+							"stripAnsi": true,
+							"clientId": null
+						}
+					],
+					"after": null
+				}
+			}
+		},
+		{
+			"name": "Client visible regex",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.events",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "subscribe",
+					"subscriptionId": "00000000000000000000000000000003",
+					"filters": [
+						{
+							"kind": "output-matched",
+							"target": {
+								"panelId": "00000000000000000000000000000005",
+								"presentationId": "00000000000000000000000000000008"
+							},
+							"source": "viewport",
+							"lines": 80,
+							"matcher": {
+								"kind": "regex",
+								"value": "ready.*"
+							},
+							"stripAnsi": false,
+							"clientId": "0000000000000000000000000000000b"
+						}
+					],
+					"after": null
+				}
+			}
+		},
+		{
+			"name": "Agent current state and Client scroll",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.events",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "subscribe",
+					"subscriptionId": "00000000000000000000000000000003",
+					"filters": [
+						{
+							"kind": "agent-status-changed",
+							"target": {
+								"panelId": "00000000000000000000000000000005",
+								"presentationId": null
+							},
+							"state": "working"
+						},
+						{
+							"kind": "scroll-changed",
+							"target": {
+								"panelId": "00000000000000000000000000000005",
+								"presentationId": null
+							},
+							"clientId": "0000000000000000000000000000000b"
+						}
+					],
+					"after": null
+				}
+			}
+		},
+		{
+			"name": "semantic label",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.events",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "subscribe",
+					"subscriptionId": "00000000000000000000000000000003",
+					"filters": [
+						{
+							"kind": "event",
+							"event": "tab.renamed",
+							"scope": {
+								"kind": "pane",
+								"panelId": "00000000000000000000000000000005"
+							},
+							"condition": {
+								"kind": "label",
+								"label": "终端"
+							}
+						}
+					],
+					"after": null
+				}
+			}
+		},
+		{
+			"name": "semantic output-revision",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.events",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "subscribe",
+					"subscriptionId": "00000000000000000000000000000003",
+					"filters": [
+						{
+							"kind": "event",
+							"event": "pane.output_changed",
+							"scope": {
+								"kind": "pane",
+								"panelId": "00000000000000000000000000000005"
+							},
+							"condition": {
+								"kind": "output-revision",
+								"minimumRevision": "18446744073709551615"
+							}
+						}
+					],
+					"after": null
+				}
+			}
+		},
+		{
+			"name": "semantic agent",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.events",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "subscribe",
+					"subscriptionId": "00000000000000000000000000000003",
+					"filters": [
+						{
+							"kind": "event",
+							"event": "pane.agent_detected",
+							"scope": {
+								"kind": "pane",
+								"panelId": "00000000000000000000000000000005"
+							},
+							"condition": {
+								"kind": "agent",
+								"agent": "codex"
+							}
+						}
+					],
+					"after": null
+				}
+			}
+		},
+		{
+			"name": "semantic agent-state",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.events",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "subscribe",
+					"subscriptionId": "00000000000000000000000000000003",
+					"filters": [
+						{
+							"kind": "event",
+							"event": "pane.agent_status_changed",
+							"scope": {
+								"kind": "pane",
+								"panelId": "00000000000000000000000000000005"
+							},
+							"condition": {
+								"kind": "agent-state",
+								"state": "idle"
+							}
+						}
+					],
+					"after": null
+				}
+			}
+		},
+		{
+			"name": "read ",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.events",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "read",
+					"subscriptionId": "00000000000000000000000000000003",
+					"limit": 32
+				}
+			}
+		},
+		{
+			"name": "wait 0",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.events",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "wait",
+					"subscriptionId": "00000000000000000000000000000003",
+					"timeoutMilliseconds": 0
+				}
+			}
+		},
+		{
+			"name": "wait 1000",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.events",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "wait",
+					"subscriptionId": "00000000000000000000000000000003",
+					"timeoutMilliseconds": 1000
+				}
+			}
+		},
+		{
+			"name": "close ",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.events",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "close",
+					"subscriptionId": "00000000000000000000000000000003"
+				}
+			}
+		},
+		{
+			"name": "receipt opened",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.events.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "opened",
+					"subscriptionId": "00000000000000000000000000000003",
+					"cursor": {
+						"epoch": "00000000000000000000000000000004",
+						"sequence": "18446744073709551615"
+					},
+					"existing": false
+				}
+			}
+		},
+		{
+			"name": "receipt timed-out",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.events.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "timed-out",
+					"subscriptionId": "00000000000000000000000000000003",
+					"cursor": {
+						"epoch": "00000000000000000000000000000004",
+						"sequence": "18446744073709551615"
+					}
+				}
+			}
+		},
+		{
+			"name": "receipt gap",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.events.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "gap",
+					"subscriptionId": "00000000000000000000000000000003",
+					"cursor": {
+						"epoch": "00000000000000000000000000000004",
+						"sequence": "18446744073709551615"
+					},
+					"gap": {
+						"after": "0",
+						"through": "1"
+					}
+				}
+			}
+		},
+		{
+			"name": "receipt closed",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.events.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "closed",
+					"subscriptionId": "00000000000000000000000000000003"
+				}
+			}
+		},
+		{
+			"name": "receipt failed",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.events.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "failed",
+					"reason": "physical-unknown"
+				}
+			}
+		},
+		{
+			"name": "ordered retained journal plus probe",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.events.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "events",
+					"subscriptionId": "00000000000000000000000000000003",
+					"cursor": {
+						"epoch": "00000000000000000000000000000004",
+						"sequence": "18446744073709551615"
+					},
+					"events": [
+						{
+							"workspaceId": null,
+							"position": {
+								"kind": "journal",
+								"cursor": {
+									"epoch": "00000000000000000000000000000004",
+									"sequence": "1"
+								}
+							},
+							"workbenchRevision": "18446744073709551615",
+							"event": "tab.renamed",
+							"data": {
+								"kind": "tab",
+								"terminalContextId": "00000000000000000000000000000006",
+								"tabId": "00000000000000000000000000000007",
+								"label": "renamed",
+								"index": 0
+							}
+						},
+						{
+							"workspaceId": null,
+							"position": {
+								"kind": "probe",
+								"subscriptionId": "00000000000000000000000000000003",
+								"sequence": "18446744073709551615"
+							},
+							"workbenchRevision": "18446744073709551615",
+							"event": "pane.output_matched",
+							"data": {
+								"kind": "output",
+								"pane": {
+									"terminalContextId": "00000000000000000000000000000006",
+									"tabId": "00000000000000000000000000000007",
+									"panelId": "00000000000000000000000000000005",
+									"presentationId": "00000000000000000000000000000008",
+									"binding": {
+										"terminalId": "00000000000000000000000000000009",
+										"workerId": "0000000000000000000000000000000a"
+									},
+									"label": "终端"
+								},
+								"contentGeneration": "18446744073709551615",
+								"contentRevision": "18446744073709551615",
+								"matchedLine": "\u001b[1;38;2;1;2;3m完成\u001b[0m"
+							}
+						}
+					],
+					"gap": null,
+					"more": false
+				}
+			}
+		},
+		{
+			"name": "real terminal settlement",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.events.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "matched",
+					"subscriptionId": "00000000000000000000000000000003",
+					"cursor": {
+						"epoch": "00000000000000000000000000000004",
+						"sequence": "18446744073709551615"
+					},
+					"event": {
+						"workspaceId": null,
+						"position": {
+							"kind": "journal",
+							"cursor": {
+								"epoch": "00000000000000000000000000000004",
+								"sequence": "1"
+							}
+						},
+						"workbenchRevision": "18446744073709551615",
+						"event": "pane.exited",
+						"data": {
+							"kind": "exited",
+							"pane": {
+								"terminalContextId": "00000000000000000000000000000006",
+								"tabId": "00000000000000000000000000000007",
+								"panelId": "00000000000000000000000000000005",
+								"presentationId": "00000000000000000000000000000008",
+								"binding": {
+									"terminalId": "00000000000000000000000000000009",
+									"workerId": "0000000000000000000000000000000a"
+								},
+								"label": "终端"
+							},
+							"lifecycleRevision": "18446744073709551615"
+						}
+					}
+				}
+			}
+		},
+		{
+			"name": "Client direct ratio observation",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.events.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "matched",
+					"subscriptionId": "00000000000000000000000000000003",
+					"cursor": {
+						"epoch": "00000000000000000000000000000004",
+						"sequence": "18446744073709551615"
+					},
+					"event": {
+						"workspaceId": null,
+						"position": {
+							"kind": "journal",
+							"cursor": {
+								"epoch": "00000000000000000000000000000004",
+								"sequence": "1"
+							}
+						},
+						"workbenchRevision": "18446744073709551615",
+						"event": "layout.updated",
+						"data": {
+							"kind": "client",
+							"clientId": "0000000000000000000000000000000b",
+							"view": {
+								"workbenchRevision": "12",
+								"phase": "ready",
+								"selection": {
+									"terminalContextId": "00000000000000000000000000000004",
+									"tabId": "00000000000000000000000000000005",
+									"panelId": "00000000000000000000000000000006",
+									"zoomed": false,
+									"panelCount": 2
+								},
+								"splitRevision": "18446744073709551615"
+							},
+							"workspaceId": null
+						}
+					}
+				}
+			}
+		},
+		{
+			"name": "admitted Agent status",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.events.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "matched",
+					"subscriptionId": "00000000000000000000000000000003",
+					"cursor": {
+						"epoch": "00000000000000000000000000000004",
+						"sequence": "18446744073709551615"
+					},
+					"event": {
+						"workspaceId": null,
+						"position": {
+							"kind": "journal",
+							"cursor": {
+								"epoch": "00000000000000000000000000000004",
+								"sequence": "1"
+							}
+						},
+						"workbenchRevision": "18446744073709551615",
+						"event": "pane.agent_status_changed",
+						"data": {
+							"kind": "agent",
+							"pane": {
+								"terminalContextId": "00000000000000000000000000000006",
+								"tabId": "00000000000000000000000000000007",
+								"panelId": "00000000000000000000000000000005",
+								"presentationId": "00000000000000000000000000000008",
+								"binding": {
+									"terminalId": "00000000000000000000000000000009",
+									"workerId": "0000000000000000000000000000000a"
+								},
+								"label": "终端"
+							},
+							"report": {
+								"agent": "pi",
+								"state": "working",
+								"authoritySource": "herdr:pi",
+								"message": null,
+								"session": {
+									"source": "herdr:pi",
+									"agent": "pi",
+									"reference": {
+										"kind": "path",
+										"value": "C:\\session.json"
+									}
+								}
+							},
+							"exited": false
+						}
+					}
+				}
+			}
+		}
+	],
+	"invalid": [
+		{
+			"name": "empty filters",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.events",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "subscribe",
+					"subscriptionId": "00000000000000000000000000000003",
+					"filters": [],
+					"after": {
+						"epoch": "00000000000000000000000000000004",
+						"sequence": "18446744073709551615"
+					}
+				}
+			}
+		},
+		{
+			"name": "filter count",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.events",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "subscribe",
+					"subscriptionId": "00000000000000000000000000000003",
+					"filters": [
+						{
+							"kind": "event",
+							"event": "tab.renamed",
+							"scope": {
+								"kind": "all"
+							},
+							"condition": {
+								"kind": "any"
+							}
+						},
+						{
+							"kind": "event",
+							"event": "tab.renamed",
+							"scope": {
+								"kind": "all"
+							},
+							"condition": {
+								"kind": "any"
+							}
+						},
+						{
+							"kind": "event",
+							"event": "tab.renamed",
+							"scope": {
+								"kind": "all"
+							},
+							"condition": {
+								"kind": "any"
+							}
+						},
+						{
+							"kind": "event",
+							"event": "tab.renamed",
+							"scope": {
+								"kind": "all"
+							},
+							"condition": {
+								"kind": "any"
+							}
+						},
+						{
+							"kind": "event",
+							"event": "tab.renamed",
+							"scope": {
+								"kind": "all"
+							},
+							"condition": {
+								"kind": "any"
+							}
+						},
+						{
+							"kind": "event",
+							"event": "tab.renamed",
+							"scope": {
+								"kind": "all"
+							},
+							"condition": {
+								"kind": "any"
+							}
+						},
+						{
+							"kind": "event",
+							"event": "tab.renamed",
+							"scope": {
+								"kind": "all"
+							},
+							"condition": {
+								"kind": "any"
+							}
+						},
+						{
+							"kind": "event",
+							"event": "tab.renamed",
+							"scope": {
+								"kind": "all"
+							},
+							"condition": {
+								"kind": "any"
+							}
+						},
+						{
+							"kind": "event",
+							"event": "tab.renamed",
+							"scope": {
+								"kind": "all"
+							},
+							"condition": {
+								"kind": "any"
+							}
+						},
+						{
+							"kind": "event",
+							"event": "tab.renamed",
+							"scope": {
+								"kind": "all"
+							},
+							"condition": {
+								"kind": "any"
+							}
+						},
+						{
+							"kind": "event",
+							"event": "tab.renamed",
+							"scope": {
+								"kind": "all"
+							},
+							"condition": {
+								"kind": "any"
+							}
+						},
+						{
+							"kind": "event",
+							"event": "tab.renamed",
+							"scope": {
+								"kind": "all"
+							},
+							"condition": {
+								"kind": "any"
+							}
+						},
+						{
+							"kind": "event",
+							"event": "tab.renamed",
+							"scope": {
+								"kind": "all"
+							},
+							"condition": {
+								"kind": "any"
+							}
+						},
+						{
+							"kind": "event",
+							"event": "tab.renamed",
+							"scope": {
+								"kind": "all"
+							},
+							"condition": {
+								"kind": "any"
+							}
+						},
+						{
+							"kind": "event",
+							"event": "tab.renamed",
+							"scope": {
+								"kind": "all"
+							},
+							"condition": {
+								"kind": "any"
+							}
+						},
+						{
+							"kind": "event",
+							"event": "tab.renamed",
+							"scope": {
+								"kind": "all"
+							},
+							"condition": {
+								"kind": "any"
+							}
+						},
+						{
+							"kind": "event",
+							"event": "tab.renamed",
+							"scope": {
+								"kind": "all"
+							},
+							"condition": {
+								"kind": "any"
+							}
+						},
+						{
+							"kind": "event",
+							"event": "tab.renamed",
+							"scope": {
+								"kind": "all"
+							},
+							"condition": {
+								"kind": "any"
+							}
+						},
+						{
+							"kind": "event",
+							"event": "tab.renamed",
+							"scope": {
+								"kind": "all"
+							},
+							"condition": {
+								"kind": "any"
+							}
+						},
+						{
+							"kind": "event",
+							"event": "tab.renamed",
+							"scope": {
+								"kind": "all"
+							},
+							"condition": {
+								"kind": "any"
+							}
+						},
+						{
+							"kind": "event",
+							"event": "tab.renamed",
+							"scope": {
+								"kind": "all"
+							},
+							"condition": {
+								"kind": "any"
+							}
+						},
+						{
+							"kind": "event",
+							"event": "tab.renamed",
+							"scope": {
+								"kind": "all"
+							},
+							"condition": {
+								"kind": "any"
+							}
+						},
+						{
+							"kind": "event",
+							"event": "tab.renamed",
+							"scope": {
+								"kind": "all"
+							},
+							"condition": {
+								"kind": "any"
+							}
+						},
+						{
+							"kind": "event",
+							"event": "tab.renamed",
+							"scope": {
+								"kind": "all"
+							},
+							"condition": {
+								"kind": "any"
+							}
+						},
+						{
+							"kind": "event",
+							"event": "tab.renamed",
+							"scope": {
+								"kind": "all"
+							},
+							"condition": {
+								"kind": "any"
+							}
+						},
+						{
+							"kind": "event",
+							"event": "tab.renamed",
+							"scope": {
+								"kind": "all"
+							},
+							"condition": {
+								"kind": "any"
+							}
+						},
+						{
+							"kind": "event",
+							"event": "tab.renamed",
+							"scope": {
+								"kind": "all"
+							},
+							"condition": {
+								"kind": "any"
+							}
+						},
+						{
+							"kind": "event",
+							"event": "tab.renamed",
+							"scope": {
+								"kind": "all"
+							},
+							"condition": {
+								"kind": "any"
+							}
+						},
+						{
+							"kind": "event",
+							"event": "tab.renamed",
+							"scope": {
+								"kind": "all"
+							},
+							"condition": {
+								"kind": "any"
+							}
+						},
+						{
+							"kind": "event",
+							"event": "tab.renamed",
+							"scope": {
+								"kind": "all"
+							},
+							"condition": {
+								"kind": "any"
+							}
+						},
+						{
+							"kind": "event",
+							"event": "tab.renamed",
+							"scope": {
+								"kind": "all"
+							},
+							"condition": {
+								"kind": "any"
+							}
+						},
+						{
+							"kind": "event",
+							"event": "tab.renamed",
+							"scope": {
+								"kind": "all"
+							},
+							"condition": {
+								"kind": "any"
+							}
+						},
+						{
+							"kind": "event",
+							"event": "tab.renamed",
+							"scope": {
+								"kind": "all"
+							},
+							"condition": {
+								"kind": "any"
+							}
+						}
+					],
+					"after": {
+						"epoch": "00000000000000000000000000000004",
+						"sequence": "18446744073709551615"
+					}
+				}
+			}
+		},
+		{
+			"name": "required nullable baseline",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.events",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "subscribe",
+					"subscriptionId": "00000000000000000000000000000003",
+					"filters": [
+						{
+							"kind": "event",
+							"event": "tab.renamed",
+							"scope": {
+								"kind": "all"
+							},
+							"condition": {
+								"kind": "any"
+							}
+						}
+					]
+				}
+			}
+		},
+		{
+			"name": "required nullable source presentation",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.events",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "subscribe",
+					"subscriptionId": "00000000000000000000000000000003",
+					"filters": [
+						{
+							"kind": "output-matched",
+							"target": {
+								"panelId": "00000000000000000000000000000005"
+							},
+							"source": "recent-unwrapped",
+							"lines": 4096,
+							"matcher": {
+								"kind": "substring",
+								"value": "完成"
+							},
+							"stripAnsi": true,
+							"clientId": null
+						}
+					],
+					"after": null
+				}
+			}
+		},
+		{
+			"name": "zero row bound",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.events",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "subscribe",
+					"subscriptionId": "00000000000000000000000000000003",
+					"filters": [
+						{
+							"kind": "output-matched",
+							"target": {
+								"panelId": "00000000000000000000000000000005",
+								"presentationId": null
+							},
+							"source": "recent-unwrapped",
+							"lines": 0,
+							"matcher": {
+								"kind": "substring",
+								"value": "完成"
+							},
+							"stripAnsi": true,
+							"clientId": null
+						}
+					],
+					"after": null
+				}
+			}
+		},
+		{
+			"name": "open output filter",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.events",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "subscribe",
+					"subscriptionId": "00000000000000000000000000000003",
+					"filters": [
+						{
+							"kind": "output-matched",
+							"target": {
+								"panelId": "00000000000000000000000000000005",
+								"presentationId": null
+							},
+							"source": "recent-unwrapped",
+							"lines": 4096,
+							"matcher": {
+								"kind": "substring",
+								"value": "完成"
+							},
+							"stripAnsi": true,
+							"clientId": null,
+							"program": "untrusted"
+						}
+					],
+					"after": null
+				}
+			}
+		},
+		{
+			"name": "visible requires exact Client",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.events",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "subscribe",
+					"subscriptionId": "00000000000000000000000000000003",
+					"filters": [
+						{
+							"kind": "output-matched",
+							"target": {
+								"panelId": "00000000000000000000000000000005",
+								"presentationId": "00000000000000000000000000000008"
+							},
+							"source": "viewport",
+							"lines": 80,
+							"matcher": {
+								"kind": "regex",
+								"value": "ready.*"
+							},
+							"stripAnsi": false,
+							"clientId": null
+						}
+					],
+					"after": null
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "uint64 overflow",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.events",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "subscribe",
+					"subscriptionId": "00000000000000000000000000000003",
+					"filters": [
+						{
+							"kind": "event",
+							"event": "tab.renamed",
+							"scope": {
+								"kind": "all"
+							},
+							"condition": {
+								"kind": "any"
+							}
+						}
+					],
+					"after": {
+						"epoch": "00000000000000000000000000000004",
+						"sequence": "18446744073709551616"
+					}
+				}
+			}
+		},
+		{
+			"name": "number cursor",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.events",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "subscribe",
+					"subscriptionId": "00000000000000000000000000000003",
+					"filters": [
+						{
+							"kind": "event",
+							"event": "tab.renamed",
+							"scope": {
+								"kind": "all"
+							},
+							"condition": {
+								"kind": "any"
+							}
+						}
+					],
+					"after": {
+						"epoch": "00000000000000000000000000000004",
+						"sequence": 2
+					}
+				}
+			}
+		},
+		{
+			"name": "wait slice bound",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.events",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "wait",
+					"subscriptionId": "00000000000000000000000000000003",
+					"timeoutMilliseconds": 1001
+				}
+			}
+		},
+		{
+			"name": "special event cannot bypass physical probe",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.events",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "subscribe",
+					"subscriptionId": "00000000000000000000000000000003",
+					"filters": [
+						{
+							"kind": "event",
+							"event": "pane.output_matched",
+							"scope": {
+								"kind": "all"
+							},
+							"condition": {
+								"kind": "any"
+							}
+						}
+					],
+					"after": {
+						"epoch": "00000000000000000000000000000004",
+						"sequence": "18446744073709551615"
+					}
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "condition kind mismatch",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.events",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "subscribe",
+					"subscriptionId": "00000000000000000000000000000003",
+					"filters": [
+						{
+							"kind": "event",
+							"event": "tab.renamed",
+							"scope": {
+								"kind": "all"
+							},
+							"condition": {
+								"kind": "agent-state",
+								"state": "idle"
+							}
+						}
+					],
+					"after": {
+						"epoch": "00000000000000000000000000000004",
+						"sequence": "18446744073709551615"
+					}
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "terminal settlement is not Agent status",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.events.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "matched",
+					"subscriptionId": "00000000000000000000000000000003",
+					"cursor": {
+						"epoch": "00000000000000000000000000000004",
+						"sequence": "18446744073709551615"
+					},
+					"event": {
+						"workspaceId": null,
+						"position": {
+							"kind": "journal",
+							"cursor": {
+								"epoch": "00000000000000000000000000000004",
+								"sequence": "1"
+							}
+						},
+						"workbenchRevision": "18446744073709551615",
+						"event": "pane.agent_status_changed",
+						"data": {
+							"kind": "exited",
+							"pane": {
+								"terminalContextId": "00000000000000000000000000000006",
+								"tabId": "00000000000000000000000000000007",
+								"panelId": "00000000000000000000000000000005",
+								"presentationId": "00000000000000000000000000000008",
+								"binding": {
+									"terminalId": "00000000000000000000000000000009",
+									"workerId": "0000000000000000000000000000000a"
+								},
+								"label": "终端"
+							},
+							"lifecycleRevision": "18446744073709551615"
+						}
+					}
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "exit requires physical binding",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.events.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "matched",
+					"subscriptionId": "00000000000000000000000000000003",
+					"cursor": {
+						"epoch": "00000000000000000000000000000004",
+						"sequence": "18446744073709551615"
+					},
+					"event": {
+						"workspaceId": null,
+						"position": {
+							"kind": "journal",
+							"cursor": {
+								"epoch": "00000000000000000000000000000004",
+								"sequence": "1"
+							}
+						},
+						"workbenchRevision": "18446744073709551615",
+						"event": "pane.exited",
+						"data": {
+							"kind": "exited",
+							"pane": {
+								"terminalContextId": "00000000000000000000000000000006",
+								"tabId": "00000000000000000000000000000007",
+								"panelId": "00000000000000000000000000000005",
+								"presentationId": "00000000000000000000000000000008",
+								"binding": null,
+								"label": "终端"
+							},
+							"lifecycleRevision": "18446744073709551615"
+						}
+					}
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "foreign journal epoch",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.events.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "matched",
+					"subscriptionId": "00000000000000000000000000000003",
+					"cursor": {
+						"epoch": "00000000000000000000000000000004",
+						"sequence": "18446744073709551615"
+					},
+					"event": {
+						"workspaceId": null,
+						"position": {
+							"kind": "journal",
+							"cursor": {
+								"epoch": "00000000000000000000000000000063",
+								"sequence": "1"
+							}
+						},
+						"workbenchRevision": "18446744073709551615",
+						"event": "pane.exited",
+						"data": {
+							"kind": "exited",
+							"pane": {
+								"terminalContextId": "00000000000000000000000000000006",
+								"tabId": "00000000000000000000000000000007",
+								"panelId": "00000000000000000000000000000005",
+								"presentationId": "00000000000000000000000000000008",
+								"binding": {
+									"terminalId": "00000000000000000000000000000009",
+									"workerId": "0000000000000000000000000000000a"
+								},
+								"label": "终端"
+							},
+							"lifecycleRevision": "18446744073709551615"
+						}
+					}
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "event beyond scan cursor",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.events.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "matched",
+					"subscriptionId": "00000000000000000000000000000003",
+					"cursor": {
+						"epoch": "00000000000000000000000000000004",
+						"sequence": "0"
+					},
+					"event": {
+						"workspaceId": null,
+						"position": {
+							"kind": "journal",
+							"cursor": {
+								"epoch": "00000000000000000000000000000004",
+								"sequence": "1"
+							}
+						},
+						"workbenchRevision": "18446744073709551615",
+						"event": "pane.exited",
+						"data": {
+							"kind": "exited",
+							"pane": {
+								"terminalContextId": "00000000000000000000000000000006",
+								"tabId": "00000000000000000000000000000007",
+								"panelId": "00000000000000000000000000000005",
+								"presentationId": "00000000000000000000000000000008",
+								"binding": {
+									"terminalId": "00000000000000000000000000000009",
+									"workerId": "0000000000000000000000000000000a"
+								},
+								"label": "终端"
+							},
+							"lifecycleRevision": "18446744073709551615"
+						}
+					}
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "zero event position",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.events.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "matched",
+					"subscriptionId": "00000000000000000000000000000003",
+					"cursor": {
+						"epoch": "00000000000000000000000000000004",
+						"sequence": "18446744073709551615"
+					},
+					"event": {
+						"workspaceId": null,
+						"position": {
+							"kind": "journal",
+							"cursor": {
+								"epoch": "00000000000000000000000000000004",
+								"sequence": "0"
+							}
+						},
+						"workbenchRevision": "18446744073709551615",
+						"event": "pane.exited",
+						"data": {
+							"kind": "exited",
+							"pane": {
+								"terminalContextId": "00000000000000000000000000000006",
+								"tabId": "00000000000000000000000000000007",
+								"panelId": "00000000000000000000000000000005",
+								"presentationId": "00000000000000000000000000000008",
+								"binding": {
+									"terminalId": "00000000000000000000000000000009",
+									"workerId": "0000000000000000000000000000000a"
+								},
+								"label": "终端"
+							},
+							"lifecycleRevision": "18446744073709551615"
+						}
+					}
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "duplicate probe sequence",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.events.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "events",
+					"subscriptionId": "00000000000000000000000000000003",
+					"cursor": {
+						"epoch": "00000000000000000000000000000004",
+						"sequence": "18446744073709551615"
+					},
+					"events": [
+						{
+							"workspaceId": null,
+							"position": {
+								"kind": "journal",
+								"cursor": {
+									"epoch": "00000000000000000000000000000004",
+									"sequence": "1"
+								}
+							},
+							"workbenchRevision": "18446744073709551615",
+							"event": "tab.renamed",
+							"data": {
+								"kind": "tab",
+								"terminalContextId": "00000000000000000000000000000006",
+								"tabId": "00000000000000000000000000000007",
+								"label": "renamed",
+								"index": 0
+							}
+						},
+						{
+							"workspaceId": null,
+							"position": {
+								"kind": "probe",
+								"subscriptionId": "00000000000000000000000000000003",
+								"sequence": "18446744073709551615"
+							},
+							"workbenchRevision": "18446744073709551615",
+							"event": "pane.output_matched",
+							"data": {
+								"kind": "output",
+								"pane": {
+									"terminalContextId": "00000000000000000000000000000006",
+									"tabId": "00000000000000000000000000000007",
+									"panelId": "00000000000000000000000000000005",
+									"presentationId": "00000000000000000000000000000008",
+									"binding": {
+										"terminalId": "00000000000000000000000000000009",
+										"workerId": "0000000000000000000000000000000a"
+									},
+									"label": "终端"
+								},
+								"contentGeneration": "18446744073709551615",
+								"contentRevision": "18446744073709551615",
+								"matchedLine": "\u001b[1;38;2;1;2;3m完成\u001b[0m"
+							}
+						},
+						{
+							"workspaceId": null,
+							"position": {
+								"kind": "probe",
+								"subscriptionId": "00000000000000000000000000000003",
+								"sequence": "18446744073709551615"
+							},
+							"workbenchRevision": "18446744073709551615",
+							"event": "pane.output_matched",
+							"data": {
+								"kind": "output",
+								"pane": {
+									"terminalContextId": "00000000000000000000000000000006",
+									"tabId": "00000000000000000000000000000007",
+									"panelId": "00000000000000000000000000000005",
+									"presentationId": "00000000000000000000000000000008",
+									"binding": {
+										"terminalId": "00000000000000000000000000000009",
+										"workerId": "0000000000000000000000000000000a"
+									},
+									"label": "终端"
+								},
+								"contentGeneration": "18446744073709551615",
+								"contentRevision": "18446744073709551615",
+								"matchedLine": "\u001b[1;38;2;1;2;3m完成\u001b[0m"
+							}
+						}
+					],
+					"gap": null,
+					"more": false
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "foreign probe owner",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.events.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "events",
+					"subscriptionId": "00000000000000000000000000000003",
+					"cursor": {
+						"epoch": "00000000000000000000000000000004",
+						"sequence": "18446744073709551615"
+					},
+					"events": [
+						{
+							"workspaceId": null,
+							"position": {
+								"kind": "journal",
+								"cursor": {
+									"epoch": "00000000000000000000000000000004",
+									"sequence": "1"
+								}
+							},
+							"workbenchRevision": "18446744073709551615",
+							"event": "tab.renamed",
+							"data": {
+								"kind": "tab",
+								"terminalContextId": "00000000000000000000000000000006",
+								"tabId": "00000000000000000000000000000007",
+								"label": "renamed",
+								"index": 0
+							}
+						},
+						{
+							"workspaceId": null,
+							"position": {
+								"kind": "probe",
+								"subscriptionId": "00000000000000000000000000000063",
+								"sequence": "18446744073709551615"
+							},
+							"workbenchRevision": "18446744073709551615",
+							"event": "pane.output_matched",
+							"data": {
+								"kind": "output",
+								"pane": {
+									"terminalContextId": "00000000000000000000000000000006",
+									"tabId": "00000000000000000000000000000007",
+									"panelId": "00000000000000000000000000000005",
+									"presentationId": "00000000000000000000000000000008",
+									"binding": {
+										"terminalId": "00000000000000000000000000000009",
+										"workerId": "0000000000000000000000000000000a"
+									},
+									"label": "终端"
+								},
+								"contentGeneration": "18446744073709551615",
+								"contentRevision": "18446744073709551615",
+								"matchedLine": "\u001b[1;38;2;1;2;3m完成\u001b[0m"
+							}
+						}
+					],
+					"gap": null,
+					"more": false
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "zero physical content generation",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.events.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "events",
+					"subscriptionId": "00000000000000000000000000000003",
+					"cursor": {
+						"epoch": "00000000000000000000000000000004",
+						"sequence": "18446744073709551615"
+					},
+					"events": [
+						{
+							"workspaceId": null,
+							"position": {
+								"kind": "journal",
+								"cursor": {
+									"epoch": "00000000000000000000000000000004",
+									"sequence": "1"
+								}
+							},
+							"workbenchRevision": "18446744073709551615",
+							"event": "tab.renamed",
+							"data": {
+								"kind": "tab",
+								"terminalContextId": "00000000000000000000000000000006",
+								"tabId": "00000000000000000000000000000007",
+								"label": "renamed",
+								"index": 0
+							}
+						},
+						{
+							"workspaceId": null,
+							"position": {
+								"kind": "probe",
+								"subscriptionId": "00000000000000000000000000000003",
+								"sequence": "18446744073709551615"
+							},
+							"workbenchRevision": "18446744073709551615",
+							"event": "pane.output_matched",
+							"data": {
+								"kind": "output",
+								"pane": {
+									"terminalContextId": "00000000000000000000000000000006",
+									"tabId": "00000000000000000000000000000007",
+									"panelId": "00000000000000000000000000000005",
+									"presentationId": "00000000000000000000000000000008",
+									"binding": {
+										"terminalId": "00000000000000000000000000000009",
+										"workerId": "0000000000000000000000000000000a"
+									},
+									"label": "终端"
+								},
+								"contentGeneration": "0",
+								"contentRevision": "18446744073709551615",
+								"matchedLine": "\u001b[1;38;2;1;2;3m完成\u001b[0m"
+							}
+						}
+					],
+					"gap": null,
+					"more": false
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "outer Client workspace mismatch",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.events.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "matched",
+					"subscriptionId": "00000000000000000000000000000003",
+					"cursor": {
+						"epoch": "00000000000000000000000000000004",
+						"sequence": "18446744073709551615"
+					},
+					"event": {
+						"workspaceId": null,
+						"position": {
+							"kind": "journal",
+							"cursor": {
+								"epoch": "00000000000000000000000000000004",
+								"sequence": "1"
+							}
+						},
+						"workbenchRevision": "18446744073709551615",
+						"event": "layout.updated",
+						"data": {
+							"kind": "client",
+							"clientId": "0000000000000000000000000000000b",
+							"view": {
+								"workbenchRevision": "12",
+								"phase": "ready",
+								"selection": {
+									"terminalContextId": "00000000000000000000000000000004",
+									"tabId": "00000000000000000000000000000005",
+									"panelId": "00000000000000000000000000000006",
+									"zoomed": false,
+									"panelCount": 2
+								},
+								"splitRevision": "18446744073709551615"
+							},
+							"workspaceId": "0000000000000000000000000000000c"
+						}
+					}
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "ratio proof without selection",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.events.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "matched",
+					"subscriptionId": "00000000000000000000000000000003",
+					"cursor": {
+						"epoch": "00000000000000000000000000000004",
+						"sequence": "18446744073709551615"
+					},
+					"event": {
+						"workspaceId": null,
+						"position": {
+							"kind": "journal",
+							"cursor": {
+								"epoch": "00000000000000000000000000000004",
+								"sequence": "1"
+							}
+						},
+						"workbenchRevision": "18446744073709551615",
+						"event": "layout.updated",
+						"data": {
+							"kind": "client",
+							"clientId": "0000000000000000000000000000000b",
+							"view": {
+								"workbenchRevision": "12",
+								"phase": "starting",
+								"selection": null,
+								"splitRevision": "18446744073709551615"
+							},
+							"workspaceId": null
+						}
+					}
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "reversed gap",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.events.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "gap",
+					"subscriptionId": "00000000000000000000000000000003",
+					"cursor": {
+						"epoch": "00000000000000000000000000000004",
+						"sequence": "18446744073709551615"
+					},
+					"gap": {
+						"after": "18446744073709551615",
+						"through": "1"
+					}
+				}
+			},
+			"boundary": "semantic"
+		}
+	]
+}

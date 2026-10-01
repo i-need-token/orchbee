@@ -7,7 +7,9 @@ use std::sync::Arc;
 
 mod progress;
 mod rows;
+mod sgr;
 pub use progress::{TerminalProgress, TerminalProgressValue};
+pub use sgr::{TerminalSgrStyle, terminal_sgr_style};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct TerminalTextStyle {

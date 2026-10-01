@@ -3,18 +3,25 @@
 	"$id": "orchbee.api.schema",
 	"title": "orchbee api schema envelope",
 	"type": "object",
-	"required": ["schema", "version", "source", "result"],
+	"required": [
+		"schema",
+		"version",
+		"source",
+		"result"
+	],
 	"additionalProperties": false,
 	"properties": {
 		"schema": {
 			"const": "orchbee.api.schema"
 		},
 		"version": {
-			"const": 132
+			"const": 135
 		},
 		"source": {
 			"type": "object",
-			"required": ["kind"],
+			"required": [
+				"kind"
+			],
 			"additionalProperties": false,
 			"properties": {
 				"kind": {
@@ -27,13 +34,17 @@
 			"additionalProperties": false,
 			"oneOf": [
 				{
-					"required": ["schema"],
+					"required": [
+						"schema"
+					],
 					"properties": {
 						"schema": {}
 					}
 				},
 				{
-					"required": ["schemas"],
+					"required": [
+						"schemas"
+					],
 					"properties": {
 						"schemas": {}
 					}
@@ -42,7 +53,10 @@
 			"properties": {
 				"schema": {
 					"type": "object",
-					"required": ["schemaId", "document"],
+					"required": [
+						"schemaId",
+						"document"
+					],
 					"additionalProperties": false,
 					"properties": {
 						"schemaId": {
@@ -167,7 +181,12 @@
 						"orchbee.workspace.move",
 						"orchbee.worktree.list",
 						"orchbee.worktree.operation",
-						"orchbee.worktree.query"
+						"orchbee.worktree.query",
+						"orchbee.cli.failure.events",
+						"orchbee.events.wait",
+						"orchbee.events.stream",
+						"orchbee.cli.failure.command",
+						"orchbee.command"
 					],
 					"propertyNames": {
 						"$ref": "#/$defs/schemaId"
@@ -293,7 +312,12 @@
 				"orchbee.workspace.move",
 				"orchbee.worktree.list",
 				"orchbee.worktree.operation",
-				"orchbee.worktree.query"
+				"orchbee.worktree.query",
+				"orchbee.events.wait",
+				"orchbee.events.stream",
+				"orchbee.cli.failure.events",
+				"orchbee.cli.failure.command",
+				"orchbee.command"
 			]
 		}
 	}

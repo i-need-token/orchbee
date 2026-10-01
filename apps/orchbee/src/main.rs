@@ -233,6 +233,10 @@ fn main() -> ExitCode {
                 cli::configured_commands::run(&command, format, locale)
             }
             #[cfg(windows)]
+            Ok(invocation::Request::Events { command, format }) => {
+                cli::events::run(&command, format, locale)
+            }
+            #[cfg(windows)]
             Ok(invocation::Request::ChannelShow { format }) => cli::channel::show(format, locale),
             #[cfg(windows)]
             Ok(invocation::Request::Update { channel, format }) => {

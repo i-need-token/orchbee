@@ -1,5 +1,11 @@
 # Orchbee 原生入口
 
+Windows `events subscribe` 从已有 Site 输出有界 NDJSON 观察。`events wait` 在等待片段间保留
+同一连接及过滤器，区分匹配、确定超时、历史丢失、拒绝与中断。使用 `--event tab.renamed`、
+资源选择器或封闭 `--filter` JSON；`--after-cursor` 固定保留日志历史。输出／滚动探测保留真实
+终端和 Client viewport 所有权。运行 `orchbee events --help` 查看上限与条件；
+[事件契约](../orchbee-server/docs/windows-events.zh-CN.md) 管理行为与最终 Windows 证据。
+
 `orchbee terminal run <terminal-id> "Write-Output ready" --format json` 在一个输入请求中粘贴命令，再发送 Enter。命令须为一个引号字符串；保持原始文本，目标只接受完整 ID 或 `@terminal:<suffix>`。回执确认输入提交，不保证 Shell 已就绪、命令完成或退出状态；部分或未知结果不得重放。 [命令提交契约](docs/native-terminal-run.zh-CN.md).
 
 实验性、尚未打包发布的原生 Rust Client。在 Windows 和 Linux 上，裸命令从已校验的开发 cohort

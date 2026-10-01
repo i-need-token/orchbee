@@ -107,6 +107,25 @@ fn changed_commit_retains_inactive_targets_and_noop_never_prunes() {
 }
 
 #[test]
+fn semantic_events_ratio_sequence_exhaustion_preserves_owner_and_noop_still_succeeds() {
+    let snapshot = snapshot(1, 1);
+    let mut ratios = SplitRatios {
+        sequence: u64::MAX,
+        ..SplitRatios::default()
+    };
+    let before = ratios.clone();
+    assert_eq!(
+        ratios.commit(&snapshot, &change(&snapshot, 0, 0.5, 0.7)),
+        Err(Reason::Busy)
+    );
+    assert_eq!(ratios, before);
+    ratios
+        .commit(&snapshot, &change(&snapshot, 0, 0.5, 0.5))
+        .unwrap();
+    assert_eq!(ratios, before);
+}
+
+#[test]
 fn slot_replacement_and_stale_snapshot_never_inherit_or_overwrite_weights() {
     let mut snapshot = snapshot(1, 2);
     let mut ratios = SplitRatios::default();

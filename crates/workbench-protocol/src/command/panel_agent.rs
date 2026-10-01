@@ -258,7 +258,7 @@ pub struct PanelAgentView {
     pub session: Option<PanelAgentSession>,
 }
 impl PanelAgentView {
-    fn valid(&self) -> bool {
+    pub(super) fn valid(&self) -> bool {
         self.agent
             .as_ref()
             .is_none_or(|agent| !agent.is_empty() && agent.trim() == agent)

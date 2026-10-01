@@ -18,7 +18,7 @@ mod frame;
 mod history;
 mod input;
 pub(crate) use control::run as run_control;
-mod relay;
+pub(in crate::cli) mod relay;
 const STEP: Duration = Duration::from_secs(5);
 const CLEANUP: Duration = Duration::from_secs(2);
 pub(crate) const SCHEMA: &str = "orchbee.terminal.stream";

@@ -1,5 +1,13 @@
 # Workbench 跨语言 Contract
 
+## 语义事件
+
+`v1/workbench-events.schema.json` 及共享语料定义封闭 OBWP55／56 形状，覆盖连接持有订阅、
+有界等待、真实语义／探测观察与明确历史 gap。Rust 和 TypeScript 额外执行编码字节上限、
+准确事件／数据／来源关联、过滤条件、全宽顺序及递归布局准入。可选 Client `splitRevision`
+保留旧形状，存在时提供真实比例变化证据。运行时发布和回收属于
+[Windows 事件所有者](../../apps/orchbee-server/docs/windows-events.zh-CN.md)。
+
 ## 权威
 
 [`v1/workbench.schema.json`](v1/workbench.schema.json) 是 version-1 只读 Workbench projection

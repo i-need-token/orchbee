@@ -1,22 +1,29 @@
 //! Stage every fallible report change before the Names owner releases its alias.
-use super::{PanelAgents, Resource, TerminalAgentBinding, WorkbenchAuthority, key};
-use orchbee_workbench_protocol::{PanelAgentFailure as Failure, PanelAgentSession};
+use super::{Resource, TerminalAgentBinding, WorkbenchAuthority, key};
+use orchbee_workbench_protocol::{PanelAgentFailure as Failure, PanelAgentSession, PanelAgentView};
 
 pub struct PreparedManagedAgentClear<'a> {
-    owner: &'a mut PanelAgents,
+    owner: &'a mut WorkbenchAuthority,
     next: Option<Resource>,
+    before: Option<PanelAgentView>,
     bytes: usize,
     revision: u64,
 }
 impl PreparedManagedAgentClear<'_> {
     pub fn commit(self) {
         if let Some(resource) = self.next {
+            let after = resource.reports.view();
+            let binding = resource.physical.binding.clone();
             // Retain an empty physical resource: an explicit clear must not fall back to restart intent.
             self.owner
+                .panel_agent
                 .resources
                 .insert(key(&resource.physical.binding), resource);
-            self.owner.bytes = self.bytes;
-            self.owner.revision = self.revision;
+            self.owner.panel_agent.bytes = self.bytes;
+            self.owner.panel_agent.revision = self.revision;
+            if let Some(before) = self.before {
+                self.owner.publish_agent_change(&binding, &before, &after);
+            }
         }
     }
 }
@@ -43,6 +50,7 @@ impl WorkbenchAuthority {
                 .map(|reports| (r, reports))
         });
         let mut bytes = self.panel_agent.bytes;
+        let before = next.as_ref().map(|(prior, _)| prior.reports.view());
         let mut revision = self.panel_agent.revision;
         let resource = if let Some((prior, reports)) = next {
             revision = revision.checked_add(1).ok_or(Failure::RevisionExhausted)?;
@@ -58,8 +66,9 @@ impl WorkbenchAuthority {
             None
         };
         Ok(PreparedManagedAgentClear {
-            owner: &mut self.panel_agent,
+            owner: self,
             next: resource,
+            before,
             bytes,
             revision,
         })

@@ -1,5 +1,13 @@
 # Rust Orchbee Server
 
+## Windows 语义事件
+
+Site 日志记录真实已接受的拓扑、元数据、worktree、Agent 与 Client 变化。
+已认证连接持有一个有界订阅；read／wait 保留 cursor 与探测，close／EOF 释放所有者。
+终端输出与退出依据已准入 Host 观察；Client 滚动／visible 输出读取准确的只读 Client viewport。
+历史断档、来源不可用与观察器回收不确定均明确报告。[事件所有权与验收](docs/windows-events.zh-CN.md)
+定义生命周期、上限及 Windows 证据；本项不增加 Desktop 消费者。
+
 ## Windows 运行时元数据
 
 同用户 OBLC 元数据请求读取本进程的编译版本、保留的预期 cohort、PID、终端协议、实现

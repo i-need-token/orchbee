@@ -23,6 +23,14 @@ pub use command::{
     GitDivergence, MAXIMUM_WORKSPACE_GIT_BYTES, WorkspaceGitFailure, WorkspaceGitOutcome,
     WorkspaceGitRequest, WorkspaceGitResult,
 };
+pub use command::{
+    MAXIMUM_EVENT_FILTERS, MAXIMUM_EVENT_PAGE, MAXIMUM_EVENTS_BYTES, SemanticEvent,
+    SemanticEventCursor, SemanticEventData, SemanticEventFilter, SemanticEventGap,
+    SemanticEventKind, SemanticEventMatch, SemanticEventPosition, SemanticEventScope,
+    SemanticEventSource, SemanticEventsAction, SemanticEventsFailure, SemanticEventsOutcome,
+    SemanticEventsRequest, SemanticEventsResult, SemanticOutputMatch, SemanticOutputSource,
+    SemanticPane, matches_semantic_filter,
+};
 mod directory;
 mod identity;
 mod layout_template;

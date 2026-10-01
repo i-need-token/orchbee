@@ -1,5 +1,14 @@
 # Workbench Cross-Language Contract
 
+## Semantic events
+
+`v1/workbench-events.schema.json` and its shared corpus define closed OBWP55/56 shapes for
+connection-owned subscriptions, bounded waits, actual semantic/probe observations and explicit
+history gaps. Rust and TypeScript additionally enforce encoded bytes, exact event/data/source
+correspondence, filter conditions, full-width ordering and recursive layout admission. Optional
+Client `splitRevision` preserves legacy shapes and supplies actual ratio-change evidence when
+present. Runtime publication and cleanup belong to the [Windows event owner](../../apps/orchbee-server/docs/windows-events.md).
+
 ## Authority
 
 [`v1/workbench.schema.json`](v1/workbench.schema.json) is the language-neutral authority for the

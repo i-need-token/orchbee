@@ -52,13 +52,16 @@ export const ClientViewSelectionSchema = z
 export const ClientViewObservationSchema = z
 	.strictObject({
 		workbenchRevision: WorkbenchRevisionSchema,
+		splitRevision: WorkbenchRevisionSchema.nullish(),
 		phase: ClientViewPhaseSchema,
 		selection: ClientViewSelectionSchema.nullable(),
 	})
 	.superRefine((view, context) => {
 		const selection = view.selection;
 		if (
-			(view.phase === 'ready' && selection === null) ||
+			((view.phase === 'ready' ||
+				(view.splitRevision !== null && view.splitRevision !== undefined)) &&
+				selection === null) ||
 			(selection !== null &&
 				((selection.tabId !== null) !== selection.panelCount > 0 ||
 					(selection.panelId !== null && selection.tabId === null) ||

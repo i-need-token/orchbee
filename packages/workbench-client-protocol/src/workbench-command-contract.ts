@@ -4,6 +4,11 @@ import {
 	WORKBENCH_MAXIMUM_CONFIGURED_COMMAND_BYTES,
 } from './workbench-configured-command-contract';
 import {
+	SemanticEventsRequestSchema,
+	SemanticEventsResultSchema,
+	WORKBENCH_MAXIMUM_EVENTS_BYTES,
+} from './workbench-events-contract';
+import {
 	WorkbenchCommandOutcomeSchema,
 	type WorkbenchRejectionReasonSchema,
 	type WorkbenchCommandUnavailableReasonSchema,
@@ -415,6 +420,7 @@ export const WorkbenchRequestSchema = z
 		ConfigurationRequestSchema,
 		TerminalEditorRequestSchema,
 		ConfiguredCommandRequestSchema,
+		SemanticEventsRequestSchema,
 		PluginRequestSchema,
 		WindowTitleRequestSchema,
 		NotificationRequestSchema,
@@ -429,6 +435,7 @@ export const WorkbenchRequestSchema = z
 			maximum = WORKBENCH_MAXIMUM_ENCODED_CONFIGURATION_BYTES;
 		if (value.kind === 'workbench.configured-command')
 			maximum = WORKBENCH_MAXIMUM_CONFIGURED_COMMAND_BYTES;
+		if (value.kind === 'workbench.events') maximum = WORKBENCH_MAXIMUM_EVENTS_BYTES;
 		if (value.kind === 'workbench.command' && value.action.kind === 'tab.create-layout')
 			maximum = WORKBENCH_MAXIMUM_ENCODED_LAYOUT_COMMAND_BYTES;
 		if (
@@ -539,6 +546,7 @@ export const WorkbenchResponseSchema = z
 		ConfigurationResultSchema,
 		TerminalEditorResultSchema,
 		ConfiguredCommandResultSchema,
+		SemanticEventsResultSchema,
 		PluginResultSchema,
 		WindowTitleResultSchema,
 		NotificationResultSchema,
@@ -556,6 +564,8 @@ export const WorkbenchResponseSchema = z
 			maximum = WORKBENCH_MAXIMUM_ENCODED_SNAPSHOT_RESULT_BYTES;
 		} else if (value.kind === 'workbench.configured-command.result') {
 			maximum = WORKBENCH_MAXIMUM_CONFIGURED_COMMAND_BYTES;
+		} else if (value.kind === 'workbench.events.result') {
+			maximum = WORKBENCH_MAXIMUM_EVENTS_BYTES;
 		} else if (value.kind === 'workbench.client-view.result') {
 			maximum =
 				value.outcome.kind === 'operation' && value.outcome.operation.status.kind === 'layout-read'

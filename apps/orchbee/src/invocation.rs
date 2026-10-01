@@ -15,6 +15,8 @@ mod client_control;
 #[cfg(windows)]
 pub(crate) mod configured_commands;
 #[cfg(windows)]
+pub(crate) mod events;
+#[cfg(windows)]
 mod layouts;
 #[cfg(windows)]
 mod named_sessions;
@@ -204,6 +206,8 @@ pub(crate) enum HelpTopic {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum Family {
     #[cfg(windows)]
+    Events,
+    #[cfg(windows)]
     Command,
     #[cfg(windows)]
     Machine,
@@ -249,6 +253,8 @@ impl Family {
             #[cfg(windows)]
             Self::Command => "command",
             #[cfg(windows)]
+            Self::Events => "events",
+            #[cfg(windows)]
             Self::Session => "session",
             Self::Client => "client",
             Self::Agent => "agent",
@@ -288,6 +294,10 @@ impl Family {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum CommandPath {
+    #[cfg(windows)]
+    EventsSubscribe,
+    #[cfg(windows)]
+    EventsWait,
     #[cfg(windows)]
     CommandList,
     #[cfg(windows)]
@@ -609,6 +619,10 @@ impl CommandPath {
             Self::TerminalEditScrollback => "terminal edit-scrollback",
             #[cfg(windows)]
             Self::CommandList => "command list",
+            #[cfg(windows)]
+            Self::EventsSubscribe => "events subscribe",
+            #[cfg(windows)]
+            Self::EventsWait => "events wait",
             #[cfg(windows)]
             Self::CommandInvoke => "command invoke",
             Self::TerminalWaitOutput => "terminal wait-output",
@@ -1411,6 +1425,11 @@ pub(crate) enum RuntimeStatusScope {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum Request {
     #[cfg(windows)]
+    Events {
+        command: events::Command,
+        format: OutputFormat,
+    },
+    #[cfg(windows)]
     ConfiguredCommand {
         command: configured_commands::Command,
         format: OutputFormat,
@@ -1670,6 +1689,8 @@ pub(crate) enum UsageContext {
 /// expect; rendered per locale, never serialized.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum ExpectedValue {
+    #[cfg(windows)]
+    EventsSpecification,
     #[cfg(windows)]
     TerminalViewportPoint,
     #[cfg(windows)]
@@ -1953,6 +1974,8 @@ enum Token {
 
 #[derive(Default)]
 struct Options {
+    #[cfg(windows)]
+    events: events::Options,
     link_offset: Option<String>,
     copy_motion: Option<String>,
     copy_query: Option<String>,
@@ -2093,6 +2116,12 @@ struct Options {
 /// both the format-envelope walk and the option scan so ownership is decided
 /// identically in the two passes.
 const VALUE_FLAGS: &[&str] = &[
+    #[cfg(windows)]
+    "--event",
+    #[cfg(windows)]
+    "--filter",
+    #[cfg(windows)]
+    "--after-cursor",
     "--offset-from-bottom",
     "--motion",
     "--query",
@@ -2726,6 +2755,15 @@ fn apply_value_flag(
     value: String,
     envelope: FailureEnvelope,
 ) -> Result<(), ParseFailure> {
+    #[cfg(windows)]
+    if matches!(option, "--event" | "--filter") {
+        if option == "--event" {
+            options.events.events.push(value);
+        } else {
+            options.events.filters.push(value);
+        }
+        return Ok(());
+    }
     if matches!(option, "--arg" | "--provider" | "--asset-root" | "--env") {
         match option {
             "--arg" => options.args.push(value),
@@ -2801,6 +2839,8 @@ fn apply_value_flag(
         "--cwd" => &mut options.cwd,
         "--plugin" => &mut options.plugin_id,
         "--context" => &mut options.plugin_context,
+        #[cfg(windows)]
+        "--after-cursor" => &mut options.events.after,
         "--entrypoint" => &mut options.plugin_entrypoint,
         "--placement" => &mut options.plugin_placement,
         "--width" => &mut options.plugin_width,
@@ -2959,6 +2999,8 @@ fn resolve_words(
     match words {
         #[cfg(windows)]
         ["command", ..] => configured_commands::parse(words, options, envelope),
+        #[cfg(windows)]
+        ["events", ..] => events::parse(words, options, envelope),
         #[cfg(windows)]
         ["plugin", ..] => plugins::parse(words, options, envelope),
         #[cfg(windows)]
@@ -5298,6 +5340,12 @@ fn help_topic(path: &[&str]) -> Option<HelpTopic> {
         #[cfg(windows)]
         ["command"] => HelpTopic::Family(Family::Command),
         #[cfg(windows)]
+        ["events"] => HelpTopic::Family(Family::Events),
+        #[cfg(windows)]
+        ["events", "subscribe"] => HelpTopic::Command(CommandPath::EventsSubscribe),
+        #[cfg(windows)]
+        ["events", "wait"] => HelpTopic::Command(CommandPath::EventsWait),
+        #[cfg(windows)]
         ["command", "list"] => HelpTopic::Command(CommandPath::CommandList),
         #[cfg(windows)]
         ["command", "invoke"] => HelpTopic::Command(CommandPath::CommandInvoke),
@@ -5415,6 +5463,8 @@ fn mutation(command: MutationCommand, options: &Options) -> Request {
 /// is only meaningful whole.
 #[derive(Clone, Copy)]
 struct Scope {
+    #[cfg(windows)]
+    events: bool,
     link_offset: bool,
     copy_motion: bool,
     copy_query: bool,
@@ -5560,6 +5610,8 @@ struct Scope {
 }
 
 const NO_OPTIONS: Scope = Scope {
+    #[cfg(windows)]
+    events: false,
     link_offset: false,
     copy_motion: false,
     copy_query: false,
@@ -5916,6 +5968,16 @@ fn business_options(options: &Options) -> bool {
         || options.plugin_height.is_some()
         || options.plugin_id.is_some()
         || options.plugin_context.is_some()
+        || {
+            #[cfg(windows)]
+            {
+                options.events.first_option().is_some()
+            }
+            #[cfg(not(windows))]
+            {
+                false
+            }
+        }
         || options.plugin_ref.is_some()
         || options.plugin_yes
         || options.plugin_enabled
@@ -6046,6 +6108,12 @@ fn first_out_of_scope(options: &Options, scope: Scope) -> Option<&'static str> {
     }
     if !scope.plugin_context && options.plugin_context.is_some() {
         return Some("--context");
+    }
+    #[cfg(windows)]
+    if !scope.events
+        && let Some(option) = options.events.first_option()
+    {
+        return Some(option);
     }
     if !scope.plugin {
         if options.plugin_enabled {

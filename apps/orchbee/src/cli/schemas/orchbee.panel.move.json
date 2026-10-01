@@ -873,6 +873,16 @@
 									"type": "null"
 								}
 							]
+						},
+						"splitRevision": {
+							"anyOf": [
+								{
+									"$ref": "#/$defs/control/$defs/revision"
+								},
+								{
+									"type": "null"
+								}
+							]
 						}
 					},
 					"required": ["workbenchRevision", "phase", "selection"],
@@ -2113,6 +2123,16 @@
 							"anyOf": [
 								{
 									"$ref": "#/$defs/layout/$defs/selection"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"splitRevision": {
+							"anyOf": [
+								{
+									"$ref": "#/$defs/layout/$defs/revision"
 								},
 								{
 									"type": "null"

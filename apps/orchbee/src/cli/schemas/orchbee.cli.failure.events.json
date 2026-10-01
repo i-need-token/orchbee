@@ -1,0 +1,45 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "orchbee.cli.failure.events",
+	"title": "Windows semantic event observation failure",
+	"type": "object",
+	"required": ["schema", "version", "failure"],
+	"additionalProperties": false,
+	"properties": {
+		"schema": {
+			"const": "orchbee.cli.failure.events"
+		},
+		"version": {
+			"const": 1
+		},
+		"failure": {
+			"type": "object",
+			"required": ["kind", "details"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": {
+					"enum": [
+						"cancelled",
+						"internal-failure",
+						"invalid-usage",
+						"output-too-large",
+						"protocol-invalid",
+						"service-unavailable",
+						"timeout",
+						"transport-loss"
+					]
+				},
+				"details": {
+					"type": "object",
+					"required": ["stage"],
+					"additionalProperties": false,
+					"properties": {
+						"stage": {
+							"const": "events"
+						}
+					}
+				}
+			}
+		}
+	}
+}

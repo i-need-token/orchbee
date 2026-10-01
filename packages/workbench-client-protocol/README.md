@@ -1,5 +1,14 @@
 # @orchbee/workbench-client-protocol
 
+## Semantic event binding
+
+The independent `workbench.events` binding validates 28 event kinds, closed filters, physical/Client
+payloads, full-width cursors, separate probe ownership, ordered bounded pages and history gaps.
+It shares the Rust/JSON event corpus and 256 KiB matched-cohort carrier bound. Optional Client
+`splitRevision` reports the actual ratio-owner counter and requires a selected context; old
+observations retain their existing shape. This package adds contracts, without a Desktop event
+consumer. The [Windows event model](../../apps/orchbee-server/docs/windows-events.md) owns runtime behavior.
+
 Strict, runtime-neutral data contracts for one Orchbee Workbench page client.
 
 ## Scope

@@ -1,5 +1,13 @@
 # @orchbee/workbench-client-protocol
 
+## 语义事件绑定
+
+独立 `workbench.events` 绑定验证 28 种事件、封闭过滤器、物理／Client 载荷、全宽 cursor、
+独立探测所有权、有序有界分页与历史 gap。它共用 Rust／JSON 事件语料及 256 KiB 配对 cohort
+carrier 上限。可选 Client `splitRevision` 报告真实比例所有者计数，并要求已选择 context；
+旧观察保留既有形状。本包增加契约，不增加 Desktop 事件消费者。
+[Windows 事件模型](../../apps/orchbee-server/docs/windows-events.zh-CN.md) 管理运行时行为。
+
 适用于一个 Orchbee Workbench 页面客户端的严格、运行时中立的数据协定。
 
 ## 适用范围

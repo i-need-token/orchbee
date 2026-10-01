@@ -55,6 +55,8 @@ mod agent_registration;
 #[cfg(windows)]
 mod process_observation;
 #[cfg(windows)]
+mod semantic_events;
+#[cfg(windows)]
 pub(crate) use process_observation::{ProcessObservationTarget, identify as identify_host_agent};
 
 pub(crate) struct SiteCoordinator {
@@ -63,6 +65,8 @@ pub(crate) struct SiteCoordinator {
     standalone: StandaloneTerminal,
     #[cfg(windows)]
     process_samples: process_observation::Samples,
+    #[cfg(windows)]
+    terminal_observations: semantic_events::Observations,
     #[cfg(windows)]
     agent_names: Option<std::sync::Weak<crate::agent_service::AgentService>>,
 }
@@ -95,6 +99,8 @@ impl SiteCoordinator {
             standalone: StandaloneTerminal::Empty,
             #[cfg(windows)]
             process_samples: process_observation::Samples::new(),
+            #[cfg(windows)]
+            terminal_observations: semantic_events::Observations::new(),
             #[cfg(windows)]
             agent_names: None,
         }

@@ -3349,6 +3349,16 @@
 									"type": "null"
 								}
 							]
+						},
+						"splitRevision": {
+							"anyOf": [
+								{
+									"$ref": "#/$defs/control/$defs/revision"
+								},
+								{
+									"type": "null"
+								}
+							]
 						}
 					},
 					"required": ["workbenchRevision", "phase", "selection"],

@@ -5,7 +5,11 @@ pub(crate) mod configured_commands;
 #[cfg(windows)]
 mod independent_popup;
 #[cfg(windows)]
+mod observation;
+#[cfg(windows)]
 mod plugins;
+#[cfg(windows)]
+pub(crate) mod semantic_events;
 use std::{
     num::NonZeroU64,
     sync::{Arc, Mutex},
@@ -79,7 +83,7 @@ pub(crate) struct LocalTerminalService {
     #[cfg(windows)]
     configuration: configuration::Registry,
     #[cfg(windows)]
-    plugin_observer: plugins::Observer,
+    observer: observation::Observer,
     #[cfg(windows)]
     popups: independent_popup::Popups,
     #[cfg(windows)]
@@ -122,7 +126,7 @@ impl LocalTerminalService {
             #[cfg(windows)]
             configuration: configuration::Registry::default(),
             #[cfg(windows)]
-            plugin_observer: plugins::Observer::default(),
+            observer: observation::Observer::default(),
             #[cfg(windows)]
             popups: independent_popup::Popups::default(),
             close_maintenance: close_maintenance::CloseMaintenance::default(),

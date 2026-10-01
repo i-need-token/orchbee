@@ -571,3 +571,17 @@ export {
 	type ConfiguredCommandPopupSpec,
 	type ConfiguredCommandSelection,
 } from './workbench-configured-command-spec-contract';
+export {
+	SemanticEventKindSchema,
+	SemanticEventCursorSchema,
+	SemanticPaneSchema,
+	SemanticEventSchema,
+	SemanticEventFilterSchema,
+	SemanticEventsRequestSchema,
+	SemanticEventsResultSchema,
+	WORKBENCH_MAXIMUM_EVENTS_BYTES,
+	type SemanticEvent,
+	type SemanticEventFilter,
+	type SemanticEventsRequest,
+	type SemanticEventsResult,
+} from './workbench-events-contract';

@@ -22,14 +22,14 @@ while ($true) {
 }
 } catch { exit 1 }"#;
 
-pub(super) struct Relay {
+pub(in crate::cli) struct Relay {
     child: Child,
     input: ChildInputWriter,
     ack: ChildOutputReader,
     healthy: bool,
 }
 impl Relay {
-    pub(super) fn start() -> io::Result<Self> {
+    pub(in crate::cli) fn start() -> io::Result<Self> {
         Self::with_output(Stdio::inherit())
     }
     pub(super) fn with_output(output: Stdio) -> io::Result<Self> {
@@ -59,10 +59,10 @@ impl Relay {
             healthy: true,
         })
     }
-    pub(super) fn healthy(&self) -> bool {
+    pub(in crate::cli) fn healthy(&self) -> bool {
         self.healthy
     }
-    pub(super) fn record(
+    pub(in crate::cli) fn record(
         &mut self,
         bytes: &[u8],
         deadline: Instant,

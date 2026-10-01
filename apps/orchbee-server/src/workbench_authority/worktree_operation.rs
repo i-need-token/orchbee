@@ -369,6 +369,36 @@ impl WorkbenchAuthority {
             return false;
         }
         record.status = status;
+        let event = match (&plan.intent, &record.status) {
+            (
+                WorktreeIntent::Create { .. },
+                WorktreeOperationStatus::Opened { workspace_id, .. },
+            ) => Some((
+                orchbee_workbench_protocol::SemanticEventKind::WorktreeCreated,
+                Some(workspace_id.clone()),
+            )),
+            (WorktreeIntent::Open { .. }, WorktreeOperationStatus::Opened { workspace_id, .. }) => {
+                Some((
+                    orchbee_workbench_protocol::SemanticEventKind::WorktreeOpened,
+                    Some(workspace_id.clone()),
+                ))
+            }
+            (_, WorktreeOperationStatus::Removed { workspace_id, .. }) => Some((
+                orchbee_workbench_protocol::SemanticEventKind::WorktreeRemoved,
+                Some(workspace_id.clone()),
+            )),
+            _ => None,
+        };
+        if let Some((kind, workspace)) = event {
+            self.event_journal().publish(
+                self.snapshot().revision,
+                workspace,
+                kind,
+                orchbee_workbench_protocol::SemanticEventData::Worktree {
+                    result: Box::new(result),
+                },
+            );
+        }
         true
     }
 

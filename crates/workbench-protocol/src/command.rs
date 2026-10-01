@@ -1,4 +1,6 @@
 mod configured_command;
+mod events;
+pub use events::*;
 mod terminal_editor;
 pub use configured_command::*;
 pub use terminal_editor::{
@@ -879,6 +881,8 @@ pub struct WorkbenchCommand {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind")]
 pub enum WorkbenchRequest {
+    #[serde(rename = "workbench.events")]
+    Events(SemanticEventsRequest),
     #[serde(rename = "workbench.configured-command")]
     ConfiguredCommand(ConfiguredCommandRequest),
     #[serde(rename = "agent.view")]
@@ -1262,6 +1266,8 @@ pub struct WorkbenchSnapshotResult {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind")]
 pub enum WorkbenchResponse {
+    #[serde(rename = "workbench.events.result")]
+    Events(SemanticEventsResult),
     #[serde(rename = "workbench.configured-command.result")]
     ConfiguredCommand(ConfiguredCommandResult),
     #[serde(rename = "agent.view.result")]
@@ -1330,6 +1336,9 @@ pub fn parse_workbench_request(encoded: &[u8]) -> Result<WorkbenchRequest, Contr
 /// explicit `launch` and a `profile` selector are mutually exclusive on the
 /// terminal-launch actions.
 fn validate_request(request: &WorkbenchRequest) -> Result<(), ContractError> {
+    if let WorkbenchRequest::Events(request) = request {
+        return request.validate();
+    }
     if let WorkbenchRequest::ConfiguredCommand(request) = request {
         return request.validate();
     }
@@ -1439,6 +1448,9 @@ fn validate_request(request: &WorkbenchRequest) -> Result<(), ContractError> {
 }
 
 fn request_byte_limit(request: &WorkbenchRequest) -> usize {
+    if matches!(request, WorkbenchRequest::Events(_)) {
+        return MAXIMUM_EVENTS_BYTES;
+    }
     if matches!(request, WorkbenchRequest::ConfiguredCommand(_)) {
         return MAXIMUM_CONFIGURED_COMMAND_BYTES;
     }
@@ -1546,6 +1558,10 @@ fn validate_response(response: &WorkbenchResponse, encoded: &[u8]) -> Result<(),
         return Err(ContractError::InvalidDocument);
     }
     match response {
+        WorkbenchResponse::Events(result) => {
+            enforce_encoded_limit(encoded, MAXIMUM_EVENTS_BYTES)?;
+            result.validate()
+        }
         WorkbenchResponse::ConfiguredCommand(result) => {
             enforce_encoded_limit(encoded, MAXIMUM_CONFIGURED_COMMAND_BYTES)?;
             result.validate()

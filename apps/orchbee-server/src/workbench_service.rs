@@ -2,6 +2,8 @@
 mod agent_view;
 #[cfg(windows)]
 mod configured_commands;
+#[cfg(windows)]
+mod events;
 use crate::local_terminal_service::LocalTerminalService;
 use orchbee_server::WorkbenchReadOrNavigationRequest;
 use orchbee_workbench_protocol::{
@@ -52,13 +54,17 @@ pub(crate) struct WorkbenchService {
 
 impl WorkbenchService {
     pub(crate) fn new(policy: WorkbenchPolicy, terminals: Arc<LocalTerminalService>) -> Self {
+        #[cfg(windows)]
+        let events = terminals.event_journal();
         Self {
             #[cfg(windows)]
             agent_views: std::sync::Mutex::default(),
             terminals,
             policy,
             #[cfg(windows)]
-            client_views: std::sync::Mutex::default(),
+            client_views: std::sync::Mutex::new(
+                crate::client_view_registry::ClientViewRegistry::with_events(events),
+            ),
             #[cfg(windows)]
             notifications: std::sync::Mutex::default(),
             #[cfg(windows)]
@@ -73,12 +79,14 @@ impl WorkbenchService {
         WorkbenchClientSession {
             service: self,
             generation,
+            #[cfg(windows)]
+            events: std::sync::Mutex::new(None),
         }
     }
 
     pub(crate) fn execute(&self, request: WorkbenchRequest) -> WorkbenchExecution {
         let permitted = match &request {
-            WorkbenchRequest::ConfiguredCommand(_) => false,
+            WorkbenchRequest::ConfiguredCommand(_) | WorkbenchRequest::Events(_) => false,
             WorkbenchRequest::AgentView(request) => if request.action.mutating() { self.policy.manage_navigation } else { self.policy.read },
             WorkbenchRequest::Plugin(request) => self.policy.read && (!request.action.mutating() || (self.policy.create_terminal && self.policy.manage_terminal_lifecycle)),
             WorkbenchRequest::TerminalEditor(_) | WorkbenchRequest::WindowTitle(_) | WorkbenchRequest::Notification(_) => false,
@@ -180,7 +188,7 @@ impl WorkbenchService {
             return WorkbenchExecution::Response(unavailable_or_denied(request, true));
         }
         match &request {
-            WorkbenchRequest::ConfiguredCommand(_) => return WorkbenchExecution::Response(unavailable_or_denied(request, true)),
+            WorkbenchRequest::ConfiguredCommand(_) | WorkbenchRequest::Events(_) => return WorkbenchExecution::Response(unavailable_or_denied(request, true)),
             WorkbenchRequest::TerminalEditor(_) => return WorkbenchExecution::Response(unavailable_or_denied(request, true)),
         WorkbenchRequest::Plugin(request) => {
                 #[cfg(windows)]
@@ -426,6 +434,20 @@ impl WorkbenchService {
 
 fn unavailable_or_denied(request: WorkbenchRequest, denied: bool) -> WorkbenchResponse {
     match request {
+        WorkbenchRequest::Events(request) => {
+            WorkbenchResponse::Events(orchbee_workbench_protocol::SemanticEventsResult {
+                protocol_version: ProtocolVersion,
+                request_id: request.request_id,
+                site_id: request.site_id,
+                outcome: orchbee_workbench_protocol::SemanticEventsOutcome::Failed {
+                    reason: if denied {
+                        orchbee_workbench_protocol::SemanticEventsFailure::Denied
+                    } else {
+                        orchbee_workbench_protocol::SemanticEventsFailure::Unavailable
+                    },
+                },
+            })
+        }
         WorkbenchRequest::ConfiguredCommand(request) => WorkbenchResponse::ConfiguredCommand(
             orchbee_workbench_protocol::ConfiguredCommandResult {
                 protocol_version: ProtocolVersion,
@@ -778,6 +800,8 @@ fn unavailable_or_denied(request: WorkbenchRequest, denied: bool) -> WorkbenchRe
 pub(crate) struct WorkbenchClientSession<'a> {
     service: &'a WorkbenchService,
     generation: std::num::NonZeroU64,
+    #[cfg(windows)]
+    events: std::sync::Mutex<Option<events::Subscription>>,
 }
 impl WorkbenchClientSession<'_> {
     pub(crate) fn execute_with_terminal_session(
@@ -812,6 +836,12 @@ impl WorkbenchClientSession<'_> {
     }
 
     pub(crate) fn execute(&self, request: WorkbenchRequest) -> WorkbenchExecution {
+        #[cfg(windows)]
+        if let WorkbenchRequest::Events(events) = &request {
+            return WorkbenchExecution::Response(WorkbenchResponse::Events(
+                self.semantic_events(events.clone()),
+            ));
+        }
         #[cfg(windows)]
         if let WorkbenchRequest::ConfiguredCommand(command) = &request {
             return WorkbenchExecution::Response(WorkbenchResponse::ConfiguredCommand(

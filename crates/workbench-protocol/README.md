@@ -1,5 +1,16 @@
 # Workbench protocol
 
+## Semantic event contract
+
+Closed `workbench.events` request/result kinds 55/56 have independent 256 KiB limits. Subscribe,
+read, bounded wait and close carry an exact connection-owned subscription identity. Journal cursors
+pin boot epoch and full-width decimal sequence; probe positions retain a separate subscription
+sequence. Filter conditions, event/data kinds, source versions, ordered pages and explicit gaps are
+validated before interpretation. `matches_semantic_filter` shares pure semantic matching with
+runtime publishers and native CLI receipt checks. The [Windows event model](../../apps/orchbee-server/docs/windows-events.md)
+owns actual publication and observation effects. Optional Client `splitRevision` is the full-width
+ratio-owner counter; legacy omission supplies no ratio-change evidence.
+
 This crate owns the typed requests, responses, validation, and framed transport shared by native Workbench clients and the Server. It defines contracts without opening sockets or executing operations; runtime owners interpret admitted requests.
 
 ## Configured command invocation

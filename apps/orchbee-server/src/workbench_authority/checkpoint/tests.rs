@@ -158,7 +158,17 @@ fn preserves_the_graph_and_profiles_without_retaining_process_authority() {
     assert_eq!(restored.catalog_revision, 0);
     assert!(restored.ledger.is_empty());
     assert_eq!(restored.ledger_bytes, 0);
-    assert_eq!(restored.projection, expected);
+    assert_eq!(
+        restored
+            .projection
+            .publications_since(WorkbenchRevision::new(u64::MAX)),
+        expected.publications_since(WorkbenchRevision::new(u64::MAX))
+    );
+    assert_eq!(restored.event_journal().head().unwrap().sequence.value(), 0);
+    assert_ne!(
+        restored.event_journal().head().unwrap().epoch,
+        source.event_journal().head().unwrap().epoch
+    );
     assert!(!restored.retired);
     assert_eq!(restored.last_identity, 40);
     for (index, counter) in [30, 31].into_iter().enumerate() {
@@ -289,7 +299,14 @@ fn restores_actual_committed_membership_with_new_grants_and_an_empty_journal() {
         .unwrap(),
     )
     .unwrap();
-    assert_eq!(restored.projection, fresh_projection);
+    assert_eq!(restored.projection.snapshot(), fresh_projection.snapshot());
+    assert_eq!(
+        restored
+            .projection
+            .publications_since(WorkbenchRevision::new(u64::MAX)),
+        fresh_projection.publications_since(WorkbenchRevision::new(u64::MAX))
+    );
+    assert_eq!(restored.event_journal().head().unwrap().sequence.value(), 0);
     let before = restored.snapshot().clone();
     let request = WorkbenchRequest::Command(WorkbenchCommand {
         protocol_version: ProtocolVersion,
