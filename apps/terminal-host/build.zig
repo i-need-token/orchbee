@@ -561,6 +561,31 @@ pub fn build(builder: *std.Build) void {
     editor_document_tests.root_module.link_libc = true;
     builder.step("test-editor-document", "Run Windows editor document ownership checks")
         .dependOn(&builder.addRunArtifact(editor_document_tests).step);
+    const editor_lifecycle_tests = builder.addTest(.{
+        .root_module = engine_test_module,
+        .filters = &.{"editor document lifecycle"},
+    });
+    editor_lifecycle_tests.root_module.link_libc = true;
+    builder.step("test-editor-lifecycle", "Run editor document startup and shutdown checks")
+        .dependOn(&builder.addRunArtifact(editor_lifecycle_tests).step);
+    const editor_deferred_tests = builder.addTest(.{
+        .root_module = service_test_module,
+        .filters = &.{"editor deferred lifecycle"},
+    });
+    editor_deferred_tests.root_module.link_libc = true;
+    builder.step("test-editor-deferred", "Run deferred editor creation and cleanup checks")
+        .dependOn(&builder.addRunArtifact(editor_deferred_tests).step);
+    const editor_workflow_step = builder.step("test-editor-workflow", "Run editor workflow and affected lifecycle regressions");
+    editor_workflow_step.dependOn(&builder.addRunArtifact(editor_document_tests).step);
+    for ([_]struct { module: *std.Build.Module, filters: []const []const u8 }{
+        .{ .module = engine_test_module, .filters = &.{ "editor document lifecycle", "thread startup failure", "process spawn failure", "output cleanup failure retry", "Host cleanup waits", "scrollback text capture", "validated launch prepares" } },
+        .{ .module = service_test_module, .filters = &.{ "editor deferred lifecycle", "retained cleanup", "retained-cleanup", "cleanup retry", "cleanup phase", "cleanup failures", "blocked containment", "deferred creation", "StartTerminal", "deferred terminal", "CreateTerminal", "failed runtime creation", "runtime destruction starts only" } },
+        .{ .module = control_test_module, .filters = &.{ "editor capture control", "CreateTerminal", "launch geometry decode" } },
+    }) |cohort| {
+        const editor_checks = builder.addTest(.{ .root_module = cohort.module, .filters = cohort.filters });
+        editor_checks.root_module.link_libc = true;
+        editor_workflow_step.dependOn(&builder.addRunArtifact(editor_checks).step);
+    }
     const input_tests = builder.addTest(.{
         .root_module = engine_test_module,
         .filters = &.{"programmatic key"},

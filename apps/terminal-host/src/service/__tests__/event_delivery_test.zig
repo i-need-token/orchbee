@@ -108,6 +108,7 @@ test "dispose cleanup failures preserve their exact owner phase" {
         .{ .failure = .contain_process, .code = "cleanup-contain-process" },
         .{ .failure = .release_output, .code = "cleanup-release-output" },
         .{ .failure = .release_process_identity, .code = "cleanup-release-process-identity" },
+        .{ .failure = .release_editor_document, .code = "cleanup-release-editor-document" },
     };
     for (cases) |case| {
         const details = cleanupFailureDetails(case.failure);
@@ -123,6 +124,7 @@ test "DisposeTerminal returns the exact cleanup code for every blocked containme
         .{ .failure = .contain_process, .code = "cleanup-contain-process" },
         .{ .failure = .release_output, .code = "cleanup-release-output" },
         .{ .failure = .release_process_identity, .code = "cleanup-release-process-identity" },
+        .{ .failure = .release_editor_document, .code = "cleanup-release-editor-document" },
     };
     for (cases, 0..) |case, index| {
         var service = HostService.init(std.testing.allocator);

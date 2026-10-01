@@ -118,6 +118,61 @@ const nestedObjectSchema = z.object({
 const currentProtocolVersion = { major: 0, minor: 0, patch: 7 } as const;
 
 describe('control schemas', () => {
+	it('admits editor capture only with deferred geometry and closed full-u64 source fences', () => {
+		const deferred = {
+			...launch,
+			columns: null,
+			rows: null,
+			cellPixelWidth: null,
+			cellPixelHeight: null,
+		};
+		const source = {
+			attachmentId: '66'.repeat(16),
+			terminalId: '44'.repeat(16),
+			generation: '18446744073709551615',
+			revision: '0',
+		};
+		const ordinary = { creationId: '33'.repeat(16), environmentOverlay: [], launch: deferred };
+		expect(CreateTerminalSchema.parse(ordinary)).toEqual(ordinary);
+		for (const revision of ['0', '18446744073709551615']) {
+			const request = { ...ordinary, captureSource: { ...source, revision } };
+			expect(CreateTerminalSchema.parse(request)).toEqual(request);
+		}
+		for (const captureSource of [
+			null,
+			{},
+			[],
+			1,
+			{ ...source, path: 'C:\\foreign.txt' },
+			{ ...source, generation: '0' },
+			{ ...source, generation: '01' },
+			{ ...source, generation: 1 },
+			{ ...source, revision: '00' },
+			{ ...source, revision: '-1' },
+			{ ...source, revision: 0 },
+			{ ...source, revision: '18446744073709551616' },
+			{ ...source, attachmentId: '00'.repeat(16) },
+		]) {
+			expect(CreateTerminalSchema.safeParse({ ...ordinary, captureSource }).success).toBe(false);
+		}
+		expect(
+			CreateTerminalSchema.safeParse({ ...ordinary, launch, captureSource: source }).success,
+		).toBe(false);
+		expect(
+			CreateTerminalSchema.safeParse({
+				...ordinary,
+				launch: { ...deferred, arguments: Array.from({ length: 4095 }, () => '') },
+				captureSource: source,
+			}).success,
+		).toBe(true);
+		expect(
+			CreateTerminalSchema.safeParse({
+				...ordinary,
+				launch: { ...deferred, arguments: Array.from({ length: 4096 }, () => '') },
+				captureSource: source,
+			}).success,
+		).toBe(false);
+	});
 	it('normalizes legacy and explicit cursor defaults in terminal profiles', () => {
 		expect(TerminalProfileSchema.parse(profile)).toEqual({
 			...profile,
@@ -1216,10 +1271,15 @@ describe('control schemas', () => {
 			{ kind: 'process-control', stage: 'contain-process' },
 			{ kind: 'pty-read', stage: 'release-output' },
 			{ kind: 'process-observation', stage: 'release-process-identity' },
+			{ kind: 'editor-document', stage: 'release-editor-document' },
 		] as const;
 		for (const cleanupFailure of cleanupFailures) {
 			expect(RuntimeCleanupFailureSchema.safeParse(cleanupFailure).success).toBe(true);
 			expect(RuntimeFailureSchema.safeParse(cleanupFailure).success).toBe(false);
+			expect(
+				ProcessObservationSchema.safeParse({ failure: cleanupFailure, kind: 'unavailable' })
+					.success,
+			).toBe(false);
 			expect(
 				FailureContainmentSchema.safeParse({
 					cleanupFailure,

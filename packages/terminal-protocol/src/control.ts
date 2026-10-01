@@ -431,11 +431,33 @@ export const TerminalLaunchSchema = z
 		}
 	});
 
-export const CreateTerminalSchema = z.strictObject({
-	creationId: CreationIdSchema,
-	environmentOverlay: TerminalEnvironmentOverlaySchema,
-	launch: TerminalLaunchSchema,
-});
+export const CreateTerminalSchema = z
+	.strictObject({
+		captureSource: z
+			.strictObject({
+				attachmentId: AttachmentIdSchema,
+				terminalId: TerminalIdSchema,
+				generation: positiveCanonicalUint64TextSchema,
+				revision: CanonicalUint64TextSchema,
+			})
+			.optional(),
+		creationId: CreationIdSchema,
+		environmentOverlay: TerminalEnvironmentOverlaySchema,
+		launch: TerminalLaunchSchema,
+	})
+	.superRefine((request, context) => {
+		if (
+			request.captureSource !== undefined &&
+			(request.launch.columns !== null ||
+				request.launch.arguments.length >= PROTOCOL_LIMITS.maxLaunchArguments)
+		) {
+			context.addIssue({
+				code: 'custom',
+				message: 'Editor capture requires deferred geometry and one available argument',
+				path: ['launch'],
+			});
+		}
+	});
 
 export const StartTerminalSchema = z.strictObject({
 	geometry: TerminalGeometrySchema,
@@ -829,6 +851,7 @@ export const ExitResultSchema = z.discriminatedUnion('kind', [
 ]);
 
 export const RuntimeFailureKind = {
+	editorDocument: 'editor-document',
 	processControl: 'process-control',
 	processObservation: 'process-observation',
 	ptyRead: 'pty-read',
@@ -847,6 +870,7 @@ export const RuntimeFailureStage = {
 	readOutput: 'read-output',
 	releaseOutput: 'release-output',
 	releaseProcessIdentity: 'release-process-identity',
+	releaseEditorDocument: 'release-editor-document',
 	synchronizeWorker: 'synchronize-worker',
 	writeInput: 'write-input',
 } as const;
@@ -869,6 +893,11 @@ const outputReleaseFailureSchema = z.strictObject({
 const processIdentityReleaseFailureSchema = z.strictObject({
 	kind: z.literal(RuntimeFailureKind.processObservation),
 	stage: z.literal(RuntimeFailureStage.releaseProcessIdentity),
+});
+
+const editorDocumentReleaseFailureSchema = z.strictObject({
+	kind: z.literal(RuntimeFailureKind.editorDocument),
+	stage: z.literal(RuntimeFailureStage.releaseEditorDocument),
 });
 
 export const RuntimeFailureSchema = z.discriminatedUnion('stage', [
@@ -903,6 +932,7 @@ export const RuntimeCleanupFailureSchema = z.discriminatedUnion('stage', [
 	processContainmentFailureSchema,
 	outputReleaseFailureSchema,
 	processIdentityReleaseFailureSchema,
+	editorDocumentReleaseFailureSchema,
 ]);
 
 export const ProcessObservationSchema = z.discriminatedUnion('kind', [

@@ -18,6 +18,132 @@ const CONTROL_FIXTURE: &str =
     include_str!("../../../packages/terminal-protocol/fixtures/control-conformance-v0.0.25.json");
 
 #[test]
+fn editor_capture_round_trips_full_u64_fences_and_retains_the_ordinary_request()
+-> Result<(), Box<dyn Error>> {
+    let fixture = read_fixture()?;
+    for revision in ["0", "18446744073709551615"] {
+        let mut request: Value = serde_json::from_str(fixture_string(
+            &fixture,
+            "/commands/create_terminal_deferred",
+        )?)?;
+        request["captureSource"] = json!({
+            "attachmentId": "66".repeat(16), "terminalId": "44".repeat(16),
+            "generation": "18446744073709551615", "revision": revision,
+        });
+        let decoded = decode_value(MessageRole::Request, request.clone())?;
+        let TerminalCreationControl::CreateScrollbackEditor(editor) = &decoded else {
+            return Err(fixture_error("editor capture selected the wrong creation variant").into());
+        };
+        assert_eq!(editor.creation.launch.start_mode, LaunchStartMode::Deferred);
+        assert_eq!(editor.source.generation.get(), u64::MAX);
+        assert_eq!(editor.source.revision.to_string(), revision);
+        assert_eq!(
+            serde_json::to_value(&editor.creation.launch.arguments)?,
+            request["launch"]["arguments"]
+        );
+        let encoded = encode_terminal_creation_control(&decoded)?;
+        assert_eq!(encoded.kind, 11);
+        assert_eq!(encoded.role, MessageRole::Request);
+        assert_eq!(serde_json::from_slice::<Value>(&encoded.payload)?, request);
+        assert_eq!(
+            decode_terminal_creation_control(11, MessageRole::Request, &encoded.payload)?,
+            decoded
+        );
+    }
+    Ok(())
+}
+
+#[test]
+fn editor_capture_rejects_null_unknown_fields_immediate_geometry_and_malformed_fences()
+-> Result<(), Box<dyn Error>> {
+    let fixture = read_fixture()?;
+    let canonical = fixture_string(&fixture, "/commands/create_terminal_deferred")?;
+    let source = json!({
+        "attachmentId": "66".repeat(16), "terminalId": "44".repeat(16),
+        "generation": "1", "revision": "0",
+    });
+    for invalid_source in [Value::Null, json!({}), json!(1), json!([])] {
+        let mut request: Value = serde_json::from_str(canonical)?;
+        request["captureSource"] = invalid_source;
+        assert_value_code(
+            MessageRole::Request,
+            request,
+            ProtocolErrorCode::InvalidField,
+        );
+    }
+    let mut request: Value = serde_json::from_str(canonical)?;
+    request["captureSource"] = source.clone();
+    for (key, invalid) in [
+        ("generation", json!("0")),
+        ("generation", json!("01")),
+        ("generation", json!("18446744073709551616")),
+        ("generation", json!(1)),
+        ("revision", json!("-1")),
+        ("revision", json!("00")),
+        ("revision", json!("1e2")),
+        ("revision", json!("18446744073709551616")),
+        ("revision", json!(0)),
+        ("path", json!("C:\\foreign.txt")),
+    ] {
+        let mut invalid_request = request.clone();
+        invalid_request["captureSource"][key] = invalid;
+        assert_value_code(
+            MessageRole::Request,
+            invalid_request,
+            ProtocolErrorCode::InvalidField,
+        );
+    }
+    for key in ["attachmentId", "terminalId"] {
+        let mut invalid = request.clone();
+        invalid["captureSource"][key] = json!("00".repeat(16));
+        assert_value_code(
+            MessageRole::Request,
+            invalid,
+            ProtocolErrorCode::InvalidIdentifier,
+        );
+    }
+    let mut immediate: Value =
+        serde_json::from_str(fixture_string(&fixture, "/commands/create_terminal")?)?;
+    immediate["captureSource"] = source;
+    assert_value_code(
+        MessageRole::Request,
+        immediate,
+        ProtocolErrorCode::InvalidField,
+    );
+    Ok(())
+}
+
+#[test]
+fn editor_capture_encoder_reserves_exactly_one_document_argument() -> Result<(), Box<dyn Error>> {
+    let fixture = read_fixture()?;
+    let mut request: Value = serde_json::from_str(fixture_string(
+        &fixture,
+        "/commands/create_terminal_deferred",
+    )?)?;
+    request["captureSource"] = json!({
+        "attachmentId": "66".repeat(16), "terminalId": "44".repeat(16), "generation": "1", "revision": "0",
+    });
+    let TerminalCreationControl::CreateScrollbackEditor(mut editor) =
+        decode_value(MessageRole::Request, request)?
+    else {
+        return Err(fixture_error("expected editor creation").into());
+    };
+    editor.creation.launch.arguments = vec![String::new(); MAXIMUM_LAUNCH_ARGUMENTS - 1];
+    assert!(
+        encode_terminal_creation_control(&TerminalCreationControl::CreateScrollbackEditor(
+            editor.clone()
+        ))
+        .is_ok()
+    );
+    editor.creation.launch.arguments.push(String::new());
+    assert_code(
+        encode_terminal_creation_control(&TerminalCreationControl::CreateScrollbackEditor(editor)),
+        ProtocolErrorCode::InvalidField,
+    );
+    Ok(())
+}
+
+#[test]
 fn canonical_creation_controls_round_trip_in_every_direction() -> Result<(), Box<dyn Error>> {
     let fixture = read_fixture()?;
     for (role, pointer) in [

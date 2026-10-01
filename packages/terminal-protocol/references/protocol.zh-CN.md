@@ -59,6 +59,15 @@
 
 四个启动几何字段构成封闭选择。`columns`、`rows`、`cellPixelWidth` 与 `cellPixelHeight` 要么全是合法整数，要么全是 `null`；部分缺省属于畸形输入。`columns` 与 `rows` 恒为正；`cellPixelWidth` 与 `cellPixelHeight` 必须同正（pixel 已知）或同零（pixel 未知）——混合 cell-pixel 成对值属于畸形输入。数值几何要求立即启动，无头调用方与测试调用方必须提供。空几何会保留延迟终端标识并准备启动，但不隐式提供网格。后续 `StartTerminal` 携带完整 `TerminalGeometry`；线协议契约不定义超时或 80x24 可视回退。
 
+可选且非 null 的 `CreateTerminal.captureSource` 以全空几何选择 Windows 滚动历史编辑器创建。
+其封闭对象包含 `attachmentId`、`terminalId`、正数规范 uint64 文本 `generation`，
+以及允许零的规范 uint64 文本 `revision`。普通省略保留旧请求形状和编码字节；
+显式 null、未知字段、非法标识／条件和立即启动几何均被拒绝。Host 拥有读取授权、
+一次锁内完整捕获、按来源区分的重放身份、字面文档路径追加、延迟 Start 和文档清理。
+请求不接收文件系统路径，也不接收从终端文字选取的可执行文件。
+选定编辑器的启动仍由上游可信启动授权负责。Rust 在同一个 creation kind 中
+将该可选流程投影为 `CreateScrollbackEditor`；普通 `CreateTerminal` 值与确认形状保持不变。
+
 环境名称在线路上是唯一的，与写入的完全相同：名称与写入相同的两个条目将被拒绝，而仅大小写不同的名称（例如 `Path` 和 `PATH`）仍然是不同的线路名称。环境名称是目标操作系统环境标识符，主机在准备启动时应用目标 OS 的身份规则：在 POSIX 目标上，名称区分大小写，因此 `Path` 和 `PATH` 是不同的变量；在 Windows 上，名称不区分大小写，因此相同的两个条目是重复的，并且主机在任何进程或 PTY 效果之前拒绝 `CreateTerminal`，并键入 `invalid-field` 失败。 `CreationId` 启动指纹使用与目标身份规则相同的归一化，因此等效折叠输入会产生稳定的、平台一致的摘要。
 
 `TerminalConfiguration` 当前包含 `scrollbackBytes`。内置默认值为 10,000,000 个十进制字节；零会禁用保留回滚；安全上限为 1,000,000,000 个十进制字节。`TerminalLaunch` 携带显式配置或 `null`；首次创建时，`null` 解析为 Host 当前终端默认值。未解析的启动值参与 `CreationId` 摘要，因此即使 Host 默认值后来变化，幂等重试仍保持稳定。`SetTerminalDefaults` 只影响后续终端。`UpdateTerminalConfiguration` 会变更一个保留终端。增加回滚预算可以保留历史；减少预算会淘汰满足边界所需的最旧行。行被淘汰时，Host 会推进内容修订与生成，并使历史锚点、选择/导出状态与投影基准失效。清单摘要会报告有效配置及其独立配置修订，以及完整的当前运行时主题状态及其独立主题修订。
@@ -101,7 +110,7 @@ Host 拥有采样与 attachment 授权。未知或不可读 attachment 返回 `m
 | 选择/导出                         | 当前选择状态加上有界的开始/块/确认/完成或取消流程                                                                                                                            |
 | 终端开始/结果                     | `TerminalStarted` 携带子进程存在后的终端标识。正常退出携带最终修订和退出代码、信号或未知结果。运行时故障包含最终修订、类型化故障和过程观察。库存使用互斥的阶段特定汇总字段。 |
 
-`RuntimeFailure.stage` 是主终端故障的判别式； `kind`是其所需的更粗的类别，不是一个独立的字段。其合法配对为`admit-terminal-reply/terminal-reply`、`apply-resize/resize`、`dispatch-termination/process-control`、`observe-process/process-observation`、`read-output/pty-read`、`synchronize-worker/worker-integrity`和`write-input/pty-write`。其他每一对都是畸形的。 `ProcessObservation.kind = unavailable` 始终携带 `observe-process/process-observation` 对。 `FailureContainment.kind = blocked` 相反携带一对上下文清理：`contain-process/process-control`、`release-output/pty-read` 或 `release-process-identity/process-observation`。清理对的格式错误为主要故障，并且主要对在任一上下文位置上格式错误。
+`RuntimeFailure.stage` 是主终端故障的判别式； `kind`是其所需的更粗的类别，不是一个独立的字段。其合法配对为`admit-terminal-reply/terminal-reply`、`apply-resize/resize`、`dispatch-termination/process-control`、`observe-process/process-observation`、`read-output/pty-read`、`synchronize-worker/worker-integrity`和`write-input/pty-write`。其他每一对都是畸形的。 `ProcessObservation.kind = unavailable` 始终携带 `observe-process/process-observation` 对。 `FailureContainment.kind = blocked` 相反携带一对上下文清理：`contain-process/process-control`、`release-output/pty-read`、`release-process-identity/process-observation` 或 `release-editor-document/editor-document`。文档释放配对表示 Windows 滚动历史编辑器在进程包含、工作线程加入及进程身份释放之后仍持有的清理，或延迟 Start 失败后的文档清理；它不声称任何子进程结局。清理配对作为主要故障非法，主要配对在任一上下文清理位置同样非法。
 
 `ListTerminals` 接受 `{ cursor, maximumTerminals }`。 `cursor` 是首页的 `null` 或包含来自先前响应的规范十进制 `inventoryGeneration` 和 `offset` 值。 `maximumTerminals` 是 `1-128`。响应重复 `inventoryGeneration`，最多返回请求的摘要数量，并提供下一代范围的游标或 `null`。Create 与 Dispose 会推进 membership（成员资格）generation；生命周期、几何、revision 与退出变化不会。一代不匹配会返回 `stale-inventory-cursor`，因此一次遍历永远不会合并两个成员资格。每个页面都保持在 64 KiB 控制范围内，并且协议没有设置终端总数限制。
 

@@ -123,6 +123,14 @@ pub fn disposeTerminal(
 
     if (runtime == null) {
         if (!awaiting_start) return error.TerminalRuntimeMissing;
+        self.releaseStartResources(terminal_id) catch {
+            _ = self.core_state.retainedCleanupBlocked(
+                terminal_id,
+                .release_editor_document,
+                self.maintenance.nextCleanupRetryAt(),
+            ) catch unreachable;
+            return .{ .cleanup_blocked = .release_editor_document };
+        };
         const session = self.core_state.commitTerminalRemoval(terminal_id);
         const retained = RetainedTerminal.fromMutableSession(session);
         retained.deinitStartPreparation(self.allocator);

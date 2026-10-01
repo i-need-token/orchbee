@@ -9,4 +9,7 @@ pub const Options = struct {
     cell_pixel_width: u16 = 0,
     profile: ?terminal_profile.Profile = null,
     scrollback_bytes: usize = terminal_configuration.default_scrollback_bytes,
+    // The caller retains this owner on every fallible startup path. Runtime
+    // takes it only after process spawn succeeds and before workers are opened.
+    editor_document: ?*@import("terminal-host-platform").editor_document.Document = null,
 };

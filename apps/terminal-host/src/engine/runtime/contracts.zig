@@ -312,6 +312,7 @@ pub const Completion = terminal_runtime_completion.Snapshot;
 /// Semantic owner-cleanup failures. Platform errors are classified at this
 /// boundary so HostCore never has to infer which shutdown phase failed.
 pub const ShutdownError = error{
+    EditorDocumentReleaseFailed,
     OutputReleaseFailed,
     ProcessContainmentFailed,
     ProcessIdentityReleaseFailed,
@@ -321,4 +322,5 @@ pub const ShutdownCleanupPhase = enum {
     contain_process,
     release_output,
     release_process_identity,
+    release_editor_document,
 };

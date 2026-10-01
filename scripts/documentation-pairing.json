@@ -366,8 +366,8 @@
 			"zhCnSha256": "3671837edc4b4bd1d45108f1eb4ca59236c8e0c8e9843eafecef65235a4a59c6"
 		},
 		"apps/terminal-host/docs/runtime-model.md": {
-			"englishSha256": "d3ed176e049782f59dee2e0e8667cc48e76422ac23c6fe988a023314555e3216",
-			"zhCnSha256": "712d4742f53c53aae584fbfc9866b96814e18670636235c92e5d6ea59dcbed1a"
+			"englishSha256": "be50c9faaf7cb742baaaa3813a4924a116368c8987d5164b36f3ae1e751ee0b8",
+			"zhCnSha256": "10e7cfb24762ad2fd96747cc093eb48733e82f9777d6604675c040776760e2d2"
 		},
 		"apps/web/README.md": {
 			"englishSha256": "d3f6dd95b68d46d7c983d90edb72043cb9e3ea6c14bbb7ecd59d3658f322baaa",
@@ -658,8 +658,8 @@
 			"zhCnSha256": "11b2625020e3d3eeeab21cb3b79f48e7e5079b629fe5cc38590f6533c87faab8"
 		},
 		"packages/terminal-protocol/references/protocol.md": {
-			"englishSha256": "9b7de7861e066944becc481d230100f0f0d5dbd66a7f8dfcf241887b48f204b1",
-			"zhCnSha256": "1f68666d3fd6ad15b2d6b36306b3f85c9b05754449e155187d55159057d89771"
+			"englishSha256": "951ec9af1ffd2193b455f1bd428bfc1b3b7909c8113b062006e9affe00484818",
+			"zhCnSha256": "8ed6346305c1b09f3239be1122da77f5376b56ec411ed81afbffdd5987d5d4a7"
 		},
 		"packages/terminal/README.md": {
 			"englishSha256": "693518b63c47e28f53db7d78ac89292cabbf905d4a06324fd92ac6211caeb045",

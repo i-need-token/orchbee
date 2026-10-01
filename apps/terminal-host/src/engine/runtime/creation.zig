@@ -154,6 +154,9 @@ pub fn createWithOptionsUsingSpawner(
     self.writer_thread = try spawner.spawn(writer_ops.writerThread, self);
     self.animation_thread = try spawner.spawn(animation_ops.animationThread, self);
     self.process = try pty_process.Process.spawn(allocator, resolved_launch);
+    if (resolved_options.editor_document) |document| {
+        self.editor_document = document.take();
+    }
     self.process.registerReaderThread(self.reader_thread.?.getHandle());
     self.startup.ready();
     return self;

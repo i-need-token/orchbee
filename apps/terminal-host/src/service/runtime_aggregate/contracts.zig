@@ -232,6 +232,13 @@ pub const InputPreparation = host_input_admission.Preparation;
 
 pub const CreatePrepareError = core_module.CoreError || std.mem.Allocator.Error || error{
     LaunchPreparationOutOfMemory,
+    EditorSourceUnavailable,
+    StaleEditorSource,
+    EditorCaptureTooLarge,
+    EditorCaptureFailed,
+    EditorDocumentPreparationFailed,
+    InvalidEditorLaunch,
+    EditorPlatformUnsupported,
 };
 
 pub const CreateCommitError = error{
@@ -242,6 +249,7 @@ pub const CreateCommitError = error{
 pub const StartPrepareError = core_module.CoreError;
 
 pub const StartCommitError = error{
+    EditorDocumentMaterializationFailed,
     RuntimeAllocationOutOfMemory,
     RuntimeSpawnFailed,
     TerminalRuntimeMissing,

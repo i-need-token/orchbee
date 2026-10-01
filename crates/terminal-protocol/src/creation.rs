@@ -1,10 +1,10 @@
-use std::collections::HashSet;
+use std::{collections::HashSet, num::NonZeroU64};
 
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    ColorScheme, CreationId, MessageRole, ProtocolError, ProtocolErrorCode, TerminalConfiguration,
-    TerminalIdentity, TerminalPixelGeometry,
+    AttachmentId, ColorScheme, CreationId, MessageRole, ProtocolError, ProtocolErrorCode,
+    TerminalConfiguration, TerminalId, TerminalIdentity, TerminalPixelGeometry,
     control::{RequiredNullable, SafeInteger, decode_wire, preflight_json, serialize_wire},
     geometry::{
         TerminalPixelGeometryWire, geometry_from_wire, geometry_to_wire, validate_geometry,
@@ -21,7 +21,8 @@ use crate::{
         validate_configuration,
     },
     terminal_fact::{
-        TerminalIdentityWire, bounded_u16, bounded_u32, identity_from_wire, identity_to_wire,
+        TerminalIdentityWire, bounded_u16, bounded_u32, canonical_u64, identity_from_wire,
+        identity_to_wire,
     },
 };
 
@@ -95,9 +96,27 @@ pub struct CreateTerminal {
     pub launch: TerminalLaunch,
 }
 
+/// Names a read-capable source attachment and the exact content snapshot to capture.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ScrollbackSource {
+    pub attachment_id: AttachmentId,
+    pub terminal_id: TerminalId,
+    pub generation: NonZeroU64,
+    pub revision: u64,
+}
+
+/// Creates a deferred editor terminal whose Host owns one immutable source document.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CreateScrollbackEditor {
+    pub creation: CreateTerminal,
+    pub source: ScrollbackSource,
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum TerminalCreationControl {
     CreateTerminal(Box<CreateTerminal>),
+    /// Encodes as CreateTerminal with a non-null, source-fenced captureSource field.
+    CreateScrollbackEditor(Box<CreateScrollbackEditor>),
     TerminalCreated(TerminalIdentity),
 }
 
@@ -115,10 +134,9 @@ pub fn decode_terminal_creation_control(
 ) -> Result<TerminalCreationControl, ProtocolError> {
     preflight_json(payload)?;
     match (kind, role) {
-        (CREATE_TERMINAL_KIND, MessageRole::Request) => decode_wire::<CreateTerminalWire>(payload)
-            .and_then(create_terminal_from_wire)
-            .map(Box::new)
-            .map(TerminalCreationControl::CreateTerminal),
+        (CREATE_TERMINAL_KIND, MessageRole::Request) => {
+            decode_wire::<CreateTerminalWire>(payload).and_then(creation_request_from_wire)
+        }
         (CREATE_TERMINAL_KIND, MessageRole::Response) => {
             decode_wire::<TerminalIdentityWire>(payload)
                 .and_then(identity_from_wire)
@@ -138,6 +156,17 @@ pub fn encode_terminal_creation_control(
             MessageRole::Request,
             serialize_wire(&create_terminal_to_wire(value)?)?,
         ),
+        TerminalCreationControl::CreateScrollbackEditor(value) => {
+            validate_editor_creation(&value.creation)?;
+            let mut wire = create_terminal_to_wire(&value.creation)?;
+            wire.capture_source = Some(ScrollbackSourceWire {
+                attachment_id: value.source.attachment_id.to_text(),
+                terminal_id: value.source.terminal_id.to_text(),
+                generation: value.source.generation.to_string(),
+                revision: value.source.revision.to_string(),
+            });
+            (MessageRole::Request, serialize_wire(&wire)?)
+        }
         TerminalCreationControl::TerminalCreated(identity) => (
             MessageRole::Response,
             serialize_wire(&identity_to_wire(*identity))?,
@@ -153,9 +182,33 @@ pub fn encode_terminal_creation_control(
 #[derive(Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct CreateTerminalWire {
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "present_scrollback_source"
+    )]
+    capture_source: Option<ScrollbackSourceWire>,
     creation_id: String,
     environment_overlay: Vec<EnvironmentOverlayEntryWire>,
     launch: TerminalLaunchWire,
+}
+
+#[derive(Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ScrollbackSourceWire {
+    attachment_id: String,
+    terminal_id: String,
+    generation: String,
+    revision: String,
+}
+
+fn present_scrollback_source<'de, D>(
+    deserializer: D,
+) -> Result<Option<ScrollbackSourceWire>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    ScrollbackSourceWire::deserialize(deserializer).map(Some)
 }
 
 #[derive(Deserialize, Serialize)]
@@ -239,6 +292,39 @@ struct DeviceAttributesWire {
     tertiary_unit_id: SafeInteger,
 }
 
+fn creation_request_from_wire(
+    mut wire: CreateTerminalWire,
+) -> Result<TerminalCreationControl, ProtocolError> {
+    let source = wire.capture_source.take();
+    let creation = create_terminal_from_wire(wire)?;
+    let Some(source) = source else {
+        return Ok(TerminalCreationControl::CreateTerminal(Box::new(creation)));
+    };
+    validate_editor_creation(&creation)?;
+    let source = ScrollbackSource {
+        attachment_id: AttachmentId::parse(&source.attachment_id)
+            .map_err(|_error| invalid_identity())?,
+        terminal_id: TerminalId::parse(&source.terminal_id).map_err(|_error| invalid_identity())?,
+        generation: NonZeroU64::new(canonical_u64(&source.generation)?)
+            .ok_or_else(|| invalid_field("editor source generation must be positive"))?,
+        revision: canonical_u64(&source.revision)?,
+    };
+    Ok(TerminalCreationControl::CreateScrollbackEditor(Box::new(
+        CreateScrollbackEditor { creation, source },
+    )))
+}
+
+fn validate_editor_creation(creation: &CreateTerminal) -> Result<(), ProtocolError> {
+    if creation.launch.start_mode != LaunchStartMode::Deferred
+        || creation.launch.arguments.len() >= MAXIMUM_LAUNCH_ARGUMENTS
+    {
+        return Err(invalid_field(
+            "editor capture requires deferred geometry and one available argument",
+        ));
+    }
+    Ok(())
+}
+
 fn create_terminal_from_wire(wire: CreateTerminalWire) -> Result<CreateTerminal, ProtocolError> {
     let creation_id = CreationId::parse(&wire.creation_id).map_err(|_error| invalid_identity())?;
     let environment_overlay = wire
@@ -261,6 +347,7 @@ fn create_terminal_from_wire(wire: CreateTerminalWire) -> Result<CreateTerminal,
 fn create_terminal_to_wire(value: &CreateTerminal) -> Result<CreateTerminalWire, ProtocolError> {
     validate_create_terminal(value)?;
     Ok(CreateTerminalWire {
+        capture_source: None,
         creation_id: value.creation_id.to_text(),
         environment_overlay: value
             .environment_overlay

@@ -407,6 +407,7 @@ fn terminalPhaseText(phase: anytype) []const u8 {
 
 fn runtimeFailureKindText(kind: anytype) []const u8 {
     return switch (kind) {
+        .editor_document => "editor-document",
         .process_control => "process-control",
         .process_observation => "process-observation",
         .pty_read => "pty-read",
@@ -427,6 +428,7 @@ fn runtimeFailureStageText(stage: anytype) []const u8 {
         .read_output => "read-output",
         .release_output => "release-output",
         .release_process_identity => "release-process-identity",
+        .release_editor_document => "release-editor-document",
         .synchronize_worker => "synchronize-worker",
         .write_input => "write-input",
     };

@@ -23,10 +23,27 @@ pub fn prepareCreateTerminal(
     creation_id: core_module.CreationId,
     validated_launch: terminal_launch.Validated,
 ) CreatePrepareError!CreatePreparation {
+    return prepareCreateTerminalWithScrollback(self, connection_id, creation_id, validated_launch, null);
+}
+
+pub fn prepareCreateTerminalWithScrollback(
+    self: anytype,
+    connection_id: core_module.ConnectionId,
+    creation_id: core_module.CreationId,
+    validated_launch: terminal_launch.Validated,
+    source: ?terminal_launch.ScrollbackSource,
+) CreatePrepareError!CreatePreparation {
+    if (source != null and (validated_launch.launch.geometry != null or source.?.generation == 0)) {
+        return error.InvalidEditorLaunch;
+    }
+    const digest = if (source) |value|
+        terminal_launch.editorLaunchDigest(validated_launch.launch_digest, value)
+    else
+        validated_launch.launch_digest;
     if (try self.core_state.resolveCreationWithOverlay(
         connection_id,
         creation_id,
-        validated_launch.launch_digest,
+        digest,
         if (validated_launch.environment_overlay.entries.len == 0)
             null
         else
@@ -39,11 +56,14 @@ pub fn prepareCreateTerminal(
         } };
     }
 
-    var prepared_launch = terminal_launch.prepareRuntime(
-        validated_launch,
-        self.allocator,
-        self.core_state.terminalDefaults(),
-    ) catch return error.LaunchPreparationOutOfMemory;
+    var prepared_launch = if (source) |value|
+        try prepareEditorRuntime(self, connection_id, validated_launch, value)
+    else
+        terminal_launch.prepareRuntime(
+            validated_launch,
+            self.allocator,
+            self.core_state.terminalDefaults(),
+        ) catch return error.LaunchPreparationOutOfMemory;
     errdefer prepared_launch.deinit(self.allocator);
 
     try self.core_state.reserveTerminal();
@@ -59,10 +79,48 @@ pub fn prepareCreateTerminal(
         .creation_id = creation_id,
         .environment_overlay_digest = validated_launch.environment_overlay.digest,
         .initial_geometry = validated_launch.launch.geometry,
-        .launch_digest = validated_launch.launch_digest,
+        .launch_digest = digest,
         .runtime_preparation = prepared_launch,
         .terminal_id = terminal_id,
     } };
+}
+
+fn prepareEditorRuntime(
+    self: anytype,
+    connection_id: core_module.ConnectionId,
+    validated_launch: terminal_launch.Validated,
+    source: terminal_launch.ScrollbackSource,
+) CreatePrepareError!terminal_launch.RuntimePreparation {
+    if (@import("builtin").os.tag != .windows) return error.EditorPlatformUnsupported;
+    const attachment = self.core_state.resolveAttachment(connection_id, source.attachment_id, .read) catch
+        return error.EditorSourceUnavailable;
+    if (!attachment.terminal_id.eql(source.terminal_id)) return error.EditorSourceUnavailable;
+    const session = self.core_state.findTerminal(source.terminal_id) orelse
+        return error.EditorSourceUnavailable;
+    if (!session.hasReadableRuntimeState()) return error.EditorSourceUnavailable;
+    const runtime = self.runtimeFor(source.terminal_id) orelse return error.EditorSourceUnavailable;
+    var capture = runtime.captureScrollbackText(self.allocator, terminal_runtime.max_scrollback_text_bytes) catch |err| {
+        return switch (err) {
+            error.OutOfMemory => error.LaunchPreparationOutOfMemory,
+            error.ScrollbackTextTooLarge => error.EditorCaptureTooLarge,
+            else => error.EditorCaptureFailed,
+        };
+    };
+    if (capture.geometry.generation != source.generation or capture.geometry.revision != source.revision) {
+        capture.deinit();
+        return error.StaleEditorSource;
+    }
+    // prepareRuntimeForEditor consumes the capture on every return path.
+    return terminal_launch.prepareRuntimeForEditor(
+        validated_launch,
+        self.allocator,
+        self.core_state.terminalDefaults(),
+        capture,
+    ) catch |err| return switch (err) {
+        error.OutOfMemory => error.LaunchPreparationOutOfMemory,
+        error.InvalidEditorLaunch => error.InvalidEditorLaunch,
+        else => error.EditorDocumentPreparationFailed,
+    };
 }
 
 pub fn commitPreparedTerminal(

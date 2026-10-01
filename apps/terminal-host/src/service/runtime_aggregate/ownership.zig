@@ -115,11 +115,34 @@ pub fn runtimeFor(
     return RetainedTerminal.fromSession(session).runtime;
 }
 
+pub fn pendingStartCleanup(self: anytype, terminal_id: core_module.TerminalId) bool {
+    const session = self.core_state.findTerminal(terminal_id) orelse return false;
+    if (comptime target_builtin.is_test) {
+        if (core_module.testing.isModelTerminal(&self.core_state, terminal_id)) return false;
+    }
+    return RetainedTerminal.fromSession(session).startCleanupPending();
+}
+
+pub fn releaseStartResources(
+    self: anytype,
+    terminal_id: core_module.TerminalId,
+) terminal_runtime.ShutdownError!void {
+    const session = self.core_state.findTerminal(terminal_id) orelse return;
+    if (comptime target_builtin.is_test) {
+        if (core_module.testing.isModelTerminal(&self.core_state, terminal_id)) return;
+    }
+    try RetainedTerminal.fromMutableSession(@constCast(session)).releaseStartResources();
+}
+
 pub fn shutdownAndReleaseTerminalEngines(owner: anytype) !void {
     var first_error: ?anyerror = null;
     for (0..ownedTerminalCount(owner)) |index| {
-        const engine = runtimeAtOwnedTerminal(owner, index) orelse continue;
-        engine.shutdown() catch |err| {
+        const engine = runtimeAtOwnedTerminal(owner, index);
+        const result = if (engine) |runtime|
+            runtime.shutdown()
+        else
+            releaseStartResources(owner, owner.core_state.terminalKeys()[index]);
+        result catch |err| {
             if (first_error == null) first_error = err;
         };
     }

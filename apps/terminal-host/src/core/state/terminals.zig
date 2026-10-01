@@ -75,7 +75,12 @@ pub fn prepareTerminalStart(
     if (!terminal_geometry.isValid(geometry)) return error.InvalidPhase;
     if (!storage.connected(self, connection_id)) return error.MissingConnection;
     const terminal = try storage.requireTerminal(self, terminal_id);
-    if (terminal.phase() == .awaiting_start) return .start;
+    if (terminal.phase() == .awaiting_start) {
+        // Cleanup commits the deferred terminal to disposal. A completed
+        // document release must never admit a later child using its old argv.
+        if (terminal.retainedCleanup() != .inactive) return error.InvalidPhase;
+        return .start;
+    }
     const initial_geometry = terminal.startGeometry() orelse return error.InvalidPhase;
     return if (terminal_geometry.eql(initial_geometry, geometry))
         .replay
@@ -294,7 +299,9 @@ pub fn retainedCleanupBlocked(
     retry_at_ns: i128,
 ) CoreError!TransitionOutcome {
     const terminal = try storage.requireTerminal(self, terminal_id);
-    if (terminal.settledFinalRevision() == null) return error.InvalidPhase;
+    if (terminal.settledFinalRevision() == null and
+        !(terminal.phase() == .awaiting_start and cleanup_failure == .release_editor_document))
+        return error.InvalidPhase;
     return terminal.retained_cleanup.block(cleanup_failure, retry_at_ns);
 }
 

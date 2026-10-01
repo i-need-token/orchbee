@@ -3,6 +3,8 @@ const std = @import("std");
 const model = @import("terminal-host-model");
 const pty_process = @import("terminal-host-platform").process;
 const runtime_options = @import("runtime_options.zig");
+const runtime_contracts = @import("runtime/contracts.zig");
+const editor_document = @import("terminal-host-platform").editor_document;
 const terminal_configuration = model.configuration;
 const terminal_geometry = model.geometry;
 const terminal_launch = model.launch;
@@ -10,6 +12,8 @@ const terminal_profile = model.profile;
 const terminal_theme = model.theme;
 
 pub const Digest = terminal_launch.Digest;
+pub const ScrollbackSource = terminal_launch.ScrollbackSource;
+pub const editorLaunchDigest = terminal_launch.editorLaunchDigest;
 pub const EnvironmentEntry = terminal_launch.EnvironmentEntry;
 pub const EnvironmentOverlayEntry = terminal_launch.EnvironmentOverlayEntry;
 pub const Launch = terminal_launch.Launch;
@@ -30,8 +34,17 @@ pub const RuntimePreparation = struct {
     environment_overlay_start: usize,
     executable: []const u8,
     profile: terminal_profile.Profile,
+    editor_capture: ?runtime_contracts.ScrollbackTextCapture = null,
+    editor_document: ?editor_document.Document = null,
 
     pub fn deinit(self: *RuntimePreparation, _: std.mem.Allocator) void {
+        if (self.editor_document) |*document| {
+            // Deferred or runtime cleanup must release any materialized file
+            // before this infallible memory teardown can discard its owner.
+            std.debug.assert(document.phase() == .reserved or document.phase() == .released);
+            document.release() catch unreachable;
+        }
+        if (self.editor_capture) |*capture| capture.deinit();
         for (self.environment[self.environment_overlay_start..]) |entry| {
             if (entry.value) |value| @memset(@constCast(value), 0);
         }
@@ -57,7 +70,7 @@ pub const RuntimePreparation = struct {
     }
 
     pub fn runtimeOptions(
-        self: *const RuntimePreparation,
+        self: *RuntimePreparation,
         geometry: terminal_geometry.Geometry,
     ) runtime_options.Options {
         std.debug.assert(terminal_geometry.isValid(geometry));
@@ -66,6 +79,27 @@ pub const RuntimePreparation = struct {
             .cell_pixel_width = geometry.cell_pixel_width,
             .profile = self.profile,
             .scrollback_bytes = self.configuration.scrollback_bytes,
+            .editor_document = if (self.editor_document) |*document| document else null,
+        };
+    }
+
+    pub fn materializeEditorDocument(self: *RuntimePreparation) !void {
+        if (self.editor_document) |*document| {
+            try document.materialize(self.editor_capture.?.text());
+        }
+    }
+
+    pub fn releaseEditorDocument(self: *RuntimePreparation) runtime_contracts.ShutdownError!void {
+        if (self.editor_document) |*document| {
+            document.release() catch return error.EditorDocumentReleaseFailed;
+        }
+    }
+
+    pub fn editorDocumentCleanupPending(self: *const RuntimePreparation) bool {
+        const document = self.editor_document orelse return false;
+        return switch (document.phase()) {
+            .writing, .ready => true,
+            .reserved, .released => false,
         };
     }
 
@@ -142,6 +176,32 @@ pub fn prepareRuntime(
         .executable = executable,
         .profile = profile,
     };
+}
+
+/// Consumes the immutable capture on both success and failure. No file is
+/// materialized until the returned preparation belongs to a retained terminal.
+pub fn prepareRuntimeForEditor(
+    validated: Validated,
+    allocator: std.mem.Allocator,
+    default_configuration: terminal_configuration.Configuration,
+    captured: runtime_contracts.ScrollbackTextCapture,
+) !RuntimePreparation {
+    var capture = captured;
+    errdefer capture.deinit();
+    if (validated.launch.geometry != null or
+        validated.launch.arguments.len >= @import("terminal-protocol").Limits.launch_arguments)
+        return error.InvalidEditorLaunch;
+    var document = try editor_document.Document.reserve(allocator);
+    errdefer document.release() catch unreachable; // Reserved metadata has no file.
+    var prepared = try prepareRuntime(validated, allocator, default_configuration);
+    errdefer prepared.deinit(allocator);
+    const arguments = try prepared.arena.allocator().alloc([]const u8, prepared.arguments.len + 1);
+    @memcpy(arguments[0..prepared.arguments.len], prepared.arguments);
+    arguments[prepared.arguments.len] = document.absolutePath().?;
+    prepared.arguments = arguments;
+    prepared.editor_capture = capture;
+    prepared.editor_document = document;
+    return prepared;
 }
 
 fn cloneProfile(

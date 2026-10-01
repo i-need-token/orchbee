@@ -200,7 +200,8 @@ pub(crate) fn map_launch_dispatch(
     encode_terminal_creation_control(&control)?;
     match control {
         TerminalCreationControl::CreateTerminal(request) => Ok(*request),
-        TerminalCreationControl::TerminalCreated(_) => {
+        TerminalCreationControl::TerminalCreated(_)
+        | TerminalCreationControl::CreateScrollbackEditor(_) => {
             Err(HostLaunchAdapterError::UnexpectedHostResponse)
         }
     }

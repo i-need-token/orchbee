@@ -21,4 +21,5 @@ comptime {
     _ = @import("selection_export_test.zig");
     _ = @import("terminal_stream_test.zig");
     _ = @import("terminal_compatibility_test.zig");
+    _ = @import("editor_document_lifecycle_test.zig");
 }

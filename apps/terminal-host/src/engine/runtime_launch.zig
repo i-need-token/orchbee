@@ -4,7 +4,7 @@ const model = @import("terminal-host-model");
 const pty_process = @import("terminal-host-platform").process;
 const terminal_configuration = model.configuration;
 const terminal_geometry = model.geometry;
-const terminal_launch = @import("launch.zig");
+const terminal_launch = model.launch;
 const terminal_profile = @import("profile.zig");
 const runtime_options = @import("runtime_options.zig");
 
@@ -44,6 +44,9 @@ pub fn prepare(
     launch: pty_process.Launch,
     options: runtime_options.Options,
 ) (error{ InvalidLaunch, InvalidTerminalProfile } || std.mem.Allocator.Error)!Checked {
+    if (options.editor_document) |document| {
+        if (document.phase() != .ready) return error.InvalidLaunch;
+    }
     if (options.profile) |profile| if (!terminal_profile.valid(profile)) {
         return error.InvalidTerminalProfile;
     };
@@ -99,6 +102,7 @@ pub fn prepare(
             .cell_pixel_width = pixel_pair.width,
             .profile = options.profile,
             .scrollback_bytes = options.scrollback_bytes,
+            .editor_document = options.editor_document,
         },
     };
 }

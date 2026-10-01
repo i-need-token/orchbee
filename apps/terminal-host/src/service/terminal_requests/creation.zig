@@ -35,10 +35,11 @@ pub fn handleCreate(
         );
     defer decoded.deinit();
 
-    var preparation = self.context.runtime_aggregate.prepareCreateTerminal(
+    var preparation = self.context.runtime_aggregate.prepareCreateTerminalWithScrollback(
         connection_id,
         decoded.value.creation_id,
         decoded.value.launch,
+        decoded.value.capture_source,
     ) catch |err| {
         switch (err) {
             error.LaunchPreparationOutOfMemory => try self.context.addFailure(
@@ -47,6 +48,55 @@ pub fn handleCreate(
                 "resource-exhausted",
                 "Host could not retain the terminal environment",
                 true,
+            ),
+            error.InvalidEditorLaunch => try self.context.addFailure(
+                outgoing,
+                correlation_id,
+                "invalid-field",
+                "scrollback editor requires a deferred launch and valid source fences",
+                false,
+            ),
+            error.EditorPlatformUnsupported => try self.context.addFailure(
+                outgoing,
+                correlation_id,
+                "platform-unsupported",
+                "scrollback editor is supported only on Windows",
+                false,
+            ),
+            error.EditorSourceUnavailable => try self.context.addFailure(
+                outgoing,
+                correlation_id,
+                "missing-resource",
+                "scrollback editor source is unavailable or not authorized",
+                false,
+            ),
+            error.StaleEditorSource => try self.context.addFailure(
+                outgoing,
+                correlation_id,
+                "stale-editor-source",
+                "scrollback editor source generation or revision changed",
+                false,
+            ),
+            error.EditorCaptureTooLarge => try self.context.addFailure(
+                outgoing,
+                correlation_id,
+                "limit-exceeded",
+                "complete scrollback exceeds the editor document limit",
+                false,
+            ),
+            error.EditorCaptureFailed => try self.context.addFailure(
+                outgoing,
+                correlation_id,
+                "editor-capture-failed",
+                "complete scrollback capture failed",
+                false,
+            ),
+            error.EditorDocumentPreparationFailed => try self.context.addFailure(
+                outgoing,
+                correlation_id,
+                "editor-document-unavailable",
+                "scrollback editor document could not be reserved",
+                false,
             ),
             else => try self.context.addCoreFailure(
                 outgoing,
@@ -176,6 +226,13 @@ pub fn handleStart(
                 "resource-exhausted",
                 "Host could not allocate terminal runtime state",
                 true,
+            ),
+            error.EditorDocumentMaterializationFailed => try self.context.addFailure(
+                outgoing,
+                correlation_id,
+                "editor-document-write-failed",
+                "editor document was not fully materialized; dispose the retained terminal",
+                false,
             ),
             error.RuntimeSpawnFailed => try self.context.addFailure(
                 outgoing,

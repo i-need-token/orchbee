@@ -68,6 +68,8 @@ pub const HostRuntimeAggregate = struct {
     pub const isEmpty = ownership.isEmpty;
     pub const runtimeCount = ownership.runtimeCount;
     pub const runtimeFor = ownership.runtimeFor;
+    pub const pendingStartCleanup = ownership.pendingStartCleanup;
+    pub const releaseStartResources = ownership.releaseStartResources;
 
     // inventory boundary.
     pub const core = inventory.core;
@@ -111,6 +113,7 @@ pub const HostRuntimeAggregate = struct {
 
     // creation boundary.
     pub const prepareCreateTerminal = creation.prepareCreateTerminal;
+    pub const prepareCreateTerminalWithScrollback = creation.prepareCreateTerminalWithScrollback;
     pub const commitPreparedTerminal = creation.commitPreparedTerminal;
 
     // start boundary.

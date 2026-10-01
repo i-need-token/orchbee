@@ -40,10 +40,10 @@ pub use control::{
     ProtocolRejectionReason, TypedFailure, decode_connection_control, encode_connection_control,
 };
 pub use creation::{
-    CreateTerminal, CursorShape, DeviceAttributes, EncodedTerminalCreationControl,
-    EnvironmentOverlayEntry, LaunchEnvironmentEntry, LaunchStartMode, TerminalCreationControl,
-    TerminalLaunch, TerminalProfile, decode_terminal_creation_control,
-    encode_terminal_creation_control,
+    CreateScrollbackEditor, CreateTerminal, CursorShape, DeviceAttributes,
+    EncodedTerminalCreationControl, EnvironmentOverlayEntry, LaunchEnvironmentEntry,
+    LaunchStartMode, ScrollbackSource, TerminalCreationControl, TerminalLaunch, TerminalProfile,
+    decode_terminal_creation_control, encode_terminal_creation_control,
 };
 pub use envelope::{
     DecodedEnvelope, Envelope, decode_transport_envelope, encode_transport_envelope,

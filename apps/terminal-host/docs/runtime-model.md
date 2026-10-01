@@ -21,11 +21,11 @@ empty-success fallback is permitted. Both primary history and the active alterna
 screen are readable, under the existing readable-state/failure fence. Storage is
 released after the last consumer.
 
-The next consumer is Host editor creation: an exclusively created document must
+Host editor creation consumes the capture: an exclusively created document must
 remain owned by the editor runtime through confirmed Job containment and thread
 joining. This capture boundary alone is not a public editor or Herdr parity claim;
-document ownership, authorized creation and live-Client overlay integration are
-the remaining workflow slices. Document reservation owns an open canonical temporary
+upstream Worker authorization and live-Client overlay integration remain.
+Document reservation owns an open canonical temporary
 directory and a generated leaf name before creating a file. Materialization uses
 exclusive creation and plain UTF-8; a collision never grants ownership of the existing
 file. Reserved → writing → ready → released state distinguishes a partial write from
@@ -37,11 +37,40 @@ Editor creation must retain this state in an acknowledged deferred Host terminal
 before materialization. Start failure retains it there; successful runtime startup
 transfers it after all fallible startup steps. Confirmed Job containment and joined
 workers precede document release, which precedes terminal Dispose acknowledgement.
-These creation/lifecycle adapters are still pending; the platform document owner
-alone does not claim that an editor has been launched. Focused Windows filesystem
+Optional `CreateTerminal.captureSource` admits a Windows editor only with entirely
+null launch geometry. It names one read-capable attachment and its exact terminal,
+positive generation and canonical unsigned content revision (including zero). The
+same-lock capture must match both fences; missing authority, unreadable state,
+stale fences or capture failure refuse whole before terminal creation and file
+effects. The complete source tuple discriminates the retained creation digest;
+omission preserves ordinary creation identity and wire bytes. Matching replay
+returns the existing editor identity without recapturing or rewriting a document.
+The Host appends one literal generated document path to the validated editor argv.
+Current-Client/focus and Worker identity admission remain upstream obligations.
+Runtime preparation owns the immutable capture, reserved document and preallocated
+argv with one literal document path. Runtime options borrow its document owner
+until the last fallible process-spawn step succeeds, then move ownership before
+opening worker startup gates. Failed validation, thread startup or process spawn
+retains the preparation's document. Shutdown releases process identity after
+containment and joining, then releases the document; failed deletion retains the
+runtime with `cleanup-release-editor-document` and the cleanup-only
+`editor-document/release-editor-document` pair.
+
+An awaiting-start terminal may retain this document cleanup in the existing
+retained-cleanup state without fabricating an exited child. Once deferred cleanup
+starts, Start is denied even after cleanup completes. Maintenance retries the exact
+deferred preparation, including fatal teardown and bounded exhaustion, and Dispose
+removes it only after release succeeds. Other cleanup failures remain restricted to
+settled terminal outcomes. This Host workflow is staged; it does not yet provide
+the public CLI or live-Client editor overlay. Focused Windows filesystem
 tests cover immutable UTF-8 and empty documents, literal paths containing spaces
 and Unicode, exclusive collisions, sole-owner handoff, allocation rollback, and
-blocked deletion followed by successful owner retry.
+blocked deletion followed by successful owner retry. The focused creation and
+lifecycle tests in `editor_creation_test.zig`, `editor_document_lifecycle_test.zig`
+and `editor_deferred_lifecycle_test.zig` additionally cover source authority and
+digest fences, unchanged ordinary creation identity, capture retention after
+source disposal, startup rollback, containment before release, deferred cleanup
+retries and fatal-teardown exhaustion without inventing a child outcome.
 
 Focused runtime tests establish capture consistency,
 Unicode/wrap/retained-history behavior, exact byte limits and read purity. Full

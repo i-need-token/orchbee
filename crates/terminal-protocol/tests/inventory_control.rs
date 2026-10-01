@@ -344,6 +344,7 @@ fn every_runtime_and_cleanup_failure_pair_is_closed() -> Result<(), Box<dyn Erro
         ("process-control", "contain-process"),
         ("pty-read", "release-output"),
         ("process-observation", "release-process-identity"),
+        ("editor-document", "release-editor-document"),
     ] {
         let mut value: Value = serde_json::from_str(canonical)?;
         set_failure_pair(
@@ -372,6 +373,24 @@ fn every_runtime_and_cleanup_failure_pair_is_closed() -> Result<(), Box<dyn Erro
         "release-output",
     )?;
     assert_value_code(invalid_cleanup, ProtocolErrorCode::InvalidField);
+    for pointer in ["/terminals/3/failure", "/terminals/6/process/failure"] {
+        let mut invalid: Value = serde_json::from_str(canonical)?;
+        set_failure_pair(
+            &mut invalid,
+            pointer,
+            "editor-document",
+            "release-editor-document",
+        )?;
+        assert_value_code(invalid, ProtocolErrorCode::InvalidField);
+    }
+    let mut invalid_document: Value = serde_json::from_str(canonical)?;
+    set_failure_pair(
+        &mut invalid_document,
+        "/terminals/4/failureContainment/cleanupFailure",
+        "pty-read",
+        "release-editor-document",
+    )?;
+    assert_value_code(invalid_document, ProtocolErrorCode::InvalidField);
     Ok(())
 }
 

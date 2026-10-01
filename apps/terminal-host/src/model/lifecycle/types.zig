@@ -48,6 +48,7 @@ pub const TerminationRequest = enum {
 };
 
 pub const RuntimeFailureKind = enum {
+    editor_document,
     process_control,
     process_observation,
     pty_read,
@@ -66,6 +67,7 @@ pub const RuntimeFailureStage = enum {
     read_output,
     release_output,
     release_process_identity,
+    release_editor_document,
     synchronize_worker,
     write_input,
 };
@@ -108,12 +110,14 @@ pub const RuntimeCleanupFailure = enum {
     contain_process,
     release_output,
     release_process_identity,
+    release_editor_document,
 
     pub fn kind(self: RuntimeCleanupFailure) RuntimeFailureKind {
         return switch (self) {
             .contain_process => .process_control,
             .release_output => .pty_read,
             .release_process_identity => .process_observation,
+            .release_editor_document => .editor_document,
         };
     }
 
@@ -122,6 +126,7 @@ pub const RuntimeCleanupFailure = enum {
             .contain_process => .contain_process,
             .release_output => .release_output,
             .release_process_identity => .release_process_identity,
+            .release_editor_document => .release_editor_document,
         };
     }
 };
@@ -159,9 +164,9 @@ pub const RetainedCleanupBlock = struct {
     retry_at_ns: i128,
 };
 
-/// Cleanup ownership retained after a terminal outcome has already settled.
-/// This state is independent of the immutable normal/failed outcome: cleanup
-/// retries may advance it, but can never rewrite the lifecycle result.
+/// Cleanup ownership retained after a settled outcome, or document cleanup of
+/// an awaiting-start editor with no child. This state is independent of any
+/// immutable normal/failed outcome; retries cannot rewrite a lifecycle result.
 pub const RetainedCleanup = union(enum) {
     inactive,
     blocked: RetainedCleanupBlock,

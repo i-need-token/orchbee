@@ -13,6 +13,7 @@ const terminal_profile = model.profile;
 pub const CreateTerminal = struct {
     creation_id: identifiers.CreationId,
     launch: terminal_launch.Validated,
+    capture_source: ?terminal_launch.ScrollbackSource = null,
 };
 
 pub const StartTerminal = struct {
@@ -78,6 +79,19 @@ pub fn decodeCreateTerminal(
         .geometry = try optionalLaunchGeometry(wire_launch),
         .profile = profile,
     };
+    const capture_source: ?terminal_launch.ScrollbackSource = switch (parsed.value.captureSource) {
+        .missing => null,
+        .null_value => return error.InvalidField,
+        .value => |source| .{
+            .attachment_id = try identifiers.parseLowerHex(identifiers.AttachmentId, source.attachmentId),
+            .terminal_id = try identifiers.parseLowerHex(identifiers.TerminalId, source.terminalId),
+            .generation = try decode_common.parsePositiveCanonicalU64(source.generation),
+            .revision = try decode_common.parseCanonicalU64(source.revision),
+        },
+    };
+    if (capture_source != null and (launch.geometry != null or launch.arguments.len >= protocol.Limits.launch_arguments)) {
+        return error.InvalidField;
+    }
     // The canonical launch inspector applies the target-OS environment-name
     // identity rule (case-sensitive on POSIX, case-insensitive on Windows) and
     // the CreationId digest normalization before any Host dispatch. A rejected
@@ -87,6 +101,7 @@ pub fn decodeCreateTerminal(
         .parsed = parsed,
         .value = .{
             .creation_id = creation_id,
+            .capture_source = capture_source,
             .launch = terminal_launch.inspectWithOverlay(
                 allocator,
                 launch,
