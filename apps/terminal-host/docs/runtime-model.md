@@ -6,6 +6,30 @@ On Windows, absolute `.cmd`/`.bat` selections use the system directory’s `cmd.
 
 An optional `preservePrompt: true` on `ClearTerminal` preserves the complete soft-wrapped cursor line on the primary screen, erases earlier history and other output, clears selection/images and restores the active viewport. Alternate screens fail with `terminal-clear-alternate-screen` before mutation. Legacy omission retains erase/home semantics; ResetTerminal never accepts this field. The same runtime lock owns mutation and one generation/revision advance, preserving modes and metadata. Input-capable attachment authorization is required; no resize lease or synthetic child bytes are used.
 
+## Scrollback editor capture
+
+The staged Windows scrollback editor workflow starts with `captureScrollbackText`.
+The Host copies every retained row of the active screen under one terminal lock,
+joining soft wraps and preserving hard line breaks and Unicode. The capture owns
+its UTF-8 storage plus the generation/revision observed under that same lock.
+Subsequent output, clear, resize or runtime destruction cannot alter those bytes.
+Selection, history demand, viewport, modes, metadata and child input remain unchanged.
+
+The capture has a positive caller budget at most 32 MiB. Invalid budgets, allocation
+failure and a formatted result beyond the budget fail whole; no tail truncation or
+empty-success fallback is permitted. Both primary history and the active alternate
+screen are readable, under the existing readable-state/failure fence. Storage is
+released after the last consumer.
+
+The next consumer is Host editor creation: an exclusively created document must
+remain owned by the editor runtime through confirmed Job containment and thread
+joining. This capture boundary alone is not a public editor or Herdr parity claim;
+document ownership, authorized creation and live-Client overlay integration are
+the remaining workflow slices. Focused runtime tests establish capture consistency,
+Unicode/wrap/retained-history behavior, exact byte limits and read purity. Full
+repository and deployed Host/TUI acceptance remain final-stage work; TLA is excluded
+by the User's standing instruction.
+
 ## Status and authority
 
 This document is the authoritative runtime model for `terminal-host`. The accepted contract is

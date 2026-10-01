@@ -547,6 +547,13 @@ pub fn build(builder: *std.Build) void {
         clear_tests.root_module.link_libc = true;
         screen_control_step.dependOn(&builder.addRunArtifact(clear_tests).step);
     }
+    const scrollback_capture_step = builder.step("test-scrollback-capture", "Run immutable editor scrollback capture checks");
+    const scrollback_capture_tests = builder.addTest(.{
+        .root_module = engine_test_module,
+        .filters = &.{"scrollback text capture"},
+    });
+    scrollback_capture_tests.root_module.link_libc = true;
+    scrollback_capture_step.dependOn(&builder.addRunArtifact(scrollback_capture_tests).step);
     const input_tests = builder.addTest(.{
         .root_module = engine_test_module,
         .filters = &.{"programmatic key"},
