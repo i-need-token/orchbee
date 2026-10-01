@@ -36,6 +36,8 @@ pub use panel_agent::{
 };
 mod panel_metadata;
 mod plugin_panes;
+#[cfg(windows)]
+mod popup_source;
 pub use plugin_panes::PluginPaneLaunch;
 mod terminal_membership;
 mod workspace_directory;
@@ -154,6 +156,7 @@ impl TryFrom<WorkbenchRequest> for WorkbenchReadOrNavigationRequest {
             | WorkbenchRequest::WorktreeQuery(_)
             | WorkbenchRequest::WorkspaceGroupClose(_)
             | WorkbenchRequest::Configuration(_)
+            | WorkbenchRequest::TerminalEditor(_)
             | WorkbenchRequest::Plugin(_)
             | WorkbenchRequest::WindowTitle(_)
             | WorkbenchRequest::Notification(_)

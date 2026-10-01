@@ -171,51 +171,12 @@ impl super::WorkbenchAuthority {
         popup_id: &orchbee_workbench_protocol::WorkbenchRequestId,
         spec: &orchbee_workbench_protocol::PluginPopupSpec,
     ) -> Result<(PluginPaneLaunch, String), WorkbenchCommandUnavailableReason> {
-        use orchbee_workbench_protocol::PanelNode;
         let unavailable = WorkbenchCommandUnavailableReason::ServiceUnavailable;
         spec.validate().map_err(|_| unavailable)?;
-        if self.retired {
+        if !self.popup_source_matches(&spec.source) {
             return Err(unavailable);
         }
         let snapshot = self.snapshot();
-        let tab = snapshot
-            .terminal_contexts
-            .iter()
-            .find(|context| context.terminal_context_id == spec.source.terminal_context_id)
-            .and_then(|context| {
-                context
-                    .tabs
-                    .iter()
-                    .find(|tab| tab.tab_id == spec.source.tab_id)
-            })
-            .ok_or(unavailable)?;
-        fn contains(
-            node: &PanelNode,
-            source: &orchbee_workbench_protocol::ClientPopupSource,
-        ) -> bool {
-            match node {
-                PanelNode::Panel {
-                    panel_id,
-                    primary_presentation,
-                    child_presentations,
-                    ..
-                } => {
-                    *panel_id == source.panel_id
-                        && std::iter::once(primary_presentation)
-                            .chain(child_presentations)
-                            .any(|candidate| {
-                                &candidate.presentation_id == source.member.presentation_id()
-                                    && candidate.binding.as_ref() == source.member.binding()
-                            })
-                }
-                PanelNode::Split { children, .. } => {
-                    children.iter().any(|child| contains(&child.node, source))
-                }
-            }
-        }
-        if !contains(&tab.root, &spec.source) {
-            return Err(unavailable);
-        }
         let context = source::observed(snapshot, popup_id, &spec.context)?;
         let registry = orchbee_local_site_runtime::PluginRegistry::from_environment(|name| {
             std::env::var_os(name)

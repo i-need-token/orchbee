@@ -812,3 +812,32 @@ WorktreeJob 与 AgentDrain 回复仍由唯一 wire owner 受检，
 状态读取器不重发超时启动，只为已知 job 身份排队一次非阻塞取消；
 无法接纳清理时，物理 TTL、reap 及保留回执仍归 Worker 所有。
 读取预算不抢占 mutex 获取或进程挂起，取消接纳不代表已确认物理清理。
+
+## Windows scrollback 编辑器 popup 模型
+
+私有配套版本 `workbench.terminal-editor` 请求／结果（OBWP51／52，version1）
+支持连接拥有的独立终端 Open、Read、Close。Open 携带准确的规范
+context／Tab／Panel／Presentation／binding 来源、同连接拥有的只读 viewer、
+十进制完整 u64 内容 generation／revision 及可绘制尺寸，不携带可执行程序、
+环境、文档路径或终端内容。当前 Client 焦点准入归 Client view；Server 在创建前、
+只读 Worker 编辑器选择之后，重复核对规范成员、连接 viewer／frame、Worker
+代际及物理目标。读取权限不授予输入 controller 或 resize 权限。
+
+独立 popup 所有者与 plugin popup 共用；编辑器不经过已安装 plugin 解析，也不进入
+规范 Pane 成员。准入在交接前登记所有权。Host 延迟 Create 固定不可变文本，
+确认创建后才 Start 独占写入文档、启动编辑器。创建／启动未知时保留且不重复提交。
+状态为 Opening、Active、Queued、Waiting、Dispose、Unknown、Closed。
+已知延迟目标在 Start 前放弃可直接 Dispose；inventory AwaitingStart 也可处置，
+不宣称子进程退出。EOF 将已接纳清理移交现有 Site 维护。来源只读 attachment
+保留到最后捕获消费者结束后 detach；popup 进程／文档清理仍归 Host。
+
+串行应用分发器通过本地 RefCell 在 OBCS 与编辑器 OBWP 请求间共用连接 viewer
+会话，每次请求一次借用，不存在重入回调或跨线程访问。授权／Site／来源／编辑器
+拒绝均在 Create 前发生。相关协议及原生 Windows 管道轨迹验证来源约束、延迟
+顺序、字面参数、未知结果、旧 plugin 行为、规范状态保持及物理清理；不构成部署后
+GUI、TUI／模拟器或完整 cohort 验收。Client overlay 和公开 CLI 入口需单独验证，
+之后才能报告编辑器完整能力。
+
+延迟 Start 准入会更新终端授权／fence。popup 所有者在该准入前锁定，交接前同步
+准确的已准备 Start 授权；失败／未知回执及后续生命周期清理保留当前所有者，
+不会继续使用过时的 Create 权限。

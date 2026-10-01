@@ -9,6 +9,10 @@ pub use agent_view::{
 mod carrier;
 mod command;
 pub use command::{
+    EditorPopupCapture, MAXIMUM_TERMINAL_EDITOR_BYTES, ScrollbackEditorSpec, TerminalEditorAction,
+    TerminalEditorFailure, TerminalEditorOutcome, TerminalEditorRequest, TerminalEditorResult,
+};
+pub use command::{
     GitDivergence, MAXIMUM_WORKSPACE_GIT_BYTES, WorkspaceGitFailure, WorkspaceGitOutcome,
     WorkspaceGitRequest, WorkspaceGitResult,
 };

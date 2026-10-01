@@ -12,7 +12,7 @@ pub(in crate::local_terminal_service) struct Observer(Mutex<Option<PendingCleanu
 
 impl LocalTerminalService {
     /// Only an exact known physical Dispose can discharge an uncertain temporary viewer.
-    pub(super) fn settle_plugin_observer_disposed(
+    pub(in crate::local_terminal_service) fn settle_plugin_observer_disposed(
         &self,
         target: crate::terminal_coordinator::BindingViewerTarget,
     ) {
@@ -99,7 +99,7 @@ impl LocalTerminalService {
             _ => Err(Failure::Conflict),
         }
     }
-    pub(super) fn observe_plugin_runtime(
+    pub(in crate::local_terminal_service) fn observe_plugin_runtime(
         &self,
         target: &ProcessObservationTarget,
         reference: Option<&orchbee_client_server_protocol::RequestId>,

@@ -1,6 +1,8 @@
 #[cfg(windows)]
 mod configuration;
 #[cfg(windows)]
+mod independent_popup;
+#[cfg(windows)]
 mod plugins;
 use std::{
     num::NonZeroU64,
@@ -47,6 +49,7 @@ mod standalone;
 mod tab_close;
 mod tab_create;
 mod viewer_session;
+pub(crate) use viewer_session::LocalTerminalSession;
 mod workspace_directory;
 mod workspace_git;
 mod workspace_group_close;
@@ -76,7 +79,7 @@ pub(crate) struct LocalTerminalService {
     #[cfg(windows)]
     plugin_observer: plugins::Observer,
     #[cfg(windows)]
-    popups: plugins::Popups,
+    popups: independent_popup::Popups,
     #[cfg(windows)]
     process_observer: process_observer::ProcessObserver,
     close_maintenance: close_maintenance::CloseMaintenance,
@@ -119,7 +122,7 @@ impl LocalTerminalService {
             #[cfg(windows)]
             plugin_observer: plugins::Observer::default(),
             #[cfg(windows)]
-            popups: plugins::Popups::default(),
+            popups: independent_popup::Popups::default(),
             close_maintenance: close_maintenance::CloseMaintenance::default(),
             #[cfg(windows)]
             process_observer: process_observer::ProcessObserver::default(),

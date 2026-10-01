@@ -1,5 +1,5 @@
 //! One connection owns a popup; EOF transfers accepted physical ownership to Site maintenance.
-use super::super::{LocalTerminalService, lease_expiry, placement, submit};
+use super::{LocalTerminalService, lease_expiry, placement, submit};
 use crate::{
     site_coordinator::ProcessObservationTarget,
     terminal_coordinator::{BindingViewerTarget, PreparedOperation},
@@ -8,8 +8,8 @@ use crate::{
 use orchbee_capability_node_protocol as node;
 use orchbee_client_server_protocol as client;
 use orchbee_workbench_protocol::{
-    PluginAction, PluginFailure as Failure, PluginOutcome as Outcome, PluginRequest, PluginResult,
-    PresentationBinding, ProtocolVersion, TerminalId, WorkbenchRequestId, WorkerId,
+    PluginAction, PluginFailure, PluginOutcome, PluginRequest, PluginResult, PresentationBinding,
+    ProtocolVersion, TerminalId, WorkbenchRequestId, WorkerId,
 };
 use std::{
     collections::BTreeMap,
@@ -18,9 +18,91 @@ use std::{
     time::{Duration, Instant},
 };
 
+mod editor;
+
 const MAXIMUM_OWNERS: usize = 32;
 const SETTLEMENT_WINDOW: Duration = Duration::from_secs(5);
 const OBSERVATION_INTERVAL: Duration = Duration::from_millis(100);
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum PopupKind {
+    Plugin,
+    Editor,
+}
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum Failure {
+    InvalidIntent,
+    SiteMismatch,
+    Unavailable,
+    PhysicalUnknown,
+    Busy,
+    Conflict,
+    NotFound,
+    StaleSource,
+    EditorUnavailable,
+}
+impl From<PluginFailure> for Failure {
+    fn from(value: PluginFailure) -> Self {
+        match value {
+            PluginFailure::InvalidIntent => Self::InvalidIntent,
+            PluginFailure::SiteMismatch => Self::SiteMismatch,
+            PluginFailure::PhysicalUnknown => Self::PhysicalUnknown,
+            PluginFailure::Busy => Self::Busy,
+            PluginFailure::Conflict => Self::Conflict,
+            PluginFailure::NotFound => Self::NotFound,
+            _ => Self::Unavailable,
+        }
+    }
+}
+impl From<Failure> for PluginFailure {
+    fn from(value: Failure) -> Self {
+        match value {
+            Failure::InvalidIntent => Self::InvalidIntent,
+            Failure::SiteMismatch => Self::SiteMismatch,
+            Failure::PhysicalUnknown => Self::PhysicalUnknown,
+            Failure::Busy => Self::Busy,
+            Failure::Conflict => Self::Conflict,
+            Failure::NotFound => Self::NotFound,
+            Failure::StaleSource => Self::SourceUnavailable,
+            Failure::Unavailable | Failure::EditorUnavailable => Self::Unavailable,
+        }
+    }
+}
+enum Outcome {
+    PopupOpened {
+        popup_id: WorkbenchRequestId,
+        title: String,
+    },
+    PopupState {
+        popup_id: WorkbenchRequestId,
+        settled: bool,
+    },
+    PopupClosing {
+        popup_id: WorkbenchRequestId,
+    },
+    PopupClosed {
+        popup_id: WorkbenchRequestId,
+    },
+    PopupUnknown {
+        popup_id: WorkbenchRequestId,
+    },
+    Failed {
+        reason: Failure,
+    },
+}
+impl From<Outcome> for PluginOutcome {
+    fn from(value: Outcome) -> Self {
+        match value {
+            Outcome::PopupOpened { popup_id, title } => Self::PopupOpened { popup_id, title },
+            Outcome::PopupState { popup_id, settled } => Self::PopupState { popup_id, settled },
+            Outcome::PopupClosing { popup_id } => Self::PopupClosing { popup_id },
+            Outcome::PopupClosed { popup_id } => Self::PopupClosed { popup_id },
+            Outcome::PopupUnknown { popup_id } => Self::PopupUnknown { popup_id },
+            Outcome::Failed { reason } => Self::Failed {
+                reason: reason.into(),
+            },
+        }
+    }
+}
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum Phase {
     Opening,
@@ -34,6 +116,7 @@ enum Phase {
 }
 #[derive(Clone)]
 struct Popup {
+    kind: PopupKind,
     id: WorkbenchRequestId,
     reference: client::RequestId,
     authorization: Option<node::TerminalOperationAuthorization>,
@@ -50,6 +133,43 @@ struct Popup {
 pub(in crate::local_terminal_service) struct Popups(Mutex<BTreeMap<NonZeroU64, Popup>>);
 
 impl LocalTerminalService {
+    fn reserve_popup(
+        &self,
+        owner: NonZeroU64,
+        id: &WorkbenchRequestId,
+        kind: PopupKind,
+    ) -> Result<(), Failure> {
+        if !self.close_maintenance.available() {
+            return Err(Failure::Unavailable);
+        }
+        let reference =
+            client::RequestId::parse(id.as_str()).map_err(|_| Failure::InvalidIntent)?;
+        let mut owners = self.popups.0.lock().map_err(|_| Failure::Unavailable)?;
+        if owners.contains_key(&owner) || owners.len() >= MAXIMUM_OWNERS {
+            return Err(Failure::Busy);
+        }
+        if owners.values().any(|popup| popup.id == *id) {
+            return Err(Failure::Conflict);
+        }
+        owners.insert(
+            owner,
+            Popup {
+                kind,
+                id: id.clone(),
+                reference,
+                authorization: None,
+                target: None,
+                phase: Phase::Opening,
+                connected: true,
+                ordinal: 1,
+                cursor: None,
+                pages: 0,
+                deadline: None,
+                next: Instant::now(),
+            },
+        );
+        Ok(())
+    }
     pub(crate) fn execute_popup(&self, owner: NonZeroU64, request: PluginRequest) -> PluginResult {
         let outcome = self
             .popup_operation(owner, &request)
@@ -58,6 +178,7 @@ impl LocalTerminalService {
                     && let Ok(mut owners) = self.popups.0.lock()
                     && let Some(popup) = owners.get_mut(&owner)
                     && popup.id == *popup_id
+                    && popup.kind == PopupKind::Plugin
                     && (popup.phase == Phase::Unknown
                         || popup.phase == Phase::Opening && popup.authorization.is_some())
                 {
@@ -72,7 +193,33 @@ impl LocalTerminalService {
             protocol_version: ProtocolVersion,
             request_id: request.request_id,
             site_id: request.site_id,
-            outcome,
+            outcome: outcome.into(),
+        }
+    }
+
+    fn complete_popup_dispatch(
+        &self,
+        prepared: PreparedOperation,
+        handle: Option<&crate::worker_obcn_carrier::WorkerRequestHandle>,
+    ) -> Result<client::ServerMessage, Failure> {
+        match prepared {
+            PreparedOperation::Ready(result) => Ok(result),
+            PreparedOperation::Dispatch(pending) => {
+                let completion = handle.map_or(
+                    crate::terminal_coordinator::Completion::Unavailable,
+                    |handle| submit(handle, pending.command()),
+                );
+                let workers = self.workers.lock().map_err(|_| Failure::PhysicalUnknown)?;
+                self.coordinator
+                    .lock()
+                    .map_err(|_| Failure::PhysicalUnknown)?
+                    .complete(
+                        pending,
+                        completion,
+                        placement(workers.request_handle().as_ref()),
+                    )
+                    .map_err(|_| Failure::PhysicalUnknown)
+            }
         }
     }
     fn popup_operation(
@@ -90,38 +237,9 @@ impl LocalTerminalService {
                 spec,
                 geometry,
             } => {
-                // Admission is recorded before any possible physical side effect.
-                if !self.close_maintenance.available() {
-                    return Err(Failure::Unavailable);
-                }
+                self.reserve_popup(owner, popup_id, PopupKind::Plugin)?;
                 let reference = client::RequestId::parse(popup_id.as_str())
                     .map_err(|_| Failure::InvalidIntent)?;
-                {
-                    let mut owners = self.popups.0.lock().map_err(|_| Failure::Unavailable)?;
-                    if owners.contains_key(&owner) || owners.len() >= MAXIMUM_OWNERS {
-                        return Err(Failure::Busy);
-                    }
-                    // A popup ID cannot authorize another owner's retained resource.
-                    if owners.values().any(|popup| popup.id == *popup_id) {
-                        return Err(Failure::Conflict);
-                    }
-                    owners.insert(
-                        owner,
-                        Popup {
-                            id: popup_id.clone(),
-                            reference: reference.clone(),
-                            authorization: None,
-                            target: None,
-                            phase: Phase::Opening,
-                            connected: true,
-                            ordinal: 1,
-                            cursor: None,
-                            pages: 0,
-                            deadline: None,
-                            next: Instant::now(),
-                        },
-                    );
-                }
                 let prepared = (|| {
                     let workers = self.workers.lock().map_err(|_| Failure::Unavailable)?;
                     let handle = workers.request_handle();
@@ -155,25 +273,7 @@ impl LocalTerminalService {
                         return Err(reason);
                     }
                 };
-                let result = match prepared {
-                    PreparedOperation::Ready(result) => result,
-                    PreparedOperation::Dispatch(pending) => {
-                        let completion = handle.as_ref().map_or(
-                            crate::terminal_coordinator::Completion::Unavailable,
-                            |handle| submit(handle, pending.command()),
-                        );
-                        let workers = self.workers.lock().map_err(|_| Failure::PhysicalUnknown)?;
-                        self.coordinator
-                            .lock()
-                            .map_err(|_| Failure::PhysicalUnknown)?
-                            .complete(
-                                pending,
-                                completion,
-                                placement(workers.request_handle().as_ref()),
-                            )
-                            .map_err(|_| Failure::PhysicalUnknown)?
-                    }
-                };
+                let result = self.complete_popup_dispatch(prepared, handle.as_ref())?;
                 let workers = self.workers.lock().map_err(|_| Failure::PhysicalUnknown)?;
                 let mut coordinator = self
                     .coordinator
@@ -205,7 +305,7 @@ impl LocalTerminalService {
                             .is_some_and(|auth| coordinator.popup_definitively_uncreated(auth)) =>
                     {
                         if let Some(auth) = popup.authorization {
-                            coordinator.release_plugin_popup(&reference, auth);
+                            coordinator.release_independent_popup(&reference, auth);
                         }
                         owners.remove(&owner);
                         Err(Failure::Unavailable)
@@ -219,96 +319,112 @@ impl LocalTerminalService {
                 }
             }
             PluginAction::PopupClose { popup_id } => {
-                let mut owners = self.popups.0.lock().map_err(|_| Failure::Unavailable)?;
-                let popup = owners
-                    .get_mut(&owner)
-                    .filter(|popup| popup.id == *popup_id)
-                    .ok_or(Failure::NotFound)?;
-                let outcome = match popup.phase {
-                    Phase::Closed => Outcome::PopupClosed {
-                        popup_id: popup_id.clone(),
-                    },
-                    Phase::Unknown => Outcome::PopupUnknown {
-                        popup_id: popup_id.clone(),
-                    },
-                    Phase::Opening => return Err(Failure::Busy),
-                    _ => {
-                        if popup.phase == Phase::Active {
-                            popup.phase = Phase::Queued;
-                            popup.next = Instant::now();
-                        }
-                        Outcome::PopupClosing {
-                            popup_id: popup_id.clone(),
-                        }
-                    }
-                };
-                let fence = popup
-                    .authorization
-                    .map(|auth| (popup.reference.clone(), auth));
-                drop(owners);
-                if let Some((reference, authorization)) = fence {
-                    self.coordinator
-                        .lock()
-                        .map_err(|_| Failure::Unavailable)?
-                        .fence_plugin_popup(&reference, authorization);
-                }
-                self.close_maintenance.notify();
-                Ok(outcome)
+                self.popup_close(owner, popup_id, PopupKind::Plugin)
             }
+
             PluginAction::PopupRead { popup_id } => {
-                let popup = self
-                    .popups
-                    .0
-                    .lock()
-                    .map_err(|_| Failure::Unavailable)?
-                    .get(&owner)
-                    .filter(|popup| popup.id == *popup_id)
-                    .cloned()
-                    .ok_or(Failure::NotFound)?;
-                match popup.phase {
-                    Phase::Closed => Ok(Outcome::PopupClosed {
-                        popup_id: popup_id.clone(),
-                    }),
-                    Phase::Unknown => Ok(Outcome::PopupUnknown {
-                        popup_id: popup_id.clone(),
-                    }),
-                    Phase::Active => {
-                        let target = popup.target.ok_or(Failure::Unavailable)?;
-                        let observation = ProcessObservationTarget {
-                            site_id: request.site_id.clone(),
-                            binding: PresentationBinding {
-                                worker_id: WorkerId::parse(&hex(target
-                                    .worker
-                                    .worker_id
-                                    .as_bytes()))
-                                .map_err(|_| Failure::Unavailable)?,
-                                terminal_id: TerminalId::parse(&hex(target.terminal_id.as_bytes()))
-                                    .map_err(|_| Failure::Unavailable)?,
-                            },
-                            target,
-                        };
-                        let settled =
-                            self.observe_plugin_runtime(&observation, Some(&popup.reference))?;
-                        let owners = self.popups.0.lock().map_err(|_| Failure::Unavailable)?;
-                        if !owners.get(&owner).is_some_and(|current| {
-                            current.id == popup.id
-                                && current.phase == Phase::Active
-                                && current.target == popup.target
-                        }) {
-                            return Err(Failure::Conflict);
-                        }
-                        Ok(Outcome::PopupState {
-                            popup_id: popup_id.clone(),
-                            settled,
-                        })
-                    }
-                    _ => Ok(Outcome::PopupState {
-                        popup_id: popup_id.clone(),
-                        settled: false,
-                    }),
+                self.popup_read(owner, popup_id, &request.site_id, PopupKind::Plugin)
+            }
+
+            _ => Err(Failure::InvalidIntent),
+        }
+    }
+    fn popup_close(
+        &self,
+        owner: NonZeroU64,
+        popup_id: &WorkbenchRequestId,
+        kind: PopupKind,
+    ) -> Result<Outcome, Failure> {
+        let mut owners = self.popups.0.lock().map_err(|_| Failure::Unavailable)?;
+        let popup = owners
+            .get_mut(&owner)
+            .filter(|popup| popup.id == *popup_id && popup.kind == kind)
+            .ok_or(Failure::NotFound)?;
+        let outcome = match popup.phase {
+            Phase::Closed => Outcome::PopupClosed {
+                popup_id: popup_id.clone(),
+            },
+            Phase::Unknown => Outcome::PopupUnknown {
+                popup_id: popup_id.clone(),
+            },
+            Phase::Opening => return Err(Failure::Busy),
+            _ => {
+                if popup.phase == Phase::Active {
+                    popup.phase = Phase::Queued;
+                    popup.next = Instant::now();
+                }
+                Outcome::PopupClosing {
+                    popup_id: popup_id.clone(),
                 }
             }
-            _ => Err(Failure::InvalidIntent),
+        };
+        let fence = popup
+            .authorization
+            .map(|auth| (popup.reference.clone(), auth));
+        drop(owners);
+        if let Some((reference, authorization)) = fence {
+            self.coordinator
+                .lock()
+                .map_err(|_| Failure::Unavailable)?
+                .fence_independent_popup(&reference, authorization);
+        }
+        self.close_maintenance.notify();
+        Ok(outcome)
+    }
+
+    fn popup_read(
+        &self,
+        owner: NonZeroU64,
+        popup_id: &WorkbenchRequestId,
+        site: &orchbee_workbench_protocol::SiteId,
+        kind: PopupKind,
+    ) -> Result<Outcome, Failure> {
+        let popup = self
+            .popups
+            .0
+            .lock()
+            .map_err(|_| Failure::Unavailable)?
+            .get(&owner)
+            .filter(|popup| popup.id == *popup_id && popup.kind == kind)
+            .cloned()
+            .ok_or(Failure::NotFound)?;
+        match popup.phase {
+            Phase::Closed => Ok(Outcome::PopupClosed {
+                popup_id: popup_id.clone(),
+            }),
+            Phase::Unknown => Ok(Outcome::PopupUnknown {
+                popup_id: popup_id.clone(),
+            }),
+            Phase::Active => {
+                let target = popup.target.ok_or(Failure::Unavailable)?;
+                let observation = ProcessObservationTarget {
+                    site_id: site.clone(),
+                    binding: PresentationBinding {
+                        worker_id: WorkerId::parse(&hex(target.worker.worker_id.as_bytes()))
+                            .map_err(|_| Failure::Unavailable)?,
+                        terminal_id: TerminalId::parse(&hex(target.terminal_id.as_bytes()))
+                            .map_err(|_| Failure::Unavailable)?,
+                    },
+                    target,
+                };
+                let settled = self.observe_plugin_runtime(&observation, Some(&popup.reference))?;
+                let owners = self.popups.0.lock().map_err(|_| Failure::Unavailable)?;
+                if !owners.get(&owner).is_some_and(|current| {
+                    current.id == popup.id
+                        && current.phase == Phase::Active
+                        && current.target == popup.target
+                }) {
+                    return Err(Failure::Conflict);
+                }
+                Ok(Outcome::PopupState {
+                    popup_id: popup_id.clone(),
+                    settled,
+                })
+            }
+            _ => Ok(Outcome::PopupState {
+                popup_id: popup_id.clone(),
+                settled: false,
+            }),
         }
     }
     pub(crate) fn disconnect_popup(&self, owner: NonZeroU64) {
@@ -380,7 +496,7 @@ impl LocalTerminalService {
                         return None;
                     }
                     let mut coordinator = self.coordinator.lock().ok()?;
-                    if !coordinator.fence_plugin_popup(&popup.reference, authorization) {
+                    if !coordinator.fence_independent_popup(&popup.reference, authorization) {
                         return None;
                     }
                     let request = coordinator.popup_lifecycle_request(
@@ -418,7 +534,8 @@ impl LocalTerminalService {
                         Some(observed)
                             if matches!(
                                 observed.phase,
-                                node::LifecycleTerminalPhase::Exited { .. }
+                                node::LifecycleTerminalPhase::AwaitingStart
+                                    | node::LifecycleTerminalPhase::Exited { .. }
                                     | node::LifecycleTerminalPhase::Failed
                             ) =>
                         {
@@ -456,7 +573,7 @@ impl LocalTerminalService {
                 if let (Some(authorization), Ok(mut coordinator)) =
                     (popup.authorization, self.coordinator.lock())
                 {
-                    if !coordinator.release_plugin_popup(&popup.reference, authorization) {
+                    if !coordinator.release_independent_popup(&popup.reference, authorization) {
                         popup.phase = Phase::Unknown;
                     }
                 } else {

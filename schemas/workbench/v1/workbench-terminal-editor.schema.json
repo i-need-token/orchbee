@@ -1,0 +1,464 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://orchbee.dev/schemas/workbench/v1/workbench-terminal-editor.schema.json",
+	"$comment": "Bindings additionally enforce whole-message 8 KiB, bounded member observation and UTF-8 title bytes. Editor intent never accepts executable, environment, path or transcript.",
+	"oneOf": [
+		{
+			"type": "object",
+			"required": ["kind", "protocolVersion", "requestId", "siteId", "action"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": {
+					"const": "workbench.terminal-editor"
+				},
+				"protocolVersion": {
+					"const": 1
+				},
+				"requestId": {
+					"$ref": "#/$defs/requestId"
+				},
+				"siteId": {
+					"$ref": "#/$defs/siteId"
+				},
+				"action": {
+					"oneOf": [
+						{
+							"type": "object",
+							"required": ["kind", "popupId", "spec", "capture", "geometry"],
+							"additionalProperties": false,
+							"properties": {
+								"kind": {
+									"const": "open"
+								},
+								"popupId": {
+									"$ref": "#/$defs/requestId"
+								},
+								"spec": {
+									"$ref": "#/$defs/spec"
+								},
+								"capture": {
+									"$ref": "#/$defs/capture"
+								},
+								"geometry": {
+									"$ref": "#/$defs/geometry"
+								}
+							}
+						},
+						{
+							"type": "object",
+							"required": ["kind", "popupId"],
+							"additionalProperties": false,
+							"properties": {
+								"kind": {
+									"const": "read"
+								},
+								"popupId": {
+									"$ref": "#/$defs/requestId"
+								}
+							}
+						},
+						{
+							"type": "object",
+							"required": ["kind", "popupId"],
+							"additionalProperties": false,
+							"properties": {
+								"kind": {
+									"const": "close"
+								},
+								"popupId": {
+									"$ref": "#/$defs/requestId"
+								}
+							}
+						}
+					]
+				}
+			}
+		},
+		{
+			"type": "object",
+			"required": ["kind", "protocolVersion", "requestId", "siteId", "outcome"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": {
+					"const": "workbench.terminal-editor.result"
+				},
+				"protocolVersion": {
+					"const": 1
+				},
+				"requestId": {
+					"$ref": "#/$defs/requestId"
+				},
+				"siteId": {
+					"$ref": "#/$defs/siteId"
+				},
+				"outcome": {
+					"oneOf": [
+						{
+							"type": "object",
+							"required": ["kind", "popupId", "title"],
+							"additionalProperties": false,
+							"properties": {
+								"kind": {
+									"const": "opened"
+								},
+								"popupId": {
+									"$ref": "#/$defs/requestId"
+								},
+								"title": {
+									"type": "string",
+									"minLength": 1,
+									"maxLength": 4096,
+									"pattern": "^[^\\u0000]*$"
+								}
+							}
+						},
+						{
+							"type": "object",
+							"required": ["kind", "popupId", "settled"],
+							"additionalProperties": false,
+							"properties": {
+								"kind": {
+									"const": "state"
+								},
+								"popupId": {
+									"$ref": "#/$defs/requestId"
+								},
+								"settled": {
+									"type": "boolean"
+								}
+							}
+						},
+						{
+							"type": "object",
+							"required": ["kind", "popupId"],
+							"additionalProperties": false,
+							"properties": {
+								"kind": {
+									"const": "closing"
+								},
+								"popupId": {
+									"$ref": "#/$defs/requestId"
+								}
+							}
+						},
+						{
+							"type": "object",
+							"required": ["kind", "popupId"],
+							"additionalProperties": false,
+							"properties": {
+								"kind": {
+									"const": "closed"
+								},
+								"popupId": {
+									"$ref": "#/$defs/requestId"
+								}
+							}
+						},
+						{
+							"type": "object",
+							"required": ["kind", "popupId"],
+							"additionalProperties": false,
+							"properties": {
+								"kind": {
+									"const": "unknown"
+								},
+								"popupId": {
+									"$ref": "#/$defs/requestId"
+								}
+							}
+						},
+						{
+							"type": "object",
+							"required": ["kind", "reason"],
+							"additionalProperties": false,
+							"properties": {
+								"kind": {
+									"const": "failed"
+								},
+								"reason": {
+									"enum": [
+										"denied",
+										"invalid-intent",
+										"site-mismatch",
+										"unavailable",
+										"busy",
+										"conflict",
+										"not-found",
+										"stale-source",
+										"editor-unavailable",
+										"physical-unknown"
+									]
+								}
+							}
+						}
+					]
+				}
+			}
+		}
+	],
+	"$defs": {
+		"panelId": {
+			"$ref": "urn:orchbee:schema:workbench:v1#/$defs/panelId"
+		},
+		"revision": {
+			"$ref": "urn:orchbee:schema:workbench:v1#/$defs/revision"
+		},
+		"terminalContextId": {
+			"$ref": "urn:orchbee:schema:workbench:v1#/$defs/terminalContextId"
+		},
+		"siteId": {
+			"$ref": "urn:orchbee:schema:workbench:v1#/$defs/siteId"
+		},
+		"requestId": {
+			"$ref": "urn:orchbee:schema:workbench:v1#/$defs/requestId"
+		},
+		"tabId": {
+			"$ref": "urn:orchbee:schema:workbench:v1#/$defs/tabId"
+		},
+		"boundPresentationSelection": {
+			"type": "object",
+			"properties": {
+				"presentationId": {
+					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/panelId"
+				},
+				"binding": {
+					"type": "object",
+					"properties": {
+						"workerId": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/panelId"
+						},
+						"terminalId": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/panelId"
+						}
+					},
+					"required": ["workerId", "terminalId"],
+					"additionalProperties": false
+				},
+				"attachmentGeneration": {
+					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/revision"
+				},
+				"incarnation": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 4294967295
+				},
+				"viewport": {
+					"$ref": "#/$defs/viewportObservation"
+				}
+			},
+			"required": ["presentationId", "binding", "attachmentGeneration", "incarnation", "viewport"],
+			"additionalProperties": false
+		},
+		"viewportObservation": {
+			"oneOf": [
+				{
+					"type": "object",
+					"properties": {
+						"state": {
+							"const": "unavailable"
+						},
+						"reason": {
+							"enum": ["not-attached", "frame-unavailable"]
+						}
+					},
+					"required": ["state", "reason"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"state": {
+							"const": "pending"
+						},
+						"phase": {
+							"enum": ["entering", "awaiting-window", "recovering"]
+						}
+					},
+					"required": ["state", "phase"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"state": {
+							"const": "observed"
+						},
+						"mode": {
+							"enum": ["live", "history"]
+						},
+						"source": {
+							"$ref": "#/$defs/viewportSource"
+						},
+						"scroll": {
+							"$ref": "#/$defs/scrollMetrics"
+						}
+					},
+					"required": ["state", "mode", "source", "scroll"],
+					"additionalProperties": false
+				}
+			]
+		},
+		"viewportSource": {
+			"type": "object",
+			"properties": {
+				"hostEpoch": {
+					"type": "string",
+					"pattern": "^[0-9a-f]{32}$",
+					"not": {
+						"const": "00000000000000000000000000000000"
+					}
+				},
+				"attachmentId": {
+					"type": "string",
+					"pattern": "^[0-9a-f]{32}$",
+					"not": {
+						"const": "00000000000000000000000000000000"
+					}
+				},
+				"generation": {
+					"type": "string",
+					"pattern": "^(0|[1-9][0-9]{0,19})$",
+					"format": "orchbee-uint64",
+					"not": {
+						"const": "0"
+					}
+				},
+				"revision": {
+					"type": "string",
+					"pattern": "^(0|[1-9][0-9]{0,19})$",
+					"format": "orchbee-uint64"
+				},
+				"columns": {
+					"type": "integer",
+					"minimum": 1,
+					"maximum": 4096
+				},
+				"alternateScreen": {
+					"type": "boolean"
+				},
+				"totalRows": {
+					"type": "string",
+					"pattern": "^(0|[1-9][0-9]{0,19})$",
+					"format": "orchbee-uint64"
+				},
+				"startRow": {
+					"type": "string",
+					"pattern": "^(0|[1-9][0-9]{0,19})$",
+					"format": "orchbee-uint64"
+				}
+			},
+			"required": [
+				"hostEpoch",
+				"attachmentId",
+				"generation",
+				"revision",
+				"columns",
+				"alternateScreen",
+				"totalRows",
+				"startRow"
+			],
+			"additionalProperties": false
+		},
+		"scrollMetrics": {
+			"type": "object",
+			"properties": {
+				"offsetFromBottom": {
+					"type": "string",
+					"pattern": "^(0|[1-9][0-9]{0,19})$",
+					"format": "orchbee-uint64"
+				},
+				"maxOffsetFromBottom": {
+					"type": "string",
+					"pattern": "^(0|[1-9][0-9]{0,19})$",
+					"format": "orchbee-uint64"
+				},
+				"viewportRows": {
+					"type": "integer",
+					"minimum": 1,
+					"maximum": 4096
+				}
+			},
+			"required": ["offsetFromBottom", "maxOffsetFromBottom", "viewportRows"],
+			"additionalProperties": false
+		},
+		"geometry": {
+			"$comment": "Semantic validation additionally requires columns * rows <= 262144, columns * cellPixelWidth <= 65535, and rows * cellPixelHeight <= 65535. The cellPixelWidth/cellPixelHeight pair must be either both positive (pixels known) or both zero (pixels unknown); a mixed pair is invalid.",
+			"type": "object",
+			"properties": {
+				"columns": {
+					"type": "integer",
+					"minimum": 1,
+					"maximum": 4096
+				},
+				"rows": {
+					"type": "integer",
+					"minimum": 1,
+					"maximum": 4096
+				},
+				"cellPixelWidth": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 4096
+				},
+				"cellPixelHeight": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 4096
+				}
+			},
+			"required": ["columns", "rows", "cellPixelWidth", "cellPixelHeight"],
+			"additionalProperties": false
+		},
+		"spec": {
+			"type": "object",
+			"required": ["source"],
+			"additionalProperties": false,
+			"properties": {
+				"source": {
+					"type": "object",
+					"required": ["terminalContextId", "tabId", "panelId", "member"],
+					"additionalProperties": false,
+					"properties": {
+						"terminalContextId": {
+							"$ref": "#/$defs/terminalContextId"
+						},
+						"tabId": {
+							"$ref": "#/$defs/tabId"
+						},
+						"panelId": {
+							"$ref": "#/$defs/panelId"
+						},
+						"member": {
+							"$ref": "#/$defs/boundPresentationSelection"
+						}
+					}
+				}
+			}
+		},
+		"capture": {
+			"type": "object",
+			"required": ["attachmentId", "generation", "revision"],
+			"additionalProperties": false,
+			"properties": {
+				"attachmentId": {
+					"$ref": "#/$defs/requestId"
+				},
+				"generation": {
+					"allOf": [
+						{
+							"$ref": "#/$defs/revision"
+						},
+						{
+							"not": {
+								"const": "0"
+							}
+						}
+					]
+				},
+				"revision": {
+					"$ref": "#/$defs/revision"
+				}
+			}
+		}
+	}
+}

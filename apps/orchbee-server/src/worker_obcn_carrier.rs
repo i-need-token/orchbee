@@ -48,13 +48,6 @@ pub(crate) enum WorkerOperationRequest {
     // The Server drain pump admits drains through admit_agent_drain.
     AgentDrain(orchbee_capability_node_protocol::AgentDrainRequest),
     Titles(orchbee_capability_node_protocol::TerminalTitlesRequest),
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "editor overlay admission must bind source authority before submitting this private query"
-        )
-    )]
     EditorCommand(orchbee_capability_node_protocol::TerminalEditorCommandRequest),
 }
 

@@ -116,6 +116,27 @@ pub(crate) struct PlannedCreate<'coordinator> {
 }
 
 impl PlannedCreate<'_> {
+    #[cfg(windows)]
+    pub(crate) fn set_editor_source(
+        &mut self,
+        source: orchbee_capability_node_protocol::TerminalEditorSource,
+    ) -> Result<(), orchbee_capability_node_protocol::ProtocolError> {
+        let CapabilityNodeMessage::AuthorizedTerminalLaunch(launch) = &self.pending.command else {
+            unreachable!("planned creation contains a launch")
+        };
+        let launch = launch.clone().with_editor_source(Some(source))?;
+        let command = CapabilityNodeMessage::AuthorizedTerminalLaunch(launch);
+        orchbee_capability_node_protocol::encode_message(&command)?;
+        self.pending.command = command;
+        Ok(())
+    }
+
+    #[cfg(windows)]
+    pub(crate) fn mark_popup(&mut self) -> TerminalOperationAuthorization {
+        self.binding.popup_owned = true;
+        self.binding.authorization
+    }
+
     pub(crate) const fn authorization(&self) -> TerminalOperationAuthorization {
         self.binding.authorization
     }
@@ -299,19 +320,6 @@ impl TerminalCoordinator {
             }
             _ => None,
         }
-    }
-
-    #[cfg(windows)]
-    pub(crate) fn mark_popup(
-        &mut self,
-        reference: &RequestId,
-    ) -> Option<TerminalOperationAuthorization> {
-        let binding = self.bindings.get_mut(reference)?;
-        if binding.popup_owned || binding.phase != TerminalPhase::Creating {
-            return None;
-        }
-        binding.popup_owned = true;
-        Some(binding.authorization)
     }
 
     #[cfg(windows)]

@@ -12,6 +12,7 @@ pub(super) struct ViewerProjection {
     last_sequence: u64,
     needs_snapshot: bool,
     blocked_revision: Option<u64>,
+    content_version: Option<(std::num::NonZeroU64, u64)>,
 }
 
 impl ViewerProjection {
@@ -23,7 +24,15 @@ impl ViewerProjection {
             last_sequence: 0,
             needs_snapshot: true,
             blocked_revision: None,
+            content_version: None,
         }
+    }
+    #[cfg(windows)]
+    pub(super) fn capturable_version(&self, generation: u64, revision: u64) -> bool {
+        !self.needs_snapshot
+            && self
+                .content_version
+                .is_some_and(|version| version.0.get() == generation && version.1 == revision)
     }
     pub(super) fn accepts_feedback(&self, action: &TerminalViewerAction) -> bool {
         let Some(flight) = self.flight else {
@@ -55,6 +64,9 @@ impl ViewerProjection {
     pub(super) fn complete_feedback(&mut self, action: &TerminalViewerAction) {
         self.flight = None;
         self.needs_snapshot = matches!(action, TerminalViewerAction::NeedSnapshot { .. });
+        if self.needs_snapshot {
+            self.content_version = None;
+        }
     }
     pub(super) fn receive(&mut self, record: &[u8]) -> Result<(), ()> {
         let envelope = decode_transport_envelope(record).map_err(|_| ())?;
@@ -85,6 +97,7 @@ impl ViewerProjection {
                 self.needs_snapshot = false;
                 self.blocked_revision = None;
                 self.flight = Some(route);
+                self.content_version = Some((route.generation, route.revision));
             }
             (49, PayloadEncoding::ControlJson) => {
                 let ProjectionDemandControl::ProjectionBlocked(blocked) =
@@ -106,6 +119,7 @@ impl ViewerProjection {
                 }
                 self.blocked_revision = Some(blocked.revision);
                 self.needs_snapshot = true;
+                self.content_version = None;
             }
             _ => return Err(()),
         }

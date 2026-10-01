@@ -777,4 +777,6 @@ mod plugin_overlays;
 mod process_sampling;
 
 #[cfg(windows)]
+mod editor;
+#[cfg(windows)]
 mod plugin_popup;

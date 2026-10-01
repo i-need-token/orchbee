@@ -29,3 +29,15 @@ Pane 启动选项增加可选、有界的 `pluginContext`，仅允许与 Tab／�
 ## 独立插件 popup 契约
 
 私有插件 PopupOpen／PopupRead／PopupClose 使用既有匹配 cohort 插件传输，返回明确关联的 PopupOpened／PopupState／PopupClosing／PopupClosed／PopupUnknown。PopupOpen 携带封闭目录选择器、精确 context／Tab／Panel 及完整 Client Presentation selection、有界显示上下文、必填可空 cwd／尺寸，复用受保护名称启动环境准入。已绑定 attachment generation／incarnation 和非零未绑定 selection generation 属于来源身份。这些请求不创建规范 Pane 成员。Client PopupOpen／PopupClose 要求明确匹配的完成结果，通用 Applied 不能完成它们。hadPopup=false 的关闭可保留其他 Busy 对话框。Rust、TypeScript 与 JSON 共享有效／无效语料。[独立 popup 行为](../../apps/orchbee/docs/windows-plugins.zh-CN.md#独立终端-popup)负责物理生命周期、UI 输入及验收。对端需成套部署；不授予 Desktop 操作或新增 Host 能力。
+
+## 私有 scrollback 编辑器 popup 契约
+
+`workbench.terminal-editor` 及结果使用配套版本 OBWP51／52，不改变旧编号或公开
+CLI 定义。闭合 Open／Read／Close 消息携带 Site／request／popup 关联。Open
+指定规范已绑定 Client popup 来源、同连接只读 viewer、十进制字符串正 generation
+及完整 u64 revision，以及可绘制尺寸；不接纳可执行程序、环境、文档路径或终端
+内容。结果区分 opened／state／closing／closed／unknown 及闭合失败，并核对
+动作允许的结果和准确关联。8KiB 请求／结果限制按整条消息计算，严格核对未知
+字段及非零身份。[Server popup 模型](../../apps/orchbee-server/README.zh-CN.md#windows-scrollback-编辑器-popup-模型)
+拥有来源授权、延迟创建／启动和清理。私有契约不证明 Client 焦点或公开编辑器
+完整对齐。

@@ -282,11 +282,13 @@ fn handle_candidate_control(
     let Ok(mut records) = record_stream::ClientRecordStream::new(&stream) else {
         return;
     };
-    let mut session = terminals.session();
+    let session = std::cell::RefCell::new(terminals.session());
     let _session_result = application_session::run_guarded(
         &mut records,
-        |request| session.execute(request),
-        |request| workbench_session.execute(request),
+        |request| session.borrow_mut().execute(request),
+        |request| {
+            workbench_session.execute_with_terminal_session(request, &mut session.borrow_mut())
+        },
         |request| match request {
             orchbee_agent_observation_protocol::AgentRequest::Changes(request) => agents
                 .execute_changes_prepared(request, || terminals.prepare_agent_drain_read(agents))

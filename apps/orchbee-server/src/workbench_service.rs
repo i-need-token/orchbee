@@ -78,7 +78,7 @@ impl WorkbenchService {
         let permitted = match &request {
             WorkbenchRequest::AgentView(request) => if request.action.mutating() { self.policy.manage_navigation } else { self.policy.read },
             WorkbenchRequest::Plugin(request) => self.policy.read && (!request.action.mutating() || (self.policy.create_terminal && self.policy.manage_terminal_lifecycle)),
-            WorkbenchRequest::WindowTitle(_) | WorkbenchRequest::Notification(_) => false,
+            WorkbenchRequest::TerminalEditor(_) | WorkbenchRequest::WindowTitle(_) | WorkbenchRequest::Notification(_) => false,
             WorkbenchRequest::Configuration(request) => match request.action { orchbee_workbench_protocol::ConfigurationAction::Reload => self.policy.manage_navigation, _ => self.policy.read },
             WorkbenchRequest::AgentManifests(request) => match request.action {
                 orchbee_workbench_protocol::AgentManifestsAction::Reload { .. } | orchbee_workbench_protocol::AgentManifestsAction::Update { .. } => self.policy.manage_navigation,
@@ -177,7 +177,8 @@ impl WorkbenchService {
             return WorkbenchExecution::Response(unavailable_or_denied(request, true));
         }
         match &request {
-            WorkbenchRequest::Plugin(request) => {
+            WorkbenchRequest::TerminalEditor(_) => return WorkbenchExecution::Response(unavailable_or_denied(request, true)),
+        WorkbenchRequest::Plugin(request) => {
                 #[cfg(windows)]
                 return WorkbenchExecution::Response(WorkbenchResponse::Plugin(self.terminals.execute_plugin(request.clone())));
                 #[cfg(not(windows))]
@@ -421,6 +422,20 @@ impl WorkbenchService {
 
 fn unavailable_or_denied(request: WorkbenchRequest, denied: bool) -> WorkbenchResponse {
     match request {
+        WorkbenchRequest::TerminalEditor(request) => {
+            WorkbenchResponse::TerminalEditor(orchbee_workbench_protocol::TerminalEditorResult {
+                protocol_version: ProtocolVersion,
+                request_id: request.request_id,
+                site_id: request.site_id,
+                outcome: orchbee_workbench_protocol::TerminalEditorOutcome::Failed {
+                    reason: if denied {
+                        orchbee_workbench_protocol::TerminalEditorFailure::Denied
+                    } else {
+                        orchbee_workbench_protocol::TerminalEditorFailure::Unavailable
+                    },
+                },
+            })
+        }
         WorkbenchRequest::Plugin(request) => {
             WorkbenchResponse::Plugin(orchbee_workbench_protocol::PluginResult {
                 protocol_version: ProtocolVersion,
@@ -747,6 +762,37 @@ pub(crate) struct WorkbenchClientSession<'a> {
     generation: std::num::NonZeroU64,
 }
 impl WorkbenchClientSession<'_> {
+    pub(crate) fn execute_with_terminal_session(
+        &self,
+        request: WorkbenchRequest,
+        session: &mut crate::local_terminal_service::LocalTerminalSession<'_>,
+    ) -> WorkbenchExecution {
+        #[cfg(windows)]
+        if let WorkbenchRequest::TerminalEditor(editor) = &request {
+            use orchbee_workbench_protocol::TerminalEditorAction;
+            let allowed = self.service.policy.read
+                && match editor.action {
+                    TerminalEditorAction::Open { .. } => {
+                        self.service.policy.create_terminal
+                            && self.service.policy.manage_terminal_lifecycle
+                    }
+                    TerminalEditorAction::Close { .. } => {
+                        self.service.policy.manage_terminal_lifecycle
+                    }
+                    TerminalEditorAction::Read { .. } => true,
+                };
+            if !allowed {
+                return WorkbenchExecution::Response(unavailable_or_denied(request, true));
+            }
+            return WorkbenchExecution::Response(WorkbenchResponse::TerminalEditor(
+                session.execute_editor(self.generation, editor.clone()),
+            ));
+        }
+        #[cfg(not(windows))]
+        let _ = session;
+        self.execute(request)
+    }
+
     pub(crate) fn execute(&self, request: WorkbenchRequest) -> WorkbenchExecution {
         #[cfg(windows)]
         if let WorkbenchRequest::Plugin(plugin) = &request

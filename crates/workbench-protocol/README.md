@@ -31,3 +31,17 @@ Pane launch options additionally carry optional bounded `pluginContext` only wit
 ## Independent plugin popup contract
 
 Private plugin PopupOpen/PopupRead/PopupClose use the existing matched-cohort plugin transport and explicit correlated PopupOpened/PopupState/PopupClosing/PopupClosed/PopupUnknown results. PopupOpen carries a closed catalog selector, exact context/Tab/Panel and full Client Presentation selection, bounded display context, required nullable cwd/dimensions, and the shared protected-name launch-environment admission. Bound attachment generation/incarnation and nonzero unbound selection generation remain part of the source identity. These requests do not create canonical Pane membership. Client PopupOpen/PopupClose require explicit matching completion; generic Applied cannot complete them. A hadPopup=false close may preserve an unrelated Busy dialog. Rust, TypeScript and JSON share valid/invalid conformance vectors. [Independent popup behavior](../../apps/orchbee/docs/windows-plugins.md#independent-terminal-popup) owns physical lifecycle, UI input and acceptance. Peers deploy together; no Desktop operation or new Host capability is granted.
+
+## Private scrollback editor popup contract
+
+`workbench.terminal-editor` and its result use matched-cohort OBWP51/52 without
+changing old kinds or public CLI definitions. Closed Open/Read/Close messages carry
+Site/request/popup correlation. Open names a canonical bound Client popup source,
+a same-connection read viewer and positive generation/full-u64 revision as decimal
+strings, plus drawable geometry. No executable, environment, document path or
+transcript is admitted. Results distinguish opened/state/closing/closed/unknown
+and closed failures; action-specific responses and exact correlation are checked.
+The 8KiB request/result limit is whole-message, with strict unknown-field and
+nonzero identity checks. The [Server popup model](../../apps/orchbee-server/README.md#windows-scrollback-editor-popup-model)
+owns source authorization, deferred creation/start and cleanup. This private
+contract does not prove Client focus or completed public editor parity.

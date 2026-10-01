@@ -256,3 +256,14 @@ Server 屏幕模型拥有来源选择、下载、安装、取消和回执上限�
 封闭插件联合还验证精确只读 `pane-observe`／`pane-observed` 成员和布尔终止事实。Client `overlay` intent 固定新建与返回成员身份、预期 binding、必填可空返回 binding 及先前 zoom。返回自身或 Applied 缺少 zoom／多个叶节点会在语义验证失败。共享 Rust／JSON Schema 语料覆盖这些新增形状；运行时所有权仍由 [Windows 原生 Client 与 Server](../../apps/orchbee/docs/windows-plugins.zh-CN.md#覆盖层生命周期模型)负责，不增加 Desktop 布局或变更权限。使用匹配的原生 cohort。
 
 Pane 启动选项增加可选、有界的 `pluginContext`，仅允许与 Tab／分屏创建的 `pluginPane` 同时使用。共享命令语料覆盖 null 归一化、未知字段、UTF-8／整体上下文边界和不支持的创建类型。上下文是展示数据：Server 校验来源成员、提供规范标签，并在冻结受保护插件环境前固定调用来源与关联 ID。它不选择可执行程序、启动目录或 Worker 权限。省略字段保留旧准入。Rust 的启动 Debug 隐藏上下文；TypeScript 共享上下文 schema，避免启动／插件循环导入并保留已有插件导出。运行语义与验收范围归 [Pane 启动来源上下文](../../apps/orchbee/docs/windows-plugins.zh-CN.md#pane-启动来源上下文) 所有。
+
+## 私有 scrollback 编辑器 popup 契约
+
+Rust 与 TypeScript 共用闭合 `workbench.terminal-editor` Open／Read／Close 请求
+和动作关联结果。规范已绑定 Client 来源及同连接 viewer／内容版本是选择输入，
+不接纳可执行程序、文件路径或终端内容。规范十进制完整 u64 字段、非零身份、
+可绘制尺寸、严格字段及整条消息8KiB限制一致。
+[Rust 契约](../../crates/workbench-protocol/README.zh-CN.md#私有-scrollback-编辑器-popup-契约)
+及 [Server 模型](../../apps/orchbee-server/README.zh-CN.md#windows-scrollback-编辑器-popup-模型)
+拥有授权与物理生命周期；这是私有原生入口，不是新 Desktop 操作或已完成公开
+CLI 能力。

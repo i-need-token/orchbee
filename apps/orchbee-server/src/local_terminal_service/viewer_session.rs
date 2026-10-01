@@ -19,6 +19,8 @@ use orchbee_client_server_protocol::{
 };
 
 #[cfg(windows)]
+mod editor;
+#[cfg(windows)]
 mod process_sampling;
 mod routing;
 #[cfg(windows)]

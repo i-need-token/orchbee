@@ -1,4 +1,8 @@
 import {
+	TerminalEditorRequestSchema,
+	TerminalEditorResultSchema,
+} from './workbench-terminal-editor-contract';
+import {
 	WorkspaceGitRequestSchema,
 	WorkspaceGitResultSchema,
 } from './workbench-workspace-git-contract';
@@ -401,6 +405,7 @@ export const WorkbenchRequestSchema = z
 		WorkspaceGitRequestSchema,
 		AgentManifestsRequestSchema,
 		ConfigurationRequestSchema,
+		TerminalEditorRequestSchema,
 		PluginRequestSchema,
 		WindowTitleRequestSchema,
 		NotificationRequestSchema,
@@ -786,6 +791,7 @@ export const WorkbenchResponseSchema = z
 		WorkspaceGitResultSchema,
 		AgentManifestsResultSchema,
 		ConfigurationResultSchema,
+		TerminalEditorResultSchema,
 		PluginResultSchema,
 		WindowTitleResultSchema,
 		NotificationResultSchema,

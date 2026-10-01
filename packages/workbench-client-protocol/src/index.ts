@@ -543,3 +543,13 @@ export {
 	type PluginPopupSize,
 	type PluginPopupSpec,
 } from './workbench-plugin-popup-contract';
+
+export {
+	ScrollbackEditorSpecSchema,
+	TerminalEditorRequestSchema,
+	TerminalEditorResultSchema,
+	WORKBENCH_MAXIMUM_TERMINAL_EDITOR_BYTES,
+	type ScrollbackEditorSpec,
+	type TerminalEditorRequest,
+	type TerminalEditorResult,
+} from './workbench-terminal-editor-contract';
