@@ -553,3 +553,21 @@ export {
 	type TerminalEditorRequest,
 	type TerminalEditorResult,
 } from './workbench-terminal-editor-contract';
+
+export {
+	ConfiguredCommandRequestSchema,
+	ConfiguredCommandResultSchema,
+	ConfiguredCommandInvocationSchema,
+	WORKBENCH_MAXIMUM_CONFIGURED_COMMAND_BYTES,
+	type ConfiguredCommandRequest,
+	type ConfiguredCommandResult,
+	type ConfiguredCommandInvocation,
+} from './workbench-configured-command-contract';
+export {
+	ConfiguredCommandDescriptorSchema,
+	ConfiguredCommandPopupSpecSchema,
+	ConfiguredCommandSelectionSchema,
+	type ConfiguredCommandDescriptor,
+	type ConfiguredCommandPopupSpec,
+	type ConfiguredCommandSelection,
+} from './workbench-configured-command-spec-contract';

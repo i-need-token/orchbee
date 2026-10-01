@@ -109,6 +109,8 @@ use crate::invocation::CompletionShell;
 /// Top-level words the grammar accepts before any option.
 const ROOT_WORDS: &[&str] = &[
     #[cfg(windows)]
+    "command",
+    #[cfg(windows)]
     "plugin",
     #[cfg(windows)]
     "popup",
@@ -145,6 +147,8 @@ const ROOT_WORDS: &[&str] = &[
 /// reject it.
 const FORMAT_ROOT_WORDS: &[&str] = &[
     #[cfg(windows)]
+    "command",
+    #[cfg(windows)]
     "plugin",
     #[cfg(windows)]
     "popup",
@@ -175,6 +179,8 @@ const FORMAT_ROOT_WORDS: &[&str] = &[
 
 /// family → the verbs it implements.
 const FAMILY_VERBS: &[(&str, &[&str])] = &[
+    #[cfg(windows)]
+    ("command", &["list", "invoke"]),
     #[cfg(windows)]
     ("popup", &["close"]),
     #[cfg(windows)]
@@ -490,6 +496,23 @@ const REPEATABLE_FLAGS: &[&str] = &[
 const CONTROL_FLAGS: &[&str] = &["--cols", "--rows", "--timeout", "--takeover"];
 const OBSERVE_FLAGS: &[&str] = &["--cols", "--rows", "--timeout"];
 const COMMAND_FLAGS: &[(&str, &[&str])] = &[
+    #[cfg(windows)]
+    ("command:list", &[]),
+    #[cfg(windows)]
+    (
+        "command:invoke",
+        &[
+            "--workspace",
+            "--tab",
+            "--panel",
+            "--client",
+            "--context",
+            "--anchor",
+            "--cursor",
+            "--content-revision",
+            "--timeout",
+        ],
+    ),
     #[cfg(windows)]
     ("terminal:edit-scrollback", &["--client", "--timeout"]),
     #[cfg(windows)]
@@ -1312,6 +1335,8 @@ const PROVIDER_VALUES: &[&str] = &[
 /// `<family>:<verb>` paths that consume one positional operand.
 const OPERAND_PATHS: &[&str] = &[
     #[cfg(windows)]
+    "command:invoke",
+    #[cfg(windows)]
     "terminal:link-resolve",
     #[cfg(windows)]
     "terminal:link-activate",
@@ -1442,6 +1467,8 @@ const OPERAND_PATHS: &[&str] = &[
 /// deeper word.
 const HELP_TOPICS: &[&str] = &[
     #[cfg(windows)]
+    "command",
+    #[cfg(windows)]
     "plugin",
     #[cfg(windows)]
     "popup",
@@ -1474,6 +1501,8 @@ const HELP_TOPICS: &[&str] = &[
 
 /// `help <topic>` → the deeper words that complete a help path.
 const HELP_CHILDREN: &[(&str, &[&str])] = &[
+    #[cfg(windows)]
+    ("command", &["list", "invoke"]),
     #[cfg(windows)]
     ("popup", &["close"]),
     #[cfg(windows)]

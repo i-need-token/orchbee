@@ -126,6 +126,12 @@ pub(crate) enum NativeSessionNotice {
     HistoryUnavailable,
     #[cfg(windows)]
     PopupUnavailable,
+    #[cfg(windows)]
+    CommandAccepted,
+    #[cfg(windows)]
+    CommandFailed,
+    #[cfg(windows)]
+    CommandUnknown,
 }
 
 /// What one pane's retained-history surface paints right now. `Window`
@@ -239,6 +245,8 @@ pub(crate) struct NativeSessionView<'a> {
     reports: Option<&'a super::panel_reports::PanelReports>,
     #[cfg(windows)]
     popup_failed: bool,
+    #[cfg(windows)]
+    command_notice: Option<NativeSessionNotice>,
     #[cfg(windows)]
     popup: Option<super::independent_popup::PopupView<'a>>,
 }
@@ -385,6 +393,10 @@ impl<'a> NativeSessionView<'a> {
         #[cfg(windows)]
         if self.popup_failed {
             return Some(NativeSessionNotice::PopupUnavailable);
+        }
+        #[cfg(windows)]
+        if self.command_notice.is_some() {
+            return self.command_notice;
         }
         self.state.as_ref()?.notice().map(|notice| match notice {
             SessionNotice::LocalBusy => NativeSessionNotice::LocalBusy,
@@ -574,6 +586,8 @@ impl<'a> NativeSessionView<'a> {
             #[cfg(windows)]
             popup_failed: false,
             #[cfg(windows)]
+            command_notice: None,
+            #[cfg(windows)]
             popup: None,
         }
     }
@@ -649,6 +663,8 @@ pub(super) struct NativeUi {
     overlays: super::plugin_overlays::Driver,
     #[cfg(windows)]
     popup: super::independent_popup::Driver,
+    #[cfg(windows)]
+    command_notice: Option<(NativeSessionNotice, std::time::Instant)>,
     /// `presentation_id → workbench placement` over the freshest observed
     /// canonical snapshot — a pure function of that snapshot, rebuilt
     /// whole on every snapshot-bearing event.
@@ -732,6 +748,8 @@ impl NativeUi {
             overlays: super::plugin_overlays::Driver::new(clock.clone()),
             #[cfg(windows)]
             popup: super::independent_popup::Driver::new(clock.clone()),
+            #[cfg(windows)]
+            command_notice: None,
             agent_index: super::agent_board::PresentationIndex::default(),
             clock,
             state: None,
@@ -790,6 +808,11 @@ impl NativeUi {
                 .map(|_| &self.reports),
             #[cfg(windows)]
             popup_failed: self.popup.failed(),
+            #[cfg(windows)]
+            command_notice: self
+                .command_notice
+                .filter(|(_, until)| self.clock.now() < *until)
+                .map(|(notice, _)| notice),
             #[cfg(windows)]
             popup: self.popup.view(),
         }
@@ -1789,6 +1812,7 @@ impl NativeUi {
         match action {
             #[cfg(windows)]
             ClientAction::OpenMachines
+            | ClientAction::ConfiguredCommand(_)
             | ClientAction::PreviousAgent
             | ClientAction::NextAgent
             | ClientAction::FocusAgent(_) => SessionActionDisposition::KeepNavigator,

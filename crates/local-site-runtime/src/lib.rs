@@ -26,14 +26,15 @@ mod windows_user_settings;
 pub use windows_user_settings::{
     DEFAULT_WINDOW_TITLE, MAXIMUM_AGENT_SIDEBAR_PROFILE_BYTES, MAXIMUM_SPACE_SIDEBAR_PROFILE_BYTES,
     WindowsAgentSidebarSettings, WindowsAgentSidebarToken, WindowsAgentSidebarTokenKind,
-    WindowsDirectoryPolicy, WindowsKeyChord, WindowsKeyOverride, WindowsKeySettings,
-    WindowsKeyTrigger, WindowsKeysResetOutcome, WindowsKeysResetReport,
+    WindowsCommandSize, WindowsCustomCommand, WindowsCustomCommandAction,
+    WindowsCustomCommandEntry, WindowsDirectoryPolicy, WindowsKeyChord, WindowsKeyOverride,
+    WindowsKeySettings, WindowsKeyTrigger, WindowsKeysResetOutcome, WindowsKeysResetReport,
     WindowsNotificationDelivery, WindowsNotificationSettings, WindowsSettingsError,
     WindowsShellMode, WindowsShellSettings, WindowsSidebarTokenStyle, WindowsSpaceSidebarSettings,
     WindowsSpaceSidebarToken, WindowsSpaceSidebarTokenKind, WindowsUpdateChannel,
     WindowsUserSettings, WindowsWindowTitleTemplate, read_windows_user_settings,
     read_windows_user_settings_at, reset_windows_keybindings, set_windows_update_channel,
-    windows_user_settings_path,
+    trigger_label, windows_user_settings_path,
 };
 #[cfg(windows)]
 mod windows_directory;
@@ -42,7 +43,7 @@ pub use windows_directory::{WINDOWS_DIRECTORY_PROMPT, windows_reported_directory
 #[cfg(windows)]
 mod windows_command;
 #[cfg(windows)]
-pub use windows_command::windows_encoded_command;
+pub use windows_command::{windows_encoded_command, windows_raw_command_encoded};
 #[cfg(windows)]
 mod activation_record_windows;
 mod cohort;

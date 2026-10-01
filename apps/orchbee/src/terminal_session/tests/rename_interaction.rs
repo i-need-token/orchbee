@@ -71,6 +71,7 @@ impl RenameServer {
                             | WorkbenchRequest::WorktreeQuery(_)
                             | WorkbenchRequest::AgentManifests(_)
                             | WorkbenchRequest::Configuration(_)
+                            | WorkbenchRequest::ConfiguredCommand(_)
                             | WorkbenchRequest::Plugin(_)
                             | WorkbenchRequest::TerminalEditor(_)
                             | WorkbenchRequest::WindowTitle(_)

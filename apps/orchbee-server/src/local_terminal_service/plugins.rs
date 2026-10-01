@@ -132,6 +132,7 @@ impl LocalTerminalService {
             Err(_) => return Err(Failure::Unavailable),
         };
         Ok(match result.outcome {
+            node::PluginJobOutcome::ConfiguredStarted { .. } => return Err(Failure::InvalidIntent),
             node::PluginJobOutcome::Started { log, existing } => Outcome::Started {
                 worker,
                 log: Box::new(project(*log)),

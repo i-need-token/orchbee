@@ -4,6 +4,109 @@ fn id(n: u32) -> OperationId {
     b[..4].copy_from_slice(&n.to_be_bytes());
     OperationId::from_bytes(b).unwrap()
 }
+#[test]
+fn configured_shell_is_retained_independently_and_shutdown_joins_its_process() {
+    let root = std::env::temp_dir().canonicalize().unwrap();
+    let directory = root.join(format!(
+        "orchbee-configured-command-test-{}-{}",
+        std::process::id(),
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    std::fs::create_dir(&directory).unwrap();
+    struct Owned {
+        jobs: PluginJobs,
+        directory: std::path::PathBuf,
+    }
+    impl Drop for Owned {
+        fn drop(&mut self) {
+            self.jobs
+                .stop_before(Instant::now() + Duration::from_secs(6))
+                .unwrap();
+            let _ = std::fs::remove_file(self.directory.join("receipt.txt"));
+            std::fs::remove_dir(&self.directory).unwrap();
+        }
+    }
+    let owned = Owned {
+        jobs: PluginJobs::new(),
+        directory,
+    };
+    let command = orchbee_capability_node_protocol::ConfiguredCommandIntent {
+        command_id: "cmd_profile_0".into(), directory: owned.directory.to_str().unwrap().into(),
+        command: "echo %ORCHBEE_COMMAND_ID%>receipt.txt & ping -n 20 127.0.0.1 >nul & echo finished>>receipt.txt".into(),
+        environment: vec![("ORCHBEE_COMMAND_ID".into(), "cmd_profile_0".into())],
+    };
+    assert_eq!(
+        owned
+            .jobs
+            .execute(id(800), PluginJobAction::StartConfigured(command.clone())),
+        Outcome::ConfiguredStarted {
+            job_id: id(800),
+            existing: false
+        }
+    );
+    assert_eq!(
+        owned
+            .jobs
+            .execute(id(800), PluginJobAction::StartConfigured(command.clone())),
+        Outcome::ConfiguredStarted {
+            job_id: id(800),
+            existing: true
+        }
+    );
+    let mut other = command.clone();
+    other.command = "exit 0".into();
+    assert_eq!(
+        owned
+            .jobs
+            .execute(id(800), PluginJobAction::StartConfigured(other)),
+        Outcome::Refused(Refusal::Conflict)
+    );
+    assert_eq!(
+        owned.jobs.execute(
+            id(800),
+            PluginJobAction::Start(intent(&["cmd.exe", "/c", "exit 0"]))
+        ),
+        Outcome::Refused(Refusal::Conflict)
+    );
+    let deadline = Instant::now() + Duration::from_secs(3);
+    while !owned.directory.join("receipt.txt").exists() {
+        assert!(Instant::now() < deadline);
+        thread::sleep(Duration::from_millis(10));
+    }
+    assert!(
+        std::fs::read_to_string(owned.directory.join("receipt.txt"))
+            .unwrap()
+            .contains("cmd_profile_0")
+    );
+    assert!(
+        matches!(owned.jobs.execute(id(801), PluginJobAction::List {plugin_id:None,before:None,limit:4}), Outcome::Logs {logs,..} if logs.is_empty())
+    );
+    owned
+        .jobs
+        .stop_before(Instant::now() + Duration::from_secs(6))
+        .unwrap();
+    let before = std::fs::read(owned.directory.join("receipt.txt")).unwrap();
+    thread::sleep(Duration::from_millis(100));
+    assert_eq!(
+        std::fs::read(owned.directory.join("receipt.txt")).unwrap(),
+        before
+    );
+    assert!(!String::from_utf8_lossy(&before).contains("finished"));
+    let mut bad = command;
+    bad.directory = owned.directory.join("missing").to_str().unwrap().into();
+    let jobs = PluginJobs::new();
+    assert_eq!(
+        jobs.execute(id(802), PluginJobAction::StartConfigured(bad.clone())),
+        Outcome::Refused(Refusal::Unavailable)
+    );
+    assert_eq!(
+        jobs.execute(id(802), PluginJobAction::StartConfigured(bad)),
+        Outcome::Refused(Refusal::Unavailable)
+    );
+}
 fn intent(args: &[&str]) -> PluginCommandIntent {
     PluginCommandIntent {
         plugin_id: "test".into(),

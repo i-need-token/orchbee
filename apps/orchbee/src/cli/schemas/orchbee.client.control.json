@@ -8,7 +8,7 @@
 			"const": "orchbee.client.control"
 		},
 		"version": {
-			"enum": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+			"enum": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
 		},
 		"siteId": {
 			"anyOf": [
@@ -663,6 +663,19 @@
 						},
 						"spec": {
 							"$ref": "#/$defs/editorSpec"
+						}
+					},
+					"required": ["kind", "spec"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "command-popup-open"
+						},
+						"spec": {
+							"$ref": "#/$defs/configuredPopupSpec"
 						}
 					},
 					"required": ["kind", "spec"],
@@ -2321,6 +2334,122 @@
 			},
 			"required": ["source"],
 			"additionalProperties": false
+		},
+		"configuredPopupSpec": {
+			"type": "object",
+			"properties": {
+				"commandId": {
+					"type": "string",
+					"pattern": "^cmd_[A-Za-z0-9_]*$",
+					"maxLength": 120
+				},
+				"source": {
+					"type": "object",
+					"properties": {
+						"terminalContextId": {
+							"$ref": "#/$defs/terminalContextId"
+						},
+						"tabId": {
+							"$ref": "#/$defs/tabId"
+						},
+						"member": {
+							"$ref": "#/$defs/boundPresentationSelection"
+						},
+						"panelId": {
+							"$ref": "#/$defs/panelId"
+						}
+					},
+					"required": ["terminalContextId", "tabId", "member", "panelId"],
+					"additionalProperties": false
+				},
+				"context": {
+					"$ref": "#/$defs/popupContext"
+				},
+				"width": {
+					"oneOf": [
+						{
+							"oneOf": [
+								{
+									"type": "object",
+									"properties": {
+										"kind": {
+											"const": "cells"
+										},
+										"value": {
+											"type": "integer",
+											"minimum": 1,
+											"maximum": 4096
+										}
+									},
+									"required": ["kind", "value"],
+									"additionalProperties": false
+								},
+								{
+									"type": "object",
+									"properties": {
+										"kind": {
+											"const": "percent"
+										},
+										"value": {
+											"type": "integer",
+											"minimum": 1,
+											"maximum": 100
+										}
+									},
+									"required": ["kind", "value"],
+									"additionalProperties": false
+								}
+							]
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"height": {
+					"oneOf": [
+						{
+							"oneOf": [
+								{
+									"type": "object",
+									"properties": {
+										"kind": {
+											"const": "cells"
+										},
+										"value": {
+											"type": "integer",
+											"minimum": 1,
+											"maximum": 4096
+										}
+									},
+									"required": ["kind", "value"],
+									"additionalProperties": false
+								},
+								{
+									"type": "object",
+									"properties": {
+										"kind": {
+											"const": "percent"
+										},
+										"value": {
+											"type": "integer",
+											"minimum": 1,
+											"maximum": 100
+										}
+									},
+									"required": ["kind", "value"],
+									"additionalProperties": false
+								}
+							]
+						},
+						{
+							"type": "null"
+						}
+					]
+				}
+			},
+			"required": ["commandId", "source", "context", "width", "height"],
+			"additionalProperties": false
 		}
 	},
 	"allOf": [
@@ -2863,7 +2992,7 @@
 			"if": {
 				"properties": {
 					"version": {
-						"enum": [9, 10]
+						"enum": [9, 10, 11]
 					}
 				}
 			},
@@ -2889,7 +3018,12 @@
 																"type": "object",
 																"properties": {
 																	"kind": {
-																		"enum": ["popup-open", "popup-close", "editor-open"]
+																		"enum": [
+																			"popup-open",
+																			"popup-close",
+																			"editor-open",
+																			"command-popup-open"
+																		]
 																	}
 																},
 																"required": ["kind"]
@@ -3059,6 +3193,95 @@
 																	"properties": {
 																		"kind": {
 																			"const": "editor-open"
+																		}
+																	},
+																	"required": ["kind"]
+																}
+															}
+														}
+													}
+												}
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"version": {
+						"const": 11
+					}
+				}
+			},
+			"then": {
+				"type": ["object", "null"],
+				"properties": {
+					"observation": {
+						"type": ["object", "null"],
+						"properties": {
+							"reply": {
+								"type": ["object", "null"],
+								"properties": {
+									"outcome": {
+										"type": ["object", "null"],
+										"properties": {
+											"operation": {
+												"type": ["object", "null"],
+												"properties": {
+													"command": {
+														"type": "object",
+														"properties": {
+															"intent": {
+																"type": "object",
+																"properties": {
+																	"kind": {
+																		"const": "command-popup-open"
+																	}
+																},
+																"required": ["kind"]
+															}
+														}
+													}
+												}
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			},
+			"else": {
+				"type": ["object", "null"],
+				"properties": {
+					"observation": {
+						"type": ["object", "null"],
+						"properties": {
+							"reply": {
+								"type": ["object", "null"],
+								"properties": {
+									"outcome": {
+										"type": ["object", "null"],
+										"properties": {
+											"operation": {
+												"type": ["object", "null"],
+												"properties": {
+													"command": {
+														"type": "object",
+														"properties": {
+															"intent": {
+																"not": {
+																	"type": "object",
+																	"properties": {
+																		"kind": {
+																			"const": "command-popup-open"
 																		}
 																	},
 																	"required": ["kind"]

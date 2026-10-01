@@ -7,7 +7,7 @@ use super::{
 use crate::agent_screen::ScreenDetector;
 use crate::site_coordinator::ProcessObservationTarget;
 use std::sync::atomic::{AtomicBool, Ordering};
-mod screen;
+pub(in crate::local_terminal_service) mod screen;
 
 pub(in crate::local_terminal_service) struct CapturedAgentExplanation {
     pub(in crate::local_terminal_service) explanation:

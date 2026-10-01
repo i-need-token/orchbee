@@ -1,4 +1,4 @@
-//! Retained plugin process owners, independent of a CLI connection or terminal Host.
+//! Retained plugin and configured process owners, independent of CLI connections or terminal Hosts.
 use orchbee_capability_node_protocol::{
     OperationId, PluginCommandFailure as Failure, PluginCommandIntent, PluginCommandLog,
     PluginJobAction, PluginJobOutcome as Outcome, PluginJobRefusal as Refusal,
@@ -13,6 +13,7 @@ use std::{
     thread::{self, JoinHandle},
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
+mod configured;
 mod process;
 const MAX_RUNNING: usize = 32;
 const MAX_LOGS: usize = 200;
@@ -31,6 +32,7 @@ struct Record {
 }
 struct Inner {
     records: Vec<Record>,
+    commands: Vec<configured::Record>,
     next_sequence: u64,
     stopping: bool,
     retired: bool,
@@ -47,6 +49,7 @@ impl PluginJobs {
         Self {
             inner: Mutex::new(Inner {
                 records: Vec::new(),
+                commands: Vec::new(),
                 next_sequence: 1,
                 stopping: false,
                 retired: false,
@@ -63,6 +66,7 @@ impl PluginJobs {
         };
         settle(&mut inner);
         match action {
+            PluginJobAction::StartConfigured(intent) => configured::start(&mut inner, id, intent),
             PluginJobAction::Start(intent) => self.start(&mut inner, id, intent),
             PluginJobAction::Get { job_id } => Outcome::Logs {
                 logs: inner
@@ -114,6 +118,9 @@ impl PluginJobs {
         }
     }
     fn start(&self, inner: &mut Inner, id: OperationId, intent: PluginCommandIntent) -> Outcome {
+        if inner.commands.iter().any(|record| record.id == id) {
+            return Outcome::Refused(Refusal::Conflict);
+        }
         if let Some(record) = inner.records.iter().find(|r| r.log.job_id == id) {
             return if record.intent == intent {
                 Outcome::Started {
@@ -130,13 +137,7 @@ impl PluginJobs {
         if inner.stopping || inner.next_sequence >= 9_007_199_254_740_991 {
             return Outcome::Refused(Refusal::Unavailable);
         }
-        if inner
-            .records
-            .iter()
-            .filter(|r| matches!(r.state, State::Running { .. }))
-            .count()
-            >= MAX_RUNNING
-        {
+        if running(inner) >= MAX_RUNNING {
             return Outcome::Refused(Refusal::Busy);
         }
         let log = PluginCommandLog {
@@ -209,6 +210,7 @@ impl PluginJobs {
                         running = true;
                     }
                 }
+                running |= configured::cancel(&inner.commands);
                 if !running {
                     return if inner.retired {
                         Err(io::Error::other("Plugin process cleanup unknown"))
@@ -226,6 +228,7 @@ impl PluginJobs {
     }
 }
 fn settle(inner: &mut Inner) {
+    configured::settle(inner);
     for record in &mut inner.records {
         if !matches!(&record.state,State::Running{join,..} if join.is_finished()) {
             continue;
@@ -252,6 +255,7 @@ fn settle(inner: &mut Inner) {
 impl Drop for PluginJobs {
     fn drop(&mut self) {
         let inner = self.inner.get_mut().unwrap_or_else(|e| e.into_inner());
+        configured::cancel(&inner.commands);
         for record in &inner.records {
             if let State::Running { cancel, .. } = &record.state {
                 cancel.store(true, Ordering::Relaxed);
@@ -264,7 +268,16 @@ impl Drop for PluginJobs {
                 let _settled = join.join();
             }
         }
+        configured::join(&mut inner.commands);
     }
+}
+fn running(inner: &Inner) -> usize {
+    inner
+        .records
+        .iter()
+        .filter(|r| matches!(r.state, State::Running { .. }))
+        .count()
+        + inner.commands.iter().filter(|r| r.running()).count()
 }
 fn now_ms() -> u64 {
     SystemTime::now()

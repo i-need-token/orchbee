@@ -2,6 +2,22 @@
 
 This crate owns the typed requests, responses, validation, and framed transport shared by native Workbench clients and the Server. It defines contracts without opening sockets or executing operations; runtime owners interpret admitted requests.
 
+## Configured command invocation
+
+Matched cohorts use closed `workbench.configured-command` request/result kinds
+53/54 with a 256 KiB bound. The installed key profile owns catalog IDs and all
+four actions. Invocation carries the expected canonical revision and an optional
+exact Client/source fence, never an executable. Replies distinguish background
+job admission, canonical Pane creation, plugin execution and retained Client
+popup control; nested receipts preserve their original uncertainty.
+
+Configured popup controls carry a separate typed selector, source, display
+context and configured dimensions. Open/read/close are owned by the authenticated
+Client connection and use the existing independent terminal lifecycle. A stale
+catalog, selection, membership or source refuses before dispatch. No configured
+command is represented as an installed plugin. [Native command behavior](../../apps/orchbee/docs/windows-custom-commands.md)
+owns configuration, dispatch and Windows lifetime.
+
 ## Native plugin runtime contract
 
 Closed plugin invocation/log/get/cancel requests and replies use matched-cohort OBWP kinds 45/46, capped at 32 KiB and 8 MiB respectively. Context carries display data only; admitted Server resolves executable intent and Worker owns processes. Log cursors pin Worker identity/generation and descending sequence; uncertain mutation delivery is explicit. Rust, TypeScript and JSON share the plugin conformance corpus. [Native plugin behavior](../../apps/orchbee/docs/windows-plugins.md) owns runtime lifecycle and remaining integration.

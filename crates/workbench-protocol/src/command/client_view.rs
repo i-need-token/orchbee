@@ -119,6 +119,9 @@ pub struct ClientViewRecord {
     deny_unknown_fields
 )]
 pub enum ClientViewIntent {
+    CommandPopupOpen {
+        spec: Box<crate::ConfiguredCommandPopupSpec>,
+    },
     EditorOpen {
         spec: Box<crate::ScrollbackEditorSpec>,
     },
@@ -223,6 +226,7 @@ impl ClientViewIntent {
     #[must_use]
     pub fn popup_source(&self) -> Option<&crate::ClientPopupSource> {
         match self {
+            Self::CommandPopupOpen { spec } => Some(&spec.source),
             Self::EditorOpen { spec } => Some(&spec.source),
             Self::PopupOpen { spec } => Some(&spec.source),
             _ => None,
@@ -353,7 +357,8 @@ impl ClientViewIntent {
             return false;
         };
         match self {
-            Self::EditorOpen { .. }
+            Self::CommandPopupOpen { .. }
+            | Self::EditorOpen { .. }
             | Self::PopupOpen { .. }
             | Self::PopupClose {}
             | Self::TerminalAgentAttention { .. }
@@ -430,6 +435,9 @@ pub struct ClientViewControl {
 impl ClientViewControl {
     pub fn validate(&self) -> Result<(), ContractError> {
         if let ClientViewIntent::EditorOpen { spec } = &self.intent {
+            spec.validate()?;
+        }
+        if let ClientViewIntent::CommandPopupOpen { spec } = &self.intent {
             spec.validate()?;
         }
         if let ClientViewIntent::PopupOpen { spec } = &self.intent {

@@ -46,6 +46,7 @@ fn run(
 #[test]
 fn configured_actions_displace_defaults_and_preserve_passthrough_order() {
     let keys = WindowsKeySettings {
+        commands: Vec::new(),
         prefix: chord("a", true),
         overrides: vec![binding("new_tab", "n", true), binding("help", "f1", false)],
     };
@@ -77,6 +78,37 @@ fn configured_actions_displace_defaults_and_preserve_passthrough_order() {
         calls.borrow().last(),
         Some(&Call::Action(ClientAction::UnknownPrefix))
     );
+}
+
+#[test]
+fn configured_command_dispatch_and_discovery_share_the_installed_catalog() {
+    let keys = WindowsKeySettings::from_profile(
+        "[[keys.command]]\ncommand='echo hello'\nkey='prefix+c'\ndescription=\"Run \\u001b[31mhello\\u001b[0m\"\n[[keys.command]]\ncommand='tools.refresh'\ntype='plugin_action'\ndescription='Refresh tools'",
+    ).unwrap();
+    let id = keys.command_catalog()[0].id.clone();
+    let mut view = ClientView::new(100);
+    view.configure_keys(&keys);
+    let calls = Rc::new(RefCell::new(Vec::new()));
+    let mut port = UnavailablePort(Rc::clone(&calls));
+    let mut dispatcher = InputDispatcher::default();
+    run(&mut view, &mut dispatcher, &mut port, b"before\x02ctail");
+    assert_eq!(
+        *calls.borrow(),
+        [
+            Call::Forward(b"before".to_vec()),
+            Call::Action(ClientAction::ConfiguredCommand(id)),
+            Call::Forward(b"tail".to_vec()),
+        ]
+    );
+    let rows = crate::localization::Locale::EnUs
+        .shell()
+        .configured_shortcut_rows(&view);
+    assert!(
+        rows.iter()
+            .any(|(_, description)| description == "Run hello")
+    );
+    assert!(rows.iter().any(|(label, description)|
+        description == "Refresh tools" && label.trim() == "Unbound"));
 }
 
 #[test]
@@ -257,6 +289,7 @@ fn configured_agent_ordinal_uses_binding_digit_captures_tail_and_lists_actual_he
 #[test]
 fn function_prefix_is_atomic_and_literal_forwarding_never_falls_back_to_control_b() {
     let keys = WindowsKeySettings {
+        commands: Vec::new(),
         prefix: chord("f2", false),
         ..WindowsKeySettings::default()
     };
@@ -311,6 +344,7 @@ fn custom_direct_keys_respect_confirmation_board_history_paste_and_releases() {
         }
     }
     let keys = WindowsKeySettings {
+        commands: Vec::new(),
         overrides: vec![binding("help", "f1", false)],
         ..WindowsKeySettings::default()
     };
@@ -349,6 +383,7 @@ fn custom_direct_keys_respect_confirmation_board_history_paste_and_releases() {
 #[test]
 fn configured_discovery_and_snapshot_follow_the_dispatch_registry() {
     let mut keys = WindowsKeySettings {
+        commands: Vec::new(),
         prefix: chord("a", true),
         overrides: vec![
             binding("help", "f1", false),
@@ -387,6 +422,7 @@ fn configured_discovery_and_snapshot_follow_the_dispatch_registry() {
 #[test]
 fn indexed_default_conflict_displaces_only_the_occupied_digit() {
     let keys = WindowsKeySettings {
+        commands: Vec::new(),
         overrides: vec![binding("help", "3", true)],
         ..WindowsKeySettings::default()
     };
@@ -413,6 +449,7 @@ fn indexed_default_conflict_displaces_only_the_occupied_digit() {
 #[test]
 fn configured_indexed_direct_keys_keep_modifiers_and_compact_discovery() {
     let keys = WindowsKeySettings {
+        commands: Vec::new(),
         overrides: vec![WindowsKeyOverride {
             action: "switch_tab",
             triggers: (1..=9)
@@ -452,6 +489,7 @@ fn configured_indexed_direct_keys_keep_modifiers_and_compact_discovery() {
             .any(|(key, _)| key.trim() == "Alt+1..9")
     );
     let keys = WindowsKeySettings {
+        commands: Vec::new(),
         overrides: vec![binding("new_tab", "n", true)],
         ..WindowsKeySettings::default()
     };

@@ -66,7 +66,7 @@ fn key_configuration_rejects_ambiguous_reserved_unsafe_and_unimplemented_values(
         ("help='prefix+hyper+x'", "invalid-binding"),
         ("help=3", "wrong-type"),
         ("help=['f1', false]", "wrong-type"),
-        ("command=[]", "unknown-key"),
+        ("custom_command=[]", "unknown-key"),
     ] {
         assert_eq!(read(body).unwrap_err().reason, reason, "{body}");
     }

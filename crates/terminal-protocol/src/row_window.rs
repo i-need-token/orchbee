@@ -8,7 +8,9 @@ use crate::{
 use std::num::NonZeroU64;
 
 mod render;
+mod selection;
 pub use render::{TerminalRenderRowWindow, decode_terminal_render_row_window};
+pub use selection::extract_terminal_text_selection;
 
 pub const TERMINAL_ROW_WINDOW_HEADER_BYTES: usize = 112;
 

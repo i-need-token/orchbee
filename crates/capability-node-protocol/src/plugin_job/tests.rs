@@ -18,6 +18,58 @@ fn intent() -> PluginCommandIntent {
         environment: vec![("ORCHBEE_PLUGIN_ID".into(), "sample".into())],
     }
 }
+#[test]
+fn configured_jobs_use_closed_v2_and_correlated_spawn_receipts() {
+    let req = request(PluginJobAction::StartConfigured(ConfiguredCommandIntent {
+        command_id: "cmd_profile_0".into(),
+        directory: "C:/commands".into(),
+        command: "echo \"a b\" & exit /b 7".into(),
+        environment: vec![("ORCHBEE_COMMAND_ID".into(), "cmd_profile_0".into())],
+    }));
+    let reply = PluginJobResult {
+        operation_id: req.operation_id,
+        worker_id: req.worker_id,
+        worker_generation: req.worker_generation,
+        outcome: PluginJobOutcome::ConfiguredStarted {
+            job_id: req.operation_id,
+            existing: false,
+        },
+    };
+    assert!(reply.answers(&req));
+    for message in [
+        Message::PluginJobRequest(req.clone()),
+        Message::PluginJobResult(reply.clone()),
+    ] {
+        let bytes = encode_message(&message).unwrap();
+        assert_eq!(&bytes[..8], b"OBPJ\0\x02\0\0");
+        assert_eq!(decode_message(&bytes).unwrap(), message);
+        let mut legacy = bytes.clone();
+        legacy[5] = 1;
+        assert!(
+            decode_message(&legacy).is_err(),
+            "legacy cannot admit configured tags"
+        );
+        let mut trailing = bytes;
+        trailing.push(0);
+        assert!(decode_message(&trailing).is_err());
+    }
+    let old = encode_message(&Message::PluginJobRequest(request(PluginJobAction::Start(
+        intent(),
+    ))))
+    .unwrap();
+    assert_eq!(&old[..8], b"OBPJ\0\x01\0\0");
+    let mut bad = reply;
+    bad.outcome = PluginJobOutcome::ConfiguredStarted {
+        job_id: OperationId::from_bytes([4; 16]).unwrap(),
+        existing: true,
+    };
+    assert!(!bad.answers(&req));
+    let PluginJobAction::StartConfigured(mut intent) = req.action else {
+        panic!()
+    };
+    intent.environment.push(("PATH".into(), "untrusted".into()));
+    assert!(intent.validate().is_err());
+}
 fn log() -> PluginCommandLog {
     PluginCommandLog {
         job_id: OperationId::from_bytes([1; 16]).unwrap(),

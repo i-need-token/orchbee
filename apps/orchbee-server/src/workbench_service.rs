@@ -1,5 +1,7 @@
 #[cfg(windows)]
 mod agent_view;
+#[cfg(windows)]
+mod configured_commands;
 use crate::local_terminal_service::LocalTerminalService;
 use orchbee_server::WorkbenchReadOrNavigationRequest;
 use orchbee_workbench_protocol::{
@@ -76,6 +78,7 @@ impl WorkbenchService {
 
     pub(crate) fn execute(&self, request: WorkbenchRequest) -> WorkbenchExecution {
         let permitted = match &request {
+            WorkbenchRequest::ConfiguredCommand(_) => false,
             WorkbenchRequest::AgentView(request) => if request.action.mutating() { self.policy.manage_navigation } else { self.policy.read },
             WorkbenchRequest::Plugin(request) => self.policy.read && (!request.action.mutating() || (self.policy.create_terminal && self.policy.manage_terminal_lifecycle)),
             WorkbenchRequest::TerminalEditor(_) | WorkbenchRequest::WindowTitle(_) | WorkbenchRequest::Notification(_) => false,
@@ -177,6 +180,7 @@ impl WorkbenchService {
             return WorkbenchExecution::Response(unavailable_or_denied(request, true));
         }
         match &request {
+            WorkbenchRequest::ConfiguredCommand(_) => return WorkbenchExecution::Response(unavailable_or_denied(request, true)),
             WorkbenchRequest::TerminalEditor(_) => return WorkbenchExecution::Response(unavailable_or_denied(request, true)),
         WorkbenchRequest::Plugin(request) => {
                 #[cfg(windows)]
@@ -422,6 +426,20 @@ impl WorkbenchService {
 
 fn unavailable_or_denied(request: WorkbenchRequest, denied: bool) -> WorkbenchResponse {
     match request {
+        WorkbenchRequest::ConfiguredCommand(request) => WorkbenchResponse::ConfiguredCommand(
+            orchbee_workbench_protocol::ConfiguredCommandResult {
+                protocol_version: ProtocolVersion,
+                request_id: request.request_id,
+                site_id: request.site_id,
+                outcome: orchbee_workbench_protocol::ConfiguredCommandOutcome::Failed {
+                    reason: if denied {
+                        orchbee_workbench_protocol::ConfiguredCommandFailure::Denied
+                    } else {
+                        orchbee_workbench_protocol::ConfiguredCommandFailure::Unavailable
+                    },
+                },
+            },
+        ),
         WorkbenchRequest::TerminalEditor(request) => {
             WorkbenchResponse::TerminalEditor(orchbee_workbench_protocol::TerminalEditorResult {
                 protocol_version: ProtocolVersion,
@@ -794,6 +812,12 @@ impl WorkbenchClientSession<'_> {
     }
 
     pub(crate) fn execute(&self, request: WorkbenchRequest) -> WorkbenchExecution {
+        #[cfg(windows)]
+        if let WorkbenchRequest::ConfiguredCommand(command) = &request {
+            return WorkbenchExecution::Response(WorkbenchResponse::ConfiguredCommand(
+                self.configured_command(command.clone()),
+            ));
+        }
         #[cfg(windows)]
         if let WorkbenchRequest::Plugin(plugin) = &request
             && matches!(

@@ -1,0 +1,28 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "orchbee.cli.failure.command",
+	"title": "Installed command ID lookup failure",
+	"type": "object",
+	"required": ["schema", "version", "failure"],
+	"additionalProperties": false,
+	"properties": {
+		"schema": { "const": "orchbee.cli.failure.command" },
+		"version": { "const": 1 },
+		"failure": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["kind", "details"],
+			"properties": {
+				"kind": { "const": "not-found" },
+				"details": {
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["commandId"],
+					"properties": {
+						"commandId": { "type": "string", "maxLength": 120, "pattern": "^cmd_[A-Za-z0-9_]*$" }
+					}
+				}
+			}
+		}
+	}
+}

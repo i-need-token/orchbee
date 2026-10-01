@@ -16,6 +16,8 @@ use crate::client_view::{BackendAction, LabelStyle, Notice, PrefixDesc, format_b
 mod agent_manifests;
 mod cli;
 #[cfg(windows)]
+mod configured_commands;
+#[cfg(windows)]
 mod panel_reports;
 pub(crate) use cli::CliLabels;
 #[cfg(any(unix, windows))]
@@ -36,6 +38,8 @@ const ZH_CN_USAGE_FAILURE: &str = "调用方式无效。请运行 ‘orchbee --h
 
 fn en_us_prefix_desc(desc: PrefixDesc) -> &'static str {
     match desc {
+        #[cfg(windows)]
+        PrefixDesc::ConfiguredCommand(_) => "Run configured command",
         #[cfg(windows)]
         PrefixDesc::Machines => "Choose local or saved SSH machine",
         #[cfg(windows)]
@@ -77,6 +81,8 @@ fn en_us_prefix_desc(desc: PrefixDesc) -> &'static str {
 
 fn zh_cn_prefix_desc(desc: PrefixDesc) -> &'static str {
     match desc {
+        #[cfg(windows)]
+        PrefixDesc::ConfiguredCommand(_) => "运行配置命令",
         #[cfg(windows)]
         PrefixDesc::Machines => "选择本地或已保存的 SSH 机器",
         #[cfg(windows)]
@@ -961,6 +967,21 @@ impl Locale {
                 Self::ZhCn => "历史位置已失效 · 正在返回实时".to_owned(),
             },
             #[cfg(windows)]
+            NativeSessionNotice::CommandAccepted => match self {
+                Self::EnUs => "Command accepted".into(),
+                Self::ZhCn => "命令已接受".into(),
+            },
+            #[cfg(windows)]
+            NativeSessionNotice::CommandFailed => match self {
+                Self::EnUs => "Command or focus failed · check the command catalog".into(),
+                Self::ZhCn => "命令或聚焦失败 · 请检查命令目录".into(),
+            },
+            #[cfg(windows)]
+            NativeSessionNotice::CommandUnknown => match self {
+                Self::EnUs => "Command outcome unknown · inspect before running again".into(),
+                Self::ZhCn => "命令结果不确定 · 请检查后再决定是否执行".into(),
+            },
+            #[cfg(windows)]
             NativeSessionNotice::PopupUnavailable => match self {
                 Self::EnUs => {
                     "Popup connection or cleanup uncertain · restart the Site before reopening"
@@ -1367,7 +1388,16 @@ impl ShellText<'_> {
                     .bindings()
                     .group_label(desc, self.binding_unbound)
                     .unwrap_or_else(|| self.binding_unbound.into());
-                (label, (self.prefix_desc)(desc).to_owned())
+                let description = (self.prefix_desc)(desc);
+                #[cfg(windows)]
+                let description = view
+                    .bindings()
+                    .configured_description(desc)
+                    .unwrap_or(description);
+                (
+                    label,
+                    crate::terminal_text::sanitize_terminal_text(description).into_owned(),
+                )
             })
             .collect();
         let width = rows

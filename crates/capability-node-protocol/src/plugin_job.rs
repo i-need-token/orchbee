@@ -6,6 +6,54 @@ pub const MAXIMUM_PLUGIN_LOG_PAGE: usize = 4;
 pub const MAXIMUM_PLUGIN_INTENT_BYTES: usize = 160 * 1024;
 const MAX_INTEGER: u64 = 9_007_199_254_740_991;
 
+/// A frozen user-configured Windows command, with no plugin identity.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ConfiguredCommandIntent {
+    pub command_id: String,
+    pub directory: String,
+    pub command: String,
+    pub environment: Vec<(String, String)>,
+}
+impl ConfiguredCommandIntent {
+    pub fn validate(&self) -> Result<(), ProtocolError> {
+        identifier(&self.command_id, 120)?;
+        text(&self.directory, 4096)?;
+        text(&self.command, 4096)?;
+        if self.command.trim().is_empty()
+            || !crate::terminal_launch::is_absolute_path(self.directory.as_bytes())
+        {
+            return Err(ProtocolError::InvalidPayload);
+        }
+        environment(&self.environment)
+    }
+}
+
+fn environment(entries: &[(String, String)]) -> Result<(), ProtocolError> {
+    if entries.len() > 32 {
+        return Err(ProtocolError::InvalidPayload);
+    }
+    let mut names = std::collections::BTreeSet::new();
+    let mut bytes = 0;
+    for (name, value) in entries {
+        bytes += name.len() + value.len();
+        if name.len() > 120
+            || !name.starts_with("ORCHBEE_")
+            || !name
+                .bytes()
+                .all(|c| c.is_ascii_uppercase() || c.is_ascii_digit() || c == b'_')
+            || !names.insert(name)
+            || value.len() > 16 * 1024
+            || value.contains('\0')
+        {
+            return Err(ProtocolError::InvalidPayload);
+        }
+    }
+    if bytes > 128 * 1024 {
+        return Err(ProtocolError::InvalidPayload);
+    }
+    Ok(())
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PluginCommandIntent {
     pub plugin_id: String,
@@ -88,6 +136,7 @@ fn argv(args: &[String]) -> Result<(), ProtocolError> {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum PluginJobAction {
     Start(PluginCommandIntent),
+    StartConfigured(ConfiguredCommandIntent),
     List {
         plugin_id: Option<String>,
         before: Option<u64>,
@@ -104,6 +153,7 @@ impl PluginJobAction {
     pub fn validate(&self) -> Result<(), ProtocolError> {
         match self {
             Self::Start(intent) => intent.validate(),
+            Self::StartConfigured(intent) => intent.validate(),
             Self::List {
                 plugin_id,
                 before,
@@ -211,6 +261,10 @@ pub enum PluginJobRefusal {
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum PluginJobOutcome {
+    ConfiguredStarted {
+        job_id: OperationId,
+        existing: bool,
+    },
     Started {
         log: Box<PluginCommandLog>,
         existing: bool,
@@ -240,6 +294,11 @@ impl PluginJobResult {
                     return Err(ProtocolError::InvalidPayload);
                 }
             }
+            PluginJobOutcome::ConfiguredStarted { job_id, .. } => {
+                if job_id != &self.operation_id {
+                    return Err(ProtocolError::InvalidPayload);
+                }
+            }
             PluginJobOutcome::Logs { logs, next_before } => {
                 if logs.len() > MAXIMUM_PLUGIN_LOG_PAGE
                     || logs.windows(2).any(|p| p[0].sequence <= p[1].sequence)
@@ -261,6 +320,10 @@ impl PluginJobResult {
             && self.worker_generation == request.worker_generation
             && self.validate().is_ok()
             && match (&request.action, &self.outcome) {
+                (
+                    PluginJobAction::StartConfigured(_),
+                    PluginJobOutcome::ConfiguredStarted { job_id, .. },
+                ) => *job_id == request.operation_id,
                 (_, PluginJobOutcome::Refused(_)) => true,
                 (PluginJobAction::Start(intent), PluginJobOutcome::Started { log, .. }) => {
                     log.plugin_id == intent.plugin_id

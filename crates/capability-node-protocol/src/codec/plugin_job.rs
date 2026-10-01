@@ -8,6 +8,9 @@ const MAX_BODY: usize = 2 * 1024 * 1024;
 
 pub(super) fn encode(message: &CapabilityNodeMessage) -> Result<Vec<u8>, ProtocolError> {
     let mut body = Vec::new();
+    let configured = matches!(message,
+        CapabilityNodeMessage::PluginJobRequest(value) if matches!(value.action, PluginJobAction::StartConfigured(_)))
+        || matches!(message, CapabilityNodeMessage::PluginJobResult(value) if matches!(value.outcome, PluginJobOutcome::ConfiguredStarted { .. }));
     match message {
         CapabilityNodeMessage::PluginJobRequest(value) => {
             value.action.validate()?;
@@ -19,6 +22,17 @@ pub(super) fn encode(message: &CapabilityNodeMessage) -> Result<Vec<u8>, Protoco
                 value.worker_generation,
             );
             match &value.action {
+                PluginJobAction::StartConfigured(intent) => {
+                    body.push(5);
+                    string(&mut body, &intent.command_id);
+                    string(&mut body, &intent.directory);
+                    string(&mut body, &intent.command);
+                    body.push(intent.environment.len() as u8);
+                    for (key, val) in &intent.environment {
+                        string(&mut body, key);
+                        string(&mut body, val);
+                    }
+                }
                 PluginJobAction::Start(intent) => {
                     body.push(1);
                     string(&mut body, &intent.plugin_id);
@@ -61,6 +75,10 @@ pub(super) fn encode(message: &CapabilityNodeMessage) -> Result<Vec<u8>, Protoco
                 value.worker_generation,
             );
             match &value.outcome {
+                PluginJobOutcome::ConfiguredStarted { job_id, existing } => {
+                    body.extend([5, u8::from(*existing)]);
+                    body.extend(job_id.as_bytes());
+                }
                 PluginJobOutcome::Started { log, existing } => {
                     body.extend([1, u8::from(*existing)]);
                     encode_log(&mut body, log);
@@ -96,6 +114,9 @@ pub(super) fn encode(message: &CapabilityNodeMessage) -> Result<Vec<u8>, Protoco
         return Err(ProtocolError::InvalidPayload);
     }
     let mut frame = b"OBPJ\0\x01\0\0".to_vec();
+    if configured {
+        frame[5] = 2;
+    }
     frame.extend((body.len() as u32).to_be_bytes());
     frame.extend(body);
     Ok(frame)
@@ -159,7 +180,11 @@ fn encode_log(b: &mut Vec<u8>, log: &PluginCommandLog) {
     ]);
 }
 fn length(header: &[u8]) -> Result<usize, ProtocolError> {
-    if header.len() != 12 || &header[..8] != b"OBPJ\0\x01\0\0" {
+    if header.len() != 12
+        || &header[..5] != b"OBPJ\0"
+        || !matches!(header[5], 1 | 2)
+        || header[6..8] != [0, 0]
+    {
         return Err(ProtocolError::InvalidPayload);
     }
     let length = u32::from_be_bytes(
@@ -177,7 +202,7 @@ pub(super) fn decode(frame: &[u8]) -> Result<CapabilityNodeMessage, ProtocolErro
     if frame.len() != 12 + size {
         return Err(ProtocolError::InvalidPayload);
     }
-    decode_body(&frame[12..])
+    decode_body(&frame[12..], frame[5])
 }
 pub(super) fn read(
     reader: &mut impl Read,
@@ -189,7 +214,7 @@ pub(super) fn read(
     let size = length(&header)?;
     let mut body = vec![0; size];
     reader.read_exact(&mut body)?;
-    decode_body(&body).map_err(Into::into)
+    decode_body(&body, prefix[5]).map_err(Into::into)
 }
 fn take_bytes(r: &mut PayloadReader<'_>, cap: usize) -> Result<Vec<u8>, ProtocolError> {
     let n = r.read_u32()? as usize;
@@ -222,7 +247,7 @@ fn take_strings(r: &mut PayloadReader<'_>) -> Result<Vec<String>, ProtocolError>
     }
     (0..n).map(|_| take_string(r, 4096)).collect()
 }
-fn decode_body(body: &[u8]) -> Result<CapabilityNodeMessage, ProtocolError> {
+fn decode_body(body: &[u8], version: u8) -> Result<CapabilityNodeMessage, ProtocolError> {
     let kind = *body.first().ok_or(ProtocolError::InvalidPayload)?;
     let mut r = PayloadReader::after_kind(body, kind)?;
     let operation_id = OperationId::from_bytes(r.read_array()?)?;
@@ -232,6 +257,26 @@ fn decode_body(body: &[u8]) -> Result<CapabilityNodeMessage, ProtocolError> {
     let message = match kind {
         1 => {
             let action = match r.read_u8()? {
+                5 if version == 2 => {
+                    let command_id = take_string(&mut r, 120)?;
+                    let directory = take_string(&mut r, 4096)?;
+                    let command = take_string(&mut r, 4096)?;
+                    let count = r.read_u8()?;
+                    if count > 32 {
+                        return Err(ProtocolError::InvalidPayload);
+                    }
+                    let mut environment = Vec::new();
+                    for _ in 0..count {
+                        environment
+                            .push((take_string(&mut r, 120)?, take_string(&mut r, 16 * 1024)?));
+                    }
+                    PluginJobAction::StartConfigured(ConfiguredCommandIntent {
+                        command_id,
+                        directory,
+                        command,
+                        environment,
+                    })
+                }
                 1 => {
                     let plugin_id = take_string(&mut r, 241)?;
                     let command_id = take_string(&mut r, 241)?;
@@ -286,6 +331,10 @@ fn decode_body(body: &[u8]) -> Result<CapabilityNodeMessage, ProtocolError> {
         }
         2 => {
             let outcome = match r.read_u8()? {
+                5 if version == 2 => PluginJobOutcome::ConfiguredStarted {
+                    existing: boolean(&mut r)?,
+                    job_id: OperationId::from_bytes(r.read_array()?)?,
+                },
                 1 => {
                     let existing = boolean(&mut r)?;
                     PluginJobOutcome::Started {

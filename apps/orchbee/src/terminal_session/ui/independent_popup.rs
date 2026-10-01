@@ -45,7 +45,9 @@ impl NativeUi {
                 self.popup.begin_close();
                 Ok(())
             }
-            ClientViewIntent::PopupOpen { .. } | ClientViewIntent::EditorOpen { .. } => {
+            ClientViewIntent::CommandPopupOpen { .. }
+            | ClientViewIntent::PopupOpen { .. }
+            | ClientViewIntent::EditorOpen { .. } => {
                 let source = command.intent.popup_source().ok_or(Reason::Unsupported)?;
                 if self.popup.busy() || self.control_modal() {
                     return Err(Reason::Busy);
@@ -83,6 +85,11 @@ impl NativeUi {
                     return Err(Reason::StaleView);
                 }
                 match &command.intent {
+                    ClientViewIntent::CommandPopupOpen { spec } => self.popup.begin_configured(
+                        site,
+                        command.operation_id.clone(),
+                        spec.as_ref().clone(),
+                    ),
                     ClientViewIntent::PopupOpen { spec } => self.popup.begin_open(
                         site,
                         command.operation_id.clone(),

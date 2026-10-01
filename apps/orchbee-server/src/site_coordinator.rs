@@ -21,6 +21,8 @@ use orchbee_workbench_protocol::{
 #[cfg(any(windows, test))]
 mod checkpoint_restore;
 #[cfg(windows)]
+mod configured_command;
+#[cfg(windows)]
 mod editor_popup;
 #[cfg(windows)]
 mod independent_popup;

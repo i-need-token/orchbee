@@ -1,6 +1,8 @@
 #[cfg(windows)]
 mod configuration;
 #[cfg(windows)]
+pub(crate) mod configured_commands;
+#[cfg(windows)]
 mod independent_popup;
 #[cfg(windows)]
 mod plugins;

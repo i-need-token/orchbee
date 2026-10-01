@@ -71,6 +71,8 @@ pub(crate) struct PrefixMember {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum PrefixDesc {
     #[cfg(windows)]
+    ConfiguredCommand(u8),
+    #[cfg(windows)]
     Machines,
     #[cfg(windows)]
     AgentCycle,

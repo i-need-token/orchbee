@@ -293,6 +293,10 @@ committed objects. Directory acceptance never starts a terminal.
 renaming preserves the running terminal and becomes visible to peers through the publication
 probe or explicit refresh.
 
+[Windows custom commands](docs/windows-custom-commands.md) share one installed catalog between
+`command list`, `command invoke`, configured shortcuts and shortcut discovery. Shell jobs, Panel
+creation, independent popups and plugin actions retain their existing execution owners and receipts.
+
 Creation drains earlier accepted work and preserves known commit facts through deadline and Client
 retirement. Switching releases the old viewer before attaching the selected binding; it does not
 stop or recreate either terminal. Moving changes shared order while preserving the active terminal

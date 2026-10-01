@@ -40,8 +40,17 @@ fn route(
     mut action: orchbee_capability_node_protocol::PluginJobAction,
     runtime: Option<&std::path::Path>,
 ) -> Result<orchbee_capability_node_protocol::PluginJobAction, ()> {
-    if let orchbee_capability_node_protocol::PluginJobAction::Start(intent) = &mut action {
-        if !std::path::Path::new(&intent.directory).is_absolute() {
+    let fields = match &mut action {
+        orchbee_capability_node_protocol::PluginJobAction::Start(intent) => {
+            Some((&intent.directory, &mut intent.environment))
+        }
+        orchbee_capability_node_protocol::PluginJobAction::StartConfigured(intent) => {
+            Some((&intent.directory, &mut intent.environment))
+        }
+        _ => None,
+    };
+    if let Some((directory, environment)) = fields {
+        if !std::path::Path::new(directory).is_absolute() {
             return Err(());
         }
         if let Some(runtime) = runtime {
@@ -52,10 +61,10 @@ fn route(
                 .ok_or(())?;
             let scope = runtime.file_name().and_then(|p| p.to_str()).ok_or(())?;
             orchbee_local_site_runtime::SiteScope::parse(scope).map_err(|_| ())?;
-            intent.environment.retain(|(k, _)| {
+            environment.retain(|(k, _)| {
                 !matches!(k.as_str(), "ORCHBEE_RUNTIME_BASE" | "ORCHBEE_RUNTIME_SCOPE")
             });
-            intent.environment.extend([
+            environment.extend([
                 ("ORCHBEE_RUNTIME_BASE".into(), base.into()),
                 ("ORCHBEE_RUNTIME_SCOPE".into(), scope.into()),
             ]);

@@ -626,3 +626,7 @@ at 32 KiB independently of `agentSidebarProfile`. The configuration frame is 256
 including JSON escaping; Clients validate all four profiles before installing any.
 Public config check v11, configuration failure v8 and Site configuration receipt
 v6 preserve all older closed variants. Catalog v123 retains 105 schemas/141 paths.
+
+## Configured command wire contract
+
+[Configured commands](v1/workbench-configured-command.schema.json) close the native installed-command catalog, invoke and private independent-popup lifecycle. Native CLI `orchbee.command` embeds the same nested receipts; its Client popup follow-up uses control v11. IDs identify the normalized installed configuration and do not authorize caller-provided executable text. Required nullable source and selection fields distinguish global shell/plugin actions from current presentation-bound invocation; selected plugin text is captured from the exact terminal revision. Rust and TypeScript check ID/source/context correlation, row span, shared byte bounds and nested receipt identity in addition to JSON shape checks. [The native model](../../apps/orchbee/docs/windows-custom-commands.md) owns execution, uncertain effects, process retention and cleanup.

@@ -18,7 +18,11 @@ mod reset_keys;
 mod shell;
 mod window_title;
 use crate::windows_user_path::{WINDOWS_USER_PATH_LIMIT, normalize_windows_user_path};
-pub use keys::{WindowsKeyChord, WindowsKeyOverride, WindowsKeySettings, WindowsKeyTrigger};
+pub use keys::{
+    WindowsCommandSize, WindowsCustomCommand, WindowsCustomCommandAction,
+    WindowsCustomCommandEntry, WindowsKeyChord, WindowsKeyOverride, WindowsKeySettings,
+    WindowsKeyTrigger, trigger_label,
+};
 pub use reset_keys::{WindowsKeysResetOutcome, WindowsKeysResetReport, reset_windows_keybindings};
 pub use shell::{WindowsShellMode, WindowsShellSettings};
 use std::{

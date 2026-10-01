@@ -4,6 +4,7 @@ mod agent_view;
 #[cfg(windows)]
 pub(crate) mod client_view;
 pub(crate) mod configuration;
+mod configured_command;
 #[cfg(windows)]
 pub(crate) mod creation;
 pub(crate) mod notification;

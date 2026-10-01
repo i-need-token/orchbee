@@ -1,5 +1,9 @@
 //! Bounded Windows key configuration. Semantic dispatch stays with the Client.
 use super::WindowsSettingsError;
+mod commands;
+pub use commands::{
+    WindowsCommandSize, WindowsCustomCommand, WindowsCustomCommandAction, WindowsCustomCommandEntry,
+};
 
 const ACTIONS: &[&str] = &[
     "reload_config",
@@ -57,6 +61,7 @@ pub struct WindowsKeyOverride {
 pub struct WindowsKeySettings {
     pub prefix: WindowsKeyChord,
     pub overrides: Vec<WindowsKeyOverride>,
+    pub commands: Vec<WindowsCustomCommand>,
 }
 
 impl Default for WindowsKeySettings {
@@ -70,6 +75,7 @@ impl Default for WindowsKeySettings {
                 super_key: false,
             },
             overrides: Vec::new(),
+            commands: Vec::new(),
         }
     }
 }
@@ -89,7 +95,7 @@ impl WindowsKeySettings {
             result.prefix = parse_chord(value.as_str().ok_or(error("wrong-type"))?)?;
         }
         for (field, value) in table {
-            if field == "prefix" {
+            if matches!(field.as_str(), "prefix" | "command") {
                 continue;
             }
             let field = if field == "fullscreen" {
@@ -165,6 +171,10 @@ impl WindowsKeySettings {
             result
                 .overrides
                 .push(WindowsKeyOverride { action, triggers });
+        }
+        result.commands = commands::parse(table.get("command"), &result)?;
+        if result.profile().len() > 64 * 1024 {
+            return Err(error("too-large"));
         }
         Ok(result)
     }
@@ -270,6 +280,22 @@ fn parse_chord(raw: &str) -> Result<WindowsKeyChord, WindowsSettingsError> {
 mod tests;
 
 impl WindowsKeySettings {
+    pub fn command_catalog(&self) -> Vec<WindowsCustomCommandEntry> {
+        use sha2::{Digest, Sha256};
+        let hash = Sha256::digest(self.profile().as_bytes());
+        let namespace: String = hash[..16]
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect();
+        self.commands
+            .iter()
+            .enumerate()
+            .map(|(index, definition)| WindowsCustomCommandEntry {
+                id: format!("cmd_{namespace}_{index}"),
+                definition: definition.clone(),
+            })
+            .collect()
+    }
     pub fn from_profile(profile: &str) -> Result<Self, WindowsSettingsError> {
         if profile.len() > 64 * 1024 {
             return Err(error("too-large"));
@@ -316,6 +342,32 @@ impl WindowsKeySettings {
                 .collect();
             text.push_str(&format!("{}=[{}]\n", setting.action, values.join(",")));
         }
+        for command in &self.commands {
+            commands::write_profile(command, &mut text);
+        }
         text
     }
+}
+
+pub fn trigger_label(trigger: &WindowsKeyTrigger) -> String {
+    let mut parts = Vec::new();
+    if trigger.prefix {
+        parts.push("prefix");
+    }
+    for (enabled, name) in [
+        (trigger.chord.ctrl, "ctrl"),
+        (trigger.chord.alt, "alt"),
+        (trigger.chord.shift, "shift"),
+        (trigger.chord.super_key, "super"),
+    ] {
+        if enabled {
+            parts.push(name);
+        }
+    }
+    parts.push(match trigger.chord.key.as_str() {
+        " " => "space",
+        "+" => "plus",
+        key => key,
+    });
+    parts.join("+")
 }

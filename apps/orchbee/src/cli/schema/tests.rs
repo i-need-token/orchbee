@@ -4,6 +4,31 @@ use serde_json::Value;
 use std::collections::BTreeSet;
 
 #[test]
+fn configured_catalog_and_receipts_publish_closed_native_schema() {
+    let schema: Value = serde_json::from_str(super::document("orchbee.command").unwrap()).unwrap();
+    let validator = jsonschema::validator_for(&schema).unwrap();
+    let corpus: Value = serde_json::from_str(include_str!(
+        "../../../../../schemas/workbench/v1/workbench-configured-command-conformance-v1.json"
+    ))
+    .unwrap();
+    for case in corpus["valid"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|case| case["direction"] == "response")
+    {
+        let mut reply = case["document"].clone();
+        reply.as_object_mut().unwrap().remove("kind");
+        let mut document = serde_json::json!({"schema":"orchbee.command","version":1,"source":{"kind":"local-runtime"},"operation":"invoke","result":{"reply":reply,"followup":null,"complete":true}});
+        validator
+            .validate(&document)
+            .unwrap_or_else(|error| panic!("{}: {error}", case["name"]));
+        document["result"]["reply"]["program"] = "untrusted".into();
+        assert!(!validator.is_valid(&document));
+    }
+}
+
+#[test]
 fn plugin_catalog_v2_does_not_widen_legacy_receipts() {
     use serde_json::json;
     let schema: Value =

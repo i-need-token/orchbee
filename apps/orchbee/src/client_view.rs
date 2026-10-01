@@ -65,6 +65,8 @@ pub(crate) enum BackendAction {
 // Not `Copy`: `FocusPanel` carries a `WorkbenchPanelId` (heap identity).
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum ClientAction {
+    #[cfg(windows)]
+    ConfiguredCommand(String),
     ReloadConfiguration,
     RequestWorkspaceCreate,
     RequestWorkspaceDirectory,
@@ -205,6 +207,8 @@ impl ClientTransition {
 impl ClientAction {
     pub(crate) fn backend_action(&self) -> Option<BackendAction> {
         match self {
+            #[cfg(windows)]
+            Self::ConfiguredCommand(_) => None,
             #[cfg(windows)]
             Self::OpenMachines | Self::PreviousAgent | Self::NextAgent | Self::FocusAgent(_) => {
                 None

@@ -16,6 +16,60 @@ fn panel<'a>(node: &'a PanelNode, id: &WorkbenchPanelId) -> Option<&'a PanelNode
     }
 }
 impl NativeUi {
+    #[cfg(windows)]
+    pub(in crate::terminal_session) fn configured_command_source(
+        &self,
+    ) -> Option<(
+        Option<orchbee_workbench_protocol::ClientPopupSource>,
+        orchbee_workbench_protocol::ClientViewObservation,
+    )> {
+        let (_, view) = self.control_observation(false)?;
+        if view.phase != orchbee_workbench_protocol::ClientViewPhase::Ready {
+            return None;
+        }
+        let selection = view.selection.as_ref()?;
+        if selection.tab_id.is_none() && selection.panel_id.is_none() {
+            return Some((None, view));
+        }
+        let panel_id = selection.panel_id.as_ref()?;
+        let tab_id = selection.tab_id.as_ref()?;
+        let state = self.state.as_ref()?;
+        let active = state.active()?;
+        let tab = state.cache().tabs().get(active.index())?;
+        let panel = tab
+            .panel_index(panel_id)
+            .and_then(|index| tab.panel(index))?;
+        let selected = state.selected_presentation(panel);
+        let binding = selected.binding()?;
+        let pane = state.pane_by_panel(panel_id)?;
+        if pane.binding().worker_id() != binding.worker_id()
+            || pane.binding().terminal_id() != binding.terminal_id()
+        {
+            return None;
+        }
+        let key = pane.pane_ref();
+        let viewport = self
+            .projections
+            .iter()
+            .find(|projection| projection.key == key)
+            .map(super::client_viewport::observe)?;
+        let source = orchbee_workbench_protocol::ClientPopupSource {
+            terminal_context_id: selection.terminal_context_id.clone(),
+            tab_id: tab_id.clone(),
+            panel_id: panel_id.clone(),
+            member: ClientPresentationSelection::Bound {
+                presentation_id: selected.presentation_id().clone(),
+                binding: orchbee_workbench_protocol::PresentationBinding {
+                    worker_id: binding.worker_id().clone(),
+                    terminal_id: binding.terminal_id().clone(),
+                },
+                attachment_generation: WorkbenchRevision::new(key.anchor().generation()),
+                incarnation: key.incarnation(),
+                viewport,
+            },
+        };
+        Some((Some(source), view))
+    }
     pub(in crate::terminal_session) fn read_client_presentation(
         &self,
         command: &ClientViewControl,

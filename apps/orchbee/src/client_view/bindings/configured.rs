@@ -11,6 +11,8 @@ pub(crate) struct Entry {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct Bindings {
+    #[cfg(windows)]
+    commands: Vec<orchbee_local_site_runtime::WindowsCustomCommandEntry>,
     pub(crate) prefix: Binding,
     pub(crate) entries: Vec<Entry>,
 }
@@ -18,6 +20,8 @@ pub(crate) struct Bindings {
 impl Default for Bindings {
     fn default() -> Self {
         Self {
+            #[cfg(windows)]
+            commands: Vec::new(),
             prefix: PREFIX_CHORD,
             entries: PREFIX_GROUPS
                 .iter()
@@ -35,6 +39,20 @@ impl Default for Bindings {
 }
 
 impl Bindings {
+    #[cfg(windows)]
+    pub(crate) fn configured_description(&self, desc: PrefixDesc) -> Option<&str> {
+        let PrefixDesc::ConfiguredCommand(index) = desc else {
+            return None;
+        };
+        let entry = self.commands.get(usize::from(index))?;
+        Some(
+            entry
+                .definition
+                .description
+                .as_deref()
+                .unwrap_or(&entry.definition.command),
+        )
+    }
     pub(crate) fn descriptions(&self) -> Vec<PrefixDesc> {
         let mut result: Vec<_> = PREFIX_GROUPS.iter().map(|g| g.desc).collect();
         for entry in &self.entries {
@@ -218,6 +236,33 @@ impl Bindings {
                 desc,
             }));
         }
+        let commands = settings.command_catalog();
+        for (index, entry) in commands.iter().enumerate() {
+            let action = PrefixAction::Client(ClientAction::ConfiguredCommand(entry.id.clone()));
+            let desc = PrefixDesc::ConfiguredCommand(index as u8);
+            if entry.definition.triggers.is_empty() {
+                user.push(Entry {
+                    enabled: false,
+                    prefix: true,
+                    member: PrefixMember {
+                        keys: KeySet::One(PREFIX_CHORD),
+                        action: action.clone(),
+                        shell: ShellCommand::None,
+                    },
+                    desc,
+                });
+            }
+            user.extend(entry.definition.triggers.iter().map(|trigger| Entry {
+                enabled: true,
+                prefix: trigger.prefix,
+                member: PrefixMember {
+                    keys: KeySet::One(chord(&trigger.chord)),
+                    action: action.clone(),
+                    shell: ShellCommand::None,
+                },
+                desc,
+            }));
+        }
         let mut defaults = Vec::new();
         for mut entry in Self::default().entries {
             if replaced.contains(&entry.member.action) {
@@ -268,6 +313,9 @@ impl Bindings {
         user.extend(defaults);
         let order = Self::default().entries;
         user.sort_by_key(|entry| {
+            if let PrefixDesc::ConfiguredCommand(index) = entry.desc {
+                return order.len() + usize::from(index) + 1;
+            }
             // Configured-only actions have no default chord to displace.
             if entry.member.action == PrefixAction::SelectAgentDigit {
                 return order.len();
@@ -278,6 +326,7 @@ impl Bindings {
                 .expect("implemented action has a default registry position")
         });
         Self {
+            commands,
             prefix,
             entries: user,
         }

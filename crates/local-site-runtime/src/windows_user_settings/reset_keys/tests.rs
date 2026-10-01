@@ -97,7 +97,7 @@ fn reset_keys_backs_up_exact_bytes_preserves_file_identity_and_never_repeats_a_w
     let fixture = Fixture::new();
     let source = b"# hello\r\n[terminal]\r\nnew_cwd='home'\r\n[keys]\r\nprefix='f12'\r\n";
     fs::write(fixture.path(), source).unwrap();
-    let identity = winapi_util::file::information(&File::open(fixture.path()).unwrap())
+    let identity = winapi_util::file::information(File::open(fixture.path()).unwrap())
         .unwrap()
         .file_index();
     let WindowsKeysResetOutcome::Reset { backup_path } = fixture.reset().outcome else {
@@ -110,7 +110,7 @@ fn reset_keys_backs_up_exact_bytes_preserves_file_identity_and_never_repeats_a_w
         b"# hello\r\n[terminal]\r\nnew_cwd='home'\r\n"
     );
     assert_eq!(
-        winapi_util::file::information(&File::open(fixture.path()).unwrap())
+        winapi_util::file::information(File::open(fixture.path()).unwrap())
             .unwrap()
             .file_index(),
         identity

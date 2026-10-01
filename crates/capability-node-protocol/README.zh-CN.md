@@ -10,6 +10,19 @@ Create/Start 与绑定代次的 cwd validation。它不是 public API 或 compat
 [README.md](README.md)。
 如有冲突，以英文为准。
 
+## 配置式后台命令
+
+保留进程作业的通道也接收配置式 Windows 命令，不带插件身份或插件日志。
+OBPJ 版本 2 新增请求动作 5 和结果 outcome 5；既有插件动作保持版本 1 字节。
+动作 5 携带有界目录 ID、绝对目录、字面命令及名称唯一、有界的 `ORCHBEE_*`
+环境条目。Outcome 5 回显作业 ID 及同一冻结作业是否已存在。版本 1 拒绝两个新 tag。
+Worker ID、代次、操作关联和既有封闭拒绝原因仍然适用。
+
+Server 在派发前解析已安装配置。Worker 覆盖 Site 路由，用 Windows `cmd /d /c`
+执行字面命令，独立于调用连接持有取消及 join。插件和配置作业共享最多 32 个
+运行进程的准入上限。配置回执最多保留 200 条，绝不显示为插件历史。
+关闭时先取消并 join 两类作业，再返回完整回执。
+
 ## 私有编辑器命令解析
 
 OBCN kind 24 请求解析 Windows 编辑器命令，携带非零操作 ID、Worker ID 与正数完整宽度 Worker 代次。

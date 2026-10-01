@@ -352,3 +352,7 @@ and cleanup. Public editor operation receipts use control v10; v1-v9 reject this
 intent. The public Windows `terminal edit-scrollback` path is defined in
 [CLI workflows](../../apps/orchbee/docs/cli-workflows.md#edit-the-focused-terminals-scrollback).
 Focused wire/actor evidence does not establish final GUI/cohort acceptance.
+
+## Configured Windows command contracts
+
+The configured-command request/result binding and Client `command-popup-open` intent share one strict popup specification. The native installed keys profile owns opaque IDs; these decoded values never carry executable command text. Four action receipts preserve Worker spawn, canonical Pane creation, plugin invocation and Client popup control as distinct results. Optional plugin selection pins both row/column endpoints and the exact terminal content revision, requires a bound current source and limits capture to 4096 rows and 8192 UTF-8 bytes. Requests/results remain bounded at 256 KiB. Client control v11 admits the configured popup intent; older native output versions remain closed. Server resolution, temporary observer cleanup, physical jobs and TUI execution are described in [Windows custom commands](../../apps/orchbee/docs/windows-custom-commands.md).

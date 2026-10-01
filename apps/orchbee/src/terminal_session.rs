@@ -874,6 +874,21 @@ impl TerminalInputPort for TerminalSession {
 
     fn apply_client_action(&mut self, action: ClientAction) -> Option<SessionActionDisposition> {
         #[cfg(windows)]
+        if let ClientAction::ConfiguredCommand(id) = &action {
+            let native = self.backend.native_mut()?;
+            if !self
+                .client_control
+                .as_mut()
+                .is_some_and(|control| control.invoke_configured(native, id.clone()))
+            {
+                native.configured_command_completed(client_control::CommandCompletion {
+                    reply: Err(false),
+                    focus: None,
+                });
+            }
+            return Some(SessionActionDisposition::KeepNavigator);
+        }
+        #[cfg(windows)]
         if action == ClientAction::ReloadConfiguration {
             return self
                 .configuration

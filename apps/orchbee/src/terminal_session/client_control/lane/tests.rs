@@ -176,3 +176,90 @@ fn closing_during_the_one_workbench_snapshot_read_wakes_and_joins_without_delive
         server.finish().unwrap();
     }
 }
+
+#[test]
+fn configured_command_actor_cancels_and_joins_with_truthful_delivery_receipt() {
+    let corpus: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../../../../schemas/workbench/v1/workbench-client-view-conformance-v1.json"
+    ))
+    .unwrap();
+    let found = corpus["valid"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|case| case["name"] == "found")
+        .unwrap()["document"]
+        .clone();
+    let orchbee_workbench_protocol::WorkbenchResponse::ClientView(reply) =
+        serde_json::from_value(found).unwrap()
+    else {
+        panic!()
+    };
+    let ClientViewOutcome::Found { client: registered } = reply.outcome else {
+        panic!()
+    };
+    for during_admission in [false, true] {
+        let (reached_tx, reached_rx) = mpsc::sync_channel(1);
+        let server = FakeServer::start_connections(2, move |index, mut stream| {
+            assert!(matches!(
+                read_message(&mut stream).map_err(io::Error::other)?,
+                LocalClientMessage::ClientHello(_)
+            ));
+            if index == 0 || !during_admission {
+                write_message(
+                    &mut stream,
+                    &LocalClientMessage::ClientAccepted {
+                        generation: NonZeroU64::new(1).unwrap(),
+                    },
+                )
+                .map_err(io::Error::other)?;
+            }
+            if index == 1 {
+                if !during_admission {
+                    assert!(matches!(
+                        read_workbench_request(&mut stream).map_err(io::Error::other)?,
+                        WorkbenchRequest::ConfiguredCommand(_)
+                    ));
+                }
+                reached_tx.send(()).unwrap();
+                assert_eq!(stream.read(&mut [0])?, 0);
+            }
+            Ok(())
+        })
+        .unwrap();
+        let client = LocalClient::connect(server.endpoint(), "test-cohort").unwrap();
+        let shared = Arc::new((
+            Mutex::new(Handoff {
+                invocation_pending: true,
+                ..Default::default()
+            }),
+            Condvar::new(),
+        ));
+        let actor = configured_command::Invocation::start(
+            Arc::clone(&shared),
+            client.origin(),
+            client.operation_clock(),
+            reply.site_id.clone(),
+            (*registered).clone(),
+            orchbee_workbench_protocol::ConfiguredCommandInvocation {
+                command_id: "cmd_tools".into(),
+                source: None,
+                selection: None,
+                expected_revision: registered.view.workbench_revision,
+                context: Box::default(),
+            },
+        )
+        .unwrap();
+        drop(client);
+        reached_rx.recv_timeout(Duration::from_secs(3)).unwrap();
+        drop(actor);
+        let mut handoff = shared.0.lock().unwrap();
+        assert!(!handoff.invocation_pending);
+        assert_eq!(
+            handoff.invocation_result.take().unwrap().reply,
+            Err(!during_admission)
+        );
+        drop(handoff);
+        server.finish().unwrap();
+    }
+}

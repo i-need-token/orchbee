@@ -21,7 +21,7 @@ use orchbee_client_server_protocol::{
 #[cfg(windows)]
 mod editor;
 #[cfg(windows)]
-mod process_sampling;
+pub(in crate::local_terminal_service) mod process_sampling;
 mod routing;
 #[cfg(windows)]
 pub(super) use process_sampling::{CapturedAgentExplanation, PendingCleanup};

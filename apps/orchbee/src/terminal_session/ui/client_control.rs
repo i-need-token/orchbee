@@ -7,6 +7,75 @@ use orchbee_workbench_protocol::{
 };
 
 impl NativeUi {
+    pub(in crate::terminal_session) fn configured_command_completed(
+        &mut self,
+        completion: crate::terminal_session::client_control::CommandCompletion,
+    ) {
+        use super::NativeSessionNotice as N;
+        use orchbee_workbench_protocol::{
+            ConfiguredCommandFailure as F, ConfiguredCommandOutcome as O,
+            WorkbenchCommandOutcome as W, WorkbenchTerminalOutcome as T,
+        };
+        let notice = match completion.reply {
+            Err(true)
+            | Ok(orchbee_workbench_protocol::ConfiguredCommandResult {
+                outcome:
+                    O::Failed {
+                        reason: F::PhysicalUnknown,
+                    },
+                ..
+            }) => N::CommandUnknown,
+            Err(false)
+            | Ok(orchbee_workbench_protocol::ConfiguredCommandResult {
+                outcome: O::Failed { .. },
+                ..
+            }) => N::CommandFailed,
+            Ok(reply) => match reply.outcome {
+                O::Pane { result, .. } => match result.outcome {
+                    W::PanelSplitCreated {
+                        terminal_outcome: T::Started { .. },
+                        ..
+                    } => N::CommandAccepted,
+                    W::PanelSplitCreated {
+                        terminal_outcome: T::OutcomeUnknown {},
+                        ..
+                    } => N::CommandUnknown,
+                    _ => N::CommandFailed,
+                },
+                O::Plugin { result, .. } => match result.outcome {
+                    orchbee_workbench_protocol::PluginOutcome::Failed { .. } => N::CommandFailed,
+                    orchbee_workbench_protocol::PluginOutcome::Unknown { .. } => N::CommandUnknown,
+                    _ => N::CommandAccepted,
+                },
+                O::PopupControl { result, .. } => {
+                    if matches!(
+                        result.outcome,
+                        orchbee_workbench_protocol::ClientViewOutcome::Operation { ref operation } if matches!(operation.status, orchbee_workbench_protocol::ClientViewControlStatus::Queued {} | orchbee_workbench_protocol::ClientViewControlStatus::Delivered {})
+                    ) {
+                        N::CommandAccepted
+                    } else {
+                        N::CommandFailed
+                    }
+                }
+                O::ShellStarted { .. } => N::CommandAccepted,
+                _ => N::CommandFailed,
+            },
+        };
+        let notice = match completion.focus {
+            Some(Err(true)) => N::CommandUnknown,
+            Some(Err(false)) => N::CommandFailed,
+            Some(Ok(result))
+                if !matches!(
+                    result.outcome,
+                    orchbee_workbench_protocol::ClientViewOutcome::Operation { ref operation } if matches!(operation.status, orchbee_workbench_protocol::ClientViewControlStatus::Queued {} | orchbee_workbench_protocol::ClientViewControlStatus::Delivered {})
+                ) =>
+            {
+                N::CommandFailed
+            }
+            _ => notice,
+        };
+        self.command_notice = Some((notice, self.clock.now() + std::time::Duration::from_secs(5)));
+    }
     /// Canonical membership is checked before any Panel mode cancellation.
     pub(in crate::terminal_session) fn validate_panel_focus(
         &self,
@@ -341,6 +410,7 @@ impl NativeUi {
             | ClientViewIntent::FocusDirection { .. }
             | ClientViewIntent::Resize { .. }
             | ClientViewIntent::SetSplitRatio { .. }
+            | ClientViewIntent::CommandPopupOpen { .. }
             | ClientViewIntent::PopupOpen { .. }
             | ClientViewIntent::EditorOpen { .. }
             | ClientViewIntent::PopupClose { .. } => {

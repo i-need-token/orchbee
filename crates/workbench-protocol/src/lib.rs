@@ -9,6 +9,13 @@ pub use agent_view::{
 mod carrier;
 mod command;
 pub use command::{
+    ConfiguredCommandAction, ConfiguredCommandDescriptor, ConfiguredCommandFailure,
+    ConfiguredCommandInvocation, ConfiguredCommandKind, ConfiguredCommandOutcome,
+    ConfiguredCommandPopupSpec, ConfiguredCommandRequest, ConfiguredCommandResult,
+    ConfiguredCommandSelection, ConfiguredCommandSource, ConfiguredCommandTextPoint,
+    MAXIMUM_CONFIGURED_COMMAND_BYTES,
+};
+pub use command::{
     EditorPopupCapture, MAXIMUM_TERMINAL_EDITOR_BYTES, ScrollbackEditorSpec, TerminalEditorAction,
     TerminalEditorFailure, TerminalEditorOutcome, TerminalEditorRequest, TerminalEditorResult,
 };

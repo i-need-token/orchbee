@@ -1,6 +1,6 @@
 use super::*;
 use orchbee_terminal_protocol::{
-    AttachmentId, HostEpoch, TerminalRowPromptClass, TerminalTextCellMapping,
+    AttachmentId, HostEpoch, TerminalRowPromptClass, TerminalTextCellMapping, TerminalTextWindowRow,
 };
 use std::num::NonZeroU64;
 

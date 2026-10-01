@@ -415,6 +415,10 @@ fn fixed_outputs_are_far_below_the_bound() {
         CommandPath::SiteReloadConfig,
         CommandPath::NotificationShow,
         #[cfg(windows)]
+        CommandPath::CommandList,
+        #[cfg(windows)]
+        CommandPath::CommandInvoke,
+        #[cfg(windows)]
         CommandPath::PluginLink,
         #[cfg(windows)]
         CommandPath::PluginUnlink,

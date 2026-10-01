@@ -1,4 +1,22 @@
 import {
+	ConfiguredCommandRequestSchema,
+	ConfiguredCommandResultSchema,
+	WORKBENCH_MAXIMUM_CONFIGURED_COMMAND_BYTES,
+} from './workbench-configured-command-contract';
+import {
+	WorkbenchCommandOutcomeSchema,
+	type WorkbenchRejectionReasonSchema,
+	type WorkbenchCommandUnavailableReasonSchema,
+	WorkbenchSnapshotUnavailableReasonSchema,
+	WorkbenchWorkspaceListSchema,
+} from './workbench-command-outcome-contract';
+export {
+	WorkbenchCommandOutcomeSchema,
+	WorkbenchRejectionReasonSchema,
+	WorkbenchCommandUnavailableReasonSchema,
+	WorkbenchSnapshotUnavailableReasonSchema,
+} from './workbench-command-outcome-contract';
+import {
 	TerminalEditorRequestSchema,
 	TerminalEditorResultSchema,
 } from './workbench-terminal-editor-contract';
@@ -69,7 +87,7 @@ import {
 	WorkbenchTerminalGeometrySchema,
 	type WorkbenchTerminalUnavailableReasonSchema,
 	type WorkbenchTerminalFailureReasonSchema,
-	WorkbenchTerminalOutcomeSchema,
+	type WorkbenchTerminalOutcomeSchema,
 } from './workbench-terminal-launch-contract';
 export {
 	WorkbenchTerminalGeometrySchema,
@@ -108,28 +126,18 @@ import {
 	WorkbenchLabelSchema,
 	WorkbenchPanelLabelUpdateSchema,
 	WorkbenchPanelIdSchema,
-	WorkbenchPanelSlotIdSchema,
 	WorkbenchProjectIdSchema,
 	WorkbenchRequestIdSchema,
 	WorkbenchRevisionSchema,
 	WorkbenchSnapshotReadIntentSchema,
 	WorkbenchSnapshotSchema,
-	WorkbenchSplitIdSchema,
 	WorkbenchTabIdSchema,
 	WorkbenchTerminalContextIdSchema,
 	WorkbenchWorkspaceIdSchema,
 	TerminalPresentationIdSchema,
-	WorkerIdSchema,
 } from './workbench-semantic-contract';
 
 const WORKBENCH_MAXIMUM_ENCODED_WORKSPACE_ORDER_BYTES = 48 * 1024;
-const WorkbenchWorkspaceListSchema = z
-	.array(WorkbenchWorkspaceIdSchema)
-	.min(1)
-	.max(1023)
-	.refine((ids) => new Set(ids).size === ids.length, 'Workspace IDs must be unique')
-	.readonly();
-
 export const WORKBENCH_MAXIMUM_ENCODED_SNAPSHOT_RESULT_BYTES =
 	WORKBENCH_MAXIMUM_ENCODED_PROJECTION_BYTES + 1024;
 export const WORKBENCH_MAXIMUM_RESULT_PUBLICATIONS = 64;
@@ -406,6 +414,7 @@ export const WorkbenchRequestSchema = z
 		AgentManifestsRequestSchema,
 		ConfigurationRequestSchema,
 		TerminalEditorRequestSchema,
+		ConfiguredCommandRequestSchema,
 		PluginRequestSchema,
 		WindowTitleRequestSchema,
 		NotificationRequestSchema,
@@ -418,6 +427,8 @@ export const WorkbenchRequestSchema = z
 		let maximum = WORKBENCH_MAXIMUM_ENCODED_INTENT_BYTES;
 		if (value.kind === 'workbench.configuration')
 			maximum = WORKBENCH_MAXIMUM_ENCODED_CONFIGURATION_BYTES;
+		if (value.kind === 'workbench.configured-command')
+			maximum = WORKBENCH_MAXIMUM_CONFIGURED_COMMAND_BYTES;
 		if (value.kind === 'workbench.command' && value.action.kind === 'tab.create-layout')
 			maximum = WORKBENCH_MAXIMUM_ENCODED_LAYOUT_COMMAND_BYTES;
 		if (
@@ -447,272 +458,7 @@ export const WorkbenchRequestSchema = z
 		return encodedBytes(value) <= maximum;
 	}, 'Workbench request exceeds its encoded limit');
 
-export const WorkbenchRejectionReasonSchema = z.enum([
-	'site-mismatch',
-	'revision-mismatch',
-	'project-unavailable',
-	'workspace-unavailable',
-	'workspace-group-close-required',
-	'workspace-directory-unavailable',
-	'workspace-directory-conflict',
-	'terminal-context-unavailable',
-	'tab-unavailable',
-	'tab-move-index-out-of-bounds',
-	'tab-move-order-conflict',
-	'workspace-move-index-out-of-bounds',
-	'workspace-move-target-in-block',
-	'panel-unavailable',
-	'panel-not-leaf',
-	'last-panel-in-tab',
-	'same-tab',
-	'resource-limit',
-	'identity-exhausted',
-	'revision-exhausted',
-	'request-identity-conflict',
-]);
-
-export const WorkbenchCommandUnavailableReasonSchema = z.enum([
-	'request-ledger-full',
-	'no-compatible-worker',
-	'terminal-busy',
-	'terminal-runtime-unavailable',
-	'server-busy',
-	'service-unavailable',
-	'directory-unavailable',
-]);
-export const WorkbenchSnapshotUnavailableReasonSchema = z.enum(['service-unavailable']);
 const deniedSchema = z.strictObject({ kind: z.literal('denied') }).readonly();
-const commandUnavailableSchema = z
-	.strictObject({ kind: z.literal('unavailable'), reason: WorkbenchCommandUnavailableReasonSchema })
-	.readonly();
-
-const WorkbenchPanelTransferSchema = z
-	.strictObject({
-		targetTerminalContextId: WorkbenchTerminalContextIdSchema,
-		closedSourceTab: z.boolean(),
-		closedSourceWorkspaceId: WorkbenchWorkspaceIdSchema.optional(),
-		createdWorkspaceId: WorkbenchWorkspaceIdSchema.optional(),
-		createdDirectoryId: WorkbenchDirectoryIdSchema.optional(),
-	})
-	.readonly();
-
-export const WorkbenchCommandOutcomeSchema = z.discriminatedUnion('kind', [
-	z
-		.strictObject({
-			kind: z.literal('tab-layout-created'),
-			revision: WorkbenchRevisionSchema,
-			terminalContextId: WorkbenchTerminalContextIdSchema,
-			tabId: WorkbenchTabIdSchema,
-		})
-		.readonly(),
-	z.strictObject({ kind: z.literal('launch-profile-unavailable') }).readonly(),
-	z
-		.strictObject({
-			kind: z.literal('launch-profile-ambiguous'),
-			candidateIds: z
-				.array(z.string().regex(/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/u))
-				.max(64)
-				.readonly(),
-		})
-		.readonly(),
-	z
-		.strictObject({
-			kind: z.literal('panel-terminal-pending'),
-			revision: WorkbenchRevisionSchema,
-			terminalContextId: WorkbenchTerminalContextIdSchema,
-			tabId: WorkbenchTabIdSchema,
-			panelId: WorkbenchPanelIdSchema,
-			presentationId: TerminalPresentationIdSchema,
-		})
-		.readonly(),
-	z
-		.strictObject({
-			kind: z.literal('panel-terminal-created'),
-			revision: WorkbenchRevisionSchema,
-			terminalContextId: WorkbenchTerminalContextIdSchema,
-			tabId: WorkbenchTabIdSchema,
-			panelId: WorkbenchPanelIdSchema,
-			presentationId: TerminalPresentationIdSchema,
-			terminalOutcome: WorkbenchTerminalOutcomeSchema,
-		})
-		.readonly(),
-	z
-		.strictObject({
-			kind: z.literal('tab-close-accepted'),
-			closeRequestId: WorkbenchRequestIdSchema,
-			terminalContextId: WorkbenchTerminalContextIdSchema,
-			tabId: WorkbenchTabIdSchema,
-			acceptedRevision: WorkbenchRevisionSchema,
-		})
-		.readonly(),
-	z
-		.strictObject({
-			kind: z.literal('project-created'),
-			revision: WorkbenchRevisionSchema,
-			projectId: WorkbenchProjectIdSchema,
-		})
-		.readonly(),
-	z
-		.strictObject({
-			kind: z.literal('workspace-created'),
-			revision: WorkbenchRevisionSchema,
-			workspaceId: WorkbenchWorkspaceIdSchema,
-			terminalContextId: WorkbenchTerminalContextIdSchema,
-		})
-		.readonly(),
-	z
-		.strictObject({
-			kind: z.literal('workspace-primary-directory-accepted'),
-			revision: WorkbenchRevisionSchema,
-			directoryId: WorkbenchDirectoryIdSchema,
-			workerId: WorkerIdSchema,
-		})
-		.readonly(),
-	z.strictObject({ kind: z.literal('renamed'), revision: WorkbenchRevisionSchema }).readonly(),
-	z
-		.strictObject({ kind: z.literal('panel-input-configured'), revision: WorkbenchRevisionSchema })
-		.readonly(),
-	z.strictObject({ kind: z.literal('unchanged'), revision: WorkbenchRevisionSchema }).readonly(),
-	z
-		.strictObject({
-			kind: z.literal('workspaces-reordered'),
-			revision: WorkbenchRevisionSchema,
-			workspaceOrder: WorkbenchWorkspaceListSchema,
-		})
-		.readonly(),
-	z
-		.strictObject({
-			kind: z.literal('tab-moved'),
-			revision: WorkbenchRevisionSchema,
-			terminalContextId: WorkbenchTerminalContextIdSchema,
-			tabId: WorkbenchTabIdSchema,
-		})
-		.readonly(),
-	z
-		.strictObject({
-			kind: z.literal('tab-create-pending'),
-			revision: WorkbenchRevisionSchema,
-			terminalContextId: WorkbenchTerminalContextIdSchema,
-			tabId: WorkbenchTabIdSchema,
-			panelId: WorkbenchPanelIdSchema,
-			presentationId: TerminalPresentationIdSchema,
-		})
-		.readonly(),
-	z
-		.strictObject({
-			kind: z.literal('tab-created'),
-			revision: WorkbenchRevisionSchema,
-			terminalContextId: WorkbenchTerminalContextIdSchema,
-			tabId: WorkbenchTabIdSchema,
-			panelId: WorkbenchPanelIdSchema,
-			presentationId: TerminalPresentationIdSchema,
-			terminalOutcome: WorkbenchTerminalOutcomeSchema,
-		})
-		.readonly(),
-	z
-		.strictObject({
-			kind: z.literal('panel-split-pending'),
-			revision: WorkbenchRevisionSchema,
-			terminalContextId: WorkbenchTerminalContextIdSchema,
-			tabId: WorkbenchTabIdSchema,
-			panelId: WorkbenchPanelIdSchema,
-			newPanelId: WorkbenchPanelIdSchema,
-			splitId: WorkbenchSplitIdSchema,
-			firstSlotId: WorkbenchPanelSlotIdSchema,
-			secondSlotId: WorkbenchPanelSlotIdSchema,
-			presentationId: TerminalPresentationIdSchema,
-		})
-		.readonly(),
-	z
-		.strictObject({
-			kind: z.literal('panel-split-created'),
-			revision: WorkbenchRevisionSchema,
-			terminalContextId: WorkbenchTerminalContextIdSchema,
-			tabId: WorkbenchTabIdSchema,
-			panelId: WorkbenchPanelIdSchema,
-			newPanelId: WorkbenchPanelIdSchema,
-			splitId: WorkbenchSplitIdSchema,
-			firstSlotId: WorkbenchPanelSlotIdSchema,
-			secondSlotId: WorkbenchPanelSlotIdSchema,
-			presentationId: TerminalPresentationIdSchema,
-			terminalOutcome: WorkbenchTerminalOutcomeSchema,
-		})
-		.readonly(),
-	z
-		.strictObject({
-			kind: z.literal('panel-close-accepted'),
-			closeRequestId: WorkbenchRequestIdSchema,
-			terminalContextId: WorkbenchTerminalContextIdSchema,
-			tabId: WorkbenchTabIdSchema,
-			panelId: WorkbenchPanelIdSchema,
-			acceptedRevision: WorkbenchRevisionSchema,
-		})
-		.readonly(),
-	z
-		.strictObject({
-			kind: z.literal('workspace-close-accepted'),
-			closeRequestId: WorkbenchRequestIdSchema,
-			projectId: WorkbenchProjectIdSchema,
-			workspaceId: WorkbenchWorkspaceIdSchema,
-			terminalContextId: WorkbenchTerminalContextIdSchema,
-			acceptedRevision: WorkbenchRevisionSchema,
-		})
-		.readonly(),
-	z
-		.strictObject({
-			kind: z.literal('panel-moved'),
-			revision: WorkbenchRevisionSchema,
-			terminalContextId: WorkbenchTerminalContextIdSchema,
-			tabId: WorkbenchTabIdSchema,
-			panelId: WorkbenchPanelIdSchema,
-			targetPanelId: WorkbenchPanelIdSchema,
-		})
-		.readonly(),
-	z
-		.strictObject({
-			kind: z.literal('panel-swapped'),
-			revision: WorkbenchRevisionSchema,
-			terminalContextId: WorkbenchTerminalContextIdSchema,
-			tabId: WorkbenchTabIdSchema,
-			panelId: WorkbenchPanelIdSchema,
-			targetPanelId: WorkbenchPanelIdSchema,
-		})
-		.readonly(),
-	z
-		.strictObject({
-			kind: z.literal('panel-relocated'),
-			transfer: WorkbenchPanelTransferSchema.optional(),
-			revision: WorkbenchRevisionSchema,
-			terminalContextId: WorkbenchTerminalContextIdSchema,
-			tabId: WorkbenchTabIdSchema,
-			panelId: WorkbenchPanelIdSchema,
-			targetTabId: WorkbenchTabIdSchema,
-			splitId: WorkbenchSplitIdSchema,
-			firstSlotId: WorkbenchPanelSlotIdSchema,
-			secondSlotId: WorkbenchPanelSlotIdSchema,
-		})
-		.readonly(),
-	z
-		.strictObject({
-			kind: z.literal('panel-relocated-to-new-tab'),
-			transfer: WorkbenchPanelTransferSchema.optional(),
-			revision: WorkbenchRevisionSchema,
-			terminalContextId: WorkbenchTerminalContextIdSchema,
-			tabId: WorkbenchTabIdSchema,
-			panelId: WorkbenchPanelIdSchema,
-			newTabId: WorkbenchTabIdSchema,
-		})
-		.readonly(),
-	z
-		.strictObject({
-			kind: z.literal('rejected'),
-			revision: WorkbenchRevisionSchema,
-			reason: WorkbenchRejectionReasonSchema,
-		})
-		.readonly(),
-	deniedSchema,
-	commandUnavailableSchema,
-]);
 
 export const WorkbenchSnapshotOutcomeSchema = z.discriminatedUnion('kind', [
 	z.strictObject({ kind: z.literal('available'), snapshot: WorkbenchSnapshotSchema }).readonly(),
@@ -792,6 +538,7 @@ export const WorkbenchResponseSchema = z
 		AgentManifestsResultSchema,
 		ConfigurationResultSchema,
 		TerminalEditorResultSchema,
+		ConfiguredCommandResultSchema,
 		PluginResultSchema,
 		WindowTitleResultSchema,
 		NotificationResultSchema,
@@ -807,6 +554,8 @@ export const WorkbenchResponseSchema = z
 			value.kind === 'workbench.publication.result'
 		) {
 			maximum = WORKBENCH_MAXIMUM_ENCODED_SNAPSHOT_RESULT_BYTES;
+		} else if (value.kind === 'workbench.configured-command.result') {
+			maximum = WORKBENCH_MAXIMUM_CONFIGURED_COMMAND_BYTES;
 		} else if (value.kind === 'workbench.client-view.result') {
 			maximum =
 				value.outcome.kind === 'operation' && value.outcome.operation.status.kind === 'layout-read'

@@ -36,30 +36,35 @@ use protocol::{PopupKind, PopupOutcome};
 
 #[derive(Clone)]
 enum PopupSpec {
+    Configured(Box<orchbee_workbench_protocol::ConfiguredCommandPopupSpec>),
     Plugin(Box<PluginPopupSpec>),
     Editor(Box<ScrollbackEditorSpec>),
 }
 impl PopupSpec {
     fn kind(&self) -> PopupKind {
         match self {
+            Self::Configured(_) => PopupKind::Configured,
             Self::Plugin(_) => PopupKind::Plugin,
             Self::Editor(_) => PopupKind::Editor,
         }
     }
     fn width(&self) -> Option<PluginPopupSize> {
         match self {
+            Self::Configured(spec) => spec.width,
             Self::Plugin(spec) => spec.width,
             Self::Editor(_) => Some(PluginPopupSize::Percent(100)),
         }
     }
     fn height(&self) -> Option<PluginPopupSize> {
         match self {
+            Self::Configured(spec) => spec.height,
             Self::Plugin(spec) => spec.height,
             Self::Editor(_) => Some(PluginPopupSize::Percent(100)),
         }
     }
     fn title(&self) -> String {
         match self {
+            Self::Configured(_) => String::new(),
             Self::Plugin(spec) => spec.selector.entrypoint_id.clone(),
             Self::Editor(_) => String::new(),
         }
@@ -243,6 +248,15 @@ impl Driver {
     ) -> Result<(), Reason> {
         spec.validate().map_err(|_| Reason::StaleView)?;
         self.begin_spec(site, id, PopupSpec::Editor(Box::new(spec)))
+    }
+    pub(super) fn begin_configured(
+        &mut self,
+        site: SiteId,
+        id: WorkbenchRequestId,
+        spec: orchbee_workbench_protocol::ConfiguredCommandPopupSpec,
+    ) -> Result<(), Reason> {
+        spec.validate().map_err(|_| Reason::StaleView)?;
+        self.begin_spec(site, id, PopupSpec::Configured(Box::new(spec)))
     }
     fn begin_spec(
         &mut self,
@@ -658,6 +672,14 @@ impl PopupSession {
         .map_err(|_| Reason::Busy)?;
         let kind = spec.kind();
         let opened = match spec {
+            PopupSpec::Configured(spec) => self.configured(
+                &mut client,
+                orchbee_workbench_protocol::ConfiguredCommandAction::PopupOpen {
+                    popup_id: self.id.clone(),
+                    spec,
+                    geometry: launch_geometry,
+                },
+            ),
             PopupSpec::Plugin(spec) => self
                 .plugin(
                     &mut client,

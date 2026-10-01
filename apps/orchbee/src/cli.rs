@@ -20,6 +20,8 @@ pub(crate) mod window_title;
 pub(crate) mod workspace_metadata;
 pub(crate) use schema_export::run as export_schema;
 mod client_control;
+#[cfg(windows)]
+pub(crate) mod configured_commands;
 pub(crate) use client_control::run as run_client_control;
 pub(crate) mod agent_names;
 mod agent_prompt;

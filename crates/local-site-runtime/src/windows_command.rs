@@ -34,6 +34,58 @@ fn literal(value: &str) -> String {
     format!("'{}'", value.replace('\'', "''"))
 }
 
+/// Encodes a literal cmd command for an explicit PowerShell PTY launcher.
+/// ProcessStartInfo's raw Arguments preserve cmd quoting and operators; no
+/// caller text becomes PowerShell syntax. The caller owns executable discovery.
+#[must_use]
+pub fn windows_raw_command_encoded(
+    shell: &str,
+    command: &str,
+    environment: &[(String, String)],
+) -> Option<String> {
+    if shell.is_empty()
+        || shell.len() > 4096
+        || shell.contains('\0')
+        || command.trim().is_empty()
+        || command.len() > 4096
+        || command.contains('\0')
+    {
+        return None;
+    }
+    if environment.len() > 16
+        || environment.iter().any(|(name, value)| {
+            !name.starts_with("ORCHBEE_")
+                || !name.bytes().all(|c| c.is_ascii_uppercase() || c == b'_')
+                || value.len() > 4096
+                || value.contains('\0')
+        })
+    {
+        return None;
+    }
+    let assignments = environment
+        .iter()
+        .map(|(name, value)| {
+            format!(
+                "$s.EnvironmentVariables[{}]={};",
+                literal(name),
+                literal(value)
+            )
+        })
+        .collect::<String>();
+    let script = format!(
+        "$ErrorActionPreference='Stop'; $s=[System.Diagnostics.ProcessStartInfo]::new(); $s.FileName={}; $s.Arguments={}; $s.UseShellExecute=$false; $s.WorkingDirectory=[Environment]::CurrentDirectory; {assignments} $p=[System.Diagnostics.Process]::Start($s); $p.WaitForExit(); exit $p.ExitCode",
+        literal(&shell.replace('/', "\\")),
+        literal(&format!("/d /c {command}"))
+    );
+    let encoded = base64(
+        &script
+            .encode_utf16()
+            .flat_map(u16::to_le_bytes)
+            .collect::<Vec<_>>(),
+    );
+    (encoded.len() <= 28 * 1024).then_some(encoded)
+}
+
 // RFC 4648 standard alphabet, used only for the PowerShell UTF-16LE boundary.
 fn base64(bytes: &[u8]) -> String {
     const ALPHABET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
@@ -61,6 +113,39 @@ fn base64(bytes: &[u8]) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(windows)]
+    #[test]
+    fn raw_command_launch_preserves_environment_and_exit_without_script_interpolation() {
+        let root = std::path::PathBuf::from(std::env::var_os("SystemRoot").unwrap());
+        let shell = root.join("System32/cmd.exe");
+        let encoded = windows_raw_command_encoded(
+            shell.to_str().unwrap(),
+            "if \"%ORCHBEE_TEST%\"==\"a'$b\" (exit /b 7) else (exit /b 9)",
+            &[("ORCHBEE_TEST".into(), "a'$b".into())],
+        )
+        .unwrap();
+        let status =
+            std::process::Command::new(root.join("System32/WindowsPowerShell/v1.0/powershell.exe"))
+                .args([
+                    "-NoLogo",
+                    "-NoProfile",
+                    "-NonInteractive",
+                    "-EncodedCommand",
+                    &encoded,
+                ])
+                .status()
+                .unwrap();
+        assert_eq!(status.code(), Some(7));
+        assert!(windows_raw_command_encoded("cmd.exe", "x\0y", &[]).is_none());
+        assert!(
+            windows_raw_command_encoded(
+                "cmd.exe",
+                "echo hello",
+                &[("PATH".into(), "untrusted".into())]
+            )
+            .is_none()
+        );
+    }
     #[test]
     fn encoding_has_independent_vectors_and_bounded_input() {
         for (plain, expected) in [

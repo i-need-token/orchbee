@@ -264,6 +264,10 @@ navigator 与 viewport；另一 Client 已提交的新 Tab 经自动 publication
 [位置标签](docs/native-location-labels.zh-CN.md) 使用预填编辑器与共享 Server 命令；
 重命名保留运行中终端，peer 通过 publication 探测或显式刷新看到变化。
 
+[Windows 自定义命令](docs/windows-custom-commands.zh-CN.md) 让 `command list`、`command invoke`、
+配置快捷键和快捷键发现共用一个已安装目录。Shell 作业、Panel 创建、独立弹窗和插件动作
+保留各自既有的执行所有者与回执。
+
 创建会排空此前已接受的工作，并在截止时间或 Client 退役时保留已知提交事实。
 切换先释放旧 viewer，再附着所选 binding；不会停止或重建任一终端。
 移动改变共享顺序，同时保留活动终端及其 viewer/controller。如果 Move 已提交且快照返回明确的 denied/unavailable 结果，

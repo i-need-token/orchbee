@@ -60,17 +60,25 @@ fn popup_admission_rejects_changed_source_generation_or_incarnation_before_a_lan
         } else {
             *attachment_generation = WorkbenchRevision::new(attachment_generation.value() + 1);
         }
-        for editor in [false, true] {
-            command.intent = if editor {
-                ClientViewIntent::EditorOpen {
+        for kind in 0..3 {
+            command.intent = match kind {
+                0 => ClientViewIntent::EditorOpen {
                     spec: Box::new(orchbee_workbench_protocol::ScrollbackEditorSpec {
                         source: stale.source.clone(),
                     }),
-                }
-            } else {
-                ClientViewIntent::PopupOpen {
+                },
+                1 => ClientViewIntent::PopupOpen {
                     spec: Box::new(stale.clone()),
-                }
+                },
+                _ => ClientViewIntent::CommandPopupOpen {
+                    spec: Box::new(orchbee_workbench_protocol::ConfiguredCommandPopupSpec {
+                        command_id: "cmd_tools".into(),
+                        source: stale.source.clone(),
+                        context: stale.context.clone(),
+                        width: None,
+                        height: None,
+                    }),
+                },
             };
             assert_eq!(
                 ui.begin_popup_control(&command, Some(&source)),

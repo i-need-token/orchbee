@@ -343,6 +343,42 @@ fn exchange_and_wait(
     }
     Ok(())
 }
+
+/// Observe an already submitted operation without repeating its mutation.
+pub(in crate::cli) fn wait_submitted(
+    client: &mut LocalClient,
+    reply: WorkbenchClientViewResult,
+    deadline: Instant,
+    signals: &mut ArmedSignals,
+) -> Result<Answer, Failure> {
+    let ClientViewOutcome::Operation { operation } = &reply.outcome else {
+        return Err(Failure::new(FailureKind::ProtocolInvalid));
+    };
+    let id = operation.command.operation_id.clone();
+    let command = operation.command.clone();
+    let site = reply.site_id.clone();
+    let mut answer = Answer {
+        status_only: false,
+        operation_id: Some(id.clone()),
+        site_id: Some(site.clone()),
+        reply: Some(reply),
+        unknown: false,
+        wait: None,
+    };
+    if answer.pending() {
+        exchange_and_wait(
+            client,
+            &site,
+            ClientViewAction::Read { operation_id: id },
+            true,
+            deadline,
+            signals,
+            &mut answer,
+        )?;
+    }
+    answer.retain_matching_command(&command);
+    Ok(answer)
+}
 fn verify_attention(
     client: &mut LocalClient,
     reply: &WorkbenchClientViewResult,

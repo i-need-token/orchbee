@@ -18,6 +18,7 @@ use std::{
     time::{Duration, Instant},
 };
 
+mod configured;
 mod editor;
 
 const MAXIMUM_OWNERS: usize = 32;
@@ -25,6 +26,7 @@ const SETTLEMENT_WINDOW: Duration = Duration::from_secs(5);
 const OBSERVATION_INTERVAL: Duration = Duration::from_millis(100);
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum PopupKind {
+    Configured,
     Plugin,
     Editor,
 }

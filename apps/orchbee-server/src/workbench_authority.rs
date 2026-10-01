@@ -165,7 +165,8 @@ impl TryFrom<WorkbenchRequest> for WorkbenchReadOrNavigationRequest {
             | WorkbenchRequest::PanelMetadata(_)
             | WorkbenchRequest::WorkspaceMetadata(_)
             | WorkbenchRequest::ClientView(_)
-            | WorkbenchRequest::WorkspaceGit(_)) => Err(request),
+            | WorkbenchRequest::WorkspaceGit(_)
+            | WorkbenchRequest::ConfiguredCommand(_)) => Err(request),
         }
     }
 }

@@ -85,6 +85,7 @@ pub fn write_workbench_response(
 
 fn request_kind(request: &WorkbenchRequest) -> u16 {
     match request {
+        WorkbenchRequest::ConfiguredCommand(_) => 53,
         WorkbenchRequest::TerminalEditor(_) => 51,
         WorkbenchRequest::WorkspaceGit(_) => 49,
         WorkbenchRequest::AgentView(_) => 47,
@@ -129,6 +130,7 @@ fn request_kind(request: &WorkbenchRequest) -> u16 {
 
 fn response_kind(response: &WorkbenchResponse) -> u16 {
     match response {
+        WorkbenchResponse::ConfiguredCommand(_) => 54,
         WorkbenchResponse::TerminalEditor(_) => 52,
         WorkbenchResponse::WorkspaceGit(_) => 50,
         WorkbenchResponse::AgentView(_) => 48,
@@ -199,6 +201,7 @@ fn read_frame(reader: &mut impl Read, request: bool) -> Result<(u16, Vec<u8>), W
                     | 47
                     | 49
                     | 51
+                    | 53
             ))
         || (!request
             && !matches!(
@@ -227,13 +230,16 @@ fn read_frame(reader: &mut impl Read, request: bool) -> Result<(u16, Vec<u8>), W
                     | 48
                     | 50
                     | 52
+                    | 54
             ))
     {
         return Err(WorkbenchWireError::InvalidHeader);
     }
     let length = u32::from_be_bytes([header[8], header[9], header[10], header[11]]);
     let actual = usize::try_from(length).map_err(|_error| WorkbenchWireError::InvalidHeader)?;
-    let maximum = if matches!(kind, 51 | 52) {
+    let maximum = if matches!(kind, 53 | 54) {
+        crate::MAXIMUM_CONFIGURED_COMMAND_BYTES
+    } else if matches!(kind, 51 | 52) {
         crate::MAXIMUM_TERMINAL_EDITOR_BYTES
     } else if matches!(kind, 49 | 50) {
         crate::MAXIMUM_WORKSPACE_GIT_BYTES

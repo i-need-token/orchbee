@@ -11,6 +11,23 @@ Simplified Chinese maintenance translation:
 [README.zh-CN.md](README.zh-CN.md).
 English remains canonical.
 
+## Configured background commands
+
+The retained process-job lane also admits configured Windows commands, without a
+plugin identity or plugin log. OBPJ version 2 adds request action 5 and result
+outcome 5; legacy plugin actions keep their version 1 bytes. Action 5 carries a
+bounded catalog ID, absolute directory, literal command and unique bounded
+`ORCHBEE_*` environment entries. Outcome 5 echoes the job ID and whether that
+same frozen job already exists. Version 1 refuses both new tags. Worker ID,
+generation, operation correlation and the existing closed refusals still apply.
+
+The Server resolves the installed configuration before dispatch. The Worker
+overwrites Site routing, executes the literal command with Windows `cmd /d /c`,
+and owns its cancellation and join independently of the invoking connection.
+Plugin and configured jobs share the 32-running-process admission bound.
+Configured receipts are bounded to 200 records and are never exposed as plugin
+history. Shutdown cancels and joins both kinds before a complete receipt.
+
 ## Private editor-command resolution
 
 OBCN kind 24 requests Windows editor-command resolution with a nonzero operation

@@ -11,6 +11,34 @@ use std::sync::{Mutex, atomic::AtomicBool};
 pub(in crate::local_terminal_service) struct Observer(Mutex<Option<PendingCleanup>>);
 
 impl LocalTerminalService {
+    pub(in crate::local_terminal_service) fn configured_command_capture(
+        &self,
+        target: &ProcessObservationTarget,
+        selection: Option<&orchbee_workbench_protocol::ConfiguredCommandSelection>,
+    ) -> Result<
+        super::super::configured_commands::Captured,
+        orchbee_workbench_protocol::ConfiguredCommandFailure,
+    > {
+        use orchbee_workbench_protocol::ConfiguredCommandFailure as F;
+        let mut pending = self.plugin_observer.0.try_lock().map_err(|_| F::Busy)?;
+        if let Some(cleanup) = pending.as_ref() {
+            if !cleanup.settle(self) {
+                return Err(F::PhysicalUnknown);
+            }
+            *pending = None;
+        }
+        let stop = AtomicBool::new(false);
+        let mut capture = Err(F::Unavailable);
+        *pending = self.with_observation_viewer(target, &stop, |viewer, template| {
+            capture = super::super::viewer_session::process_sampling::screen::configured_capture(
+                viewer, template, &stop, selection,
+            );
+        });
+        if pending.is_some() {
+            return Err(F::PhysicalUnknown);
+        }
+        capture
+    }
     /// Only an exact known physical Dispose can discharge an uncertain temporary viewer.
     pub(in crate::local_terminal_service) fn settle_plugin_observer_disposed(
         &self,

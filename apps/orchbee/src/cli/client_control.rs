@@ -106,7 +106,10 @@ impl Answer {
             ClientViewOutcome::Operation { operation } if matches!(operation.command.intent,
                 orchbee_workbench_protocol::ClientViewIntent::EditorOpen { .. }))
         });
-        let version = if editor {
+        let configured = self.reply.as_ref().is_some_and(|reply| matches!(&reply.outcome, ClientViewOutcome::Operation {operation} if matches!(operation.command.intent, orchbee_workbench_protocol::ClientViewIntent::CommandPopupOpen {..})));
+        let version = if configured {
+            11
+        } else if editor {
             10
         } else if popup {
             9

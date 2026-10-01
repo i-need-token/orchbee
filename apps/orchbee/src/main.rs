@@ -229,6 +229,10 @@ fn main() -> ExitCode {
                 cli::plugins::run(command, format, locale)
             }
             #[cfg(windows)]
+            Ok(invocation::Request::ConfiguredCommand { command, format }) => {
+                cli::configured_commands::run(&command, format, locale)
+            }
+            #[cfg(windows)]
             Ok(invocation::Request::ChannelShow { format }) => cli::channel::show(format, locale),
             #[cfg(windows)]
             Ok(invocation::Request::Update { channel, format }) => {

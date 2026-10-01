@@ -13,6 +13,8 @@ pub(crate) use panel_metadata::PanelMetadataCommand;
 pub(crate) use workspace_metadata::WorkspaceMetadataCommand;
 mod client_control;
 #[cfg(windows)]
+pub(crate) mod configured_commands;
+#[cfg(windows)]
 mod layouts;
 #[cfg(windows)]
 mod named_sessions;
@@ -202,6 +204,8 @@ pub(crate) enum HelpTopic {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum Family {
     #[cfg(windows)]
+    Command,
+    #[cfg(windows)]
     Machine,
     #[cfg(windows)]
     Plugin,
@@ -243,6 +247,8 @@ impl Family {
     pub(crate) const fn as_str(self) -> &'static str {
         match self {
             #[cfg(windows)]
+            Self::Command => "command",
+            #[cfg(windows)]
             Self::Session => "session",
             Self::Client => "client",
             Self::Agent => "agent",
@@ -282,6 +288,10 @@ impl Family {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum CommandPath {
+    #[cfg(windows)]
+    CommandList,
+    #[cfg(windows)]
+    CommandInvoke,
     #[cfg(windows)]
     MachineList,
     #[cfg(windows)]
@@ -597,6 +607,10 @@ impl CommandPath {
             Self::TerminalClear => "terminal clear",
             #[cfg(windows)]
             Self::TerminalEditScrollback => "terminal edit-scrollback",
+            #[cfg(windows)]
+            Self::CommandList => "command list",
+            #[cfg(windows)]
+            Self::CommandInvoke => "command invoke",
             Self::TerminalWaitOutput => "terminal wait-output",
             Self::TerminalSend => "terminal send",
             Self::TerminalRun => "terminal run",
@@ -1397,6 +1411,11 @@ pub(crate) enum RuntimeStatusScope {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum Request {
     #[cfg(windows)]
+    ConfiguredCommand {
+        command: configured_commands::Command,
+        format: OutputFormat,
+    },
+    #[cfg(windows)]
     TerminalEditor {
         target: Target,
         client: Option<orchbee_workbench_protocol::WorkbenchClientId>,
@@ -1681,6 +1700,8 @@ pub(crate) enum ExpectedValue {
     PluginId,
     #[cfg(windows)]
     PluginActionId,
+    #[cfg(windows)]
+    ConfiguredCommandId,
     #[cfg(windows)]
     PluginContext,
     #[cfg(windows)]
@@ -2936,6 +2957,8 @@ fn resolve_words(
     envelope: FailureEnvelope,
 ) -> Result<Request, ParseFailure> {
     match words {
+        #[cfg(windows)]
+        ["command", ..] => configured_commands::parse(words, options, envelope),
         #[cfg(windows)]
         ["plugin", ..] => plugins::parse(words, options, envelope),
         #[cfg(windows)]
@@ -5272,6 +5295,12 @@ fn help_topic(path: &[&str]) -> Option<HelpTopic> {
         ["terminal", "title", "clear"] => HelpTopic::Command(CommandPath::TerminalTitleClear),
         #[cfg(windows)]
         ["plugin"] => HelpTopic::Family(Family::Plugin),
+        #[cfg(windows)]
+        ["command"] => HelpTopic::Family(Family::Command),
+        #[cfg(windows)]
+        ["command", "list"] => HelpTopic::Command(CommandPath::CommandList),
+        #[cfg(windows)]
+        ["command", "invoke"] => HelpTopic::Command(CommandPath::CommandInvoke),
         #[cfg(windows)]
         ["plugin", "action"] => HelpTopic::Family(Family::PluginAction),
         #[cfg(windows)]

@@ -8,6 +8,7 @@ use orchbee_workbench_protocol::{
 use std::time::Instant;
 
 mod lane;
+pub(super) use lane::CommandCompletion;
 use lane::{ClientControlLane, Sample};
 
 #[derive(Default)]
@@ -227,6 +228,17 @@ pub(super) struct ClientControl {
     viewport: Option<(ratatui::layout::Rect, crate::client_view::SidebarSurface)>,
 }
 impl ClientControl {
+    pub(super) fn invoke_configured(&mut self, native: &NativeUi, id: String) -> bool {
+        if self.pending.is_some() || self.stopped {
+            return false;
+        }
+        let Some((source, view)) = native.configured_command_source() else {
+            return false;
+        };
+        self.lane
+            .as_ref()
+            .is_some_and(|lane| lane.invoke_configured(id, source, &view))
+    }
     pub(super) const fn new(origin: LocalClientOrigin, clock: LocalOperationClock) -> Self {
         Self {
             origin,
@@ -306,6 +318,12 @@ impl ClientControl {
         let Some(lane) = &self.lane else {
             return false;
         };
+        let command_changed = if let Some(result) = lane.take_invocation_result() {
+            native.configured_command_completed(result);
+            true
+        } else {
+            false
+        };
         if lane.failed() || !lane.publish(sample.clone()) {
             self.close();
             return false;
@@ -337,7 +355,8 @@ impl ClientControl {
             }
             let execution = if matches!(
                 command.intent,
-                ClientViewIntent::PopupOpen { .. }
+                ClientViewIntent::CommandPopupOpen { .. }
+                    | ClientViewIntent::PopupOpen { .. }
                     | ClientViewIntent::PopupClose {}
                     | ClientViewIntent::EditorOpen { .. }
             ) {
@@ -434,7 +453,7 @@ impl ClientControl {
             });
         }
         let Some(pending) = &mut self.pending else {
-            return false;
+            return command_changed;
         };
         let step = if pending.interrupted {
             ControlStep::Failed(Reason::Interrupted)

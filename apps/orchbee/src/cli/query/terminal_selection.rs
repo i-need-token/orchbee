@@ -6,7 +6,7 @@ use crate::{
     invocation::{OutputFormat, TerminalSelectionCommand, TerminalTextPoint},
     localization::Locale,
 };
-use orchbee_terminal_protocol::{TerminalTextRowWindow, TerminalTextWindowRow};
+use orchbee_terminal_protocol::TerminalTextRowWindow;
 use serde_json::{Value, json};
 
 pub(crate) fn run(
@@ -57,74 +57,19 @@ fn extract(
     a: TerminalTextPoint,
     b: TerminalTextPoint,
 ) -> Result<String, Failure> {
-    let (start, end) = ordered(a, b);
-    if window.columns == 0
-        || start.col >= window.columns
-        || end.col >= window.columns
-        || window.start_row != u64::from(start.row)
-        || u64::from(end.row) >= window.total_rows
-        || window.rows.len() as u64 != u64::from(end.row) - u64::from(start.row) + 1
-    {
-        return Err(viewer_protocol_invalid());
-    }
-    let mut text = String::new();
-    for (index, row) in window.rows.iter().enumerate() {
-        if row.index != u64::from(start.row) + index as u64 {
-            return Err(viewer_protocol_invalid());
-        }
-        let first = if row.index == u64::from(start.row) {
-            start.col
-        } else {
-            0
-        };
-        let last = if row.index == u64::from(end.row) {
-            end.col
-        } else {
-            window.columns - 1
-        };
-        let part = slice(row, first, last)?;
-        let joined = row.wrap
-            && window
-                .rows
-                .get(index + 1)
-                .is_some_and(|next| next.wrap_continuation);
-        text.push_str(if joined {
-            part
-        } else {
-            part.trim_end_matches(' ')
-        });
-        if index + 1 < window.rows.len() && !joined {
-            text.push('\n');
-        }
-    }
-    Ok(text)
-}
-fn slice(row: &TerminalTextWindowRow, first: u16, last: u16) -> Result<&str, Failure> {
-    if row.identity_ascii {
-        return row
-            .text
-            .get(
-                usize::from(first).min(row.text.len())..(usize::from(last) + 1).min(row.text.len()),
-            )
-            .ok_or_else(viewer_protocol_invalid);
-    }
-    let intersects = |index: usize| {
-        let cell = row.mappings[index];
-        cell.column <= last && u32::from(cell.column) + u32::from(cell.width) > u32::from(first)
-    };
-    let Some(start) = (0..row.mappings.len()).find(|index| intersects(*index)) else {
-        return Ok("");
-    };
-    let end = (start..row.mappings.len())
-        .take_while(|index| intersects(*index))
-        .last()
-        .unwrap_or(start);
-    let from = row.mappings[start].byte_offset as usize;
-    let to = row
-        .mappings
-        .get(end + 1)
-        .map_or(row.text.len(), |cell| cell.byte_offset as usize);
-    row.text.get(from..to).ok_or_else(viewer_protocol_invalid)
+    orchbee_terminal_protocol::extract_terminal_text_selection(
+        window,
+        orchbee_terminal_protocol::SelectionPoint {
+            row: u64::from(a.row),
+            column: a.col,
+        },
+        orchbee_terminal_protocol::SelectionPoint {
+            row: u64::from(b.row),
+            column: b.col,
+        },
+        8 * 1024 * 1024,
+    )
+    .map_err(|_| viewer_protocol_invalid())
 }
 
 #[cfg(test)]

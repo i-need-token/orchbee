@@ -140,6 +140,119 @@ pub(super) fn directory(
     })
 }
 
+pub(in crate::local_terminal_service) fn configured_capture(
+    viewer: &mut ViewerAttachment<'_>,
+    template: WorkerRequest,
+    stop: &AtomicBool,
+    selection: Option<&orchbee_workbench_protocol::ConfiguredCommandSelection>,
+) -> Result<
+    crate::local_terminal_service::configured_commands::Captured,
+    orchbee_workbench_protocol::ConfiguredCommandFailure,
+> {
+    use orchbee_workbench_protocol::ConfiguredCommandFailure as F;
+    let frame = fresh_frame(viewer, template, stop).ok_or(F::Unavailable)?;
+    let mut directory = frame
+        .current_directory
+        .as_deref()
+        .and_then(orchbee_local_site_runtime::windows_reported_directory)
+        .and_then(|path| orchbee_workbench_protocol::WorkbenchDirectoryPath::parse(&path).ok());
+    let selected_text = if let Some(selection) = selection {
+        selection.validate().map_err(|_| F::InvalidIntent)?;
+        if frame.route.revision != selection.revision.value() {
+            return Err(F::StaleSource);
+        }
+        let start = selection
+            .anchor
+            .row
+            .value()
+            .min(selection.cursor.row.value());
+        let count = selection
+            .anchor
+            .row
+            .value()
+            .abs_diff(selection.cursor.row.value())
+            + 1;
+        let action = Action::ReadRows {
+            attachment_id: viewer.attachment_id.clone(),
+            detail: orchbee_client_server_protocol::ViewerRowDetail::Text,
+            start_row: start,
+            row_count: count as u16,
+            revision: frame.route.revision,
+            generation: frame.route.generation,
+            request_sequence: frame.route.sequence,
+            maximum_bytes: 8 * 1024 * 1024,
+        };
+        let (operation, WorkerOutcome::Record(record)) = request(
+            viewer,
+            template,
+            stop,
+            WorkerAction::ReadRows {
+                detail: ViewerRowDetail::Text,
+                start_row: start,
+                row_count: count as u16,
+                revision: frame.route.revision,
+                generation: frame.route.generation,
+                request_sequence: frame.route.sequence,
+                maximum_bytes: 8 * 1024 * 1024,
+            },
+        )
+        .ok_or(F::StaleSource)?
+        else {
+            return Err(F::StaleSource);
+        };
+        if !routing::valid_rows_record(&action, viewer, operation, &record) {
+            return Err(F::StaleSource);
+        }
+        let envelope = decode_transport_envelope(&record).map_err(|_| F::StaleSource)?;
+        let window =
+            decode_terminal_text_row_window(envelope.payload).map_err(|_| F::StaleSource)?;
+        if window.columns != frame.geometry.columns
+            || window.total_rows
+                != frame
+                    .scrollback_rows
+                    .checked_add(u64::from(frame.geometry.rows))
+                    .ok_or(F::StaleSource)?
+        {
+            return Err(F::StaleSource);
+        }
+        let point = |p: orchbee_workbench_protocol::ConfiguredCommandTextPoint| {
+            orchbee_terminal_protocol::SelectionPoint {
+                row: p.row.value(),
+                column: p.col,
+            }
+        };
+        Some(
+            orchbee_terminal_protocol::extract_terminal_text_selection(
+                &window,
+                point(selection.anchor),
+                point(selection.cursor),
+                8192,
+            )
+            .map_err(|_| F::InvalidIntent)?,
+        )
+    } else {
+        None
+    };
+    if directory.is_none() {
+        directory = process(viewer, template, stop)
+            .and_then(|sample| {
+                sample
+                    .processes
+                    .into_iter()
+                    .find(|p| p.pid == sample.root_pid)
+            })
+            .and_then(|p| p.current_directory)
+            .and_then(|path| orchbee_local_site_runtime::windows_reported_directory(&path))
+            .and_then(|path| orchbee_workbench_protocol::WorkbenchDirectoryPath::parse(&path).ok());
+    }
+    Ok(
+        crate::local_terminal_service::configured_commands::Captured {
+            directory,
+            selected_text,
+        },
+    )
+}
+
 fn progress(value: Option<TerminalProgress>) -> String {
     use TerminalProgress::{Error, Indeterminate, Pause, Remove, Set};
     let (tag, value) = match value {

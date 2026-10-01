@@ -1175,3 +1175,54 @@ fn editor_control_v10_is_closed_and_legacy_versions_reject_editor_intent() {
         json!("notepad.exe");
     assert!(!validator.is_valid(&extra));
 }
+
+#[test]
+fn configured_popup_receipt_requires_v11_and_keeps_old_versions_closed() {
+    let WorkbenchResponse::ClientView(mut reply) =
+        serde_json::from_value(sample("editor-opened-acknowledged-source")).unwrap()
+    else {
+        panic!()
+    };
+    let ClientViewOutcome::Operation { operation } = &mut reply.outcome else {
+        panic!()
+    };
+    let ClientViewIntent::EditorOpen { spec } = &operation.command.intent else {
+        panic!()
+    };
+    operation.command.intent = ClientViewIntent::CommandPopupOpen {
+        spec: Box::new(orchbee_workbench_protocol::ConfiguredCommandPopupSpec {
+            command_id: "cmd_tools".into(),
+            source: spec.source.clone(),
+            context: Box::new(orchbee_workbench_protocol::PluginInvocationContext {
+                tab_id: Some(spec.source.tab_id.to_string()),
+                focused_pane_id: Some(spec.source.panel_id.to_string()),
+                ..Default::default()
+            }),
+            width: None,
+            height: None,
+        }),
+    };
+    reply.validate().unwrap();
+    let ClientViewOutcome::Operation { operation } = &reply.outcome else {
+        panic!()
+    };
+    let answer = Answer {
+        status_only: false,
+        operation_id: Some(operation.command.operation_id.clone()),
+        site_id: Some(reply.site_id.clone()),
+        reply: Some(reply),
+        unknown: false,
+        wait: None,
+    };
+    let mut document = answer.document();
+    assert_eq!(answer.exit_code(), 0);
+    assert_eq!(document["version"], 11);
+    let schema: Value =
+        serde_json::from_str(include_str!("../schemas/orchbee.client.control.json")).unwrap();
+    let validator = jsonschema::validator_for(&schema).unwrap();
+    validator.validate(&document).unwrap();
+    for version in 1..=10 {
+        document["version"] = json!(version);
+        assert!(!validator.is_valid(&document), "v{version}");
+    }
+}

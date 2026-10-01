@@ -13,6 +13,7 @@ use std::{
     thread::{self, JoinHandle},
     time::{Duration, Instant},
 };
+mod configured_command;
 
 #[derive(Clone)]
 pub(super) struct Sample {
@@ -24,8 +25,16 @@ pub(super) struct Delivery {
     pub(super) command: ClientViewControl,
     pub(super) workbench_snapshot: Option<Snapshot>,
 }
+pub(in crate::terminal_session) struct CommandCompletion {
+    pub reply: Result<orchbee_workbench_protocol::ConfiguredCommandResult, bool>,
+    pub focus: Option<Result<orchbee_workbench_protocol::WorkbenchClientViewResult, bool>>,
+}
 #[derive(Default)]
 struct Handoff {
+    registered: Option<orchbee_workbench_protocol::ClientViewRecord>,
+    invocation: Option<orchbee_workbench_protocol::ConfiguredCommandInvocation>,
+    invocation_pending: bool,
+    invocation_result: Option<CommandCompletion>,
     sample: Option<Sample>,
     completion: Option<(Sample, ClientViewCompletion)>,
     control: Option<Delivery>,
@@ -40,6 +49,58 @@ pub(super) struct ClientControlLane {
     task: Option<JoinHandle<()>>,
 }
 impl ClientControlLane {
+    pub(super) fn invoke_configured(
+        &self,
+        id: String,
+        source: Option<orchbee_workbench_protocol::ClientPopupSource>,
+        view: &ClientViewObservation,
+    ) -> bool {
+        let (lock, signal) = &*self.shared;
+        let Ok(mut handoff) = lock.lock() else {
+            return false;
+        };
+        if handoff.stopped
+            || handoff.failed
+            || handoff.invocation_pending
+            || handoff.invocation_result.is_some()
+        {
+            return false;
+        }
+        let Some(record) = handoff.registered.as_ref().filter(|record| {
+            record.view == *view
+                && record.availability
+                    == orchbee_workbench_protocol::ClientViewAvailability::Current
+        }) else {
+            return false;
+        };
+        let invocation = orchbee_workbench_protocol::ConfiguredCommandInvocation {
+            command_id: id,
+            selection: None,
+            expected_revision: view.workbench_revision,
+            context: Box::new(orchbee_workbench_protocol::PluginInvocationContext {
+                tab_id: source.as_ref().map(|source| source.tab_id.as_str().into()),
+                focused_pane_id: source
+                    .as_ref()
+                    .map(|source| source.panel_id.as_str().into()),
+                invocation_source: Some("tui".into()),
+                ..Default::default()
+            }),
+            source: source.map(
+                |source| orchbee_workbench_protocol::ConfiguredCommandSource {
+                    client_id: record.client_id.clone(),
+                    view_revision: record.view_revision,
+                    presentation: source,
+                },
+            ),
+        };
+        handoff.invocation_pending = true;
+        handoff.invocation = Some(invocation);
+        signal.notify_one();
+        true
+    }
+    pub(super) fn take_invocation_result(&self) -> Option<CommandCompletion> {
+        self.shared.0.lock().ok()?.invocation_result.take()
+    }
     pub(super) fn spawn(
         origin: LocalClientOrigin,
         clock: LocalOperationClock,
@@ -132,6 +193,7 @@ fn run(
     ) else {
         return;
     };
+    let mut invocation_task: Option<configured_command::Invocation> = None;
     let mut exchange_id = 0_u64;
     let mut next_exchange = Instant::now();
     loop {
@@ -189,13 +251,58 @@ fn run(
         ) else {
             return;
         };
-        let ClientViewOutcome::Synchronized { control, .. } = result.outcome else {
+        let ClientViewOutcome::Synchronized {
+            client: registered,
+            control,
+        } = result.outcome
+        else {
             return;
         };
+        let invocation = {
+            let Ok(mut handoff) = lock.lock() else {
+                return;
+            };
+            handoff.registered = Some((*registered).clone());
+            handoff.invocation.take()
+        };
+        if invocation_task
+            .as_ref()
+            .is_some_and(configured_command::Invocation::finished)
+        {
+            invocation_task.take();
+        }
+        if let Some(invocation) = invocation {
+            let started = if invocation_task.is_none() {
+                configured_command::Invocation::start(
+                    Arc::clone(shared),
+                    origin.clone(),
+                    clock.clone(),
+                    site_id.clone(),
+                    (*registered).clone(),
+                    invocation,
+                )
+            } else {
+                Err(io::ErrorKind::WouldBlock.into())
+            };
+            match started {
+                Ok(task) => invocation_task = Some(task),
+                Err(_) => {
+                    let Ok(mut handoff) = lock.lock() else {
+                        return;
+                    };
+                    handoff.invocation_pending = false;
+                    handoff.invocation_result = Some(CommandCompletion {
+                        reply: Err(false),
+                        focus: None,
+                    });
+                }
+            }
+        }
         let delivery = if let Some(control) = control {
             let workbench_snapshot = if matches!(
                 control.intent,
-                ClientViewIntent::PopupOpen { .. }
+                ClientViewIntent::CommandPopupOpen { .. }
+                    | ClientViewIntent::PopupOpen { .. }
                     | ClientViewIntent::EditorOpen { .. }
                     | ClientViewIntent::Overlay { .. }
                     | ClientViewIntent::Panel { .. }
@@ -261,6 +368,11 @@ fn run(
         }
         next_exchange = Instant::now() + Duration::from_millis(100);
     }
+}
+pub(super) fn random_request_id() -> Option<WorkbenchRequestId> {
+    let mut bytes = [0; 16];
+    getrandom::fill(&mut bytes).ok()?;
+    WorkbenchRequestId::parse(&format!("{:032x}", u128::from_be_bytes(bytes))).ok()
 }
 
 #[cfg(test)]

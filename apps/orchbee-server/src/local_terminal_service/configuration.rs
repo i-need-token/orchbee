@@ -145,6 +145,28 @@ fn snapshot(
     }
 }
 impl super::LocalTerminalService {
+    pub(crate) fn configured_commands(
+        &self,
+    ) -> Result<
+        (
+            WorkbenchRevision,
+            Vec<orchbee_local_site_runtime::WindowsCustomCommandEntry>,
+        ),
+        orchbee_workbench_protocol::ConfiguredCommandFailure,
+    > {
+        let slot = self
+            .configuration
+            .0
+            .try_lock()
+            .map_err(|_| orchbee_workbench_protocol::ConfiguredCommandFailure::Busy)?;
+        let state = slot
+            .as_ref()
+            .ok_or(orchbee_workbench_protocol::ConfiguredCommandFailure::Unavailable)?;
+        Ok((
+            state.snapshot.revision,
+            state.current.keys.command_catalog(),
+        ))
+    }
     pub(crate) fn notifications_disabled(&self) -> Result<bool, ()> {
         let slot = self.configuration.0.try_lock().map_err(|_| ())?;
         Ok(slot.as_ref().is_some_and(|state| {

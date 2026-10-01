@@ -129,7 +129,7 @@ pub use row_window::{
     TERMINAL_ROW_WINDOW_HEADER_BYTES, TerminalRenderRowWindow, TerminalRowPromptClass,
     TerminalRowWindowRoute, TerminalTextCellMapping, TerminalTextRowWindow, TerminalTextWindowRow,
     decode_terminal_render_row_window, decode_terminal_text_row_window,
-    inspect_terminal_row_window_route,
+    extract_terminal_text_selection, inspect_terminal_row_window_route,
 };
 pub use screen_control::{
     ClearTerminal, EncodedScreenControl, ScreenControl, ScreenControlOperation,

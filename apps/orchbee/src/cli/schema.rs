@@ -39,6 +39,14 @@ pub(crate) const PROJECT_RENAME_RESULT_ID: &str = "orchbee.project.rename";
 /// `schema` id → embedded document, in dictionary order.
 const DOCUMENTS: &[(&str, &str)] = &[
     (
+        "orchbee.cli.failure.command",
+        include_str!("schemas/orchbee.cli.failure.command.json"),
+    ),
+    (
+        "orchbee.command",
+        include_str!("schemas/orchbee.command.json"),
+    ),
+    (
         "orchbee.popup.result",
         include_str!("schemas/orchbee.popup.result.json"),
     ),
@@ -550,8 +558,8 @@ pub(crate) fn answer(schema_id: Option<&str>, format: OutputFormat, locale: Loca
     };
     let document = json!({
         "schema": "orchbee.api.schema",
-        // Includes the public scrollback editor command and control v10.
-        "version": 131,
+        // Includes installed custom commands and Client control v11.
+        "version": 132,
         "source": embedded_source(),
         "result": result,
     });

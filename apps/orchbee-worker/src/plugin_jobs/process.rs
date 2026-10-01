@@ -21,6 +21,27 @@ pub(super) fn run(
         .args(&intent.argv[1..])
         .current_dir(&intent.directory)
         .stdin(Stdio::null());
+    clear_context(&mut command);
+    command.envs(intent.environment);
+    let output = run_windows_command(command, None, || Ok(cancel.load(Ordering::Relaxed)));
+    log.finished_ms = Some(now_ms().max(log.started_ms));
+    log.exit_code = output.exit_code;
+    log.stdout = output.stdout;
+    log.stderr = output.stderr;
+    log.stdout_truncated = output.stdout_truncated;
+    log.stderr_truncated = output.stderr_truncated;
+    log.failure = output.failure.map(|reason| match reason {
+        WindowsCommandFailure::ExitFailure => Failure::ExitFailure,
+        WindowsCommandFailure::SpawnUnavailable => Failure::SpawnUnavailable,
+        WindowsCommandFailure::SpawnFailed => Failure::SpawnFailed,
+        WindowsCommandFailure::Io | WindowsCommandFailure::Timeout => Failure::Io,
+        WindowsCommandFailure::Cancelled => Failure::Cancelled,
+        WindowsCommandFailure::PhysicalUnknown => Failure::PhysicalUnknown,
+    });
+    log
+}
+
+pub(super) fn clear_context(command: &mut Command) {
     // Context belongs to this invocation. Never leak a parent plugin's identifiers.
     for (name, _) in std::env::vars_os() {
         if name
@@ -40,21 +61,4 @@ pub(super) fn run(
     ] {
         command.env_remove(name);
     }
-    command.envs(intent.environment);
-    let output = run_windows_command(command, None, || Ok(cancel.load(Ordering::Relaxed)));
-    log.finished_ms = Some(now_ms().max(log.started_ms));
-    log.exit_code = output.exit_code;
-    log.stdout = output.stdout;
-    log.stderr = output.stderr;
-    log.stdout_truncated = output.stdout_truncated;
-    log.stderr_truncated = output.stderr_truncated;
-    log.failure = output.failure.map(|reason| match reason {
-        WindowsCommandFailure::ExitFailure => Failure::ExitFailure,
-        WindowsCommandFailure::SpawnUnavailable => Failure::SpawnUnavailable,
-        WindowsCommandFailure::SpawnFailed => Failure::SpawnFailed,
-        WindowsCommandFailure::Io | WindowsCommandFailure::Timeout => Failure::Io,
-        WindowsCommandFailure::Cancelled => Failure::Cancelled,
-        WindowsCommandFailure::PhysicalUnknown => Failure::PhysicalUnknown,
-    });
-    log
 }
