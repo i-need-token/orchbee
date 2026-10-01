@@ -52,9 +52,19 @@ pub(crate) struct NativeDrawReceipt {
     help_page: Option<usize>,
     #[cfg(windows)]
     attention: Option<crate::terminal_session::agent_attention::NativeAgentAttentionDraw>,
+    #[cfg(windows)]
+    graphics: Vec<crate::terminal_session::PaneGraphicsDraw>,
 }
 
 impl NativeDrawReceipt {
+    #[cfg(windows)]
+    pub(crate) fn with_graphics(
+        mut self,
+        graphics: Vec<crate::terminal_session::PaneGraphicsDraw>,
+    ) -> Self {
+        self.graphics = graphics;
+        self
+    }
     #[cfg(windows)]
     pub(crate) fn with_attention(
         mut self,
@@ -98,6 +108,8 @@ impl NativeDrawReceipt {
             help_page: None,
             #[cfg(windows)]
             attention: None,
+            #[cfg(windows)]
+            graphics: Vec::new(),
         }
     }
     pub(crate) const fn with_rename(
@@ -369,6 +381,8 @@ impl NativeUi {
     }
 
     pub(in crate::terminal_session) fn after_close_draw(&mut self, receipt: NativeDrawReceipt) {
+        #[cfg(windows)]
+        self.after_graphics_draw(receipt.graphics);
         if let Some(state) = &mut self.state {
             state.acknowledge_close_draw(
                 receipt.prompt.and_then(ModalPresentation::into_presented),

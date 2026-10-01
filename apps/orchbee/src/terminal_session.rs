@@ -33,7 +33,11 @@ mod agent_board;
 #[cfg(windows)]
 mod independent_popup;
 #[cfg(windows)]
+mod pane_graphics;
+#[cfg(windows)]
 mod panel_reports;
+#[cfg(windows)]
+pub(crate) use pane_graphics::{Canvas as PaneGraphicsCanvas, Draw as PaneGraphicsDraw};
 #[cfg(windows)]
 mod plugin_overlays;
 #[cfg(windows)]
@@ -526,6 +530,12 @@ impl TerminalSession {
     pub(crate) fn after_close_draw(&mut self, receipt: NativeDrawReceipt) {
         if let Some(native) = self.backend.native_mut() {
             native.after_close_draw(receipt);
+        }
+    }
+    #[cfg(windows)]
+    pub(crate) fn graphics_covered(&mut self) {
+        if let Some(native) = self.backend.native_mut() {
+            native.after_graphics_draw(Vec::new());
         }
     }
 

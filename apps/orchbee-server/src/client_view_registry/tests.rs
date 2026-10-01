@@ -26,6 +26,121 @@ fn sample() -> ClientViewAction {
     };
     request.action
 }
+
+#[cfg(windows)]
+#[test]
+fn graphics_freshness_partial_scope_and_heartbeat_change_do_not_fabricate_visibility() {
+    use orchbee_workbench_protocol::{
+        PaneGraphicsCapabilities, PaneGraphicsClientObservation, PaneGraphicsTransport,
+        SemanticPane, TerminalPresentationId,
+    };
+    let mut registry = ClientViewRegistry::default();
+    let now = Instant::now();
+    let ClientViewOutcome::Synchronized { client: record, .. } =
+        execute(&mut registry, 1, sample(), now)
+    else {
+        panic!("Client record");
+    };
+    let selection = record.view.selection.as_ref().unwrap();
+    let source = SemanticPane {
+        terminal_context_id: selection.terminal_context_id.clone(),
+        tab_id: selection.tab_id.clone().unwrap(),
+        panel_id: selection.panel_id.clone().unwrap(),
+        presentation_id: TerminalPresentationId::parse(&format!("{:032x}", 9)).unwrap(),
+        binding: None,
+        label: "Panel".into(),
+    };
+    let mut observation = PaneGraphicsClientObservation {
+        workbench_revision: record.view.workbench_revision,
+        capabilities: PaneGraphicsCapabilities {
+            transport: PaneGraphicsTransport::CellRaster,
+            cell_pixels: None,
+            pixel_mouse: false,
+        },
+        complete: false,
+        panes: vec![],
+    };
+    registry
+        .observe_graphics(
+            owner(1),
+            &record.client_id,
+            record.heartbeat,
+            observation.clone(),
+            now,
+        )
+        .unwrap();
+    let info = registry
+        .graphics_info(
+            Some(&record.client_id),
+            &source,
+            WorkbenchRevision::new(1),
+            now,
+        )
+        .unwrap()
+        .unwrap();
+    assert_eq!(info.visible, None);
+    assert_eq!(info.drawn, None);
+    assert!(info.capabilities.is_some());
+    observation.complete = true;
+    registry
+        .observe_graphics(
+            owner(1),
+            &record.client_id,
+            record.heartbeat,
+            observation.clone(),
+            now,
+        )
+        .unwrap();
+    assert_eq!(
+        registry
+            .graphics_info(None, &source, WorkbenchRevision::new(1), now)
+            .unwrap()
+            .unwrap()
+            .visible,
+        Some(false)
+    );
+    let later = now + Duration::from_secs(6);
+    execute(&mut registry, 1, sample(), later); // Replaying the same heartbeat never refreshes its sampling time.
+    let stale = registry
+        .graphics_info(
+            Some(&record.client_id),
+            &source,
+            WorkbenchRevision::new(1),
+            later,
+        )
+        .unwrap()
+        .unwrap();
+    assert!(stale.capabilities.is_none());
+    assert!(stale.visible.is_none());
+    assert!(
+        registry
+            .observe_graphics(
+                owner(1),
+                &record.client_id,
+                record.heartbeat,
+                observation,
+                later
+            )
+            .is_err()
+    );
+    let mut next = sample();
+    let ClientViewAction::Synchronize { heartbeat, .. } = &mut next else {
+        unreachable!();
+    };
+    *heartbeat = ClientViewSequence::new(record.heartbeat.value() + 1).unwrap();
+    execute(&mut registry, 1, next, later);
+    let unobserved = registry
+        .graphics_info(
+            Some(&record.client_id),
+            &source,
+            WorkbenchRevision::new(1),
+            later,
+        )
+        .unwrap()
+        .unwrap();
+    assert!(unobserved.capabilities.is_none());
+    assert!(unobserved.visible.is_none());
+}
 fn command(id: u64, target: u64) -> ClientViewControl {
     let ClientViewAction::Synchronize {
         view,

@@ -1,5 +1,7 @@
 #[cfg(windows)]
 mod agent_attention;
+#[cfg(windows)]
+mod pane_graphics;
 #[cfg(all(windows, test))]
 pub(in crate::terminal_session) use agent_attention::tests::focused_physical_agent_fixture;
 #[cfg(windows)]
@@ -243,6 +245,8 @@ pub(crate) struct NativeSessionView<'a> {
     attention: Option<&'a super::agent_attention::AgentAttention>,
     #[cfg(windows)]
     reports: Option<&'a super::panel_reports::PanelReports>,
+    #[cfg(windows)]
+    graphics: Option<&'a super::pane_graphics::Driver>,
     #[cfg(windows)]
     popup_failed: bool,
     #[cfg(windows)]
@@ -584,6 +588,8 @@ impl<'a> NativeSessionView<'a> {
             #[cfg(windows)]
             reports: None,
             #[cfg(windows)]
+            graphics: None,
+            #[cfg(windows)]
             popup_failed: false,
             #[cfg(windows)]
             command_notice: None,
@@ -659,6 +665,8 @@ pub(super) struct NativeUi {
     attention: super::agent_attention::AgentAttention,
     #[cfg(windows)]
     reports: super::panel_reports::PanelReports,
+    #[cfg(windows)]
+    graphics: super::pane_graphics::Driver,
     #[cfg(windows)]
     overlays: super::plugin_overlays::Driver,
     #[cfg(windows)]
@@ -745,6 +753,8 @@ impl NativeUi {
             #[cfg(windows)]
             reports: super::panel_reports::PanelReports::new(clock.clone()),
             #[cfg(windows)]
+            graphics: super::pane_graphics::Driver::new(clock.clone()),
+            #[cfg(windows)]
             overlays: super::plugin_overlays::Driver::new(clock.clone()),
             #[cfg(windows)]
             popup: super::independent_popup::Driver::new(clock.clone()),
@@ -806,6 +816,10 @@ impl NativeUi {
             reports: state
                 .filter(|s| self.reports.matches(s))
                 .map(|_| &self.reports),
+            #[cfg(windows)]
+            graphics: state
+                .filter(|_| self.retirement.is_none())
+                .map(|_| &self.graphics),
             #[cfg(windows)]
             popup_failed: self.popup.failed(),
             #[cfg(windows)]
@@ -1023,6 +1037,7 @@ impl NativeUi {
                     changed = true;
                 }
                 changed |= self.popup.tick();
+                changed |= self.graphics.tick(self.state.as_ref());
                 changed |= self.attention.tick();
                 changed |= self.reports.tick(
                     self.state
@@ -3059,6 +3074,8 @@ impl NativeUi {
         self.board.close();
         #[cfg(windows)]
         self.reports.close();
+        #[cfg(windows)]
+        self.graphics.close();
         #[cfg(windows)]
         self.overlays.close();
         #[cfg(windows)]

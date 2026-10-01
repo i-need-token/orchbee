@@ -848,6 +848,7 @@ impl AgentBoard {
                 #[cfg(windows)]
                 LaneOutcome::Attention { .. }
                 | LaneOutcome::PanelReports { .. }
+                | LaneOutcome::Graphics { .. }
                 | LaneOutcome::PhysicalAttention { .. } => {
                     self.read = AgentBoardRead::Failed(AgentBoardReadFailure::Transport);
                 }

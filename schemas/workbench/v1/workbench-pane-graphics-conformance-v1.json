@@ -534,6 +534,80 @@
 					"reason": "invalid-file"
 				}
 			}
+		},
+		{
+			"name": "observe-actual-cell-raster-draw",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.pane-graphics",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "observe",
+					"clientId": "00000000000000000000000000000004",
+					"heartbeat": "1",
+					"observation": {
+						"workbenchRevision": "5",
+						"capabilities": {
+							"transport": "cell-raster",
+							"cellPixels": null,
+							"pixelMouse": false
+						},
+						"complete": true,
+						"panes": [
+							{
+								"target": {
+									"panelId": "00000000000000000000000000000003",
+									"presentationId": "00000000000000000000000000000006"
+								},
+								"binding": null,
+								"drawnRevision": "1"
+							}
+						]
+					}
+				}
+			}
+		},
+		{
+			"name": "observe-partial-empty-full-width-heartbeat",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.pane-graphics",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "observe",
+					"clientId": "00000000000000000000000000000004",
+					"heartbeat": "18446744073709551615",
+					"observation": {
+						"workbenchRevision": "5",
+						"capabilities": {
+							"transport": "cell-raster",
+							"cellPixels": null,
+							"pixelMouse": false
+						},
+						"complete": false,
+						"panes": []
+					}
+				}
+			}
+		},
+		{
+			"name": "observed-correlated-heartbeat",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.pane-graphics.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "observed",
+					"clientId": "00000000000000000000000000000004",
+					"heartbeat": "1"
+				}
+			}
 		}
 	],
 	"invalid": [
@@ -1388,6 +1462,765 @@
 				"outcome": {
 					"kind": "failed",
 					"reason": "unsupported"
+				}
+			}
+		},
+		{
+			"name": "observe-missing-nullable-binding",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.pane-graphics",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "observe",
+					"clientId": "00000000000000000000000000000004",
+					"heartbeat": "1",
+					"observation": {
+						"workbenchRevision": "5",
+						"capabilities": {
+							"transport": "cell-raster",
+							"cellPixels": null,
+							"pixelMouse": false
+						},
+						"complete": true,
+						"panes": [
+							{
+								"target": {
+									"panelId": "00000000000000000000000000000003",
+									"presentationId": "00000000000000000000000000000006"
+								},
+								"drawnRevision": "1"
+							}
+						]
+					}
+				}
+			}
+		},
+		{
+			"name": "observe-unresolved-presentation",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.pane-graphics",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "observe",
+					"clientId": "00000000000000000000000000000004",
+					"heartbeat": "1",
+					"observation": {
+						"workbenchRevision": "5",
+						"capabilities": {
+							"transport": "cell-raster",
+							"cellPixels": null,
+							"pixelMouse": false
+						},
+						"complete": true,
+						"panes": [
+							{
+								"target": {
+									"panelId": "00000000000000000000000000000003",
+									"presentationId": null
+								},
+								"binding": null,
+								"drawnRevision": "1"
+							}
+						]
+					}
+				}
+			}
+		},
+		{
+			"name": "observe-duplicate-panel",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.pane-graphics",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "observe",
+					"clientId": "00000000000000000000000000000004",
+					"heartbeat": "1",
+					"observation": {
+						"workbenchRevision": "5",
+						"capabilities": {
+							"transport": "cell-raster",
+							"cellPixels": null,
+							"pixelMouse": false
+						},
+						"complete": true,
+						"panes": [
+							{
+								"target": {
+									"panelId": "00000000000000000000000000000003",
+									"presentationId": "00000000000000000000000000000006"
+								},
+								"binding": null,
+								"drawnRevision": "1"
+							},
+							{
+								"target": {
+									"panelId": "00000000000000000000000000000003",
+									"presentationId": "00000000000000000000000000000006"
+								},
+								"binding": null,
+								"drawnRevision": "1"
+							}
+						]
+					}
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "observe-zero-heartbeat",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.pane-graphics",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "observe",
+					"clientId": "00000000000000000000000000000004",
+					"heartbeat": "0",
+					"observation": {
+						"workbenchRevision": "5",
+						"capabilities": {
+							"transport": "cell-raster",
+							"cellPixels": null,
+							"pixelMouse": false
+						},
+						"complete": true,
+						"panes": [
+							{
+								"target": {
+									"panelId": "00000000000000000000000000000003",
+									"presentationId": "00000000000000000000000000000006"
+								},
+								"binding": null,
+								"drawnRevision": "1"
+							}
+						]
+					}
+				}
+			}
+		},
+		{
+			"name": "observe-invented-pixel-mouse",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.pane-graphics",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "observe",
+					"clientId": "00000000000000000000000000000004",
+					"heartbeat": "1",
+					"observation": {
+						"workbenchRevision": "5",
+						"capabilities": {
+							"transport": "cell-raster",
+							"cellPixels": null,
+							"pixelMouse": true
+						},
+						"complete": true,
+						"panes": [
+							{
+								"target": {
+									"panelId": "00000000000000000000000000000003",
+									"presentationId": "00000000000000000000000000000006"
+								},
+								"binding": null,
+								"drawnRevision": "1"
+							}
+						]
+					}
+				}
+			}
+		},
+		{
+			"name": "observe-extra-private-field",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.pane-graphics",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "observe",
+					"clientId": "00000000000000000000000000000004",
+					"heartbeat": "1",
+					"observation": {
+						"workbenchRevision": "5",
+						"capabilities": {
+							"transport": "cell-raster",
+							"cellPixels": null,
+							"pixelMouse": false
+						},
+						"complete": true,
+						"panes": [
+							{
+								"target": {
+									"panelId": "00000000000000000000000000000003",
+									"presentationId": "00000000000000000000000000000006"
+								},
+								"binding": null,
+								"drawnRevision": "1"
+							}
+						],
+						"fileFrameDirectory": "C:/secret"
+					}
+				}
+			}
+		},
+		{
+			"name": "observe-too-many-surfaces",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.pane-graphics",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "observe",
+					"clientId": "00000000000000000000000000000004",
+					"heartbeat": "1",
+					"observation": {
+						"workbenchRevision": "5",
+						"capabilities": {
+							"transport": "cell-raster",
+							"cellPixels": null,
+							"pixelMouse": false
+						},
+						"complete": true,
+						"panes": [
+							{
+								"target": {
+									"panelId": "00000000000000000000000000000001",
+									"presentationId": "00000000000000000000000000000006"
+								},
+								"binding": null,
+								"drawnRevision": "1"
+							},
+							{
+								"target": {
+									"panelId": "00000000000000000000000000000002",
+									"presentationId": "00000000000000000000000000000006"
+								},
+								"binding": null,
+								"drawnRevision": "1"
+							},
+							{
+								"target": {
+									"panelId": "00000000000000000000000000000003",
+									"presentationId": "00000000000000000000000000000006"
+								},
+								"binding": null,
+								"drawnRevision": "1"
+							},
+							{
+								"target": {
+									"panelId": "00000000000000000000000000000004",
+									"presentationId": "00000000000000000000000000000006"
+								},
+								"binding": null,
+								"drawnRevision": "1"
+							},
+							{
+								"target": {
+									"panelId": "00000000000000000000000000000005",
+									"presentationId": "00000000000000000000000000000006"
+								},
+								"binding": null,
+								"drawnRevision": "1"
+							},
+							{
+								"target": {
+									"panelId": "00000000000000000000000000000006",
+									"presentationId": "00000000000000000000000000000006"
+								},
+								"binding": null,
+								"drawnRevision": "1"
+							},
+							{
+								"target": {
+									"panelId": "00000000000000000000000000000007",
+									"presentationId": "00000000000000000000000000000006"
+								},
+								"binding": null,
+								"drawnRevision": "1"
+							},
+							{
+								"target": {
+									"panelId": "00000000000000000000000000000008",
+									"presentationId": "00000000000000000000000000000006"
+								},
+								"binding": null,
+								"drawnRevision": "1"
+							},
+							{
+								"target": {
+									"panelId": "00000000000000000000000000000009",
+									"presentationId": "00000000000000000000000000000006"
+								},
+								"binding": null,
+								"drawnRevision": "1"
+							},
+							{
+								"target": {
+									"panelId": "0000000000000000000000000000000a",
+									"presentationId": "00000000000000000000000000000006"
+								},
+								"binding": null,
+								"drawnRevision": "1"
+							},
+							{
+								"target": {
+									"panelId": "0000000000000000000000000000000b",
+									"presentationId": "00000000000000000000000000000006"
+								},
+								"binding": null,
+								"drawnRevision": "1"
+							},
+							{
+								"target": {
+									"panelId": "0000000000000000000000000000000c",
+									"presentationId": "00000000000000000000000000000006"
+								},
+								"binding": null,
+								"drawnRevision": "1"
+							},
+							{
+								"target": {
+									"panelId": "0000000000000000000000000000000d",
+									"presentationId": "00000000000000000000000000000006"
+								},
+								"binding": null,
+								"drawnRevision": "1"
+							},
+							{
+								"target": {
+									"panelId": "0000000000000000000000000000000e",
+									"presentationId": "00000000000000000000000000000006"
+								},
+								"binding": null,
+								"drawnRevision": "1"
+							},
+							{
+								"target": {
+									"panelId": "0000000000000000000000000000000f",
+									"presentationId": "00000000000000000000000000000006"
+								},
+								"binding": null,
+								"drawnRevision": "1"
+							},
+							{
+								"target": {
+									"panelId": "00000000000000000000000000000010",
+									"presentationId": "00000000000000000000000000000006"
+								},
+								"binding": null,
+								"drawnRevision": "1"
+							},
+							{
+								"target": {
+									"panelId": "00000000000000000000000000000011",
+									"presentationId": "00000000000000000000000000000006"
+								},
+								"binding": null,
+								"drawnRevision": "1"
+							},
+							{
+								"target": {
+									"panelId": "00000000000000000000000000000012",
+									"presentationId": "00000000000000000000000000000006"
+								},
+								"binding": null,
+								"drawnRevision": "1"
+							},
+							{
+								"target": {
+									"panelId": "00000000000000000000000000000013",
+									"presentationId": "00000000000000000000000000000006"
+								},
+								"binding": null,
+								"drawnRevision": "1"
+							},
+							{
+								"target": {
+									"panelId": "00000000000000000000000000000014",
+									"presentationId": "00000000000000000000000000000006"
+								},
+								"binding": null,
+								"drawnRevision": "1"
+							},
+							{
+								"target": {
+									"panelId": "00000000000000000000000000000015",
+									"presentationId": "00000000000000000000000000000006"
+								},
+								"binding": null,
+								"drawnRevision": "1"
+							},
+							{
+								"target": {
+									"panelId": "00000000000000000000000000000016",
+									"presentationId": "00000000000000000000000000000006"
+								},
+								"binding": null,
+								"drawnRevision": "1"
+							},
+							{
+								"target": {
+									"panelId": "00000000000000000000000000000017",
+									"presentationId": "00000000000000000000000000000006"
+								},
+								"binding": null,
+								"drawnRevision": "1"
+							},
+							{
+								"target": {
+									"panelId": "00000000000000000000000000000018",
+									"presentationId": "00000000000000000000000000000006"
+								},
+								"binding": null,
+								"drawnRevision": "1"
+							},
+							{
+								"target": {
+									"panelId": "00000000000000000000000000000019",
+									"presentationId": "00000000000000000000000000000006"
+								},
+								"binding": null,
+								"drawnRevision": "1"
+							},
+							{
+								"target": {
+									"panelId": "0000000000000000000000000000001a",
+									"presentationId": "00000000000000000000000000000006"
+								},
+								"binding": null,
+								"drawnRevision": "1"
+							},
+							{
+								"target": {
+									"panelId": "0000000000000000000000000000001b",
+									"presentationId": "00000000000000000000000000000006"
+								},
+								"binding": null,
+								"drawnRevision": "1"
+							},
+							{
+								"target": {
+									"panelId": "0000000000000000000000000000001c",
+									"presentationId": "00000000000000000000000000000006"
+								},
+								"binding": null,
+								"drawnRevision": "1"
+							},
+							{
+								"target": {
+									"panelId": "0000000000000000000000000000001d",
+									"presentationId": "00000000000000000000000000000006"
+								},
+								"binding": null,
+								"drawnRevision": "1"
+							},
+							{
+								"target": {
+									"panelId": "0000000000000000000000000000001e",
+									"presentationId": "00000000000000000000000000000006"
+								},
+								"binding": null,
+								"drawnRevision": "1"
+							},
+							{
+								"target": {
+									"panelId": "0000000000000000000000000000001f",
+									"presentationId": "00000000000000000000000000000006"
+								},
+								"binding": null,
+								"drawnRevision": "1"
+							},
+							{
+								"target": {
+									"panelId": "00000000000000000000000000000020",
+									"presentationId": "00000000000000000000000000000006"
+								},
+								"binding": null,
+								"drawnRevision": "1"
+							},
+							{
+								"target": {
+									"panelId": "00000000000000000000000000000021",
+									"presentationId": "00000000000000000000000000000006"
+								},
+								"binding": null,
+								"drawnRevision": "1"
+							},
+							{
+								"target": {
+									"panelId": "00000000000000000000000000000022",
+									"presentationId": "00000000000000000000000000000006"
+								},
+								"binding": null,
+								"drawnRevision": "1"
+							},
+							{
+								"target": {
+									"panelId": "00000000000000000000000000000023",
+									"presentationId": "00000000000000000000000000000006"
+								},
+								"binding": null,
+								"drawnRevision": "1"
+							},
+							{
+								"target": {
+									"panelId": "00000000000000000000000000000024",
+									"presentationId": "00000000000000000000000000000006"
+								},
+								"binding": null,
+								"drawnRevision": "1"
+							},
+							{
+								"target": {
+									"panelId": "00000000000000000000000000000025",
+									"presentationId": "00000000000000000000000000000006"
+								},
+								"binding": null,
+								"drawnRevision": "1"
+							},
+							{
+								"target": {
+									"panelId": "00000000000000000000000000000026",
+									"presentationId": "00000000000000000000000000000006"
+								},
+								"binding": null,
+								"drawnRevision": "1"
+							},
+							{
+								"target": {
+									"panelId": "00000000000000000000000000000027",
+									"presentationId": "00000000000000000000000000000006"
+								},
+								"binding": null,
+								"drawnRevision": "1"
+							},
+							{
+								"target": {
+									"panelId": "00000000000000000000000000000028",
+									"presentationId": "00000000000000000000000000000006"
+								},
+								"binding": null,
+								"drawnRevision": "1"
+							},
+							{
+								"target": {
+									"panelId": "00000000000000000000000000000029",
+									"presentationId": "00000000000000000000000000000006"
+								},
+								"binding": null,
+								"drawnRevision": "1"
+							},
+							{
+								"target": {
+									"panelId": "0000000000000000000000000000002a",
+									"presentationId": "00000000000000000000000000000006"
+								},
+								"binding": null,
+								"drawnRevision": "1"
+							},
+							{
+								"target": {
+									"panelId": "0000000000000000000000000000002b",
+									"presentationId": "00000000000000000000000000000006"
+								},
+								"binding": null,
+								"drawnRevision": "1"
+							},
+							{
+								"target": {
+									"panelId": "0000000000000000000000000000002c",
+									"presentationId": "00000000000000000000000000000006"
+								},
+								"binding": null,
+								"drawnRevision": "1"
+							},
+							{
+								"target": {
+									"panelId": "0000000000000000000000000000002d",
+									"presentationId": "00000000000000000000000000000006"
+								},
+								"binding": null,
+								"drawnRevision": "1"
+							},
+							{
+								"target": {
+									"panelId": "0000000000000000000000000000002e",
+									"presentationId": "00000000000000000000000000000006"
+								},
+								"binding": null,
+								"drawnRevision": "1"
+							},
+							{
+								"target": {
+									"panelId": "0000000000000000000000000000002f",
+									"presentationId": "00000000000000000000000000000006"
+								},
+								"binding": null,
+								"drawnRevision": "1"
+							},
+							{
+								"target": {
+									"panelId": "00000000000000000000000000000030",
+									"presentationId": "00000000000000000000000000000006"
+								},
+								"binding": null,
+								"drawnRevision": "1"
+							},
+							{
+								"target": {
+									"panelId": "00000000000000000000000000000031",
+									"presentationId": "00000000000000000000000000000006"
+								},
+								"binding": null,
+								"drawnRevision": "1"
+							},
+							{
+								"target": {
+									"panelId": "00000000000000000000000000000032",
+									"presentationId": "00000000000000000000000000000006"
+								},
+								"binding": null,
+								"drawnRevision": "1"
+							},
+							{
+								"target": {
+									"panelId": "00000000000000000000000000000033",
+									"presentationId": "00000000000000000000000000000006"
+								},
+								"binding": null,
+								"drawnRevision": "1"
+							},
+							{
+								"target": {
+									"panelId": "00000000000000000000000000000034",
+									"presentationId": "00000000000000000000000000000006"
+								},
+								"binding": null,
+								"drawnRevision": "1"
+							},
+							{
+								"target": {
+									"panelId": "00000000000000000000000000000035",
+									"presentationId": "00000000000000000000000000000006"
+								},
+								"binding": null,
+								"drawnRevision": "1"
+							},
+							{
+								"target": {
+									"panelId": "00000000000000000000000000000036",
+									"presentationId": "00000000000000000000000000000006"
+								},
+								"binding": null,
+								"drawnRevision": "1"
+							},
+							{
+								"target": {
+									"panelId": "00000000000000000000000000000037",
+									"presentationId": "00000000000000000000000000000006"
+								},
+								"binding": null,
+								"drawnRevision": "1"
+							},
+							{
+								"target": {
+									"panelId": "00000000000000000000000000000038",
+									"presentationId": "00000000000000000000000000000006"
+								},
+								"binding": null,
+								"drawnRevision": "1"
+							},
+							{
+								"target": {
+									"panelId": "00000000000000000000000000000039",
+									"presentationId": "00000000000000000000000000000006"
+								},
+								"binding": null,
+								"drawnRevision": "1"
+							},
+							{
+								"target": {
+									"panelId": "0000000000000000000000000000003a",
+									"presentationId": "00000000000000000000000000000006"
+								},
+								"binding": null,
+								"drawnRevision": "1"
+							},
+							{
+								"target": {
+									"panelId": "0000000000000000000000000000003b",
+									"presentationId": "00000000000000000000000000000006"
+								},
+								"binding": null,
+								"drawnRevision": "1"
+							},
+							{
+								"target": {
+									"panelId": "0000000000000000000000000000003c",
+									"presentationId": "00000000000000000000000000000006"
+								},
+								"binding": null,
+								"drawnRevision": "1"
+							},
+							{
+								"target": {
+									"panelId": "0000000000000000000000000000003d",
+									"presentationId": "00000000000000000000000000000006"
+								},
+								"binding": null,
+								"drawnRevision": "1"
+							},
+							{
+								"target": {
+									"panelId": "0000000000000000000000000000003e",
+									"presentationId": "00000000000000000000000000000006"
+								},
+								"binding": null,
+								"drawnRevision": "1"
+							},
+							{
+								"target": {
+									"panelId": "0000000000000000000000000000003f",
+									"presentationId": "00000000000000000000000000000006"
+								},
+								"binding": null,
+								"drawnRevision": "1"
+							},
+							{
+								"target": {
+									"panelId": "00000000000000000000000000000040",
+									"presentationId": "00000000000000000000000000000006"
+								},
+								"binding": null,
+								"drawnRevision": "1"
+							},
+							{
+								"target": {
+									"panelId": "00000000000000000000000000000041",
+									"presentationId": "00000000000000000000000000000006"
+								},
+								"binding": null,
+								"drawnRevision": "1"
+							}
+						]
+					}
 				}
 			}
 		}

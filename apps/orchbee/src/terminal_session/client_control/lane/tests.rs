@@ -7,6 +7,151 @@ use orchbee_workbench_protocol::{
 use std::{io::Read, num::NonZeroU64, sync::mpsc};
 
 #[test]
+fn graphics_draw_publication_uses_the_registered_connection_and_shutdown_interrupts_it() {
+    use orchbee_workbench_protocol::*;
+    for stalled in [false, true] {
+        let (reached_tx, reached_rx) = mpsc::sync_channel(1);
+        let server = FakeServer::start_connections(2, move |index, mut stream| {
+            assert!(matches!(
+                read_message(&mut stream).map_err(io::Error::other)?,
+                LocalClientMessage::ClientHello(_)
+            ));
+            write_message(
+                &mut stream,
+                &LocalClientMessage::ClientAccepted {
+                    generation: NonZeroU64::new(index as u64 + 1).unwrap(),
+                },
+            )
+            .map_err(io::Error::other)?;
+            if index == 0 {
+                return Ok(());
+            }
+            let WorkbenchRequest::ClientView(request) =
+                read_workbench_request(&mut stream).map_err(io::Error::other)?
+            else {
+                panic!("view must precede draw publication");
+            };
+            let ClientViewAction::Synchronize {
+                heartbeat,
+                view_revision,
+                view,
+                ..
+            } = request.action
+            else {
+                panic!("synchronize");
+            };
+            let client_id = WorkbenchClientId::parse(&format!("{:032x}", 2)).unwrap();
+            write_workbench_response(
+                &mut stream,
+                &WorkbenchResponse::ClientView(WorkbenchClientViewResult {
+                    protocol_version: ProtocolVersion,
+                    request_id: request.request_id.clone(),
+                    site_id: request.site_id.clone(),
+                    outcome: ClientViewOutcome::Synchronized {
+                        client: Box::new(ClientViewRecord {
+                            client_id: client_id.clone(),
+                            heartbeat,
+                            view_revision,
+                            view: (*view).clone(),
+                            availability: ClientViewAvailability::Current,
+                        }),
+                        control: None,
+                    },
+                }),
+            )
+            .map_err(io::Error::other)?;
+            let WorkbenchRequest::PaneGraphics(graphics) =
+                read_workbench_request(&mut stream).map_err(io::Error::other)?
+            else {
+                panic!("graphics publication");
+            };
+            assert_ne!(graphics.request_id, request.request_id);
+            assert_eq!(graphics.site_id, request.site_id);
+            let PaneGraphicsAction::Observe {
+                client_id: owner,
+                heartbeat: seen,
+                observation,
+            } = graphics.action
+            else {
+                panic!("observe only");
+            };
+            assert_eq!(owner, client_id);
+            assert_eq!(seen, heartbeat);
+            assert_eq!(observation.workbench_revision, view.workbench_revision);
+            assert_eq!(
+                observation.capabilities.transport,
+                PaneGraphicsTransport::CellRaster
+            );
+            assert!(observation.capabilities.cell_pixels.is_none());
+            assert!(!observation.capabilities.pixel_mouse);
+            if !stalled {
+                write_workbench_response(
+                    &mut stream,
+                    &WorkbenchResponse::PaneGraphics(PaneGraphicsResult {
+                        protocol_version: ProtocolVersion,
+                        request_id: graphics.request_id,
+                        site_id: graphics.site_id,
+                        outcome: PaneGraphicsOutcome::Observed {
+                            client_id,
+                            heartbeat,
+                        },
+                    }),
+                )
+                .map_err(io::Error::other)?;
+            }
+            reached_tx.send(()).unwrap();
+            assert_eq!(stream.read(&mut [0])?, 0);
+            Ok(())
+        })
+        .unwrap();
+        let client = LocalClient::connect(server.endpoint(), "test-cohort").unwrap();
+        let origin = client.origin();
+        let clock = client.operation_clock();
+        drop(client);
+        let corpus: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../../../../schemas/workbench/v1/workbench-client-view-conformance-v1.json"
+        ))
+        .unwrap();
+        let WorkbenchRequest::ClientView(request) =
+            parse_workbench_request(&serde_json::to_vec(&corpus["valid"][0]["document"]).unwrap())
+                .unwrap()
+        else {
+            panic!("Client sample");
+        };
+        let ClientViewAction::Synchronize {
+            heartbeat,
+            view_revision,
+            view,
+            ..
+        } = request.action
+        else {
+            panic!("sample");
+        };
+        let graphics = PaneGraphicsClientObservation {
+            workbench_revision: view.workbench_revision,
+            capabilities: PaneGraphicsCapabilities {
+                transport: PaneGraphicsTransport::CellRaster,
+                cell_pixels: None,
+                pixel_mouse: false,
+            },
+            complete: true,
+            panes: vec![],
+        };
+        let mut lane = ClientControlLane::spawn(origin, clock, request.site_id).unwrap();
+        assert!(lane.publish(Sample {
+            heartbeat,
+            revision: view_revision,
+            view: *view,
+            graphics: Some(graphics)
+        }));
+        reached_rx.recv_timeout(Duration::from_secs(3)).unwrap();
+        lane.close();
+        assert!(lane.task.is_none());
+        server.finish().unwrap();
+    }
+}
+
+#[test]
 fn closing_the_lane_wakes_and_joins_blocked_admission_and_exchange() {
     for during_admission in [false, true] {
         let (reached_tx, reached_rx) = mpsc::sync_channel(1);
@@ -67,6 +212,7 @@ fn closing_the_lane_wakes_and_joins_blocked_admission_and_exchange() {
         };
         let mut lane = ClientControlLane::spawn(origin, clock, request.site_id).unwrap();
         assert!(lane.publish(Sample {
+            graphics: None,
             heartbeat,
             revision: view_revision,
             view: *view
@@ -164,6 +310,7 @@ fn closing_during_the_one_workbench_snapshot_read_wakes_and_joins_without_delive
         };
         let mut lane = ClientControlLane::spawn(origin, clock, request.site_id).unwrap();
         assert!(lane.publish(Sample {
+            graphics: None,
             heartbeat,
             revision: view_revision,
             view: *view

@@ -44,11 +44,19 @@ mod attention;
 pub(super) use attention::AttentionRound;
 
 #[cfg(windows)]
+mod pane_graphics;
+#[cfg(windows)]
 mod panel_reports;
 #[cfg(windows)]
 mod physical_attention;
 
 pub(super) enum LaneCommand {
+    #[cfg(windows)]
+    Graphics {
+        epoch: u64,
+        job: super::pane_graphics::Job,
+        deadline: Instant,
+    },
     #[cfg(windows)]
     PhysicalAttention {
         epoch: u64,
@@ -80,6 +88,11 @@ pub(super) enum LaneCommand {
 }
 
 pub(super) enum LaneOutcome {
+    #[cfg(windows)]
+    Graphics {
+        epoch: u64,
+        result: Result<super::pane_graphics::Round, LaneFailure>,
+    },
     #[cfg(windows)]
     PhysicalAttention {
         epoch: u64,
@@ -254,6 +267,23 @@ fn run(
             break;
         }
         let outcome = match command {
+            #[cfg(windows)]
+            LaneCommand::Graphics {
+                epoch,
+                job,
+                deadline,
+            } => LaneOutcome::Graphics {
+                epoch,
+                result: pane_graphics::read_round(
+                    &origin,
+                    &clock,
+                    &mut client,
+                    job,
+                    deadline,
+                    wake_read.as_local_io(),
+                    &shutdown,
+                ),
+            },
             #[cfg(windows)]
             LaneCommand::PhysicalAttention { epoch, deadline } => LaneOutcome::PhysicalAttention {
                 epoch,

@@ -30,6 +30,8 @@ impl NativeUi {
         #[cfg(windows)]
         self.reports.set_origin(origin.clone());
         #[cfg(windows)]
+        self.graphics.set_origin(origin.clone());
+        #[cfg(windows)]
         self.overlays.set_origin(origin.clone());
         #[cfg(windows)]
         self.popup.set_origin(origin.clone());
@@ -91,6 +93,8 @@ impl NativeUi {
         self.attention.close();
         #[cfg(windows)]
         self.reports.close();
+        #[cfg(windows)]
+        self.graphics.close();
     }
 
     /// One key under board capture. Consumed regardless — the capture

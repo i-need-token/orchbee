@@ -42,6 +42,14 @@ pub struct PaneGraphicsFrameCommit<'a> {
     pub image: DecodedGraphicsImage,
 }
 impl PaneGraphicsAuthority {
+    /// Installed Site revision; exhausted owners cannot publish renderer facts.
+    pub fn revision(&self) -> Result<WorkbenchRevision, Failure> {
+        if self.exhausted {
+            Err(Failure::RevisionExhausted)
+        } else {
+            Ok(WorkbenchRevision::new(self.revision))
+        }
+    }
     /// Resolves a selector to the actual current Presentation, including primary selection.
     pub fn resolve(
         snapshot: &Snapshot,

@@ -36,10 +36,11 @@ pub use command::{
     MAXIMUM_GRAPHICS_LAYERS_PER_PANE, MAXIMUM_GRAPHICS_REQUEST_BYTES,
     MAXIMUM_GRAPHICS_RESIDENT_BYTES, MAXIMUM_GRAPHICS_RESULT_BYTES, MAXIMUM_GRAPHICS_SET_BYTES,
     MAXIMUM_GRAPHICS_STREAM_BYTES, PaneGraphicsAction, PaneGraphicsCapabilities,
-    PaneGraphicsCellPixels, PaneGraphicsDamage, PaneGraphicsFailure, PaneGraphicsFormat,
-    PaneGraphicsFrame, PaneGraphicsLayer, PaneGraphicsOutcome, PaneGraphicsPlacement,
-    PaneGraphicsRequest, PaneGraphicsResult, PaneGraphicsStreamImage, PaneGraphicsTarget,
-    PaneGraphicsTransport, graphics_base64_bytes, graphics_layer_id, graphics_rgba_bytes,
+    PaneGraphicsCellPixels, PaneGraphicsClientObservation, PaneGraphicsClientPane,
+    PaneGraphicsDamage, PaneGraphicsFailure, PaneGraphicsFormat, PaneGraphicsFrame,
+    PaneGraphicsLayer, PaneGraphicsOutcome, PaneGraphicsPlacement, PaneGraphicsRequest,
+    PaneGraphicsResult, PaneGraphicsStreamImage, PaneGraphicsTarget, PaneGraphicsTransport,
+    graphics_base64_bytes, graphics_layer_id, graphics_rgba_bytes,
 };
 mod directory;
 mod identity;

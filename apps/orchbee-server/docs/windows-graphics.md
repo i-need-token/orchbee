@@ -48,16 +48,16 @@ select `primary`. Placement uses signed viewport row/column, optional explicit g
 actual Panel surface. Neither a negative coordinate nor a large placement permits drawing chrome
 or another Panel.
 
-| State | Input | Guard | Result |
-| --- | --- | --- | --- |
-| Vacant / static | Set | Current source, valid complete image, capacity | Install static layer |
-| Vacant / static | Stream open | Current source, free producer slot | One connection owns stream |
-| Streaming | Set / clear / another open | Producer is active | Refuse without changing pixels |
-| Streaming | Frame | Exact owner, increasing nonzero sequence, valid image | Atomically replace frame |
-| Streaming | Duplicate / older sequence | Sequence does not advance | Refuse without replacement |
-| Streaming | Close / EOF / cancellation | Owning connection ends | Release stream and layer |
-| Static / vacant | Clear | No active producer | Remove layer; absent is an unchanged success |
-| Any | Presentation removed | Canonical identity no longer exists | Retire owned layers and producer |
+| State           | Input                      | Guard                                                 | Result                                       |
+| --------------- | -------------------------- | ----------------------------------------------------- | -------------------------------------------- |
+| Vacant / static | Set                        | Current source, valid complete image, capacity        | Install static layer                         |
+| Vacant / static | Stream open                | Current source, free producer slot                    | One connection owns stream                   |
+| Streaming       | Set / clear / another open | Producer is active                                    | Refuse without changing pixels               |
+| Streaming       | Frame                      | Exact owner, increasing nonzero sequence, valid image | Atomically replace frame                     |
+| Streaming       | Duplicate / older sequence | Sequence does not advance                             | Refuse without replacement                   |
+| Streaming       | Close / EOF / cancellation | Owning connection ends                                | Release stream and layer                     |
+| Static / vacant | Clear                      | No active producer                                    | Remove layer; absent is an unchanged success |
+| Any             | Presentation removed       | Canonical identity no longer exists                   | Retire owned layers and producer             |
 
 Stream framing follows the reference: a bounded JSON header followed by its declared raw byte
 body. Every accepted frame returns its actual sequence/revision receipt. Damage rectangles are
@@ -93,9 +93,9 @@ The Windows Site layer transactions and read-only Host PNG adapter are implement
 
 OBWP kinds 57/58 carry closed requests and results. OBNG carries a bounded viewer-scoped PNG request; existing correlated OBNR records carry its result. Terminal Host kinds 80/81 use the distinct graphics-image encoding (5), bounded at 32 MiB plus its 56-byte result header; ordinary input bounds are unchanged.
 
-The Client renderer, actual render observations, native CLI upload/stream entry points and private file-frame producer leases are still pending. Information therefore returns nullable renderer facts and no file-frame directory; file-frame requests are refused. These four comparison rows remain missing until an actual consumer and Windows acceptance establish the behavior. The complete native cohort is versioned and restaged for final integration; no main integration or old-cohort substitution is authorized by this checkpoint.
+The native CLI upload/stream paths and [native TUI cell raster consumer](../../orchbee/docs/native-panel-graphics.md) are implemented. The dedicated read lane stages complete, revision-pinned resources; the authenticated Client publisher records successful uncovered draw observations. Info uses fresh matching Client facts and leaves unknown physical pixel geometry null. Private file-frame producer leases remain pending, no directory is advertised, and file-frame requests are refused. These four comparison rows remain missing until an actual consumer and Windows acceptance establish the behavior. The complete native cohort is versioned and restaged for final integration; no main integration or old-cohort substitution is authorized by this checkpoint.
 
-Focused evidence includes the 50-case Rust/TypeScript/JSON Schema corpus, image and carrier bounds, six layer-owner tests, two production Server session/observer witnesses, and five Host PNG/graphics tests including actual Windows PTY creation and PNG decoding. This is component evidence, not composed renderer or final acceptance.
+Focused evidence includes the 60-case Rust/TypeScript/JSON Schema corpus, image and carrier bounds, six layer-owner tests, three production Server session/observer witnesses and a Client freshness/scope test, and five Host PNG/graphics tests including actual Windows PTY creation and PNG decoding. This is component evidence, not composed renderer or final acceptance.
 
 ## Consumer implementation order
 

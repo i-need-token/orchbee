@@ -19,9 +19,19 @@ const RECEIPT_RETENTION: Duration = Duration::from_secs(60);
 const MAXIMUM_RECEIPTS: usize = 256;
 const MAXIMUM_PAYLOAD_RESERVATION: usize = 16 * MAXIMUM_ENCODED_CLIENT_LAYOUT_BYTES;
 
+#[cfg(windows)]
+pub(crate) struct GraphicsInfo {
+    pub(crate) client_id: WorkbenchClientId,
+    pub(crate) capabilities: Option<orchbee_workbench_protocol::PaneGraphicsCapabilities>,
+    pub(crate) visible: Option<bool>,
+    pub(crate) drawn: Option<orchbee_workbench_protocol::WorkbenchRevision>,
+}
+
 struct PublishedView {
     record: ClientViewRecord,
     sampled_at: Instant,
+    #[cfg(windows)]
+    graphics: Option<orchbee_workbench_protocol::PaneGraphicsClientObservation>,
 }
 impl PublishedView {
     fn observe(&self, now: Instant) -> ClientViewRecord {
@@ -71,6 +81,81 @@ pub(crate) struct ClientViewRegistry {
     receipts: BTreeMap<WorkbenchRequestId, Receipt>,
 }
 impl ClientViewRegistry {
+    #[cfg(windows)]
+    pub(crate) fn observe_graphics(
+        &mut self,
+        generation: NonZeroU64,
+        client_id: &WorkbenchClientId,
+        heartbeat: ClientViewSequence,
+        observation: orchbee_workbench_protocol::PaneGraphicsClientObservation,
+        now: Instant,
+    ) -> Result<(), orchbee_workbench_protocol::PaneGraphicsFailure> {
+        use orchbee_workbench_protocol::PaneGraphicsFailure as Failure;
+        if client_id.as_str() != format!("{:032x}", generation.get()) {
+            return Err(Failure::Denied);
+        }
+        let row = self.clients.get_mut(client_id).ok_or(Failure::NotFound)?;
+        if row.observe(now).availability != ClientViewAvailability::Current
+            || row.record.heartbeat != heartbeat
+            || row.record.view.workbench_revision != observation.workbench_revision
+        {
+            return Err(Failure::SourceChanged);
+        }
+        row.graphics = Some(observation);
+        Ok(())
+    }
+
+    #[cfg(windows)]
+    pub(crate) fn graphics_info(
+        &self,
+        requested: Option<&WorkbenchClientId>,
+        source: &orchbee_workbench_protocol::SemanticPane,
+        revision: orchbee_workbench_protocol::WorkbenchRevision,
+        now: Instant,
+    ) -> Result<Option<GraphicsInfo>, orchbee_workbench_protocol::PaneGraphicsFailure> {
+        use orchbee_workbench_protocol::PaneGraphicsFailure as Failure;
+        let row = if let Some(id) = requested {
+            self.clients.get(id).ok_or(Failure::NotFound)?
+        } else {
+            let mut fresh = self
+                .clients
+                .values()
+                .filter(|row| row.observe(now).availability == ClientViewAvailability::Current);
+            let Some(row) = fresh.next() else {
+                return Ok(None);
+            };
+            if fresh.next().is_some() {
+                return Ok(None);
+            }
+            row
+        };
+        let mut info = GraphicsInfo {
+            client_id: row.record.client_id.clone(),
+            capabilities: None,
+            visible: None,
+            drawn: None,
+        };
+        if row.observe(now).availability == ClientViewAvailability::Current
+            && let Some(observation) = &row.graphics
+        {
+            info.capabilities = Some(observation.capabilities.clone());
+            if let Some(pane) = observation
+                .panes
+                .iter()
+                .find(|pane| pane.target.panel_id == source.panel_id)
+            {
+                if pane.target.presentation_id.as_ref() == Some(&source.presentation_id)
+                    && pane.binding == source.binding
+                {
+                    info.visible = Some(true);
+                    info.drawn = pane.drawn_revision.filter(|drawn| *drawn <= revision);
+                }
+            } else if observation.complete {
+                info.visible = Some(false);
+            }
+        }
+        Ok(Some(info))
+    }
     pub(crate) fn with_events(events: Option<orchbee_server::SiteEventJournal>) -> Self {
         Self {
             events,
@@ -469,6 +554,12 @@ impl ClientViewRegistry {
                 availability: ClientViewAvailability::Current,
             },
             sampled_at,
+            #[cfg(windows)]
+            graphics: self
+                .clients
+                .get(&client_id)
+                .filter(|previous| previous.record.heartbeat == heartbeat)
+                .and_then(|previous| previous.graphics.clone()),
         };
         let client = published.observe(now);
         let previous = self

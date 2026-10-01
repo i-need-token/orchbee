@@ -261,7 +261,7 @@ impl ClientControl {
     ) {
         self.viewport = Some((viewport, sidebar));
     }
-    fn sample(&mut self, view: ClientViewObservation) -> Option<Sample> {
+    fn sample(&mut self, view: ClientViewObservation, native: &NativeUi) -> Option<Sample> {
         self.heartbeat = self.heartbeat.checked_add(1)?;
         if self.observed.as_ref() != Some(&view) {
             self.revision = self.revision.checked_add(1)?;
@@ -270,6 +270,7 @@ impl ClientControl {
         Some(Sample {
             heartbeat: ClientViewSequence::new(self.heartbeat).ok()?,
             revision: ClientViewSequence::new(self.revision).ok()?,
+            graphics: native.graphics_observation(&view),
             view,
         })
     }
@@ -302,7 +303,7 @@ impl ClientControl {
             return false;
         };
         let view_changed = self.observed.as_ref() != Some(&view);
-        let Some(sample) = self.sample(view) else {
+        let Some(sample) = self.sample(view, native) else {
             self.close();
             return false;
         };
@@ -486,7 +487,7 @@ impl ClientControl {
                     self.close();
                     return true;
                 };
-                let Some(sample) = self.sample(view) else {
+                let Some(sample) = self.sample(view, native) else {
                     self.close();
                     return true;
                 };
@@ -533,7 +534,7 @@ impl ClientControl {
                     outcome,
                 })
             });
-        let Some(sample) = self.sample(view) else {
+        let Some(sample) = self.sample(view, native) else {
             self.close();
             return;
         };

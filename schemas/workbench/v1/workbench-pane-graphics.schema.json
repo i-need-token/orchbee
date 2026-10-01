@@ -42,12 +42,7 @@
 					"maximum": 65535
 				}
 			},
-			"required": [
-				"viewportColumn",
-				"viewportRow",
-				"gridColumns",
-				"gridRows"
-			]
+			"required": ["viewportColumn", "viewportRow", "gridColumns", "gridRows"]
 		},
 		"target": {
 			"type": "object",
@@ -67,10 +62,7 @@
 					]
 				}
 			},
-			"required": [
-				"panelId",
-				"presentationId"
-			]
+			"required": ["panelId", "presentationId"]
 		},
 		"resolved": {
 			"type": "object",
@@ -83,10 +75,7 @@
 					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/presentationId"
 				}
 			},
-			"required": [
-				"panelId",
-				"presentationId"
-			]
+			"required": ["panelId", "presentationId"]
 		},
 		"setFrame": {
 			"oneOf": [
@@ -117,13 +106,7 @@
 							"$ref": "#/$defs/placement"
 						}
 					},
-					"required": [
-						"format",
-						"width",
-						"height",
-						"dataBase64",
-						"placement"
-					]
+					"required": ["format", "width", "height", "dataBase64", "placement"]
 				},
 				{
 					"type": "object",
@@ -152,13 +135,7 @@
 							"$ref": "#/$defs/placement"
 						}
 					},
-					"required": [
-						"format",
-						"width",
-						"height",
-						"dataBase64",
-						"placement"
-					]
+					"required": ["format", "width", "height", "dataBase64", "placement"]
 				},
 				{
 					"type": "object",
@@ -187,13 +164,7 @@
 							"$ref": "#/$defs/placement"
 						}
 					},
-					"required": [
-						"format",
-						"width",
-						"height",
-						"dataBase64",
-						"placement"
-					]
+					"required": ["format", "width", "height", "dataBase64", "placement"]
 				},
 				{
 					"type": "object",
@@ -222,13 +193,7 @@
 							"$ref": "#/$defs/placement"
 						}
 					},
-					"required": [
-						"format",
-						"width",
-						"height",
-						"dataBase64",
-						"placement"
-					]
+					"required": ["format", "width", "height", "dataBase64", "placement"]
 				}
 			]
 		},
@@ -261,13 +226,7 @@
 							"$ref": "#/$defs/placement"
 						}
 					},
-					"required": [
-						"format",
-						"width",
-						"height",
-						"dataBase64",
-						"placement"
-					]
+					"required": ["format", "width", "height", "dataBase64", "placement"]
 				},
 				{
 					"type": "object",
@@ -296,13 +255,7 @@
 							"$ref": "#/$defs/placement"
 						}
 					},
-					"required": [
-						"format",
-						"width",
-						"height",
-						"dataBase64",
-						"placement"
-					]
+					"required": ["format", "width", "height", "dataBase64", "placement"]
 				},
 				{
 					"type": "object",
@@ -331,13 +284,7 @@
 							"$ref": "#/$defs/placement"
 						}
 					},
-					"required": [
-						"format",
-						"width",
-						"height",
-						"dataBase64",
-						"placement"
-					]
+					"required": ["format", "width", "height", "dataBase64", "placement"]
 				},
 				{
 					"type": "object",
@@ -366,13 +313,7 @@
 							"$ref": "#/$defs/placement"
 						}
 					},
-					"required": [
-						"format",
-						"width",
-						"height",
-						"dataBase64",
-						"placement"
-					]
+					"required": ["format", "width", "height", "dataBase64", "placement"]
 				}
 			]
 		},
@@ -389,10 +330,7 @@
 							"$ref": "#/$defs/streamFrame"
 						}
 					},
-					"required": [
-						"kind",
-						"image"
-					]
+					"required": ["kind", "image"]
 				},
 				{
 					"type": "object",
@@ -402,10 +340,7 @@
 							"const": "file"
 						},
 						"format": {
-							"enum": [
-								"rgba",
-								"bgra"
-							]
+							"enum": ["rgba", "bgra"]
 						},
 						"width": {
 							"type": "integer",
@@ -424,14 +359,7 @@
 							"$ref": "#/$defs/placement"
 						}
 					},
-					"required": [
-						"kind",
-						"format",
-						"width",
-						"height",
-						"path",
-						"placement"
-					]
+					"required": ["kind", "format", "width", "height", "path", "placement"]
 				}
 			]
 		},
@@ -460,23 +388,14 @@
 					"maximum": 4294967295
 				}
 			},
-			"required": [
-				"x",
-				"y",
-				"width",
-				"height"
-			]
+			"required": ["x", "y", "width", "height"]
 		},
 		"capabilities": {
 			"type": "object",
 			"additionalProperties": false,
 			"properties": {
 				"transport": {
-					"enum": [
-						"cell-raster",
-						"kitty",
-						"sixel"
-					]
+					"enum": ["cell-raster", "kitty", "sixel"]
 				},
 				"cellPixels": {
 					"oneOf": [
@@ -495,10 +414,7 @@
 									"maximum": 65535
 								}
 							},
-							"required": [
-								"width",
-								"height"
-							]
+							"required": ["width", "height"]
 						},
 						{
 							"type": "null"
@@ -509,11 +425,7 @@
 					"type": "boolean"
 				}
 			},
-			"required": [
-				"transport",
-				"cellPixels",
-				"pixelMouse"
-			],
+			"required": ["transport", "cellPixels", "pixelMouse"],
 			"allOf": [
 				{
 					"if": {
@@ -522,17 +434,12 @@
 								"const": true
 							}
 						},
-						"required": [
-							"pixelMouse"
-						]
+						"required": ["pixelMouse"]
 					},
 					"then": {
 						"properties": {
 							"transport": {
-								"enum": [
-									"kitty",
-									"sixel"
-								]
+								"enum": ["kitty", "sixel"]
 							},
 							"cellPixels": {
 								"type": "object"
@@ -607,6 +514,25 @@
 					"additionalProperties": false,
 					"properties": {
 						"kind": {
+							"const": "observe"
+						},
+						"clientId": {
+							"$ref": "urn:orchbee:schema:workbench-client-view:v1#/$defs/clientId"
+						},
+						"heartbeat": {
+							"$ref": "urn:orchbee:schema:workbench-client-view:v1#/$defs/sequence"
+						},
+						"observation": {
+							"$ref": "#/$defs/clientObservation"
+						}
+					},
+					"required": ["kind", "clientId", "heartbeat", "observation"]
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
 							"const": "info"
 						},
 						"target": {
@@ -623,11 +549,7 @@
 							]
 						}
 					},
-					"required": [
-						"kind",
-						"target",
-						"clientId"
-					]
+					"required": ["kind", "target", "clientId"]
 				},
 				{
 					"type": "object",
@@ -640,10 +562,7 @@
 							"$ref": "#/$defs/target"
 						}
 					},
-					"required": [
-						"kind",
-						"target"
-					]
+					"required": ["kind", "target"]
 				},
 				{
 					"type": "object",
@@ -667,13 +586,7 @@
 							"$ref": "#/$defs/setFrame"
 						}
 					},
-					"required": [
-						"kind",
-						"target",
-						"layerId",
-						"zIndex",
-						"image"
-					]
+					"required": ["kind", "target", "layerId", "zIndex", "image"]
 				},
 				{
 					"type": "object",
@@ -689,11 +602,7 @@
 							"$ref": "#/$defs/layerId"
 						}
 					},
-					"required": [
-						"kind",
-						"target",
-						"layerId"
-					]
+					"required": ["kind", "target", "layerId"]
 				},
 				{
 					"type": "object",
@@ -733,14 +642,7 @@
 							"multipleOf": 4
 						}
 					},
-					"required": [
-						"kind",
-						"target",
-						"layerId",
-						"resourceRevision",
-						"offset",
-						"maximumBytes"
-					]
+					"required": ["kind", "target", "layerId", "resourceRevision", "offset", "maximumBytes"]
 				},
 				{
 					"type": "object",
@@ -764,13 +666,7 @@
 							"maximum": 2147483647
 						}
 					},
-					"required": [
-						"kind",
-						"streamId",
-						"target",
-						"layerId",
-						"zIndex"
-					]
+					"required": ["kind", "streamId", "target", "layerId", "zIndex"]
 				},
 				{
 					"type": "object",
@@ -808,14 +704,7 @@
 							}
 						}
 					},
-					"required": [
-						"kind",
-						"streamId",
-						"sequence",
-						"revision",
-						"image",
-						"damage"
-					]
+					"required": ["kind", "streamId", "sequence", "revision", "image", "damage"]
 				},
 				{
 					"type": "object",
@@ -828,15 +717,28 @@
 							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/requestId"
 						}
 					},
-					"required": [
-						"kind",
-						"streamId"
-					]
+					"required": ["kind", "streamId"]
 				}
 			]
 		},
 		"outcome": {
 			"oneOf": [
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "observed"
+						},
+						"clientId": {
+							"$ref": "urn:orchbee:schema:workbench-client-view:v1#/$defs/clientId"
+						},
+						"heartbeat": {
+							"$ref": "urn:orchbee:schema:workbench-client-view:v1#/$defs/sequence"
+						}
+					},
+					"required": ["kind", "clientId", "heartbeat"]
+				},
 				{
 					"type": "object",
 					"additionalProperties": false,
@@ -925,9 +827,7 @@
 										"type": "null"
 									}
 								},
-								"required": [
-									"clientId"
-								]
+								"required": ["clientId"]
 							},
 							"then": {
 								"properties": {
@@ -966,12 +866,7 @@
 							}
 						}
 					},
-					"required": [
-						"kind",
-						"target",
-						"revision",
-						"layers"
-					]
+					"required": ["kind", "target", "revision", "layers"]
 				},
 				{
 					"type": "object",
@@ -1062,13 +957,7 @@
 							"type": "boolean"
 						}
 					},
-					"required": [
-						"kind",
-						"target",
-						"layerId",
-						"revision",
-						"changed"
-					],
+					"required": ["kind", "target", "layerId", "revision", "changed"],
 					"allOf": [
 						{
 							"if": {
@@ -1077,9 +966,7 @@
 										"const": true
 									}
 								},
-								"required": [
-									"changed"
-								]
+								"required": ["changed"]
 							},
 							"then": {
 								"properties": {
@@ -1229,12 +1116,7 @@
 							"type": "boolean"
 						}
 					},
-					"required": [
-						"kind",
-						"streamId",
-						"revision",
-						"removed"
-					]
+					"required": ["kind", "streamId", "revision", "removed"]
 				},
 				{
 					"type": "object",
@@ -1269,10 +1151,7 @@
 							]
 						}
 					},
-					"required": [
-						"kind",
-						"reason"
-					]
+					"required": ["kind", "reason"]
 				}
 			]
 		},
@@ -1296,13 +1175,7 @@
 					"$ref": "#/$defs/action"
 				}
 			},
-			"required": [
-				"kind",
-				"protocolVersion",
-				"requestId",
-				"siteId",
-				"action"
-			]
+			"required": ["kind", "protocolVersion", "requestId", "siteId", "action"]
 		},
 		"result": {
 			"type": "object",
@@ -1324,13 +1197,60 @@
 					"$ref": "#/$defs/outcome"
 				}
 			},
-			"required": [
-				"kind",
-				"protocolVersion",
-				"requestId",
-				"siteId",
-				"outcome"
-			]
+			"required": ["kind", "protocolVersion", "requestId", "siteId", "outcome"]
+		},
+		"clientPane": {
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+				"target": {
+					"$ref": "#/$defs/resolved"
+				},
+				"binding": {
+					"oneOf": [
+						{
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/presentationBinding"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"drawnRevision": {
+					"oneOf": [
+						{
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/revision"
+						},
+						{
+							"type": "null"
+						}
+					]
+				}
+			},
+			"required": ["target", "binding", "drawnRevision"]
+		},
+		"clientObservation": {
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+				"workbenchRevision": {
+					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/revision"
+				},
+				"capabilities": {
+					"$ref": "#/$defs/capabilities"
+				},
+				"complete": {
+					"type": "boolean"
+				},
+				"panes": {
+					"type": "array",
+					"maxItems": 64,
+					"items": {
+						"$ref": "#/$defs/clientPane"
+					}
+				}
+			},
+			"required": ["workbenchRevision", "capabilities", "complete", "panes"]
 		}
 	}
 }

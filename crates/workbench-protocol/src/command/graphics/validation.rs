@@ -67,6 +67,23 @@ pub(super) fn frame(image: &PaneGraphicsFrame, maximum: usize) -> Result<(), Con
 pub(super) fn request(request: &PaneGraphicsRequest) -> Result<(), ContractError> {
     use PaneGraphicsAction as A;
     match &request.action {
+        A::Observe { observation, .. } => {
+            capabilities(&observation.capabilities)?;
+            require(
+                observation.panes.len() <= 64
+                    && observation
+                        .panes
+                        .iter()
+                        .map(|pane| &pane.target.panel_id)
+                        .collect::<std::collections::BTreeSet<_>>()
+                        .len()
+                        == observation.panes.len(),
+            )?;
+            for pane in &observation.panes {
+                resolved(&pane.target)?;
+            }
+            Ok(())
+        }
         A::Info { .. } | A::Catalog { .. } | A::StreamClose { .. } => Ok(()),
         A::Set {
             layer_id, image, ..
@@ -133,7 +150,7 @@ pub(super) fn request(request: &PaneGraphicsRequest) -> Result<(), ContractError
 pub(super) fn result(reply: &PaneGraphicsResult) -> Result<(), ContractError> {
     use PaneGraphicsOutcome as O;
     match &reply.outcome {
-        O::Failed { .. } | O::Closed { .. } => Ok(()),
+        O::Failed { .. } | O::Closed { .. } | O::Observed { .. } => Ok(()),
         O::Info {
             target,
             revision,
@@ -154,12 +171,7 @@ pub(super) fn result(reply: &PaneGraphicsResult) -> Result<(), ContractError> {
                     || capabilities.is_none() && pane_visible.is_none() && drawn_revision.is_none(),
             )?;
             if let Some(caps) = capabilities {
-                require(
-                    caps.cell_pixels
-                        .is_none_or(|cell| cell.width > 0 && cell.height > 0),
-                )?;
-                require(caps.transport != PaneGraphicsTransport::CellRaster || !caps.pixel_mouse)?;
-                require(!caps.pixel_mouse || caps.cell_pixels.is_some())?;
+                self::capabilities(caps)?;
             }
             if let Some(path) = file_frame_directory {
                 file_path(path)?;
@@ -260,6 +272,14 @@ pub(super) fn result(reply: &PaneGraphicsResult) -> Result<(), ContractError> {
         }
     }
 }
+fn capabilities(caps: &super::PaneGraphicsCapabilities) -> Result<(), ContractError> {
+    require(
+        caps.cell_pixels
+            .is_none_or(|cell| cell.width > 0 && cell.height > 0),
+    )?;
+    require(caps.transport != PaneGraphicsTransport::CellRaster || !caps.pixel_mouse)?;
+    require(!caps.pixel_mouse || caps.cell_pixels.is_some())
+}
 fn target_matches(actual: &PaneGraphicsTarget, requested: &PaneGraphicsTarget) -> bool {
     actual.panel_id == requested.panel_id
         && requested
@@ -280,13 +300,29 @@ pub(super) fn answers(reply: &PaneGraphicsResult, request: &PaneGraphicsRequest)
     match (&request.action, &reply.outcome) {
         (_, O::Failed { .. }) => true,
         (
+            A::Observe {
+                client_id,
+                heartbeat,
+                ..
+            },
+            O::Observed {
+                client_id: actual,
+                heartbeat: seen,
+            },
+        ) => actual == client_id && seen == heartbeat,
+        (
             A::Info { target, client_id },
             O::Info {
                 target: actual,
                 client_id: actual_client,
                 ..
             },
-        ) => target_matches(actual, target) && actual_client == client_id,
+        ) => {
+            target_matches(actual, target)
+                && client_id
+                    .as_ref()
+                    .is_none_or(|id| Some(id) == actual_client.as_ref())
+        }
         (A::Catalog { target }, O::Catalog { target: actual, .. }) => {
             target_matches(actual, target)
         }

@@ -31,6 +31,8 @@ mod agent_board;
 #[cfg(windows)]
 mod agent_sidebar;
 mod contexts;
+#[cfg(windows)]
+mod pane_graphics;
 mod panel_close;
 #[cfg(windows)]
 mod panel_reports;
@@ -84,6 +86,8 @@ pub(crate) fn render_terminal_shell(
     let mut overlay_refused = false;
     let mut help_page = None;
     let mut board_draw = None;
+    #[cfg(windows)]
+    let mut graphics_draws = Vec::new();
     let sidebar_status;
     let status_text;
     let mut secondary_notice = None;
@@ -148,6 +152,8 @@ pub(crate) fn render_terminal_shell(
                     &phase_status,
                     theme,
                     hits,
+                    #[cfg(windows)]
+                    &mut graphics_draws,
                 );
             }
         }
@@ -412,6 +418,24 @@ pub(crate) fn render_terminal_shell(
             hits,
         );
     }
+    #[cfg(windows)]
+    let receipt = receipt.with_graphics(match session.as_ref() {
+        Some(TerminalSessionView::Native(native))
+            if native.popup().is_none()
+                && view.overlay().is_none()
+                && native.close_confirmation().is_none()
+                && native.panel_close_confirmation().is_none()
+                && native.rename_draft().is_none()
+                && native.setup_draft().is_none()
+                && native.agent_board().is_none()
+                && areas
+                    .sidebar
+                    .is_none_or(|sidebar| sidebar.layer != SidebarLayer::Overlay) =>
+        {
+            graphics_draws
+        }
+        _ => Vec::new(),
+    });
     receipt
 }
 
@@ -599,6 +623,7 @@ fn render_native_workbench(
     phase_status: &str,
     theme: &Theme,
     hits: &mut HitMapBuilder,
+    #[cfg(windows)] graphics_draws: &mut Vec<crate::terminal_session::PaneGraphicsDraw>,
 ) {
     let bound_text = locale.shell().bind(client_view);
     let text = bound_text.text();
@@ -733,6 +758,8 @@ fn render_native_workbench(
             // incarnation — a press resolves it bit for bit, so it can
             // never migrate onto a re-minted record of the same panel.
             if let Some(panel) = tab.panel(leaf.panel_index) {
+                #[cfg(windows)]
+                render_panel_graphics(frame, leaf.content, panel, native, graphics_draws);
                 let target = native
                     .pane_ref_for_panel(panel.panel_id())
                     .map(|pane| HitTarget::Pane {
@@ -836,6 +863,31 @@ fn render_native_workbench(
                 content_area,
             );
         }
+        #[cfg(windows)]
+        if let Some(panel) =
+            active_tab.and_then(|tab| tab.active_panel().and_then(|i| tab.panel(i)))
+        {
+            render_panel_graphics(frame, content_area, panel, native, graphics_draws);
+        }
+    }
+}
+
+#[cfg(windows)]
+fn render_panel_graphics(
+    frame: &mut Frame<'_>,
+    area: Rect,
+    panel: &crate::terminal_session::NativePanel,
+    native: &NativeSessionView<'_>,
+    draws: &mut Vec<crate::terminal_session::PaneGraphicsDraw>,
+) {
+    if area.is_empty() {
+        return;
+    }
+    if let Some(canvas) = native.panel_graphics(panel) {
+        pane_graphics::render(frame, area, canvas);
+    }
+    if let Some(draw) = native.graphics_draw(panel) {
+        draws.push(draw);
     }
 }
 

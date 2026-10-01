@@ -5,6 +5,67 @@ use orchbee_workbench_protocol::{
 };
 
 #[test]
+fn graphics_receipts_correlate_publisher_heartbeat_and_allow_an_observed_default_client() {
+    use orchbee_workbench_protocol::*;
+    let corpus: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../schemas/workbench/v1/workbench-pane-graphics-conformance-v1.json"
+    ))
+    .unwrap();
+    let find = |name: &str| {
+        corpus["valid"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|case| case["name"] == name)
+            .unwrap()["document"]
+            .clone()
+    };
+    let WorkbenchRequest::PaneGraphics(request) = parse_workbench_request(
+        &serde_json::to_vec(&find("observe-actual-cell-raster-draw")).unwrap(),
+    )
+    .unwrap() else {
+        panic!("observe");
+    };
+    let WorkbenchResponse::PaneGraphics(mut reply) = parse_workbench_response(
+        &serde_json::to_vec(&find("observed-correlated-heartbeat")).unwrap(),
+    )
+    .unwrap() else {
+        panic!("observed");
+    };
+    assert!(reply.answers(&request));
+    let PaneGraphicsOutcome::Observed { heartbeat, .. } = &mut reply.outcome else {
+        unreachable!();
+    };
+    *heartbeat = ClientViewSequence::new(2).unwrap();
+    assert!(!reply.answers(&request));
+    let target = PaneGraphicsTarget {
+        panel_id: WorkbenchPanelId::parse(&format!("{:032x}", 3)).unwrap(),
+        presentation_id: Some(TerminalPresentationId::parse(&format!("{:032x}", 6)).unwrap()),
+    };
+    let mut request = request;
+    request.action = PaneGraphicsAction::Info {
+        target: target.clone(),
+        client_id: None,
+    };
+    reply.outcome = PaneGraphicsOutcome::Info {
+        target,
+        revision: WorkbenchRevision::new(1),
+        layer_count: 1,
+        client_id: Some(WorkbenchClientId::parse(&format!("{:032x}", 4)).unwrap()),
+        capabilities: None,
+        pane_visible: None,
+        drawn_revision: None,
+        file_frame_directory: None,
+    };
+    assert!(reply.answers(&request));
+    let PaneGraphicsAction::Info { client_id, .. } = &mut request.action else {
+        unreachable!();
+    };
+    *client_id = Some(WorkbenchClientId::parse(&format!("{:032x}", 5)).unwrap());
+    assert!(!reply.answers(&request));
+}
+
+#[test]
 fn pane_graphics_conformance_covers_closed_images_receipts_and_direction_limits() {
     let corpus: serde_json::Value = serde_json::from_str(include_str!(
         "../../../schemas/workbench/v1/workbench-pane-graphics-conformance-v1.json"

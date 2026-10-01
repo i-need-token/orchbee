@@ -609,7 +609,12 @@ fn draw_surface<B: Backend>(
     #[cfg(windows)]
     if view.machines.open {
         // Covered native content cannot acknowledge successful visible presentation.
+        surface.graphics_covered();
         return Ok(());
+    }
+    #[cfg(windows)]
+    if notification_painted {
+        receipt = receipt.with_graphics(Vec::new());
     }
     let help_page = receipt.help_page();
     surface.after_close_draw(receipt);
@@ -892,6 +897,8 @@ trait TerminalSurface: crate::terminal_input::TerminalInputPort {
     }
     fn after_draw(&mut self) {}
     fn after_close_draw(&mut self, _receipt: crate::terminal_session::NativeDrawReceipt) {}
+    #[cfg(windows)]
+    fn graphics_covered(&mut self) {}
     fn observe_panes(
         &mut self,
         _panes: &[(
@@ -968,6 +975,10 @@ impl TerminalSurface for crate::terminal_session::TerminalSession {
     }
     fn after_close_draw(&mut self, receipt: crate::terminal_session::NativeDrawReceipt) {
         self.after_close_draw(receipt)
+    }
+    #[cfg(windows)]
+    fn graphics_covered(&mut self) {
+        self.graphics_covered();
     }
     fn view(&self) -> Option<crate::terminal_session::TerminalSessionView<'_>> {
         Some(self.view())

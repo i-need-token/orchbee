@@ -908,4 +908,4 @@ Windows `plugin link/unlink/enable/disable/list/config-dir` and `plugin action l
 
 ## Windows Panel graphics commands
 
-`panel graphics set|clear|info|stream` admits closed image inputs, file/pipe acquisition and bounded raw frame streams, with one submission through existing Workbench ownership. See [Windows Panel graphics CLI](docs/windows-panel-graphics.md) for parameters, unknown receipts and producer cleanup. Command ingress alone is not actual rendering acceptance.
+`panel graphics set|clear|info|stream` admits closed image inputs, file/pipe acquisition and bounded raw frame streams, with one submission through existing Workbench ownership. See [Windows Panel graphics CLI](docs/windows-panel-graphics.md) for parameters, unknown receipts and producer cleanup. The [native TUI renderer](docs/native-panel-graphics.md) stages complete images and publishes successful draw facts; final composed Windows acceptance is still required.

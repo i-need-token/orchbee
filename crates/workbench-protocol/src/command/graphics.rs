@@ -98,6 +98,23 @@ pub struct PaneGraphicsCapabilities {
 }
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct PaneGraphicsClientPane {
+    pub target: PaneGraphicsTarget,
+    #[serde(deserialize_with = "super::json_fields::deserialize_nullable")]
+    pub binding: Option<crate::PresentationBinding>,
+    #[serde(deserialize_with = "super::json_fields::deserialize_nullable")]
+    pub drawn_revision: Option<WorkbenchRevision>,
+}
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct PaneGraphicsClientObservation {
+    pub workbench_revision: WorkbenchRevision,
+    pub capabilities: PaneGraphicsCapabilities,
+    pub complete: bool,
+    pub panes: Vec<PaneGraphicsClientPane>,
+}
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct PaneGraphicsLayer {
     pub layer_id: String,
     pub z_index: i32,
@@ -116,6 +133,11 @@ pub struct PaneGraphicsLayer {
     deny_unknown_fields
 )]
 pub enum PaneGraphicsAction {
+    Observe {
+        client_id: WorkbenchClientId,
+        heartbeat: crate::ClientViewSequence,
+        observation: Box<PaneGraphicsClientObservation>,
+    },
     Info {
         target: PaneGraphicsTarget,
         #[serde(deserialize_with = "super::json_fields::deserialize_nullable")]
@@ -163,7 +185,7 @@ impl PaneGraphicsAction {
     pub const fn writes(&self) -> bool {
         !matches!(
             self,
-            Self::Info { .. } | Self::Catalog { .. } | Self::Pixels { .. }
+            Self::Info { .. } | Self::Catalog { .. } | Self::Pixels { .. } | Self::Observe { .. }
         )
     }
 }
@@ -207,6 +229,10 @@ pub enum PaneGraphicsFailure {
     deny_unknown_fields
 )]
 pub enum PaneGraphicsOutcome {
+    Observed {
+        client_id: WorkbenchClientId,
+        heartbeat: crate::ClientViewSequence,
+    },
     Info {
         target: PaneGraphicsTarget,
         revision: WorkbenchRevision,

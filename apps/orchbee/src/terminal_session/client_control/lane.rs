@@ -20,6 +20,7 @@ pub(super) struct Sample {
     pub(super) heartbeat: ClientViewSequence,
     pub(super) revision: ClientViewSequence,
     pub(super) view: ClientViewObservation,
+    pub(super) graphics: Option<orchbee_workbench_protocol::PaneGraphicsClientObservation>,
 }
 pub(super) struct Delivery {
     pub(super) command: ClientViewControl,
@@ -258,6 +259,35 @@ fn run(
         else {
             return;
         };
+        if let Some(observation) = sample.graphics {
+            let Some(next) = exchange_id.checked_add(1) else {
+                return;
+            };
+            exchange_id = next;
+            let Ok(request_id) = WorkbenchRequestId::parse(&format!("{exchange_id:032x}")) else {
+                return;
+            };
+            let request = orchbee_workbench_protocol::PaneGraphicsRequest {
+                protocol_version: ProtocolVersion,
+                request_id,
+                site_id: site_id.clone(),
+                action: orchbee_workbench_protocol::PaneGraphicsAction::Observe {
+                    client_id: registered.client_id.clone(),
+                    heartbeat: registered.heartbeat,
+                    observation: Box::new(observation),
+                },
+            };
+            if client
+                .pane_graphics(
+                    &request,
+                    clock.now() + Duration::from_secs(2),
+                    Some(wake.as_local_io()),
+                )
+                .is_err()
+            {
+                return;
+            }
+        }
         let invocation = {
             let Ok(mut handoff) = lock.lock() else {
                 return;

@@ -40,16 +40,16 @@ Layer ID 含 1–80 个 ASCII 字母、数字、点、下划线或连字符。�
 有符号 z-index。裁剪与 alpha 合成在实际 Panel 表面内进行。负坐标或超大 placement 不能
 绘制 chrome 或其他 Panel。
 
-| 状态 | 输入 | 条件 | 结果 |
-| --- | --- | --- | --- |
-| 空闲／静态 | Set | 当前来源、有效完整图像、容量 | 安装静态图层 |
-| 空闲／静态 | Stream open | 当前来源、producer slot 可用 | 一个连接拥有 stream |
-| Streaming | Set／clear／其他 open | Producer 活动 | 拒绝且不改变像素 |
-| Streaming | Frame | 精确所有者、递增非零 sequence、有效图像 | 原子替换 frame |
-| Streaming | 重复／旧 sequence | Sequence 未推进 | 拒绝且不替换 |
-| Streaming | Close／EOF／取消 | 所有连接结束 | 释放 stream 和图层 |
-| 静态／空闲 | Clear | 没有活动 producer | 移除图层；不存在时成功且未变化 |
-| 任意 | Presentation 删除 | 规范身份不再存在 | 回收图层与 producer |
+| 状态       | 输入                  | 条件                                    | 结果                           |
+| ---------- | --------------------- | --------------------------------------- | ------------------------------ |
+| 空闲／静态 | Set                   | 当前来源、有效完整图像、容量            | 安装静态图层                   |
+| 空闲／静态 | Stream open           | 当前来源、producer slot 可用            | 一个连接拥有 stream            |
+| Streaming  | Set／clear／其他 open | Producer 活动                           | 拒绝且不改变像素               |
+| Streaming  | Frame                 | 精确所有者、递增非零 sequence、有效图像 | 原子替换 frame                 |
+| Streaming  | 重复／旧 sequence     | Sequence 未推进                         | 拒绝且不替换                   |
+| Streaming  | Close／EOF／取消      | 所有连接结束                            | 释放 stream 和图层             |
+| 静态／空闲 | Clear                 | 没有活动 producer                       | 移除图层；不存在时成功且未变化 |
+| 任意       | Presentation 删除     | 规范身份不再存在                        | 回收图层与 producer            |
 
 Stream framing 遵循参考：有界 JSON header，后接声明长度的原始字节 body。每个接受的 frame
 返回真实 sequence／revision 回执。Damage rectangle 是针对完整规范 frame 的有界提示，
@@ -80,9 +80,9 @@ Windows Site 图层事务和 Host 只读 PNG 适配器已实现。规范投影�
 
 OBWP 57/58 承载封闭的请求和结果。OBNG 承载受限、由 viewer 定位的 PNG 请求；复用带关联标识的 OBNR 返回记录。Terminal Host 80/81 使用独立的 graphics-image 编码（5），上限为 32 MiB 加 56 字节结果头，普通输入上限保持原有约束。
 
-Client 渲染器、实际渲染观察、原生 CLI 上传／流入口和私有文件帧生产者租约仍待实现。因此信息读取中的渲染事实允许为空，不提供文件帧目录，并拒绝文件帧请求。四项对比行继续保持缺失，直至实际消费者和 Windows 验收证明行为。最终集成时统一确定原生 cohort 版本并重新打包；本检查点不授权合入 main 或替换旧 cohort。
+原生 CLI 上传／流入口及 [原生 TUI 字符栅格消费者](../../orchbee/docs/native-panel-graphics.zh-CN.md) 已实现。独立读取通道暂存按版本定位的完整资源；已认证 Client 发布者记录成功且未遮挡的绘制观察。Info 采用新鲜且匹配的 Client 事实，未知物理像素尺寸保持 null。私有文件帧生产者租约尚待完成，不公布目录，并拒绝文件帧请求。四项对比行继续保持缺失，直至实际消费者和 Windows 验收证明行为。最终集成时统一确定原生 cohort 版本并重新打包；本检查点不授权合入 main 或替换旧 cohort。
 
-定向证据包括 Rust／TypeScript／JSON Schema 共用的 50 个案例、图片与载体边界、6 个图层所有者测试、2 个生产 Server 会话／观察者案例，以及 5 个 Host PNG／图形测试（含真实 Windows PTY 创建和 PNG 解码）。这是组件证据，尚非组合渲染或最终验收。
+定向证据包括 Rust／TypeScript／JSON Schema 共用的 60 个案例、图片与载体边界、6 个图层所有者测试、3 个生产 Server 会话／观察者案例及 Client 新鲜度／范围测试，以及 5 个 Host PNG／图形测试（含真实 Windows PTY 创建和 PNG 解码）。这是组件证据，尚非组合渲染或最终验收。
 
 ## 消费者实现顺序
 

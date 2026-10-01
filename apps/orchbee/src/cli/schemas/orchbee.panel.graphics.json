@@ -11,11 +11,7 @@
 			"const": 1
 		},
 		"operation": {
-			"enum": [
-				"set",
-				"clear",
-				"info"
-			]
+			"enum": ["set", "clear", "info"]
 		},
 		"requestId": {
 			"$ref": "#/$defs/wb_requestId"
@@ -39,10 +35,7 @@
 							"$ref": "#/$defs/gfx_result"
 						}
 					},
-					"required": [
-						"kind",
-						"reply"
-					]
+					"required": ["kind", "reply"]
 				},
 				{
 					"type": "object",
@@ -65,23 +58,12 @@
 							]
 						}
 					},
-					"required": [
-						"kind",
-						"reason"
-					]
+					"required": ["kind", "reason"]
 				}
 			]
 		}
 	},
-	"required": [
-		"schema",
-		"version",
-		"operation",
-		"requestId",
-		"siteId",
-		"target",
-		"observation"
-	],
+	"required": ["schema", "version", "operation", "requestId", "siteId", "target", "observation"],
 	"$defs": {
 		"gfx_result": {
 			"type": "object",
@@ -100,12 +82,7 @@
 					"$ref": "#/$defs/gfx_outcome"
 				}
 			},
-			"required": [
-				"protocolVersion",
-				"requestId",
-				"siteId",
-				"outcome"
-			]
+			"required": ["protocolVersion", "requestId", "siteId", "outcome"]
 		},
 		"wb_requestId": {
 			"title": "WorkbenchRequestId",
@@ -124,6 +101,22 @@
 		},
 		"gfx_outcome": {
 			"oneOf": [
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "observed"
+						},
+						"clientId": {
+							"$ref": "#/$defs/cv_clientId"
+						},
+						"heartbeat": {
+							"$ref": "#/$defs/cv_sequence"
+						}
+					},
+					"required": ["kind", "clientId", "heartbeat"]
+				},
 				{
 					"type": "object",
 					"additionalProperties": false,
@@ -212,9 +205,7 @@
 										"type": "null"
 									}
 								},
-								"required": [
-									"clientId"
-								]
+								"required": ["clientId"]
 							},
 							"then": {
 								"properties": {
@@ -253,12 +244,7 @@
 							}
 						}
 					},
-					"required": [
-						"kind",
-						"target",
-						"revision",
-						"layers"
-					]
+					"required": ["kind", "target", "revision", "layers"]
 				},
 				{
 					"type": "object",
@@ -349,13 +335,7 @@
 							"type": "boolean"
 						}
 					},
-					"required": [
-						"kind",
-						"target",
-						"layerId",
-						"revision",
-						"changed"
-					],
+					"required": ["kind", "target", "layerId", "revision", "changed"],
 					"allOf": [
 						{
 							"if": {
@@ -364,9 +344,7 @@
 										"const": true
 									}
 								},
-								"required": [
-									"changed"
-								]
+								"required": ["changed"]
 							},
 							"then": {
 								"properties": {
@@ -516,12 +494,7 @@
 							"type": "boolean"
 						}
 					},
-					"required": [
-						"kind",
-						"streamId",
-						"revision",
-						"removed"
-					]
+					"required": ["kind", "streamId", "revision", "removed"]
 				},
 				{
 					"type": "object",
@@ -556,10 +529,7 @@
 							]
 						}
 					},
-					"required": [
-						"kind",
-						"reason"
-					]
+					"required": ["kind", "reason"]
 				}
 			]
 		},
@@ -574,10 +544,7 @@
 					"$ref": "#/$defs/wb_presentationId"
 				}
 			},
-			"required": [
-				"panelId",
-				"presentationId"
-			]
+			"required": ["panelId", "presentationId"]
 		},
 		"wb_panelId": {
 			"title": "WorkbenchPanelId",
@@ -607,11 +574,7 @@
 			"additionalProperties": false,
 			"properties": {
 				"transport": {
-					"enum": [
-						"cell-raster",
-						"kitty",
-						"sixel"
-					]
+					"enum": ["cell-raster", "kitty", "sixel"]
 				},
 				"cellPixels": {
 					"oneOf": [
@@ -630,10 +593,7 @@
 									"maximum": 65535
 								}
 							},
-							"required": [
-								"width",
-								"height"
-							]
+							"required": ["width", "height"]
 						},
 						{
 							"type": "null"
@@ -644,11 +604,7 @@
 					"type": "boolean"
 				}
 			},
-			"required": [
-				"transport",
-				"cellPixels",
-				"pixelMouse"
-			],
+			"required": ["transport", "cellPixels", "pixelMouse"],
 			"allOf": [
 				{
 					"if": {
@@ -657,17 +613,12 @@
 								"const": true
 							}
 						},
-						"required": [
-							"pixelMouse"
-						]
+						"required": ["pixelMouse"]
 					},
 					"then": {
 						"properties": {
 							"transport": {
-								"enum": [
-									"kitty",
-									"sixel"
-								]
+								"enum": ["kitty", "sixel"]
 							},
 							"cellPixels": {
 								"type": "object"
@@ -774,12 +725,7 @@
 					"maximum": 65535
 				}
 			},
-			"required": [
-				"viewportColumn",
-				"viewportRow",
-				"gridColumns",
-				"gridRows"
-			]
+			"required": ["viewportColumn", "viewportRow", "gridColumns", "gridRows"]
 		},
 		"gfx_target": {
 			"type": "object",
@@ -799,10 +745,11 @@
 					]
 				}
 			},
-			"required": [
-				"panelId",
-				"presentationId"
-			]
+			"required": ["panelId", "presentationId"]
+		},
+		"cv_sequence": {
+			"type": "string",
+			"pattern": "^[1-9][0-9]{0,19}$"
 		}
 	}
 }

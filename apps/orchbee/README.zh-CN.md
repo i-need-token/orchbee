@@ -824,4 +824,4 @@ Windows 的 `plugin link/unlink/enable/disable/list/config-dir` 和 `plugin acti
 
 ## Windows Panel 图形命令
 
-`panel graphics set|clear|info|stream` 支持封闭图片输入、文件/管道读取与有界原始帧流，通过现有 Workbench 归属提交一次。参见 [Windows Panel 图形 CLI](docs/windows-panel-graphics.zh-CN.md) 了解参数、未知回执与流清理。命令入口不单独构成实际渲染验收。
+`panel graphics set|clear|info|stream` 支持封闭图片输入、文件/管道读取与有界原始帧流，通过现有 Workbench 归属提交一次。参见 [Windows Panel 图形 CLI](docs/windows-panel-graphics.zh-CN.md) 了解参数、未知回执与流清理。[原生 TUI 渲染器](docs/native-panel-graphics.zh-CN.md) 暂存完整图像并发布成功绘制事实；仍需最后的 Windows 组合验收。

@@ -56,6 +56,7 @@ impl LocalTerminalService {
         };
         let site = &request.site_id;
         match &request.action {
+            Action::Observe { .. } => Err(Failure::InvalidIntent),
             Action::Info { target, .. } => {
                 let Outcome::Catalog {
                     target,
@@ -174,6 +175,36 @@ impl LocalTerminalService {
                     layers.close(connection, stream_id)
                 }),
         }
+    }
+    pub(crate) fn validate_graphics_observation(
+        &self,
+        site: &SiteId,
+        observation: &orchbee_workbench_protocol::PaneGraphicsClientObservation,
+    ) -> Result<(), Failure> {
+        self.graphics_snapshot(site, |snapshot, layers| {
+            if observation.workbench_revision > snapshot.revision {
+                return Err(Failure::SourceChanged);
+            }
+            for pane in &observation.panes {
+                let current = PaneGraphicsAuthority::resolve(snapshot, &pane.target)?;
+                let revision = layers.revision()?;
+                if current.binding != pane.binding
+                    || pane.drawn_revision.is_some_and(|drawn| drawn > revision)
+                {
+                    return Err(Failure::SourceChanged);
+                }
+            }
+            Ok(())
+        })
+    }
+    pub(crate) fn graphics_source(
+        &self,
+        site: &SiteId,
+        target: &orchbee_workbench_protocol::PaneGraphicsTarget,
+    ) -> Result<SemanticPane, Failure> {
+        self.graphics_snapshot(site, |snapshot, _| {
+            PaneGraphicsAuthority::resolve(snapshot, target)
+        })
     }
     pub(crate) fn disconnect_graphics(&self, connection: NonZeroU64) {
         let coordinator = self

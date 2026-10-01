@@ -4,6 +4,8 @@ mod agent_view;
 mod configured_commands;
 #[cfg(windows)]
 mod events;
+#[cfg(windows)]
+mod pane_graphics;
 use crate::local_terminal_service::LocalTerminalService;
 use orchbee_server::WorkbenchReadOrNavigationRequest;
 use orchbee_workbench_protocol::{
@@ -861,9 +863,7 @@ impl WorkbenchClientSession<'_> {
                 return WorkbenchExecution::Response(unavailable_or_denied(request, true));
             }
             return WorkbenchExecution::Response(WorkbenchResponse::PaneGraphics(
-                self.service
-                    .terminals
-                    .execute_graphics(self.generation, graphics.clone()),
+                self.pane_graphics(graphics.clone()),
             ));
         }
         #[cfg(windows)]
