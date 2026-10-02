@@ -1264,10 +1264,18 @@ impl Locale {
             (Self::ZhCn, StartupFailure::Runtime) => "本地 Site 运行时未通过所有者或权限检查。\n",
             (_, StartupFailure::SocketPathTooLong) => self.cli_socket_path_too_long(),
             (Self::EnUs, StartupFailure::RecoveryRequired) => {
-                "The local Site requires explicit recovery. No replacement process was started.\n"
+                if cfg!(windows) {
+                    "Local startup could not confirm existing ownership or startup completion. The checkpoint is retained. Run orchbee site diagnose with the same --site selection; use orchbee --site recovery-work site start for another session. Live tasks require Host adoption; incomplete or legacy records need diagnosis.\n"
+                } else {
+                    "The local Site requires explicit recovery. No replacement process was started.\n"
+                }
             }
             (Self::ZhCn, StartupFailure::RecoveryRequired) => {
-                "本地 Site 需要显式恢复。未启动替代进程。\n"
+                if cfg!(windows) {
+                    "无法确认既有进程归属或启动完成情况，已保留检查点。请用相同 --site 选择运行 orchbee site diagnose；可执行 orchbee --site recovery-work site start 另开会话。存活任务仍需 Host 接管；不完整或旧版记录需要诊断。\n"
+                } else {
+                    "本地 Site 需要显式恢复。未启动替代进程。\n"
+                }
             }
             (Self::EnUs, StartupFailure::Incompatible) => {
                 "The running local Site is incompatible with this development cohort.\n"

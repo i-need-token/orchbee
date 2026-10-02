@@ -1,60 +1,23 @@
 //! Resolve a live Agent before one Client navigation; never replay uncertain focus.
 #![cfg(windows)]
+#[path = "support/windows_agent_peer/cohort_fixture.rs"]
+mod cohort_fixture;
 #[allow(dead_code)]
 #[path = "support/terminal_metadata_peer.rs"]
 mod metadata_peer;
 #[allow(dead_code)]
 #[path = "support/windows_agent_peer.rs"]
 mod peer_support;
+use cohort_fixture::CohortFixture as FocusFixture;
 use orchbee_agent_observation_protocol::{AgentRequest, read_agent_request};
 use orchbee_local_ipc::{LocalListener, LocalStream};
 use orchbee_workbench_protocol::*;
-use peer_support::{
-    Fixture, assert_closed, peer, read_reply, resolve_reply, session_detail, validate,
-};
+use peer_support::{assert_closed, peer, read_reply, resolve_reply, session_detail, validate};
 use serde_json::{Value, json};
 use std::{
     io::Write,
-    ops::Deref,
-    sync::{Condvar, Mutex},
     time::{Duration, Instant},
 };
-
-static LIVE_FIXTURES: Mutex<usize> = Mutex::new(0);
-static FIXTURE_AVAILABLE: Condvar = Condvar::new();
-struct FixtureSlot;
-impl Drop for FixtureSlot {
-    fn drop(&mut self) {
-        *LIVE_FIXTURES.lock().unwrap() -= 1;
-        FIXTURE_AVAILABLE.notify_one();
-    }
-}
-struct FocusFixture {
-    // Field order settles the fixture's files before returning the slot.
-    fixture: Fixture,
-    _slot: FixtureSlot,
-}
-impl FocusFixture {
-    fn new() -> Self {
-        let mut live = LIVE_FIXTURES.lock().unwrap();
-        while *live >= 4 {
-            live = FIXTURE_AVAILABLE.wait(live).unwrap();
-        }
-        *live += 1;
-        drop(live);
-        let slot = FixtureSlot;
-        Self {
-            fixture: Fixture::new(),
-            _slot: slot,
-        }
-    }
-}
-impl Deref for FocusFixture {
-    type Target = Fixture;
-    fn deref(&self) -> &Self::Target {
-        &self.fixture
-    }
-}
 
 #[path = "cli_windows_agent_focus/client_get.rs"]
 mod client_get;
@@ -422,7 +385,7 @@ fn lost_submit_preserves_identity_for_explicit_status_without_resolving_again() 
 
 #[test]
 fn partial_agent_reply_expires_without_submission_and_uses_total_navigation_deadline() {
-    let fixture = FocusFixture::new();
+    let fixture = FocusFixture::deadline_sensitive();
     let rendezvous = fixture.rendezvous();
     let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
     let server = peer(&fixture, listener, |mut stream| {
@@ -438,7 +401,11 @@ fn partial_agent_reply_expires_without_submission_and_uses_total_navigation_dead
     });
     let started = Instant::now();
     let output = fixture.run(&["agent", "focus", "alpha", "--timeout=1000", "--format=json"]);
-    server.join().unwrap();
+    let exited_after = started.elapsed();
+    assert!(
+        server.join().is_ok(),
+        "peer failed; CLI exited after {exited_after:?}; output={output:?}"
+    );
     assert_eq!(output.status.code(), Some(7));
     assert!(
         started.elapsed() < Duration::from_secs(8),

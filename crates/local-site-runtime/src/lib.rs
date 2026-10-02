@@ -52,7 +52,15 @@ pub use windows_command::{windows_encoded_command, windows_raw_command_encoded};
 mod activation_record_windows;
 mod cohort;
 #[cfg(windows)]
+mod process_observation_windows;
+#[cfg(windows)]
+mod process_registration;
+#[cfg(windows)]
+mod registered_child_windows;
+#[cfg(windows)]
 pub use activation_record_windows::{ActivationState, RetainedActivationRecord};
+#[cfg(windows)]
+pub use registered_child_windows::{WindowsSiteChild, spawn_windows_site_child};
 #[cfg(windows)]
 mod durable_sessions_windows;
 #[cfg(windows)]

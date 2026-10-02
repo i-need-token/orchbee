@@ -130,8 +130,11 @@ running Site answers — under one absolute 20-second deadline, then reports `st
 when this invocation actually spawned the child and `already-running` when an existing Site
 admitted its probe. The command is effectful even on refusal: only a grammar failure is
 guaranteed zero-effect, an interrupted or timed-out start may leave committed activation
-state the next invocation reports as `rejected`/`recovery-required`, and it never repairs,
-stops, or deletes runtime state. `site diagnose` is the read-only complement: it reports
+state. On Windows, the next invocation automatically recovers a registered generation only after
+proving every old exact process gone under all required guards; live, incomplete and legacy Active
+records remain `rejected`/`recovery-required`. Recovery preserves checkpoint data and never terminates
+old processes. The [Windows recovery contract](../../crates/local-site-runtime/docs/windows-crash-recovery.md)
+owns those boundaries. `site diagnose` is the read-only complement: it reports
 bounded facts about the runtime directory, marker, locks, and finite endpoint paths — each
 a closed-state row at its own observation instant — under one cooperative 5-second budget,
 and it never connects, creates, locks, repairs, or claims any process is alive or gone.
@@ -195,8 +198,11 @@ for shell mode and startup lifetime. `site start --format json` also works witho
 The prefix is `Ctrl+B`, followed by `|` for a side-by-side split, `-` for a stacked split,
 `h/j/k/l` for pane focus, or `d` to detach. Splitting preserves the current focus. Run the executable
 again to reattach to the retained Site. Detaching leaves shells running; an exited shell remains
-observable until its Tab/Panel is explicitly closed. The runtime does not automatically recover a
-crashed Site. `config check --format json` checks local cohort/runtime inputs without starting one.
+observable until its Tab/Panel is explicitly closed. If every registered Site process has exited,
+running the executable again automatically starts a fresh generation and restores the existing
+checkpoint. Live or uncertain old owners block startup; current recovery does not adopt a live Host.
+`session list` v2 reports guarded cold eligibility as `recoverable`. Unsaved changes still require
+continuous checkpoints. `config check --format json` checks local cohort/runtime inputs without starting one.
 
 Validated Windows behavior includes native startup, Unicode rendering, burst and ordinary typing,
 CLI terminal send/read, split/focus/resize, detach/reattach with exact retained terminal identities,
@@ -220,7 +226,7 @@ Shell completion supports bash/zsh/fish/powershell/elvish. In PowerShell, load i
 In interactive Elvish 0.21, use `eval (orchbee completion elvish | slurp)`; the static callback
 registers both `orchbee` and `orchbee.exe` without querying a Site or modifying profiles.
 For Unicode pipelines in Windows PowerShell 5.1, set `$OutputEncoding = [Text.UTF8Encoding]::new($false)` in the invoking script; PowerShell chooses the bytes sent to a native command. Orchbee preserves those bytes and does not repair prior shell encoding loss.
-`orchbee --skill` prints the embedded [Agent guide](docs/cli-agent-skill.md) offline. Signing, automatic updates, crash recovery, macOS startup, and a packaged
+`orchbee --skill` prints the embedded [Agent guide](docs/cli-agent-skill.md) offline. Signing, automatic updates, live Host adoption, continuous checkpoints, macOS startup, and a packaged
 replacement for the delivered TypeScript CLI are separate work.
 
 ## Linux local startup

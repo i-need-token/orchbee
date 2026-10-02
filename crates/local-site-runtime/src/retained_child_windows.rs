@@ -36,6 +36,23 @@ impl RetainedChild {
     }
 
     pub(super) fn spawn(executable: &Path, arguments: &[&OsStr]) -> io::Result<Self> {
+        Self::create(executable, arguments, co::CREATE::NoValue)
+    }
+    pub(crate) fn spawn_suspended(executable: &Path, arguments: &[&OsStr]) -> io::Result<Self> {
+        Self::create(executable, arguments, co::CREATE::SUSPENDED)
+    }
+    pub(crate) fn identity(&self) -> io::Result<crate::process_registration::ProcessIdentity> {
+        crate::process_observation_windows::identity(&self.0.hProcess)
+    }
+    pub(crate) fn resume(&mut self) -> io::Result<()> {
+        match self.0.hThread.ResumeThread().map_err(io::Error::other)? {
+            1 => Ok(()),
+            _ => Err(io::Error::other(
+                "unexpected registered child suspend count",
+            )),
+        }
+    }
+    fn create(executable: &Path, arguments: &[&OsStr], flags: co::CREATE) -> io::Result<Self> {
         if !executable.is_absolute() {
             return Err(io::ErrorKind::InvalidInput.into());
         }
@@ -56,7 +73,7 @@ impl RetainedChild {
             None,
             None,
             false,
-            co::CREATE::DETACHED_PROCESS | co::CREATE::NEW_PROCESS_GROUP,
+            co::CREATE::DETACHED_PROCESS | co::CREATE::NEW_PROCESS_GROUP | flags,
             &[],
             None,
             &mut winsafe::STARTUPINFO::default(),
@@ -117,3 +134,7 @@ fn quote(value: &str) -> String {
 #[cfg(test)]
 #[path = "retained_child_windows/tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "retained_child_windows/registration_tests.rs"]
+mod registration_tests;

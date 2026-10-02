@@ -1,11 +1,14 @@
 //! Windows creation: one canonical effect, optional guarded Client phases, no replay.
 #![cfg(windows)]
+#[path = "support/windows_agent_peer/cohort_fixture.rs"]
+mod cohort_fixture;
 #[allow(dead_code)]
 #[path = "support/windows_agent_peer.rs"]
 mod peer_support;
+use cohort_fixture::CohortFixture as Fixture;
 use orchbee_local_ipc::{LocalListener, LocalStream};
 use orchbee_workbench_protocol::*;
-use peer_support::{Fixture, assert_closed, peer, validate};
+use peer_support::{assert_closed, peer, validate};
 use serde_json::{Value, json};
 
 fn id(n: u64) -> String {
@@ -260,7 +263,11 @@ fn run(
     implicit: bool,
     cut: Cut,
 ) -> (std::process::Output, Value) {
-    let fixture = Fixture::new();
+    let fixture = if cut == Cut::WaitTimeout {
+        Fixture::deadline_sensitive()
+    } else {
+        Fixture::new()
+    };
     let rendezvous = fixture.rendezvous();
     let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
     let handler = peer(&fixture, listener, move |mut stream| {

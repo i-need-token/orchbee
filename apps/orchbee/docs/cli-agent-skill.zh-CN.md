@@ -1,6 +1,6 @@
 # Orchbee 原生 CLI Agent 指引
 
-Windows 命名 Site 生命周期：`session list [--format json]` 读取有界本地清单；`session attach <name> [--mouse on|off]` 进入真实 TUI；`session stop <name> --confirm` 保留正常停止检查点。`session delete <name> --confirm` 只移除经证明已停止或未使用的自有运行时和检查点状态，绝不删除用户项目/worktree 目录。它拒绝 default、不确定或运行中状态。未完成的删除会阻止启动；解决所报告原因后再次执行相同删除命令。名称操作数必须与显式 `--site` 一致。列表/删除使用 `orchbee.session.list` / `orchbee.session.delete` v1（目录 v69，78 个 schema）。
+Windows 命名 Site 生命周期：`session list [--format json]` 读取有界本地清单；`session attach <name> [--mouse on|off]` 进入真实 TUI；`session stop <name> --confirm` 保留正常停止检查点。`session delete <name> --confirm` 只移除经证明已停止或未使用的自有运行时和检查点状态，绝不删除用户项目/worktree 目录。它拒绝 default、不确定或运行中状态。未完成的删除会阻止启动；解决所报告原因后再次执行相同删除命令。名称操作数必须与显式 `--site` 一致。列表输出 `orchbee.session.list` v2（保留封闭的 v1），增加 `recoverable`；删除保留 v1，内嵌清单为 v139。启动仅在 v2 登记完整、全部确切进程消失且资源检查通过时自动恢复，并保留最近正常停止检查点。旧版 Active、存活或不确定所有者均拒绝且不删除；用相同 `--site` 诊断，或另开命名 Site。旧二进制拒绝 v2；活 Host 接管和持续保存检查点仍另行实现。
 
 `orchbee terminal run <terminal-id> "Write-Output ready" --format json` 在一个输入请求中粘贴命令，再发送 Enter。命令须为一个引号字符串；保持原始文本，目标只接受完整 ID 或 `@terminal:<suffix>`。回执确认输入提交，不保证 Shell 已就绪、命令完成或退出状态；部分或未知结果不得重放。 [命令提交契约](native-terminal-run.zh-CN.md).
 

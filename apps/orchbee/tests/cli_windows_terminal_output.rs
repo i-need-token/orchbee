@@ -575,16 +575,42 @@ fn windows_source_wait_repinning_never_counts_stale_samples_or_repeats_row_seque
 
 #[test]
 fn windows_zero_source_wait_does_not_match_empty_regex_and_reports_one_complete_sample() {
+    for reply_after_exit in [false, true] {
+        zero_source_wait(reply_after_exit);
+    }
+}
+
+fn zero_source_wait(reply_after_exit: bool) {
     let fixture = Fixture::new();
     let listener = LocalListener::bind(fixture.rendezvous().client_socket_path()).unwrap();
-    let handler = peer(&fixture, listener, |mut stream| {
+    let (exited, client_exit) = std::sync::mpsc::channel();
+    let handler = peer(&fixture, listener, move |mut stream| {
         bound_snapshot_reply(&mut stream);
         let viewer = observed_frame(&mut stream);
         while let Ok(ClientMessage::TerminalViewer(req)) = read_client_message(&mut stream) {
             assert!(
                 matches!(req.action(), Action::Poll { attachment_id } if attachment_id == &viewer)
             );
-            reply(&mut stream, &req, Outcome::Empty {});
+            if reply_after_exit {
+                // Pin the cancellation race: the client closes before the pending reply.
+                client_exit.recv().unwrap();
+            }
+            let result = write_server_message(
+                &mut stream,
+                &ServerMessage::TerminalViewerResult(TerminalViewerResult::new(
+                    req.request_id().clone(),
+                    Outcome::Empty {},
+                )),
+            );
+            match result {
+                Ok(()) => assert!(!reply_after_exit),
+                Err(obcs::WriteMessageError::Io(error))
+                    if error.kind() == std::io::ErrorKind::BrokenPipe =>
+                {
+                    break;
+                }
+                Err(error) => panic!("viewer reply: {error}"),
+            }
         }
     });
     let output = fixture.run(&[
@@ -597,6 +623,9 @@ fn windows_zero_source_wait_does_not_match_empty_regex_and_reports_one_complete_
         "--timeout=1500",
         "--format=json",
     ]);
+    if reply_after_exit {
+        exited.send(()).unwrap();
+    }
     handler.join().unwrap();
     assert_eq!(output.status.code(), Some(7));
     let doc: Value = serde_json::from_slice(&output.stdout).unwrap();

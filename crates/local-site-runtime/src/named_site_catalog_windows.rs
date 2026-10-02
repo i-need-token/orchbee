@@ -3,6 +3,8 @@ use crate::{
     ActivationState, LockAttempt, ModeCheckedLocalSiteRendezvous as Rendezvous, SiteScope,
     WindowsSiteName,
     durable_sessions_windows::{self as durable, Directory, Lifecycle, Record},
+    process_observation_windows::ProcessSnapshot,
+    process_registration::RecoveryVerdict,
     site_name_windows, windows_permissions as permissions,
 };
 use serde::{Deserialize, Serialize};
@@ -39,6 +41,7 @@ pub struct WindowsNamedSiteEntry {
     pub deleting: bool,
     retained: Option<ActivationState>,
     checkpoint: PathBuf,
+    local: PathBuf,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -184,18 +187,96 @@ impl WindowsNamedSiteCatalog {
             Err(error) if error.kind() == io::ErrorKind::NotFound => {
                 no_endpoints(&runtime)?;
                 let checkpoint = checkpoint_path(&self.local, &runtime);
-                let storage = idle_storage(&checkpoint)?;
+                let storage = storage_guard(&checkpoint)?;
                 match record.as_ref().and_then(Record::activation) {
                     Some(ActivationState::Stopped { .. }) => {
                         permissions::open_file(&checkpoint.join("checkpoint.json"), false, false)?;
                     }
-                    None if !storage => {}
+                    Some(ActivationState::Active | ActivationState::Crashed { .. }) => {
+                        let _writer = self.durable.try_writer(scope)?;
+                        let record = self
+                            .durable
+                            .read(scope)?
+                            .ok_or(io::ErrorKind::InvalidData)?;
+                        let processes = record
+                            .processes
+                            .as_ref()
+                            .ok_or(io::ErrorKind::InvalidData)?;
+                        let snapshot = ProcessSnapshot::observe(processes);
+                        if snapshot.verdict(processes) != RecoveryVerdict::Gone {
+                            return Err(io::ErrorKind::InvalidData.into());
+                        }
+                    }
+                    None if !storage.exists => {}
                     _ => return Err(io::ErrorKind::InvalidData.into()),
                 }
             }
             Err(error) => return Err(error),
         }
         Ok(Some(name))
+    }
+
+    /// Proved-dead recovery uses the same namespace and exact runtime guards as new activation.
+    pub fn recover_inactive(
+        &self,
+        site: &Rendezvous,
+        activation: &crate::ModeCheckedSiteLock,
+        lifetime: &crate::ModeCheckedSiteLock,
+    ) -> io::Result<bool> {
+        site.require_lock(activation, crate::LockKind::Activation)?;
+        site.require_lock(lifetime, crate::LockKind::SiteLifetime)?;
+        let runtime = site.runtime_directory();
+        if runtime.parent() != Some(self.base.as_path()) {
+            return Err(io::ErrorKind::InvalidInput.into());
+        }
+        let scope = runtime
+            .file_name()
+            .and_then(|value| value.to_str())
+            .ok_or(io::ErrorKind::InvalidInput)?;
+        let _writer = self.durable.try_writer(scope)?;
+        let Some(mut record) = self.durable.read(scope)? else {
+            return Ok(false);
+        };
+        if matches!(record.lifecycle, Lifecycle::Stopped { .. }) {
+            return Ok(false);
+        }
+        if !matches!(record.lifecycle, Lifecycle::Active | Lifecycle::Crashed) {
+            return Err(io::ErrorKind::InvalidData.into());
+        }
+        let processes = record
+            .processes
+            .as_ref()
+            .ok_or(io::ErrorKind::InvalidData)?;
+        let snapshot = ProcessSnapshot::observe(processes);
+        if snapshot.verdict(processes) != RecoveryVerdict::Gone {
+            return Err(io::ErrorKind::InvalidData.into());
+        }
+        // begin_activation closes the prior generation before publishing the fresh
+        // record. With every slot NotStarted, no CreateProcess can have happened,
+        // so its complete predecessor receipt can survive interrupted marker commit.
+        let allow_previous_receipt = processes.is_unstarted();
+        no_endpoints(runtime)?;
+        let _storage = storage_guard(&checkpoint_path(&self.local, runtime))?;
+        let retry = record.lifecycle == Lifecycle::Crashed;
+        if !retry {
+            match site.activation_state()? {
+                ActivationState::Absent | ActivationState::Active => {}
+                ActivationState::Stopped { .. } | ActivationState::Crashed { .. }
+                    if allow_previous_receipt => {}
+                _ => return Err(io::ErrorKind::InvalidData.into()),
+            }
+            record.lifecycle = Lifecycle::Crashed;
+            self.durable.publish(scope, &record)?;
+        }
+        let activation_id = record.activation_id.ok_or(io::ErrorKind::InvalidData)?;
+        site.reconcile_crashed(
+            activation,
+            lifetime,
+            activation_id,
+            retry,
+            allow_previous_receipt,
+        )?;
+        Ok(true)
     }
 
     /// One new generation is published before its runtime marker or Server can exist.
@@ -211,15 +292,20 @@ impl WindowsNamedSiteCatalog {
             .file_name()
             .and_then(|value| value.to_str())
             .ok_or(io::ErrorKind::InvalidInput)?;
+        let _writer = self.durable.try_writer(scope)?;
         let previous = self.durable.read(scope)?;
         if previous.as_ref().is_some_and(|record| {
-            !matches!(record.lifecycle, Lifecycle::Stopped { .. })
-                || record.activation_id == Some(activation_id)
+            !matches!(
+                record.lifecycle,
+                Lifecycle::Stopped { .. } | Lifecycle::Crashed
+            ) || record.activation_id == Some(activation_id)
         }) {
             return Err(io::ErrorKind::InvalidData.into());
         }
         let marker = site.activation_state()?;
-        if marker == ActivationState::Active {
+        if marker == ActivationState::Active
+            || (previous.is_none() && matches!(marker, ActivationState::Crashed { .. }))
+        {
             return Err(io::ErrorKind::InvalidData.into());
         }
         no_endpoints(runtime)?;
@@ -231,15 +317,51 @@ impl WindowsNamedSiteCatalog {
             {
                 return Err(io::ErrorKind::InvalidData.into());
             }
-            permissions::open_file(&checkpoint.join("checkpoint.json"), false, false)?;
+            if let ActivationState::Crashed { activation_id } = marker
+                && (previous.lifecycle != Lifecycle::Crashed
+                    || previous.activation_id != Some(activation_id))
+            {
+                return Err(io::ErrorKind::InvalidData.into());
+            }
+            if matches!(previous.lifecycle, Lifecycle::Stopped { .. }) {
+                permissions::open_file(&checkpoint.join("checkpoint.json"), false, false)?;
+            }
         }
         let name = if scope.starts_with(site_name_windows::NAMED_PREFIX) {
             site_name_windows::read(runtime)?
         } else {
             WindowsSiteName::parse("default")?
         };
-        let active = Record::new(&self.base, &name, Some(activation_id), Lifecycle::Active)?;
+        let active = Record::registered(&self.base, &name, activation_id)?;
         self.durable.publish(scope, &active)
+    }
+
+    /// The namespace owner and matching activation guard are the Server creation capability.
+    pub fn spawn_server(
+        &self,
+        site: &Rendezvous,
+        activation: &crate::ModeCheckedSiteLock,
+        executable: &Path,
+        arguments: &[&std::ffi::OsStr],
+        deadline: Instant,
+    ) -> io::Result<crate::RetainedChild> {
+        site.require_lock(activation, crate::LockKind::Activation)?;
+        let runtime = site.runtime_directory();
+        if runtime.parent() != Some(self.base.as_path()) {
+            return Err(io::ErrorKind::InvalidInput.into());
+        }
+        let scope = runtime
+            .file_name()
+            .and_then(|name| name.to_str())
+            .ok_or(io::ErrorKind::InvalidInput)?;
+        crate::registered_child_windows::spawn_registered(
+            &self.durable,
+            scope,
+            crate::process_registration::ProcessRole::Server,
+            executable,
+            arguments,
+            deadline,
+        )
     }
 
     pub fn list(
@@ -307,6 +429,7 @@ impl WindowsNamedSiteCatalog {
             let name = WindowsSiteName::parse(&text)?;
             let runtime = base.join(name.scope_for_user(&sid));
             result.push(WindowsNamedSiteEntry {
+                local: local.to_owned(),
                 checkpoint: checkpoint_path(local, &runtime),
                 runtime,
                 name,
@@ -390,7 +513,7 @@ impl WindowsNamedSiteCatalog {
                     }
                 };
                 match site.activation_state()? {
-                    ActivationState::Active => {
+                    ActivationState::Active | ActivationState::Crashed { .. } => {
                         refused = Some(Reason::RecoveryRequired);
                         return Err(io::ErrorKind::InvalidData.into());
                     }
@@ -409,7 +532,7 @@ impl WindowsNamedSiteCatalog {
                 }
             }
             if durable.as_ref().is_some_and(|record| {
-                record.lifecycle == Lifecycle::Active
+                matches!(record.lifecycle, Lifecycle::Active | Lifecycle::Crashed)
                     || previous
                         .as_ref()
                         .is_some_and(|intent| intent.stopped_request_id != record.stopped_id())
@@ -457,6 +580,7 @@ impl WindowsNamedSiteCatalog {
                 None => None,
             };
             check()?;
+            let writer = self.durable.try_writer(&scope)?;
             if !durable.as_ref().is_some_and(Record::is_deleting) {
                 let record = match durable {
                     Some(mut record) => {
@@ -518,6 +642,7 @@ impl WindowsNamedSiteCatalog {
             check()?;
             remove_private_file_if_present(&intent_path(&self.base, &scope))?;
             check()?;
+            drop(writer);
             self.durable.remove(&scope)?;
             Ok(WindowsNamedSiteDeleteOutcome::Deleted)
         })();
@@ -539,6 +664,104 @@ impl WindowsNamedSiteCatalog {
 }
 
 impl WindowsNamedSiteEntry {
+    /// A read-only, guarded observation of cold-recovery eligibility, never a future-start promise.
+    pub fn cold_recoverable(&self) -> io::Result<bool> {
+        if self.deleting {
+            return Ok(false);
+        }
+        let observed = (|| -> io::Result<bool> {
+            let base = self.runtime.parent().ok_or(io::ErrorKind::InvalidInput)?;
+            let _base = permissions::open_tree(base)?;
+            let _runtime = match permissions::open_tree(&self.runtime) {
+                Ok(pins) => Some(pins),
+                Err(error) if error.kind() == io::ErrorKind::NotFound => None,
+                Err(error) => return Err(error),
+            };
+            let sid = orchbee_local_ipc::current_user_sid()?;
+            let user = WindowsSiteName::parse("default")?.scope_for_user(&sid);
+            let _namespace = existing_lock(&base.join(format!("{user}.sessions.lock")), true)?;
+            let _activation = existing_lock(&self.runtime.join("activation.lock"), false)?;
+            let _lifetime = existing_lock(&self.runtime.join("site-lifetime.lock"), false)?;
+            let scope = self
+                .runtime
+                .file_name()
+                .and_then(|name| name.to_str())
+                .ok_or(io::ErrorKind::InvalidInput)?;
+            let Some(directory) = Directory::open(&self.local, base)? else {
+                return Ok(false);
+            };
+            let _writer = directory
+                .existing_writer(scope)?
+                .ok_or(io::ErrorKind::NotFound)?;
+            let Some(record) = directory.read(scope)? else {
+                return Ok(false);
+            };
+            if !matches!(record.lifecycle, Lifecycle::Active | Lifecycle::Crashed) {
+                return Ok(false);
+            }
+            let Some(processes) = &record.processes else {
+                return Ok(false);
+            };
+            let snapshot = ProcessSnapshot::observe(processes);
+            if snapshot.verdict(processes) != RecoveryVerdict::Gone {
+                return Ok(false);
+            }
+            no_endpoints(&self.runtime)?;
+            let _storage = storage_guard(&self.checkpoint)?;
+            // Only an entirely unstarted fresh generation may retain its predecessor receipt.
+            if record.lifecycle == Lifecycle::Active {
+                let site = match Rendezvous::from_runtime_directory(&self.runtime) {
+                    Ok(site) => Some(site),
+                    Err(crate::RendezvousError::System { source, .. })
+                        if source.kind() == io::ErrorKind::NotFound =>
+                    {
+                        None
+                    }
+                    Err(error) => return Err(io::Error::other(error)),
+                };
+                if let Some(site) = site {
+                    match site.activation_state() {
+                        Ok(ActivationState::Absent | ActivationState::Active) => {}
+                        Ok(ActivationState::Stopped { .. } | ActivationState::Crashed { .. })
+                            if processes.is_unstarted() => {}
+                        Ok(_) => return Ok(false),
+                        Err(error) if error.kind() == io::ErrorKind::InvalidData => {
+                            return Ok(false);
+                        }
+                        Err(error) => return Err(error),
+                    }
+                }
+            } else {
+                match permissions::open_file(&self.runtime.join("activation.started"), false, false)
+                {
+                    Ok(mut file) => {
+                        if !crate::activation_record_windows::crash_matches(
+                            &mut file,
+                            record.activation_id.ok_or(io::ErrorKind::InvalidData)?,
+                            true,
+                            processes.is_unstarted(),
+                        )? {
+                            return Ok(false);
+                        }
+                    }
+                    Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+                    Err(error) => return Err(error),
+                }
+            }
+            Ok(true)
+        })();
+        match observed {
+            Err(error)
+                if matches!(
+                    error.kind(),
+                    io::ErrorKind::WouldBlock | io::ErrorKind::NotFound
+                ) =>
+            {
+                Ok(false)
+            }
+            other => other,
+        }
+    }
     /// A runtime-only receipt cannot override a conflicting retained activation generation.
     pub fn accepts_runtime_state(&self, marker: ActivationState) -> bool {
         self.retained.is_none_or(|retained| retained == marker)
@@ -577,6 +800,19 @@ impl WindowsNamedSiteEntry {
     }
 }
 
+fn existing_lock(path: &Path, required: bool) -> io::Result<Option<File>> {
+    let file = match permissions::open_file(path, false, true) {
+        Ok(file) => file,
+        Err(error) if error.kind() == io::ErrorKind::NotFound && !required => return Ok(None),
+        Err(error) => return Err(error),
+    };
+    match file.try_lock() {
+        Ok(()) => Ok(Some(file)),
+        Err(TryLockError::WouldBlock) => Err(io::ErrorKind::WouldBlock.into()),
+        Err(TryLockError::Error(error)) => Err(error),
+    }
+}
+
 fn checkpoint_path(local: &Path, runtime: &Path) -> PathBuf {
     local
         .join("Orchbee")
@@ -594,22 +830,46 @@ fn no_endpoints(runtime: &Path) -> io::Result<()> {
     }
     Ok(())
 }
-fn idle_storage(path: &Path) -> io::Result<bool> {
-    let _pins = match permissions::open_tree(path) {
+struct IdleStorage {
+    exists: bool,
+    _pins: Vec<File>,
+    _lock: Option<File>,
+}
+fn storage_guard(path: &Path) -> io::Result<IdleStorage> {
+    let pins = match permissions::open_tree(path) {
         Ok(pins) => pins,
-        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(false),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {
+            return Ok(IdleStorage {
+                exists: false,
+                _pins: Vec::new(),
+                _lock: None,
+            });
+        }
         Err(error) => return Err(error),
     };
     let file = match permissions::open_file(&path.join("state.lock"), false, true) {
         Ok(file) => file,
-        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(true),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {
+            return Ok(IdleStorage {
+                exists: true,
+                _pins: pins,
+                _lock: None,
+            });
+        }
         Err(error) => return Err(error),
     };
     match file.try_lock() {
-        Ok(()) => Ok(true),
+        Ok(()) => Ok(IdleStorage {
+            exists: true,
+            _pins: pins,
+            _lock: Some(file),
+        }),
         Err(TryLockError::WouldBlock) => Err(io::ErrorKind::WouldBlock.into()),
         Err(TryLockError::Error(error)) => Err(error),
     }
+}
+fn idle_storage(path: &Path) -> io::Result<bool> {
+    Ok(storage_guard(path)?.exists)
 }
 
 fn check_deadline(deadline: Instant) -> io::Result<()> {

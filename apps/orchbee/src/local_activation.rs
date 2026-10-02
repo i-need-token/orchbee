@@ -147,7 +147,7 @@ pub(crate) fn activate_local_site(deadline: Instant) -> Result<StartedSite, Acti
     if let Some(catalog) = &_named_catalog {
         selection.name = catalog
             .prepare_activation(&scope_text, selection.name.as_ref())
-            .map_err(runtime_failure)?;
+            .map_err(recovery_failure)?;
     }
     let site =
         ModeCheckedLocalSiteRendezvous::prepare_mode_checked(&base, scope).map_err(|error| {
@@ -219,12 +219,18 @@ fn connect_or_activate(
         if let Some(client) = connect(site, cohort, deadline)? {
             return Ok((client, false));
         }
-        let marker = site.activation_started().map_err(runtime_failure)?;
         let mut child = match site
             .try_acquire_site_lifetime_lock()
             .map_err(lock_failure)?
         {
             LockAttempt::Acquired(lifetime) => {
+                #[cfg(windows)]
+                if let Some(catalog) = catalog {
+                    catalog
+                        .recover_inactive(site, &_activation, &lifetime)
+                        .map_err(recovery_failure)?;
+                }
+                let marker = site.activation_started().map_err(runtime_failure)?;
                 if marker
                     || site.client_socket_exists().map_err(runtime_failure)?
                     || site.worker_socket_exists().map_err(runtime_failure)?
@@ -254,65 +260,73 @@ fn connect_or_activate(
                 check_deadline(deadline)?;
                 site.commit_activation().map_err(runtime_failure)?;
                 check_deadline(deadline)?;
-                Some(
-                    orchbee_local_site_runtime::spawn_retained(
-                        &cohort.executable(NativeArtifact::Server),
-                        &[
-                            std::ffi::OsStr::new("--local-site"),
-                            site.runtime_directory().as_os_str(),
-                            #[cfg(windows)]
-                            std::ffi::OsStr::new("--resume-agents-on-restore"),
-                            #[cfg(windows)]
-                            std::ffi::OsStr::new(if settings.resume_agents_on_restore {
-                                "true"
-                            } else {
-                                "false"
-                            }),
-                            #[cfg(windows)]
-                            std::ffi::OsStr::new("--manifest-check"),
-                            #[cfg(windows)]
-                            std::ffi::OsStr::new(if settings.manifest_check {
-                                "true"
-                            } else {
-                                "false"
-                            }),
-                            #[cfg(windows)]
-                            std::ffi::OsStr::new("--manifest-check-source"),
-                            #[cfg(windows)]
-                            std::ffi::OsStr::new(settings.manifest_check_source),
-                            #[cfg(windows)]
-                            std::ffi::OsStr::new("--configuration-file"),
-                            #[cfg(windows)]
-                            settings
-                                .path
-                                .as_deref()
-                                .map(std::path::Path::as_os_str)
-                                .unwrap_or(std::ffi::OsStr::new("")),
-                            #[cfg(windows)]
-                            std::ffi::OsStr::new("--configuration-file-explicit"),
-                            #[cfg(windows)]
-                            std::ffi::OsStr::new(if settings.explicit { "true" } else { "false" }),
-                            #[cfg(windows)]
-                            std::ffi::OsStr::new("--default-shell"),
-                            #[cfg(windows)]
-                            std::ffi::OsStr::new(settings.shell.executable()),
-                            #[cfg(windows)]
-                            std::ffi::OsStr::new("--shell-mode"),
-                            #[cfg(windows)]
-                            std::ffi::OsStr::new(settings.shell.mode().as_str()),
-                        ],
+                let executable = cohort.executable(NativeArtifact::Server);
+                let arguments = [
+                    std::ffi::OsStr::new("--local-site"),
+                    site.runtime_directory().as_os_str(),
+                    #[cfg(windows)]
+                    std::ffi::OsStr::new("--resume-agents-on-restore"),
+                    #[cfg(windows)]
+                    std::ffi::OsStr::new(if settings.resume_agents_on_restore {
+                        "true"
+                    } else {
+                        "false"
+                    }),
+                    #[cfg(windows)]
+                    std::ffi::OsStr::new("--manifest-check"),
+                    #[cfg(windows)]
+                    std::ffi::OsStr::new(if settings.manifest_check {
+                        "true"
+                    } else {
+                        "false"
+                    }),
+                    #[cfg(windows)]
+                    std::ffi::OsStr::new("--manifest-check-source"),
+                    #[cfg(windows)]
+                    std::ffi::OsStr::new(settings.manifest_check_source),
+                    #[cfg(windows)]
+                    std::ffi::OsStr::new("--configuration-file"),
+                    #[cfg(windows)]
+                    settings
+                        .path
+                        .as_deref()
+                        .map(std::path::Path::as_os_str)
+                        .unwrap_or(std::ffi::OsStr::new("")),
+                    #[cfg(windows)]
+                    std::ffi::OsStr::new("--configuration-file-explicit"),
+                    #[cfg(windows)]
+                    std::ffi::OsStr::new(if settings.explicit { "true" } else { "false" }),
+                    #[cfg(windows)]
+                    std::ffi::OsStr::new("--default-shell"),
+                    #[cfg(windows)]
+                    std::ffi::OsStr::new(settings.shell.executable()),
+                    #[cfg(windows)]
+                    std::ffi::OsStr::new("--shell-mode"),
+                    #[cfg(windows)]
+                    std::ffi::OsStr::new(settings.shell.mode().as_str()),
+                ];
+                #[cfg(windows)]
+                let child = match catalog {
+                    Some(catalog) => {
+                        catalog.spawn_server(site, &_activation, &executable, &arguments, deadline)
+                    }
+                    None => orchbee_local_site_runtime::spawn_retained(&executable, &arguments),
+                };
+                #[cfg(not(windows))]
+                let child = orchbee_local_site_runtime::spawn_retained(&executable, &arguments);
+                Some(child.map_err(|_| {
+                    ActivationFailure::caused(
+                        StartupFailure::RecoveryRequired,
+                        ActivationCause::SpawnIo,
                     )
-                    .map_err(|_| {
-                        ActivationFailure::caused(
-                            StartupFailure::RecoveryRequired,
-                            ActivationCause::SpawnIo,
-                        )
-                    })?,
-                )
+                })?)
             }
-            LockAttempt::Contended if marker => None,
             LockAttempt::Contended => {
-                return Err(ActivationFailure::bare(StartupFailure::RecoveryRequired));
+                if site.activation_started().map_err(runtime_failure)? {
+                    None
+                } else {
+                    return Err(ActivationFailure::bare(StartupFailure::RecoveryRequired));
+                }
             }
         };
         loop {
@@ -386,6 +400,16 @@ fn connect(
 /// error rides along for CLI kind classification.
 fn runtime_failure(error: io::Error) -> ActivationFailure {
     ActivationFailure::caused(StartupFailure::Runtime, ActivationCause::RuntimeIo(error))
+}
+
+#[cfg(windows)]
+fn recovery_failure(error: io::Error) -> ActivationFailure {
+    match error.kind() {
+        io::ErrorKind::InvalidData | io::ErrorKind::WouldBlock => {
+            ActivationFailure::bare(StartupFailure::RecoveryRequired)
+        }
+        _ => runtime_failure(error),
+    }
 }
 
 /// A lock acquisition keeps the existing `Runtime` verdict; the raw

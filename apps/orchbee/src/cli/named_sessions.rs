@@ -29,6 +29,7 @@ pub(crate) enum SessionState {
     Starting,
     Deleting,
     RecoveryRequired,
+    Recoverable,
 }
 impl SessionState {
     pub(crate) fn token(self) -> &'static str {
@@ -40,12 +41,13 @@ impl SessionState {
             Self::Starting => "starting",
             Self::Deleting => "deleting",
             Self::RecoveryRequired => "recovery-required",
+            Self::Recoverable => "recoverable",
         }
     }
     fn running(self) -> Option<bool> {
         match self {
             Self::Running | Self::Stopping => Some(true),
-            Self::Stopped | Self::Absent => Some(false),
+            Self::Stopped | Self::Absent | Self::Recoverable => Some(false),
             _ => None,
         }
     }
@@ -218,6 +220,9 @@ fn observe(
     if entry.deleting {
         return Ok((SessionState::Deleting, None));
     }
+    if entry.cold_recoverable().map_err(local_error)? {
+        return Ok((SessionState::Recoverable, None));
+    }
     let site = match Rendezvous::from_runtime_directory(&entry.runtime) {
         Ok(site) => site,
         Err(RendezvousError::System { source, .. }) if source.kind() == io::ErrorKind::NotFound => {
@@ -337,7 +342,7 @@ fn emit(
 ) -> Output {
     let encoded = match format {
         OutputFormat::Json => output::encode_document(
-            &json!({"schema":schema,"version":1,"source":config::local_runtime_source(),"result":result}),
+            &json!({"schema":schema,"version":if schema == "orchbee.session.list" {2} else {1},"source":config::local_runtime_source(),"result":result}),
         ),
         OutputFormat::Text => output::encode_text(&text),
     };
@@ -355,6 +360,32 @@ fn emit(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn recoverable_session_is_closed_to_v2_and_does_not_claim_a_running_server() {
+        let schema: Value =
+            serde_json::from_str(include_str!("schemas/orchbee.session.list.json")).unwrap();
+        let validator = jsonschema::draft202012::new(&schema).unwrap();
+        let result = json!({"sessions":[{"name":"default","default":true,"state":"recoverable","running":false,"pid":null,"runtimeDirectory":{"path":"C:/runtime"},"endpoint":"pipe"}]});
+        let output = emit(
+            "orchbee.session.list",
+            result,
+            String::new(),
+            0,
+            OutputFormat::Json,
+            Locale::EnUs,
+        );
+        let mut document: Value = serde_json::from_slice(&output.stdout).unwrap();
+        assert!(validator.is_valid(&document));
+        document["version"] = json!(1);
+        assert!(!validator.is_valid(&document));
+        document["result"]["sessions"][0]["state"] = json!("stopped");
+        assert!(validator.is_valid(&document));
+        document["version"] = json!(2);
+        document["result"]["sessions"][0]["state"] = json!("recoverable");
+        document["result"]["sessions"][0]["running"] = json!(true);
+        assert!(!validator.is_valid(&document));
+    }
 
     #[test]
     fn deletion_receipts_validate_without_hiding_partial_effects_or_diagnostics() {

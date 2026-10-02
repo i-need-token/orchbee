@@ -433,7 +433,7 @@ lock before committing the startup marker. Read-only discovery validates that id
 without creating it. Checkpoint storage is already isolated by the admitted runtime path.
 `session list [--format text|json]` lists default followed by exact named sessions in the
 selected runtime base. It reads at most 256 sessions under one five-second deadline, creates
-no runtime state and reports running, stopping, stopped, absent, starting, deleting or recovery-required
+no runtime state and reports running, stopping, stopped, absent, starting, deleting, recoverable or recovery-required
 from authenticated metadata and admitted lifecycle facts. Unknown/unsafe inventory fails explicitly.
 
 `session attach <name> [--mouse on|off]` activates or reconnects the real TUI. `session stop
@@ -445,14 +445,26 @@ uncertain state and never deletes Project/worktree/user directories. A name oper
 deletion intent and an explicit failure; repeat delete to finish, never start to repair it.
 Deletion checks Ctrl+C before each filesystem phase and exits 130 on interruption. Completed removals are not rolled back; a pending intent remains resumable. The `interrupted` result reports whether an intent remains, including cancellation after cleanup completed.
 
-List and delete have `orchbee.session.list` and `orchbee.session.delete` result schemas.
+List emits `orchbee.session.list` v2; v1 remains closed to its original states. `recoverable` means
+a guarded observation found complete v2 registration, all exact identities gone and idle resources;
+it carries `running=false` and `pid=null`, and does not promise a later start. Delete retains
+`orchbee.session.delete` v1. The embedded schema catalog is v139.
 
 The durable catalog preserves exact default/named identities and stopped receipts in LocalAppData.
 With the same admitted runtime base, `session list` still discovers a stopped session after its
 runtime leaf is removed; `session attach`/`site start` recreates its route and restores the checkpoint.
-Active or orphaned state remains recovery-required, never inferred stopped from missing files.
+`site start` and TUI startup automatically recover a complete, proved-dead v2 Active generation,
+including after runtime-leaf loss, while preserving the last checkpoint. The first stage refuses
+live Host, unknown or incomplete identity and legacy Active without deleting data. No old process
+is terminated and no clean-stop receipt is invented. Run `orchbee site diagnose` with the same
+`--site` selection to inspect a refusal, or `orchbee --site recovery-work site start` to use another
+name. Old binaries cannot directly operate upgraded v2 sessions, even after clean stop. See the
+[recovery contract](../../../crates/local-site-runtime/docs/windows-crash-recovery.md).
 Pending deletion also survives loss of temporary metadata and remains resumable by the same delete
 command. Listing remains read-only. The runtime base itself is not implicitly recreated.
+
+Checkpoint saving still follows the existing clean-stop policy in this stage; continuous saving,
+recovery of unsaved layout changes and live Host adoption remain separate work.
 
 ## Agent session names
 
@@ -1574,11 +1586,13 @@ and is never reset per stage:
 
 `result.outcome` reports the branch this invocation actually took: `started` only when it
 spawned the Server child, `already-running` when an existing Site admitted the probe. A
-`timeout` answer means readiness stayed unconfirmed — before marker commit nothing was left
+On Linux, a `timeout` answer means readiness stayed unconfirmed — before marker commit nothing was left
 behind, between commit and spawn a marker without a live owner may persist (the next
 invocation then answers `recovery-required`), and after spawn a Server may still be running;
 the command never claims a timeout proves no Server started, never retries `recovery-required`,
-and never repairs or deletes runtime state. Signals stay inherited: no capture stage exists,
+and never force-cleans uncertain runtime state. Windows may have published a generation before marker
+commit; a later invocation rechecks exact process identities, registration and all recovery guards.
+Only a proved-dead generation is automatically reconciled, preserving its checkpoint. Signals stay inherited: no capture stage exists,
 so an interruption is process death under the conventional `128 + signo`, never a `cancelled`
 envelope. Windows explicit stop and subsequent start are described below; there is no repair verb.
 
@@ -2351,8 +2365,9 @@ cancellation or an expired shared deadline exits without a wire request ever exi
 - `site start` is the single activation surface and the one command that creates local-runtime
   state: it may create the runtime directory, hold activation/lifetime locks, commit the marker,
   and spawn the Server — only a grammar failure guarantees zero effect. Its absolute 20-second deadline
-  is never reset per stage; a `recovery-required` refusal is never retried, repaired, or
-  cleaned up; a timeout never claims no Server started. `site diagnose` is the observation
+  is never reset per stage; a returned `recovery-required` refusal is never retried or force-cleaned;
+  Windows cold recovery rechecks the separately documented proof guards before a fresh generation.
+  A timeout never claims no Server started. `site diagnose` is the observation
   surface and performs no effect at all beyond its bounded lifetime-lock probe: no connect,
   no create, no lock acquisition, no repair, and no liveness or restart claim.
 - The CLI-owned 5-second budgets are checked deadlines; a construction failure is

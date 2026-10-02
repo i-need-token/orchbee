@@ -1,11 +1,11 @@
 //! Private lifecycle records outlive the runtime leaf. Effects derive their paths from admission.
 use crate::{
     ActivationState, ModeCheckedLocalSiteRendezvous as Rendezvous, WindowsSiteName,
-    site_name_windows, windows_permissions as permissions,
+    process_registration::SiteProcesses, site_name_windows, windows_permissions as permissions,
 };
 use serde::{Deserialize, Serialize};
 use std::{
-    fs::{self, File},
+    fs::{self, File, TryLockError},
     io::{self, Read, Write},
     path::{Path, PathBuf},
     time::Instant,
@@ -17,6 +17,7 @@ const MAXIMUM_BYTES: usize = 8192;
 #[serde(tag = "state", rename_all = "kebab-case", deny_unknown_fields)]
 pub(crate) enum Lifecycle {
     Active,
+    Crashed,
     Stopped {
         request_id: [u8; 16],
     },
@@ -33,6 +34,8 @@ pub(crate) struct Record {
     runtime: String,
     pub(crate) activation_id: Option<[u8; 16]>,
     pub(crate) lifecycle: Lifecycle,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) processes: Option<SiteProcesses>,
 }
 
 impl Record {
@@ -53,11 +56,25 @@ impl Record {
                 .to_owned(),
             activation_id,
             lifecycle,
+            processes: None,
         })
+    }
+    pub(crate) fn registered(
+        base: &Path,
+        name: &WindowsSiteName,
+        activation_id: [u8; 16],
+    ) -> io::Result<Self> {
+        let mut record = Self::new(base, name, Some(activation_id), Lifecycle::Active)?;
+        record.version = 2;
+        record.processes = Some(SiteProcesses::default());
+        Ok(record)
     }
     pub(crate) fn activation(&self) -> Option<ActivationState> {
         match self.lifecycle {
             Lifecycle::Active => Some(ActivationState::Active),
+            Lifecycle::Crashed => self
+                .activation_id
+                .map(|activation_id| ActivationState::Crashed { activation_id }),
             Lifecycle::Stopped { request_id } => Some(ActivationState::Stopped { request_id }),
             Lifecycle::Deleting { .. } => None,
         }
@@ -69,7 +86,7 @@ impl Record {
         match self.lifecycle {
             Lifecycle::Stopped { request_id } => Some(request_id),
             Lifecycle::Deleting { stopped_request_id } => stopped_request_id,
-            Lifecycle::Active => None,
+            Lifecycle::Active | Lifecycle::Crashed => None,
         }
     }
 }
@@ -148,7 +165,10 @@ impl Directory {
     }
     fn validate(&self, scope: &str, record: &Record) -> io::Result<()> {
         let name = WindowsSiteName::parse(&record.name).map_err(|_| io::ErrorKind::InvalidData)?;
-        if record.version != 1
+        if !matches!(
+            (record.version, &record.processes),
+            (1, None) | (2, Some(_))
+        ) || (record.version == 1 && record.lifecycle == Lifecycle::Crashed)
             || name.scope_for_user(&self.sid) != scope
             || Path::new(&record.runtime) != self.base.join(scope)
             || record.activation_id == Some([0; 16])
@@ -185,6 +205,43 @@ impl Directory {
         self.validate(scope, &record)?;
         Ok(Some(record))
     }
+    pub(crate) fn try_writer(&self, scope: &str) -> io::Result<File> {
+        if !supports_scope(scope, &self.sid) {
+            return Err(io::ErrorKind::InvalidInput.into());
+        }
+        let path = self.path.join(format!("{scope}.record.lock"));
+        let file = match permissions::open_file(&path, true, true) {
+            Ok(file) => file,
+            Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
+                permissions::open_file(&path, false, true)?
+            }
+            Err(error) => return Err(error),
+        };
+        match file.try_lock() {
+            Ok(()) => Ok(file),
+            Err(TryLockError::WouldBlock) => Err(io::ErrorKind::WouldBlock.into()),
+            Err(TryLockError::Error(error)) => Err(error),
+        }
+    }
+    pub(crate) fn existing_writer(&self, scope: &str) -> io::Result<Option<File>> {
+        if !supports_scope(scope, &self.sid) {
+            return Err(io::ErrorKind::InvalidInput.into());
+        }
+        let file = match permissions::open_file(
+            &self.path.join(format!("{scope}.record.lock")),
+            false,
+            true,
+        ) {
+            Ok(file) => file,
+            Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
+            Err(error) => return Err(error),
+        };
+        match file.try_lock() {
+            Ok(()) => Ok(Some(file)),
+            Err(TryLockError::WouldBlock) => Err(io::ErrorKind::WouldBlock.into()),
+            Err(TryLockError::Error(error)) => Err(error),
+        }
+    }
     pub(crate) fn list(&self, deadline: Instant) -> io::Result<Vec<(String, Record)>> {
         let mut records = Vec::new();
         for entry in fs::read_dir(&self.path)? {
@@ -197,6 +254,12 @@ impl Directory {
             if let Some(scope) = leaf.strip_suffix(".pending")
                 && supports_scope(scope, &self.sid)
             {
+                continue;
+            }
+            if let Some(scope) = leaf.strip_suffix(".record.lock")
+                && supports_scope(scope, &self.sid)
+            {
+                permissions::open_file(&entry.path(), false, false)?;
                 continue;
             }
             let scope = leaf
@@ -241,6 +304,7 @@ impl Directory {
     pub(crate) fn remove(&self, scope: &str) -> io::Result<()> {
         let _current = self.read(scope)?;
         remove_private(&self.record_path(scope, true)?)?;
+        remove_private(&self.path.join(format!("{scope}.record.lock")))?;
         remove_private(&self.record_path(scope, false)?)
     }
 }
@@ -289,18 +353,25 @@ impl WindowsRetainedSessionRecord {
         if request_id == [0; 16] {
             return Err(io::ErrorKind::InvalidInput.into());
         }
-        let current = self
+        let _writer = self.directory.try_writer(&self.scope)?;
+        let mut current = self
             .directory
             .read(&self.scope)?
             .ok_or(io::ErrorKind::NotFound)?;
-        let mut completed = self.active.clone();
-        completed.lifecycle = Lifecycle::Stopped { request_id };
-        if current == completed {
-            return Ok(());
-        }
-        if current != self.active {
+        if current.name != self.active.name
+            || current.runtime != self.active.runtime
+            || current.activation_id != self.active.activation_id
+            || current.version != self.active.version
+        {
             return Err(io::ErrorKind::InvalidData.into());
         }
-        self.directory.publish(&self.scope, &completed)
+        if current.lifecycle == (Lifecycle::Stopped { request_id }) {
+            return Ok(());
+        }
+        if current.lifecycle != Lifecycle::Active {
+            return Err(io::ErrorKind::InvalidData.into());
+        }
+        current.lifecycle = Lifecycle::Stopped { request_id };
+        self.directory.publish(&self.scope, &current)
     }
 }

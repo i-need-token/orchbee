@@ -7070,6 +7070,43 @@
 			]
 		},
 		{
+			"id": "windows-site-crash-recovery",
+			"owner": "orchbee-local-site-runtime",
+			"workspace": "crates/local-site-runtime",
+			"module": "crates/local-site-runtime/formal/tla/WindowsSiteCrashRecovery.tla",
+			"config": "crates/local-site-runtime/formal/tla/WindowsSiteCrashRecovery.cfg",
+			"claims": ["crates/local-site-runtime/docs/windows-crash-recovery.md"],
+			"triggers": [
+				"crates/local-site-runtime/**",
+				"apps/orchbee/src/local_activation.rs",
+				"apps/orchbee/src/cli/site.rs",
+				"apps/orchbee/src/cli/named_sessions.rs",
+				"apps/orchbee/src/cli/schemas/orchbee.session.list.json",
+				"apps/orchbee-server/src/local_site_service/managed/**",
+				"apps/orchbee-server/src/local_site_service/managed.rs",
+				"apps/orchbee-worker/src/terminal_operations/lazy.rs"
+			],
+			"requiredCoverage": [
+				"Acquire",
+				"CommitMarker",
+				"ReserveChild",
+				"CreateSuspended",
+				"PublishIdentity",
+				"ResumeChild",
+				"CreationFails",
+				"CleanupChild",
+				"ProcessLoss",
+				"Recover",
+				"ClearPreviousMarker",
+				"PublishCrashMarker",
+				"BeginGeneration",
+				"Refuse",
+				"Ready",
+				"Abort",
+				"Retry"
+			]
+		},
+		{
 			"id": "action-execution",
 			"owner": "@orchbee/actions",
 			"workspace": "packages/actions",

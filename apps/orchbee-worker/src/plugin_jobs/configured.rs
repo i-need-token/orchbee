@@ -63,12 +63,16 @@ pub(super) fn start(
     let command = intent.clone();
     let (admit, admitted) = mpsc::channel();
     let (spawned, observe_spawn) = mpsc::channel();
+    #[cfg(test)]
+    let requested = std::time::Instant::now();
     let join = match thread::Builder::new()
         .name("orchbee-configured-command".into())
         .spawn(move || {
             if admitted.recv().is_err() {
                 return true;
             }
+            #[cfg(test)]
+            eprintln!("Configured owner entered after {:?}", requested.elapsed());
             run(command, &worker_cancel, spawned)
         }) {
         Ok(join) => join,
@@ -92,7 +96,12 @@ pub(super) fn start(
     if admit.send(()).is_err() {
         inner.retired = true;
     }
-    match observe_spawn.recv_timeout(std::time::Duration::from_millis(500)) {
+    let observed = observe_spawn.recv_timeout(std::time::Duration::from_millis(500));
+    #[cfg(test)]
+    if !matches!(observed, Ok(Ok(()))) {
+        eprintln!("Configured command admission failed: {observed:?}");
+    }
+    match observed {
         Ok(Ok(())) => {
             inner
                 .commands
@@ -117,6 +126,8 @@ fn run(
     cancel: &AtomicBool,
     spawned: mpsc::Sender<Result<(), bool>>,
 ) -> bool {
+    #[cfg(test)]
+    let started = std::time::Instant::now();
     use orchbee_local_site_runtime::WindowsCommandChild;
     use std::{
         os::windows::process::CommandExt,
@@ -149,10 +160,21 @@ fn run(
     let mut child = match WindowsCommandChild::spawn(command) {
         Ok(child) => child,
         Err(failure) => {
+            #[cfg(test)]
+            eprintln!(
+                "Configured command spawn failed (created={}): {}",
+                failure.created, failure.error
+            );
             let _delivered = spawned.send(Err(failure.created));
             return !failure.created;
         }
     };
+    #[cfg(test)]
+    eprintln!(
+        "Configured Job created in {:?}, PID {}",
+        started.elapsed(),
+        child.id()
+    );
     let _delivered = spawned.send(Ok(()));
     loop {
         if cancel.load(Ordering::Relaxed) {

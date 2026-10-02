@@ -14,6 +14,7 @@ impl Locale {
                 SessionState::Starting => "启动中",
                 SessionState::Deleting => "删除未完成",
                 SessionState::RecoveryRequired => "需要恢复",
+                SessionState::Recoverable => "可自动恢复",
             },
         }
     }
@@ -81,10 +82,10 @@ impl Locale {
     pub(crate) fn cli_session_command_help(self, path: CommandPath) -> &'static str {
         match (self, path) {
             (Self::EnUs, CommandPath::SessionList) => {
-                "orchbee session list [--format text|json]\n\nRead local named sessions plus default without starting or creating them.\nAt most 256 entries, default first then exact name order, within one 5-second deadline.\nStates: running, stopping, stopped, absent, starting, deleting, recovery-required.\nUncertain state is not reported as stopped. Inventory belongs to the selected runtime base.\n"
+                "orchbee session list [--format text|json]\n\nRead local named sessions plus default without starting or creating them.\nAt most 256 entries, default first then exact name order, within one 5-second deadline.\nStates: running, stopping, stopped, absent, starting, deleting, recoverable, recovery-required.\nRecoverable is a guarded observation of complete v2 registration and all exact owners gone; later startup checks again.\nUncertain state is not reported as stopped. Inventory belongs to the selected runtime base.\nJSON emits orchbee.session.list v2; legacy v1 remains closed to its original states.\n"
             }
             (Self::ZhCn, CommandPath::SessionList) => {
-                "orchbee session list [--format text|json]\n\n只读列出本地命名会话及 default，不启动或创建会话。\n最多 256 条，default 在前，随后按精确名称排序，共用 5 秒期限。\n状态：running、stopping、stopped、absent、starting、deleting、recovery-required。\n不确定状态不会报告为已停止。清单属于所选运行时基目录。\n"
+                "orchbee session list [--format text|json]\n\n只读列出本地命名会话及 default，不启动或创建会话。\n最多 256 条，default 在前，随后按精确名称排序，共用 5 秒期限。\n状态：running、stopping、stopped、absent、starting、deleting、recoverable、recovery-required。\nRecoverable 是当次受门保护的观察：v2 登记完整且全部确切所有者消失；稍后启动仍重新检查。\n不确定状态不会报告为已停止。清单属于所选运行时基目录。\nJSON 输出 orchbee.session.list v2；旧 v1 保持原有封闭状态集合。\n"
             }
             (Self::EnUs, CommandPath::SessionAttach) => {
                 "orchbee session attach <name> [--mouse on|off]\n\nActivate the selected local Site if needed and attach the Windows TUI.\nMouse defaults to on. Requires an interactive terminal; --format is not accepted.\nCtrl+B q detaches the client while the Site and child processes continue.\n"

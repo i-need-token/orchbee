@@ -192,11 +192,26 @@ fn failed_stop_publication_preserves_active_bytes_and_can_be_retried() {
 }
 
 #[test]
-fn retained_active_state_refuses_lost_runtime_and_conflicting_runtime_receipt() {
+fn legacy_active_state_refuses_lost_runtime_and_conflicting_runtime_receipt() {
     for remove in [false, true] {
         let base = Fixture::new();
         let local = Fixture::new();
         let (name, site, _owner) = start(&base, &local, "uncertain", 1);
+        let directory = Directory::open(&local.0, &base.0.canonicalize().unwrap())
+            .unwrap()
+            .unwrap();
+        directory
+            .publish(
+                &scope(&name),
+                &Record::new(
+                    &base.0.canonicalize().unwrap(),
+                    &name,
+                    Some([1; 16]),
+                    Lifecycle::Active,
+                )
+                .unwrap(),
+            )
+            .unwrap();
         // An ephemeral stopped marker alone cannot settle the durable Active generation.
         site.retain_active_record()
             .unwrap()
@@ -348,7 +363,7 @@ fn malformed_oversized_mismatched_and_linked_records_are_never_repaired() {
     let value: serde_json::Value = serde_json::from_slice(&original).unwrap();
     let mut cases = vec![vec![b' '; 8193], br#"{"version":1,"version":1}"#.to_vec()];
     for (field, replacement) in [
-        ("version", serde_json::json!(2)),
+        ("version", serde_json::json!(3)),
         ("name", serde_json::json!("other")),
         ("runtime", serde_json::json!(local.0.to_str().unwrap())),
         ("activation_id", serde_json::json!(vec![0; 16])),

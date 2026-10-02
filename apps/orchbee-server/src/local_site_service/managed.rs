@@ -72,21 +72,32 @@ pub(super) fn run(
     )?;
     listener.set_nonblocking(true)?;
     let registry = Arc::new(Mutex::new(WorkerRegistry::new()));
-    let mut worker = orchbee_local_site_runtime::spawn_retained(
-        &cohort.executable(NativeArtifact::Worker),
-        &[
-            std::ffi::OsStr::new("--local-site"),
-            runtime.as_os_str(),
-            #[cfg(windows)]
-            std::ffi::OsStr::new("--default-shell"),
-            #[cfg(windows)]
-            std::ffi::OsStr::new(settings.shell.executable()),
-            #[cfg(windows)]
-            std::ffi::OsStr::new("--shell-mode"),
-            #[cfg(windows)]
-            std::ffi::OsStr::new(settings.shell.mode().as_str()),
-        ],
+    let executable = cohort.executable(NativeArtifact::Worker);
+    let arguments = [
+        std::ffi::OsStr::new("--local-site"),
+        runtime.as_os_str(),
+        #[cfg(windows)]
+        std::ffi::OsStr::new("--default-shell"),
+        #[cfg(windows)]
+        std::ffi::OsStr::new(settings.shell.executable()),
+        #[cfg(windows)]
+        std::ffi::OsStr::new("--shell-mode"),
+        #[cfg(windows)]
+        std::ffi::OsStr::new(settings.shell.mode().as_str()),
+    ];
+    #[cfg(windows)]
+    let mut worker = orchbee_local_site_runtime::spawn_windows_site_child(
+        &std::env::var_os("LOCALAPPDATA")
+            .map(std::path::PathBuf::from)
+            .ok_or(io::ErrorKind::NotFound)?,
+        runtime,
+        orchbee_local_site_runtime::WindowsSiteChild::Worker,
+        &executable,
+        &arguments,
+        deadline,
     )?;
+    #[cfg(not(windows))]
+    let mut worker = orchbee_local_site_runtime::spawn_retained(&executable, &arguments)?;
     #[cfg(windows)]
     let mut carrier = None;
     let admitted = (|| -> io::Result<()> {

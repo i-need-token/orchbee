@@ -338,7 +338,7 @@ scope 传给子终端，使内部 CLI 命令保持所属 Site，即使 Server �
 检查点存储已按准入后的运行时路径隔离。
 `session list [--format text|json]` 列出所选运行时基目录中的 default，再按精确名称排序列出命名会话。
 它在一个五秒总期限内读取最多 256 个会话，不创建运行时状态，根据认证元数据及准入后的生命周期事实
-报告 running、stopping、stopped、absent、starting、deleting 或 recovery-required。未知／不安全清单明确失败。
+报告 running、stopping、stopped、absent、starting、deleting、recoverable 或 recovery-required。未知／不安全清单明确失败。
 
 `session attach <name> [--mouse on|off]` 激活或重连真实 TUI。`session stop <name> --confirm`
 复用 `site stop`，包括其 timeout、detach、request-id、retry 参数及现有结果 schema。
@@ -347,12 +347,20 @@ scope 传给子终端，使内部 CLI 命令保持所属 Site，即使 Server �
 状态缺席时删除幂等成功；部分移除保留删除意图阻止启动，并明确失败，重复 delete 完成清理，不能用 start 修复。
 删除在每个文件系统阶段前检查 Ctrl+C，中断退出 130。已完成移除不会回滚；保留的意图支持继续清理。`interrupted` 结果报告是否仍有待完成意图，也覆盖清理完成后才收到中断的情况。
 
-列表和删除的结果 schema 分别为 `orchbee.session.list` 与 `orchbee.session.delete`。
+列表输出 `orchbee.session.list` v2；v1 保持原有封闭状态集合。`recoverable` 表示受门保护的当次观察
+确认 v2 登记完整、所有确切身份消失且资源空闲；其 `running=false`、`pid=null`，不承诺稍后的启动。
+删除仍使用 `orchbee.session.delete` v1；内嵌 schema 清单为 v139。
 
 持久清单在 LocalAppData 保留精确的默认/命名身份和停止回执。使用相同的已准入运行时基目录时，
 即使运行时叶目录被移除，`session list` 仍能发现已停止会话；`session attach`/`site start` 会重建
-路由并恢复检查点。Active 或孤立状态仍要求恢复，不因文件缺失推断已停止。待删除状态也会在临时
+路由并恢复检查点。`site start` 和 TUI 启动会自动恢复登记完整且证明全部死亡的 v2 Active 代次，
+也支持运行时叶目录丢失，并保留最近检查点。第一阶段保留数据、拒绝活 Host、未知／不完整身份和旧版 Active；
+不终止旧进程，不伪造正常停止回执。使用相同 `--site` 选择执行 `orchbee site diagnose` 检查拒绝原因，
+或执行 `orchbee --site recovery-work site start` 另开命名会话。旧二进制即使在正常停止后也不能直接操作
+已升级的 v2 会话。详见[恢复合同](../../../crates/local-site-runtime/docs/windows-crash-recovery.zh-CN.md)。待删除状态也会在临时
 元数据消失后保留，可用相同删除命令继续处理。列表仍只读，不隐式重建运行时基目录本身。
+
+这一阶段仍按既有正常停止策略保存检查点；持续保存、未保存布局变更的恢复和活 Host 接管仍是后续工作。
 
 ## Agent 会话名称
 
@@ -1279,10 +1287,11 @@ cohort 验证之前开始，且绝不按阶段重置：
    Site 身份收据。
 
 `result.outcome` 报告本次调用实际走的分支：`started` 仅当本次调用拉起了 Server 子进程，
-`already-running` 当既有 Site 准入了其探针。`timeout` 答案意为就绪未能确认——标记提交之前
+`already-running` 当既有 Site 准入了其探针。Linux 的 `timeout` 答案意为就绪未能确认——标记提交之前
 无遗留；提交与 spawn 之间可能残留无存活属主的标记（后续调用随即应答
 `recovery-required`）；spawn 之后 Server 可能仍在运行。该命令绝不声称超时证明没有 Server
-启动，绝不重试 `recovery-required`，绝不修复或删除运行时状态。信号保持继承：不存在捕获
+启动，绝不重试 `recovery-required`，不强制清理不确定的运行时。Windows 可能在标记提交前已发布新代；
+下一次调用复查确切进程身份、登记和全部恢复 guard，只有证明死亡的代才能自动对账，并保留 checkpoint。信号保持继承：不存在捕获
 阶段，中断即进程死亡，按惯例 `128 + signo` 退出，绝不产出 `cancelled` envelope。下文说明 Windows 显式停止和后续启动；没有修复动词。
 
 ## Site 诊断
@@ -1955,7 +1964,8 @@ deadline 到期在 wire 请求尚不存在时即退出。
 - `api schema`、help 与 completion 只枚举同一次构建中真实交付的命令。
 - `site start` 是唯一的激活面，也是唯一会创建本地运行时状态的命令：它可能创建运行时目录、
   持有激活/生存期锁、提交标记并拉起 Server——只有语法失败保证零副作用。其 20 秒绝对
-  deadline 绝不按阶段重置；`recovery-required` 拒绝绝不重试、修复或清理；超时绝不声称
+  deadline 绝不按阶段重置；已返回的 `recovery-required` 拒绝不重试或强制清理；Windows 冷恢复在开始新代前
+  复查独立文档中的死亡证明 guard。超时绝不声称
   没有 Server 启动。`site diagnose` 是观察面，除其有界生存期锁探针外无任何效应：不
   connect、不创建、不取锁、不修复，也不作存活或重启声明。
 - 各 CLI 自有 5 秒预算都是 checked deadline；其构造失败是 `internal-failure`，而 transport

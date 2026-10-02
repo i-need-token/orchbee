@@ -233,7 +233,7 @@ impl ModeCheckedLocalSiteRendezvous {
                 let mut file = permissions::open_file(&path, false, true)?;
                 if !matches!(
                     crate::activation_record_windows::read(&mut file)?,
-                    crate::ActivationState::Stopped { .. }
+                    crate::ActivationState::Stopped { .. } | crate::ActivationState::Crashed { .. }
                 ) {
                     return Err(error);
                 }
@@ -241,6 +241,48 @@ impl ModeCheckedLocalSiteRendezvous {
                 file.sync_data()
             }
             Err(error) => Err(error),
+        }
+    }
+
+    pub(crate) fn reconcile_crashed(
+        &self,
+        activation: &ModeCheckedSiteLock,
+        lifetime: &ModeCheckedSiteLock,
+        activation_id: [u8; 16],
+        retry: bool,
+        allow_previous_receipt: bool,
+    ) -> io::Result<()> {
+        if activation.runtime != self.runtime
+            || activation.kind != LockKind::Activation
+            || lifetime.runtime != self.runtime
+            || lifetime.kind != LockKind::SiteLifetime
+        {
+            return Err(io::ErrorKind::PermissionDenied.into());
+        }
+        let path = self.runtime.join("activation.started");
+        let mut file = match permissions::open_file(&path, true, true) {
+            Ok(file) => file,
+            Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
+                permissions::open_file(&path, false, true)?
+            }
+            Err(error) => return Err(error),
+        };
+        crate::activation_record_windows::publish_crashed(
+            &mut file,
+            activation_id,
+            retry,
+            allow_previous_receipt,
+        )
+    }
+    pub(crate) fn require_lock(
+        &self,
+        lock: &ModeCheckedSiteLock,
+        kind: LockKind,
+    ) -> io::Result<()> {
+        if lock.runtime != self.runtime || lock.kind != kind {
+            Err(io::ErrorKind::PermissionDenied.into())
+        } else {
+            Ok(())
         }
     }
 

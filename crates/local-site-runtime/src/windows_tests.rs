@@ -12,6 +12,8 @@ use std::{
 
 static SERIAL: AtomicU64 = AtomicU64::new(0);
 
+mod child_registration;
+mod crash_recovery;
 mod durable_sessions;
 mod named_catalog;
 mod session_store;

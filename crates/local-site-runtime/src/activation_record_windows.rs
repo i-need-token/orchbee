@@ -6,6 +6,7 @@ use std::{
 };
 
 const STOPPED_PREFIX: &[u8] = b"orchbee-stopped-v1:";
+const CRASHED_PREFIX: &[u8] = b"orchbee-crashed-v1:";
 const MAXIMUM_RECORD_BYTES: usize = STOPPED_PREFIX.len() + 32;
 
 /// Strict existing-file observation; Stopped is a receipt, not independent process-liveness proof.
@@ -13,6 +14,7 @@ const MAXIMUM_RECORD_BYTES: usize = STOPPED_PREFIX.len() + 32;
 pub enum ActivationState {
     Absent,
     Active,
+    Crashed { activation_id: [u8; 16] },
     Stopped { request_id: [u8; 16] },
 }
 
@@ -33,7 +35,14 @@ fn parse(bytes: &[u8]) -> io::Result<ActivationState> {
     if bytes.is_empty() {
         return Ok(ActivationState::Active);
     }
-    let hex = bytes.strip_prefix(STOPPED_PREFIX).ok_or_else(invalid)?;
+    let (hex, crashed) = if let Some(hex) = bytes.strip_prefix(STOPPED_PREFIX) {
+        (hex, false)
+    } else {
+        (
+            bytes.strip_prefix(CRASHED_PREFIX).ok_or_else(invalid)?,
+            true,
+        )
+    };
     if hex.len() != 32 {
         return Err(invalid());
     }
@@ -49,7 +58,67 @@ fn parse(bytes: &[u8]) -> io::Result<ActivationState> {
     if request_id == [0; 16] {
         return Err(invalid());
     }
-    Ok(ActivationState::Stopped { request_id })
+    if crashed {
+        Ok(ActivationState::Crashed {
+            activation_id: request_id,
+        })
+    } else {
+        Ok(ActivationState::Stopped { request_id })
+    }
+}
+
+fn crashed_bytes(activation_id: [u8; 16]) -> io::Result<Vec<u8>> {
+    if activation_id == [0; 16] {
+        return Err(io::ErrorKind::InvalidInput.into());
+    }
+    let mut bytes = CRASHED_PREFIX.to_vec();
+    for byte in activation_id {
+        bytes.push(b"0123456789abcdef"[(byte >> 4) as usize]);
+        bytes.push(b"0123456789abcdef"[(byte & 15) as usize]);
+    }
+    Ok(bytes)
+}
+
+/// Only the catalog's proved-dead, same-generation recovery owner may call this.
+pub(crate) fn publish_crashed(
+    file: &mut File,
+    activation_id: [u8; 16],
+    retry: bool,
+    allow_previous_receipt: bool,
+) -> io::Result<()> {
+    let desired = crashed_bytes(activation_id)?;
+    if !crash_matches(file, activation_id, retry, allow_previous_receipt)? {
+        return Err(invalid());
+    }
+    // Clear a complete prior receipt before writing: an interrupted write must not
+    // combine this generation's prefix with the previous generation's suffix.
+    file.set_len(0)?;
+    file.sync_data()?;
+    file.seek(SeekFrom::Start(0))?;
+    file.write_all(&desired)?;
+    file.set_len(desired.len() as u64)?;
+    file.sync_data()
+}
+pub(crate) fn crash_matches(
+    file: &mut File,
+    activation_id: [u8; 16],
+    retry: bool,
+    allow_previous_receipt: bool,
+) -> io::Result<bool> {
+    let desired = crashed_bytes(activation_id)?;
+    file.seek(SeekFrom::Start(0))?;
+    let mut bytes = Vec::new();
+    file.take((MAXIMUM_RECORD_BYTES + 1) as u64)
+        .read_to_end(&mut bytes)?;
+    // Retry only a matching interrupted prefix, never an unrelated malformed marker.
+    Ok(bytes.is_empty()
+        || bytes == desired
+        || (retry && desired.starts_with(&bytes))
+        || (allow_previous_receipt
+            && matches!(
+                parse(&bytes),
+                Ok(ActivationState::Stopped { .. } | ActivationState::Crashed { .. })
+            )))
 }
 
 pub(super) fn read(file: &mut File) -> io::Result<ActivationState> {

@@ -50,16 +50,20 @@ names are rejected. This identity does not grant process control or authorize st
 
 Native Windows named and default Sites retain bounded private lifecycle records under
 `LOCALAPPDATA/Orchbee/session-catalog/<runtime-base-digest>`. Each record binds the exact name,
-current-user scope and canonical runtime path to Active, Stopped with a nonzero stop identity,
-or Deleting. Paths used for effects are derived from admitted inputs, never trusted from a record.
+current-user scope and canonical runtime path to Active, Crashed, Stopped with a nonzero stop identity,
+or Deleting. Catalog v2 retains PID and creation FILETIME for each Server, Worker and Host;
+v1 remains readable but its Active state has no automatic death proof. Paths used for effects are derived from admitted inputs, never trusted from a record.
 The configured runtime base must still exist; removing a stopped runtime leaf does not remove its
 catalog entry or checkpoint. Reads merge runtime and durable entries without creating or migrating
 files. Corrupt, mismatched, linked or redirected records fail without repair.
 
 The pinned-base namespace gate covers default and named activation. A missing runtime with a
 validated stopped record, free checkpoint lock and absent endpoints can be recreated at the same
-route. Active state, pending deletion or an orphan checkpoint without stopped evidence refuses
-recovery. Before marker commitment or Server spawn, activation atomically publishes Active.
+route. An Active v2 generation can recover only when exact registered identities are gone,
+registration is complete, all guards are free and all derived endpoints absent. Recovery publishes
+Crashed for the old generation before reconciling its marker, preserves the checkpoint and begins
+a fresh generation. Live/unknown identity, incomplete registration, legacy Active, pending deletion
+and orphan storage refuse recovery. Before marker commitment or Server spawn, activation atomically publishes Active.
 Each activation carries a fresh nonzero 128-bit identity. The Server retains that exact generation before Worker effects and publishes Stopped after confirmed shutdown,
 before the runtime stopped receipt and lifetime release. Failed publication never proves a clean stop.
 
@@ -67,7 +71,18 @@ Deletion publishes durable Deleting before the ephemeral intent or any data remo
 checkpoint/runtime data and the ephemeral intent before removing the durable record last; interrupted
 cleanup remains discoverable even if temporary runtime metadata disappears. Publication uses bounded
 private staging, flush and atomic replacement. This is ordinary process/failure recovery, not a
-power-loss guarantee or automatic reconciliation of a crashed Active session.
+power-loss guarantee. A per-record writer lock serializes direct-child registration, recovery and
+clean-stop publication. `spawn_server` requires the catalog and matching activation owner;
+`spawn_windows_site_child` requires the exact registered direct parent for Worker or Host. Each
+child is created suspended and released only after its identity is flushed. Catalog v1 readers refuse
+v2 even after a clean stop; no downgrade is provided. Live Host adoption remains separate.
+
+The [Windows crash-recovery contract](docs/windows-crash-recovery.md) owns guards, interrupted
+publication, compatibility and evidence limits. Check the registered bounded model with:
+
+```sh
+node scripts/tla/run-models.mjs --models windows-site-crash-recovery
+```
 
 ## Windows named session lifecycle
 
@@ -189,6 +204,9 @@ same-user malicious mutation, and verification-to-exec races are excluded. The m
 a coherent exact artifact set, not publisher authenticity.
 
 ## Correctness case
+
+The LS claims below describe the Linux development startup boundary. Managed Windows cold recovery
+has the separate [generation and process registration contract](docs/windows-crash-recovery.md).
 
 | Claim                                                                 | Owner / refinement                                                  | Evidence                                                            |
 | --------------------------------------------------------------------- | ------------------------------------------------------------------- | ------------------------------------------------------------------- |

@@ -376,16 +376,27 @@ fn start_host(
     let host_endpoint_id = ModeCheckedLocalSiteRendezvous::host_endpoint_id(runtime);
     #[cfg(unix)]
     let host_endpoint_id = HOST_ENDPOINT_ID;
-    let mut child = orchbee_local_site_runtime::spawn_retained(
-        &cohort.executable(NativeArtifact::TerminalHost),
-        &[
-            std::ffi::OsStr::new("serve"),
-            std::ffi::OsStr::new("--runtime-directory"),
-            directory.runtime_directory().as_os_str(),
-            std::ffi::OsStr::new("--endpoint-id"),
-            std::ffi::OsStr::new(&host_endpoint_id),
-        ],
+    let executable = cohort.executable(NativeArtifact::TerminalHost);
+    let arguments = [
+        std::ffi::OsStr::new("serve"),
+        std::ffi::OsStr::new("--runtime-directory"),
+        directory.runtime_directory().as_os_str(),
+        std::ffi::OsStr::new("--endpoint-id"),
+        std::ffi::OsStr::new(&host_endpoint_id),
+    ];
+    #[cfg(windows)]
+    let mut child = orchbee_local_site_runtime::spawn_windows_site_child(
+        &std::env::var_os("LOCALAPPDATA")
+            .map(std::path::PathBuf::from)
+            .ok_or_else(|| io::Error::from(io::ErrorKind::NotFound))?,
+        runtime,
+        orchbee_local_site_runtime::WindowsSiteChild::Host,
+        &executable,
+        &arguments,
+        deadline,
     )?;
+    #[cfg(not(windows))]
+    let mut child = orchbee_local_site_runtime::spawn_retained(&executable, &arguments)?;
     loop {
         if Instant::now() >= deadline {
             return Err(io::Error::from(io::ErrorKind::TimedOut).into());
