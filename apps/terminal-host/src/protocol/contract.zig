@@ -47,6 +47,7 @@ pub const Limits = struct {
     pub const frame_rows = 4096;
     pub const frame_strings = 4096;
     pub const frame_styles = 1024;
+    pub const graphics_image_bytes: usize = 32 * 1024 * 1024 + 56;
     pub const terminal_graphics_destination_pixels = 65_535;
     pub const terminal_graphics_dimension = 4096;
     pub const terminal_graphics_extension_bytes: usize = 33 * 1024 * 1024;
@@ -460,7 +461,7 @@ pub fn isKnownMessageKind(kind: u16) bool {
 pub fn maximumPayloadBytes(encoding: u8) ProtocolError!usize {
     return switch (encoding) {
         @intFromEnum(PayloadEncoding.control_json) => Limits.control_json_bytes,
-        @intFromEnum(PayloadEncoding.graphics_image) => 32 * 1024 * 1024 + 56,
+        @intFromEnum(PayloadEncoding.graphics_image) => Limits.graphics_image_bytes,
         @intFromEnum(PayloadEncoding.raw_bytes) => Limits.raw_payload_bytes,
         @intFromEnum(PayloadEncoding.terminal_frame) => Limits.frame_bytes,
         @intFromEnum(PayloadEncoding.row_window) => Limits.row_window_bytes,

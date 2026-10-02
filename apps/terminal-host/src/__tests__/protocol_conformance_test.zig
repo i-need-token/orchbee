@@ -491,6 +491,7 @@ const ProtocolLimitsFixture = struct {
     frame_rows: u64,
     frame_strings: u64,
     frame_styles: u64,
+    graphics_image_bytes: u64,
     terminal_graphics_destination_pixels: u64,
     terminal_graphics_dimension: u64,
     terminal_graphics_extension_bytes: u64,
@@ -550,6 +551,7 @@ const Utf8BomConformanceFixture = struct {
 const TestIdentifier = struct { bytes: [16]u8 };
 
 const TestRuntimeFailureKind = enum {
+    editor_document,
     process_control,
     process_observation,
     pty_read,
@@ -568,6 +570,7 @@ const TestRuntimeFailureStage = enum {
     read_output,
     release_output,
     release_process_identity,
+    release_editor_document,
     synchronize_worker,
     write_input,
 };
@@ -2562,6 +2565,7 @@ fn payloadEncodingName(encoding: protocol.PayloadEncoding) []const u8 {
         .raw_bytes => "raw-bytes",
         .row_window => "row-window",
         .terminal_frame => "terminal-frame",
+        .graphics_image => "graphics-image",
     };
 }
 

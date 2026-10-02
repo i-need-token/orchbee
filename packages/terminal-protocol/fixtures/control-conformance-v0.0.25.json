@@ -658,6 +658,23 @@
 				"success_kind": 79
 			},
 			"response_encoding": "control-json"
+		},
+		{
+			"event_encoding": null,
+			"kind": 80,
+			"name": "DecodeGraphicsPng",
+			"request": {
+				"payload_encoding": "graphics-image",
+				"success_kind": 81
+			},
+			"response_encoding": null
+		},
+		{
+			"event_encoding": null,
+			"kind": 81,
+			"name": "GraphicsPngDecoded",
+			"request": null,
+			"response_encoding": "graphics-image"
 		}
 	],
 	"outputs": {
@@ -799,6 +816,7 @@
 		"string_bytes": 16384,
 		"transport_record_bytes": 46137408,
 		"raw_payload_bytes": 1048608,
+		"graphics_image_bytes": 33554488,
 		"paste_auto_input_bytes": 262144,
 		"paste_auto_input_payload_bytes": 262176,
 		"semantic_input_payload_bytes": 1048608,
