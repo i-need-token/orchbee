@@ -11,6 +11,31 @@ Simplified Chinese maintenance translation:
 [README.zh-CN.md](README.zh-CN.md).
 English remains canonical.
 
+## Windows Worker handoff
+
+Frame version 2 adds fixed-size kinds 26 Request, 27 Result, 28 Hello, 29 Ready and 30 Owned.
+Private cohorts reject unknown kinds; there is no mixed-cohort ordinary admission fallback.
+A Request body after its kind is operation ID (16 bytes), Worker ID (16), positive generation
+(`u64`), nonzero handoff ID (16), target cohort SHA-256 (32) and action (`u8`: 1 Prepare,
+2 Commit, 3 Abort). IDs are nonzero and all integers are big-endian. Payload size is 90 bytes.
+Hello/Ready/Owned omit the operation ID and action and carry the exact same owner/target seal;
+their payload is 73 bytes. The cohort digest represents the current Server's explicit delegation;
+codec validation cannot prove executable admission, import authorization or compatibility.
+
+Result echoes the entire Request body, then outcome (`u8`: 1 Prepared, 2 Committed, 3 Aborted,
+4 Refused). Success must match its action. Refused adds one reason (`u8`, 1–10): WrongWorker,
+Unmanaged, Busy, TicketMismatch, NotPrepared, ReusedTicket, Capacity, TargetUnavailable,
+Authentication, AttachmentsBusy. Result payloads are exactly 91 or 92 bytes. Constructors and
+decoders reject contradictory successes, unknown tags, zero IDs/generation, prefixes and suffixes.
+The ordinary 40 KiB frame budget remains unchanged.
+
+Only the current authenticated Server may prepare a derived private Windows runtime pipe.
+The standby authenticates the exact ticket/Worker/generation/cohort and may claim the connection
+only after Owned. Committed on the old wire is the transport commit boundary; the public Server
+result also requires canonical import and endpoint ownership. Lost receipts never authorize
+automatic reconnection or replay. [The Worker model](../../apps/orchbee-worker/docs/windows-server-handoff.md)
+owns deadlines, ticket bounds, physical-owner preservation and focused evidence limits.
+
 ## Configured background commands
 
 The retained process-job lane also admits configured Windows commands, without a

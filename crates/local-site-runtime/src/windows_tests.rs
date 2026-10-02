@@ -18,6 +18,29 @@ mod session_store;
 mod site_name;
 
 #[test]
+fn handoff_pipe_addresses_are_ticket_and_scope_specific_with_bounded_unicode_inputs() {
+    use orchbee_local_ipc::LocalListener;
+    let root = std::env::temp_dir().join(format!("orchbee-handoff-address-{}", std::process::id()));
+    let first = Rendezvous::handoff_endpoint_path(&root.join("first"), [1; 16]);
+    let second = Rendezvous::handoff_endpoint_path(&root.join("second"), [1; 16]);
+    let next = Rendezvous::handoff_endpoint_path(&root.join("first"), [2; 16]);
+    assert_ne!(first, second);
+    assert_ne!(first, next);
+    assert_eq!(
+        first,
+        Rendezvous::handoff_endpoint_path(&root.join("first"), [1; 16])
+    );
+    let long = Rendezvous::handoff_endpoint_path(&root.join("目录".repeat(2048)), [3; 16]);
+    assert!(long.to_str().unwrap().len() < 120);
+    let listeners = [first, second, next, long].map(|path| LocalListener::bind(path).unwrap());
+    drop(listeners);
+    assert!(
+        !root.exists(),
+        "pipe derivation never creates or adopts a filesystem root"
+    );
+}
+
+#[test]
 fn native_admission_rejects_hard_links_junctions_and_non_normalized_paths() {
     use std::os::windows::process::CommandExt;
     let fixture = Fixture::new();

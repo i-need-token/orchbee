@@ -533,7 +533,7 @@ fn real_dispatch_loop_bypasses_unrelated_closed_viewer_cleanup_for_one_lifecycle
     fixture.host.stream().set_nonblocking(true)?;
     let worktree_slot = crate::worktree_discovery_job::WorktreeDiscoverySlot::new();
     let outcome = crate::terminal_operations::run_admitted(
-        &fixture.server,
+        fixture.server.try_clone()?,
         &mut fixture.host,
         orchbee_local_site_protocol::WorkerId::from_bytes([3; 16]),
         nz(7),

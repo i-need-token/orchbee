@@ -24,6 +24,8 @@ use orchbee_local_site_protocol::WorkerId;
 
 mod lifecycle;
 pub(crate) use lifecycle::PendingLifecycleResult;
+#[cfg(any(windows, test))]
+mod handoff;
 
 const HIGH_LANE_CAPACITY: usize = 8;
 const LOW_LANE_CAPACITY: usize = 8;
@@ -33,6 +35,8 @@ const OWNER_POLL_INTERVAL: Duration = Duration::from_millis(25);
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum WorkerOperationRequest {
+    #[cfg(any(windows, test))]
+    Handoff(orchbee_capability_node_protocol::WorkerHandoffRequest),
     #[cfg(any(windows, test))]
     Shutdown(orchbee_capability_node_protocol::WorkerShutdownRequest),
     CwdValidation(TerminalCwdValidationRequest),
@@ -52,6 +56,13 @@ pub(crate) enum WorkerOperationRequest {
     EditorCommand(orchbee_capability_node_protocol::TerminalEditorCommandRequest),
 }
 
+#[cfg(any(windows, test))]
+impl From<orchbee_capability_node_protocol::WorkerHandoffRequest> for WorkerOperationRequest {
+    fn from(request: orchbee_capability_node_protocol::WorkerHandoffRequest) -> Self {
+        Self::Handoff(request)
+    }
+}
+
 impl WorkerOperationRequest {
     const fn worker(
         &self,
@@ -60,6 +71,8 @@ impl WorkerOperationRequest {
         orchbee_capability_node_protocol::WorkerGeneration,
     ) {
         match self {
+            #[cfg(any(windows, test))]
+            Self::Handoff(request) => (request.worker_id, request.worker_generation),
             #[cfg(any(windows, test))]
             Self::Shutdown(request) => (request.worker_id, request.worker_generation),
             Self::CwdValidation(request) => (request.worker_id, request.worker_generation),
@@ -90,6 +103,8 @@ impl WorkerOperationRequest {
 
     const fn lane(&self) -> RequestLane {
         match self {
+            #[cfg(any(windows, test))]
+            Self::Handoff(_) => RequestLane::High,
             Self::AgentDrain(_) | Self::Titles(_) | Self::EditorCommand(_) => RequestLane::Low,
             Self::Viewer(_) | Self::GraphicsDecode(_) => RequestLane::Low,
             #[cfg(any(windows, test))]
@@ -108,6 +123,8 @@ impl WorkerOperationRequest {
 
     fn message(&self) -> CapabilityNodeMessage {
         match self {
+            #[cfg(any(windows, test))]
+            Self::Handoff(request) => CapabilityNodeMessage::WorkerHandoffRequest(*request),
             #[cfg(any(windows, test))]
             Self::Shutdown(request) => CapabilityNodeMessage::WorkerShutdownRequest(*request),
             Self::CwdValidation(request) => {
@@ -144,6 +161,8 @@ impl WorkerOperationRequest {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum WorkerOperationResult {
+    #[cfg(any(windows, test))]
+    Handoff(orchbee_capability_node_protocol::WorkerHandoffResult),
     #[cfg(any(windows, test))]
     Shutdown(orchbee_capability_node_protocol::WorkerShutdownResult),
     CwdValidation(TerminalCwdValidationResult),
@@ -386,6 +405,8 @@ impl WorkerRequestHandle {
         };
         let admitted = match pending.request {
             #[cfg(any(windows, test))]
+            WorkerOperationRequest::Handoff(_) => self.queue.admit_handoff(pending),
+            #[cfg(any(windows, test))]
             WorkerOperationRequest::Shutdown(_) => self.queue.admit_shutdown(pending),
             _ => {
                 if cleanup {
@@ -586,6 +607,8 @@ struct HighWaiter {
 struct QueueState {
     closed: bool,
     stopping: bool,
+    #[cfg(any(windows, test))]
+    handoff: Option<handoff::Admission>,
     consecutive_high: usize,
     high: VecDeque<PendingRequest>,
     high_waiters: VecDeque<HighWaiter>,
@@ -633,6 +656,8 @@ impl CarrierQueue {
             state: Mutex::new(QueueState {
                 closed: false,
                 stopping: false,
+                #[cfg(any(windows, test))]
+                handoff: None,
                 consecutive_high: 0,
                 high: VecDeque::new(),
                 high_waiters: VecDeque::new(),
@@ -666,6 +691,10 @@ impl CarrierQueue {
 
     fn try_admit(&self, lane: RequestLane, request: PendingRequest) -> AdmitOutcome {
         let mut state = self.lock();
+        #[cfg(any(windows, test))]
+        if state.handoff.is_some() {
+            return AdmitOutcome::Closed;
+        }
         if state.closed || state.stopping {
             return AdmitOutcome::Closed;
         }
@@ -688,6 +717,10 @@ impl CarrierQueue {
 
     fn block_admit_high(&self, request: PendingRequest) -> bool {
         let mut state = self.lock();
+        #[cfg(any(windows, test))]
+        if state.handoff.is_some() {
+            return false;
+        }
         if state.closed || state.stopping {
             return false;
         }
@@ -704,6 +737,10 @@ impl CarrierQueue {
         loop {
             if admitted.load(Ordering::Acquire) {
                 return true;
+            }
+            #[cfg(any(windows, test))]
+            if state.handoff.is_some() {
+                return false;
             }
             if state.closed || state.stopping {
                 return false;
@@ -745,6 +782,9 @@ impl CarrierQueue {
     fn admit_shutdown(&self, request: PendingRequest) -> AdmitOutcome {
         let pending = {
             let mut state = self.lock();
+            if state.handoff.is_some() {
+                return AdmitOutcome::Full;
+            }
             if state.closed {
                 return AdmitOutcome::Closed;
             }
@@ -1015,6 +1055,14 @@ impl WorkerWireOwner {
             .in_flight
             .take()
             .unwrap_or_else(|| unreachable!("completion requires one in-flight request"));
+        #[cfg(any(windows, test))]
+        if let WorkerOperationRequest::Handoff(request) = pending.request {
+            self.queue.complete_handoff(request, &result);
+            if matches!(&result, Ok(WorkerOperationResult::Handoff(result)) if result.outcome() == orchbee_capability_node_protocol::WorkerHandoffOutcome::Committed)
+            {
+                self.active.store(false, Ordering::Release);
+            }
+        }
         send_completion(pending, result)
     }
 
@@ -1180,6 +1228,34 @@ fn validate_response(
     response: CapabilityNodeMessage,
 ) -> Result<WorkerOperationResult, WorkerResponseFailure> {
     match (request, response) {
+        #[cfg(any(windows, test))]
+        (
+            WorkerOperationRequest::Handoff(expected),
+            CapabilityNodeMessage::WorkerHandoffResult(actual),
+        ) => {
+            if actual.request().operation_id != expected.operation_id {
+                return Err(WorkerResponseFailure::MismatchedCorrelation);
+            }
+            if actual.request() != *expected {
+                return Err(WorkerResponseFailure::MismatchedAuthorization);
+            }
+            Ok(WorkerOperationResult::Handoff(actual))
+        }
+        (
+            _,
+            CapabilityNodeMessage::WorkerHandoffRequest(_)
+            | CapabilityNodeMessage::WorkerHandoffReady(_),
+        ) => Err(WorkerResponseFailure::WrongDirection),
+        (
+            _,
+            CapabilityNodeMessage::WorkerHandoffHello(_)
+            | CapabilityNodeMessage::WorkerHandoffOwned(_),
+        ) => Err(WorkerResponseFailure::WrongResultKind),
+        (_, CapabilityNodeMessage::WorkerHandoffResult(_)) => {
+            Err(WorkerResponseFailure::WrongResultKind)
+        }
+        #[cfg(any(windows, test))]
+        (WorkerOperationRequest::Handoff(_), _) => Err(WorkerResponseFailure::WrongResultKind),
         #[cfg(any(windows, test))]
         (
             WorkerOperationRequest::Shutdown(expected),

@@ -30,6 +30,7 @@ mod shutdown;
 mod terminal_editor;
 mod terminal_titles;
 mod viewer;
+mod worker_handoff;
 mod worktree_job;
 mod worktree_mutation;
 
@@ -53,6 +54,11 @@ pub const MAXIMUM_FRAME_PAYLOAD_BYTES: usize = 40 * 1024;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum CapabilityNodeMessage {
+    WorkerHandoffRequest(crate::WorkerHandoffRequest),
+    WorkerHandoffResult(crate::WorkerHandoffResult),
+    WorkerHandoffHello(crate::WorkerHandoffPeer),
+    WorkerHandoffReady(crate::WorkerHandoffPeer),
+    WorkerHandoffOwned(crate::WorkerHandoffPeer),
     TerminalGraphicsDecodeRequest(crate::TerminalGraphicsDecodeRequest),
     TerminalEditorCommandRequest(crate::TerminalEditorCommandRequest),
     TerminalEditorCommandResult(crate::TerminalEditorCommandResult),
@@ -207,6 +213,11 @@ pub fn write_message(
 
 fn encode_payload(message: &CapabilityNodeMessage) -> Vec<u8> {
     match message {
+        CapabilityNodeMessage::WorkerHandoffRequest(value) => worker_handoff::request(*value),
+        CapabilityNodeMessage::WorkerHandoffResult(value) => worker_handoff::result(*value),
+        CapabilityNodeMessage::WorkerHandoffHello(value) => worker_handoff::peer(28, *value),
+        CapabilityNodeMessage::WorkerHandoffReady(value) => worker_handoff::peer(29, *value),
+        CapabilityNodeMessage::WorkerHandoffOwned(value) => worker_handoff::peer(30, *value),
         CapabilityNodeMessage::TerminalEditorCommandRequest(value) => {
             terminal_editor::encode_request(*value)
         }
@@ -286,6 +297,21 @@ fn decode_header(header: &[u8; FRAME_HEADER_BYTES]) -> Result<usize, ProtocolErr
 
 fn decode_payload(payload: &[u8]) -> Result<CapabilityNodeMessage, ProtocolError> {
     match payload.first().copied() {
+        Some(26) => {
+            worker_handoff::read_request(payload).map(CapabilityNodeMessage::WorkerHandoffRequest)
+        }
+        Some(27) => {
+            worker_handoff::read_result(payload).map(CapabilityNodeMessage::WorkerHandoffResult)
+        }
+        Some(28) => {
+            worker_handoff::read_peer(28, payload).map(CapabilityNodeMessage::WorkerHandoffHello)
+        }
+        Some(29) => {
+            worker_handoff::read_peer(29, payload).map(CapabilityNodeMessage::WorkerHandoffReady)
+        }
+        Some(30) => {
+            worker_handoff::read_peer(30, payload).map(CapabilityNodeMessage::WorkerHandoffOwned)
+        }
         Some(24) => terminal_editor::decode_request(payload)
             .map(CapabilityNodeMessage::TerminalEditorCommandRequest),
         Some(25) => terminal_editor::decode_result(payload)

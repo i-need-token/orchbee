@@ -988,3 +988,12 @@ retain exact status/stderr bounds. Real Windows Git tests cover ahead/behind,
 no upstream, detached/unborn/linked/nonrepository states and unchanged data/config.
 See the [status wire](../../crates/capability-node-protocol/README.md#windows-workspace-git-status-observations)
 and [Client model](../orchbee/docs/machines.md#workspace-sidebar-model).
+
+## Windows Server transport handoff
+
+An explicit current-Server request can prepare, commit or abort an authenticated standby
+connection. The same Worker loop retains its Host, authorization kernel, terminal identities,
+Agent Drain and job owners; ordinary EOF never reconnects. This internal transport is available
+before and after Host startup. [The owning model](docs/windows-server-handoff.md) defines exact
+tickets, deadlines, rollback and evidence limits. Public Server state/endpoint handoff remains
+a separate integration requirement; this transport receipt is not final CLI success.

@@ -27,13 +27,17 @@ use std::{
 };
 
 pub(crate) fn run(
-    server: &UnixStream,
+    server: UnixStream,
     worker_id: WorkerId,
     generation: NonZeroU64,
     cohort: &NativeCohort,
     runtime: &Path,
     #[cfg(windows)] shell: &orchbee_local_site_runtime::WindowsShellSettings,
 ) -> Result<(), Box<dyn Error>> {
+    #[cfg(windows)]
+    let mut server = server;
+    #[cfg(windows)]
+    let mut handoff = super::handoff::Handoff::new(Some(runtime));
     server.set_nonblocking(true)?;
     // The Agent Drain queue is owned by this admitted Server connection and
     // exists before any Host: pre-Launch requests get a truthful empty page,
@@ -51,7 +55,32 @@ pub(crate) fn run(
     );
     let outcome = (|| {
         loop {
-            let request = server_transport::receive(server, None)?;
+            #[cfg(not(windows))]
+            let request = server_transport::receive(&server, None)?;
+            #[cfg(windows)]
+            let request = loop {
+                if let Some(request) =
+                    server_transport::receive_until(&server, None, handoff.deadline())?
+                {
+                    break request;
+                }
+                handoff.expire(Instant::now());
+            };
+            #[cfg(windows)]
+            handoff.expire(std::time::Instant::now());
+            #[cfg(windows)]
+            if let CapabilityNodeMessage::WorkerHandoffRequest(request) = request {
+                handoff.execute(&mut server, None, request, worker_id, generation)?;
+                continue;
+            }
+            #[cfg(windows)]
+            if handoff.is_prepared() {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "ordinary request during prepared Server handoff",
+                )
+                .into());
+            }
             if let CapabilityNodeMessage::TerminalGraphicsDecodeRequest(request) = request {
                 let refusal = if request.worker_id.as_bytes() != worker_id.as_bytes() {
                     orchbee_capability_node_protocol::ViewerRejection::WrongWorker
@@ -61,7 +90,7 @@ pub(crate) fn run(
                     orchbee_capability_node_protocol::ViewerRejection::AttachmentUnavailable
                 };
                 let _no_host = server_transport::send(
-                    server,
+                    &server,
                     None,
                     &CapabilityNodeMessage::TerminalViewerResult(
                         orchbee_capability_node_protocol::TerminalViewerResult {
@@ -80,7 +109,7 @@ pub(crate) fn run(
                 let result =
                     crate::terminal_editor_operation::execute(request, worker_id, generation);
                 let _no_host = server_transport::send(
-                    server,
+                    &server,
                     None,
                     &CapabilityNodeMessage::TerminalEditorCommandResult(result),
                 )?;
@@ -91,7 +120,7 @@ pub(crate) fn run(
                 if let Some(reason) = super::shutdown::refusal(request, worker_id, generation, true)
                 {
                     let _no_host = server_transport::send(
-                        server,
+                        &server,
                         None,
                         &CapabilityNodeMessage::WorkerShutdownResult(
                             orchbee_capability_node_protocol::WorkerShutdownResult {
@@ -106,7 +135,7 @@ pub(crate) fn run(
                     continue;
                 }
                 return super::shutdown::run(
-                    server,
+                    &server,
                     request,
                     worker_id,
                     generation,
@@ -120,9 +149,9 @@ pub(crate) fn run(
             }
             #[cfg(windows)]
             if let CapabilityNodeMessage::TerminalTitlesRequest(request) = request {
-                let result = super::titles::execute(server, None, request, worker_id, generation)?;
+                let result = super::titles::execute(&server, None, request, worker_id, generation)?;
                 let _no_host = server_transport::send(
-                    server,
+                    &server,
                     None,
                     &CapabilityNodeMessage::TerminalTitlesResult(result),
                 )?;
@@ -132,7 +161,7 @@ pub(crate) fn run(
                 // Without a Host, send always reports host_closed=true; that flag
                 // is expected here and does not retire the Server connection.
                 let _no_host = super::dispatch_drain_request(
-                    server, None, &drain, &request, worker_id, generation,
+                    &server, None, &drain, &request, worker_id, generation,
                 )?;
                 continue;
             }
@@ -147,7 +176,7 @@ pub(crate) fn run(
                     Some(runtime),
                 );
                 let _no_host = server_transport::send(
-                    server,
+                    &server,
                     None,
                     &CapabilityNodeMessage::PluginJobResult(result),
                 )?;
@@ -165,7 +194,7 @@ pub(crate) fn run(
                 let result =
                     crate::worktree_mutation_operation::execute(request, worker_id, generation);
                 let _no_host = server_transport::send(
-                    server,
+                    &server,
                     None,
                     &CapabilityNodeMessage::WorktreeMutationResult(result),
                 )?;
@@ -180,7 +209,7 @@ pub(crate) fn run(
                     &worktree_slot,
                 );
                 let _no_host = server_transport::send(
-                    server,
+                    &server,
                     None,
                     &CapabilityNodeMessage::WorktreeJobResult(result),
                 )?;
@@ -192,7 +221,7 @@ pub(crate) fn run(
                 // The send result reports Host closure, not Server closure. This pre-Host loop has no
                 // Host to observe, so only a result-write error retires the Server connection.
                 let _no_host = server_transport::send(
-                    server,
+                    &server,
                     None,
                     &CapabilityNodeMessage::TerminalCwdValidationResult(result),
                 )?;
@@ -211,7 +240,7 @@ pub(crate) fn run(
                 HostOperationAdmission::Dispatch(dispatch) => dispatch,
                 HostOperationAdmission::ResultReady => {
                     let result = super::take_result(&mut kernel)?;
-                    let _no_host = server_transport::send(server, None, &result)?;
+                    let _no_host = server_transport::send(&server, None, &result)?;
                     continue;
                 }
                 HostOperationAdmission::SlotOccupied => {
@@ -225,7 +254,7 @@ pub(crate) fn run(
             {
                 kernel.record_pre_handoff_failure(&dispatch, unix_milliseconds())?;
                 let result = super::take_result(&mut kernel)?;
-                let _no_host = server_transport::send(server, None, &result)?;
+                let _no_host = server_transport::send(&server, None, &result)?;
                 continue;
             }
             let prepared = super::prepare_or_fail(
@@ -237,7 +266,7 @@ pub(crate) fn run(
             )?;
             let Some(prepared) = prepared else {
                 let result = super::take_result(&mut kernel)?;
-                let _no_host = server_transport::send(server, None, &result)?;
+                let _no_host = server_transport::send(&server, None, &result)?;
                 continue;
             };
             let started =
@@ -247,7 +276,7 @@ pub(crate) fn run(
                 Err(error) => {
                     kernel.record_pre_handoff_failure(&dispatch, unix_milliseconds())?;
                     let result = super::take_result(&mut kernel)?;
-                    let _delivery = server_transport::send(server, None, &result);
+                    let _delivery = server_transport::send(&server, None, &result);
                     return Err(error);
                 }
             };
@@ -255,7 +284,7 @@ pub(crate) fn run(
             let disposition = prepared.execute(
                 &mut kernel,
                 &mut host,
-                server,
+                &server,
                 unix_milliseconds,
                 super::HOST_OPERATION_BUDGET,
             )?;
@@ -264,7 +293,7 @@ pub(crate) fn run(
             }
             let result = super::take_result(&mut kernel)?;
             let closed = server_transport::send(
-                server,
+                &server,
                 (disposition == HostOperationDisposition::ResultReady).then_some(&host),
                 &result,
             )?;
@@ -273,7 +302,7 @@ pub(crate) fn run(
             }
             #[cfg(windows)]
             let mut managed_host = super::shutdown::ManagedHost::new(_child);
-            return super::run_admitted(
+            return super::run_admitted_with_handoff(
                 server,
                 &mut host,
                 worker_id,
@@ -292,6 +321,8 @@ pub(crate) fn run(
                     #[cfg(windows)]
                     managed_host: Some(&mut managed_host),
                 },
+                #[cfg(windows)]
+                handoff,
             );
         }
     })();

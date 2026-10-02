@@ -10,6 +10,28 @@ Create/Start 与绑定代次的 cwd validation。它不是 public API 或 compat
 [README.md](README.md)。
 如有冲突，以英文为准。
 
+## Windows Worker 交接
+
+帧版本 2 新增定长 kind 26 Request、27 Result、28 Hello、29 Ready 与 30 Owned。
+私有 cohort 拒绝未知 kind；普通准入不提供混合 cohort 回退。Request 的 kind 后依次为
+操作 ID（16 字节）、Worker ID（16）、正代际（`u64`）、非零交接 ID（16）、目标 cohort
+SHA-256（32）及动作（`u8`：1 Prepare、2 Commit、3 Abort）。ID 非零，整数均为大端。
+载荷为 90 字节。Hello／Ready／Owned 不含操作 ID 与动作，携带精确相同的所有者／目标
+封印；载荷为 73 字节。cohort 摘要代表当前 Server 的显式委派；编码验证不能证明可执行
+文件准入、导入授权或兼容性。
+
+Result 回显全部 Request 主体，随后为结果（`u8`：1 Prepared、2 Committed、3 Aborted、
+4 Refused）。成功结果必须匹配动作。Refused 额外携带拒绝原因（`u8`，1–10）：WrongWorker、
+Unmanaged、Busy、TicketMismatch、NotPrepared、ReusedTicket、Capacity、TargetUnavailable、
+Authentication、AttachmentsBusy。结果载荷精确为 91 或 92 字节。构造器及解码器拒绝矛盾
+成功结果、未知 tag、零 ID／代际、前缀和后缀。普通 40 KiB 帧预算保持原有值。
+
+仅当前认证 Server 可以准备按私有 Windows runtime 推导的管道。备用方认证精确票据／
+Worker／代际／cohort，且仅在收到 Owned 后认领连接。旧 wire 上的 Committed 是传输提交
+边界；公开 Server 结果还需规范导入与端点所有权。丢失回执不授权自动重连或重放。
+[Worker 模型](../../apps/orchbee-worker/docs/windows-server-handoff.zh-CN.md)
+负责截止点、票据容量、物理所有者保留及定向证据边界。
+
 ## 配置式后台命令
 
 保留进程作业的通道也接收配置式 Windows 命令，不带插件身份或插件日志。

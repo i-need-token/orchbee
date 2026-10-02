@@ -63,6 +63,10 @@ enum PollSource {
 }
 
 impl HostViewers {
+    #[cfg(windows)]
+    pub(crate) fn is_empty(&self) -> bool {
+        self.viewers.is_empty()
+    }
     pub(crate) fn admit(&mut self, request: &TerminalViewerRequest) -> Result<(), ViewerRejection> {
         let TerminalViewerAction::Attach { terminal_id, .. } = request.action else {
             return Err(ViewerRejection::AttachmentUnavailable);

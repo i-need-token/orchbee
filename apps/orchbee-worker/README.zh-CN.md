@@ -878,3 +878,10 @@ Worker 在匹配版本的托管启动中接收自有 `WindowsShellSettings` 快�
 真实 Windows Git 测试覆盖 ahead/behind、无 upstream、游离／未出生／关联／非仓库状态及数据／配置不变。
 参见[状态协议](../../crates/capability-node-protocol/README.zh-CN.md#windows-workspace-git-状态观测)
 及 [Client 模型](../orchbee/docs/machines.zh-CN.md#工作区侧栏模型)。
+
+## Windows Server 传输交接
+
+当前 Server 的显式请求可以准备、提交或取消经认证的备用连接。同一 Worker 循环保留 Host、
+授权内核、终端身份、Agent Drain 及作业所有者；普通 EOF 不会重连。此内部传输在 Host
+启动前后均可用。[所属模型](docs/windows-server-handoff.zh-CN.md) 定义精确票据、截止点、
+回滚及证据边界。公开 Server 状态／端点交接仍需独立集成；传输回执不是最终 CLI 成功。

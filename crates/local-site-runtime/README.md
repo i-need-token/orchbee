@@ -440,3 +440,13 @@ family-specific wrappers reject unsupported tokens and non-text rules. Each clos
 canonical profile caps at 32 KiB independently. Workspace layouts use rows/row_gap;
 Agent layouts retain provider overrides. Startup, CLI checks and Site reload all
 consume this owner. See the [user guide](../../apps/orchbee/docs/windows-cli-configuration.md#windows-workspace-sidebar-layouts).
+
+## Windows handoff pipe identity
+
+An explicit Worker handoff derives a separate same-user named pipe from the already admitted
+runtime hash and its nonzero 128-bit ticket. `handoff_endpoint_path` never creates a filesystem
+leaf or grants authority to an arbitrary path. Applications own ticket validation, target cohort
+admission, the standby lease and process/Server ownership; ordinary client/worker/Host endpoints
+keep their existing identity. Native pipe tests verify separate scope/ticket addresses and bounded
+names even for long Unicode runtime input. [The Worker contract](../../apps/orchbee-worker/docs/windows-server-handoff.md)
+owns the connection transition.

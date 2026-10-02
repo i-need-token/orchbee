@@ -150,3 +150,26 @@ each a `PendingRequest` (encoded frame bytes + typed request + one completion en
 the `Required`/`DiscardableDrain`/`Detached` ownership policy). Per-request result receivers
 live on their producer threads. No whole-process memory bound is claimed here; this enumerates
 the queue-owned and producer-held copies.
+
+## Windows handoff admission fence
+
+`WorkerHandoffRequest` uses the high lane and an exact Worker/generation/target echo.
+Prepare changes the queue from Normal to one fenced ticket under the queue lock. All queued
+high/low requests and blocked cleanup payloads settle as unwritten Unavailable outside the lock.
+The already dispatched exchange completes before Prepare reaches the wire. Normal admission and
+concurrent Shutdown cannot enter this fence. At most one matching handoff exchange is queued or
+dispatched. This closes transport admission, not the higher coordinator's canonical-state writers.
+
+Prepared keeps the fence. Successful Abort, known NotPrepared, failed Prepare with no other
+Prepared owner, or Commit's TargetUnavailable restores Normal. Busy and TicketMismatch cannot
+prove absence and retain the fence. Transport loss after a complete write remains Unknown; it
+never opens admission or authorizes replay. Committed closes the old queue, retires its active
+carrier and settles any remaining payloads before another write. The importer admits its new
+carrier only after exact Owned on its standby wire; the Worker generation remains unchanged.
+
+The [Worker model](../../orchbee-worker/docs/windows-server-handoff.md) owns standby admission,
+the 15-second lease, physical resources and expiry. A known expiry is reconciled by matching
+Abort/Commit -> NotPrepared; this queue cannot renew or infer the Worker lease. Native pipe and
+deterministic scheduling witnesses cover in-flight ordering, blocked cleanup release, exact echoes,
+rollback admission and committed retirement. Canonical import and the public live-handoff result
+require Server integration beyond this queue boundary.

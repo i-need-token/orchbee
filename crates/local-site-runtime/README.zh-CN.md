@@ -369,3 +369,11 @@ token 样式／原始值首条匹配规则共用接纳所有者；各配置族�
 每个封闭规范 profile 独立限制 32 KiB。Workspace 布局使用 rows/row_gap；
 Agent 布局保留 Provider 覆盖。启动、CLI 检查及 Site 重载共同消费该所有者。
 参见[用户指南](../../apps/orchbee/docs/windows-cli-configuration.zh-CN.md#windows-workspace-侧栏布局)。
+
+## Windows 交接管道身份
+
+显式 Worker 交接按已有准入 runtime 的哈希和非零 128 位票据推导独立同用户命名管道。
+`handoff_endpoint_path` 不创建文件系统叶子，也不授予任意路径授权。应用负责票据验证、目标
+cohort 准入、备用租约及进程／Server 所有权；普通 client／worker／Host 端点沿用既有身份。
+原生管道测试验证 scope／票据地址隔离，以及长 Unicode runtime 输入下仍有界的名称。
+[Worker 契约](../../apps/orchbee-worker/docs/windows-server-handoff.zh-CN.md) 负责连接转移。

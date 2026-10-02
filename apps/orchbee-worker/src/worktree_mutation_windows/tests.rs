@@ -367,7 +367,7 @@ fn pre_host_mutation_is_joined_on_explicit_stop_and_server_disconnect() {
             .unwrap();
         let owner = thread::spawn(move || {
             crate::terminal_operations::run_lazy(
-                &worker,
+                worker,
                 orchbee_local_site_protocol::WorkerId::from_bytes([2; 16]),
                 NonZeroU64::new(3).unwrap(),
                 &cohort,

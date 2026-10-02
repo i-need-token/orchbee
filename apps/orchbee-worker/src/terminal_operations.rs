@@ -27,6 +27,8 @@ mod launch_facts;
 mod lazy;
 #[cfg(any(target_os = "linux", windows))]
 pub(crate) use lazy::run as run_lazy;
+#[cfg(windows)]
+mod handoff;
 mod server_transport;
 #[cfg(windows)]
 mod shutdown;
@@ -60,7 +62,7 @@ pub(crate) fn run(
         crate::worktree_mutation_windows::run,
     );
     let outcome = run_admitted(
-        server,
+        server.try_clone()?,
         host,
         worker_id,
         generation,
@@ -103,21 +105,72 @@ pub(crate) struct AdmittedAux<'a> {
     pub(super) managed_host: Option<&'a mut shutdown::ManagedHost>,
 }
 
+/// Owns the admitted Server wire and preserves its physical owners across an explicit handoff.
 pub(crate) fn run_admitted(
-    server: &UnixStream,
+    server: UnixStream,
+    host: &mut HostBrokerConnection,
+    worker_id: WorkerId,
+    generation: NonZeroU64,
+    kernel: AuthorizedHostOperationKernel,
+    aux: AdmittedAux<'_>,
+) -> Result<(), Box<dyn Error>> {
+    #[cfg(windows)]
+    let handoff = handoff::Handoff::new(aux.site_runtime);
+    run_admitted_with_handoff(
+        server,
+        host,
+        worker_id,
+        generation,
+        kernel,
+        aux,
+        #[cfg(windows)]
+        handoff,
+    )
+}
+
+fn run_admitted_with_handoff(
+    server: UnixStream,
     host: &mut HostBrokerConnection,
     worker_id: WorkerId,
     generation: NonZeroU64,
     mut kernel: AuthorizedHostOperationKernel,
     aux: AdmittedAux<'_>,
+    #[cfg(windows)] mut handoff: handoff::Handoff,
 ) -> Result<(), Box<dyn Error>> {
+    #[cfg(windows)]
+    let mut server = server;
     let epoch = HostEpoch::from_bytes(*host.host_epoch().as_bytes())?;
     loop {
-        let request = server_transport::receive(server, Some(host))?;
+        #[cfg(not(windows))]
+        let request = server_transport::receive(&server, Some(host))?;
+        #[cfg(windows)]
+        let request = loop {
+            if let Some(request) =
+                server_transport::receive_until(&server, Some(host), handoff.deadline())?
+            {
+                break request;
+            }
+            handoff.expire(std::time::Instant::now());
+        };
+        #[cfg(windows)]
+        handoff.expire(std::time::Instant::now());
+        #[cfg(windows)]
+        if let CapabilityNodeMessage::WorkerHandoffRequest(request) = request {
+            handoff.execute(&mut server, Some(host), request, worker_id, generation)?;
+            continue;
+        }
+        #[cfg(windows)]
+        if handoff.is_prepared() {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "ordinary request during prepared Server handoff",
+            )
+            .into());
+        }
         if let CapabilityNodeMessage::TerminalEditorCommandRequest(request) = request {
             let result = crate::terminal_editor_operation::execute(request, worker_id, generation);
             if server_transport::send(
-                server,
+                &server,
                 Some(host),
                 &CapabilityNodeMessage::TerminalEditorCommandResult(result),
             )? {
@@ -131,7 +184,7 @@ pub(crate) fn run_admitted(
                 shutdown::refusal(request, worker_id, generation, aux.managed_host.is_some())
             {
                 if server_transport::send(
-                    server,
+                    &server,
                     Some(host),
                     &CapabilityNodeMessage::WorkerShutdownResult(
                         orchbee_capability_node_protocol::WorkerShutdownResult {
@@ -148,7 +201,7 @@ pub(crate) fn run_admitted(
                 continue;
             }
             return shutdown::run(
-                server,
+                &server,
                 request,
                 worker_id,
                 generation,
@@ -162,9 +215,9 @@ pub(crate) fn run_admitted(
         }
         #[cfg(windows)]
         if let CapabilityNodeMessage::TerminalTitlesRequest(request) = request {
-            let result = titles::execute(server, Some(host), request, worker_id, generation)?;
+            let result = titles::execute(&server, Some(host), request, worker_id, generation)?;
             if server_transport::send(
-                server,
+                &server,
                 Some(host),
                 &CapabilityNodeMessage::TerminalTitlesResult(result),
             )? {
@@ -174,7 +227,7 @@ pub(crate) fn run_admitted(
         }
         if let CapabilityNodeMessage::AgentDrainRequest(request) = request {
             let host_closed = dispatch_drain_request(
-                server,
+                &server,
                 Some(host),
                 aux.drain,
                 &request,
@@ -197,7 +250,7 @@ pub(crate) fn run_admitted(
                 aux.site_runtime,
             );
             if server_transport::send(
-                server,
+                &server,
                 Some(host),
                 &CapabilityNodeMessage::PluginJobResult(result),
             )? {
@@ -217,7 +270,7 @@ pub(crate) fn run_admitted(
             let result =
                 crate::worktree_mutation_operation::execute(request, worker_id, generation);
             if server_transport::send(
-                server,
+                &server,
                 Some(host),
                 &CapabilityNodeMessage::WorktreeMutationResult(result),
             )? {
@@ -235,7 +288,7 @@ pub(crate) fn run_admitted(
                 aux.worktree_slot,
             );
             if server_transport::send(
-                server,
+                &server,
                 Some(host),
                 &CapabilityNodeMessage::WorktreeJobResult(result),
             )? {
@@ -246,7 +299,7 @@ pub(crate) fn run_admitted(
         if let CapabilityNodeMessage::TerminalCwdValidationRequest(request) = request {
             let result = crate::terminal_cwd_validation::validate(request, worker_id, generation);
             if server_transport::send(
-                server,
+                &server,
                 Some(host),
                 &CapabilityNodeMessage::TerminalCwdValidationResult(result),
             )? {
@@ -263,7 +316,7 @@ pub(crate) fn run_admitted(
                     .execute(
                         &mut kernel,
                         host,
-                        server,
+                        &server,
                         unix_milliseconds,
                         HOST_OPERATION_BUDGET,
                     )?
@@ -282,7 +335,7 @@ pub(crate) fn run_admitted(
                 .take_lifecycle_result()
                 .ok_or_else(|| io::Error::other("Worker lifecycle result is missing"))?;
             if server_transport::send(
-                server,
+                &server,
                 (disposition == HostOperationDisposition::ResultReady).then_some(&*host),
                 &CapabilityNodeMessage::TerminalLifecycleResult(result),
             )? {
@@ -290,13 +343,13 @@ pub(crate) fn run_admitted(
             }
             continue;
         }
-        crate::terminal_viewer_operation::cleanup_closed(host, server)?;
+        crate::terminal_viewer_operation::cleanup_closed(host, &server)?;
         if let CapabilityNodeMessage::TerminalControlRequest(request) = request {
             let result = crate::terminal_control_operation::execute(
-                request, worker_id, generation, host, server,
+                request, worker_id, generation, host, &server,
             )?;
             if server_transport::send(
-                server,
+                &server,
                 Some(host),
                 &CapabilityNodeMessage::TerminalControlResult(result),
             )? {
@@ -306,10 +359,10 @@ pub(crate) fn run_admitted(
         }
         if let CapabilityNodeMessage::TerminalGraphicsDecodeRequest(request) = request {
             let result = crate::terminal_viewer_operation::decode_graphics(
-                request, worker_id, generation, host, server,
+                request, worker_id, generation, host, &server,
             )?;
             if server_transport::send(
-                server,
+                &server,
                 Some(host),
                 &CapabilityNodeMessage::TerminalViewerResult(result),
             )? {
@@ -319,10 +372,10 @@ pub(crate) fn run_admitted(
         }
         if let CapabilityNodeMessage::TerminalViewerRequest(request) = request {
             let result = crate::terminal_viewer_operation::execute(
-                request, worker_id, generation, host, server,
+                request, worker_id, generation, host, &server,
             )?;
             if server_transport::send(
-                server,
+                &server,
                 Some(host),
                 &CapabilityNodeMessage::TerminalViewerResult(result),
             )? {
@@ -332,13 +385,13 @@ pub(crate) fn run_admitted(
         }
         if let CapabilityNodeMessage::TerminalSendRequest(request) = request {
             let execution = crate::terminal_send_operation::execute(
-                request, worker_id, generation, host, server,
+                request, worker_id, generation, host, &server,
             )?;
             // A failed Host carrier still gets its result written; that write
             // is the last record this session produces and the loop exits
             // explicitly instead of discovering the dead stream later.
             let host_closed = server_transport::send(
-                server,
+                &server,
                 (!execution.host_failed).then_some(&*host),
                 &CapabilityNodeMessage::TerminalSendResult(execution.result),
             )?;
@@ -355,7 +408,12 @@ pub(crate) fn run_admitted(
             CapabilityNodeMessage::AuthorizedTerminalStart(start) => {
                 kernel.admit_start(start, now, epoch)?
             }
-            CapabilityNodeMessage::WorkerShutdownRequest(_)
+            CapabilityNodeMessage::WorkerHandoffRequest(_)
+            | CapabilityNodeMessage::WorkerHandoffResult(_)
+            | CapabilityNodeMessage::WorkerHandoffHello(_)
+            | CapabilityNodeMessage::WorkerHandoffReady(_)
+            | CapabilityNodeMessage::WorkerHandoffOwned(_)
+            | CapabilityNodeMessage::WorkerShutdownRequest(_)
             | CapabilityNodeMessage::WorkerShutdownResult(_)
             | CapabilityNodeMessage::AgentDrainRequest(_)
             | CapabilityNodeMessage::AgentDrainReply(_)
@@ -400,7 +458,7 @@ pub(crate) fn run_admitted(
                 Some(prepared) => prepared.execute(
                     &mut kernel,
                     host,
-                    server,
+                    &server,
                     unix_milliseconds,
                     HOST_OPERATION_BUDGET,
                 )?,
@@ -418,7 +476,7 @@ pub(crate) fn run_admitted(
         // No next admission occurs while this exact result is being delivered. A
         // failed write abandons the process; it never causes a Host retry.
         let host_closed = server_transport::send(
-            server,
+            &server,
             (disposition == HostOperationDisposition::ResultReady).then_some(&*host),
             &result,
         )?;

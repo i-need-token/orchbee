@@ -10,7 +10,12 @@ pub use plugin_job::{
     MAXIMUM_PLUGIN_OUTPUT_BYTES, PluginCommandFailure, PluginCommandIntent, PluginCommandLog,
     PluginJobAction, PluginJobOutcome, PluginJobRefusal, PluginJobRequest, PluginJobResult,
 };
+mod worker_handoff;
 mod worker_shutdown;
+pub use worker_handoff::{
+    WorkerHandoffAction, WorkerHandoffOutcome, WorkerHandoffPeer, WorkerHandoffRefusal,
+    WorkerHandoffRequest, WorkerHandoffResult, WorkerHandoffTarget,
+};
 pub use worker_shutdown::{
     ShutdownBudget, ShutdownFailure, ShutdownRefusal, ShutdownStage, WorkerShutdownOutcome,
     WorkerShutdownRequest, WorkerShutdownResult,
@@ -51,7 +56,8 @@ pub use codec::{
 };
 pub use error::{ProtocolError, ReadMessageError, WriteMessageError};
 pub use identity::{
-    HostCreationId, HostEpoch, HostTerminalId, LeaseId, OperationId, TerminalId, WorkerId,
+    HostCreationId, HostEpoch, HostTerminalId, LeaseId, OperationId, TerminalId, WorkerHandoffId,
+    WorkerId,
 };
 pub use terminal_cwd_validation::{
     TerminalCwdValidationOutcome, TerminalCwdValidationRequest, TerminalCwdValidationResult,

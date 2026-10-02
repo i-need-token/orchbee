@@ -300,7 +300,7 @@ fn admitted_request_replies_with_host_observed_event() -> TestResult {
     let kernel = AuthorizedHostOperationKernel::new(LOCAL_WORKER_ID, nz(GENERATION))?;
     let worktree_slot = crate::worktree_discovery_job::WorktreeDiscoverySlot::new();
     let outcome = super::run_admitted(
-        &server,
+        server,
         &mut connection,
         LOCAL_WORKER_ID,
         nz(GENERATION),

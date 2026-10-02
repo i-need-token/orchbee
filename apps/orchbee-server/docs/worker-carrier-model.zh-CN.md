@@ -131,3 +131,22 @@ completion 发送在锁外进行。
 `PendingRequest`（已编码帧字节 + 类型化请求 + 一个在 `Required`/`DiscardableDrain`/
 `Detached` 所有权策略下的 completion 端点）。每请求的结果接收方驻留在其生产者线程上。
 本文不声明整进程内存上界；此处枚举的是队列持有与生产者持有的副本。
+
+## Windows 交接准入封闭
+
+`WorkerHandoffRequest` 使用高优先级队列及精确 Worker／代际／目标回显。Prepare 在队列锁下
+将 Normal 变成一个封闭票据。所有排队的高／低优先级请求和阻塞清理载荷都在锁外结算为
+尚未写入的 Unavailable。已派发交换先完成，随后 Prepare 才到达 wire。普通准入及并发
+Shutdown 不能进入此封闭。最多一个匹配交接交换处于排队或派发中。此边界关闭传输准入，
+不能代替上层 coordinator 的规范状态写入者静止。
+
+Prepared 保持封闭。Abort 成功、确定 NotPrepared、Prepare 失败且没有其他 Prepared
+所有者，或 Commit 的 TargetUnavailable 恢复 Normal。Busy 和 TicketMismatch 不能证明
+不存在，继续封闭。完整写入后的传输丢失保持 Unknown，不恢复准入或授权重放。Committed
+关闭旧队列、退休活动 carrier 并在再次写入前结算残留载荷。导入方仅在备用 wire 收到精确
+Owned 后准入新 carrier；Worker 代际保持原值。
+
+[Worker 模型](../../orchbee-worker/docs/windows-server-handoff.zh-CN.md) 负责备用准入、
+15 秒租约、物理资源及过期。确定过期通过匹配 Abort／Commit -> NotPrepared 对账；队列
+不能续租或推断 Worker 租约。原生命名管道及确定性调度见证覆盖在飞顺序、阻塞清理释放、
+精确回显、回滚准入及提交后退休。规范导入与公开在线交接结果仍需队列边界之外的 Server 集成。

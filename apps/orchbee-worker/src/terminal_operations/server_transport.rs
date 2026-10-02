@@ -18,15 +18,33 @@ pub(super) fn receive(
     server: &UnixStream,
     host: Option<&HostBrokerConnection>,
 ) -> Result<CapabilityNodeMessage, ReadMessageError> {
+    receive_until(server, host, None)?.ok_or_else(|| super::peer_closed().into())
+}
+
+/// Only an idle cutoff can return None. Once input is readable, a partial record
+/// remains a fatal record-budget failure and cannot be discarded as lease expiry.
+pub(super) fn receive_until(
+    server: &UnixStream,
+    host: Option<&HostBrokerConnection>,
+    idle_deadline: Option<Instant>,
+) -> Result<Option<CapabilityNodeMessage>, ReadMessageError> {
     let mut transport = ServerRecord {
         server,
         host,
-        deadline: None,
+        deadline: idle_deadline,
         host_closed: false,
     };
     // Idle has no deadline. Once a record begins, every fragment shares one budget.
-    transport.wait(PollFlags::POLLIN)?;
-    read_message(&mut transport)
+    if let Err(error) = transport.wait(PollFlags::POLLIN) {
+        if error.kind() == io::ErrorKind::TimedOut
+            && idle_deadline.is_some_and(|deadline| Instant::now() >= deadline)
+        {
+            return Ok(None);
+        }
+        return Err(error.into());
+    }
+    transport.deadline = Some(Instant::now() + RECORD_BUDGET);
+    read_message(&mut transport).map(Some)
 }
 
 pub(super) fn send(
@@ -34,13 +52,27 @@ pub(super) fn send(
     host: Option<&HostBrokerConnection>,
     result: &CapabilityNodeMessage,
 ) -> Result<bool, WriteMessageError> {
+    send_until(server, host, result, Instant::now() + RECORD_BUDGET)
+}
+
+/// A handoff lease can shorten, but never extend, the existing record budget.
+pub(super) fn send_until(
+    server: &UnixStream,
+    host: Option<&HostBrokerConnection>,
+    result: &CapabilityNodeMessage,
+    deadline: Instant,
+) -> Result<bool, WriteMessageError> {
+    let deadline = deadline.min(Instant::now() + RECORD_BUDGET);
     let mut transport = ServerRecord {
         server,
         host,
-        deadline: Some(Instant::now() + RECORD_BUDGET),
+        deadline: Some(deadline),
         host_closed: host.is_none(),
     };
     write_message(&mut transport, result)?;
+    if Instant::now() >= deadline {
+        return Err(io::Error::from(io::ErrorKind::TimedOut).into());
+    }
     Ok(transport.host_closed)
 }
 

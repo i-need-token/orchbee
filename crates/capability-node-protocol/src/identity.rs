@@ -25,6 +25,7 @@ macro_rules! define_identity {
 
 define_identity!(TerminalId);
 define_identity!(OperationId);
+define_identity!(WorkerHandoffId);
 define_identity!(WorkerId);
 define_identity!(LeaseId);
 define_identity!(HostCreationId);

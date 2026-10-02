@@ -142,6 +142,14 @@ impl ModeCheckedLocalSiteRendezvous {
     pub fn observation_endpoint_path(runtime: &Path) -> PathBuf {
         endpoint(runtime, "observation")
     }
+    /// An explicit handoff ticket selects a separate private same-user pipe,
+    /// scoped by the already admitted runtime. This never names a filesystem leaf.
+    pub fn handoff_endpoint_path(runtime: &Path, ticket: [u8; 16]) -> PathBuf {
+        endpoint(
+            runtime,
+            &format!("handoff-{:032x}", u128::from_be_bytes(ticket)),
+        )
+    }
     pub fn client_pending_socket_path(runtime: &Path) -> PathBuf {
         endpoint(runtime, "client-pending")
     }

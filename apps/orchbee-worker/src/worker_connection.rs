@@ -71,10 +71,11 @@ pub(crate) fn run(
             return Err(io::Error::other("Site startup is unavailable").into());
         }
         let server = connect_to_server(site.worker_socket_path(), cohort.identity())?;
+        let generation = server.generation();
         return terminal_operations::run_lazy(
-            server.stream(),
+            server.stream,
             server.worker_id,
-            server.generation(),
+            generation,
             &cohort,
             &runtime,
             #[cfg(windows)]

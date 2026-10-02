@@ -16,6 +16,10 @@ pub(crate) struct HostControllers {
     grants: BTreeMap<[u8; 16], ControlGrant>,
 }
 impl HostControllers {
+    #[cfg(windows)]
+    pub(crate) fn is_empty(&self) -> bool {
+        self.grants.is_empty()
+    }
     pub(crate) fn contains(&self, id: OperationId) -> bool {
         self.grants.contains_key(&id.as_bytes())
     }

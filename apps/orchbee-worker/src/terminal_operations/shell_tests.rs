@@ -332,7 +332,7 @@ fn editor_source_missing_viewer_fails_before_host_create_or_lazy_startup() {
         peer.shutdown(std::net::Shutdown::Both).unwrap();
     });
     let result = lazy::run(
-        &server,
+        server,
         WORKER,
         NonZeroU64::MIN,
         &cohort,
@@ -495,7 +495,7 @@ fn admitted_worker_survives_invalid_defaults_then_launches_fresh_policy_and_fenc
     let fallback = WindowsShellSettings::new("unavailable-startup.exe", "auto").unwrap();
     assert!(
         run_admitted(
-            &server,
+            server,
             &mut host,
             WORKER,
             NonZeroU64::MIN,
@@ -597,7 +597,7 @@ fn lazy_worker_retains_invalid_launch_receipt_and_answers_next_request_without_s
     });
     assert!(
         lazy::run(
-            &server,
+            server,
             WORKER,
             NonZeroU64::MIN,
             &cohort,
@@ -613,6 +613,133 @@ fn lazy_worker_retains_invalid_launch_receipt_and_answers_next_request_without_s
         )
         .exists()
     );
+}
+
+#[test]
+fn lazy_handoff_retains_ticket_history_and_worker_identity_without_starting_host() {
+    use node::{
+        WorkerHandoffAction as Action, WorkerHandoffId, WorkerHandoffOutcome as Outcome,
+        WorkerHandoffRefusal, WorkerHandoffRequest, WorkerHandoffResult, WorkerHandoffTarget,
+    };
+    use orchbee_local_site_runtime::ModeCheckedLocalSiteRendezvous;
+    let fixture = CohortFixture::new();
+    let cohort = NativeCohort::load(&fixture.0, Instant::now() + Duration::from_secs(3)).unwrap();
+    let runtime = fixture.0.join("runtime");
+    let prepare = WorkerHandoffRequest {
+        operation_id: OperationId::from_bytes([41; 16]).unwrap(),
+        worker_id: node::WorkerId::from_bytes(WORKER.as_bytes()).unwrap(),
+        worker_generation: WorkerGeneration::new(NonZeroU64::MIN),
+        target: WorkerHandoffTarget {
+            handoff_id: WorkerHandoffId::from_bytes([42; 16]).unwrap(),
+            cohort_sha256: [43; 32],
+        },
+        action: Action::Prepare,
+    };
+    let listener = LocalListener::bind(ModeCheckedLocalSiteRendezvous::handoff_endpoint_path(
+        &runtime,
+        prepare.target.handoff_id.as_bytes(),
+    ))
+    .unwrap();
+    listener.set_nonblocking(true).unwrap();
+    let next = thread::spawn(move || {
+        let deadline = Instant::now() + Duration::from_secs(4);
+        let mut peer = loop {
+            match listener.accept() {
+                Ok((peer, ())) => break peer,
+                Err(error) if error.kind() == io::ErrorKind::WouldBlock => {
+                    assert!(Instant::now() < deadline);
+                    thread::yield_now();
+                }
+                Err(error) => panic!("handoff standby: {error}"),
+            }
+        };
+        timeout(&peer);
+        assert_eq!(
+            node::read_message(&mut peer).unwrap(),
+            CapabilityNodeMessage::WorkerHandoffHello(prepare.peer())
+        );
+        node::write_message(
+            &mut peer,
+            &CapabilityNodeMessage::WorkerHandoffReady(prepare.peer()),
+        )
+        .unwrap();
+        assert_eq!(
+            node::read_message(&mut peer).unwrap(),
+            CapabilityNodeMessage::WorkerHandoffOwned(prepare.peer())
+        );
+        node::write_message(
+            &mut peer,
+            &CapabilityNodeMessage::WorkerHandoffRequest(prepare),
+        )
+        .unwrap();
+        assert_eq!(
+            node::read_message(&mut peer).unwrap(),
+            CapabilityNodeMessage::WorkerHandoffResult(
+                WorkerHandoffResult::new(
+                    prepare,
+                    Outcome::Refused(WorkerHandoffRefusal::ReusedTicket)
+                )
+                .unwrap()
+            )
+        );
+        let drain = AgentDrainRequest {
+            worker_id: prepare.worker_id,
+            worker_generation: prepare.worker_generation,
+            token: NonZeroU64::new(44).unwrap(),
+            acknowledged: 0,
+        };
+        node::write_message(&mut peer, &CapabilityNodeMessage::AgentDrainRequest(drain)).unwrap();
+        assert!(
+            matches!(node::read_message(&mut peer).unwrap(), CapabilityNodeMessage::AgentDrainReply(reply) if reply.token_echo() == drain.token && reply.entries().is_empty() && reply.queue_tail() == 0)
+        );
+        peer.shutdown(std::net::Shutdown::Both).unwrap();
+    });
+    let (server, mut peer) = LocalStream::pair().unwrap();
+    timeout(&peer);
+    let original = thread::spawn(move || {
+        node::write_message(
+            &mut peer,
+            &CapabilityNodeMessage::WorkerHandoffRequest(prepare),
+        )
+        .unwrap();
+        assert_eq!(
+            node::read_message(&mut peer).unwrap(),
+            CapabilityNodeMessage::WorkerHandoffResult(
+                WorkerHandoffResult::new(prepare, Outcome::Prepared).unwrap()
+            )
+        );
+        let commit = WorkerHandoffRequest {
+            action: Action::Commit,
+            ..prepare
+        };
+        node::write_message(
+            &mut peer,
+            &CapabilityNodeMessage::WorkerHandoffRequest(commit),
+        )
+        .unwrap();
+        assert_eq!(
+            node::read_message(&mut peer).unwrap(),
+            CapabilityNodeMessage::WorkerHandoffResult(
+                WorkerHandoffResult::new(commit, Outcome::Committed).unwrap()
+            )
+        );
+        assert_eq!(peer.read(&mut [0]).unwrap(), 0);
+    });
+    let result = lazy::run(
+        server,
+        WORKER,
+        NonZeroU64::MIN,
+        &cohort,
+        &runtime,
+        &WindowsShellSettings::default(),
+    );
+    original.join().unwrap();
+    next.join().unwrap();
+    assert!(
+        result.is_err(),
+        "ordinary new Server EOF is not another handoff"
+    );
+    assert!(!ModeCheckedLocalSiteRendezvous::host_runtime_directory(&runtime).exists());
 }
 
 #[test]
@@ -673,7 +800,7 @@ fn lazy_editor_command_query_echoes_refusals_and_current_resolution_without_star
         peer.shutdown(std::net::Shutdown::Both).unwrap();
     });
     let result = lazy::run(
-        &server,
+        server,
         WORKER,
         NonZeroU64::MIN,
         &cohort,
