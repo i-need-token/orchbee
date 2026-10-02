@@ -573,6 +573,13 @@ pub const MESSAGE_CONTRACTS: &[MessageContract] = &[
         Some(PayloadEncoding::ControlJson)
     ),
     contract!(
+        79,
+        "ReadProcessInfo",
+        None,
+        Some(request(PayloadEncoding::ControlJson, 79)),
+        Some(PayloadEncoding::ControlJson)
+    ),
+    contract!(
         80,
         "DecodeGraphicsPng",
         None,
@@ -586,14 +593,15 @@ pub const MESSAGE_CONTRACTS: &[MessageContract] = &[
         None,
         Some(PayloadEncoding::GraphicsImage)
     ),
-    contract!(
-        79,
-        "ReadProcessInfo",
-        None,
-        Some(request(PayloadEncoding::ControlJson, 79)),
-        Some(PayloadEncoding::ControlJson)
-    ),
 ];
+
+const _: () = {
+    let mut index = 1;
+    while index < MESSAGE_CONTRACTS.len() {
+        assert!(MESSAGE_CONTRACTS[index - 1].kind < MESSAGE_CONTRACTS[index].kind);
+        index += 1;
+    }
+};
 
 #[must_use]
 pub fn message_contract(kind: u16) -> Option<&'static MessageContract> {

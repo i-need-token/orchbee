@@ -1,6 +1,8 @@
 use orchbee_terminal_protocol::{
-    AttachmentId, AttachmentTarget, MessageRole, ProcessInfoControl, TerminalId, TerminalProcess,
-    TerminalProcessInfo, decode_process_info_control, encode_process_info_control,
+    AttachmentId, AttachmentTarget, CURRENT_PROTOCOL_VERSION, CorrelationId, Envelope, HostEpoch,
+    MessageRole, PayloadEncoding, ProcessInfoControl, TerminalId, TerminalProcess,
+    TerminalProcessInfo, decode_process_info_control, decode_transport_envelope,
+    encode_process_info_control, encode_transport_envelope,
 };
 
 fn sample() -> TerminalProcessInfo {
@@ -48,11 +50,29 @@ fn correlated_process_request_and_owned_sample_round_trip_without_losing_filetim
         ProcessInfoControl::ProcessInfo(sample()),
     ] {
         let encoded = encode_process_info_control(&value).unwrap();
+        let mut envelope = Envelope {
+            protocol: CURRENT_PROTOCOL_VERSION,
+            role: encoded.role,
+            kind: encoded.kind,
+            optional_message: false,
+            payload_encoding: PayloadEncoding::ControlJson,
+            correlation_id: Some(CorrelationId::from_bytes([3; 16]).unwrap()),
+            host_epoch: Some(HostEpoch::from_bytes([4; 16]).unwrap()),
+            payload: &encoded.payload,
+        };
+        let record = encode_transport_envelope(&envelope).unwrap();
+        let decoded = decode_transport_envelope(&record).unwrap();
+        assert_eq!(decoded.kind, envelope.kind);
+        assert_eq!(decoded.role, envelope.role);
+        assert_eq!(decoded.correlation_id, envelope.correlation_id);
+        assert_eq!(decoded.host_epoch, envelope.host_epoch);
         assert_eq!(
-            decode_process_info_control(encoded.kind, encoded.role, &encoded.payload).unwrap(),
+            decode_process_info_control(decoded.kind, decoded.role, decoded.payload).unwrap(),
             value
         );
         assert!(decode_process_info_control(79, MessageRole::Event, &encoded.payload).is_err());
+        envelope.role = MessageRole::Event;
+        assert!(encode_transport_envelope(&envelope).is_err());
     }
     let mut ended = sample();
     ended.processes.clear();

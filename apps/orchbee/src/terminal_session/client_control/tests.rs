@@ -1162,6 +1162,10 @@ fn resize_commits_once_preserves_zoom_and_only_draw_or_interruption_settles_it()
         control.observe_geometry(Rect::new(0, 0, 120, 40), SidebarSurface::Hidden);
         control.tick(&mut native, false);
         let before = native.control_observation(false).unwrap();
+        let mut committed = before.clone();
+        committed.1.split_revision = Some(orchbee_workbench_protocol::WorkbenchRevision::new(
+            before.1.split_revision.unwrap().value() + 1,
+        ));
         let mut command = command(&control, None);
         let ClientViewIntent::Panel {
             terminal_context_id,
@@ -1212,7 +1216,7 @@ fn resize_commits_once_preserves_zoom_and_only_draw_or_interruption_settles_it()
                 "one invocation, one delta"
             );
             assert!(layout.zoomed);
-            assert_eq!(native.control_observation(false).unwrap(), before);
+            assert_eq!(native.control_observation(false).unwrap(), committed);
             assert_eq!(control.pending.as_ref().unwrap().deadline, deadline);
             assert!(completion(&control).is_none());
         }
@@ -1400,6 +1404,10 @@ fn inactive_and_unvisited_ratio_changes_store_without_selection_attachment_or_dr
         control.observe_geometry(Rect::new(0, 0, 120, 40), SidebarSurface::Hidden);
         control.tick(&mut native, false);
         let before = native.control_observation(false).unwrap();
+        let mut committed = before.clone();
+        committed.1.split_revision = Some(orchbee_workbench_protocol::WorkbenchRevision::new(
+            before.1.split_revision.unwrap().value() + 1,
+        ));
         let mut command = command(&control, None);
         command.minimum_workbench_revision = snapshot.revision;
         command.intent = ClientViewIntent::SetSplitRatio {
@@ -1437,7 +1445,7 @@ fn inactive_and_unvisited_ratio_changes_store_without_selection_attachment_or_dr
         }
         .validate()
         .unwrap();
-        assert_eq!(native.control_observation(false).unwrap(), before);
+        assert_eq!(native.control_observation(false).unwrap(), committed);
         assert!(mailbox.try_recv().unwrap().is_none());
         let PanelNode::Split { children, .. } = &target.root else {
             panic!()
@@ -1462,7 +1470,7 @@ fn inactive_and_unvisited_ratio_changes_store_without_selection_attachment_or_dr
         assert_eq!(layout.panels[0].unzoomed.unwrap().width, 82);
         assert_eq!(layout.focused_panel_id.as_ref(), Some(panel_id));
         assert!(!layout.selected);
-        assert_eq!(native.control_observation(false).unwrap(), before);
+        assert_eq!(native.control_observation(false).unwrap(), committed);
         assert!(mailbox.try_recv().unwrap().is_none());
     }
 }

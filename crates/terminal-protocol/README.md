@@ -21,6 +21,15 @@ The caller owns physical source membership, content-revision admission and viewe
 CLI selection and Server configured plugin commands share this pure extractor; their different
 output/context byte budgets remain explicit at those boundaries.
 
+## Transport registry lookup
+
+The transport registry has unique, strictly increasing numeric kinds, checked at compile time
+before binary-search lookup. Kind 79 admits the existing correlated `ReadProcessInfo` request and
+response as control JSON; kinds 80/81 retain their graphics-image contracts. Process-info payload
+round trips also pass through transport encoding and decoding with correlation and Host epoch,
+so a registered payload cannot silently become an unknown required transport message. Event roles
+remain rejected and the existing payload bounds remain unchanged.
+
 ## Read-only PNG decoding
 
 Kinds 80/81 use graphics-image encoding (5) with borrowed `GraphicsDecodeRequest` and `GraphicsDecodeResult` views. The OBPI request has a 40-byte header with attachment, declared dimensions and exact PNG length; the OBPX result has a 56-byte header with attachment, terminal, dimensions and exact RGBA length. The binding checks nonzero identities, PNG header agreement, 1–4096 dimensions, 16 MiB input and 32 MiB decoded pixels. PNG content decoding and physical read authorization belong to Host; Worker and Server check envelope correlation, epoch and target before consuming pixels. This encoding has its own bound and does not broaden raw keyboard or paste limits.

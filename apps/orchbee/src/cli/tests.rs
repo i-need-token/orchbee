@@ -295,6 +295,25 @@ fn fixed_outputs_are_far_below_the_bound() {
     for family in [
         Family::Agent,
         Family::AgentIntegration,
+        #[cfg(windows)]
+        Family::Command,
+        #[cfg(windows)]
+        Family::Events,
+        #[cfg(windows)]
+        Family::Plugin,
+        #[cfg(windows)]
+        Family::PluginAction,
+        #[cfg(windows)]
+        Family::PluginLog,
+        #[cfg(windows)]
+        Family::PluginPane,
+        #[cfg(windows)]
+        Family::Popup,
+        #[cfg(windows)]
+        Family::Session,
+        Family::TerminalTitle,
+        Family::TerminalSession,
+        Family::Notification,
         Family::Client,
         Family::Api,
         Family::Completion,
@@ -338,6 +357,44 @@ fn fixed_outputs_are_far_below_the_bound() {
         CommandPath::TerminalObserve,
         CommandPath::TerminalControl,
         CommandPath::TerminalRun,
+        #[cfg(windows)]
+        CommandPath::TerminalSelectionRead,
+        #[cfg(windows)]
+        CommandPath::TerminalCopyMotion,
+        #[cfg(windows)]
+        CommandPath::TerminalCopySearch,
+        #[cfg(windows)]
+        CommandPath::TerminalLinkResolve,
+        #[cfg(windows)]
+        CommandPath::TerminalLinkActivate,
+        #[cfg(windows)]
+        CommandPath::TerminalClear,
+        #[cfg(windows)]
+        CommandPath::TerminalEditScrollback,
+        #[cfg(windows)]
+        CommandPath::PanelCreateTerminal,
+        #[cfg(windows)]
+        CommandPath::PanelGraphicsSet,
+        #[cfg(windows)]
+        CommandPath::PanelGraphicsClear,
+        #[cfg(windows)]
+        CommandPath::PanelGraphicsInfo,
+        #[cfg(windows)]
+        CommandPath::PanelGraphicsStream,
+        #[cfg(windows)]
+        CommandPath::AgentViewGet,
+        #[cfg(windows)]
+        CommandPath::AgentViewSet,
+        #[cfg(windows)]
+        CommandPath::AgentViewClear,
+        #[cfg(windows)]
+        CommandPath::PluginPaneOpen,
+        #[cfg(windows)]
+        CommandPath::PluginPaneFocus,
+        #[cfg(windows)]
+        CommandPath::PluginPaneClose,
+        #[cfg(windows)]
+        CommandPath::PopupClose,
         CommandPath::ClientList,
         CommandPath::ClientGet,
         CommandPath::ClientControlStatus,
@@ -510,6 +567,12 @@ fn fixed_outputs_are_far_below_the_bound() {
     // trailing `--help` and the `help` prefix.
     let roots = [
         #[cfg(windows)]
+        "command",
+        #[cfg(windows)]
+        "events",
+        #[cfg(windows)]
+        "popup",
+        #[cfg(windows)]
         "machine",
         #[cfg(windows)]
         "channel",
@@ -537,6 +600,15 @@ fn fixed_outputs_are_far_below_the_bound() {
         "worktree",
     ];
     let verbs = [
+        "invoke",
+        "subscribe",
+        "selection-read",
+        "copy-motion",
+        "copy-search",
+        "link-resolve",
+        "link-activate",
+        "edit-scrollback",
+        "create-terminal",
         "add",
         "show",
         "install",
@@ -653,6 +725,16 @@ fn fixed_outputs_are_far_below_the_bound() {
     collect(&["help", "plugin", "action", "invoke"]);
     collect(&["plugin", "log", "list", "--help"]);
     collect(&["help", "plugin", "log", "list"]);
+    for (root, family, verbs) in [
+        ("plugin", "pane", &["open", "focus", "close"][..]),
+        ("agent", "view", &["get", "set", "clear"][..]),
+        ("panel", "graphics", &["set", "clear", "info", "stream"][..]),
+    ] {
+        for verb in verbs {
+            collect(&[root, family, verb, "--help"]);
+            collect(&["help", root, family, verb]);
+        }
+    }
     for command in &topics {
         assert!(
             commands.contains(command),
@@ -680,14 +762,14 @@ fn fixed_outputs_are_far_below_the_bound() {
     );
     for (name, body) in &bodies {
         // Heuristic guardrail, not a protocol contract: the real emission
-        // bound is `output::LIMIT` (8 MiB). Keep fixed bodies at least 32x
-        // under it. The finite static grammar grows with command/flag scopes:
-        // at 79 command paths Fish emits 132382 bytes, while the Windows
-        // shells remain below 34 KiB. This reminder detects abnormal growth;
+        // bound is `output::LIMIT` (8 MiB). Keep fixed bodies at least 16x
+        // under it. The current finite command/flag grammar emits at most
+        // 284566 bytes (Fish); PowerShell and Elvish stay below 68 KiB.
+        // This reminder detects abnormal growth;
         // the separate exact-limit tests enforce the runtime contract.
         assert!(
-            body.len() < output::LIMIT / 32,
-            "{name}: fixed output {} bytes must stay at least 32x under the bound",
+            body.len() < output::LIMIT / 16,
+            "{name}: fixed output {} bytes must stay at least 16x under the bound",
             body.len()
         );
     }

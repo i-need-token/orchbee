@@ -48,6 +48,11 @@ Resize uses visible unzoomed source cells. Eligible dividers share the requested
 
 The UI resolves one adjustment before any mutation. Selected targets use their rendered cache; explicit paths must still address the identical split and ordered slots in the fetched Snapshot. A resize split must likewise remain canonical. The mutation is committed once, preserving context, Tab, focus and zoom. Further ticks, viewport changes, status reads and replay never add the delta again.
 
+Each changed commit advances the Client-local `splitRevision` exactly once, including an inactive
+or unvisited Tab. This revision changes independently of selection, attachment and successful
+drawing; no-op commits and layout reads do not advance it. A retained completion keeps its
+captured observation, while later live observations expose the advanced revision.
+
 | Condition                                                | Commit and acknowledgement                                                                                         |
 | -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
 | No eligible resize split or unchanged ratio              | `layout-adjusted` without a state write, terminal resize or requested draw                                         |

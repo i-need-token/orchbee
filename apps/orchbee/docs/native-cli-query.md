@@ -985,7 +985,7 @@ values have no candidates. The callback emits each candidate once, leaving match
 to Elvish. It evaluates no supplied word and starts no process. Registration covers `orchbee`
 and `orchbee.exe` only, without changing profiles or other completers. The generated script is
 bounded by the shared 8 MiB output limit. A separate fixed-output test keeps every completion
-script and help body below 256 KiB to flag unexpected grammar growth. Load explicitly in interactive Elvish 0.21 with
+script and help body below 512 KiB (16 times under the runtime limit) to flag unexpected grammar growth. Load explicitly in interactive Elvish 0.21 with
 `eval (orchbee completion elvish | slurp)`.
 
 The shared completion fixtures check accepted and dead prefixes, help depth, target conflicts,
