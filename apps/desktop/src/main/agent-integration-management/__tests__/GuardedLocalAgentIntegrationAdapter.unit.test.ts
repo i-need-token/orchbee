@@ -140,7 +140,7 @@ describe('GuardedLocalAgentIntegrationAdapter', () => {
 	it('reports an exact application-bundle symlink as update-required and migrates it', async () => {
 		const root = await mkdtemp(path.join(tmpdir(), 'orchbee-agent-integration-'));
 		try {
-			const resourceRoot = path.join(root, 'user-data', '0.4.16');
+			const resourceRoot = path.join(root, 'user-data', '0.4.17');
 			const legacySourcePath = path.join(
 				root,
 				'Orchbee.app',
@@ -178,7 +178,7 @@ describe('GuardedLocalAgentIntegrationAdapter', () => {
 	it('recognizes an exact older Capsule symlink but preserves a foreign lookalike', async () => {
 		const root = await mkdtemp(path.join(tmpdir(), 'orchbee-agent-integration-'));
 		try {
-			const resourceRoot = path.join(root, 'capsules', '0.4.16');
+			const resourceRoot = path.join(root, 'capsules', '0.4.17');
 			const sourceRelativePath = path.join('bundle', 'opencode', 'orchbee-agent-observation.mjs');
 			const sourcePath = path.join(resourceRoot, sourceRelativePath);
 			const targetPath = path.join(root, 'config', 'adapter.mjs');

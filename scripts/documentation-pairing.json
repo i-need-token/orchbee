@@ -98,8 +98,8 @@
 			"zhCnSha256": "ebb50bec49d14e4d8f0244e531c71fd5a6a348e25b19b9c9f2432db166964b15"
 		},
 		"apps/desktop/resources/agent-observation-adapters/README.md": {
-			"englishSha256": "079f0dc6f26959183da79f1477632c77840257866ecaa517ae5f027119e16a41",
-			"zhCnSha256": "7a38af99e6698d5b0a8bc3aabc6b5304dd95d0fdc882da1693fec2724894f36d"
+			"englishSha256": "77ffd5673f7d76d3a24fb42883cf6d413130d3b078543b6238d72832d71a8192",
+			"zhCnSha256": "f01c758ebe35681797e69e8cce6f3c7e4d61b137c12e790c2efada8b7965ec42"
 		},
 		"apps/gateway/README.md": {
 			"englishSha256": "74bffaf8ca9beab1b0c7040b5dce45b9ccbc5529c8b1c2965c83108de9e7d3a0",
@@ -298,8 +298,8 @@
 			"zhCnSha256": "a789e91383d85b1c2f6f9be6371a7b6bca91541bfb4fb26a9e7ae6a3a780f20d"
 		},
 		"apps/orchbee/docs/windows-agent-integrations.md": {
-			"englishSha256": "004555ff512b2b129c18a0b5b3d20872f6fb7573be0b1b528ed539e4d58fe1ce",
-			"zhCnSha256": "829d6ae81f11162f520d2acc454822bd388ddcc61bd538f677e4847415781f74"
+			"englishSha256": "c6b6b16174ad5c247677aa09fc1988fa30aa2a464eba30887574813bd1ff1da4",
+			"zhCnSha256": "7728ff32c9609bc49ec05670e5e625764966ba71a43a21e8e21c519ed05852c8"
 		},
 		"apps/orchbee/docs/windows-agent-start.md": {
 			"englishSha256": "fd91c38cdd75272f0fbaf269c04308e4487946b58ef6484e31f3be148cb9ee51",

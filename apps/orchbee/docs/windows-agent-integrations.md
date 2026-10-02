@@ -332,3 +332,12 @@ and matching receivers roll out together; rollback selects the previous cohort.
 No new dependency or other-platform implementation is added.
 Source: [pinned Hermes plugin implementation](https://github.com/NousResearch/hermes-agent/tree/2a05208012cf50bbe8ff7b7b54a3825fd1e4692a/hermes_cli)
 and [native Windows](https://hermes-agent.nousresearch.com/docs/user-guide/windows-native).
+
+## Current Capsule identity
+
+The packaged Capsule and both Desktop/native Windows receivers use `0.4.17`,
+contract version 3. The whole-payload digest includes packaged documentation,
+so formatting changes advance the immutable version as well as its digest.
+Provider events, grants and transport stay unchanged. Existing installed
+directories are retained; explicit enable/repair publishes the new version,
+and rollback selects the previous complete cohort.

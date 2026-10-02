@@ -300,3 +300,10 @@ Windows 管道证据覆盖这些边界，不证明经过认证的 Hermes 工作�
 不新增依赖或其他平台实现。
 来源：[固定 Hermes 插件实现](https://github.com/NousResearch/hermes-agent/tree/2a05208012cf50bbe8ff7b7b54a3825fd1e4692a/hermes_cli)
 和 [原生 Windows](https://hermes-agent.nousresearch.com/docs/user-guide/windows-native)。
+
+## 当前 Capsule 身份
+
+打包 Capsule 及 Desktop／原生 Windows 接收者均使用 `0.4.17`，契约版本为 3。
+完整载荷摘要包含打包文档，因此格式变化也同时推进不可变版本及摘要。Provider
+事件、grant 和传输保持一致。保留已有安装目录；显式 enable／repair 发布新版本，
+回滚选择之前的完整 cohort。

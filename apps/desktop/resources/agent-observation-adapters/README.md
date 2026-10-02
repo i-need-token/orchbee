@@ -295,3 +295,16 @@ Letta accepts exact SessionStart event_type and conversation_id. Default convers
 Devin accepts six exact hook_event_name values and valid session_id, emitting session-identified only. Prompt, tool and permission contents are discarded; Stop does not prove completion.
 
 Hermes supplies a stdlib-only Python plugin that registers three identity callbacks and invokes the shared Node transport without a shell. It excludes noninteractive platforms and callback content, and returns no context or permission decisions.
+
+## Packaged payload identity
+
+The current Capsule is `0.4.17` with contract version 3. Its payload digest
+includes every packaged file and directory except `capsule.json`, including
+both documentation files. A formatting-only payload change therefore requires
+a fresh Capsule version and a digest over its final bytes. Provider package
+declarations and Desktop/native Windows expected versions advance together;
+this patch preserves the observation events, grants and transport behavior.
+Already installed version directories remain immutable. Only an explicit
+enable/repair publishes the new version; verification never accepts drift or
+overwrites an older same-version directory. Rollback selects the previous
+cohort and its retained Capsule.

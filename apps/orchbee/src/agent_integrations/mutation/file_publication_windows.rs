@@ -252,7 +252,7 @@ mod tests {
             let original = br#"{"user":"original","hooks":{}}"#;
             let foreign = br#"{"user":"newer","hooks":{}}"#;
             fs::write(&target, original).unwrap();
-            let capsule = fixture.0.join("capsules/0.4.16");
+            let capsule = fixture.0.join("capsules/0.4.17");
             let cancel = Cancel(Cell::new(false));
             let context = ProviderContext {
                 home: &fixture.0,

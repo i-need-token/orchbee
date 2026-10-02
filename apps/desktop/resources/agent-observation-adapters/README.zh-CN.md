@@ -275,3 +275,12 @@ Letta 接受精确 SessionStart event_type 和 conversation_id。默认对话要
 Devin 接收六个精确 hook_event_name 值与有效 session_id，仅发出 session-identified。丢弃提示词、工具和权限内容；Stop 不证明完成。
 
 Hermes 提供仅依赖标准库的 Python 插件，注册三个身份回调，并无 Shell 调用共享 Node 传输。排除非交互平台及回调内容，不返回上下文或权限决定。
+
+## 打包载荷身份
+
+当前 Capsule 为 `0.4.17`，契约版本为 3。载荷摘要覆盖 `capsule.json` 之外的所有
+打包文件与目录，包括两份文档。因此，仅格式变化也需要新 Capsule 版本及基于最终
+字节的摘要。Provider 包声明及 Desktop／原生 Windows 的预期版本同时推进；本补丁
+保留观察事件、grant 及传输行为。已安装版本目录保持不可变。仅显式 enable／repair
+发布新版本；验证不接受漂移，也不覆盖旧的同版本目录。回滚选择之前的 cohort 及其
+保留的 Capsule。

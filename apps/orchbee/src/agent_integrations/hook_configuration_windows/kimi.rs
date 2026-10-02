@@ -121,7 +121,7 @@ mod tests {
     use super::*;
     #[test]
     fn both_representations_preserve_foreign_values_and_repair_partial_sets() {
-        let root = Path::new(r"C:\owned\0.4.16");
+        let root = Path::new(r"C:\owned\0.4.17");
         for original in [
             "# user's header\nlarge = 9223372036854775807 # keep integer\nhooks = [{ event = 'PreToolUse', command = 'echo user', matcher = 'Bash' }] # keep rule\n[custom]\nvalue = '''not a [[hooks]] header'''\n",
             "# user's header\nlarge = 9223372036854775807 # keep integer\n[[hooks]] # keep rule\nevent = 'PreToolUse'\ncommand = 'echo user'\nmatcher = 'Bash'\n[custom]\nvalue = '''not a [[hooks]] header'''\n",
@@ -171,7 +171,7 @@ mod tests {
     }
     #[test]
     fn edited_duplicate_mixed_root_and_malformed_rules_refuse() {
-        let root = Path::new(r"C:\owned\0.4.16");
+        let root = Path::new(r"C:\owned\0.4.17");
         let installed = String::from_utf8(patch(None, root, true).unwrap()).unwrap();
         for edited in [
             installed.replace("timeout = 10", "timeout = 11"),
@@ -187,7 +187,7 @@ mod tests {
             assert!(patch(Some(edited.as_bytes()), root, false).is_none());
         }
         let other =
-            String::from_utf8(patch(None, Path::new(r"C:\other\0.4.16"), true).unwrap()).unwrap();
+            String::from_utf8(patch(None, Path::new(r"C:\other\0.4.17"), true).unwrap()).unwrap();
         let mixed = format!(
             "[[hooks]]{}[[hooks]]{}",
             installed.split("[[hooks]]").nth(1).unwrap(),
