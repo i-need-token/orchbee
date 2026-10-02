@@ -884,7 +884,7 @@ fn render_panel_graphics(
         return;
     }
     if let Some(canvas) = native.panel_graphics(panel) {
-        pane_graphics::render(frame, area, canvas);
+        pane_graphics::render(frame, area, canvas, native.graphics_cell_pixels().as_ref());
     }
     if let Some(draw) = native.graphics_draw(panel) {
         draws.push(draw);

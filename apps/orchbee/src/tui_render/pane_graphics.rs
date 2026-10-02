@@ -1,6 +1,6 @@
 //! Cell raster images are retained content, clipped to one real Panel body.
 use crate::{terminal_session::PaneGraphicsCanvas, terminal_text::display_width};
-use orchbee_workbench_protocol::PaneGraphicsLayer;
+use orchbee_workbench_protocol::{PaneGraphicsCellPixels, PaneGraphicsLayer};
 use ratatui::{
     Frame,
     buffer::{Buffer, CellDiffOption},
@@ -8,7 +8,12 @@ use ratatui::{
     style::{Color, Modifier},
 };
 
-pub(super) fn render(frame: &mut Frame<'_>, area: Rect, canvas: &PaneGraphicsCanvas) {
+pub(super) fn render(
+    frame: &mut Frame<'_>,
+    area: Rect,
+    canvas: &PaneGraphicsCanvas,
+    cell_pixels: Option<&PaneGraphicsCellPixels>,
+) {
     let mut painted = vec![false; usize::from(area.width) * usize::from(area.height)];
     for layer in canvas.layers() {
         paint_layers(
@@ -16,28 +21,47 @@ pub(super) fn render(frame: &mut Frame<'_>, area: Rect, canvas: &PaneGraphicsCan
             area,
             layer.metadata(),
             layer.pixels(),
+            cell_pixels,
             &mut painted,
         );
     }
 }
 
-fn grid(area: Rect, layer: &PaneGraphicsLayer) -> (i64, i64) {
+fn grid(
+    area: Rect,
+    layer: &PaneGraphicsLayer,
+    cell_pixels: Option<&PaneGraphicsCellPixels>,
+) -> (i64, i64) {
     let w = i64::from(layer.width);
     let h = i64::from(layer.height);
     let columns = i64::from(layer.placement.grid_columns);
     let rows = i64::from(layer.placement.grid_rows);
+    let (cell_width, cell_height) = cell_pixels
+        .filter(|cell| cell.width > 0 && cell.height > 0)
+        .map_or((1, 2), |cell| {
+            (i64::from(cell.width), i64::from(cell.height))
+        });
+    let pixel_width = w * cell_height;
+    let pixel_height = h * cell_width;
     match (columns, rows) {
         (0, 0) => {
-            let columns = i64::from(area.width).min((i64::from(area.height) * 2 * w / h).max(1));
+            let columns = i64::from(area.width)
+                .min((i64::from(area.height) * pixel_width / pixel_height).max(1));
             (
                 columns,
-                ((h * columns + 2 * w - 1) / (2 * w))
+                ((pixel_height * columns + pixel_width - 1) / pixel_width)
                     .max(1)
                     .min(i64::from(area.height)),
             )
         }
-        (0, rows) => (((2 * w * rows + h - 1) / h).max(1), rows),
-        (columns, 0) => (columns, ((h * columns + 2 * w - 1) / (2 * w)).max(1)),
+        (0, rows) => (
+            ((pixel_width * rows + pixel_height - 1) / pixel_height).max(1),
+            rows,
+        ),
+        (columns, 0) => (
+            columns,
+            ((pixel_height * columns + pixel_width - 1) / pixel_width).max(1),
+        ),
         dimensions => dimensions,
     }
 }
@@ -49,6 +73,7 @@ fn paint(buffer: &mut Buffer, area: Rect, layer: &PaneGraphicsLayer, rgba: &[u8]
         area,
         layer,
         rgba,
+        None,
         &mut vec![false; usize::from(area.width) * usize::from(area.height)],
     );
 }
@@ -58,12 +83,13 @@ fn paint_layers(
     area: Rect,
     layer: &PaneGraphicsLayer,
     rgba: &[u8],
+    cell_pixels: Option<&PaneGraphicsCellPixels>,
     painted: &mut [bool],
 ) {
     if area.is_empty() {
         return;
     }
-    let (columns, rows) = grid(area, layer);
+    let (columns, rows) = grid(area, layer, cell_pixels);
     let left = i64::from(area.x) + i64::from(layer.placement.viewport_column);
     let top = i64::from(area.y) + i64::from(layer.placement.viewport_row);
     let x0 = left.max(i64::from(area.x));

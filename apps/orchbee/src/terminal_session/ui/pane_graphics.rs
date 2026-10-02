@@ -7,6 +7,11 @@ use crate::terminal_session::{
 };
 
 impl NativeSessionView<'_> {
+    pub(crate) fn graphics_cell_pixels(
+        &self,
+    ) -> Option<orchbee_workbench_protocol::PaneGraphicsCellPixels> {
+        self.graphics?.cell_pixels()
+    }
     pub(crate) fn panel_graphics(&self, panel: &NativePanel) -> Option<&PaneGraphicsCanvas> {
         self.graphics?
             .view(panel, self.selected_presentation(panel))

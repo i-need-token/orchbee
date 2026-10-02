@@ -32,7 +32,7 @@ fn negative_images_composite_in_z_order_without_stealing_a_terminal_half_block()
             ..Default::default()
         },
     );
-    paint_layers(&mut buffer, area, &metadata, RED_BLUE, &mut painted);
+    paint_layers(&mut buffer, area, &metadata, RED_BLUE, None, &mut painted);
     assert_eq!(buffer[(0, 0)].fg, Color::White);
     assert_eq!(buffer[(1, 0)].fg, Color::Rgb(255, 0, 0));
     paint_layers(
@@ -43,6 +43,7 @@ fn negative_images_composite_in_z_order_without_stealing_a_terminal_half_block()
             ..metadata
         },
         &[0, 255, 0, 255, 0, 255, 0, 255],
+        None,
         &mut painted,
     );
     assert_eq!(buffer[(0, 0)].fg, Color::White);
@@ -269,4 +270,103 @@ fn a_clear_recomposes_underlying_cells_in_the_next_real_draw() {
         .draw(|frame| frame.render_widget(Paragraph::new("base"), frame.area()))
         .unwrap();
     assert_eq!(terminal.backend().buffer()[(0, 0)].symbol(), "b");
+}
+
+#[test]
+fn measured_physical_aspect_controls_natural_fit_and_each_omitted_axis() {
+    let area = Rect::new(0, 0, 40, 20);
+    let square = PaneGraphicsLayer {
+        width: 2,
+        height: 2,
+        ..layer(0, PaneGraphicsPlacement::default())
+    };
+    let wide_cell = PaneGraphicsCellPixels {
+        width: 18,
+        height: 8,
+    };
+    let tall_cell = PaneGraphicsCellPixels {
+        width: 8,
+        height: 18,
+    };
+    assert_eq!(grid(area, &square, None), (40, 20));
+    assert_eq!(grid(area, &square, Some(&wide_cell)), (8, 18));
+    assert_eq!(grid(area, &square, Some(&tall_cell)), (40, 18));
+    assert_eq!(
+        grid(
+            area,
+            &square,
+            Some(&PaneGraphicsCellPixels {
+                width: 0,
+                height: 18
+            })
+        ),
+        (40, 20)
+    );
+    let columns = PaneGraphicsLayer {
+        placement: PaneGraphicsPlacement {
+            grid_columns: 10,
+            ..Default::default()
+        },
+        ..square.clone()
+    };
+    assert_eq!(grid(area, &columns, Some(&wide_cell)), (10, 23));
+    let rows = PaneGraphicsLayer {
+        placement: PaneGraphicsPlacement {
+            grid_rows: 18,
+            ..Default::default()
+        },
+        ..square.clone()
+    };
+    assert_eq!(grid(area, &rows, Some(&wide_cell)), (8, 18));
+    let explicit = PaneGraphicsLayer {
+        placement: PaneGraphicsPlacement {
+            grid_columns: u32::MAX,
+            grid_rows: u32::MAX,
+            ..Default::default()
+        },
+        ..square.clone()
+    };
+    assert_eq!(
+        grid(area, &explicit, Some(&wide_cell)),
+        (i64::from(u32::MAX), i64::from(u32::MAX))
+    );
+    let maximum = PaneGraphicsLayer {
+        width: 4096,
+        height: 1,
+        placement: PaneGraphicsPlacement {
+            grid_rows: u32::MAX,
+            ..Default::default()
+        },
+        ..square.clone()
+    };
+    assert_eq!(
+        grid(
+            area,
+            &maximum,
+            Some(&PaneGraphicsCellPixels {
+                width: 1,
+                height: u16::MAX
+            })
+        ),
+        (
+            i64::from(u32::MAX) * i64::from(u16::MAX) * 4096,
+            i64::from(u32::MAX)
+        )
+    );
+    let mut buffer = Buffer::empty(area);
+    let rgba = [
+        255, 0, 0, 255, 255, 0, 0, 255, 0, 0, 255, 255, 0, 0, 255, 255,
+    ];
+    paint_layers(
+        &mut buffer,
+        area,
+        &square,
+        &rgba,
+        Some(&wide_cell),
+        &mut vec![false; 800],
+    );
+    assert_eq!(buffer[(7, 17)].symbol(), "▀");
+    assert_eq!(buffer[(7, 17)].bg, Color::Rgb(0, 0, 255));
+    assert_eq!(buffer[(8, 17)].symbol(), " ");
+    assert_eq!(buffer[(0, 18)].symbol(), " ");
 }

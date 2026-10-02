@@ -214,6 +214,9 @@ impl Driver {
     pub(super) fn observe_host(&mut self, facts: crate::terminal_graphics::Facts) {
         self.host = facts;
     }
+    pub(super) fn cell_pixels(&self) -> Option<orchbee_workbench_protocol::PaneGraphicsCellPixels> {
+        self.host.cell_capabilities().cell_pixels
+    }
     #[cfg(test)]
     pub(in crate::terminal_session) fn install_for_test(&mut self, canvas: Canvas) {
         assert!(
