@@ -289,7 +289,7 @@ fn workspace_move_does_not_validate_another_contexts_layout() {
 }
 
 #[test]
-fn workspace_strict_layout_precedes_missing_target_and_boundary_noop() {
+fn workspace_unbound_primary_child_and_split_preserve_missing_target_and_boundary_noop() {
     for layout in 3..6 {
         for target in [0, 99] {
             let (mut authority, grant) = workspace_authority(3);
@@ -352,11 +352,20 @@ fn workspace_strict_layout_precedes_missing_target_and_boundary_noop() {
                 workspace_command(&authority, 10, target, WorkbenchTabMoveDirection::First);
             assert_eq!(
                 submit(&mut authority, &grant, request).outcome,
-                unavailable(WorkbenchCommandUnavailableReason::ServiceUnavailable)
+                if target == 0 {
+                    WorkbenchCommandOutcome::Unchanged {
+                        revision: before.revision,
+                    }
+                } else {
+                    WorkbenchCommandOutcome::Rejected {
+                        revision: before.revision,
+                        reason: WorkbenchRejectionReason::TabUnavailable,
+                    }
+                }
             );
             assert_eq!(authority.projection.snapshot(), &before);
-            assert!(authority.retired);
-            assert!(authority.ledger.is_empty());
+            assert!(!authority.retired);
+            assert_eq!(authority.ledger.len(), 1);
             assert_eq!(authority.last_identity, u128::MAX);
         }
     }

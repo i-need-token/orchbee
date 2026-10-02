@@ -306,7 +306,7 @@ fn move_entry_and_byte_capacity_refusal_is_unretained_and_preserves_prepared_ord
 }
 
 #[test]
-fn context_and_full_layout_validation_precede_missing_tab_or_boundary_noop() {
+fn unbound_presentations_preserve_context_refusal_missing_tab_and_boundary_noop() {
     for valid_context in [false, true] {
         for target in [0, 9] {
             let (mut authority, grant) = authority(2);
@@ -341,10 +341,19 @@ fn context_and_full_layout_validation_precede_missing_tab_or_boundary_noop() {
             if valid_context {
                 assert_eq!(
                     result.outcome,
-                    unavailable(WorkbenchCommandUnavailableReason::ServiceUnavailable)
+                    if target == 0 {
+                        WorkbenchCommandOutcome::Unchanged {
+                            revision: snapshot.revision,
+                        }
+                    } else {
+                        WorkbenchCommandOutcome::Rejected {
+                            revision: snapshot.revision,
+                            reason: WorkbenchRejectionReason::TabUnavailable,
+                        }
+                    }
                 );
-                assert!(authority.retired);
-                assert!(authority.ledger.is_empty());
+                assert!(!authority.retired);
+                assert_eq!(authority.ledger.len(), 1);
             } else {
                 assert!(matches!(
                     result.outcome,

@@ -85,11 +85,11 @@ matches; zero-line infinite waits therefore end only on cancellation or a runtim
 Existing output can satisfy a wait immediately: success never proves a new command or completion.
 
 Source mode emits `orchbee.terminal.wait-output` v3. Its required `selection` contains source and
-optional line limit; observed `timeoutMs` is null only for an explicit infinite wait. `requestedRows`
-is the physical source budget before capacity/retained clamps: screen height for visible/detection,
-or the explicit/default recent limit. `windowTruncated` reports capacity loss only. Completed
+optional line limit; observed `timeoutMs` is null when the total deadline is omitted or `--forever`
+is explicit. `requestedRows` is the physical source budget before capacity/retained clamps: screen
+height for visible/detection, or the explicit/default recent limit. `windowTruncated` reports capacity loss only. Completed
 observations count validated samples that finished a match pass, including visible-frame samples.
-Version 1/2 documents and their constraints remain unchanged; the catalog is v51 with 72 documents.
+Version 1/2 documents and their constraints remain unchanged; the offline `api schema` catalog publishes their closed schema.
 
 Pinned Herdr waits also search text lines, map recent to recent-unwrapped, and permit an absent
 total deadline. Its raw switch only forwards a stripping field that the read handler ignores;

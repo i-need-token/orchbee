@@ -439,6 +439,8 @@ fn windows_source_wait_matches_visible_frame_without_row_read_and_forever_has_no
         ];
         if forever {
             args.push("--forever");
+        } else {
+            args.push("--timeout=30000");
         }
         let doc = wait_document(fixture.run(&args), 3);
         handler.join().unwrap();
@@ -611,7 +613,7 @@ fn windows_zero_source_wait_does_not_match_empty_regex_and_reports_one_complete_
 }
 
 #[test]
-fn windows_legacy_wait_keeps_v1_v2_without_source_selection() {
+fn windows_default_wait_uses_recent_eighty_rows_and_no_total_deadline() {
     for regex in [false, true] {
         let fixture = Fixture::new();
         let listener = LocalListener::bind(fixture.rendezvous().client_socket_path()).unwrap();
@@ -652,12 +654,15 @@ fn windows_legacy_wait_keeps_v1_v2_without_source_selection() {
                 if regex { "--regex=hit" } else { "--match=hit" },
                 "--format=json",
             ]),
-            if regex { 2 } else { 1 },
+            3,
         );
         handler.join().unwrap();
-        assert!(doc["result"].get("selection").is_none());
-        assert_eq!(doc["result"]["observed"]["timeoutMs"], 30_000);
-        assert_eq!(doc["result"]["observed"]["requestedRows"], 1000);
+        assert_eq!(
+            doc["result"]["selection"],
+            serde_json::json!({"source":"recent","lines":null})
+        );
+        assert!(doc["result"]["observed"]["timeoutMs"].is_null());
+        assert_eq!(doc["result"]["observed"]["requestedRows"], 80);
     }
 }
 

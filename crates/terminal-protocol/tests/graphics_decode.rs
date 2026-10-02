@@ -1,8 +1,9 @@
 use orchbee_terminal_protocol::{
-    AttachmentId, CURRENT_PROTOCOL_VERSION, Envelope, GraphicsDecodeRequest, GraphicsDecodeResult,
-    MessageRole, PayloadEncoding, TerminalId, decode_graphics_decode_request,
-    decode_graphics_decode_result, decode_transport_envelope, encode_graphics_decode_request,
-    encode_graphics_decode_result, encode_transport_envelope, message_contract,
+    AttachmentId, CURRENT_PROTOCOL_VERSION, CorrelationId, Envelope, GraphicsDecodeRequest,
+    GraphicsDecodeResult, HostEpoch, MessageRole, PayloadEncoding, TerminalId,
+    decode_graphics_decode_request, decode_graphics_decode_result, decode_transport_envelope,
+    encode_graphics_decode_request, encode_graphics_decode_result, encode_transport_envelope,
+    message_contract,
 };
 
 #[test]
@@ -33,18 +34,34 @@ fn graphics_decode_contract_fences_attachment_terminal_dimensions_and_exact_pixe
         message_contract(80).unwrap().request.unwrap().success_kind,
         81
     );
-    let wire = encode_transport_envelope(&Envelope {
+    let correlation = CorrelationId::from_bytes([3; 16]).unwrap();
+    let epoch = HostEpoch::from_bytes([4; 16]).unwrap();
+    let envelope = Envelope {
         kind: 81,
         payload: &body,
         payload_encoding: PayloadEncoding::GraphicsImage,
         role: MessageRole::Response,
         protocol: CURRENT_PROTOCOL_VERSION,
         optional_message: false,
-        correlation_id: None,
-        host_epoch: None,
-    });
-    // Physical response envelopes require correlation and Host epoch.
-    assert!(wire.is_err());
+        correlation_id: Some(correlation),
+        host_epoch: Some(epoch),
+    };
+    let wire = encode_transport_envelope(&envelope).unwrap();
+    let decoded = decode_transport_envelope(&wire).unwrap();
+    assert_eq!(decoded.kind, 81);
+    assert_eq!(decoded.correlation_id, Some(correlation));
+    assert_eq!(decoded.host_epoch, Some(epoch));
+    assert_eq!(
+        decode_graphics_decode_result(decoded.payload).unwrap(),
+        result
+    );
+    assert!(
+        encode_transport_envelope(&Envelope {
+            role: MessageRole::Event,
+            ..envelope
+        })
+        .is_err()
+    );
     for offset in [6, 32, 36] {
         let mut broken = encoded.clone();
         broken[offset] ^= 1;
@@ -59,5 +76,4 @@ fn graphics_decode_contract_fences_attachment_terminal_dimensions_and_exact_pixe
     overflowing.width = u32::MAX;
     overflowing.height = u32::MAX;
     assert!(encode_graphics_decode_request(&overflowing).is_err());
-    let _ = decode_transport_envelope;
 }

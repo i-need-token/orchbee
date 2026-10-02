@@ -247,8 +247,9 @@ result rules below. Context admission accepts the standalone context or an exist
 context; an unknown context is `TerminalContextUnavailable`. A Tab belonging to another context
 is `TabUnavailable`. Move does not require a primary Directory, filesystem probe or live Worker.
 
-Both context kinds accept canonical split trees, grouped/pinned Tabs and all bound primary/child
-Presentations. Missing bindings remain a separately tracked lifecycle restriction. Canonical
+Both context kinds accept canonical split trees, grouped/pinned Tabs and bound or unbound primary/child
+Presentations. Unbound Presentations contribute no physical members; an unbound primary never
+substitutes a child binding. Canonical
 metadata is not a composition failure. Tab Move changes order only: it neither changes group/pin
 metadata nor expands one Tab into a whole group. Exact requested placement that would break the
 pinned prefix or split a contiguous group returns retained `tab-move-order-conflict`, with unchanged

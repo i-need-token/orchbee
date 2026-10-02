@@ -189,34 +189,51 @@ impl Http {
         let ready = Arc::new(AtomicBool::new(false));
         let accepted = Arc::clone(&ready);
         let handle = thread::spawn(move || {
-            for body in responses {
+            for (index, body) in responses.into_iter().enumerate() {
                 let until = Instant::now() + Duration::from_secs(10);
+                let expected = if index % 2 == 0 {
+                    "GET /index.toml HTTP/1.1"
+                } else {
+                    "GET /codex.toml HTTP/1.1"
+                };
                 let mut stream = loop {
                     if stopping.load(Order::Acquire) || Instant::now() >= until {
                         return;
                     }
-                    match listener.accept() {
-                        Ok((stream, _)) => break stream,
+                    let mut stream = match listener.accept() {
+                        Ok((stream, _)) => stream,
                         Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
-                            thread::sleep(Duration::from_millis(5))
+                            thread::sleep(Duration::from_millis(5));
+                            continue;
                         }
                         Err(e) => panic!("{e}"),
+                    };
+                    let budget = until
+                        .saturating_duration_since(Instant::now())
+                        .min(Duration::from_secs(2));
+                    if budget.is_zero() {
+                        return;
                     }
+                    stream.set_read_timeout(Some(budget)).unwrap();
+                    stream.set_write_timeout(Some(budget)).unwrap();
+                    let mut request = Vec::new();
+                    while !request.ends_with(b"\r\n\r\n") && request.len() < 4096 {
+                        let mut b = [0];
+                        if stream.read_exact(&mut b).is_err() {
+                            break;
+                        }
+                        request.push(b[0]);
+                    }
+                    // A closed probe or a retry for another path cannot consume this response.
+                    if !request.ends_with(b"\r\n\r\n") {
+                        continue;
+                    }
+                    if String::from_utf8_lossy(&request).lines().next() != Some(expected) {
+                        let _ = stream.write_all(b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
+                        continue;
+                    }
+                    break stream;
                 };
-                stream
-                    .set_read_timeout(Some(Duration::from_secs(2)))
-                    .unwrap();
-                stream
-                    .set_write_timeout(Some(Duration::from_secs(2)))
-                    .unwrap();
-                let mut request = Vec::new();
-                while !request.ends_with(b"\r\n\r\n") && request.len() < 4096 {
-                    let mut b = [0];
-                    if stream.read_exact(&mut b).is_err() {
-                        break;
-                    }
-                    request.push(b[0]);
-                }
                 accepted.store(true, Order::Release);
                 if body.is_empty() {
                     while !stopping.load(Order::Acquire) && Instant::now() < until {
@@ -247,6 +264,30 @@ impl Drop for Http {
         self.handle.take().unwrap().join().unwrap();
     }
 }
+#[test]
+fn http_update_peer_preserves_catalog_after_an_incomplete_connection() {
+    let server = Http::start(vec![
+        INDEX.as_bytes().to_vec(),
+        rules("codex", "2099.1").into_bytes(),
+    ]);
+    let address = server
+        .url
+        .0
+        .strip_prefix("http://")
+        .unwrap()
+        .split('/')
+        .next()
+        .unwrap();
+    drop(std::net::TcpStream::connect(address).unwrap());
+    let text = fetch::text(
+        &server.url,
+        &AtomicBool::new(false),
+        Instant::now() + Duration::from_secs(5),
+    )
+    .unwrap();
+    assert_eq!(text, INDEX);
+}
+
 #[test]
 fn real_inbox_curl_commits_validated_rules_and_rejects_oversized_and_invalid_utf8() {
     let root = Root::new();

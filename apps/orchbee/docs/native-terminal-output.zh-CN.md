@@ -81,10 +81,10 @@ detection 在与读取相同的空白行移除及尾部选择后匹配物理行�
 已有输出可以立即满足等待；成功从不证明新命令或命令完成。
 
 来源模式输出 `orchbee.terminal.wait-output` v3。必需的 `selection` 包含来源及可选行数限制；
-观察字段 `timeoutMs` 仅在显式无限等待时为 null。`requestedRows` 是容量/保留范围钳制前
-的物理来源预算：visible/detection 为屏幕高度，recent 为显式/默认行数。
+观察字段 `timeoutMs` 在省略总期限或显式指定 `--forever` 时为 null。
+`requestedRows` 是容量/保留范围钳制前的物理来源预算：visible/detection 为屏幕高度，recent 为显式/默认行数。
 `windowTruncated` 只报告容量损失。已完成观察次数统计完成匹配检查的已验证样本，
-包括可见帧样本。版本 1/2 文档及约束保持不变；目录为 v51、72 个文档。
+包括可见帧样本。版本 1/2 文档及约束保持不变；离线 `api schema` 目录发布这些版本的封闭 schema。
 
 固定版本 Herdr 的等待也搜索文本行，将 recent 映射为 recent-unwrapped，并允许无总期限。
 其 raw 开关只传递被读取处理器忽略的剥离字段；没有需要复现的原始 PTY 字节匹配器。

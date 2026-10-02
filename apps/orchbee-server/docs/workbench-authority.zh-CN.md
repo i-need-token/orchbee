@@ -197,7 +197,7 @@ Windows CLI 与 TUI 消费该共享顺序，筛选列表保持对应子序列。
 上下文；未知上下文返回 `TerminalContextUnavailable`，属于其他上下文的 Tab 返回
 `TabUnavailable`。Move 不要求主 Directory、文件系统探测或在线 Worker。
 
-两类上下文均接受规范拆分树、分组／固定 Tab 以及全部已绑定主／子 Presentation。缺失绑定仍为单独跟踪的生命周期限制。规范元数据不是组合失败。Tab Move 仅改变顺序，不改变分组／固定元数据，也不将单 Tab 扩展为整组。精确请求位置若破坏固定前缀或打散连续分组，则在分配修订之前返回保留的 `tab-move-order-conflict`，状态不变且权威仍可用。合法位置及精确 no-op 沿用原结果和重放规则，不截断位置或隐式重新分组。
+两类上下文均接受规范拆分树、分组／固定 Tab 以及已绑定或未绑定的主／子 Presentation。未绑定的 Presentation 不贡献物理成员；未绑定的主 Presentation 绝不替代为子项绑定。规范元数据不是组合失败。Tab Move 仅改变顺序，不改变分组／固定元数据，也不将单 Tab 扩展为整组。精确请求位置若破坏固定前缀或打散连续分组，则在分配修订之前返回保留的 `tab-move-order-conflict`，状态不变且权威仍可用。合法位置及精确 no-op 沿用原结果和重放规则，不截断位置或隐式重新分组。
 
 只有 standalone Move 准入向 Site 提供 `WorkbenchTerminalMembership`，供其执行既有引用派生组合
 校验。Workspace 准入不读取或修改 standalone 槽位及其保留授权。在同一 Site 门锁下，借用式

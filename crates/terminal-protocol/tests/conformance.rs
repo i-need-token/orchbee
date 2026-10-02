@@ -1,11 +1,12 @@
 use std::error::Error;
 
 use orchbee_terminal_protocol::{
-    CURRENT_PROTOCOL_VERSION, CorrelationId, Envelope, HostEpoch, MAXIMUM_CONTROL_JSON_BYTES,
-    MAXIMUM_RAW_PAYLOAD_BYTES, MAXIMUM_ROW_WINDOW_BYTES, MAXIMUM_TERMINAL_FRAME_BYTES,
-    MAXIMUM_TRANSPORT_RECORD_BYTES, MESSAGE_CONTRACTS, MessageRole, PayloadEncoding, ProtocolError,
-    ProtocolErrorCode, TRANSPORT_ENVELOPE_HEADER_BYTES, decode_transport_envelope,
-    encode_transport_envelope, message_contract,
+    CURRENT_PROTOCOL_VERSION, CorrelationId, Envelope, GRAPHICS_DECODE_RESULT_HEADER_BYTES,
+    HostEpoch, MAXIMUM_CONTROL_JSON_BYTES, MAXIMUM_GRAPHICS_RGBA_BYTES, MAXIMUM_RAW_PAYLOAD_BYTES,
+    MAXIMUM_ROW_WINDOW_BYTES, MAXIMUM_TERMINAL_FRAME_BYTES, MAXIMUM_TRANSPORT_RECORD_BYTES,
+    MESSAGE_CONTRACTS, MessageRole, PayloadEncoding, ProtocolError, ProtocolErrorCode,
+    TRANSPORT_ENVELOPE_HEADER_BYTES, decode_transport_envelope, encode_transport_envelope,
+    message_contract,
 };
 use serde::Deserialize;
 
@@ -45,6 +46,7 @@ struct FixtureRequestContract {
 struct FixtureProtocolLimits {
     control_json_bytes: usize,
     frame_bytes: usize,
+    graphics_image_bytes: usize,
     raw_payload_bytes: usize,
     row_window_bytes: usize,
     transport_record_bytes: usize,
@@ -104,6 +106,10 @@ fn envelope_limits_match_the_canonical_fixture() -> Result<(), Box<dyn Error>> {
     assert_eq!(MAXIMUM_CONTROL_JSON_BYTES, limits.control_json_bytes);
     assert_eq!(MAXIMUM_RAW_PAYLOAD_BYTES, limits.raw_payload_bytes);
     assert_eq!(MAXIMUM_TERMINAL_FRAME_BYTES, limits.frame_bytes);
+    assert_eq!(
+        MAXIMUM_GRAPHICS_RGBA_BYTES + GRAPHICS_DECODE_RESULT_HEADER_BYTES,
+        limits.graphics_image_bytes
+    );
     assert_eq!(MAXIMUM_ROW_WINDOW_BYTES, limits.row_window_bytes);
     assert_eq!(
         MAXIMUM_TRANSPORT_RECORD_BYTES,
@@ -386,6 +392,7 @@ fn fixture_payload_encoding(value: &str) -> Result<PayloadEncoding, Box<dyn Erro
         "raw-bytes" => Ok(PayloadEncoding::RawBytes),
         "terminal-frame" => Ok(PayloadEncoding::TerminalFrame),
         "row-window" => Ok(PayloadEncoding::RowWindow),
+        "graphics-image" => Ok(PayloadEncoding::GraphicsImage),
         _ => Err(format!("unknown fixture payload encoding {value}").into()),
     }
 }
