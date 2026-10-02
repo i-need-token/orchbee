@@ -104,10 +104,18 @@ fn fresh_frame(
     stop: &AtomicBool,
 ) -> Option<TerminalTextFrame> {
     let initial = frame(viewer, template, stop)?;
+    refresh_after_sequence(viewer, template, stop, initial.route.sequence)
+}
+fn refresh_after_sequence(
+    viewer: &mut ViewerAttachment<'_>,
+    template: WorkerRequest,
+    stop: &AtomicBool,
+    sequence: std::num::NonZeroU64,
+) -> Option<TerminalTextFrame> {
     // Initial projection can predate process-before. Reset only our attachment to force a later capture.
     let feedback = Action::NeedSnapshot {
         attachment_id: viewer.attachment_id.clone(),
-        sequence: initial.route.sequence,
+        sequence,
         reason: orchbee_client_server_protocol::ViewerSnapshotReason::StoreReset,
     };
     if !viewer.projection.accepts_feedback(&feedback) {
@@ -118,7 +126,7 @@ fn fresh_frame(
         template,
         stop,
         WorkerAction::NeedSnapshot {
-            sequence: initial.route.sequence,
+            sequence,
             reason: ViewerSnapshotReason::StoreReset,
         },
     )?
@@ -301,6 +309,23 @@ fn capture(
     stop: &AtomicBool,
 ) -> Option<CapturedScreen> {
     let frame = fresh_frame(viewer, template, stop)?;
+    capture_frame(viewer, template, stop, frame)
+}
+fn capture_after_sequence(
+    viewer: &mut ViewerAttachment<'_>,
+    template: WorkerRequest,
+    stop: &AtomicBool,
+    sequence: std::num::NonZeroU64,
+) -> Option<CapturedScreen> {
+    let frame = refresh_after_sequence(viewer, template, stop, sequence)?;
+    capture_frame(viewer, template, stop, frame)
+}
+fn capture_frame(
+    viewer: &mut ViewerAttachment<'_>,
+    template: WorkerRequest,
+    stop: &AtomicBool,
+    frame: TerminalTextFrame,
+) -> Option<CapturedScreen> {
     let action = Action::ReadRows {
         attachment_id: viewer.attachment_id.clone(),
         detail: orchbee_client_server_protocol::ViewerRowDetail::Text,
@@ -357,10 +382,13 @@ fn screen(
     stop: &AtomicBool,
     detector: &ScreenDetector,
     provider: orchbee_agent_observation_protocol::AgentReportProvider,
+    refresh_after: Option<std::num::NonZeroU64>,
 ) -> Option<crate::agent_screen::Detection> {
-    detector
-        .detect(Some(provider), capture(viewer, template, stop)?.input())
-        .ok()
+    let captured = match refresh_after {
+        Some(sequence) => capture_after_sequence(viewer, template, stop, sequence),
+        None => capture(viewer, template, stop),
+    }?;
+    detector.detect(Some(provider), captured.input()).ok()
 }
 /// A query predicts against the selected report provider; screen text never infers provider identity.
 pub(super) fn explain(
@@ -445,11 +473,12 @@ pub(super) fn observe(
         } if target == viewer.target.identity => Some((revision, settled)),
         _ => None,
     });
-    let observed = fresh_frame(viewer, template, stop);
-    let version = observed
+    let projection = fresh_frame(viewer, template, stop);
+    let version = projection
         .as_ref()
         .map(|frame| (frame.route.generation.get(), frame.route.revision));
-    let reported = observed
+    let refresh_after = projection.as_ref().map(|frame| frame.route.sequence);
+    let reported = projection
         .and_then(|frame| frame.current_directory)
         .and_then(|path| orchbee_local_site_runtime::windows_reported_directory(&path))
         .and_then(|path| orchbee_workbench_protocol::WorkbenchDirectoryPath::parse(&path).ok());
@@ -467,7 +496,14 @@ pub(super) fn observe(
     };
     let selected = identify_host_agent(&before);
     let (sample, detection) = if let Some(selected) = selected {
-        let detection = screen(viewer, template, stop, detector, selected.provider);
+        let detection = screen(
+            viewer,
+            template,
+            stop,
+            detector,
+            selected.provider,
+            refresh_after,
+        );
         match process(viewer, template, stop) {
             Some(after) => {
                 let detection = detection.filter(|_| identify_host_agent(&after) == Some(selected));

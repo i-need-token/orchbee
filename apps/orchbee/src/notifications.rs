@@ -49,6 +49,9 @@ impl State {
     pub(crate) fn card_delivery(&self) -> bool {
         self.policy.delivery == Delivery::Tui
     }
+    pub(crate) fn policy(&self) -> &WindowsNotificationSettings {
+        &self.policy
+    }
     pub(crate) fn take_effect(&mut self) -> Option<Effect> {
         self.pending.take()
     }
@@ -63,15 +66,28 @@ impl State {
     pub(crate) fn empty(&self) -> bool {
         self.visible.is_none() && self.pending.is_none()
     }
-    pub(crate) fn install(&mut self, mut message: Notification, now: Instant) -> bool {
+    pub(crate) fn install(&mut self, message: Notification, now: Instant) -> bool {
+        self.install_with_delivery(message, self.policy.delivery, now)
+    }
+    pub(crate) fn install_automatic(
+        &mut self,
+        message: Notification,
+        delivery: Delivery,
+        now: Instant,
+    ) -> bool {
+        self.install_with_delivery(message, delivery, now)
+    }
+    fn install_with_delivery(
+        &mut self,
+        mut message: Notification,
+        delivery: Delivery,
+        now: Instant,
+    ) -> bool {
         if !self.empty() {
             return false;
         }
-        if !self.card_delivery() {
-            self.pending = Some(Effect {
-                delivery: self.policy.delivery,
-                message,
-            });
+        if delivery != Delivery::Tui {
+            self.pending = Some(Effect { delivery, message });
             return true;
         }
         message.position = message.position.or(Some(match self.policy.position() {

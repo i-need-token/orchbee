@@ -96,10 +96,36 @@ impl AgentAttention {
             .state
             .paint(|binding| presentations.contains(binding.presentation_id.as_str()))
         {
-            self.redraw |= self.physical.state.acknowledge(&paint, None, |binding| {
+            self.redraw |= self.physical.acknowledge(&paint, None, |binding| {
                 presentations.contains(binding.presentation_id.as_str())
             });
         }
+    }
+
+    pub(super) fn configure_notifications(
+        &mut self,
+        revision: u64,
+        settings: &orchbee_local_site_runtime::WindowsNotificationSettings,
+    ) -> bool {
+        self.physical.configure_notifications(revision, settings)
+    }
+
+    pub(super) fn notification_requires_card(&self) -> bool {
+        self.physical.notification_requires_card()
+    }
+
+    pub(super) fn take_notification(
+        &mut self,
+        sink_available: bool,
+    ) -> Option<(
+        orchbee_local_site_runtime::WindowsNotificationDelivery,
+        crate::terminal_session::agent_notifications::AgentNotificationCommand,
+    )> {
+        self.physical.take_notification(sink_available)
+    }
+
+    pub(super) fn after_draw(&mut self) -> bool {
+        self.physical.after_draw()
     }
     pub(super) fn read_physical(
         &self,
@@ -110,7 +136,7 @@ impl AgentAttention {
     }
     #[cfg(test)]
     pub(in crate::terminal_session) fn publish_physical_for_test(&mut self, round: &PhysicalRound) {
-        self.physical.state.publish(round).unwrap();
+        self.physical.publish(round).unwrap();
     }
     pub(super) fn read(
         &self,
@@ -294,7 +320,7 @@ impl AgentAttention {
             });
         }
         if let Some(paint) = &draw.physical {
-            self.redraw |= self.physical.state.acknowledge(paint, focused, |binding| {
+            self.redraw |= self.physical.acknowledge(paint, focused, |binding| {
                 visible.iter().any(|pane| pane.matches(binding))
             });
         }

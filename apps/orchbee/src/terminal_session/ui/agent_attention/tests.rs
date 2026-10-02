@@ -122,6 +122,174 @@ fn physical_seen(
 }
 
 #[test]
+fn hidden_physical_transition_emits_after_draw_but_visible_transition_is_seen() {
+    use orchbee_local_site_runtime::{
+        WindowsNotificationDelivery as Delivery, WindowsNotificationSettings,
+    };
+    use orchbee_workbench_protocol::{NotificationSound, PanelAgentState, WorkbenchRevision};
+
+    let settings = WindowsNotificationSettings::from_profile(
+        "[ui.toast]\nagent_delivery='orchbee'\ndelay_seconds=0",
+    )
+    .unwrap();
+    let shell = ClientView::new(120);
+
+    let (mut background, _, mut state) = physical_fixture();
+    background.configure_agent_notifications(1, &settings);
+    background.observe_focus(false);
+    state.binding.presentation_id = orchbee_agent_observation_protocol::AgentPresentationId::parse(
+        background
+            .view()
+            .tab(1)
+            .unwrap()
+            .panel(0)
+            .unwrap()
+            .presentation_id()
+            .as_str(),
+    )
+    .unwrap();
+    state.sequence = WorkbenchRevision::new(2);
+    state.state = PanelAgentState::Working;
+    publish_physical(&mut background, &state);
+    state.sequence = WorkbenchRevision::new(3);
+    state.state = PanelAgentState::Idle;
+    publish_physical(&mut background, &state);
+    assert!(
+        background
+            .take_agent_notification(Locale::EnUs, true)
+            .is_none(),
+        "even zero delay waits for a successful post-transition draw"
+    );
+    background.after_close_draw(draw(&background, 120, 40, &shell));
+    let (delivery, message) = background
+        .take_agent_notification(Locale::EnUs, true)
+        .unwrap();
+    assert_eq!(delivery, Delivery::Tui);
+    assert_eq!(message.title, "pi finished");
+    assert_eq!(message.sound, NotificationSound::None);
+    assert!(
+        message
+            .body
+            .as_deref()
+            .is_some_and(|body| body.contains("Tab"))
+    );
+
+    let (mut visible, _, mut state) = physical_fixture();
+    visible.configure_agent_notifications(1, &settings);
+    visible.observe_focus(true);
+    state.sequence = WorkbenchRevision::new(2);
+    state.state = PanelAgentState::Working;
+    publish_physical(&mut visible, &state);
+    state.sequence = WorkbenchRevision::new(3);
+    state.state = PanelAgentState::Idle;
+    publish_physical(&mut visible, &state);
+    visible.after_close_draw(draw(&visible, 120, 40, &shell));
+    assert!(physical_seen(&visible, &state));
+    assert!(
+        visible
+            .take_agent_notification(Locale::EnUs, true)
+            .is_none()
+    );
+}
+
+#[test]
+fn unfocused_exact_visible_paint_suppresses_only_that_notification_version() {
+    use orchbee_local_site_runtime::WindowsNotificationSettings;
+    use orchbee_workbench_protocol::{NotificationSound, PanelAgentState, WorkbenchRevision};
+
+    let settings = WindowsNotificationSettings::from_profile(
+        "[ui.toast]\nagent_delivery='orchbee'\ndelay_seconds=0\n[ui.sound]\nenabled=true",
+    )
+    .unwrap();
+    let shell = ClientView::new(120);
+    let (mut ui, _, mut state) = physical_fixture();
+    ui.configure_agent_notifications(1, &settings);
+    ui.observe_focus(false);
+
+    state.sequence = WorkbenchRevision::new(2);
+    state.state = PanelAgentState::Working;
+    publish_physical(&mut ui, &state);
+    state.sequence = WorkbenchRevision::new(3);
+    state.state = PanelAgentState::Idle;
+    publish_physical(&mut ui, &state);
+    ui.after_close_draw(draw(&ui, 120, 40, &shell));
+    assert!(
+        !physical_seen(&ui, &state),
+        "an unfocused paint must preserve the attention badge"
+    );
+    assert!(
+        ui.take_agent_notification(Locale::EnUs, true).is_none(),
+        "the exact visible version must suppress both popup and sound"
+    );
+    publish_physical(&mut ui, &state);
+    assert!(
+        ui.take_agent_notification(Locale::EnUs, true).is_none(),
+        "repeating the same unseen sequence must not undo paint suppression"
+    );
+
+    state.sequence = WorkbenchRevision::new(4);
+    state.state = PanelAgentState::Working;
+    publish_physical(&mut ui, &state);
+    state.sequence = WorkbenchRevision::new(5);
+    state.state = PanelAgentState::Idle;
+    publish_physical(&mut ui, &state);
+    ui.after_close_draw(draw(&ui, 8, 2, &shell));
+    assert!(!physical_seen(&ui, &state));
+    let (_, message) = ui.take_agent_notification(Locale::EnUs, true).unwrap();
+    assert_eq!(message.sound, NotificationSound::Done);
+}
+
+#[test]
+fn sound_only_request_uses_localized_context_and_per_agent_mute_is_hard() {
+    use orchbee_local_site_runtime::{
+        WindowsNotificationDelivery as Delivery, WindowsNotificationSettings,
+    };
+    use orchbee_workbench_protocol::{NotificationSound, PanelAgentState, WorkbenchRevision};
+
+    for (override_line, expected) in [("", true), ("[ui.sound.agents]\npi='off'", false)] {
+        let settings = WindowsNotificationSettings::from_profile(&format!(
+            "[ui.toast]\nagent_delivery='off'\ndelay_seconds=0\n[ui.sound]\nenabled=true\n{override_line}"
+        ))
+        .unwrap();
+        let (mut ui, _, mut state) = physical_fixture();
+        ui.configure_agent_notifications(1, &settings);
+        ui.observe_focus(false);
+        state.binding.presentation_id =
+            orchbee_agent_observation_protocol::AgentPresentationId::parse(
+                ui.view()
+                    .tab(1)
+                    .unwrap()
+                    .panel(0)
+                    .unwrap()
+                    .presentation_id()
+                    .as_str(),
+            )
+            .unwrap();
+        state.sequence = WorkbenchRevision::new(2);
+        state.state = PanelAgentState::Idle;
+        publish_physical(&mut ui, &state);
+        state.sequence = WorkbenchRevision::new(3);
+        state.state = PanelAgentState::Blocked;
+        publish_physical(&mut ui, &state);
+        let shell = ClientView::new(120);
+        ui.after_close_draw(draw(&ui, 120, 40, &shell));
+        let notification = ui.take_agent_notification(Locale::ZhCn, true);
+        assert_eq!(notification.is_some(), expected);
+        if let Some((delivery, message)) = notification {
+            assert_eq!(delivery, Delivery::Off);
+            assert_eq!(message.title, "pi 需要处理");
+            assert_eq!(message.sound, NotificationSound::Request);
+            assert!(
+                message
+                    .body
+                    .as_deref()
+                    .is_some_and(|body| body.contains("标签页"))
+            );
+        }
+    }
+}
+
+#[test]
 fn machine_view_reads_exact_physical_attention_without_consuming_it() {
     let (mut ui, _, mut state) = physical_fixture();
     let bindings = [state.binding.clone()];

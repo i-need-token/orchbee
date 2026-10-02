@@ -96,6 +96,68 @@ impl NativeSessionView<'_> {
 }
 
 impl NativeUi {
+    pub(in crate::terminal_session) fn configure_agent_notifications(
+        &mut self,
+        revision: u64,
+        settings: &orchbee_local_site_runtime::WindowsNotificationSettings,
+    ) -> bool {
+        self.attention.configure_notifications(revision, settings)
+    }
+
+    pub(in crate::terminal_session) fn agent_notification_requires_card(&self) -> bool {
+        self.attention.notification_requires_card()
+    }
+
+    pub(in crate::terminal_session) fn take_agent_notification(
+        &mut self,
+        locale: crate::localization::Locale,
+        sink_available: bool,
+    ) -> Option<(
+        orchbee_local_site_runtime::WindowsNotificationDelivery,
+        orchbee_workbench_protocol::Notification,
+    )> {
+        use crate::terminal_session::agent_notifications::AgentNotificationKind;
+        use orchbee_workbench_protocol::NotificationSound;
+
+        let (delivery, command) = self.attention.take_notification(sink_available)?;
+        debug_assert_eq!(
+            command.popup,
+            delivery != orchbee_local_site_runtime::WindowsNotificationDelivery::Off
+        );
+        debug_assert!(command.sequence > 0);
+        let placement = self
+            .agent_index
+            .placement_by_presentation(&command.identity.presentation_id);
+        let title = locale.agent_notification_title(
+            &command.agent,
+            matches!(command.kind, AgentNotificationKind::Request),
+        );
+        let body = placement.map(|placement| {
+            locale.agent_notification_context(
+                placement.workspace_label.as_deref(),
+                placement.project_label.as_deref(),
+                &placement.tab_label,
+                &placement.panel_label,
+            )
+        });
+        let sound = if command.sound {
+            match command.kind {
+                AgentNotificationKind::Done => NotificationSound::Done,
+                AgentNotificationKind::Request => NotificationSound::Request,
+            }
+        } else {
+            NotificationSound::None
+        };
+        let message = orchbee_workbench_protocol::Notification::normalize(
+            &title,
+            body.as_deref(),
+            None,
+            sound,
+        )
+        .ok()?;
+        Some((delivery, message))
+    }
+
     pub(in crate::terminal_session) fn read_terminal_agent_attention(
         &self,
         bindings: &[orchbee_agent_observation_protocol::AgentLaunchBinding],

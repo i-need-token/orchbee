@@ -15,7 +15,12 @@ fn window_title_control_tick_reaches_owner_once_without_consuming_input() {
         }
     }
     impl super::super::TerminalSurface for Surface {
-        fn client_control_tick(&mut self, view: &mut ClientView, _: ratatui::layout::Rect) -> bool {
+        fn client_control_tick(
+            &mut self,
+            view: &mut ClientView,
+            _: ratatui::layout::Rect,
+            _: Locale,
+        ) -> bool {
             if let Some(previous) = self.previous.take() {
                 view.configuration_notice(previous);
             }
@@ -110,7 +115,12 @@ fn notification_effect_reaches_owner_once_and_failure_keeps_input_and_exit_worki
         }
     }
     impl super::super::TerminalSurface for Surface {
-        fn client_control_tick(&mut self, view: &mut ClientView, _: ratatui::layout::Rect) -> bool {
+        fn client_control_tick(
+            &mut self,
+            view: &mut ClientView,
+            _: ratatui::layout::Rect,
+            _: Locale,
+        ) -> bool {
             self.notice |=
                 view.notice() == Some(crate::client_view::Notice::NotificationUnavailable);
             if std::mem::take(&mut self.pending) {

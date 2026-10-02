@@ -116,3 +116,13 @@ Windows `agent prompt --wait --client <id>` 也在规范活动门槛后使用此
 Windows `agent list --client <id>` 先用一个有界规范页选出至多 100 个会话 ID，提交一次保留的 attention 读取，再读取相同页／游标。一次有界变更扫描将全部条目与较新的规范修订核对。目标中间事件或计数器不匹配使对应 Client 投影过期；新增 ID 为缺失，无关事件不影响其他行。页游标过期时失败，不重启分页。空页只验证所选 Client，不执行空 attention 操作。v2 结果增加 `clientId`，并在每个规范条目上增加 `client` 投影；无该 flag 的 list 保持 v1。共用五秒总预算、精确 Client 选择及既有取消／清理规则。列表读取不聚焦、不确认已看见、不逐 Agent 扫描进程。
 
 Windows Agent Get 现在输出 v9（使用 `--client` 时为 v10），增加独立的 `management` 观察，包含来源、修订及 Server 所有的启动状态。Active 记录只来自已完成的启动；手动命名会话仍为非托管。Pending 启动使 promptReady 为 false，`agent prompt` 在输入前拒绝。Status 有界读取共用命令原期限，失败可使用 Agent 读取失败 v3（`operation: management`）；它不重试、不完成启动。`agent start` v2 在现有成功完成后显式报告 interactiveReady。[启动契约](windows-agent-start.zh-CN.md) 拥有生命周期和限制。
+
+## 自动通知确认边界
+
+自动物理 Agent 通知 scheduler 消费本 Client 的物理状态及确认，但不会成为第二个 seen
+owner。变化后的精确 sequence 可以调度本地工作。精确可见版本成功绘制后，即使外层焦点
+明确丢失，也会取消对应通知；只有本文要求焦点成立的确认才把 attention 版本标为 seen。
+这项仅通知使用的取消不能确认、改写或推断观察，不能抑制后续 sequence，其他 Client 的绘制
+也不能抑制本 Client 的工作。基线、reset、不可用及替换轮次不提供通知转移。触发矩阵、
+延迟、配置、sink 及正确性契约见
+[Windows CLI 通知](windows-notifications.zh-CN.md#自动物理-agent-通知)。

@@ -20,7 +20,7 @@ use std::thread;
 
 #[path = "worker.rs"]
 mod worker;
-pub(super) use worker::Effect;
+pub(super) use worker::{Effect, static_codex_process};
 
 pub(super) struct Fixture {
     pub(super) service: Arc<LocalTerminalService>,
@@ -28,6 +28,7 @@ pub(super) struct Fixture {
     pub(super) effects: Arc<Mutex<Vec<Effect>>>,
     pub(super) detach_refusals: Arc<std::sync::atomic::AtomicUsize>,
     pub(super) popup_fault: Arc<std::sync::atomic::AtomicU8>,
+    static_codex: bool,
     stop: Mutex<UnixStream>,
     marker_sequence: std::sync::atomic::AtomicU64,
     owner: Mutex<Option<thread::JoinHandle<crate::worker_obcn_carrier::WorkerWireExit>>>,
@@ -69,12 +70,15 @@ impl Fixture {
         Self::with_plugin_panes(false)
     }
     pub(super) fn with_plugin_panes(plugin: bool) -> Self {
-        Self::with_runtime(plugin, None)
+        Self::with_runtime(plugin, None, false)
     }
     pub(super) fn with_graphics_runtime(runtime: &std::path::Path) -> Self {
-        Self::with_runtime(false, Some(runtime))
+        Self::with_runtime(false, Some(runtime), false)
     }
-    fn with_runtime(plugin: bool, runtime: Option<&std::path::Path>) -> Self {
+    pub(super) fn with_static_codex() -> Self {
+        Self::with_runtime(false, None, true)
+    }
+    fn with_runtime(plugin: bool, runtime: Option<&std::path::Path>, static_codex: bool) -> Self {
         let registry = Arc::new(Mutex::new(WorkerRegistry::new()));
         let worker_id = orchbee_local_site_protocol::WorkerId::from_bytes([9; 16]);
         let WorkerAdmission::Accepted { generation } = registry.lock().unwrap().admit(worker_id)
@@ -98,7 +102,8 @@ impl Fixture {
         let refusals = Arc::clone(&detach_refusals);
         let popup_fault = Arc::new(std::sync::atomic::AtomicU8::new(0));
         let faults = Arc::clone(&popup_fault);
-        let peer = thread::spawn(move || worker::run(peer, observation, refusals, faults));
+        let peer =
+            thread::spawn(move || worker::run(peer, observation, refusals, faults, static_codex));
         let mut service = LocalTerminalService::from_identity(
             registry,
             Ok(orchbee_workbench_protocol::SiteId::parse(&format!("{:032x}", 1)).unwrap()),
@@ -113,6 +118,7 @@ impl Fixture {
             effects,
             detach_refusals,
             popup_fault,
+            static_codex,
             stop: Mutex::new(stop),
             marker_sequence: std::sync::atomic::AtomicU64::new(1),
             owner: Mutex::new(Some(owner)),
@@ -267,8 +273,9 @@ impl Fixture {
         let effects = Arc::clone(&self.effects);
         let refusals = Arc::clone(&self.detach_refusals);
         let faults = Arc::clone(&self.popup_fault);
+        let static_codex = self.static_codex;
         *self.peer.lock().unwrap() = Some(thread::spawn(move || {
-            worker::run(peer, effects, refusals, faults)
+            worker::run(peer, effects, refusals, faults, static_codex)
         }));
     }
 }

@@ -114,6 +114,33 @@ fn configuration_matches_shared_corpus() {
 }
 
 #[test]
+fn configuration_notification_profile_has_a_closed_16_kib_wire_bound() {
+    const CONTRACT_BYTES: usize = 16 * 1024;
+    let request = request();
+    let result = |notification_profile| ConfigurationResult {
+        protocol_version: ProtocolVersion,
+        request_id: request.request_id.clone(),
+        site_id: request.site_id.clone(),
+        outcome: ConfigurationOutcome::Current {
+            snapshot: ConfigurationSnapshot {
+                revision: WorkbenchRevision::new(1),
+                keys_profile: "[keys]".into(),
+                notification_profile,
+                agent_sidebar_profile: r#"{"rows":null,"rows_by_agent":{},"row_gap":0}"#.into(),
+                spaces_sidebar_profile: r#"{"rows":[],"row_gap":0}"#.into(),
+                default_shell: String::new(),
+                shell_mode: ConfigurationShellMode::Auto,
+                manifest_check: true,
+                window_title: String::new(),
+                restart_required: vec![],
+            },
+        },
+    };
+    assert!(result("x".repeat(CONTRACT_BYTES)).validate().is_ok());
+    assert!(result("x".repeat(CONTRACT_BYTES + 1)).validate().is_err());
+}
+
+#[test]
 fn configuration_frame_fits_both_bounded_escaped_profiles_and_checks_header_before_body() {
     let request = request();
     let profile = |name| {

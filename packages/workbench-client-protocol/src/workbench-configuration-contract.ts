@@ -7,6 +7,7 @@ import {
 } from './workbench-semantic-contract';
 
 export const WORKBENCH_MAXIMUM_ENCODED_CONFIGURATION_BYTES = 256 * 1024;
+const MAXIMUM_NOTIFICATION_PROFILE_BYTES = 16 * 1024;
 const bounded = (maximum: number, minimum = 1) =>
 	z
 		.string()
@@ -23,7 +24,7 @@ const snapshot = z.strictObject({
 	revision: WorkbenchRevisionSchema,
 	keysProfile: bounded(65536),
 	windowTitle: bounded(4096, 0),
-	notificationProfile: bounded(1024),
+	notificationProfile: bounded(MAXIMUM_NOTIFICATION_PROFILE_BYTES),
 	agentSidebarProfile: bounded(32768),
 	spacesSidebarProfile: bounded(32768),
 	manifestCheck: z.boolean(),

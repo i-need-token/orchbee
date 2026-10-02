@@ -120,6 +120,9 @@ impl Manager {
         now: Instant,
     ) -> Change {
         let mut change = Change::default();
+        self.template
+            .notifications
+            .configure(view.notifications.policy().clone());
         view.machines.observe_agent_sidebar(
             crate::tui_layout::project_shell_areas(
                 super::to_area(dimensions),
@@ -345,6 +348,9 @@ impl Manager {
                 view.machines.error = Some("failed");
                 change.redraw = true;
             } else if drawable {
+                candidate
+                    .session
+                    .configure_agent_notifications(0, self.template.notifications.policy());
                 let next = Cached {
                     profile: candidate.profile,
                     surface: Box::new(candidate.session),

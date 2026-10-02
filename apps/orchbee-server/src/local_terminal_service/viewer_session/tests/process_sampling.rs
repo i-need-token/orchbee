@@ -1,5 +1,8 @@
-use super::fixture::{Effect, Fixture};
-use std::{sync::atomic::Ordering, time::Instant};
+use super::fixture::{Effect, Fixture, static_codex_process};
+use std::{
+    sync::atomic::Ordering,
+    time::{Duration, Instant},
+};
 #[test]
 fn explanation_process_refusal_releases_viewer_and_uncertain_detach_keeps_ownership() {
     let fixture = Fixture::new();
@@ -99,6 +102,96 @@ fn periodic_turns_observe_lifecycle_and_content_before_process_refusal_and_relea
         })
         .collect();
     assert_eq!(targets.len(), 10);
+}
+
+#[test]
+fn static_codex_refreshes_the_retained_frame_after_process_before() {
+    use orchbee_workbench_protocol::{
+        PanelAgentAction, PanelAgentOutcome, PanelAgentRequest, PanelAgentState, ProtocolVersion,
+        WorkbenchRequestId,
+    };
+    let fixture = Fixture::with_static_codex();
+    let target = fixture
+        .service
+        .coordinator
+        .lock()
+        .unwrap()
+        .process_observation_targets()
+        .unwrap()
+        .remove(0);
+    let seed = static_codex_process(0, [1; 16]);
+    let origin = Instant::now() - Duration::from_secs(3);
+    assert!(
+        fixture
+            .service
+            .coordinator
+            .lock()
+            .unwrap()
+            .observe_host_process(target.target, &seed, origin, origin,)
+    );
+    let stop = std::sync::atomic::AtomicBool::new(false);
+    assert!(
+        fixture
+            .service
+            .sample_process_target(
+                &target,
+                &stop,
+                &crate::agent_screen::ScreenDetector::bundled().unwrap(),
+            )
+            .is_none(),
+        "the exact Detach must settle before the sampler returns",
+    );
+    let effects = fixture.barrier().unwrap();
+    let [
+        Effect::Attach(attachment, 0),
+        Effect::Lifecycle(lifecycle),
+        Effect::Poll(first),
+        Effect::Feedback(first_reset),
+        Effect::Poll(retained),
+        Effect::ProcessInfo(before),
+        Effect::Feedback(second_reset),
+        Effect::Poll(captured),
+        Effect::ProcessInfo(after),
+        Effect::Detach(detach),
+    ] = effects.as_slice()
+    else {
+        panic!(
+            "the retained frame must receive an exact second snapshot reset before one capture poll; current trace: {effects:?}"
+        )
+    };
+    assert!(
+        [
+            lifecycle,
+            first,
+            first_reset,
+            retained,
+            before,
+            second_reset,
+            captured,
+            after,
+            detach,
+        ]
+        .into_iter()
+        .all(|id| id == attachment)
+    );
+
+    let snapshot = super::fixture::read_snapshot(&fixture.service);
+    let pane = orchbee_server::semantic_panes_for_binding(&snapshot, &target.binding).remove(0);
+    let result = fixture.service.execute_panel_agent(PanelAgentRequest {
+        protocol_version: ProtocolVersion,
+        request_id: WorkbenchRequestId::parse(&format!("{:032x}", 77_777)).unwrap(),
+        site_id: snapshot.site_id,
+        action: PanelAgentAction::Read {
+            panel_ids: vec![pane.panel_id],
+        },
+    });
+    let mut panels = match result.outcome {
+        PanelAgentOutcome::Read { panels, .. } => panels,
+        other => panic!("agent read failed: {other:?}"),
+    };
+    let view = panels.remove(0).report.expect("bound Agent view");
+    assert_eq!(view.agent.as_deref(), Some("codex"));
+    assert_eq!(view.state, PanelAgentState::Working);
 }
 
 #[test]

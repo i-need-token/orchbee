@@ -28,11 +28,13 @@ pub use windows_user_path::{
 mod windows_user_settings;
 #[cfg(windows)]
 pub use windows_user_settings::{
-    DEFAULT_WINDOW_TITLE, MAXIMUM_AGENT_SIDEBAR_PROFILE_BYTES, MAXIMUM_SPACE_SIDEBAR_PROFILE_BYTES,
-    WindowsAgentSidebarSettings, WindowsAgentSidebarToken, WindowsAgentSidebarTokenKind,
-    WindowsCommandSize, WindowsCustomCommand, WindowsCustomCommandAction,
-    WindowsCustomCommandEntry, WindowsDirectoryPolicy, WindowsKeyChord, WindowsKeyOverride,
-    WindowsKeySettings, WindowsKeyTrigger, WindowsKeysResetOutcome, WindowsKeysResetReport,
+    DEFAULT_WINDOW_TITLE, MAXIMUM_AGENT_SIDEBAR_PROFILE_BYTES, MAXIMUM_AGENT_SOUND_OVERRIDES,
+    MAXIMUM_NOTIFICATION_DELAY_SECONDS, MAXIMUM_NOTIFICATION_PROFILE_BYTES,
+    MAXIMUM_SPACE_SIDEBAR_PROFILE_BYTES, WindowsAgentSidebarSettings, WindowsAgentSidebarToken,
+    WindowsAgentSidebarTokenKind, WindowsAgentSoundSetting, WindowsCommandSize,
+    WindowsCustomCommand, WindowsCustomCommandAction, WindowsCustomCommandEntry,
+    WindowsDirectoryPolicy, WindowsKeyChord, WindowsKeyOverride, WindowsKeySettings,
+    WindowsKeyTrigger, WindowsKeysResetOutcome, WindowsKeysResetReport,
     WindowsNotificationDelivery, WindowsNotificationSettings, WindowsSettingsError,
     WindowsShellMode, WindowsShellSettings, WindowsSidebarTokenStyle, WindowsSpaceSidebarSettings,
     WindowsSpaceSidebarToken, WindowsSpaceSidebarTokenKind, WindowsUpdateChannel,

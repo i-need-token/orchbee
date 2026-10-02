@@ -237,7 +237,7 @@ fn run_prepared_surface(
     locale: Locale,
     inherited: InheritedTerminal,
     dimensions: WindowDimensions,
-    terminal_input: Box<dyn TerminalSurface>,
+    mut terminal_input: Box<dyn TerminalSurface>,
     mouse: bool,
     notice: Option<crate::client_view::Notice>,
 ) -> Result<(), TuiFailure> {
@@ -253,6 +253,7 @@ fn run_prepared_surface(
                 TuiFailure::Runtime(io::Error::new(io::ErrorKind::InvalidInput, error))
             })?;
         initial_view.configure_keys(&settings.keys);
+        terminal_input.configure_agent_notifications(0, &settings.notifications);
         initial_view.notifications.configure(settings.notifications);
         initial_view
             .machines
@@ -581,7 +582,7 @@ fn run_surface_loop<B: Backend + ResizableBackend>(
             return Ok(LoopExit::Signal);
         }
 
-        if terminal_input.client_control_tick(&mut view, to_area(dimensions)) {
+        if terminal_input.client_control_tick(&mut view, to_area(dimensions), chrome.locale) {
             synchronize_viewport(
                 terminal,
                 viewport,
@@ -1001,7 +1002,19 @@ trait TerminalSurface: crate::terminal_input::TerminalInputPort {
         true
     }
 
-    fn client_control_tick(&mut self, _view: &mut ClientView, _viewport: Rect) -> bool {
+    #[cfg(windows)]
+    fn configure_agent_notifications(
+        &mut self,
+        _revision: u64,
+        _settings: &orchbee_local_site_runtime::WindowsNotificationSettings,
+    ) {
+    }
+    fn client_control_tick(
+        &mut self,
+        _view: &mut ClientView,
+        _viewport: Rect,
+        _locale: Locale,
+    ) -> bool {
         false
     }
     fn tick(&mut self) -> bool {
@@ -1026,6 +1039,15 @@ trait TerminalSurface: crate::terminal_input::TerminalInputPort {
 }
 impl TerminalSurface for UnavailableTerminalInputPort {}
 impl TerminalSurface for crate::terminal_session::TerminalSession {
+    #[cfg(windows)]
+    fn configure_agent_notifications(
+        &mut self,
+        revision: u64,
+        settings: &orchbee_local_site_runtime::WindowsNotificationSettings,
+    ) {
+        self.configure_agent_notifications(revision, settings);
+    }
+
     #[cfg(windows)]
     fn popup_surface(&mut self, area: Rect, pixels: (u16, u16)) {
         self.observe_popup_surface(area, pixels);
@@ -1066,8 +1088,13 @@ impl TerminalSurface for crate::terminal_session::TerminalSession {
         )
     }
     #[cfg(windows)]
-    fn client_control_tick(&mut self, view: &mut ClientView, viewport: Rect) -> bool {
-        self.client_control_tick(view, viewport)
+    fn client_control_tick(
+        &mut self,
+        view: &mut ClientView,
+        viewport: Rect,
+        locale: Locale,
+    ) -> bool {
+        self.client_control_tick(view, viewport, locale)
     }
     fn tick(&mut self) -> bool {
         self.tick()

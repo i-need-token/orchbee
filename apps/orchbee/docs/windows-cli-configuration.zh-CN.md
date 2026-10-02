@@ -201,7 +201,7 @@ Client 独立配置策略仍待补全。
 
 ## 自定义通知配置
 
-`ui.toast.delivery` 接受 off（默认）、orchbee/herdr、terminal 或 system；仅在未指定 delivery 时，旧 `ui.toast.enabled` 提供关闭/卡片选择。`ui.toast.herdr.position` 选择四角默认位置。这些设置配置自定义 CLI 通知，不代表 Agent 延迟或剪贴板策略。启动配置属于 Client；显式 Site 重载与键位一起发布有界规范通知配置，Client 在同时校验两者之后应用。`site config`/重载 v4 暴露 `notificationProfile`，`config check` v8 暴露投递方式/位置，配置失败 v5 新增 `ui.toast`。旧公开版本保持封闭。详见[通知归属](windows-notifications.zh-CN.md)。
+`ui.toast.delivery` 接受 off（默认）、orchbee/herdr、terminal 或 system，用于手动 CLI 通知；仅在未指定 delivery 时，旧 `ui.toast.enabled` 提供关闭/卡片选择。`ui.toast.herdr.position` 选择四角默认位置。自动物理 Agent 通知使用独立的 `ui.toast.agent_delivery`（默认 orchbee）和 `ui.toast.delay_seconds`（默认一秒，范围 0–3600）。`[ui.sound] enabled` 默认 false，并与 `[ui.sound.agents]` 一起仅控制自动内置提示音，不改变显式 `notification show` 的声音；剪贴板策略仍然独立。启动配置属于 Client；显式 Site 重载与键位一起发布完整的有界通知 profile，Client 在同时校验两者之后应用。`site config`/重载 v7 携带 16 KiB `notificationProfile`，`config check` v12 暴露手动与自动策略，配置失败 v9 增加自动延迟／声音诊断。旧公开版本保持封闭。详见完整的[自动通知契约](windows-notifications.zh-CN.md#自动物理-agent-通知)。
 
 ## Windows 版本安装
 

@@ -386,6 +386,8 @@ impl NativeUi {
 
     pub(in crate::terminal_session) fn after_close_draw(&mut self, receipt: NativeDrawReceipt) {
         #[cfg(windows)]
+        self.attention.after_draw();
+        #[cfg(windows)]
         self.after_graphics_draw(receipt.graphics);
         if let Some(state) = &mut self.state {
             state.acknowledge_close_draw(

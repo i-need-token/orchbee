@@ -88,6 +88,10 @@ impl Registry {
                 &next.agent_sidebar_profile,
             )
             .is_err()
+            || orchbee_local_site_runtime::WindowsNotificationSettings::from_profile(
+                &next.notification_profile,
+            )
+            .is_err()
         {
             return Outcome::failed(Failure::LoadFailed);
         }

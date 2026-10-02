@@ -2,6 +2,7 @@
 use crate::{ContractError, ProtocolVersion, SiteId, WorkbenchRequestId, WorkbenchRevision};
 use serde::{Deserialize, Serialize};
 pub const MAXIMUM_CONFIGURATION_BYTES: usize = 256 * 1024;
+pub const MAXIMUM_NOTIFICATION_PROFILE_BYTES: usize = 16 * 1024;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
@@ -141,7 +142,7 @@ impl ConfigurationResult {
                     && snapshot.keys_profile.len() <= 64 * 1024
                     && snapshot.window_title.len() <= 4096
                     && !snapshot.notification_profile.is_empty()
-                    && snapshot.notification_profile.len() <= 1024
+                    && snapshot.notification_profile.len() <= MAXIMUM_NOTIFICATION_PROFILE_BYTES
                     && !snapshot.spaces_sidebar_profile.is_empty()
                     && snapshot.spaces_sidebar_profile.len() <= 32 * 1024
                     && !snapshot.agent_sidebar_profile.is_empty()

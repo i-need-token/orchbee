@@ -35,6 +35,7 @@ fn bad_sidebar_publication_retains_keys_notifications_layout_and_revision_atomic
         wake,
         task: None,
         revision: 0,
+        notification_update: None,
     };
     let mut view = ClientView::new(120);
     let before = view.clone();
@@ -86,6 +87,7 @@ fn only_valid_newer_publications_replace_keys_and_clear_prefix_without_changing_
         wake,
         task: None,
         revision: 0,
+        notification_update: None,
     };
     let mut view = ClientView::new(120);
     view.settle_pointer_released(true);
@@ -276,6 +278,7 @@ fn notification_policy_and_keys_are_applied_as_one_valid_publication() {
         wake,
         task: None,
         revision: 0,
+        notification_update: None,
     };
     let mut view = ClientView::new(100);
     let mut next = snapshot(1, "[keys]\nprefix='ctrl+a'");

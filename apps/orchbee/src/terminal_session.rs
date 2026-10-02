@@ -31,6 +31,8 @@ use std::sync::mpsc::{self, Receiver, SyncSender, TryRecvError};
 mod agent_attention;
 mod agent_board;
 #[cfg(windows)]
+mod agent_notifications;
+#[cfg(windows)]
 mod independent_popup;
 #[cfg(windows)]
 mod pane_graphics;
@@ -416,13 +418,25 @@ impl TerminalSession {
 
     // Only the shell's successful draw calls this, so an undrawn frame is never acknowledged.
     #[cfg(windows)]
+    pub(crate) fn configure_agent_notifications(
+        &mut self,
+        revision: u64,
+        settings: &orchbee_local_site_runtime::WindowsNotificationSettings,
+    ) {
+        if let Some(native) = self.backend.native_mut() {
+            native.configure_agent_notifications(revision, settings);
+        }
+    }
+
+    #[cfg(windows)]
     pub(crate) fn client_control_tick(
         &mut self,
         view: &mut crate::client_view::ClientView,
         viewport: ratatui::layout::Rect,
+        locale: crate::localization::Locale,
     ) -> bool {
         let mut configuration_changed = view.notifications.tick(std::time::Instant::now());
-        match &self.backend {
+        match &mut self.backend {
             SessionBackend::Native(native) => {
                 if self.configuration.is_none()
                     && let Some(origin) = &self.origin
@@ -437,6 +451,9 @@ impl TerminalSession {
                 }
                 if let Some(watcher) = &mut self.configuration {
                     configuration_changed |= watcher.tick(view);
+                    if let Some((revision, notifications)) = watcher.take_notification_update() {
+                        native.configure_agent_notifications(revision, &notifications);
+                    }
                 }
                 if self.notifications.is_none()
                     && let Some(origin) = &self.origin
@@ -480,6 +497,21 @@ impl TerminalSession {
                     configuration_changed |= view
                         .notifications
                         .install(message, std::time::Instant::now());
+                }
+                let automatic_accepting = view.notifications.empty()
+                    && (!native.agent_notification_requires_card()
+                        || crate::notifications::available(
+                            view,
+                            Some(TerminalSessionView::Native(native.view())),
+                        ));
+                if let Some((delivery, message)) =
+                    native.take_agent_notification(locale, automatic_accepting)
+                {
+                    configuration_changed |= view.notifications.install_automatic(
+                        message,
+                        delivery,
+                        std::time::Instant::now(),
+                    );
                 }
             }
             #[cfg(test)]

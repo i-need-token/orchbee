@@ -90,11 +90,32 @@ modal. `LandedIsLive` records the landing-time observation; the registered edge 
 exact target's viewer live in the pre-state — a later ViewerDies cannot falsify a landing
 that was legal when it happened.
 
+The model deliberately does not retain which board byte, outside wheel or refresh-while-jump
+event already occurred. Erasing that former coverage-only history is a bidirectional stutter
+quotient: every old transition projects to the same product transition or to one of those three
+named self-loops, while every quotient behavior lifts by using each old named step once and
+treating any repeated self-loop as the stutter already admitted by `[Next]_vars`. No weak-fair
+action reads the erased history, so action enabledness and every `WF_vars` obligation are
+preserved. The three required coverage names remain explicit; the runner counts generated
+successors even when the successor state was already discovered.
+
+The quotient also canonicalizes `laneRound`, `walkRev`, `walkPages` and `retries` after a
+walk settles or the board closes. These four scratch values are read by list actions only while
+`lanePhase = "list"`; `StartList` initializes every value before any later read. The projection
+keeps them unchanged during a list and maps them to their typed initial values otherwise. Each
+old step projects to the same named product step, and a quotient step lifts by retaining the old
+settled scratch until the next initialization. Their `TypeOK` range checks remain satisfied by the
+typed initial values; no business guard, product invariant or temporal property reads the discarded
+values outside the list phase. List actions are disabled there, and
+every other weak-fair action has the same enabledness under the projection. This removes dead
+history without restricting any read, reopen, cancellation, navigation or environment interleaving.
+
 The accepted 1,083,010-distinct-state run remains the finite-bound evidence for the prior
-single-epoch variant — `MaxEpoch = 1` could not reach reopen. The reopen, viewer-death/reattach
-and unpaintable-close delta is registered and awaiting the TLC gate rerun; until that discharge
-those claims stand on the model text alone, checked alongside the unchanged invariants and
-weak-fair progress properties.
+single-epoch variant — `MaxEpoch = 1` could not reach reopen. The registered two-epoch
+configuration is the current finite-bound scope. This document does not claim that scope has
+passed until the registered runner completes it; meanwhile its reopen, viewer-death/reattach and
+unpaintable-close claims rest on the model mapping, invariants, weak-fair progress properties and
+deterministic tests described here.
 
 Run the registered model with `node scripts/tla/run-models.mjs --models agent-board`. The OBAP
 framing and identity contracts refine the wire steps; `NativeContextSelection`, `NativeTabSwitch`

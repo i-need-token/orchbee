@@ -4,7 +4,8 @@ use std::collections::BTreeMap;
 use orchbee_agent_observation_protocol::AgentLaunchBinding;
 use orchbee_workbench_protocol::{
     ClientTerminalAgentAttentionEntry, ClientTerminalAgentAttentionSnapshot,
-    ClientTerminalAgentAttentionVersion, TerminalAgentStateSnapshot, WorkbenchRevision,
+    ClientTerminalAgentAttentionVersion, PanelAgentState, TerminalAgentStateSnapshot,
+    WorkbenchRevision,
 };
 
 pub(in crate::terminal_session) const MAXIMUM_ENTRIES: usize = 4096;
@@ -28,7 +29,7 @@ pub(super) struct PhysicalPaint {
     versions: Vec<(AgentLaunchBinding, WorkbenchRevision)>,
 }
 
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub(super) struct PhysicalAttentionState {
     revision: Option<WorkbenchRevision>,
     serial: u64,
@@ -150,6 +151,43 @@ impl PhysicalAttentionState {
         )
     }
 
+    pub(super) fn notification_observations(
+        &self,
+    ) -> Option<Vec<crate::terminal_session::agent_notifications::AgentNotificationObservation>>
+    {
+        use crate::terminal_session::agent_notifications::{
+            AgentNotificationIdentity as Identity, AgentNotificationObservation as Observation,
+            AgentNotificationState as State,
+        };
+        self.readable.then(|| {
+            self.entries
+                .values()
+                .map(|entry| Observation {
+                    identity: Identity {
+                        presentation_id: entry.current.binding.presentation_id.as_str().to_owned(),
+                        generation: entry.current.binding.generation.as_str().to_owned(),
+                        host_epoch: entry.current.binding.host_epoch.as_str().to_owned(),
+                        host_terminal_id: entry
+                            .current
+                            .binding
+                            .host_terminal_id
+                            .as_str()
+                            .to_owned(),
+                    },
+                    sequence: entry.current.sequence.value(),
+                    agent: entry.current.agent.clone(),
+                    state: match entry.current.state {
+                        PanelAgentState::Idle => State::Idle,
+                        PanelAgentState::Working => State::Working,
+                        PanelAgentState::Blocked => State::Blocked,
+                        PanelAgentState::Unknown => State::Unknown,
+                    },
+                    seen: entry.seen,
+                })
+                .collect()
+        })
+    }
+
     pub(super) fn paint(
         &self,
         mut visible: impl FnMut(&AgentLaunchBinding) -> bool,
@@ -165,27 +203,65 @@ impl PhysicalAttentionState {
         })
     }
 
+    #[cfg(test)]
     pub(super) fn acknowledge(
         &mut self,
         paint: &PhysicalPaint,
         focused: Option<bool>,
         mut visible: impl FnMut(&AgentLaunchBinding) -> bool,
     ) -> bool {
-        if !self.readable || focused == Some(false) || self.serial != paint.serial {
-            return false;
+        let versions = self.painted_versions(paint, &mut visible);
+        !self
+            .acknowledge_painted_versions(&versions, focused)
+            .is_empty()
+    }
+
+    pub(super) fn painted_versions(
+        &self,
+        paint: &PhysicalPaint,
+        mut visible: impl FnMut(&AgentLaunchBinding) -> bool,
+    ) -> Vec<(AgentLaunchBinding, WorkbenchRevision)> {
+        if !self.readable || self.serial != paint.serial {
+            return Vec::new();
         }
-        let mut changed = false;
+        let mut painted = Vec::new();
         for (binding, sequence) in &paint.versions {
+            if self
+                .entries
+                .get(binding.presentation_id.as_str())
+                .is_some_and(|entry| {
+                    entry.current.binding == *binding
+                        && entry.current.sequence == *sequence
+                        && visible(binding)
+                })
+            {
+                painted.push((binding.clone(), *sequence));
+            }
+        }
+        painted
+    }
+
+    pub(super) fn acknowledge_painted_versions(
+        &mut self,
+        versions: &[(AgentLaunchBinding, WorkbenchRevision)],
+        focused: Option<bool>,
+    ) -> Vec<(AgentLaunchBinding, WorkbenchRevision)> {
+        if focused == Some(false) {
+            return Vec::new();
+        }
+        let mut acknowledged = Vec::new();
+        for (binding, sequence) in versions {
             if let Some(entry) = self.entries.get_mut(binding.presentation_id.as_str())
                 && entry.current.binding == *binding
                 && entry.current.sequence == *sequence
-                && visible(binding)
             {
-                changed |= !entry.seen;
+                if !entry.seen {
+                    acknowledged.push((binding.clone(), *sequence));
+                }
                 entry.seen = true;
             }
         }
-        changed
+        acknowledged
     }
 }
 

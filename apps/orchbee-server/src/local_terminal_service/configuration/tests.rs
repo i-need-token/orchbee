@@ -357,7 +357,7 @@ fn notification_reload_exposes_policy_and_rejects_bad_candidate_without_publicat
     registry.initialize(&fixture.settings(true)).unwrap();
     for delivery in ["herdr", "terminal", "system", "off"] {
         fixture.write(&format!(
-            "[ui.toast]\ndelivery='{delivery}'\n[ui.toast.herdr]\nposition='top-left'"
+            "[ui.toast]\ndelivery='{delivery}'\nagent_delivery='terminal'\ndelay_seconds=7\n[ui.toast.herdr]\nposition='top-left'\n[ui.sound]\nenabled=true\n[ui.sound.agents]\ncodex='off'"
         ));
         let Outcome::Reloaded { snapshot, .. } =
             registry.execute(&request(Action::Reload), |_| true)
@@ -376,11 +376,27 @@ fn notification_reload_exposes_policy_and_rejects_bad_candidate_without_publicat
                 delivery
             }
         );
+        assert_eq!(parsed.agent_delivery.as_str(), "terminal");
+        assert_eq!(parsed.delay_seconds, 7);
+        assert!(parsed.sound_enabled);
+        assert_eq!(
+            parsed.agent_sound("codex"),
+            orchbee_local_site_runtime::WindowsAgentSoundSetting::Off
+        );
         assert_eq!(parsed.position(), "top-left");
         assert!(snapshot.restart_required.is_empty());
     }
     let retained = current(&registry);
     fixture.write("[ui.toast]\ndelivery='bad'");
+    assert!(matches!(
+        registry.execute(&request(Action::Reload), |_| panic!()),
+        Outcome::Failed {
+            reason: Failure::LoadFailed,
+            ..
+        }
+    ));
+    assert_eq!(current(&registry), retained);
+    fixture.write("[ui.sound]\nenabled='yes'");
     assert!(matches!(
         registry.execute(&request(Action::Reload), |_| panic!()),
         Outcome::Failed {

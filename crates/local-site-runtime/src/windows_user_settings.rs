@@ -13,7 +13,11 @@ pub use agent_sidebar::{
     WindowsAgentSidebarTokenKind,
 };
 mod notifications;
-pub use notifications::{WindowsNotificationDelivery, WindowsNotificationSettings};
+pub use notifications::{
+    MAXIMUM_AGENT_SOUND_OVERRIDES, MAXIMUM_NOTIFICATION_DELAY_SECONDS,
+    MAXIMUM_NOTIFICATION_PROFILE_BYTES, WindowsAgentSoundSetting, WindowsNotificationDelivery,
+    WindowsNotificationSettings,
+};
 mod reset_keys;
 mod shell;
 mod window_title;
@@ -276,12 +280,13 @@ fn parse(
                 .ok_or(WindowsSettingsError::new("ui.window_title", "wrong-type"))?;
             if table
                 .keys()
-                .any(|key| !matches!(key.as_str(), "window_title" | "toast" | "sidebar"))
+                .any(|key| !matches!(key.as_str(), "window_title" | "toast" | "sound" | "sidebar"))
             {
                 return Err(WindowsSettingsError::new("ui.window_title", "unknown-key"));
             }
-            if let Some(value) = table.get("toast") {
-                settings.notifications = WindowsNotificationSettings::parse(value)?;
+            if table.contains_key("toast") || table.contains_key("sound") {
+                settings.notifications =
+                    WindowsNotificationSettings::parse(table.get("toast"), table.get("sound"))?;
             }
             if let Some(sidebar) = table.get("sidebar") {
                 let sidebar = sidebar

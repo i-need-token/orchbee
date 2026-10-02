@@ -20,7 +20,7 @@
 			"const": "orchbee.cli.failure.configuration"
 		},
 		"version": {
-			"enum": [1, 2, 3, 4, 5, 6, 7, 8]
+			"enum": [1, 2, 3, 4, 5, 6, 7, 8, 9]
 		},
 		"failure": {
 			"type": "object",
@@ -890,6 +890,87 @@
 											"unsupported-token",
 											"invalid-rules",
 											"invalid-agent"
+										]
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"version": {
+						"const": 9
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"failure": {
+						"properties": {
+							"details": {
+								"type": "object",
+								"required": [
+									"field",
+									"reason"
+								],
+								"additionalProperties": false,
+								"properties": {
+									"field": {
+										"enum": [
+											"file",
+											"ORCHBEE_CONFIG_FILE",
+											"ORCHBEE_RESUME_AGENTS_ON_RESTORE",
+											"APPDATA",
+											"terminal.new_cwd",
+											"worktrees.directory",
+											"session.resume_agents_on_restore",
+											"update.manifest_check",
+											"terminal.default_shell",
+											"terminal.shell_mode",
+											"keys",
+											"ui.window_title",
+											"ui.toast",
+											"update.channel",
+											"ui.sidebar.agents",
+											"ui.sidebar.spaces",
+											"ui.sound"
+										]
+									},
+									"reason": {
+										"enum": [
+											"invalid-path",
+											"invalid-boolean",
+											"missing",
+											"io-error",
+											"not-file",
+											"too-large",
+											"invalid-utf8",
+											"invalid-toml",
+											"unknown-key",
+											"wrong-type",
+											"source-query-failed",
+											"source-query-interrupted",
+											"invalid-executable",
+											"invalid-mode",
+											"invalid-binding",
+											"reserved-binding",
+											"unsafe-binding",
+											"duplicate-binding",
+											"too-many-bindings",
+											"value-too-long",
+											"invalid-channel",
+											"invalid-layout",
+											"invalid-color",
+											"invalid-token",
+											"unsupported-token",
+											"invalid-rules",
+											"invalid-agent",
+											"invalid-delay",
+											"too-many-agents"
 										]
 									}
 								}

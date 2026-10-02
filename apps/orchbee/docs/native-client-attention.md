@@ -123,3 +123,15 @@ Windows `agent prompt --wait --client <id>` also consumes this current projectio
 Windows `agent list --client <id>` uses one bounded canonical page to select up to 100 session IDs for a single retained attention read, then rereads the same page/cursor. A single bounded change scan corroborates all entries against that later canonical revision. Intervening target events or mismatched counters make the corresponding Client projection stale; newly appearing IDs are missing, while unrelated events preserve other rows. A stale page cursor fails without restarting pagination. An empty page validates the selected Client but performs no empty attention operation. The v2 result adds `clientId` and a `client` projection to each canonical item; no-flag list remains v1. One five-second total, exact Client selection and ordinary cancellation/cleanup apply. No list read focuses, acknowledges or scans each Agent process.
 
 Windows Agent Get now emits v9 (v10 with `--client`), adding a separate `management` observation with source, revision and Server-owned startup state. Active records come only from completed startup; manually named sessions remain unmanaged. Pending startup makes promptReady false and `agent prompt` refuses before input. The bounded Status read shares the original command deadline and can fail with Agent read failure v3 (`operation: management`); it never retries or completes a launch. `agent start` v2 explicitly reports interactiveReady after its existing successful completion. The [startup contract](windows-agent-start.md) owns lifecycle and limits.
+
+## Automatic notification acknowledgement boundary
+
+The automatic physical-Agent notification scheduler consumes this Client's physical state and
+acknowledgements without becoming a second seen owner. A changed exact sequence may schedule local
+work. A successful exact visible paint cancels the matching notification version even when outer
+focus is known lost, but only this document's focus-qualified acknowledgement marks the attention
+version seen. The notification-only cancellation cannot acknowledge, rewrite or infer an
+observation, cannot suppress a later sequence, and another Client's paint cannot suppress its work.
+Baseline, reset, unavailable and replacement rounds provide no notification transition. See
+[Windows CLI notifications](windows-notifications.md#automatic-physical-agent-notifications) for
+the trigger matrix, delay, configuration, sink and correctness contract.

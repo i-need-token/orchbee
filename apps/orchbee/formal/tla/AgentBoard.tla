@@ -90,7 +90,6 @@ Init ==
        outcome |-> "none",
        paneBytes |-> FALSE,
        paneBytesAtOpen |-> FALSE,
-       consumed |-> {},
        \* Per-presentation viewer liveness (the pane record's
        \* attached/projected/not-departing/mode-known facts folded into one
        \* target-level bit) and the paint verdict. A dead viewer never
@@ -127,6 +126,14 @@ ListCurrent == s.laneRound = s.round
 \* newer jump does (F5).
 JumpCurrent == s.jumpSerial # 0 /\ s.jumpSerial = s.serial
 
+\* A walk's scratch is observed only while lanePhase = "list". StartList
+\* initializes it before the next read; retaining it after settlement would
+\* distinguish dead history without changing any product observation or
+\* fair-action enabledness. Canonicalize only those non-list records.
+ClearWalk(state) ==
+  [state EXCEPT !.laneRound = 0, !.walkRev = 0,
+                !.walkPages = {}, !.retries = 0]
+
 \* ------------------------- board lifecycle -------------------------
 
 \* Opening is a generation boundary: the epoch advances, every prior
@@ -148,7 +155,7 @@ Open ==
                     !.laneRound = 0, !.intent = "none",
                     !.intentTarget = NoSession,
                     !.walkRev = 0, !.walkPages = {}, !.retries = 0,
-                    !.bumps = 0, !.consumed = {}, !.deadSeen = {},
+                    !.bumps = 0, !.deadSeen = {},
                     !.jumpStage = "none", !.jumpTarget = NoTarget,
                     !.jumpSerial = 0, !.landedSerial = 0,
                     !.landedLive = FALSE, !.outcome = "none",
@@ -164,11 +171,11 @@ Reopen == s.epoch >= 1 /\ Open
 \* lane owns its outcome receiver, so nothing the dead lane computed can be
 \* delivered into the next epoch.
 CloseBoard ==
-  [s EXCEPT !.board = "closed", !.lanePhase = "exiting",
+  ClearWalk([s EXCEPT !.board = "closed", !.lanePhase = "exiting",
             !.intent = "none", !.intentTarget = NoSession,
             !.jumpStage = "none", !.jumpTarget = NoTarget,
             !.jumpSerial = 0, !.outcome = "none",
-            !.serial = IF s.serial < MaxSerial THEN @ + 1 ELSE @]
+            !.serial = IF s.serial < MaxSerial THEN @ + 1 ELSE @])
 
 Close == s.board = "open" /\ s' = CloseBoard
 
@@ -198,16 +205,16 @@ LaneExit ==
 
 \* While the board owns input every complete key or paste event is consumed:
 \* nothing reaches the pane, and an outside wheel is swallowed without
-\* closing the board — only an ordinary outside press dismisses it.
+\* closing the board — only an ordinary outside press dismisses it. These
+\* named input actions are explicit self-loops: their former per-epoch history
+\* was pure coverage state, and `[Next]_vars` already admits the same stutter.
 BoardByte ==
   /\ s.board = "open"
-  /\ "byte" \notin s.consumed
-  /\ s' = [s EXCEPT !.consumed = @ \cup {"byte"}]
+  /\ UNCHANGED s
 
 OutsideWheel ==
   /\ s.board = "open"
-  /\ "wheel" \notin s.consumed
-  /\ s' = [s EXCEPT !.consumed = @ \cup {"wheel"}]
+  /\ UNCHANGED s
 
 BackdropPress ==
   /\ s.board = "open"
@@ -246,8 +253,7 @@ RequestRefresh ==
 RequestRefreshWhileJumpPending ==
   /\ s.board = "open"
   /\ s.intent = "jump"
-  /\ "refresh-pending" \notin s.consumed
-  /\ s' = [s EXCEPT !.consumed = @ \cup {"refresh-pending"}]
+  /\ UNCHANGED s
 
 \* A jump request replaces a pending refresh outright (F5); while an earlier
 \* jump is still in flight the new request cancels it by serial advance alone
@@ -324,22 +330,22 @@ ListPage ==
                                     !.walkRev = s.serverRevision, !.walkPages = {}]
                 ELSE LET partial == UNION {PageMembers(p): p \in s.walkPages}
                           shown == IF s.lastGood # {} THEN s.lastGood ELSE partial IN
-                       s' = [s EXCEPT !.lanePhase = "idle",
+                       s' = ClearWalk([s EXCEPT !.lanePhase = "idle",
                                       !.cooldown = TRUE, !.rowState = "incomplete",
                                       !.fullWalk = FALSE, !.rows = shown,
                                       !.lastGoodStale = s.lastGood # {},
-                                      !.selected = RepairSelection(shown)]
+                                      !.selected = RepairSelection(shown)])
          ELSE LET pages == s.walkPages \cup
                              {CHOOSE p \in Pages: p \notin s.walkPages} IN
                 IF pages = Pages
                   THEN \* Same-revision full walk: the new complete result
                        \* becomes last_good and repairs selection by opaque id.
-                       s' = [s EXCEPT !.lanePhase = "idle",
+                       s' = ClearWalk([s EXCEPT !.lanePhase = "idle",
                                       !.cooldown = TRUE, !.rowState = "complete",
                                       !.fullWalk = TRUE, !.rows = Sessions,
                                       !.lastGood = Sessions,
                                       !.lastGoodStale = FALSE,
-                                      !.selected = RepairSelection(Sessions)]
+                                      !.selected = RepairSelection(Sessions)])
                   ELSE s' = [s EXCEPT !.walkRev = rev,
                                       !.walkPages = pages]
 
@@ -349,11 +355,11 @@ ListDeadline ==
   /\ s.board = "open"
   /\ s.lanePhase = "list"
   /\ ListCurrent
-  /\ s' = [s EXCEPT !.lanePhase = "idle", !.cooldown = TRUE,
+  /\ s' = ClearWalk([s EXCEPT !.lanePhase = "idle", !.cooldown = TRUE,
                     !.rowState = "failed", !.fullWalk = FALSE,
                     !.rows = s.lastGood,
                     !.lastGoodStale = s.lastGood # {},
-                    !.selected = RepairSelection(s.lastGood)]
+                    !.selected = RepairSelection(s.lastGood)])
 
 \* The Get revalidation: only the exact current generation may proceed. A
 \* session whose bindings all retired fails as an explicit target-gone;
@@ -557,7 +563,6 @@ TypeOK ==
   /\ s.landedSerial \in 0..MaxSerial
   /\ s.laneRound \in 0..MaxRound
   /\ s.bumps \in 0..2
-  /\ s.consumed \subseteq {"byte", "wheel", "refresh-pending"}
   /\ s.paneBytes \in BOOLEAN
   /\ s.paneBytesAtOpen \in BOOLEAN
   /\ s.viewerLive \in [Presentations -> BOOLEAN]

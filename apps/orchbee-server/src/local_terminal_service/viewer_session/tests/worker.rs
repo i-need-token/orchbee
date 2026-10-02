@@ -37,6 +37,7 @@ pub(super) fn run(
     effects: Arc<Mutex<Vec<Effect>>>,
     detach_refusals: Arc<std::sync::atomic::AtomicUsize>,
     popup_fault: Arc<std::sync::atomic::AtomicU8>,
+    static_codex: bool,
 ) {
     let mut viewers: BTreeMap<[u8; 16], (usize, u64, bool)> = BTreeMap::new();
     loop {
@@ -84,24 +85,71 @@ pub(super) fn run(
                                 } else {
                                     *sequence += 1;
                                     *flight = true;
-                                    WorkerOutcome::Record(frame(id, *sequence))
+                                    WorkerOutcome::Record(frame(id, *sequence, static_codex))
                                 }
                             } else {
                                 WorkerOutcome::Empty
                             }
                         }
-                        WorkerAction::ReadProcessInfo => {effects.lock().unwrap().push(Effect::ProcessInfo(id));WorkerOutcome::Rejected(ViewerRejection::HostRejected)},
+                        WorkerAction::ReadProcessInfo => {
+                            effects.lock().unwrap().push(Effect::ProcessInfo(id));
+                            if static_codex {
+                                let target = viewers.get(&id).expect("attached viewer").0;
+                                WorkerOutcome::Record(process_record(request, target))
+                            } else {
+                                WorkerOutcome::Rejected(ViewerRejection::HostRejected)
+                            }
+                        },
                         WorkerAction::ReadLifecycle { target } => {
                             assert!(viewers.contains_key(&id));
                             effects.lock().unwrap().push(Effect::Lifecycle(id));
                             WorkerOutcome::LifecycleObserved { target, revision: 42, settled: true }
                         },
+                        WorkerAction::NeedSnapshot { sequence, reason } if static_codex => {
+                            effects.lock().unwrap().push(Effect::Feedback(id));
+                            let (_, current, flight) =
+                                viewers.get_mut(&id).expect("attached viewer");
+                            static_snapshot_feedback(*current, flight, sequence, reason)
+                        }
                         WorkerAction::FrameApplied { .. } | WorkerAction::NeedSnapshot { .. } => {
                             effects.lock().unwrap().push(Effect::Feedback(id));
                             if let Some((_, _, flight)) = viewers.get_mut(&id) {
                                 *flight = false;
                             }
                             WorkerOutcome::FeedbackAccepted
+                        }
+                        WorkerAction::ReadRows {
+                            detail,
+                            start_row,
+                            row_count,
+                            revision,
+                            generation,
+                            request_sequence,
+                            maximum_bytes,
+                        } if static_codex => {
+                            let (_, current, flight) = viewers.get(&id).expect("attached viewer");
+                            if !*flight
+                                || request_sequence.get() != *current
+                                || revision != *current
+                                || generation != NonZeroU64::MIN
+                                || start_row != 123
+                                || row_count != 2
+                            {
+                                WorkerOutcome::RowsRejected(
+                                    orchbee_capability_node_protocol::ViewerRowsRejectedReason::StaleRevision,
+                                )
+                            } else {
+                                row_window_record(
+                                    request,
+                                    detail,
+                                    start_row,
+                                    row_count,
+                                    revision,
+                                    generation,
+                                    request_sequence,
+                                    maximum_bytes,
+                                )
+                            }
                         }
                         WorkerAction::ReadRows { .. } | WorkerAction::ReadViewportRows { .. } => {
                             WorkerOutcome::RowsRejected(
@@ -325,7 +373,142 @@ pub(super) fn run(
         }
     }
 }
-fn frame(id: [u8; 16], sequence: u64) -> Vec<u8> {
+
+pub(in crate::local_terminal_service::viewer_session::tests) fn static_codex_process(
+    target: usize,
+    attachment: [u8; 16],
+) -> orchbee_terminal_protocol::TerminalProcessInfo {
+    use orchbee_terminal_protocol::{
+        AttachmentId, TerminalId, TerminalProcess, TerminalProcessInfo,
+    };
+    let target = u8::try_from(target).expect("fixture target fits in one byte");
+    let pid = 4_100 + u32::from(target);
+    TerminalProcessInfo {
+        attachment_id: AttachmentId::from_bytes(attachment).unwrap(),
+        terminal_id: TerminalId::from_bytes([5 + target; 16]).unwrap(),
+        root_pid: pid,
+        processes: vec![TerminalProcess {
+            pid,
+            parent_pid: None,
+            creation_time: 9_000 + u64::from(target),
+            image: Some("C:/fixtures/codex.exe".into()),
+            command_line: Some("codex.exe".into()),
+            current_directory: None,
+        }],
+    }
+}
+
+fn process_record(request: WorkerRequest, target: usize) -> Vec<u8> {
+    use orchbee_terminal_protocol::{
+        CURRENT_PROTOCOL_VERSION, CorrelationId, Envelope, HostEpoch, PayloadEncoding,
+        ProcessInfoControl, encode_process_info_control, encode_transport_envelope,
+    };
+    let encoded = encode_process_info_control(&ProcessInfoControl::ProcessInfo(
+        static_codex_process(target, request.attachment_id.as_bytes()),
+    ))
+    .unwrap();
+    encode_transport_envelope(&Envelope {
+        correlation_id: Some(CorrelationId::from_bytes(request.request_id.as_bytes()).unwrap()),
+        host_epoch: Some(HostEpoch::from_bytes([4; 16]).unwrap()),
+        kind: encoded.kind,
+        optional_message: false,
+        payload: &encoded.payload,
+        payload_encoding: PayloadEncoding::ControlJson,
+        protocol: CURRENT_PROTOCOL_VERSION,
+        role: encoded.role,
+    })
+    .unwrap()
+}
+
+fn static_snapshot_feedback(
+    current: u64,
+    flight: &mut bool,
+    sequence: NonZeroU64,
+    reason: orchbee_capability_node_protocol::ViewerSnapshotReason,
+) -> WorkerOutcome {
+    if *flight
+        && sequence.get() == current
+        && reason == orchbee_capability_node_protocol::ViewerSnapshotReason::StoreReset
+    {
+        *flight = false;
+        WorkerOutcome::FeedbackAccepted
+    } else {
+        WorkerOutcome::Rejected(ViewerRejection::FeedbackMismatch)
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn row_window_record(
+    request: WorkerRequest,
+    detail: orchbee_capability_node_protocol::ViewerRowDetail,
+    start_row: u64,
+    row_count: u16,
+    revision: u64,
+    generation: NonZeroU64,
+    request_sequence: NonZeroU64,
+    maximum_bytes: u32,
+) -> WorkerOutcome {
+    use orchbee_terminal_protocol::{
+        CURRENT_PROTOCOL_VERSION, CorrelationId, Envelope, HostEpoch, MessageRole, PayloadEncoding,
+        encode_transport_envelope,
+    };
+    if detail != orchbee_capability_node_protocol::ViewerRowDetail::Text {
+        return WorkerOutcome::RowsRejected(
+            orchbee_capability_node_protocol::ViewerRowsRejectedReason::InvalidField,
+        );
+    }
+    let Some(body_bytes) = usize::from(row_count).checked_mul(12) else {
+        return WorkerOutcome::RowsRejected(
+            orchbee_capability_node_protocol::ViewerRowsRejectedReason::LimitExceeded,
+        );
+    };
+    let Some(bytes) = 112_usize.checked_add(body_bytes) else {
+        return WorkerOutcome::RowsRejected(
+            orchbee_capability_node_protocol::ViewerRowsRejectedReason::LimitExceeded,
+        );
+    };
+    if bytes > maximum_bytes as usize {
+        return WorkerOutcome::RowsRejected(
+            orchbee_capability_node_protocol::ViewerRowsRejectedReason::LimitExceeded,
+        );
+    }
+    let Some(total_rows) = start_row.checked_add(u64::from(row_count)) else {
+        return WorkerOutcome::RowsRejected(
+            orchbee_capability_node_protocol::ViewerRowsRejectedReason::InvalidField,
+        );
+    };
+    let mut payload = vec![0_u8; bytes];
+    payload[..4].copy_from_slice(b"OBRW");
+    payload[6] = 2;
+    payload[8..12].copy_from_slice(&(bytes as u32).to_le_bytes());
+    payload[12..14].copy_from_slice(&112_u16.to_le_bytes());
+    payload[14..16].copy_from_slice(&6_u16.to_le_bytes());
+    payload[16..32].fill(4);
+    payload[32..48].copy_from_slice(&request.attachment_id.as_bytes());
+    payload[48..56].copy_from_slice(&request_sequence.get().to_le_bytes());
+    payload[56..64].copy_from_slice(&revision.to_le_bytes());
+    payload[64..72].copy_from_slice(&generation.get().to_le_bytes());
+    payload[72..80].copy_from_slice(&total_rows.to_le_bytes());
+    payload[80..88].copy_from_slice(&start_row.to_le_bytes());
+    payload[88..90].copy_from_slice(&row_count.to_le_bytes());
+    payload[96..100].copy_from_slice(&(body_bytes as u32).to_le_bytes());
+    payload[100] = 3;
+    WorkerOutcome::Record(
+        encode_transport_envelope(&Envelope {
+            correlation_id: Some(CorrelationId::from_bytes(request.request_id.as_bytes()).unwrap()),
+            host_epoch: Some(HostEpoch::from_bytes([4; 16]).unwrap()),
+            kind: 46,
+            optional_message: false,
+            payload: &payload,
+            payload_encoding: PayloadEncoding::RowWindow,
+            protocol: CURRENT_PROTOCOL_VERSION,
+            role: MessageRole::Response,
+        })
+        .unwrap(),
+    )
+}
+
+fn frame(id: [u8; 16], sequence: u64, static_codex: bool) -> Vec<u8> {
     use orchbee_terminal_protocol::{
         CURRENT_PROTOCOL_VERSION, Envelope, HostEpoch, MessageRole, PayloadEncoding,
         encode_transport_envelope,
@@ -342,6 +525,16 @@ fn frame(id: [u8; 16], sequence: u64) -> Vec<u8> {
     payload[56..64].fill(255);
     payload[64..72].copy_from_slice(&sequence.to_le_bytes());
     payload[72..80].copy_from_slice(&1_u64.to_le_bytes());
+    if static_codex {
+        let old = "Orchbee 🐝".as_bytes();
+        let new = "⠋ working!".as_bytes();
+        assert_eq!(old.len(), new.len());
+        let offset = payload
+            .windows(old.len())
+            .position(|window| window == old)
+            .expect("canonical title");
+        payload[offset..offset + old.len()].copy_from_slice(new);
+    }
     encode_transport_envelope(&Envelope {
         correlation_id: None,
         host_epoch: Some(HostEpoch::from_bytes([4; 16]).unwrap()),
@@ -353,4 +546,50 @@ fn frame(id: [u8; 16], sequence: u64) -> Vec<u8> {
         role: MessageRole::Event,
     })
     .unwrap()
+}
+
+#[test]
+fn static_codex_snapshot_feedback_requires_the_current_in_flight_store_reset() {
+    use orchbee_capability_node_protocol::ViewerSnapshotReason;
+    let mut flight = true;
+    assert_eq!(
+        static_snapshot_feedback(
+            7,
+            &mut flight,
+            NonZeroU64::new(8).unwrap(),
+            ViewerSnapshotReason::StoreReset,
+        ),
+        WorkerOutcome::Rejected(ViewerRejection::FeedbackMismatch)
+    );
+    assert!(flight, "a wrong sequence cannot release the record slot");
+    assert_eq!(
+        static_snapshot_feedback(
+            7,
+            &mut flight,
+            NonZeroU64::new(7).unwrap(),
+            ViewerSnapshotReason::SequenceGap,
+        ),
+        WorkerOutcome::Rejected(ViewerRejection::FeedbackMismatch)
+    );
+    assert!(flight, "a wrong reason cannot release the record slot");
+    assert_eq!(
+        static_snapshot_feedback(
+            7,
+            &mut flight,
+            NonZeroU64::new(7).unwrap(),
+            ViewerSnapshotReason::StoreReset,
+        ),
+        WorkerOutcome::FeedbackAccepted
+    );
+    assert!(!flight);
+    assert_eq!(
+        static_snapshot_feedback(
+            7,
+            &mut flight,
+            NonZeroU64::new(7).unwrap(),
+            ViewerSnapshotReason::StoreReset,
+        ),
+        WorkerOutcome::Rejected(ViewerRejection::FeedbackMismatch),
+        "a stale duplicate cannot acknowledge an already released slot"
+    );
 }

@@ -157,7 +157,7 @@ fn channel_show_reads_strict_shared_settings_without_a_site_or_writes() {
             &checked,
             include_str!("../src/cli/schemas/orchbee.config.check.json"),
         );
-        assert_eq!(checked["version"], 11);
+        assert_eq!(checked["version"], 12);
         assert_eq!(std::fs::read_to_string(&config).unwrap(), content);
     }
     let missing = fixture.0.join("explicit-missing.toml");
@@ -195,7 +195,7 @@ fn sidebar_configuration_check_projects_profiles_and_rejects_invalid_creation_be
     let mut doc = document(fixture.run(&["config", "check", "--format=json"]));
     let schema = include_str!("../src/cli/schemas/orchbee.config.check.json");
     validate(&doc, schema);
-    assert_eq!(doc["version"], 11);
+    assert_eq!(doc["version"], 12);
     let profile = orchbee_local_site_runtime::WindowsAgentSidebarSettings::from_profile(
         doc["result"]["checks"][5]["details"]["agentSidebarProfile"]
             .as_str()
@@ -207,6 +207,17 @@ fn sidebar_configuration_check_projects_profiles_and_rejects_invalid_creation_be
         profile.rows_for_agent("claude", None).unwrap()[0][0].name(),
         "tab"
     );
+    for key in [
+        "notificationAgentDelivery",
+        "notificationDelaySeconds",
+        "notificationSoundEnabled",
+        "notificationAgentSounds",
+    ] {
+        doc["result"]["checks"][5]["details"]
+            .as_object_mut()
+            .unwrap()
+            .remove(key);
+    }
     doc["result"]["checks"][5]["details"]
         .as_object_mut()
         .unwrap()
@@ -373,7 +384,7 @@ fn config_check_reports_the_actual_file_without_creating_it() {
         !validator.is_valid(&old),
         "v2 must not silently omit user configuration"
     );
-    assert_eq!(doc["version"], 11);
+    assert_eq!(doc["version"], 12);
     assert_eq!(doc["result"]["checks"][5]["details"]["defaultShell"], "");
     assert_eq!(doc["result"]["checks"][5]["details"]["shellMode"], "auto");
     assert_eq!(doc["result"]["checks"][5]["details"]["manifestCheck"], true);
@@ -410,6 +421,10 @@ fn config_check_reports_the_actual_file_without_creating_it() {
         "windowTitle",
         "windowTitleDiagnostic",
         "notificationDelivery",
+        "notificationAgentDelivery",
+        "notificationDelaySeconds",
+        "notificationSoundEnabled",
+        "notificationAgentSounds",
         "notificationPosition",
         "agentSidebarProfile",
         "spacesSidebarProfile",
@@ -458,6 +473,10 @@ fn config_check_validates_keys_and_keeps_previous_envelopes_closed() {
         "windowTitle",
         "windowTitleDiagnostic",
         "notificationDelivery",
+        "notificationAgentDelivery",
+        "notificationDelaySeconds",
+        "notificationSoundEnabled",
+        "notificationAgentSounds",
         "notificationPosition",
         "agentSidebarProfile",
         "spacesSidebarProfile",
@@ -820,6 +839,10 @@ fn config_check_window_title_diagnostics_and_closed_previous_versions() {
             "windowTitle",
             "windowTitleDiagnostic",
             "notificationDelivery",
+            "notificationAgentDelivery",
+            "notificationDelaySeconds",
+            "notificationSoundEnabled",
+            "notificationAgentSounds",
             "notificationPosition",
             "agentSidebarProfile",
             "spacesSidebarProfile",
@@ -848,7 +871,7 @@ fn config_check_notification_policy_validates_actual_file_and_closed_versions() 
     std::fs::create_dir_all(config.parent().unwrap()).unwrap();
     std::fs::write(
         &config,
-        "[ui.toast]\ndelivery='herdr'\n[ui.toast.herdr]\nposition='top-left'",
+        "[ui.toast]\ndelivery='herdr'\nagent_delivery='terminal'\ndelay_seconds=7\n[ui.toast.herdr]\nposition='top-left'\n[ui.sound]\nenabled=true\n[ui.sound.agents]\ncodex='off'\npi='on'",
     )
     .unwrap();
     let doc = document(fixture.run(&["config", "check", "--format=json"]));
@@ -862,6 +885,22 @@ fn config_check_notification_policy_validates_actual_file_and_closed_versions() 
         doc["result"]["checks"][5]["details"]["notificationPosition"],
         "top-left"
     );
+    assert_eq!(
+        doc["result"]["checks"][5]["details"]["notificationAgentDelivery"],
+        "terminal"
+    );
+    assert_eq!(
+        doc["result"]["checks"][5]["details"]["notificationDelaySeconds"],
+        7
+    );
+    assert_eq!(
+        doc["result"]["checks"][5]["details"]["notificationSoundEnabled"],
+        true
+    );
+    assert_eq!(
+        doc["result"]["checks"][5]["details"]["notificationAgentSounds"],
+        json!({"codex":"off", "pi":"on"})
+    );
     let validator =
         jsonschema::validator_for(&serde_json::from_str::<Value>(schema).unwrap()).unwrap();
     let mut old = doc;
@@ -869,6 +908,10 @@ fn config_check_notification_policy_validates_actual_file_and_closed_versions() 
     assert!(!validator.is_valid(&old));
     for name in [
         "notificationDelivery",
+        "notificationAgentDelivery",
+        "notificationDelaySeconds",
+        "notificationSoundEnabled",
+        "notificationAgentSounds",
         "notificationPosition",
         "agentSidebarProfile",
         "spacesSidebarProfile",
@@ -899,6 +942,30 @@ fn config_check_notification_policy_validates_actual_file_and_closed_versions() 
         old_failure["version"] = json!(version);
         assert!(!validator.is_valid(&old_failure));
     }
+    std::fs::write(&config, "[ui.sound]\nenabled='yes'").unwrap();
+    let mut sound_failure = document(fixture.run(&["workspace", "create", "--format=json"]));
+    validate(
+        &sound_failure,
+        include_str!("../src/cli/schemas/orchbee.cli.failure.configuration.json"),
+    );
+    assert_eq!(sound_failure["version"], 9);
+    assert_eq!(sound_failure["failure"]["details"]["field"], "ui.sound");
+    sound_failure["version"] = 8.into();
+    assert!(!validator.is_valid(&sound_failure));
+    std::fs::write(&config, "[ui.toast]\ndelay_seconds=3601").unwrap();
+    let mut delay_failure = document(fixture.run(&["workspace", "create", "--format=json"]));
+    validate(
+        &delay_failure,
+        include_str!("../src/cli/schemas/orchbee.cli.failure.configuration.json"),
+    );
+    assert_eq!(delay_failure["version"], 9);
+    assert_eq!(delay_failure["failure"]["details"]["field"], "ui.toast");
+    assert_eq!(
+        delay_failure["failure"]["details"]["reason"],
+        "invalid-delay"
+    );
+    delay_failure["version"] = 8.into();
+    assert!(!validator.is_valid(&delay_failure));
 }
 
 #[test]
@@ -911,7 +978,7 @@ fn workspace_sidebar_configuration_has_separate_profiles_and_closed_versioned_fa
     let mut doc = document(fixture.run(&["config", "check", "--format=json"]));
     let schema = include_str!("../src/cli/schemas/orchbee.config.check.json");
     validate(&doc, schema);
-    assert_eq!(doc["version"], 11);
+    assert_eq!(doc["version"], 12);
     let details = &doc["result"]["checks"][5]["details"];
     let profile = orchbee_local_site_runtime::WindowsSpaceSidebarSettings::from_profile(
         details["spacesSidebarProfile"].as_str().unwrap(),
@@ -920,6 +987,17 @@ fn workspace_sidebar_configuration_has_separate_profiles_and_closed_versioned_fa
     assert_eq!(profile.row_gap(), 2);
     assert!(profile.needs_git());
     assert_eq!(profile.rows()[1][2].name(), "$branch");
+    for key in [
+        "notificationAgentDelivery",
+        "notificationDelaySeconds",
+        "notificationSoundEnabled",
+        "notificationAgentSounds",
+    ] {
+        doc["result"]["checks"][5]["details"]
+            .as_object_mut()
+            .unwrap()
+            .remove(key);
+    }
     doc["version"] = 10.into();
     let validator =
         jsonschema::validator_for(&serde_json::from_str::<Value>(schema).unwrap()).unwrap();

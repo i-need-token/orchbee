@@ -2,7 +2,7 @@
 	"$schema": "https://json-schema.org/draft/2020-12/schema",
 	"$id": "https://orchbee.dev/schemas/workbench/v1/workbench-configuration.schema.json",
 	"title": "Site configuration publication",
-	"$comment": "Bindings additionally enforce 128 KiB encoded frames, Unicode scalar strings and UTF-8 byte bounds.",
+	"$comment": "Bindings additionally enforce 256 KiB encoded frames, Unicode scalar strings and UTF-8 byte bounds; JSON Schema maxLength remains a code-point bound.",
 	"oneOf": [
 		{
 			"$ref": "#/$defs/request"
@@ -90,7 +90,8 @@
 				"notificationProfile": {
 					"type": "string",
 					"minLength": 1,
-					"maxLength": 1024
+					"maxLength": 16384,
+					"$comment": "Bindings additionally enforce the 16 KiB UTF-8 byte limit."
 				},
 				"agentSidebarProfile": {
 					"type": "string",

@@ -265,6 +265,13 @@ impl PresentationIndex {
         self.placements.get(attachment.presentation_id.as_str())
     }
 
+    pub(super) fn placement_by_presentation(
+        &self,
+        presentation_id: &str,
+    ) -> Option<&PresentationPlacement> {
+        self.placements.get(presentation_id)
+    }
+
     #[cfg(test)]
     fn len(&self) -> usize {
         self.placements.len()

@@ -31,6 +31,7 @@ pub(super) struct Watcher {
     wake: LocalStream,
     task: Option<JoinHandle<()>>,
     revision: u64,
+    notification_update: Option<(u64, WindowsNotificationSettings)>,
 }
 impl Watcher {
     pub(super) fn spawn(
@@ -49,6 +50,7 @@ impl Watcher {
             wake,
             task: Some(task),
             revision: 0,
+            notification_update: None,
         })
     }
     pub(super) fn reload(&self) -> bool {
@@ -63,6 +65,7 @@ impl Watcher {
         true
     }
     pub(super) fn tick(&mut self, view: &mut ClientView) -> bool {
+        self.notification_update = None;
         let Ok(mut state) = self.shared.0.lock() else {
             return false;
         };
@@ -82,7 +85,8 @@ impl Watcher {
                 (Ok(keys), Ok(notifications), Ok(sidebar), Ok(spaces)) => {
                     view.machines.configure_space_sidebar(spaces);
                     view.machines.configure_agent_sidebar(sidebar);
-                    view.notifications.configure(notifications);
+                    view.notifications.configure(notifications.clone());
+                    self.notification_update = Some((snapshot.revision.value(), notifications));
                     view.configure_keys(&keys);
                     self.revision = snapshot.revision.value();
                     changed = true;
@@ -98,6 +102,11 @@ impl Watcher {
             changed = true;
         }
         changed
+    }
+    pub(super) fn take_notification_update(
+        &mut self,
+    ) -> Option<(u64, WindowsNotificationSettings)> {
+        self.notification_update.take()
     }
     pub(super) fn close(&mut self) {
         if self.task.is_none() {

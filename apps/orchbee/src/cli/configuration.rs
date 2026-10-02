@@ -37,23 +37,29 @@ impl Error {
     pub(super) fn failure(self) -> Failure {
         Failure::new(FailureKind::CheckFailed)
             .failure_schema("orchbee.cli.failure.configuration")
-            .version(if self.field == "ui.sidebar.spaces" {
-                8
-            } else if self.field == "ui.sidebar.agents" {
-                7
-            } else if self.field == "update.channel" {
-                6
-            } else if self.field == "ui.toast" {
-                5
-            } else if self.field == "ui.window_title" {
-                4
-            } else if self.field == "keys" {
-                3
-            } else if matches!(self.field, "terminal.default_shell" | "terminal.shell_mode") {
-                2
-            } else {
-                1
-            })
+            .version(
+                if self.field == "ui.sound"
+                    || (self.field == "ui.toast" && self.reason == "invalid-delay")
+                {
+                    9
+                } else if self.field == "ui.sidebar.spaces" {
+                    8
+                } else if self.field == "ui.sidebar.agents" {
+                    7
+                } else if self.field == "update.channel" {
+                    6
+                } else if self.field == "ui.toast" {
+                    5
+                } else if self.field == "ui.window_title" {
+                    4
+                } else if self.field == "keys" {
+                    3
+                } else if matches!(self.field, "terminal.default_shell" | "terminal.shell_mode") {
+                    2
+                } else {
+                    1
+                },
+            )
             .details(serde_json::Map::from_iter([
                 ("field".into(), self.field.into()),
                 ("reason".into(), self.reason.into()),
@@ -138,6 +144,27 @@ impl Settings {
             (
                 "notificationDelivery".into(),
                 self.notifications.delivery.as_str().into(),
+            ),
+            (
+                "notificationAgentDelivery".into(),
+                self.notifications.agent_delivery.as_str().into(),
+            ),
+            (
+                "notificationDelaySeconds".into(),
+                self.notifications.delay_seconds.into(),
+            ),
+            (
+                "notificationSoundEnabled".into(),
+                self.notifications.sound_enabled.into(),
+            ),
+            (
+                "notificationAgentSounds".into(),
+                serde_json::Value::Object(serde_json::Map::from_iter(
+                    self.notifications
+                        .agent_sounds()
+                        .iter()
+                        .map(|(agent, setting)| (agent.clone(), setting.as_str().into())),
+                )),
             ),
             (
                 "notificationPosition".into(),

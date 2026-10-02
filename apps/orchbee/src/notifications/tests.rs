@@ -31,6 +31,22 @@ fn expiry_requests_idle_redraw_and_sound_is_once_after_successful_paint_only() {
     assert!(!view.notifications.tick(now + Duration::from_secs(6)));
     assert_eq!(view, original, "no input/pointer/prefix/layout changes");
 }
+
+#[test]
+fn automatic_delivery_does_not_inherit_or_change_manual_delivery() {
+    let mut state = State::default();
+    state.configure(
+        WindowsNotificationSettings::from_profile(
+            "[ui.toast]\ndelivery='off'\nagent_delivery='system'",
+        )
+        .unwrap(),
+    );
+    let now = Instant::now();
+    assert!(state.install_automatic(message(Position::BottomRight), Delivery::System, now,));
+    assert_eq!(state.take_effect().unwrap().delivery, Delivery::System);
+    assert!(state.install(message(Position::BottomRight), now));
+    assert_eq!(state.take_effect().unwrap().delivery, Delivery::Off);
+}
 #[test]
 fn all_corner_cards_keep_status_and_top_chrome_unicode_safe_at_required_sizes() {
     for (width, height) in [

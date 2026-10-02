@@ -265,7 +265,8 @@ fn machine_local_workspace_selection_reuses_local_origin_and_replaces_only_after
 -> io::Result<()> {
     let snapshot = snapshot(true);
     let destination = target(&snapshot);
-    let mut retained = Vec::with_capacity(1);
+    let retained = Arc::new(std::sync::Mutex::new(Vec::with_capacity(1)));
+    let handler_retained = Arc::clone(&retained);
     let server = FakeServer::start_optional_connections(4, move |index, mut stream| {
         stream.set_read_timeout(Some(Duration::from_secs(5)))?;
         assert!(matches!(
@@ -280,7 +281,10 @@ fn machine_local_workspace_selection_reuses_local_origin_and_replaces_only_after
         )
         .map_err(io::Error::other)?;
         if index == 0 {
-            retained.push(stream);
+            handler_retained
+                .lock()
+                .map_err(|_| io::Error::other("retained origin lock poisoned"))?
+                .push(stream);
             return Ok(());
         }
         let WorkbenchRequest::SnapshotRead(read) =
@@ -311,14 +315,16 @@ fn machine_local_workspace_selection_reuses_local_origin_and_replaces_only_after
             Ok(WorkbenchRequest::WorkspaceMetadata(WorkspaceMetadataRequest {
                 action: WorkspaceMetadataAction::Read { workspace_ids },
                 ..
-            })) => assert_eq!(
-                workspace_ids,
-                vec![
-                    snapshot.navigation.projects[0].workspaces[0]
-                        .workspace_id
-                        .clone()
-                ]
-            ),
+            })) => {
+                assert_eq!(
+                    workspace_ids,
+                    vec![
+                        snapshot.navigation.projects[0].workspaces[0]
+                            .workspace_id
+                            .clone()
+                    ]
+                );
+            }
             Err(WorkbenchWireError::Io(error)) if error.kind() == io::ErrorKind::UnexpectedEof => {}
             other => panic!("unexpected post-snapshot request: {other:?}"),
         }
@@ -375,7 +381,22 @@ fn machine_local_workspace_selection_reuses_local_origin_and_replaces_only_after
         if change.switched {
             break;
         }
-        assert!(view.machines.error.is_none());
+        let now = Instant::now();
+        let error = view.machines.error;
+        let candidate = manager.candidate.as_ref().map(|candidate| {
+            (
+                candidate.session.status(),
+                candidate.deadline.saturating_duration_since(now),
+            )
+        });
+        assert!(
+            error.is_none(),
+            "machine error={error:?}; test budget={:?}; phase queued={} attempt={} candidate={candidate:?}; active={:?}; destination={destination:?}",
+            deadline.saturating_duration_since(now),
+            manager.queued.is_some(),
+            manager.attempt.is_some(),
+            active_context(surface.active()),
+        );
         assert!(Instant::now() < deadline);
         thread::sleep(Duration::from_millis(1));
     }
@@ -384,6 +405,11 @@ fn machine_local_workspace_selection_reuses_local_origin_and_replaces_only_after
     assert!(manager.cached.is_empty());
     drop(manager);
     drop(surface);
+    drop(client);
+    retained
+        .lock()
+        .map_err(|_| io::Error::other("retained origin lock poisoned"))?
+        .clear();
     server.finish()
 }
 

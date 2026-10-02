@@ -9,6 +9,7 @@ const caseSchema = z.strictObject({
 	document: z.unknown(),
 	boundary: z.enum(['schema', 'semantic']).optional(),
 });
+const NOTIFICATION_PROFILE_BYTES = 16 * 1024;
 
 const profile = (name: string) =>
 	JSON.stringify({
@@ -28,8 +29,50 @@ const profile = (name: string) =>
 		],
 		row_gap: 0,
 	});
+const configurationResult = (notificationProfile: string) => ({
+	kind: 'workbench.configuration.result',
+	protocolVersion: 1,
+	requestId: '00000000000000000000000000000001',
+	siteId: '00000000000000000000000000000002',
+	outcome: {
+		kind: 'current',
+		snapshot: {
+			revision: '1',
+			keysProfile: '[keys]',
+			windowTitle: '',
+			notificationProfile,
+			agentSidebarProfile: '{}',
+			spacesSidebarProfile: '{}',
+			manifestCheck: true,
+			defaultShell: '',
+			shellMode: 'auto',
+			restartRequired: [],
+		},
+	},
+});
 
 describe('Site configuration publication', () => {
+	it('admits exactly 16 KiB of ASCII notification profile and rejects the next byte', () => {
+		expect(
+			WorkbenchResponseSchema.safeParse(configurationResult('x'.repeat(NOTIFICATION_PROFILE_BYTES)))
+				.success,
+		).toBe(true);
+		expect(
+			WorkbenchResponseSchema.safeParse(
+				configurationResult('x'.repeat(NOTIFICATION_PROFILE_BYTES + 1)),
+			).success,
+		).toBe(false);
+	});
+	it('uses UTF-8 bytes rather than JavaScript string length for notification profiles', () => {
+		const within = '界'.repeat(5461);
+		const over = '界'.repeat(5462);
+		expect(within.length).toBeLessThan(NOTIFICATION_PROFILE_BYTES);
+		expect(over.length).toBeLessThan(NOTIFICATION_PROFILE_BYTES);
+		expect(new TextEncoder().encode(within)).toHaveLength(16383);
+		expect(new TextEncoder().encode(over)).toHaveLength(16386);
+		expect(WorkbenchResponseSchema.safeParse(configurationResult(within)).success).toBe(true);
+		expect(WorkbenchResponseSchema.safeParse(configurationResult(over)).success).toBe(false);
+	});
 	it('fits two independently bounded escaped sidebar profiles in the shared frame', () => {
 		const snapshot = {
 			revision: '1',

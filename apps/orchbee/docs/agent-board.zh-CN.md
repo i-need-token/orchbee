@@ -71,9 +71,26 @@ Agent Unavailable/Expired 提示属跨层反馈，超出本模型 outcome 词汇
 `LandedOnlyOnLiveViewer` 独立要求新产生 `landed` 的步骤在 pre-state 中找到精确目标
 viewer 存活——其后的 ViewerDies 无法证伪一次当时合法的落定。
 
+模型刻意不保留看板字节、外圈滚轮或跳转待决时刷新是否已经发生。擦除这组原本只服务覆盖率
+的历史会得到双向 stutter 商：旧模型的每一步都投影为相同的产品迁移或这三个具名自环之一；
+商模型的每条行为则可通过让旧模型各执行一次对应具名步骤，并把重复自环视为 `[Next]_vars`
+本就允许的 stutter 来提升。没有弱公平动作读取被擦除的历史，因此动作 enabledness 与每项
+`WF_vars` 义务均保持不变。三个必需覆盖名称仍显式存在；即使后继状态已经发现，runner 也按
+generated successor 计数。
+
+该商还会在 walk 结算或看板关闭后规范化 `laneRound`、`walkRev`、`walkPages` 与 `retries`。
+这四个 scratch 值只由 `lanePhase = "list"` 时的 list 动作读取；`StartList` 会在后续读取前
+初始化每个值。投影在 list 期间原样保留它们，其余阶段映射为有类型的初始值。旧模型每一步都
+投影为相同的具名产品步骤；商模型的步骤则可通过保留旧模型已结算的 scratch，直到下次初始化来
+提升。有类型的初始值仍满足它们的 `TypeOK` 范围检查；没有业务 guard、产品不变量或时序性质在
+list 阶段以外读取这些被丢弃的值。List 动作在
+该阶段之外不可用，其他每个弱公平动作在投影下保持相同 enabledness。这消除无效历史，不限制
+读取、重开、取消、导航或环境交错。
+
 已接受的 1,083,010 distinct 状态运行仍是先前单 epoch 变体的有限界证据——`MaxEpoch = 1`
-不可达重开。重开、viewer 死亡/重连与不可绘制关闭这组 delta 已注册并等待 TLC 门槛重跑；
-在该放电完成前，这些断言仅立于模型文本，与未改动的不变量及弱公平进展性质一同受检。
+不可达重开。已注册的双 epoch 配置是当前有限界范围。在注册 runner 完整跑完前，本文不声称
+这一范围已经通过；其重开、viewer 死亡/重连与不可绘制关闭断言目前由本文所述的模型映射、
+不变量、弱公平进展性质与确定性测试共同支撑。
 
 使用 `node scripts/tla/run-models.mjs --models agent-board` 运行已注册模型。OBAP 帧与身
 份契约精化线上步骤；`NativeContextSelection`、`NativeTabSwitch` 与 local-client 模型精化

@@ -149,7 +149,7 @@ fn current_reload_rejections_and_lost_reply_have_closed_typed_receipts_without_r
                 &document,
                 include_str!("../src/cli/schemas/orchbee.site.configuration.json"),
             );
-            assert_eq!(document["version"], 6);
+            assert_eq!(document["version"], 7);
             if matches!(case, "startup" | "current" | "reload" | "restart") {
                 assert_eq!(
                     document["result"]["reply"]["outcome"]["snapshot"]["defaultShell"],
@@ -228,6 +228,13 @@ fn public_configuration_versions_keep_closed_independent_snapshots() {
     document["result"]["reply"]["outcome"]["snapshot"]["spacesSidebarProfile"] =
         "{\"rows\":[],\"row_gap\":0}".into();
     assert!(validator.is_valid(&document));
+    document["version"] = 7.into();
+    document["result"]["reply"]["outcome"]["snapshot"]["notificationProfile"] =
+        "x".repeat(1025).into();
+    assert!(validator.is_valid(&document));
+    document["version"] = 6.into();
+    assert!(!validator.is_valid(&document));
+    document["result"]["reply"]["outcome"]["snapshot"]["notificationProfile"] = "[ui.toast]".into();
     document["version"] = 5.into();
     assert!(!validator.is_valid(&document));
     document["result"]["reply"]["outcome"]["snapshot"]

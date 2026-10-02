@@ -77,7 +77,7 @@ impl FakeServer {
     /// may omit admissions, but the maximum and every read remain bounded.
     pub(crate) fn start_optional_connections(
         maximum: usize,
-        mut handler: impl FnMut(usize, UnixStream) -> io::Result<()> + Send + 'static,
+        handler: impl Fn(usize, UnixStream) -> io::Result<()> + Send + Sync + 'static,
     ) -> io::Result<Self> {
         let directory = TestDirectory::new()?;
         #[cfg(unix)]
@@ -87,26 +87,47 @@ impl FakeServer {
         let listener = UnixListener::bind(&endpoint)?;
         listener.set_nonblocking(true)?;
         let (signal, finish) = std::sync::mpsc::sync_channel(1);
+        let handler = Arc::new(handler);
         let thread = thread::spawn(move || {
             let deadline = Instant::now() + ACCEPT_GUARD_TIMEOUT;
             let mut admitted = 0;
+            let mut lanes = Vec::with_capacity(maximum);
+            let mut first_error = None;
             loop {
                 match finish.try_recv() {
-                    Ok(()) | Err(std::sync::mpsc::TryRecvError::Disconnected) => return Ok(()),
+                    Ok(()) | Err(std::sync::mpsc::TryRecvError::Disconnected) => break,
                     Err(std::sync::mpsc::TryRecvError::Empty) => {}
                 }
                 if Instant::now() >= deadline {
-                    return Err(io::Error::new(
+                    first_error = Some(io::Error::new(
                         io::ErrorKind::TimedOut,
                         "fake Server finish deadline",
                     ));
+                    break;
                 }
                 if admitted < maximum {
                     match listener.accept() {
                         Ok((stream, _)) => {
-                            stream.set_read_timeout(Some(SERVER_GUARD_TIMEOUT))?;
-                            stream.set_write_timeout(Some(SERVER_GUARD_TIMEOUT))?;
-                            handler(admitted, stream)?;
+                            if let Err(error) = stream
+                                .set_read_timeout(Some(SERVER_GUARD_TIMEOUT))
+                                .and_then(|()| stream.set_write_timeout(Some(SERVER_GUARD_TIMEOUT)))
+                            {
+                                first_error = Some(error);
+                                break;
+                            }
+                            let index = admitted;
+                            let lane_handler = Arc::clone(&handler);
+                            let lane = match thread::Builder::new()
+                                .name(format!("orchbee-fake-server-{index}"))
+                                .spawn(move || lane_handler(index, stream))
+                            {
+                                Ok(lane) => lane,
+                                Err(error) => {
+                                    first_error = Some(error);
+                                    break;
+                                }
+                            };
+                            lanes.push(lane);
                             admitted += 1;
                             continue;
                         }
@@ -115,11 +136,26 @@ impl FakeServer {
                                 error.kind(),
                                 io::ErrorKind::WouldBlock | io::ErrorKind::Interrupted
                             ) => {}
-                        Err(error) => return Err(error),
+                        Err(error) => {
+                            first_error = Some(error);
+                            break;
+                        }
                     }
                 }
                 thread::sleep(Duration::from_millis(1));
             }
+            for lane in lanes {
+                let result = lane
+                    .join()
+                    .map_err(|_panic| io::Error::other("fake Server handler panicked"))
+                    .and_then(std::convert::identity);
+                if let Err(error) = result
+                    && first_error.is_none()
+                {
+                    first_error = Some(error);
+                }
+            }
+            first_error.map_or(Ok(()), Err)
         });
         Ok(Self {
             _directory: directory,
