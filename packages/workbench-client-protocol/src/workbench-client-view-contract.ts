@@ -136,7 +136,7 @@ const physicalBindings = z
 	.max(100)
 	.refine((bindings) => new Set(bindings.map((b) => b.presentationId)).size === bindings.length)
 	.readonly();
-export const ClientTerminalAgentAttentionSnapshotSchema = z
+const ClientTerminalAgentAttentionSnapshotSchema = z
 	.strictObject({
 		reportRevision: WorkbenchRevisionSchema,
 		outerFocused: z.boolean().nullable(),

@@ -14,7 +14,7 @@ const literalLaunchStringSchema = z
 		'Launch text must be NUL-free Unicode scalar text',
 	);
 const utf8 = new TextEncoder();
-export const WorkbenchLaunchSelectionSchema = z
+const WorkbenchLaunchSelectionSchema = z
 	.strictObject({
 		exec: literalLaunchStringSchema.refine(
 			(value) => /^(?:\/|(?:\\\\\?\\)?[A-Za-z]:[/\\])/u.test(value),
@@ -37,7 +37,7 @@ export const WorkbenchLaunchSelectionSchema = z
 	}, 'Launch selection exceeds its byte budget')
 	.readonly();
 
-export const WorkbenchLaunchProfileSelectorSchema = z
+const WorkbenchLaunchProfileSelectorSchema = z
 	.string()
 	.min(1)
 	.max(512)
@@ -77,7 +77,7 @@ export const WorkbenchLaunchEnvironmentSchema = z
 	}, 'Launch environment has duplicate names or exceeds its byte budget')
 	.readonly();
 
-export const WorkbenchLaunchOptionsSchema = z
+const WorkbenchLaunchOptionsSchema = z
 	.strictObject({
 		cwd: WorkbenchDirectoryPathSchema.nullable().optional(),
 		pluginPane: WorkbenchPluginPaneSelectorSchema.nullable().optional(),

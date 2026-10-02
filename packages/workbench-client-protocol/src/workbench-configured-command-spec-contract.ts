@@ -13,7 +13,7 @@ export const ConfiguredCommandIdSchema = z
 	.string()
 	.max(120)
 	.regex(/^cmd_[A-Za-z0-9_]*$/u);
-export const ConfiguredCommandSizeSchema = z.discriminatedUnion('kind', [
+const ConfiguredCommandSizeSchema = z.discriminatedUnion('kind', [
 	z.strictObject({ kind: z.literal('cells'), value: z.number().int().min(1).max(4096) }),
 	z.strictObject({ kind: z.literal('percent'), value: z.number().int().min(1).max(100) }),
 ]);

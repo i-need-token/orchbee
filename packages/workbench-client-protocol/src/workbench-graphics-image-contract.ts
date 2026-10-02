@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 export const GRAPHICS_SET_BYTES = 512 * 1024;
 export const GRAPHICS_STREAM_BYTES = 16 * 1024 * 1024;
-export const GRAPHICS_DECODED_BYTES = 32 * 1024 * 1024;
+const GRAPHICS_DECODED_BYTES = 32 * 1024 * 1024;
 export const GRAPHICS_RESIDENT_BYTES = 64 * 1024 * 1024;
 export const GRAPHICS_CHUNK_BYTES = 256 * 1024;
 export const GRAPHICS_REQUEST_BYTES = 24 * 1024 * 1024;
@@ -12,7 +12,7 @@ export const GraphicsLayerIdSchema = z
 	.min(1)
 	.max(80)
 	.regex(/^[A-Za-z0-9_.-]+$/u);
-export const GraphicsFormatSchema = z.enum(['png', 'rgb', 'rgba', 'bgra']);
+const GraphicsFormatSchema = z.enum(['png', 'rgb', 'rgba', 'bgra']);
 export const GraphicsPlacementSchema = z.strictObject({
 	viewportColumn: z.number().int().min(-2147483648).max(2147483647),
 	viewportRow: z.number().int().min(-2147483648).max(2147483647),
