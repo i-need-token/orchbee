@@ -68,9 +68,7 @@ state = "unknown"
 priority = 150
 region = "bottom_non_empty_lines(8)"
 line_regex = ['^\s*›\s+\S.*$']
-not = [
-  { line_regex = ['^\s*›\s+Try\s+"'] },
-]
+not = [{ line_regex = ['^\s*›\s+Try\s+"'] }]
 
 [[rules]]
 id = "composer_idle"
@@ -78,13 +76,14 @@ state = "idle"
 priority = 100
 region = "bottom_non_empty_lines(8)"
 visible_idle = true
-any = [
-  { line_regex = ['^\s*›\s*$'] },
-  { line_regex = ['^\s*›\s+Try\s+"'] },
-]
+any = [{ line_regex = ['^\s*›\s*$'] }, { line_regex = ['^\s*›\s+Try\s+"'] }]
 not = [
-  { line_regex = ['^\s*(?:\S+\s+)+is(?: \S+)*… \((?:esc to interrupt(?: · .*)?|interrupting)\)\s*$'] },
-  { line_regex = ['^\s*(?:└\s*)?Running\.\.\.\s*(?:\(.*\))?$'] },
+	{ line_regex = [
+		'^\s*(?:\S+\s+)+is(?: \S+)*… \((?:esc to interrupt(?: · .*)?|interrupting)\)\s*$',
+	] },
+	{ line_regex = [
+		'^\s*(?:└\s*)?Running\.\.\.\s*(?:\(.*\))?$',
+	] },
 ]
 
 [[rules]]

@@ -304,7 +304,7 @@ single-component HERMES_DATA_DIR_SUFFIX applies only to the default. Relative or
 unexpanded explicit roots refuse. Provider commands receive the resolved
 HERMES_HOME, so inspection and activation select the same profile.
 
-Orchbee owns only plugins/orchbee-agent-observation/__init__.py and plugin.yaml.
+Orchbee owns only plugins/orchbee-agent-observation/**init**.py and plugin.yaml.
 The manifest is JSON, a YAML subset; each entire generated file proves its capsule
 root. Foreign/edited/newer members refuse. One missing member or independently
 proven old/current members require repair, including interrupted two-file updates.

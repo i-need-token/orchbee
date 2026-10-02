@@ -34,14 +34,14 @@ enable/disable and start/prompt remain separate CLI obligations.
 | Claude Code        | Current documented hook/plugin contract | Command-hook plugin      | Session, Turn, tool, question, approval, compaction, subagent, completion, failure                           |
 | Codex              | `0.150.1` (Unix), `0.155.1` (Windows)   | Command-hook plugin      | Session, Turn, tool, question, approval, compaction, subagent, completion                                    |
 | Grok               | `1.0.5`                                 | Command-hook plugin      | Session, Turn, tool, approval, compaction, subagent, idle, completion, failure, cancellation, interruption   |
-| OpenCode           | `1.1.25`, `1.18.30`                               | JavaScript plugin events | Session, busy/retry/idle, tool, question, approval, error                                                    |
-| Kilo | `cb67014f` | JavaScript plugin events | Session, busy/retry/idle/offline question, chat, tool, question, approval, error |
+| OpenCode           | `1.1.25`, `1.18.30`                     | JavaScript plugin events | Session, busy/retry/idle, tool, question, approval, error                                                    |
+| Kilo               | `cb67014f`                              | JavaScript plugin events | Session, busy/retry/idle/offline question, chat, tool, question, approval, error                             |
 | Pi                 | `0.84.4`                                | Extension API            | Session, Agent start/settled, blocking UI prompt, tool, compaction                                           |
 | OMP                | `18.0.10`                               | Extension API            | Session, Agent start/end, Ask tool, tool approval, tool, compaction, retry                                   |
-| Gemini CLI         | `20f70757`                                | Command-hook extension   | Session, Agent start/end, tool, question, permission, compaction, completion                                 |
+| Gemini CLI         | `20f70757`                              | Command-hook extension   | Session, Agent start/end, tool, question, permission, compaction, completion                                 |
 | GitHub Copilot CLI | `1.0.81`                                | Command-hook plugin      | Session, Turn, actual question/permission prompt, tool result, compaction, completion, unrecoverable failure |
 | Cline              | `3.0.60`                                | Plugin runtime API       | Run/Turn, tool, question, completion, failure, interruption                                                  |
-| Qwen Code          | `c3a4058a`                                | Command-hook extension   | Session, Turn, tool, question, permission, compaction, subagent, completion, failure                         |
+| Qwen Code          | `c3a4058a`                              | Command-hook extension   | Session, Turn, tool, question, permission, compaction, subagent, completion, failure                         |
 
 These are separate compatibility contracts. Pi and OMP deliberately do not share an adapter;
 Gemini CLI and Qwen Code likewise retain separate manifests and event interpretation. Versions

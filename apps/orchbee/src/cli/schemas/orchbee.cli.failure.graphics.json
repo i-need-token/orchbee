@@ -43,20 +43,11 @@
 							"const": "graphics"
 						}
 					},
-					"required": [
-						"stage"
-					]
+					"required": ["stage"]
 				}
 			},
-			"required": [
-				"kind",
-				"details"
-			]
+			"required": ["kind", "details"]
 		}
 	},
-	"required": [
-		"schema",
-		"version",
-		"failure"
-	]
+	"required": ["schema", "version", "failure"]
 }

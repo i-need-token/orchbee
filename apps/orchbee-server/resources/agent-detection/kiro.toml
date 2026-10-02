@@ -12,10 +12,18 @@ region = "whole_recent"
 visible_blocker = true
 contains = ["requires approval"]
 any = [
-  { contains = ["yes, single permission"] },
-  { contains = ["trust, always allow"] },
-  { contains = ["no (tab to edit)"] },
-  { contains = ["esc to close"] },
+	{ contains = [
+		"yes, single permission",
+	] },
+	{ contains = [
+		"trust, always allow",
+	] },
+	{ contains = [
+		"no (tab to edit)",
+	] },
+	{ contains = [
+		"esc to close",
+	] },
 ]
 
 [[rules]]
@@ -25,12 +33,19 @@ priority = 290
 region = "whole_recent"
 visible_blocker = true
 contains = ["pending from subagents"]
-any = [
-  { contains = ["tool approval"] },
-  { contains = ["tool approvals"] },
-]
+any = [{ contains = ["tool approval"] }, { contains = ["tool approvals"] }]
 all = [
-  { any = [{ contains = ["approve all pending"] }, { contains = ["configure individually"] }, { contains = ["exit (cancel subagents)"] }] },
+	{ any = [
+		{ contains = [
+			"approve all pending",
+		] },
+		{ contains = [
+			"configure individually",
+		] },
+		{ contains = [
+			"exit (cancel subagents)",
+		] },
+	] },
 ]
 
 [[rules]]
@@ -40,10 +55,7 @@ priority = 200
 region = "bottom_non_empty_lines(5)"
 visible_idle = true
 contains = ["ask a question or describe a task", "/copy to clipboard"]
-not = [
-  { contains = ["kiro is working"] },
-  { contains = ["esc to cancel"] },
-]
+not = [{ contains = ["kiro is working"] }, { contains = ["esc to cancel"] }]
 
 [[rules]]
 id = "kiro_working_marker"

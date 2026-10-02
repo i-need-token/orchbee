@@ -105,8 +105,21 @@ const raw = PayloadEncoding.rawBytes;
  * its successful response kind, so producers do not repeat that association.
  */
 export const MESSAGE_CONTRACTS = {
-	[MessageKind.decodeGraphicsPng]: { eventEncoding: null, name: 'DecodeGraphicsPng', request: { payloadEncoding: PayloadEncoding.graphicsImage, successKind: MessageKind.graphicsPngDecoded }, responseEncoding: null },
-	[MessageKind.graphicsPngDecoded]: { eventEncoding: null, name: 'GraphicsPngDecoded', request: null, responseEncoding: PayloadEncoding.graphicsImage },
+	[MessageKind.decodeGraphicsPng]: {
+		eventEncoding: null,
+		name: 'DecodeGraphicsPng',
+		request: {
+			payloadEncoding: PayloadEncoding.graphicsImage,
+			successKind: MessageKind.graphicsPngDecoded,
+		},
+		responseEncoding: null,
+	},
+	[MessageKind.graphicsPngDecoded]: {
+		eventEncoding: null,
+		name: 'GraphicsPngDecoded',
+		request: null,
+		responseEncoding: PayloadEncoding.graphicsImage,
+	},
 	[MessageKind.readProcessInfo]: {
 		eventEncoding: null,
 		name: 'ReadProcessInfo',

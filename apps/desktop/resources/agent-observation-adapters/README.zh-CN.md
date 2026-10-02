@@ -32,14 +32,14 @@ Windows 原生 cohort 复用 v3 rich envelope／私有 APC 关联。Capsule `0.4
 | Claude Code        | 当前文档化 hook/plugin contract         | Command-hook plugin     | Session、Turn、tool、question、approval、compaction、subagent、completion、failure                         |
 | Codex              | `0.150.1`（Unix）、`0.155.1`（Windows） | Command-hook plugin     | Session、Turn、tool、question、approval、compaction、subagent、completion                                  |
 | Grok               | `1.0.5`                                 | Command-hook plugin     | Session、Turn、tool、approval、compaction、subagent、idle、completion、failure、cancellation、interruption |
-| OpenCode           | `1.1.25`, `1.18.30`                               | JavaScript plugin event | Session、busy/retry/idle、tool、question、approval、error                                                  |
-| Kilo | `cb67014f` | JavaScript 插件事件 | Session、busy/retry/idle/offline 问题、聊天、工具、问题、审批、错误 |
+| OpenCode           | `1.1.25`, `1.18.30`                     | JavaScript plugin event | Session、busy/retry/idle、tool、question、approval、error                                                  |
+| Kilo               | `cb67014f`                              | JavaScript 插件事件     | Session、busy/retry/idle/offline 问题、聊天、工具、问题、审批、错误                                        |
 | Pi                 | `0.84.4`                                | Extension API           | Session、Agent start/settled、blocking UI prompt、tool、compaction                                         |
 | OMP                | `18.0.10`                               | Extension API           | Session、Agent start/end、Ask tool、tool approval、tool、compaction、retry                                 |
-| Gemini CLI         | `20f70757`                                | Command-hook extension  | Session、Agent start/end、tool、question、permission、compaction、completion                               |
+| Gemini CLI         | `20f70757`                              | Command-hook extension  | Session、Agent start/end、tool、question、permission、compaction、completion                               |
 | GitHub Copilot CLI | `1.0.81`                                | Command-hook plugin     | Session、Turn、实际 question/permission prompt、tool result、compaction、completion、不可恢复 failure      |
 | Cline              | `3.0.60`                                | Plugin runtime API      | Run/Turn、tool、question、completion、failure、interruption                                                |
-| Qwen Code          | `c3a4058a`                                | Command-hook extension  | Session、Turn、tool、question、permission、compaction、subagent、completion、failure                       |
+| Qwen Code          | `c3a4058a`                              | Command-hook extension  | Session、Turn、tool、question、permission、compaction、subagent、completion、failure                       |
 
 这些是彼此独立的 compatibility contract。Pi 与 OMP 有意不共享 adapter；Gemini CLI 与 Qwen Code
 同样保留独立 manifest 与 event interpretation。Matrix 以外的版本在 event fixture 与 capability grant

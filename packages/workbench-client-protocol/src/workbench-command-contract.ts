@@ -1,4 +1,7 @@
-import { PaneGraphicsRequestSchema, PaneGraphicsResultSchema } from './workbench-pane-graphics-contract';
+import {
+	PaneGraphicsRequestSchema,
+	PaneGraphicsResultSchema,
+} from './workbench-pane-graphics-contract';
 import { GRAPHICS_REQUEST_BYTES, GRAPHICS_RESULT_BYTES } from './workbench-graphics-image-contract';
 import {
 	ConfiguredCommandRequestSchema,

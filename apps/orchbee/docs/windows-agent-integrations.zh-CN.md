@@ -278,7 +278,7 @@ Hermes 持有配置及插件激活。Windows 优先解析去除首尾空白后�
 仅作用于默认目录。相对或尚未展开的显式根拒绝。提供方命令收到已解析的
 HERMES_HOME，确保检查和激活选择同一配置档。
 
-Orchbee 仅持有 plugins/orchbee-agent-observation/__init__.py 和 plugin.yaml。
+Orchbee 仅持有 plugins/orchbee-agent-observation/**init**.py 和 plugin.yaml。
 清单使用 YAML 子集 JSON；每个完整生成文件证明其胶囊根。外来、修改或更新
 版本成员拒绝。单个成员缺失，或分别证明为旧／当前版本的成员需要修复，包括
 中断的双文件更新。启用通过共享有界 Windows 文件发布原语先发布入口，再发布

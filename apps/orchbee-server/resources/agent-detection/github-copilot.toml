@@ -11,16 +11,28 @@ priority = 300
 region = "whole_recent"
 visible_blocker = true
 all = [
-  { any = [
-    { contains = ["esc to cancel"] },
-    { contains = ["esc cancel"] },
-  ] },
-  { any = [
-    { contains = ["enter to select"] },
-    { contains = ["enter to confirm"] },
-    { contains = ["enter to submit"] },
-    { contains = ["enter accept"] },
-  ] },
+	{ any = [
+		{ contains = [
+			"esc to cancel",
+		] },
+		{ contains = [
+			"esc cancel",
+		] },
+	] },
+	{ any = [
+		{ contains = [
+			"enter to select",
+		] },
+		{ contains = [
+			"enter to confirm",
+		] },
+		{ contains = [
+			"enter to submit",
+		] },
+		{ contains = [
+			"enter accept",
+		] },
+	] },
 ]
 
 [[rules]]
@@ -38,8 +50,16 @@ priority = 100
 region = "whole_recent"
 visible_working = true
 any = [
-  { contains = ["esc to cancel"] },
-  { contains = ["esc cancel"] },
-  { contains = ["esc again to cancel"] },
-  { contains = ["esc interrupt"] }
+	{ contains = [
+		"esc to cancel",
+	] },
+	{ contains = [
+		"esc cancel",
+	] },
+	{ contains = [
+		"esc again to cancel",
+	] },
+	{ contains = [
+		"esc interrupt",
+	] },
 ]

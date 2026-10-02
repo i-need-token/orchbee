@@ -35,15 +35,33 @@ region = "bottom_non_empty_lines(20)"
 visible_blocker = true
 line_regex = ['^\s*⠏\s+.*\.\.\.\s*$']
 any = [
-  { contains = ["Waiting for user confirmation..."] },
-  { contains = ["等待用户确认..."] },
-  { contains = ["等待用戶確認..."] },
-  { contains = ["Warten auf Benutzerbestätigung..."] },
-  { contains = ["En attente de la confirmation de l'utilisateur..."] },
-  { contains = ["ユーザーの確認を待っています..."] },
-  { contains = ["Aguardando confirmação do usuário..."] },
-  { contains = ["Ожидание подтверждения от пользователя..."] },
-  { contains = ["Esperant la confirmació de l'usuari..."] },
+	{ contains = [
+		"Waiting for user confirmation...",
+	] },
+	{ contains = [
+		"等待用户确认...",
+	] },
+	{ contains = [
+		"等待用戶確認...",
+	] },
+	{ contains = [
+		"Warten auf Benutzerbestätigung...",
+	] },
+	{ contains = [
+		"En attente de la confirmation de l'utilisateur...",
+	] },
+	{ contains = [
+		"ユーザーの確認を待っています...",
+	] },
+	{ contains = [
+		"Aguardando confirmação do usuário...",
+	] },
+	{ contains = [
+		"Ожидание подтверждения от пользователя...",
+	] },
+	{ contains = [
+		"Esperant la confirmació de l'usuari...",
+	] },
 ]
 
 [[rules]]
@@ -54,11 +72,21 @@ region = "bottom_non_empty_lines(20)"
 visible_blocker = true
 contains = ["yes, allow once"]
 any = [
-  { contains = ["apply this change?"] },
-  { contains = ["allow execution of:"] },
-  { contains = ["allow execution of mcp tool"] },
-  { contains = ["do you want to proceed?"] },
-  { contains = ["shell command execution"] },
+	{ contains = [
+		"apply this change?",
+	] },
+	{ contains = [
+		"allow execution of:",
+	] },
+	{ contains = [
+		"allow execution of mcp tool",
+	] },
+	{ contains = [
+		"do you want to proceed?",
+	] },
+	{ contains = [
+		"shell command execution",
+	] },
 ]
 
 [[rules]]
@@ -67,10 +95,7 @@ state = "blocked"
 priority = 980
 region = "bottom_non_empty_lines(20)"
 visible_blocker = true
-line_regex = [
-  '^\s*[❯›]\s*(?:\[(?: |✓)\]\s*)?\d+\.\s+',
-  '^\s*↑/↓\s*:.*(?:Enter|Return)\s*:',
-]
+line_regex = ['^\s*[❯›]\s*(?:\[(?: |✓)\]\s*)?\d+\.\s+', '^\s*↑/↓\s*:.*(?:Enter|Return)\s*:']
 
 [[rules]]
 id = "folder_trust_dialog"
@@ -112,8 +137,21 @@ region = "bottom_non_empty_lines(30)"
 visible_idle = true
 line_regex = ['^\s*>\s*(?:type\s*)?.*$']
 any = [
-  { contains = ["type your message"] },
-  { contains = ["your message or @path/to/file"] },
-  { contains = ["@path/to/file"] },
-  { contains = ["type", "mes", "sage", "@pat", "h/to", "/fil"] },
+	{ contains = [
+		"type your message",
+	] },
+	{ contains = [
+		"your message or @path/to/file",
+	] },
+	{ contains = [
+		"@path/to/file",
+	] },
+	{ contains = [
+		"type",
+		"mes",
+		"sage",
+		"@pat",
+		"h/to",
+		"/fil",
+	] },
 ]

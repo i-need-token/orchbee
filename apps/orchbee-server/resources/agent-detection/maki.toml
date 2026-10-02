@@ -17,10 +17,20 @@ region = "whole_recent"
 visible_blocker = true
 contains = ["permission required"]
 any = [
-  { contains = ["y allow", "n deny"] },
-  { contains = ["confirm allow"] },
-  { contains = ["confirm deny"] },
-  { contains = ["enter deny", "esc cancel"] },
+	{ contains = [
+		"y allow",
+		"n deny",
+	] },
+	{ contains = [
+		"confirm allow",
+	] },
+	{ contains = [
+		"confirm deny",
+	] },
+	{ contains = [
+		"enter deny",
+		"esc cancel",
+	] },
 ]
 
 [[rules]]
@@ -30,10 +40,7 @@ priority = 970
 region = "whole_recent"
 visible_blocker = true
 contains = ["plan complete", "enter confirm"]
-any = [
-  { contains = ["space toggle parallel"] },
-  { contains = ["edit plan"] },
-]
+any = [{ contains = ["space toggle parallel"] }, { contains = ["edit plan"] }]
 
 [[rules]]
 id = "status_bar_spinner_working"
@@ -62,7 +69,4 @@ priority = 840
 region = "bottom_non_empty_lines(3)"
 visible_idle = true
 line_regex = ['^❯ ']
-not = [
-  { contains = ["queue another prompt"] },
-  { line_regex = ['^( [\x{2800}-\x{28FF}]){1,2} '] },
-]
+not = [{ contains = ["queue another prompt"] }, { line_regex = ['^( [\x{2800}-\x{28FF}]){1,2} '] }]

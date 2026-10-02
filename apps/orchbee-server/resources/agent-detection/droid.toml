@@ -10,13 +10,8 @@ priority = 300
 region = "whole_recent"
 visible_blocker = true
 contains = ["enter to select", "esc to cancel"]
-any = [
-  { contains = ["↑↓ to navigate"] },
-  { contains = ["use ↑↓ to navigate"] },
-]
-all = [
-  { any = [{ contains = ["> yes, allow"] }, { contains = ["> no, cancel"] }] },
-]
+any = [{ contains = ["↑↓ to navigate"] }, { contains = ["use ↑↓ to navigate"] }]
+all = [{ any = [{ contains = ["> yes, allow"] }, { contains = ["> no, cancel"] }] }]
 
 [[rules]]
 id = "selection_menu_blocker"
@@ -25,10 +20,7 @@ priority = 290
 region = "bottom_non_empty_lines(8)"
 visible_blocker = true
 contains = ["enter select", "esc cancel"]
-any = [
-  { contains = ["↑/↓ navigate"] },
-  { contains = ["↑↓ navigate"] },
-]
+any = [{ contains = ["↑/↓ navigate"] }, { contains = ["↑↓ navigate"] }]
 
 [[rules]]
 id = "spinner_stop_working"

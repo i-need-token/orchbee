@@ -12,16 +12,40 @@ region = "whole_recent"
 visible_blocker = true
 contains = ["↵ confirm"]
 any = [
-  { contains = ["run this command?"] },
-  { contains = ["write this file?"] },
-  { contains = ["apply these edits?"] },
-  { contains = ["stop this task?"] },
-  { contains = ["ready to build with this plan?"] },
-  { line_regex = ['(?i)^\s*▶?\s*approve .*\?$'] },
+	{ contains = [
+		"run this command?",
+	] },
+	{ contains = [
+		"write this file?",
+	] },
+	{ contains = [
+		"apply these edits?",
+	] },
+	{ contains = [
+		"stop this task?",
+	] },
+	{ contains = [
+		"ready to build with this plan?",
+	] },
+	{ line_regex = [
+		'(?i)^\s*▶?\s*approve .*\?$',
+	] },
 ]
 all = [
-  { contains = [" choose"] },
-  { any = [{ contains = ["approve"] }, { contains = ["reject"] }, { contains = ["revise"] }] },
+	{ contains = [
+		" choose",
+	] },
+	{ any = [
+		{ contains = [
+			"approve",
+		] },
+		{ contains = [
+			"reject",
+		] },
+		{ contains = [
+			"revise",
+		] },
+	] },
 ]
 
 [[rules]]
@@ -32,11 +56,7 @@ region = "whole_recent"
 visible_blocker = true
 contains = ["↑↓ select", "esc cancel"]
 line_regex = ['^\s*question\s*$', '^\s*\? ']
-any = [
-  { contains = ["↵ choose"] },
-  { contains = ["↵ toggle"] },
-  { contains = ["↵ save"] },
-]
+any = [{ contains = ["↵ choose"] }, { contains = ["↵ toggle"] }, { contains = ["↵ save"] }]
 
 [[rules]]
 id = "legacy_approval_panel"
@@ -44,13 +64,8 @@ state = "blocked"
 priority = 300
 region = "whole_recent"
 contains = ["requesting approval", "reject"]
-any = [
-  { contains = ["approve once"] },
-  { contains = ["approve for this session"] },
-]
-all = [
-  { any = [{ contains = ["1/2/3/4 choose"] }, { contains = ["↵ confirm"] }] },
-]
+any = [{ contains = ["approve once"] }, { contains = ["approve for this session"] }]
+all = [{ any = [{ contains = ["1/2/3/4 choose"] }, { contains = ["↵ confirm"] }] }]
 
 [[rules]]
 id = "background_agent_status_working"

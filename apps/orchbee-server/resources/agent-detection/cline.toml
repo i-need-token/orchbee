@@ -10,11 +10,29 @@ priority = 300
 region = "whole_recent"
 visible_blocker = true
 any = [
-  { contains = ["let cline use this tool"] },
-  { contains = ["[act mode]", "execute command?", "yes"] },
-  { contains = ["[act mode]", "use this tool?", "yes"] },
-  { contains = ["[plan mode]", "execute command?", "yes"] },
-  { contains = ["[plan mode]", "use this tool?", "yes"] },
+	{ contains = [
+		"let cline use this tool",
+	] },
+	{ contains = [
+		"[act mode]",
+		"execute command?",
+		"yes",
+	] },
+	{ contains = [
+		"[act mode]",
+		"use this tool?",
+		"yes",
+	] },
+	{ contains = [
+		"[plan mode]",
+		"execute command?",
+		"yes",
+	] },
+	{ contains = [
+		"[plan mode]",
+		"use this tool?",
+		"yes",
+	] },
 ]
 
 [[rules]]
@@ -41,8 +59,12 @@ priority = 200
 region = "bottom_non_empty_lines(20)"
 visible_working = true
 any = [
-  { line_regex = ['^\s*[\x{2801}-\x{28FF}]\s+\S'] },
-  { contains = ["Thinking... (esc to cancel)"] },
+	{ line_regex = [
+		'^\s*[\x{2801}-\x{28FF}]\s+\S',
+	] },
+	{ contains = [
+		"Thinking... (esc to cancel)",
+	] },
 ]
 
 [[rules]]

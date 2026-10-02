@@ -32,10 +32,7 @@ priority = 970
 region = "bottom_non_empty_lines(12)"
 visible_blocker = true
 contains = ["Do you trust this workspace?"]
-any = [
-  { contains = ["Trust and continue"] },
-  { contains = ["Use Up/Down"] },
-]
+any = [{ contains = ["Trust and continue"] }, { contains = ["Use Up/Down"] }]
 
 [[rules]]
 id = "pick_request_blocked"
@@ -44,8 +41,14 @@ priority = 950
 region = "bottom_non_empty_lines(8)"
 visible_blocker = true
 any = [
-  { contains = ["Enter to select", "Tab for an optional note"] },
-  { contains = ["Enter to toggle", "Esc to interrupt"] },
+	{ contains = [
+		"Enter to select",
+		"Tab for an optional note",
+	] },
+	{ contains = [
+		"Enter to toggle",
+		"Esc to interrupt",
+	] },
 ]
 
 [[rules]]
@@ -55,9 +58,19 @@ priority = 940
 region = "bottom_non_empty_lines(8)"
 skip_state_update = true
 any = [
-  { contains = ["enter confirm", "esc go back"] },
-  { contains = ["enter save", "esc go back"] },
-  { contains = ["space toggle", "esc close", "type filter"] },
+	{ contains = [
+		"enter confirm",
+		"esc go back",
+	] },
+	{ contains = [
+		"enter save",
+		"esc go back",
+	] },
+	{ contains = [
+		"space toggle",
+		"esc close",
+		"type filter",
+	] },
 ]
 
 [[rules]]
@@ -68,8 +81,14 @@ region = "bottom_non_empty_lines(8)"
 visible_working = true
 contains = ["esc to interrupt"]
 not = [
-  { contains = ["Enter to select", "Tab for an optional note"] },
-  { contains = ["Enter to toggle", "Esc to interrupt"] },
+	{ contains = [
+		"Enter to select",
+		"Tab for an optional note",
+	] },
+	{ contains = [
+		"Enter to toggle",
+		"Esc to interrupt",
+	] },
 ]
 
 [[rules]]
@@ -79,9 +98,18 @@ priority = 850
 region = "bottom_non_empty_lines(8)"
 visible_blocker = true
 any = [
-  { contains = ["Allow this stage once", "Always allow in this workspace"] },
-  { contains = ["Allow once", "Allow for this session"] },
-  { contains = ["Yes, proceed", "Yes, don't ask again this session"] },
+	{ contains = [
+		"Allow this stage once",
+		"Always allow in this workspace",
+	] },
+	{ contains = [
+		"Allow once",
+		"Allow for this session",
+	] },
+	{ contains = [
+		"Yes, proceed",
+		"Yes, don't ask again this session",
+	] },
 ]
 
 [[rules]]
@@ -90,17 +118,32 @@ state = "idle"
 priority = 700
 region = "bottom_non_empty_lines(5)"
 visible_idle = true
-any = [
-  { line_regex = ['^\s*⟩\s*$'] },
-  { line_regex = ['^\s*⟩\s+\S'] },
-]
+any = [{ line_regex = ['^\s*⟩\s*$'] }, { line_regex = ['^\s*⟩\s+\S'] }]
 not = [
-  { contains = ["esc to interrupt"] },
-  { contains = ["Enter to select", "Tab for an optional note"] },
-  { contains = ["Enter to toggle", "Esc to interrupt"] },
-  { contains = ["enter confirm", "esc go back"] },
-  { contains = ["enter save", "esc go back"] },
-  { contains = ["space toggle", "esc close", "type filter"] },
+	{ contains = [
+		"esc to interrupt",
+	] },
+	{ contains = [
+		"Enter to select",
+		"Tab for an optional note",
+	] },
+	{ contains = [
+		"Enter to toggle",
+		"Esc to interrupt",
+	] },
+	{ contains = [
+		"enter confirm",
+		"esc go back",
+	] },
+	{ contains = [
+		"enter save",
+		"esc go back",
+	] },
+	{ contains = [
+		"space toggle",
+		"esc close",
+		"type filter",
+	] },
 ]
 
 [[rules]]

@@ -43,7 +43,6 @@ before allocating or reading the body; kind 10 retains the 256 KiB bounded-list 
 Semantic invariants on canonical read entities remain enforced on every parse and
 serialize path, independently of JSON Schema.
 
-
 The Windows Names composition also admits exact terminal selectors and typed `nameTarget` values:
 canonical session or terminal launch binding (presentation, creation generation, Host epoch and
 terminal ID). `resolved-target`, `assigned-target`, `unchanged-target`, `released-target` and
@@ -85,7 +84,6 @@ Changes uses request/result kinds 23/24 and the usual correlated outcome envelop
 ## Managed launch status
 
 Read-only launch Status uses request/result kinds 25/26 and the existing 16 KiB request/1,024-byte result ceilings. The status outcome carries exact sessionId, canonical revision and a closed management phase: unmanaged; pending with a validated reservation and blocked boolean; active with reservationId, providerId and exact launch binding. Only Status results admit this outcome. Session existence and lifecycle, completed startup retention and read authorization belong to the Server names owner. Consumers must correlate the Session and distinguish completed startup from current prompt readiness. This additive native extension requires matching cohort binaries.
-
 
 TerminalStatus uses read-only request/result kinds 27/28 and the same request/small-result bounds. It requires the full fresh launch binding and returns that binding with unmanaged or active provider ownership. It carries no canonical session, revision, reservation or readiness claim; only TerminalStatus results admit this outcome. Physical membership mismatch is binding-changed. The Server Names owner retains restored management; clients correlate the exact binding and request.
 

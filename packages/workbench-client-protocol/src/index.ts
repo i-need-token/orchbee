@@ -586,4 +586,12 @@ export {
 	type SemanticEventsResult,
 } from './workbench-events-contract';
 
-export { PaneGraphicsRequestSchema, PaneGraphicsResultSchema, PaneGraphicsLayerSchema, PaneGraphicsTargetSchema, PaneGraphicsFailureSchema, type PaneGraphicsRequest, type PaneGraphicsResult } from './workbench-pane-graphics-contract';
+export {
+	PaneGraphicsRequestSchema,
+	PaneGraphicsResultSchema,
+	PaneGraphicsLayerSchema,
+	PaneGraphicsTargetSchema,
+	PaneGraphicsFailureSchema,
+	type PaneGraphicsRequest,
+	type PaneGraphicsResult,
+} from './workbench-pane-graphics-contract';

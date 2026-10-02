@@ -82,7 +82,7 @@ failure is never confused with a rejected payload or an empty overlay.
 | `src/agent/targeted.rs`            | `#[cfg(test)]` named boundary regression tests                                                                                                                                                                                                                                      |
 | `src/agent/oracle.rs`              | `#[cfg(test)]` named regression tests against recorded TypeScript-oracle outcomes                                                                                                                                                                                                   |
 | `src/agent/join.rs`                | Pure port of the Desktop `AgentObservationJoinStateMachine`: generation registration/retirement, hint/event join, TTL cleanup, settlement effects, admission bounds; `#[cfg(test)]` `reset`                                                                                         |
-| `src/agent/hook_contract.rs`       | Strict-envelope/correlation-hint boundary parse and the twelve-adapter event-gate registry (ports `agent-hook-observation-contract.ts` and `resolveAgentHookAdapter.ts`)                                                                                                               |
+| `src/agent/hook_contract.rs`       | Strict-envelope/correlation-hint boundary parse and the twelve-adapter event-gate registry (ports `agent-hook-observation-contract.ts` and `resolveAgentHookAdapter.ts`)                                                                                                            |
 | `src/agent/hook_ingress.rs`        | Pure port of `AgentHookObservationIngress`, runtime-free after the bridge split: session bindings, turn/request/child maps, join-command consumption, canonical dispatch in order through the injected `&mut AgentRuntime`; `#[cfg(test)]` corpus/trace/f64-settlement/JSON helpers |
 | `src/agent/conformance_support.rs` | `SettlementQueue` timing primitives shared with the production `Instant` funnel; `#[cfg(test)]` fixture-shape JSON emitters, `DispatchTrace`, corpus clock advance, and `FixtureIngress`                                                                                            |
 | `src/agent/hook_conformance.rs`    | `#[cfg(test)]` — replay harnesses for the frozen join and hook corpora plus the native joint-capacity checks                                                                                                                                                                        |
@@ -206,7 +206,6 @@ Evidence must cover mixed-name/reservation collisions, full capacity, reference 
 replacement, provider A → B → A between reads, proven versus uncertain exit, physical replacement,
 policy/disposal, strict wire bounds and actual Windows rename/resolve/list/clear plus named
 terminal access. The protocol schema and CLI envelope versions must agree with emitted targets.
-
 
 ## Managed name restart
 

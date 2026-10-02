@@ -13,17 +13,11 @@
 			"type": "object",
 			"properties": {
 				"kind": {
-					"enum": [
-						"protocol-invalid",
-						"rejected"
-					]
+					"enum": ["protocol-invalid", "rejected"]
 				},
 				"details": {
 					"type": "object",
-					"required": [
-						"stage",
-						"reason"
-					],
+					"required": ["stage", "reason"],
 					"additionalProperties": false,
 					"properties": {
 						"stage": {
@@ -42,10 +36,7 @@
 					}
 				}
 			},
-			"required": [
-				"kind",
-				"details"
-			],
+			"required": ["kind", "details"],
 			"additionalProperties": false,
 			"allOf": [
 				{
@@ -78,10 +69,6 @@
 			]
 		}
 	},
-	"required": [
-		"schema",
-		"version",
-		"failure"
-	],
+	"required": ["schema", "version", "failure"],
 	"additionalProperties": false
 }

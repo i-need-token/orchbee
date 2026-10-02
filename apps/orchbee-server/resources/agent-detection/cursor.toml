@@ -12,9 +12,15 @@ region = "bottom_non_empty_lines(8)"
 visible_blocker = true
 contains = ["write to this file?", "proceed (y)"]
 any = [
-  { contains = ["reject & propose changes"] },
-  { contains = ["esc or n or p"] },
-  { contains = ["add write("] },
+	{ contains = [
+		"reject & propose changes",
+	] },
+	{ contains = [
+		"esc or n or p",
+	] },
+	{ contains = [
+		"add write(",
+	] },
 ]
 
 [[rules]]
@@ -24,12 +30,32 @@ priority = 300
 region = "whole_recent"
 visible_blocker = true
 any = [
-  { contains = ["waiting for approval", "run this command?"], any = [{ contains = ["run (once) (y)"] }, { contains = ["skip (esc or n)"] }] },
-  { contains = ["(y) (enter)"] },
-  { line_regex = ['(?i)^\s*allow .*\(y\)'] },
-  { contains = ["keep (n)"] },
-  { contains = ["skip (esc or n)"] },
-  { line_regex = ['(?i)^\s*(?:→\s*)?run .*\(y\)'] },
+	{ contains = [
+		"waiting for approval",
+		"run this command?",
+	], any = [
+		{ contains = [
+			"run (once) (y)",
+		] },
+		{ contains = [
+			"skip (esc or n)",
+		] },
+	] },
+	{ contains = [
+		"(y) (enter)",
+	] },
+	{ line_regex = [
+		'(?i)^\s*allow .*\(y\)',
+	] },
+	{ contains = [
+		"keep (n)",
+	] },
+	{ contains = [
+		"skip (esc or n)",
+	] },
+	{ line_regex = [
+		'(?i)^\s*(?:→\s*)?run .*\(y\)',
+	] },
 ]
 
 [[rules]]

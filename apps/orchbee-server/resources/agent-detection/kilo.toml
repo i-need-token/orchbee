@@ -11,8 +11,31 @@ priority = 300
 region = "whole_recent"
 visible_blocker = true
 any = [
-  { contains = ["△ Permission required"] },
-  { contains = ["esc dismiss"], any = [{ contains = ["enter confirm"] }, { contains = ["enter submit"] }, { contains = ["enter toggle"] }], all = [{ any = [{ contains = ["↑↓ select"] }, { contains = ["⇆ tab"] }] }] },
+	{ contains = [
+		"△ Permission required",
+	] },
+	{ contains = [
+		"esc dismiss",
+	], any = [
+		{ contains = [
+			"enter confirm",
+		] },
+		{ contains = [
+			"enter submit",
+		] },
+		{ contains = [
+			"enter toggle",
+		] },
+	], all = [
+		{ any = [
+			{ contains = [
+				"↑↓ select",
+			] },
+			{ contains = [
+				"⇆ tab",
+			] },
+		] },
+	] },
 ]
 
 [[rules]]

@@ -65,10 +65,7 @@
 							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/label"
 						}
 					},
-					"required": [
-						"kind",
-						"label"
-					],
+					"required": ["kind", "label"],
 					"additionalProperties": false
 				},
 				{
@@ -84,11 +81,7 @@
 							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/label"
 						}
 					},
-					"required": [
-						"kind",
-						"projectId",
-						"label"
-					],
+					"required": ["kind", "projectId", "label"],
 					"additionalProperties": false
 				},
 				{
@@ -104,11 +97,7 @@
 							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/label"
 						}
 					},
-					"required": [
-						"kind",
-						"projectId",
-						"label"
-					],
+					"required": ["kind", "projectId", "label"],
 					"additionalProperties": false
 				},
 				{
@@ -127,12 +116,7 @@
 							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/label"
 						}
 					},
-					"required": [
-						"kind",
-						"projectId",
-						"workspaceId",
-						"label"
-					],
+					"required": ["kind", "projectId", "workspaceId", "label"],
 					"additionalProperties": false
 				},
 				{
@@ -148,11 +132,7 @@
 							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/workspaceId"
 						}
 					},
-					"required": [
-						"kind",
-						"projectId",
-						"workspaceId"
-					],
+					"required": ["kind", "projectId", "workspaceId"],
 					"additionalProperties": false
 				},
 				{
@@ -171,12 +151,7 @@
 							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/directoryPath"
 						}
 					},
-					"required": [
-						"kind",
-						"projectId",
-						"workspaceId",
-						"path"
-					],
+					"required": ["kind", "projectId", "workspaceId", "path"],
 					"additionalProperties": false
 				},
 				{
@@ -195,12 +170,7 @@
 							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/label"
 						}
 					},
-					"required": [
-						"kind",
-						"terminalContextId",
-						"tabId",
-						"label"
-					],
+					"required": ["kind", "terminalContextId", "tabId", "label"],
 					"additionalProperties": false
 				},
 				{
@@ -245,19 +215,11 @@
 							"$ref": "#/$defs/launchOptions"
 						}
 					},
-					"required": [
-						"kind",
-						"terminalContextId",
-						"label",
-						"geometry"
-					],
+					"required": ["kind", "terminalContextId", "label", "geometry"],
 					"additionalProperties": false,
 					"not": {
 						"type": "object",
-						"required": [
-							"launch",
-							"profile"
-						],
+						"required": ["launch", "profile"],
 						"properties": {
 							"launch": {
 								"type": "object"
@@ -270,14 +232,10 @@
 					"allOf": [
 						{
 							"if": {
-								"required": [
-									"options"
-								],
+								"required": ["options"],
 								"properties": {
 									"options": {
-										"required": [
-											"pluginPane"
-										],
+										"required": ["pluginPane"],
 										"properties": {
 											"pluginPane": {
 												"type": "object"
@@ -316,12 +274,7 @@
 							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/panelId"
 						},
 						"direction": {
-							"enum": [
-								"above",
-								"below",
-								"left",
-								"right"
-							]
+							"enum": ["above", "below", "left", "right"]
 						},
 						"label": {
 							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/label"
@@ -330,10 +283,7 @@
 							"$ref": "#/$defs/terminalGeometry"
 						},
 						"rightClick": {
-							"enum": [
-								"orchbee",
-								"panel"
-							]
+							"enum": ["orchbee", "panel"]
 						},
 						"launch": {
 							"anyOf": [
@@ -371,10 +321,7 @@
 					"additionalProperties": false,
 					"not": {
 						"type": "object",
-						"required": [
-							"launch",
-							"profile"
-						],
+						"required": ["launch", "profile"],
 						"properties": {
 							"launch": {
 								"type": "object"
@@ -387,14 +334,10 @@
 					"allOf": [
 						{
 							"if": {
-								"required": [
-									"options"
-								],
+								"required": ["options"],
 								"properties": {
 									"options": {
-										"required": [
-											"pluginPane"
-										],
+										"required": ["pluginPane"],
 										"properties": {
 											"pluginPane": {
 												"type": "object"
@@ -430,20 +373,10 @@
 							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/tabId"
 						},
 						"direction": {
-							"enum": [
-								"previous",
-								"next",
-								"first",
-								"last"
-							]
+							"enum": ["previous", "next", "first", "last"]
 						}
 					},
-					"required": [
-						"kind",
-						"terminalContextId",
-						"tabId",
-						"direction"
-					],
+					"required": ["kind", "terminalContextId", "tabId", "direction"],
 					"additionalProperties": false
 				},
 				{
@@ -464,12 +397,7 @@
 							"maximum": 256
 						}
 					},
-					"required": [
-						"kind",
-						"terminalContextId",
-						"tabId",
-						"insertIndex"
-					],
+					"required": ["kind", "terminalContextId", "tabId", "insertIndex"],
 					"additionalProperties": false
 				},
 				{
@@ -485,11 +413,7 @@
 							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/tabId"
 						}
 					},
-					"required": [
-						"kind",
-						"terminalContextId",
-						"tabId"
-					],
+					"required": ["kind", "terminalContextId", "tabId"],
 					"additionalProperties": false
 				},
 				{
@@ -508,12 +432,7 @@
 							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/panelId"
 						}
 					},
-					"required": [
-						"kind",
-						"terminalContextId",
-						"tabId",
-						"panelId"
-					],
+					"required": ["kind", "terminalContextId", "tabId", "panelId"],
 					"additionalProperties": false
 				},
 				{
@@ -535,12 +454,7 @@
 							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/panelId"
 						},
 						"direction": {
-							"enum": [
-								"above",
-								"below",
-								"left",
-								"right"
-							]
+							"enum": ["above", "below", "left", "right"]
 						}
 					},
 					"required": [
@@ -581,12 +495,7 @@
 											"$ref": "urn:orchbee:schema:workbench:v1#/$defs/tabId"
 										},
 										"direction": {
-											"enum": [
-												"above",
-												"below",
-												"left",
-												"right"
-											]
+											"enum": ["above", "below", "left", "right"]
 										},
 										"terminalContextId": {
 											"$ref": "urn:orchbee:schema:workbench:v1#/$defs/terminalContextId"
@@ -595,11 +504,7 @@
 											"$ref": "urn:orchbee:schema:workbench:v1#/$defs/panelId"
 										}
 									},
-									"required": [
-										"kind",
-										"tabId",
-										"direction"
-									],
+									"required": ["kind", "tabId", "direction"],
 									"additionalProperties": false
 								},
 								{
@@ -615,9 +520,7 @@
 											"$ref": "urn:orchbee:schema:workbench:v1#/$defs/terminalContextId"
 										}
 									},
-									"required": [
-										"kind"
-									],
+									"required": ["kind"],
 									"additionalProperties": false
 								},
 								{
@@ -645,17 +548,10 @@
 											"pattern": "^[^\\u0000]+$"
 										}
 									},
-									"required": [
-										"kind",
-										"projectId",
-										"label"
-									],
+									"required": ["kind", "projectId", "label"],
 									"additionalProperties": false,
 									"not": {
-										"required": [
-											"primaryDirectoryId",
-											"primaryDirectoryPath"
-										],
+										"required": ["primaryDirectoryId", "primaryDirectoryPath"],
 										"properties": {
 											"primaryDirectoryId": {},
 											"primaryDirectoryPath": {}
@@ -665,13 +561,7 @@
 							]
 						}
 					},
-					"required": [
-						"kind",
-						"terminalContextId",
-						"tabId",
-						"panelId",
-						"destination"
-					],
+					"required": ["kind", "terminalContextId", "tabId", "panelId", "destination"],
 					"additionalProperties": false
 				},
 				{
@@ -687,22 +577,14 @@
 							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/tabId"
 						},
 						"label": {
-							"type": [
-								"string",
-								"null"
-							],
+							"type": ["string", "null"],
 							"maxLength": 512
 						},
 						"panelId": {
 							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/panelId"
 						}
 					},
-					"required": [
-						"kind",
-						"terminalContextId",
-						"tabId",
-						"panelId"
-					],
+					"required": ["kind", "terminalContextId", "tabId", "panelId"],
 					"additionalProperties": false
 				},
 				{
@@ -724,13 +606,7 @@
 							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/panelId"
 						}
 					},
-					"required": [
-						"kind",
-						"terminalContextId",
-						"tabId",
-						"panelId",
-						"targetPanelId"
-					],
+					"required": ["kind", "terminalContextId", "tabId", "panelId", "targetPanelId"],
 					"additionalProperties": false
 				},
 				{
@@ -749,19 +625,10 @@
 							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/panelId"
 						},
 						"rightClick": {
-							"enum": [
-								"orchbee",
-								"panel"
-							]
+							"enum": ["orchbee", "panel"]
 						}
 					},
-					"required": [
-						"kind",
-						"terminalContextId",
-						"tabId",
-						"panelId",
-						"rightClick"
-					],
+					"required": ["kind", "terminalContextId", "tabId", "panelId", "rightClick"],
 					"additionalProperties": false
 				},
 				{
@@ -779,11 +646,7 @@
 							"maximum": 1023
 						}
 					},
-					"required": [
-						"kind",
-						"workspaceId",
-						"insertIndex"
-					],
+					"required": ["kind", "workspaceId", "insertIndex"],
 					"additionalProperties": false
 				},
 				{
@@ -812,10 +675,7 @@
 							]
 						}
 					},
-					"required": [
-						"kind",
-						"workspaceIds"
-					],
+					"required": ["kind", "workspaceIds"],
 					"additionalProperties": false
 				},
 				{
@@ -863,21 +723,11 @@
 							"$ref": "#/$defs/launchOptions"
 						}
 					},
-					"required": [
-						"kind",
-						"terminalContextId",
-						"tabId",
-						"panelId",
-						"target",
-						"geometry"
-					],
+					"required": ["kind", "terminalContextId", "tabId", "panelId", "target", "geometry"],
 					"additionalProperties": false,
 					"not": {
 						"type": "object",
-						"required": [
-							"launch",
-							"profile"
-						],
+						"required": ["launch", "profile"],
 						"properties": {
 							"launch": {
 								"type": "object"
@@ -890,14 +740,10 @@
 					"allOf": [
 						{
 							"not": {
-								"required": [
-									"options"
-								],
+								"required": ["options"],
 								"properties": {
 									"options": {
-										"required": [
-											"pluginPane"
-										],
+										"required": ["pluginPane"],
 										"properties": {
 											"pluginPane": {
 												"type": "object"
@@ -910,14 +756,10 @@
 						},
 						{
 							"not": {
-								"required": [
-									"options"
-								],
+								"required": ["options"],
 								"properties": {
 									"options": {
-										"required": [
-											"pluginContext"
-										],
+										"required": ["pluginContext"],
 										"properties": {
 											"pluginContext": {
 												"type": "object"
@@ -949,13 +791,7 @@
 							"$ref": "#/$defs/layoutNode"
 						}
 					},
-					"required": [
-						"kind",
-						"terminalContextId",
-						"label",
-						"automaticLabel",
-						"layout"
-					],
+					"required": ["kind", "terminalContextId", "label", "automaticLabel", "layout"],
 					"additionalProperties": false
 				}
 			]
@@ -985,12 +821,7 @@
 					"maximum": 4096
 				}
 			},
-			"required": [
-				"columns",
-				"rows",
-				"cellPixelWidth",
-				"cellPixelHeight"
-			],
+			"required": ["columns", "rows", "cellPixelWidth", "cellPixelHeight"],
 			"additionalProperties": false
 		},
 		"rejectionReason": {
@@ -1030,20 +861,13 @@
 			]
 		},
 		"snapshotUnavailableReason": {
-			"enum": [
-				"service-unavailable"
-			]
+			"enum": ["service-unavailable"]
 		},
 		"terminalUnavailableReason": {
-			"enum": [
-				"terminal-runtime-unavailable",
-				"server-busy"
-			]
+			"enum": ["terminal-runtime-unavailable", "server-busy"]
 		},
 		"terminalFailureReason": {
-			"enum": [
-				"terminal-create-failed"
-			]
+			"enum": ["terminal-create-failed"]
 		},
 		"terminalOutcome": {
 			"oneOf": [
@@ -1057,10 +881,7 @@
 							"$ref": "#/$defs/terminalGeometry"
 						}
 					},
-					"required": [
-						"kind",
-						"geometry"
-					],
+					"required": ["kind", "geometry"],
 					"additionalProperties": false
 				},
 				{
@@ -1073,10 +894,7 @@
 							"$ref": "#/$defs/terminalUnavailableReason"
 						}
 					},
-					"required": [
-						"kind",
-						"reason"
-					],
+					"required": ["kind", "reason"],
 					"additionalProperties": false
 				},
 				{
@@ -1089,10 +907,7 @@
 							"$ref": "#/$defs/terminalFailureReason"
 						}
 					},
-					"required": [
-						"kind",
-						"reason"
-					],
+					"required": ["kind", "reason"],
 					"additionalProperties": false
 				},
 				{
@@ -1102,9 +917,7 @@
 							"const": "outcome-unknown"
 						}
 					},
-					"required": [
-						"kind"
-					],
+					"required": ["kind"],
 					"additionalProperties": false
 				}
 			]
@@ -1131,14 +944,7 @@
 					"$ref": "#/$defs/action"
 				}
 			},
-			"required": [
-				"kind",
-				"protocolVersion",
-				"requestId",
-				"siteId",
-				"expectedRevision",
-				"action"
-			],
+			"required": ["kind", "protocolVersion", "requestId", "siteId", "expectedRevision", "action"],
 			"additionalProperties": false
 		},
 		"commandOutcome": {
@@ -1156,11 +962,7 @@
 							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/projectId"
 						}
 					},
-					"required": [
-						"kind",
-						"revision",
-						"projectId"
-					],
+					"required": ["kind", "revision", "projectId"],
 					"additionalProperties": false
 				},
 				{
@@ -1179,12 +981,7 @@
 							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/terminalContextId"
 						}
 					},
-					"required": [
-						"kind",
-						"revision",
-						"workspaceId",
-						"terminalContextId"
-					],
+					"required": ["kind", "revision", "workspaceId", "terminalContextId"],
 					"additionalProperties": false
 				},
 				{
@@ -1203,12 +1000,7 @@
 							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/workerId"
 						}
 					},
-					"required": [
-						"kind",
-						"revision",
-						"directoryId",
-						"workerId"
-					],
+					"required": ["kind", "revision", "directoryId", "workerId"],
 					"additionalProperties": false
 				},
 				{
@@ -1221,10 +1013,7 @@
 							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/revision"
 						}
 					},
-					"required": [
-						"kind",
-						"revision"
-					],
+					"required": ["kind", "revision"],
 					"additionalProperties": false
 				},
 				{
@@ -1405,10 +1194,7 @@
 							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/revision"
 						}
 					},
-					"required": [
-						"kind",
-						"revision"
-					],
+					"required": ["kind", "revision"],
 					"additionalProperties": false
 				},
 				{
@@ -1424,11 +1210,7 @@
 							"$ref": "#/$defs/rejectionReason"
 						}
 					},
-					"required": [
-						"kind",
-						"revision",
-						"reason"
-					],
+					"required": ["kind", "revision", "reason"],
 					"additionalProperties": false
 				},
 				{
@@ -1438,9 +1220,7 @@
 							"const": "denied"
 						}
 					},
-					"required": [
-						"kind"
-					],
+					"required": ["kind"],
 					"additionalProperties": false
 				},
 				{
@@ -1453,10 +1233,7 @@
 							"$ref": "#/$defs/commandUnavailableReason"
 						}
 					},
-					"required": [
-						"kind",
-						"reason"
-					],
+					"required": ["kind", "reason"],
 					"additionalProperties": false
 				},
 				{
@@ -1475,12 +1252,7 @@
 							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/tabId"
 						}
 					},
-					"required": [
-						"kind",
-						"revision",
-						"terminalContextId",
-						"tabId"
-					],
+					"required": ["kind", "revision", "terminalContextId", "tabId"],
 					"additionalProperties": false
 				},
 				{
@@ -1502,13 +1274,7 @@
 							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/revision"
 						}
 					},
-					"required": [
-						"kind",
-						"closeRequestId",
-						"terminalContextId",
-						"tabId",
-						"acceptedRevision"
-					],
+					"required": ["kind", "closeRequestId", "terminalContextId", "tabId", "acceptedRevision"],
 					"additionalProperties": false
 				},
 				{
@@ -1679,14 +1445,7 @@
 							"$ref": "#/$defs/panelTransfer"
 						}
 					},
-					"required": [
-						"kind",
-						"revision",
-						"terminalContextId",
-						"tabId",
-						"panelId",
-						"newTabId"
-					],
+					"required": ["kind", "revision", "terminalContextId", "tabId", "panelId", "newTabId"],
 					"additionalProperties": false
 				},
 				{
@@ -1731,10 +1490,7 @@
 							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/revision"
 						}
 					},
-					"required": [
-						"kind",
-						"revision"
-					],
+					"required": ["kind", "revision"],
 					"additionalProperties": false
 				},
 				{
@@ -1756,11 +1512,7 @@
 							}
 						}
 					},
-					"required": [
-						"kind",
-						"revision",
-						"workspaceOrder"
-					],
+					"required": ["kind", "revision", "workspaceOrder"],
 					"additionalProperties": false
 				},
 				{
@@ -1838,9 +1590,7 @@
 							"const": "launch-profile-unavailable"
 						}
 					},
-					"required": [
-						"kind"
-					],
+					"required": ["kind"],
 					"additionalProperties": false
 				},
 				{
@@ -1858,10 +1608,7 @@
 							}
 						}
 					},
-					"required": [
-						"kind",
-						"candidateIds"
-					],
+					"required": ["kind", "candidateIds"],
 					"additionalProperties": false
 				},
 				{
@@ -1880,12 +1627,7 @@
 							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/tabId"
 						}
 					},
-					"required": [
-						"kind",
-						"revision",
-						"terminalContextId",
-						"tabId"
-					],
+					"required": ["kind", "revision", "terminalContextId", "tabId"],
 					"additionalProperties": false
 				}
 			]
@@ -1906,12 +1648,7 @@
 					"$ref": "#/$defs/commandOutcome"
 				}
 			},
-			"required": [
-				"kind",
-				"protocolVersion",
-				"requestId",
-				"outcome"
-			],
+			"required": ["kind", "protocolVersion", "requestId", "outcome"],
 			"additionalProperties": false
 		},
 		"snapshotResult": {
@@ -1938,10 +1675,7 @@
 									"$ref": "urn:orchbee:schema:workbench:v1#/$defs/snapshot"
 								}
 							},
-							"required": [
-								"kind",
-								"snapshot"
-							],
+							"required": ["kind", "snapshot"],
 							"additionalProperties": false
 						},
 						{
@@ -1951,9 +1685,7 @@
 									"const": "denied"
 								}
 							},
-							"required": [
-								"kind"
-							],
+							"required": ["kind"],
 							"additionalProperties": false
 						},
 						{
@@ -1966,21 +1698,13 @@
 									"$ref": "#/$defs/snapshotUnavailableReason"
 								}
 							},
-							"required": [
-								"kind",
-								"reason"
-							],
+							"required": ["kind", "reason"],
 							"additionalProperties": false
 						}
 					]
 				}
 			},
-			"required": [
-				"kind",
-				"protocolVersion",
-				"requestId",
-				"outcome"
-			],
+			"required": ["kind", "protocolVersion", "requestId", "outcome"],
 			"additionalProperties": false
 		},
 		"tabCloseAttemptGeneration": {
@@ -1991,19 +1715,10 @@
 			"$comment": "One nonzero Close attempt-generation domain, distinct from Workbench revision; increment must be checked."
 		},
 		"tabClosePhase": {
-			"enum": [
-				"queued",
-				"waiting-grace",
-				"waiting-outcome",
-				"disposing"
-			]
+			"enum": ["queued", "waiting-grace", "waiting-outcome", "disposing"]
 		},
 		"tabCloseUnknownPhase": {
-			"enum": [
-				"terminate",
-				"force",
-				"dispose"
-			]
+			"enum": ["terminate", "force", "dispose"]
 		},
 		"tabCloseBlockedReason": {
 			"enum": [
@@ -2017,11 +1732,7 @@
 			]
 		},
 		"tabCloseUnknownReason": {
-			"enum": [
-				"transport-lost",
-				"deadline",
-				"invalid-response"
-			]
+			"enum": ["transport-lost", "deadline", "invalid-response"]
 		},
 		"tabClosePublicationReason": {
 			"enum": [
@@ -2033,9 +1744,7 @@
 			]
 		},
 		"tabCloseUnavailableReason": {
-			"enum": [
-				"server-busy"
-			]
+			"enum": ["server-busy"]
 		},
 		"tabCloseResumeRejectionReason": {
 			"enum": [
@@ -2059,10 +1768,7 @@
 							"$ref": "#/$defs/tabClosePhase"
 						}
 					},
-					"required": [
-						"kind",
-						"phase"
-					],
+					"required": ["kind", "phase"],
 					"additionalProperties": false
 				},
 				{
@@ -2078,11 +1784,7 @@
 							"type": "boolean"
 						}
 					},
-					"required": [
-						"kind",
-						"reason",
-						"resumable"
-					],
+					"required": ["kind", "reason", "resumable"],
 					"additionalProperties": false
 				},
 				{
@@ -2098,11 +1800,7 @@
 							"$ref": "#/$defs/tabCloseUnknownReason"
 						}
 					},
-					"required": [
-						"kind",
-						"phase",
-						"reason"
-					],
+					"required": ["kind", "phase", "reason"],
 					"additionalProperties": false
 				},
 				{
@@ -2118,11 +1816,7 @@
 							"type": "boolean"
 						}
 					},
-					"required": [
-						"kind",
-						"reason",
-						"resumable"
-					],
+					"required": ["kind", "reason", "resumable"],
 					"additionalProperties": false
 				},
 				{
@@ -2135,10 +1829,7 @@
 							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/revision"
 						}
 					},
-					"required": [
-						"kind",
-						"revision"
-					],
+					"required": ["kind", "revision"],
 					"additionalProperties": false
 				}
 			]
@@ -2165,14 +1856,7 @@
 					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/tabId"
 				}
 			},
-			"required": [
-				"kind",
-				"protocolVersion",
-				"requestId",
-				"siteId",
-				"terminalContextId",
-				"tabId"
-			],
+			"required": ["kind", "protocolVersion", "requestId", "siteId", "terminalContextId", "tabId"],
 			"additionalProperties": false
 		},
 		"tabCloseReadOutcome": {
@@ -2184,9 +1868,7 @@
 							"const": "not-closing"
 						}
 					},
-					"required": [
-						"kind"
-					],
+					"required": ["kind"],
 					"additionalProperties": false
 				},
 				{
@@ -2196,9 +1878,7 @@
 							"const": "denied"
 						}
 					},
-					"required": [
-						"kind"
-					],
+					"required": ["kind"],
 					"additionalProperties": false
 				},
 				{
@@ -2211,10 +1891,7 @@
 							"$ref": "#/$defs/tabCloseUnavailableReason"
 						}
 					},
-					"required": [
-						"kind",
-						"reason"
-					],
+					"required": ["kind", "reason"],
 					"additionalProperties": false
 				},
 				{
@@ -2267,12 +1944,7 @@
 					"$ref": "#/$defs/tabCloseReadOutcome"
 				}
 			},
-			"required": [
-				"kind",
-				"protocolVersion",
-				"requestId",
-				"outcome"
-			],
+			"required": ["kind", "protocolVersion", "requestId", "outcome"],
 			"additionalProperties": false
 		},
 		"tabCloseResume": {
@@ -2327,10 +1999,7 @@
 							"$ref": "#/$defs/tabCloseAttemptGeneration"
 						}
 					},
-					"required": [
-						"kind",
-						"attemptGeneration"
-					],
+					"required": ["kind", "attemptGeneration"],
 					"additionalProperties": false
 				},
 				{
@@ -2343,10 +2012,7 @@
 							"$ref": "#/$defs/tabCloseAttemptGeneration"
 						}
 					},
-					"required": [
-						"kind",
-						"attemptGeneration"
-					],
+					"required": ["kind", "attemptGeneration"],
 					"additionalProperties": false
 				},
 				{
@@ -2356,9 +2022,7 @@
 							"const": "denied"
 						}
 					},
-					"required": [
-						"kind"
-					],
+					"required": ["kind"],
 					"additionalProperties": false
 				},
 				{
@@ -2371,10 +2035,7 @@
 							"$ref": "#/$defs/tabCloseUnavailableReason"
 						}
 					},
-					"required": [
-						"kind",
-						"reason"
-					],
+					"required": ["kind", "reason"],
 					"additionalProperties": false
 				},
 				{
@@ -2387,10 +2048,7 @@
 							"$ref": "#/$defs/tabCloseResumeRejectionReason"
 						}
 					},
-					"required": [
-						"kind",
-						"reason"
-					],
+					"required": ["kind", "reason"],
 					"additionalProperties": false
 				}
 			]
@@ -2448,10 +2106,7 @@
 							"$ref": "#/$defs/tabClosePhase"
 						}
 					},
-					"required": [
-						"kind",
-						"phase"
-					],
+					"required": ["kind", "phase"],
 					"additionalProperties": false
 				},
 				{
@@ -2467,11 +2122,7 @@
 							"type": "boolean"
 						}
 					},
-					"required": [
-						"kind",
-						"reason",
-						"resumable"
-					],
+					"required": ["kind", "reason", "resumable"],
 					"additionalProperties": false
 				},
 				{
@@ -2487,11 +2138,7 @@
 							"$ref": "#/$defs/tabCloseUnknownReason"
 						}
 					},
-					"required": [
-						"kind",
-						"phase",
-						"reason"
-					],
+					"required": ["kind", "phase", "reason"],
 					"additionalProperties": false
 				},
 				{
@@ -2507,11 +2154,7 @@
 							"type": "boolean"
 						}
 					},
-					"required": [
-						"kind",
-						"reason",
-						"resumable"
-					],
+					"required": ["kind", "reason", "resumable"],
 					"additionalProperties": false
 				}
 			]
@@ -2532,12 +2175,7 @@
 					"$ref": "#/$defs/workspaceCloseMemberStatus"
 				}
 			},
-			"required": [
-				"tabId",
-				"panelId",
-				"presentationId",
-				"status"
-			],
+			"required": ["tabId", "panelId", "presentationId", "status"],
 			"additionalProperties": false
 		},
 		"workspaceCloseCounts": {
@@ -2564,12 +2202,7 @@
 					"maximum": 4294967295
 				}
 			},
-			"required": [
-				"closing",
-				"cleanupBlocked",
-				"outcomeUnknown",
-				"disposedAwaitingPublication"
-			],
+			"required": ["closing", "cleanupBlocked", "outcomeUnknown", "disposedAwaitingPublication"],
 			"additionalProperties": false
 		},
 		"workspaceCloseRead": {
@@ -2594,14 +2227,7 @@
 					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/workspaceId"
 				}
 			},
-			"required": [
-				"kind",
-				"protocolVersion",
-				"requestId",
-				"siteId",
-				"projectId",
-				"workspaceId"
-			],
+			"required": ["kind", "protocolVersion", "requestId", "siteId", "projectId", "workspaceId"],
 			"additionalProperties": false
 		},
 		"workspaceCloseReadOutcome": {
@@ -2613,9 +2239,7 @@
 							"const": "not-closing"
 						}
 					},
-					"required": [
-						"kind"
-					],
+					"required": ["kind"],
 					"additionalProperties": false
 				},
 				{
@@ -2625,9 +2249,7 @@
 							"const": "denied"
 						}
 					},
-					"required": [
-						"kind"
-					],
+					"required": ["kind"],
 					"additionalProperties": false
 				},
 				{
@@ -2640,10 +2262,7 @@
 							"$ref": "#/$defs/tabCloseUnavailableReason"
 						}
 					},
-					"required": [
-						"kind",
-						"reason"
-					],
+					"required": ["kind", "reason"],
 					"additionalProperties": false
 				},
 				{
@@ -2712,12 +2331,7 @@
 					"$ref": "#/$defs/workspaceCloseReadOutcome"
 				}
 			},
-			"required": [
-				"kind",
-				"protocolVersion",
-				"requestId",
-				"outcome"
-			],
+			"required": ["kind", "protocolVersion", "requestId", "outcome"],
 			"additionalProperties": false
 		},
 		"workspaceCloseResume": {
@@ -2772,10 +2386,7 @@
 							"$ref": "#/$defs/tabCloseAttemptGeneration"
 						}
 					},
-					"required": [
-						"kind",
-						"attemptGeneration"
-					],
+					"required": ["kind", "attemptGeneration"],
 					"additionalProperties": false
 				},
 				{
@@ -2788,10 +2399,7 @@
 							"$ref": "#/$defs/tabCloseAttemptGeneration"
 						}
 					},
-					"required": [
-						"kind",
-						"attemptGeneration"
-					],
+					"required": ["kind", "attemptGeneration"],
 					"additionalProperties": false
 				},
 				{
@@ -2801,9 +2409,7 @@
 							"const": "denied"
 						}
 					},
-					"required": [
-						"kind"
-					],
+					"required": ["kind"],
 					"additionalProperties": false
 				},
 				{
@@ -2816,10 +2422,7 @@
 							"$ref": "#/$defs/tabCloseUnavailableReason"
 						}
 					},
-					"required": [
-						"kind",
-						"reason"
-					],
+					"required": ["kind", "reason"],
 					"additionalProperties": false
 				},
 				{
@@ -2832,10 +2435,7 @@
 							"$ref": "#/$defs/tabCloseResumeRejectionReason"
 						}
 					},
-					"required": [
-						"kind",
-						"reason"
-					],
+					"required": ["kind", "reason"],
 					"additionalProperties": false
 				}
 			]
@@ -2896,12 +2496,7 @@
 					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/revision"
 				}
 			},
-			"required": [
-				"kind",
-				"protocolVersion",
-				"requestId",
-				"knownRevision"
-			],
+			"required": ["kind", "protocolVersion", "requestId", "knownRevision"],
 			"additionalProperties": false
 		},
 		"publicationDocument": {
@@ -2926,10 +2521,7 @@
 							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/revision"
 						}
 					},
-					"required": [
-						"kind",
-						"revision"
-					],
+					"required": ["kind", "revision"],
 					"additionalProperties": false
 				},
 				{
@@ -2947,10 +2539,7 @@
 							}
 						}
 					},
-					"required": [
-						"kind",
-						"publications"
-					],
+					"required": ["kind", "publications"],
 					"additionalProperties": false
 				},
 				{
@@ -2960,9 +2549,7 @@
 							"const": "denied"
 						}
 					},
-					"required": [
-						"kind"
-					],
+					"required": ["kind"],
 					"additionalProperties": false
 				},
 				{
@@ -2975,18 +2562,13 @@
 							"$ref": "#/$defs/publicationUnavailableReason"
 						}
 					},
-					"required": [
-						"kind",
-						"reason"
-					],
+					"required": ["kind", "reason"],
 					"additionalProperties": false
 				}
 			]
 		},
 		"publicationUnavailableReason": {
-			"enum": [
-				"service-unavailable"
-			]
+			"enum": ["service-unavailable"]
 		},
 		"publicationResult": {
 			"type": "object",
@@ -3004,12 +2586,7 @@
 					"$ref": "#/$defs/publicationOutcome"
 				}
 			},
-			"required": [
-				"kind",
-				"protocolVersion",
-				"requestId",
-				"outcome"
-			],
+			"required": ["kind", "protocolVersion", "requestId", "outcome"],
 			"additionalProperties": false
 		},
 		"panelTransfer": {
@@ -3031,10 +2608,7 @@
 					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/workspaceId"
 				}
 			},
-			"required": [
-				"targetTerminalContextId",
-				"closedSourceTab"
-			],
+			"required": ["targetTerminalContextId", "closedSourceTab"],
 			"additionalProperties": false
 		},
 		"launchSelection": {
@@ -3056,10 +2630,7 @@
 					}
 				}
 			},
-			"required": [
-				"exec",
-				"args"
-			],
+			"required": ["exec", "args"],
 			"additionalProperties": false
 		},
 		"launchProfileSelector": {
@@ -3141,9 +2712,7 @@
 			"allOf": [
 				{
 					"if": {
-						"required": [
-							"pluginContext"
-						],
+						"required": ["pluginContext"],
 						"properties": {
 							"pluginContext": {
 								"type": "object"
@@ -3151,9 +2720,7 @@
 						}
 					},
 					"then": {
-						"required": [
-							"pluginPane"
-						],
+						"required": ["pluginPane"],
 						"properties": {
 							"pluginPane": {
 								"$ref": "#/$defs/pluginPaneSelector"
@@ -3175,10 +2742,7 @@
 							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/label"
 						}
 					},
-					"required": [
-						"kind",
-						"label"
-					],
+					"required": ["kind", "label"],
 					"additionalProperties": false
 				},
 				{
@@ -3191,10 +2755,7 @@
 							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/presentationId"
 						}
 					},
-					"required": [
-						"kind",
-						"presentationId"
-					],
+					"required": ["kind", "presentationId"],
 					"additionalProperties": false
 				}
 			]
@@ -3209,9 +2770,7 @@
 					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/panelCustomLabel"
 				}
 			},
-			"required": [
-				"label"
-			],
+			"required": ["label"],
 			"additionalProperties": false
 		},
 		"layoutNode": {
@@ -3233,18 +2792,10 @@
 							}
 						},
 						"rightClick": {
-							"enum": [
-								"orchbee",
-								"panel"
-							]
+							"enum": ["orchbee", "panel"]
 						}
 					},
-					"required": [
-						"kind",
-						"primary",
-						"children",
-						"rightClick"
-					],
+					"required": ["kind", "primary", "children", "rightClick"],
 					"additionalProperties": false
 				},
 				{
@@ -3254,10 +2805,7 @@
 							"const": "split"
 						},
 						"orientation": {
-							"enum": [
-								"horizontal",
-								"vertical"
-							]
+							"enum": ["horizontal", "vertical"]
 						},
 						"children": {
 							"type": "array",
@@ -3268,11 +2816,7 @@
 							}
 						}
 					},
-					"required": [
-						"kind",
-						"orientation",
-						"children"
-					],
+					"required": ["kind", "orientation", "children"],
 					"additionalProperties": false
 				}
 			]
@@ -3289,10 +2833,7 @@
 					"pattern": "^[A-Za-z0-9_:-]{1,120}$"
 				}
 			},
-			"required": [
-				"pluginId",
-				"entrypointId"
-			],
+			"required": ["pluginId", "entrypointId"],
 			"additionalProperties": false
 		},
 		"pluginInvocationContext": {

@@ -75,7 +75,7 @@ poison——不存在任何 `into_inner`/`clear_poison`——部分变更永不�
 | `src/agent/targeted.rs`            | `#[cfg(test)]` 具名边界回归测试                                                                                                                                                                            |
 | `src/agent/oracle.rs`              | `#[cfg(test)]` 对已记录 TypeScript oracle 结果断言的具名回归测试                                                                                                                                           |
 | `src/agent/join.rs`                | Desktop `AgentObservationJoinStateMachine` 的纯移植：代际注册/退役、hint/事件 join、TTL 清理、settle 效果、准入边界；`#[cfg(test)]` `reset`                                                                |
-| `src/agent/hook_contract.rs`       | 严格 envelope/关联 hint 边界解析与十二 adapter 事件门注册表（移植 `agent-hook-observation-contract.ts` 与 `resolveAgentHookAdapter.ts`）                                                                     |
+| `src/agent/hook_contract.rs`       | 严格 envelope/关联 hint 边界解析与十二 adapter 事件门注册表（移植 `agent-hook-observation-contract.ts` 与 `resolveAgentHookAdapter.ts`）                                                                   |
 | `src/agent/hook_ingress.rs`        | `AgentHookObservationIngress` 的纯移植，桥切分后不持有运行时：会话绑定、turn/请求/子会话映射、join 命令消费、经注入的 `&mut AgentRuntime` 按序规范派发；`#[cfg(test)]` 语料/trace/f64 settlement/JSON 辅助 |
 | `src/agent/conformance_support.rs` | 与生产 `Instant` 漏斗共享的 `SettlementQueue` 计时原语；`#[cfg(test)]` fixture 形状 JSON 发射器、`DispatchTrace`、语料时钟推进与 `FixtureIngress`                                                          |
 | `src/agent/hook_conformance.rs`    | `#[cfg(test)]`——冻结 join 与 hook 语料的回防线束及原生联合容量检查                                                                                                                                         |
@@ -176,7 +176,6 @@ dispose／poison 所有者仍回答 unavailable。保留既有 canonical ID 优�
 证据须覆盖混合名称／预留冲突、满额、引用升级／替换、两次读取之间 provider A → B → A、
 已证明及不确定退出、物理替换、策略／dispose、严格协议边界，以及真实 Windows
 重命名／解析／列举／清名和具名终端访问。协议 schema 和 CLI 信封版本须与实际目标一致。
-
 
 ## 托管名称重启
 

@@ -38,7 +38,6 @@ name-in-use 拒绝必须标明占用者；其他赋名拒绝携带 null。结果
 在分配或读取正文前拒绝超过 1,024 字节的正文；kind 10 维持 256 KiB 的有界列表上限。
 canonical 读取实体的语义不变量仍在每次解析与序列化时执行，独立于 JSON Schema。
 
-
 Windows Names 组合还接纳精确终端选择器与有类型的 `nameTarget`：canonical 会话或终端启动
 绑定（presentation、创建 generation、Host epoch、终端 ID）。`resolved-target`、
 `assigned-target`、`unchanged-target`、`released-target`、`listed-targets` 保留身份区别。
@@ -76,7 +75,6 @@ Changes 使用请求/结果 kind 23/24 与惯用的关联 outcome 信封。省�
 ## 托管启动状态
 
 只读 launch Status 使用请求／结果 kind 25/26 及现有 16 KiB 请求／1,024 字节结果上限。status 结果携带精确 sessionId、规范 revision 和闭合的 management 阶段：unmanaged；含已验证预留及 blocked 布尔值的 pending；或含 reservationId、providerId 及精确启动绑定的 active。只有 Status 结果允许此 outcome。会话存在性与生命周期、已完成启动的保留及读取授权属于 Server 名称所有者。消费者必须关联 Session，并区分已完成启动与当前提示就绪。此原生增量扩展需要匹配的 cohort 二进制。
-
 
 TerminalStatus 使用只读请求／结果 kind 27/28，沿用请求和小结果上限。它要求完整的新物理启动绑定，返回该绑定及 unmanaged 或 active provider 归属，不携带 canonical 会话、修订、预留或就绪声明；只有 TerminalStatus 结果允许此 outcome。物理成员不符返回 binding-changed。Server Names 所有者持有恢复后的托管状态；客户端关联精确绑定及请求。
 
