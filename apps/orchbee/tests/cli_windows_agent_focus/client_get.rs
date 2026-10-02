@@ -111,7 +111,7 @@ fn selected_client_get_joins_only_current_versions_and_keeps_canonical_outcome()
             false,
         ),
     ] {
-        let fixture = Fixture::new_limited();
+        let fixture = FocusFixture::new();
         let listener = LocalListener::bind(fixture.rendezvous().client_socket_path()).unwrap();
         let server = peer(&fixture, listener, move |mut stream| {
             snapshot_reply(&mut stream);
@@ -161,7 +161,7 @@ fn selected_client_get_joins_only_current_versions_and_keeps_canonical_outcome()
 #[test]
 fn selected_client_get_checks_intervening_changes_and_refuses_foreign_boot() {
     for case in ["same-session", "other-session", "foreign-boot"] {
-        let fixture = Fixture::new_limited();
+        let fixture = FocusFixture::new();
         let listener = LocalListener::bind(fixture.rendezvous().client_socket_path()).unwrap();
         let server = peer(&fixture, listener, move |mut stream| {
             snapshot_reply(&mut stream);
@@ -258,7 +258,7 @@ fn selected_client_get_checks_intervening_changes_and_refuses_foreign_boot() {
 #[test]
 fn selected_client_get_failures_keep_their_declared_contract() {
     for case in ["missing", "stale", "denied", "wrong-client", "deadline"] {
-        let fixture = Fixture::new_limited();
+        let fixture = FocusFixture::new();
         let listener = LocalListener::bind(fixture.rendezvous().client_socket_path()).unwrap();
         let server = peer(&fixture, listener, move |mut stream| {
             snapshot_reply(&mut stream);

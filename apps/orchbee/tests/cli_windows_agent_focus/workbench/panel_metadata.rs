@@ -150,7 +150,7 @@ fn panel_metadata_queries_enforce_exact_batches_binding_fences_and_original_dead
         "report-lost",
         "report-total-deadline",
     ] {
-        let fixture = Fixture::new_limited();
+        let fixture = FocusFixture::new();
         let listener = LocalListener::bind(fixture.rendezvous().client_socket_path()).unwrap();
         let count = if case == "empty" {
             0

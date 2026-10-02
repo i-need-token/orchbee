@@ -55,7 +55,7 @@ fn workspace_queries_join_git_without_trust_and_fail_closed_on_changed_or_lost_s
         "lost",
         "total-deadline",
     ] {
-        let fixture = Fixture::new_limited();
+        let fixture = FocusFixture::new();
         let rendezvous = fixture.rendezvous();
         let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
         let count = if case == "total-deadline" { 3 } else { 1 };

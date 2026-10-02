@@ -13,43 +13,13 @@ use std::{
     io::Read,
     path::PathBuf,
     process::{Command, Output, Stdio},
-    sync::{Condvar, Mutex, mpsc},
+    sync::{Mutex, mpsc},
     thread,
     time::{Duration, Instant},
 };
 
-pub(super) struct Fixture(
-    pub(super) PathBuf,
-    Mutex<Option<mpsc::Sender<Instant>>>,
-    Option<FixtureSlot>,
-);
-struct FixtureSlot;
-static LIVE_FIXTURES: Mutex<usize> = Mutex::new(0);
-static FIXTURE_AVAILABLE: Condvar = Condvar::new();
-impl FixtureSlot {
-    fn acquire() -> Self {
-        let mut live = LIVE_FIXTURES.lock().unwrap();
-        while *live >= 4 {
-            live = FIXTURE_AVAILABLE.wait(live).unwrap();
-        }
-        *live += 1;
-        Self
-    }
-}
-impl Drop for FixtureSlot {
-    fn drop(&mut self) {
-        *LIVE_FIXTURES.lock().unwrap() -= 1;
-        FIXTURE_AVAILABLE.notify_one();
-    }
-}
+pub(super) struct Fixture(pub(super) PathBuf, Mutex<Option<mpsc::Sender<Instant>>>);
 impl Fixture {
-    pub(super) fn new_limited() -> Self {
-        let slot = FixtureSlot::acquire();
-        let mut fixture = Self::new();
-        fixture.2 = Some(slot);
-        fixture
-    }
-
     pub(super) fn new() -> Self {
         let mut nonce = [0; 16];
         getrandom::fill(&mut nonce).unwrap();
@@ -85,7 +55,7 @@ impl Fixture {
             json!({"schemaVersion":2,"artifacts":artifacts}).to_string(),
         )
         .unwrap();
-        Self(root, Mutex::new(None), None)
+        Self(root, Mutex::new(None))
     }
 
     pub(super) fn rendezvous(&self) -> ModeCheckedLocalSiteRendezvous {
@@ -181,7 +151,6 @@ impl Drop for Fixture {
                 .starts_with("orchbee-cli-names-")
         );
         fs::remove_dir_all(target).unwrap();
-        self.2.take();
     }
 }
 

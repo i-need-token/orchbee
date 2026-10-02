@@ -31,7 +31,7 @@ fn attention_process_observes_a_busy_client_without_navigation_or_acknowledgemen
         json!({"generation":1,"sequence":2,"stateChangeRevision":3,"seen":false}),
         json!({"generation":1,"sequence":2,"stateChangeRevision":3,"seen":true}),
     ] {
-        let fixture = Fixture::new_limited();
+        let fixture = FocusFixture::new();
         let listener = LocalListener::bind(fixture.rendezvous().client_socket_path()).unwrap();
         let expected = state.clone();
         let server = peer(&fixture, listener, move |mut stream| {
@@ -78,7 +78,7 @@ fn attention_process_observes_a_busy_client_without_navigation_or_acknowledgemen
 
 #[test]
 fn attention_process_foreign_boot_never_exposes_an_old_seen_flag() {
-    let fixture = Fixture::new_limited();
+    let fixture = FocusFixture::new();
     let listener = LocalListener::bind(fixture.rendezvous().client_socket_path()).unwrap();
     let server = peer(&fixture, listener, move |mut stream| {
         snapshot_reply(&mut stream);

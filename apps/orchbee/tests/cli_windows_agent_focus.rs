@@ -15,8 +15,46 @@ use peer_support::{
 use serde_json::{Value, json};
 use std::{
     io::Write,
+    ops::Deref,
+    sync::{Condvar, Mutex},
     time::{Duration, Instant},
 };
+
+static LIVE_FIXTURES: Mutex<usize> = Mutex::new(0);
+static FIXTURE_AVAILABLE: Condvar = Condvar::new();
+struct FixtureSlot;
+impl Drop for FixtureSlot {
+    fn drop(&mut self) {
+        *LIVE_FIXTURES.lock().unwrap() -= 1;
+        FIXTURE_AVAILABLE.notify_one();
+    }
+}
+struct FocusFixture {
+    // Field order settles the fixture's files before returning the slot.
+    fixture: Fixture,
+    _slot: FixtureSlot,
+}
+impl FocusFixture {
+    fn new() -> Self {
+        let mut live = LIVE_FIXTURES.lock().unwrap();
+        while *live >= 4 {
+            live = FIXTURE_AVAILABLE.wait(live).unwrap();
+        }
+        *live += 1;
+        drop(live);
+        let slot = FixtureSlot;
+        Self {
+            fixture: Fixture::new(),
+            _slot: slot,
+        }
+    }
+}
+impl Deref for FocusFixture {
+    type Target = Fixture;
+    fn deref(&self) -> &Self::Target {
+        &self.fixture
+    }
+}
 
 #[path = "cli_windows_agent_focus/client_get.rs"]
 mod client_get;
@@ -141,7 +179,7 @@ fn receipt(document: &Value) {
 #[test]
 fn physical_agent_focus_pins_the_full_binding_and_never_substitutes_a_childs_parent() {
     for case in ["primary", "child", "no-agent"] {
-        let fixture = Fixture::new_limited();
+        let fixture = FocusFixture::new();
         let rendezvous = fixture.rendezvous();
         let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
         let server = peer(&fixture, listener, move |mut stream| {
@@ -203,7 +241,7 @@ fn names_sessions_and_explicit_panels_select_one_primary_without_touching_other_
         vec!["--session", "sess-alpha"],
         vec!["--panel", "@panel:08"],
     ] {
-        let fixture = Fixture::new_limited();
+        let fixture = FocusFixture::new();
         let rendezvous = fixture.rendezvous();
         let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
         let direct = selector[0] == "--session";
@@ -249,7 +287,7 @@ fn absent_ended_child_only_stale_and_ambiguous_bindings_never_submit() {
         "non-navigable",
         "ambiguous",
     ] {
-        let fixture = Fixture::new_limited();
+        let fixture = FocusFixture::new();
         let rendezvous = fixture.rendezvous();
         let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
         let server = peer(&fixture, listener, move |mut stream| {
@@ -304,7 +342,7 @@ fn absent_ended_child_only_stale_and_ambiguous_bindings_never_submit() {
 #[test]
 fn ambiguous_or_unready_clients_fail_before_agent_resolution() {
     for ambiguous in [true, false] {
-        let fixture = Fixture::new_limited();
+        let fixture = FocusFixture::new();
         let rendezvous = fixture.rendezvous();
         let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
         let server = peer(&fixture, listener, move |mut stream| {
@@ -340,7 +378,7 @@ fn ambiguous_or_unready_clients_fail_before_agent_resolution() {
 
 #[test]
 fn lost_submit_preserves_identity_for_explicit_status_without_resolving_again() {
-    let fixture = Fixture::new_limited();
+    let fixture = FocusFixture::new();
     let operation = id(90);
     let rendezvous = fixture.rendezvous();
     let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
@@ -384,7 +422,7 @@ fn lost_submit_preserves_identity_for_explicit_status_without_resolving_again() 
 
 #[test]
 fn partial_agent_reply_expires_without_submission_and_uses_total_navigation_deadline() {
-    let fixture = Fixture::new_limited();
+    let fixture = FocusFixture::new();
     let rendezvous = fixture.rendezvous();
     let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
     let server = peer(&fixture, listener, |mut stream| {

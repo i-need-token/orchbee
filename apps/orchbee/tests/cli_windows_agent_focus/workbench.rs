@@ -111,7 +111,7 @@ fn workbench_queries_join_only_primary_agents_and_reject_changed_client_without_
         "viewport-timeout",
         "viewport-lost",
     ] {
-        let fixture = Fixture::new_limited();
+        let fixture = FocusFixture::new();
         let listener = LocalListener::bind(fixture.rendezvous().client_socket_path()).unwrap();
         let server = peer(&fixture, listener, move |mut stream| {
             snapshot_reply(&mut stream);

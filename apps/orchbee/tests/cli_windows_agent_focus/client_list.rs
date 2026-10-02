@@ -75,7 +75,7 @@ fn selected_client_lists_batch_once_and_preserves_truth_across_page_changes() {
         "foreign",
         "stale-cursor",
     ] {
-        let fixture = Fixture::new_limited();
+        let fixture = FocusFixture::new();
         let listener = LocalListener::bind(fixture.rendezvous().client_socket_path()).unwrap();
         let server = peer(&fixture, listener, move |mut stream| {
             snapshot_reply(&mut stream);

@@ -51,7 +51,7 @@ fn sample(stream: &mut LocalStream, revision: u64, sequence: u64, seen: Option<b
 #[test]
 fn selected_wait_matches_seen_idle_unseen_done_and_waits_for_missing_observation() {
     for mode in ["idle", "done", "missing"] {
-        let fixture = Fixture::new_limited();
+        let fixture = FocusFixture::new();
         let listener = LocalListener::bind(fixture.rendezvous().client_socket_path()).unwrap();
         let server = peer(&fixture, listener, move |mut stream| {
             snapshot_reply(&mut stream);
@@ -120,7 +120,7 @@ fn selected_wait_matches_seen_idle_unseen_done_and_waits_for_missing_observation
 #[test]
 fn selected_wait_client_read_shares_the_total_deadline_and_missing_client_does_not_fallback() {
     for missing in [false, true] {
-        let fixture = Fixture::new_limited();
+        let fixture = FocusFixture::new();
         let listener = LocalListener::bind(fixture.rendezvous().client_socket_path()).unwrap();
         let server = peer(&fixture, listener, move |mut stream| {
             snapshot_reply(&mut stream);

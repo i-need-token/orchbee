@@ -13,7 +13,7 @@ fn panel_runtime_uses_one_attachment_and_preserves_unavailable_metadata_without_
             "changed-workbench",
             "deadline",
         ] {
-            let fixture = Fixture::new_limited();
+            let fixture = FocusFixture::new();
             let listener = LocalListener::bind(fixture.rendezvous().client_socket_path()).unwrap();
             let server = peer(&fixture, listener, move |mut stream| {
                 snapshot_reply(&mut stream);
