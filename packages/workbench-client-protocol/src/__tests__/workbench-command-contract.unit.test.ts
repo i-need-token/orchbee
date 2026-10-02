@@ -126,23 +126,41 @@ describe('Workbench command contract', () => {
 	);
 
 	it('agrees with the schema-authored Rust/TypeScript conformance corpus', async () => {
-		const [projectionText, commandText, corpusText] = await Promise.all([
-			readFile(
-				new URL('../../../../schemas/workbench/v1/workbench.schema.json', import.meta.url),
-				'utf8',
-			),
-			readFile(
-				new URL('../../../../schemas/workbench/v1/workbench-command.schema.json', import.meta.url),
-				'utf8',
-			),
-			readFile(
-				new URL(
-					'../../../../schemas/workbench/v1/workbench-command-conformance-v1.json',
-					import.meta.url,
+		const [projectionText, commandText, corpusText, clientViewText, graphicsText] =
+			await Promise.all([
+				readFile(
+					new URL('../../../../schemas/workbench/v1/workbench.schema.json', import.meta.url),
+					'utf8',
 				),
-				'utf8',
-			),
-		]);
+				readFile(
+					new URL(
+						'../../../../schemas/workbench/v1/workbench-command.schema.json',
+						import.meta.url,
+					),
+					'utf8',
+				),
+				readFile(
+					new URL(
+						'../../../../schemas/workbench/v1/workbench-command-conformance-v1.json',
+						import.meta.url,
+					),
+					'utf8',
+				),
+				readFile(
+					new URL(
+						'../../../../schemas/workbench/v1/workbench-client-view.schema.json',
+						import.meta.url,
+					),
+					'utf8',
+				),
+				readFile(
+					new URL(
+						'../../../../schemas/workbench/v1/workbench-pane-graphics.schema.json',
+						import.meta.url,
+					),
+					'utf8',
+				),
+			]);
 		const corpus = corpusSchema.parse(JSON.parse(corpusText));
 		const ajv = new Ajv2020({ strict: true });
 		ajv.addFormat(
@@ -151,6 +169,8 @@ describe('Workbench command contract', () => {
 				/^(?:0|[1-9][0-9]{0,19})$/u.test(value) && BigInt(value) <= 18_446_744_073_709_551_615n,
 		);
 		ajv.addSchema(objectSchema.parse(JSON.parse(projectionText)));
+		ajv.addSchema(objectSchema.parse(JSON.parse(clientViewText)));
+		ajv.addSchema(objectSchema.parse(JSON.parse(graphicsText)));
 		const validate = ajv.compile(objectSchema.parse(JSON.parse(commandText)));
 		for (const testCase of corpus.valid) {
 			expect({ name: testCase.name, valid: validate(testCase.document) }).toEqual({

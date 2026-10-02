@@ -51,7 +51,17 @@ describe('retained Workspace group Close', () => {
 				),
 			);
 		const ajv = new Ajv2020({ allErrors: true, strict: false });
-		for (const name of ['workbench.schema.json', 'workbench-command.schema.json']) {
+		ajv.addFormat(
+			'orchbee-uint64',
+			(value: string) =>
+				/^(?:0|[1-9][0-9]{0,19})$/u.test(value) && BigInt(value) <= 18_446_744_073_709_551_615n,
+		);
+		for (const name of [
+			'workbench.schema.json',
+			'workbench-client-view.schema.json',
+			'workbench-pane-graphics.schema.json',
+			'workbench-command.schema.json',
+		]) {
 			const dependency = z
 				.record(z.string(), z.unknown())
 				.parse(
