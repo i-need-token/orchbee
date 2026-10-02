@@ -8,6 +8,40 @@ use std::{cell::RefCell, io, rc::Rc};
 mod configured;
 mod workspace_setup;
 
+#[cfg(windows)]
+#[test]
+fn physical_reply_queue_is_bounded_preserves_prefix_and_excludes_literal_paste() {
+    let calls = Rc::new(RefCell::new(Vec::new()));
+    let mut port = UnavailablePort(Rc::clone(&calls));
+    let mut dispatcher = InputDispatcher::default();
+    let mut view = ClientView::new(80);
+    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02");
+    assert!(view.prefix_active());
+    let reply = b"\x1b_Gi=1,p=1;OK\x1b\\";
+    dispatch_all(&mut dispatcher, &mut view, &mut port, &reply.repeat(129));
+    assert!(view.prefix_active());
+    assert!(forwarded_bytes(&calls).is_empty());
+    let (replies, overflow) = dispatcher.take_graphics_replies();
+    assert!(overflow);
+    assert_eq!(replies.len(), 128);
+    assert!(replies.iter().all(|reply| matches!(
+        reply,
+        crate::terminal_graphics::Reply::Kitty {
+            image_id: 1,
+            placement_id: Some(1),
+            success: true
+        }
+    )));
+    assert_eq!(dispatcher.take_graphics_replies(), (Vec::new(), false));
+    let mut literal = b"\x1b[200~".to_vec();
+    literal.extend_from_slice(reply);
+    literal.extend_from_slice(b"\x1b[201~");
+    let mut view = ClientView::new(80);
+    dispatch_all(&mut dispatcher, &mut view, &mut port, &literal);
+    assert_eq!(dispatcher.take_graphics_replies(), (Vec::new(), false));
+    assert_eq!(forwarded_bytes(&calls), literal);
+}
+
 #[derive(Debug, Eq, PartialEq)]
 enum Call {
     Forward(Vec<u8>),

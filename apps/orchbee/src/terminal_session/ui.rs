@@ -248,6 +248,8 @@ pub(crate) struct NativeSessionView<'a> {
     #[cfg(windows)]
     graphics: Option<&'a super::pane_graphics::Driver>,
     #[cfg(windows)]
+    graphics_surface: Option<crate::tui_graphics::Surface>,
+    #[cfg(windows)]
     popup_failed: bool,
     #[cfg(windows)]
     command_notice: Option<NativeSessionNotice>,
@@ -590,6 +592,8 @@ impl<'a> NativeSessionView<'a> {
             #[cfg(windows)]
             graphics: None,
             #[cfg(windows)]
+            graphics_surface: None,
+            #[cfg(windows)]
             popup_failed: false,
             #[cfg(windows)]
             command_notice: None,
@@ -820,6 +824,8 @@ impl NativeUi {
             graphics: state
                 .filter(|_| self.retirement.is_none())
                 .map(|_| &self.graphics),
+            #[cfg(windows)]
+            graphics_surface: None,
             #[cfg(windows)]
             popup_failed: self.popup.failed(),
             #[cfg(windows)]

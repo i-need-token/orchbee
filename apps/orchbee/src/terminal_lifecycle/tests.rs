@@ -13,6 +13,8 @@ use super::{RestorationStep, TerminalModeGuard, TerminalModes};
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 enum Operation {
+    #[cfg(windows)]
+    CleanupGraphics,
     QueryGraphics,
     DisablePaste,
     EnablePaste,
@@ -37,6 +39,8 @@ enum Operation {
 
 #[derive(Default)]
 struct FakeState {
+    #[cfg(windows)]
+    graphics_cleanup: Vec<String>,
     failures_remaining: HashMap<Operation, usize>,
     operations: Vec<Operation>,
 }
@@ -52,6 +56,8 @@ impl FakeTerminalModes {
             state: Arc::new(Mutex::new(FakeState {
                 failures_remaining: failures.into_iter().collect(),
                 operations: Vec::new(),
+                #[cfg(windows)]
+                graphics_cleanup: Vec::new(),
             })),
         }
     }
@@ -80,6 +86,15 @@ impl FakeTerminalModes {
 }
 
 impl TerminalModes for FakeTerminalModes {
+    #[cfg(windows)]
+    fn cleanup_graphics(&self, sequence: &str) -> io::Result<()> {
+        self.state
+            .lock()
+            .map_err(|_| io::Error::other("fake state poisoned"))?
+            .graphics_cleanup
+            .push(sequence.to_owned());
+        self.perform(Operation::CleanupGraphics)
+    }
     fn query_graphics(&self, _: crate::terminal_graphics::Query) -> io::Result<()> {
         self.perform(Operation::QueryGraphics)
     }
@@ -696,6 +711,11 @@ struct OrderedWireModes {
 }
 
 impl TerminalModes for OrderedWireModes {
+    #[cfg(windows)]
+    fn cleanup_graphics(&self, sequence: &str) -> io::Result<()> {
+        self.wire.record(format!("graphics-cleanup:{sequence}"));
+        Ok(())
+    }
     fn disable_focus_reporting(&self) -> io::Result<()> {
         self.wire.record("disable-focus-reporting");
         Ok(())
@@ -1250,4 +1270,179 @@ fn graphics_queries_use_the_lifecycle_writer_and_cannot_write_after_restoration_
         restored.query_graphics(query).unwrap_err().kind(),
         io::ErrorKind::BrokenPipe
     );
+}
+
+#[cfg(windows)]
+#[test]
+fn graphics_cleanup_precedes_mode_restore_and_retains_debt_after_failed_flush() {
+    for failures in [0, 1, usize::MAX] {
+        let control = FakeTerminalModes::with_failures([(Operation::CleanupGraphics, failures)]);
+        let mut guard = TerminalModeGuard::enter_without_panic_hook(control.clone()).unwrap();
+        let lease = guard.synchronized_update_lease();
+        assert!(lease.graphics().register(3));
+        assert!(lease.graphics().register(9));
+        lease.graphics().control_started();
+        lease.open_frame();
+        let result = guard.restore();
+        assert_eq!(result.is_err(), failures == usize::MAX);
+        let operations = control.operations();
+        let position = |operation| {
+            operations
+                .iter()
+                .position(|item| *item == operation)
+                .unwrap()
+        };
+        assert!(position(Operation::CleanupGraphics) < position(Operation::EndSynchronizedUpdate));
+        assert!(position(Operation::CleanupGraphics) < position(Operation::LeaveAlternate));
+        assert!(operations.contains(&Operation::DisableRaw));
+        let sequences = control.state.lock().unwrap().graphics_cleanup.clone();
+        assert_eq!(sequences.len(), if failures == 0 { 1 } else { 2 });
+        for sequence in sequences {
+            assert!(sequence.starts_with("\x18\x1b\\"));
+            assert!(sequence.contains(&super::graphics::delete(3)));
+            assert!(sequence.contains(&super::graphics::delete(9)));
+            assert!(!sequence.contains(&super::graphics::delete(7)));
+        }
+        assert_eq!(
+            lease.graphics().capacity(),
+            if failures == usize::MAX { 126 } else { 128 }
+        );
+        assert!(lease.frame_output_blocked());
+        let _result = guard.restore();
+        assert_eq!(
+            control.operations(),
+            operations,
+            "restoration cannot renew exhausted cleanup attempts"
+        );
+    }
+}
+
+#[cfg(windows)]
+#[test]
+fn panic_cleans_partial_graphics_before_sync_and_discards_buffered_output() -> io::Result<()> {
+    let _panic_hook_test = lock_panic_hook_tests()?;
+    let wire = OrderedWire::default();
+    let guard = TerminalModeGuard::enter(OrderedWireModes { wire: wire.clone() })?;
+    let lease = guard.synchronized_update_lease();
+    assert!(lease.graphics().register(11));
+    lease.graphics().control_started();
+    lease.open_frame();
+    let outcome = catch_unwind(AssertUnwindSafe(|| {
+        use io::Write;
+        let mut buffered = io::BufWriter::new(crate::tui_backend::RestorationGatedWriter::new(
+            OrderedWireWriter { wire: wire.clone() },
+            Arc::clone(&lease),
+        ));
+        buffered
+            .write_all(b"\x1b_Ga=t,i=11,m=1;unfinished")
+            .unwrap();
+        panic!("partial graphics frame before flush");
+    }));
+    assert!(outcome.is_err());
+    let events = wire.snapshot();
+    let cleanup = events
+        .iter()
+        .position(|event| event.starts_with("graphics-cleanup:"))
+        .unwrap();
+    assert!(events[cleanup].contains(&super::graphics::delete(11)));
+    assert!(
+        cleanup
+            < events
+                .iter()
+                .position(|event| event == "end-synchronized-update")
+                .unwrap()
+    );
+    assert!(
+        cleanup
+            < events
+                .iter()
+                .position(|event| event == "leave-alternate-screen")
+                .unwrap()
+    );
+    assert!(!events.iter().any(|event| event.starts_with("frame-bytes:")));
+    assert_eq!(lease.graphics().capacity(), 128);
+    drop(guard);
+    assert_eq!(wire.snapshot(), events);
+    Ok(())
+}
+
+#[cfg(windows)]
+#[test]
+fn actual_backend_graphics_write_failure_keeps_owned_cleanup_until_restoration() {
+    use crate::{
+        terminal_graphics::{Probe, Reply},
+        terminal_session::PaneGraphicsCanvas,
+        tui_backend::ResizableBackend,
+    };
+    use orchbee_workbench_protocol::{
+        PaneGraphicsLayer, PaneGraphicsPlacement, PaneGraphicsTarget, SiteId, WorkbenchPanelId,
+        WorkbenchRevision,
+    };
+    use ratatui::{backend::Backend, layout::Rect};
+    let control = FakeTerminalModes::default();
+    let mut guard = TerminalModeGuard::enter_without_panic_hook(control.clone()).unwrap();
+    let lease = guard.synchronized_update_lease();
+    let (writer, failure) = FailingOrderedWireWriter::armed(OrderedWire::default());
+    let mut backend = failed_frame_backend(writer, &lease);
+    backend.enable_graphics_probe(99);
+    let graphics = backend.graphics_surface().unwrap();
+    let now = std::time::Instant::now();
+    let mut probe = Probe::default();
+    probe.activate(99);
+    probe.query((4, 2), now).unwrap();
+    probe.reply(Reply::Cell(Some((1, 2))), now);
+    probe.reply(
+        Reply::Kitty {
+            image_id: 99,
+            placement_id: None,
+            success: true,
+        },
+        now,
+    );
+    graphics.update(probe.facts(), now, Vec::new(), false);
+    let canvas = PaneGraphicsCanvas::fixture(
+        PaneGraphicsTarget {
+            panel_id: WorkbenchPanelId::parse("22222222222222222222222222222222").unwrap(),
+            presentation_id: None,
+        },
+        WorkbenchRevision::new(1),
+        vec![(
+            PaneGraphicsLayer {
+                layer_id: "primary".into(),
+                z_index: 0,
+                width: 1,
+                height: 1,
+                placement: PaneGraphicsPlacement::default(),
+                resource_revision: WorkbenchRevision::new(1),
+                stream_id: None,
+            },
+            vec![255; 4],
+        )],
+    );
+    graphics.begin_frame(false);
+    graphics.select(
+        &SiteId::parse("11111111111111111111111111111111").unwrap(),
+        &canvas,
+        Rect::new(0, 0, 1, 1),
+    );
+    graphics.finish_frame(&[canvas.draw_for_test()], false);
+    backend.draw(std::iter::empty()).unwrap();
+    failure.store(true, Ordering::Relaxed);
+    assert_eq!(
+        backend.flush().unwrap_err().kind(),
+        io::ErrorKind::BrokenPipe
+    );
+    assert_eq!(
+        lease.graphics().capacity(),
+        127,
+        "failed output cannot discharge image ownership"
+    );
+    guard.discard_frame_output();
+    drop(backend);
+    guard.restore().unwrap();
+    assert_eq!(lease.graphics().capacity(), 128);
+    let sequences = control.state.lock().unwrap().graphics_cleanup.clone();
+    assert_eq!(sequences.len(), 1);
+    assert!(sequences[0].starts_with("\x18\x1b\\"));
+    assert!(sequences[0].contains(&super::graphics::delete(1)));
 }

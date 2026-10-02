@@ -19,11 +19,15 @@ use crossterm::{
 use rustix::termios::{OptionalActions, Termios, tcgetattr, tcsetattr};
 
 use crate::terminal_device::InheritedTerminal;
+#[cfg(windows)]
+use std::io::Write;
 
 const RESTORATION_ATTEMPTS_PER_MODE: u8 = 2;
 
 pub(crate) const SYNCHRONIZED_UPDATE_BEGIN: &[u8] = b"\x1b[?2026h";
 pub(crate) const SYNCHRONIZED_UPDATE_END: &[u8] = b"\x1b[?2026l";
+#[cfg(windows)]
+pub(crate) mod graphics;
 
 struct FocusReporting(bool);
 
@@ -116,6 +120,10 @@ impl crossterm::Command for SynchronizedUpdateEnd {
 }
 
 pub(crate) trait TerminalModes: Send + Sync + 'static {
+    #[cfg(windows)]
+    fn cleanup_graphics(&self, _sequence: &str) -> io::Result<()> {
+        Err(io::ErrorKind::Unsupported.into())
+    }
     fn query_graphics(&self, _query: crate::terminal_graphics::Query) -> io::Result<()> {
         Err(io::ErrorKind::Unsupported.into())
     }
@@ -153,6 +161,8 @@ pub(crate) trait TerminalModes: Send + Sync + 'static {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum RestorationStep {
     #[cfg(windows)]
+    CleanupGraphics,
+    #[cfg(windows)]
     RestoreWindowTitle,
     DisableBracketedPaste,
     DisablePointerCapture,
@@ -166,6 +176,8 @@ enum RestorationStep {
 impl fmt::Display for RestorationStep {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            #[cfg(windows)]
+            Self::CleanupGraphics => formatter.write_str("clean up owned graphics"),
             #[cfg(windows)]
             Self::RestoreWindowTitle => formatter.write_str("restore window title"),
             Self::DisableBracketedPaste => formatter.write_str("disable bracketed paste"),
@@ -258,6 +270,8 @@ impl ModeLease {
 
 #[derive(Debug)]
 pub(crate) struct SynchronizedUpdateLease {
+    #[cfg(windows)]
+    graphics: graphics::ImageLease,
     frame_output_blocked: AtomicBool,
     obligation: ModeLease,
 }
@@ -265,6 +279,8 @@ pub(crate) struct SynchronizedUpdateLease {
 impl SynchronizedUpdateLease {
     pub(crate) const fn new() -> Self {
         Self {
+            #[cfg(windows)]
+            graphics: graphics::ImageLease::new(),
             frame_output_blocked: AtomicBool::new(false),
             obligation: ModeLease::new(),
         }
@@ -272,6 +288,10 @@ impl SynchronizedUpdateLease {
 
     pub(crate) fn open_frame(&self) {
         self.obligation.mark_operation_started();
+    }
+    #[cfg(windows)]
+    pub(crate) fn graphics(&self) -> &graphics::ImageLease {
+        &self.graphics
     }
 
     pub(crate) fn frame_open(&self) -> bool {
@@ -545,6 +565,18 @@ fn restore_modes<C: TerminalModes>(
 ) -> Result<(), TerminalRestoreError> {
     let mut failures = Vec::with_capacity(5);
     state.synchronized_update.block_frame_output();
+    #[cfg(windows)]
+    restore_mode(
+        &state.synchronized_update.graphics.obligation,
+        RestorationStep::CleanupGraphics,
+        || {
+            let sequence = state.synchronized_update.graphics.cleanup_sequence();
+            control.cleanup_graphics(&sequence)?;
+            state.synchronized_update.graphics.restored();
+            Ok(())
+        },
+        &mut failures,
+    );
     restore_mode(
         &state.synchronized_update.obligation,
         RestorationStep::EndSynchronizedUpdate,
@@ -658,6 +690,12 @@ impl InheritedTerminalModes {
 }
 
 impl TerminalModes for InheritedTerminalModes {
+    #[cfg(windows)]
+    fn cleanup_graphics(&self, sequence: &str) -> io::Result<()> {
+        let mut output = self.terminal.output()?;
+        output.write_all(sequence.as_bytes())?;
+        output.flush()
+    }
     fn query_graphics(&self, query: crate::terminal_graphics::Query) -> io::Result<()> {
         self.write_command(GraphicsQuery(query))
     }

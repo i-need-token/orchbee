@@ -97,6 +97,31 @@ pub(crate) struct Canvas {
     layers: Vec<Layer>,
 }
 impl Canvas {
+    #[cfg(test)]
+    pub(crate) fn fixture(
+        target: PaneGraphicsTarget,
+        revision: WorkbenchRevision,
+        layers: Vec<(PaneGraphicsLayer, Vec<u8>)>,
+    ) -> Self {
+        Self::new(
+            Source {
+                target,
+                binding: None,
+            },
+            revision,
+            layers
+                .into_iter()
+                .map(|(metadata, pixels)| {
+                    Layer::new(metadata, pixels).expect("valid graphics fixture")
+                })
+                .collect(),
+        )
+        .expect("valid graphics fixture")
+    }
+    #[cfg(test)]
+    pub(crate) fn draw_for_test(&self) -> Draw {
+        Draw::new(self.source.clone(), Some(self.revision))
+    }
     pub(in crate::terminal_session) fn new(
         source: Source,
         revision: WorkbenchRevision,
@@ -131,12 +156,14 @@ impl Canvas {
     pub(crate) fn layers(&self) -> &[Layer] {
         &self.layers
     }
-    fn bytes(&self) -> usize {
+    pub(crate) fn bytes(&self) -> usize {
         self.layers.iter().map(|l| l.rgba.len()).sum()
     }
-    fn same(&self, other: &Self) -> bool {
+    pub(crate) fn same(&self, other: &Self) -> bool {
+        self.revision == other.revision && self.same_content(other)
+    }
+    pub(crate) fn same_content(&self, other: &Self) -> bool {
         self.source == other.source
-            && self.revision == other.revision
             && self.layers.len() == other.layers.len()
             && self
                 .layers
@@ -144,18 +171,45 @@ impl Canvas {
                 .zip(&other.layers)
                 .all(|(a, b)| a.same(b))
     }
+    #[cfg(test)]
+    pub(crate) fn revised_for_test(&self, revision: WorkbenchRevision) -> Self {
+        Self::new(self.source.clone(), revision, self.layers.clone())
+            .expect("valid revised fixture")
+    }
+    pub(crate) fn same_source_and_layers(&self, other: &Self) -> bool {
+        self.source == other.source
+            && self.layers.len() == other.layers.len()
+            && self
+                .layers
+                .iter()
+                .zip(&other.layers)
+                .all(|(a, b)| a.metadata.layer_id == b.metadata.layer_id)
+    }
+    pub(crate) fn matches_draw(&self, draw: &Draw) -> bool {
+        self.source == draw.source
+    }
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct Draw {
     pub(super) source: Source,
     pub(super) revision: Option<WorkbenchRevision>,
+    transport: orchbee_workbench_protocol::PaneGraphicsTransport,
 }
 impl Draw {
     pub(in crate::terminal_session) fn new(
         source: Source,
         revision: Option<WorkbenchRevision>,
     ) -> Self {
-        Self { source, revision }
+        Self {
+            source,
+            revision,
+            transport: orchbee_workbench_protocol::PaneGraphicsTransport::CellRaster,
+        }
+    }
+    pub(crate) fn physical(mut self, revision: Option<WorkbenchRevision>) -> Self {
+        self.revision = revision;
+        self.transport = orchbee_workbench_protocol::PaneGraphicsTransport::Kitty;
+        self
     }
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -241,10 +295,17 @@ impl Driver {
             .filter(|draw| scope.sources.contains(&draw.source))
             .collect::<Vec<_>>();
         let complete = draws.len() <= BATCH;
+        let mut capabilities = self.host.cell_capabilities();
+        if draws
+            .iter()
+            .any(|draw| draw.transport == orchbee_workbench_protocol::PaneGraphicsTransport::Kitty)
+        {
+            capabilities.transport = orchbee_workbench_protocol::PaneGraphicsTransport::Kitty;
+        }
         draws.sort_by_key(|draw| draw.revision.is_none());
         Some(orchbee_workbench_protocol::PaneGraphicsClientObservation {
             workbench_revision: scope.revision,
-            capabilities: self.host.cell_capabilities(),
+            capabilities,
             complete,
             panes: draws
                 .into_iter()

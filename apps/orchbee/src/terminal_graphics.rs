@@ -7,6 +7,7 @@ use std::time::{Duration, Instant};
 
 const QUERY_DEADLINE: Duration = Duration::from_millis(300);
 const REPLY_BOUND: usize = 256;
+pub(crate) mod placement;
 
 /// Metadata decoded outside literal paste, never a key or a pane input packet.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

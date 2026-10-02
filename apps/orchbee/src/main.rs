@@ -66,6 +66,8 @@ mod terminal_title;
 mod termination_signal;
 #[cfg(any(unix, windows))]
 mod tui_backend;
+#[cfg(windows)]
+mod tui_graphics;
 #[cfg(any(unix, windows))]
 mod tui_layout;
 #[cfg(any(unix, windows))]

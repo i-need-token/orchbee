@@ -7,6 +7,25 @@ use crate::terminal_session::{
 };
 
 impl NativeSessionView<'_> {
+    pub(crate) fn set_graphics_surface(&mut self, surface: Option<crate::tui_graphics::Surface>) {
+        self.graphics_surface = surface;
+    }
+    pub(crate) fn cover_graphics(&self) {
+        if let Some(surface) = &self.graphics_surface {
+            surface.cover();
+        }
+    }
+    pub(crate) fn physical_graphics(
+        &self,
+        panel: &NativePanel,
+        body: ratatui::layout::Rect,
+    ) -> Option<crate::tui_graphics::Choice> {
+        self.graphics_surface.as_ref()?.select(
+            self.navigation_site()?,
+            self.panel_graphics(panel)?,
+            body,
+        )
+    }
     pub(crate) fn graphics_cell_pixels(
         &self,
     ) -> Option<orchbee_workbench_protocol::PaneGraphicsCellPixels> {

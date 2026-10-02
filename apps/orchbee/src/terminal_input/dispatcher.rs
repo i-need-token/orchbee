@@ -17,6 +17,10 @@ use super::{
 #[derive(Default)]
 pub(crate) struct InputDispatcher {
     graphics: crate::terminal_graphics::Probe,
+    #[cfg(windows)]
+    graphics_replies: Vec<crate::terminal_graphics::Reply>,
+    #[cfg(windows)]
+    graphics_reply_overflow: bool,
     decoder: ModalDecoder,
     keys: LegacyDecoder,
     epoch: Option<ModalEpoch>,
@@ -87,6 +91,24 @@ fn literal_chord_byte(item: &DecodedItem) -> Option<u8> {
 }
 
 impl InputDispatcher {
+    fn host_reply(&mut self, reply: crate::terminal_graphics::Reply, now: Instant) {
+        self.graphics.reply(reply, now);
+        #[cfg(windows)]
+        if matches!(reply, crate::terminal_graphics::Reply::Kitty { .. }) {
+            if self.graphics_replies.len() < 128 {
+                self.graphics_replies.push(reply);
+            } else {
+                self.graphics_reply_overflow = true;
+            }
+        }
+    }
+    #[cfg(windows)]
+    pub(crate) fn take_graphics_replies(&mut self) -> (Vec<crate::terminal_graphics::Reply>, bool) {
+        (
+            std::mem::take(&mut self.graphics_replies),
+            std::mem::take(&mut self.graphics_reply_overflow),
+        )
+    }
     pub(crate) fn activate_graphics_probe(&mut self, id: u32) {
         self.graphics.activate(id);
     }
@@ -277,7 +299,7 @@ impl InputDispatcher {
     ) -> Result<DispatchOutcome, Error> {
         if let DecodedKind::HostReply(reply) = item.kind {
             self.flush_pending(view, port);
-            self.graphics.reply(reply, now);
+            self.host_reply(reply, now);
             return Ok(DispatchOutcome::Continue);
         }
         if let DecodedKind::Focus(focused) = item.kind {
@@ -609,7 +631,7 @@ impl InputDispatcher {
     ) {
         for event in events {
             if let ModalInputEvent::HostReply(reply) = event {
-                self.graphics.reply(reply, now);
+                self.host_reply(reply, now);
                 continue;
             }
             if let ModalInputEvent::Focus(focused) = event {

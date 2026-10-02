@@ -58,6 +58,10 @@ pub(crate) struct NativeDrawReceipt {
 
 impl NativeDrawReceipt {
     #[cfg(windows)]
+    pub(crate) fn graphics_draws(&self) -> &[crate::terminal_session::PaneGraphicsDraw] {
+        &self.graphics
+    }
+    #[cfg(windows)]
     pub(crate) fn with_graphics(
         mut self,
         graphics: Vec<crate::terminal_session::PaneGraphicsDraw>,

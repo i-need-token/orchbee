@@ -485,6 +485,8 @@ fn run_surface_loop<B: Backend + ResizableBackend>(
     )?;
     terminal_input.observe_host_graphics(dispatcher.graphics_facts());
     let _changed = terminal_input.tick();
+    #[cfg(windows)]
+    update_graphics_surface(terminal, &mut dispatcher, inputs.sample_time());
     draw_surface(terminal, &mut view, chrome, terminal_input, &mut dispatcher)?;
     loop {
         if termination.requested() {
@@ -602,6 +604,10 @@ fn run_surface_loop<B: Backend + ResizableBackend>(
         let terminal_input = surface.active();
         terminal_input.observe_host_graphics(dispatcher.graphics_facts());
         #[cfg(windows)]
+        {
+            redraw |= update_graphics_surface(terminal, &mut dispatcher, now);
+        }
+        #[cfg(windows)]
         if let Some(snapshot) = view.window_title.take()
             && mode(ModeRequest::WindowTitle(snapshot.title)).is_err()
         {
@@ -621,7 +627,22 @@ fn run_surface_loop<B: Backend + ResizableBackend>(
     }
 }
 
-fn draw_surface<B: Backend>(
+#[cfg(windows)]
+fn update_graphics_surface<B: Backend + ResizableBackend>(
+    terminal: &Terminal<B>,
+    dispatcher: &mut InputDispatcher,
+    now: std::time::Instant,
+) -> bool {
+    let (replies, overflow) = dispatcher.take_graphics_replies();
+    terminal
+        .backend()
+        .graphics_surface()
+        .is_some_and(|graphics| {
+            graphics.update(dispatcher.graphics_facts(), now, replies, overflow)
+        })
+}
+
+fn draw_surface<B: Backend + ResizableBackend>(
     terminal: &mut Terminal<B>,
     view: &mut ClientView,
     chrome: Chrome<'_>,
@@ -632,15 +653,31 @@ fn draw_surface<B: Backend>(
     let mut notification_painted = false;
     let mut receipt = crate::terminal_session::NativeDrawReceipt::default();
     let mut hits = HitMapBuilder::new();
-    let drawn = terminal.draw(|frame| {
-        receipt = render_terminal_shell(
-            frame,
-            view,
-            chrome.locale,
-            surface.view(),
-            chrome.theme,
-            &mut hits,
+    #[cfg(windows)]
+    let graphics = terminal.backend().graphics_surface();
+    #[cfg(windows)]
+    if let Some(graphics) = &graphics {
+        graphics.begin_frame(
+            view.machines.open
+                || (!view.notifications.empty()
+                    && crate::notifications::available(view, surface.view())),
         );
+    }
+    let drawn = terminal.draw(|frame| {
+        #[cfg(windows)]
+        let session = {
+            let mut session = surface.view();
+            if let Some(crate::terminal_session::TerminalSessionView::Native(native)) =
+                session.as_mut()
+            {
+                native.set_graphics_surface(graphics.clone());
+            }
+            session
+        };
+        #[cfg(not(windows))]
+        let session = surface.view();
+        receipt =
+            render_terminal_shell(frame, view, chrome.locale, session, chrome.theme, &mut hits);
         #[cfg(windows)]
         if !view.machines.open && crate::notifications::available(view, surface.view()) {
             notification_painted =
@@ -648,6 +685,13 @@ fn draw_surface<B: Backend>(
         }
         #[cfg(windows)]
         view.machines.render(frame, chrome.locale, chrome.theme);
+        #[cfg(windows)]
+        if let Some(graphics) = &graphics {
+            graphics.finish_frame(
+                receipt.graphics_draws(),
+                view.machines.open || notification_painted,
+            );
+        }
     });
     if let Err(error) = drawn {
         // A failed draw never publishes: the previous map stays the

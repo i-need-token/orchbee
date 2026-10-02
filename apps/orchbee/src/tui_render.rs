@@ -77,6 +77,17 @@ pub(crate) fn render_terminal_shell(
 
     let areas = project_shell_areas(area, view.sidebar_surface());
     let tier = areas.tier;
+    #[cfg(windows)]
+    let graphics_uncovered = matches!(session.as_ref(), Some(TerminalSessionView::Native(native))
+        if native.popup().is_none() && view.overlay().is_none()
+            && native.close_confirmation().is_none() && native.panel_close_confirmation().is_none()
+            && native.rename_draft().is_none() && native.setup_draft().is_none()
+            && native.agent_board().is_none()
+            && areas.sidebar.is_none_or(|sidebar| sidebar.layer != SidebarLayer::Overlay));
+    #[cfg(windows)]
+    if !graphics_uncovered && let Some(TerminalSessionView::Native(native)) = session.as_ref() {
+        native.cover_graphics();
+    }
 
     let mut status_draw: Option<(NativeCloseStatusToken, Rect)> = None;
     let mut prompt = None;
@@ -419,22 +430,10 @@ pub(crate) fn render_terminal_shell(
         );
     }
     #[cfg(windows)]
-    let receipt = receipt.with_graphics(match session.as_ref() {
-        Some(TerminalSessionView::Native(native))
-            if native.popup().is_none()
-                && view.overlay().is_none()
-                && native.close_confirmation().is_none()
-                && native.panel_close_confirmation().is_none()
-                && native.rename_draft().is_none()
-                && native.setup_draft().is_none()
-                && native.agent_board().is_none()
-                && areas
-                    .sidebar
-                    .is_none_or(|sidebar| sidebar.layer != SidebarLayer::Overlay) =>
-        {
-            graphics_draws
-        }
-        _ => Vec::new(),
+    let receipt = receipt.with_graphics(if graphics_uncovered {
+        graphics_draws
+    } else {
+        Vec::new()
     });
     receipt
 }
@@ -883,11 +882,17 @@ fn render_panel_graphics(
     if area.is_empty() {
         return;
     }
-    if let Some(canvas) = native.panel_graphics(panel) {
+    let physical = native.physical_graphics(panel, area);
+    if physical.is_none()
+        && let Some(canvas) = native.panel_graphics(panel)
+    {
         pane_graphics::render(frame, area, canvas, native.graphics_cell_pixels().as_ref());
     }
     if let Some(draw) = native.graphics_draw(panel) {
-        draws.push(draw);
+        draws.push(match physical {
+            Some(choice) => draw.physical(choice.revision),
+            None => draw,
+        });
     }
 }
 

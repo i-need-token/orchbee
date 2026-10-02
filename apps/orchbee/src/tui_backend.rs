@@ -28,6 +28,10 @@ use crate::{
 };
 
 pub(crate) trait ResizableBackend: Backend {
+    #[cfg(windows)]
+    fn graphics_surface(&self) -> Option<crate::tui_graphics::Surface> {
+        None
+    }
     fn set_window_dimensions(&mut self, dimensions: WindowDimensions);
     fn graphics_probe_id(&self) -> Option<u32> {
         None
@@ -35,6 +39,8 @@ pub(crate) trait ResizableBackend: Backend {
 }
 
 pub(crate) struct FixedViewportBackend<W: Write> {
+    #[cfg(windows)]
+    graphics: Option<crate::tui_graphics::Surface>,
     graphics_probe_id: Option<u32>,
     cursor_position: Position,
     synchronized_update: Arc<SynchronizedUpdateLease>,
@@ -49,6 +55,8 @@ impl<W: Write> FixedViewportBackend<W> {
         synchronized_update: Arc<SynchronizedUpdateLease>,
     ) -> Self {
         Self {
+            #[cfg(windows)]
+            graphics: None,
             graphics_probe_id: None,
             cursor_position: Position::ORIGIN,
             synchronized_update,
@@ -59,6 +67,9 @@ impl<W: Write> FixedViewportBackend<W> {
     #[cfg(windows)]
     pub(crate) fn enable_graphics_probe(&mut self, id: u32) {
         self.graphics_probe_id = (id != 0).then_some(id);
+        self.graphics = self
+            .graphics_probe_id
+            .map(|id| crate::tui_graphics::Surface::new(id, Arc::clone(&self.synchronized_update)));
     }
 }
 
@@ -93,6 +104,10 @@ impl<W: Write> Write for RestorationGatedWriter<W> {
 }
 
 impl<W: Write> ResizableBackend for FixedViewportBackend<W> {
+    #[cfg(windows)]
+    fn graphics_surface(&self) -> Option<crate::tui_graphics::Surface> {
+        self.graphics.clone()
+    }
     fn graphics_probe_id(&self) -> Option<u32> {
         self.graphics_probe_id
     }
@@ -160,6 +175,12 @@ impl<W: Write> Backend for FixedViewportBackend<W> {
     }
 
     fn clear_region(&mut self, clear_type: ClearType) -> io::Result<()> {
+        #[cfg(windows)]
+        if clear_type == ClearType::All
+            && let Some(graphics) = &self.graphics
+        {
+            graphics.invalidate();
+        }
         let clear_type = match clear_type {
             ClearType::All => CrosstermClearType::All,
             ClearType::AfterCursor => CrosstermClearType::FromCursorDown,
@@ -180,8 +201,22 @@ impl<W: Write> Backend for FixedViewportBackend<W> {
 
     fn flush(&mut self) -> io::Result<()> {
         let mut first_error = None;
-        if self.synchronized_update.frame_open() {
-            first_error = self.writer.write_all(SYNCHRONIZED_UPDATE_END).err();
+        #[cfg(windows)]
+        let deleted = match &self.graphics {
+            Some(graphics) => match graphics.write_frame(&mut self.writer, self.cursor_position) {
+                Ok(deleted) => deleted,
+                Err(error) => {
+                    first_error = Some(error);
+                    Vec::new()
+                }
+            },
+            None => Vec::new(),
+        };
+        if self.synchronized_update.frame_open()
+            && let Err(error) = self.writer.write_all(SYNCHRONIZED_UPDATE_END)
+            && first_error.is_none()
+        {
+            first_error = Some(error);
         }
         if let Err(error) = self.writer.flush()
             && first_error.is_none()
@@ -189,6 +224,10 @@ impl<W: Write> Backend for FixedViewportBackend<W> {
             first_error = Some(error);
         }
         if first_error.is_none() {
+            #[cfg(windows)]
+            if let Some(graphics) = &self.graphics {
+                graphics.flushed(&deleted);
+            }
             self.synchronized_update.confirm_frame_closed();
         }
         match first_error {
