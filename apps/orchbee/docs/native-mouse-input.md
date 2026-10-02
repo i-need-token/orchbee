@@ -11,11 +11,12 @@ to pane programs, and the alternate-screen wheel fallback. Maintain it with `tui
 `localization.rs`. The repository standard
 [`docs/tui/mouse-input.md`](../../../docs/tui/mouse-input.md) owns the rules this mapping must
 satisfy; [native terminal environment](native-terminal-environment.md) owns the mode-lease
-machinery that arming and restoration ride on.
+machinery that arming and restoration ride on. [Native terminal selection and effects](native-terminal-selection-effects.md)
+owns untracked-pane selection and its copy lifecycle.
 
-This slice deliberately does not implement divider drag-resize, history selection and clipboard,
-multi-press word/line selection, scroll-indicator jumps, right-button context menus and middle-press surfaces, pixel-format
-reports. Those are separate accepted decisions.
+Divider drag-resize, scroll-indicator jumps, right-button context menus, middle-press surfaces,
+pixel-format reports, a selection-copy key binding, and triple-press line selection remain separate
+decisions.
 
 ## Capture policy
 
@@ -34,9 +35,10 @@ reports. Those are separate accepted decisions.
   `tui` continues to reject `--format`. Both declared spellings are admitted — `--mouse off|on` and
   `--mouse=off|on` — while values outside the closed pair, dash-led values, and repeated
   occurrences all refuse.
-- A `Shift`-modified report is never claimed: the host reserves `Shift` for native selection, and
-  a `Shift` report mid-drag is dropped while the gesture itself survives so an unmodified release
-  still reaches the pane.
+- A `Shift`-modified report is never claimed: the host reserves `Shift` for native selection. A
+  `Shift` report during pane-program passthrough is dropped while that gesture survives so an
+  unmodified release still reaches the pane; one received during Client selection cancels the
+  Client gesture without copying.
 
 ## Region map
 
@@ -53,7 +55,7 @@ front to back and never overlap within one layer:
 | Overlay body off every control           | `OverlaySurface` | `OverlaySurface`    | Swallowed — never reaches the layers beneath                                                                                         |
 | Outside a capturing overlay              | —                | backdrop            | Press dismisses the overlay; no region beneath — including uncovered foreground chrome like the tab strip or a pane — sees the event |
 | Compact tab-strip token                  | `Foreground`     | `Tab(tab_id)`       | Press selects that Tab (`SelectTab`)                                                                                                 |
-| Pane leaf viewport (content rect)        | `Foreground`     | `Pane{tab,panel}`   | Press focuses, then the pane's reported contract decides passthrough                                                                 |
+| Pane leaf viewport (content rect)        | `Foreground`     | `Pane{tab,panel}`   | Press focuses, then the pane's reported contract decides program passthrough or Client selection                                     |
 | Pane leaf title row outside the viewport | `Foreground`     | `Pane{tab,panel}`   | Press focuses only; the pane's program sees nothing                                                                                  |
 | Everything else (status, dividers, gaps) | —                | dead space          | Ignored                                                                                                                              |
 
@@ -63,11 +65,12 @@ unreachable panel.
 
 ## Gesture lifecycle
 
-| State     | Meaning and exits                                                                                                                                                                                                                                             |
-| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Idle`    | No pointer owner. A press on a hit region opens a gesture or applies navigation directly.                                                                                                                                                                     |
-| `Pane`    | A focused reporting pane owns the pointer until release. Motion and release encode pane-local against the press's painted viewport origin — a drag that leaves the region still belongs to it. A release is never dropped mid-gesture.                        |
-| `Pending` | A press on an unfocused pane fired `FocusPanel`; the press and later input queue (FIFO, bound 16, motion merges to the newest cell) until the switch settles. Overflow cancels before any new input is accepted and reports the bounded dropped-input notice. |
+| State       | Meaning and exits                                                                                                                                                                                                                                             |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Idle`      | No pointer owner. A press on a hit region opens a gesture or applies navigation directly.                                                                                                                                                                     |
+| `Pane`      | A focused reporting pane owns the pointer until release. Motion and release encode pane-local against the press's painted viewport origin — a drag that leaves the region still belongs to it. A release is never dropped mid-gesture.                        |
+| `Selection` | A focused untracked pane owns one Host selection gesture for its exact attachment and projection generation. Motion coalesces within the pane; release remains behind the latest motion and only a Host-accepted active end may request copy.                 |
+| `Pending`   | A press on an unfocused pane fired `FocusPanel`; the press and later input queue (FIFO, bound 16, motion merges to the newest cell) until the switch settles. Overflow cancels before any new input is accepted and reports the bounded dropped-input notice. |
 
 Readiness is adjudicated against a fresh probe, never a cached sequence or a generation delta:
 the queued gesture is released only when the recorded `tab`/`panel` identities still resolve and
@@ -90,6 +93,9 @@ press, modal surfaces swallow it.
   any tracking mode, plus the wheel-on-alternate-screen fallback below. Frame facts — tracking,
   format, cell geometry, alternate screen, DEC 1007, application-cursor mode — come from the trusted
   `TerminalInteraction` of the newest verified frame, probed fresh per event.
+- An untracked pane never receives selection bytes. Its ordinary primary-button gesture follows
+  [native terminal selection and effects](native-terminal-selection-effects.md); `Shift` continues
+  to bypass Client ownership.
 - Forwarded events are translated to pane-local coordinates against the painted content origin
   and re-encoded by one owner in the pane's requested tracking × format: X10 reports presses
   only; Normal reports everything but motion; Button reports while a button is held (a press

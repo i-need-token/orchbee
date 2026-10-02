@@ -6,7 +6,10 @@ use super::*;
 use orchbee_terminal_protocol::MouseFormat;
 use orchbee_workbench_protocol::WorkbenchPanelId;
 
-use crate::terminal_input::{PointerPane, PointerTab};
+use crate::terminal_input::{
+    PointerPane, PointerSelectionAdmission, PointerSelectionCell, PointerSelectionIntent,
+    PointerTab,
+};
 use crate::terminal_session::state::{AttachmentKey, PaneKey};
 
 use crate::client_view::{
@@ -249,6 +252,8 @@ struct RecordingPort {
     /// recomputes the probe's `viewport_non_live` for the settled focus,
     /// the way the session's probe reads the focused core's mode.
     non_live: Vec<PaneKey>,
+    selection_admitted: bool,
+    selections: Vec<(PaneRef, PointerSelectionIntent)>,
 }
 
 impl RecordingPort {
@@ -268,6 +273,19 @@ impl TerminalInputPort for RecordingPort {
 
     fn pointer_probe(&mut self) -> PointerProbe {
         self.probe.clone()
+    }
+
+    fn pointer_selection(
+        &mut self,
+        pane: &PaneRef,
+        intent: PointerSelectionIntent,
+    ) -> PointerSelectionAdmission {
+        self.selections.push((pane.clone(), intent));
+        if self.selection_admitted {
+            PointerSelectionAdmission::Admitted
+        } else {
+            PointerSelectionAdmission::Rejected
+        }
     }
 
     fn history_wheel(&mut self, key: &PaneRef, up: bool) -> bool {
@@ -340,6 +358,7 @@ fn active_probe(tab_index: usize, panel_index: usize, tabs: usize, panels: usize
     );
     PointerProbe {
         input_ready: true,
+        selection_ready: true,
         focus: Some(focus.clone()),
         desired: Some(focus.pane().clone()),
         panes: (0..tabs)
@@ -1704,11 +1723,13 @@ fn queued_right_press_rechecks_policy_before_any_bytes_and_stops_at_its_release(
         port.probe.panes[0].right_click = policy;
         port.probe.panes[0].right_click_reporting = true;
         port.probe.frame = Some(frame_facts(MouseTracking::Button, MouseFormat::Sgr, false));
+        let pressed_at = now();
         pointer.gesture = Gesture::Pending(PendingFocus {
             button: MouseButton::Right,
             expected: pane_ref(1, 1, 1, 0),
             viewport: Rect::new(0, 0, 20, 10),
-            deadline: now() + PENDING_FOCUS_TIMEOUT,
+            pressed_at,
+            deadline: pressed_at + PENDING_FOCUS_TIMEOUT,
             queued: VecDeque::from([
                 event(MouseAction::Press, MouseButton::Right, 3, 4),
                 event(MouseAction::Release, MouseButton::Left, 3, 4),
@@ -2053,6 +2074,614 @@ fn workspace_sidebar_wheel_advances_only_its_window_and_capture_cancels_remainin
         spaces
     );
     assert!(view.machines.request.is_none() && port.bytes().is_empty());
+}
+
+fn publish_selection_map(pointer: &mut PointerState, pane: PaneRef, content: Rect) {
+    pointer.publish({
+        let mut hits = HitMapBuilder::new();
+        hits.record(
+            HitLayer::Foreground,
+            content,
+            HitTarget::Pane { pane, content },
+        );
+        hits.finish()
+    });
+}
+
+fn selection_cell(column: u16, row: u16) -> PointerSelectionCell {
+    PointerSelectionCell { column, row }
+}
+
+#[test]
+fn selection_survives_output_repaint_and_structural_edges_cancel_exactly_once() {
+    let pane = pane_ref(1, 1, 1, 0);
+    let content = Rect::new(4, 3, 6, 4);
+    let at = now();
+    let mut pointer = PointerState::default();
+    pointer.set_capture(true);
+    let mut view = ClientView::new(120);
+    let mut port = RecordingPort {
+        probe: active_probe(0, 0, 1, 1),
+        selection_admitted: true,
+        ..RecordingPort::default()
+    };
+    publish_selection_map(&mut pointer, pane.clone(), content);
+
+    pointer.event(&mut view, &mut port, at, press(5, 4));
+    assert_eq!(
+        port.selections,
+        [(
+            pane.clone(),
+            PointerSelectionIntent::Start {
+                click_count: 1,
+                cell: selection_cell(1, 1),
+            },
+        )]
+    );
+
+    // A successful output repaint and its temporary stale-map window keep
+    // the press owner and its original geometry.
+    publish_selection_map(&mut pointer, pane.clone(), content);
+    pointer.stale_map();
+    publish_selection_map(&mut pointer, pane.clone(), content);
+    pointer.event(
+        &mut view,
+        &mut port,
+        at + Duration::from_millis(1),
+        event(MouseAction::Motion, MouseButton::Left, 7, 5),
+    );
+    pointer.event(
+        &mut view,
+        &mut port,
+        at + Duration::from_millis(2),
+        event(MouseAction::Release, MouseButton::Left, 7, 5),
+    );
+    assert_eq!(
+        port.selections,
+        [
+            (
+                pane.clone(),
+                PointerSelectionIntent::Start {
+                    click_count: 1,
+                    cell: selection_cell(1, 1),
+                },
+            ),
+            (
+                pane.clone(),
+                PointerSelectionIntent::Update {
+                    cell: selection_cell(3, 2),
+                },
+            ),
+            (
+                pane.clone(),
+                PointerSelectionIntent::End {
+                    cell: selection_cell(3, 2),
+                },
+            ),
+        ]
+    );
+
+    port.selections.clear();
+    pointer.event(
+        &mut view,
+        &mut port,
+        at + Duration::from_millis(3),
+        press(5, 4),
+    );
+    pointer.invalidate_map_with_port(&mut port);
+    pointer.invalidate_map_with_port(&mut port);
+    assert_eq!(
+        port.selections,
+        [
+            (
+                pane.clone(),
+                PointerSelectionIntent::Start {
+                    click_count: 2,
+                    cell: selection_cell(1, 1),
+                },
+            ),
+            (pane.clone(), PointerSelectionIntent::Cancel),
+        ],
+        "structural invalidation cancels the admitted start once"
+    );
+
+    port.selections.clear();
+    publish_selection_map(&mut pointer, pane.clone(), content);
+    pointer.event(
+        &mut view,
+        &mut port,
+        at + Duration::from_millis(4),
+        press(5, 4),
+    );
+    pointer.set_capture_with_port(&mut port, false);
+    pointer.set_capture_with_port(&mut port, false);
+    assert_eq!(
+        port.selections.last(),
+        Some(&(pane.clone(), PointerSelectionIntent::Cancel)),
+        "capture release cancels even when no later pointer packet arrives"
+    );
+    assert_eq!(
+        port.selections
+            .iter()
+            .filter(|entry| entry.1 == PointerSelectionIntent::Cancel)
+            .count(),
+        1
+    );
+
+    port.selections.clear();
+    pointer.set_capture_with_port(&mut port, true);
+    publish_selection_map(&mut pointer, pane.clone(), content);
+    port.probe.input_captured = false;
+    pointer.event(
+        &mut view,
+        &mut port,
+        at + Duration::from_millis(5),
+        press(5, 4),
+    );
+    port.probe.input_captured = true;
+    pointer.tick(&mut view, &mut port, at + Duration::from_millis(6));
+    pointer.tick(&mut view, &mut port, at + Duration::from_millis(7));
+    assert_eq!(
+        port.selections
+            .iter()
+            .filter(|entry| entry.1 == PointerSelectionIntent::Cancel)
+            .count(),
+        1,
+        "a modal edge takes ownership and cancels exactly once"
+    );
+}
+
+#[test]
+fn readonly_selection_is_independent_from_application_input_authority() {
+    let pane = pane_ref(1, 1, 1, 0);
+    let content = Rect::new(0, 1, 10, 5);
+    let at = now();
+
+    // A focused ReadOnly pane with no application tracking still admits
+    // Host-backed selection through read authority.
+    let mut pointer = PointerState::default();
+    pointer.set_capture(true);
+    let mut view = ClientView::new(120);
+    let mut probe = active_probe(0, 0, 1, 1);
+    probe.input_ready = false;
+    probe.selection_ready = true;
+    probe.panes[0].controlling = Some(false);
+    let mut port = RecordingPort {
+        probe,
+        selection_admitted: true,
+        ..RecordingPort::default()
+    };
+    publish_selection_map(&mut pointer, pane.clone(), content);
+    pointer.event(&mut view, &mut port, at, press(2, 2));
+    pointer.event(
+        &mut view,
+        &mut port,
+        at + Duration::from_millis(1),
+        event(MouseAction::Release, MouseButton::Left, 2, 2),
+    );
+    assert_eq!(
+        port.selections,
+        [
+            (
+                pane.clone(),
+                PointerSelectionIntent::Start {
+                    click_count: 1,
+                    cell: selection_cell(2, 1),
+                },
+            ),
+            (
+                pane.clone(),
+                PointerSelectionIntent::End {
+                    cell: selection_cell(2, 1),
+                },
+            ),
+        ]
+    );
+    assert!(port.forwarded.is_empty());
+
+    // Local focus accepts an attached ReadOnly sibling; selection starts
+    // only after that exact incarnation is the fresh focus.
+    let target = pane_ref(1, 1, 2, 0);
+    let mut pointer = PointerState::default();
+    pointer.set_capture(true);
+    let mut view = ClientView::new(120);
+    let mut probe = active_probe(0, 0, 1, 2);
+    probe.input_ready = false;
+    probe.selection_ready = true;
+    probe.panes[1].controlling = Some(false);
+    let mut port = RecordingPort {
+        probe,
+        selection_admitted: true,
+        ..RecordingPort::default()
+    };
+    publish_selection_map(&mut pointer, target.clone(), content);
+    pointer.event(&mut view, &mut port, at, press(2, 2));
+    assert_eq!(port.actions, [ClientAction::FocusPanel(panel_id(2))]);
+    assert_eq!(
+        port.selections.first(),
+        Some(&(
+            target.clone(),
+            PointerSelectionIntent::Start {
+                click_count: 1,
+                cell: selection_cell(2, 1),
+            },
+        ))
+    );
+
+    // Application tracking keeps ownership. ReadOnly prevents bytes but
+    // never turns an unmodified app gesture into Client selection; history
+    // also does not change that press-time owner. Shift remains Host-owned.
+    for history in [false, true] {
+        for shift in [false, true] {
+            let mut pointer = PointerState::default();
+            pointer.set_capture(true);
+            let mut view = ClientView::new(120);
+            let mut probe = active_probe(0, 0, 1, 1);
+            probe.input_ready = false;
+            probe.selection_ready = true;
+            probe.panes[0].controlling = Some(false);
+            probe.viewport_non_live = history;
+            probe.frame = Some(frame_facts(MouseTracking::Button, MouseFormat::Sgr, false));
+            let mut port = RecordingPort {
+                probe,
+                selection_admitted: true,
+                ..RecordingPort::default()
+            };
+            publish_selection_map(&mut pointer, pane.clone(), content);
+            let mut input = press(2, 2);
+            input.mods.shift = shift;
+            pointer.event(&mut view, &mut port, at, input);
+            assert!(
+                port.selections.is_empty(),
+                "history={history} shift={shift}"
+            );
+            assert!(port.forwarded.is_empty(), "ReadOnly cannot send app bytes");
+        }
+    }
+
+    // Non-Live history with no application tracking remains selectable.
+    let mut pointer = PointerState::default();
+    pointer.set_capture(true);
+    let mut view = ClientView::new(120);
+    let mut probe = active_probe(0, 0, 1, 1);
+    probe.input_ready = false;
+    probe.selection_ready = true;
+    probe.panes[0].controlling = Some(false);
+    probe.viewport_non_live = true;
+    let mut port = RecordingPort {
+        probe,
+        selection_admitted: true,
+        ..RecordingPort::default()
+    };
+    publish_selection_map(&mut pointer, pane.clone(), content);
+    pointer.event(&mut view, &mut port, at, press(2, 2));
+    assert!(matches!(
+        port.selections.as_slice(),
+        [(
+            selected,
+            PointerSelectionIntent::Start { click_count: 1, .. }
+        )] if selected == &pane
+    ));
+
+    // Every Shift-primary press is owned outside the Client, including an
+    // otherwise-selectable untracked pane.
+    let mut shifted = press(2, 2);
+    shifted.mods.shift = true;
+    port.selections.clear();
+    let mut fresh = PointerState::default();
+    fresh.set_capture(true);
+    publish_selection_map(&mut fresh, pane, content);
+    fresh.event(&mut view, &mut port, at, shifted);
+    assert!(port.selections.is_empty());
+}
+
+#[test]
+fn selection_double_click_is_exact_pane_cell_and_never_emits_three() {
+    let first = pane_ref(1, 1, 1, 0);
+    let second = pane_ref(1, 1, 2, 0);
+    let content = Rect::new(0, 1, 10, 5);
+    let at = now();
+    let mut pointer = PointerState::default();
+    pointer.set_capture(true);
+    let mut view = ClientView::new(120);
+    let mut port = RecordingPort {
+        probe: active_probe(0, 0, 1, 2),
+        selection_admitted: true,
+        ..RecordingPort::default()
+    };
+    publish_selection_map(&mut pointer, first.clone(), content);
+
+    for (offset, column) in [(0, 2), (349, 2), (350, 2), (351, 3)] {
+        let instant = at + Duration::from_millis(offset);
+        pointer.event(&mut view, &mut port, instant, press(column, 2));
+        pointer.event(
+            &mut view,
+            &mut port,
+            instant,
+            event(MouseAction::Release, MouseButton::Left, column, 2),
+        );
+    }
+
+    port.probe = active_probe(0, 1, 1, 2);
+    publish_selection_map(&mut pointer, second.clone(), content);
+    for offset in [352, 703] {
+        let instant = at + Duration::from_millis(offset);
+        pointer.event(&mut view, &mut port, instant, press(2, 2));
+        pointer.event(
+            &mut view,
+            &mut port,
+            instant,
+            event(MouseAction::Release, MouseButton::Left, 2, 2),
+        );
+    }
+
+    let starts: Vec<_> = port
+        .selections
+        .iter()
+        .filter_map(|(pane, intent)| match intent {
+            PointerSelectionIntent::Start {
+                click_count, cell, ..
+            } => Some((pane.clone(), *click_count, *cell)),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        starts,
+        [
+            (first.clone(), 1, selection_cell(2, 1)),
+            (first.clone(), 2, selection_cell(2, 1)),
+            (first.clone(), 1, selection_cell(2, 1)),
+            (first, 1, selection_cell(3, 1)),
+            (second.clone(), 1, selection_cell(2, 1)),
+            (second, 1, selection_cell(2, 1)),
+        ]
+    );
+    assert!(starts.iter().all(|(_, count, _)| *count <= 2));
+}
+
+#[test]
+fn selection_clamps_to_the_press_rect_after_repaint_and_outside_drag() {
+    let pane = pane_ref(1, 1, 1, 0);
+    let press_rect = Rect::new(5, 4, 3, 2);
+    let at = now();
+    let mut pointer = PointerState::default();
+    pointer.set_capture(true);
+    let mut view = ClientView::new(120);
+    let mut port = RecordingPort {
+        probe: active_probe(0, 0, 1, 1),
+        selection_admitted: true,
+        ..RecordingPort::default()
+    };
+    publish_selection_map(&mut pointer, pane.clone(), press_rect);
+    pointer.event(&mut view, &mut port, at, press(6, 5));
+
+    // A later frame can paint a different rectangle, but the captured drag
+    // remains clamped to the press-time rectangle.
+    publish_selection_map(&mut pointer, pane.clone(), Rect::new(20, 10, 10, 8));
+    pointer.event(
+        &mut view,
+        &mut port,
+        at + Duration::from_millis(1),
+        event(MouseAction::Motion, MouseButton::Left, 0, 0),
+    );
+    pointer.event(
+        &mut view,
+        &mut port,
+        at + Duration::from_millis(2),
+        event(MouseAction::Motion, MouseButton::Left, u16::MAX, u16::MAX),
+    );
+    pointer.event(
+        &mut view,
+        &mut port,
+        at + Duration::from_millis(3),
+        event(MouseAction::Release, MouseButton::Left, u16::MAX, u16::MAX),
+    );
+    assert_eq!(
+        port.selections,
+        [
+            (
+                pane.clone(),
+                PointerSelectionIntent::Start {
+                    click_count: 1,
+                    cell: selection_cell(1, 1),
+                },
+            ),
+            (
+                pane.clone(),
+                PointerSelectionIntent::Update {
+                    cell: selection_cell(0, 0),
+                },
+            ),
+            (
+                pane.clone(),
+                PointerSelectionIntent::Update {
+                    cell: selection_cell(2, 1),
+                },
+            ),
+            (
+                pane,
+                PointerSelectionIntent::End {
+                    cell: selection_cell(2, 1),
+                },
+            ),
+        ]
+    );
+}
+
+#[test]
+fn pending_selection_starts_before_replay_and_prestart_failures_emit_nothing() {
+    let target = pane_ref(1, 1, 2, 0);
+    let content = Rect::new(0, 1, 10, 5);
+    let at = now();
+
+    let pending_port = || {
+        let mut probe = active_probe(0, 0, 1, 2);
+        set_leaf(&mut probe, pane_leaf(1, 1, 2, 0, true, Some(true), false));
+        probe.frame = None;
+        RecordingPort {
+            probe,
+            selection_admitted: true,
+            ..RecordingPort::default()
+        }
+    };
+
+    let mut pointer = PointerState::default();
+    pointer.set_capture(true);
+    let mut view = ClientView::new(120);
+    let mut port = pending_port();
+    publish_selection_map(&mut pointer, target.clone(), content);
+    pointer.event(&mut view, &mut port, at, press(2, 2));
+    pointer.event(
+        &mut view,
+        &mut port,
+        at + Duration::from_millis(1),
+        event(MouseAction::Motion, MouseButton::Left, 4, 3),
+    );
+    pointer.event(
+        &mut view,
+        &mut port,
+        at + Duration::from_millis(2),
+        event(MouseAction::Release, MouseButton::Left, 5, 4),
+    );
+    assert!(port.selections.is_empty(), "Ready has not arrived");
+    set_leaf(
+        &mut port.probe,
+        pane_leaf(1, 1, 2, 0, true, Some(true), true),
+    );
+    port.probe.frame = Some(frame_facts(MouseTracking::None, MouseFormat::Sgr, false));
+    pointer.tick(&mut view, &mut port, at + Duration::from_millis(3));
+    assert_eq!(
+        port.selections,
+        [
+            (
+                target.clone(),
+                PointerSelectionIntent::Start {
+                    click_count: 1,
+                    cell: selection_cell(2, 1),
+                },
+            ),
+            (
+                target.clone(),
+                PointerSelectionIntent::Update {
+                    cell: selection_cell(4, 2),
+                },
+            ),
+            (
+                target.clone(),
+                PointerSelectionIntent::End {
+                    cell: selection_cell(5, 3),
+                },
+            ),
+        ],
+        "Start admission precedes every replayed tail"
+    );
+
+    // A new primary press replaces the local pending candidate. Since no
+    // Start was admitted yet, replacement itself emits neither Cancel nor
+    // any command for the old press.
+    let mut pointer = PointerState::default();
+    pointer.set_capture(true);
+    let mut view = ClientView::new(120);
+    let mut port = pending_port();
+    publish_selection_map(&mut pointer, target.clone(), content);
+    pointer.event(&mut view, &mut port, at, press(2, 2));
+    pointer.event(
+        &mut view,
+        &mut port,
+        at + Duration::from_millis(1),
+        press(6, 4),
+    );
+    assert!(port.selections.is_empty());
+    set_leaf(
+        &mut port.probe,
+        pane_leaf(1, 1, 2, 0, true, Some(true), true),
+    );
+    port.probe.frame = Some(frame_facts(MouseTracking::None, MouseFormat::Sgr, false));
+    pointer.tick(&mut view, &mut port, at + Duration::from_millis(2));
+    assert_eq!(
+        port.selections,
+        [(
+            target.clone(),
+            PointerSelectionIntent::Start {
+                click_count: 1,
+                cell: selection_cell(6, 3),
+            },
+        )]
+    );
+
+    // Rejected Start is observable, but no update/end/cancel may follow it.
+    let mut pointer = PointerState::default();
+    pointer.set_capture(true);
+    let mut view = ClientView::new(120);
+    let mut port = RecordingPort {
+        probe: active_probe(0, 1, 1, 2),
+        selection_admitted: false,
+        ..RecordingPort::default()
+    };
+    publish_selection_map(&mut pointer, target.clone(), content);
+    pointer.event(&mut view, &mut port, at, press(2, 2));
+    pointer.event(
+        &mut view,
+        &mut port,
+        at + Duration::from_millis(1),
+        event(MouseAction::Motion, MouseButton::Left, 4, 3),
+    );
+    pointer.event(
+        &mut view,
+        &mut port,
+        at + Duration::from_millis(2),
+        event(MouseAction::Release, MouseButton::Left, 4, 3),
+    );
+    assert_eq!(
+        port.selections,
+        [(
+            target.clone(),
+            PointerSelectionIntent::Start {
+                click_count: 1,
+                cell: selection_cell(2, 1),
+            },
+        )]
+    );
+
+    // Re-mint, redirect, timeout, and overflow all retire purely local
+    // Pending state, so the Host observes no selection command.
+    for scenario in 0..4 {
+        let mut pointer = PointerState::default();
+        pointer.set_capture(true);
+        let mut view = ClientView::new(120);
+        let mut port = pending_port();
+        publish_selection_map(&mut pointer, target.clone(), content);
+        pointer.event(&mut view, &mut port, at, press(2, 2));
+        match scenario {
+            0 => set_leaf(
+                &mut port.probe,
+                pane_leaf(1, 1, 2, 1, true, Some(true), true),
+            ),
+            1 => port.probe.focus = Some(pane_ref(1, 1, 1, 0)),
+            2 => {}
+            3 => {
+                for index in 0..=PENDING_FOCUS_LIMIT {
+                    pointer.event(
+                        &mut view,
+                        &mut port,
+                        at + Duration::from_millis(index as u64 + 1),
+                        event(MouseAction::Release, MouseButton::Left, 2, 2),
+                    );
+                }
+            }
+            _ => unreachable!(),
+        }
+        pointer.tick(
+            &mut view,
+            &mut port,
+            if scenario == 2 {
+                at + PENDING_FOCUS_TIMEOUT
+            } else {
+                at + Duration::from_millis(1)
+            },
+        );
+        assert!(port.selections.is_empty(), "scenario {scenario}");
+    }
 }
 
 #[cfg(windows)]

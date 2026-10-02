@@ -137,8 +137,13 @@ impl InputDispatcher {
     /// The shell settles the armed flag after the terminal mode write
     /// succeeded, so client state never claims a capture the host did not
     /// actually take.
-    pub(crate) fn set_pointer_capture(&mut self, view: &mut ClientView, enabled: bool) {
-        self.pointer.set_capture(enabled);
+    pub(crate) fn set_pointer_capture(
+        &mut self,
+        view: &mut ClientView,
+        port: &mut (impl TerminalInputPort + ?Sized),
+        enabled: bool,
+    ) {
+        self.pointer.set_capture_with_port(port, enabled);
         view.settle_pointer_released(!enabled);
     }
 
@@ -149,8 +154,14 @@ impl InputDispatcher {
 
     /// A layout change or pending redraw drops the recorded regions:
     /// until the next publish, pointer events drop instead of misrouting.
-    pub(crate) fn invalidate_hit_map(&mut self) {
-        self.pointer.invalidate_map();
+    pub(crate) fn invalidate_hit_map(&mut self, port: &mut (impl TerminalInputPort + ?Sized)) {
+        self.pointer.invalidate_map_with_port(port);
+    }
+
+    /// Ends an admitted pointer selection before the shell exits while the
+    /// surface that owns it is still available.
+    pub(crate) fn cancel_pointer(&mut self, port: &mut (impl TerminalInputPort + ?Sized)) {
+        self.pointer.cancel_selection(port);
     }
 
     /// The board's open or close edge changes what the recorded regions
@@ -166,13 +177,13 @@ impl InputDispatcher {
             if popup != self.popup_owned.as_ref() {
                 self.popup_owned = popup.cloned();
                 self.keys.capture_pending();
-                self.pointer.invalidate_map();
+                self.pointer.invalidate_map_with_port(port);
             }
         }
         let owned = port.agent_board_input();
         if owned != self.board_owned {
             self.board_owned = owned;
-            self.pointer.invalidate_map();
+            self.pointer.invalidate_map_with_port(port);
         }
     }
 
@@ -324,7 +335,7 @@ impl InputDispatcher {
                 }
                 if !port.popup_captured() {
                     self.popup_packet = true;
-                    self.pointer.invalidate_map();
+                    self.pointer.invalidate_map_with_port(port);
                 }
             }
             return Ok(DispatchOutcome::Continue);
@@ -344,7 +355,7 @@ impl InputDispatcher {
             if !view.machines.open || view.machines.request.is_some() {
                 self.machine_packet = true;
             }
-            self.pointer.invalidate_map();
+            self.pointer.invalidate_map_with_port(port);
             return Ok(DispatchOutcome::Continue);
         }
         #[cfg(windows)]
@@ -354,7 +365,7 @@ impl InputDispatcher {
         {
             self.flush_pending(view, port);
             self.machine_packet = true;
-            self.pointer.invalidate_map();
+            self.pointer.invalidate_map_with_port(port);
             return Ok(DispatchOutcome::Continue);
         }
         #[cfg(windows)]
@@ -427,7 +438,7 @@ impl InputDispatcher {
                         #[cfg(windows)]
                         if outcome == PointerOutcome::MachineNavigation {
                             self.machine_packet = true;
-                            self.pointer.invalidate_map();
+                            self.pointer.invalidate_map_with_port(port);
                         }
                         if outcome == PointerOutcome::RegionsChanged {
                             self.pointer.stale_map();
@@ -530,7 +541,7 @@ impl InputDispatcher {
                 )
             ) {
                 self.machine_packet = true;
-                self.pointer.invalidate_map();
+                self.pointer.invalidate_map_with_port(port);
             }
         }
         if action == Some(ClientAction::TogglePointerCapture) {
@@ -539,7 +550,7 @@ impl InputDispatcher {
             // leases above.
             let next = !self.pointer.capture_enabled();
             mode(ModeRequest::PointerCapture(next))?;
-            self.pointer.set_capture(next);
+            self.pointer.set_capture_with_port(port, next);
             view.settle_pointer_released(!next);
         }
         if applied.is_none()
@@ -555,10 +566,13 @@ impl InputDispatcher {
             after_layout(view, port)?;
             // Keyboard-driven layout changes stale the map the same way a
             // pointer navigation does.
-            self.pointer.invalidate_map();
+            self.pointer.invalidate_map_with_port(port);
         }
         match shell {
-            ShellCommand::Exit => return Ok(DispatchOutcome::Exit),
+            ShellCommand::Exit => {
+                self.pointer.cancel_selection(port);
+                return Ok(DispatchOutcome::Exit);
+            }
             ShellCommand::ForwardTerminal => {
                 // The literal chord forwards its canonical C0 encoding, so a
                 // future kitty-encoded Ctrl+B still emits the byte a pane

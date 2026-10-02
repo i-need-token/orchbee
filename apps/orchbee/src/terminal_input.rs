@@ -54,6 +54,43 @@ pub(crate) struct PointerFrameFacts {
     pub(crate) application_cursor: bool,
 }
 
+/// A terminal cell inside the pane viewport recorded by the pointer press.
+/// This stays deliberately independent from the Host wire coordinates: the
+/// native session resolves the exact attachment and geometry only after it
+/// admits the semantic start.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct PointerSelectionCell {
+    pub(crate) column: u16,
+    pub(crate) row: u16,
+}
+
+/// One Client-side selection gesture step. The pointer layer owns cells and
+/// ordering; the native session remains the sole authority for translating
+/// them into a Host selection command.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum PointerSelectionIntent {
+    Start {
+        click_count: u8,
+        cell: PointerSelectionCell,
+    },
+    Update {
+        cell: PointerSelectionCell,
+    },
+    End {
+        cell: PointerSelectionCell,
+    },
+    Cancel,
+}
+
+/// Whether the native session admitted a selection start for the exact pane.
+/// Ports that do not implement selection reject it, so adding this private
+/// seam cannot silently claim ownership in an older backend.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum PointerSelectionAdmission {
+    Admitted,
+    Rejected,
+}
+
 /// One tab's stable identity plus its 1-based position — what a recorded
 /// tab region resolves against at click time. Pane identity inside the
 /// tab never resolves positionally: hit regions carry exact `PaneRef`
@@ -114,6 +151,11 @@ pub(crate) struct PointerProbe {
     /// suppresses. `focus == expected` alone is not this — the phase and
     /// mode must be live reads, not a painted snapshot.
     pub(crate) input_ready: bool,
+    /// The focus pane can admit a Host-backed selection right now: Ready
+    /// phase with read authority for the exact focus incarnation and no
+    /// close or retirement suppression. This is independent from
+    /// `input_ready`; a ReadOnly viewer can still select and copy text.
+    pub(crate) selection_ready: bool,
     /// Tabs in painted order for stable-id → position resolution.
     pub(crate) tabs: Vec<PointerTab>,
     /// Navigator rows in painted order for stable-id → index resolution.
@@ -207,6 +249,17 @@ pub(crate) trait TerminalInputPort {
     /// resolvable — every gesture adjudicates as dead space.
     fn pointer_probe(&mut self) -> PointerProbe {
         PointerProbe::default()
+    }
+
+    /// Sends one cell-semantic selection step for the exact painted pane.
+    /// Only `Start` has an admission decision; callers ignore the return for
+    /// later steps after a start was admitted. The default is closed.
+    fn pointer_selection(
+        &mut self,
+        _pane: &crate::terminal_session::state::PaneRef,
+        _intent: PointerSelectionIntent,
+    ) -> PointerSelectionAdmission {
+        PointerSelectionAdmission::Rejected
     }
 
     fn apply_client_action(&mut self, _action: ClientAction) -> Option<SessionActionDisposition> {

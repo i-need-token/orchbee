@@ -4,7 +4,8 @@ use std::{error::Error, io, num::NonZeroU64, time::Duration};
 use orchbee_capability_node_protocol::{
     MAXIMUM_VIEWER_RECORD_BYTES, TerminalViewerAction, TerminalViewerOutcome,
     TerminalViewerRequest, TerminalViewerResult, ViewerHistoryDemand, ViewerProjectionDemand,
-    ViewerRejection, ViewerRowDetail, ViewerRowsRejectedReason, ViewerSnapshotReason,
+    ViewerRejection, ViewerRowDetail, ViewerRowsRejectedReason, ViewerSelectionExportCancelReason,
+    ViewerSelectionExportFormat, ViewerSelectionGestureAction, ViewerSnapshotReason,
     ViewportRowOrigin,
 };
 use orchbee_local_site_protocol::WorkerId;
@@ -14,13 +15,18 @@ use orchbee_terminal_protocol::{
     FrameApplied, HistoryControl, HistoryDemand, HistoryObserved, MessageRole, NeedSnapshot,
     PayloadEncoding, ProjectionDemand, ProjectionDemandControl, ProjectionFeedbackControl,
     ReadRows, RowAccessControl, RowRevisionPolicy, RowWindowDetail, RowWindowOrigin,
-    RowWindowPurpose, RowsApplied, SetHistoryDemand, SetProjectionDemand, SnapshotReason,
-    TRANSPORT_ENVELOPE_HEADER_BYTES, TerminalId, decode_attachment_control,
-    decode_connection_control, decode_history_control, decode_projection_demand_control,
-    decode_projection_feedback_control, decode_row_access_control, decode_transport_envelope,
-    encode_attachment_control, encode_history_control, encode_projection_demand_control,
-    encode_projection_feedback_control, encode_row_access_control, encode_transport_envelope,
-    message_contract,
+    RowWindowPurpose, RowsApplied, SelectionControl, SelectionExport, SelectionExportCancel,
+    SelectionExportCancelReason, SelectionExportChunkApplied, SelectionExportControl,
+    SelectionExportFormat, SelectionExportStatus, SelectionGesture, SelectionGestureAction,
+    SelectionGestureGeometry, SelectionGesturePosition, SelectionViewportPoint, SetHistoryDemand,
+    SetProjectionDemand, SnapshotReason, TRANSPORT_ENVELOPE_HEADER_BYTES, TerminalId,
+    decode_attachment_control, decode_connection_control, decode_history_control,
+    decode_projection_demand_control, decode_projection_feedback_control,
+    decode_row_access_control, decode_selection_control, decode_selection_export_control,
+    decode_transport_envelope, encode_attachment_control, encode_history_control,
+    encode_projection_demand_control, encode_projection_feedback_control,
+    encode_row_access_control, encode_selection_control, encode_selection_export_control,
+    encode_transport_envelope, message_contract,
 };
 
 use crate::host_connection::{HostBrokerConnection, HostExchange, exchange};
@@ -424,6 +430,159 @@ fn apply(
             }
             Ok(TerminalViewerOutcome::FeedbackAccepted)
         }
+        TerminalViewerAction::SelectionGesture {
+            generation,
+            gesture,
+        } => {
+            if !host.viewers.borrow().open(request.attachment_id) {
+                return Ok(TerminalViewerOutcome::Rejected(
+                    ViewerRejection::AttachmentUnavailable,
+                ));
+            }
+            let command = encode_selection_control(&SelectionControl::Gesture(SelectionGesture {
+                action: selection_gesture_action(gesture),
+                attachment_id: id,
+                generation,
+            }))?;
+            let Some(response) =
+                ack_round_trip(host, server, correlation, command.kind, &command.payload)?
+            else {
+                return Ok(TerminalViewerOutcome::Rejected(
+                    ViewerRejection::HostRejected,
+                ));
+            };
+            let envelope = decode_transport_envelope(&response)?;
+            let SelectionControl::ChangedResponse(changed) =
+                decode_selection_control(envelope.kind, envelope.role, envelope.payload)?
+            else {
+                return Err(invalid("Host did not answer the selection gesture").into());
+            };
+            if changed.attachment_id != id {
+                return Err(invalid("Host changed a different viewer selection").into());
+            }
+            Ok(TerminalViewerOutcome::Record(response))
+        }
+        TerminalViewerAction::SelectionExport {
+            export_sequence,
+            format,
+        } => {
+            if !host.viewers.borrow().open(request.attachment_id) {
+                return Ok(TerminalViewerOutcome::Rejected(
+                    ViewerRejection::AttachmentUnavailable,
+                ));
+            }
+            let format = match format {
+                ViewerSelectionExportFormat::Plain => SelectionExportFormat::Plain,
+            };
+            let command = encode_selection_export_control(&SelectionExportControl::ExportRequest(
+                SelectionExport {
+                    attachment_id: id,
+                    export_sequence,
+                    format,
+                },
+            ))?;
+            let Some(response) =
+                ack_round_trip(host, server, correlation, command.kind, &command.payload)?
+            else {
+                return Ok(TerminalViewerOutcome::Rejected(
+                    ViewerRejection::HostRejected,
+                ));
+            };
+            let envelope = decode_transport_envelope(&response)?;
+            let SelectionExportControl::StartedResponse(started) =
+                decode_selection_export_control(envelope.kind, envelope.role, envelope.payload)?
+            else {
+                return Err(invalid("Host did not start the selection export").into());
+            };
+            if started.attachment_id != id
+                || started.export_sequence != export_sequence
+                || started.format != format
+            {
+                return Err(invalid("Host started a different selection export").into());
+            }
+            Ok(TerminalViewerOutcome::Record(response))
+        }
+        TerminalViewerAction::SelectionExportChunkApplied {
+            export_sequence,
+            chunk_sequence,
+        } => {
+            if !host.viewers.borrow().open(request.attachment_id) {
+                return Ok(TerminalViewerOutcome::Rejected(
+                    ViewerRejection::AttachmentUnavailable,
+                ));
+            }
+            let applied = SelectionExportChunkApplied {
+                attachment_id: id,
+                chunk_sequence,
+                export_sequence,
+            };
+            let command = encode_selection_export_control(
+                &SelectionExportControl::ChunkAppliedRequest(applied),
+            )?;
+            let Some(response) =
+                ack_round_trip(host, server, correlation, command.kind, &command.payload)?
+            else {
+                return Ok(TerminalViewerOutcome::Rejected(
+                    ViewerRejection::HostRejected,
+                ));
+            };
+            let envelope = decode_transport_envelope(&response)?;
+            if decode_selection_export_control(envelope.kind, envelope.role, envelope.payload)?
+                != SelectionExportControl::ChunkAppliedResponse(applied)
+            {
+                return Err(invalid("Host acknowledged a different selection export chunk").into());
+            }
+            Ok(TerminalViewerOutcome::FeedbackAccepted)
+        }
+        TerminalViewerAction::SelectionExportCancel {
+            export_sequence,
+            reason,
+        } => {
+            if !host.viewers.borrow().open(request.attachment_id) {
+                return Ok(TerminalViewerOutcome::Rejected(
+                    ViewerRejection::AttachmentUnavailable,
+                ));
+            }
+            let reason = match reason {
+                ViewerSelectionExportCancelReason::ClipboardFailed => {
+                    SelectionExportCancelReason::ClipboardFailed
+                }
+                ViewerSelectionExportCancelReason::Disposed => {
+                    SelectionExportCancelReason::Disposed
+                }
+                ViewerSelectionExportCancelReason::Replaced => {
+                    SelectionExportCancelReason::Replaced
+                }
+                ViewerSelectionExportCancelReason::User => SelectionExportCancelReason::User,
+            };
+            let command = encode_selection_export_control(&SelectionExportControl::CancelRequest(
+                SelectionExportCancel {
+                    attachment_id: id,
+                    export_sequence,
+                    reason,
+                },
+            ))?;
+            let Some(response) =
+                ack_round_trip(host, server, correlation, command.kind, &command.payload)?
+            else {
+                return Ok(TerminalViewerOutcome::Rejected(
+                    ViewerRejection::HostRejected,
+                ));
+            };
+            let envelope = decode_transport_envelope(&response)?;
+            let SelectionExportControl::FinishedResponse(finished) =
+                decode_selection_export_control(envelope.kind, envelope.role, envelope.payload)?
+            else {
+                return Err(invalid("Host did not finish the cancelled selection export").into());
+            };
+            if finished.attachment_id != id
+                || finished.export_sequence != export_sequence
+                || finished.status != SelectionExportStatus::Cancelled
+            {
+                return Err(invalid("Host finished a different selection export").into());
+            }
+            Ok(TerminalViewerOutcome::Record(response))
+        }
         TerminalViewerAction::FrameApplied { .. } | TerminalViewerAction::NeedSnapshot { .. } => {
             // Drain pending events before changing feedback state. HostExchange's preflight
             // repeats this check to preserve the shared broker's no-pipelining boundary.
@@ -483,6 +642,57 @@ fn apply(
             }
             Ok(TerminalViewerOutcome::FeedbackAccepted)
         }
+    }
+}
+
+const fn selection_gesture_action(gesture: ViewerSelectionGestureAction) -> SelectionGestureAction {
+    match gesture {
+        ViewerSelectionGestureAction::Start {
+            click_count,
+            point,
+            position,
+            select_output,
+        } => SelectionGestureAction::Start {
+            click_count,
+            point: SelectionViewportPoint {
+                column: point.column,
+                row: point.row,
+            },
+            position: SelectionGesturePosition {
+                x: position.x,
+                y: position.y,
+            },
+            select_output,
+        },
+        ViewerSelectionGestureAction::Update {
+            geometry,
+            point,
+            position,
+            rectangle,
+        } => SelectionGestureAction::Update {
+            geometry: SelectionGestureGeometry {
+                cell_width: geometry.cell_width,
+                columns: geometry.columns,
+                padding_left: geometry.padding_left,
+                screen_height: geometry.screen_height,
+            },
+            point: SelectionViewportPoint {
+                column: point.column,
+                row: point.row,
+            },
+            position: SelectionGesturePosition {
+                x: position.x,
+                y: position.y,
+            },
+            rectangle,
+        },
+        ViewerSelectionGestureAction::End { point } => SelectionGestureAction::End {
+            point: SelectionViewportPoint {
+                column: point.column,
+                row: point.row,
+            },
+        },
+        ViewerSelectionGestureAction::Cancel => SelectionGestureAction::Cancel,
     }
 }
 

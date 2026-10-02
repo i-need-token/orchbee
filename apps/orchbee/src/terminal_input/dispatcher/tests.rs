@@ -598,7 +598,7 @@ fn prefixed_m_toggles_pointer_capture_through_the_mode_lease() {
     let mut view = ClientView::new(100);
     // The shell settles the armed state after its mode write; from here
     // the binding releases and re-arms through the same lease.
-    dispatcher.set_pointer_capture(&mut view, true);
+    dispatcher.set_pointer_capture(&mut view, &mut port, true);
     for expected in [false, true] {
         dispatcher
             .dispatch(
@@ -891,7 +891,7 @@ fn a_board_close_edge_invalidates_the_published_hit_map() {
     let mut dispatcher = InputDispatcher::default();
     let mut view = ClientView::new(100);
     let session = orchbee_agent_observation_protocol::AgentSessionId::parse("s-1").unwrap();
-    dispatcher.set_pointer_capture(&mut view, true);
+    dispatcher.set_pointer_capture(&mut view, &mut port, true);
     // The open edge settles first so the map published below is the
     // current authority, matching the painted board.
     dispatcher
@@ -956,7 +956,7 @@ fn the_board_open_edge_also_invalidates_so_a_click_cannot_miss_the_overlay() {
     let mut dispatcher = InputDispatcher::default();
     let mut view = ClientView::new(100);
     let session = orchbee_agent_observation_protocol::AgentSessionId::parse("s-1").unwrap();
-    dispatcher.set_pointer_capture(&mut view, true);
+    dispatcher.set_pointer_capture(&mut view, &mut port, true);
     // A foreground region the last frame recorded under where the board
     // is about to paint — resolving by identity, it still answers while
     // the map is current.

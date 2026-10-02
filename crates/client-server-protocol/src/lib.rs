@@ -70,7 +70,9 @@ pub use viewer::{
     HistoryDemand, MAXIMUM_READ_ROWS, MAXIMUM_READ_ROWS_BYTES, MAXIMUM_VIEWER_RECORD_BYTES,
     MINIMUM_READ_ROWS_BYTES, ProjectionDemand, TerminalViewerAction, TerminalViewerOutcome,
     TerminalViewerRequest, TerminalViewerResult, ViewerRejectedReason, ViewerRowDetail,
-    ViewerRowsRejectedReason, ViewerSnapshotReason, ViewerUnavailableReason, ViewportRowOrigin,
+    ViewerRowsRejectedReason, ViewerSelectionExportCancelReason, ViewerSelectionExportFormat,
+    ViewerSelectionGestureAction, ViewerSelectionGestureGeometry, ViewerSelectionGesturePosition,
+    ViewerSelectionViewportPoint, ViewerSnapshotReason, ViewerUnavailableReason, ViewportRowOrigin,
 };
 pub use working_directory::{
     MAXIMUM_WORKING_DIRECTORY_BYTES, WorkingDirectory, WorkingDirectoryError,

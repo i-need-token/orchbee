@@ -5,7 +5,10 @@ use orchbee_capability_node_protocol::{
 };
 use orchbee_local_ipc::LocalStream as UnixStream;
 use orchbee_terminal_protocol::{
-    AttachmentId, Envelope, HistoryAnchorStatus, HistoryChanged, encode_history_control,
+    AttachmentId, Envelope, HistoryAnchorStatus, HistoryChanged, SelectionChanged,
+    SelectionChangedState, SelectionControl, SelectionExportChunk, SelectionExportControl,
+    SelectionExportFinished, SelectionExportStatus, encode_history_control,
+    encode_selection_control, encode_selection_export_chunk, encode_selection_export_control,
     encode_transport_envelope,
 };
 use std::{cell::RefCell, num::NonZeroU64, rc::Rc};
@@ -350,6 +353,81 @@ fn retired_viewer_history_events_are_swallowed_with_exact_identity() -> TestResu
         host.receive_event(history_event(1, HostEpoch::from_bytes([9; 16])?)?)
             .is_err()
     );
+    Ok(())
+}
+
+#[test]
+fn retired_viewer_selection_events_are_swallowed_with_exact_identity() -> TestResult {
+    fn selection_events(id: u8, epoch: HostEpoch) -> TestResult<[Vec<u8>; 3]> {
+        let changed =
+            encode_selection_control(&SelectionControl::ChangedEvent(SelectionChanged {
+                attachment_id: AttachmentId::from_bytes([id; 16])?,
+                state: SelectionChangedState::None,
+            }))?;
+        let chunk = encode_selection_export_chunk(&SelectionExportChunk {
+            attachment_id: AttachmentId::from_bytes([id; 16])?,
+            bytes: vec![0x00, 0xff, 0x80, 0x61],
+            chunk_sequence: 0,
+            export_sequence: NonZeroU64::MIN,
+            final_chunk: true,
+        })?;
+        let finished = encode_selection_export_control(&SelectionExportControl::FinishedEvent(
+            SelectionExportFinished {
+                attachment_id: AttachmentId::from_bytes([id; 16])?,
+                byte_length: 4,
+                export_sequence: NonZeroU64::MIN,
+                status: SelectionExportStatus::Completed,
+            },
+        ))?;
+        Ok([
+            encode_transport_envelope(&Envelope {
+                correlation_id: None,
+                host_epoch: Some(epoch),
+                kind: changed.kind,
+                optional_message: false,
+                payload: &changed.payload,
+                payload_encoding: PayloadEncoding::ControlJson,
+                protocol: CURRENT_PROTOCOL_VERSION,
+                role: MessageRole::Event,
+            })?,
+            encode_transport_envelope(&Envelope {
+                correlation_id: None,
+                host_epoch: Some(epoch),
+                kind: chunk.kind,
+                optional_message: false,
+                payload: &chunk.payload,
+                payload_encoding: PayloadEncoding::RawBytes,
+                protocol: CURRENT_PROTOCOL_VERSION,
+                role: MessageRole::Event,
+            })?,
+            encode_transport_envelope(&Envelope {
+                correlation_id: None,
+                host_epoch: Some(epoch),
+                kind: finished.kind,
+                optional_message: false,
+                payload: &finished.payload,
+                payload_encoding: PayloadEncoding::ControlJson,
+                protocol: CURRENT_PROTOCOL_VERSION,
+                role: MessageRole::Event,
+            })?,
+        ])
+    }
+
+    let (host, _peer) = host()?;
+    let request = viewer(1, 5)?;
+    host.viewers
+        .borrow_mut()
+        .admit(&request)
+        .map_err(|error| format!("{error:?}"))?;
+    host.commit_target_cleanup(host.prepare_target_cleanup(identity(5)?)?);
+
+    for event in selection_events(1, host.host_epoch())? {
+        host.receive_event(event)?;
+    }
+    for event in selection_events(2, host.host_epoch())? {
+        assert!(host.receive_event(event).is_err());
+    }
+    assert_eq!(host.viewers.borrow().retained_record_bytes(), 0);
     Ok(())
 }
 

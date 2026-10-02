@@ -3,9 +3,11 @@ use std::io;
 use orchbee_capability_node_protocol::{HostTerminalId, HostTerminalIdentity, OperationId};
 use orchbee_terminal_protocol::{
     AttachmentControl, CURRENT_PROTOCOL_VERSION, HistoryControl, HostEpoch, MessageRole,
-    PayloadEncoding, ProjectionDemandControl, TerminalEffectEvent, decode_attachment_control,
-    decode_history_control, decode_projection_demand_control, decode_terminal_effect_event,
-    decode_transport_envelope, inspect_terminal_frame_route,
+    PayloadEncoding, ProjectionDemandControl, SelectionControl, SelectionExportControl,
+    TerminalEffectEvent, decode_attachment_control, decode_history_control,
+    decode_projection_demand_control, decode_selection_control,
+    decode_selection_export_chunk_route, decode_selection_export_control,
+    decode_terminal_effect_event, decode_transport_envelope, inspect_terminal_frame_route,
 };
 
 use super::{HostBrokerConnection, viewers::MAXIMUM_VIEWERS};
@@ -132,6 +134,12 @@ impl RetiredTargets {
                 && (envelope.kind == 41) == route.base_revision.is_none()
                 && self.viewer(*route.attachment_id.as_bytes()));
         }
+        if envelope.kind == 65 && envelope.payload_encoding == PayloadEncoding::RawBytes {
+            let route =
+                decode_selection_export_chunk_route(envelope.kind, envelope.role, envelope.payload)
+                    .map_err(io::Error::other)?;
+            return Ok(self.viewer(*route.attachment_id.as_bytes()));
+        }
         if envelope.payload_encoding != PayloadEncoding::ControlJson {
             return Ok(false);
         }
@@ -162,6 +170,24 @@ impl RetiredTargets {
         if envelope.kind == 53 {
             let HistoryControl::HistoryChanged(event) =
                 decode_history_control(envelope.kind, envelope.role, envelope.payload)
+                    .map_err(io::Error::other)?
+            else {
+                return Ok(false);
+            };
+            return Ok(self.viewer(*event.attachment_id.as_bytes()));
+        }
+        if envelope.kind == 62 {
+            let SelectionControl::ChangedEvent(event) =
+                decode_selection_control(envelope.kind, envelope.role, envelope.payload)
+                    .map_err(io::Error::other)?
+            else {
+                return Ok(false);
+            };
+            return Ok(self.viewer(*event.attachment_id.as_bytes()));
+        }
+        if envelope.kind == 67 {
+            let SelectionExportControl::FinishedEvent(event) =
+                decode_selection_export_control(envelope.kind, envelope.role, envelope.payload)
                     .map_err(io::Error::other)?
             else {
                 return Ok(false);

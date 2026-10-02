@@ -2,7 +2,11 @@ use super::*;
 use orchbee_capability_node_protocol::{HostTerminalId, WorkerGeneration, WorkerId};
 use orchbee_terminal_protocol::{
     Envelope, HistoryAnchorStatus, HistoryChanged, ProjectionBlockReason, ProjectionBlocked,
-    decode_terminal_text_frame, encode_history_control, encode_projection_demand_control,
+    SelectionChanged, SelectionChangedState, SelectionControl, SelectionExportChunk,
+    SelectionExportControl, SelectionExportFinished, SelectionExportStatus, TerminalBell,
+    TerminalClipboardWriteRequest, TerminalEffectEvent, decode_terminal_text_frame,
+    encode_history_control, encode_projection_demand_control, encode_selection_control,
+    encode_selection_export_chunk, encode_selection_export_control, encode_terminal_effect_event,
     encode_transport_envelope,
 };
 use std::{error::Error, num::NonZeroU64};
@@ -406,7 +410,7 @@ fn a_full_event_fifo_closes_only_that_viewer_and_a_closed_viewer_discards() -> T
     viewers.admit(&request(1)?).map_err(|e| format!("{e:?}"))?;
     viewers.admit(&request(2)?).map_err(|e| format!("{e:?}"))?;
     let epoch = HostEpoch::from_bytes([3; 16])?;
-    for sequence in 1..=MAXIMUM_VIEWER_HISTORY_EVENTS as u64 {
+    for sequence in 1..=MAXIMUM_VIEWER_EVENTS as u64 {
         viewers.receive(history(1, sequence, epoch)?, epoch)?;
     }
     // The next event saturates the bounded FIFO: only this viewer retires,
@@ -457,6 +461,235 @@ fn history_events_share_the_byte_budget_and_remove_releases_exactly_once() -> Te
     Ok(())
 }
 
+#[test]
+fn pane_effect_streams_keep_independent_sequences_and_poll_only_from_the_exact_viewer() -> TestResult
+{
+    let mut viewers = HostViewers::default();
+    viewers
+        .admit(&request(1)?)
+        .map_err(|error| format!("{error:?}"))?;
+    viewers
+        .admit(&request(2)?)
+        .map_err(|error| format!("{error:?}"))?;
+    let epoch = HostEpoch::from_bytes([3; 16])?;
+    let bell = bell(1, 1, epoch)?;
+    // Bell and pane-program clipboard writes are separate Host streams. The
+    // same positive sequence is valid once in each stream and their records
+    // still leave through one arrival-ordered viewer FIFO.
+    let clipboard = clipboard(1, 1, "selected text", epoch)?;
+
+    viewers.receive(bell.clone(), epoch)?;
+    viewers.receive(clipboard.clone(), epoch)?;
+
+    assert_eq!(
+        viewers.poll(request(2)?.attachment_id),
+        TerminalViewerOutcome::Empty
+    );
+    assert_eq!(
+        viewers.poll(request(1)?.attachment_id),
+        TerminalViewerOutcome::Record(bell)
+    );
+    assert_eq!(
+        viewers.poll(request(1)?.attachment_id),
+        TerminalViewerOutcome::Record(clipboard)
+    );
+    assert_eq!(
+        viewers.poll(request(1)?.attachment_id),
+        TerminalViewerOutcome::Empty
+    );
+    Ok(())
+}
+
+#[test]
+fn pane_effect_replays_regressions_and_unknown_attachments_fail_closed() -> TestResult {
+    let epoch = HostEpoch::from_bytes([3; 16])?;
+
+    let mut bells = HostViewers::default();
+    bells
+        .admit(&request(1)?)
+        .map_err(|error| format!("{error:?}"))?;
+    let first_bell = bell(1, 2, epoch)?;
+    bells.receive(first_bell.clone(), epoch)?;
+    assert!(bells.receive(bell(1, 2, epoch)?, epoch).is_err());
+    assert!(bells.receive(bell(1, 1, epoch)?, epoch).is_err());
+    assert_eq!(
+        bells.poll(request(1)?.attachment_id),
+        TerminalViewerOutcome::Record(first_bell)
+    );
+    assert_eq!(
+        bells.poll(request(1)?.attachment_id),
+        TerminalViewerOutcome::Empty
+    );
+
+    let mut clipboard_writes = HostViewers::default();
+    clipboard_writes
+        .admit(&request(1)?)
+        .map_err(|error| format!("{error:?}"))?;
+    let first_write = clipboard(1, 3, "new", epoch)?;
+    clipboard_writes.receive(first_write.clone(), epoch)?;
+    assert!(
+        clipboard_writes
+            .receive(clipboard(1, 2, "stale", epoch)?, epoch)
+            .is_err()
+    );
+    assert_eq!(
+        clipboard_writes.poll(request(1)?.attachment_id),
+        TerminalViewerOutcome::Record(first_write)
+    );
+    assert_eq!(
+        clipboard_writes.poll(request(1)?.attachment_id),
+        TerminalViewerOutcome::Empty
+    );
+
+    let mut exact = HostViewers::default();
+    exact
+        .admit(&request(1)?)
+        .map_err(|error| format!("{error:?}"))?;
+    assert!(exact.receive(bell(9, 1, epoch)?, epoch).is_err());
+    assert_eq!(
+        exact.poll(request(1)?.attachment_id),
+        TerminalViewerOutcome::Empty
+    );
+    Ok(())
+}
+
+#[test]
+fn pane_effects_share_fifo_capacity_and_closed_viewers_discard_late_records() -> TestResult {
+    let mut viewers = HostViewers::default();
+    viewers
+        .admit(&request(1)?)
+        .map_err(|error| format!("{error:?}"))?;
+    viewers
+        .admit(&request(2)?)
+        .map_err(|error| format!("{error:?}"))?;
+    let epoch = HostEpoch::from_bytes([3; 16])?;
+    let queued = [
+        bell(1, 1, epoch)?,
+        clipboard(1, 1, "first", epoch)?,
+        history(1, 1, epoch)?,
+        history(1, 2, epoch)?,
+    ];
+    let retained: usize = queued.iter().map(Vec::len).sum();
+    for record in queued {
+        viewers.receive(record, epoch)?;
+    }
+    assert_eq!(viewers.retained_record_bytes(), retained);
+
+    // One more pane effect closes only the saturated viewer and releases all
+    // four heterogeneous records exactly once.
+    viewers.receive(bell(1, 2, epoch)?, epoch)?;
+    assert_eq!(viewers.closed_ids(), vec![[1; 16]]);
+    assert_eq!(viewers.retained_record_bytes(), 0);
+    viewers.receive(clipboard(1, 2, "late", epoch)?, epoch)?;
+    assert_eq!(viewers.retained_record_bytes(), 0);
+
+    let sibling = clipboard(2, 1, "sibling", epoch)?;
+    viewers.receive(sibling.clone(), epoch)?;
+    assert_eq!(
+        viewers.poll(request(2)?.attachment_id),
+        TerminalViewerOutcome::Record(sibling)
+    );
+    assert_eq!(viewers.retained_record_bytes(), 0);
+    Ok(())
+}
+
+#[test]
+fn pane_effects_share_the_aggregate_byte_budget_and_remove_releases_once() -> TestResult {
+    let epoch = HostEpoch::from_bytes([3; 16])?;
+    let frame_record = frame(1, 1, epoch)?;
+    let bell_record = bell(1, 1, epoch)?;
+    let clipboard_record = clipboard(1, 1, "crosses budget", epoch)?;
+    let limit = frame_record.len() + bell_record.len();
+    let mut viewers = HostViewers::with_retained_record_limit(limit);
+    viewers
+        .admit(&request(1)?)
+        .map_err(|error| format!("{error:?}"))?;
+    viewers
+        .admit(&request(2)?)
+        .map_err(|error| format!("{error:?}"))?;
+    viewers.receive(frame_record, epoch)?;
+    viewers.receive(bell_record, epoch)?;
+    assert_eq!(viewers.retained_record_bytes(), limit);
+
+    viewers.receive(clipboard_record, epoch)?;
+    assert_eq!(viewers.closed_ids(), vec![[1; 16]]);
+    assert_eq!(viewers.retained_record_bytes(), 0);
+
+    let sibling = bell(2, 1, epoch)?;
+    let sibling_bytes = sibling.len();
+    viewers.receive(sibling, epoch)?;
+    assert_eq!(viewers.retained_record_bytes(), sibling_bytes);
+    viewers.remove(request(2)?.attachment_id);
+    assert_eq!(viewers.retained_record_bytes(), 0);
+    viewers.remove(request(2)?.attachment_id);
+    assert_eq!(viewers.retained_record_bytes(), 0);
+    Ok(())
+}
+
+#[test]
+fn selection_events_keep_opaque_bytes_and_arrival_order_for_the_exact_viewer() -> TestResult {
+    let mut viewers = HostViewers::default();
+    viewers
+        .admit(&request(1)?)
+        .map_err(|error| format!("{error:?}"))?;
+    viewers
+        .admit(&request(2)?)
+        .map_err(|error| format!("{error:?}"))?;
+    let epoch = HostEpoch::from_bytes([3; 16])?;
+    let records = [
+        selection_changed(1, epoch)?,
+        selection_export_chunk(1, 7, 0, &[0x00, 0xff, 0x80, 0x61], epoch)?,
+        selection_export_finished(1, 7, 4, epoch)?,
+    ];
+    let retained: usize = records.iter().map(Vec::len).sum();
+
+    for record in &records {
+        viewers.receive(record.clone(), epoch)?;
+    }
+
+    assert_eq!(viewers.retained_record_bytes(), retained);
+    assert_eq!(
+        viewers.poll(request(2)?.attachment_id),
+        TerminalViewerOutcome::Empty
+    );
+    for record in records {
+        assert_eq!(
+            viewers.poll(request(1)?.attachment_id),
+            TerminalViewerOutcome::Record(record)
+        );
+    }
+    assert_eq!(
+        viewers.poll(request(1)?.attachment_id),
+        TerminalViewerOutcome::Empty
+    );
+    assert_eq!(viewers.retained_record_bytes(), 0);
+    Ok(())
+}
+
+#[test]
+fn selection_events_reject_unknown_attachments_without_touching_a_live_viewer() -> TestResult {
+    let mut viewers = HostViewers::default();
+    viewers
+        .admit(&request(1)?)
+        .map_err(|error| format!("{error:?}"))?;
+    let epoch = HostEpoch::from_bytes([3; 16])?;
+    let foreign = [
+        selection_changed(9, epoch)?,
+        selection_export_chunk(9, 1, 0, b"foreign", epoch)?,
+        selection_export_finished(9, 1, 7, epoch)?,
+    ];
+
+    for record in foreign {
+        assert!(viewers.receive(record, epoch).is_err());
+    }
+    assert_eq!(
+        viewers.poll(request(1)?.attachment_id),
+        TerminalViewerOutcome::Empty
+    );
+    assert_eq!(viewers.retained_record_bytes(), 0);
+    Ok(())
+}
+
 fn history(id: u8, sequence: u64, epoch: HostEpoch) -> Result<Vec<u8>, Box<dyn Error>> {
     let control = encode_history_control(&HistoryControl::HistoryChanged(HistoryChanged {
         anchor_status: HistoryAnchorStatus::Valid,
@@ -470,6 +703,99 @@ fn history(id: u8, sequence: u64, epoch: HostEpoch) -> Result<Vec<u8>, Box<dyn E
         control.kind,
         PayloadEncoding::ControlJson,
         &control.payload,
+        epoch,
+    )
+}
+
+fn effect(event: TerminalEffectEvent, epoch: HostEpoch) -> Result<Vec<u8>, Box<dyn Error>> {
+    let encoded = encode_terminal_effect_event(&event)?;
+    envelope(
+        encoded.kind,
+        PayloadEncoding::ControlJson,
+        &encoded.payload,
+        epoch,
+    )
+}
+
+fn bell(id: u8, sequence: u64, epoch: HostEpoch) -> Result<Vec<u8>, Box<dyn Error>> {
+    effect(
+        TerminalEffectEvent::Bell(TerminalBell {
+            attachment_id: AttachmentId::from_bytes([id; 16])?,
+            sequence: NonZeroU64::new(sequence).ok_or("zero bell sequence")?,
+        }),
+        epoch,
+    )
+}
+
+fn clipboard(
+    id: u8,
+    sequence: u64,
+    text: &str,
+    epoch: HostEpoch,
+) -> Result<Vec<u8>, Box<dyn Error>> {
+    effect(
+        TerminalEffectEvent::ClipboardWriteRequest(TerminalClipboardWriteRequest {
+            attachment_id: AttachmentId::from_bytes([id; 16])?,
+            sequence: NonZeroU64::new(sequence).ok_or("zero clipboard sequence")?,
+            text: text.to_owned(),
+        }),
+        epoch,
+    )
+}
+
+fn selection_changed(id: u8, epoch: HostEpoch) -> Result<Vec<u8>, Box<dyn Error>> {
+    let encoded = encode_selection_control(&SelectionControl::ChangedEvent(SelectionChanged {
+        attachment_id: AttachmentId::from_bytes([id; 16])?,
+        state: SelectionChangedState::None,
+    }))?;
+    envelope(
+        encoded.kind,
+        PayloadEncoding::ControlJson,
+        &encoded.payload,
+        epoch,
+    )
+}
+
+fn selection_export_chunk(
+    id: u8,
+    export_sequence: u64,
+    chunk_sequence: u32,
+    bytes: &[u8],
+    epoch: HostEpoch,
+) -> Result<Vec<u8>, Box<dyn Error>> {
+    let encoded = encode_selection_export_chunk(&SelectionExportChunk {
+        attachment_id: AttachmentId::from_bytes([id; 16])?,
+        bytes: bytes.to_vec(),
+        chunk_sequence,
+        export_sequence: NonZeroU64::new(export_sequence).ok_or("zero export sequence")?,
+        final_chunk: true,
+    })?;
+    envelope(
+        encoded.kind,
+        PayloadEncoding::RawBytes,
+        &encoded.payload,
+        epoch,
+    )
+}
+
+fn selection_export_finished(
+    id: u8,
+    export_sequence: u64,
+    byte_length: u32,
+    epoch: HostEpoch,
+) -> Result<Vec<u8>, Box<dyn Error>> {
+    let encoded = encode_selection_export_control(&SelectionExportControl::FinishedEvent(
+        SelectionExportFinished {
+            attachment_id: AttachmentId::from_bytes([id; 16])?,
+            byte_length,
+            export_sequence: NonZeroU64::new(export_sequence).ok_or("zero export sequence")?,
+            status: SelectionExportStatus::Completed,
+        },
+    ))?;
+    envelope(
+        encoded.kind,
+        PayloadEncoding::ControlJson,
+        &encoded.payload,
         epoch,
     )
 }

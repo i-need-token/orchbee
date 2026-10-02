@@ -1455,6 +1455,16 @@ fn validate_response(
                         Outcome::FeedbackAccepted
                     )
                     | (
+                        Action::SelectionGesture { .. }
+                            | Action::SelectionExport { .. }
+                            | Action::SelectionExportCancel { .. },
+                        Outcome::Record(_)
+                    )
+                    | (
+                        Action::SelectionExportChunkApplied { .. },
+                        Outcome::FeedbackAccepted
+                    )
+                    | (
                         Action::ReadRows { .. } | Action::ReadViewportRows { .. },
                         Outcome::Record(_) | Outcome::RowsRejected(_)
                     )

@@ -5,8 +5,14 @@ use crate::{
     CapabilityNodeMessage, MAXIMUM_VIEWER_RECORD_BYTES, OperationId, ProtocolError,
     ReadMessageError, TerminalViewerAction, TerminalViewerOutcome, TerminalViewerRequest,
     TerminalViewerResult, ViewerHistoryDemand, ViewerProjectionDemand, ViewerRejection,
-    ViewerRowDetail, ViewerSnapshotReason, ViewportRowOrigin, WorkerGeneration, WorkerId,
+    ViewerRowDetail, ViewerSelectionExportCancelReason, ViewerSelectionExportFormat,
+    ViewerSelectionGestureAction, ViewerSelectionGestureGeometry, ViewerSelectionGesturePosition,
+    ViewerSelectionViewportPoint, ViewerSnapshotReason, ViewportRowOrigin, WorkerGeneration,
+    WorkerId,
 };
+
+const MAXIMUM_SELECTION_AXIS: i32 = 0xffff;
+const MAXIMUM_SELECTION_DIMENSION: u16 = 4096;
 
 pub(super) fn encode_request(value: TerminalViewerRequest) -> Vec<u8> {
     let mut bytes = vec![5];
@@ -131,6 +137,78 @@ pub(super) fn encode_request(value: TerminalViewerRequest) -> Vec<u8> {
             bytes.extend_from_slice(&generation.get().to_be_bytes());
             bytes.extend_from_slice(&revision.to_be_bytes());
         }
+        TerminalViewerAction::SelectionGesture {
+            generation,
+            gesture,
+        } => {
+            bytes.push(16);
+            bytes.extend_from_slice(&generation.get().to_be_bytes());
+            match gesture {
+                ViewerSelectionGestureAction::Start {
+                    click_count,
+                    point,
+                    position,
+                    select_output,
+                } => {
+                    bytes.push(1);
+                    bytes.push(click_count);
+                    encode_selection_point(&mut bytes, point);
+                    encode_selection_position(&mut bytes, position);
+                    bytes.push(u8::from(select_output));
+                }
+                ViewerSelectionGestureAction::Update {
+                    geometry,
+                    point,
+                    position,
+                    rectangle,
+                } => {
+                    bytes.push(2);
+                    bytes.extend_from_slice(&geometry.cell_width.to_be_bytes());
+                    bytes.extend_from_slice(&geometry.columns.to_be_bytes());
+                    bytes.extend_from_slice(&geometry.padding_left.to_be_bytes());
+                    bytes.extend_from_slice(&geometry.screen_height.to_be_bytes());
+                    encode_selection_point(&mut bytes, point);
+                    encode_selection_position(&mut bytes, position);
+                    bytes.push(u8::from(rectangle));
+                }
+                ViewerSelectionGestureAction::End { point } => {
+                    bytes.push(3);
+                    encode_selection_point(&mut bytes, point);
+                }
+                ViewerSelectionGestureAction::Cancel => bytes.push(4),
+            }
+        }
+        TerminalViewerAction::SelectionExport {
+            export_sequence,
+            format,
+        } => {
+            bytes.push(17);
+            bytes.extend_from_slice(&export_sequence.get().to_be_bytes());
+            bytes.push(match format {
+                ViewerSelectionExportFormat::Plain => 1,
+            });
+        }
+        TerminalViewerAction::SelectionExportChunkApplied {
+            export_sequence,
+            chunk_sequence,
+        } => {
+            bytes.push(18);
+            bytes.extend_from_slice(&export_sequence.get().to_be_bytes());
+            bytes.extend_from_slice(&chunk_sequence.to_be_bytes());
+        }
+        TerminalViewerAction::SelectionExportCancel {
+            export_sequence,
+            reason,
+        } => {
+            bytes.push(19);
+            bytes.extend_from_slice(&export_sequence.get().to_be_bytes());
+            bytes.push(match reason {
+                ViewerSelectionExportCancelReason::ClipboardFailed => 1,
+                ViewerSelectionExportCancelReason::Disposed => 2,
+                ViewerSelectionExportCancelReason::Replaced => 3,
+                ViewerSelectionExportCancelReason::User => 4,
+            });
+        }
     }
     bytes
 }
@@ -251,6 +329,59 @@ pub(super) fn decode_request(bytes: &[u8]) -> Result<TerminalViewerRequest, Prot
             generation: positive(reader.read_u64()?)?,
             revision: reader.read_u64()?,
         },
+        16 => {
+            let generation = positive(reader.read_u64()?)?;
+            let gesture = match reader.read_u8()? {
+                1 => {
+                    let click_count = reader.read_u8()?;
+                    if !(1..=3).contains(&click_count) {
+                        return Err(ProtocolError::InvalidPayload);
+                    }
+                    ViewerSelectionGestureAction::Start {
+                        click_count,
+                        point: decode_selection_point(&mut reader)?,
+                        position: decode_selection_position(&mut reader)?,
+                        select_output: decode_bool(reader.read_u8()?)?,
+                    }
+                }
+                2 => ViewerSelectionGestureAction::Update {
+                    geometry: decode_selection_geometry(&mut reader)?,
+                    point: decode_selection_point(&mut reader)?,
+                    position: decode_selection_position(&mut reader)?,
+                    rectangle: decode_bool(reader.read_u8()?)?,
+                },
+                3 => ViewerSelectionGestureAction::End {
+                    point: decode_selection_point(&mut reader)?,
+                },
+                4 => ViewerSelectionGestureAction::Cancel,
+                _ => return Err(ProtocolError::InvalidPayload),
+            };
+            TerminalViewerAction::SelectionGesture {
+                generation,
+                gesture,
+            }
+        }
+        17 => TerminalViewerAction::SelectionExport {
+            export_sequence: positive(reader.read_u64()?)?,
+            format: match reader.read_u8()? {
+                1 => ViewerSelectionExportFormat::Plain,
+                _ => return Err(ProtocolError::InvalidPayload),
+            },
+        },
+        18 => TerminalViewerAction::SelectionExportChunkApplied {
+            export_sequence: positive(reader.read_u64()?)?,
+            chunk_sequence: reader.read_u32()?,
+        },
+        19 => TerminalViewerAction::SelectionExportCancel {
+            export_sequence: positive(reader.read_u64()?)?,
+            reason: match reader.read_u8()? {
+                1 => ViewerSelectionExportCancelReason::ClipboardFailed,
+                2 => ViewerSelectionExportCancelReason::Disposed,
+                3 => ViewerSelectionExportCancelReason::Replaced,
+                4 => ViewerSelectionExportCancelReason::User,
+                _ => return Err(ProtocolError::InvalidPayload),
+            },
+        },
         _ => return Err(ProtocolError::InvalidPayload),
     };
     reader.finish()?;
@@ -261,6 +392,72 @@ pub(super) fn decode_request(bytes: &[u8]) -> Result<TerminalViewerRequest, Prot
         attachment_id,
         action,
     })
+}
+
+fn encode_selection_point(bytes: &mut Vec<u8>, point: ViewerSelectionViewportPoint) {
+    bytes.extend_from_slice(&point.column.to_be_bytes());
+    bytes.extend_from_slice(&point.row.to_be_bytes());
+}
+
+fn encode_selection_position(bytes: &mut Vec<u8>, position: ViewerSelectionGesturePosition) {
+    bytes.extend_from_slice(&position.x.to_be_bytes());
+    bytes.extend_from_slice(&position.y.to_be_bytes());
+}
+
+fn decode_selection_point(
+    reader: &mut PayloadReader<'_>,
+) -> Result<ViewerSelectionViewportPoint, ProtocolError> {
+    let point = ViewerSelectionViewportPoint {
+        column: reader.read_u16()?,
+        row: reader.read_u16()?,
+    };
+    if point.column >= MAXIMUM_SELECTION_DIMENSION || point.row >= MAXIMUM_SELECTION_DIMENSION {
+        return Err(ProtocolError::InvalidPayload);
+    }
+    Ok(point)
+}
+
+fn decode_selection_position(
+    reader: &mut PayloadReader<'_>,
+) -> Result<ViewerSelectionGesturePosition, ProtocolError> {
+    let position = ViewerSelectionGesturePosition {
+        x: reader.read_i32()?,
+        y: reader.read_i32()?,
+    };
+    if !(-MAXIMUM_SELECTION_AXIS..=MAXIMUM_SELECTION_AXIS).contains(&position.x)
+        || !(-MAXIMUM_SELECTION_AXIS..=MAXIMUM_SELECTION_AXIS).contains(&position.y)
+    {
+        return Err(ProtocolError::InvalidPayload);
+    }
+    Ok(position)
+}
+
+fn decode_selection_geometry(
+    reader: &mut PayloadReader<'_>,
+) -> Result<ViewerSelectionGestureGeometry, ProtocolError> {
+    let geometry = ViewerSelectionGestureGeometry {
+        cell_width: reader.read_u16()?,
+        columns: reader.read_u16()?,
+        padding_left: reader.read_u16()?,
+        screen_height: reader.read_u16()?,
+    };
+    if geometry.cell_width == 0
+        || geometry.cell_width > MAXIMUM_SELECTION_DIMENSION
+        || geometry.columns == 0
+        || geometry.columns > MAXIMUM_SELECTION_DIMENSION
+        || geometry.screen_height == 0
+    {
+        return Err(ProtocolError::InvalidPayload);
+    }
+    Ok(geometry)
+}
+
+const fn decode_bool(value: u8) -> Result<bool, ProtocolError> {
+    match value {
+        0 => Ok(false),
+        1 => Ok(true),
+        _ => Err(ProtocolError::InvalidPayload),
+    }
 }
 
 pub(super) fn encode_result(value: &TerminalViewerResult) -> Vec<u8> {

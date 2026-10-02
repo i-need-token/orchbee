@@ -739,6 +739,32 @@ retained receipt; unsupported platforms reject this action. No mutation/Host
 startup/input authority is added. Runtime ownership is in the
 [Workspace sidebar model](../../apps/orchbee/docs/machines.md#workspace-sidebar-model).
 
+## Viewer selection and export controls
+
+Private viewer action tags 16–19 extend the already admitted attachment; the action body never
+repeats or changes its identity. Tag 16 is `SelectionGesture`: positive big-endian u64 generation,
+then gesture tag 1 Start, 2 Update, 3 End, or 4 Cancel. Start carries click count, viewport point,
+signed pointer position, and canonical 0/1 select-output. Update carries cell width, columns,
+left padding, screen height, viewport point, pointer position, and canonical 0/1 rectangle. End
+carries only its viewport point. Points are `u16` values below 4096, click count is `1..=3`, pointer
+axes are `-65535..=65535`, cell width and columns are `1..=4096`, and screen height is nonzero.
+
+Tag 17 `SelectionExport` carries positive big-endian u64 export sequence and closed format tag 1
+Plain. Tag 18 `SelectionExportChunkApplied` carries that sequence plus big-endian u32 chunk
+sequence. Tag 19 `SelectionExportCancel` carries the export sequence and reason tag 1
+ClipboardFailed, 2 Disposed, 3 Replaced, or 4 User. Unknown tags, zero positive values,
+noncanonical Booleans, out-of-range fields, truncation, and tails fail before Worker Host access.
+All viewer tags 1–15 retain their bytes.
+
+Worker maps the four controls to one exact attachment- and correlation-scoped OBTP exchange.
+SelectionChanged, SelectionExportStarted, and the cancelled SelectionExportFinished return as the
+unchanged opaque `Record`; a matching chunk-applied echo returns `FeedbackAccepted`. A typed Host
+failure maps to `HostRejected`; any mismatched response is a carrier failure. Poll-delivered raw
+export chunks remain opaque bytes in the viewer FIFO. This carrier does not assemble text or write
+a clipboard. Public fixed-byte and malformed-input conformance tests cover every gesture branch,
+format/reason tag, old-tag preservation, and exact response conversion. The matched private cohort
+deploys or rolls back together with no persistent migration.
+
 ## Read-only viewer lifecycle observation
 
 Private viewer action tag 15 `ReadLifecycle` pins Host creation ID, epoch and terminal ID (three 16-byte identities). Result tag 7 `LifecycleObserved` echoes that identity, a big-endian u64 revision and a closed 0/1 settled byte. Worker validates its admitted viewer target and walks Host inventory under one bounded budget; only exact Exited/Failed summaries mean settled. Absence, paging/identity conflict and transport failure do not mean exit. The read never enters the exclusive lifecycle kernel or claims Close ownership. Server checks Worker generation, exact target and temporary-viewer cleanup before publishing settlement. Older tags keep their bytes; old cohorts reject these additive tags. Upgrade and roll back the matched cohort together.

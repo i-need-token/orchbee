@@ -468,50 +468,23 @@ fn run_surface_loop<B: Backend + ResizableBackend>(
     mouse: bool,
     mut view: ClientView,
 ) -> Result<LoopExit, LoopFailure<B::Error>> {
-    let (inputs, mode) = input_runtime;
-    #[cfg(windows)]
-    let mut machines =
-        matches!(surface, SurfaceSlot::Owned(_)).then(|| machines::Manager::new(&mut view));
-    let terminal_input = surface.active();
     let mut dispatcher = InputDispatcher::default();
-    if let Some(id) = terminal.backend().graphics_probe_id() {
-        dispatcher.activate_graphics_probe(id);
-    }
-    // The lifecycle write already armed or released host reporting; the
-    // dispatcher and the status indicator settle to the same truth here.
-    dispatcher.set_pointer_capture(&mut view, mouse);
-    if termination.requested() {
-        return Ok(LoopExit::Signal);
-    }
-    synchronize_viewport(
-        terminal,
-        viewport,
-        &mut view,
-        terminal_input,
-        &mut dimensions,
-        dispatcher.graphics_facts().measurement,
-    )?;
-    dispatcher.query_graphics(
-        (dimensions.columns, dimensions.rows),
-        inputs.sample_time(),
-        &mut |request| mode(request).map_err(LoopFailure::Input),
-    )?;
-    terminal_input.observe_host_graphics(dispatcher.graphics_facts());
-    let _changed = terminal_input.tick();
-    #[cfg(windows)]
-    update_graphics_surface(terminal, &mut dispatcher, inputs.sample_time());
-    draw_surface(terminal, &mut view, chrome, terminal_input, &mut dispatcher)?;
-    loop {
+    let result = (|| {
+        let (inputs, mode) = input_runtime;
+        #[cfg(windows)]
+        let mut machines =
+            matches!(surface, SurfaceSlot::Owned(_)).then(|| machines::Manager::new(&mut view));
+        let terminal_input = surface.active();
+        if let Some(id) = terminal.backend().graphics_probe_id() {
+            dispatcher.activate_graphics_probe(id);
+        }
+        // The lifecycle write already armed or released host reporting; the
+        // dispatcher and the status indicator settle to the same truth here.
+        dispatcher.set_pointer_capture(&mut view, terminal_input, mouse);
         if termination.requested() {
             return Ok(LoopExit::Signal);
         }
-        let input = inputs
-            .next_input(Duration::from_millis(u64::from(
-                EVENT_POLL_INTERVAL_MILLISECONDS,
-            )))
-            .map_err(LoopFailure::Input)?;
-        let terminal_input = surface.active();
-        let mut redraw = synchronize_viewport(
+        synchronize_viewport(
             terminal,
             viewport,
             &mut view,
@@ -519,125 +492,158 @@ fn run_surface_loop<B: Backend + ResizableBackend>(
             &mut dimensions,
             dispatcher.graphics_facts().measurement,
         )?;
-        if redraw {
-            // Resize discards the recorded regions: until the next
-            // successful draw publishes a fresh map, pointer events drop
-            // instead of resolving against stale geometry.
-            dispatcher.invalidate_hit_map();
-        }
-        redraw |= terminal_input.tick();
-        let now = inputs.sample_time();
-        redraw |= dispatcher.query_graphics(
+        dispatcher.query_graphics(
             (dimensions.columns, dimensions.rows),
-            now,
+            inputs.sample_time(),
             &mut |request| mode(request).map_err(LoopFailure::Input),
         )?;
         terminal_input.observe_host_graphics(dispatcher.graphics_facts());
-        redraw |= dispatcher.synchronize(&mut view, terminal_input, now, &mut |request| {
-            mode(request).map_err(LoopFailure::Input)
-        })?;
-        let previous_measurement = dispatcher.graphics_facts().measurement;
-        if let Some(input) = input {
-            let measurement = dispatcher.graphics_facts().measurement;
-            let outcome = dispatcher.dispatch(
+        let _changed = terminal_input.tick();
+        #[cfg(windows)]
+        update_graphics_surface(terminal, &mut dispatcher, inputs.sample_time());
+        draw_surface(terminal, &mut view, chrome, terminal_input, &mut dispatcher)?;
+        loop {
+            if termination.requested() {
+                return Ok(LoopExit::Signal);
+            }
+            let input = inputs
+                .next_input(Duration::from_millis(u64::from(
+                    EVENT_POLL_INTERVAL_MILLISECONDS,
+                )))
+                .map_err(LoopFailure::Input)?;
+            let terminal_input = surface.active();
+            let mut redraw = synchronize_viewport(
+                terminal,
+                viewport,
                 &mut view,
-                &input,
                 terminal_input,
+                &mut dimensions,
+                dispatcher.graphics_facts().measurement,
+            )?;
+            if redraw {
+                // Resize discards the recorded regions: until the next
+                // successful draw publishes a fresh map, pointer events drop
+                // instead of resolving against stale geometry.
+                dispatcher.invalidate_hit_map(terminal_input);
+            }
+            redraw |= terminal_input.tick();
+            let now = inputs.sample_time();
+            redraw |= dispatcher.query_graphics(
+                (dimensions.columns, dimensions.rows),
                 now,
-                |view, terminal_input| {
-                    synchronize_viewport(
-                        terminal,
-                        viewport,
-                        view,
-                        terminal_input,
-                        &mut dimensions,
-                        measurement,
-                    )
-                    .map(|_changed| ())
-                },
                 &mut |request| mode(request).map_err(LoopFailure::Input),
             )?;
-            if outcome == DispatchOutcome::Exit {
-                return Ok(LoopExit::User);
-            }
-            redraw = true;
-        }
-        redraw |= dispatcher.query_graphics(
-            (dimensions.columns, dimensions.rows),
-            now,
-            &mut |request| mode(request).map_err(LoopFailure::Input),
-        )?;
-        terminal_input.observe_host_graphics(dispatcher.graphics_facts());
-        if previous_measurement != dispatcher.graphics_facts().measurement {
-            redraw |= synchronize_viewport(
-                terminal,
-                viewport,
-                &mut view,
-                terminal_input,
-                &mut dimensions,
-                dispatcher.graphics_facts().measurement,
-            )?;
-        }
-        if termination.requested() {
-            return Ok(LoopExit::Signal);
-        }
-
-        if terminal_input.client_control_tick(&mut view, to_area(dimensions), chrome.locale) {
-            synchronize_viewport(
-                terminal,
-                viewport,
-                &mut view,
-                terminal_input,
-                &mut dimensions,
-                dispatcher.graphics_facts().measurement,
-            )?;
-            dispatcher.invalidate_hit_map();
-            redraw = true;
-        }
-        #[cfg(windows)]
-        if let Some(machines) = &mut machines {
-            let change = machines.tick(surface, &mut view, dimensions, now);
-            redraw |= change.redraw;
-            if change.switched {
-                dispatcher.machine_surface_changed();
-                if mode(ModeRequest::WindowTitle(None)).is_err() {
-                    view.window_title_unavailable();
+            terminal_input.observe_host_graphics(dispatcher.graphics_facts());
+            redraw |= dispatcher.synchronize(&mut view, terminal_input, now, &mut |request| {
+                mode(request).map_err(LoopFailure::Input)
+            })?;
+            let previous_measurement = dispatcher.graphics_facts().measurement;
+            if let Some(input) = input {
+                let measurement = dispatcher.graphics_facts().measurement;
+                let outcome = dispatcher.dispatch(
+                    &mut view,
+                    &input,
+                    terminal_input,
+                    now,
+                    |view, terminal_input| {
+                        synchronize_viewport(
+                            terminal,
+                            viewport,
+                            view,
+                            terminal_input,
+                            &mut dimensions,
+                            measurement,
+                        )
+                        .map(|_changed| ())
+                    },
+                    &mut |request| mode(request).map_err(LoopFailure::Input),
+                )?;
+                if outcome == DispatchOutcome::Exit {
+                    return Ok(LoopExit::User);
                 }
-                view.machines.invalidate();
-                synchronize_viewport(
+                redraw = true;
+            }
+            redraw |= dispatcher.query_graphics(
+                (dimensions.columns, dimensions.rows),
+                now,
+                &mut |request| mode(request).map_err(LoopFailure::Input),
+            )?;
+            terminal_input.observe_host_graphics(dispatcher.graphics_facts());
+            if previous_measurement != dispatcher.graphics_facts().measurement {
+                redraw |= synchronize_viewport(
                     terminal,
                     viewport,
                     &mut view,
-                    surface.active(),
+                    terminal_input,
                     &mut dimensions,
                     dispatcher.graphics_facts().measurement,
                 )?;
             }
+            if termination.requested() {
+                return Ok(LoopExit::Signal);
+            }
+
+            if terminal_input.client_control_tick(&mut view, to_area(dimensions), chrome.locale) {
+                synchronize_viewport(
+                    terminal,
+                    viewport,
+                    &mut view,
+                    terminal_input,
+                    &mut dimensions,
+                    dispatcher.graphics_facts().measurement,
+                )?;
+                dispatcher.invalidate_hit_map(terminal_input);
+                redraw = true;
+            }
+            #[cfg(windows)]
+            if let Some(machines) = &mut machines {
+                let change = machines.tick(surface, &mut view, dimensions, now, &mut |old| {
+                    dispatcher.invalidate_hit_map(old);
+                });
+                redraw |= change.redraw;
+                if change.switched {
+                    dispatcher.machine_surface_changed();
+                    if mode(ModeRequest::WindowTitle(None)).is_err() {
+                        view.window_title_unavailable();
+                    }
+                    view.machines.invalidate();
+                    synchronize_viewport(
+                        terminal,
+                        viewport,
+                        &mut view,
+                        surface.active(),
+                        &mut dimensions,
+                        dispatcher.graphics_facts().measurement,
+                    )?;
+                }
+            }
+            let terminal_input = surface.active();
+            terminal_input.observe_host_graphics(dispatcher.graphics_facts());
+            #[cfg(windows)]
+            {
+                redraw |= update_graphics_surface(terminal, &mut dispatcher, now);
+            }
+            #[cfg(windows)]
+            if let Some(snapshot) = view.window_title.take()
+                && mode(ModeRequest::WindowTitle(snapshot.title)).is_err()
+            {
+                view.window_title_unavailable();
+                redraw = true;
+            }
+            if redraw {
+                draw_surface(terminal, &mut view, chrome, terminal_input, &mut dispatcher)?;
+            }
+            #[cfg(windows)]
+            if let Some(effect) = view.notifications.take_effect()
+                && mode(ModeRequest::Notification(effect)).is_err()
+            {
+                view.notification_unavailable();
+                draw_surface(terminal, &mut view, chrome, terminal_input, &mut dispatcher)?;
+            }
         }
-        let terminal_input = surface.active();
-        terminal_input.observe_host_graphics(dispatcher.graphics_facts());
-        #[cfg(windows)]
-        {
-            redraw |= update_graphics_surface(terminal, &mut dispatcher, now);
-        }
-        #[cfg(windows)]
-        if let Some(snapshot) = view.window_title.take()
-            && mode(ModeRequest::WindowTitle(snapshot.title)).is_err()
-        {
-            view.window_title_unavailable();
-            redraw = true;
-        }
-        if redraw {
-            draw_surface(terminal, &mut view, chrome, terminal_input, &mut dispatcher)?;
-        }
-        #[cfg(windows)]
-        if let Some(effect) = view.notifications.take_effect()
-            && mode(ModeRequest::Notification(effect)).is_err()
-        {
-            view.notification_unavailable();
-            draw_surface(terminal, &mut view, chrome, terminal_input, &mut dispatcher)?;
-        }
-    }
+    })();
+    dispatcher.cancel_pointer(surface.active());
+    result
 }
 
 #[cfg(windows)]

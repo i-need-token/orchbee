@@ -12,8 +12,9 @@ demand 双腿、行窗口 read/acknowledge 握手、导航意图、恢复，以�
 与 `crates/client-server-protocol/src/viewer.rs`（`TerminalViewerAction` 面）所有；
 本文档消费该契约，绝不扩展它。
 
-历史保留捕获的单元格颜色、属性及宽字符几何。复制／搜索／选区、图形显示、剪贴板集成
-与持久化仍是独立义务。
+历史保留捕获的单元格颜色、属性及宽字符几何。选择与剪贴板集成遵循
+[原生终端选择与效果](native-terminal-selection-effects.zh-CN.md)。搜索与 copy mode、图形显示
+和持久化仍是独立义务。
 
 同一应用内核心也通过 `cli/terminal_stream/history.rs` 服务 Windows CLI 控制流。每个
 已附着的 control 调用拥有一个核心、读取水位及严格历史事件序号。CLI 的 demand/行交换
@@ -147,10 +148,12 @@ kind-53 事件仍经其自有通道精确应答一次。`Recovering`
 与鼠标跟踪，未启用 tracking 的 primary 屏幕滚轮进入历史除外。`Ctrl+B PageUp` 进入历史；
 help 打开时 `PageUp` 仍归 help。
 
-凡以非 Live 窗格为目标的非滚轮指针事件一律由 client 消费——落在焦点窗格上的按下、把
+凡以非 Live 窗格为目标的非滚轮指针事件一律由 Client 消费——落在焦点窗格上的按下、把
 焦点移入该窗格的按下、排队中的 pending-focus 重放、手势延续，以及手势中途 Live→非 Live
-转换后才结束的拖拽。它们都不编码应用鼠标字节；非 Live 手势在释放时终结。滚轮保持自身
-契约：在保留窗口内本地滚动，落在窗格其他位置则被消费且不关闭覆盖层。
+转换后才结束的拖拽。内容上的普通主键手势针对已提交历史窗口，遵循
+[原生终端选择与效果](native-terminal-selection-effects.zh-CN.md)；其他事件在 release 时于本地
+终结。它们都不编码应用鼠标字节。滚轮保持自身契约：在保留窗口内本地滚动，落在窗格其他
+位置则被消费且不关闭覆盖层。
 
 ## 呈现
 

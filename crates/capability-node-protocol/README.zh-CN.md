@@ -667,6 +667,29 @@ status/stderr 使用分别带 u16 长度前缀的字节字段，共用原有 793
 不支持的平台拒绝该动作。不增加变更／Host 启动／输入权威。运行时所有权见
 [Workspace 侧栏模型](../../apps/orchbee/docs/machines.zh-CN.md#工作区侧栏模型)。
 
+## Viewer 选区与导出控制
+
+私有 viewer action tag 16–19 扩展已经准入的 attachment；action body 不重复也不改变其身份。
+Tag 16 为 `SelectionGesture`：正 big-endian u64 generation，随后手势 tag 1 Start、2 Update、
+3 End 或 4 Cancel。Start 携带 click count、视口点、有符号指针位置和规范 0/1 select-output。
+Update 携带 cell width、columns、left padding、screen height、视口点、指针位置和规范 0/1
+rectangle。End 仅携带视口点。点的两个 `u16` 值必须小于 4096，click count 为 `1..=3`，
+指针两轴为 `-65535..=65535`，cell width 和 columns 为 `1..=4096`，screen height 非零。
+
+Tag 17 `SelectionExport` 携带正 big-endian u64 export sequence 及闭合格式 tag 1 Plain。
+Tag 18 `SelectionExportChunkApplied` 携带该 sequence 和 big-endian u32 chunk sequence。
+Tag 19 `SelectionExportCancel` 携带 export sequence 与原因 tag：1 ClipboardFailed、2 Disposed、
+3 Replaced、4 User。未知 tag、零正数、非规范布尔、越界字段、截断及尾随内容均在 Worker
+访问 Host 前拒绝。既有 viewer tag 1–15 的字节保持不变。
+
+Worker 将四种 control 映射为一次固定 attachment 和 correlation 的 OBTP exchange。
+SelectionChanged、SelectionExportStarted 及取消后的 SelectionExportFinished 作为不透明
+`Record` 原样返回；精确 chunk-applied 回显返回 `FeedbackAccepted`。Host typed failure 映射为
+`HostRejected`；响应身份不匹配属于 carrier 失败。Poll 投递的原始 export chunk 在 viewer FIFO
+中仍是不透明字节。本 carrier 不组装文本也不写剪贴板。公共固定字节和畸形输入一致性测试覆盖
+全部手势分支、格式／原因 tag、旧 tag 保留及精确响应转换。匹配的私有 cohort 一起部署或回退，
+不涉及持久迁移。
+
 ## 只读 viewer 生命周期观察
 
 私有 viewer action tag 15 `ReadLifecycle` 固定 Host creation ID、epoch 和 terminal ID（三个 16 字节身份）。Result tag 7 `LifecycleObserved` 回显该身份、大端 u64 revision 及封闭的 0/1 settled 字节。Worker 核对已准入 viewer 目标，在一个有界预算内遍历 Host inventory；仅精确 Exited／Failed 摘要代表已终止。缺失、分页／身份冲突和传输失败不代表退出。读取不进入独占生命周期内核，也不占用 Close 所有权。Server 在发布终止事实前核对 Worker generation、精确目标和临时 viewer 清理。旧 tag 的字节保持不变；旧 cohort 拒绝这些新增 tag。匹配 cohort 须一起升级或回退。

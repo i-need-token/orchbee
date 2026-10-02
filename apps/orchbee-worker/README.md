@@ -167,17 +167,20 @@ opaque Host record; it never decodes terminal rows, VT, or history. Attach, poll
 are serialized with Launch/Start on the admitted Server connection. Poll transfers a ready record
 without waiting for terminal output; downstream delivery cannot hold the Worker operation slot.
 
-Beside the frame record slot, each viewer keeps a bounded four-deep FIFO of complete opaque kind-53
-`HistoryChanged` event records counted in the same retained-byte budget. Poll serves one of two
-sources — the frame/projection-blocked record slot or the event FIFO — under an explicit
-next-preference that flips after every successful delivery and prefers the record slot initially, so
-an unsettled frame flight never blocks a queued event and a continuously ready source overtakes the
-other at most once. Event delivery never touches `flight.delivered`, `last_sequence`, or frame
-acknowledgement state, and `HistoryObserved` travels the existing feedback lane without settling a
-frame flight. FIFO or aggregate-byte saturation closes only that viewer; close, remove, cleanup,
-Host loss, and target cleanup release frame and event bytes exactly once. A valid kind-53 event
-addressed to an already-retired viewer is consumed like a late frame record instead of retiring the
-broker.
+Beside the frame record slot, each viewer keeps a bounded four-deep FIFO of complete opaque viewer
+events counted in the same retained-byte budget. It carries kind-53 `HistoryChanged` plus the
+selection and external-effect records named below; Worker decodes only the attachment and event
+family identity needed to validate exact routing and ordering. Bell and clipboard-write keep
+separate strictly increasing sequence cursors, so the same sequence value may occur once in each;
+their accepted records share the FIFO's arrival order. Poll serves one of two sources — the
+frame/projection-blocked record slot or the event FIFO — under an explicit next-preference that flips
+after every successful delivery and prefers the record slot initially, so an unsettled frame flight
+never blocks a queued event and a continuously ready source overtakes the other at most once. Event
+delivery never touches `flight.delivered`, `last_sequence`, or frame acknowledgement state, and
+`HistoryObserved` travels the existing feedback lane without settling a frame flight. FIFO or
+aggregate-byte saturation closes only that viewer; close, remove, cleanup, Host loss, and target
+cleanup release frame and event bytes exactly once. A valid viewer event addressed to an
+already-retired viewer is consumed like a late frame record instead of retiring the broker.
 
 The OBCN viewer carrier and Worker attachment transitions now serve Server's admitted Client
 Session relay, with actual Host process traces. Server owns OBCS viewer messages and Session cleanup;
@@ -195,8 +198,12 @@ module owns event routing, viewer slots, controller grants, and the shared deadl
 maps admitted read-only commands and validates their exact Host responses. No viewer-state borrow
 survives Host I/O. Attach performs two sequential bounded exchanges (capabilities, then active
 projection demand); cleanup may perform up to thirty-two bounded viewer/control detach exchanges before a request.
-Server now budgets twenty seconds for those exchanges and OBNR record delivery. Lifecycle/metadata notifications are validated and drained; bell, clipboard, and
-application-signal effects are not exposed through this read-only projection path.
+Server now budgets twenty seconds for those exchanges and OBNR record delivery. Lifecycle and
+metadata notifications are validated and drained, while application-signal effects use the Agent
+drain. Bell, clipboard-write, selection-changed, selection-export-chunk, and
+selection-export-finished records retain their original bytes in the exact viewer's bounded event
+FIFO and leave through Poll; Worker never performs their external effects. Their Client behavior is
+owned by [native terminal selection and effects](../orchbee/docs/native-terminal-selection-effects.md).
 Detach and broker loss release transient attachments and preserve retained terminals. Reattachment
 requires a fresh Server-issued attachment identity; no input or resize authority is granted here.
 

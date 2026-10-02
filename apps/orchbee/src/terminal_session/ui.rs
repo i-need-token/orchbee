@@ -1743,13 +1743,16 @@ impl NativeUi {
         // phase, Controlling mode, an exact focus incarnation, and no
         // close suppression on its anchor. All are live state reads;
         // nothing is guessed from the pointer's own records.
+        let focus_available = state
+            .focus_pane_ref()
+            .is_some_and(|focus| !state.close_suppresses_attachment(focus.pane().anchor()));
+        probe.selection_ready =
+            self.retirement_failure.is_none() && state.ready().is_some() && focus_available;
         probe.input_ready = self.retirement_failure.is_none()
             && state
                 .ready()
                 .is_some_and(|ready| matches!(ready.mode(), ControllerMode::Controlling(_)))
-            && state
-                .focus_pane_ref()
-                .is_some_and(|focus| !state.close_suppresses_attachment(focus.pane().anchor()));
+            && focus_available;
         probe.focus = state.focus_pane_ref();
         probe.desired = state.desired().cloned();
         probe.viewport_non_live = self.focus_viewport_non_live();

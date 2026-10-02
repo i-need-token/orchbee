@@ -284,6 +284,13 @@ fn canonical_corpus_reaches_every_closed_message_and_result_variant()
         "viewer-read-viewport-rows",
         "viewer-rows-applied",
         "viewer-history-observed",
+        "viewer-selection-gesture-start",
+        "viewer-selection-gesture-update",
+        "viewer-selection-gesture-end",
+        "viewer-selection-gesture-cancel",
+        "viewer-selection-export",
+        "viewer-selection-export-chunk-applied",
+        "viewer-selection-export-cancel",
         "viewer-detach",
         "viewer-attached",
         "viewer-empty",
@@ -681,7 +688,9 @@ fn record_coverage(message: &DecodedMessage, reached: &mut BTreeSet<&'static str
             });
         }
         DecodedMessage::Client(ClientMessage::TerminalViewer(request)) => {
-            use orchbee_client_server_protocol::TerminalViewerAction;
+            use orchbee_client_server_protocol::{
+                TerminalViewerAction, ViewerSelectionGestureAction,
+            };
             reached.insert(match request.action() {
                 TerminalViewerAction::Attach { .. } => "viewer-attach",
                 TerminalViewerAction::AttachBinding { .. } => "viewer-attach-binding",
@@ -695,6 +704,21 @@ fn record_coverage(message: &DecodedMessage, reached: &mut BTreeSet<&'static str
                 TerminalViewerAction::ReadViewportRows { .. } => "viewer-read-viewport-rows",
                 TerminalViewerAction::RowsApplied { .. } => "viewer-rows-applied",
                 TerminalViewerAction::HistoryObserved { .. } => "viewer-history-observed",
+                TerminalViewerAction::SelectionGesture { gesture, .. } => match gesture {
+                    ViewerSelectionGestureAction::Start { .. } => "viewer-selection-gesture-start",
+                    ViewerSelectionGestureAction::Update { .. } => {
+                        "viewer-selection-gesture-update"
+                    }
+                    ViewerSelectionGestureAction::End { .. } => "viewer-selection-gesture-end",
+                    ViewerSelectionGestureAction::Cancel => "viewer-selection-gesture-cancel",
+                },
+                TerminalViewerAction::SelectionExport { .. } => "viewer-selection-export",
+                TerminalViewerAction::SelectionExportChunkApplied { .. } => {
+                    "viewer-selection-export-chunk-applied"
+                }
+                TerminalViewerAction::SelectionExportCancel { .. } => {
+                    "viewer-selection-export-cancel"
+                }
                 TerminalViewerAction::Detach { .. } => "viewer-detach",
             });
         }

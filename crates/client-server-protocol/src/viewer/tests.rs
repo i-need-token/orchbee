@@ -262,3 +262,106 @@ fn viewport_render_detail_is_explicit_and_closed() -> Result<(), Box<dyn std::er
     assert!(serde_json::from_value::<TerminalViewerAction>(value).is_err());
     Ok(())
 }
+
+fn raw_viewer_action_frame(action: &str) -> Vec<u8> {
+    let payload = format!(
+        r#"{{"kind":"terminal.viewer","protocolVersion":2,"requestId":"{SHARED_IDENTITY}","action":{action}}}"#
+    );
+    let mut frame = Vec::with_capacity(FRAME_HEADER_BYTES + payload.len());
+    frame.extend_from_slice(b"OBCS");
+    frame.extend_from_slice(&1_u16.to_be_bytes());
+    frame.extend_from_slice(
+        &u16::try_from(payload.len())
+            .expect("bounded fixture")
+            .to_be_bytes(),
+    );
+    frame.extend_from_slice(payload.as_bytes());
+    frame
+}
+
+/// Viewer selection uses the same flat action vocabulary as Terminal Protocol:
+/// exact attachment identity is explicit on OBCS, while every positive counter
+/// remains canonical decimal text.
+#[test]
+fn selection_actions_round_trip_their_exact_canonical_json()
+-> Result<(), Box<dyn std::error::Error>> {
+    let actions = [
+        format!(
+            r#"{{"kind":"selection-gesture","attachmentId":"{SHARED_IDENTITY}","generation":"9","action":"start","clickCount":2,"point":{{"column":3,"row":4}},"position":{{"x":-5,"y":6}},"selectOutput":true}}"#
+        ),
+        format!(
+            r#"{{"kind":"selection-gesture","attachmentId":"{SHARED_IDENTITY}","generation":"9","action":"update","geometry":{{"cellWidth":8,"columns":80,"paddingLeft":2,"screenHeight":480}},"point":{{"column":7,"row":8}},"position":{{"x":9,"y":-10}},"rectangle":false}}"#
+        ),
+        format!(
+            r#"{{"kind":"selection-gesture","attachmentId":"{SHARED_IDENTITY}","generation":"9","action":"end","point":{{"column":11,"row":12}}}}"#
+        ),
+        format!(
+            r#"{{"kind":"selection-gesture","attachmentId":"{SHARED_IDENTITY}","generation":"9","action":"cancel"}}"#
+        ),
+        format!(
+            r#"{{"kind":"selection-export","attachmentId":"{SHARED_IDENTITY}","exportSequence":"10","format":"plain"}}"#
+        ),
+        format!(
+            r#"{{"kind":"selection-export-chunk-applied","attachmentId":"{SHARED_IDENTITY}","exportSequence":"10","chunkSequence":42}}"#
+        ),
+        format!(
+            r#"{{"kind":"selection-export-cancel","attachmentId":"{SHARED_IDENTITY}","exportSequence":"10","reason":"clipboard-failed"}}"#
+        ),
+    ];
+    let attachment_id = ViewerId::parse(SHARED_IDENTITY)?;
+    for action in actions {
+        let frame = raw_viewer_action_frame(&action);
+        let decoded = decode_client_frame(&frame).map_err(|error| {
+            std::io::Error::other(format!("selection action {action} rejected: {error}"))
+        })?;
+        assert_eq!(encode_client_frame(&decoded)?, frame);
+        let ClientMessage::TerminalViewer(request) = decoded else {
+            panic!("selection action decoded outside the viewer plane")
+        };
+        assert_eq!(request.action().attachment_id(), Some(&attachment_id));
+    }
+
+    for reason in ["clipboard-failed", "disposed", "replaced", "user"] {
+        let action = format!(
+            r#"{{"kind":"selection-export-cancel","attachmentId":"{SHARED_IDENTITY}","exportSequence":"10","reason":"{reason}"}}"#
+        );
+        let frame = raw_viewer_action_frame(&action);
+        assert_eq!(encode_client_frame(&decode_client_frame(&frame)?)?, frame);
+    }
+    Ok(())
+}
+
+/// Shape-valid JSON still fails closed before Server routing when it exceeds a
+/// Terminal Protocol gesture bound or names an open selection vocabulary.
+#[test]
+fn selection_actions_reject_semantic_bounds_unknown_fields_and_open_enums() {
+    let invalid = [
+        format!(r#"{{"kind":"selection-gesture","attachmentId":"{SHARED_IDENTITY}","generation":"0","action":"cancel"}}"#),
+        format!(r#"{{"kind":"selection-gesture","attachmentId":"{SHARED_IDENTITY}","generation":"9","action":"future"}}"#),
+        format!(r#"{{"kind":"selection-gesture","attachmentId":"{SHARED_IDENTITY}","generation":"9","action":"start","clickCount":0,"point":{{"column":3,"row":4}},"position":{{"x":-5,"y":6}},"selectOutput":true}}"#),
+        format!(r#"{{"kind":"selection-gesture","attachmentId":"{SHARED_IDENTITY}","generation":"9","action":"start","clickCount":4,"point":{{"column":3,"row":4}},"position":{{"x":-5,"y":6}},"selectOutput":true}}"#),
+        format!(r#"{{"kind":"selection-gesture","attachmentId":"{SHARED_IDENTITY}","generation":"9","action":"start","clickCount":2,"point":{{"column":4096,"row":4}},"position":{{"x":-5,"y":6}},"selectOutput":true}}"#),
+        format!(r#"{{"kind":"selection-gesture","attachmentId":"{SHARED_IDENTITY}","generation":"9","action":"start","clickCount":2,"point":{{"column":3,"row":4096}},"position":{{"x":-5,"y":6}},"selectOutput":true}}"#),
+        format!(r#"{{"kind":"selection-gesture","attachmentId":"{SHARED_IDENTITY}","generation":"9","action":"start","clickCount":2,"point":{{"column":3,"row":4}},"position":{{"x":65536,"y":6}},"selectOutput":true}}"#),
+        format!(r#"{{"kind":"selection-gesture","attachmentId":"{SHARED_IDENTITY}","generation":"9","action":"start","clickCount":2,"point":{{"column":3,"row":4}},"position":{{"x":-5,"y":-65536}},"selectOutput":true}}"#),
+        format!(r#"{{"kind":"selection-gesture","attachmentId":"{SHARED_IDENTITY}","generation":"9","action":"update","geometry":{{"cellWidth":0,"columns":80,"paddingLeft":2,"screenHeight":480}},"point":{{"column":7,"row":8}},"position":{{"x":9,"y":-10}},"rectangle":false}}"#),
+        format!(r#"{{"kind":"selection-gesture","attachmentId":"{SHARED_IDENTITY}","generation":"9","action":"update","geometry":{{"cellWidth":8,"columns":4097,"paddingLeft":2,"screenHeight":480}},"point":{{"column":7,"row":8}},"position":{{"x":9,"y":-10}},"rectangle":false}}"#),
+        format!(r#"{{"kind":"selection-gesture","attachmentId":"{SHARED_IDENTITY}","generation":"9","action":"update","geometry":{{"cellWidth":8,"columns":80,"paddingLeft":2,"screenHeight":0}},"point":{{"column":7,"row":8}},"position":{{"x":9,"y":-10}},"rectangle":false}}"#),
+        format!(r#"{{"kind":"selection-gesture","attachmentId":"{SHARED_IDENTITY}","generation":"9","action":"cancel","extra":true}}"#),
+        format!(r#"{{"kind":"selection-gesture","attachmentId":"{SHARED_IDENTITY}","generation":"9","action":"cancel","clickCount":2}}"#),
+        format!(r#"{{"kind":"selection-gesture","attachmentId":"{SHARED_IDENTITY}","generation":"9","action":"start","clickCount":null,"point":{{"column":3,"row":4}},"position":{{"x":-5,"y":6}},"selectOutput":true}}"#),
+        format!(r#"{{"kind":"selection-gesture","attachmentId":"{SHARED_IDENTITY}","generation":"9","action":"start","clickCount":2,"point":{{"column":3,"row":4}},"position":{{"x":-5,"y":6}},"selectOutput":true,"rectangle":false}}"#),
+        format!(r#"{{"kind":"selection-gesture","attachmentId":"{SHARED_IDENTITY}","generation":"9","action":"start","action":"start","clickCount":2,"point":{{"column":3,"row":4}},"position":{{"x":-5,"y":6}},"selectOutput":true}}"#),
+        format!(r#"{{"kind":"selection-gesture","attachmentId":"{SHARED_IDENTITY}","generation":"9","action":"start","clickCount":2,"clickCount":2,"point":{{"column":3,"row":4}},"position":{{"x":-5,"y":6}},"selectOutput":true}}"#),
+        format!(r#"{{"kind":"selection-gesture","attachmentId":"{SHARED_IDENTITY}","generation":"9","action":"start","clickCount":2,"point":{{"column":3,"row":4}},"selectOutput":true}}"#),
+        format!(r#"{{"kind":"selection-export","attachmentId":"{SHARED_IDENTITY}","exportSequence":"0","format":"plain"}}"#),
+        format!(r#"{{"kind":"selection-export","attachmentId":"{SHARED_IDENTITY}","exportSequence":"10","format":"html"}}"#),
+        format!(r#"{{"kind":"selection-export-chunk-applied","attachmentId":"{SHARED_IDENTITY}","exportSequence":"10","chunkSequence":4294967296}}"#),
+        format!(r#"{{"kind":"selection-export-cancel","attachmentId":"{SHARED_IDENTITY}","exportSequence":"10","reason":"future"}}"#),
+        r#"{"kind":"selection-export","attachmentId":"00000000000000000000000000000000","exportSequence":"10","format":"plain"}"#.to_string(),
+    ];
+    for action in invalid {
+        let frame = raw_viewer_action_frame(&action);
+        assert!(decode_client_frame(&frame).is_err(), "accepted {action}");
+    }
+}

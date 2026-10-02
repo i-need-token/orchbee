@@ -499,6 +499,35 @@
 			"pattern": "^[1-9][0-9]{0,19}$",
 			"$comment": "Canonical positive u64 text; semantic validation additionally rejects values above 18446744073709551615."
 		},
+		"selectionViewportPoint": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["column", "row"],
+			"properties": {
+				"column": { "type": "integer", "minimum": 0, "maximum": 4095 },
+				"row": { "type": "integer", "minimum": 0, "maximum": 4095 }
+			}
+		},
+		"selectionGesturePosition": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["x", "y"],
+			"properties": {
+				"x": { "type": "integer", "minimum": -65535, "maximum": 65535 },
+				"y": { "type": "integer", "minimum": -65535, "maximum": 65535 }
+			}
+		},
+		"selectionGestureGeometry": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["cellWidth", "columns", "paddingLeft", "screenHeight"],
+			"properties": {
+				"cellWidth": { "type": "integer", "minimum": 1, "maximum": 4096 },
+				"columns": { "type": "integer", "minimum": 1, "maximum": 4096 },
+				"paddingLeft": { "type": "integer", "minimum": 0, "maximum": 65535 },
+				"screenHeight": { "type": "integer", "minimum": 1, "maximum": 65535 }
+			}
+		},
 		"viewerAction": {
 			"oneOf": [
 				{
@@ -792,6 +821,110 @@
 						"revision": {
 							"$ref": "#/$defs/projectionUnsigned"
 						}
+					}
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": [
+						"kind",
+						"attachmentId",
+						"generation",
+						"action",
+						"clickCount",
+						"point",
+						"position",
+						"selectOutput"
+					],
+					"properties": {
+						"kind": { "const": "selection-gesture" },
+						"attachmentId": { "$ref": "#/$defs/viewerId" },
+						"generation": { "$ref": "#/$defs/projectionPositive" },
+						"action": { "const": "start" },
+						"clickCount": { "type": "integer", "minimum": 1, "maximum": 3 },
+						"point": { "$ref": "#/$defs/selectionViewportPoint" },
+						"position": { "$ref": "#/$defs/selectionGesturePosition" },
+						"selectOutput": { "type": "boolean" }
+					}
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": [
+						"kind",
+						"attachmentId",
+						"generation",
+						"action",
+						"geometry",
+						"point",
+						"position",
+						"rectangle"
+					],
+					"properties": {
+						"kind": { "const": "selection-gesture" },
+						"attachmentId": { "$ref": "#/$defs/viewerId" },
+						"generation": { "$ref": "#/$defs/projectionPositive" },
+						"action": { "const": "update" },
+						"geometry": { "$ref": "#/$defs/selectionGestureGeometry" },
+						"point": { "$ref": "#/$defs/selectionViewportPoint" },
+						"position": { "$ref": "#/$defs/selectionGesturePosition" },
+						"rectangle": { "type": "boolean" }
+					}
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["kind", "attachmentId", "generation", "action", "point"],
+					"properties": {
+						"kind": { "const": "selection-gesture" },
+						"attachmentId": { "$ref": "#/$defs/viewerId" },
+						"generation": { "$ref": "#/$defs/projectionPositive" },
+						"action": { "const": "end" },
+						"point": { "$ref": "#/$defs/selectionViewportPoint" }
+					}
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["kind", "attachmentId", "generation", "action"],
+					"properties": {
+						"kind": { "const": "selection-gesture" },
+						"attachmentId": { "$ref": "#/$defs/viewerId" },
+						"generation": { "$ref": "#/$defs/projectionPositive" },
+						"action": { "const": "cancel" }
+					}
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["kind", "attachmentId", "exportSequence", "format"],
+					"properties": {
+						"kind": { "const": "selection-export" },
+						"attachmentId": { "$ref": "#/$defs/viewerId" },
+						"exportSequence": { "$ref": "#/$defs/projectionPositive" },
+						"format": { "const": "plain" }
+					}
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["kind", "attachmentId", "exportSequence", "chunkSequence"],
+					"properties": {
+						"kind": { "const": "selection-export-chunk-applied" },
+						"attachmentId": { "$ref": "#/$defs/viewerId" },
+						"exportSequence": { "$ref": "#/$defs/projectionPositive" },
+						"chunkSequence": { "type": "integer", "minimum": 0, "maximum": 4294967295 }
+					}
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["kind", "attachmentId", "exportSequence", "reason"],
+					"properties": {
+						"kind": { "const": "selection-export-cancel" },
+						"attachmentId": { "$ref": "#/$defs/viewerId" },
+						"exportSequence": { "$ref": "#/$defs/projectionPositive" },
+						"reason": { "enum": ["clipboard-failed", "disposed", "replaced", "user"] }
 					}
 				},
 				{

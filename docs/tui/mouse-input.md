@@ -61,8 +61,9 @@ vocabulary; a region may implement a subset.
 
 - Multi-press detection uses a bounded interval and the same cell. A press in a different cell
   starts a new sequence.
-- A gesture never mutates shared state until release, except selection and scroll, which are
-  Client-local.
+- A gesture never mutates shared workbench state until release. Scroll stays Client-local; a
+  retained terminal's selection belongs to its Terminal Host attachment and is projected by the
+  Client.
 - Every gesture intent has a keyboard equivalent. The pointer is an additional path, never the only
   one.
 
@@ -94,23 +95,27 @@ vocabulary; a region may implement a subset.
 
 ## Selection and clipboard
 
-- Selection over pane history is Client-local. It highlights with `surface-selection` from
-  [`visual-foundations.md`](visual-foundations.md#color-roles-and-themes), spans logical lines, and
-  clears on `Esc`, on a press outside it, or on new output that evicts its anchor.
-- Copy uses OSC 52 when the host advertises or is configured for it, otherwise the platform
-  clipboard, otherwise a status notice explaining the failure. Copy never blocks rendering.
-- Exported text is plain text with the pane's own line breaks; chrome cells and pane boundaries are
-  never included.
+- The Terminal Host owns pane-selection endpoints and exported text. The Client projects that
+  selection over live output or retained history with `surface-selection` from
+  [`visual-foundations.md`](visual-foundations.md#color-roles-and-themes). It clears local gesture
+  work on `Esc`, a press outside it, or an invalid generation; Host endpoint eviction clears the
+  selection with a notice.
+- An application declares one clipboard sink for each copy. It never broadcasts one copy to
+  multiple sinks and never treats an unacknowledged OSC 52 write as proof that a platform fallback
+  is safe. Clipboard work never blocks rendering, and failure produces a status notice.
+- Exported text is complete Host-produced plain text with the pane's own logical line breaks;
+  chrome cells and pane boundaries are never included. A partial, malformed, over-limit, or
+  invalid UTF-8 export writes nothing.
 - A selection whose rows are evicted from retained history is cleared with a notice, not silently
   moved.
 
 ## Verification
 
-| Change                     | Required check                                                                                                         |
-| -------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| Capture policy change      | Tests prove the exact enable and release sequences and the released-state indicator                                    |
-| Region addition            | Tests resolve a press inside, on each edge, and outside the region against the last drawn frame                        |
-| Gesture mapping change     | A table-driven test maps each gesture to its single intent and proves the keyboard equivalent exists                   |
-| Passthrough change         | Tests cover reporting on, reporting off with alternate screen, reporting off with primary screen, and boundary presses |
-| Wheel normalization change | Tests cover a wheel stream, a trackpad stream, a reversal, and the per-flush cap                                       |
-| Selection change           | Tests cover multi-line export, eviction, and clearing on `Esc`                                                         |
+| Change                     | Required check                                                                                                                                          |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Capture policy change      | Tests prove the exact enable and release sequences and the released-state indicator                                                                     |
+| Region addition            | Tests resolve a press inside, on each edge, and outside the region against the last drawn frame                                                         |
+| Gesture mapping change     | A table-driven test maps each gesture to its single intent and proves the keyboard equivalent exists                                                    |
+| Passthrough change         | Tests cover reporting on, reporting off with alternate screen, reporting off with primary screen, and boundary presses                                  |
+| Wheel normalization change | Tests cover a wheel stream, a trackpad stream, a reversal, and the per-flush cap                                                                        |
+| Selection change           | Tests cover gesture order, live/history projection, revision movement, generation cancellation, multi-line Unicode export, eviction, and `Esc` clearing |

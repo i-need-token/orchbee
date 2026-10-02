@@ -2311,6 +2311,10 @@ impl UiDriver {
             | Some(TerminalViewerAction::SetHistoryDemand { .. })
             | Some(TerminalViewerAction::ReadViewportRows { .. })
             | Some(TerminalViewerAction::RowsApplied { .. })
+            | Some(TerminalViewerAction::SelectionGesture { .. })
+            | Some(TerminalViewerAction::SelectionExport { .. })
+            | Some(TerminalViewerAction::SelectionExportChunkApplied { .. })
+            | Some(TerminalViewerAction::SelectionExportCancel { .. })
             | Some(TerminalViewerAction::Detach { .. }) => {
                 Err(test_error("projection returned a non-feedback action"))
             }

@@ -85,10 +85,27 @@ attachment 与 demand 对，因此调用方按 correlation 加回显 demand 匹�
 `revision`——对一条已投递 history-changed 事件的精确应答三元组。两者 sequence 与
 generation 使用正 u64 十进制字符串，revision 使用规范 u64 十进制字符串。
 
-`ViewerRejectedReason::HostRejected`（`"host-rejected"`）是新增的闭合 viewer 级 reason，
-只为四个控制应答 action 的明确 Host typed failure 保留。它与 controller 面的
-`ControlRejectedReason::HostRejected` 不同，也不适用于旧 action。`read-viewport-rows` 的
-失败沿用既有 `RowsRejected` 九值 reason 词表；`read-rows` 逐字节不变。
+四个追加 viewer action kind 承载 Host 权威的选区和纯文本导出，而不让 Client 获取屏幕权威：
+`selection-gesture`、`selection-export`、`selection-export-chunk-applied` 与
+`selection-export-cancel`。每项 action 都指定精确 `attachmentId`。手势 generation 与导出
+sequence 使用规范的正 u64 十进制文本，chunk sequence 为 `u32`。手势 action 是闭合的扁平集合
+`start`、`update`、`end`、`cancel`。视口点的行列范围为 `0..=4095`，click count 为
+`1..=3`，指针两轴为 `-65535..=65535`；update geometry 要求 cell width 与 columns 在
+`1..=4096`，screen height 是正 `u16`。导出格式仅允许 `plain`；取消原因仅允许
+`clipboard-failed`、`disposed`、`replaced`、`user`。未知字段和开放判别值在 OBCS 边界拒绝。
+
+本 binding 只承载 control 和不透明 record。手势的 `SelectionChanged`、导出的
+`SelectionExportStarted` 及取消的 `SelectionExportFinished` 作为 record outcome 原样返回；
+精确 chunk-applied 回显映射为 `FeedbackAccepted`。Poll 投递的选区变化、原始导出 chunk 和
+export-finished event 继续通过 OBSR，binding 不解释 chunk 字节。剪贴板写入、手势调度、导出
+组装及重试策略仍归 Client。既有 action JSON 保持逐字节规范；schema corpus 覆盖四种手势、
+三种导出控制、硬边界、闭合枚举及额外字段拒绝。匹配的 Client/Server/Worker cohort 一起交付
+或回退。
+
+`ViewerRejectedReason::HostRejected`（`"host-rejected"`）是闭合的 viewer 级 reason；四个历史
+控制应答 action 与上述四个选区／导出 control 在 Host 返回明确 typed failure 时共用它。它与
+controller 面的 `ControlRejectedReason::HostRejected` 不同，也不适用于旧 action。
+`read-viewport-rows` 的失败沿用既有 `RowsRejected` 九值 reason 词表；`read-rows` 逐字节不变。
 
 ## Controller binding
 

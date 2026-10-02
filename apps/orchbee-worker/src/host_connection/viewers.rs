@@ -9,15 +9,17 @@ use orchbee_capability_node_protocol::{
 };
 use orchbee_terminal_protocol::{
     AttachmentId, CURRENT_PROTOCOL_VERSION, HistoryControl, HostEpoch, MessageRole,
-    PayloadEncoding, ProjectionDemandControl, TerminalEffectEvent, TerminalFrameRoute,
-    decode_history_control, decode_projection_demand_control, decode_terminal_effect_event,
-    decode_transport_envelope, inspect_terminal_frame_route,
+    PayloadEncoding, ProjectionDemandControl, SelectionControl, SelectionExportControl,
+    TerminalEffectEvent, TerminalFrameRoute, decode_history_control,
+    decode_projection_demand_control, decode_selection_control,
+    decode_selection_export_chunk_route, decode_selection_export_control,
+    decode_terminal_effect_event, decode_transport_envelope, inspect_terminal_frame_route,
 };
 
 use super::validate_event;
 
 pub(super) const MAXIMUM_VIEWERS: usize = 24;
-const MAXIMUM_VIEWER_HISTORY_EVENTS: usize = 4;
+const MAXIMUM_VIEWER_EVENTS: usize = 4;
 const MAXIMUM_RETAINED_VIEWER_RECORD_BYTES: usize = 128 * 1024 * 1024;
 
 pub(crate) struct HostViewers {
@@ -39,11 +41,13 @@ impl Default for HostViewers {
 struct Viewer {
     terminal_id: orchbee_capability_node_protocol::HostTerminalId,
     record: Option<Vec<u8>>,
-    history: VecDeque<Vec<u8>>,
+    events: VecDeque<Vec<u8>>,
     next_preference: PollSource,
     closed: bool,
     flight: Option<Flight>,
     last_sequence: u64,
+    last_bell_sequence: u64,
+    last_clipboard_write_sequence: u64,
     needs_snapshot: bool,
     blocked_revision: Option<u64>,
 }
@@ -59,7 +63,13 @@ struct Flight {
 #[derive(Clone, Copy, Eq, PartialEq)]
 enum PollSource {
     Record,
-    History,
+    Event,
+}
+
+#[derive(Clone, Copy)]
+enum EffectStream {
+    Bell,
+    ClipboardWrite,
 }
 
 impl HostViewers {
@@ -83,11 +93,13 @@ impl HostViewers {
             Viewer {
                 terminal_id,
                 record: None,
-                history: VecDeque::new(),
+                events: VecDeque::new(),
                 next_preference: PollSource::Record,
                 closed: false,
                 flight: None,
                 last_sequence: 0,
+                last_bell_sequence: 0,
+                last_clipboard_write_sequence: 0,
                 needs_snapshot: true,
                 blocked_revision: None,
             },
@@ -171,13 +183,13 @@ impl HostViewers {
         // source is always served. Only a completed take flips the preference,
         // so neither frames nor queued events can starve the other. Serving
         // the event FIFO never touches the frame flight.
-        let history_ready = !viewer.history.is_empty();
-        let serve_history = match viewer.next_preference {
-            PollSource::History => history_ready,
-            PollSource::Record => viewer.record.is_none() && history_ready,
+        let event_ready = !viewer.events.is_empty();
+        let serve_event = match viewer.next_preference {
+            PollSource::Event => event_ready,
+            PollSource::Record => viewer.record.is_none() && event_ready,
         };
-        if serve_history {
-            let Some(event) = viewer.history.pop_front() else {
+        if serve_event {
+            let Some(event) = viewer.events.pop_front() else {
                 return TerminalViewerOutcome::Empty;
             };
             self.retained_record_bytes -= event.len();
@@ -190,7 +202,7 @@ impl HostViewers {
                 if let Some(flight) = &mut viewer.flight {
                     flight.delivered = true;
                 }
-                viewer.next_preference = PollSource::History;
+                viewer.next_preference = PollSource::Event;
                 TerminalViewerOutcome::Record(record)
             }
             None => TerminalViewerOutcome::Empty,
@@ -293,6 +305,12 @@ impl HostViewers {
             });
             return Ok(());
         }
+        if envelope.kind == 65 && envelope.payload_encoding == PayloadEncoding::RawBytes {
+            let route =
+                decode_selection_export_chunk_route(envelope.kind, envelope.role, envelope.payload)
+                    .map_err(invalid)?;
+            return self.queue_event(route.attachment_id, record);
+        }
         if envelope.payload_encoding != PayloadEncoding::ControlJson {
             return Err(invalid("unexpected Host event encoding"));
         }
@@ -303,31 +321,7 @@ impl HostViewers {
             else {
                 return Err(invalid("unexpected history event"));
             };
-            let viewer = self
-                .viewers
-                .get_mut(event.attachment_id.as_bytes())
-                .ok_or_else(|| invalid("Host event targets an unknown attachment"))?;
-            if viewer.closed {
-                return Ok(());
-            }
-            // The event FIFO keeps the original record bytes. Queue-depth and
-            // aggregate-byte saturation each close only this viewer; neither
-            // drops the oldest event nor retires a neighbor.
-            if viewer.history.len() == MAXIMUM_VIEWER_HISTORY_EVENTS {
-                self.retained_record_bytes -= viewer.close();
-                return Ok(());
-            }
-            let Some(total) = self
-                .retained_record_bytes
-                .checked_add(record.len())
-                .filter(|total| *total <= self.retained_record_limit)
-            else {
-                self.retained_record_bytes -= viewer.close();
-                return Ok(());
-            };
-            self.retained_record_bytes = total;
-            viewer.history.push_back(record);
-            return Ok(());
+            return self.queue_event(event.attachment_id, record);
         }
         if envelope.kind == 49 {
             let ProjectionDemandControl::ProjectionBlocked(blocked) =
@@ -368,24 +362,99 @@ impl HostViewers {
             viewer.needs_snapshot = true;
             return Ok(());
         }
+        if envelope.kind == 62 {
+            let SelectionControl::ChangedEvent(changed) =
+                decode_selection_control(envelope.kind, envelope.role, envelope.payload)
+                    .map_err(invalid)?
+            else {
+                return Err(invalid("unexpected selection event"));
+            };
+            return self.queue_event(changed.attachment_id, record);
+        }
+        if envelope.kind == 67 {
+            let SelectionExportControl::FinishedEvent(finished) =
+                decode_selection_export_control(envelope.kind, envelope.role, envelope.payload)
+                    .map_err(invalid)?
+            else {
+                return Err(invalid("unexpected selection-export event"));
+            };
+            return self.queue_event(finished.attachment_id, record);
+        }
         match decode_terminal_effect_event(envelope.kind, envelope.role, envelope.payload) {
-            Ok(TerminalEffectEvent::Bell(event)) => {
-                self.viewer(event.attachment_id)?;
-            }
-            Ok(TerminalEffectEvent::ClipboardWriteRequest(event)) => {
-                self.viewer(event.attachment_id)?;
-            }
+            Ok(TerminalEffectEvent::Bell(event)) => self.receive_effect(
+                event.attachment_id,
+                event.sequence.get(),
+                EffectStream::Bell,
+                record,
+            ),
+            Ok(TerminalEffectEvent::ClipboardWriteRequest(event)) => self.receive_effect(
+                event.attachment_id,
+                event.sequence.get(),
+                EffectStream::ClipboardWrite,
+                record,
+            ),
             // ApplicationSignal records are intercepted in receive_event
             // before this borrow; any that reach here are unexpected.
-            _ => return validate_event(&record, epoch),
+            _ => validate_event(&record, epoch),
         }
-        Ok(())
     }
 
     fn viewer(&mut self, id: AttachmentId) -> io::Result<&mut Viewer> {
         self.viewers
             .get_mut(id.as_bytes())
             .ok_or_else(|| invalid("Host event targets an unknown attachment"))
+    }
+
+    fn receive_effect(
+        &mut self,
+        id: AttachmentId,
+        sequence: u64,
+        stream: EffectStream,
+        record: Vec<u8>,
+    ) -> io::Result<()> {
+        {
+            let viewer = self.viewer(id)?;
+            if viewer.closed {
+                return Ok(());
+            }
+            let last_sequence = match stream {
+                EffectStream::Bell => &mut viewer.last_bell_sequence,
+                EffectStream::ClipboardWrite => &mut viewer.last_clipboard_write_sequence,
+            };
+            if sequence <= *last_sequence {
+                return Err(invalid("Host effect sequence did not advance"));
+            }
+            *last_sequence = sequence;
+        }
+        self.queue_event(id, record)
+    }
+
+    fn queue_event(&mut self, id: AttachmentId, record: Vec<u8>) -> io::Result<()> {
+        let viewer = self
+            .viewers
+            .get_mut(id.as_bytes())
+            .ok_or_else(|| invalid("Host event targets an unknown attachment"))?;
+        if viewer.closed {
+            return Ok(());
+        }
+        // The event FIFO keeps the original record bytes. Queue-depth and
+        // aggregate-byte saturation each close only this viewer; neither
+        // drops the oldest event nor retires a neighbor.
+        if viewer.events.len() == MAXIMUM_VIEWER_EVENTS {
+            self.retained_record_bytes -= viewer.close();
+            return Ok(());
+        }
+        let Some(total) = self
+            .retained_record_bytes
+            .checked_add(record.len())
+            .filter(|total| *total <= self.retained_record_limit)
+        else {
+            self.retained_record_bytes -= viewer.close();
+            return Ok(());
+        };
+        self.retained_record_bytes = total;
+        viewer.events.push_back(record);
+        Ok(())
     }
 }
 
@@ -398,7 +467,7 @@ impl Viewer {
         self.flight = None;
         let frame = self.record.take().map_or(0, |record| record.len());
         let events = self
-            .history
+            .events
             .drain(..)
             .map(|event| event.len())
             .sum::<usize>();

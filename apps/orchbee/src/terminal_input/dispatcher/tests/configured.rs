@@ -189,7 +189,7 @@ fn sidebar_pointer_navigation_and_current_noop_capture_the_whole_packet_tail() {
         let calls = Rc::new(RefCell::new(Vec::new()));
         let mut port = UnavailablePort(Rc::clone(&calls));
         let mut dispatcher = InputDispatcher::default();
-        dispatcher.set_pointer_capture(&mut view, true);
+        dispatcher.set_pointer_capture(&mut view, &mut port, true);
         dispatcher.publish_hit_map(hits.finish());
         run(
             &mut view,

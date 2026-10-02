@@ -74,6 +74,54 @@ fn viewer_controls_round_trip_every_closed_action_and_outcome() -> TestResult {
             generation: NonZeroU64::MIN,
             revision: 0,
         },
+        TerminalViewerAction::SelectionGesture {
+            generation: NonZeroU64::MIN,
+            gesture: ViewerSelectionGestureAction::Start {
+                click_count: 2,
+                point: ViewerSelectionViewportPoint { column: 3, row: 4 },
+                position: ViewerSelectionGesturePosition { x: -5, y: 6 },
+                select_output: true,
+            },
+        },
+        TerminalViewerAction::SelectionGesture {
+            generation: NonZeroU64::MIN,
+            gesture: ViewerSelectionGestureAction::Update {
+                geometry: ViewerSelectionGestureGeometry {
+                    cell_width: 8,
+                    columns: 80,
+                    padding_left: 2,
+                    screen_height: 480,
+                },
+                point: ViewerSelectionViewportPoint { column: 7, row: 8 },
+                position: ViewerSelectionGesturePosition { x: 9, y: -10 },
+                rectangle: false,
+            },
+        },
+        TerminalViewerAction::SelectionGesture {
+            generation: NonZeroU64::MIN,
+            gesture: ViewerSelectionGestureAction::End {
+                point: ViewerSelectionViewportPoint {
+                    column: 11,
+                    row: 12,
+                },
+            },
+        },
+        TerminalViewerAction::SelectionGesture {
+            generation: NonZeroU64::MIN,
+            gesture: ViewerSelectionGestureAction::Cancel,
+        },
+        TerminalViewerAction::SelectionExport {
+            export_sequence: NonZeroU64::MIN,
+            format: ViewerSelectionExportFormat::Plain,
+        },
+        TerminalViewerAction::SelectionExportChunkApplied {
+            export_sequence: NonZeroU64::MIN,
+            chunk_sequence: 0,
+        },
+        TerminalViewerAction::SelectionExportCancel {
+            export_sequence: NonZeroU64::MIN,
+            reason: ViewerSelectionExportCancelReason::User,
+        },
         TerminalViewerAction::Detach,
     ]
     .into_iter()
@@ -676,5 +724,213 @@ fn viewport_render_preserves_the_text_body_and_uses_its_own_tag() -> TestResult 
     }
     assert_eq!(&bytes[0][..65], &bytes[1][..65]);
     assert_eq!(&bytes[0][66..], &bytes[1][66..]);
+    Ok(())
+}
+
+fn raw_viewer_action_frame(action: &[u8]) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+    let request = TerminalViewerRequest {
+        request_id: OperationId::from_bytes([1; 16])?,
+        attachment_id: OperationId::from_bytes([5; 16])?,
+        worker_id: WorkerId::from_bytes([6; 16])?,
+        worker_generation: WorkerGeneration::new(NonZeroU64::MIN),
+        action: TerminalViewerAction::Detach,
+    };
+    let mut frame = encode_message(&CapabilityNodeMessage::TerminalViewerRequest(request))?;
+    // OBCN header (8) + request kind (1) + request id (16) + worker id
+    // (16) + worker generation (8) + attachment id (16).
+    frame.truncate(65);
+    frame.extend_from_slice(action);
+    let payload_length = u16::try_from(frame.len() - 8)?;
+    frame[6..8].copy_from_slice(&payload_length.to_be_bytes());
+    Ok(frame)
+}
+
+/// Tags 16 through 19 add the viewer selection control plane without moving
+/// attachment identity into an action. Accepted raw peers must round-trip to
+/// the same bytes so no field is silently reordered, widened, or defaulted.
+#[test]
+fn selection_action_tags_sixteen_through_nineteen_have_fixed_round_trip_bytes() -> TestResult {
+    let mut start = vec![16];
+    start.extend_from_slice(&9_u64.to_be_bytes());
+    start.push(1); // start
+    start.push(2); // double-click
+    start.extend_from_slice(&3_u16.to_be_bytes());
+    start.extend_from_slice(&4_u16.to_be_bytes());
+    start.extend_from_slice(&(-5_i32).to_be_bytes());
+    start.extend_from_slice(&6_i32.to_be_bytes());
+    start.push(1); // select output
+
+    let mut update = vec![16];
+    update.extend_from_slice(&9_u64.to_be_bytes());
+    update.push(2); // update
+    update.extend_from_slice(&8_u16.to_be_bytes());
+    update.extend_from_slice(&80_u16.to_be_bytes());
+    update.extend_from_slice(&2_u16.to_be_bytes());
+    update.extend_from_slice(&480_u16.to_be_bytes());
+    update.extend_from_slice(&7_u16.to_be_bytes());
+    update.extend_from_slice(&8_u16.to_be_bytes());
+    update.extend_from_slice(&9_i32.to_be_bytes());
+    update.extend_from_slice(&(-10_i32).to_be_bytes());
+    update.push(0); // linear selection
+
+    let mut end = vec![16];
+    end.extend_from_slice(&9_u64.to_be_bytes());
+    end.push(3); // end
+    end.extend_from_slice(&11_u16.to_be_bytes());
+    end.extend_from_slice(&12_u16.to_be_bytes());
+
+    let mut cancel_gesture = vec![16];
+    cancel_gesture.extend_from_slice(&9_u64.to_be_bytes());
+    cancel_gesture.push(4); // cancel
+
+    let mut export = vec![17];
+    export.extend_from_slice(&10_u64.to_be_bytes());
+    export.push(1); // plain
+
+    let mut chunk_applied = vec![18];
+    chunk_applied.extend_from_slice(&10_u64.to_be_bytes());
+    chunk_applied.extend_from_slice(&42_u32.to_be_bytes());
+
+    let mut cancel_export = vec![19];
+    cancel_export.extend_from_slice(&10_u64.to_be_bytes());
+    cancel_export.push(1); // clipboard-failed
+
+    for action in [
+        start,
+        update,
+        end,
+        cancel_gesture,
+        export,
+        chunk_applied,
+        cancel_export,
+    ] {
+        let frame = raw_viewer_action_frame(&action)?;
+        assert_eq!(&frame[65..], action.as_slice());
+        let decoded = decode_message(&frame)?;
+        assert_eq!(encode_message(&decoded)?, frame);
+        assert_eq!(read_message(&mut Cursor::new(&frame))?, decoded);
+    }
+
+    // Every closed cancel-reason code is stable on the same tag.
+    for reason in 1..=4 {
+        let mut action = vec![19];
+        action.extend_from_slice(&10_u64.to_be_bytes());
+        action.push(reason);
+        let frame = raw_viewer_action_frame(&action)?;
+        assert_eq!(encode_message(&decode_message(&frame)?)?, frame);
+    }
+    Ok(())
+}
+
+/// The CNP carrier mirrors the Terminal Protocol's hard gesture bounds and
+/// closed export vocabularies. It rejects malformed bytes before Worker Host
+/// access, including a declared trailing byte inside an otherwise valid action.
+#[test]
+fn selection_actions_reject_every_semantic_boundary_and_open_discriminant() -> TestResult {
+    let mut start = vec![16];
+    start.extend_from_slice(&9_u64.to_be_bytes());
+    start.push(1);
+    start.push(2);
+    start.extend_from_slice(&3_u16.to_be_bytes());
+    start.extend_from_slice(&4_u16.to_be_bytes());
+    start.extend_from_slice(&(-5_i32).to_be_bytes());
+    start.extend_from_slice(&6_i32.to_be_bytes());
+    start.push(1);
+    let start = raw_viewer_action_frame(&start)?;
+    for (offset, bytes) in [
+        (66, 0_u64.to_be_bytes().to_vec()),
+        (74, vec![0]),
+        (74, vec![5]),
+        (75, vec![0]),
+        (75, vec![4]),
+        (76, 4096_u16.to_be_bytes().to_vec()),
+        (78, 4096_u16.to_be_bytes().to_vec()),
+        (80, 65_536_i32.to_be_bytes().to_vec()),
+        (84, (-65_536_i32).to_be_bytes().to_vec()),
+        (88, vec![2]),
+    ] {
+        let mut invalid = start.clone();
+        invalid[offset..offset + bytes.len()].copy_from_slice(&bytes);
+        assert!(
+            decode_message(&invalid).is_err(),
+            "accepted mutation at {offset}"
+        );
+    }
+
+    let mut update = vec![16];
+    update.extend_from_slice(&9_u64.to_be_bytes());
+    update.push(2);
+    update.extend_from_slice(&8_u16.to_be_bytes());
+    update.extend_from_slice(&80_u16.to_be_bytes());
+    update.extend_from_slice(&2_u16.to_be_bytes());
+    update.extend_from_slice(&480_u16.to_be_bytes());
+    update.extend_from_slice(&7_u16.to_be_bytes());
+    update.extend_from_slice(&8_u16.to_be_bytes());
+    update.extend_from_slice(&9_i32.to_be_bytes());
+    update.extend_from_slice(&(-10_i32).to_be_bytes());
+    update.push(0);
+    let update = raw_viewer_action_frame(&update)?;
+    for (offset, bytes) in [
+        (75, 0_u16.to_be_bytes().to_vec()),
+        (75, 4097_u16.to_be_bytes().to_vec()),
+        (77, 0_u16.to_be_bytes().to_vec()),
+        (77, 4097_u16.to_be_bytes().to_vec()),
+        (81, 0_u16.to_be_bytes().to_vec()),
+        (83, 4096_u16.to_be_bytes().to_vec()),
+        (85, 4096_u16.to_be_bytes().to_vec()),
+        (87, 65_536_i32.to_be_bytes().to_vec()),
+        (91, (-65_536_i32).to_be_bytes().to_vec()),
+        (95, vec![2]),
+    ] {
+        let mut invalid = update.clone();
+        invalid[offset..offset + bytes.len()].copy_from_slice(&bytes);
+        assert!(
+            decode_message(&invalid).is_err(),
+            "accepted mutation at {offset}"
+        );
+    }
+
+    for (tag, expected_length, mutations) in [
+        (
+            17_u8,
+            75_usize,
+            vec![(66, 0_u64.to_be_bytes().to_vec()), (74, vec![2])],
+        ),
+        (18, 78, vec![(66, 0_u64.to_be_bytes().to_vec())]),
+        (
+            19,
+            75,
+            vec![
+                (66, 0_u64.to_be_bytes().to_vec()),
+                (74, vec![0]),
+                (74, vec![5]),
+            ],
+        ),
+    ] {
+        let mut action = vec![tag];
+        action.extend_from_slice(&10_u64.to_be_bytes());
+        if tag == 18 {
+            action.extend_from_slice(&42_u32.to_be_bytes());
+        } else {
+            action.push(1);
+        }
+        let frame = raw_viewer_action_frame(&action)?;
+        assert_eq!(frame.len(), expected_length);
+        for (offset, bytes) in mutations {
+            let mut invalid = frame.clone();
+            invalid[offset..offset + bytes.len()].copy_from_slice(&bytes);
+            assert!(decode_message(&invalid).is_err());
+        }
+    }
+
+    let mut unknown = start.clone();
+    unknown[65] = 20;
+    assert!(decode_message(&unknown).is_err());
+    assert!(decode_message(&start[..start.len() - 1]).is_err());
+    let mut declared_trailing = start;
+    declared_trailing.push(0);
+    let payload_length = u16::try_from(declared_trailing.len() - 8)?;
+    declared_trailing[6..8].copy_from_slice(&payload_length.to_be_bytes());
+    assert!(decode_message(&declared_trailing).is_err());
     Ok(())
 }

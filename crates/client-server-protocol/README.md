@@ -93,11 +93,32 @@ promotes from a pending viewport anchor to committed. `history-observed` carries
 event. Both use positive u64 decimal strings for sequence and generation and a canonical u64
 decimal string for revision.
 
-`ViewerRejectedReason::HostRejected` (`"host-rejected"`) is a new closed viewer-level reason
-reserved for the four control-acknowledgement actions' explicit Host typed failures. It is
-distinct from the controller-plane `ControlRejectedReason::HostRejected` and does not apply to
-older actions. `read-viewport-rows` failures ride the existing `RowsRejected` nine-reason
-vocabulary; `read-rows` is unchanged byte-for-byte.
+Four additive viewer action kinds carry Host-owned selection and plain-text export without adding
+Client-side screen authority: `selection-gesture`, `selection-export`,
+`selection-export-chunk-applied`, and `selection-export-cancel`. Every action names the exact
+`attachmentId`. Gesture generation and export sequence are positive canonical u64 text; chunk
+sequence is `u32`. Gesture actions are the closed flat set `start`, `update`, `end`, and `cancel`.
+Viewport points use columns and rows `0..=4095`, click count is `1..=3`, pointer axes are
+`-65535..=65535`, and update geometry requires cell width and columns `1..=4096` plus a positive
+`u16` screen height. `plain` is the only export format; cancel reasons are `clipboard-failed`,
+`disposed`, `replaced`, and `user`. Unknown fields and open discriminants fail at the OBCS
+boundary.
+
+The binding carries controls and opaque records only. A gesture's `SelectionChanged`, an export's
+`SelectionExportStarted`, and a cancel's `SelectionExportFinished` remain unchanged record
+outcomes; the exact chunk-applied echo maps to `FeedbackAccepted`. Poll-delivered selection
+changes, raw export chunks, and export-finished events continue through OBSR without interpreting
+chunk bytes. Clipboard writes, gesture scheduling, export assembly, and retry policy remain Client
+responsibilities. Existing action JSON stays byte-for-byte canonical, and the schema corpus covers
+all four gesture branches, the three export controls, hard bounds, closed enums, and extra-field
+rejection. Matching Client/Server/Worker cohorts ship and roll back together.
+
+`ViewerRejectedReason::HostRejected` (`"host-rejected"`) is a closed viewer-level reason shared by
+the four history control-acknowledgement actions and the four selection/export controls above when
+Host returns an explicit typed failure. It is distinct from the controller-plane
+`ControlRejectedReason::HostRejected` and does not apply to older actions. `read-viewport-rows`
+failures ride the existing `RowsRejected` nine-reason vocabulary; `read-rows` is unchanged
+byte-for-byte.
 
 ## Controller binding
 

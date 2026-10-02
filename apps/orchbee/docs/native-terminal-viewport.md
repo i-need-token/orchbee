@@ -13,8 +13,9 @@ The protocol contract is owned by `crates/terminal-protocol` (`row_window.rs`, `
 `row_access.rs`) and by `crates/client-server-protocol/src/viewer.rs` for the
 `TerminalViewerAction` surface; this document consumes that contract and never extends it.
 
-History preserves captured cell colors, attributes and wide-cell geometry. Copy/search/selection,
-graphics display, clipboard integration and persistence remain separate obligations.
+History preserves captured cell colors, attributes and wide-cell geometry. Selection and clipboard
+integration follow [native terminal selection and effects](native-terminal-selection-effects.md).
+Search and copy mode, graphics display, and persistence remain separate obligations.
 
 The same app-local core also serves the Windows CLI control stream through
 `cli/terminal_stream/history.rs`. Each attached control invocation owns one core, read watermark
@@ -173,12 +174,13 @@ keeps application input and mouse tracking, except for untracked primary-screen 
 entry. `Ctrl+B PageUp` enters history while help keeps
 `PageUp` precedence when open.
 
-Every non-wheel pointer event that targets a non-Live pane is consumed by the client — presses
-on the focused pane, presses that move focus onto it, queued pending-focus replays, gesture
-continuations, and drags that end after a mid-gesture Live→non-Live transition. None of them
-encodes application mouse bytes; a non-Live gesture terminates on release. The wheel keeps its
-own contract: inside the retained window it scrolls locally, and anywhere else over the pane it
-is consumed without dismissing the overlay.
+Every non-wheel pointer event that targets a non-Live pane is consumed by the Client — presses on
+the focused pane, presses that move focus onto it, queued pending-focus replays, gesture
+continuations, and drags that end after a mid-gesture Live→non-Live transition. An ordinary
+primary-button gesture over the content follows [native terminal selection and effects](native-terminal-selection-effects.md)
+against the committed history window; other events terminate locally on release. None encodes
+application mouse bytes. The wheel keeps its own contract: inside the retained window it scrolls
+locally, and anywhere else over the pane it is consumed without dismissing the overlay.
 
 ## Rendering
 

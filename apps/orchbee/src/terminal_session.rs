@@ -1132,6 +1132,10 @@ impl LegacySession {
         let Some(frame) = self.projection.as_ref().and_then(TerminalProjection::frame) else {
             return probe;
         };
+        probe.selection_ready = matches!(
+            self.status,
+            TerminalStatus::Controlling | TerminalStatus::ReadOnly
+        );
         probe.focus = Some(sentinel.clone());
         probe.desired = Some(sentinel.pane().clone());
         probe.panes = vec![PointerPane {

@@ -512,6 +512,41 @@
 			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":2,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"history-observed\",\"attachmentId\":\"33333333333333333333333333333333\",\"sequence\":\"5\",\"generation\":\"3\",\"revision\":\"7\"}}"
 		},
 		{
+			"direction": "client-to-server",
+			"name": "viewer-selection-gesture-start",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":2,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"selection-gesture\",\"attachmentId\":\"33333333333333333333333333333333\",\"generation\":\"9\",\"action\":\"start\",\"clickCount\":2,\"point\":{\"column\":3,\"row\":4},\"position\":{\"x\":-5,\"y\":6},\"selectOutput\":true}}"
+		},
+		{
+			"direction": "client-to-server",
+			"name": "viewer-selection-gesture-update",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":2,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"selection-gesture\",\"attachmentId\":\"33333333333333333333333333333333\",\"generation\":\"9\",\"action\":\"update\",\"geometry\":{\"cellWidth\":8,\"columns\":80,\"paddingLeft\":2,\"screenHeight\":480},\"point\":{\"column\":7,\"row\":8},\"position\":{\"x\":9,\"y\":-10},\"rectangle\":false}}"
+		},
+		{
+			"direction": "client-to-server",
+			"name": "viewer-selection-gesture-end",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":2,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"selection-gesture\",\"attachmentId\":\"33333333333333333333333333333333\",\"generation\":\"9\",\"action\":\"end\",\"point\":{\"column\":11,\"row\":12}}}"
+		},
+		{
+			"direction": "client-to-server",
+			"name": "viewer-selection-gesture-cancel",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":2,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"selection-gesture\",\"attachmentId\":\"33333333333333333333333333333333\",\"generation\":\"9\",\"action\":\"cancel\"}}"
+		},
+		{
+			"direction": "client-to-server",
+			"name": "viewer-selection-export",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":2,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"selection-export\",\"attachmentId\":\"33333333333333333333333333333333\",\"exportSequence\":\"10\",\"format\":\"plain\"}}"
+		},
+		{
+			"direction": "client-to-server",
+			"name": "viewer-selection-export-chunk-applied",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":2,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"selection-export-chunk-applied\",\"attachmentId\":\"33333333333333333333333333333333\",\"exportSequence\":\"10\",\"chunkSequence\":42}}"
+		},
+		{
+			"direction": "client-to-server",
+			"name": "viewer-selection-export-cancel",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":2,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"selection-export-cancel\",\"attachmentId\":\"33333333333333333333333333333333\",\"exportSequence\":\"10\",\"reason\":\"clipboard-failed\"}}"
+		},
+		{
 			"direction": "server-to-client",
 			"name": "viewer-rejected-host-rejected",
 			"payload": "{\"kind\":\"terminal.viewer.result\",\"protocolVersion\":2,\"requestId\":\"11111111111111111111111111111111\",\"outcome\":{\"kind\":\"rejected\",\"reason\":\"host-rejected\"}}"
@@ -1869,6 +1904,72 @@
 			"direction": "client-to-server",
 			"name": "viewer-history-observed-generation-number",
 			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":2,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"history-observed\",\"attachmentId\":\"33333333333333333333333333333333\",\"sequence\":\"5\",\"generation\":3,\"revision\":\"7\"}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "client-to-server",
+			"name": "viewer-selection-gesture-unknown-action",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":2,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"selection-gesture\",\"attachmentId\":\"33333333333333333333333333333333\",\"generation\":\"9\",\"action\":\"future\"}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "client-to-server",
+			"name": "viewer-selection-gesture-click-zero",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":2,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"selection-gesture\",\"attachmentId\":\"33333333333333333333333333333333\",\"generation\":\"9\",\"action\":\"start\",\"clickCount\":0,\"point\":{\"column\":3,\"row\":4},\"position\":{\"x\":-5,\"y\":6},\"selectOutput\":true}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "client-to-server",
+			"name": "viewer-selection-gesture-point-over",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":2,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"selection-gesture\",\"attachmentId\":\"33333333333333333333333333333333\",\"generation\":\"9\",\"action\":\"end\",\"point\":{\"column\":4096,\"row\":4}}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "client-to-server",
+			"name": "viewer-selection-gesture-position-over",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":2,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"selection-gesture\",\"attachmentId\":\"33333333333333333333333333333333\",\"generation\":\"9\",\"action\":\"start\",\"clickCount\":2,\"point\":{\"column\":3,\"row\":4},\"position\":{\"x\":65536,\"y\":6},\"selectOutput\":true}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "client-to-server",
+			"name": "viewer-selection-gesture-geometry-zero",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":2,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"selection-gesture\",\"attachmentId\":\"33333333333333333333333333333333\",\"generation\":\"9\",\"action\":\"update\",\"geometry\":{\"cellWidth\":0,\"columns\":80,\"paddingLeft\":2,\"screenHeight\":480},\"point\":{\"column\":7,\"row\":8},\"position\":{\"x\":9,\"y\":-10},\"rectangle\":false}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "client-to-server",
+			"name": "viewer-selection-gesture-extra-field",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":2,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"selection-gesture\",\"attachmentId\":\"33333333333333333333333333333333\",\"generation\":\"9\",\"action\":\"cancel\",\"extra\":true}}"
+		},
+		{
+			"boundary": "semantic",
+			"direction": "client-to-server",
+			"name": "viewer-selection-gesture-generation-u64-overflow",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":2,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"selection-gesture\",\"attachmentId\":\"33333333333333333333333333333333\",\"generation\":\"18446744073709551616\",\"action\":\"cancel\"}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "client-to-server",
+			"name": "viewer-selection-export-sequence-zero",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":2,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"selection-export\",\"attachmentId\":\"33333333333333333333333333333333\",\"exportSequence\":\"0\",\"format\":\"plain\"}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "client-to-server",
+			"name": "viewer-selection-export-format-open",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":2,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"selection-export\",\"attachmentId\":\"33333333333333333333333333333333\",\"exportSequence\":\"10\",\"format\":\"html\"}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "client-to-server",
+			"name": "viewer-selection-export-chunk-u32-overflow",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":2,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"selection-export-chunk-applied\",\"attachmentId\":\"33333333333333333333333333333333\",\"exportSequence\":\"10\",\"chunkSequence\":4294967296}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "client-to-server",
+			"name": "viewer-selection-export-cancel-reason-open",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":2,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"selection-export-cancel\",\"attachmentId\":\"33333333333333333333333333333333\",\"exportSequence\":\"10\",\"reason\":\"future\"}}"
 		},
 		{
 			"boundary": "schema",

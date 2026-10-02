@@ -89,6 +89,65 @@ pub enum ViewerSnapshotReason {
     StoreReset,
 }
 
+/// Viewport-relative terminal cell selected by a mouse gesture. Columns and
+/// rows are validated against the Terminal Protocol's `0..=4095` bounds when
+/// the private carrier is decoded.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ViewerSelectionViewportPoint {
+    pub column: u16,
+    pub row: u16,
+}
+
+/// Pointer position in the rendered terminal surface. Both axes are limited
+/// to `-65535..=65535` at the carrier boundary.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ViewerSelectionGesturePosition {
+    pub x: i32,
+    pub y: i32,
+}
+
+/// Geometry needed by Host to resolve an update against its committed view.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ViewerSelectionGestureGeometry {
+    pub cell_width: u16,
+    pub columns: u16,
+    pub padding_left: u16,
+    pub screen_height: u16,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ViewerSelectionGestureAction {
+    Start {
+        click_count: u8,
+        point: ViewerSelectionViewportPoint,
+        position: ViewerSelectionGesturePosition,
+        select_output: bool,
+    },
+    Update {
+        geometry: ViewerSelectionGestureGeometry,
+        point: ViewerSelectionViewportPoint,
+        position: ViewerSelectionGesturePosition,
+        rectangle: bool,
+    },
+    End {
+        point: ViewerSelectionViewportPoint,
+    },
+    Cancel,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ViewerSelectionExportFormat {
+    Plain,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ViewerSelectionExportCancelReason {
+    ClipboardFailed,
+    Disposed,
+    Replaced,
+    User,
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum TerminalViewerAction {
     Attach {
@@ -148,6 +207,22 @@ pub enum TerminalViewerAction {
         sequence: NonZeroU64,
         generation: NonZeroU64,
         revision: u64,
+    },
+    SelectionGesture {
+        generation: NonZeroU64,
+        gesture: ViewerSelectionGestureAction,
+    },
+    SelectionExport {
+        export_sequence: NonZeroU64,
+        format: ViewerSelectionExportFormat,
+    },
+    SelectionExportChunkApplied {
+        export_sequence: NonZeroU64,
+        chunk_sequence: u32,
+    },
+    SelectionExportCancel {
+        export_sequence: NonZeroU64,
+        reason: ViewerSelectionExportCancelReason,
     },
     Detach,
 }

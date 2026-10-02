@@ -4084,6 +4084,107 @@
 			]
 		},
 		{
+			"id": "native-terminal-selection-effects",
+			"owner": "orchbee",
+			"workspace": "apps/orchbee",
+			"module": "apps/orchbee/formal/tla/NativeTerminalSelectionEffects.tla",
+			"config": "apps/orchbee/formal/tla/NativeTerminalSelectionEffects.cfg",
+			"claims": ["apps/orchbee/docs/native-terminal-selection-effects.md"],
+			"triggers": [
+				"apps/orchbee/docs/native-terminal-selection-effects.zh-CN.md",
+				"apps/orchbee/docs/native-mouse-input.md",
+				"apps/orchbee/docs/native-mouse-input.zh-CN.md",
+				"apps/orchbee/docs/native-terminal-viewport.md",
+				"apps/orchbee/docs/native-terminal-viewport.zh-CN.md",
+				"apps/orchbee/src/terminal_session.rs",
+				"apps/orchbee/src/terminal_session/**",
+				"apps/orchbee/src/tui_pointer.rs",
+				"apps/orchbee/src/tui_pointer/**",
+				"apps/orchbee/src/tui_render.rs",
+				"apps/orchbee/src/tui_render/**",
+				"apps/orchbee/src/tui_backend.rs",
+				"apps/orchbee/src/tui_backend/**",
+				"apps/orchbee/src/local_client.rs",
+				"apps/orchbee/src/local_client/**",
+				"apps/orchbee/src/localization.rs",
+				"apps/orchbee/src/localization/**",
+				"apps/orchbee/tests/**",
+				"apps/orchbee-worker/README.md",
+				"apps/orchbee-worker/README.zh-CN.md",
+				"apps/orchbee-worker/src/host_connection/viewers.rs",
+				"apps/orchbee-worker/src/host_connection/viewers_tests.rs",
+				"apps/orchbee-server/src/local_terminal_service/**",
+				"apps/terminal-host/src/engine/**",
+				"crates/capability-node-protocol/src/terminal_viewer.rs",
+				"crates/client-server-protocol/src/viewer.rs",
+				"crates/terminal-protocol/src/selection.rs",
+				"crates/terminal-protocol/src/selection_export.rs",
+				"crates/terminal-protocol/src/selection_export_chunk.rs",
+				"crates/terminal-protocol/src/terminal_effect.rs",
+				"docs/tui/mouse-input.md",
+				"docs/zh-CN/tui/mouse-input.md",
+				"docs/tui/terminal-environment.md",
+				"docs/zh-CN/tui/terminal-environment.md"
+			],
+			"variants": [
+				{
+					"name": "windows-program-writes",
+					"constants": {
+						"ClipboardSink": "windows",
+						"AllowProgramWrites": true
+					}
+				},
+				{
+					"name": "osc52-program-writes",
+					"constants": {
+						"ClipboardSink": "osc52",
+						"AllowProgramWrites": true
+					}
+				},
+				{
+					"name": "windows-program-writes-denied",
+					"constants": {
+						"ClipboardSink": "windows",
+						"AllowProgramWrites": false
+					}
+				}
+			],
+			"requiredCoverage": [
+				"AcceptSelectionEnd",
+				"RejectSelectionEnd",
+				"ReceiveEarlyChunk",
+				"RejectSecondEarlyChunk",
+				"StartExport",
+				"ReceiveNextChunk",
+				"RejectOutOfOrderChunk",
+				"FinishExport",
+				"RejectPrematureFinish",
+				"RejectWrongExportIdentity",
+				"ValidateUtf8",
+				"RejectInvalidUtf8",
+				"EnqueueSelectionCopy",
+				"CancelSelectionCopy",
+				"ReceiveBell",
+				"QueueProgramWrite",
+				"DenyProgramWrite",
+				"RejectForeignEffect",
+				"RejectStaleEffect",
+				"BeginFrame",
+				"EndFrameAndFlush",
+				"DispatchEffect",
+				"EffectSucceeds",
+				"EffectFailsUnknown",
+				"RequestRetirement",
+				"FinishRetirement",
+				"CoverageEffectWaitsForFrameClose",
+				"CoverageSelectionQueuedBehindBell",
+				"CoverageCancelQueuedSelection",
+				"CoverageUnknownSelectionDispatch",
+				"CoverageRetirementWaitsForDispatchedEffect"
+			],
+			"timeoutMilliseconds": 120000
+		},
+		{
 			"id": "native-terminal-viewport",
 			"workers": 2,
 			"owner": "orchbee",
@@ -7880,8 +7981,19 @@
 			"workspace": "packages/terminal",
 			"module": "packages/terminal/formal/tla/TerminalSelectionGestureCoordination.tla",
 			"config": "packages/terminal/formal/tla/TerminalSelectionGestureCoordination.cfg",
-			"claims": ["packages/terminal/formal/README.md", "packages/terminal/README.md"],
-			"triggers": ["packages/terminal/src/projected/projected-terminal.ts"],
+			"claims": [
+				"packages/terminal/formal/README.md",
+				"packages/terminal/README.md",
+				"apps/orchbee/docs/native-terminal-selection-effects.md"
+			],
+			"triggers": [
+				"packages/terminal/src/projected/projected-terminal.ts",
+				"apps/orchbee/docs/native-terminal-selection-effects.zh-CN.md",
+				"apps/orchbee/src/tui_pointer.rs",
+				"apps/orchbee/src/tui_pointer/**",
+				"apps/orchbee/src/terminal_session.rs",
+				"apps/orchbee/src/terminal_session/**"
+			],
 			"requiredCoverage": [
 				"StartGesture",
 				"RestartGesture",

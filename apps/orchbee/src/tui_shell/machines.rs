@@ -118,6 +118,7 @@ impl Manager {
         view: &mut ClientView,
         dimensions: WindowDimensions,
         now: Instant,
+        before_switch: &mut dyn FnMut(&mut dyn crate::terminal_input::TerminalInputPort),
     ) -> Change {
         let mut change = Change::default();
         self.template
@@ -138,6 +139,7 @@ impl Manager {
                 surface,
                 view,
                 dimensions,
+                before_switch,
             );
             let local = if self.current.is_none() {
                 navigation(surface.active())
@@ -222,7 +224,14 @@ impl Manager {
             {
                 view.machines.open = false;
             } else if request.context.is_none()
-                && self.restore(&request.machine, surface, view, dimensions, true)
+                && self.restore(
+                    &request.machine,
+                    surface,
+                    view,
+                    dimensions,
+                    true,
+                    before_switch,
+                )
             {
                 change.switched = true;
             } else {
@@ -357,7 +366,7 @@ impl Manager {
                     view: self.template.clone(),
                 };
                 let keep_old = next.choice() != choice(self.current.as_ref());
-                self.install(next, surface, view, dimensions, keep_old);
+                self.install(next, surface, view, dimensions, keep_old, before_switch);
                 change.switched = true;
             } else {
                 self.candidate = Some(candidate);
@@ -374,6 +383,7 @@ impl Manager {
         surface: &mut SurfaceSlot<'_>,
         view: &mut ClientView,
         dimensions: WindowDimensions,
+        before_switch: &mut dyn FnMut(&mut dyn crate::terminal_input::TerminalInputPort),
     ) -> Change {
         let mut change = Change::default();
         let before = view.machines.clone();
@@ -427,7 +437,14 @@ impl Manager {
                 });
                 if self.current.as_ref().is_some_and(|p| !self.valid(p)) {
                     self.cancel();
-                    self.restore(&Choice::Local, surface, view, dimensions, false);
+                    self.restore(
+                        &Choice::Local,
+                        surface,
+                        view,
+                        dimensions,
+                        false,
+                        before_switch,
+                    );
                     view.machines.error = Some("removed");
                     view.machines.open = true;
                     change.switched = true;
@@ -484,6 +501,7 @@ impl Manager {
         view: &mut ClientView,
         dimensions: WindowDimensions,
         keep_old: bool,
+        before_switch: &mut dyn FnMut(&mut dyn crate::terminal_input::TerminalInputPort),
     ) -> bool {
         let Some(index) = self.cached.iter().position(|c| &c.choice() == requested) else {
             return false;
@@ -499,7 +517,7 @@ impl Manager {
         if next.profile.is_some() && !next.surface.reusable_machine() {
             return false;
         }
-        self.install(next, surface, view, dimensions, keep_old);
+        self.install(next, surface, view, dimensions, keep_old, before_switch);
         true
     }
     fn install(
@@ -509,8 +527,10 @@ impl Manager {
         view: &mut ClientView,
         dimensions: WindowDimensions,
         keep_old: bool,
+        before_switch: &mut dyn FnMut(&mut dyn crate::terminal_input::TerminalInputPort),
     ) {
         // Retain the picker catalog and host capture truth; all per-Site navigation stays with its surface.
+        before_switch(surface.active());
         let focus = surface.active().suspend_machine();
         next.surface.resume_machine(focus);
         let mut picker = view.machines.clone();
@@ -601,12 +621,16 @@ mod tests {
     use super::*;
     use crate::{
         machines::{Draft, ProfileId},
-        terminal_input::UnavailableTerminalInputPort,
+        terminal_input::{
+            PointerProbe, PointerSelectionAdmission, PointerSelectionIntent,
+            UnavailableTerminalInputPort,
+        },
     };
     struct Witness {
         name: &'static str,
         focus: Option<bool>,
         log: std::rc::Rc<std::cell::RefCell<Vec<String>>>,
+        probe: std::rc::Rc<std::cell::RefCell<PointerProbe>>,
     }
     impl crate::terminal_input::TerminalInputPort for Witness {
         fn forward(
@@ -614,6 +638,55 @@ mod tests {
             _bytes: &[u8],
         ) -> Result<(), crate::terminal_input::TerminalInputUnavailable> {
             Ok(())
+        }
+
+        fn pointer_probe(&mut self) -> PointerProbe {
+            self.probe.borrow().clone()
+        }
+
+        fn apply_client_action(
+            &mut self,
+            action: crate::client_view::ClientAction,
+        ) -> Option<crate::client_view::SessionActionDisposition> {
+            if let crate::client_view::ClientAction::FocusPanel(panel) = action {
+                let target = self
+                    .probe
+                    .borrow()
+                    .panes
+                    .iter()
+                    .find(|pane| pane.record.pane().panel() == &panel && pane.attached)
+                    .map(|pane| pane.record.clone());
+                if let Some(target) = target {
+                    let mut probe = self.probe.borrow_mut();
+                    probe.desired = Some(target.pane().clone());
+                    probe.focus = Some(target);
+                }
+            }
+            Some(crate::client_view::SessionActionDisposition::KeepNavigator)
+        }
+
+        fn pointer_selection(
+            &mut self,
+            _pane: &crate::terminal_session::state::PaneRef,
+            intent: PointerSelectionIntent,
+        ) -> PointerSelectionAdmission {
+            self.log
+                .borrow_mut()
+                .push(format!("{} selection {intent:?}", self.name));
+            PointerSelectionAdmission::Admitted
+        }
+    }
+
+    fn witness(
+        name: &'static str,
+        focus: Option<bool>,
+        log: std::rc::Rc<std::cell::RefCell<Vec<String>>>,
+    ) -> Witness {
+        Witness {
+            name,
+            focus,
+            log,
+            probe: Default::default(),
         }
     }
     impl TerminalSurface for Witness {
@@ -661,23 +734,21 @@ mod tests {
         let (mut manager, mut view, _) = setup();
         view.settle_pointer_released(true);
         let log = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
-        let mut surface = SurfaceSlot::Owned(Box::new(Witness {
-            name: "local",
-            focus: Some(true),
-            log: log.clone(),
-        }));
+        let mut surface = SurfaceSlot::Owned(Box::new(witness("local", Some(true), log.clone())));
         manager.cached.push(Cached {
             profile: Some(profile()),
-            surface: Box::new(Witness {
-                name: "remote",
-                focus: None,
-                log: log.clone(),
-            }),
+            surface: Box::new(witness("remote", None, log.clone())),
             view: ClientView::new(100),
         });
         view.machines.show();
         view.machines.request = Some(Choice::Remote(profile().id).into());
-        let change = manager.tick(&mut surface, &mut view, dimensions(), Instant::now());
+        let change = manager.tick(
+            &mut surface,
+            &mut view,
+            dimensions(),
+            Instant::now(),
+            &mut |_| {},
+        );
         assert!(change.switched);
         assert!(!view.machines.open);
         assert!(view.pointer_released());
@@ -686,7 +757,13 @@ mod tests {
         view.machines.request = Some(Choice::Local.into());
         assert!(
             manager
-                .tick(&mut surface, &mut view, dimensions(), Instant::now())
+                .tick(
+                    &mut surface,
+                    &mut view,
+                    dimensions(),
+                    Instant::now(),
+                    &mut |_| {},
+                )
                 .switched
         );
         assert_eq!(view.machines.current, Choice::Local);
@@ -722,7 +799,13 @@ mod tests {
         view.machines.open = false;
         let deadline = Instant::now() + Duration::from_secs(3);
         while manager.attempt.is_some() {
-            let change = manager.tick(&mut surface, &mut view, dimensions(), Instant::now());
+            let change = manager.tick(
+                &mut surface,
+                &mut view,
+                dimensions(),
+                Instant::now(),
+                &mut |_| {},
+            );
             assert!(!change.switched);
             assert!(Instant::now() < deadline);
             thread::sleep(Duration::from_millis(1));
@@ -740,7 +823,13 @@ mod tests {
         while manager.attempt.is_some() {
             assert!(
                 !manager
-                    .tick(&mut surface, &mut view, dimensions(), Instant::now())
+                    .tick(
+                        &mut surface,
+                        &mut view,
+                        dimensions(),
+                        Instant::now(),
+                        &mut |_| {},
+                    )
                     .switched
             );
             assert!(Instant::now() < deadline);
@@ -793,6 +882,7 @@ mod tests {
                 &mut surface,
                 &mut view,
                 dimensions(),
+                &mut |_| {},
             );
             assert_eq!(view.machines.request, (change == 4).then_some(request));
             assert_eq!(view.machines.error, (change != 4).then_some("removed"));
@@ -813,7 +903,7 @@ mod tests {
         });
         assert!(
             !manager
-                .tick(&mut surface, &mut view, dimensions(), now)
+                .tick(&mut surface, &mut view, dimensions(), now, &mut |_| {})
                 .switched
         );
         assert_eq!(view.machines.error, Some("failed"));
@@ -826,7 +916,7 @@ mod tests {
         manager.profiles[0].draft.target = "replacement.invalid".into();
         assert!(
             !manager
-                .tick(&mut surface, &mut view, dimensions(), now)
+                .tick(&mut surface, &mut view, dimensions(), now, &mut |_| {})
                 .switched
         );
         assert_eq!(view.machines.error, Some("removed"));
@@ -840,7 +930,7 @@ mod tests {
         view.machines.open = false;
         assert!(
             !manager
-                .tick(&mut surface, &mut view, dimensions(), now)
+                .tick(&mut surface, &mut view, dimensions(), now, &mut |_| {})
                 .switched
         );
         assert!(manager.queued.is_none());
@@ -861,6 +951,163 @@ mod tests {
         }
     }
     #[test]
+    fn forced_catalog_fallback_cancels_once_through_the_old_surface_before_replace() {
+        let (mut manager, mut view, _) = setup();
+        let log = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
+        let tab =
+            orchbee_workbench_protocol::WorkbenchTabId::parse("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+                .unwrap();
+        let pane = |panel: &str| {
+            crate::terminal_session::state::PaneRef::new(
+                crate::terminal_session::state::PaneKey::new(
+                    crate::terminal_session::state::AttachmentKey::new(1, tab.clone()),
+                    orchbee_workbench_protocol::WorkbenchPanelId::parse(panel).unwrap(),
+                ),
+                0,
+            )
+        };
+        let previous = pane("11111111111111111111111111111111");
+        let target = pane("22222222222222222222222222222222");
+        let remote_probe = std::rc::Rc::new(std::cell::RefCell::new(PointerProbe {
+            focus: Some(previous.clone()),
+            desired: Some(previous.pane().clone()),
+            input_ready: true,
+            selection_ready: true,
+            panes: vec![
+                crate::terminal_input::PointerPane {
+                    right_click_reporting: false,
+                    right_click: Default::default(),
+                    record: previous,
+                    attached: true,
+                    controlling: Some(true),
+                    frame_available: true,
+                },
+                crate::terminal_input::PointerPane {
+                    right_click_reporting: false,
+                    right_click: Default::default(),
+                    record: target.clone(),
+                    attached: true,
+                    controlling: Some(true),
+                    frame_available: false,
+                },
+            ],
+            tabs: vec![crate::terminal_input::PointerTab {
+                id: tab,
+                position: 1,
+            }],
+            ..PointerProbe::default()
+        }));
+        manager.current = Some(profile());
+        manager.cached.push(Cached {
+            profile: None,
+            surface: Box::new(witness("local", None, log.clone())),
+            view: ClientView::new(100),
+        });
+        let mut surface = SurfaceSlot::Owned(Box::new(Witness {
+            name: "remote",
+            focus: Some(true),
+            log: log.clone(),
+            probe: remote_probe.clone(),
+        }));
+        let content = ratatui::layout::Rect::new(0, 1, 10, 5);
+        let mut hits = crate::tui_pointer::HitMapBuilder::new();
+        hits.record(
+            crate::tui_pointer::HitLayer::Foreground,
+            content,
+            crate::tui_pointer::HitTarget::Pane {
+                pane: target.clone(),
+                content,
+            },
+        );
+        let mut pointer = crate::tui_pointer::PointerState::default();
+        pointer.set_capture(true);
+        pointer.publish(hits.finish());
+        let at = Instant::now();
+        pointer.event(
+            &mut view,
+            surface.active(),
+            at,
+            crate::terminal_input::MouseEvent {
+                action: crate::terminal_input::MouseAction::Press,
+                button: crate::terminal_input::MouseButton::Left,
+                mods: crate::client_view::Modifiers::NONE,
+                column: 2,
+                row: 2,
+            },
+        );
+        assert!(
+            log.borrow()
+                .iter()
+                .all(|entry| !entry.contains(" selection ")),
+            "Pending focus emits nothing before its frame is Ready"
+        );
+        {
+            let mut probe = remote_probe.borrow_mut();
+            probe.frame = Some(crate::terminal_input::PointerFrameFacts {
+                tracking: orchbee_terminal_protocol::MouseTracking::None,
+                format: orchbee_terminal_protocol::MouseFormat::Sgr,
+                cell_pixel: (0, 0),
+                alternate_screen: false,
+                alternate_scroll: true,
+                application_cursor: false,
+            });
+            probe
+                .panes
+                .iter_mut()
+                .find(|pane| pane.record == target)
+                .unwrap()
+                .frame_available = true;
+        }
+        pointer.tick(&mut view, surface.active(), at + Duration::from_millis(1));
+        assert!(
+            log.borrow()
+                .iter()
+                .any(|entry| entry.starts_with("remote selection Start")),
+            "the real pointer path must first admit Down on the old surface"
+        );
+
+        let mut before_switch = |old: &mut dyn crate::terminal_input::TerminalInputPort| {
+            pointer.invalidate_map_with_port(old);
+        };
+        let mut disabled = profile();
+        disabled.enabled = false;
+
+        let change = manager.refresh_catalog(
+            Ok(crate::machines::Catalog {
+                revision: 2,
+                profiles: vec![disabled],
+            }),
+            &mut surface,
+            &mut view,
+            dimensions(),
+            &mut before_switch,
+        );
+
+        assert!(change.switched);
+        assert!(manager.current.is_none());
+        let selections: Vec<_> = log
+            .borrow()
+            .iter()
+            .filter(|entry| entry.contains(" selection "))
+            .cloned()
+            .collect();
+        assert_eq!(selections.len(), 2);
+        assert!(selections[0].starts_with("remote selection Start"));
+        assert_eq!(selections[1], "remote selection Cancel");
+        assert!(selections.iter().all(|entry| !entry.starts_with("local ")));
+        let log = log.borrow();
+        let cancel = log
+            .iter()
+            .position(|entry| entry == "remote selection Cancel")
+            .unwrap();
+        let suspend = log
+            .iter()
+            .position(|entry| entry == "remote suspend")
+            .unwrap();
+        assert!(cancel < suspend, "Cancel must precede old-surface suspend");
+    }
+
+    #[test]
     fn machine_catalog_failure_preserves_active_identity_but_disable_returns_local() {
         let (mut manager, mut view, mut surface) = setup();
         drop(surface.replace(Box::new(DisconnectedLocal)));
@@ -874,12 +1121,14 @@ mod tests {
             &mut view,
             dimensions(),
             true,
+            &mut |_| {},
         );
         let change = manager.refresh_catalog(
             Err(crate::machines::Error::InvalidCatalog),
             &mut surface,
             &mut view,
             dimensions(),
+            &mut |_| {},
         );
         assert!(!change.switched);
         assert_eq!(view.machines.current, Choice::Remote(profile().id));
@@ -894,13 +1143,20 @@ mod tests {
             &mut surface,
             &mut view,
             dimensions(),
+            &mut |_| {},
         );
         assert!(change.switched);
         assert_eq!(view.machines.current, Choice::Local);
         assert!(manager.cached.is_empty());
         assert!(view.machines.open);
         view.machines.request = Some(Choice::Local.into());
-        manager.tick(&mut surface, &mut view, dimensions(), Instant::now());
+        manager.tick(
+            &mut surface,
+            &mut view,
+            dimensions(),
+            Instant::now(),
+            &mut |_| {},
+        );
         assert!(
             !view.machines.open,
             "even a disconnected Local surface must remain reachable"

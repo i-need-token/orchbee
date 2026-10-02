@@ -138,15 +138,17 @@ Server 仍是查看附件的唯一签发方。每个绑定代际的查看附件�
 已接纳的 Server 连接上串行执行。轮询交付已就绪记录，不等待终端输出；下游交付不能占住
 Worker 操作槽。
 
-在 frame record 槽旁，每个查看附件还维护一个有界、深度为四的 FIFO，保存完整不透明
-kind-53 `HistoryChanged` event record，并计入同一个 retained-byte 预算。Poll 在 frame/
-projection-blocked record 槽与 event FIFO 两个来源之间按显式 next-preference 择一交付，
-初始偏好 record 槽，每次成功交付后翻转；未结算的 frame flight 绝不阻塞 queued event，
-持续就绪的来源至多越过另一来源一次。Event 交付绝不触碰 `flight.delivered`、
+在 frame record 槽旁，每个查看附件还维护一个有界、深度为四的 FIFO，保存完整不透明 viewer
+event，并计入同一个 retained-byte 预算。它承载 kind-53 `HistoryChanged` 以及下文列出的选择与
+外部效果记录；Worker 只解码校验精确路由和顺序所需的 attachment 与 event family identity。
+Bell 与 clipboard-write 分别维护严格递增的 sequence cursor，因此同一个 sequence 值可以在两个
+流中各出现一次；已接纳的记录共同遵循 FIFO 到达顺序。Poll 在 frame/projection-blocked record 槽与 event FIFO 两个来源之间按显式 next-preference
+择一交付，初始偏好 record 槽，每次成功交付后翻转；未结算的 frame flight 绝不阻塞 queued
+event，持续就绪的来源至多越过另一来源一次。Event 交付绝不触碰 `flight.delivered`、
 `last_sequence` 或 frame acknowledgement state；`HistoryObserved` 走既有 feedback lane
-回传 Host，不结算 frame flight。FIFO 或聚合字节饱和只关闭该查看附件；close、remove、
-cleanup、Host 丢失和 target cleanup 都恰好释放一次 frame 与 event byte。发往已退役查看
-附件的合法 kind-53 event 像迟到 frame record 一样被消费，而不是退役 broker。
+回传 Host，不结算 frame flight。FIFO 或聚合字节饱和只关闭该查看附件；close、remove、cleanup、
+Host 丢失和 target cleanup 都恰好释放一次 frame 与 event byte。发往已退役查看附件的合法
+viewer event 像迟到 frame record 一样被消费，而不是退役 broker。
 
 OBCN 查看附件载体和 Worker 附件转换现已服务于 Server 已准入 Client Session 转发，并有真实
 Host 进程轨迹。Server 拥有 OBCS 查看消息与 Session 清理；Linux 裸入口现已消费该 relay。二十四个存活查看附件、每附件最多一条保留 Host 记录，以及 128 MiB 聚合保留记录预算属于
@@ -160,8 +162,13 @@ Host 进程轨迹。Server 拥有 OBCS 查看消息与 Session 清理；Linux �
 Broker 的 `host_connection` module 拥有 event 路由、查看附件槽、controller grant 和共享 deadline exchange；
 `terminal_viewer_operation` 映射已准入的只读 command，并校验精确 Host response。
 查看附件 state borrow 不跨越 Host I/O。Attach 依次执行两个有界 exchange（capabilities，随后
-激活 projection demand）；cleanup 可在请求前执行最多三十二个有界查看／控制 detach exchange。查看附件 carrier 现为这些 exchange 和 OBNR record delivery 提供二十秒预算。Lifecycle/metadata notification 经校验后排空；
-bell、clipboard 与 application-signal effect 不经此只读投影路径对外发布。分离和 broker 丢失释放临时附件并保留终端。
+激活 projection demand）；cleanup 可在请求前执行最多三十二个有界查看／控制 detach exchange。
+查看附件 carrier 现为这些 exchange 和 OBNR record delivery 提供二十秒预算。Lifecycle 与
+metadata notification 经校验后排空，application-signal effect 使用 Agent drain。bell、
+clipboard-write、selection-changed、selection-export-chunk 与 selection-export-finished 记录在
+精确 viewer 的有界事件 FIFO 中保留原始字节，并通过 Poll 离开；Worker 绝不执行其外部效果。
+其 Client 行为归[原生终端选择与效果](../orchbee/docs/native-terminal-selection-effects.zh-CN.md)所有。
+分离和 broker 丢失释放临时附件并保留终端。
 重新附着必须使用 Server 新签发的附件身份；此只读查看路径不授予输入或调整大小权限。
 
 证据将现有权限／转发模型映射到确定性路由、精确反馈、过期作用域和容量测试，以及包含

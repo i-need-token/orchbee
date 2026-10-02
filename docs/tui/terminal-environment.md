@@ -82,10 +82,14 @@ enabling.
 
 ## Output discipline
 
-- The renderer is the only writer to the host terminal while the interface is active. Logging goes
-  to a file or an owned diagnostic channel; child process output never reaches the host TTY.
+- One output coordinator is the only writer to the host terminal while the interface is active. It
+  serializes renderer frames and admitted terminal effects. Logging goes to a file or an owned
+  diagnostic channel; child process output never reaches the host TTY directly.
 - Each frame is one diff against the previous frame, wrapped in a synchronized update, and flushed
   once. Partial frames are never flushed.
+- A terminal effect is dispatched only after the current synchronized frame closes and its flush
+  succeeds. A new frame cannot begin while terminal-effect bytes are in flight. An effect with an
+  unknown write result is retired without replay.
 - Redraws are coalesced to a bounded cadence. Input, output, and timer events request a redraw; the
   loop draws at most once per cadence interval and immediately when idle.
 - The cursor is hidden while chrome is drawn and shown only inside an editor or a pane that owns it,
@@ -103,10 +107,10 @@ enabling.
 
 ## Verification
 
-| Change                  | Required check                                                                                            |
-| ----------------------- | --------------------------------------------------------------------------------------------------------- |
-| Mode addition or change | A test proves the enable sequence, the restore sequence, and that restore runs in reverse order           |
-| Restoration path        | Tests cover normal exit, error exit, the panic hook, and that every step runs after an earlier step fails |
-| Capability query        | Tests cover a timely reply, a late reply, no reply, and a reply arriving interleaved with key input       |
-| Environment precedence  | A table-driven test proves each variable precedence including `NO_COLOR` over every other color source    |
-| Output loop change      | A test proves at most one flush per cadence interval and one synchronized-update pair per frame           |
+| Change                  | Required check                                                                                                                                                        |
+| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Mode addition or change | A test proves the enable sequence, the restore sequence, and that restore runs in reverse order                                                                       |
+| Restoration path        | Tests cover normal exit, error exit, the panic hook, and that every step runs after an earlier step fails                                                             |
+| Capability query        | Tests cover a timely reply, a late reply, no reply, and a reply arriving interleaved with key input                                                                   |
+| Environment precedence  | A table-driven test proves each variable precedence including `NO_COLOR` over every other color source                                                                |
+| Output loop change      | A byte trace proves at most one flush per cadence interval, one synchronized-update pair per frame, effects only between frames, and no replay after an unknown write |

@@ -8,15 +8,25 @@ use orchbee_capability_node_protocol::{
     OperationId, ViewerHistoryDemand as WorkerHistoryDemand,
     ViewerProjectionDemand as WorkerProjectionDemand, ViewerRowDetail as WorkerRowDetail,
     ViewerRowsRejectedReason as WorkerRowsRejectedReason,
+    ViewerSelectionExportCancelReason as WorkerSelectionExportCancelReason,
+    ViewerSelectionExportFormat as WorkerSelectionExportFormat,
+    ViewerSelectionGestureAction as WorkerSelectionGestureAction,
+    ViewerSelectionGestureGeometry as WorkerSelectionGestureGeometry,
+    ViewerSelectionGesturePosition as WorkerSelectionGesturePosition,
+    ViewerSelectionViewportPoint as WorkerSelectionViewportPoint,
     ViewportRowOrigin as WorkerViewportRowOrigin,
 };
 use orchbee_client_server_protocol::{
-    HistoryDemand, ProjectionDemand, ViewerRowDetail, ViewerRowsRejectedReason, ViewportRowOrigin,
+    HistoryDemand, ProjectionDemand, ViewerRowDetail, ViewerRowsRejectedReason,
+    ViewerSelectionExportCancelReason, ViewerSelectionExportFormat, ViewerSelectionGestureAction,
+    ViewportRowOrigin,
 };
 use orchbee_terminal_protocol::{
     CURRENT_PROTOCOL_VERSION, CorrelationId, HistoryControl, MessageRole, PayloadEncoding,
-    RowWindowDetail, decode_history_control, decode_transport_envelope,
-    inspect_terminal_row_window_route,
+    RowWindowDetail, SelectionControl, SelectionExportControl, SelectionExportFormat,
+    SelectionExportStatus, decode_history_control, decode_selection_control,
+    decode_selection_export_chunk_route, decode_selection_export_control,
+    decode_transport_envelope, inspect_terminal_row_window_route,
 };
 
 impl LocalTerminalSession<'_> {
@@ -54,6 +64,10 @@ impl LocalTerminalSession<'_> {
             | Action::ReadViewportRows { .. }
             | Action::RowsApplied { .. }
             | Action::HistoryObserved { .. }
+            | Action::SelectionGesture { .. }
+            | Action::SelectionExport { .. }
+            | Action::SelectionExportChunkApplied { .. }
+            | Action::SelectionExportCancel { .. }
             | Action::Detach { .. } => {}
         }
         let index = request.action().attachment_id().and_then(|attachment_id| {
@@ -202,6 +216,38 @@ impl LocalTerminalSession<'_> {
                 generation: *generation,
                 revision: *revision,
             },
+            Action::SelectionGesture {
+                generation,
+                gesture,
+                ..
+            } => WorkerAction::SelectionGesture {
+                generation: *generation,
+                gesture: worker_selection_gesture(*gesture),
+            },
+            Action::SelectionExport {
+                export_sequence,
+                format,
+                ..
+            } => WorkerAction::SelectionExport {
+                export_sequence: *export_sequence,
+                format: worker_selection_export_format(*format),
+            },
+            Action::SelectionExportChunkApplied {
+                export_sequence,
+                chunk_sequence,
+                ..
+            } => WorkerAction::SelectionExportChunkApplied {
+                export_sequence: *export_sequence,
+                chunk_sequence: *chunk_sequence,
+            },
+            Action::SelectionExportCancel {
+                export_sequence,
+                reason,
+                ..
+            } => WorkerAction::SelectionExportCancel {
+                export_sequence: *export_sequence,
+                reason: worker_selection_export_cancel_reason(*reason),
+            },
             Action::Attach { .. } | Action::AttachBinding { .. } => {
                 unreachable!("attach is handled before existing-viewer operations")
             }
@@ -222,13 +268,12 @@ impl LocalTerminalSession<'_> {
             Ok(WorkerOperationResult::Viewer(result)) => match result.outcome {
                 WorkerOutcome::Empty => Outcome::Empty {},
                 WorkerOutcome::Record(record) => {
-                    // A row-read response is not a projection event: it is
-                    // validated against the issued request and the pinned
-                    // attachment, never fed to the frame-only projection. Poll
-                    // alone may carry a kind-53 history event; every other
-                    // record still belongs to the frame-only projection, so a
-                    // HistoryChanged record on another action remains a strict
-                    // route violation.
+                    // Row-read and correlated selection responses validate
+                    // against their issued request and pinned attachment rather
+                    // than the frame projection. Poll may carry history and
+                    // selection events through their dedicated routes; every
+                    // other record remains projection-owned. A record on the
+                    // wrong action is therefore still a strict route violation.
                     let accepted = match request.action() {
                         Action::ReadProcessInfo { .. } => {
                             valid_process_record(viewer, request_id, &record, process_started)
@@ -237,6 +282,14 @@ impl LocalTerminalSession<'_> {
                             valid_rows_record(request.action(), viewer, request_id, &record)
                         }
                         Action::ReadViewportRows { .. } => valid_viewport_rows_record(
+                            request.action(),
+                            viewer,
+                            request_id,
+                            &record,
+                        ),
+                        Action::SelectionGesture { .. }
+                        | Action::SelectionExport { .. }
+                        | Action::SelectionExportCancel { .. } => valid_selection_action_record(
                             request.action(),
                             viewer,
                             request_id,
@@ -275,7 +328,21 @@ impl LocalTerminalSession<'_> {
                     ) {
                         viewer.projection.complete_feedback(request.action());
                     }
-                    Outcome::FeedbackAccepted {}
+                    if matches!(
+                        request.action(),
+                        Action::FrameApplied { .. }
+                            | Action::NeedSnapshot { .. }
+                            | Action::SetProjectionDemand { .. }
+                            | Action::SetHistoryDemand { .. }
+                            | Action::RowsApplied { .. }
+                            | Action::HistoryObserved { .. }
+                            | Action::SelectionExportChunkApplied { .. }
+                    ) {
+                        Outcome::FeedbackAccepted {}
+                    } else {
+                        self.viewers[index].take();
+                        unavailable(Unavailable::TerminalRuntimeUnavailable)
+                    }
                 }
                 WorkerOutcome::Detached => {
                     viewer.cleanup = None;
@@ -292,6 +359,10 @@ impl LocalTerminalSession<'_> {
                             | Action::SetHistoryDemand { .. }
                             | Action::RowsApplied { .. }
                             | Action::HistoryObserved { .. }
+                            | Action::SelectionGesture { .. }
+                            | Action::SelectionExport { .. }
+                            | Action::SelectionExportChunkApplied { .. }
+                            | Action::SelectionExportCancel { .. }
                     ) =>
                 {
                     rejected(Rejected::HostRejected)
@@ -309,6 +380,136 @@ impl LocalTerminalSession<'_> {
                 unavailable(Unavailable::TerminalRuntimeUnavailable)
             }
         }
+    }
+}
+
+const fn worker_selection_gesture(
+    gesture: ViewerSelectionGestureAction,
+) -> WorkerSelectionGestureAction {
+    match gesture {
+        ViewerSelectionGestureAction::Start {
+            click_count,
+            point,
+            position,
+            select_output,
+        } => WorkerSelectionGestureAction::Start {
+            click_count,
+            point: WorkerSelectionViewportPoint {
+                column: point.column,
+                row: point.row,
+            },
+            position: WorkerSelectionGesturePosition {
+                x: position.x,
+                y: position.y,
+            },
+            select_output,
+        },
+        ViewerSelectionGestureAction::Update {
+            geometry,
+            point,
+            position,
+            rectangle,
+        } => WorkerSelectionGestureAction::Update {
+            geometry: WorkerSelectionGestureGeometry {
+                cell_width: geometry.cell_width,
+                columns: geometry.columns,
+                padding_left: geometry.padding_left,
+                screen_height: geometry.screen_height,
+            },
+            point: WorkerSelectionViewportPoint {
+                column: point.column,
+                row: point.row,
+            },
+            position: WorkerSelectionGesturePosition {
+                x: position.x,
+                y: position.y,
+            },
+            rectangle,
+        },
+        ViewerSelectionGestureAction::End { point } => WorkerSelectionGestureAction::End {
+            point: WorkerSelectionViewportPoint {
+                column: point.column,
+                row: point.row,
+            },
+        },
+        ViewerSelectionGestureAction::Cancel => WorkerSelectionGestureAction::Cancel,
+    }
+}
+
+const fn worker_selection_export_format(
+    format: ViewerSelectionExportFormat,
+) -> WorkerSelectionExportFormat {
+    match format {
+        ViewerSelectionExportFormat::Plain => WorkerSelectionExportFormat::Plain,
+    }
+}
+
+const fn worker_selection_export_cancel_reason(
+    reason: ViewerSelectionExportCancelReason,
+) -> WorkerSelectionExportCancelReason {
+    match reason {
+        ViewerSelectionExportCancelReason::ClipboardFailed => {
+            WorkerSelectionExportCancelReason::ClipboardFailed
+        }
+        ViewerSelectionExportCancelReason::Disposed => WorkerSelectionExportCancelReason::Disposed,
+        ViewerSelectionExportCancelReason::Replaced => WorkerSelectionExportCancelReason::Replaced,
+        ViewerSelectionExportCancelReason::User => WorkerSelectionExportCancelReason::User,
+    }
+}
+
+/// Selection acknowledgements are data-bearing Host records. Server repeats
+/// the complete envelope and route validation before forwarding opaque bytes
+/// to the exact Client attachment.
+fn valid_selection_action_record(
+    action: &Action,
+    viewer: &ViewerAttachment,
+    operation: OperationId,
+    record: &[u8],
+) -> bool {
+    let Ok(envelope) = decode_transport_envelope(record) else {
+        return false;
+    };
+    let Ok(correlation) = CorrelationId::from_bytes(operation.as_bytes()) else {
+        return false;
+    };
+    if envelope.protocol != CURRENT_PROTOCOL_VERSION
+        || envelope.role != MessageRole::Response
+        || envelope.correlation_id != Some(correlation)
+        || envelope.host_epoch != Some(viewer.projection.host_epoch)
+        || envelope.optional_message
+        || envelope.payload_encoding != PayloadEncoding::ControlJson
+    {
+        return false;
+    }
+    match action {
+        Action::SelectionGesture { .. } => matches!(
+            decode_selection_control(envelope.kind, envelope.role, envelope.payload),
+            Ok(SelectionControl::ChangedResponse(changed))
+                if changed.attachment_id == viewer.projection.attachment_id
+        ),
+        Action::SelectionExport {
+            export_sequence,
+            format,
+            ..
+        } => matches!(
+            decode_selection_export_control(envelope.kind, envelope.role, envelope.payload),
+            Ok(SelectionExportControl::StartedResponse(started))
+                if started.attachment_id == viewer.projection.attachment_id
+                    && started.export_sequence == *export_sequence
+                    && started.format == match format {
+                        ViewerSelectionExportFormat::Plain => SelectionExportFormat::Plain,
+                    }
+        ),
+        Action::SelectionExportCancel {
+            export_sequence, ..
+        } => matches!(
+            decode_selection_export_control(envelope.kind, envelope.role, envelope.payload),
+            Ok(SelectionExportControl::FinishedResponse(finished))
+                if finished.attachment_id == viewer.projection.attachment_id
+                    && finished.export_sequence == *export_sequence
+                    && finished.status == SelectionExportStatus::Cancelled
+        ),
+        _ => false,
     }
 }
 
@@ -381,29 +582,66 @@ pub(super) fn process_record(
     }
 }
 
-/// A Poll record is either an ordinary projection record — still admitted only
-/// by the frame-only projection — or a kind-53 `HistoryChanged` event the
-/// projection never sees. The event validates its complete envelope plus the
-/// decoded payload's exact attachment identity; anything else remains the
-/// projection's strict rejection.
+/// A Poll record is either an ordinary projection record or one of the four
+/// non-frame event kinds routed here. Every routed event validates its complete
+/// envelope and exact attachment before its bytes leave Server.
 pub(super) fn valid_poll_record(viewer: &mut ViewerAttachment, record: &[u8]) -> bool {
     let Ok(envelope) = decode_transport_envelope(record) else {
         return false;
     };
-    if envelope.kind != 53 {
+    if !matches!(envelope.kind, 53 | 62 | 65 | 67) {
         return viewer.projection.receive(record).is_ok();
     }
-    envelope.protocol == CURRENT_PROTOCOL_VERSION
-        && envelope.role == MessageRole::Event
-        && envelope.correlation_id.is_none()
-        && envelope.host_epoch == Some(viewer.projection.host_epoch)
-        && !envelope.optional_message
-        && envelope.payload_encoding == PayloadEncoding::ControlJson
-        && matches!(
-            decode_history_control(envelope.kind, envelope.role, envelope.payload),
-            Ok(HistoryControl::HistoryChanged(event))
-                if event.attachment_id == viewer.projection.attachment_id
-        )
+    if envelope.protocol != CURRENT_PROTOCOL_VERSION
+        || envelope.role != MessageRole::Event
+        || envelope.correlation_id.is_some()
+        || envelope.host_epoch != Some(viewer.projection.host_epoch)
+        || envelope.optional_message
+    {
+        return false;
+    }
+    match envelope.kind {
+        53 => {
+            envelope.payload_encoding == PayloadEncoding::ControlJson
+                && matches!(
+                decode_history_control(envelope.kind, envelope.role, envelope.payload),
+                Ok(HistoryControl::HistoryChanged(event))
+                    if event.attachment_id == viewer.projection.attachment_id
+                    )
+        }
+        62 => {
+            envelope.payload_encoding == PayloadEncoding::ControlJson
+                && matches!(
+                    decode_selection_control(envelope.kind, envelope.role, envelope.payload),
+                    Ok(SelectionControl::ChangedEvent(changed))
+                        if changed.attachment_id == viewer.projection.attachment_id
+                )
+        }
+        65 => {
+            envelope.payload_encoding == PayloadEncoding::RawBytes
+                && matches!(
+                    decode_selection_export_chunk_route(
+                        envelope.kind,
+                        envelope.role,
+                        envelope.payload,
+                    ),
+                    Ok(route) if route.attachment_id == viewer.projection.attachment_id
+                )
+        }
+        67 => {
+            envelope.payload_encoding == PayloadEncoding::ControlJson
+                && matches!(
+                    decode_selection_export_control(
+                        envelope.kind,
+                        envelope.role,
+                        envelope.payload,
+                    ),
+                    Ok(SelectionExportControl::FinishedEvent(finished))
+                        if finished.attachment_id == viewer.projection.attachment_id
+                )
+        }
+        _ => false,
+    }
 }
 
 /// A ReadRows record is accepted only when the complete OBTP envelope and the

@@ -178,7 +178,13 @@ fn machine_candidate_supplies_startup_deadline_and_commits_drawable_standalone()
     manager.attempt = Some(attempt(&server, None));
     let deadline = Instant::now() + Duration::from_secs(3);
     while view.machines.current == Choice::Local {
-        manager.tick(&mut surface, &mut view, dimensions(), Instant::now());
+        manager.tick(
+            &mut surface,
+            &mut view,
+            dimensions(),
+            Instant::now(),
+            &mut |_| {},
+        );
         assert!(view.machines.error.is_none());
         assert!(Instant::now() < deadline);
         thread::sleep(Duration::from_millis(1));
@@ -203,7 +209,13 @@ fn machine_workspace_candidate_starts_exact_context_including_empty_without_open
         manager.attempt = Some(attempt(&server, Some(target.clone())));
         let deadline = Instant::now() + Duration::from_secs(3);
         while view.machines.current == Choice::Local {
-            manager.tick(&mut surface, &mut view, dimensions(), Instant::now());
+            manager.tick(
+                &mut surface,
+                &mut view,
+                dimensions(),
+                Instant::now(),
+                &mut |_| {},
+            );
             assert!(view.machines.error.is_none());
             assert!(Instant::now() < deadline);
             thread::sleep(Duration::from_millis(1));
@@ -212,13 +224,21 @@ fn machine_workspace_candidate_starts_exact_context_including_empty_without_open
         assert_eq!(manager.cached[0].choice(), Choice::Local);
         assert!(!view.machines.open);
         assert!(surface.active().reusable_machine());
-        assert!(manager.restore(&Choice::Local, &mut surface, &mut view, dimensions(), true));
+        assert!(manager.restore(
+            &Choice::Local,
+            &mut surface,
+            &mut view,
+            dimensions(),
+            true,
+            &mut |_| {},
+        ));
         assert!(manager.restore(
             &Choice::Remote(profile().id),
             &mut surface,
             &mut view,
             dimensions(),
-            true
+            true,
+            &mut |_| {},
         ));
         assert_eq!(active_context(surface.active()), Some(target));
         drop(manager);
@@ -245,7 +265,13 @@ fn machine_workspace_missing_site_or_membership_refuses_without_fallback() -> io
         while view.machines.error.is_none() {
             assert!(
                 !manager
-                    .tick(&mut surface, &mut view, dimensions(), Instant::now())
+                    .tick(
+                        &mut surface,
+                        &mut view,
+                        dimensions(),
+                        Instant::now(),
+                        &mut |_| {},
+                    )
                     .switched
             );
             assert!(Instant::now() < deadline);
@@ -372,12 +398,24 @@ fn machine_local_workspace_selection_reuses_local_origin_and_replaces_only_after
     });
     assert!(
         !manager
-            .tick(&mut surface, &mut view, dimensions(), Instant::now())
+            .tick(
+                &mut surface,
+                &mut view,
+                dimensions(),
+                Instant::now(),
+                &mut |_| {},
+            )
             .switched
     );
     assert_eq!(active_context(surface.active()), None);
     loop {
-        let change = manager.tick(&mut surface, &mut view, dimensions(), Instant::now());
+        let change = manager.tick(
+            &mut surface,
+            &mut view,
+            dimensions(),
+            Instant::now(),
+            &mut |_| {},
+        );
         if change.switched {
             break;
         }
@@ -444,7 +482,13 @@ fn machine_workspace_escape_cancels_pending_native_read_and_retains_current_surf
     while received.try_recv().is_err() {
         assert!(
             !manager
-                .tick(&mut surface, &mut view, dimensions(), Instant::now())
+                .tick(
+                    &mut surface,
+                    &mut view,
+                    dimensions(),
+                    Instant::now(),
+                    &mut |_| {},
+                )
                 .switched
         );
         assert!(Instant::now() < deadline);
@@ -453,7 +497,13 @@ fn machine_workspace_escape_cancels_pending_native_read_and_retains_current_surf
     view.machines.open = false;
     assert!(
         !manager
-            .tick(&mut surface, &mut view, dimensions(), Instant::now())
+            .tick(
+                &mut surface,
+                &mut view,
+                dimensions(),
+                Instant::now(),
+                &mut |_| {},
+            )
             .switched
     );
     assert!(manager.candidate.is_none());

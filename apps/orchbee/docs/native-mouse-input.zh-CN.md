@@ -10,10 +10,11 @@
 `terminal_session/ui.rs`、`invocation.rs`、`localization.rs` 共同维护。仓库标准
 [`docs/tui/mouse-input.md`](../../../docs/zh-CN/tui/mouse-input.md) 拥有该映射必须满足的
 规则；[原生终端环境](native-terminal-environment.md) 拥有 arming 与恢复所依托的
-mode-lease 机制。
+mode-lease 机制。[原生终端选择与效果](native-terminal-selection-effects.zh-CN.md)拥有未跟踪
+pane 的选择及其复制生命周期。
 
-本切片刻意不实现分隔条拖动 resize、历史选择与剪贴板、多击选词/选行、滚动指示器跳转、
-右键上下文菜单和中键表面、pixel 格式报告。这些属于各自的已接受决策。
+分隔条拖动 resize、滚动指示器跳转、右键上下文菜单、中键表面、pixel 格式报告、选择复制
+键位和三击选行仍属于独立决策。
 
 ## 捕获策略
 
@@ -30,8 +31,9 @@ mode-lease 机制。
   裸 `orchbee` 拒绝该选项且仍默认捕获开启；其他路由拒绝；`tui` 继续拒绝 `--format`。两种声明写法均可——
   `--mouse off|on` 与 `--mouse=off|on`——封闭词表以外的值、以 dash 开头的值、重复
   出现一律拒绝。
-- `Shift` 修饰的报告从不被认领：宿主保留 `Shift` 用于原生选择；拖动中的 `Shift` 报告
-  被丢弃，但手势本身存活，因此随后不带修饰的 release 仍到达该 pane。
+- `Shift` 修饰的报告从不被认领：宿主保留 `Shift` 用于原生选择。pane 程序透传期间收到的
+  `Shift` 报告被丢弃，而该手势继续存活，使随后不带修饰的 release 仍到达 pane；Client
+  选择期间收到该报告则取消 Client 手势且不复制。
 
 ## 区域映射
 
@@ -47,7 +49,7 @@ map。区域携带稳定身份——`WorkbenchTabId`、`NativeContextLocation`�
 | 控件之外的 overlay 本体        | `OverlaySurface` | `OverlaySurface`    | 吞掉——绝不到达下层                                                                          |
 | 捕获型 overlay 之外            | —                | backdrop            | Press 关闭该 overlay；其下任何区域——包括未被遮盖的 tab 条或 pane 等前景构件——都看不到该事件 |
 | 紧凑 tab-strip 标记            | `Foreground`     | `Tab(tab_id)`       | Press 选择该 Tab（`SelectTab`）                                                             |
-| Pane 叶视口（content 矩形）    | `Foreground`     | `Pane{tab,panel}`   | Press 先聚焦，再由该 pane 的上报契约决定是否透传                                            |
+| Pane 叶视口（content 矩形）    | `Foreground`     | `Pane{tab,panel}`   | Press 先聚焦，再由该 pane 的上报契约决定程序透传或 Client 选择                              |
 | 视口之外的 pane 叶标题行       | `Foreground`     | `Pane{tab,panel}`   | Press 只聚焦；pane 内程序看不到任何内容                                                     |
 | 其余一切（状态、分隔条、空隙） | —                | dead space          | 忽略                                                                                        |
 
@@ -56,11 +58,12 @@ stale-map 边界退化为普通 Tab 选择，而不是聚焦一个不可达的 p
 
 ## 手势生命周期
 
-| 状态      | 含义与出口                                                                                                                                                                                 |
-| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `Idle`    | 无指针 owner。命中区域上的 press 打开一个手势或直接应用导航。                                                                                                                              |
-| `Pane`    | 已聚焦的上报 pane 拥有指针直至 release。motion 与 release 按 press 时绘制的视口原点编码为 pane-local——拖出区域的 drag 仍属于它。release 在手势中途绝不丢弃。                               |
-| `Pending` | 落在未聚焦 pane 上的 press 触发了 `FocusPanel`；该 press 与随后的输入排队（FIFO，上界 16，motion 合并为最新 cell），直至切换就绪。溢出在任何新输入被接受之前取消并报告有界的输入丢弃说明。 |
+| 状态        | 含义与出口                                                                                                                                                                                 |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `Idle`      | 无指针 owner。命中区域上的 press 打开一个手势或直接应用导航。                                                                                                                              |
+| `Pane`      | 已聚焦的上报 pane 拥有指针直至 release。motion 与 release 按 press 时绘制的视口原点编码为 pane-local——拖出区域的 drag 仍属于它。release 在手势中途绝不丢弃。                               |
+| `Selection` | 已聚焦且未跟踪鼠标的 pane 为其精确 attachment 和投影 generation 拥有一个 Host 选择手势。motion 在 pane 内合并；release 留在最新 motion 之后，并且只有 Host 接受的活动 end 才能请求复制。   |
+| `Pending`   | 落在未聚焦 pane 上的 press 触发了 `FocusPanel`；该 press 与随后的输入排队（FIFO，上界 16，motion 合并为最新 cell），直至切换就绪。溢出在任何新输入被接受之前取消并报告有界的输入丢弃说明。 |
 
 就绪判定对新鲜探测做出，绝不比较缓存序号或代次差值：仅当被记录的 `tab`/`panel` 身份仍解析
 且为选择 anchor、无切换在途（`attached == desired`）、输入准入开启（`input_ready`——与
@@ -78,6 +81,9 @@ Modal 输入捕获（draft 或已 arm 的确认）吞掉指针事件而不产生
 - 当当前帧报告任一 tracking 模式时，pane 程序拥有其 content 视口内的指针事件，外加下文
   的备用屏幕滚轮回退。帧事实——tracking、format、cell 几何、备用屏幕、DEC 1007、application-cursor
   模式——来自最新已验证帧的可信 `TerminalInteraction`，每个事件重新探测。
+- 未跟踪鼠标的 pane 绝不接收选择字节。其普通主键手势遵循
+  [原生终端选择与效果](native-terminal-selection-effects.zh-CN.md)；`Shift` 继续绕过 Client
+  归属。
 - 被转发的事件按绘制的 content 原点平移为 pane-local 坐标，并由唯一 owner 按该 pane
   请求的 tracking × format 重新编码：X10 只报 press；Normal 报除 motion 外的一切；
   Button 在有按住时上报（press 自身计为已按住）；Any 全报；release 始终上报。同 cell

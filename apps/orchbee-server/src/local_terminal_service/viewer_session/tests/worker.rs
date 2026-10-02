@@ -163,6 +163,12 @@ pub(super) fn run(
                             effects.lock().unwrap().push(Effect::Feedback(id));
                             WorkerOutcome::FeedbackAccepted
                         }
+                        WorkerAction::SelectionGesture { .. }
+                        | WorkerAction::SelectionExport { .. }
+                        | WorkerAction::SelectionExportChunkApplied { .. }
+                        | WorkerAction::SelectionExportCancel { .. } => {
+                            WorkerOutcome::Rejected(ViewerRejection::HostRejected)
+                        }
                         WorkerAction::Detach => {
                             use std::sync::atomic::Ordering;
                             if detach_refusals.fetch_update(Ordering::AcqRel,Ordering::Acquire,|n|n.checked_sub(1)).is_ok() {
