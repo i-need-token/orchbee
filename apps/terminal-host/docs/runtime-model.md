@@ -671,6 +671,13 @@ force Job termination always remains an error, even if the root has exited. Exit
 liveness test. The receipt proves accepted termination submission only: actual child exit, Job
 emptiness, PTY EOF and containment retain their existing independent observations.
 
+Windows termination permission refusal is the typed `AccessDenied` failure, not an
+unexpected-error diagnostic; it publishes no submission receipt and keeps the retained
+process/Job owner available for the existing explicit retry. A Windows PTY write returning
+`BROKEN_PIPE` or `NO_DATA` is the existing typed `BrokenPipe` failure. The writer applies
+its ordinary PTY failure/containment path; classification neither invents accepted input
+nor changes the independent child-exit and Job-empty observations.
+
 The Windows retained-descendant termination witness uses a test-only child with explicit
 begin/ready kernel events and no natural exit timer. Job membership is observed before releasing
 the begin event, proving that a process count alone is not a readiness acknowledgment. Only after

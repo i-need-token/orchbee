@@ -7,6 +7,13 @@ const subject = platform_boundary.testing.pty;
 
 const Pty = subject.Pty;
 
+extern "kernel32" fn CreatePipe(
+    read_pipe: *std.os.windows.HANDLE,
+    write_pipe: *std.os.windows.HANDLE,
+    attributes: ?*const std.os.windows.SECURITY_ATTRIBUTES,
+    size: std.os.windows.DWORD,
+) callconv(.winapi) std.os.windows.BOOL;
+
 test "PTY opens with bounded dimensions and resizes" {
     var instance = try Pty.open(.{ .rows = 24, .columns = 80 });
     defer instance.deinit();
@@ -22,6 +29,26 @@ test "Windows PTY rejects resize after pseudoconsole close" {
         error.PtyClosed,
         instance.setSize(.{ .rows = 40, .columns = 120 }),
     );
+}
+
+test "Windows PTY maps a pipe without readers to BrokenPipe" {
+    if (builtin.os.tag != .windows) return error.SkipZigTest;
+    const windows = std.os.windows;
+    var instance = try Pty.open(.{ .rows = 24, .columns = 80 });
+    defer instance.deinit();
+    var read_pipe: windows.HANDLE = undefined;
+    var write_pipe: windows.HANDLE = undefined;
+    if (!CreatePipe(&read_pipe, &write_pipe, null, 0).toBool())
+        return error.TestPipeCreationFailed;
+    defer windows.CloseHandle(write_pipe);
+    windows.CloseHandle(read_pipe);
+
+    // Closing a pseudoconsole does not prove its input pipe has no readers.
+    // Exercise the real write adapter with an owned pipe whose reader is gone.
+    const original = instance.input;
+    instance.input = write_pipe;
+    defer instance.input = original;
+    try std.testing.expectError(error.BrokenPipe, instance.write("closed-pipe"));
 }
 
 test "POSIX child setup preserves standard streams when openpty reuses low descriptors" {

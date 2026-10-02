@@ -25,8 +25,8 @@ pub const Termination = if (builtin.os.tag != .windows) void else struct {
             if (windows_api.WaitForSingleObject(process, 0) == windows_api.WAIT_OBJECT_0) return;
             break :submission last_error;
         };
-        // unexpectedError prints diagnostics; keep its I/O outside the lock.
-        return windows.unexpectedError(failure);
+        // Known permission refusal is not an unexpected runtime diagnostic.
+        return submissionFailure(failure);
     }
 
     pub fn forceTerminate(self: *Termination, job: windows.HANDLE) !void {
@@ -40,6 +40,14 @@ pub const Termination = if (builtin.os.tag != .windows) void else struct {
             }
             break :submission windows.GetLastError();
         };
-        return windows.unexpectedError(failure);
+        return submissionFailure(failure);
+    }
+
+    fn submissionFailure(failure: windows.Win32Error) anyerror {
+        // unexpectedError may write diagnostics; every caller has released its lock.
+        return switch (failure) {
+            .ACCESS_DENIED => error.AccessDenied,
+            else => windows.unexpectedError(failure),
+        };
     }
 };

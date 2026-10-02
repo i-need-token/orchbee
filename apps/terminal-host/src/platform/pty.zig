@@ -335,7 +335,7 @@ const WindowsPty = if (builtin.os.tag != .windows) void else struct {
         ).toBool()) return switch (windows.GetLastError()) {
             .INVALID_USER_BUFFER, .NOT_ENOUGH_MEMORY, .NOT_ENOUGH_QUOTA, .WORKING_SET_QUOTA => error.SystemResources,
             .OPERATION_ABORTED => error.OperationAborted,
-            .NO_DATA => error.BrokenPipe,
+            .BROKEN_PIPE, .NO_DATA => error.BrokenPipe,
             .INVALID_HANDLE => error.NotOpenForWriting,
             .LOCK_VIOLATION => error.LockViolation,
             .NETNAME_DELETED => error.ConnectionResetByPeer,

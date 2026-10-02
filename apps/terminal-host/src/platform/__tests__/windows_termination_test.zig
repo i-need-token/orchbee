@@ -91,8 +91,8 @@ test "Windows denied live root termination cannot fabricate a successful submiss
         process.process_handle = restricted;
         defer process.process_handle = original;
         try std.testing.expectEqual(@as(windows.DWORD, 258), windows_api.WaitForSingleObject(restricted, 0));
-        try std.testing.expectError(error.Unexpected, process.terminate());
-        try std.testing.expectError(error.Unexpected, process.terminate());
+        try std.testing.expectError(error.AccessDenied, process.terminate());
+        try std.testing.expectError(error.AccessDenied, process.terminate());
     }
     try process.terminate();
     try expectExited(&process);
@@ -108,10 +108,10 @@ test "Windows denied Job termination cannot fabricate a root submission or hide 
     {
         process.job_handle = restricted;
         defer process.job_handle = original;
-        try std.testing.expectError(error.Unexpected, process.forceTerminate());
+        try std.testing.expectError(error.AccessDenied, process.forceTerminate());
         try process.terminate();
         try expectExited(&process);
-        try std.testing.expectError(error.Unexpected, process.forceTerminate());
+        try std.testing.expectError(error.AccessDenied, process.forceTerminate());
     }
 }
 
