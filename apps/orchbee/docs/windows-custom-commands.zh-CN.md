@@ -19,3 +19,5 @@ TUI命令交换使用独立可取消连接和负责join的线程，等待命令�
 参考为Herdr `e0507237ad8d41f60aece10d00ef29ce2339ca34` 的 `app/custom_commands.rs` 与 `api/schema/commands.rs`：四类配置动作、endpoint发布ID、可选目标聚焦及带内容版本的plugin选区。原生配置profile提供命令身份边界，既有运行时所有者提供进程与物理终端权限。解析／profile检查仅证明共享配置基础；完成还需要每种动作的实际目录／调用／按键消费者、相关联的拒绝／unknown及生命周期证据，以及最终Windows流程验收。本模型不增加Desktop或其他平台命令实现。
 
 定向证据包括真实Windows shell环境／退出处理、Worker后台所有权及重复／冲突／关闭检查、CLI可执行进程的目录／调用／拒绝／unknown用例、Server已安装目录／来源／权限检查、TUI绑定／发现／来源失效及actor取消，以及Rust／TypeScript／JSON共享的[一致性语料](../../../schemas/workbench/v1/workbench-configured-command-conformance-v1.json)。原生命令输出为 `orchbee.command` v1；过期ID使用封闭的 `orchbee.cli.failure.command` v1文档。配置popup控制使用v11，在v1-v10下仍无效。这些定向检查不声明最终全cohort或交互式Windows验收完成。
+
+配置shell见证在原有三秒预算内等待完整的command-ID回执；文件创建本身不能证明写入完成。夹具在成功路径显式检查清理。panic展开期间，清理失败报告准确保留目录，不替换原始panic。反例覆盖初始空回执，以及暂不允许删除目录的消费者：原始panic保持可观察，消费者释放句柄后再回收目录。

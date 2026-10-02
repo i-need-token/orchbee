@@ -4,35 +4,112 @@ fn id(n: u32) -> OperationId {
     b[..4].copy_from_slice(&n.to_be_bytes());
     OperationId::from_bytes(b).unwrap()
 }
-#[test]
-fn configured_shell_is_retained_independently_and_shutdown_joins_its_process() {
-    let root = std::env::temp_dir().canonicalize().unwrap();
-    let directory = root.join(format!(
-        "orchbee-configured-command-test-{}-{}",
-        std::process::id(),
-        SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_nanos()
-    ));
-    std::fs::create_dir(&directory).unwrap();
-    struct Owned {
-        jobs: PluginJobs,
-        directory: std::path::PathBuf,
-    }
-    impl Drop for Owned {
-        fn drop(&mut self) {
-            self.jobs
-                .stop_before(Instant::now() + Duration::from_secs(6))
-                .unwrap();
-            let _ = std::fs::remove_file(self.directory.join("receipt.txt"));
-            std::fs::remove_dir(&self.directory).unwrap();
+struct ConfiguredFixture {
+    jobs: PluginJobs,
+    directory: std::path::PathBuf,
+    cleaned: bool,
+}
+impl ConfiguredFixture {
+    fn new() -> Self {
+        let root = std::env::temp_dir().canonicalize().unwrap();
+        let directory = root.join(format!(
+            "orchbee-configured-command-test-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir(&directory).unwrap();
+        Self {
+            jobs: PluginJobs::new(),
+            directory,
+            cleaned: false,
         }
     }
-    let owned = Owned {
-        jobs: PluginJobs::new(),
-        directory,
-    };
+    fn cleanup(&mut self) -> io::Result<()> {
+        if self.cleaned {
+            return Ok(());
+        }
+        self.jobs
+            .stop_before(Instant::now() + Duration::from_secs(6))?;
+        match std::fs::remove_file(self.directory.join("receipt.txt")) {
+            Ok(()) => {}
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+            Err(error) => return Err(error),
+        }
+        std::fs::remove_dir(&self.directory)?;
+        self.cleaned = true;
+        Ok(())
+    }
+}
+impl Drop for ConfiguredFixture {
+    fn drop(&mut self) {
+        if let Err(error) = self.cleanup() {
+            eprintln!(
+                "Configured fixture retained at {}: {error}",
+                self.directory.display()
+            );
+        }
+    }
+}
+fn wait_for_configured_receipt(directory: &std::path::Path) {
+    let deadline = Instant::now() + Duration::from_secs(3);
+    loop {
+        let incomplete = match std::fs::read_to_string(directory.join("receipt.txt")) {
+            Ok(receipt) if receipt.trim() == "cmd_profile_0" => return,
+            Ok(receipt) => format!("incomplete command receipt: {receipt:?}"),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {
+                "command receipt absent".into()
+            }
+            Err(error) => panic!("command receipt read failed: {error}"),
+        };
+        assert!(Instant::now() < deadline, "{incomplete}");
+        thread::sleep(Duration::from_millis(10));
+    }
+}
+#[test]
+fn configured_receipt_waits_for_content_after_file_creation() {
+    let mut fixture = ConfiguredFixture::new();
+    let receipt = fixture.directory.join("receipt.txt");
+    std::fs::write(&receipt, b"").unwrap();
+    thread::scope(|scope| {
+        scope.spawn(|| {
+            thread::sleep(Duration::from_millis(100));
+            std::fs::write(&receipt, b"cmd_profile_0\r\n").unwrap();
+        });
+        wait_for_configured_receipt(&fixture.directory);
+    });
+    fixture.cleanup().unwrap();
+}
+#[test]
+fn configured_fixture_cleanup_failure_preserves_the_original_panic() {
+    use std::os::windows::fs::OpenOptionsExt;
+    let fixture = ConfiguredFixture::new();
+    let directory = fixture.directory.clone();
+    // FILE_FLAG_BACKUP_SEMANTICS opens this exact owned directory. Denying
+    // FILE_SHARE_DELETE makes cleanup failure deterministic without a child race.
+    let consumer = std::fs::OpenOptions::new()
+        .read(true)
+        .share_mode(3)
+        .custom_flags(0x0200_0000)
+        .open(&directory)
+        .unwrap();
+    let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let _fixture = fixture;
+        panic!("configured fixture original failure");
+    }));
+    drop(consumer);
+    std::fs::remove_dir(&directory).unwrap();
+    let panic = outcome.expect_err("the original panic must remain observable");
+    assert_eq!(
+        panic.downcast_ref::<&str>(),
+        Some(&"configured fixture original failure")
+    );
+}
+#[test]
+fn configured_shell_is_retained_independently_and_shutdown_joins_its_process() {
+    let mut owned = ConfiguredFixture::new();
     let command = orchbee_capability_node_protocol::ConfiguredCommandIntent {
         command_id: "cmd_profile_0".into(), directory: owned.directory.to_str().unwrap().into(),
         command: "echo %ORCHBEE_COMMAND_ID%>receipt.txt & ping -n 20 127.0.0.1 >nul & echo finished>>receipt.txt".into(),
@@ -71,16 +148,7 @@ fn configured_shell_is_retained_independently_and_shutdown_joins_its_process() {
         ),
         Outcome::Refused(Refusal::Conflict)
     );
-    let deadline = Instant::now() + Duration::from_secs(3);
-    while !owned.directory.join("receipt.txt").exists() {
-        assert!(Instant::now() < deadline);
-        thread::sleep(Duration::from_millis(10));
-    }
-    assert!(
-        std::fs::read_to_string(owned.directory.join("receipt.txt"))
-            .unwrap()
-            .contains("cmd_profile_0")
-    );
+    wait_for_configured_receipt(&owned.directory);
     assert!(
         matches!(owned.jobs.execute(id(801), PluginJobAction::List {plugin_id:None,before:None,limit:4}), Outcome::Logs {logs,..} if logs.is_empty())
     );
@@ -106,6 +174,7 @@ fn configured_shell_is_retained_independently_and_shutdown_joins_its_process() {
         jobs.execute(id(802), PluginJobAction::StartConfigured(bad)),
         Outcome::Refused(Refusal::Unavailable)
     );
+    owned.cleanup().unwrap();
 }
 fn intent(args: &[&str]) -> PluginCommandIntent {
     PluginCommandIntent {
