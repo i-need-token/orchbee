@@ -110,3 +110,14 @@ Reject a structural change when it introduces a reverse edge, relative cross-dir
 cycle, broad re-export, duplicate state owner, or callback that lets a lower module invoke its
 orchestrator. If a valid operation needs such an edge, return to the runtime model and revise the
 owner or commit boundary before changing the graph.
+
+## Retained lifecycle encoding
+
+Within the existing Control boundary, `encode_lifecycle.zig` owns the lossless
+encoding of terminal phase, exit result, runtime failure, process observation
+and containment, including exited/failed events. `encode_host.zig` composes
+these values into Host inventory and retains handshake/default/configuration
+encoding. Both are pure adapters: input values, output bytes, allocation/error
+behavior and the existing `encode.zig` public namespace stay unchanged. There
+is no new state, writer, module dependency or lifecycle transition. Existing
+control and cross-language protocol conformance checks judge byte preservation.
