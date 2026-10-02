@@ -22,6 +22,8 @@ use crate::{
 };
 
 use super::{InputSource, LoopExit, LoopFailure, ViewportSource, run_event_loop, to_area};
+#[cfg(windows)]
+mod graphics;
 mod rename;
 pub(crate) use rename::run_native_rename_resize;
 

@@ -260,7 +260,15 @@ fn run_prepared_surface(
             synchronized_update,
         ),
     );
-    let backend = FixedViewportBackend::new(output, dimensions, modes.synchronized_update_lease());
+    let mut backend =
+        FixedViewportBackend::new(output, dimensions, modes.synchronized_update_lease());
+    #[cfg(windows)]
+    {
+        let mut nonce = [0; 4];
+        if getrandom::fill(&mut nonce).is_ok() {
+            backend.enable_graphics_probe(u32::from_ne_bytes(nonce).max(1));
+        }
+    }
     let mut terminal = Terminal::with_options(
         backend,
         TerminalOptions {
@@ -292,6 +300,7 @@ fn run_prepared_surface(
             theme: &theme,
         },
         (&mut inputs, &mut |request| match request {
+            ModeRequest::GraphicsQuery(query) => modes.query_graphics(query),
             #[cfg(windows)]
             ModeRequest::Notification(effect) => {
                 use orchbee_local_site_runtime::WindowsNotificationDelivery as Delivery;
@@ -452,6 +461,9 @@ fn run_surface_loop<B: Backend + ResizableBackend>(
         matches!(surface, SurfaceSlot::Owned(_)).then(|| machines::Manager::new(&mut view));
     let terminal_input = surface.active();
     let mut dispatcher = InputDispatcher::default();
+    if let Some(id) = terminal.backend().graphics_probe_id() {
+        dispatcher.activate_graphics_probe(id);
+    }
     // The lifecycle write already armed or released host reporting; the
     // dispatcher and the status indicator settle to the same truth here.
     dispatcher.set_pointer_capture(&mut view, mouse);
@@ -464,7 +476,14 @@ fn run_surface_loop<B: Backend + ResizableBackend>(
         &mut view,
         terminal_input,
         &mut dimensions,
+        dispatcher.graphics_facts().measurement,
     )?;
+    dispatcher.query_graphics(
+        (dimensions.columns, dimensions.rows),
+        inputs.sample_time(),
+        &mut |request| mode(request).map_err(LoopFailure::Input),
+    )?;
+    terminal_input.observe_host_graphics(dispatcher.graphics_facts());
     let _changed = terminal_input.tick();
     draw_surface(terminal, &mut view, chrome, terminal_input, &mut dispatcher)?;
     loop {
@@ -483,6 +502,7 @@ fn run_surface_loop<B: Backend + ResizableBackend>(
             &mut view,
             terminal_input,
             &mut dimensions,
+            dispatcher.graphics_facts().measurement,
         )?;
         if redraw {
             // Resize discards the recorded regions: until the next
@@ -492,18 +512,33 @@ fn run_surface_loop<B: Backend + ResizableBackend>(
         }
         redraw |= terminal_input.tick();
         let now = inputs.sample_time();
+        redraw |= dispatcher.query_graphics(
+            (dimensions.columns, dimensions.rows),
+            now,
+            &mut |request| mode(request).map_err(LoopFailure::Input),
+        )?;
+        terminal_input.observe_host_graphics(dispatcher.graphics_facts());
         redraw |= dispatcher.synchronize(&mut view, terminal_input, now, &mut |request| {
             mode(request).map_err(LoopFailure::Input)
         })?;
+        let previous_measurement = dispatcher.graphics_facts().measurement;
         if let Some(input) = input {
+            let measurement = dispatcher.graphics_facts().measurement;
             let outcome = dispatcher.dispatch(
                 &mut view,
                 &input,
                 terminal_input,
                 now,
                 |view, terminal_input| {
-                    synchronize_viewport(terminal, viewport, view, terminal_input, &mut dimensions)
-                        .map(|_changed| ())
+                    synchronize_viewport(
+                        terminal,
+                        viewport,
+                        view,
+                        terminal_input,
+                        &mut dimensions,
+                        measurement,
+                    )
+                    .map(|_changed| ())
                 },
                 &mut |request| mode(request).map_err(LoopFailure::Input),
             )?;
@@ -511,6 +546,22 @@ fn run_surface_loop<B: Backend + ResizableBackend>(
                 return Ok(LoopExit::User);
             }
             redraw = true;
+        }
+        redraw |= dispatcher.query_graphics(
+            (dimensions.columns, dimensions.rows),
+            now,
+            &mut |request| mode(request).map_err(LoopFailure::Input),
+        )?;
+        terminal_input.observe_host_graphics(dispatcher.graphics_facts());
+        if previous_measurement != dispatcher.graphics_facts().measurement {
+            redraw |= synchronize_viewport(
+                terminal,
+                viewport,
+                &mut view,
+                terminal_input,
+                &mut dimensions,
+                dispatcher.graphics_facts().measurement,
+            )?;
         }
         if termination.requested() {
             return Ok(LoopExit::Signal);
@@ -523,6 +574,7 @@ fn run_surface_loop<B: Backend + ResizableBackend>(
                 &mut view,
                 terminal_input,
                 &mut dimensions,
+                dispatcher.graphics_facts().measurement,
             )?;
             dispatcher.invalidate_hit_map();
             redraw = true;
@@ -543,10 +595,12 @@ fn run_surface_loop<B: Backend + ResizableBackend>(
                     &mut view,
                     surface.active(),
                     &mut dimensions,
+                    dispatcher.graphics_facts().measurement,
                 )?;
             }
         }
         let terminal_input = surface.active();
+        terminal_input.observe_host_graphics(dispatcher.graphics_facts());
         #[cfg(windows)]
         if let Some(snapshot) = view.window_title.take()
             && mode(ModeRequest::WindowTitle(snapshot.title)).is_err()
@@ -631,6 +685,7 @@ fn synchronize_viewport<B: Backend + ResizableBackend>(
     view: &mut ClientView,
     terminal_input: &mut (impl TerminalSurface + ?Sized),
     dimensions: &mut WindowDimensions,
+    measurement: Option<crate::terminal_graphics::Measurement>,
 ) -> Result<bool, LoopFailure<B::Error>> {
     let Some(next) = viewport
         .window_dimensions()
@@ -638,6 +693,7 @@ fn synchronize_viewport<B: Backend + ResizableBackend>(
     else {
         return Ok(false);
     };
+    let next = measurement.map_or(next, |measurement| measurement.apply(next));
     let changed = next != *dimensions;
     if changed {
         #[cfg(windows)]

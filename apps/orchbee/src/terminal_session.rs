@@ -665,6 +665,11 @@ impl TerminalSession {
 }
 
 impl TerminalInputPort for TerminalSession {
+    fn observe_host_graphics(&mut self, facts: crate::terminal_graphics::Facts) {
+        if let Some(native) = self.backend.native_mut() {
+            native.observe_host_graphics(facts);
+        }
+    }
     #[cfg(windows)]
     fn popup_identity(&self) -> Option<&orchbee_workbench_protocol::WorkbenchRequestId> {
         match &self.backend {

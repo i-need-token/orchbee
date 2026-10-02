@@ -16,6 +16,7 @@ use super::{
 
 #[derive(Default)]
 pub(crate) struct InputDispatcher {
+    graphics: crate::terminal_graphics::Probe,
     decoder: ModalDecoder,
     keys: LegacyDecoder,
     epoch: Option<ModalEpoch>,
@@ -86,6 +87,24 @@ fn literal_chord_byte(item: &DecodedItem) -> Option<u8> {
 }
 
 impl InputDispatcher {
+    pub(crate) fn activate_graphics_probe(&mut self, id: u32) {
+        self.graphics.activate(id);
+    }
+    pub(crate) fn graphics_facts(&self) -> crate::terminal_graphics::Facts {
+        self.graphics.facts()
+    }
+    pub(crate) fn query_graphics<Error>(
+        &mut self,
+        cells: (u16, u16),
+        now: Instant,
+        mode: &mut impl FnMut(ModeRequest) -> Result<(), Error>,
+    ) -> Result<bool, Error> {
+        let previous = self.graphics.facts();
+        if let Some(query) = self.graphics.query(cells, now) {
+            mode(ModeRequest::GraphicsQuery(query))?;
+        }
+        Ok(self.graphics.facts() != previous)
+    }
     #[cfg(windows)]
     pub(crate) fn machine_surface_changed(&mut self) {
         self.keys.capture_pending();
@@ -147,6 +166,7 @@ impl InputDispatcher {
         now: Instant,
         mode: &mut impl FnMut(ModeRequest) -> Result<(), Error>,
     ) -> Result<bool, Error> {
+        self.graphics.tick(now);
         let owned_input = self.decoder.owns_input();
         // An idle read is a packet boundary too: a `Released` guard left
         // over from an earlier packet ends here so the lease is returned
@@ -156,7 +176,7 @@ impl InputDispatcher {
         let mut changed = self.reconcile(view, port, now);
         let events = self.decoder.tick(now);
         changed |= !events.is_empty();
-        self.apply_events(view, port, events);
+        self.apply_events(view, port, events, now);
         self.confirm_packet = false;
         #[cfg(windows)]
         {
@@ -193,7 +213,7 @@ impl InputDispatcher {
         // this boundary, while an in-flight frame or an open ESC
         // disambiguation keeps ownership under its own rules.
         let events = self.decoder.begin_packet(now);
-        self.apply_events(view, port, events);
+        self.apply_events(view, port, events, now);
         for byte in input.iter().copied() {
             self.reconcile(view, port, now);
             let remaining = match self.epoch {
@@ -212,7 +232,7 @@ impl InputDispatcher {
             let (captured, events) = self.decoder.push(byte, now, remaining);
             if captured || !events.is_empty() {
                 self.flush_pending(view, port);
-                self.apply_events(view, port, events);
+                self.apply_events(view, port, events, now);
                 self.reconcile(view, port, now);
                 if captured {
                     continue;
@@ -255,6 +275,11 @@ impl InputDispatcher {
         after_layout: &mut impl FnMut(&mut ClientView, &mut Port) -> Result<(), Error>,
         mode: &mut impl FnMut(ModeRequest) -> Result<(), Error>,
     ) -> Result<DispatchOutcome, Error> {
+        if let DecodedKind::HostReply(reply) = item.kind {
+            self.flush_pending(view, port);
+            self.graphics.reply(reply, now);
+            return Ok(DispatchOutcome::Continue);
+        }
         if let DecodedKind::Focus(focused) = item.kind {
             self.flush_pending(view, port);
             port.observe_focus(focused);
@@ -348,7 +373,7 @@ impl InputDispatcher {
                     return Ok(DispatchOutcome::Continue);
                 }
                 DecodedKind::Mouse(_) => {}
-                DecodedKind::Ignored | DecodedKind::Focus(_) => {}
+                DecodedKind::Ignored | DecodedKind::Focus(_) | DecodedKind::HostReply(_) => {}
                 DecodedKind::Nondecision => {}
             }
             return self.decide(view, port, now, item, after_layout, mode);
@@ -559,7 +584,7 @@ impl InputDispatcher {
         }
         if self.epoch.take().is_some() {
             let events = self.decoder.cancel(now);
-            self.apply_events(view, port, events);
+            self.apply_events(view, port, events, now);
         }
         let capacity =
             if setup.is_some_and(|context| context.stage() == NativeSetupStage::DirectoryPath) {
@@ -580,8 +605,13 @@ impl InputDispatcher {
         view: &mut ClientView,
         port: &mut (impl TerminalInputPort + ?Sized),
         events: Vec<ModalInputEvent>,
+        now: Instant,
     ) {
         for event in events {
+            if let ModalInputEvent::HostReply(reply) = event {
+                self.graphics.reply(reply, now);
+                continue;
+            }
             if let ModalInputEvent::Focus(focused) = event {
                 port.observe_focus(focused);
                 continue;
@@ -621,7 +651,9 @@ impl InputDispatcher {
                     port.cancel_rename_draft(token);
                     continue;
                 }
-                ModalInputEvent::InputFailure | ModalInputEvent::Focus(_) => continue,
+                ModalInputEvent::InputFailure
+                | ModalInputEvent::Focus(_)
+                | ModalInputEvent::HostReply(_) => continue,
             };
             let _accepted = port.edit_rename_draft(token, edit);
         }
@@ -669,7 +701,9 @@ impl InputDispatcher {
                 port.cancel_setup_draft(token);
                 return;
             }
-            ModalInputEvent::InputFailure | ModalInputEvent::Focus(_) => return,
+            ModalInputEvent::InputFailure
+            | ModalInputEvent::Focus(_)
+            | ModalInputEvent::HostReply(_) => return,
         };
         let selecting = matches!(
             edit,

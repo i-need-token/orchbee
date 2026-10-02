@@ -23,6 +23,7 @@ fn kinds(items: &[DecodedItem]) -> Vec<String> {
             DecodedKind::Paste { text } => format!("paste:{:?}", text),
             DecodedKind::Mouse(event) => format!("mouse:{:?}", event),
             DecodedKind::Focus(focused) => format!("focus:{focused}"),
+            DecodedKind::HostReply(reply) => format!("host:{reply:?}"),
             DecodedKind::Ignored => format!("ignored:{:?}", &item.raw[..]),
             DecodedKind::Nondecision => format!("nondecision:{:?}", &item.raw[..]),
         })

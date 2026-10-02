@@ -561,3 +561,78 @@ fn focus_loss_after_modal_submit_survives_the_captured_packet_tail() {
     assert!(tail.contains(&Event::Focus(false)));
     assert!(appended(&tail).is_empty());
 }
+
+#[test]
+fn graphics_replies_inside_native_text_capture_never_edit_the_draft() {
+    use crate::terminal_graphics::Reply;
+    let now = Instant::now();
+    let mut decoder = ModalDecoder::default();
+    assert!(decoder.start());
+    let mut events = Vec::new();
+    for chunk in b"a\x1b[6;16;8t\x1b_Gi=31;OK\x1b\\b".chunks(3) {
+        events.extend(feed(&mut decoder, chunk, now, 512));
+    }
+    assert_eq!(appended(&events), "ab");
+    assert!(events.contains(&Event::HostReply(Reply::Cell(Some((8, 16))))));
+    assert!(events.contains(&Event::HostReply(Reply::Kitty {
+        placement_id: None,
+        image_id: 31,
+        success: true
+    })));
+    assert!(!events.contains(&Event::Fault));
+    let paste = feed(
+        &mut decoder,
+        b"\x1b[200~\x1b[6;16;8t\x1b_Gi=31;OK\x1b\\\x1b[201~",
+        now,
+        512,
+    );
+    assert!(
+        !paste
+            .iter()
+            .any(|event| matches!(event, Event::HostReply(_)))
+    );
+}
+
+#[test]
+fn late_graphics_strings_stay_captured_until_their_terminator_after_modal_cancel() {
+    let now = Instant::now();
+    let mut decoder = ModalDecoder::default();
+    assert!(decoder.start());
+    feed(&mut decoder, b"\x1b_Gi=31;", now, 512);
+    decoder.cancel(now + Duration::from_millis(1));
+    decoder.begin_packet(now + Duration::from_millis(80));
+    let events = feed(
+        &mut decoder,
+        b"OK\x1b\\z",
+        now + Duration::from_millis(80),
+        512,
+    );
+    assert!(appended(&events).is_empty());
+    assert!(
+        !events
+            .iter()
+            .any(|event| matches!(event, Event::HostReply(_)))
+    );
+    decoder.begin_packet(now + Duration::from_millis(90));
+    assert!(!decoder.push(b'x', now + Duration::from_millis(90), 512).0);
+}
+
+#[test]
+fn malformed_or_timed_out_cell_metadata_does_not_fault_or_edit_a_native_field() {
+    let now = Instant::now();
+    let mut decoder = ModalDecoder::default();
+    assert!(decoder.start());
+    let oversized = [b"\x1b[6;".as_slice(), &vec![b'9'; 2048], b";8tx"].concat();
+    let events = feed(&mut decoder, &oversized, now, 512);
+    assert_eq!(appended(&events), "x");
+    assert!(!events.contains(&Event::Fault));
+    feed(&mut decoder, b"\x1b[6;16;", now, 512);
+    assert!(
+        !decoder
+            .tick(now + Duration::from_millis(60))
+            .contains(&Event::Fault)
+    );
+    let events = feed(&mut decoder, b"8ty", now + Duration::from_millis(70), 512);
+    assert_eq!(appended(&events), "y");
+    assert!(!events.contains(&Event::Fault));
+}

@@ -101,7 +101,10 @@ impl Input {
         if !self.mouse && matches!(item.kind, DecodedKind::Mouse(_)) {
             return;
         }
-        if matches!(item.kind, DecodedKind::Ignored | DecodedKind::Focus(_)) {
+        if matches!(
+            item.kind,
+            DecodedKind::Ignored | DecodedKind::Focus(_) | DecodedKind::HostReply(_)
+        ) {
             if let DecodedKind::Focus(focused) = item.kind {
                 actions.push(Action::Focus(focused));
             }
@@ -190,7 +193,7 @@ impl Input {
             DecodedKind::Key(_) | DecodedKind::Nondecision => {
                 push_input(actions, item.raw.into_vec())
             }
-            DecodedKind::Focus(_) | DecodedKind::Ignored => {}
+            DecodedKind::Focus(_) | DecodedKind::Ignored | DecodedKind::HostReply(_) => {}
         }
     }
 }

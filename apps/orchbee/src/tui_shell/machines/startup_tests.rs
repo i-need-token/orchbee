@@ -265,8 +265,8 @@ fn machine_local_workspace_selection_reuses_local_origin_and_replaces_only_after
 -> io::Result<()> {
     let snapshot = snapshot(true);
     let destination = target(&snapshot);
-    let mut retained = None;
-    let server = FakeServer::start_connections(4, move |index, mut stream| {
+    let mut retained = Vec::with_capacity(1);
+    let server = FakeServer::start_optional_connections(4, move |index, mut stream| {
         stream.set_read_timeout(Some(Duration::from_secs(5)))?;
         assert!(matches!(
             read_message(&mut stream).map_err(io::Error::other)?,
@@ -280,7 +280,7 @@ fn machine_local_workspace_selection_reuses_local_origin_and_replaces_only_after
         )
         .map_err(io::Error::other)?;
         if index == 0 {
-            retained = Some(stream);
+            retained.push(stream);
             return Ok(());
         }
         let WorkbenchRequest::SnapshotRead(read) =
@@ -322,9 +322,6 @@ fn machine_local_workspace_selection_reuses_local_origin_and_replaces_only_after
             Err(WorkbenchWireError::Io(error)) if error.kind() == io::ErrorKind::UnexpectedEof => {}
             other => panic!("unexpected post-snapshot request: {other:?}"),
         }
-        if index == 3 {
-            drop(retained.take());
-        }
         Ok(())
     })?;
     let deadline = Instant::now() + Duration::from_secs(3);
@@ -332,7 +329,9 @@ fn machine_local_workspace_selection_reuses_local_origin_and_replaces_only_after
         .map_err(io::Error::other)?;
     // An admitted local origin is sufficient to reopen a native lane. Keep the
     // source inert so native attention observers do not open unrelated lanes.
-    // The four admissions cover origin, destination and both sidebar reads.
+    // Origin and destination are required; the two sidebar consumers may
+    // cancel before admission when selection replaces their source. Keep the
+    // peer and original connection alive until the actual consumers finish.
     struct SourceSurface(
         crate::local_client::LocalClientOrigin,
         crate::local_client::LocalOperationClock,

@@ -27,6 +27,21 @@ pub(crate) const SYNCHRONIZED_UPDATE_END: &[u8] = b"\x1b[?2026l";
 
 struct FocusReporting(bool);
 
+struct GraphicsQuery(crate::terminal_graphics::Query);
+impl crossterm::Command for GraphicsQuery {
+    #[cfg(windows)]
+    fn execute_winapi(&self) -> io::Result<()> {
+        Err(io::ErrorKind::Unsupported.into())
+    }
+    #[cfg(windows)]
+    fn is_ansi_code_supported(&self) -> bool {
+        true
+    }
+    fn write_ansi(&self, output: &mut impl fmt::Write) -> fmt::Result {
+        output.write_str(&self.0.sequence())
+    }
+}
+
 impl crossterm::Command for FocusReporting {
     #[cfg(windows)]
     fn execute_winapi(&self) -> io::Result<()> {
@@ -101,6 +116,9 @@ impl crossterm::Command for SynchronizedUpdateEnd {
 }
 
 pub(crate) trait TerminalModes: Send + Sync + 'static {
+    fn query_graphics(&self, _query: crate::terminal_graphics::Query) -> io::Result<()> {
+        Err(io::ErrorKind::Unsupported.into())
+    }
     #[cfg(windows)]
     fn notify_terminal(
         &self,
@@ -380,6 +398,15 @@ impl<C: TerminalModes> TerminalModeGuard<C> {
         Arc::clone(&self.state.synchronized_update)
     }
 
+    pub(crate) fn query_graphics(&self, query: crate::terminal_graphics::Query) -> io::Result<()> {
+        if !self.state.raw_mode.restoration_required()
+            || self.state.synchronized_update.frame_output_blocked()
+        {
+            return Err(io::ErrorKind::BrokenPipe.into());
+        }
+        self.control.query_graphics(query)
+    }
+
     #[cfg(windows)]
     pub(crate) fn notify_terminal(
         &mut self,
@@ -631,6 +658,9 @@ impl InheritedTerminalModes {
 }
 
 impl TerminalModes for InheritedTerminalModes {
+    fn query_graphics(&self, query: crate::terminal_graphics::Query) -> io::Result<()> {
+        self.write_command(GraphicsQuery(query))
+    }
     #[cfg(windows)]
     fn notify_terminal(
         &self,

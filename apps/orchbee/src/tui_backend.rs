@@ -29,9 +29,13 @@ use crate::{
 
 pub(crate) trait ResizableBackend: Backend {
     fn set_window_dimensions(&mut self, dimensions: WindowDimensions);
+    fn graphics_probe_id(&self) -> Option<u32> {
+        None
+    }
 }
 
 pub(crate) struct FixedViewportBackend<W: Write> {
+    graphics_probe_id: Option<u32>,
     cursor_position: Position,
     synchronized_update: Arc<SynchronizedUpdateLease>,
     window: WindowSize,
@@ -45,11 +49,16 @@ impl<W: Write> FixedViewportBackend<W> {
         synchronized_update: Arc<SynchronizedUpdateLease>,
     ) -> Self {
         Self {
+            graphics_probe_id: None,
             cursor_position: Position::ORIGIN,
             synchronized_update,
             window: to_window_size(dimensions),
             writer,
         }
+    }
+    #[cfg(windows)]
+    pub(crate) fn enable_graphics_probe(&mut self, id: u32) {
+        self.graphics_probe_id = (id != 0).then_some(id);
     }
 }
 
@@ -84,6 +93,9 @@ impl<W: Write> Write for RestorationGatedWriter<W> {
 }
 
 impl<W: Write> ResizableBackend for FixedViewportBackend<W> {
+    fn graphics_probe_id(&self) -> Option<u32> {
+        self.graphics_probe_id
+    }
     fn set_window_dimensions(&mut self, dimensions: WindowDimensions) {
         self.window = to_window_size(dimensions);
     }

@@ -47,6 +47,7 @@ mod terminal_buffer_text;
 mod terminal_copy;
 #[cfg(any(unix, windows))]
 mod terminal_device;
+mod terminal_graphics;
 #[cfg(any(unix, windows))]
 mod terminal_input;
 #[cfg(any(unix, windows))]

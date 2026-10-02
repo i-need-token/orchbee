@@ -22,6 +22,12 @@ impl NativeSessionView<'_> {
 }
 
 impl NativeUi {
+    pub(in crate::terminal_session) fn observe_host_graphics(
+        &mut self,
+        facts: crate::terminal_graphics::Facts,
+    ) {
+        self.graphics.observe_host(facts);
+    }
     pub(in crate::terminal_session) fn graphics_observation(
         &self,
         view: &orchbee_workbench_protocol::ClientViewObservation,

@@ -19,6 +19,7 @@ pub(crate) struct FakeServer {
     _directory: TestDirectory,
     endpoint: PathBuf,
     thread: thread::JoinHandle<io::Result<()>>,
+    finish_signal: Option<std::sync::mpsc::SyncSender<()>>,
 }
 
 /// Poll a nonblocking listener until a client arrives or `deadline` passes.
@@ -68,6 +69,63 @@ impl FakeServer {
             _directory: directory,
             endpoint,
             thread,
+            finish_signal: None,
+        })
+    }
+
+    /// Keep the peer alive until its consumers finish; canceled observations
+    /// may omit admissions, but the maximum and every read remain bounded.
+    pub(crate) fn start_optional_connections(
+        maximum: usize,
+        mut handler: impl FnMut(usize, UnixStream) -> io::Result<()> + Send + 'static,
+    ) -> io::Result<Self> {
+        let directory = TestDirectory::new()?;
+        #[cfg(unix)]
+        let endpoint = directory.path.join("client.sock");
+        #[cfg(windows)]
+        let endpoint = crate::test_support::endpoint();
+        let listener = UnixListener::bind(&endpoint)?;
+        listener.set_nonblocking(true)?;
+        let (signal, finish) = std::sync::mpsc::sync_channel(1);
+        let thread = thread::spawn(move || {
+            let deadline = Instant::now() + ACCEPT_GUARD_TIMEOUT;
+            let mut admitted = 0;
+            loop {
+                match finish.try_recv() {
+                    Ok(()) | Err(std::sync::mpsc::TryRecvError::Disconnected) => return Ok(()),
+                    Err(std::sync::mpsc::TryRecvError::Empty) => {}
+                }
+                if Instant::now() >= deadline {
+                    return Err(io::Error::new(
+                        io::ErrorKind::TimedOut,
+                        "fake Server finish deadline",
+                    ));
+                }
+                if admitted < maximum {
+                    match listener.accept() {
+                        Ok((stream, _)) => {
+                            stream.set_read_timeout(Some(SERVER_GUARD_TIMEOUT))?;
+                            stream.set_write_timeout(Some(SERVER_GUARD_TIMEOUT))?;
+                            handler(admitted, stream)?;
+                            admitted += 1;
+                            continue;
+                        }
+                        Err(error)
+                            if matches!(
+                                error.kind(),
+                                io::ErrorKind::WouldBlock | io::ErrorKind::Interrupted
+                            ) => {}
+                        Err(error) => return Err(error),
+                    }
+                }
+                thread::sleep(Duration::from_millis(1));
+            }
+        });
+        Ok(Self {
+            _directory: directory,
+            endpoint,
+            thread,
+            finish_signal: Some(signal),
         })
     }
 
@@ -100,6 +158,7 @@ impl FakeServer {
             _directory: directory,
             endpoint,
             thread,
+            finish_signal: None,
         })
     }
 
@@ -108,6 +167,10 @@ impl FakeServer {
     }
 
     pub(crate) fn finish(self) -> io::Result<()> {
+        if let Some(signal) = self.finish_signal {
+            // If the peer already failed, join below retains its actual error.
+            let _closed = signal.send(());
+        }
         self.thread
             .join()
             .map_err(|_panic| io::Error::other("fake Server panicked"))?

@@ -51,6 +51,7 @@ pub(super) enum ModalInputEvent {
     Fault,
     Completeness(bool),
     Focus(bool),
+    HostReply(crate::terminal_graphics::Reply),
     Submit,
     Cancel,
     InputFailure,
@@ -72,6 +73,8 @@ enum Phase {
     },
     Escape(Instant),
     Sequence(Sequence),
+    GraphicsStart(Instant),
+    Graphics(Box<crate::terminal_graphics::ReplyString>),
     Paste(Paste),
     /// The modal released its lease: every remaining byte of the packet
     /// that held the decision stays owned, and a frame that starts inside
@@ -117,6 +120,18 @@ impl Sequence {
             drain: false,
             deadline: now.checked_add(WAIT),
         }
+    }
+
+    fn cell_report(&self) -> bool {
+        let raw = &self.bytes[..self.length];
+        let body = if raw.starts_with(b"\x1b[") {
+            &raw[2..]
+        } else if raw.starts_with(b"\x9b") {
+            &raw[1..]
+        } else {
+            return false;
+        };
+        body.starts_with(b"6;")
     }
 
     fn is_paste_opener(&self) -> bool {
@@ -201,6 +216,7 @@ impl ModalDecoder {
         match &mut self.phase {
             Phase::Paste(paste) => paste.discard(),
             Phase::Sequence(_) => {}
+            Phase::GraphicsStart(_) | Phase::Graphics(_) => {}
             Phase::Utf8 { discard, .. } => *discard = true,
             Phase::Escape(_) => {}
             _ => self.release_at(now),
@@ -243,11 +259,15 @@ impl ModalDecoder {
                 {
                     sequence.drain = true;
                     sequence.deadline = None;
-                    if self.editing {
+                    if self.editing && !sequence.cell_report() {
                         events.push(ModalInputEvent::Fault);
                     }
                 }
             }
+            Phase::GraphicsStart(deadline) if now >= *deadline => {
+                self.finish_frame(now, &mut events);
+            }
+            Phase::Graphics(reply) => reply.tick(now),
             // A truncated scalar ends at its deadline: while editing the
             // frame faults back to text; after release the tail keeps its
             // remaining continuation bytes owned rather than leaking them.
@@ -314,6 +334,7 @@ impl ModalDecoder {
                     }
                 }
                 Phase::Escape(_) => match byte {
+                    b'_' => self.phase = Phase::GraphicsStart(now + WAIT),
                     b'[' | b'O' => self.phase = Phase::Sequence(Sequence::new(byte, now)),
                     0x9b | 0x8f => self.phase = Phase::Sequence(Sequence::c1(byte, now)),
                     0x80..=0xff => {
@@ -321,6 +342,26 @@ impl ModalDecoder {
                     }
                     _ => self.finish_frame(now, &mut events),
                 },
+                Phase::GraphicsStart(_) => {
+                    if byte == b'G' {
+                        self.phase = Phase::Graphics(Box::new(
+                            crate::terminal_graphics::ReplyString::new(now, WAIT),
+                        ));
+                    } else {
+                        self.finish_frame(now, &mut events);
+                        pending = Some(byte);
+                    }
+                }
+                Phase::Graphics(mut reply) => {
+                    if let Some(completed) = reply.push(byte, now) {
+                        self.finish_frame(now, &mut events);
+                        if let Some(reply) = completed {
+                            events.push(ModalInputEvent::HostReply(reply));
+                        }
+                    } else {
+                        self.phase = Phase::Graphics(reply);
+                    }
+                }
                 Phase::Utf8 {
                     scalar, discard, ..
                 } => self.scalar_byte(scalar, discard, byte, now, &mut events),
@@ -456,7 +497,7 @@ impl ModalDecoder {
             if sequence.length == MAX_SEQUENCE || !valid {
                 sequence.drain = true;
                 sequence.deadline = None;
-                if self.editing {
+                if self.editing && !sequence.cell_report() {
                     events.push(ModalInputEvent::Fault);
                 }
             } else {
@@ -476,6 +517,18 @@ impl ModalDecoder {
                 self.phase = Phase::Paste(paste);
             } else {
                 self.finish_frame(now, events);
+                let bytes = &sequence.bytes[..sequence.length];
+                let body = if bytes[0] == 0x9b {
+                    Some(&bytes[1..])
+                } else {
+                    bytes.strip_prefix(b"\x1b[")
+                };
+                if !sequence.drain
+                    && let Some(reply) = body.and_then(crate::terminal_graphics::cell_reply)
+                {
+                    events.push(ModalInputEvent::HostReply(reply));
+                    return;
+                }
                 if !sequence.drain
                     && let Some(event) = sequence_edit(&sequence.bytes[..sequence.length])
                     && (self.editing || matches!(event, ModalInputEvent::Focus(_)))

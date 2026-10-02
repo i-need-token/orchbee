@@ -28,6 +28,8 @@ pub(crate) struct TerminalInputUnavailable;
 /// dispatcher decides *when*; the lifecycle layer owns the actual bytes.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum ModeRequest {
+    /// Bounded metadata queries on the already-admitted host terminal.
+    GraphicsQuery(crate::terminal_graphics::Query),
     #[cfg(windows)]
     WindowTitle(Option<orchbee_workbench_protocol::WindowTitle>),
     #[cfg(windows)]
@@ -173,6 +175,7 @@ pub(crate) fn legacy_pane_ref() -> crate::terminal_session::state::PaneRef {
 }
 
 pub(crate) trait TerminalInputPort {
+    fn observe_host_graphics(&mut self, _facts: crate::terminal_graphics::Facts) {}
     #[cfg(windows)]
     fn popup_captured(&self) -> bool {
         false

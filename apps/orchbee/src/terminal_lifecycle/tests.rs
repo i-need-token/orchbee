@@ -13,6 +13,7 @@ use super::{RestorationStep, TerminalModeGuard, TerminalModes};
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 enum Operation {
+    QueryGraphics,
     DisablePaste,
     EnablePaste,
     DisablePointer,
@@ -79,6 +80,9 @@ impl FakeTerminalModes {
 }
 
 impl TerminalModes for FakeTerminalModes {
+    fn query_graphics(&self, _: crate::terminal_graphics::Query) -> io::Result<()> {
+        self.perform(Operation::QueryGraphics)
+    }
     #[cfg(windows)]
     fn notify_terminal(&self, _: &orchbee_workbench_protocol::Notification) -> io::Result<()> {
         self.perform(Operation::Notification)
@@ -1203,4 +1207,47 @@ fn notification_terminal_writer_is_fenced_after_restoration() -> io::Result<()> 
     assert!(guard.notify_terminal(&message).is_err());
     assert_eq!(control.operations(), before);
     Ok(())
+}
+
+#[test]
+fn graphics_queries_use_the_lifecycle_writer_and_cannot_write_after_restoration_or_fencing() {
+    use crossterm::Command;
+    let query = crate::terminal_graphics::Query {
+        cell: true,
+        image_id: Some(31),
+    };
+    let mut bytes = String::new();
+    super::GraphicsQuery(query).write_ansi(&mut bytes).unwrap();
+    assert_eq!(
+        bytes,
+        "\x1b[16t\x1b_Ga=q,t=d,f=32,s=1,v=1,i=31;AAAAAA==\x1b\\"
+    );
+    let control = FakeTerminalModes::default();
+    let mut guard = TerminalModeGuard::enter_without_panic_hook(control.clone()).unwrap();
+    guard.query_graphics(query).unwrap();
+    assert_eq!(
+        control
+            .operations()
+            .iter()
+            .filter(|op| **op == Operation::QueryGraphics)
+            .count(),
+        1
+    );
+    guard.discard_frame_output();
+    assert_eq!(
+        guard.query_graphics(query).unwrap_err().kind(),
+        io::ErrorKind::BrokenPipe
+    );
+    guard.restore().unwrap();
+    assert_eq!(
+        guard.query_graphics(query).unwrap_err().kind(),
+        io::ErrorKind::BrokenPipe
+    );
+    let mut restored =
+        TerminalModeGuard::enter_without_panic_hook(FakeTerminalModes::default()).unwrap();
+    restored.restore().unwrap();
+    assert_eq!(
+        restored.query_graphics(query).unwrap_err().kind(),
+        io::ErrorKind::BrokenPipe
+    );
 }

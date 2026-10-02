@@ -197,6 +197,7 @@ pub(super) struct Round {
     pub(super) rows: BTreeMap<WorkbenchPanelId, Canvas>,
 }
 pub(super) struct Driver {
+    host: crate::terminal_graphics::Facts,
     clock: LocalOperationClock,
     origin: Option<LocalClientOrigin>,
     lane: Option<AgentReadLane>,
@@ -210,6 +211,9 @@ pub(super) struct Driver {
     stopping: bool,
 }
 impl Driver {
+    pub(super) fn observe_host(&mut self, facts: crate::terminal_graphics::Facts) {
+        self.host = facts;
+    }
     #[cfg(test)]
     pub(in crate::terminal_session) fn install_for_test(&mut self, canvas: Canvas) {
         assert!(
@@ -237,11 +241,7 @@ impl Driver {
         draws.sort_by_key(|draw| draw.revision.is_none());
         Some(orchbee_workbench_protocol::PaneGraphicsClientObservation {
             workbench_revision: scope.revision,
-            capabilities: orchbee_workbench_protocol::PaneGraphicsCapabilities {
-                transport: orchbee_workbench_protocol::PaneGraphicsTransport::CellRaster,
-                cell_pixels: None,
-                pixel_mouse: false,
-            },
+            capabilities: self.host.cell_capabilities(),
             complete,
             panes: draws
                 .into_iter()
@@ -256,6 +256,7 @@ impl Driver {
     }
     pub(super) fn new(clock: LocalOperationClock) -> Self {
         Self {
+            host: crate::terminal_graphics::Facts::default(),
             clock,
             origin: None,
             lane: None,
