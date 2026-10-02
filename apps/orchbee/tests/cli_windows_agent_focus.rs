@@ -141,7 +141,7 @@ fn receipt(document: &Value) {
 #[test]
 fn physical_agent_focus_pins_the_full_binding_and_never_substitutes_a_childs_parent() {
     for case in ["primary", "child", "no-agent"] {
-        let fixture = Fixture::new();
+        let fixture = Fixture::new_limited();
         let rendezvous = fixture.rendezvous();
         let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
         let server = peer(&fixture, listener, move |mut stream| {
@@ -203,7 +203,7 @@ fn names_sessions_and_explicit_panels_select_one_primary_without_touching_other_
         vec!["--session", "sess-alpha"],
         vec!["--panel", "@panel:08"],
     ] {
-        let fixture = Fixture::new();
+        let fixture = Fixture::new_limited();
         let rendezvous = fixture.rendezvous();
         let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
         let direct = selector[0] == "--session";
@@ -249,7 +249,7 @@ fn absent_ended_child_only_stale_and_ambiguous_bindings_never_submit() {
         "non-navigable",
         "ambiguous",
     ] {
-        let fixture = Fixture::new();
+        let fixture = Fixture::new_limited();
         let rendezvous = fixture.rendezvous();
         let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
         let server = peer(&fixture, listener, move |mut stream| {
@@ -304,7 +304,7 @@ fn absent_ended_child_only_stale_and_ambiguous_bindings_never_submit() {
 #[test]
 fn ambiguous_or_unready_clients_fail_before_agent_resolution() {
     for ambiguous in [true, false] {
-        let fixture = Fixture::new();
+        let fixture = Fixture::new_limited();
         let rendezvous = fixture.rendezvous();
         let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
         let server = peer(&fixture, listener, move |mut stream| {
@@ -340,7 +340,7 @@ fn ambiguous_or_unready_clients_fail_before_agent_resolution() {
 
 #[test]
 fn lost_submit_preserves_identity_for_explicit_status_without_resolving_again() {
-    let fixture = Fixture::new();
+    let fixture = Fixture::new_limited();
     let operation = id(90);
     let rendezvous = fixture.rendezvous();
     let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
@@ -384,7 +384,7 @@ fn lost_submit_preserves_identity_for_explicit_status_without_resolving_again() 
 
 #[test]
 fn partial_agent_reply_expires_without_submission_and_uses_total_navigation_deadline() {
-    let fixture = Fixture::new();
+    let fixture = Fixture::new_limited();
     let rendezvous = fixture.rendezvous();
     let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
     let server = peer(&fixture, listener, |mut stream| {
@@ -402,7 +402,11 @@ fn partial_agent_reply_expires_without_submission_and_uses_total_navigation_dead
     let output = fixture.run(&["agent", "focus", "alpha", "--timeout=1000", "--format=json"]);
     server.join().unwrap();
     assert_eq!(output.status.code(), Some(7));
-    assert!(started.elapsed() < Duration::from_secs(8));
+    assert!(
+        started.elapsed() < Duration::from_secs(8),
+        "elapsed={:?}; output={output:?}",
+        started.elapsed()
+    );
     receipt(&document(&output));
 }
 

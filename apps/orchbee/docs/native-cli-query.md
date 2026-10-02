@@ -2869,3 +2869,17 @@ v121 includes 105 schemas and 141 native grammar paths.
 ## Agent sidebar configuration publication
 
 Windows `config check` v10 and `site config`/`site reload-config` v5 expose the required bounded `agentSidebarProfile`; configuration failure v7 includes sidebar admission diagnostics. Older public versions remain closed. The [Windows configuration owner](windows-cli-configuration.md#windows-agent-sidebar-layouts) defines startup, strict whole-file validation, canonical publication and atomic Client application. Catalog v122 contains the same 105 schemas and 141 command paths.
+
+## Windows CLI process verification
+
+The Agent focus/Workbench process suite admits at most four live test cohorts per test binary.
+Each slot is acquired before copying/hashing its isolated native executable and retained through
+process output, peer joining and private-directory cleanup. Waiting for this fixture resource
+occurs before the command timer; product and test deadlines remain unchanged. The cap protects
+cold Windows process admission and executable I/O from contention with other cases in this suite,
+without serializing application state or reducing the checked scenarios.
+
+The viewport-timeout peer may observe `BrokenPipe` when the CLI expires after sending its last
+status poll but before receiving the queued response. It then stops writing; the consumer must
+still return the exact timeout failure with no partial result. Other write errors and malformed
+requests remain failures, and no receipt is fabricated after the connection closes.

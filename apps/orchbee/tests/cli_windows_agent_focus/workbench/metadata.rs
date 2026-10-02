@@ -57,7 +57,7 @@ fn workspace_metadata_query_batches_fail_closed_and_share_original_deadline() {
         "lost",
         "total-deadline",
     ] {
-        let fixture = Fixture::new();
+        let fixture = Fixture::new_limited();
         let listener = LocalListener::bind(fixture.rendezvous().client_socket_path()).unwrap();
         let count = if case == "empty" {
             0
@@ -167,7 +167,7 @@ fn workspace_metadata_report_preserves_known_and_unknown_outcomes_without_replay
         "wrong-request",
         "malformed",
     ] {
-        let fixture = Fixture::new();
+        let fixture = Fixture::new_limited();
         let listener = LocalListener::bind(fixture.rendezvous().client_socket_path()).unwrap();
         let server = peer(&fixture, listener, move |mut stream| {
             super::worktrees::snapshot(&mut stream, 1, true);

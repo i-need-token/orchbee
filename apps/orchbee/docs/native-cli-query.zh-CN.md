@@ -2420,3 +2420,14 @@ Windows `agent view get`、`agent view set --spec <json>` 和
 ## Agent 侧栏配置发布
 
 Windows `config check` v10 与 `site config`/`site reload-config` v5 暴露必需的有界 `agentSidebarProfile`；配置失败 v7 增加侧栏接纳诊断。旧公开版本保持封闭。[Windows 配置所有者](windows-cli-configuration.zh-CN.md#windows-agent-侧栏布局)定义启动、严格整文件验证、规范发布及 Client 原子应用。目录 v122 仍含 105 个 schema 和 141 条命令路径。
+
+## Windows CLI 进程验证
+
+Agent focus／Workbench 进程用例在每个测试 binary 内最多接纳四个存活测试 cohort。
+复制／哈希隔离的原生程序前获取 slot，保留到进程输出、peer join 和私有目录清理结束。
+等待夹具资源发生在命令计时前；产品与测试截止时间不变。该上限保护 Windows 冷进程准入
+及可执行文件 I/O，避免同套用例中的其他场景争用，不串行化应用状态，也不减少检查场景。
+
+viewport-timeout peer 可能在 CLI 发出最后一次状态轮询之后、收到 queued 响应之前到期时
+观察到 `BrokenPipe`。此时停止写入；消费者仍须返回准确超时失败，且没有部分结果。
+其他写入错误及畸形请求仍属于失败，连接关闭后不编造回执。

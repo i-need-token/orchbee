@@ -47,15 +47,38 @@ fn viewport(stream: &mut LocalStream, case: &str) {
             &request,
             json!({"kind":"operation","operation":{"command":command,"status":{"kind":"queued"}}}),
         );
-        while let Ok(WorkbenchRequest::ClientView(next)) = read_workbench_request(stream) {
+        loop {
+            let next = match read_workbench_request(stream) {
+                Ok(WorkbenchRequest::ClientView(next)) => next,
+                Err(WorkbenchWireError::Io(error))
+                    if matches!(
+                        error.kind(),
+                        std::io::ErrorKind::BrokenPipe | std::io::ErrorKind::UnexpectedEof
+                    ) =>
+                {
+                    break;
+                }
+                Ok(_) => panic!("viewport timeout peer received a different request family"),
+                Err(error) => panic!("viewport timeout request: {error}"),
+            };
             assert!(
                 matches!(&next.action, ClientViewAction::Read { operation_id } if *operation_id == command.operation_id)
             );
-            view_reply(
-                stream,
-                &next,
-                json!({"kind":"operation","operation":{"command":command,"status":{"kind":"queued"}}}),
-            );
+            let reply = WorkbenchResponse::ClientView(WorkbenchClientViewResult {
+                protocol_version: ProtocolVersion,
+                request_id: next.request_id,
+                site_id: next.site_id,
+                outcome: serde_json::from_value(json!({"kind":"operation","operation":{"command":command,"status":{"kind":"queued"}}})).unwrap(),
+            });
+            match write_workbench_response(stream, &reply) {
+                Ok(()) => {}
+                Err(WorkbenchWireError::Io(error))
+                    if error.kind() == std::io::ErrorKind::BrokenPipe =>
+                {
+                    break;
+                }
+                Err(error) => panic!("viewport timeout peer: {error}"),
+            }
         }
         return;
     }
@@ -88,7 +111,7 @@ fn workbench_queries_join_only_primary_agents_and_reject_changed_client_without_
         "viewport-timeout",
         "viewport-lost",
     ] {
-        let fixture = Fixture::new();
+        let fixture = Fixture::new_limited();
         let listener = LocalListener::bind(fixture.rendezvous().client_socket_path()).unwrap();
         let server = peer(&fixture, listener, move |mut stream| {
             snapshot_reply(&mut stream);
@@ -147,7 +170,9 @@ fn workbench_queries_join_only_primary_agents_and_reject_changed_client_without_
             vec!["panel", "list", "--client", &client, "--format=json"]
         };
         let output = fixture.run(&args);
-        server.join().unwrap();
+        server
+            .join()
+            .unwrap_or_else(|failure| panic!("case={case}; output={output:?}; peer={failure:?}"));
         let doc = document(&output);
         if matches!(case, "wrong-binding" | "viewport-timeout" | "viewport-lost") {
             assert_eq!(

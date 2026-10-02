@@ -13,7 +13,7 @@ fn panel_runtime_uses_one_attachment_and_preserves_unavailable_metadata_without_
             "changed-workbench",
             "deadline",
         ] {
-            let fixture = Fixture::new();
+            let fixture = Fixture::new_limited();
             let listener = LocalListener::bind(fixture.rendezvous().client_socket_path()).unwrap();
             let server = peer(&fixture, listener, move |mut stream| {
                 snapshot_reply(&mut stream);
@@ -44,7 +44,11 @@ fn panel_runtime_uses_one_attachment_and_preserves_unavailable_metadata_without_
                 assert_eq!(doc["failure"]["kind"], "timeout");
                 assert!(doc.get("result").is_none());
                 assert!(started.elapsed() >= Duration::from_secs(4));
-                assert!(started.elapsed() < Duration::from_secs(8));
+                assert!(
+                    started.elapsed() < Duration::from_secs(8),
+                    "mode={mode}; current={current}; elapsed={:?}; output={output:?}",
+                    started.elapsed()
+                );
                 continue;
             }
             if mode == "changed-workbench" {
