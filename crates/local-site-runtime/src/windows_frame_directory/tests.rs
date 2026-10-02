@@ -56,6 +56,11 @@ fn frame_directory_private_snapshot_preserves_binary_bytes_and_rejects_paths_lin
     let path = root.path().join("帧.rgba");
     fs::write(&path, [0, 10, 255, 128]).unwrap();
     assert_eq!(root.read_frame(&path, 4).unwrap(), [0, 10, 255, 128]);
+    for name in [".frame.rgba", ".rgba"] {
+        let hidden = root.path().join(name);
+        fs::write(&hidden, [255, 0, 128, 10]).unwrap();
+        assert_eq!(root.read_frame(&hidden, 4).unwrap(), [255, 0, 128, 10]);
+    }
     for length in [0, 3, 5, WINDOWS_FRAME_MAXIMUM_BYTES + 1] {
         assert!(root.read_frame(&path, length).is_err());
     }

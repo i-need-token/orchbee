@@ -235,7 +235,7 @@ fn frame_leaf(name: &str) -> bool {
     let stem = name.split('.').next().unwrap_or("").to_ascii_uppercase();
     !matches!(
         stem.as_str(),
-        "" | "CON" | "PRN" | "AUX" | "NUL" | "CONIN$" | "CONOUT$"
+        "CON" | "PRN" | "AUX" | "NUL" | "CONIN$" | "CONOUT$"
     ) && !(stem.len() == 4
         && (stem.starts_with("COM") || stem.starts_with("LPT"))
         && matches!(stem.as_bytes()[3], b'1'..=b'9'))

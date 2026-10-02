@@ -18,6 +18,8 @@ with a normal Windows filename; traversal, alternate streams, reserved names, re
 hard links, nonregular files and foreign ACLs are refused. A read opens without write/delete
 sharing, checks the exact declared length, copies at most 16 MiB and confirms EOF. The immutable
 copy has no remaining file dependency. Producers must close their writer before submitting it.
+Leading-dot image names such as `.frame.rgba` are ordinary leaf names; the exact owner marker
+remains reserved.
 
 The lifecycle is Reserved → Preparing → Ready → Releasing → Released. Preparation failure moves
 to Releasing under the same owner. Releasing closes the root pin, checks the saved directory
