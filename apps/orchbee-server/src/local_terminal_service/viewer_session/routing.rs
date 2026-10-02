@@ -326,6 +326,7 @@ pub(super) fn valid_process_record(
                 viewer.target,
                 &info,
                 None,
+                None,
                 started,
             );
             #[cfg(not(windows))]

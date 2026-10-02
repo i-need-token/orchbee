@@ -32,6 +32,13 @@ owns catalog encoding, path admission and replacement; the Server owns when shut
 
 ## Managed Windows Site shutdown
 
+The managed Server automatically saves committed Workbench changes after a 500ms debounce and
+refreshes cached directories and provider resume references every 30 seconds. It retains three
+valid snapshots and excludes terminal screens. Startup restores the newest valid snapshot;
+unreadable copies are retained and reported to the Client, including an explicit empty-workspace
+notice if every copy is invalid. The [checkpoint contract](docs/workbench-checkpoint.md) owns
+capture, physical-directory fences and restoration; Site-owner admission remains a runtime decision.
+
 One stop identity owns the remaining managed Server lifetime. Accepting it atomically closes new
 application-record admission; existing admitted operations and result writes settle before cleanup.
 Duplicate start and status requests observe the retained attempt; a different identity is busy.
@@ -39,8 +46,10 @@ Only explicit retry of the same failed identity starts another attempt, up to 64
 reopens ordinary admission or authorizes an uncertain Host mutation replay. Each attempt has one
 60-second cooperative deadline, excluding uninterruptible operating-system calls.
 
-The owner retains the exact Worker child, joins the periodic process sampler, stops Close maintenance, freezes the Worker carrier to
-shutdown-only traffic (settling queued unsent work as unavailable), and sends one bounded Worker
+The owner retains the exact Worker child, drains and joins its single checkpoint saver, joins the
+periodic process sampler and the retained Worktree/Workspace-group owners, then stops Close and
+graphics maintenance. It takes the fresh final capture/publication only after those writers and
+samplers settle, freezes the Worker carrier to shutdown-only traffic (settling queued unsent work as unavailable), and sends one bounded Worker
 shutdown request. Uncertain sampler viewer cleanup remains owned until the matching Worker/Host stop and actual Worker exit. A known no-Host/Host-stopped result and exact Worker exit must precede stopping
 Agent observation and Client listeners, waking and joining retained Client handlers, and publishing
 the stopped activation record. An activation guard excludes concurrent restart during publication

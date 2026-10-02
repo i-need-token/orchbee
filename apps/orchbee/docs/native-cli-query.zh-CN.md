@@ -348,19 +348,23 @@ scope 传给子终端，使内部 CLI 命令保持所属 Site，即使 Server �
 删除在每个文件系统阶段前检查 Ctrl+C，中断退出 130。已完成移除不会回滚；保留的意图支持继续清理。`interrupted` 结果报告是否仍有待完成意图，也覆盖清理完成后才收到中断的情况。
 
 列表输出 `orchbee.session.list` v2；v1 保持原有封闭状态集合。`recoverable` 表示受门保护的当次观察
-确认 v2 登记完整、所有确切身份消失且资源空闲；其 `running=false`、`pid=null`，不承诺稍后的启动。
+确认 v2/v3 登记完整、所有确切身份消失且资源空闲；其 `running=false`、`pid=null`，不承诺稍后的启动。
 删除仍使用 `orchbee.session.delete` v1；内嵌 schema 清单为 v139。
 
 持久清单在 LocalAppData 保留精确的默认/命名身份和停止回执。使用相同的已准入运行时基目录时，
 即使运行时叶目录被移除，`session list` 仍能发现已停止会话；`session attach`/`site start` 会重建
-路由并恢复检查点。`site start` 和 TUI 启动会自动恢复登记完整且证明全部死亡的 v2 Active 代次，
+路由并恢复检查点。`site start` 和 TUI 启动会自动恢复登记完整且证明全部死亡的 v2/v3 Active 代次，
 也支持运行时叶目录丢失，并保留最近检查点。第一阶段保留数据、拒绝活 Host、未知／不完整身份和旧版 Active；
 不终止旧进程，不伪造正常停止回执。使用相同 `--site` 选择执行 `orchbee site diagnose` 检查拒绝原因，
-或执行 `orchbee --site recovery-work site start` 另开命名会话。旧二进制即使在正常停止后也不能直接操作
-已升级的 v2 会话。详见[恢复合同](../../../crates/local-site-runtime/docs/windows-crash-recovery.zh-CN.md)。待删除状态也会在临时
+或执行 `orchbee --site recovery-work site start` 另开命名会话。新激活会在提交标记、拉起 Server 或发布
+检查点存储前先发布 catalog v3。Stopped v1/v2 要求主检查点；Stopped v3 准入固定槽位与精确的自有
+损坏原件名。只支持 v1/v2 的读取器即使面对正常停止的会话，也会在产生效果前拒绝 v3。详见
+[恢复合同](../../../crates/local-site-runtime/docs/windows-crash-recovery.zh-CN.md)。待删除状态也会在临时
 元数据消失后保留，可用相同删除命令继续处理。列表仍只读，不隐式重建运行时基目录本身。
 
-这一阶段仍按既有正常停止策略保存检查点；持续保存、未保存布局变更的恢复和活 Host 接管仍是后续工作。
+后台及正常停止检查点会保留布局、Launch Profile、采样所得的逐终端 cwd 和唯一 provider 恢复引用。
+启动选择最新有效副本，保留损坏字节，并在回退或打开空工作区时发出警告。不保存存活 Agent 状态、
+终端历史或屏幕内容。活 Host 接管仍是后续工作。
 
 ## Agent 会话名称
 
@@ -2181,7 +2185,7 @@ Host 的预期拒绝使用 `orchbee.cli.failure.process-info` v1，保留有界�
 
 ## Windows Site 停止
 
-托管 Windows 正常停止在释放终端前保存 Workbench 配置、provider 恢复引用及逐终端实际观察目录。后续启动恢复布局／Launch Profile，并启动新的默认 shell 或所选 provider 恢复。保存的终端 cwd 优先于工作区／home 默认值；保存目录不存在时回退到 Worker home。保存失败保留之前的检查点和运行终端，解决后可显式重试；损坏数据拒绝启动，不回退为空。归属的[检查点契约](../../orchbee-server/docs/workbench-checkpoint.zh-CN.md)定义兼容性与恢复边界。不恢复旧进程、活跃 Agent 状态、Client 视图或终端历史。
+托管 Windows Server 在 Workbench 提交变化后以 500ms 防抖保存，每 30 秒补存采样所得的逐终端目录及 provider 恢复引用，并在正常停止释放终端前执行最新 final 保存。后续已准入启动恢复布局／Launch Profile，并启动新的默认 shell 或所选 provider 恢复。保存的终端 cwd 优先于工作区／home 默认值；保存目录不存在时回退到 Worker home。保存失败保留此前的有效存档、无效原件及运行终端，解决后可显式重试。启动会保留不可读存档并回退到较早有效副本；全部副本无效时会提示并打开空工作区。归属的[检查点契约](../../orchbee-server/docs/workbench-checkpoint.zh-CN.md)定义兼容性与恢复边界。不恢复旧进程、活跃 Agent 状态、Client 视图、终端屏幕或历史。
 
 `site stop --confirm [--request-id <32-hex>] [--retry] [--detach] [--timeout <ms>]` 停止现有托管 Windows Site，绝不激活新 Site。标识为非零小写 128 位十六进制值，省略时仅生成一次；`--retry` 必须提供标识。CLI 仅发送一次开始或重试请求，之后仅查询状态。`--detach` 立即返回已准入尝试；否则一个绝对截止时间（默认 65000 毫秒，范围 1–3600000 毫秒）覆盖运行时/cohort 准入、请求和轮询。取消或超时仅停止等待，不回滚已准入停止。每个运行时答案均保留请求标识，供 `site stop-status <id>` 查询。状态是事实文档，不是第二次变更。`orchbee.site.stop` v1 封套区分 stopped、pending、failed、busy、not-recorded、unmanaged 及 unavailable/unknown 传输结果；pending 可携带 detached、timed-out 或 cancelled 等待状态。已知 Server 失败保留尝试、阶段、原因及本次释放数量。只有准确匹配的严格已停止激活记录加上空闲的既有生命周期锁才能证明完成；端点消失、非法记录及不同标识均不能证明。后续启动消费该回执，因此未记录不能否定此前停止。Linux/macOS 返回 unsupported-platform，不产生运行时效果。
 

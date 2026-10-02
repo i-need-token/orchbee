@@ -66,6 +66,10 @@ mod durable_sessions_windows;
 #[cfg(windows)]
 pub use durable_sessions_windows::WindowsRetainedSessionRecord;
 #[cfg(windows)]
+mod checkpoint_restore_notice_windows;
+#[cfg(windows)]
+mod checkpoint_rotation;
+#[cfg(windows)]
 mod named_site_catalog_windows;
 #[cfg_attr(windows, path = "rendezvous_windows.rs")]
 mod rendezvous;
@@ -86,7 +90,9 @@ pub use site_name_windows::WindowsSiteName;
 #[cfg(windows)]
 mod windows_permissions;
 #[cfg(windows)]
-pub use session_store_windows::WindowsSessionStore;
+pub use session_store_windows::{
+    WindowsCheckpointLoad, WindowsCheckpointRestoreNotice, WindowsSessionStore,
+};
 #[cfg(all(test, windows))]
 mod windows_tests;
 

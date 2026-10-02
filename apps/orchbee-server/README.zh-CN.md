@@ -27,13 +27,20 @@ CLI 行为和证据；[本机 Client 协议](../../crates/local-client-protocol/
 
 ## 托管 Windows Site 停止
 
+托管 Server 在 Workbench 已提交变化后以 500ms 防抖自动保存，每 30 秒补存已缓存目录及 provider
+resume 引用。保留三份有效存档，不保存终端屏幕。启动时恢复最新有效存档；不可读副本保留并向
+Client 提醒，全部副本无效时明确提示空工作区。[checkpoint 契约](docs/workbench-checkpoint.zh-CN.md)
+拥有捕获、确切物理目录围栏及恢复；Site owner 的启动准入仍由 runtime 判定。
+
 一个停止标识拥有托管 Server 剩余的生命周期。接受它会原子关闭新应用记录准入；已准入操作及结果写入先结束再清理。
 重复开始和状态请求观察保留的尝试；不同标识返回忙。只有相同失败标识的显式重试可开始下一次尝试，最多 64 次。
 失败绝不重新开放普通准入，也不授权重放不确定的 Host 变更。每次尝试共用 60 秒协作截止时间，不包括不可中断的
 操作系统调用。
 
-所有者保留准确 Worker 子进程，join 周期进程采样器，停止 Close 维护，将 Worker carrier 冻结为仅停止流量（排队但未发送的工作结算为
-不可用），并发送一次有界 Worker 停止请求。采样 viewer 的不确定清理责任保留到匹配 Worker／Host 停止及 Worker 实际退出。已知无 Host 或 Host 已停止结果，以及准确 Worker 退出，必须先于
+所有者保留准确 Worker 子进程，先结算并 join 唯一 checkpoint 保存者、周期进程采样器，以及保留的
+Worktree／Workspace-group owner，再停止 Close 与 graphics 维护。上述写者及采样器结算后才捕获最新目录
+并发布最终存档；随后将 Worker carrier 冻结为仅停止流量（排队但未发送的工作结算为不可用），并发送一次
+有界 Worker 停止请求。采样 viewer 的不确定清理责任保留到匹配 Worker／Host 停止及 Worker 实际退出。已知无 Host 或 Host 已停止结果，以及准确 Worker 退出，必须先于
 Agent 观察和 Client 监听器停止、唤醒并 join 保留的 Client 处理线程、发布已停止激活记录。激活锁排除记录发布和
 生命周期锁释放期间的并发重启。管道不存在或响应丢失不能证明完成。控制监听器存活时失败尝试仍可查询；监听器关闭后，
 严格的激活记录仍为肯定回执。此所有者不进行进程发现、接管或路径移除，也不实现 Linux/macOS 停止。

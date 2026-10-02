@@ -393,6 +393,18 @@ impl Locale {
 
     pub(crate) const fn shell_notice(self, notice: Option<Notice>) -> &'static str {
         match (self, notice) {
+            (Self::EnUs, Some(Notice::CheckpointRecovered)) => {
+                "Unreadable workspace snapshots retained; restored a valid snapshot"
+            }
+            (Self::ZhCn, Some(Notice::CheckpointRecovered)) => {
+                "部分工作区存档不可读；已使用有效存档恢复，原始文件已保留"
+            }
+            (Self::EnUs, Some(Notice::CheckpointEmpty)) => {
+                "Workspace snapshots unreadable; opened an empty workspace and retained originals"
+            }
+            (Self::ZhCn, Some(Notice::CheckpointEmpty)) => {
+                "工作区存档均不可读；已打开空工作区，原始文件已保留"
+            }
             (Self::EnUs, Some(Notice::ConfigurationPublished)) => {
                 "Configuration published; keys updated"
             }

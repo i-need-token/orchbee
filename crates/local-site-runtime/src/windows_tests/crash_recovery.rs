@@ -26,6 +26,26 @@ fn directory(base: &Fixture, local: &Fixture) -> Directory {
         .unwrap()
         .unwrap()
 }
+fn record_path(base: &Fixture, local: &Fixture, scope: &str) -> std::path::PathBuf {
+    local
+        .0
+        .join("Orchbee/session-catalog")
+        .join(Rendezvous::host_endpoint_id(
+            &base.0.canonicalize().unwrap(),
+        ))
+        .join(format!("{scope}.json"))
+}
+fn record_version(base: &Fixture, local: &Fixture, scope: &str) -> u64 {
+    let value: serde_json::Value =
+        serde_json::from_slice(&fs::read(record_path(base, local, scope)).unwrap()).unwrap();
+    value["version"].as_u64().unwrap()
+}
+fn rewrite_record_version(base: &Fixture, local: &Fixture, scope: &str, version: u8) {
+    let path = record_path(base, local, scope);
+    let mut value: serde_json::Value = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
+    value["version"] = serde_json::json!(version);
+    fs::write(path, serde_json::to_vec(&value).unwrap()).unwrap();
+}
 fn guards(site: &Rendezvous) -> (crate::ModeCheckedSiteLock, crate::ModeCheckedSiteLock) {
     let LockAttempt::Acquired(activation) = site.try_acquire_activation_lock().unwrap() else {
         panic!("activation");
@@ -40,51 +60,61 @@ fn guards(site: &Rendezvous) -> (crate::ModeCheckedSiteLock, crate::ModeCheckedS
 fn dead_default_and_named_generations_recover_without_a_checkpoint_or_erasing_one() {
     for text in ["default", "cold-work"] {
         for saved in [false, true] {
-            let base = Fixture::new();
-            let local = Fixture::new();
-            let (catalog, site, scope) = setup(&base, &local, text);
-            if saved {
-                let mut store = WindowsSessionStore::open(&local.0, &site, 64).unwrap();
-                store.publish(b"last valid workbench").unwrap();
-            }
-            let (activation, lifetime) = guards(&site);
-            assert!(
-                catalog
-                    .recover_inactive(&site, &activation, &lifetime)
-                    .unwrap()
-            );
-            assert_eq!(
-                site.activation_state().unwrap(),
-                ActivationState::Crashed {
-                    activation_id: [1; 16]
+            for legacy_v2 in [false, true] {
+                let base = Fixture::new();
+                let local = Fixture::new();
+                let (catalog, site, scope) = setup(&base, &local, text);
+                if legacy_v2 {
+                    rewrite_record_version(&base, &local, &scope, 2);
                 }
-            );
-            assert_eq!(
-                directory(&base, &local)
-                    .read(&scope)
-                    .unwrap()
-                    .unwrap()
-                    .lifecycle,
-                Lifecycle::Crashed
-            );
-            // A repeated reconciler retains the committed old generation.
-            assert!(
-                catalog
-                    .recover_inactive(&site, &activation, &lifetime)
-                    .unwrap()
-            );
-            assert!(catalog.begin_activation(&site, [1; 16]).is_err());
-            catalog.begin_activation(&site, [2; 16]).unwrap();
-            site.commit_activation().unwrap();
-            let record = directory(&base, &local).read(&scope).unwrap().unwrap();
-            assert_eq!(record.activation_id, Some([2; 16]));
-            assert_eq!(record.lifecycle, Lifecycle::Active);
-            assert_eq!(site.activation_state().unwrap(), ActivationState::Active);
-            let store = WindowsSessionStore::open(&local.0, &site, 64).unwrap();
-            assert_eq!(
-                store.read().unwrap(),
-                saved.then(|| b"last valid workbench".to_vec())
-            );
+                assert_eq!(
+                    record_version(&base, &local, &scope),
+                    if legacy_v2 { 2 } else { 3 }
+                );
+                if saved {
+                    let mut store = WindowsSessionStore::open(&local.0, &site, 64).unwrap();
+                    store.publish(b"last valid workbench").unwrap();
+                }
+                let (activation, lifetime) = guards(&site);
+                assert!(
+                    catalog
+                        .recover_inactive(&site, &activation, &lifetime)
+                        .unwrap()
+                );
+                assert_eq!(
+                    site.activation_state().unwrap(),
+                    ActivationState::Crashed {
+                        activation_id: [1; 16]
+                    }
+                );
+                assert_eq!(
+                    directory(&base, &local)
+                        .read(&scope)
+                        .unwrap()
+                        .unwrap()
+                        .lifecycle,
+                    Lifecycle::Crashed
+                );
+                // A repeated reconciler retains the committed old generation.
+                assert!(
+                    catalog
+                        .recover_inactive(&site, &activation, &lifetime)
+                        .unwrap()
+                );
+                assert!(catalog.begin_activation(&site, [1; 16]).is_err());
+                catalog.begin_activation(&site, [2; 16]).unwrap();
+                site.commit_activation().unwrap();
+                assert_eq!(record_version(&base, &local, &scope), 3);
+                let record = directory(&base, &local).read(&scope).unwrap().unwrap();
+                assert_eq!(record.activation_id, Some([2; 16]));
+                assert_eq!(record.lifecycle, Lifecycle::Active);
+                assert_eq!(site.activation_state().unwrap(), ActivationState::Active);
+                let store = WindowsSessionStore::open(&local.0, &site, 64).unwrap();
+                assert_eq!(
+                    store.read().unwrap(),
+                    saved.then(|| b"last valid workbench".to_vec())
+                );
+            }
         }
     }
 }

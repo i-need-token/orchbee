@@ -20,7 +20,7 @@ use orchbee_local_site_runtime::{
 };
 use std::{
     io,
-    sync::Arc,
+    sync::{Arc, Mutex},
     thread,
     time::{Duration, Instant},
 };
@@ -35,7 +35,9 @@ pub(super) struct Owners {
     pub(super) ingress: AgentObservationEndpoint,
     pub(super) terminals: Arc<LocalTerminalService>,
     pub(super) agents: Arc<AgentService>,
-    pub(super) checkpoint_store: WindowsSessionStore,
+    pub(super) checkpoint_store: Arc<Mutex<WindowsSessionStore>>,
+    pub(super) checkpoint_saver: Option<super::checkpoint_windows::autosave::Saver>,
+    pub(super) suppress_initial_empty: bool,
     pub(super) session_record: Option<WindowsRetainedSessionRecord>,
 }
 
@@ -73,6 +75,14 @@ pub(super) fn run(
         owners
             .terminals
             .start_process_observer_with_settings(settings, true)?;
+        let worker = checkpoint_worker(&owners.handle)?;
+        owners.checkpoint_saver = Some(super::checkpoint_windows::autosave::Saver::start(
+            Arc::clone(&owners.checkpoint_store),
+            Arc::clone(&owners.terminals),
+            Arc::clone(&owners.agents),
+            worker,
+            owners.suppress_initial_empty,
+        )?);
         local_client_service::start_managed_windows(
             owners.site.client_socket_path(),
             cohort,
@@ -159,6 +169,11 @@ fn settle(
             io::ErrorKind::TimedOut.into(),
         ));
     }
+    if let Some(saver) = &mut owners.checkpoint_saver {
+        saver
+            .stop_before(deadline)
+            .map_err(|error| failure(StopPhase::BackgroundJobs, error))?;
+    }
     owners
         .terminals
         .stop_process_observer_before(deadline)
@@ -180,18 +195,13 @@ fn settle(
         .stop_graphics_before(deadline)
         .map_err(|error| failure(StopPhase::BackgroundJobs, error))?;
     if !*worker_completed {
-        let worker = orchbee_workbench_protocol::WorkerId::parse(&format!(
-            "{:032x}",
-            u128::from_be_bytes(owners.handle.worker_id().as_bytes()),
-        ))
-        .map_err(|error| failure(StopPhase::BackgroundJobs, io::Error::other(error)))?;
+        let worker = checkpoint_worker(&owners.handle)
+            .map_err(|error| failure(StopPhase::BackgroundJobs, error))?;
         let bytes = owners
             .terminals
             .checkpoint(&worker, &owners.agents, deadline)
             .map_err(|error| failure(StopPhase::BackgroundJobs, error))?;
-        owners
-            .checkpoint_store
-            .publish(&bytes)
+        super::checkpoint_windows::autosave::publish_final(&owners.checkpoint_store, &bytes)
             .map_err(|error| failure(StopPhase::BackgroundJobs, error))?;
         shutdown.phase(attempt, StopPhase::Worker);
         let budget = deadline
@@ -309,6 +319,9 @@ fn worker_phase(stage: ShutdownStage) -> StopPhase {
 fn abort_startup(mut owners: Owners, startup: io::Error) -> io::Error {
     let deadline = Instant::now() + Duration::from_secs(30);
     let cleanup = (|| -> io::Result<()> {
+        if let Some(saver) = &mut owners.checkpoint_saver {
+            saver.stop_before(deadline)?;
+        }
         owners.terminals.stop_process_observer_before(deadline)?;
         owners.terminals.stop_close_before(deadline)?;
         owners.terminals.stop_graphics_before(deadline)?;
@@ -354,6 +367,15 @@ fn abort_startup(mut owners: Owners, startup: io::Error) -> io::Error {
             io::Error::other(format!("{startup}; startup cleanup unconfirmed: {cleanup}"))
         }
     }
+}
+fn checkpoint_worker(
+    handle: &WorkerRequestHandle,
+) -> io::Result<orchbee_workbench_protocol::WorkerId> {
+    orchbee_workbench_protocol::WorkerId::parse(&format!(
+        "{:032x}",
+        u128::from_be_bytes(handle.worker_id().as_bytes())
+    ))
+    .map_err(io::Error::other)
 }
 fn worker_failure(failure: ShutdownFailure) -> StopFailure {
     match failure {

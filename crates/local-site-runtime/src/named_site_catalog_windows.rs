@@ -24,7 +24,15 @@ const RUNTIME_FILES: &[&str] = &[
     "activation.lock",
     "site-lifetime.lock",
 ];
-const CHECKPOINT_FILES: &[&str] = &["checkpoint.json", "checkpoint.pending", "state.lock"];
+const CHECKPOINT_FILES: &[&str] = &[
+    "checkpoint.json",
+    "checkpoint.previous-1.json",
+    "checkpoint.previous-2.json",
+    "checkpoint.pending",
+    "state.lock",
+    crate::checkpoint_restore_notice_windows::FILE,
+    crate::checkpoint_restore_notice_windows::PENDING,
+];
 
 pub struct WindowsNamedSiteCatalog {
     base: PathBuf,
@@ -40,6 +48,7 @@ pub struct WindowsNamedSiteEntry {
     pub runtime: PathBuf,
     pub deleting: bool,
     retained: Option<ActivationState>,
+    framed_checkpoint: bool,
     checkpoint: PathBuf,
     local: PathBuf,
 }
@@ -190,7 +199,10 @@ impl WindowsNamedSiteCatalog {
                 let storage = storage_guard(&checkpoint)?;
                 match record.as_ref().and_then(Record::activation) {
                     Some(ActivationState::Stopped { .. }) => {
-                        permissions::open_file(&checkpoint.join("checkpoint.json"), false, false)?;
+                        stopped_checkpoint_evidence(
+                            &checkpoint,
+                            record.as_ref().is_some_and(Record::uses_framed_checkpoint),
+                        )?;
                     }
                     Some(ActivationState::Active | ActivationState::Crashed { .. }) => {
                         let _writer = self.durable.try_writer(scope)?;
@@ -324,7 +336,7 @@ impl WindowsNamedSiteCatalog {
                 return Err(io::ErrorKind::InvalidData.into());
             }
             if matches!(previous.lifecycle, Lifecycle::Stopped { .. }) {
-                permissions::open_file(&checkpoint.join("checkpoint.json"), false, false)?;
+                stopped_checkpoint_evidence(&checkpoint, previous.uses_framed_checkpoint())?;
             }
         }
         let name = if scope.starts_with(site_name_windows::NAMED_PREFIX) {
@@ -372,11 +384,14 @@ impl WindowsNamedSiteCatalog {
         let _directories = permissions::open_tree(base)?;
         let base = base.canonicalize()?;
         let sid = orchbee_local_ipc::current_user_sid()?;
-        let mut names: BTreeMap<String, (bool, Option<ActivationState>)> = BTreeMap::new();
+        let mut names: BTreeMap<String, (bool, Option<ActivationState>, bool)> = BTreeMap::new();
         if let Some(directory) = Directory::open(local, &base)? {
             for (_, record) in directory.list(deadline)? {
                 let state = record.activation();
-                names.insert(record.name.clone(), (record.is_deleting(), state));
+                names.insert(
+                    record.name.clone(),
+                    (record.is_deleting(), state, record.uses_framed_checkpoint()),
+                );
             }
         }
         for entry in fs::read_dir(&base)? {
@@ -390,7 +405,7 @@ impl WindowsNamedSiteCatalog {
                 match read_intent(&base, &leaf)? {
                     Some(intent) => (WindowsSiteName::parse(&intent.name)?, true),
                     None => {
-                        let pending = names.iter().find(|(name, (deleting, _))| {
+                        let pending = names.iter().find(|(name, (deleting, _, _))| {
                             *deleting
                                 && WindowsSiteName::parse(name)
                                     .is_ok_and(|name| name.scope_for_user(&sid) == leaf)
@@ -413,18 +428,22 @@ impl WindowsNamedSiteCatalog {
             names
                 .entry(name.as_str().to_owned())
                 .and_modify(|entry| entry.0 |= deleting)
-                .or_insert((deleting, None));
+                .or_insert((deleting, None, false));
             if names.len() + usize::from(!names.contains_key("default")) > MAXIMUM_SESSIONS {
                 return Err(io::ErrorKind::FileTooLarge.into());
             }
         }
-        let (deleting, retained) = names.remove("default").unwrap_or((false, None));
+        let (deleting, retained, framed_checkpoint) =
+            names.remove("default").unwrap_or((false, None, false));
         if names.len() >= MAXIMUM_SESSIONS {
             return Err(io::ErrorKind::FileTooLarge.into());
         }
         let mut result = Vec::with_capacity(names.len() + 1);
-        for (text, (deleting, retained)) in
-            std::iter::once(("default".to_owned(), (deleting, retained))).chain(names)
+        for (text, (deleting, retained, framed_checkpoint)) in std::iter::once((
+            "default".to_owned(),
+            (deleting, retained, framed_checkpoint),
+        ))
+        .chain(names)
         {
             let name = WindowsSiteName::parse(&text)?;
             let runtime = base.join(name.scope_for_user(&sid));
@@ -435,6 +454,7 @@ impl WindowsNamedSiteCatalog {
                 name,
                 deleting,
                 retained,
+                framed_checkpoint,
             });
         }
         Ok(result)
@@ -785,8 +805,7 @@ impl WindowsNamedSiteEntry {
         };
         match self.retained {
             Some(stopped @ ActivationState::Stopped { .. }) if storage => {
-                match permissions::open_file(&self.checkpoint.join("checkpoint.json"), false, false)
-                {
+                match stopped_checkpoint_evidence(&self.checkpoint, self.framed_checkpoint) {
                     Ok(_) => Ok(Some(stopped)),
                     Err(error) if error.kind() == io::ErrorKind::NotFound => {
                         Ok(Some(ActivationState::Active))
@@ -811,6 +830,41 @@ fn existing_lock(path: &Path, required: bool) -> io::Result<Option<File>> {
         Err(TryLockError::WouldBlock) => Err(io::ErrorKind::WouldBlock.into()),
         Err(TryLockError::Error(error)) => Err(error),
     }
+}
+
+fn stopped_checkpoint_evidence(path: &Path, framed: bool) -> io::Result<()> {
+    let leaves: &[&str] = if framed {
+        &[
+            "checkpoint.json",
+            "checkpoint.previous-1.json",
+            "checkpoint.previous-2.json",
+        ]
+    } else {
+        &["checkpoint.json"]
+    };
+    for leaf in leaves {
+        match permissions::open_file(&path.join(leaf), false, false) {
+            Ok(file) => {
+                drop(file);
+                return Ok(());
+            }
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+            Err(error) => return Err(error),
+        }
+    }
+    if framed {
+        for entry in fs::read_dir(path)? {
+            let entry = entry?;
+            let leaf = entry.file_name();
+            let name = leaf.to_str().ok_or(io::ErrorKind::InvalidData)?;
+            if crate::checkpoint_rotation::is_corrupt_original(name) {
+                let file = permissions::open_file(&entry.path(), false, false)?;
+                drop(file);
+                return Ok(());
+            }
+        }
+    }
+    Err(io::ErrorKind::NotFound.into())
 }
 
 fn checkpoint_path(local: &Path, runtime: &Path) -> PathBuf {
@@ -906,7 +960,10 @@ impl OwnedDirectory {
             let entry = entry?;
             let leaf = entry.file_name();
             let name = leaf.to_str().ok_or(io::ErrorKind::InvalidData)?;
-            if files.contains(&name) {
+            if files.contains(&name)
+                || (files == CHECKPOINT_FILES
+                    && crate::checkpoint_rotation::is_corrupt_original(name))
+            {
                 permissions::open_file(&entry.path(), false, false)?;
             } else if host && name == "host" {
                 let _pins = permissions::open_tree(&entry.path())?;
@@ -942,7 +999,19 @@ impl OwnedDirectory {
         host: bool,
         check: &mut dyn FnMut() -> io::Result<()>,
     ) -> io::Result<()> {
-        for name in files {
+        let mut names: Vec<String> = files.iter().map(|name| (*name).to_owned()).collect();
+        if files == CHECKPOINT_FILES {
+            for entry in fs::read_dir(&self.path)? {
+                let entry = entry?;
+                let leaf = entry.file_name();
+                let name = leaf.to_str().ok_or(io::ErrorKind::InvalidData)?;
+                if crate::checkpoint_rotation::is_corrupt_original(name) {
+                    permissions::open_file(&entry.path(), false, false)?;
+                    names.push(name.to_owned());
+                }
+            }
+        }
+        for name in &names {
             check()?;
             let path = self.path.join(name);
             match permissions::open_file(&path, false, false) {

@@ -115,11 +115,14 @@ Server 权威探测该字面绝对路径——使 CLI 创建的 Workspace 无需
 激活路径：它执行与 TUI 启动相同的 connect-or-activate 序列——验证 cohort、准备
 运行时目录、取锁、提交标记、在没有运行中 Site 应答时拉起 Server——全程共享一个
 20 秒绝对 deadline，然后仅当本次调用实际拉起了子进程时报告 `started`，当既有
-Site 准入了其探针时报告 `already-running`。该命令即使在拒绝时也有副作用：只有
-语法失败保证零副作用；被中断或超时的启动可能遗留已提交的激活状态，后续调用会以
-继续处理。Windows 下一次调用只有在全部 guard 下证明旧代确切进程全部退出后才自动恢复；
+Site 准入了其探针时报告 `already-running`。该命令即使在拒绝时也可能产生效果：只有
+语法失败保证零效果；被中断或超时的启动可能遗留已提交的激活状态，后续调用会按该
+持久状态继续处理。Windows 下一次调用只有在全部 guard 下证明 v2/v3 完整登记的旧代确切进程
+全部退出后才自动恢复；
 活 owner、不完整登记和旧版 Active 记录仍为 `rejected`/`recovery-required`。恢复保留 checkpoint，
-不终止旧进程。这些边界由 [Windows 恢复契约](../../crates/local-site-runtime/docs/windows-crash-recovery.zh-CN.md)维护。
+不终止旧进程。新激活会在提交标记、拉起 Server 或发布检查点存储前先发布 catalog v3；只支持
+v1/v2 的读取器会拒绝 v3，且不改变其字节。这些边界由
+[Windows 恢复契约](../../crates/local-site-runtime/docs/windows-crash-recovery.zh-CN.md)维护。
 `site diagnose` 是只读对偶面：它报告运行时目录、标记、锁与有限端点路径的有界事实——
 每行是各自观察瞬间的封闭状态行——共享一个协作式 5 秒预算；它绝不 connect、创建、
 取锁、修复，也不声称任何进程存活或消失。
@@ -181,7 +184,9 @@ Shell 模式及启动生命周期见 [Windows 配置](docs/windows-cli-configura
 分屏保留当前焦点。再次运行可执行文件即可重新连接保留的 Site。脱离后 Shell 继续运行；退出的 Shell
 仍可观察，直至显式关闭其 Tab/Panel。全部已登记的 Site 进程退出后，再次运行可执行文件会自动开始
 新代，并恢复已有 checkpoint。旧 owner 仍活着或无法证明退出时拒绝启动；当前恢复不接管活 Host。
-`session list` v2 用 `recoverable` 报告受 guard 保护的冷恢复资格。未保存的改动仍需持续 checkpoint。
+`session list` v2 用 `recoverable` 报告受 guard 保护的冷恢复资格。持续 Workbench checkpoint
+会保留布局变更、采样所得的终端目录及 provider 恢复引用，但不保存屏幕内容；详见
+[Windows Workbench checkpoint 契约](../orchbee-server/docs/workbench-checkpoint.zh-CN.md)。
 `config check --format json` 检查本地 cohort/runtime 输入，不启动 Site。
 
 Windows 已验证原生启动、Unicode 渲染、连续及逐字输入、CLI 终端发送/读取、分屏/焦点/调整大小、
@@ -203,7 +208,7 @@ Shell 补全提供 bash/zsh/fish/powershell/elvish。在 PowerShell 中显式运
 在交互式 Elvish 0.21 中执行 `eval (orchbee completion elvish | slurp)`；静态回调注册
 `orchbee` 与 `orchbee.exe`，不查询 Site 或修改 profile。
 在 Windows PowerShell 5.1 中使用 Unicode 管道时，在调用脚本内设置 `$OutputEncoding = [Text.UTF8Encoding]::new($false)`；传给原生命令的字节由 PowerShell 编码。Orchbee 原样保留字节，不修复 shell 已经造成的编码损失。
-`orchbee --skill` 离线输出内嵌 [Agent 指引](docs/cli-agent-skill.zh-CN.md)。签名、自动更新、活 Host 接管、持续 checkpoint、macOS 启动，以及替换已交付 TypeScript CLI
+`orchbee --skill` 离线输出内嵌 [Agent 指引](docs/cli-agent-skill.zh-CN.md)。签名、自动更新、活 Host 接管、macOS 启动，以及替换已交付 TypeScript CLI
 的正式打包属于后续工作。
 
 ## Linux 本地启动

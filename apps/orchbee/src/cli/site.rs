@@ -1,11 +1,13 @@
-//! `site start`: headless connect-or-activate for the implicit per-euid
-//! local Site. The command shares the TUI's one private activation
-//! algorithm — a transient admission probe is the only client it creates —
-//! and reports the branch it actually took: `started` iff this invocation
-//! spawned the Server, `already-running` otherwise. An interrupted or
-//! timed-out start can leave a committed marker without a live owner; the
-//! next invocation then answers refused recovery-required, and no repair
-//! is attempted or implied.
+//! `site start`: headless connect-or-activate for the selected local Site.
+//! On Windows the selection is the current SID's default or exact named
+//! scope; on Linux it is the implicit per-euid scope. The command shares the
+//! TUI's private activation and admission path — a transient admission probe
+//! is the only client it creates — and reports the branch it actually took:
+//! `started` iff this invocation spawned the Server, `already-running`
+//! otherwise. Windows may cold-recover a completely registered generation
+//! only after its exact owners are proved gone and its locks and endpoints are
+//! clear. Other interrupted, live, incomplete or uncertain state refuses
+//! recovery-required without repair or deletion.
 
 #[cfg(any(target_os = "linux", windows))]
 use std::time::{Duration, Instant};
@@ -38,6 +40,21 @@ pub(crate) fn start(format: OutputFormat, locale: Locale) -> Output {
             locale,
         ),
         Ok(started) => {
+            #[cfg(windows)]
+            let warning = started
+                .restore_notice
+                .map(|notice| match notice {
+                    orchbee_local_site_runtime::WindowsCheckpointRestoreNotice::Recovered => {
+                        crate::client_view::Notice::CheckpointRecovered
+                    }
+                    orchbee_local_site_runtime::WindowsCheckpointRestoreNotice::Empty => {
+                        crate::client_view::Notice::CheckpointEmpty
+                    }
+                })
+                .map(|notice| format!("{}\n", locale.shell_notice(Some(notice))))
+                .unwrap_or_default();
+            #[cfg(not(windows))]
+            let warning = String::new();
             let result = json!({
                 "outcome": started.outcome,
                 "scope": started.scope,
@@ -67,7 +84,7 @@ pub(crate) fn start(format: OutputFormat, locale: Locale) -> Output {
                         Ok(stdout) => Output {
                             status: 0,
                             stdout,
-                            stderr: String::new(),
+                            stderr: warning,
                             finalization: None,
                         },
                         Err(output::TooLarge) => too_large(),
@@ -83,7 +100,7 @@ pub(crate) fn start(format: OutputFormat, locale: Locale) -> Output {
                         Ok(stdout) => Output {
                             status: 0,
                             stdout,
-                            stderr: String::new(),
+                            stderr: warning,
                             finalization: None,
                         },
                         Err(output::TooLarge) => too_large(),
@@ -97,6 +114,8 @@ pub(crate) fn start(format: OutputFormat, locale: Locale) -> Output {
 /// The outcome a successful attempt reports: the admitted probe is dropped
 /// before output, and only the branch fact and rendered paths remain.
 struct StartOutcome {
+    #[cfg(windows)]
+    restore_notice: Option<orchbee_local_site_runtime::WindowsCheckpointRestoreNotice>,
     outcome: &'static str,
     spawned: bool,
     scope: String,
@@ -119,6 +138,8 @@ fn run() -> Result<StartOutcome, Failure> {
     let deadline = Instant::now() + START_BUDGET;
     crate::local_activation::activate_local_site(deadline)
         .map(|started| StartOutcome {
+            #[cfg(windows)]
+            restore_notice: started.restore_notice,
             outcome: if started.spawned {
                 "started"
             } else {

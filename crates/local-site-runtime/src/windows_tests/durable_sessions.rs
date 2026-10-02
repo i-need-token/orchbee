@@ -22,6 +22,17 @@ fn record_path(base: &Fixture, local: &Fixture, name: &WindowsSiteName) -> PathB
         ))
         .join(format!("{}.json", scope(name)))
 }
+fn record_version(base: &Fixture, local: &Fixture, name: &WindowsSiteName) -> u64 {
+    let value: serde_json::Value =
+        serde_json::from_slice(&fs::read(record_path(base, local, name)).unwrap()).unwrap();
+    value["version"].as_u64().unwrap()
+}
+fn rewrite_record_version(base: &Fixture, local: &Fixture, name: &WindowsSiteName, version: u8) {
+    let path = record_path(base, local, name);
+    let mut value: serde_json::Value = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
+    value["version"] = serde_json::json!(version);
+    fs::write(path, serde_json::to_vec(&value).unwrap()).unwrap();
+}
 fn start(
     base: &Fixture,
     local: &Fixture,
@@ -83,6 +94,77 @@ fn remove_runtime(base: &Fixture, runtime: &Path) {
 }
 
 #[test]
+fn restore_notice_reads_while_server_owns_store_and_only_projects_the_active_generation() {
+    use crate::WindowsCheckpointRestoreNotice as Notice;
+    let base = Fixture::new();
+    let local = Fixture::new();
+    for name in ["default", "notice-test"] {
+        let (_, site, owner) = start(&base, &local, name, 1);
+        let store = WindowsSessionStore::open(&local.0, &site, 64).unwrap();
+        assert_eq!(
+            WindowsSessionStore::open(&local.0, &site, 64)
+                .err()
+                .unwrap()
+                .kind(),
+            io::ErrorKind::WouldBlock
+        );
+        for notice in [Some(Notice::Empty), Some(Notice::Recovered), None] {
+            store.publish_restore_notice(&owner, notice).unwrap();
+            assert_eq!(site.checkpoint_restore_notice(&local.0).unwrap(), notice);
+        }
+        let path = store
+            .directory
+            .join(crate::checkpoint_restore_notice_windows::FILE);
+        let stale = b"orchbee-checkpoint-restore-v1:02020202020202020202020202020202:E";
+        fs::write(&path, stale).unwrap();
+        assert_eq!(site.checkpoint_restore_notice(&local.0).unwrap(), None);
+        assert_eq!(fs::read(&path).unwrap(), stale);
+        let invalid = [b'X'; 128];
+        fs::write(&path, invalid).unwrap();
+        assert_eq!(
+            site.checkpoint_restore_notice(&local.0).unwrap_err().kind(),
+            io::ErrorKind::InvalidData
+        );
+        assert_eq!(fs::read(&path).unwrap(), invalid);
+        store
+            .publish_restore_notice(&owner, Some(Notice::Recovered))
+            .unwrap();
+        assert_eq!(
+            site.checkpoint_restore_notice(&local.0).unwrap(),
+            Some(Notice::Recovered)
+        );
+    }
+}
+
+#[test]
+fn blocked_notice_replacement_preserves_current_feedback_and_reclaims_pending() {
+    use crate::WindowsCheckpointRestoreNotice as Notice;
+    let base = Fixture::new();
+    let local = Fixture::new();
+    let (_, site, owner) = start(&base, &local, "notice-blocked", 1);
+    let store = WindowsSessionStore::open(&local.0, &site, 64).unwrap();
+    store
+        .publish_restore_notice(&owner, Some(Notice::Empty))
+        .unwrap();
+    let path = store
+        .directory
+        .join(crate::checkpoint_restore_notice_windows::FILE);
+    let before = fs::read(&path).unwrap();
+    let consumer = permissions::open_snapshot_file(&path).unwrap();
+    assert!(store.publish_restore_notice(&owner, None).is_err());
+    assert_eq!(fs::read(&path).unwrap(), before);
+    assert!(
+        !store
+            .directory
+            .join(crate::checkpoint_restore_notice_windows::PENDING)
+            .exists()
+    );
+    drop(consumer);
+    store.publish_restore_notice(&owner, None).unwrap();
+    assert_eq!(site.checkpoint_restore_notice(&local.0).unwrap(), None);
+}
+
+#[test]
 fn default_and_exact_names_remain_discoverable_and_restart_after_runtime_loss() {
     let base = Fixture::new();
     let local = Fixture::new();
@@ -119,6 +201,271 @@ fn default_and_exact_names_remain_discoverable_and_restart_after_runtime_loss() 
         drop(store);
         stop(&site, &mut owner, 8);
     }
+}
+
+#[test]
+fn begin_activation_publishes_v3_before_checkpoint_storage_can_write() {
+    let base = Fixture::new();
+    let local = Fixture::new();
+    let name = WindowsSiteName::parse("catalog-v3-first").unwrap();
+    let catalog = Catalog::try_lock(&base.0, &local.0).unwrap();
+    assert_eq!(
+        catalog
+            .prepare_activation(&scope(&name), Some(&name))
+            .unwrap(),
+        Some(name.clone())
+    );
+    let site = base.open(&scope(&name));
+    let LockAttempt::Acquired(activation) = site.try_acquire_activation_lock().unwrap() else {
+        panic!("activation")
+    };
+    let LockAttempt::Acquired(_lifetime) = site.try_acquire_site_lifetime_lock().unwrap() else {
+        panic!("lifetime")
+    };
+    site.register_session_name(&activation, &name).unwrap();
+    let state = local
+        .0
+        .join("Orchbee/native-sessions")
+        .join(Rendezvous::host_endpoint_id(site.runtime_directory()));
+    assert!(!state.exists());
+
+    catalog.begin_activation(&site, [1; 16]).unwrap();
+
+    assert_eq!(record_version(&base, &local, &name), 3);
+    assert!(!state.exists());
+}
+
+fn assert_v3_stopped_checkpoint_evidence(leaf: &str, text: &str) {
+    let base = Fixture::new();
+    let local = Fixture::new();
+    let (name, site, mut owner) = start(&base, &local, text, 1);
+    stop(&site, &mut owner, 9);
+    rewrite_record_version(&base, &local, &name, 3);
+    let runtime = site.runtime_directory().to_owned();
+    let state = local
+        .0
+        .join("Orchbee/native-sessions")
+        .join(Rendezvous::host_endpoint_id(&runtime));
+    drop(site);
+    remove_runtime(&base, &runtime);
+    fs::rename(state.join("checkpoint.json"), state.join(leaf)).unwrap();
+    let evidence = fs::read(state.join(leaf)).unwrap();
+
+    let entries = Catalog::list(&base.0, &local.0, deadline()).unwrap();
+    let entry = entries
+        .iter()
+        .find(|entry| entry.name == name)
+        .expect("retained named session");
+    assert_eq!(
+        entry.absent_runtime_state().unwrap(),
+        Some(ActivationState::Stopped {
+            request_id: [9; 16]
+        })
+    );
+
+    let catalog = Catalog::try_lock(&base.0, &local.0).unwrap();
+    assert_eq!(
+        catalog
+            .prepare_activation(&scope(&name), Some(&name))
+            .unwrap(),
+        Some(name.clone())
+    );
+    let site = base.open(&scope(&name));
+    let LockAttempt::Acquired(activation) = site.try_acquire_activation_lock().unwrap() else {
+        panic!("activation")
+    };
+    let LockAttempt::Acquired(_lifetime) = site.try_acquire_site_lifetime_lock().unwrap() else {
+        panic!("lifetime")
+    };
+    site.register_session_name(&activation, &name).unwrap();
+    catalog.begin_activation(&site, [2; 16]).unwrap();
+    assert_eq!(record_version(&base, &local, &name), 3);
+    assert_eq!(fs::read(state.join(leaf)).unwrap(), evidence);
+}
+
+#[test]
+fn v3_stopped_recovery_accepts_backup_only_checkpoint_evidence() {
+    assert_v3_stopped_checkpoint_evidence("checkpoint.previous-1.json", "backup-evidence");
+}
+
+#[test]
+fn v3_stopped_recovery_accepts_raw_only_checkpoint_evidence() {
+    assert_v3_stopped_checkpoint_evidence(
+        "checkpoint.corrupt-00000000000000000000000000000001.raw",
+        "raw-evidence",
+    );
+}
+
+fn assert_v2_stopped_recovery_requires_primary_checkpoint(leaf: &str, text: &str) {
+    let base = Fixture::new();
+    let local = Fixture::new();
+    let (name, site, mut owner) = start(&base, &local, text, 1);
+    stop(&site, &mut owner, 9);
+    rewrite_record_version(&base, &local, &name, 2);
+    let record_before = fs::read(record_path(&base, &local, &name)).unwrap();
+    let runtime = site.runtime_directory().to_owned();
+    let state = local
+        .0
+        .join("Orchbee/native-sessions")
+        .join(Rendezvous::host_endpoint_id(&runtime));
+    fs::write(state.join("checkpoint.json"), b"plain-v4").unwrap();
+    drop(site);
+    remove_runtime(&base, &runtime);
+    fs::rename(state.join("checkpoint.json"), state.join(leaf)).unwrap();
+
+    let entries = Catalog::list(&base.0, &local.0, deadline()).unwrap();
+    assert_eq!(
+        fs::read(record_path(&base, &local, &name)).unwrap(),
+        record_before
+    );
+    let entry = entries
+        .iter()
+        .find(|entry| entry.name == name)
+        .expect("retained named session");
+    assert_eq!(
+        entry.absent_runtime_state().unwrap(),
+        Some(ActivationState::Active)
+    );
+    let catalog = Catalog::try_lock(&base.0, &local.0).unwrap();
+    assert!(
+        catalog
+            .prepare_activation(&scope(&name), Some(&name))
+            .is_err()
+    );
+    assert_eq!(
+        fs::read(record_path(&base, &local, &name)).unwrap(),
+        record_before
+    );
+
+    fs::rename(state.join(leaf), state.join("checkpoint.json")).unwrap();
+    assert_eq!(
+        entry.absent_runtime_state().unwrap(),
+        Some(ActivationState::Stopped {
+            request_id: [9; 16]
+        })
+    );
+    assert_eq!(
+        catalog
+            .prepare_activation(&scope(&name), Some(&name))
+            .unwrap(),
+        Some(name.clone())
+    );
+    assert_eq!(record_version(&base, &local, &name), 2);
+    let site = base.open(&scope(&name));
+    let LockAttempt::Acquired(activation) = site.try_acquire_activation_lock().unwrap() else {
+        panic!("activation")
+    };
+    let LockAttempt::Acquired(_lifetime) = site.try_acquire_site_lifetime_lock().unwrap() else {
+        panic!("lifetime")
+    };
+    site.register_session_name(&activation, &name).unwrap();
+    catalog.begin_activation(&site, [2; 16]).unwrap();
+    assert_eq!(record_version(&base, &local, &name), 3);
+}
+
+#[test]
+fn v2_stopped_recovery_requires_primary_checkpoint() {
+    assert_v2_stopped_recovery_requires_primary_checkpoint(
+        "checkpoint.previous-1.json",
+        "v2-backup-is-not-primary",
+    );
+    assert_v2_stopped_recovery_requires_primary_checkpoint(
+        "checkpoint.corrupt-00000000000000000000000000000001.raw",
+        "v2-raw-is-not-primary",
+    );
+}
+
+#[test]
+fn v1_stopped_recovery_requires_primary_checkpoint() {
+    let base = Fixture::new();
+    let local = Fixture::new();
+    let (name, site, mut owner) = start(&base, &local, "legacy-stopped", 1);
+    stop(&site, &mut owner, 9);
+    let runtime = site.runtime_directory().to_owned();
+    let state = local
+        .0
+        .join("Orchbee/native-sessions")
+        .join(Rendezvous::host_endpoint_id(&runtime));
+    let directory = Directory::open(&local.0, &base.0.canonicalize().unwrap())
+        .unwrap()
+        .unwrap();
+    directory
+        .publish(
+            &scope(&name),
+            &Record::new(
+                &base.0.canonicalize().unwrap(),
+                &name,
+                Some([1; 16]),
+                Lifecycle::Stopped {
+                    request_id: [9; 16],
+                },
+            )
+            .unwrap(),
+        )
+        .unwrap();
+    let record_before = fs::read(record_path(&base, &local, &name)).unwrap();
+    fs::write(state.join("checkpoint.json"), b"plain-v4").unwrap();
+    drop(directory);
+    drop(site);
+    remove_runtime(&base, &runtime);
+    fs::rename(
+        state.join("checkpoint.json"),
+        state.join("checkpoint.previous-1.json"),
+    )
+    .unwrap();
+
+    let entries = Catalog::list(&base.0, &local.0, deadline()).unwrap();
+    assert_eq!(
+        fs::read(record_path(&base, &local, &name)).unwrap(),
+        record_before
+    );
+    let entry = entries
+        .iter()
+        .find(|entry| entry.name == name)
+        .expect("retained named session");
+    assert_eq!(
+        entry.absent_runtime_state().unwrap(),
+        Some(ActivationState::Active)
+    );
+    let catalog = Catalog::try_lock(&base.0, &local.0).unwrap();
+    assert!(
+        catalog
+            .prepare_activation(&scope(&name), Some(&name))
+            .is_err()
+    );
+    assert_eq!(
+        fs::read(record_path(&base, &local, &name)).unwrap(),
+        record_before
+    );
+
+    fs::rename(
+        state.join("checkpoint.previous-1.json"),
+        state.join("checkpoint.json"),
+    )
+    .unwrap();
+    assert_eq!(
+        entry.absent_runtime_state().unwrap(),
+        Some(ActivationState::Stopped {
+            request_id: [9; 16]
+        })
+    );
+    assert_eq!(
+        catalog
+            .prepare_activation(&scope(&name), Some(&name))
+            .unwrap(),
+        Some(name.clone())
+    );
+    assert_eq!(record_version(&base, &local, &name), 1);
+    let site = base.open(&scope(&name));
+    let LockAttempt::Acquired(activation) = site.try_acquire_activation_lock().unwrap() else {
+        panic!("activation")
+    };
+    let LockAttempt::Acquired(_lifetime) = site.try_acquire_site_lifetime_lock().unwrap() else {
+        panic!("lifetime")
+    };
+    site.register_session_name(&activation, &name).unwrap();
+    catalog.begin_activation(&site, [2; 16]).unwrap();
+    assert_eq!(record_version(&base, &local, &name), 3);
 }
 
 #[test]
@@ -363,7 +710,7 @@ fn malformed_oversized_mismatched_and_linked_records_are_never_repaired() {
     let value: serde_json::Value = serde_json::from_slice(&original).unwrap();
     let mut cases = vec![vec![b' '; 8193], br#"{"version":1,"version":1}"#.to_vec()];
     for (field, replacement) in [
-        ("version", serde_json::json!(3)),
+        ("version", serde_json::json!(4)),
         ("name", serde_json::json!("other")),
         ("runtime", serde_json::json!(local.0.to_str().unwrap())),
         ("activation_id", serde_json::json!(vec![0; 16])),

@@ -445,8 +445,14 @@ pub(super) fn observe(
         } if target == viewer.target.identity => Some((revision, settled)),
         _ => None,
     });
-    let version = fresh_frame(viewer, template, stop)
+    let observed = fresh_frame(viewer, template, stop);
+    let version = observed
+        .as_ref()
         .map(|frame| (frame.route.generation.get(), frame.route.revision));
+    let reported = observed
+        .and_then(|frame| frame.current_directory)
+        .and_then(|path| orchbee_local_site_runtime::windows_reported_directory(&path))
+        .and_then(|path| orchbee_workbench_protocol::WorkbenchDirectoryPath::parse(&path).ok());
     if !stop.load(Ordering::Acquire) {
         viewer.service.observe_terminal_projection(
             &viewer.handle,
@@ -472,34 +478,33 @@ pub(super) fn observe(
     } else {
         (before, None)
     };
+    let directory = checkpoint_directory(reported, &sample);
     if !stop.load(Ordering::Acquire) {
         viewer.service.observe_host_process(
             &viewer.handle,
             viewer.target,
             &sample,
             detection,
+            directory,
             started,
         );
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    #[test]
-    fn physical_lines_unicode_trailing_blanks_and_whole_input_bounds() {
-        assert_eq!(
-            bounded_text(["  提示  ", "answer", "  ", ""].into_iter()).as_deref(),
-            Some("  提示\nanswer")
-        );
-        assert!(bounded_text(["x".repeat(64 * 1024)].iter().map(String::as_str)).is_none());
-        assert_eq!(bounded_text(["   ", ""].into_iter()).as_deref(), Some(""));
-    }
-    #[test]
-    fn progress_keeps_unknown_absence_distinct_from_explicit_removal() {
-        assert_eq!(progress(None), "");
-        assert_eq!(progress(Some(TerminalProgress::Remove)), "4;0;0");
-        assert_eq!(progress(Some(TerminalProgress::Set(None))), "4;1;-1");
-        assert_eq!(progress(Some(TerminalProgress::Indeterminate)), "4;3;0");
-    }
+fn checkpoint_directory(
+    reported: Option<orchbee_workbench_protocol::WorkbenchDirectoryPath>,
+    sample: &TerminalProcessInfo,
+) -> Option<orchbee_workbench_protocol::WorkbenchDirectoryPath> {
+    reported.or_else(|| {
+        sample
+            .processes
+            .iter()
+            .find(|process| process.pid == sample.root_pid)
+            .and_then(|process| process.current_directory.as_deref())
+            .and_then(orchbee_local_site_runtime::windows_reported_directory)
+            .and_then(|path| orchbee_workbench_protocol::WorkbenchDirectoryPath::parse(&path).ok())
+    })
 }
+
+#[cfg(test)]
+mod tests;

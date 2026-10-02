@@ -23,6 +23,45 @@ pub(crate) struct CheckpointRestore {
 }
 
 impl LocalTerminalService {
+    #[cfg(windows)]
+    pub(crate) fn checkpoint_revision(
+        &self,
+    ) -> io::Result<orchbee_workbench_protocol::WorkbenchRevision> {
+        self.coordinator
+            .lock()
+            .map_err(|_| io::Error::other("coordinator failed"))?
+            .checkpoint_revision()
+    }
+
+    /// Build a bounded configuration from committed state and cached observations. The caller
+    /// performs disk publication only after every Site/Worker gate below has been released.
+    #[cfg(windows)]
+    pub(crate) fn cached_checkpoint(
+        &self,
+        worker: &WorkerId,
+        agents: &crate::agent_service::AgentService,
+    ) -> io::Result<(orchbee_workbench_protocol::WorkbenchRevision, Vec<u8>)> {
+        let workers = self
+            .workers
+            .lock()
+            .map_err(|_| io::Error::other("Worker registry failed"))?;
+        let placement = placement(workers.request_handle().as_ref());
+        let coordinator = self
+            .coordinator
+            .lock()
+            .map_err(|_| io::Error::other("coordinator failed"))?;
+        let (revision, targets) = coordinator.checkpoint_observation_targets()?;
+        if targets
+            .iter()
+            .any(|target| Some(target.target.worker) != placement)
+        {
+            return Err(io::Error::other("checkpoint Worker changed"));
+        }
+        let directories = coordinator.cached_checkpoint_directories(&targets);
+        let bytes = coordinator.checkpoint_with_agent_sessions(worker, agents, &directories)?;
+        Ok((revision, bytes))
+    }
+
     /// Reconstructs and reserves every terminal before any request can launch a Host.
     pub(crate) fn from_checkpoint(
         workers: Arc<Mutex<WorkerRegistry>>,

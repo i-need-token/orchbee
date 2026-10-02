@@ -52,9 +52,20 @@ pub(crate) fn run(locale: Locale, mouse: bool) -> Result<(), StartupFailure> {
     // The shared activation core owns cohort validation, rendezvous, the
     // socket-path budget, and the connect-or-activate loop; the TUI verdict
     // is exactly the `StartupFailure` it always derived.
-    let mut client = local_activation::activate_local_site(deadline)
-        .map_err(|failure| failure.failure)?
-        .client;
+    let started =
+        local_activation::activate_local_site(deadline).map_err(|failure| failure.failure)?;
+    #[cfg(windows)]
+    let notice = started.restore_notice.map(|notice| match notice {
+        orchbee_local_site_runtime::WindowsCheckpointRestoreNotice::Recovered => {
+            crate::client_view::Notice::CheckpointRecovered
+        }
+        orchbee_local_site_runtime::WindowsCheckpointRestoreNotice::Empty => {
+            crate::client_view::Notice::CheckpointEmpty
+        }
+    });
+    #[cfg(not(windows))]
+    let notice = None;
+    let mut client = started.client;
     client.set_submission_deadline(Some(deadline));
     let mut session = TerminalSession::start(client, TerminalIntent::Standalone, geometry)
         .map_err(|_| StartupFailure::TerminalUnavailable)?;
@@ -71,7 +82,7 @@ pub(crate) fn run(locale: Locale, mouse: bool) -> Result<(), StartupFailure> {
         }
     }
     drop(progress);
-    tui_shell::run_prepared(locale, inherited, dimensions, session, mouse)
+    tui_shell::run_prepared(locale, inherited, dimensions, session, mouse, notice)
         .map_err(|_| StartupFailure::Interface)
 }
 

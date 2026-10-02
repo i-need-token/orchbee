@@ -10,6 +10,16 @@ use std::io;
 
 impl SiteCoordinator {
     #[cfg(windows)]
+    pub(crate) fn checkpoint_revision(
+        &self,
+    ) -> io::Result<orchbee_workbench_protocol::WorkbenchRevision> {
+        self.workbench
+            .as_ref()
+            .map(|workbench| workbench.snapshot().revision)
+            .ok_or_else(|| io::Error::other("Workbench unavailable"))
+    }
+
+    #[cfg(windows)]
     pub(crate) fn checkpoint_observation_targets(
         &self,
     ) -> io::Result<(

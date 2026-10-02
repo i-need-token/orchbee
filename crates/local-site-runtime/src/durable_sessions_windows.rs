@@ -39,6 +39,14 @@ pub(crate) struct Record {
 }
 
 impl Record {
+    pub(crate) fn same_active_generation(&self, other: &Self) -> bool {
+        self.lifecycle == Lifecycle::Active
+            && other.lifecycle == Lifecycle::Active
+            && self.name == other.name
+            && self.runtime == other.runtime
+            && self.version == other.version
+            && self.activation_id == other.activation_id
+    }
     pub(crate) fn new(
         base: &Path,
         name: &WindowsSiteName,
@@ -65,9 +73,12 @@ impl Record {
         activation_id: [u8; 16],
     ) -> io::Result<Self> {
         let mut record = Self::new(base, name, Some(activation_id), Lifecycle::Active)?;
-        record.version = 2;
+        record.version = 3;
         record.processes = Some(SiteProcesses::default());
         Ok(record)
+    }
+    pub(crate) fn uses_framed_checkpoint(&self) -> bool {
+        self.version == 3
     }
     pub(crate) fn activation(&self) -> Option<ActivationState> {
         match self.lifecycle {
@@ -167,7 +178,7 @@ impl Directory {
         let name = WindowsSiteName::parse(&record.name).map_err(|_| io::ErrorKind::InvalidData)?;
         if !matches!(
             (record.version, &record.processes),
-            (1, None) | (2, Some(_))
+            (1, None) | (2 | 3, Some(_))
         ) || (record.version == 1 && record.lifecycle == Lifecycle::Crashed)
             || name.scope_for_user(&self.sid) != scope
             || Path::new(&record.runtime) != self.base.join(scope)
@@ -327,6 +338,32 @@ pub struct WindowsRetainedSessionRecord {
     active: Record,
 }
 impl WindowsRetainedSessionRecord {
+    pub(crate) fn checkpoint_directory(&self) -> io::Result<PathBuf> {
+        let local = self
+            .directory
+            .path
+            .ancestors()
+            .nth(3)
+            .ok_or(io::ErrorKind::InvalidData)?;
+        Ok(local
+            .join("Orchbee")
+            .join("native-sessions")
+            .join(Rendezvous::host_endpoint_id(Path::new(
+                &self.active.runtime,
+            ))))
+    }
+    pub(crate) fn current_activation_id(&self) -> io::Result<[u8; 16]> {
+        let current = self
+            .directory
+            .read(&self.scope)?
+            .ok_or(io::ErrorKind::NotFound)?;
+        if !current.same_active_generation(&self.active) {
+            return Err(io::ErrorKind::InvalidData.into());
+        }
+        current
+            .activation_id
+            .ok_or_else(|| io::ErrorKind::InvalidData.into())
+    }
     pub fn retain(local: &Path, site: &Rendezvous) -> io::Result<Option<Self>> {
         let runtime = site.runtime_directory();
         let scope = runtime

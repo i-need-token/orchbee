@@ -1,5 +1,6 @@
 use super::{Fixture, Rendezvous, fs, permissions};
 use crate::WindowsSessionStore;
+use sha2::{Digest, Sha256};
 use std::io;
 
 fn directory(fixture: &Fixture, site: &Rendezvous) -> std::path::PathBuf {
@@ -7,6 +8,67 @@ fn directory(fixture: &Fixture, site: &Rendezvous) -> std::path::PathBuf {
         .0
         .join("Orchbee/native-sessions")
         .join(Rendezvous::host_endpoint_id(site.runtime_directory()))
+}
+
+#[test]
+fn retains_three_latest_valid_payloads_and_reopens_the_latest_slot() {
+    let fixture = Fixture::new();
+    let site = fixture.open("three-checkpoints");
+    let mut store = WindowsSessionStore::open(&fixture.0, &site, 64).unwrap();
+    for payload in [b"first".as_slice(), b"second", b"third", b"fourth"] {
+        store.publish(payload).unwrap();
+    }
+    let state = directory(&fixture, &site);
+    let mut payloads = [
+        "checkpoint.json",
+        "checkpoint.previous-1.json",
+        "checkpoint.previous-2.json",
+    ]
+    .map(|name| {
+        let bytes = fs::read(state.join(name)).unwrap();
+        assert_eq!(bytes.get(..5), Some(b"OBCK\x01".as_slice()));
+        bytes[45..].to_vec()
+    });
+    payloads.sort();
+    assert_eq!(
+        payloads,
+        [b"fourth".to_vec(), b"second".to_vec(), b"third".to_vec()]
+    );
+    assert_eq!(store.read().unwrap(), Some(b"fourth".to_vec()));
+    drop(store);
+    let reopened = WindowsSessionStore::open(&fixture.0, &site, 64).unwrap();
+    assert_eq!(reopened.read().unwrap(), Some(b"fourth".to_vec()));
+}
+
+#[test]
+fn invalid_latest_digest_falls_back_without_modifying_the_invalid_original() {
+    let fixture = Fixture::new();
+    let site = fixture.open("invalid-latest");
+    let mut store = WindowsSessionStore::open(&fixture.0, &site, 64).unwrap();
+    for payload in [b"first".as_slice(), b"second", b"third"] {
+        store.publish(payload).unwrap();
+    }
+    let path = directory(&fixture, &site).join("checkpoint.previous-2.json");
+    let mut invalid = fs::read(&path).unwrap();
+    *invalid.last_mut().unwrap() ^= 1;
+    fs::write(&path, &invalid).unwrap();
+    assert_eq!(store.read().unwrap(), Some(b"second".to_vec()));
+    assert_eq!(fs::read(&path).unwrap(), invalid);
+    store.publish(b"fourth").unwrap();
+    let originals: Vec<_> = fs::read_dir(directory(&fixture, &site))
+        .unwrap()
+        .map(Result::unwrap)
+        .filter(|entry| {
+            entry
+                .file_name()
+                .to_str()
+                .unwrap()
+                .starts_with("checkpoint.corrupt-")
+        })
+        .map(|entry| fs::read(entry.path()).unwrap())
+        .collect();
+    assert_eq!(originals, vec![invalid]);
+    assert_eq!(store.read().unwrap(), Some(b"fourth".to_vec()));
 }
 
 #[test]
@@ -66,11 +128,32 @@ fn missing_empty_exact_limit_and_oversized_files_remain_distinct() {
         store.publish(&[3; 65]).unwrap_err().kind(),
         io::ErrorKind::InvalidInput
     );
-    assert_eq!(fs::read(&path).unwrap(), vec![2; 64]);
-    fs::write(&path, [4; 65]).unwrap();
-    assert_eq!(store.read().unwrap_err().kind(), io::ErrorKind::InvalidData);
-    assert!(store.publish(b"must not hide oversized data").is_err());
-    assert_eq!(fs::read(path).unwrap(), vec![4; 65]);
+    let latest = directory(&fixture, &site).join("checkpoint.previous-1.json");
+    assert_eq!(&fs::read(&latest).unwrap()[45..], &[2; 64]);
+    let oversized = vec![4; 110];
+    fs::write(&latest, &oversized).unwrap();
+    let loaded = store.read_validated(|bytes| Some(bytes.to_vec())).unwrap();
+    assert_eq!(loaded.checkpoint, Some(Vec::new()));
+    assert_eq!(
+        loaded.notice,
+        Some(crate::WindowsCheckpointRestoreNotice::Recovered)
+    );
+    store.publish(b"valid after oversized data").unwrap();
+    assert_eq!(fs::read(&latest).unwrap(), oversized);
+    store.publish(b"another valid snapshot").unwrap();
+    let originals: Vec<_> = fs::read_dir(directory(&fixture, &site))
+        .unwrap()
+        .map(Result::unwrap)
+        .filter(|entry| {
+            entry
+                .file_name()
+                .to_str()
+                .unwrap()
+                .starts_with("checkpoint.corrupt-")
+        })
+        .map(|entry| fs::read(entry.path()).unwrap())
+        .collect();
+    assert_eq!(originals, vec![oversized]);
 }
 
 #[test]
@@ -79,11 +162,26 @@ fn failed_replacement_keeps_the_prior_checkpoint_and_reclaims_staging() {
     let site = fixture.open("blocked-publish");
     let mut store = WindowsSessionStore::open(&fixture.0, &site, 64).unwrap();
     store.publish(b"old").unwrap();
+    store.publish(b"middle").unwrap();
+    store.publish(b"latest").unwrap();
     let path = directory(&fixture, &site).join("checkpoint.json");
+    let before = [
+        "checkpoint.json",
+        "checkpoint.previous-1.json",
+        "checkpoint.previous-2.json",
+    ]
+    .map(|name| fs::read(directory(&fixture, &site).join(name)).unwrap());
     // This real Windows handle denies delete sharing, so replacement cannot commit.
     let held = permissions::open_file(&path, false, false).unwrap();
     assert!(store.publish(b"new").is_err());
-    assert_eq!(fs::read(&path).unwrap(), b"old");
+    let after = [
+        "checkpoint.json",
+        "checkpoint.previous-1.json",
+        "checkpoint.previous-2.json",
+    ]
+    .map(|name| fs::read(directory(&fixture, &site).join(name)).unwrap());
+    assert_eq!(after, before);
+    assert_eq!(store.read().unwrap(), Some(b"latest".to_vec()));
     assert!(
         !directory(&fixture, &site)
             .join("checkpoint.pending")
@@ -91,7 +189,136 @@ fn failed_replacement_keeps_the_prior_checkpoint_and_reclaims_staging() {
     );
     drop(held);
     store.publish(b"new").unwrap();
-    assert_eq!(fs::read(path).unwrap(), b"new");
+    assert_eq!(&fs::read(path).unwrap()[45..], b"new");
+    assert_eq!(store.read().unwrap(), Some(b"new".to_vec()));
+}
+
+#[test]
+fn domain_invalid_copies_require_visible_empty_recovery_and_preserve_all_originals() {
+    let fixture = Fixture::new();
+    let site = fixture.open("invalid-domain");
+    let mut store = WindowsSessionStore::open(&fixture.0, &site, 64).unwrap();
+    for payload in [b"invalid-1".as_slice(), b"invalid-2", b"invalid-3"] {
+        store.publish(payload).unwrap();
+    }
+    let state = directory(&fixture, &site);
+    let original = fs::read(state.join("checkpoint.json")).unwrap();
+    let loaded = store
+        .read_validated(|bytes| (bytes == b"valid-domain").then_some(42))
+        .unwrap();
+    assert_eq!(loaded.checkpoint, None);
+    assert_eq!(
+        loaded.notice,
+        Some(crate::WindowsCheckpointRestoreNotice::Empty)
+    );
+    assert!(
+        store
+            .publish_validated(b"invalid-new", |bytes| bytes == b"valid-domain")
+            .is_err()
+    );
+    assert_eq!(fs::read(state.join("checkpoint.json")).unwrap(), original);
+    store
+        .publish_validated(b"valid-domain", |bytes| bytes == b"valid-domain")
+        .unwrap();
+    let originals: Vec<_> = fs::read_dir(&state)
+        .unwrap()
+        .map(Result::unwrap)
+        .filter(|entry| {
+            entry
+                .file_name()
+                .to_str()
+                .unwrap()
+                .starts_with("checkpoint.corrupt-")
+        })
+        .map(|entry| fs::read(entry.path()).unwrap())
+        .collect();
+    assert_eq!(originals, vec![original]);
+    let loaded = store
+        .read_validated(|bytes| (bytes == b"valid-domain").then_some(42))
+        .unwrap();
+    assert_eq!(loaded.checkpoint, Some(42));
+    assert_eq!(
+        loaded.notice,
+        Some(crate::WindowsCheckpointRestoreNotice::Recovered)
+    );
+}
+
+#[test]
+fn explicit_empty_final_after_all_invalid_preserves_the_displaced_original() {
+    let fixture = Fixture::new();
+    let site = fixture.open("empty-final-after-invalid");
+    let mut store = WindowsSessionStore::open(&fixture.0, &site, 64).unwrap();
+    for payload in [b"invalid-1".as_slice(), b"invalid-2", b"invalid-3"] {
+        store.publish(payload).unwrap();
+    }
+    let state = directory(&fixture, &site);
+    let original = fs::read(state.join("checkpoint.json")).unwrap();
+    let loaded = store
+        .read_validated(|bytes| (bytes == b"empty-workspace").then_some(()))
+        .unwrap();
+    assert_eq!(loaded.checkpoint, None);
+    assert_eq!(
+        loaded.notice,
+        Some(crate::WindowsCheckpointRestoreNotice::Empty)
+    );
+
+    // The clean-stop owner explicitly publishes the current empty workspace. Storage archives
+    // the chosen invalid original before admitting that final snapshot.
+    store
+        .publish_validated(b"empty-workspace", |bytes| bytes == b"empty-workspace")
+        .unwrap();
+    let originals: Vec<_> = fs::read_dir(&state)
+        .unwrap()
+        .map(Result::unwrap)
+        .filter(|entry| {
+            entry
+                .file_name()
+                .to_str()
+                .unwrap()
+                .starts_with("checkpoint.corrupt-")
+        })
+        .map(|entry| fs::read(entry.path()).unwrap())
+        .collect();
+    assert_eq!(originals, vec![original]);
+    assert!(
+        store
+            .read_validated(|bytes| (bytes == b"empty-workspace").then_some(()))
+            .unwrap()
+            .checkpoint
+            .is_some()
+    );
+}
+
+#[test]
+fn interrupt_after_preserving_invalid_originals_never_recovers_a_complete_pending_file() {
+    let fixture = Fixture::new();
+    let site = fixture.open("preserve-before-commit");
+    let mut store = WindowsSessionStore::open(&fixture.0, &site, 64).unwrap();
+    store.publish(b"invalid-domain").unwrap();
+    let state = directory(&fixture, &site);
+    let original = fs::read(state.join("checkpoint.json")).unwrap();
+    let archive = state.join("checkpoint.corrupt-00000000000000000000000000000001.raw");
+    fs::rename(state.join("checkpoint.json"), &archive).unwrap();
+    // A complete, valid higher-generation envelope is still uncommitted in the pending path.
+    let mut pending = original.clone();
+    pending[5..13].copy_from_slice(&999_u64.to_le_bytes());
+    let mut digest = Sha256::new();
+    digest.update(&pending[..13]);
+    digest.update(&pending[45..]);
+    pending[13..45].copy_from_slice(&digest.finalize());
+    fs::write(state.join("checkpoint.pending"), pending).unwrap();
+    drop(store);
+    let reopened = WindowsSessionStore::open(&fixture.0, &site, 64).unwrap();
+    let loaded = reopened
+        .read_validated(|bytes| Some(bytes.to_vec()))
+        .unwrap();
+    assert_eq!(loaded.checkpoint, None);
+    assert_eq!(
+        loaded.notice,
+        Some(crate::WindowsCheckpointRestoreNotice::Empty)
+    );
+    assert_eq!(fs::read(archive).unwrap(), original);
+    assert!(!state.join("checkpoint.pending").exists());
 }
 
 #[test]

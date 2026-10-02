@@ -5362,6 +5362,44 @@
 			]
 		},
 		{
+			"id": "windows-workbench-autosave",
+			"owner": "orchbee-server",
+			"workspace": "apps/orchbee-server",
+			"module": "apps/orchbee-server/formal/tla/WindowsWorkbenchAutosave.tla",
+			"config": "apps/orchbee-server/formal/tla/WindowsWorkbenchAutosave.cfg",
+			"claims": ["apps/orchbee-server/docs/workbench-checkpoint.md"],
+			"triggers": [
+				"apps/orchbee-server/src/local_site_service/managed/**",
+				"apps/orchbee-server/src/local_terminal_service/checkpoint*",
+				"apps/orchbee-server/src/local_terminal_service/checkpoint/**",
+				"apps/orchbee-server/src/local_terminal_service/process_observer*",
+				"apps/orchbee-server/src/local_terminal_service/process_observer/**",
+				"apps/orchbee-server/src/local_terminal_service/viewer_session/process_sampling/**",
+				"apps/orchbee-server/src/site_coordinator/checkpoint_restore.rs",
+				"apps/orchbee-server/src/site_coordinator/process_observation.rs",
+				"apps/orchbee-server/docs/workbench-checkpoint*",
+				"apps/orchbee-server/formal/tla/WindowsWorkbenchAutosave.*"
+			],
+			"requiredCoverage": [
+				"ChangeLayout",
+				"ChangeDirectory",
+				"ObserveDirectory",
+				"ReplacePhysical",
+				"DebounceExpires",
+				"PeriodicExpires",
+				"CaptureBackground",
+				"SuppressUnchanged",
+				"BeginWrite",
+				"FinishWrite",
+				"WriteFailure",
+				"RequestStop",
+				"SettleRequests",
+				"CaptureFinal",
+				"CompleteStop",
+				"RetryFailedStop"
+			]
+		},
+		{
 			"id": "workbench-multileaf-membership",
 			"owner": "orchbee-server",
 			"workspace": "apps/orchbee-server",
@@ -7067,6 +7105,71 @@
 				"Handoff",
 				"ExpireDispatch",
 				"ClientLoss"
+			]
+		},
+		{
+			"id": "windows-checkpoint-restore-notice",
+			"owner": "orchbee-local-site-runtime",
+			"workspace": "crates/local-site-runtime",
+			"module": "crates/local-site-runtime/formal/tla/WindowsCheckpointRestoreNotice.tla",
+			"config": "crates/local-site-runtime/formal/tla/WindowsCheckpointRestoreNotice.cfg",
+			"claims": ["crates/local-site-runtime/docs/windows-checkpoint-storage.md"],
+			"triggers": [
+				"crates/local-site-runtime/src/checkpoint_restore_notice_windows.rs",
+				"crates/local-site-runtime/src/checkpoint_restore_notice_windows/**",
+				"crates/local-site-runtime/src/durable_sessions_windows.rs",
+				"crates/local-site-runtime/src/session_store_windows.rs",
+				"crates/local-site-runtime/docs/windows-checkpoint-storage*",
+				"crates/local-site-runtime/formal/tla/WindowsCheckpointRestoreNotice.*",
+				"apps/orchbee-server/src/local_site_service/managed/**",
+				"apps/orchbee/src/local_activation.rs",
+				"apps/orchbee/src/local_startup.rs",
+				"apps/orchbee/src/cli/site.rs",
+				"apps/orchbee/src/client_view.rs",
+				"apps/orchbee/src/tui_shell.rs",
+				"apps/orchbee/src/localization*",
+				"apps/orchbee/src/localization/**"
+			],
+			"requiredCoverage": [
+				"Load",
+				"PublishNotice",
+				"PublishFailure",
+				"MakeReady",
+				"Connect",
+				"ReadStale",
+				"BeginNextActivation"
+			]
+		},
+		{
+			"id": "windows-checkpoint-storage",
+			"owner": "orchbee-local-site-runtime",
+			"workspace": "crates/local-site-runtime",
+			"module": "crates/local-site-runtime/formal/tla/WindowsCheckpointStorage.tla",
+			"config": "crates/local-site-runtime/formal/tla/WindowsCheckpointStorage.cfg",
+			"claims": ["crates/local-site-runtime/docs/windows-checkpoint-storage.md"],
+			"triggers": [
+				"crates/local-site-runtime/src/session_store_windows.rs",
+				"crates/local-site-runtime/src/session_store_windows/**",
+				"crates/local-site-runtime/src/checkpoint_rotation.rs",
+				"crates/local-site-runtime/src/checkpoint_rotation/**",
+				"crates/local-site-runtime/src/durable_sessions_windows.rs",
+				"crates/local-site-runtime/src/named_site_catalog_windows.rs",
+				"crates/local-site-runtime/src/windows_tests/**",
+				"crates/local-site-runtime/docs/windows-checkpoint-storage*",
+				"crates/local-site-runtime/formal/tla/WindowsCheckpointStorage.*",
+				"apps/orchbee-server/src/local_site_service/managed/**"
+			],
+			"requiredCoverage": [
+				"PublishCatalogV3",
+				"RefuseOldCohort",
+				"Prepare",
+				"Flush",
+				"PreserveInvalid",
+				"Commit",
+				"WriteFailure",
+				"Interrupt",
+				"CorruptSlot",
+				"Load"
 			]
 		},
 		{

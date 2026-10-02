@@ -342,6 +342,26 @@ fn localizes_context_navigation_backend_failures_in_both_locales() {
     );
 }
 
+#[test]
+fn localizes_checkpoint_recovery_outcomes_in_both_locales() {
+    assert_eq!(
+        Locale::EnUs.shell_notice(Some(Notice::CheckpointRecovered)),
+        "Unreadable workspace snapshots retained; restored a valid snapshot"
+    );
+    assert_eq!(
+        Locale::ZhCn.shell_notice(Some(Notice::CheckpointRecovered)),
+        "部分工作区存档不可读；已使用有效存档恢复，原始文件已保留"
+    );
+    assert_eq!(
+        Locale::EnUs.shell_notice(Some(Notice::CheckpointEmpty)),
+        "Workspace snapshots unreadable; opened an empty workspace and retained originals"
+    );
+    assert_eq!(
+        Locale::ZhCn.shell_notice(Some(Notice::CheckpointEmpty)),
+        "工作区存档均不可读；已打开空工作区，原始文件已保留"
+    );
+}
+
 #[cfg(unix)]
 #[test]
 fn native_tab_copy_matches_the_accepted_english_table() {

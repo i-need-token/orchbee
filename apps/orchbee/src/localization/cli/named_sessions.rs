@@ -100,10 +100,10 @@ impl Locale {
                 "orchbee session stop <name> --confirm [--request-id <id>] [--detach] [--retry] [--timeout <ms>] [--format text|json]\n\n通过 site stop 协议停止所选托管 Windows Site 及其终端。\n--retry 要求提供先前的 --request-id。默认超时 65000 毫秒；范围 1..=3600000。\n--detach 返回已接受回执；用 --site <name> site stop-status <id> 查询。\n正常停止保留工作区检查点。\n"
             }
             (Self::EnUs, CommandPath::SessionDelete) => {
-                "orchbee session delete <name> --confirm [--format text|json]\n\nDelete only the selected stopped/unused named session's owned runtime and checkpoint files.\nDefault, running, uncertain, unsafe or unknown-file state is refused. No processes are killed.\nThe 5-second workflow serializes against activation; partial deletion fences restart until the same command completes it.\nMissing storage succeeds as absent. User project/worktree directories are preserved.\n"
+                "orchbee session delete <name> --confirm [--format text|json]\n\nDelete only the selected stopped/unused named session's owned runtime and checkpoint files, including owned checkpoint.corrupt-*.raw archives.\nDefault, running, uncertain, unsafe or unknown-file state is refused. No processes are killed. Default-Site raw archives require a separately authorized repair.\nThe 5-second workflow serializes against activation; partial deletion fences restart until the same command completes it.\nMissing storage succeeds as absent. User project/worktree directories are preserved.\n"
             }
             (Self::ZhCn, CommandPath::SessionDelete) => {
-                "orchbee session delete <name> --confirm [--format text|json]\n\n只删除所选已停止或未使用命名会话拥有的运行时与检查点文件。\n拒绝 default、运行中、不确定、不安全或含未知文件的状态；不杀进程。\n流程期限 5 秒，与激活串行化；部分删除会阻止重启，直到相同命令完成清理。\n存储不存在时成功返回 absent。保留用户项目与 worktree 目录。\n"
+                "orchbee session delete <name> --confirm [--format text|json]\n\n只删除所选已停止或未使用命名会话拥有的运行时与 checkpoint 文件，包括自有 checkpoint.corrupt-*.raw 归档。\n拒绝 default、运行中、不确定、不安全或含未知文件的状态；不杀进程。default Site 的 raw 归档需要另行授权的修复。\n流程期限 5 秒，与激活串行化；部分删除会阻止重启，直到相同命令完成清理。\n存储不存在时成功返回 absent。保留用户项目与 worktree 目录。\n"
             }
             _ => self.cli_session_family_help(),
         }

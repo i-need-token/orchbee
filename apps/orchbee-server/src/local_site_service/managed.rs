@@ -43,7 +43,8 @@ pub(super) fn run(
     #[cfg(windows)]
     let record = site.retain_active_record()?;
     #[cfg(windows)]
-    let (checkpoint_store, checkpoint, session_record) = checkpoint_windows::load(&site)?;
+    let (checkpoint_store, checkpoint, session_record, suppress_initial_empty) =
+        checkpoint_windows::load(&site)?;
     #[cfg(unix)]
     nix::unistd::setsid()?;
     // The observation endpoint binds and starts before the Worker socket
@@ -197,7 +198,9 @@ pub(super) fn run(
                 ingress: _endpoint,
                 terminals,
                 agents,
-                checkpoint_store,
+                checkpoint_store: Arc::new(Mutex::new(checkpoint_store)),
+                checkpoint_saver: None,
+                suppress_initial_empty,
                 session_record,
             },
             cohort.identity(),

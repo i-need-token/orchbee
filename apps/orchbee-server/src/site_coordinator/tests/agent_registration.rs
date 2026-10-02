@@ -380,6 +380,57 @@ mod process_samples {
         assert!(site.process_samples.is_empty());
     }
     #[test]
+    fn checkpoint_directory_cache_rejects_stale_samples_and_physical_generations() {
+        use orchbee_workbench_protocol::WorkbenchDirectoryPath;
+        let (mut site, target, sample) = fixture();
+        let targets = site.checkpoint_observation_targets().unwrap().1;
+        let first = WorkbenchDirectoryPath::parse("C:/first").unwrap();
+        let second = WorkbenchDirectoryPath::parse("C:/second").unwrap();
+        let now = Instant::now();
+        assert!(site.cached_checkpoint_directories(&targets).is_empty());
+        assert!(site.observe_host_screen_with_directory(
+            target,
+            &sample,
+            None,
+            Some(first.clone()),
+            now,
+            now
+        ));
+        let later = now + Duration::from_millis(1);
+        assert!(site.observe_host_screen_with_directory(
+            target,
+            &sample,
+            None,
+            Some(second.clone()),
+            later,
+            later
+        ));
+        assert!(!site.observe_host_screen_with_directory(
+            target,
+            &sample,
+            None,
+            Some(first),
+            now,
+            later
+        ));
+        assert_eq!(
+            site.cached_checkpoint_directories(&targets),
+            vec![(targets[0].binding.clone(), second.clone())]
+        );
+        // A new observation without a directory retains the last known directory for this physical owner.
+        let last = later + Duration::from_millis(1);
+        assert!(site.observe_host_screen_with_directory(target, &sample, None, None, last, last));
+        assert_eq!(site.cached_checkpoint_directories(&targets)[0].1, second);
+        let mut stale = targets.clone();
+        stale[0].target.worker = worker(2);
+        assert!(site.cached_checkpoint_directories(&stale).is_empty());
+        assert!(site.cached_checkpoint_directories(&[]).is_empty());
+        site.terminals
+            .set_phase_for_test(&id(101), TerminalPhase::Unavailable(None));
+        assert!(site.process_observation_targets().unwrap().is_empty());
+        assert!(site.cached_checkpoint_directories(&targets).is_empty());
+    }
+    #[test]
     fn complete_samples_confirm_without_revision_churn_then_prove_pid_reuse_exit() {
         let (mut site, target, mut sample) = fixture();
         let now = Instant::now();

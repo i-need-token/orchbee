@@ -8,6 +8,11 @@ use std::io;
 fn deadline() -> Instant {
     Instant::now() + Duration::from_secs(5)
 }
+fn assert_checkpoint(path: &std::path::Path, payload: &[u8]) {
+    let bytes = fs::read(path).unwrap();
+    assert_eq!(bytes.get(..5), Some(b"OBCK\x01".as_slice()));
+    assert_eq!(&bytes[45..], payload);
+}
 fn scope(name: &WindowsSiteName) -> String {
     name.scope_for_user(&orchbee_local_ipc::current_user_sid().unwrap())
 }
@@ -69,6 +74,24 @@ fn stopped_deletion_removes_only_selected_owned_storage_and_is_idempotent() {
     let fixture = Fixture::new();
     let (name, runtime, state) = prepared(&fixture, "work", true);
     let (_, peer, peer_state) = prepared(&fixture, "Work", true);
+    let site = fixture.open(&scope(&name));
+    let mut store = WindowsSessionStore::open(&fixture.0, &site, 64).unwrap();
+    store.publish(b"second").unwrap();
+    store.publish(b"third").unwrap();
+    drop(store);
+    drop(site);
+    fs::write(
+        state.join("checkpoint.corrupt-00000000000000000000000000000001.raw"),
+        b"retained original",
+    )
+    .unwrap();
+    fs::write(state.join("checkpoint.pending"), b"uncommitted").unwrap();
+    fs::write(state.join("checkpoint.restore-notice"), b"notice").unwrap();
+    fs::write(
+        state.join("checkpoint.restore-notice.pending"),
+        b"uncommitted notice",
+    )
+    .unwrap();
     let catalog = Catalog::try_lock(&fixture.0, &fixture.0).unwrap();
     assert_eq!(
         Catalog::try_lock(&fixture.0, &fixture.0)
@@ -85,10 +108,7 @@ fn stopped_deletion_removes_only_selected_owned_storage_and_is_idempotent() {
     assert!(!state.exists());
     assert!(!intent(&fixture, &name).exists());
     assert!(peer.is_dir());
-    assert_eq!(
-        fs::read(peer_state.join("checkpoint.json")).unwrap(),
-        b"Work"
-    );
+    assert_checkpoint(&peer_state.join("checkpoint.json"), b"Work");
     assert_eq!(
         catalog.delete(&name, &fixture.0, deadline(), || Ok(false)),
         Ok(Outcome::Absent)
@@ -172,7 +192,7 @@ fn active_locked_or_listening_sessions_cannot_be_deleted() {
         Reason::InUse
     );
     assert!(!intent(&fixture, &name).exists());
-    assert_eq!(fs::read(state.join("checkpoint.json")).unwrap(), b"live");
+    assert_checkpoint(&state.join("checkpoint.json"), b"live");
     drop(store);
     drop(site);
     assert_eq!(
@@ -193,7 +213,7 @@ fn checkpoint_sharing_failure_fences_start_and_retry_completes() {
     assert_eq!(failure.reason, Reason::Filesystem);
     assert!(failure.pending);
     assert!(intent(&fixture, &name).is_file());
-    assert_eq!(fs::read(state.join("checkpoint.json")).unwrap(), b"blocked");
+    assert_checkpoint(&state.join("checkpoint.json"), b"blocked");
     assert!(
         Rendezvous::prepare_mode_checked(&fixture.0, SiteScope::parse(&scope(&name)).unwrap())
             .is_err()
@@ -262,7 +282,7 @@ fn unknown_files_and_hard_links_refuse_before_intent_and_preserve_bytes() {
             .unwrap_err()
             .pending
     );
-    assert_eq!(fs::read(&checkpoint).unwrap(), b"unknown");
+    assert_checkpoint(&checkpoint, b"unknown");
     assert!(!intent(&fixture, &name).exists());
     fs::remove_file(alias).unwrap();
     assert_eq!(
@@ -292,7 +312,7 @@ fn orphaned_checkpoint_and_malformed_intent_are_not_cleanup_authority() {
             .reason,
         Reason::RecoveryRequired
     );
-    assert_eq!(fs::read(state.join("checkpoint.json")).unwrap(), b"orphan");
+    assert_checkpoint(&state.join("checkpoint.json"), b"orphan");
     fs::write(
         intent(&fixture, &name),
         br#"{"version":1,"name":"different","stopped_request_id":null}"#,
@@ -308,7 +328,7 @@ fn orphaned_checkpoint_and_malformed_intent_are_not_cleanup_authority() {
         Rendezvous::prepare_mode_checked(&fixture.0, SiteScope::parse(&scope(&name)).unwrap())
             .is_err()
     );
-    assert_eq!(fs::read(state.join("checkpoint.json")).unwrap(), b"orphan");
+    assert_checkpoint(&state.join("checkpoint.json"), b"orphan");
 }
 
 #[test]
@@ -337,10 +357,7 @@ fn interruption_before_and_after_intent_preserves_honest_recovery_state() {
     assert_eq!(failure.reason, Reason::Interrupted);
     assert!(!failure.pending);
     assert!(!intent(&fixture, &name).exists());
-    assert_eq!(
-        fs::read(state.join("checkpoint.json")).unwrap(),
-        b"interrupt"
-    );
+    assert_checkpoint(&state.join("checkpoint.json"), b"interrupt");
     let failure = catalog
         .delete(&name, &fixture.0, deadline(), || {
             Ok(intent(&fixture, &name).exists())
@@ -348,10 +365,7 @@ fn interruption_before_and_after_intent_preserves_honest_recovery_state() {
         .unwrap_err();
     assert_eq!(failure.reason, Reason::Interrupted);
     assert!(failure.pending);
-    assert_eq!(
-        fs::read(state.join("checkpoint.json")).unwrap(),
-        b"interrupt"
-    );
+    assert_checkpoint(&state.join("checkpoint.json"), b"interrupt");
     let interrupted_retry = catalog
         .delete(&name, &fixture.0, deadline(), || Ok(true))
         .unwrap_err();

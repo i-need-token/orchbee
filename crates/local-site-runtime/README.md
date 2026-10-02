@@ -51,19 +51,23 @@ names are rejected. This identity does not grant process control or authorize st
 Native Windows named and default Sites retain bounded private lifecycle records under
 `LOCALAPPDATA/Orchbee/session-catalog/<runtime-base-digest>`. Each record binds the exact name,
 current-user scope and canonical runtime path to Active, Crashed, Stopped with a nonzero stop identity,
-or Deleting. Catalog v2 retains PID and creation FILETIME for each Server, Worker and Host;
-v1 remains readable but its Active state has no automatic death proof. Paths used for effects are derived from admitted inputs, never trusted from a record.
+or Deleting. Catalog v2 introduced PID and creation FILETIME for each Server, Worker and Host;
+v3 retains that exact registry and admits the three-slot checkpoint layout and owned corrupt-original
+files. The current reader accepts v1, v2 and v3, but v1 Active has no automatic death proof. Paths
+used for effects are derived from admitted inputs, never trusted from a record.
 The configured runtime base must still exist; removing a stopped runtime leaf does not remove its
 catalog entry or checkpoint. Reads merge runtime and durable entries without creating or migrating
 files. Corrupt, mismatched, linked or redirected records fail without repair.
 
 The pinned-base namespace gate covers default and named activation. A missing runtime with a
 validated stopped record, free checkpoint lock and absent endpoints can be recreated at the same
-route. An Active v2 generation can recover only when exact registered identities are gone,
+route. Stopped v1/v2 records require the primary checkpoint; stopped v3 records may use any fixed
+slot or an exactly named owned corrupt original. An Active v2 or v3 generation can recover only when exact registered identities are gone,
 registration is complete, all guards are free and all derived endpoints absent. Recovery publishes
 Crashed for the old generation before reconciling its marker, preserves the checkpoint and begins
 a fresh generation. Live/unknown identity, incomplete registration, legacy Active, pending deletion
-and orphan storage refuse recovery. Before marker commitment or Server spawn, activation atomically publishes Active.
+and orphan storage refuse recovery. Before marker commitment, Server spawn or checkpoint-store
+publication, activation atomically publishes Active v3.
 Each activation carries a fresh nonzero 128-bit identity. The Server retains that exact generation before Worker effects and publishes Stopped after confirmed shutdown,
 before the runtime stopped receipt and lifetime release. Failed publication never proves a clean stop.
 
@@ -74,8 +78,9 @@ private staging, flush and atomic replacement. This is ordinary process/failure 
 power-loss guarantee. A per-record writer lock serializes direct-child registration, recovery and
 clean-stop publication. `spawn_server` requires the catalog and matching activation owner;
 `spawn_windows_site_child` requires the exact registered direct parent for Worker or Host. Each
-child is created suspended and released only after its identity is flushed. Catalog v1 readers refuse
-v2 even after a clean stop; no downgrade is provided. Live Host adoption remains separate.
+child is created suspended and released only after its identity is flushed. Readers limited to v1
+refuse v2/v3, and readers limited to v2 refuse v3, even after a clean stop; no downgrade is provided.
+Live Host adoption remains separate.
 
 The [Windows crash-recovery contract](docs/windows-crash-recovery.md) owns guards, interrupted
 publication, compatibility and evidence limits. Check the registered bounded model with:
@@ -329,20 +334,27 @@ Different runtime bases and named scopes have separate stores. Private ancestor 
 new-directory ACLs, no-reparse admission and single-link file checks apply. A private `state.lock`
 is held exclusively for the store lifetime; a competing owner receives `WouldBlock`.
 
-`checkpoint.json` absence is distinct from an empty, oversized or unreadable file. Reads are
-bounded by the caller's admitted byte limit. Publishing checks that limit and any existing target,
-creates `checkpoint.pending`, writes and flushes the complete bytes, closes the staging handle,
-then uses same-directory `MoveFileEx` with `REPLACE_EXISTING`. Pre-publication
-failure preserves the committed file; cleanup removes only the admitted owned staging file.
-If cleanup fails, the failure remains explicit and the next exclusive owner retries reclamation.
-A crash-left pending file is uncommitted and never substitutes for the committed checkpoint.
-Other users are excluded by the private ACL; same-user writers must respect the lock. Successful
-file flushing and replacement do not guarantee directory-entry durability across power loss or
-storage-device failure. The safe pinned API does not expose a combined write-through replacement flag.
+The store retains three versioned, integrity-checked slots, ordered by their private generation.
+The Server supplies whole-document validation; the newest valid payload wins. Invalid copies remain
+intact and produce an explicit recovered/empty startup notice. Legacy plain `checkpoint.json`
+remains readable. Missing data and invalid data have distinct outcomes; filesystem/private-path
+admission errors still refuse startup. The unchanged Workbench JSON version does not let an older
+cohort consume the new multi-slot layout: the v3 catalog record is published before that layout can
+be written, so v1/v2 readers refuse before effects. Admission preserves upgraded bytes and never
+downgrades the catalog. See the [Windows checkpoint storage contract](docs/windows-checkpoint-storage.md).
+
+Publication writes and flushes one private `checkpoint.pending`, preserves any displaced invalid
+original under a fresh owned raw filename, then atomically replaces a slot in the same directory
+with `MoveFileEx(REPLACE_EXISTING)`. Pending bytes never supply recovery authority; failure keeps
+prior valid slots and reports any unconfirmed staging cleanup. Unchanged payloads do not consume
+history. Raw originals are user recovery data retained until explicit Site deletion or authorized
+repair. Other users are excluded by the private ACL; same-user writers respect the lock. The
+adapter does not claim directory-entry write-through; the acknowledged pending-file flush and
+atomic replacement do not prove power-loss or hardware durability.
 
 The store does not interpret JSON, select a default data directory, relaunch a process, replay an
-operation or grant Site restart authority. Server startup/stop integration and actual restart
-witnesses remain necessary before claiming session persistence.
+operation or grant Site restart authority. The Server owns startup/stop use of this primitive;
+native process-crash/restart and machine-restart witnesses remain separate evidence obligations.
 
 The native Windows adapter retains activation/lifetime-lock ownership; the explicit
 stop record below refines the original immutable attempt marker. It admits an absolute local path only after

@@ -39,7 +39,9 @@ Names need not be unique; their existing ambiguous-selector semantics remain unc
 
 Version 3 requires a `terminalDirectories` list of stable `presentationId` and validated `path` pairs. Primary and child Presentations remain independent. Versions 1 and 2 remain readable only without this field; null, duplicate/foreign members and invalid paths reject the entire document. The existing 2 MiB limit remains; older cohorts reject version 3.
 
-After request/background quiescence, the Windows Site takes a fresh bounded observation through the existing private viewer owner before Worker disposal. A valid terminal-reported directory takes precedence over the root process directory; child process directories never substitute for the root. The final physical membership and Worker generation must still match. Unknown detach remains owned by the stopped process observer, fails this stop attempt and preserves the preceding checkpoint; a later stop may settle that exact attachment. No periodic cwd cache or new runtime authority is introduced.
+After request/background quiescence, clean stop takes a fresh bounded observation through the existing private viewer owner before Worker disposal. A valid terminal-reported directory takes precedence over the root process directory; child process directories never substitute for the root. The final physical membership and Worker generation must still match. Unknown detach remains owned by the stopped process observer, fails this stop attempt and preserves the preceding checkpoint; a later stop may settle that exact attachment.
+
+During normal operation the existing process sampler caches only its already observed validated directory, with the exact Worker generation, Host terminal identity and sample start time. Cached capture rechecks current physical membership under the Site gate. Stale, removed or replaced bindings contribute no directory. An unavailable observation does not fabricate a directory or erase retained restart intent. Saving never opens a viewer, samples processes or reads screen contents.
 
 Capture maps admitted observations to current Presentation identities. If observation is unavailable, retained restart intent remains; otherwise ordinary workspace/home defaults apply. Removed members disappear. Fresh launch prefers the retained directory, then workspace default; if that selected path no longer names a directory, Windows restore uses the Worker's home default. This restoration policy does not alter explicit user launch validation. The shared PowerShell prompt synchronization also runs in restored encoded-command shells, so directory changes after a provider exits can be observed.
 
@@ -89,8 +91,12 @@ selection before exposing Clients. Planning and binding tests do not establish t
 ## Managed Windows startup and clean stop
 
 Managed startup opens the exclusive `WindowsSessionStore` below `LOCALAPPDATA` and parses its
-committed bytes before spawning a Worker. Missing data means a new Workbench; unreadable, malformed
-or unsupported data aborts startup without an empty fallback. `WorkbenchCheckpoint` is an admitted
+committed copies before spawning a Worker. The storage owner selects the latest completely validated
+payload from three slots. Invalid copies are retained and produce a visible restore notice; if all
+copies are invalid, startup explicitly reports an empty restoration. Missing data means a new Workbench.
+Private-path or filesystem admission failure still aborts startup. See the
+[Windows checkpoint storage contract](../../../crates/local-site-runtime/docs/windows-checkpoint-storage.md).
+`WorkbenchCheckpoint` is an admitted
 configuration value: private graph-validation identities never become a runnable authority. Only
 reconstruction with the fresh Site and admitted Worker creates the new authority.
 
@@ -108,11 +114,48 @@ Host/terminal shutdown, then confirms Worker/carrier exit and stops ingress. Unc
 retains recovery-required activation state; terminating a Worker alone is not Host cleanup.
 
 Clean stop saves after request/background quiescence and before Worker disposal. Encoding or
-publication failure prevents disposal and remains a failed stop; the previous committed file is
-preserved. This stage saves layout, Launch Profiles and exact-generation provider references on explicit clean stop. Fresh physical creation seeds only the retained provider reference, never live Agent state or source authority. It does not yet
-provide periodic/crash checkpoints, Client or history recovery. Completed managed names restore
+publication failure prevents disposal and remains a failed stop; preceding valid snapshots remain,
+and any displaced invalid original remains in its raw archive. Clean stop first drains the single
+background saver, then performs fresh directory capture
+and final publication before Worker disposal. A late background write cannot replace this final snapshot.
+Fresh physical creation seeds only the retained provider reference, never live Agent state or source
+authority. Client and history recovery remain separate. Completed managed names restore
 after fresh physical creation and reference seeding, before Client publication; ordinary names and
 pending launches do not. Clean capture composes current Names claims with exact physical references. Activation markers retain their existing recovery semantics on failed boot.
+
+## Running save model
+
+The managed Windows Server owns one background saver after terminal restoration and reference/name
+seeding have settled. It watches committed Workbench revision; each change restarts a 500ms debounce.
+Every 30 seconds it also captures cached directories and current exact-generation provider resume
+references. No terminal screen, history, Agent conversation or live controller state enters the payload.
+The pending work is one latest snapshot, not an unbounded queue.
+When every retained copy was invalid, the saver retains the exact initial empty checkpoint in
+memory and does not publish that baseline. A later layout, cached directory or provider-reference
+change must alter the complete checkpoint before automatic publication can replace an invalid slot.
+This suppression applies only to unattended background saves. An explicit `site stop --confirm`
+confirms the current workspace, so its fresh final capture may publish the unchanged empty state;
+the storage owner archives the displaced invalid bytes before that commit.
+
+Capture takes the existing Site gate only to build a bounded configuration value and then releases
+it. Filesystem validation, preservation, flush and replacement happen outside the gate, on the single
+writer. Revision changes during I/O remain dirty and schedule another capture. A failed save keeps
+the previous valid copies and a bounded error state; it does not terminate a terminal or authorize a
+fresh Site. The saver must settle before final clean-stop capture. Failure to join it prevents stop
+completion rather than allowing two storage writers.
+
+`WindowsWorkbenchAutosave` bounds layout/directory changes, physical replacement, background
+publication and final stop, including an explicit failed-stop retry. Failed stop retains the existing
+shutdown admission fence; it does not reopen mutation or start a second background saver.
+Its initial state covers both ordinary startup and an all-invalid empty fallback; the latter suppresses
+background publication while the modeled serialized layout/directory payload still equals its empty
+baseline. `SuppressUnchanged` is therefore limited to `Background`; `CaptureFinal` still reaches
+`BeginWrite`, and `CompleteStop` requires that final publication. Its safety claims require exact cached
+directory provenance, one writer and no old background publication after final capture.
+`WindowsCheckpointStorage` separately checks three slots, committed generations, corruption,
+invalid-original preservation, valid fallback and explicit empty recovery. Fairness covers completion
+of an accepted write or its explicit failure; operating-system I/O latency and hardware power-loss
+behavior remain outside these models.
 
 ## Evidence
 
@@ -124,5 +167,9 @@ reuse and explicit unavailable outcomes without replay. Windows storage/process 
 replacement, locking and exact-handle termination. Packaged Windows clean-stop/restart acceptance
 compares retained layouts/profiles, fresh runtime identities, shell effects and TUI Open reuse;
 blocked replacement must preserve old bytes and live terminals until an explicit successful retry,
-and corrupt startup must refuse without an empty fallback or surviving cohort processes.
-Periodic/crash recovery and Client/history restoration remain separate implementation and acceptance obligations.
+and invalid copies must retain their exact original bytes and produce the declared fallback/empty
+notice without bypassing Site-owner admission. Cached-capture tests cover physical replacement,
+out-of-order samples and removed members. Scheduling tests use explicit times and delayed writes to
+prove debounce, periodic refresh, bounded pending work and final-stop ordering. Native crash/restart
+acceptance must compare multiple Tabs, nested splits, labels, directories and provider resume references;
+real provider continuity, machine reboot and interactive load remain separate evidence obligations.

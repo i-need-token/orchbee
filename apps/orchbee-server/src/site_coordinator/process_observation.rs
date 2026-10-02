@@ -29,6 +29,7 @@ pub(super) struct Sample {
     first_seen: Instant,
     screen: Stability,
     screen_input_revision: u64,
+    directory: Option<orchbee_workbench_protocol::WorkbenchDirectoryPath>,
 }
 pub(super) type Samples = BTreeMap<(String, String), Sample>;
 fn key(binding: &PresentationBinding) -> (String, String) {
@@ -84,11 +85,24 @@ impl SiteCoordinator {
         self.observe_host_screen(target, sample, None, started, now)
     }
     /// Screen evidence must be bounded and associated with the same process on both sides of capture.
+    #[cfg(test)]
     pub(crate) fn observe_host_screen(
         &mut self,
         target: BindingViewerTarget,
         sample: &TerminalProcessInfo,
         detection: Option<Detection>,
+        started: Instant,
+        now: Instant,
+    ) -> bool {
+        self.observe_host_screen_with_directory(target, sample, detection, None, started, now)
+    }
+
+    pub(crate) fn observe_host_screen_with_directory(
+        &mut self,
+        target: BindingViewerTarget,
+        sample: &TerminalProcessInfo,
+        detection: Option<Detection>,
+        directory: Option<orchbee_workbench_protocol::WorkbenchDirectoryPath>,
         started: Instant,
         now: Instant,
     ) -> bool {
@@ -128,6 +142,7 @@ impl SiteCoordinator {
         if prior.is_some_and(|p| p.started >= started) {
             return false;
         }
+        let directory = directory.or_else(|| prior.and_then(|sample| sample.directory.clone()));
         let Some(workbench) = self.workbench.as_mut() else {
             return false;
         };
@@ -220,6 +235,7 @@ impl SiteCoordinator {
                 first_seen,
                 screen,
                 screen_input_revision,
+                directory,
             },
         );
         true
@@ -240,6 +256,29 @@ impl ProcessObservationTarget {
     }
 }
 impl SiteCoordinator {
+    /// Read existing exact-physical samples only; never attach a viewer or substitute a child cwd.
+    pub(crate) fn cached_checkpoint_directories(
+        &self,
+        targets: &[ProcessObservationTarget],
+    ) -> Vec<(
+        PresentationBinding,
+        orchbee_workbench_protocol::WorkbenchDirectoryPath,
+    )> {
+        targets
+            .iter()
+            .filter_map(|target| {
+                let sample = self.process_samples.get(&key(&target.binding))?;
+                if sample.target.binding != target.binding
+                    || sample.target.worker_generation != target.target.worker.generation
+                    || sample.target.identity != target.target.identity
+                {
+                    return None;
+                }
+                Some((target.binding.clone(), sample.directory.clone()?))
+            })
+            .collect()
+    }
+
     pub(crate) fn reset_screen_stabilization(&mut self) {
         for sample in self.process_samples.values_mut() {
             sample.screen = Stability::new(Detection::fallback(false));

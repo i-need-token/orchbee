@@ -133,6 +133,8 @@ pub(crate) enum ClientAction {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum Notice {
+    CheckpointRecovered,
+    CheckpointEmpty,
     ConfigurationPublished,
     ConfigurationRestart,
     ConfigurationFailed,
@@ -411,6 +413,10 @@ impl ClientView {
     }
 
     pub(crate) fn configuration_notice(&mut self, notice: Notice) {
+        self.notice = Some(notice);
+    }
+
+    pub(crate) fn startup_notice(&mut self, notice: Notice) {
         self.notice = Some(notice);
     }
 

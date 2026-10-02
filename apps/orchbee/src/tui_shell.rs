@@ -211,7 +211,7 @@ fn run_with_client(
         }
         None => Box::new(UnavailableTerminalInputPort),
     };
-    run_prepared_surface(locale, inherited, dimensions, terminal_input, mouse)
+    run_prepared_surface(locale, inherited, dimensions, terminal_input, mouse, None)
 }
 
 #[cfg(any(target_os = "linux", windows))]
@@ -221,8 +221,16 @@ pub(crate) fn run_prepared(
     dimensions: WindowDimensions,
     session: crate::terminal_session::TerminalSession,
     mouse: bool,
+    notice: Option<crate::client_view::Notice>,
 ) -> Result<(), TuiFailure> {
-    run_prepared_surface(locale, inherited, dimensions, Box::new(session), mouse)
+    run_prepared_surface(
+        locale,
+        inherited,
+        dimensions,
+        Box::new(session),
+        mouse,
+        notice,
+    )
 }
 
 fn run_prepared_surface(
@@ -231,8 +239,12 @@ fn run_prepared_surface(
     dimensions: WindowDimensions,
     terminal_input: Box<dyn TerminalSurface>,
     mouse: bool,
+    notice: Option<crate::client_view::Notice>,
 ) -> Result<(), TuiFailure> {
     let mut initial_view = ClientView::new(dimensions.columns);
+    if let Some(notice) = notice {
+        initial_view.startup_notice(notice);
+    }
     #[cfg(windows)]
     {
         let settings =

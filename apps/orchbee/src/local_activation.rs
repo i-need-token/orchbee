@@ -102,6 +102,8 @@ pub(crate) struct StartedSite {
     /// The resolved runtime base (`ORCHBEE_RUNTIME_BASE` or `/tmp`), for
     /// machine-readable output.
     pub(crate) runtime_base: PathBuf,
+    #[cfg(windows)]
+    pub(crate) restore_notice: Option<orchbee_local_site_runtime::WindowsCheckpointRestoreNotice>,
 }
 
 /// Connect-or-activate under one absolute deadline. The sequence is the
@@ -195,6 +197,14 @@ pub(crate) fn activate_local_site(deadline: Instant) -> Result<StartedSite, Acti
         spawned,
         scope: scope_text,
         runtime_base: base,
+        #[cfg(windows)]
+        restore_notice: site
+            .checkpoint_restore_notice(
+                &std::env::var_os("LOCALAPPDATA")
+                    .map(PathBuf::from)
+                    .ok_or_else(|| runtime_failure(io::ErrorKind::NotFound.into()))?,
+            )
+            .map_err(runtime_failure)?,
     })
 }
 

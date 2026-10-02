@@ -446,25 +446,30 @@ deletion intent and an explicit failure; repeat delete to finish, never start to
 Deletion checks Ctrl+C before each filesystem phase and exits 130 on interruption. Completed removals are not rolled back; a pending intent remains resumable. The `interrupted` result reports whether an intent remains, including cancellation after cleanup completed.
 
 List emits `orchbee.session.list` v2; v1 remains closed to its original states. `recoverable` means
-a guarded observation found complete v2 registration, all exact identities gone and idle resources;
+a guarded observation found complete v2/v3 registration, all exact identities gone and idle resources;
 it carries `running=false` and `pid=null`, and does not promise a later start. Delete retains
 `orchbee.session.delete` v1. The embedded schema catalog is v139.
 
 The durable catalog preserves exact default/named identities and stopped receipts in LocalAppData.
 With the same admitted runtime base, `session list` still discovers a stopped session after its
 runtime leaf is removed; `session attach`/`site start` recreates its route and restores the checkpoint.
-`site start` and TUI startup automatically recover a complete, proved-dead v2 Active generation,
+`site start` and TUI startup automatically recover a complete, proved-dead v2/v3 Active generation,
 including after runtime-leaf loss, while preserving the last checkpoint. The first stage refuses
 live Host, unknown or incomplete identity and legacy Active without deleting data. No old process
 is terminated and no clean-stop receipt is invented. Run `orchbee site diagnose` with the same
 `--site` selection to inspect a refusal, or `orchbee --site recovery-work site start` to use another
-name. Old binaries cannot directly operate upgraded v2 sessions, even after clean stop. See the
+name. A new activation publishes catalog v3 before marker, Server or checkpoint-store publication.
+Stopped v1/v2 records require the primary checkpoint; stopped v3 records admit the fixed slots and
+exact owned corrupt-original names. Readers limited to v1/v2 refuse v3 before effects, even after a
+clean stop. See the
 [recovery contract](../../../crates/local-site-runtime/docs/windows-crash-recovery.md).
 Pending deletion also survives loss of temporary metadata and remains resumable by the same delete
 command. Listing remains read-only. The runtime base itself is not implicitly recreated.
 
-Checkpoint saving still follows the existing clean-stop policy in this stage; continuous saving,
-recovery of unsaved layout changes and live Host adoption remain separate work.
+Background and clean-stop checkpoints preserve layouts, Launch Profiles, sampled per-terminal cwd
+and unique provider resume references. Startup selects the newest valid copy, retains corrupt bytes,
+and warns when it falls back or opens an empty workspace. Live Agent state, terminal history and
+screen contents are excluded. Live Host adoption remains separate work.
 
 ## Agent session names
 
@@ -2608,7 +2613,7 @@ Expected Host refusals use `orchbee.cli.failure.process-info` v1 with the bounde
 
 ## Windows Site stop
 
-Managed Windows clean stop saves Workbench configuration, provider restart references and observed per-terminal directories before disposing terminals. A later start restores layout/Launch Profiles and launches fresh default shells or selected provider resumes. Saved terminal cwd precedes workspace/home defaults; a missing saved directory falls back to Worker home. Save failure preserves the previous checkpoint and live terminals; explicitly retry after resolving the failure. Corrupt data refuses startup without an empty fallback. The owning [checkpoint contract](../../orchbee-server/docs/workbench-checkpoint.md) defines compatibility and recovery limits. Old processes, live Agent state, Client views and terminal history are not restored.
+The managed Windows Server saves committed Workbench changes after a 500ms debounce, refreshes sampled per-terminal directories and provider restart references every 30 seconds, and performs a fresh final save before clean-stop terminal disposal. A later admitted start restores layout/Launch Profiles and launches fresh default shells or selected provider resumes. Saved terminal cwd precedes workspace/home defaults; a missing saved directory falls back to Worker home. Save failure retains preceding valid snapshots, invalid originals and live terminals; explicitly retry after resolving the failure. Startup retains unreadable snapshots and falls back to an older valid copy, or opens an empty workspace with a warning when none remain valid. The owning [checkpoint contract](../../orchbee-server/docs/workbench-checkpoint.md) defines compatibility and recovery limits. Old processes, live Agent state, Client views, terminal screens and history are not restored.
 
 `site stop --confirm [--request-id <32-hex>] [--retry] [--detach] [--timeout <ms>]` stops the existing managed Windows Site without activating one. The ID is a nonzero lowercase 128-bit value, generated once if omitted; `--retry` requires it. The CLI issues one start/retry request, then only status reads. `--detach` returns the admitted attempt immediately; otherwise one absolute deadline (65000 ms by default, 1–3600000 ms) covers runtime/cohort admission, request and polling. Cancellation or timeout stops waiting, never rolls back the admitted shutdown. Every runtime answer retains the request ID so `site stop-status <id>` can query it. Status is a fact document, not a second mutation. The `orchbee.site.stop` v1 envelope distinguishes stopped, pending, failed, busy, not-recorded, unmanaged and unavailable/unknown transport outcomes; pending answers may carry detached, timed-out or cancelled wait disposition. Known Server failures preserve attempt, phase, cause and per-attempt disposal count. Only the matching strict stopped activation record plus a free existing lifetime lock proves completion; disappearance, invalid records and a different ID never do. A later start consumes this receipt; not-recorded cannot disprove an earlier stop. Linux/macOS return unsupported-platform without runtime effects.
 

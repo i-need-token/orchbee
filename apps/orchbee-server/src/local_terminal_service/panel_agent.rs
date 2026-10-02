@@ -106,6 +106,7 @@ impl LocalTerminalService {
         target: crate::terminal_coordinator::BindingViewerTarget,
         sample: &orchbee_terminal_protocol::TerminalProcessInfo,
         screen: Option<crate::agent_screen::Detection>,
+        directory: Option<orchbee_workbench_protocol::WorkbenchDirectoryPath>,
         started: std::time::Instant,
     ) {
         let Ok(workers) = self.workers.lock() else {
@@ -120,6 +121,13 @@ impl LocalTerminalService {
         let Ok(mut coordinator) = self.coordinator.lock() else {
             return;
         };
-        coordinator.observe_host_screen(target, sample, screen, started, std::time::Instant::now());
+        coordinator.observe_host_screen_with_directory(
+            target,
+            sample,
+            screen,
+            directory,
+            started,
+            std::time::Instant::now(),
+        );
     }
 }
