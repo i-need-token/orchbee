@@ -77,6 +77,8 @@ pub(crate) use tab_rename::{
     NativeRenameDraftToken, NativeRenameDraftView, NativeRenameEdit, NativeRenameInputContext,
 };
 mod create_membership;
+#[cfg(windows)]
+mod startup_preference;
 mod switch_membership;
 
 pub(crate) use super::agent_board::{
@@ -137,6 +139,10 @@ pub(crate) enum NativeSessionNotice {
     CopyUnknown,
     BellFailed,
     BellUnknown,
+    #[cfg(windows)]
+    PositionChanged,
+    #[cfg(windows)]
+    PositionUnavailable,
     #[cfg(windows)]
     PopupUnavailable,
     #[cfg(windows)]
@@ -436,6 +442,10 @@ impl<'a> NativeSessionView<'a> {
             SessionNotice::CopyUnknown => NativeSessionNotice::CopyUnknown,
             SessionNotice::BellFailed => NativeSessionNotice::BellFailed,
             SessionNotice::BellUnknown => NativeSessionNotice::BellUnknown,
+            #[cfg(windows)]
+            SessionNotice::PositionChanged => NativeSessionNotice::PositionChanged,
+            #[cfg(windows)]
+            SessionNotice::PositionUnavailable => NativeSessionNotice::PositionUnavailable,
         })
     }
 

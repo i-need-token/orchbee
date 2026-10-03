@@ -102,6 +102,9 @@ pub(crate) struct StartedSite {
     /// The resolved runtime base (`ORCHBEE_RUNTIME_BASE` or `/tmp`), for
     /// machine-readable output.
     pub(crate) runtime_base: PathBuf,
+    /// The admitted canonical runtime, used for per-Site Client preferences.
+    #[cfg(windows)]
+    pub(crate) runtime_directory: PathBuf,
     #[cfg(windows)]
     pub(crate) restore_notice: Option<orchbee_local_site_runtime::WindowsCheckpointRestoreNotice>,
 }
@@ -197,6 +200,8 @@ pub(crate) fn activate_local_site(deadline: Instant) -> Result<StartedSite, Acti
         spawned,
         scope: scope_text,
         runtime_base: base,
+        #[cfg(windows)]
+        runtime_directory: site.runtime_directory().to_owned(),
         #[cfg(windows)]
         restore_notice: site
             .checkpoint_restore_notice(

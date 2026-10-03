@@ -23,6 +23,8 @@ mod rename_draft;
 mod reorder;
 mod reorder_history;
 mod retirement_handoff;
+#[cfg(windows)]
+mod startup_preference;
 mod switch_membership;
 mod tab_close;
 mod tab_rename;

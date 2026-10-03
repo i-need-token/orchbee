@@ -77,6 +77,10 @@ fn panic_after_close_handoff_preserves_uncertainty_after_exact_join() -> TestRes
     });
     let mut session = TerminalSession {
         #[cfg(windows)]
+        position_writer: None,
+        #[cfg(windows)]
+        position_startup: None,
+        #[cfg(windows)]
         configuration: None,
         #[cfg(windows)]
         notifications: None,

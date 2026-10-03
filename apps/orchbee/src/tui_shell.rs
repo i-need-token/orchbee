@@ -756,7 +756,7 @@ fn draw_surface<B: Backend + ResizableBackend>(
     }
     #[cfg(windows)]
     if notification_painted {
-        receipt = receipt.with_graphics(Vec::new());
+        receipt = receipt.with_graphics(Vec::new()).with_position(None);
     }
     let help_page = receipt.help_page();
     surface.after_close_draw(receipt);

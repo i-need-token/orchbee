@@ -243,6 +243,8 @@ fn decoded_local_input_reaches_pending_focus_before_terminal_routing() {
             assert!(control.pending.as_ref().unwrap().awaiting_draw);
             let (shutdown, _peer) = orchbee_local_ipc::LocalStream::pair().unwrap();
             let mut session = TerminalSession {
+                position_writer: None,
+                position_startup: None,
                 configuration: None,
                 #[cfg(windows)]
                 notifications: None,

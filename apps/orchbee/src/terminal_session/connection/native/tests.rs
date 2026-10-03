@@ -6,6 +6,8 @@ mod location_labels;
 mod panel;
 mod presentations;
 mod setup;
+#[cfg(windows)]
+mod startup_preference;
 mod switch_membership;
 mod tab_move;
 mod workspace_setup;

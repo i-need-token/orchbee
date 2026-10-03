@@ -1029,6 +1029,20 @@ impl Locale {
                 Self::EnUs => "Terminal bell delivery could not be confirmed".to_owned(),
                 Self::ZhCn => "无法确认终端响铃投递结果".to_owned(),
             },
+            #[cfg(windows)]
+            NativeSessionNotice::PositionChanged => match self {
+                Self::EnUs => {
+                    "The saved position was removed; showing the first available member.".into()
+                }
+                Self::ZhCn => "上次位置已被删除；已打开首个可用成员。".into(),
+            },
+            #[cfg(windows)]
+            NativeSessionNotice::PositionUnavailable => match self {
+                Self::EnUs => {
+                    "Position memory is unavailable; terminal tasks are still running.".into()
+                }
+                Self::ZhCn => "位置记忆不可用；终端任务仍继续运行。".into(),
+            },
         }
     }
 

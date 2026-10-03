@@ -26,6 +26,11 @@ pub(super) struct NativeContextTabs {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
+#[cfg_attr(windows, derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(
+    windows,
+    serde(tag = "kind", content = "identity", deny_unknown_fields)
+)]
 pub(crate) enum NativeContextLocation {
     Standalone(WorkbenchTerminalContextId),
     Workspace {
@@ -42,27 +47,59 @@ pub(crate) struct NativeContextTarget {
     pub(crate) location: NativeContextLocation,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug)]
 pub(crate) enum NativeStartupTarget {
     Context(NativeContextTarget),
     #[cfg(windows)]
     Agent(Box<crate::machine_agents::Target>),
+    #[cfg(windows)]
+    Remembered {
+        position: super::startup_preference::Position,
+        fallback: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    },
 }
+impl PartialEq for NativeStartupTarget {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Context(left), Self::Context(right)) => left == right,
+            #[cfg(windows)]
+            (Self::Agent(left), Self::Agent(right)) => left == right,
+            #[cfg(windows)]
+            (
+                Self::Remembered {
+                    position: left,
+                    fallback: left_notice,
+                },
+                Self::Remembered {
+                    position: right,
+                    fallback: right_notice,
+                },
+            ) => left == right && std::sync::Arc::ptr_eq(left_notice, right_notice),
+            #[cfg(windows)]
+            _ => false,
+        }
+    }
+}
+impl Eq for NativeStartupTarget {}
 impl From<NativeContextTarget> for NativeStartupTarget {
     fn from(value: NativeContextTarget) -> Self {
         Self::Context(value)
     }
 }
 impl NativeStartupTarget {
-    pub(super) fn context(&self) -> &NativeContextTarget {
+    pub(super) fn context(&self) -> Option<&NativeContextTarget> {
         match self {
-            Self::Context(context) => context,
+            Self::Context(context) => Some(context),
             #[cfg(windows)]
-            Self::Agent(target) => &target.context,
+            Self::Agent(target) => Some(&target.context),
+            #[cfg(windows)]
+            Self::Remembered { .. } => None,
         }
     }
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
+#[cfg_attr(windows, derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(windows, serde(deny_unknown_fields))]
 pub(crate) struct NativeMemberTarget {
     pub(crate) tab: WorkbenchTabId,
     pub(crate) panel: WorkbenchPanelId,

@@ -580,6 +580,10 @@ fn native_session_with_identity(
     Ok((
         TerminalSession {
             #[cfg(windows)]
+            position_writer: None,
+            #[cfg(windows)]
+            position_startup: None,
+            #[cfg(windows)]
             configuration: None,
             #[cfg(windows)]
             notifications: None,
@@ -1857,6 +1861,10 @@ fn input_admission_is_bounded_and_failure_cannot_accept_more_work() -> TestResul
     let (shutdown, _peer) = UnixStream::pair()?;
     let (commands, _receiver) = mpsc::sync_channel(8);
     let mut session = TerminalSession {
+        #[cfg(windows)]
+        position_writer: None,
+        #[cfg(windows)]
+        position_startup: None,
         #[cfg(windows)]
         configuration: None,
         #[cfg(windows)]

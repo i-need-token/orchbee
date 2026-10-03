@@ -12,10 +12,11 @@
 进入其他位置恢复本 Client 上次选择的 Tab 和 Panel，前提是这些身份仍属于该位置；
 否则选择首个现存成员，没有 Tab 则进入 Empty。
 进入和离开 Empty 都不会创建终端。已有 Tab 控制作用于当前上下文；显式 `c` 使用 Server
-已有的目录准入，绝不回退到 home 目录。裸命令启动保留既有 standalone Open 和首帧就绪契约。
+已有的目录准入，绝不回退到 home 目录。裸命令启动遵循下面的 Windows 启动偏好；没有偏好时
+保留既有 standalone Open 和首帧就绪契约。
 
 Project/Workspace 创建和首目录配置属于 [Workspace 设置](native-workspace-setup.zh-CN.md)，
-它复用这里的上下文安装 owner。Panel 布局、远程访问、持久化和生产恢复不在范围内。
+它复用这里的上下文安装 owner。Panel 布局、远程访问和生产恢复不在范围内。
 该未发布 cohort 整体启用和回滚。改变 Client 位置不会修改 canonical 导航或销毁保留的执行。
 [位置标签编辑](native-location-labels.zh-CN.md) 修改 canonical Project 或 Workspace 标签，
 并保留这里的有类型位置身份。
@@ -66,14 +67,47 @@ context 和 Tab 上限约束，只能依据已验证的成员证据修剪。Pend
 许可、选择其他 Client、调整终端尺寸或激活 OS 窗口。普通键盘、鼠标及 CLI 导航共用此 Session
 策略。Tab 切换准入后固定目标 Panel ID，候选 snapshot 重排时重新解析序号；
 Tab 存在但目标 Panel 在操作中被删除时明确拒绝；整个 Tab 被删除时仍按既有成员规则回退 Tab 或 Empty。
-准备好的成员候选同时决定状态与 mailbox 的 Panel 身份，避免两处选择不一致。显式创建、成员修复和 Close 保留既有选择规则。重启丢弃记忆；cohort 回滚无需迁移。
+准备好的成员候选同时决定状态与 mailbox 的 Panel 身份，避免两处选择不一致。显式创建、成员修复和 Close 保留既有选择规则。
+重启丢弃逐位置历史；Windows 仅保留下面描述的上次显示位置。cohort 回滚不迁移 checkpoint。
 
 确定性轨迹覆盖非首个成员记忆、按身份重排、删除后回退首个成员或 Empty、显式覆盖、被替代或
 拒绝的切换、过期保留成员、独立 Client 和已知不可 attach 的 Create provenance。Windows 进程
 证据通过 CLI Tab/Workspace/Panel focus 驱动两个真实 ConPTY Client，检查其他 Client 选择及
 OS 前台保持不变。既有上下文模型每个非空上下文只有一个 Tab，把全部记忆选择抽象为这个唯一
-成员。下面历史 TLC 结果不能证明多 Tab/Panel 记忆或修剪；此增量采用确定性状态与进程证据，
+成员。下面历史 TLC 结果不能证明多 Tab/Panel 记忆或修剪；上述易失历史增量采用确定性状态与进程证据，
 暂缓执行 TLA。
+
+## Windows 启动偏好
+
+Windows 本地裸启动为当前 Windows 用户和本地 Site runtime 记住最后成功显示的位置、Tab、
+Panel 和 presentation。这是 Client 拥有的导航提示，与 Server checkpoint 及终端生命周期分离。
+有版本、有大小上限的 JSON 记录位于私有 `LOCALAPPDATA/Orchbee/tui-position/<runtime-key>`
+缓存；键包含用户隔离的 runtime 目录和 runtime base。结构 ID 随 checkpoint 重启保留；
+新 Server 的 Site ID 和 binding 始终取自当前已验证 snapshot。
+
+渲染器只在工作台未被遮挡、可绘制时返回稳定位置和焦点 pane incarnation。Shell 成功绘制和
+flush 后再验证并发布。遮挡、失败、过期或切换中画面不发布。Empty 位置不虚构成员。
+应用私有 worker 把待保存位置合并为一份记录，在输入和绘制路径外进行私有加锁原子替换，
+退出时 join。多个窗口保持各自实时焦点，仅在启动时读取偏好。最后一次原子发布决定下一次
+启动偏好；位置未变的重绘不重复写入。存储失败显示本地化提示，不使存活终端退休。
+
+恢复先验证当前 canonical 归属，再进入普通 bootstrap/attachment。成员已删除则选择该位置
+首个现存成员；位置已删除则选择首个非空 canonical 位置，全部为空则进入 standalone Empty。
+两种回退均提示。没有记录时保留 standalone Open。无效或不支持的记录原样保留，本次禁用
+偏好写入并提示。显式 context 或 Agent 启动仍使用确切目标。偏好不授予输入、不改变 Create
+provenance、不启动或销毁终端、不改 checkpoint，也不移动其他存活 Client。
+
+这份已接受的建模记录区分持久提示、Client 私有选择、待确认绘制证明和异步存储发布。
+确切成员和 pane incarnation 守卫发布；重启先解析当前成员再进入已有 bootstrap owner。
+失败保留终端状态。`NativeStartupPreference` 建模两个 Client、两个成员、删除、过期/遮挡/
+失败绘制、合并保存和原子发布。文件权限及传输继续由私有缓存和原生 carrier 检查覆盖。
+所需证据为编解码/解析测试、过期绘制及独立 Client 测试、真实 carrier 顺序、选定 TLC 覆盖，
+以及 Windows ConPTY detach/重开和删除成员场景。不声称 Windows Terminal 手工验收，
+也不声称完成仓库尚未执行的模型检查。
+
+运行 `node scripts/tla/run-models.mjs --models native-startup-preference` 检查此有界模型。
+完整图有 37,560 个不同状态、深度 17 和十项必需动作见证；不使用 state constraint 或
+symmetry，也不声称任意文件系统环境都能推进。
 
 ## 正确性证据
 

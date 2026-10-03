@@ -586,6 +586,10 @@ pub(super) enum SessionNotice {
     CopyUnknown,
     BellFailed,
     BellUnknown,
+    #[cfg(windows)]
+    PositionChanged,
+    #[cfg(windows)]
+    PositionUnavailable,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

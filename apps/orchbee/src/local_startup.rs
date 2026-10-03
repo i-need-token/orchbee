@@ -1,3 +1,5 @@
+#[cfg(not(windows))]
+use crate::terminal_session::TerminalIntent;
 use crate::{
     client_view::ClientView,
     local_activation,
@@ -8,7 +10,7 @@ use crate::{
     },
     terminal_device::InheritedTerminal,
     terminal_lifecycle::{InheritedTerminalModes, TerminalModeGuard},
-    terminal_session::{TerminalIntent, TerminalSession, TerminalStatus},
+    terminal_session::{TerminalSession, TerminalStatus},
     termination_signal::TerminationSignal,
     tui_shell,
 };
@@ -67,6 +69,10 @@ pub(crate) fn run(locale: Locale, mouse: bool) -> Result<(), StartupFailure> {
     let notice = None;
     let mut client = started.client;
     client.set_submission_deadline(Some(deadline));
+    #[cfg(windows)]
+    let mut session = TerminalSession::start_local(client, geometry, &started.runtime_directory)
+        .map_err(|_| StartupFailure::TerminalUnavailable)?;
+    #[cfg(not(windows))]
     let mut session = TerminalSession::start(client, TerminalIntent::Standalone, geometry)
         .map_err(|_| StartupFailure::TerminalUnavailable)?;
     loop {
@@ -81,6 +87,8 @@ pub(crate) fn run(locale: Locale, mouse: bool) -> Result<(), StartupFailure> {
             _ => local_activation::pause(deadline).map_err(|failure| failure.failure)?,
         }
     }
+    #[cfg(windows)]
+    session.finish_local_startup();
     drop(progress);
     tui_shell::run_prepared(locale, inherited, dimensions, session, mouse, notice)
         .map_err(|_| StartupFailure::Interface)

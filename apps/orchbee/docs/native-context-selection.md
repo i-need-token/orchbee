@@ -16,11 +16,12 @@ Client's last selected Tab and Panel when those identities still belong there; o
 the first surviving member, or Empty when there are no Tabs. Empty can be
 entered and left without creating a terminal. Existing Tab controls act on the active context;
 explicit `c` uses Server's existing directory admission and never falls back to the home directory.
-Bare startup retains the existing standalone Open and first-frame readiness contract.
+Bare startup follows the Windows startup preference below; without a saved preference it retains
+the existing standalone Open and first-frame readiness contract.
 
 Project/Workspace creation and first-directory configuration belong to
 [Workspace setup](native-workspace-setup.md), which reuses this context installation owner.
-Panel layouts, remote access, persistence and production recovery are excluded.
+Panel layouts, remote access and production recovery are excluded.
 This unpublished cohort rolls out and rolls back together.
 Changing the Client location does not change canonical navigation or dispose retained execution.
 [Location label editing](native-location-labels.md) changes canonical Project or Workspace labels
@@ -79,7 +80,8 @@ this Session policy. After Tab switch admission the exact Panel ID is fixed: a r
 re-resolves its ordinal. A missing Panel in a surviving Tab fails explicitly; removal of the whole
 Tab retains existing membership fallback to another Tab or Empty. The prepared candidate owns
 the same Panel identity for state installation and mailbox publication. Explicit creation, membership repair and Close keep their existing selection
-rules. Restart discards the memory; cohort rollback requires no migration.
+rules. Restart discards this per-location history; Windows preserves only the last displayed
+position as described below. Cohort rollback requires no checkpoint migration.
 
 Deterministic traces cover remembered nonfirst members, reorder by identity, removal to first/Empty,
 explicit override, superseded/refused switches, stale retained membership, independent Clients and
@@ -87,7 +89,47 @@ known nonattachable Create provenance. Windows process evidence exercises two li
 through CLI Tab/Workspace/Panel focus and checks unchanged peer selection and OS foreground.
 The existing context model has one Tab per nonempty context and abstracts all memory choices to
 that sole member. Its historical TLC result below does not prove multi-Tab/Panel memory or pruning;
-this increment uses deterministic state and process evidence, with TLA execution deferred.
+the volatile-history increment uses deterministic state and process evidence, with TLA execution deferred.
+
+## Windows startup preference
+
+Bare local Windows startup remembers the last successfully displayed location, Tab, Panel and
+presentation for the current Windows user and local Site runtime. This is Client-owned navigation
+advice, separate from Server checkpoints and terminal lifetime. Its versioned, bounded JSON record
+lives under the private `LOCALAPPDATA/Orchbee/tui-position/<runtime-key>` cache; the key includes
+the user-scoped runtime directory and runtime base. Stable structural IDs survive checkpoint
+restart. The new Server's Site ID and bindings always come from its validated snapshot.
+
+The renderer returns the stable position and focused pane incarnation only when the workbench is
+uncovered and drawable. Successful shell draw/flush precedes revalidation and publication.
+Covered, failed, stale and switching draws do not publish. Empty locations invent no member.
+An app-private worker coalesces pending positions to one record, performs private locked atomic
+replacement off the input/draw path, and joins at shutdown. Windows keep independent live focus
+and read the preference only at startup. The latest atomic publication supplies the next startup
+preference; unchanged redraws do not write again. Storage failure displays a localized notice
+without retiring a live terminal.
+
+Restoration validates current canonical ownership before ordinary bootstrap/attachment. A removed
+member selects the first surviving member in its location. A removed location selects the first
+nonempty canonical location, or standalone Empty when all locations are empty. Both produce a
+localized notice. Without a saved record, startup retains standalone Open. Invalid or unsupported records are preserved,
+disable preference writes for that invocation and produce a localized notice. Explicit context or
+Agent startup retains its exact target. Preferences never grant input, change Create provenance,
+launch, dispose, change checkpoint data or move another live Client.
+
+This accepted modeling record separates durable advice, Client-local selection, pending draw proof
+and asynchronous storage publication. Exact membership and pane incarnation guard publication;
+restart resolves current membership before the existing bootstrap owner runs. Failure preserves
+terminal state. `NativeStartupPreference` models two Clients, two members, removal, stale/covered/
+failed draws, coalescing and atomic publication. Filesystem permissions and transport remain covered
+by private-cache and native carrier checks. Required evidence is codec/resolution tests, stale-draw
+and independent-Client tests, actual carrier ordering, selected TLC coverage and Windows ConPTY
+detach/reopen and removed-member scenes. This does not claim Windows Terminal manual acceptance
+or completion of the repository's pending model checks.
+
+Run `node scripts/tla/run-models.mjs --models native-startup-preference` for this bounded model.
+The complete graph has 37,560 distinct states, depth 17 and all ten required action witnesses;
+it has no state constraints or symmetry and makes no arbitrary filesystem-progress claim.
 
 ## Correctness evidence
 

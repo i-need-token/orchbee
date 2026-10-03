@@ -37,6 +37,8 @@ impl<T> ModalPresentation<T> {
 
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub(crate) struct NativeDrawReceipt {
+    #[cfg(windows)]
+    position: Option<crate::terminal_session::startup_preference::Draw>,
     prompt: Option<ModalPresentation<NativeCloseConfirmationToken>>,
     status: Option<NativeCloseStatusToken>,
     rename: Option<ModalPresentation<super::NativeRenameDraftToken>>,
@@ -57,6 +59,18 @@ pub(crate) struct NativeDrawReceipt {
 }
 
 impl NativeDrawReceipt {
+    #[cfg(windows)]
+    pub(crate) fn position(&self) -> Option<&crate::terminal_session::startup_preference::Draw> {
+        self.position.as_ref()
+    }
+    #[cfg(windows)]
+    pub(crate) fn with_position(
+        mut self,
+        position: Option<crate::terminal_session::startup_preference::Draw>,
+    ) -> Self {
+        self.position = position;
+        self
+    }
     #[cfg(windows)]
     pub(crate) fn graphics_draws(&self) -> &[crate::terminal_session::PaneGraphicsDraw] {
         &self.graphics
@@ -103,6 +117,8 @@ impl NativeDrawReceipt {
         status: Option<NativeCloseStatusToken>,
     ) -> Self {
         Self {
+            #[cfg(windows)]
+            position: None,
             prompt,
             status,
             rename: None,

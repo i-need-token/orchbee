@@ -52,6 +52,8 @@ pub(crate) use panel_reports::PanelReportView;
 mod agent_read_lane;
 mod connection;
 mod mailbox;
+#[cfg(windows)]
+mod startup_preference;
 pub(crate) mod state;
 #[cfg(any(target_os = "linux", windows))]
 mod status_recovery;
@@ -169,6 +171,10 @@ enum SessionTask {
 
 pub(crate) struct TerminalSession {
     #[cfg(windows)]
+    position_writer: Option<startup_preference::Writer>,
+    #[cfg(windows)]
+    position_startup: Option<(Arc<std::sync::atomic::AtomicBool>, bool)>,
+    #[cfg(windows)]
     configuration: Option<configuration::Watcher>,
     #[cfg(windows)]
     notifications: Option<crate::notifications::Subscription>,
@@ -238,6 +244,50 @@ impl TerminalSession {
     }
 
     #[cfg(windows)]
+    pub(crate) fn start_local(
+        client: LocalClient,
+        geometry: Geometry,
+        runtime: &std::path::Path,
+    ) -> io::Result<Self> {
+        let preferences = startup_preference::Preferences::load(runtime);
+        let fallback = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let context =
+            preferences
+                .position
+                .clone()
+                .map(|position| NativeStartupTarget::Remembered {
+                    position,
+                    fallback: Arc::clone(&fallback),
+                });
+        let mut failed = preferences.failed;
+        let writer = match preferences.writer() {
+            Ok(writer) => writer,
+            Err(_) => {
+                failed = true;
+                None
+            }
+        };
+        let mut session =
+            Self::start_with_context(client, TerminalIntent::Standalone, geometry, context)?;
+        session.position_writer = writer;
+        session.position_startup = Some((fallback, failed));
+        Ok(session)
+    }
+
+    #[cfg(windows)]
+    pub(crate) fn finish_local_startup(&mut self) {
+        if let Some((fallback, failed)) = self.position_startup.take()
+            && let Some(native) = self.backend.native_mut()
+        {
+            if failed {
+                native.report_position_notice(false);
+            } else if fallback.load(std::sync::atomic::Ordering::Acquire) {
+                native.report_position_notice(true);
+            }
+        }
+    }
+
+    #[cfg(windows)]
     pub(crate) fn machine_source(
         &self,
     ) -> Option<(
@@ -285,6 +335,10 @@ impl TerminalSession {
                 #[cfg(any(target_os = "linux", windows))]
                 native.set_agent_board_origin(origin.clone());
                 Ok(Self {
+                    #[cfg(windows)]
+                    position_writer: None,
+                    #[cfg(windows)]
+                    position_startup: None,
                     #[cfg(windows)]
                     configuration: None,
                     #[cfg(windows)]
@@ -349,6 +403,10 @@ impl TerminalSession {
             })?;
         Ok(Self {
             #[cfg(windows)]
+            position_writer: None,
+            #[cfg(windows)]
+            position_startup: None,
+            #[cfg(windows)]
             client_control: None,
             #[cfg(windows)]
             configuration: None,
@@ -410,10 +468,24 @@ impl TerminalSession {
     }
 
     pub(crate) fn tick(&mut self) -> bool {
+        #[cfg(windows)]
+        let position_failed = self
+            .position_writer
+            .as_ref()
+            .is_some_and(startup_preference::Writer::take_failure);
         let changed = match &mut self.backend {
             SessionBackend::Native(native) => native.tick(),
             #[cfg(test)]
             SessionBackend::Legacy(legacy) => legacy.tick(&self.shutdown),
+        };
+        #[cfg(windows)]
+        let changed = if position_failed {
+            if let Some(native) = self.backend.native_mut() {
+                native.report_position_notice(false);
+            }
+            true
+        } else {
+            changed
         };
         self.finalize_native_retirement();
         std::mem::take(&mut self.retirement_redraw_pending) || changed
@@ -564,6 +636,13 @@ impl TerminalSession {
 
     pub(crate) fn after_close_draw(&mut self, receipt: NativeDrawReceipt) {
         if let Some(native) = self.backend.native_mut() {
+            #[cfg(windows)]
+            if let Some(writer) = self.position_writer.as_mut()
+                && let Some(draw) = receipt.position()
+                && native.view().accepts_position_draw(draw)
+            {
+                writer.publish(draw.position.clone());
+            }
             native.after_close_draw(receipt);
         }
     }

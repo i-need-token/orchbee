@@ -431,6 +431,15 @@ pub(crate) fn render_terminal_shell(
         );
     }
     #[cfg(windows)]
+    let receipt = receipt.with_position(if graphics_uncovered && tier != ViewportTier::TooSmall {
+        match session.as_ref() {
+            Some(TerminalSessionView::Native(native)) => native.position_draw(hits.painted_panes()),
+            _ => None,
+        }
+    } else {
+        None
+    });
+    #[cfg(windows)]
     let receipt = receipt.with_graphics(if graphics_uncovered {
         graphics_draws
     } else {

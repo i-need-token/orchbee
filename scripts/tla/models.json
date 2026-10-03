@@ -1929,9 +1929,24 @@
 				"CooldownElapse"
 			],
 			"variants": [
-				{ "name": "navigation", "constants": { "ModelScope": "navigation" } },
-				{ "name": "input", "constants": { "ModelScope": "input" } },
-				{ "name": "paint", "constants": { "ModelScope": "paint" } }
+				{
+					"name": "navigation",
+					"constants": {
+						"ModelScope": "navigation"
+					}
+				},
+				{
+					"name": "input",
+					"constants": {
+						"ModelScope": "input"
+					}
+				},
+				{
+					"name": "paint",
+					"constants": {
+						"ModelScope": "paint"
+					}
+				}
 			]
 		},
 		{
@@ -3918,6 +3933,37 @@
 				"ReleaseRight",
 				"RejectForeignButton",
 				"CancelGesture"
+			]
+		},
+		{
+			"id": "native-startup-preference",
+			"owner": "orchbee",
+			"workspace": "apps/orchbee",
+			"module": "apps/orchbee/formal/tla/NativeStartupPreference.tla",
+			"config": "apps/orchbee/formal/tla/NativeStartupPreference.cfg",
+			"claims": ["apps/orchbee/docs/native-context-selection.md"],
+			"triggers": [
+				"apps/orchbee/docs/native-context-selection.zh-CN.md",
+				"apps/orchbee/src/local_activation.rs",
+				"apps/orchbee/src/local_activation/**",
+				"apps/orchbee/src/local_startup.rs",
+				"apps/orchbee/src/terminal_session.rs",
+				"apps/orchbee/src/terminal_session/**",
+				"apps/orchbee/src/tui_render.rs",
+				"apps/orchbee/src/tui_render/**"
+			],
+			"timeoutMilliseconds": 300000,
+			"requiredCoverage": [
+				"Select",
+				"Stage",
+				"PublishDraw",
+				"RejectStale",
+				"RejectCovered",
+				"RejectFailed",
+				"Write",
+				"WriteFailed",
+				"Remove",
+				"Restart"
 			]
 		},
 		{

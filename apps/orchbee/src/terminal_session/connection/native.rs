@@ -388,12 +388,19 @@ impl NativeExecutor {
         else {
             return Err(CarrierFailure::Transport);
         };
-        let cache = if let Some(startup) = &self.initial_context {
-            let target = startup.context();
+        #[allow(unused_mut)]
+        let mut selection = None;
+        let cache = if let Some(target) = self
+            .initial_context
+            .as_ref()
+            .and_then(NativeStartupTarget::context)
+        {
             if target.site_id != snapshot.site_id {
                 return Err(CarrierFailure::AuthorityDivergence);
             }
             project_native_context_tabs(&snapshot, &target.location)
+        } else if let Some(cache) = self.remembered_startup(&snapshot, &mut selection)? {
+            Ok(cache)
         } else {
             project_native_standalone_tabs(&snapshot)
         }
@@ -401,8 +408,6 @@ impl NativeExecutor {
         if self.initial_context.is_none() && cache.tabs().is_empty() {
             return Err(CarrierFailure::AuthorityDivergence);
         }
-        #[allow(unused_mut)]
-        let mut selection = None;
         #[cfg(windows)]
         if let Some(NativeStartupTarget::Agent(target)) = &self.initial_context {
             // This read shares the startup deadline and precedes any attachment.
@@ -428,6 +433,26 @@ impl NativeExecutor {
             startup_deadline,
         )?
         .into_bootstrap()
+    }
+
+    fn remembered_startup(
+        &self,
+        snapshot: &orchbee_workbench_protocol::Snapshot,
+        selection: &mut Option<crate::terminal_session::NativeMemberTarget>,
+    ) -> Result<Option<crate::terminal_session::workbench_projection::NativeContextTabs>> {
+        #[cfg(windows)]
+        if let Some(NativeStartupTarget::Remembered { position, fallback }) = &self.initial_context
+        {
+            let (cache, member, changed) =
+                crate::terminal_session::startup_preference::resolve(snapshot, position)
+                    .map_err(|_| CarrierFailure::AuthorityDivergence)?;
+            *selection = member;
+            fallback.store(changed, std::sync::atomic::Ordering::Release);
+            return Ok(Some(cache));
+        }
+        #[cfg(not(windows))]
+        let _unused = (snapshot, selection);
+        Ok(None)
     }
 
     fn setup_target(
