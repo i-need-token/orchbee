@@ -402,6 +402,14 @@ impl LocalClient {
                     | TerminalViewerAction::HistoryObserved { .. },
                 TerminalViewerOutcome::FeedbackAccepted {}
             ) | (
+                TerminalViewerAction::SelectionGesture { .. }
+                    | TerminalViewerAction::SelectionExport { .. }
+                    | TerminalViewerAction::SelectionExportCancel { .. },
+                TerminalViewerOutcome::Record(_)
+            ) | (
+                TerminalViewerAction::SelectionExportChunkApplied { .. },
+                TerminalViewerOutcome::FeedbackAccepted {} | TerminalViewerOutcome::Record(_)
+            ) | (
                 TerminalViewerAction::Detach { .. },
                 TerminalViewerOutcome::Detached {}
             )

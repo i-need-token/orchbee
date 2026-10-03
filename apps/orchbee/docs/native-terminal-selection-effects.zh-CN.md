@@ -25,6 +25,10 @@ copy mode、新增键盘绑定，以及三击选行不属于本契约。
 flush 成功后派发。退出时 join 其独立隐藏窗口和线程。`clipboard-win` 5.4.1 关闭默认功能、仅启用
 `std`，负责安全的剪贴板内存分配与转移；其唯一新增依赖是 `error-code` 3.4.0（均为 BSL-1.0）。
 
+本地 carrier 接受选择手势、导出开始和导出取消返回的既有 Host opaque record。chunk 确认可接收
+feedback 或 typed-failure record；选择 decoder 负责 record 的精确 envelope 和身份验证。动作与
+结果不兼容时，carrier 退役且不重新提交。
+
 pane 程序剪贴板／BEL 接收、显式 OSC 52 投递和可重载的剪贴板策略仍需接入；下面相应要求描述
 这些待完成的集成。仍需收敛指针回归、验证原生 cohort，并完成真实 Windows Terminal 验收；模型
 检查和中继测试不能单独证明用户效果。
@@ -143,6 +147,11 @@ sink，以及 pane 程序写入策略的两个取值。字节、Unicode 解码�
 dispatch 前取消、dispatch 后退役等待、adapter 消失的确定失败与未知结果不重放。原生隐藏 owner
 测试创建并泵送真实 Windows 窗口，注入最终写入，验证 dispatch 和 join；它不证明 OS 剪贴板内容。
 真实 Windows Terminal 的剪贴板内容及指针验收仍必需。
+
+`selection_replies_cross_the_local_carrier_without_retiring_or_replaying` 通过真实本地 IPC codec
+覆盖全部选择动作；`selection_wrong_reply_pairings_retire_without_replay` 验证不兼容回复仍关闭
+carrier，且不发送另一请求。这些传输测试中继 opaque record；Host record 解码和 OS 内容分别由
+各自的证据归属负责。
 
 选择 viewer 动作和效果路由是由一个精确原生 Client、Server、Worker 与 Host cohort 交付的加法
 契约。它们不产生持久选区或屏幕数据迁移。回退时整体替换该 cohort。旧二进制可以继续原有行为，

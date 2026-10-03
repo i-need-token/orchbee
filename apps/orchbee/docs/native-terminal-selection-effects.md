@@ -30,6 +30,11 @@ dispatched after a successful draw flush. Its separate hidden window and thread 
 retirement. `clipboard-win` 5.4.1, with default features disabled and only `std`, owns the safe
 clipboard allocation and transfer; its only added dependency is `error-code` 3.4.0 (both BSL-1.0).
 
+The local carrier accepts the existing opaque Host records for selection gestures, export starts,
+and export cancellation. Chunk acknowledgements accept either feedback or a typed-failure record;
+the selection decoder owns the record's exact envelope and identity validation. An incompatible
+action/result pair retires the carrier without resubmission.
+
 Pane-program clipboard/BEL intake, explicit OSC 52 delivery, and reloadable clipboard policy remain
 to be connected. Their requirements below describe that remaining integration. Pointer regression
 convergence, native-cohort verification, and real Windows Terminal acceptance remain required;
@@ -172,6 +177,11 @@ exercise cancellation before dispatch, retirement after dispatch, definite adapt
 unknown loss without replay. The native hidden-owner test creates and pumps a real Windows window,
 injects the final write, and verifies dispatch and join; it does not prove OS clipboard contents.
 Real Windows Terminal clipboard-content and pointer acceptance remain required.
+
+`selection_replies_cross_the_local_carrier_without_retiring_or_replaying` exercises every selection
+action through the real local IPC codec. `selection_wrong_reply_pairings_retire_without_replay`
+checks that incompatible replies still close that carrier without another request. These transport
+tests relay opaque records; Host-record decoding and OS contents have separate evidence owners.
 
 Selection viewer actions and effect routing are additive contracts delivered by one exact native
 Client, Server, Worker, and Host cohort. They create no durable selection or screen-data migration.
