@@ -24,9 +24,9 @@ use orchbee_client_server_protocol::{
 use orchbee_terminal_protocol::{
     CURRENT_PROTOCOL_VERSION, CorrelationId, HistoryControl, MessageRole, PayloadEncoding,
     RowWindowDetail, SelectionControl, SelectionExportControl, SelectionExportFormat,
-    SelectionExportStatus, decode_history_control, decode_selection_control,
+    SelectionExportStatus, TerminalEffectEvent, decode_history_control, decode_selection_control,
     decode_selection_export_chunk_route, decode_selection_export_control,
-    decode_transport_envelope, inspect_terminal_row_window_route,
+    decode_terminal_effect_event, decode_transport_envelope, inspect_terminal_row_window_route,
 };
 
 impl LocalTerminalSession<'_> {
@@ -271,7 +271,7 @@ impl LocalTerminalSession<'_> {
                     // Row-read and correlated selection responses validate
                     // against their issued request and pinned attachment rather
                     // than the frame projection. Poll may carry history and
-                    // selection events through their dedicated routes; every
+                    // selection and pane-effect events through their dedicated routes; every
                     // other record remains projection-owned. A record on the
                     // wrong action is therefore still a strict route violation.
                     let accepted = match request.action() {
@@ -582,14 +582,14 @@ pub(super) fn process_record(
     }
 }
 
-/// A Poll record is either an ordinary projection record or one of the four
-/// non-frame event kinds routed here. Every routed event validates its complete
+/// A Poll record is either an ordinary projection record or a dedicated
+/// non-frame event routed here. Every routed event validates its complete
 /// envelope and exact attachment before its bytes leave Server.
 pub(super) fn valid_poll_record(viewer: &mut ViewerAttachment, record: &[u8]) -> bool {
     let Ok(envelope) = decode_transport_envelope(record) else {
         return false;
     };
-    if !matches!(envelope.kind, 53 | 62 | 65 | 67) {
+    if !matches!(envelope.kind, 53 | 55 | 56 | 62 | 65 | 67) {
         return viewer.projection.receive(record).is_ok();
     }
     if envelope.protocol != CURRENT_PROTOCOL_VERSION
@@ -601,6 +601,22 @@ pub(super) fn valid_poll_record(viewer: &mut ViewerAttachment, record: &[u8]) ->
         return false;
     }
     match envelope.kind {
+        55 | 56 => {
+            envelope.payload_encoding == PayloadEncoding::ControlJson
+                && match decode_terminal_effect_event(
+                    envelope.kind,
+                    envelope.role,
+                    envelope.payload,
+                ) {
+                    Ok(TerminalEffectEvent::Bell(event)) => {
+                        event.attachment_id == viewer.projection.attachment_id
+                    }
+                    Ok(TerminalEffectEvent::ClipboardWriteRequest(event)) => {
+                        event.attachment_id == viewer.projection.attachment_id
+                    }
+                    _ => false,
+                }
+        }
         53 => {
             envelope.payload_encoding == PayloadEncoding::ControlJson
                 && matches!(

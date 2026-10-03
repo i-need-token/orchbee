@@ -315,6 +315,7 @@ fn run_prepared_surface(
             theme: &theme,
         },
         (&mut inputs, &mut |request| match request {
+            ModeRequest::Bell => modes.ring_bell(),
             ModeRequest::GraphicsQuery(query) => modes.query_graphics(query),
             #[cfg(windows)]
             ModeRequest::Notification(effect) => {
@@ -503,7 +504,14 @@ fn run_surface_loop<B: Backend + ResizableBackend>(
         let _changed = terminal_input.tick();
         #[cfg(windows)]
         update_graphics_surface(terminal, &mut dispatcher, inputs.sample_time());
-        draw_surface(terminal, &mut view, chrome, terminal_input, &mut dispatcher)?;
+        draw_surface(
+            terminal,
+            &mut view,
+            chrome,
+            terminal_input,
+            &mut dispatcher,
+            mode,
+        )?;
         loop {
             if termination.requested() {
                 return Ok(LoopExit::Signal);
@@ -633,14 +641,28 @@ fn run_surface_loop<B: Backend + ResizableBackend>(
                 redraw = true;
             }
             if redraw {
-                draw_surface(terminal, &mut view, chrome, terminal_input, &mut dispatcher)?;
+                draw_surface(
+                    terminal,
+                    &mut view,
+                    chrome,
+                    terminal_input,
+                    &mut dispatcher,
+                    mode,
+                )?;
             }
             #[cfg(windows)]
             if let Some(effect) = view.notifications.take_effect()
                 && mode(ModeRequest::Notification(effect)).is_err()
             {
                 view.notification_unavailable();
-                draw_surface(terminal, &mut view, chrome, terminal_input, &mut dispatcher)?;
+                draw_surface(
+                    terminal,
+                    &mut view,
+                    chrome,
+                    terminal_input,
+                    &mut dispatcher,
+                    mode,
+                )?;
             }
         }
     })();
@@ -669,6 +691,7 @@ fn draw_surface<B: Backend + ResizableBackend>(
     chrome: Chrome<'_>,
     surface: &mut (impl TerminalSurface + ?Sized),
     dispatcher: &mut InputDispatcher,
+    mode: &mut impl FnMut(ModeRequest) -> io::Result<()>,
 ) -> Result<(), LoopFailure<B::Error>> {
     #[cfg(windows)]
     let mut notification_painted = false;
@@ -741,6 +764,9 @@ fn draw_surface<B: Backend + ResizableBackend>(
         view.settle_help_page(page);
     }
     surface.after_draw();
+    surface
+        .deliver_terminal_effect(&mut || mode(ModeRequest::Bell))
+        .map_err(LoopFailure::Input)?;
     Ok(())
 }
 
@@ -1029,6 +1055,12 @@ trait TerminalSurface: crate::terminal_input::TerminalInputPort {
         false
     }
     fn after_draw(&mut self) {}
+    fn deliver_terminal_effect(
+        &mut self,
+        _emit_bell: &mut dyn FnMut() -> io::Result<()>,
+    ) -> io::Result<()> {
+        Ok(())
+    }
     fn after_close_draw(&mut self, _receipt: crate::terminal_session::NativeDrawReceipt) {}
     #[cfg(windows)]
     fn graphics_covered(&mut self) {}
@@ -1109,6 +1141,12 @@ impl TerminalSurface for crate::terminal_session::TerminalSession {
     }
     fn after_draw(&mut self) {
         self.after_draw()
+    }
+    fn deliver_terminal_effect(
+        &mut self,
+        emit_bell: &mut dyn FnMut() -> io::Result<()>,
+    ) -> io::Result<()> {
+        self.deliver_terminal_effect(emit_bell)
     }
     fn observe_panes(
         &mut self,

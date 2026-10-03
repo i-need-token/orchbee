@@ -26,6 +26,10 @@ const RESTORATION_ATTEMPTS_PER_MODE: u8 = 2;
 
 pub(crate) const SYNCHRONIZED_UPDATE_BEGIN: &[u8] = b"\x1b[?2026h";
 pub(crate) const SYNCHRONIZED_UPDATE_END: &[u8] = b"\x1b[?2026l";
+fn write_bell(output: &mut impl io::Write) -> io::Result<()> {
+    output.write_all(b"\x07")?;
+    output.flush()
+}
 #[cfg(windows)]
 pub(crate) mod graphics;
 
@@ -120,6 +124,9 @@ impl crossterm::Command for SynchronizedUpdateEnd {
 }
 
 pub(crate) trait TerminalModes: Send + Sync + 'static {
+    fn ring_bell(&self) -> io::Result<()> {
+        Err(io::ErrorKind::Unsupported.into())
+    }
     #[cfg(windows)]
     fn cleanup_graphics(&self, _sequence: &str) -> io::Result<()> {
         Err(io::ErrorKind::Unsupported.into())
@@ -418,6 +425,23 @@ impl<C: TerminalModes> TerminalModeGuard<C> {
         Arc::clone(&self.state.synchronized_update)
     }
 
+    /// Emits one irreversible bell only outside a successfully closed frame.
+    /// A write failure fences subsequent frame output; this call never retries.
+    pub(crate) fn ring_bell(&self) -> io::Result<()> {
+        let lease = &self.state.synchronized_update;
+        if !self.state.raw_mode.restoration_required() || lease.frame_output_blocked() {
+            return Err(io::ErrorKind::BrokenPipe.into());
+        }
+        if lease.frame_open() {
+            return Err(io::ErrorKind::WouldBlock.into());
+        }
+        let result = self.control.ring_bell();
+        if result.is_err() {
+            lease.block_frame_output();
+        }
+        result
+    }
+
     pub(crate) fn query_graphics(&self, query: crate::terminal_graphics::Query) -> io::Result<()> {
         if !self.state.raw_mode.restoration_required()
             || self.state.synchronized_update.frame_output_blocked()
@@ -690,6 +714,9 @@ impl InheritedTerminalModes {
 }
 
 impl TerminalModes for InheritedTerminalModes {
+    fn ring_bell(&self) -> io::Result<()> {
+        write_bell(&mut self.terminal.output()?)
+    }
     #[cfg(windows)]
     fn cleanup_graphics(&self, sequence: &str) -> io::Result<()> {
         let mut output = self.terminal.output()?;

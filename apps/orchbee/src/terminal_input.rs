@@ -24,10 +24,12 @@ pub(crate) use mouse::{
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct TerminalInputUnavailable;
 
-/// One terminal-mode write the dispatcher asks the shell to perform. The
-/// dispatcher decides *when*; the lifecycle layer owns the actual bytes.
+/// One terminal-control write the dispatcher or surface asks the shell to
+/// perform. The lifecycle layer owns the actual bytes.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum ModeRequest {
+    /// One pane bell, emitted after the completed frame has flushed.
+    Bell,
     /// Bounded metadata queries on the already-admitted host terminal.
     GraphicsQuery(crate::terminal_graphics::Query),
     #[cfg(windows)]

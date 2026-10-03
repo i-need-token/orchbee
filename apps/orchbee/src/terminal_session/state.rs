@@ -584,6 +584,8 @@ pub(super) enum SessionNotice {
     SelectionEvicted,
     CopyFailed,
     CopyUnknown,
+    BellFailed,
+    BellUnknown,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

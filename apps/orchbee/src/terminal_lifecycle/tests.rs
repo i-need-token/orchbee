@@ -13,6 +13,7 @@ use super::{RestorationStep, TerminalModeGuard, TerminalModes};
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 enum Operation {
+    Bell,
     #[cfg(windows)]
     CleanupGraphics,
     QueryGraphics,
@@ -86,6 +87,9 @@ impl FakeTerminalModes {
 }
 
 impl TerminalModes for FakeTerminalModes {
+    fn ring_bell(&self) -> io::Result<()> {
+        self.perform(Operation::Bell)
+    }
     #[cfg(windows)]
     fn cleanup_graphics(&self, sequence: &str) -> io::Result<()> {
         self.state
@@ -1270,6 +1274,90 @@ fn graphics_queries_use_the_lifecycle_writer_and_cannot_write_after_restoration_
         restored.query_graphics(query).unwrap_err().kind(),
         io::ErrorKind::BrokenPipe
     );
+}
+
+#[test]
+fn bell_requires_a_closed_frame_and_stops_after_write_failure_or_restoration() {
+    let control = FakeTerminalModes::with_failures([(Operation::Bell, 1)]);
+    let mut guard = TerminalModeGuard::enter_without_panic_hook(control.clone()).unwrap();
+    let lease = guard.synchronized_update_lease();
+    lease.open_frame();
+    assert_eq!(
+        guard.ring_bell().unwrap_err().kind(),
+        io::ErrorKind::WouldBlock
+    );
+    assert!(!control.operations().contains(&Operation::Bell));
+    lease.confirm_frame_closed();
+    assert!(guard.ring_bell().is_err());
+    assert!(lease.frame_output_blocked());
+    assert_eq!(
+        guard.ring_bell().unwrap_err().kind(),
+        io::ErrorKind::BrokenPipe
+    );
+    guard.restore().unwrap();
+    assert_eq!(
+        guard.ring_bell().unwrap_err().kind(),
+        io::ErrorKind::BrokenPipe
+    );
+    assert_eq!(
+        control
+            .operations()
+            .iter()
+            .filter(|op| **op == Operation::Bell)
+            .count(),
+        1
+    );
+
+    let control = FakeTerminalModes::default();
+    let mut guard = TerminalModeGuard::enter_without_panic_hook(control.clone()).unwrap();
+    guard.ring_bell().unwrap();
+    assert!(!guard.synchronized_update_lease().frame_output_blocked());
+    guard.restore().unwrap();
+    assert_eq!(
+        guard.ring_bell().unwrap_err().kind(),
+        io::ErrorKind::BrokenPipe
+    );
+    assert_eq!(
+        control
+            .operations()
+            .iter()
+            .filter(|op| **op == Operation::Bell)
+            .count(),
+        1
+    );
+}
+
+#[test]
+fn bell_bytes_are_flushed_once_and_a_failed_flush_is_not_replayed() {
+    #[derive(Default)]
+    struct Writer {
+        bytes: Vec<u8>,
+        flushes: usize,
+        fail_flush: bool,
+    }
+    impl io::Write for Writer {
+        fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
+            self.bytes.extend_from_slice(bytes);
+            Ok(bytes.len())
+        }
+        fn flush(&mut self) -> io::Result<()> {
+            self.flushes += 1;
+            if self.fail_flush {
+                Err(io::ErrorKind::BrokenPipe.into())
+            } else {
+                Ok(())
+            }
+        }
+    }
+    for fail_flush in [false, true] {
+        let mut output = Writer {
+            fail_flush,
+            ..Writer::default()
+        };
+        assert_eq!(super::write_bell(&mut output).is_err(), fail_flush);
+        assert_eq!(output.bytes, b"\x07");
+        assert_eq!(output.flushes, 1);
+    }
 }
 
 #[cfg(windows)]

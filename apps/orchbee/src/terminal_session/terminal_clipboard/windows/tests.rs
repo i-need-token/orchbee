@@ -1,7 +1,7 @@
 use super::*;
 use crate::terminal_session::{
     state::{AttachmentKey, PaneKey, PaneRef},
-    terminal_copy::Queue,
+    terminal_effects::Queue,
 };
 use orchbee_workbench_protocol::{WorkbenchPanelId, WorkbenchTabId};
 use std::{
@@ -23,7 +23,7 @@ fn hidden_owner_pump_dispatches_once_and_is_joined_without_using_the_shared_clip
         1,
     );
     let text = "中文e\u{301}\nnext";
-    assert!(queue.enqueue(pane, NonZeroU64::MIN, text.into()));
+    assert!(queue.enqueue_selection(pane, NonZeroU64::MIN, text.into()));
     let (sender, receiver) = mpsc::sync_channel(1);
     let stop = Arc::new(AtomicBool::new(false));
     let thread_stop = Arc::clone(&stop);
@@ -55,7 +55,13 @@ fn hidden_owner_pump_dispatches_once_and_is_joined_without_using_the_shared_clip
         assert!(Instant::now() < cutoff, "clipboard attempt did not settle");
         thread::sleep(Duration::from_millis(1));
     };
-    assert_eq!(outcome, Outcome::Delivered);
+    assert_eq!(
+        outcome,
+        (
+            super::super::super::terminal_effects::Kind::Clipboard,
+            Outcome::Delivered
+        )
+    );
     assert!(queue.dispatch().is_none());
     writer.close();
     assert!(writer.task.is_none());

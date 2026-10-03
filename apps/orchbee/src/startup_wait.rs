@@ -177,7 +177,8 @@ where
                     (deps.clock)(),
                     |_, _| Ok(()),
                     &mut |request| match request {
-                        crate::terminal_input::ModeRequest::GraphicsQuery(_) => {
+                        crate::terminal_input::ModeRequest::GraphicsQuery(_)
+                        | crate::terminal_input::ModeRequest::Bell => {
                             Err(io::ErrorKind::Unsupported.into())
                         }
                         #[cfg(windows)]

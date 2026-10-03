@@ -1,5 +1,5 @@
 //! Dedicated hidden Win32 owner and pump; Unicode writes have no fallback or replay.
-use super::super::terminal_copy::{Job, Outcome};
+use super::super::terminal_effects::{Job, Outcome};
 use std::{
     sync::{
         Arc,
@@ -98,9 +98,10 @@ fn run(
             return Ok(());
         }
         if let Ok(job) = receiver.try_recv()
+            && let Some(text) = job.text()
             && job.begin()
         {
-            job.settle(if deliver(ticking.hwnd(), job.text()) {
+            job.settle(if deliver(ticking.hwnd(), text) {
                 Outcome::Delivered
             } else {
                 Outcome::Failed

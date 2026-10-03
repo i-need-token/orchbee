@@ -1021,6 +1021,14 @@ impl Locale {
                 Self::EnUs => "Clipboard delivery could not be confirmed".to_owned(),
                 Self::ZhCn => "无法确认剪贴板投递结果".to_owned(),
             },
+            NativeSessionNotice::BellFailed => match self {
+                Self::EnUs => "Could not forward the terminal bell".to_owned(),
+                Self::ZhCn => "未能转发终端响铃".to_owned(),
+            },
+            NativeSessionNotice::BellUnknown => match self {
+                Self::EnUs => "Terminal bell delivery could not be confirmed".to_owned(),
+                Self::ZhCn => "无法确认终端响铃投递结果".to_owned(),
+            },
         }
     }
 

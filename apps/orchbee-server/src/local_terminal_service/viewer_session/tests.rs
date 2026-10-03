@@ -615,6 +615,7 @@ fn read_rows_record_one_byte_over_budget_is_rejected_before_delivery() {
 }
 
 mod clear;
+mod effects;
 mod fixture;
 mod process_info;
 mod selection;

@@ -29,9 +29,14 @@ flush 成功后派发。退出时 join 其独立隐藏窗口和线程。`clipboa
 feedback 或 typed-failure record；选择 decoder 负责 record 的精确 envelope 和身份验证。动作与
 结果不兼容时，carrier 退役且不重新提交。
 
-pane 程序剪贴板／BEL 接收、显式 OSC 52 投递和可重载的剪贴板策略仍需接入；下面相应要求描述
-这些待完成的集成。仍需收敛指针回归、验证原生 cohort，并完成真实 Windows Terminal 验收；模型
-检查和中继测试不能单独证明用户效果。
+Server 的 Poll 路由将 BEL 和剪贴板请求作为专门的非帧事件接收，验证完整事件 envelope 和精确
+viewer attachment，原字节转发并保留待确认的 frame flight。外来或畸形记录、其他动作上的效果
+记录仍会退役对应 viewer，且不重新提交。
+
+原生 Client 也通过同一个有界 FIFO 接收 pane 程序剪贴板写入与 BEL，准入前核验 Host envelope、
+epoch、attachment 和两条独立流的 sequence。pane 仍在启动、首个文本帧尚未到达时也可接收程序
+效果。显式 OSC 52 投递和可重载的剪贴板策略仍需接入；下面相应要求描述待完成的集成。仍需验证
+原生 cohort，并完成真实 Windows Terminal 验收；模型检查和中继测试不能单独证明用户效果。
 
 ## 指针归属与选择
 
@@ -71,16 +76,23 @@ revision 的输出不会重标记或取消工作。stale-generation 结果清除
 
 ## Pane 程序效果
 
-Host 接受 pane 程序的 OSC 52 写入，拒绝读取和查询，校验 base64 与 UTF-8，排除控制字符，并将
-文本限制为 16 KiB。原生 Client 默认允许这些写入，也可以通过剪贴板策略关闭。它绝不逐次弹窗，
-并与直接选择复制使用同一个已配置的单一剪贴板 sink。
+Host 接受 pane 程序的 OSC 52 写入，拒绝读取和查询，校验 base64 与 UTF-8，拒绝 TAB、LF、CR
+之外的控制字符，并将文本限制为 16 KiB。原生 Client 再次校验文本，默认允许写入且不逐次弹窗，
+使用与选择复制相同的 Windows sink。关闭程序写入和选择显式 OSC 52 sink 属于待完成的剪贴板
+策略集成。
 
 BEL 与获准的剪贴板写是两个独立的 Host 流。两者各自在精确 viewer attachment 上维护正数、严格
 递增的 sequence，因此同一个 sequence 值可以在两个流中各合法出现一次。Worker 把两个流中已接纳
 的记录按到达顺序放入同一个有界 FIFO。外来 attachment，或同一流内重复／倒退的 sequence，属于
 协议失败。队列或聚合字节饱和时，不会通过驱逐较早记录来接纳新记录；而是只退役目标 viewer，并
 释放该 viewer 的全部保留记录，相邻 viewer 不受影响。Poll 最多移除每条已交付记录一次。断连或
-外部效果结果未知不会把它重新排队。
+外部效果结果未知不会把它重新排队。上述 viewer 隔离声明属于 Worker；既有原生 executor 在焦点
+viewer 丢失时仍退役整个会话，Client 在该边界的恢复属于后续工作。
+
+Client FIFO 最多容纳八个待处理项，排队与尚未结算的活动 payload 合计不超过 16 MiB。饱和时
+拒绝新效果并显示本地化失败通知，绝不替换较早项。选择项保留其捕获的投影 generation；程序项
+保留精确 pane 实例、attachment 和 Host epoch，不依赖帧可用性或 generation。新选择只取消选择
+项；pane 替换、成员移除或退役会取消对应所有者的全部尚未 dispatch 项。
 
 ## 外部效果 writer
 
@@ -88,6 +100,10 @@ BEL 与获准的剪贴板写是两个独立的 Host 流。两者各自在精确 
 同步输出帧已经关闭且 flush 成功后，它才 dispatch；终端输出效果在途时不能开始新帧。BEL 发出
 一个 `0x07` 字节。OSC 52 发出一个 write-only UTF-8 payload。Win32 投递通过平台适配器写入一个
 以空字符终止的 Unicode 值。任何效果字节都不能出现在 DEC 2026 帧内。
+
+shell 在 `after_draw` 后通过已准入的继承终端生命周期 writer 同步发出 BEL。帧未关闭、已恢复
+终端模式或输出已被围栏阻止时，生命周期拒绝响铃。写入或 flush 失败属于未知终端结果，阻止后续
+帧输出并结束循环，不重放。剪贴板 dispatch 仍为异步，因此 Win32 调用进行期间可以继续绘制。
 
 在 Windows 上，剪贴板 writer 线程拥有一个专用、隐藏、不激活的 winsafe `WindowMain` 及其
 消息泵，不借用通知窗口。该线程创建、使用并销毁其 `HWND`，自有代码不编写 unsafe。

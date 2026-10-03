@@ -106,6 +106,10 @@ pub(super) fn install_projection(
         value.install_frame_for_test(frame);
     }
     ui.projections.push(KeyedProjection {
+        effect_stream: super::super::terminal_effects::Stream::new(
+            *value.attachment(),
+            *value.epoch(),
+        ),
         key: key.clone(),
         value,
         status: NativeProjectionStatus::FrameAvailable,

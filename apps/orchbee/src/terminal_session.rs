@@ -56,7 +56,7 @@ pub(crate) mod state;
 #[cfg(any(target_os = "linux", windows))]
 mod status_recovery;
 mod terminal_clipboard;
-mod terminal_copy;
+mod terminal_effects;
 mod terminal_selection;
 pub(crate) mod terminal_viewport;
 mod ui;
@@ -566,6 +566,20 @@ impl TerminalSession {
         if let Some(native) = self.backend.native_mut() {
             native.after_close_draw(receipt);
         }
+    }
+
+    /// Delivers the admitted bell after a successful draw; an uncertain write is never replayed.
+    ///
+    /// # Errors
+    /// Returns the terminal writer's failure after settling this attempt as unknown.
+    pub(crate) fn deliver_terminal_effect(
+        &mut self,
+        emit_bell: &mut dyn FnMut() -> io::Result<()>,
+    ) -> io::Result<()> {
+        if let Some(native) = self.backend.native_mut() {
+            native.deliver_terminal_effect(emit_bell)?;
+        }
+        Ok(())
     }
     #[cfg(windows)]
     pub(crate) fn graphics_covered(&mut self) {

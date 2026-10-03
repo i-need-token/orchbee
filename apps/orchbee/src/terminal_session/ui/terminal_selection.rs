@@ -28,7 +28,7 @@ impl NativeUi {
             return PointerSelectionAdmission::Rejected;
         };
         if intent == PointerSelectionIntent::Cancel {
-            self.copies.cancel_pane(key);
+            self.effects.cancel_selection(key);
             if let Some(driver) = self.projections[index].selection.as_mut()
                 && let Err(failure) = driver.cancel()
             {
@@ -72,7 +72,7 @@ impl NativeUi {
         match driver.pointer(generation, columns, rows, intent) {
             Ok(true) => {
                 if matches!(intent, PointerSelectionIntent::Start { .. }) {
-                    self.copies.cancel_pane(key);
+                    self.effects.cancel_selection(key);
                 }
                 self.admit_selections(&mailbox);
                 PointerSelectionAdmission::Admitted
@@ -223,69 +223,13 @@ impl NativeUi {
                 continue;
             };
             if !self
-                .copies
-                .enqueue(projection.key.clone(), frame.route.generation, text)
+                .effects
+                .enqueue_selection(projection.key.clone(), frame.route.generation, text)
                 && let Some(state) = self.state.as_mut()
             {
                 state.set_notice(SessionNotice::CopyFailed);
             }
         }
-        self.reconcile_copies();
-    }
-
-    fn reconcile_copies(&mut self) {
-        let projections = &self.projections;
-        let state = self.state.as_ref();
-        self.copies.reconcile(|key, generation| {
-            state.is_some_and(|state| {
-                state.ready().is_some()
-                    && state.panel_viewer_live(key.pane().panel())
-                    && state
-                        .pane_by_panel(key.pane().panel())
-                        .is_some_and(|pane| pane.pane_ref() == *key)
-                    && !state.close_suppresses_attachment(key.pane().anchor())
-            }) && projections.iter().any(|projection| {
-                &projection.key == key
-                    && projection.status == NativeProjectionStatus::FrameAvailable
-                    && projection
-                        .value
-                        .frame()
-                        .is_some_and(|frame| frame.route.generation == generation)
-                    && projection.selection.as_ref().is_some_and(|driver| {
-                        matches!(
-                            driver.selection(),
-                            orchbee_terminal_protocol::SelectionChangedState::Active { .. }
-                        )
-                    })
-            })
-        });
-    }
-
-    pub(super) fn dispatch_copy_after_draw(&mut self) {
-        self.reconcile_copies();
-        if self.retirement_failure.is_none()
-            && let Some(job) = self.copies.dispatch()
-        {
-            self.clipboard.submit(job);
-        }
-    }
-
-    pub(super) fn settle_copy_delivery(&mut self) -> bool {
-        use crate::terminal_session::terminal_copy::Outcome;
-        self.reconcile_copies();
-        let Some(outcome) = self.copies.take_outcome() else {
-            return false;
-        };
-        let notice = match outcome {
-            Outcome::Delivered | Outcome::Cancelled => None,
-            Outcome::Failed => Some(SessionNotice::CopyFailed),
-            Outcome::Unknown => Some(SessionNotice::CopyUnknown),
-        };
-        if let Some(notice) = notice
-            && let Some(state) = self.state.as_mut()
-        {
-            state.set_notice(notice);
-        }
-        true
+        self.reconcile_effects();
     }
 }

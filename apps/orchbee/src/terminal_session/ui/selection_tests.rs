@@ -126,7 +126,7 @@ fn accepted_release_and_complete_host_export_reach_the_copy_queue_once() {
         export,
         orchbee_client_server_protocol::TerminalViewerOutcome::Record(record),
     );
-    assert!(!ui.copies.has_pending());
+    assert!(!ui.effects.has_pending());
     let chunk = encode_selection_export_chunk(&SelectionExportChunk {
         attachment_id: attachment,
         export_sequence: sequence,
@@ -174,22 +174,22 @@ fn accepted_release_and_complete_host_export_reach_the_copy_queue_once() {
     )
     .unwrap();
     ui.admit_selections(&mailbox);
-    assert!(!ui.copies.has_pending());
+    assert!(!ui.effects.has_pending());
     ui.apply_selection_outcome(
         &mailbox,
         pane,
         ack,
         orchbee_client_server_protocol::TerminalViewerOutcome::FeedbackAccepted {},
     );
-    assert!(ui.copies.has_pending());
+    assert!(ui.effects.has_pending());
     // Inspect the actual admitted effect without changing the shared OS clipboard.
-    let job = ui.copies.dispatch().unwrap();
-    assert_eq!(job.text(), text);
+    let job = ui.effects.dispatch().unwrap();
+    assert_eq!(job.text(), Some(text));
     assert!(job.begin());
-    job.settle(super::super::terminal_copy::Outcome::Delivered);
-    assert!(ui.settle_copy_delivery());
+    job.settle(super::super::terminal_effects::Outcome::Delivered);
+    assert!(ui.settle_effect_delivery());
     ui.admit_selections(&mailbox);
-    assert!(ui.copies.dispatch().is_none());
+    assert!(ui.effects.dispatch().is_none());
     assert!(ui.retirement_failure.is_none());
     assert_eq!(sequence, NonZeroU64::MIN);
 }
@@ -306,4 +306,84 @@ fn selection_poll_keeps_the_frame_and_uses_the_normal_no_feedback_settlement() {
         Some(CausalSettlement::NoFeedback)
     ));
     mailbox.finish_lease(lease).unwrap();
+}
+
+#[test]
+fn pane_effect_poll_keeps_the_frame_and_settles_without_frame_feedback() {
+    use orchbee_terminal_protocol::{
+        TerminalBell, TerminalClipboardWriteRequest, TerminalEffectEvent,
+        encode_terminal_effect_event,
+    };
+    use std::num::NonZeroU64;
+
+    for clipboard in [true, false] {
+        let (mut ui, mailbox, clock, _) = ready_ui();
+        let key = super::viewport_tests::install_projection(&mut ui, Some((9, false, 24)), 0);
+        let projection = &ui.projections[0];
+        let frame = format!("{:?}", projection.value.frame().unwrap());
+        let attachment_id = *projection.value.attachment();
+        let effect = if clipboard {
+            TerminalEffectEvent::ClipboardWriteRequest(TerminalClipboardWriteRequest {
+                attachment_id,
+                sequence: NonZeroU64::MIN,
+                text: "中文e\u{301}\nnext".into(),
+            })
+        } else {
+            TerminalEffectEvent::Bell(TerminalBell {
+                attachment_id,
+                sequence: NonZeroU64::MIN,
+            })
+        };
+        let encoded = encode_terminal_effect_event(&effect).unwrap();
+        let record = encode_transport_envelope(&Envelope {
+            correlation_id: None,
+            host_epoch: Some(*projection.value.epoch()),
+            kind: encoded.kind,
+            optional_message: false,
+            payload: &encoded.payload,
+            payload_encoding: PayloadEncoding::ControlJson,
+            protocol: CURRENT_PROTOCOL_VERSION,
+            role: MessageRole::Event,
+        })
+        .unwrap();
+        mailbox
+            .try_enqueue(QueuedCommand::Poll(Tagged::new(key, ())))
+            .unwrap();
+        let lease = mailbox.try_recv().unwrap().unwrap();
+        let poll = lease.poll_key().unwrap();
+        let cutoff = clock.now() + state::OPERATION_TOTAL;
+        mailbox
+            .publish_poll_result_before(poll.clone(), Some(record), false, cutoff, &clock)
+            .unwrap();
+        ui.tick();
+        assert!(
+            ui.retirement_failure.is_none(),
+            "a valid pane effect must not retire the carrier"
+        );
+        assert_eq!(
+            format!("{:?}", ui.projections[0].value.frame().unwrap()),
+            frame
+        );
+        assert_eq!(
+            ui.projections[0].status,
+            NativeProjectionStatus::FrameAvailable
+        );
+        assert!(
+            ui.effects.has_pending(),
+            "the effect must reach the owned FIFO"
+        );
+
+        // Inspect admission without touching the real clipboard or outer terminal.
+        // Removing this job before after_draw also catches an accidental second copy.
+        let job = ui.effects.dispatch().unwrap();
+        ui.effects.close();
+        drop(job);
+        ui.after_draw();
+        assert!(matches!(
+            mailbox.take_causal_before(&poll, cutoff, &clock).unwrap(),
+            Some(CausalSettlement::NoFeedback)
+        ));
+        assert!(!ui.effects.has_pending());
+        mailbox.finish_lease(lease).unwrap();
+    }
 }

@@ -1,5 +1,6 @@
-//! Bounded complete-text delivery, cancelled before dispatch and never replayed afterwards.
+//! Bounded external-effect FIFO, cancelled before dispatch and never replayed afterwards.
 use super::state::PaneRef;
+use orchbee_terminal_protocol::{AttachmentId, HostEpoch};
 use std::{
     collections::VecDeque,
     num::NonZeroU64,
@@ -18,6 +19,50 @@ const CANCELLED: u8 = 5;
 const CANCEL_REQUESTED: u8 = 6;
 const CAPACITY: usize = 8;
 const BYTE_CAPACITY: usize = orchbee_terminal_protocol::MAXIMUM_SELECTION_EXPORT_BYTES;
+
+mod record;
+pub(super) use record::Stream;
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(super) enum Kind {
+    Clipboard,
+    Bell,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(super) enum Scope {
+    Selection(NonZeroU64),
+    Program {
+        attachment: AttachmentId,
+        epoch: HostEpoch,
+    },
+}
+
+pub(super) enum Payload {
+    Clipboard(String),
+    Bell,
+}
+impl Payload {
+    fn bytes(&self) -> usize {
+        match self {
+            Self::Clipboard(text) => text.len(),
+            Self::Bell => 0,
+        }
+    }
+    const fn kind(&self) -> Kind {
+        match self {
+            Self::Clipboard(_) => Kind::Clipboard,
+            Self::Bell => Kind::Bell,
+        }
+    }
+}
+
+fn valid_program_text(text: &str) -> bool {
+    text.len() <= orchbee_terminal_protocol::MAXIMUM_CLIPBOARD_TEXT_BYTES
+        && text
+            .bytes()
+            .all(|byte| byte != 0x7f && (byte >= 0x20 || matches!(byte, b'\t' | b'\n' | b'\r')))
+}
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(super) enum Outcome {
@@ -50,18 +95,27 @@ impl Receipt {
 }
 
 pub(super) struct Job {
-    text: String,
+    payload: Payload,
     receipt: Arc<Receipt>,
 }
 impl Job {
+    pub(super) fn cancelled(&self) -> bool {
+        self.receipt.0.load(Ordering::Acquire) == CANCEL_REQUESTED
+    }
     pub(super) fn begin(&self) -> bool {
         self.receipt
             .0
             .compare_exchange(QUEUED, DISPATCHED, Ordering::AcqRel, Ordering::Acquire)
             .is_ok()
     }
-    pub(super) fn text(&self) -> &str {
-        &self.text
+    pub(super) const fn kind(&self) -> Kind {
+        self.payload.kind()
+    }
+    pub(super) fn text(&self) -> Option<&str> {
+        match &self.payload {
+            Payload::Clipboard(text) => Some(text),
+            Payload::Bell => None,
+        }
     }
     pub(super) fn settle(&self, outcome: Outcome) {
         let state = match outcome {
@@ -102,12 +156,13 @@ impl Drop for Job {
 
 struct Pending {
     key: PaneRef,
-    generation: NonZeroU64,
-    text: String,
+    scope: Scope,
+    payload: Payload,
 }
 struct Active {
     key: PaneRef,
-    generation: NonZeroU64,
+    scope: Scope,
+    kind: Kind,
     bytes: usize,
     receipt: Arc<Receipt>,
 }
@@ -122,32 +177,54 @@ impl Queue {
     pub(super) fn has_pending(&self) -> bool {
         !self.pending.is_empty()
     }
-    pub(super) fn enqueue(&mut self, key: PaneRef, generation: NonZeroU64, text: String) -> bool {
-        if text.contains('\0')
-            || self.pending.len() >= CAPACITY
-            || text.len() > BYTE_CAPACITY.saturating_sub(self.bytes)
+    pub(super) fn enqueue_selection(
+        &mut self,
+        key: PaneRef,
+        generation: NonZeroU64,
+        text: String,
+    ) -> bool {
+        self.enqueue(key, Scope::Selection(generation), Payload::Clipboard(text))
+    }
+    pub(super) fn enqueue_program(
+        &mut self,
+        key: PaneRef,
+        attachment: AttachmentId,
+        epoch: HostEpoch,
+        payload: Payload,
+    ) -> bool {
+        if let Payload::Clipboard(text) = &payload
+            && !valid_program_text(text)
         {
             return false;
         }
-        self.bytes += text.len();
+        self.enqueue(key, Scope::Program { attachment, epoch }, payload)
+    }
+    fn enqueue(&mut self, key: PaneRef, scope: Scope, payload: Payload) -> bool {
+        if matches!(&payload, Payload::Clipboard(text) if text.contains('\0'))
+            || self.pending.len() >= CAPACITY
+            || payload.bytes() > BYTE_CAPACITY.saturating_sub(self.bytes)
+        {
+            return false;
+        }
+        self.bytes += payload.bytes();
         self.pending.push_back(Pending {
             key,
-            generation,
-            text,
+            scope,
+            payload,
         });
         true
     }
-    pub(super) fn reconcile(&mut self, current: impl Fn(&PaneRef, NonZeroU64) -> bool) {
+    pub(super) fn reconcile(&mut self, current: impl Fn(&PaneRef, Scope) -> bool) {
         self.pending.retain(|pending| {
-            if current(&pending.key, pending.generation) {
+            if current(&pending.key, pending.scope) {
                 true
             } else {
-                self.bytes -= pending.text.len();
+                self.bytes -= pending.payload.bytes();
                 false
             }
         });
         if let Some(active) = &self.active
-            && !current(&active.key, active.generation)
+            && !current(&active.key, active.scope)
         {
             active.receipt.cancel();
         }
@@ -160,17 +237,19 @@ impl Queue {
         let receipt = Arc::new(Receipt::default());
         self.active = Some(Active {
             key: pending.key,
-            generation: pending.generation,
-            bytes: pending.text.len(),
+            scope: pending.scope,
+            kind: pending.payload.kind(),
+            bytes: pending.payload.bytes(),
             receipt: Arc::clone(&receipt),
         });
         Some(Job {
-            text: pending.text,
+            payload: pending.payload,
             receipt,
         })
     }
-    pub(super) fn take_outcome(&mut self) -> Option<Outcome> {
-        let outcome = self.active.as_ref()?.receipt.outcome()?;
+    pub(super) fn take_outcome(&mut self) -> Option<(Kind, Outcome)> {
+        let active = self.active.as_ref()?;
+        let outcome = (active.kind, active.receipt.outcome()?);
         self.bytes -= self.active.take()?.bytes;
         Some(outcome)
     }
@@ -179,6 +258,11 @@ impl Queue {
     }
     pub(super) fn cancel_pane(&mut self, key: &PaneRef) {
         self.reconcile(|candidate, _| candidate != key);
+    }
+    pub(super) fn cancel_selection(&mut self, key: &PaneRef) {
+        self.reconcile(|candidate, scope| {
+            candidate != key || !matches!(scope, Scope::Selection(_))
+        });
     }
 }
 

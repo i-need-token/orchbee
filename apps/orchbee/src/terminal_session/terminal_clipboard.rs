@@ -1,6 +1,6 @@
 //! Single joined clipboard adapter; platform-specific ownership stays outside copy state.
 #[cfg(not(windows))]
-use super::terminal_copy::Job;
+use super::terminal_effects::Job;
 
 #[cfg(windows)]
 mod windows;

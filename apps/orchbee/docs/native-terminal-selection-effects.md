@@ -35,10 +35,17 @@ and export cancellation. Chunk acknowledgements accept either feedback or a type
 the selection decoder owns the record's exact envelope and identity validation. An incompatible
 action/result pair retires the carrier without resubmission.
 
-Pane-program clipboard/BEL intake, explicit OSC 52 delivery, and reloadable clipboard policy remain
-to be connected. Their requirements below describe that remaining integration. Pointer regression
-convergence, native-cohort verification, and real Windows Terminal acceptance remain required;
-model checks and relay tests alone do not establish the user outcome.
+The Server Poll route admits BEL and clipboard requests as dedicated non-frame events. It validates
+the complete event envelope and exact viewer attachment, forwards the bytes unchanged, and leaves
+the pending frame flight intact. A foreign or malformed record, or an effect on a different action,
+still retires that viewer without resubmission.
+
+The native Client also admits pane-program clipboard writes and BEL through the same bounded FIFO.
+It validates the Host envelope, epoch, attachment, and independent stream sequences before
+admission. Program effects may arrive while the pane is starting, before its first text frame.
+Explicit OSC 52 delivery and reloadable clipboard policy remain to be connected. Their requirements
+below describe remaining integration. Native-cohort verification and real Windows Terminal
+acceptance remain required; model checks and relay tests alone do not establish the user outcome.
 
 ## Pointer ownership and selection
 
@@ -89,9 +96,10 @@ typed failures remain visible and are never replayed automatically.
 ## Pane-program effects
 
 The Host accepts OSC 52 writes from a pane program, rejects reads and queries, validates base64 and
-UTF-8, excludes control characters, and limits text to 16 KiB. The native Client allows these
-writes by default and may disable them through its clipboard policy. It never prompts per write and
-uses the same configured single clipboard sink as direct selection copy.
+UTF-8, rejects control characters except TAB, LF, and CR, and limits text to 16 KiB. The native
+Client revalidates that text and allows these writes by default without a per-write prompt, using
+the same Windows sink as selection copy. Disabling program writes and selecting an explicit OSC 52
+sink belong to the remaining clipboard-policy integration.
 
 BEL and permitted clipboard writes are independent Host streams. Each has its own positive,
 strictly increasing sequence for the exact viewer attachment, so the same sequence value may be
@@ -100,7 +108,16 @@ in arrival order. A foreign attachment or a repeated/regressing sequence within 
 protocol failure. Queue or aggregate-byte saturation never evicts an older record to admit the new
 one. It instead retires only the addressed viewer and releases all of that viewer's retained records;
 a sibling viewer is unaffected. Poll removes each delivered record at most once. A disconnect or an
-uncertain external result does not requeue it.
+uncertain external result does not requeue it. This viewer-isolation claim belongs to Worker; the
+existing native executor still retires the session when its focus viewer is lost. Client recovery
+from that boundary remains separate work.
+
+The Client FIFO holds at most eight pending entries and 16 MiB of queued plus unsettled active
+payload. Saturation rejects the new effect with a localized failure notice and never replaces an
+older entry. Selection entries retain their captured projection generation; program entries retain
+the exact pane incarnation, attachment, and Host epoch independently of frame availability or
+generation. Starting a new selection cancels only selection entries. Pane replacement, membership
+removal, or retirement cancels all undispatched entries for the affected owner.
 
 ## External-effect writer
 
@@ -109,6 +126,12 @@ writes, and BEL. It dispatches only after the current synchronized-output frame 
 flush succeeded; a new frame cannot begin while a terminal-output effect is in flight. BEL emits
 one `0x07` byte. OSC 52 emits one write-only UTF-8 payload. Win32 delivery writes one null-terminated
 Unicode value through the platform adapter. No effect bytes may appear inside a DEC 2026 frame.
+
+The shell synchronously emits BEL through the admitted inherited-terminal lifecycle writer after
+`after_draw`. The lifecycle refuses a bell while a frame is open, after restoration, or after output
+has been fenced. A failed write or flush is an unknown terminal result, fences future frame output,
+and ends the loop without replay. Clipboard dispatch remains asynchronous, so subsequent frames
+may draw while the Win32 call runs.
 
 On Windows, the clipboard writer thread owns a dedicated hidden, nonactivating winsafe
 `WindowMain` and its message pump; it does not borrow the notification window. That thread creates,

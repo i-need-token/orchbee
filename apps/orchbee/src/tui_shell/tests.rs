@@ -22,6 +22,7 @@ use crate::{
 };
 
 use super::{InputSource, LoopExit, LoopFailure, ViewportSource, run_event_loop, to_area};
+mod effects;
 #[cfg(windows)]
 mod graphics;
 mod rename;
