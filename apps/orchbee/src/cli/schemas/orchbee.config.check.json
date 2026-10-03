@@ -81,6 +81,9 @@
 								},
 								{
 									"$ref": "#/$defs/userConfigCheckV11"
+								},
+								{
+									"$ref": "#/$defs/userConfigCheckV12"
 								}
 							]
 						}
@@ -2832,21 +2835,14 @@
 		},
 		"userConfigCheckV12": {
 			"type": "object",
-			"required": [
-				"name",
-				"status",
-				"details"
-			],
+			"required": ["name", "status", "details"],
 			"additionalProperties": false,
 			"properties": {
 				"name": {
 					"const": "user-config"
 				},
 				"status": {
-					"enum": [
-						"pass",
-						"fail"
-					]
+					"enum": ["pass", "fail"]
 				},
 				"details": {
 					"type": "object"
@@ -2892,10 +2888,7 @@
 								"additionalProperties": false,
 								"properties": {
 									"path": {
-										"type": [
-											"string",
-											"null"
-										],
+										"type": ["string", "null"],
 										"minLength": 1,
 										"maxLength": 4096
 									},
@@ -2906,11 +2899,7 @@
 										"type": "boolean"
 									},
 									"resumeAgentsOnRestoreSource": {
-										"enum": [
-											"default",
-											"file",
-											"environment"
-										]
+										"enum": ["default", "file", "environment"]
 									},
 									"newCwd": {
 										"type": "string",
@@ -2918,10 +2907,7 @@
 										"maxLength": 4096
 									},
 									"worktreeDirectory": {
-										"type": [
-											"string",
-											"null"
-										],
+										"type": ["string", "null"],
 										"minLength": 1,
 										"maxLength": 4096
 									},
@@ -2929,21 +2915,14 @@
 										"type": "boolean"
 									},
 									"manifestCheckSource": {
-										"enum": [
-											"default",
-											"file"
-										]
+										"enum": ["default", "file"]
 									},
 									"defaultShell": {
 										"type": "string",
 										"maxLength": 4096
 									},
 									"shellMode": {
-										"enum": [
-											"auto",
-											"login",
-											"non_login"
-										]
+										"enum": ["auto", "login", "non_login"]
 									},
 									"keyPrefix": {
 										"type": "string",
@@ -2960,28 +2939,13 @@
 										"maxLength": 4096
 									},
 									"windowTitleDiagnostic": {
-										"enum": [
-											null,
-											"unclosed-brace",
-											"unmatched-brace",
-											"unknown-token"
-										]
+										"enum": [null, "unclosed-brace", "unmatched-brace", "unknown-token"]
 									},
 									"notificationDelivery": {
-										"enum": [
-											"off",
-											"orchbee",
-											"terminal",
-											"system"
-										]
+										"enum": ["off", "orchbee", "terminal", "system"]
 									},
 									"notificationPosition": {
-										"enum": [
-											"top-left",
-											"top-right",
-											"bottom-left",
-											"bottom-right"
-										]
+										"enum": ["top-left", "top-right", "bottom-left", "bottom-right"]
 									},
 									"agentSidebarProfile": {
 										"type": "string",
@@ -2994,12 +2958,7 @@
 										"maxLength": 32768
 									},
 									"notificationAgentDelivery": {
-										"enum": [
-											"off",
-											"orchbee",
-											"terminal",
-											"system"
-										]
+										"enum": ["off", "orchbee", "terminal", "system"]
 									},
 									"notificationDelaySeconds": {
 										"type": "integer",
@@ -3016,11 +2975,7 @@
 											"pattern": "^[a-z0-9](?:[a-z0-9.-]{0,62}[a-z0-9])?$"
 										},
 										"additionalProperties": {
-											"enum": [
-												"default",
-												"on",
-												"off"
-											]
+											"enum": ["default", "on", "off"]
 										}
 									}
 								}
@@ -3031,10 +2986,7 @@
 						"properties": {
 							"details": {
 								"type": "object",
-								"required": [
-									"field",
-									"reason"
-								],
+								"required": ["field", "reason"],
 								"additionalProperties": false,
 								"properties": {
 									"field": {

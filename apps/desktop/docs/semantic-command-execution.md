@@ -217,6 +217,11 @@ before any prefix access, and destroy never closes the retired handle again. Req
 are never replayed by this lifecycle.
 
 Windows server writes report success only after the client has consumed the written pipe bytes.
+The helper checks the same overlapped pipe with a zero-byte `PeekNamedPipe` after a successful
+flush. If the client closed before flush dispatch, Windows may discard the unread response and
+still return flush success; the pipe check rejects that disconnected state without consuming
+request bytes. A failed check follows the existing closed/system-error handling and publishes no
+successful byte count.
 The write, helper creation, and flush wait share the timeout measured at the write-call entry;
 expiration never publishes a partial successful byte count. A flush helper keeps blocking pipe I/O
 off the deadline owner. Timeout disconnects the same owned pipe before joining the helper, including
@@ -270,7 +275,8 @@ The post-byte expiry fixture advances its clock only after the exact preread ope
 with one byte; issuing a pending read cannot expire the connection before the controlled write.
 
 The same verifier runs `tests/windows_write.c` with real named pipes to cover delayed and partial
-response reads, both flush-dispatch deadline orderings, peer close, helper creation failure,
+response reads, both flush-dispatch deadline orderings, peer close during flush and before its
+dispatch, helper creation failure,
 exhaustion of the original write budget, listener retirement after an unknown disconnect failure,
 and the next authenticated connection. Controlled OS failures verify error classification and
 resource retention, not cleanup liveness after an OS failure.

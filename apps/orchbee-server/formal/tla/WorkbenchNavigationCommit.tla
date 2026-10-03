@@ -270,7 +270,9 @@ SendTo(targets, values) == \E c \in Clients:
                         responseRevision, observed, observedRevision>>
         /\ UNCHANGED <<m, retired, history, readRevision, readLabels, hasRead>>
 
-Send == SendTo(Targets \ {PanelTarget}, Labels)
+\* Keep this action distinct in TLC coverage: a bare alias is reported only
+\* as SendTo, which is also shared by the two Panel actions below.
+Send == /\ TRUE /\ SendTo(Targets \ {PanelTarget}, Labels)
 SendPanelSet == ExerciseTargetDomain /\ SendTo({PanelTarget}, {1})
 SendPanelClear == ExerciseTargetDomain /\ SendTo({PanelTarget}, {0})
 

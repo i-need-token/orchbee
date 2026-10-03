@@ -1,10 +1,11 @@
 -------------------------- MODULE AgentBoard --------------------------
-EXTENDS Integers, Sequences, FiniteSets
+EXTENDS Integers, Sequences, FiniteSets, TLC
 
-CONSTANT MaxEpoch, MaxRound, MaxSerial
+CONSTANT MaxEpoch, MaxRound, MaxSerial, ModelScope
 ASSUME MaxEpoch \in Nat \ {0}
 ASSUME MaxRound \in Nat \ {0}
 ASSUME MaxSerial \in Nat \ {0}
+ASSUME ModelScope \in {"combined", "navigation", "input", "paint"}
 
 \* The Agent board: an input-capturing overlay that lists Server-owned Agent
 \* sessions and jumps to an already-existing Panel. This module proves the
@@ -71,6 +72,8 @@ Init ==
        walkRev |-> 0,
        walkPages |-> {},
        retries |-> 0,
+       \* Revision labels are opaque: current is 1, a differing pinned
+       \* revision is 2, and 0 still means no first page was read.
        serverRevision |-> 1,
        bumps |-> 0,
        retired |-> {},
@@ -132,7 +135,59 @@ JumpCurrent == s.jumpSerial # 0 /\ s.jumpSerial = s.serial
 \* fair-action enabledness. Canonicalize only those non-list records.
 ClearWalk(state) ==
   [state EXCEPT !.laneRound = 0, !.walkRev = 0,
-                !.walkPages = {}, !.retries = 0]
+                !.walkPages = {}, !.retries = 0,
+                \* Once the final round settles, bumps are unread until
+                \* Open reinitializes them. Keep the active walk's budget.
+                !.bumps = IF state.round = MaxRound THEN 0 ELSE state.bumps]
+
+\* Landing diagnostics are observed only while an outcome is live. The
+\* callers below have explicitly cleared outcome to "none"; StartGet
+\* initializes all four fields before reuse and ResolvePanel writes every
+\* successful landing value. Retain live diagnostics and the landing edge.
+ClearLanding(state) ==
+  [state EXCEPT !.landedPlacement = NoLocation,
+                !.landedTarget = "no-presentation",
+                !.landedSerial = 0, !.landedLive = FALSE]
+
+\* The finite serial budget never resets, including across Open. At its
+\* limit only the last pending request can still observe the world: keep
+\* every possible pick until Get resolves, then its exact target only.
+\* A closed final epoch or a fully settled spent budget can never navigate
+\* again. Neither condition imposes a production navigation limit.
+NavigationFinished(state) ==
+  (state.board = "closed" /\ state.epoch = MaxEpoch)
+    \/ (state.serial = MaxSerial /\ state.jumpStage = "none"
+         /\ state.intent # "jump" /\ state.lanePhase # "get")
+
+ObservedViewers(state) ==
+  LET possible ==
+        IF NavigationFinished(state) THEN {}
+        ELSE IF state.serial < MaxSerial THEN Presentations
+        ELSE IF state.intent = "jump" THEN Bindings(state.intentTarget)
+        ELSE IF state.jumpSerial = state.serial /\ state.jumpStage = "verify"
+          THEN Bindings(state.jumpTarget.session)
+        ELSE IF state.jumpSerial = state.serial
+                  /\ state.jumpStage \in {"context", "tab", "panel", "reattach", "done", "gone"}
+          THEN {state.jumpTarget.presentation}
+        ELSE {}
+  IN possible \ state.retired
+
+ClearNavigation(state) ==
+  \* Function application binds an evaluated record, so repeated field
+  \* reads do not reconstruct the caller's nested EXCEPT expression.
+  [value \in {state} |->
+    \* ServerRetire already canonicalizes its removed viewer. Before the
+    \* finite suffix, this projection is identity on reachable records.
+    IF value.serial < MaxSerial
+         /\ ~(value.board = "closed" /\ value.epoch = MaxEpoch)
+      THEN value
+      ELSE LET observed == TLCEval(ObservedViewers(value)) IN
+        [value EXCEPT
+           !.viewerLive = TLCEval([p \in Presentations |->
+                                    p \in observed /\ value.viewerLive[p]]),
+           !.deadSeen = TLCEval(@ \cap observed),
+           !.retired = IF NavigationFinished(value) THEN {} ELSE @]
+  ][state]
 
 \* ------------------------- board lifecycle -------------------------
 
@@ -150,7 +205,7 @@ Open ==
   /\ s.board = "closed"
   /\ ~s.laneAlive
   /\ s.epoch < MaxEpoch
-  /\ s' = [s EXCEPT !.board = "open", !.epoch = @ + 1, !.round = 0,
+  /\ s' = ClearNavigation(ClearLanding([s EXCEPT !.board = "open", !.epoch = @ + 1, !.round = 0,
                     !.laneAlive = TRUE, !.lanePhase = "idle",
                     !.laneRound = 0, !.intent = "none",
                     !.intentTarget = NoSession,
@@ -159,7 +214,7 @@ Open ==
                     !.jumpStage = "none", !.jumpTarget = NoTarget,
                     !.jumpSerial = 0, !.landedSerial = 0,
                     !.landedLive = FALSE, !.outcome = "none",
-                    !.paintable = TRUE, !.paneBytesAtOpen = s.paneBytes]
+                    !.paintable = TRUE, !.paneBytesAtOpen = s.paneBytes]))
 
 \* Observable reopen coverage: the second open is a distinct action name so
 \* the bounded run proves close → lane exit → reopen is actually exercised.
@@ -171,11 +226,15 @@ Reopen == s.epoch >= 1 /\ Open
 \* lane owns its outcome receiver, so nothing the dead lane computed can be
 \* delivered into the next epoch.
 CloseBoard ==
-  ClearWalk([s EXCEPT !.board = "closed", !.lanePhase = "exiting",
+  ClearNavigation(ClearLanding(ClearWalk([s EXCEPT !.board = "closed", !.lanePhase = "exiting",
             !.intent = "none", !.intentTarget = NoSession,
             !.jumpStage = "none", !.jumpTarget = NoTarget,
             !.jumpSerial = 0, !.outcome = "none",
-            !.serial = IF s.serial < MaxSerial THEN @ + 1 ELSE @])
+            \* Open initializes these before reuse. Closed-board actions
+            \* cannot read them; retain cache age and live world facts.
+            !.round = 0, !.bumps = 0, !.deadSeen = {},
+            !.paintable = TRUE, !.paneBytesAtOpen = s.paneBytes,
+            !.serial = IF s.serial < MaxSerial THEN @ + 1 ELSE @])))
 
 Close == s.board = "open" /\ s' = CloseBoard
 
@@ -223,7 +282,7 @@ BackdropPress ==
 PaneByte ==
   /\ s.board = "closed"
   /\ ~s.paneBytes
-  /\ s' = [s EXCEPT !.paneBytes = TRUE]
+  /\ s' = [s EXCEPT !.paneBytes = TRUE, !.paneBytesAtOpen = TRUE]
 
 \* ---------------------------- selection ----------------------------
 
@@ -266,9 +325,9 @@ RequestJump ==
   /\ s.board = "open"
   /\ s.selected \in s.rows
   /\ s.serial < MaxSerial
-  /\ s' = [s EXCEPT !.intent = "jump", !.intentTarget = s.selected,
+  /\ s' = ClearNavigation(ClearLanding([s EXCEPT !.intent = "jump", !.intentTarget = s.selected,
                     !.outcome = "none",
-                    !.serial = @ + 1]
+                    !.serial = @ + 1]))
 
 \* ------------------------------ lane ops -----------------------------
 
@@ -302,7 +361,7 @@ StartGet ==
   /\ s.laneAlive
   /\ s.lanePhase = "idle"
   /\ s.intent = "jump"
-  /\ s' = [s EXCEPT !.intent = "none", !.intentTarget = NoSession,
+  /\ s' = ClearNavigation([s EXCEPT !.intent = "none", !.intentTarget = NoSession,
                     !.lanePhase = "get",
                     !.jumpStage = "verify",
                     !.jumpTarget = [session |-> s.intentTarget,
@@ -312,7 +371,7 @@ StartGet ==
                     !.landedTarget = "no-presentation",
                     !.landedSerial = 0,
                     !.landedLive = FALSE,
-                    !.outcome = "none"]
+                    !.outcome = "none"])
 
 \* Each page response sees the revision the Server currently publishes. The
 \* first response pins the walk's revision; a page arriving under a different
@@ -372,11 +431,11 @@ GetResolve ==
   /\ s.jumpStage = "verify"
   /\ LET session == s.jumpTarget.session IN
        IF LiveBindings(session) = {}
-         THEN s' = [s EXCEPT !.lanePhase = "idle", !.jumpStage = "gone",
-                             !.outcome = "target-gone"]
-         ELSE s' = [s EXCEPT !.lanePhase = "idle", !.jumpStage = "context",
+         THEN s' = ClearNavigation([s EXCEPT !.lanePhase = "idle", !.jumpStage = "gone",
+                             !.outcome = "target-gone"])
+         ELSE s' = ClearNavigation([s EXCEPT !.lanePhase = "idle", !.jumpStage = "context",
                              !.jumpTarget = [session |-> session,
-                                             presentation |-> Pick(session)]]
+                                             presentation |-> Pick(session)]])
 
 \* A Get whose serial generation was superseded by a newer jump deposits
 \* nothing and leaves no navigation trace; a superseded staged jump dies
@@ -388,16 +447,17 @@ GetStaleDrop ==
   /\ s.board = "open"
   /\ s.lanePhase = "get"
   /\ ~JumpCurrent
-  /\ s' = [s EXCEPT !.lanePhase = "idle", !.laneRound = 0,
-                    !.jumpStage = "none", !.jumpTarget = NoTarget]
+  /\ s' = ClearNavigation([s EXCEPT !.lanePhase = "idle", !.laneRound = 0,
+                    !.jumpStage = "none", !.jumpTarget = NoTarget,
+                    !.jumpSerial = 0])
 
 StageStaleDrop ==
   /\ s.board = "open"
   /\ s.lanePhase = "idle"
   /\ s.jumpStage \in {"context", "tab", "panel", "reattach"}
   /\ ~JumpCurrent
-  /\ s' = [s EXCEPT !.jumpStage = "none", !.jumpTarget = NoTarget,
-                    !.outcome = "none"]
+  /\ s' = ClearNavigation(ClearLanding([s EXCEPT !.jumpStage = "none", !.jumpTarget = NoTarget,
+                    !.jumpSerial = 0, !.outcome = "none"]))
 
 \* ------------------------- staged navigation ------------------------
 
@@ -479,8 +539,8 @@ ResolveReattach ==
 JumpSettled ==
   /\ s.board = "open"
   /\ s.jumpStage \in {"done", "gone"}
-  /\ s' = [s EXCEPT !.jumpStage = "none", !.jumpTarget = NoTarget,
-                    !.jumpSerial = 0, !.outcome = "none"]
+  /\ s' = ClearNavigation(ClearLanding([s EXCEPT !.jumpStage = "none", !.jumpTarget = NoTarget,
+                    !.jumpSerial = 0, !.outcome = "none"]))
 
 \* ------------------------- server mutation --------------------------
 
@@ -493,14 +553,22 @@ JumpSettled ==
 ServerBump ==
   /\ s.board = "open"
   /\ s.bumps < 2
-  /\ s' = [s EXCEPT !.serverRevision = OtherRevision(s.serverRevision),
-                    !.bumps = @ + 1]
+  \* Relabel current to 1 after the original revision flips. Only the
+  \* pinned equality relationship changes; two bumps still permit ABA.
+  /\ s' = [s EXCEPT !.walkRev = IF @ = 0 THEN 0 ELSE OtherRevision(@),
+                    !.bumps = IF s.round = MaxRound /\ s.lanePhase # "list"
+                               THEN 0 ELSE @ + 1]
 
 ServerRetire ==
   /\ s.board = "open"
   /\ s.retired = {}
   /\ \E p \in Presentations:
-       s' = [s EXCEPT !.retired = {p}]
+       \* A retired binding never returns. Every resolver checks retirement
+       \* before viewer facts, so the removed viewer's death history is
+       \* unobservable. Its later environment death projects to stutter.
+       s' = ClearNavigation([s EXCEPT !.retired = {p},
+                     !.viewerLive = [@ EXCEPT ![p] = FALSE],
+                     !.deadSeen = @ \ {p}])
 
 \* A presentation's pane viewer dies under the board: canonical disposal or
 \* controller loss is world state the board merely observes. One death per
@@ -520,9 +588,16 @@ CooldownElapse ==
   /\ s.cooldown
   /\ s' = [s EXCEPT !.cooldown = FALSE]
 
-Next ==
-  \/ Open \/ Reopen \/ Close \/ UnpaintableClose \/ LaneExit
-  \/ BoardByte \/ OutsideWheel \/ BackdropPress \/ PaneByte
+\* All scopes share the real lifecycle primitives. Navigation never reads
+\* the local input or paint flags; input and paint retain their exact flags
+\* while irrelevant navigation actions project to stutter. The owning
+\* reference gives the forward Spec projections and fairness mapping.
+LifecycleNext ==
+  \/ Open \/ Reopen \/ Close \/ LaneExit
+  \/ BoardByte \/ OutsideWheel \/ BackdropPress
+
+NavigationNext ==
+  \/ LifecycleNext
   \/ SelectNext
   \/ RequestRefresh \/ RequestRefreshWhileJumpPending \/ RequestJump
   \/ StartList \/ StartListExhausted \/ StartGet
@@ -530,8 +605,20 @@ Next ==
   \/ GetResolve \/ GetStaleDrop \/ StageStaleDrop
   \/ ResolveContext \/ ResolveTab \/ ResolvePanel \/ ResolveReattach
   \/ JumpSettled
-  \/ ServerBump \/ ServerRetire \/ ViewerDies \/ PaintRefused
+  \/ ServerBump \/ ServerRetire \/ ViewerDies
   \/ CooldownElapse
+
+InputNext == LifecycleNext \/ PaneByte
+PaintNext == LifecycleNext \/ PaintRefused \/ UnpaintableClose
+CombinedNext == NavigationNext \/ PaneByte \/ PaintRefused \/ UnpaintableClose
+
+\* Constant empty/singleton domains select exactly one family. Unlike CASE,
+\* pinned TLC expands bounded existentials into the named primitive actions.
+Next ==
+  \/ \E scope \in {ModelScope} \cap {"navigation"}: NavigationNext
+  \/ \E scope \in {ModelScope} \cap {"input"}: InputNext
+  \/ \E scope \in {ModelScope} \cap {"paint"}: PaintNext
+  \/ \E scope \in {ModelScope} \cap {"combined"}: CombinedNext
 
 Spec == Init /\ [][Next]_vars
        /\ WF_vars(ListPage) /\ WF_vars(ListDeadline)

@@ -664,13 +664,10 @@ fn pane_press_on_reminted_incarnation_drops_without_focus() {
 }
 
 #[test]
-fn pane_press_on_readonly_pane_never_steals_focus() {
-    // A settled ReadOnly verdict on the target pane rejects the press
-    // outright: no FocusPanel action leaves the anchor where it was and
-    // no input reaches the pane. A content press is consumed with the
-    // pointer drop notice — the same negative adjudication the pending
-    // ReadOnly branch publishes — while a title-row press stays Client
-    // territory and drops quietly.
+fn pane_press_can_focus_a_readonly_tracking_pane_without_application_input() {
+    // Read focus is independent of the exact pane's application-input mode.
+    // Even a contradictory global input-ready flag cannot admit tracked
+    // program bytes through a settled ReadOnly leaf.
     let mut pointer = PointerState::default();
     pointer.set_capture(true);
     let mut view = ClientView::new(120);
@@ -678,6 +675,7 @@ fn pane_press_on_readonly_pane_never_steals_focus() {
         probe: {
             let mut probe = active_probe(0, 0, 1, 2);
             set_leaf(&mut probe, pane_leaf(1, 1, 2, 0, true, Some(false), true));
+            probe.frame = Some(frame_facts(MouseTracking::Button, MouseFormat::Sgr, false));
             probe
         },
         ..RecordingPort::default()
@@ -692,12 +690,14 @@ fn pane_press_on_readonly_pane_never_steals_focus() {
         view.notice(),
         Some(crate::client_view::Notice::PointerInputDropped)
     );
-    assert!(port.actions.is_empty());
+    assert_eq!(port.actions, [ClientAction::FocusPanel(panel_id(2))]);
+    assert_eq!(port.probe.focus, Some(pane_ref(1, 1, 2, 0)));
     assert!(port.forwarded.is_empty());
+    assert!(port.selections.is_empty());
     assert!(matches!(pointer.gesture, Gesture::Idle));
 
-    // The title row is never pane input: a read-only verdict drops it
-    // the same silent way an unfocused press on a live pane's title does.
+    // A title press on the now-focused read-only pane remains quiet.
+    port.actions.clear();
     let mut view = ClientView::new(120);
     assert!(
         !pointer
@@ -710,13 +710,10 @@ fn pane_press_on_readonly_pane_never_steals_focus() {
 }
 
 #[test]
-fn pane_press_on_unsettled_mode_pane_reports_drop_without_focus() {
-    // An attached sibling whose controller mode has not arrived yet
-    // (`None`, between Attached and SetupConfigured) cannot admit input
-    // either: a content press reports the same drop notice without a
-    // focus request the client could never turn into input, and the
-    // title row still drops quietly. `None` is not a permission verdict
-    // — the notice states a factual input drop only.
+fn pane_press_may_read_focus_an_unsettled_pane_without_input_and_wait_is_bounded() {
+    // An attached sibling can receive read focus before its mode settles.
+    // Its content press waits within the original deadline and cannot
+    // publish application input or a selection while the mode is unknown.
     let mut pointer = PointerState::default();
     pointer.set_capture(true);
     let mut view = ClientView::new(120);
@@ -724,6 +721,7 @@ fn pane_press_on_unsettled_mode_pane_reports_drop_without_focus() {
         probe: {
             let mut probe = active_probe(0, 0, 1, 2);
             set_leaf(&mut probe, pane_leaf(1, 1, 2, 0, true, None, true));
+            probe.frame = Some(frame_facts(MouseTracking::Button, MouseFormat::Sgr, false));
             probe
         },
         ..RecordingPort::default()
@@ -734,14 +732,24 @@ fn pane_press_on_unsettled_mode_pane_reports_drop_without_focus() {
             .event(&mut view, &mut port, now(), press(2, 2))
             .handled()
     );
+    assert_eq!(view.notice(), None);
+    assert_eq!(port.actions, [ClientAction::FocusPanel(panel_id(2))]);
+    assert!(port.forwarded.is_empty());
+    assert!(port.selections.is_empty());
+    assert!(matches!(pointer.gesture, Gesture::Pending(_)));
+    assert!(pointer.tick(
+        &mut view,
+        &mut port,
+        now() + PENDING_FOCUS_TIMEOUT + Duration::from_millis(1)
+    ));
+    assert!(matches!(pointer.gesture, Gesture::Idle));
     assert_eq!(
         view.notice(),
         Some(crate::client_view::Notice::PointerInputDropped)
     );
-    assert!(port.actions.is_empty());
-    assert!(port.forwarded.is_empty());
-    assert!(matches!(pointer.gesture, Gesture::Idle));
+    assert!(port.forwarded.is_empty() && port.selections.is_empty());
 
+    port.actions.clear();
     let mut view = ClientView::new(120);
     assert!(
         !pointer
@@ -2576,9 +2584,9 @@ fn pending_selection_starts_before_replay_and_prestart_failures_emit_nothing() {
         "Start admission precedes every replayed tail"
     );
 
-    // A new primary press replaces the local pending candidate. Since no
-    // Start was admitted yet, replacement itself emits neither Cancel nor
-    // any command for the old press.
+    // A released click can be replaced by a new pending click. Since no
+    // Start was admitted yet, replacement emits no command for the old
+    // click and preserves the original bounded focus wait.
     let mut pointer = PointerState::default();
     pointer.set_capture(true);
     let mut view = ClientView::new(120);
@@ -2589,15 +2597,24 @@ fn pending_selection_starts_before_replay_and_prestart_failures_emit_nothing() {
         &mut view,
         &mut port,
         at + Duration::from_millis(1),
+        event(MouseAction::Release, MouseButton::Left, 2, 2),
+    );
+    pointer.event(
+        &mut view,
+        &mut port,
+        at + Duration::from_millis(2),
         press(6, 4),
     );
     assert!(port.selections.is_empty());
+    assert!(matches!(&pointer.gesture, Gesture::Pending(pending)
+        if pending.deadline == at + PENDING_FOCUS_TIMEOUT
+            && pending.pressed_at == at + Duration::from_millis(2)));
     set_leaf(
         &mut port.probe,
         pane_leaf(1, 1, 2, 0, true, Some(true), true),
     );
     port.probe.frame = Some(frame_facts(MouseTracking::None, MouseFormat::Sgr, false));
-    pointer.tick(&mut view, &mut port, at + Duration::from_millis(2));
+    pointer.tick(&mut view, &mut port, at + Duration::from_millis(3));
     assert_eq!(
         port.selections,
         [(

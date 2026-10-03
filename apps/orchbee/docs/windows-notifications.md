@@ -57,22 +57,22 @@ part of this contract.
 
 ### Domain model and transitions
 
-| Field | Contract |
-| --- | --- |
-| Problem | A Client whose user has not seen a background terminal Agent transition needs one delayed local popup and, when enabled, one sound without changing Agent or Workbench state. |
-| Inputs | Complete physical rounds, full launch binding, semantic sequence, detected Agent label, `idle`/`working`/`blocked`/`unknown`, exact Client seen acknowledgement, monotonic time, accepted configuration revision and sink availability. Missing or unreadable rounds are absence, never an inferred transition. |
-| Data | The Client owns at most one current observation and one candidate per presentation. Candidate identity is the full presentation/generation/Host epoch/Host terminal binding plus sequence, kind, Agent label, due time, first eligible successful-draw serial and configuration revision. |
-| Outputs | `done` or `request` delivery commands, or explicit pending/cancelled/suppressed/no-op states. A command independently says whether popup and built-in sound are enabled. Sink failure is nonfatal and is not retried after acceptance. |
-| Dependencies | The pure reducer receives logical time and successful-draw facts. The attention owner supplies exact observations and seen events. The notification state supplies bounded sink admission. Only the TUI lifecycle owner writes OSC, submits a system balloon, paints a card or calls the sound API. |
-| Ownership | The Server remains the physical-report and configuration-publication owner. Each Client owns its observation acknowledgement and scheduler. The manual Server notification registry is not used for automatic events. |
+| Field        | Contract                                                                                                                                                                                                                                                                                                        |
+| ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Problem      | A Client whose user has not seen a background terminal Agent transition needs one delayed local popup and, when enabled, one sound without changing Agent or Workbench state.                                                                                                                                   |
+| Inputs       | Complete physical rounds, full launch binding, semantic sequence, detected Agent label, `idle`/`working`/`blocked`/`unknown`, exact Client seen acknowledgement, monotonic time, accepted configuration revision and sink availability. Missing or unreadable rounds are absence, never an inferred transition. |
+| Data         | The Client owns at most one current observation and one candidate per presentation. Candidate identity is the full presentation/generation/Host epoch/Host terminal binding plus sequence, kind, Agent label, due time, first eligible successful-draw serial and configuration revision.                       |
+| Outputs      | `done` or `request` delivery commands, or explicit pending/cancelled/suppressed/no-op states. A command independently says whether popup and built-in sound are enabled. Sink failure is nonfatal and is not retried after acceptance.                                                                          |
+| Dependencies | The pure reducer receives logical time and successful-draw facts. The attention owner supplies exact observations and seen events. The notification state supplies bounded sink admission. Only the TUI lifecycle owner writes OSC, submits a system balloon, paints a card or calls the sound API.             |
+| Ownership    | The Server remains the physical-report and configuration-publication owner. Each Client owns its observation acknowledgement and scheduler. The manual Server notification registry is not used for automatic events.                                                                                           |
 
-| Previous exact state | Current exact state | Result |
-| --- | --- | --- |
-| first observation, replacement binding, or changed Agent label | any | install a baseline; no candidate |
-| `working` | `idle` | schedule `done` |
-| `idle` or `working` | `blocked` | schedule `request` |
-| `unknown` | any | no candidate |
-| any other transition or repeated sequence | any | no new candidate; a state change cancels an older candidate |
+| Previous exact state                                           | Current exact state | Result                                                      |
+| -------------------------------------------------------------- | ------------------- | ----------------------------------------------------------- |
+| first observation, replacement binding, or changed Agent label | any                 | install a baseline; no candidate                            |
+| `working`                                                      | `idle`              | schedule `done`                                             |
+| `idle` or `working`                                            | `blocked`           | schedule `request`                                          |
+| `unknown`                                                      | any                 | no candidate                                                |
+| any other transition or repeated sequence                      | any                 | no new candidate; a state change cancels an older candidate |
 
 A candidate is eligible only after its delay and after at least one later successful complete draw,
 so zero delay still gives the visible pane an acknowledgement opportunity. At delivery the reducer
@@ -105,11 +105,11 @@ full time, version, generation, draw and configuration bounds. The two-Client co
 by the projection argument below and by deterministic two-Client Rust traces; it is not reported as
 a direct TLC enumeration of the Cartesian product.
 
-| Action frame | Actions |
-| --- | --- |
-| Shared logical clock only | `AdvanceTime` |
+| Action frame               | Actions                                                                                                                                                                                    |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Shared logical clock only  | `AdvanceTime`                                                                                                                                                                              |
 | One Client coordinate only | baseline installation; all four changed observations; replacement; unavailable; exact presentation; successful draw; valid reload; sink busy/available; emit; seen suppression; retirement |
-| Pure stutter | repeated observation; stale presentation; invalid reload; all-retired stutter |
+| Pure stutter               | repeated observation; stale presentation; invalid reload; all-retired stutter                                                                                                              |
 
 For a Client `c`, project a global behavior to `c`'s status, observation, identity generation,
 version, seen state, candidate, configuration, sink, draw, last-emitted position and violation

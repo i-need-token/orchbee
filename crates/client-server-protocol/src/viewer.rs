@@ -146,15 +146,11 @@ enum ViewerSelectionGestureDiscriminant {
     Cancel,
 }
 
+#[derive(Default)]
 enum ViewerSelectionGestureField<T> {
+    #[default]
     Missing,
     Present(T),
-}
-
-impl<T> Default for ViewerSelectionGestureField<T> {
-    fn default() -> Self {
-        Self::Missing
-    }
 }
 
 impl<'de, T> Deserialize<'de> for ViewerSelectionGestureField<T>

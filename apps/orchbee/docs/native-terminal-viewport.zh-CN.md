@@ -119,6 +119,9 @@ incarnation 与活动 attachment 的规范记录，且结果的 attachment 与�
   才进入有界等待——generation 值只与发出时的 generation 判等比较，绝不按数值排序。
 - 安装窗口不等于 committed。只有精确受理的 `RowsApplied` 才把 pending 锚点提升为
   committed。应答被拒 → 锚点丢失并带本地化提示进入恢复——绝不以陈旧绝对偏移伪造位置。
+  先前已提交的锚点在尺寸变化后保留，独立于新窗口待受理或在途的应答。尺寸变化丢弃新窗口
+  及其未受理应答；收到新事实后，可以刷新旧提交锚点，无需接受已丢弃的窗口。迟到应答
+  无法匹配已丢弃的窗口。
 - 本地行意图以正数表示移向更旧行。进入时将意图加到 `Tail{rows_before}`；committed 导航
   则对每段意图取反，因为 Host 将 wire `delta` 加到 committed **起始行**。在途与剩余意图
   保持本地符号。`Committed{delta}` read 每步界于 ±4096；更大的移动拆分为残量限界步，一次只发一步。
@@ -177,7 +180,9 @@ help 打开时 `PageUp` 仍归 help。
   暂存、已受理或已产出——都不超过当前在途 flight。宿主故障窗口结果不带已签发序号
   （`sq = 0`），不参与两两唯一性比较。
 - `AckAfterInstall`：`RowsApplied` 只对已安装窗口、匹配序号、精确一次。
-- `CommittedOnlyAfterAck`：`Committed` read 要求已受理的应答。
+- `CommittedOnlyAfterAck`：只有精确受理的应答才提升锚点，`Committed` read 使用先前
+  已受理的锚点。模型的 `CommittedNeedsAck` 在从未提交到已提交的迁移边上检查
+  `AckAccepted`，不要求当前窗口的应答在尺寸变化后持续存在。
 - `NoReadWhileAck`：应答待受理或在途期间不发出 read。
 - `SurfaceCurrent`：绘制的行永远匹配当前 generation 与列数。模型只把已绘制 generation
   约束为空或当前值，本身不证明正向绘制——绘制证据来自产品测试。
@@ -190,7 +195,8 @@ help 打开时 `PageUp` 仍归 help。
 - `HonestModes`：Live 保留普通应用键和 tracking；符合条件的 primary 屏幕向上滚轮
   可进入历史。非 Live 导航留在本地，普通输入先恢复实时。
 - `PaneIncarnationFence`：每个线上动作与事件都解析精确 `PaneRef` 与 attachment 租约；
-  死 incarnation 的结果丢弃。
+  死 incarnation 的事件和结果丢弃。受检动作性质让本 incarnation 的 `Lost` 保持终态；
+  重新附着归属于新的 incarnation。
 
 ## 源码对应
 
@@ -209,11 +215,60 @@ help 打开时 `PageUp` 仍归 help。
 
 ## 验证
 
-| 面           | 证据                                                                                                                                                                      |
-| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 核心迁移     | `terminal_viewport/tests` — 入场、导航合并、±4096 残量步、安装闸门、ack 提升、带类型拒绝、恢复、期限                                                                      |
-| 对抗序列     | 确定性 trace 测试 — 流浪/外来/陈旧窗口、带类型 stale 重试、减半、ack 拒绝、底部退出、绝对跳转                                                                             |
-| 输入边界     | `client_view` 测试 — `Ctrl+B PageUp` → `EnterHistory`、help 优先级；dispatcher 消费经端口缺省路径验证                                                                     |
-| 呈现         | surface 围栏归核心所有（`surface()` 每次复核 generation/列数）；画笔覆盖随 shell 渲染路径                                                                                 |
-| 结果通知接缝 | `ui/viewport_tests` — `publish_notice_before` → `take_event_before` → `apply_viewport_outcome` 回归保持协议开放；状态中性的 applied Enter 使 Entering 核心保持不变        |
-| 模型         | `formal/tla/TerminalClientViewport.tla` + `.cfg` 注册于 `scripts/tla/models.json`；暂存受理与有类型结果修订及受理边界 flight 与输入覆盖性质已映射，TLC 仍由门禁负责人待跑 |
+模型为有符号导航导入 `Integers`，并将所有已受理命令表示为三元组。无参数的 Enter、Recover
+和 Input 使用 `<<kind, 0, 0>>`，Read 与 Ack 保留序号和 generation。这一一对应的编码保持
+队列长度、顺序、受理与执行，避免 TLC 在字符串与元组之间进行相等比较，不改变生产命令
+的表示。注册配置检查完整可达图、全部声明的不变式、时序性质、公平条款及必需动作覆盖；
+有限域界仍是证据限制。
+
+### 观察量投影
+
+模型保留全部 35 个物理状态变量，投影掉最近动作标签 `action` 和最近发送增量见证
+`emitted_delta`；两者均不参与迁移守卫。命名 `Next` 动作和全部 26 个弱公平义务保持不变。
+每个公平动作都改变物理命令/结果队列、暂存槽、模式、事件待处理标记或期限，因此删除
+这两个见证保持其启用性和非 stutter 步。仅改变见证的非公平动作投影为原已允许的 stutter。
+在这些读者与生产者条件下，每条原受支持行为均投影到保留状态的规范。这是经过检查的
+表示推导，不是经 kernel 检查的普遍定理。
+
+`EmitLeavesStagedRead`、`CommittedReadGuard`、`BoundedDelta` 和 `InstallGates` 现在检查
+对应命名迁移的边，不再保留诊断状态。Committed 发送的有符号增量为
+`nav_delta - nav_delta'`，等于原 `chunk`；Tail 与 Init 产生零，其余迁移不产生增量。
+配置保留同样的 19 个断言名，分为 11 个状态不变量与 8 个时序性质，并为既有身份主张
+单独增加 `PaneIncarnationFence`。常量、动作覆盖和公平性不变，没有用状态约束缩窄探索。
+新增见证读者或增量生产者时必须
+重新核对本映射。
+
+现有 20 状态反例的重放检查这段已记录前缀上的物理投影与转换后的断言。驱动器推进
+固定记录，不证明原无限公平规范。五个从实际源码派生的故障分别检查非法提交提升、
+错误暂存序号、清掉已提交锚点、超界 Committed 增量以及安装后未释放 flight。
+这些定向检查补充注册的完整状态图检查与原生核心测试，不替代两者，也不意味着独立审查。
+
+`Lost` 表示此 incarnation 的 Client 核心已经不存在。迟到的历史事件被消费，但不改变
+Client 事实、已接受事件序号或暂存命令；受理要求仍拥有核心。这对应
+`NativeUi::clear_pane_projection`、`apply_poll_result` 中的精确键核对以及
+`apply_viewport_outcome` 中的核心存在性核对。宿主状态和已经受理的队列继续独立表示。
+已知可达前缀后依次移除、锚点驱逐、事件投递与尝试受理，可区分缺失围栏和受支持迁移；
+UI 测试也在投影移除后投递迟到事实与结果。
+
+丢失核心投影仅在此 incarnation 进入 `Lost` 后，把已消失的 17 个核心字段归到重置值：
+事实、窗口/ack、flight、导航、refresh、期限、重试标记、恢复完成、绘制 generation 与
+暂存。其余 18 个字段保留模式、已签发 read 水位、已受理队列、结果、投递、已接受事件
+见证以及宿主状态。活动状态不变。Lost 模式的守卫不会读取已消失字段来生成新核心或
+线上命令；结果与事件消费保持保留状态。参考中的丢失核心期限只能执行有限次 tick，
+投影为 stutter。其他公平步骤仍改变保留状态或保持禁用，`EnteredResolves` 只依赖模式。
+在此 incarnation 终态和读者闭包下，归零保持受支持的安全与进展观察。这是经过检查的
+表示推导，不是经 kernel 检查的普遍证明。
+
+单步边界检查器对 20 个已记录状态及其移除后的对应状态，核对参考 `Next`、全部 11 个
+状态断言和 8 个安全动作性质。其 357 个不同状态是局部证据，不是完整公平规范。
+三个负向对照分别检出清掉已受理线上命令、归零活动核心以及丢失已签发 read 水位。
+注册的完整状态图检查保留全部常量、动作覆盖和 26 个公平义务，不增加探索约束。
+
+| 面           | 证据                                                                                                                                                                        |
+| ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 核心迁移     | `terminal_viewport/tests` — 入场、导航合并、±4096 残量步、安装闸门、ack 提升、带类型拒绝、恢复、期限                                                                        |
+| 对抗序列     | 确定性 trace 测试 — 流浪/外来/陈旧窗口、带类型 stale 重试、减半、ack 拒绝、底部退出、绝对跳转                                                                               |
+| 输入边界     | `client_view` 测试 — `Ctrl+B PageUp` → `EnterHistory`、help 优先级；dispatcher 消费经端口缺省路径验证                                                                       |
+| 呈现         | surface 围栏归核心所有（`surface()` 每次复核 generation/列数）；画笔覆盖随 shell 渲染路径                                                                                   |
+| 结果通知接缝 | `ui/viewport_tests` — `publish_notice_before` → `take_event_before` → `apply_viewport_outcome` 回归保持协议开放；状态中性的 applied Enter 使 Entering 核心保持不变          |
+| 模型         | `formal/tla/TerminalClientViewport.tla` + `.cfg` 注册于 `scripts/tla/models.json`；合并检查运行完整有界规范和必需动作覆盖，包括暂存 flight、输入覆盖与丢失 incarnation 围栏 |

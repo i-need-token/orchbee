@@ -4,6 +4,36 @@ use serde_json::Value;
 use std::collections::BTreeSet;
 
 #[test]
+fn notification_configuration_failure_v9_admits_current_details_and_keeps_older_versions_closed() {
+    let schema: Value =
+        serde_json::from_str(super::document("orchbee.cli.failure.configuration").unwrap())
+            .unwrap();
+    let validator = jsonschema::validator_for(&schema).unwrap();
+    for (field, reason) in [
+        ("ui.sound", "wrong-type"),
+        ("ui.toast", "invalid-delay"),
+        ("ui.sound", "too-many-agents"),
+    ] {
+        let mut document = serde_json::json!({
+            "schema": "orchbee.cli.failure.configuration",
+            "version": 9,
+            "failure": {
+                "kind": "check-failed",
+                "details": { "field": field, "reason": reason }
+            }
+        });
+        assert!(validator.is_valid(&document), "{field}: {reason}");
+        for version in 1..=8 {
+            document["version"] = version.into();
+            assert!(!validator.is_valid(&document), "legacy version {version}");
+        }
+        document["version"] = 9.into();
+        document["failure"]["details"]["extra"] = true.into();
+        assert!(!validator.is_valid(&document));
+    }
+}
+
+#[test]
 fn configured_catalog_and_receipts_publish_closed_native_schema() {
     let schema: Value = serde_json::from_str(super::document("orchbee.command").unwrap()).unwrap();
     let validator = jsonschema::validator_for(&schema).unwrap();

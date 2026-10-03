@@ -646,6 +646,12 @@ now includes `StructuralWriteAdmitted` plus the scope family
 a recorded TLC pass over the extended coverage is still owed and is not claimed
 here.
 
+`ScopeResumeGenerationFenced` distinguishes initial admission from Resume: admission
+changes the absent generation zero to open generation one and captures the current
+membership. Every later generation change requires blocked-to-open Resume, exactly
+one increment, and unchanged captured membership. Generation zero is the model
+sentinel for an unadmitted record; it is never a runtime attempt generation.
+
 [`WorkbenchTabCloseCreateReference`](../formal/tla/WorkbenchTabCloseCreateReference.tla) explores
 three never-reused lifetime identities, at most two live members, three retained Create records,
 one Move, one Rename, and Started/Unknown creation outcomes. Started carries the independently

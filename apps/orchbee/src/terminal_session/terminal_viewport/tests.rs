@@ -932,7 +932,7 @@ fn position_tracks_current_window_only() {
 // the staged acknowledgement for the discarded window never reaches the
 // wire — while an already-admitted Recover is preserved.
 #[test]
-fn resize_drops_staged_wire_steps() {
+fn resize_drops_staged_ack_and_preserves_the_previously_acknowledged_anchor() {
     let mut viewport = viewing(80, 24);
     viewport.nav(ViewportNav::Lines(-5));
     let steps = drain(&mut viewport);
@@ -956,6 +956,31 @@ fn resize_drops_staged_wire_steps() {
     viewport.resize(120, 30, Instant::now());
     // The staged Ack died with the old geometry: it never emits.
     assert_eq!(drain(&mut viewport), Vec::<ViewportStep>::new());
+    assert!(matches!(
+        viewport.surface(),
+        ViewportSurface::AwaitingWindow
+    ));
+    // A late acceptance for the discarded window cannot install or promote it.
+    let effect = viewport.ack_outcome(request_sequence, true);
+    assert!(!effect.live && effect.notice.is_none());
+    assert!(drain(&mut viewport).is_empty());
+    // The earlier accepted anchor survives independently of the new window's
+    // cancelled Ack. Fresh facts refresh that anchor at the new geometry.
+    viewport.facts(facts_event(2, 2, HistoryAnchorStatus::Valid));
+    let steps = drain(&mut viewport);
+    assert!(
+        matches!(
+            steps.as_slice(),
+            [ViewportStep::Read {
+                origin: ViewportRowOrigin::Committed { delta: 0 },
+                row_count: 30,
+                generation,
+                request_sequence: next_sequence,
+                ..
+            }] if generation.get() == 2 && next_sequence > &request_sequence
+        ),
+        "fresh geometry must refresh the previously accepted anchor: {steps:?}"
+    );
 }
 
 #[test]

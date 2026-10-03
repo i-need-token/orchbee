@@ -155,9 +155,9 @@ for Java's stdio to close before parsing its final report.
 
 Independent model/configuration checks share a resource-budgeted queue. Automatic slots are bounded
 by available processors and 60% of machine memory (respecting a reported process memory limit),
-allowing 2 GiB of heap plus 512 MiB of non-heap reserve per slot. Pass `--jobs N` with a positive
+allowing 4 GiB of heap plus 512 MiB of non-heap reserve per slot. Pass `--jobs N` with a positive
 integer for explicit concurrency. Every JVM receives an explicit `-Xmx`: divide the aggregate budget
-among active slots, subtract the reserve, and cap each heap at 2 GiB; reject allocations below
+among active slots, subtract the reserve, and cap each heap at 4 GiB; reject allocations below
 256 MiB per JVM. This is a sizing budget, not an OS memory limit. Per-model TLC worker counts remain
 unchanged. Variants share slots, but required coverage combines only within one model after all its
 variants succeed.

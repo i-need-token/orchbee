@@ -5,7 +5,7 @@ const defaultVariant = { name: 'default' };
 const mebibyte = 1024 ** 2;
 const minimumHeapMiB = 256;
 const processReserveMiB = 512;
-const maximumHeapMiB = 2048;
+const maximumHeapMiB = 4096;
 
 /** Budget explicit JVM heaps together, leaving 40% of memory for other processes. */
 export function modelConcurrency(requested, processors, memoryBytes) {

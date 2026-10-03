@@ -236,45 +236,43 @@ unmodeled — deterministic reducer and scripted-carrier tests own those claims.
 | `default`           | two panes, two anchors, two incarnations, `MaxViewers = 2`        | —                            | —                           |
 | `viewer-contention` | same bounds with `MaxViewers = 1` — real shared-budget contention | —                            | —                           |
 
-The delivered-input witness is kept as a summary rather than a sequence. The model
-once carried `appliedInputs`, a ghost log of every delivered control input whose only
-readers were its `MaxLog` length bound, the `Len < MaxLog` append guard inside
-`ExecuteControl`, and the per-entry `tag = delivered` safety check — entry pane fields,
-order, and duplicates had no consumers. The model therefore stores the abstraction
-`alpha(X, L) = (X, Len(L), forall l in L: l.tag = l.delivered)` as
-`(appliedCount, allTaggedValid)`: `Init` maps the empty log to `(0, TRUE)`; the 22
-actions that left the log unchanged commute trivially with `alpha`; and
-`ExecuteControl`, the only writer, keeps its guard on `appliedCount < MaxLog` and folds
-each delivery into the assigned conjunction with the actual
-`inflight.incarnation = viewer[p]` comparison — written
-`allTaggedValid' = (allTaggedValid /\ (...))` with explicit parentheses, never a
-constant `TRUE`. The parentheses are load-bearing, not stylistic: equality binds
-tighter than `/\`, so the unparenthesized form parses as
-`(allTaggedValid' = allTaggedValid) /\ comparison` and turns the comparison into an
-extra enablement guard — a FALSE comparison then makes the whole action produce no
-successor (it does not fall through to the `ELSE` branch), so a mismatched delivery
-could never be recorded. The saturated path (`appliedCount = MaxLog`) still consumes
-the command without recording, exactly as the sequence version skipped the append, so
-the post-saturation blind spot is identical in both representations. Fairness is
-unchanged: every weak-fairness guard reads only preserved state, and any step that
-changed the log already changed the summary, so enabled-ness and non-stuttering
-survive the quotient. `InputsDeliverOnlyToTaggedLiveFocus` is now exactly
-`allTaggedValid`; the other invariants and the liveness property never read the log.
-The correspondence is an exact bisimulation on reachable states, not a one-way safety
-over-approximation: every summary state has a concrete lift, and each quotient step is
-implementable from any lift because guards read only `X` and the count.
+The delivered-input witness stores `allTaggedValid`, the conjunction of actual identity
+comparisons, rather than an input sequence or prefix count. The prior sequence was already
+represented by `(appliedCount, allTaggedValid)`; its `MaxLog = 3` bound capped only that
+ghost prefix. It never capped command execution: `ExecuteControl` always cleared `inflight`,
+including when the prefix was saturated.
 
-The control-command kind is likewise a quotient, not a payload model. Everywhere the
-model reads a kind it only asks membership (`in ControlKinds`), the `"poll"` equality,
-or the `Idle` sentinel — nothing ever distinguishes `input` from `resize`, so the
-model carries a single `control` label and `CommandKinds = {"control", "poll"}`. The
-mapping `beta(input) = beta(resize) = control`, `beta(poll) = poll`,
-`beta(idle) = idle` preserves every variable field (pane, incarnation, `focusAdmitted`), every
-action's enablement, all seven weak-fairness guards and the non-stuttering relation —
-no action only flips the sub-label — and every quotient step lifts back to a same-named
-concrete step at either `input` or `resize`. The real Rust `Input` and `Resize`
-commands stay fully distinct; this model claims nothing about their respective
-payloads, geometry, or byte encodings.
+The current projection is `alpha(X, count, valid) = (X, valid)`. The only count writer was
+`ExecuteControl`. Its delivery branch already requires a nonzero viewer, the exact
+`viewer[p] = inflight.incarnation` identity and a live record. When an unsaturated prefix
+appended a comparison, that same comparison was therefore true, so `valid /\ comparison`
+equaled `valid`. A saturated prefix left `valid` unchanged. Both paths have the same projected
+successor; all other actions only left the count unchanged. The model retains the explicit,
+parenthesized comparison fold and never assigns constant `TRUE`, so a wrong-viewer mutation
+still writes a false witness instead of becoming an extra admission guard.
+
+Every projected step lifts from any legal prior count: start at zero, increment only on an
+admitted delivery while below `MaxLog`, and retain the saturated count thereafter. The preserved
+fields and Boolean have exactly the same successor. `MaxLog` remains the positive configuration
+of that concrete ghost lift; the executable projection does not store the prefix length. Its
+removal does not remove a product delivery limit, because neither representation imposed one.
+The role, queue, frame, viewer and incarnation bounds remain unchanged.
+
+All seven weak-fair actions retain their enablement. In particular, every `ExecuteControl`
+changes a non-idle `inflight` to the idle slot, so erasing its counter cannot erase a non-stuttering
+fair step. `TypeOK` drops only the private count conjunct; its lift always stays in `0..MaxLog`.
+The remaining invariants and the liveness property preserve their exact observations. This is
+an exact bisimulation with the prior bounded witness. The mapping depends on the delivery guard
+establishing the same identity comparison; changing that guard or introducing a new prefix reader
+requires a new mapping. A boundary check of the actual old/new control actions must include zero,
+unsaturated and saturated counts, both Boolean values, and matching or mismatching viewers; it
+supports this local mapping and does not replace the full registered family checks.
+
+The model retains distinct `control` and `resize` kinds. `Admitted` treats control as a frozen
+logical target, while resize and poll require the exact record incarnation; focus provenance is
+also checked specifically for control. Execution observes their shared `ControlKinds` membership.
+The real Rust `Input` and `Resize` commands remain distinct, and this model claims nothing about
+their payloads, geometry or byte encodings.
 
 The three `RejectStale*` actions keep their names and their stale existential guards but no
 longer update state: each is `IF (\E d : G(d)) THEN UNCHANGED X ELSE FALSE`, a guarded
@@ -327,8 +325,8 @@ Temporary mutants (kept outside the repository) confirm the checked properties a
 - Letting `ExecuteControl` record a delivery attributed to the sibling pane's viewer — a
   wrong-delivery mutant — is the intended control for `InputsDeliverOnlyToTaggedLiveFocus`: the
   first legal delivery to `p0` then folds `inflight.incarnation = viewer[p1]` (`1 = 0`) into
-  `allTaggedValid` as `FALSE` through the parenthesized conjunction while the count still
-  increments and the real admission gate is preserved. With the earlier unparenthesized
+  `allTaggedValid` as `FALSE` through the parenthesized conjunction while the real admission
+  gate is preserved. With the earlier unparenthesized
   expression this mutant could not surface a violation: the FALSE comparison acted as an extra
   guard and produced no successor rather than a FALSE flag.
 

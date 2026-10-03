@@ -98,7 +98,10 @@ fn workspace_metadata_query_batches_fail_closed_and_share_original_deadline() {
         let start = Instant::now();
         let output = fixture.run(&args);
         let elapsed = start.elapsed();
-        server.join().unwrap();
+        assert!(
+            server.join().is_ok(),
+            "{case}: peer failed after {elapsed:?}; CLI output: {output:?}"
+        );
         let doc = document(&output);
         if matches!(case, "stable" | "empty" | "get") {
             assert!(output.status.success(), "{case}: {doc}");

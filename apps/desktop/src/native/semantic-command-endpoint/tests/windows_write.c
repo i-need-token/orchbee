@@ -187,6 +187,16 @@ int main(int argc, char **argv) {
     require(write.result == OB_SEMANTIC_ENDPOINT_CONNECTION_CLOSED && write.written == 77,
         "peer close during flush fails without claiming delivery");
 
+    client = authenticated_client(server, name, 'D');
+    hold_flush = TRUE;
+    thread = start_write(&write, server, 1000);
+    await_event(flush_entered);
+    CloseHandle(client);
+    SetEvent(release_flush);
+    finish_write(thread); hold_flush = FALSE;
+    require(write.result == OB_SEMANTIC_ENDPOINT_CONNECTION_CLOSED && write.written == 77,
+        "peer close before flush dispatch cannot claim delivery");
+
     client = authenticated_client(server, name, 'E');
     fail_thread = TRUE;
     thread = start_write(&write, server, 1000);

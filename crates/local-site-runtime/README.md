@@ -184,6 +184,10 @@ CLOEXEC. Each managed Rust role (Client, Server, Worker) validates all four exec
 on warm startup.
 Host consumes the verified sibling executable; it does not implement the manifest reader.
 
+The root development and test profiles compile the existing `sha2` dependency at optimization
+level 3 so large debug executables can be hashed efficiently. Application code retains its normal
+debug profile. Cohort validation still consumes the caller's original deadline.
+
 The `agent-observation-adapters` sibling directory is a lazily admitted sidecar. `NativeCohort`
 never opens, traverses, or validates the payload during startup; it exposes only the fixed sidecar
 directory and the manifest-declared digest through `observation_adapters_sidecar()`. The first

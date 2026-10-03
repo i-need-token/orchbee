@@ -744,7 +744,10 @@ typedef struct {
 
 static DWORD WINAPI flush_pipe(LPVOID argument) {
     FlushOperation *operation = argument;
-    if (FlushFileBuffers(operation->pipe)) {
+    // Closing before dispatch can discard unread bytes yet make flush succeed.
+    // Peek observes the same owned overlapped pipe without consuming input.
+    if (FlushFileBuffers(operation->pipe) &&
+        PeekNamedPipe(operation->pipe, NULL, 0, NULL, NULL, NULL)) {
         operation->status = OB_SEMANTIC_ENDPOINT_OK;
     } else {
         const DWORD error = GetLastError();

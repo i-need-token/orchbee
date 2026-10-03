@@ -87,7 +87,24 @@ Windows two-Client history observations without focus or viewport changes.
 
 The registered `ClientViewControl` TLA model abstracts owner routing, publication fences, one delivery, UI effects, drawing, interruption and receipt retirement. Exact duration, capacity and serialization bounds belong to maintained executable tests. The Server registry is a deterministic state owner over admitted generation, Client samples, monotonic time, queued/delivered commands and completed observations. The authenticated carrier is an adapter. The TUI controller owns ordered semantic steps; the connection lane owns transport and joining; CLI owns selection, one submission and bounded waiting. No owner writes another's private state.
 
-Evidence must cover owner isolation, two Clients, stale/frozen UI, revision changes, no delivery replay, duplicate/conflicting identities, capacity/expiry, partial execution, human-input interference, disconnect and shutdown. Generated stateful traces retain reduced counterexamples. Shared Rust/TypeScript/schema fixtures and frame limits establish bounded contract agreement. Controlled Windows ConPTY traces must show CLI selection reaching the intended Client and successful drawing, with the other Client unchanged. Herdr `e0507237ad8d41f60aece10d00ef29ce2339ca34` focus/zoom handlers are the selected behavioral reference; the separate Client routing is Orchbee's architecture. TLA execution is deferred by the user; model assets and unexecuted checks must be reported honestly. Same-author checks do not imply independent review.
+The model normalizes an operation's `expected` revision to zero after it leaves `queued` or
+`delivered`. Its projection retains every other state field and retains `expected` while Pending.
+Every guard reading that revision requires a Pending status, Submit stamps it before use, and the
+bounded model never returns a submitted operation to `absent`. Completion and Disconnect clear only
+the affected expectations. Init projects identically, and each original action projects to the same
+named action or admitted stutter. All 11 invariants, two Clients, five operations, revision bound,
+shared layout budget, action coverage, and the safety-only `Spec` remain unchanged. This removes
+unused model history; runtime command envelopes, retained receipts, and conflict comparisons still
+retain their complete original data.
+
+Typed local action-boundary checks instantiate both actual modules and check initial, type, and
+single-step projection. Negative controls clear a Pending expectation or retain a completed one and
+must violate that mapping. Those checks do not establish full reachable-state coverage or a
+kernel-checked universal theorem; the registered complete-graph check remains required. Adding a
+completed-expectation reader, changing replay semantics in the model, or permitting operation reuse
+requires revisiting the projection.
+
+Evidence must cover owner isolation, two Clients, stale/frozen UI, revision changes, no delivery replay, duplicate/conflicting identities, capacity/expiry, partial execution, human-input interference, disconnect and shutdown. Generated stateful traces retain reduced counterexamples. Shared Rust/TypeScript/schema fixtures and frame limits establish bounded contract agreement. Controlled Windows ConPTY traces must show CLI selection reaching the intended Client and successful drawing, with the other Client unchanged. Herdr `e0507237ad8d41f60aece10d00ef29ce2339ca34` focus/zoom handlers are the selected behavioral reference; the separate Client routing is Orchbee's architecture. Registered TLA execution is required for model or abstracted-behavior changes; unexecuted checks must be reported honestly. Same-author checks do not imply independent review.
 
 ### Targeted zoom toggle
 

@@ -379,11 +379,15 @@ ScopeMembershipFrozenWhileOpen == [][
   ScopeOpen /\ s.scope'.phase # "closed" =>
     s.scope'.members = s.scope.members]_vars
 
+(* Initial admission creates generation one; only subsequent changes resume. *)
 ScopeResumeGenerationFenced == [][
   s.scope'.generation # s.scope.generation =>
-    /\ s.scope.phase = "blocked" /\ s.scope'.phase = "open"
-    /\ s.scope'.generation = s.scope.generation + 1
-    /\ s.scope'.members = s.scope.members]_vars
+    \/ /\ s.scope.phase = "absent" /\ s.scope'.phase = "open"
+       /\ s.scope.generation = 0 /\ s.scope'.generation = 1
+       /\ s.scope'.members = Members(s.tabs)
+    \/ /\ s.scope.phase = "blocked" /\ s.scope'.phase = "open"
+       /\ s.scope'.generation = s.scope.generation + 1
+       /\ s.scope'.members = s.scope.members]_vars
 
 ScopeClosedIsTombstone == [][
   s.scope.phase = "closed" =>

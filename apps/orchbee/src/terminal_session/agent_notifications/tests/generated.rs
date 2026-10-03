@@ -357,7 +357,7 @@ impl World {
                 self.facts[client].push(Fact::Gap);
             }
             3 => self.round(client)?,
-            4 | 5 | 6 => {
+            4..=6 => {
                 let identity = self.sources[pane].identity.clone();
                 let sequence = self.sources[pane].sequence;
                 if action.kind == 6 {
@@ -399,7 +399,7 @@ impl World {
                     .configure(self.revision[client], self.policy[client].clone());
                 self.facts[client].push(Fact::Configuration);
             }
-            10 => self.take(client, action.value % 2 != 0)?,
+            10 => self.take(client, !action.value.is_multiple_of(2))?,
             11 => {
                 let before = self.schedulers[client].clone();
                 let duplicate = self.sources[pane].clone();

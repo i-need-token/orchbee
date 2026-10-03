@@ -237,10 +237,12 @@ fn run_prepared_surface(
     locale: Locale,
     inherited: InheritedTerminal,
     dimensions: WindowDimensions,
-    mut terminal_input: Box<dyn TerminalSurface>,
+    terminal_input: Box<dyn TerminalSurface>,
     mouse: bool,
     notice: Option<crate::client_view::Notice>,
 ) -> Result<(), TuiFailure> {
+    #[cfg(windows)]
+    let mut terminal_input = terminal_input;
     let mut initial_view = ClientView::new(dimensions.columns);
     if let Some(notice) = notice {
         initial_view.startup_notice(notice);

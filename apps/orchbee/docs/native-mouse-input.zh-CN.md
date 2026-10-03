@@ -65,13 +65,13 @@ stale-map 边界退化为普通 Tab 选择，而不是聚焦一个不可达的 p
 | `Selection` | 已聚焦且未跟踪鼠标的 pane 为其精确 attachment 和投影 generation 拥有一个 Host 选择手势。motion 在 pane 内合并；release 留在最新 motion 之后，并且只有 Host 接受的活动 end 才能请求复制。   |
 | `Pending`   | 落在未聚焦 pane 上的 press 触发了 `FocusPanel`；该 press 与随后的输入排队（FIFO，上界 16，motion 合并为最新 cell），直至切换就绪。溢出在任何新输入被接受之前取消并报告有界的输入丢弃说明。 |
 
-就绪判定对新鲜探测做出，绝不比较缓存序号或代次差值：仅当被记录的 `tab`/`panel` 身份仍解析
-且为选择 anchor、无切换在途（`attached == desired`）、输入准入开启（`input_ready`——与
-`forward` 自身相同的 Ready 阶段加 `Controlling` 门；仅安装了 attachment key 仍是收敛中的
-切换，不是就绪目标）、且 desired attachment 已有当前帧时，排队手势才被放行。已就绪但
-anchor 移到别处的切换、消失的身份、就绪的 `ReadOnly` 裁决或两秒期限各自取消该手势——
-`ReadOnly` 与超时会报告说明；同代本地 focus 复用已安装 attachment 时以同样方式准入：
-attachment 身份跟随 anchor。取消绝不把排队输入重放到别的 pane，也绝不追随新的焦点目标。
+就绪判定对新鲜探测做出，绝不比较缓存序号或代次差值。排队 press 等待其精确记录的 pane
+实例仍有 attachment、成为 desired focus、mode 已明确，并具有可用的当前帧。读取就绪允许在
+不跟踪鼠标的 `ReadOnly` pane 上进行 Client 选择。应用输入独立要求 `input_ready`、精确 leaf
+的 `Controlling` mode 和实时视口；历史中的跟踪 pane 在本地消费队列。实例消失或被替换，或
+焦点被改到别处时，取消而不重放。原始两秒期限到达后取消，并报告输入丢弃说明。Start 尚未
+准入时，已松开的点击可以被同一已绘制 pane 上的新 press 替换，但未松开的重复 press 不能
+替换它、重置期限或绕过队列上限。同代本地 focus 复用已安装 attachment 时以同样方式准入。
 
 Modal 输入捕获（draft 或已 arm 的确认）吞掉指针事件而不产生手势；modal 自身的外点规则不
 变——普通 overlay 在外点 press 时关闭，modal 表面则吞掉它。
@@ -94,13 +94,11 @@ Modal 输入捕获（draft 或已 arm 的确认）吞掉指针事件而不产生
   与 Herdr 的 cell 降级一致。tracking、修饰键、release 按钮身份、夹取和 motion 去重
   保持普通 SGR 规则。这不提供精确像素输入，也不推测 cell 中心；宿主捕获仍以 cell
   为单位，绝不开启 `?1016`。
-- 字节投递复用既有 `forward` 路径，因此 `Controlling` 检查、只读拒绝与确认语义不变。
-  `ReadOnly` attachment 丢弃指针输入而不隐式 acquire。对当前无法为本 Client 准入输入的
-  pane 的新未聚焦 press 当场裁决——既包括裁决已就绪的 `ReadOnly`，也包括 mode 尚未在
-  `Attached` 与 `SetupConfigured` 之间到达的未就绪 pane：content press 报告有界的输入
-  丢弃说明，title 行保持 Client territory 静默丢弃，且不发出 `FocusPanel`、不打开手势。
-  该说明仅陈述输入被丢弃这一事实；未就绪的 mode 不是权限裁决。mode 报告 `Controlling`
-  的 pane 仍走普通本地 focus 路径，已被接受的 focus 切换仍按 pending 手势结算。
+- 字节投递复用既有 `forward` 路径，包括其 `Controlling` 检查、只读拒绝与确认语义。
+  有 attachment 的 pane 可以获得本地读取焦点，不依赖输入权限；title 行 press 只聚焦而不
+  发送 pane 输入。mode 仍未知的 content press 在原始 pending 期限内等待。跟踪 pane 一旦
+  明确为 `ReadOnly`，其属于程序的 press 就会被丢弃并报告输入说明，不隐式 acquire。读取焦点
+  绝不代替应用输入权限，历史也绝不把属于程序的跟踪手势改为 Client 选择。
 
 ## 滚轮回退
 

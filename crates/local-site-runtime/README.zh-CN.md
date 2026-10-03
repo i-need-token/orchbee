@@ -152,6 +152,9 @@ Host 端点的绝对地址在 `host` 目录或 Host 进程出现之前先按平�
 以 NOFOLLOW 和 CLOEXEC 打开。每个托管 Rust 角色（Client、Server、Worker）都校验全部四个可执行文件，热启动也如此。
 Host 消费已验证的相邻可执行文件，不实现清单读取。
 
+根工作区的开发与测试 profile 以优化级别 3 编译现有 `sha2` 依赖，使较大的调试可执行文件能高效完成哈希。
+应用代码保留正常的 debug profile。cohort 校验仍消耗调用者的原始截止期限。
+
 `agent-observation-adapters` 相邻目录是惰性准入的 sidecar。`NativeCohort` 在启动期间不打开、不遍历、
 不校验负载；仅通过 `observation_adapters_sidecar()` 暴露固定的 sidecar 目录与清单声明的摘要。
 首个集成消费者在首次使用时私有校验该目录，并返回类型化的 unavailable 或 invalid 结果；

@@ -529,6 +529,11 @@ Close：一次准入在结构写入栅栏下冻结完整有序叶子成员关系
 与 `ObserveScopeTombstoneAfterRemoval`。这些动作是已注册的要求；对扩展覆盖的
 TLC 记录通过仍待完成，本文不声称已通过。
 
+`ScopeResumeGenerationFenced` 区分首次准入与 Resume：准入把 absent 的代次零变为
+open 的代次一，并捕获当前成员关系。此后每次代次变化都要求 blocked 到 open 的
+Resume、恰好递增一次且捕获成员不变。代次零仅是模型中尚未准入记录的哨兵，
+不会成为运行时尝试代次。
+
 [`WorkbenchTabCloseCreateReference`](../formal/tla/WorkbenchTabCloseCreateReference.tla) 探索
 三个永不复用的生命周期身份、最多两个存活成员、三个保留 Create 记录、一次 Move、一次 Rename
 及 Started/Unknown 创建结果。Started 携带 Close 所需、独立保留的精确当前代次身份；Unknown

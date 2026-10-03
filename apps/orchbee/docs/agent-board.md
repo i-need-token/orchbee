@@ -90,6 +90,45 @@ modal. `LandedIsLive` records the landing-time observation; the registered edge 
 exact target's viewer live in the pre-state — a later ViewerDies cannot falsify a landing
 that was legal when it happened.
 
+The registered family checks three projections of the combined machine, each with the same two
+epochs, two rounds and serial budget three. `ModelScope` is private verification configuration:
+
+| Projection   | Checked observations                                                                             | Preserved fairness                             |
+| ------------ | ------------------------------------------------------------------------------------------------ | ---------------------------------------------- |
+| `navigation` | List/Get, cached rows, selection, exact staged landing, viewer death/reattach and lane lifecycle | All navigation-stage and lane-exit obligations |
+| `input`      | Open-board input equality and the shared lifecycle                                               | Lane exit                                      |
+| `paint`      | Paint refusal, eventual close and the shared lifecycle                                           | Unpaintable close and lane exit                |
+
+Only the `Next` dispatcher selects an event family; primitive actions, their guards and the
+configured invariants/properties are shared unchanged. Its bounded existential branches have
+constant empty or singleton domains. They select exactly the requested family while allowing
+the pinned TLC action extractor to retain the primitive action names for required coverage.
+The `combined` scope retains the full
+Cartesian machine as an executable reference; its direct run has not completed within the
+declared resource bound. The registered checks do not claim to enumerate that product directly.
+
+The composition argument is a forward behavior projection. Navigation actions and fair guards do
+not read either input bit or paintability, except the shared Open/Close initialization. Its projection
+retains the navigation record, maps the two input bits to false and paintability to true, maps
+PaneByte/PaintRefused to stutter and maps UnpaintableClose to the existing Close action with the same
+lifecycle result. Close acquires no new fairness assumption. All navigation and lane-exit fair
+guards and non-stuttering steps remain identical; the unpaintable obligation is checked separately.
+Input and paint projections retain their local bits, board, epoch and lane liveness. They map an open
+lane to idle, a cancelled live lane to exiting and a reclaimed lane to idle; unrelated fields use
+the typed initialization and shared-lifecycle results of that family, including the capped close
+count as serial. Navigation-only actions project to stutter, every close maps to Close, and Open
+admission and LaneExit keep their exact guard and non-stuttering result. Paint preserves the
+UnpaintableClose guard and weak fairness; input preserves the complete truth value of
+InputFrozenWhileOpen. Other fair actions are locally disabled and require no additional assumption.
+
+Every fair combined behavior therefore projects into each checked Spec. Navigation invariants,
+round/jump progress and the independent landing edge are checked by navigation, input isolation by
+input, unpaintable progress by paint, and the lane/type/lifecycle facts by their respective fields.
+Together those results establish the combined claims within the declared bounds; arbitrary component
+behaviors need not lift back into the product. This argument is an explicit refinement trust boundary.
+Any new cross-family read/write or joint property invalidates it and requires an updated mapping or
+direct product checking. Required action coverage combines only after all three variants succeed.
+
 The model deliberately does not retain which board byte, outside wheel or refresh-while-jump
 event already occurred. Erasing that former coverage-only history is a bidirectional stutter
 quotient: every old transition projects to the same product transition or to one of those three
@@ -102,7 +141,8 @@ successors even when the successor state was already discovered.
 The quotient also canonicalizes `laneRound`, `walkRev`, `walkPages` and `retries` after a
 walk settles or the board closes. These four scratch values are read by list actions only while
 `lanePhase = "list"`; `StartList` initializes every value before any later read. The projection
-keeps them unchanged during a list and maps them to their typed initial values otherwise. Each
+keeps list progress and pinned revision equality during a list and maps the scratch to its typed
+initial values otherwise. The opaque revision relabeling is described below. Each
 old step projects to the same named product step, and a quotient step lifts by retaining the old
 settled scratch until the next initialization. Their `TypeOK` range checks remain satisfied by the
 typed initial values; no business guard, product invariant or temporal property reads the discarded
@@ -110,10 +150,86 @@ values outside the list phase. List actions are disabled there, and
 every other weak-fair action has the same enabledness under the projection. This removes dead
 history without restricting any read, reopen, cancellation, navigation or environment interleaving.
 
+The same projection clears `landedPlacement`, `landedTarget`, `landedSerial` and `landedLive`
+only when Open, Close, RequestJump, StageStaleDrop or JumpSettled explicitly clears `outcome`
+to `none`. No business guard reads these diagnostics; apart from their typed ranges, invariants
+read them only for a live `landed` or `target-gone` outcome. Those outcomes retain their exact
+values. `StartGet` initializes all four fields before reuse, and `ResolvePanel` writes all four
+before producing `landed`. A lifted history retains old diagnostics while the outcome is absent
+until the original initialization replaces them. The landing-edge property retains the old
+pre-state viewer facts and exact post-state target, so it remains an independent check rather
+than relying on the recorded bit. Every weak-fair action retains its guard and non-stuttering
+product transition; the cached rows, navigation view and live outcomes are unchanged.
+
+Closing also canonicalizes `round`, `bumps`, `deadSeen`, `paintable` and `paneBytesAtOpen`.
+Their business reads require an open board or active list, and Open initializes them before reuse.
+The closed projection equates `paneBytesAtOpen` with `paneBytes`, so a closed PaneByte still
+projects to the same named step. A lift retains the old closed scratch until Open; it preserves
+the cache, its age, selection, cooldown and serial budget. Viewer liveness and retired bindings
+remain exact wherever a future navigation can observe them, as described below.
+GetStaleDrop and StageStaleDrop likewise clear `jumpSerial` only when they remove the jump;
+no business action reads that serial while `jumpStage = "none"`, and StartGet replaces it.
+All typed ranges, closed-board and open-board observations, and fair-action guards remain valid.
+
+Revision labels have no numeric or ordering meaning here: only `serverRevision = walkRev`
+is observed. A bijective relabeling maps the current Server label to 1, an unequal pinned label
+to 2 and the unread sentinel to 0. ServerBump retains its original budget increment and flips
+the nonzero pinned relationship while keeping the current label canonical. ListPage therefore
+sees exactly the same first-page, same-revision, retry and incomplete branches. Two bumps still
+permit the original ABA equality; no mutation interleaving is removed. A lifted history keeps
+the original current label and applies its original flip on every ServerBump. Every named step,
+weak-fair enabledness, invariant and temporal observation is preserved under that relabeling.
+
+ServerRetire also canonicalizes only the permanently removed presentation's viewer facts to
+`viewerLive = FALSE` and absence from `deadSeen`. Retired bindings never return; GetResolve
+excludes them, and every staged resolver checks retirement before reading or reattaching the
+viewer. Other viewers retain their exact liveness and death budget. An old ViewerDies for the
+removed presentation projects to stutter; ViewerDies has no fairness obligation. A lift retains
+that old viewer's facts and may insert its unobservable death when the original guard allows it. Every business step
+and fair-action guard still matches. Previously recorded landing diagnostics remain exact, and
+no new landing can target a retired binding, so the independent landing-edge check retains all
+relevant pre-state viewer facts. The retirement, target-gone result and cached navigation state
+are preserved; this projection does not revive a viewer or remove a live-target death.
+
+At the navigation serial limit, the finite model retains exact viewer facts for every possible
+binding of the final pending intent or verifying Get. GetResolve fixes a presentation, after which
+only that exact target can still be read or reattached. RequestJump is the sole jump-intent producer
+and requires remaining serial budget; serials never decrease or reset on Open. An older serial's
+stage cannot land. Thus erased peers cannot become a later target, while every new landing edge
+still checks the original pre-state target viewer. Open, RequestJump, StartGet, GetResolve,
+stale-drop settlement, JumpSettled, CloseBoard and ServerRetire preserve this projection. Environment
+deaths of erased peers project to stutter; ViewerDies has no fairness obligation. A lift retains
+those peers' old world facts and inserts their deaths only when the old guard permits them.
+
+With no pending jump intent, Get or stage after the serial limit, or after closing the final epoch,
+navigation is permanently disabled. The whole viewer/death/retirement world is then unobserved and
+maps to false viewer bits and empty sets. ServerRetire remains explicit but produces stutter there;
+it has no fairness obligation. A lift performs any old budgeted retirement when permitted and uses
+the stuttering already allowed by `[Next]_vars` for additional unobservable steps. While navigation
+remains possible, the exact retirement and its original budget are retained. Refresh, list, cache,
+selection, paint, lane reclamation and any admitted reopen continue unchanged. Every fair-action
+guard and non-stuttering step is preserved. This suffix reduction relies only on the declared finite
+model bounds, not production navigation or reopen limits.
+
+The navigation projection returns the record unchanged before those finite suffixes: ServerRetire
+already maintains each removed viewer's canonical facts. A singleton function application binds
+the evaluated record, and the pinned standard `TLCEval` identity materializes small sets and viewer
+functions instead of retaining nested lazy closures. This affects evaluation only; no state,
+action, guard, fairness or property changes.
+
+After the final round settles, `bumps` also becomes unread until Open reinitializes it. The projection
+clears it at ListPage or ListDeadline settlement and keeps ServerBump as an explicit stutter while
+`round = MaxRound` and no list is active. Every active walk retains its original mutation budget,
+revision equality, ABA, retry and deadline interleavings. A lift keeps the old exhausted-round bump
+count, performs original budgeted mutations when permitted and stutters thereafter; Open resets
+both versions before any later list. ServerBump has no fairness obligation, and all fair guards,
+cached observations and configured properties remain unchanged.
+
 The accepted 1,083,010-distinct-state run remains the finite-bound evidence for the prior
 single-epoch variant — `MaxEpoch = 1` could not reach reopen. The registered two-epoch
-configuration is the current finite-bound scope. This document does not claim that scope has
-passed until the registered runner completes it; meanwhile its reopen, viewer-death/reattach and
+configuration is the current finite-bound scope, checked through the three projections above.
+This document does not claim that scope has passed until the registered runner completes all three;
+meanwhile its reopen, viewer-death/reattach and
 unpaintable-close claims rest on the model mapping, invariants, weak-fair progress properties and
 deterministic tests described here.
 

@@ -97,25 +97,13 @@ struct Tracked {
     displayed: bool,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub(super) struct AgentNotificationScheduler {
     policy: AgentNotificationPolicy,
     configuration_revision: u64,
     draw_serial: u64,
     tracked: BTreeMap<String, Tracked>,
     retired: bool,
-}
-
-impl Default for AgentNotificationScheduler {
-    fn default() -> Self {
-        Self {
-            policy: AgentNotificationPolicy::default(),
-            configuration_revision: 0,
-            draw_serial: 0,
-            tracked: BTreeMap::new(),
-            retired: false,
-        }
-    }
 }
 
 impl AgentNotificationScheduler {

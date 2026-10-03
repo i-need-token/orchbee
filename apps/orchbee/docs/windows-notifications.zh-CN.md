@@ -54,22 +54,22 @@ done 使用 Windows 信息提示音，request 使用 Windows 感叹提示音。�
 
 ### 领域模型与转移
 
-| 字段 | 契约 |
-| --- | --- |
-| 问题 | 用户尚未看见后台终端 Agent 转移时，Client 需要发一次延迟本地弹窗，并在启用时响一次，且不改变 Agent 或 Workbench 状态。 |
-| 输入 | 完整物理轮次、完整启动绑定、语义序号、已检测 Agent 标签、`idle`／`working`／`blocked`／`unknown`、精确 Client seen 确认、单调时间、已接受配置修订及 sink 可用性。轮次缺失或不可读表示没有证据，不能推断转移。 |
+| 字段 | 契约                                                                                                                                                                                                                |
+| ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 问题 | 用户尚未看见后台终端 Agent 转移时，Client 需要发一次延迟本地弹窗，并在启用时响一次，且不改变 Agent 或 Workbench 状态。                                                                                              |
+| 输入 | 完整物理轮次、完整启动绑定、语义序号、已检测 Agent 标签、`idle`／`working`／`blocked`／`unknown`、精确 Client seen 确认、单调时间、已接受配置修订及 sink 可用性。轮次缺失或不可读表示没有证据，不能推断转移。       |
 | 数据 | Client 为每个 presentation 最多拥有一个当前观察和一个候选。候选身份由完整 presentation／generation／Host epoch／Host terminal 绑定以及 sequence、kind、Agent 标签、到期时间、首次可用的成功绘制序号和配置修订组成。 |
-| 输出 | `done` 或 `request` 投递命令，或显式 pending／cancelled／suppressed／no-op 状态。命令分别说明是否启用弹窗和内置声音。sink 接纳后的失败不致命，也不重试。 |
-| 依赖 | 纯 reducer 接收逻辑时间和成功绘制事实。attention owner 提供精确观察及 seen 事件。通知状态提供有界 sink 准入。只有 TUI 生命周期 owner 可以写 OSC、提交系统气泡、绘制卡片或调用声音 API。 |
-| 归属 | Server 继续拥有物理报告和配置发布。各 Client 拥有自身观察确认及 scheduler。自动事件不使用手动 Server 通知注册表。 |
+| 输出 | `done` 或 `request` 投递命令，或显式 pending／cancelled／suppressed／no-op 状态。命令分别说明是否启用弹窗和内置声音。sink 接纳后的失败不致命，也不重试。                                                            |
+| 依赖 | 纯 reducer 接收逻辑时间和成功绘制事实。attention owner 提供精确观察及 seen 事件。通知状态提供有界 sink 准入。只有 TUI 生命周期 owner 可以写 OSC、提交系统气泡、绘制卡片或调用声音 API。                             |
+| 归属 | Server 继续拥有物理报告和配置发布。各 Client 拥有自身观察确认及 scheduler。自动事件不使用手动 Server 通知注册表。                                                                                                   |
 
-| 前一个精确状态 | 当前精确状态 | 结果 |
-| --- | --- | --- |
-| 首次观察、替换绑定或 Agent 标签变化 | 任意 | 安装基线；不建候选 |
-| `working` | `idle` | 调度 `done` |
-| `idle` 或 `working` | `blocked` | 调度 `request` |
-| `unknown` | 任意 | 不建候选 |
-| 其他转移或重复 sequence | 任意 | 不建新候选；状态变化会取消旧候选 |
+| 前一个精确状态                      | 当前精确状态 | 结果                             |
+| ----------------------------------- | ------------ | -------------------------------- |
+| 首次观察、替换绑定或 Agent 标签变化 | 任意         | 安装基线；不建候选               |
+| `working`                           | `idle`       | 调度 `done`                      |
+| `idle` 或 `working`                 | `blocked`    | 调度 `request`                   |
+| `unknown`                           | 任意         | 不建候选                         |
+| 其他转移或重复 sequence             | 任意         | 不建新候选；状态变化会取消旧候选 |
 
 候选只有在延迟结束且后续至少有一次完整绘制成功后才可投递，因此零延迟也给可见 pane
 一次确认机会。投递时 reducer 重新核对完整绑定、sequence、状态、Agent 标签、配置修订及
@@ -96,11 +96,11 @@ surface 不被覆盖；待处理工作有界；Client 退出后没有迟到效�
 两个 Client 的结论来自下述投影论证和确定性的双 Client Rust traces；不会把它报告成 TLC
 直接穷举了笛卡尔积。
 
-| Action frame | Actions |
-| --- | --- |
-| 只改共享逻辑时钟 | `AdvanceTime` |
+| Action frame         | Actions                                                                                                       |
+| -------------------- | ------------------------------------------------------------------------------------------------------------- |
+| 只改共享逻辑时钟     | `AdvanceTime`                                                                                                 |
 | 只改一个 Client 坐标 | 安装基线；四种变化观察；替换；不可用；精确展示；成功绘制；有效 reload；sink 繁忙／可用；投递；seen 抑制；退出 |
-| 纯 stutter | 重复观察；过期展示；无效 reload；全部退出后的 stutter |
+| 纯 stutter           | 重复观察；过期展示；无效 reload；全部退出后的 stutter                                                         |
 
 对 Client `c`，把全局行为投影为 `c` 的 status、观察、身份 generation、version、seen、候选、配置、
 sink、绘制序号、最近投递位置及违例见证，再加共享 `now`。每个非 stutter 本地 action 的 guard

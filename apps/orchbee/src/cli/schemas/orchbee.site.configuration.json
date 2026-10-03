@@ -1990,12 +1990,7 @@
 		},
 		"v7": {
 			"type": "object",
-			"required": [
-				"schema",
-				"version",
-				"source",
-				"result"
-			],
+			"required": ["schema", "version", "source", "result"],
 			"additionalProperties": false,
 			"properties": {
 				"schema": {
@@ -2006,9 +2001,7 @@
 				},
 				"source": {
 					"type": "object",
-					"required": [
-						"kind"
-					],
+					"required": ["kind"],
 					"additionalProperties": false,
 					"properties": {
 						"kind": {
@@ -2018,19 +2011,11 @@
 				},
 				"result": {
 					"type": "object",
-					"required": [
-						"action",
-						"reply",
-						"interrupted",
-						"cleanupFailed"
-					],
+					"required": ["action", "reply", "interrupted", "cleanupFailed"],
 					"additionalProperties": false,
 					"properties": {
 						"action": {
-							"enum": [
-								"current",
-								"reload"
-							]
+							"enum": ["current", "reload"]
 						},
 						"reply": {
 							"anyOf": [
@@ -2039,12 +2024,7 @@
 								},
 								{
 									"type": "object",
-									"required": [
-										"protocolVersion",
-										"requestId",
-										"siteId",
-										"outcome"
-									],
+									"required": ["protocolVersion", "requestId", "siteId", "outcome"],
 									"additionalProperties": false,
 									"properties": {
 										"protocolVersion": {
@@ -2062,10 +2042,7 @@
 											"oneOf": [
 												{
 													"type": "object",
-													"required": [
-														"kind",
-														"snapshot"
-													],
+													"required": ["kind", "snapshot"],
 													"additionalProperties": false,
 													"properties": {
 														"kind": {
@@ -2118,11 +2095,7 @@
 																	"$comment": "Bindings additionally enforce the 4096 UTF-8 byte limit and Unicode scalar strings."
 																},
 																"shellMode": {
-																	"enum": [
-																		"auto",
-																		"login",
-																		"non_login"
-																	]
+																	"enum": ["auto", "login", "non_login"]
 																},
 																"windowTitle": {
 																	"type": "string",
@@ -2149,11 +2122,7 @@
 												},
 												{
 													"type": "object",
-													"required": [
-														"kind",
-														"snapshot",
-														"changed"
-													],
+													"required": ["kind", "snapshot", "changed"],
 													"additionalProperties": false,
 													"properties": {
 														"kind": {
@@ -2206,11 +2175,7 @@
 																	"$comment": "Bindings additionally enforce the 4096 UTF-8 byte limit and Unicode scalar strings."
 																},
 																"shellMode": {
-																	"enum": [
-																		"auto",
-																		"login",
-																		"non_login"
-																	]
+																	"enum": ["auto", "login", "non_login"]
 																},
 																"windowTitle": {
 																	"type": "string",
@@ -2240,12 +2205,7 @@
 												},
 												{
 													"type": "object",
-													"required": [
-														"kind",
-														"reason",
-														"field",
-														"detail"
-													],
+													"required": ["kind", "reason", "field", "detail"],
 													"additionalProperties": false,
 													"properties": {
 														"kind": {
@@ -2262,18 +2222,12 @@
 															]
 														},
 														"field": {
-															"type": [
-																"string",
-																"null"
-															],
+															"type": ["string", "null"],
 															"minLength": 1,
 															"maxLength": 128
 														},
 														"detail": {
-															"type": [
-																"string",
-																"null"
-															],
+															"type": ["string", "null"],
 															"minLength": 1,
 															"maxLength": 128
 														}
@@ -2355,10 +2309,7 @@
 											"outcome": {
 												"properties": {
 													"kind": {
-														"enum": [
-															"current",
-															"failed"
-														]
+														"enum": ["current", "failed"]
 													}
 												}
 											}
@@ -2382,10 +2333,7 @@
 											"outcome": {
 												"properties": {
 													"kind": {
-														"enum": [
-															"reloaded",
-															"failed"
-														]
+														"enum": ["reloaded", "failed"]
 													}
 												}
 											}

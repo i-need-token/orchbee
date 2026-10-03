@@ -15,14 +15,13 @@
 \*   rec[p].pending~ a received poll frame waiting for its draw pass — the
 \*                   mailbox causal settlement before stage_drawn_frame runs
 \*   rec[p].staged ~ a frame that completed its draw and awaits FrameApplied
-\*   appliedCount, ~ summary of the ghost log of delivered inputs: how many
-\*   allTaggedValid   deliveries were recorded, and whether every recorded one
-\*                   landed on the exact attachment incarnation it was tagged
-\*                   for — proving no input lands on a stale or sibling
-\*                   attachment. The full log's only readers were its length
-\*                   bound and the per-entry tag = delivered check, so the
-\*                   pair is the exact abstraction alpha(X, L) =
-\*                   (X, Len(L), forall l in L: l.tag = l.delivered).
+\*   allTaggedValid ~ conjunction of actual delivered-input identity checks.
+\*                    The prior ghost prefix count never governed execution.
+\*                    Its saturated and unsaturated branches preserve this
+\*                    bit because the delivery guard establishes the same
+\*                    identity comparison. Erasing the count is an exact
+\*                    projection; MaxLog retains the prior concrete lift's
+\*                    bound. See the owning reference for the fair mapping.
 \*
 \* Bounds: two panes, two anchors (one epoch switch), two incarnations per
 \* pane, a bounded queue, two frame identities, and a bounded delivered-input
@@ -71,10 +70,10 @@ NoIncarnation == [anchor |-> "a0", incarnation |-> NoRecord, attached |-> FALSE,
                   staged |-> NoFrame, accepted |-> NoFrame]
 
 VARIABLES anchor, focus, leaf, rec, viewer, queue, inflight, nextInc,
-          frameCursor, appliedCount, allTaggedValid
+          frameCursor, allTaggedValid
 
 vars == <<anchor, focus, leaf, rec, viewer, queue, inflight, nextInc,
-          frameCursor, appliedCount, allTaggedValid>>
+          frameCursor, allTaggedValid>>
 
 TypeOK ==
   /\ anchor \in Anchors
@@ -89,7 +88,6 @@ TypeOK ==
   /\ inflight \in CommandRecords \cup {NoCommand}
   /\ nextInc \in [Panes -> Incarnations \cup {MaxIncarnation + 1}]
   /\ frameCursor \in 0..MaxFrame
-  /\ appliedCount \in 0..MaxLog
   /\ allTaggedValid \in BOOLEAN
 
 Init ==
@@ -106,7 +104,6 @@ Init ==
   /\ inflight = NoCommand
   /\ nextInc = [p \in Panes |-> 2]
   /\ frameCursor = 0
-  /\ appliedCount = 0
   /\ allTaggedValid = TRUE
 
 HasRecord(p) == rec[p].incarnation # NoRecord
@@ -138,7 +135,7 @@ MintPane ==
           staged |-> NoFrame, accepted |-> NoFrame]]
     /\ nextInc' = [nextInc EXCEPT ![p] = @ + 1]
     /\ UNCHANGED <<anchor, focus, leaf, viewer, queue, inflight,
-                   frameCursor, appliedCount, allTaggedValid>>
+                   frameCursor, allTaggedValid>>
 
 VanishLeaf ==
   \E p \in Panes :
@@ -148,7 +145,7 @@ VanishLeaf ==
                                   !.projected = FALSE, !.pending = NoFrame,
                                   !.staged = NoFrame, !.accepted = NoFrame]]
     /\ UNCHANGED <<anchor, focus, viewer, queue, inflight, nextInc,
-                   frameCursor, appliedCount, allTaggedValid>>
+                   frameCursor, allTaggedValid>>
 
 \* A reappearing leaf heals only a CURRENT-anchor departing record in place;
 \* an old-anchor departing record can never come back — it waits for its own
@@ -161,7 +158,7 @@ ReappearLeaf ==
        THEN rec' = [rec EXCEPT ![p] = [@ EXCEPT !.departing = FALSE]]
        ELSE UNCHANGED rec
     /\ UNCHANGED <<anchor, focus, viewer, queue, inflight, nextInc,
-                   frameCursor, appliedCount, allTaggedValid>>
+                   frameCursor, allTaggedValid>>
 
 \* Canonical disposal proof: only a departing record of the exact incarnation
 \* detaches; the sibling record is untouched.
@@ -171,12 +168,12 @@ SettleDetachProof ==
     /\ rec' = [rec EXCEPT ![p] = NoIncarnation]
     /\ viewer' = [viewer EXCEPT ![p] = NoViewer]
     /\ UNCHANGED <<anchor, focus, leaf, queue, inflight, nextInc,
-                   frameCursor, appliedCount, allTaggedValid>>
+                   frameCursor, allTaggedValid>>
 
 RejectStaleDetachProof ==
   IF (\E p \in Panes, i \in Incarnations : i # rec[p].incarnation)
   THEN UNCHANGED <<anchor, focus, leaf, rec, viewer, queue, inflight,
-                  nextInc, frameCursor, appliedCount, allTaggedValid>>
+                  nextInc, frameCursor, allTaggedValid>>
   ELSE FALSE
 
 \* Anchor epoch advance (tab switch / committed reload): every record of the
@@ -190,7 +187,7 @@ AdvanceAnchorEpoch ==
                            !.pending = NoFrame, !.staged = NoFrame,
                            !.accepted = NoFrame]]
   /\ UNCHANGED <<focus, leaf, viewer, queue, inflight, nextInc,
-                 frameCursor, appliedCount, allTaggedValid>>
+                 frameCursor, allTaggedValid>>
 
 \* Same-tab focus movement is a pure local selection change: it never mints,
 \* departs, or re-tags anything already accepted.
@@ -199,7 +196,7 @@ MoveFocusLocal ==
     /\ p # focus
     /\ focus' = p
     /\ UNCHANGED <<anchor, leaf, rec, viewer, queue, inflight, nextInc,
-                   frameCursor, appliedCount, allTaggedValid>>
+                   frameCursor, allTaggedValid>>
 
 \* ------------------------- attach / projection -------------------------
 
@@ -210,14 +207,14 @@ AttachPane ==
     /\ viewer' = [viewer EXCEPT ![p] = rec[p].incarnation]
     /\ rec' = [rec EXCEPT ![p] = [@ EXCEPT !.attached = TRUE]]
     /\ UNCHANGED <<anchor, focus, leaf, queue, inflight, nextInc,
-                   frameCursor, appliedCount, allTaggedValid>>
+                   frameCursor, allTaggedValid>>
 
 ProjectPane ==
   \E p \in Panes :
     /\ Live(p) /\ rec[p].attached /\ ~rec[p].projected
     /\ rec' = [rec EXCEPT ![p] = [@ EXCEPT !.projected = TRUE]]
     /\ UNCHANGED <<anchor, focus, leaf, viewer, queue, inflight, nextInc,
-                   frameCursor, appliedCount, allTaggedValid>>
+                   frameCursor, allTaggedValid>>
 
 \* ------------------------- queue / executor -------------------------
 
@@ -228,7 +225,7 @@ EnqueueFocusControl ==
     /\ queue' = Append(queue,
          Command(kind, focus, rec[focus].incarnation, TRUE))
     /\ UNCHANGED <<anchor, focus, leaf, rec, viewer, inflight, nextInc,
-                   frameCursor, appliedCount, allTaggedValid>>
+                   frameCursor, allTaggedValid>>
 
 \* Geometry admission is per exact live desired-set incarnation; visibility,
 \* zoom and controller ownership are refined by the Native state owner.
@@ -238,7 +235,7 @@ EnqueuePaneResize ==
     /\ Live(p) /\ rec[p].attached
     /\ queue' = Append(queue, Command("resize", p, rec[p].incarnation, FALSE))
     /\ UNCHANGED <<anchor, focus, leaf, rec, viewer, inflight, nextInc,
-                   frameCursor, appliedCount, allTaggedValid>>
+                   frameCursor, allTaggedValid>>
 
 EnqueuePoll ==
   \E p \in Panes :
@@ -246,7 +243,7 @@ EnqueuePoll ==
     /\ HasRecord(p)
     /\ queue' = Append(queue, Command("poll", p, rec[p].incarnation, FALSE))
     /\ UNCHANGED <<anchor, focus, leaf, rec, viewer, inflight, nextInc,
-                   frameCursor, appliedCount, allTaggedValid>>
+                   frameCursor, allTaggedValid>>
 
 \* Adversarial: a stale or cross-wired tag may sit in the queue — work
 \* accepted before a rebind keeps its frozen incarnation, never the new one.
@@ -260,7 +257,7 @@ EnqueueStaleCommand ==
     /\ i < rec[p].incarnation
     /\ queue' = Append(queue, Command(kind, p, i, FALSE))
     /\ UNCHANGED <<anchor, focus, leaf, rec, viewer, inflight, nextInc,
-                   frameCursor, appliedCount, allTaggedValid>>
+                   frameCursor, allTaggedValid>>
 
 DequeueAdmit ==
   /\ queue # <<>>
@@ -269,7 +266,7 @@ DequeueAdmit ==
   /\ inflight' = Head(queue)
   /\ queue' = Tail(queue)
   /\ UNCHANGED <<anchor, focus, leaf, rec, viewer, nextInc, frameCursor,
-                 appliedCount, allTaggedValid>>
+                 allTaggedValid>>
 
 DropStaleQueueCommand ==
   /\ queue # <<>>
@@ -277,7 +274,7 @@ DropStaleQueueCommand ==
   /\ ~Admitted(Head(queue))
   /\ queue' = Tail(queue)
   /\ UNCHANGED <<anchor, focus, leaf, rec, viewer, inflight, nextInc,
-                 frameCursor, appliedCount, allTaggedValid>>
+                 frameCursor, allTaggedValid>>
 
 \* The executor delivers control input only to the exact live attachment the
 \* command named at enqueue — it does not re-check focus: an accepted command
@@ -288,11 +285,9 @@ ExecuteControl ==
   /\ inflight # NoCommand /\ inflight.kind \in ControlKinds
   /\ LET p == inflight.pane IN
      IF viewer[p] # NoViewer /\ viewer[p] = inflight.incarnation /\ Live(p)
-        /\ appliedCount < MaxLog
-     THEN /\ appliedCount' = appliedCount + 1
-          /\ allTaggedValid' = (allTaggedValid /\
+     THEN /\ allTaggedValid' = (allTaggedValid /\
                                 (inflight.incarnation = viewer[p]))
-     ELSE UNCHANGED <<appliedCount, allTaggedValid>>
+     ELSE UNCHANGED allTaggedValid
   /\ inflight' = NoCommand
   /\ UNCHANGED <<anchor, focus, leaf, rec, viewer, queue, nextInc,
                  frameCursor>>
@@ -311,13 +306,13 @@ ExecutePoll ==
      ELSE UNCHANGED <<frameCursor, rec>>
   /\ inflight' = NoCommand
   /\ UNCHANGED <<anchor, focus, leaf, viewer, queue, nextInc,
-                 appliedCount, allTaggedValid>>
+                 allTaggedValid>>
 
 ExpireInflight ==
   /\ inflight # NoCommand
   /\ inflight' = NoCommand
   /\ UNCHANGED <<anchor, focus, leaf, rec, viewer, queue, nextInc,
-                 frameCursor, appliedCount, allTaggedValid>>
+                 frameCursor, allTaggedValid>>
 
 \* ------------------------- draw / ack -------------------------
 
@@ -331,7 +326,7 @@ DrawPendingFrame ==
     /\ rec' = [rec EXCEPT ![p] = [@ EXCEPT !.staged = rec[p].pending,
                                   !.pending = NoFrame, !.accepted = NoFrame]]
     /\ UNCHANGED <<anchor, focus, leaf, viewer, queue, inflight, nextInc,
-                   frameCursor, appliedCount, allTaggedValid>>
+                   frameCursor, allTaggedValid>>
 
 \* FrameApplied commits only for the exact record that completed the draw —
 \* a frame that was received but never drawn, a departing record, or a
@@ -342,7 +337,7 @@ SettleFrameAck ==
     /\ rec[p].staged # NoFrame
     /\ rec' = [rec EXCEPT ![p].accepted = rec[p].staged]
     /\ UNCHANGED <<anchor, focus, leaf, viewer, queue, inflight, nextInc,
-                   frameCursor, appliedCount, allTaggedValid>>
+                   frameCursor, allTaggedValid>>
 
 RejectStaleFrameAck ==
   IF (\E p \in Panes, i \in Incarnations, f \in Frames :
@@ -350,7 +345,7 @@ RejectStaleFrameAck ==
        \/ ~Live(p)
        \/ rec[p].staged # f)
   THEN UNCHANGED <<anchor, focus, leaf, rec, viewer, queue, inflight,
-                  nextInc, frameCursor, appliedCount, allTaggedValid>>
+                  nextInc, frameCursor, allTaggedValid>>
   ELSE FALSE
 
 \* ------------------------- faults / close -------------------------
@@ -362,12 +357,12 @@ SettlePaneFault ==
                                   !.pending = NoFrame, !.staged = NoFrame,
                                   !.accepted = NoFrame]]
     /\ UNCHANGED <<anchor, focus, leaf, viewer, queue, inflight, nextInc,
-                   frameCursor, appliedCount, allTaggedValid>>
+                   frameCursor, allTaggedValid>>
 
 RejectStalePaneFault ==
   IF (\E p \in Panes, i \in Incarnations : i # rec[p].incarnation)
   THEN UNCHANGED <<anchor, focus, leaf, rec, viewer, queue, inflight,
-                  nextInc, frameCursor, appliedCount, allTaggedValid>>
+                  nextInc, frameCursor, allTaggedValid>>
   ELSE FALSE
 
 ClosePane ==
@@ -378,7 +373,7 @@ ClosePane ==
                                   !.projected = FALSE, !.pending = NoFrame,
                                   !.staged = NoFrame, !.accepted = NoFrame]]
     /\ UNCHANGED <<anchor, focus, viewer, queue, inflight, nextInc,
-                   frameCursor, appliedCount, allTaggedValid>>
+                   frameCursor, allTaggedValid>>
 
 Next ==
   \/ MintPane

@@ -25,13 +25,13 @@ function model(id, variants = [{ name: 'default' }]) {
 const covered = '<Advance line 1, col 1 of module Example>: 1:2\n';
 
 test('resource defaults scale with processors and aggregate JVM memory', () => {
-	assert.equal(modelConcurrency(undefined, 8, 16 * 1024 ** 3), 3);
+	assert.equal(modelConcurrency(undefined, 8, 16 * 1024 ** 3), 2);
 	assert.equal(modelConcurrency(undefined, 2, 16 * 1024 ** 3), 2);
 	assert.equal(modelConcurrency(undefined, 8, 7 * 1024 ** 3), 1);
-	assert.equal(modelConcurrency(undefined, 24, 24 * 1024 ** 3), 5);
+	assert.equal(modelConcurrency(undefined, 24, 24 * 1024 ** 3), 3);
 	assert.equal(modelConcurrency('1', 8, 16 * 1024 ** 3), 1);
 	assert.equal(modelConcurrency('8', 24, 24 * 1024 ** 3), 8);
-	assert.equal(modelHeapMiB(1, 24 * 1024 ** 3), 2048);
+	assert.equal(modelHeapMiB(1, 24 * 1024 ** 3), 4096);
 	assert.ok((modelHeapMiB(8, 24 * 1024 ** 3) + 512) * 8 <= 24 * 1024 * 0.6);
 	assert.throws(() => modelConcurrency('32', 24, 24 * 1024 ** 3), /memory budget/u);
 	for (const value of ['0', '-1', '1.5', 'NaN', '', '9007199254740992']) {

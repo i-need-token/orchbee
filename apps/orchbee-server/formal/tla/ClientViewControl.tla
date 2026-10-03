@@ -70,7 +70,8 @@ RejectStale(o) ==
   /\ status[o] = "queued"
   /\ (Owner[o] \notin fresh \/ expected[o] # revision[Owner[o]])
   /\ status' = [status EXCEPT ![o] = "rejected"]
-  /\ UNCHANGED <<connected, fresh, revision, expected, deliveries, effect, drawn>>
+  /\ expected' = [expected EXCEPT ![o] = 0]
+  /\ UNCHANGED <<connected, fresh, revision, deliveries, effect, drawn>>
 
 UiStep(o) ==
   /\ o \notin LayoutOperations
@@ -93,7 +94,8 @@ Acknowledge(o) ==
   /\ status[o] = "delivered"
   /\ o \in drawn
   /\ status' = [status EXCEPT ![o] = IF o \in RatioOperations THEN "ratio-applied" ELSE "applied"]
-  /\ UNCHANGED <<connected, fresh, revision, expected, deliveries, effect, drawn>>
+  /\ expected' = [expected EXCEPT ![o] = 0]
+  /\ UNCHANGED <<connected, fresh, revision, deliveries, effect, drawn>>
 
 ObserveLayout(o) ==
   /\ o \in LayoutOperations
@@ -101,7 +103,8 @@ ObserveLayout(o) ==
   /\ Owner[o] \in connected \cap fresh
   /\ expected[o] = revision[Owner[o]]
   /\ status' = [status EXCEPT ![o] = "layout-read"]
-  /\ UNCHANGED <<connected, fresh, revision, expected, deliveries, effect, drawn>>
+  /\ expected' = [expected EXCEPT ![o] = 0]
+  /\ UNCHANGED <<connected, fresh, revision, deliveries, effect, drawn>>
 
 NoNeighbor(o) ==
   /\ o \in DirectionOperations
@@ -110,7 +113,8 @@ NoNeighbor(o) ==
   /\ Owner[o] \in connected \cap fresh
   /\ expected[o] = revision[Owner[o]]
   /\ status' = [status EXCEPT ![o] = "direction-unchanged"]
-  /\ UNCHANGED <<connected, fresh, revision, expected, deliveries, effect, drawn>>
+  /\ expected' = [expected EXCEPT ![o] = 0]
+  /\ UNCHANGED <<connected, fresh, revision, deliveries, effect, drawn>>
 
 \* One commit may be acknowledged without drawing only for an inactive target.
 StoreRatio(o) ==
@@ -120,7 +124,8 @@ StoreRatio(o) ==
   /\ Owner[o] \in connected \cap fresh
   /\ expected[o] = revision[Owner[o]]
   /\ status' = [status EXCEPT ![o] = "ratio-stored"]
-  /\ UNCHANGED <<connected, fresh, revision, expected, deliveries, effect, drawn>>
+  /\ expected' = [expected EXCEPT ![o] = 0]
+  /\ UNCHANGED <<connected, fresh, revision, deliveries, effect, drawn>>
 
 RatioUnchanged(o) ==
   /\ o \in RatioOperations
@@ -129,12 +134,14 @@ RatioUnchanged(o) ==
   /\ Owner[o] \in connected \cap fresh
   /\ expected[o] = revision[Owner[o]]
   /\ status' = [status EXCEPT ![o] = "ratio-unchanged"]
-  /\ UNCHANGED <<connected, fresh, revision, expected, deliveries, effect, drawn>>
+  /\ expected' = [expected EXCEPT ![o] = 0]
+  /\ UNCHANGED <<connected, fresh, revision, deliveries, effect, drawn>>
 
 Interrupt(o) ==
   /\ status[o] = "delivered"
   /\ status' = [status EXCEPT ![o] = IF o \in effect THEN "incomplete" ELSE "rejected"]
-  /\ UNCHANGED <<connected, fresh, revision, expected, deliveries, effect, drawn>>
+  /\ expected' = [expected EXCEPT ![o] = 0]
+  /\ UNCHANGED <<connected, fresh, revision, deliveries, effect, drawn>>
 
 Disconnect(c) ==
   /\ c \in connected
@@ -144,17 +151,20 @@ Disconnect(c) ==
        IF Owner[o] # c THEN status[o]
        ELSE IF status[o] = "queued" THEN "rejected"
        ELSE IF status[o] = "delivered" THEN "incomplete" ELSE status[o]]
-  /\ UNCHANGED <<revision, expected, deliveries, effect, drawn>>
+  /\ expected' = [o \in Operations |-> IF Owner[o] = c THEN 0 ELSE expected[o]]
+  /\ UNCHANGED <<revision, deliveries, effect, drawn>>
 
 ExpireQueue(o) ==
   /\ status[o] = "queued"
   /\ status' = [status EXCEPT ![o] = "rejected"]
-  /\ UNCHANGED <<connected, fresh, revision, expected, deliveries, effect, drawn>>
+  /\ expected' = [expected EXCEPT ![o] = 0]
+  /\ UNCHANGED <<connected, fresh, revision, deliveries, effect, drawn>>
 
 ExpireReceipt(o) ==
   /\ status[o] \in Completed
   /\ status' = [status EXCEPT ![o] = "expired"]
-  /\ UNCHANGED <<connected, fresh, revision, expected, deliveries, effect, drawn>>
+  /\ expected' = [expected EXCEPT ![o] = 0]
+  /\ UNCHANGED <<connected, fresh, revision, deliveries, effect, drawn>>
 
 ReadOrReplay == UNCHANGED vars
 Next == (\E c \in Clients : Sample(c) \/ Freeze(c) \/ Disconnect(c))

@@ -221,7 +221,10 @@ fn panel_metadata_queries_enforce_exact_batches_binding_fences_and_original_dead
         let start = Instant::now();
         let output = fixture.run(&args);
         let elapsed = start.elapsed();
-        server.join().unwrap();
+        assert!(
+            server.join().is_ok(),
+            "{case}: peer failed after {elapsed:?}; CLI output: {output:?}"
+        );
         let doc = document(&output);
         if matches!(case, "stable" | "get" | "empty") {
             assert!(output.status.success(), "{case}: {doc}");

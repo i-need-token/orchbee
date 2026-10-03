@@ -196,6 +196,10 @@ budget。后续 call 在访问 prefix 前拒绝，destroy 不会再次关闭 ret
 该生命周期不会重放 request 或 response。
 
 Windows server write 只有在 client 已消费所写 pipe byte 后才报告成功。
+Helper 在 flush 成功后对同一个 overlapped pipe 调用零字节 `PeekNamedPipe`。
+如果 client 在 flush dispatch 前关闭，Windows 可能丢弃未读 response 却仍返回 flush 成功；
+pipe 检查会拒绝该断开状态，同时不消费 request byte。检查失败沿用既有 closed/system-error
+处理，不发布成功 byte count。
 Write、helper creation 与 flush wait 共用从 write-call 入口计时的 timeout；expiration 不会发布
 部分成功 byte count。Flush helper 将阻塞 pipe I/O 与 deadline owner 分离。Timeout 先断开同一个
 owned pipe，再 join helper，包括 helper 尚未进入 flush call 的情况。在 join 完成前，listener 与
@@ -244,7 +248,7 @@ sentinel；identity failure fixture 覆盖 missing/mismatched token 与 imperson
 发起 pending read 不能在受控 write 之前就使连接过期。
 
 同一 verifier 还运行 `tests/windows_write.c`，以真实 named pipe 验证延迟及分段 response read、
-flush 前后两种 deadline 顺序、peer close、helper creation failure、原始 write budget 耗尽、
+flush 前后两种 deadline 顺序、flush 期间及 dispatch 前的 peer close、helper creation failure、原始 write budget 耗尽、
 未知 disconnect failure 后的 listener retirement，以及下一次已认证 connection。受控 OS failure
 仅验证错误分类与资源保留，不证明 OS failure 下 cleanup 的活性。
 

@@ -205,33 +205,33 @@ ServerBusy 时序、逐步 lease 让步、截止值计算与非 `Detached` 结�
 | `default`           | 两 pane、两 anchor、两 incarnation，`MaxViewers = 2` | —                  | —                 |
 | `viewer-contention` | 同界 `MaxViewers = 1`——真实共享预算争用              | —                  | —                 |
 
-已交付 input 见证以摘要而非序列保存。模型曾携带 `appliedInputs`——记录每次已交付控制输入的
-ghost 日志——其读者只有 `MaxLog` 长度界、`ExecuteControl` 内的 `Len < MaxLog` 追加守卫与逐条
-`tag = delivered` 安全检查；条目的 pane 字段、次序与重复均无消费者。模型因此以
-`(appliedCount, allTaggedValid)` 存储抽象
-`alpha(X, L) = (X, Len(L), forall l in L: l.tag = l.delivered)`：`Init` 将空日志映射为 `(0, TRUE)`；其余 22 个不改日志的动作与
-`alpha` 平凡交换；唯一写入者 `ExecuteControl` 的守卫改用 `appliedCount < MaxLog`，并把每次
-交付以实际的 `inflight.incarnation = viewer[p]` 比较折入被赋值的合取——写作显式括号的
-`allTaggedValid' = (allTaggedValid /\ (...))`，绝不赋常量 `TRUE`。括号是承重的而非风格
-问题：相等比较的结合优先级高于 `/\`，不加括号的写法会被解析为
-`(allTaggedValid' = allTaggedValid) /\ comparison`，使比较成为额外的使能守卫——比较为 FALSE
-时整个动作不产生后继（并不会落入 `ELSE` 分支），错配交付因此永远不可能被记录。饱和路径
-（`appliedCount = MaxLog`）仍消费命令但不记录，与序列版跳过追加完全一致，
-两种表示在饱和后的盲区相同。公平性不变：每个弱公平守卫只读保留状态，且任何改变日志的步
-已同时改变摘要，使能性与非 stuttering 在商下保持。`InputsDeliverOnlyToTaggedLiveFocus` 现在
-恰为 `allTaggedValid`；其余不变量与 liveness 性质从不读日志。该对应在可达状态上是精确互
-模拟而非单向安全过近似：每个摘要状态都有具体升点，且每个商步可由任一升点实现——守卫只
-读 `X` 与 count。
+已交付 input 见证保存实际身份比较的合取 `allTaggedValid`，不保存输入序列或前缀计数。
+此前序列已表示为 `(appliedCount, allTaggedValid)`；其 `MaxLog = 3` 只限制 ghost 前缀，
+从不限制命令执行：`ExecuteControl` 始终清空 `inflight`，包括前缀已经饱和时。
 
-控制命令的 kind 同样是商而非载荷模型。模型读 kind 的全部位置只问成员性（
-`in ControlKinds`）、`"poll"` 相等或 `Idle` 哨兵——没有任何位置区分 `input` 与
-`resize`，故模型只携带单一 `control` 标签且 `CommandKinds = {"control", "poll"}`。映射
-`beta(input) = beta(resize) = control`、`beta(poll) = poll`、
-`beta(idle) = idle` 保持
-每个变量字段（pane、incarnation、`focusAdmitted`）、每个动作的使能、全部七项弱公平守卫
-与非 stuttering 关系——没有一个动作只翻转子标签——且每个商步可升回 `input` 或 `resize`
-的同名具体步。真实 Rust `Input` 与 `Resize` 命令仍完全独立；本模型不声称验证其各自
-载荷、几何或字节编码。
+当前投影为 `alpha(X, count, valid) = (X, valid)`。唯一的 count 写入者是 `ExecuteControl`。
+其投递分支已经要求非零 viewer、精确的 `viewer[p] = inflight.incarnation` 身份与存活记录。
+未饱和前缀追加比较时，同一个比较因此为真，`valid /\ comparison` 等于 `valid`；饱和前缀
+保持 `valid` 不变。两条路径的投影后继相同，其余动作只保持 count 不变。模型保留显式括号
+的比较折叠，绝不赋常量 `TRUE`，因此错 viewer 变异仍会写出 FALSE 见证，而不会变成额外
+的准入守卫。
+
+每个投影步都可从任意合法旧 count 提升：从零开始，只在已准入投递且小于 `MaxLog` 时
+递增，其后保持饱和 count。保留字段与布尔值的后继完全相同。`MaxLog` 仍是具体 ghost
+升点的正数配置；可执行投影不保存前缀长度。删除它不会移除产品投递上限，因为两种表示
+都未施加这一上限。角色、队列、帧、viewer 与 incarnation 的界保持不变。
+
+全部七项弱公平动作保持使能性。尤其是每次 `ExecuteControl` 都把非 idle 的 `inflight`
+变为 idle，删除计数不会抹掉非 stuttering 的公平步。`TypeOK` 只删除私有 count 合取，
+其升点始终在 `0..MaxLog` 内；其余不变量与 liveness 性质保留精确观察。这是与此前有界
+见证的精确互模拟。映射依赖投递守卫建立同一个身份比较；修改该守卫或增加前缀读者必须
+重做映射。真实旧／新控制动作的边界对照必须覆盖零、未饱和与饱和 count、真假布尔值及
+匹配／错配 viewer；它支持局部映射，不能替代完整注册族检查。
+
+模型保留独立的 `control` 与 `resize` kind。`Admitted` 把 control 视为冻结的逻辑目标，
+而 resize 与 poll 要求精确记录 incarnation；focus 来源也专门针对 control 检查。
+执行阶段观察它们共同的 `ControlKinds` 成员性。真实 Rust `Input` 与 `Resize` 命令仍独立，
+本模型不声称验证其载荷、几何或字节编码。
 
 三个 `RejectStale*` 动作保留原名与各自的 stale 存在量词守卫，但不再更新状态：每个写作
 `IF (\E d : G(d)) THEN UNCHANGED X ELSE FALSE`，是真实守卫下的 stuttering 后继，
@@ -273,7 +273,7 @@ poll 对应旧的
 - 让 `ExecuteControl` 把一次交付记到兄弟 pane 的 viewer 上——错配投递变异体——是
   `InputsDeliverOnlyToTaggedLiveFocus` 的既定对照：对 `p0` 的首次合法交付即把
   `inflight.incarnation = viewer[p1]`（`1 = 0`）经带括号的合取把 `allTaggedValid` 折为 `FALSE`，同时
-  count 照常自增且真实准入门保留。早先未加括号的表达式下该变异体不可能浮现违例：
+  真实准入门保留。早先未加括号的表达式下该变异体不可能浮现违例：
   FALSE 比较充当额外守卫而产生无后继，而非写出 FALSE 标志。
 
 上述结果仅确立上文描述的有穷面板操作接口。已知边界如实披露而非默默声称：`commitValid = FALSE`

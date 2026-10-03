@@ -46,3 +46,6 @@ unsafe_code = "forbid"
 
 [workspace.lints.clippy]
 all = { level = "deny", priority = -1 }
+
+[profile.dev.package.sha2]
+opt-level = 3

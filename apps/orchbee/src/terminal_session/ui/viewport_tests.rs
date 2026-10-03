@@ -455,6 +455,79 @@ fn read_watermark_carries_across_reentry() {
     assert_eq!(projection_at(&mut ui, &key).read_watermark, 2);
 }
 
+#[test]
+fn removed_projection_drops_late_history_facts_and_viewport_outcomes() {
+    use orchbee_terminal_protocol::{
+        CURRENT_PROTOCOL_VERSION, Envelope, HistoryControl, PayloadEncoding,
+        encode_history_control, encode_transport_envelope,
+    };
+
+    let (mut ui, mailbox, clock, _elapsed) = ready_split_ui();
+    drain(&mailbox);
+    let key = ui.state.as_ref().unwrap().focus_pane_ref().unwrap();
+    install_frame(&mut ui, &key);
+    ui.enter_history();
+    assert_eq!(recv_viewports(&mailbox), [ViewportStep::Enter]);
+    settle_viewing(&mut ui, &mailbox, &key, 1);
+
+    let mut changed = facts(&projection_at(&mut ui, &key).value, 2, 1);
+    changed.anchor_status = HistoryAnchorStatus::Evicted;
+    let encoded = encode_history_control(&HistoryControl::HistoryChanged(changed)).unwrap();
+    let record = encode_transport_envelope(&Envelope {
+        protocol: CURRENT_PROTOCOL_VERSION,
+        role: encoded.role,
+        kind: encoded.kind,
+        payload_encoding: PayloadEncoding::ControlJson,
+        host_epoch: Some(epoch()),
+        correlation_id: None,
+        optional_message: false,
+        payload: &encoded.payload,
+    })
+    .unwrap();
+
+    // The poll belongs to the old projection before removal; its reply arrives afterwards.
+    mailbox
+        .try_enqueue(QueuedCommand::Poll(Tagged::new(key.clone(), ())))
+        .unwrap();
+    let lease = mailbox.try_recv().unwrap().unwrap();
+    let poll_key = lease.poll_key().unwrap();
+    ui.clear_pane_projection(&key);
+    let cutoff = clock.now() + crate::terminal_session::state::OPERATION_TOTAL;
+    assert_eq!(
+        mailbox
+            .publish_poll_result_before(poll_key.clone(), Some(record), false, cutoff, &clock)
+            .unwrap(),
+        MutationResult::Applied
+    );
+    ui.tick();
+    assert!(!ui.apply_viewport_outcome(
+        &mailbox,
+        key.clone(),
+        ViewportOutcome::Ack {
+            request_sequence: NonZeroU64::new(1).unwrap(),
+            accepted: false,
+        },
+    ));
+    ui.admit_viewport_steps(&mailbox, &key);
+    assert!(recv_viewports(&mailbox).is_empty());
+    assert!(
+        ui.projections
+            .iter()
+            .all(|projection| projection.key != key)
+    );
+    assert!(ui.retirement_failure.is_none());
+
+    ui.after_draw();
+    assert_eq!(
+        mailbox
+            .take_causal_before(&poll_key, cutoff, &clock)
+            .unwrap(),
+        Some(CausalSettlement::NoFeedback),
+        "a removed incarnation's facts produce no HistoryObserved feedback"
+    );
+    mailbox.finish_lease(lease).unwrap();
+}
+
 // A genuinely new attachment restarts the domain — the host's
 // `last_row_request_sequence` is attachment-scoped, so a different
 // attachment identity legitimately sequences from 1 even after the

@@ -139,6 +139,10 @@ regression retires the carrier as a protocol fault. Kind-53 records never re-run
 - Installing a window does not commit it. Only an exact accepted `RowsApplied` promotes the
   pending anchor to committed. Acknowledgement rejection loses the anchor and enters recovery
   with a localized notice — the position is never faked from stale absolute offsets.
+  A previously committed anchor survives a resize independently of a newer window's pending or
+  in-flight acknowledgement. Resize discards that newer window and its un-admitted acknowledgement;
+  after fresh facts, the old committed anchor can be refreshed without accepting the discarded
+  window. A late acknowledgement cannot match a discarded window.
 - Local line intent is positive toward older rows. Entry adds that intent to `Tail{rows_before}`;
   committed navigation negates each intent chunk because the Host adds wire `delta` to the
   committed **start row**. In-flight and residual intent retain the local sign. `Committed{delta}`
@@ -208,7 +212,10 @@ than painting half a glyph across the label.
   on the wire — staged, admitted, or produced — overtakes the live flight. Host-fault window
   outcomes carry no issued sequence (`sq = 0`) and are exempt from pairwise uniqueness.
 - `AckAfterInstall`: `RowsApplied` only for an installed window, matching sequence, exactly once.
-- `CommittedOnlyAfterAck`: `Committed` reads require an accepted acknowledgement.
+- `CommittedOnlyAfterAck`: only an exact accepted acknowledgement promotes an anchor; `Committed`
+  reads use that previously accepted anchor. The model's `CommittedNeedsAck` checks the false-to-true
+  promotion edge against `AckAccepted`, rather than requiring the current window's acknowledgement
+  to remain live after resize.
 - `NoReadWhileAck`: no read while an acknowledgement is pending or in flight.
 - `SurfaceCurrent`: painted rows always match the current generation and column count. The
   model bounds the drawn generation to none-or-current; it does not itself prove a positive
@@ -222,7 +229,8 @@ than painting half a glyph across the label.
 - `HonestModes`: Live keeps ordinary application keys and tracking; eligible primary-screen
   wheel-up may enter history. Non-Live navigation stays local; ordinary input recovers first.
 - `PaneIncarnationFence`: every wire action and applied event resolves the exact `PaneRef` and
-  attachment lease; outcomes for a dead incarnation are dropped.
+  attachment lease; events and outcomes for a dead incarnation are dropped. The checked action
+  property keeps `Lost` terminal for this incarnation; reattachment belongs to a new incarnation.
 
 ## Source correspondence
 
@@ -241,11 +249,72 @@ than painting half a glyph across the label.
 
 ## Verification
 
-| Surface               | Evidence                                                                                                                                                                                                                                                  |
-| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Core transitions      | `terminal_viewport/tests` — entry, navigation coalescing, ±4096 residual steps, install gates, ack promotion, typed rejections, recovery, deadlines                                                                                                       |
-| Adversarial sequences | Deterministic trace tests — stray/foreign/stale windows, typed stale retry, halving, ack rejection, bottom exit, absolute jump                                                                                                                            |
-| Input boundary        | `client_view` tests — `Ctrl+B PageUp` → `EnterHistory`, help precedence; dispatcher consumption is exercised through the port default                                                                                                                     |
-| Rendering             | Surface fencing is owned by the core (`surface()` re-validates generation/columns); painter coverage rides the shell render paths                                                                                                                         |
-| Outcome notice seam   | `ui/viewport_tests` — `publish_notice_before` → `take_event_before` → `apply_viewport_outcome` regression keeps the protocol open; the state-neutral applied Enter leaves the Entering core intact                                                        |
-| Model                 | `formal/tla/TerminalClientViewport.tla` + `.cfg` registered in `scripts/tla/models.json`; the staged-admission and typed-outcome revision with the admission-edge flight and input-cover properties is mapped but TLC remains pending with the gate owner |
+The model imports `Integers` for signed navigation and represents every admitted command as a
+three-tuple. Payload-free Enter, Recover, and Input use `<<kind, 0, 0>>`; Read and Ack retain their
+sequence and generation. This bijective encoding preserves queue length, order, admission, and
+execution while avoiding TLC equality checks between strings and tuples. It does not change the
+production command representation. The registered configuration checks the complete reachable graph
+with all declared invariants, temporal properties, fairness, and required action coverage; finite
+bounds remain evidence limits.
+
+### Observation projection
+
+The model keeps all 35 physical state variables and projects away the last-action label `action`
+and last-emitted-delta witness `emitted_delta`. Neither value participates in a transition guard.
+The named `Next` actions and all 26 weak-fairness obligations are retained. Every fair action changes
+a physical command/outcome queue, staged slot, mode, event-pending flag, or deadline; projecting these
+two witnesses therefore preserves its enabledness and non-stuttering steps. Unfair actions that
+change only a witness project to the already-admitted stutter. Under these reader and producer
+conditions, every supported old behavior projects to the retained-state specification. This is an
+inspected representation argument, not a kernel-checked universal theorem.
+
+`EmitLeavesStagedRead`, `CommittedReadGuard`, `BoundedDelta`, and `InstallGates` now check their named
+transition edges instead of retaining diagnostic state. A committed emit's signed increment is
+`nav_delta - nav_delta'`, equal to its original `chunk`; Tail and Init produce zero, and no other
+transition produces a delta. The configuration retains the same 19 assertion names as 11 state
+invariants and eight temporal properties, with `PaneIncarnationFence` added separately for the
+existing identity claim. Constants, action coverage, and fairness are unchanged; no state constraint
+narrows exploration. Adding a witness reader or another
+delta producer requires revisiting this mapping.
+
+A replay of the existing 20-state counterexample checks the physical projection and the converted
+assertions along that recorded prefix. Its driver advances the fixed record and does not establish
+the original infinite fair specification. Five source-derived faults separately check illegal
+commit promotion, a wrong staged sequence, a cleared committed anchor, an oversized committed
+increment, and an unreleased installed flight. These focused checks complement the registered
+complete-graph check and native core tests; they do not replace either or imply independent review.
+
+`Lost` represents the absence of this incarnation's Client core. A late history event is drained
+without changing Client facts, accepted event sequence, or staged commands; admission requires an
+owned core. This follows `NativeUi::clear_pane_projection`, the exact-key check in
+`apply_poll_result`, and the absent-core check in `apply_viewport_outcome`. Host state and already
+admitted queues remain represented independently. A known reachable prefix followed by detach,
+anchor eviction, event delivery, and attempted admission distinguishes a missing fence from the
+supported transition; UI tests also deliver late facts and outcomes after projection removal.
+
+The lost-core projection gives the 17 discarded core fields their reset values only after this
+incarnation becomes `Lost`: facts, window/ack, flight, navigation, refresh, deadline, retry flags,
+recovery completion, drawn generation, and staging. The 18 remaining fields retain mode, the issued
+read watermark, admitted queues, outcomes, delivery, accepted event witnesses, and Host state.
+Active states are unchanged. Lost-mode guards never read the discarded fields to produce a new
+core or wire command; outcome and event drains preserve the retained state. A lost deadline can
+only perform finitely many ticks in the reference, which project to stutters. All other fair steps
+still change retained state or stay disabled; `EnteredResolves` depends only on mode. Under this
+terminal-incarnation and reader closure, the normalization preserves the supported safety and
+progress observations. This is an inspected representation argument, not a universal kernel proof.
+
+A one-step boundary checker covers the 20 recorded states and their detached counterparts against
+the reference `Next`, all 11 state assertions, and eight safety action properties. Its 357 distinct
+states are local evidence, not the full fair specification. Three negative controls detect clearing
+admitted wire commands, normalizing an active core, and losing the issued read watermark. The
+registered complete-graph check retains all constants, action coverage, and 26 fairness obligations;
+no exploration constraint is added.
+
+| Surface               | Evidence                                                                                                                                                                                                                                       |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Core transitions      | `terminal_viewport/tests` — entry, navigation coalescing, ±4096 residual steps, install gates, ack promotion, typed rejections, recovery, deadlines                                                                                            |
+| Adversarial sequences | Deterministic trace tests — stray/foreign/stale windows, typed stale retry, halving, ack rejection, bottom exit, absolute jump                                                                                                                 |
+| Input boundary        | `client_view` tests — `Ctrl+B PageUp` → `EnterHistory`, help precedence; dispatcher consumption is exercised through the port default                                                                                                          |
+| Rendering             | Surface fencing is owned by the core (`surface()` re-validates generation/columns); painter coverage rides the shell render paths                                                                                                              |
+| Outcome notice seam   | `ui/viewport_tests` — `publish_notice_before` → `take_event_before` → `apply_viewport_outcome` regression keeps the protocol open; the state-neutral applied Enter leaves the Entering core intact                                             |
+| Model                 | `formal/tla/TerminalClientViewport.tla` + `.cfg` registered in `scripts/tla/models.json`; merge checks run the complete bounded specification and required action coverage, including staged flight, input cover, and lost-incarnation fencing |

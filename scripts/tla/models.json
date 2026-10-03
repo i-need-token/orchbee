@@ -1927,6 +1927,11 @@
 				"ViewerDies",
 				"PaintRefused",
 				"CooldownElapse"
+			],
+			"variants": [
+				{ "name": "navigation", "constants": { "ModelScope": "navigation" } },
+				{ "name": "input", "constants": { "ModelScope": "input" } },
+				{ "name": "paint", "constants": { "ModelScope": "paint" } }
 			]
 		},
 		{
@@ -3143,7 +3148,7 @@
 				"apps/orchbee/docs/native-panel-lifecycle.zh-CN.md"
 			],
 			"timeoutMilliseconds": 1800000,
-			"workers": 1,
+			"workers": 8,
 			"requiredCoverage": [
 				"ClockAdvance",
 				"HoldMailboxLock",
@@ -4186,7 +4191,7 @@
 		},
 		{
 			"id": "native-terminal-viewport",
-			"workers": 2,
+			"workers": 8,
 			"owner": "orchbee",
 			"workspace": "apps/orchbee",
 			"module": "apps/orchbee/formal/tla/TerminalClientViewport.tla",
@@ -4250,7 +4255,7 @@
 				"HostEvict",
 				"HostFaultWindow"
 			],
-			"timeoutMilliseconds": 600000
+			"timeoutMilliseconds": 3600000
 		},
 		{
 			"id": "native-workspace-setup",
@@ -4339,6 +4344,7 @@
 		},
 		{
 			"id": "client-view-control",
+			"workers": 8,
 			"owner": "orchbee-server",
 			"workspace": "apps/orchbee-server",
 			"module": "apps/orchbee-server/formal/tla/ClientViewControl.tla",
@@ -4739,8 +4745,8 @@
 				"crates/client-server-protocol/tests/**",
 				"schemas/client-server/**"
 			],
-			"timeoutMilliseconds": 2400000,
-			"workers": 2,
+			"timeoutMilliseconds": 3600000,
+			"workers": 8,
 			"requiredCoverage": [
 				"OpenRelaySession",
 				"ReconnectRelaySession",
@@ -5004,8 +5010,8 @@
 				"crates/client-server-protocol/src/**",
 				"schemas/client-server/**"
 			],
-			"workers": 2,
-			"timeoutMilliseconds": 1800000,
+			"workers": 8,
+			"timeoutMilliseconds": 3600000,
 			"variants": [
 				{
 					"name": "routing",
@@ -5608,6 +5614,7 @@
 			"workspace": "apps/orchbee-server",
 			"module": "apps/orchbee-server/formal/tla/WorkbenchNavigationCommit.tla",
 			"config": "apps/orchbee-server/formal/tla/WorkbenchNavigationCommit.cfg",
+			"workers": 8,
 			"claims": [
 				"apps/orchbee-server/docs/workbench-authority.md",
 				"apps/orchbee/docs/native-panel-labels.md"
@@ -5930,7 +5937,7 @@
 				"schemas/workbench/**"
 			],
 			"timeoutMilliseconds": 300000,
-			"workers": 1,
+			"workers": 8,
 			"requiredCoverage": [
 				"AdmitClose",
 				"JoinClose",
@@ -6007,7 +6014,7 @@
 				"schemas/workbench/**"
 			],
 			"timeoutMilliseconds": 300000,
-			"workers": 1,
+			"workers": 8,
 			"requiredCoverage": [
 				"CommitCreate",
 				"DispatchCreate",
@@ -6047,6 +6054,7 @@
 			"workspace": "apps/orchbee-server",
 			"module": "apps/orchbee-server/formal/tla/WorkbenchTabCreate.tla",
 			"config": "apps/orchbee-server/formal/tla/WorkbenchTabCreate.cfg",
+			"workers": 8,
 			"claims": ["apps/orchbee-server/docs/workbench-authority.md"],
 			"triggers": [
 				"apps/orchbee-server/src/**",
@@ -6136,6 +6144,7 @@
 			"workspace": "apps/orchbee-server",
 			"module": "apps/orchbee-server/formal/tla/WorkbenchTerminalSelection.tla",
 			"config": "apps/orchbee-server/formal/tla/WorkbenchTerminalSelection.cfg",
+			"workers": 8,
 			"claims": [
 				"apps/orchbee-server/docs/workbench-authority.md",
 				"apps/orchbee/README.md",
@@ -6185,7 +6194,7 @@
 				"schemas/workbench/**"
 			],
 			"timeoutMilliseconds": 180000,
-			"workers": 2,
+			"workers": 8,
 			"requiredCoverage": [
 				"DenyAssociation",
 				"RefuseStaleRevision",
@@ -6273,7 +6282,7 @@
 				"apps/orchbee-server/docs/terminal-tab-close.md",
 				"apps/orchbee-server/docs/terminal-tab-close.zh-CN.md"
 			],
-			"workers": 1,
+			"workers": 8,
 			"timeoutMilliseconds": 120000,
 			"requiredCoverage": [
 				"PrimaryAcceptance",
@@ -6339,7 +6348,7 @@
 				"apps/orchbee-server/docs/workbench-authority.zh-CN.md"
 			],
 			"timeoutMilliseconds": 120000,
-			"workers": 1,
+			"workers": 8,
 			"requiredCoverage": [
 				"NewMove",
 				"Replay",
@@ -6385,7 +6394,7 @@
 				"schemas/workbench/**"
 			],
 			"timeoutMilliseconds": 180000,
-			"workers": 1,
+			"workers": 8,
 			"requiredCoverage": [
 				"StageWorkspaceCreate",
 				"DropStagedCreate",
@@ -6425,6 +6434,7 @@
 			"workspace": "apps/orchbee-worker",
 			"module": "apps/orchbee-worker/formal/tla/LocalHostBroker.tla",
 			"config": "apps/orchbee-worker/formal/tla/LocalHostBroker.cfg",
+			"workers": 8,
 			"claims": [
 				"apps/orchbee-worker/README.md",
 				"apps/terminal-host/README.md",
@@ -6503,6 +6513,7 @@
 			"workspace": "apps/orchbee-worker",
 			"module": "apps/orchbee-worker/formal/tla/SemanticPasteAdmission.tla",
 			"config": "apps/orchbee-worker/formal/tla/SemanticPasteAdmission.cfg",
+			"workers": 8,
 			"claims": [
 				"apps/orchbee-worker/README.md",
 				"apps/terminal-host/README.md",
@@ -6603,7 +6614,7 @@
 				"AbandonResult"
 			],
 			"timeoutMilliseconds": 120000,
-			"workers": 1
+			"workers": 8
 		},
 		{
 			"id": "worker-terminal-binding-capacity",
@@ -6611,6 +6622,7 @@
 			"workspace": "apps/orchbee-worker",
 			"module": "apps/orchbee-worker/formal/tla/WorkerTerminalBindingCapacity.tla",
 			"config": "apps/orchbee-worker/formal/tla/WorkerTerminalBindingCapacity.cfg",
+			"workers": 8,
 			"claims": ["apps/orchbee-worker/README.md", "crates/capability-node-protocol/README.md"],
 			"triggers": [
 				"apps/orchbee-worker/README.zh-CN.md",
@@ -6645,6 +6657,7 @@
 			"workspace": "apps/orchbee-worker",
 			"module": "apps/orchbee-worker/formal/tla/WorkerTerminalLifecycleReceipts.tla",
 			"config": "apps/orchbee-worker/formal/tla/WorkerTerminalLifecycleReceipts.cfg",
+			"workers": 8,
 			"claims": ["apps/orchbee-worker/README.md", "apps/orchbee-server/docs/terminal-tab-close.md"],
 			"triggers": [
 				"apps/orchbee-worker/README.zh-CN.md",
@@ -6694,6 +6707,7 @@
 			"workspace": "apps/orchbee-worker",
 			"module": "apps/orchbee-worker/formal/tla/WorkerTerminalLifecycleStep.tla",
 			"config": "apps/orchbee-worker/formal/tla/WorkerTerminalLifecycleStep.cfg",
+			"workers": 8,
 			"claims": ["apps/orchbee-worker/README.md", "apps/orchbee-server/docs/terminal-tab-close.md"],
 			"triggers": [
 				"apps/orchbee-worker/README.zh-CN.md",
@@ -7188,6 +7202,7 @@
 			"workspace": "crates/local-client-protocol",
 			"module": "crates/local-client-protocol/formal/tla/LocalClientAdmission.tla",
 			"config": "crates/local-client-protocol/formal/tla/LocalClientAdmission.cfg",
+			"workers": 8,
 			"claims": ["crates/local-client-protocol/README.md", "apps/orchbee/README.md"],
 			"triggers": [
 				"crates/local-client-protocol/src/**",
@@ -7221,6 +7236,7 @@
 			"workspace": "crates/local-site-runtime",
 			"module": "crates/local-site-runtime/formal/tla/LocalSiteStartup.tla",
 			"config": "crates/local-site-runtime/formal/tla/LocalSiteStartup.cfg",
+			"workers": 8,
 			"claims": ["crates/local-site-runtime/README.md"],
 			"triggers": [
 				"crates/local-site-runtime/**",
@@ -7268,6 +7284,7 @@
 			"workspace": "crates/local-site-runtime",
 			"module": "crates/local-site-runtime/formal/tla/WindowsCheckpointRestoreNotice.tla",
 			"config": "crates/local-site-runtime/formal/tla/WindowsCheckpointRestoreNotice.cfg",
+			"workers": 8,
 			"claims": ["crates/local-site-runtime/docs/windows-checkpoint-storage.md"],
 			"triggers": [
 				"crates/local-site-runtime/src/checkpoint_restore_notice_windows.rs",
@@ -7333,6 +7350,7 @@
 			"workspace": "crates/local-site-runtime",
 			"module": "crates/local-site-runtime/formal/tla/WindowsSiteCrashRecovery.tla",
 			"config": "crates/local-site-runtime/formal/tla/WindowsSiteCrashRecovery.cfg",
+			"workers": 8,
 			"claims": ["crates/local-site-runtime/docs/windows-crash-recovery.md"],
 			"triggers": [
 				"crates/local-site-runtime/**",
@@ -7981,6 +7999,7 @@
 			"workspace": "packages/terminal",
 			"module": "packages/terminal/formal/tla/TerminalSelectionGestureCoordination.tla",
 			"config": "packages/terminal/formal/tla/TerminalSelectionGestureCoordination.cfg",
+			"workers": 8,
 			"claims": [
 				"packages/terminal/formal/README.md",
 				"packages/terminal/README.md",

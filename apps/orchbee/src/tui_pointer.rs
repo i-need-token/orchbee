@@ -411,6 +411,17 @@ struct PaneGesture {
     last_cell: Option<(u16, u16)>,
 }
 
+fn pane_input_ready(probe: &PointerProbe, expected: &PaneRef) -> bool {
+    probe.input_ready
+        && probe.focus.as_ref() == Some(expected)
+        && probe.panes.iter().any(|pane| {
+            pane.record == *expected
+                && pane.attached
+                && pane.controlling == Some(true)
+                && pane.frame_available
+        })
+}
+
 impl PaneGesture {
     /// Whether this gesture still owns the pointer: its recorded
     /// incarnation is still the live focus pane and still attached.
@@ -687,17 +698,25 @@ impl PointerState {
         probe: &PointerProbe,
         at: Instant,
         event: MouseEvent,
-        expected: PaneRef,
-        viewport: Rect,
-        frame: PointerFrameFacts,
+        target: PaneTarget,
     ) -> PointerOutcome {
+        let Some(frame) = probe.frame else {
+            return PointerOutcome::Ignored;
+        };
+        let PaneTarget {
+            expected,
+            content: viewport,
+        } = target;
         match pane_owns_pointer(
             frame.tracking,
             &event,
             frame.alternate_screen && frame.alternate_scroll,
         ) {
             PointerOwner::Pane => {
-                if !probe.input_ready {
+                if probe.viewport_non_live {
+                    return PointerOutcome::Handled;
+                }
+                if !pane_input_ready(probe, &expected) {
                     view.report_pointer_input_dropped();
                     return PointerOutcome::Handled;
                 }
@@ -1283,11 +1302,14 @@ impl PointerState {
             if !inside_content {
                 return PointerOutcome::Ignored;
             }
-            let Some(frame) = probe.frame else {
-                return PointerOutcome::Ignored;
-            };
-            return self
-                .start_focused_press(view, port, probe, now, event, expected, content, frame);
+            return self.start_focused_press(
+                view,
+                port,
+                probe,
+                now,
+                event,
+                PaneTarget { expected, content },
+            );
         }
         // Local focus is a read-side operation. An attached ReadOnly leaf
         // can therefore become the exact focus for selection even though it
@@ -1330,7 +1352,7 @@ impl PointerState {
                         && pane.frame_available
                         && (after.input_ready || after.selection_ready)
                 });
-            let Some(frame) = after.frame.filter(|_| ready) else {
+            if after.frame.filter(|_| ready).is_none() {
                 let mut queued = VecDeque::new();
                 queued.push_back(event);
                 self.gesture = Gesture::Pending(PendingFocus {
@@ -1342,9 +1364,15 @@ impl PointerState {
                     queued,
                 });
                 return PointerOutcome::RegionsChanged;
-            };
-            return self
-                .start_focused_press(view, port, &after, now, event, expected, content, frame);
+            }
+            return self.start_focused_press(
+                view,
+                port,
+                &after,
+                now,
+                event,
+                PaneTarget { expected, content },
+            );
         }
         // The focus was accepted but has not reached the recorded
         // incarnation — the record is still attaching, or the incarnation
@@ -1518,7 +1546,12 @@ impl PointerState {
                 return PointerOutcome::Handled;
             }
         }
-        let replacement = if plain_primary_press(event) {
+        let completed = matches!(&self.gesture, Gesture::Pending(pending)
+        if pending.queued.back().is_some_and(|last| {
+            last.action == MouseAction::Release
+                && (last.button == pending.button || last.button == MouseButton::None)
+        }));
+        let replacement = if completed && plain_primary_press(event) {
             let expected = match &self.gesture {
                 Gesture::Pending(pending) => Some(&pending.expected),
                 _ => None,
@@ -1540,20 +1573,19 @@ impl PointerState {
         let Gesture::Pending(pending) = &mut self.gesture else {
             return PointerOutcome::Ignored;
         };
-        if let Some(viewport) = replacement {
-            pending.button = event.button;
-            pending.viewport = viewport;
-            pending.pressed_at = now;
-            pending.deadline = now + PENDING_FOCUS_TIMEOUT;
-            pending.queued.clear();
-            pending.queued.push_back(event);
-            return PointerOutcome::Handled;
-        }
-        // Queue overflow cancels the pending gesture before accepting new
-        // input — never an unbounded hold, never a silent tail drop.
+        // Queue overflow cancels before a replacement can admit fresh input.
         if pending.queued.len() >= PENDING_FOCUS_LIMIT {
             self.gesture = Gesture::Idle;
             view.report_pointer_input_dropped();
+            return PointerOutcome::Handled;
+        }
+        if let Some(viewport) = replacement {
+            // A completed click can be replaced within the original focus wait.
+            pending.button = event.button;
+            pending.viewport = viewport;
+            pending.pressed_at = now;
+            pending.queued.clear();
+            pending.queued.push_back(event);
             return PointerOutcome::Handled;
         }
         if event.action == MouseAction::Motion
@@ -1671,7 +1703,10 @@ impl PointerState {
             frame.alternate_screen && frame.alternate_scroll,
         ) {
             PointerOwner::Pane => {
-                if !probe.input_ready {
+                if probe.viewport_non_live {
+                    return true;
+                }
+                if !pane_input_ready(probe, &pending.expected) {
                     view.report_pointer_input_dropped();
                     return true;
                 }

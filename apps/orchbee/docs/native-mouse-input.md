@@ -72,16 +72,16 @@ unreachable panel.
 | `Selection` | A focused untracked pane owns one Host selection gesture for its exact attachment and projection generation. Motion coalesces within the pane; release remains behind the latest motion and only a Host-accepted active end may request copy.                 |
 | `Pending`   | A press on an unfocused pane fired `FocusPanel`; the press and later input queue (FIFO, bound 16, motion merges to the newest cell) until the switch settles. Overflow cancels before any new input is accepted and reports the bounded dropped-input notice. |
 
-Readiness is adjudicated against a fresh probe, never a cached sequence or a generation delta:
-the queued gesture is released only when the recorded `tab`/`panel` identities still resolve and
-are the selection anchor, no switch is in flight (`attached == desired`), input is admissible
-(`input_ready` — the same Ready-phase-and-`Controlling` gate `forward` itself checks; an
-installed attachment key alone is a converging switch, not a ready target), and the desired
-attachment has a current frame. A settled state whose anchor moved elsewhere, vanished
-identities, a settled `ReadOnly` verdict, or the two-second deadline each cancel the gesture —
-`ReadOnly` and expiry report the notice; cancellation never replays queued input onto a
-different pane and never chases a new focus target. A same-epoch local focus that reuses the
-installed attachment admits identically: the attachment's identity follows the anchor.
+Readiness is adjudicated against a fresh probe, never a cached sequence or a generation delta.
+The queued press waits for its exact recorded pane incarnation to remain attached, become the
+desired focus, settle its mode, and have a usable current frame. Read readiness admits Client
+selection on an untracked `ReadOnly` pane. Application input independently requires
+`input_ready`, the exact leaf's `Controlling` mode, and a live viewport; a tracking pane in
+history consumes the queue locally. A missing or replaced incarnation or a focus redirected
+elsewhere cancels without replay. The original two-second deadline cancels with a dropped-input
+notice. A completed click may be replaced by a new press on the same painted pane before Start
+admission, but repeated presses without release cannot replace it, reset that deadline, or bypass
+the queue bound. A same-epoch local focus that reuses the installed attachment admits identically.
 
 Modal input capture (a draft or an armed confirmation) swallows pointer events without gestures;
 the modal's own outside-click rules are unchanged — ordinary overlays dismiss on an outside
@@ -107,16 +107,13 @@ press, modal surfaces swallow it.
   matching Herdr's cell fallback. Tracking, modifiers, release identity, clamping and motion
   deduplication retain the ordinary SGR rules. This does not provide exact pixel input or invent
   a cell center; host capture remains cell-based and never enables `?1016`.
-- Byte delivery reuses the existing `forward` path, so the `Controlling` check, read-only
-  refusal, and acknowledgement semantics are unchanged. A `ReadOnly` attachment drops pointer
-  input without an implicit acquire. A fresh unfocused press on a pane that cannot currently
-  admit input for this Client — a settled `ReadOnly` verdict, or a still-unsettled mode that
-  has not arrived between `Attached` and `SetupConfigured` — is adjudicated on the spot: a
-  content press reports the bounded dropped-input notice, the title row stays Client
-  territory and drops quietly, and no `FocusPanel` is issued and no gesture opens. The
-  notice states a factual input drop only; an unsettled mode is not a permission verdict. A
-  pane whose mode reports `Controlling` still takes the ordinary local-focus path, and a
-  focus switch that was already accepted still settles through the pending gesture.
+- Byte delivery reuses the existing `forward` path, including its `Controlling` check,
+  read-only refusal, and acknowledgement semantics. An attached pane may receive local read
+  focus regardless of input authority; a title-row press focuses without pane input. A content
+  press whose mode is still unknown waits within the original pending deadline. Once a tracking
+  pane settles as `ReadOnly`, its program-owned press is dropped with the input notice and no
+  implicit acquire. Read focus never substitutes for application-input permission, and history
+  never turns a program-owned tracking gesture into Client selection.
 
 ## Wheel fallback
 
