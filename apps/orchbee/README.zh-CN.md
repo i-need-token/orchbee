@@ -180,6 +180,11 @@ node scripts/stage-native-site.mjs --output "$env:LOCALAPPDATA\OrchbeeNative"
 Shell 模式及启动生命周期见 [Windows 配置](docs/windows-cli-configuration.zh-CN.md#windows-配置-shell)。
 `site start --format json` 也可在非交互控制台中运行。
 
+Windows Site 完全为空且没有保存位置时，`cd <project>; orchbee` 创建默认 Project、以当前
+目录命名的 Workspace，并在该目录启动首个终端。之后启动恢复最后显示的 Workspace、Tab
+和 Panel；从其他目录启动不会增建 Workspace。详见[目录启动](docs/native-directory-startup.zh-CN.md)
+及[启动位置](docs/native-context-selection.zh-CN.md#windows-启动偏好)。
+
 前缀键为 `Ctrl+B`，随后按 `|` 左右分屏、`-` 上下分屏、`h/j/k/l` 切换窗格，或 `d` 脱离。
 分屏保留当前焦点。再次运行可执行文件即可重新连接保留的 Site。脱离后 Shell 继续运行；退出的 Shell
 仍可观察，直至显式关闭其 Tab/Panel。全部已登记的 Site 进程退出后，再次运行可执行文件会自动开始
@@ -653,6 +658,10 @@ ORCHBEE_TEST_NATIVE_COHORT=/tmp/orchbee-native-dev cargo test -p orchbee --test 
 Open create reference 仍是显式旧路径的值，不用于选择此 viewer。Linux 裸入口通过已校验的
 本地 Site 激活与 Worker 按需启动 Host 消费此路径。显式 Create 与 Attach intent
 保留现有 Create-reference attachment 行为。
+
+Windows 裸启动先读取 canonical 成员关系，再解析保存位置或符合条件的空 Site
+[目录创建](docs/native-directory-startup.zh-CN.md)。已有 Site 没有保存位置时，执行 standalone
+Open 后重新读取 snapshot。这些路径共享本 bootstrap/attachment owner 和原截止。
 
 纯投影器要求恰好一个 context 匹配 standalone context ID，没有 group，并包含零到 256 个按序、
 未分组、未固定的 Tab。每个 root 都必须是 Panel 或递归二叉 Panel 分屏树，没有 child Presentation，

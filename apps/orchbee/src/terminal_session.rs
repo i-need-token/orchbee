@@ -53,7 +53,11 @@ mod agent_read_lane;
 mod connection;
 mod mailbox;
 #[cfg(windows)]
+mod startup_directory;
+#[cfg(windows)]
 mod startup_preference;
+#[cfg(windows)]
+pub(crate) use startup_directory::StartupDirectory;
 pub(crate) mod state;
 #[cfg(any(target_os = "linux", windows))]
 mod status_recovery;
@@ -248,17 +252,15 @@ impl TerminalSession {
         client: LocalClient,
         geometry: Geometry,
         runtime: &std::path::Path,
+        directory: StartupDirectory,
     ) -> io::Result<Self> {
         let preferences = startup_preference::Preferences::load(runtime);
         let fallback = Arc::new(std::sync::atomic::AtomicBool::new(false));
-        let context =
-            preferences
-                .position
-                .clone()
-                .map(|position| NativeStartupTarget::Remembered {
-                    position,
-                    fallback: Arc::clone(&fallback),
-                });
+        let context = Some(NativeStartupTarget::LocalDirectory {
+            position: preferences.position.clone(),
+            fallback: Arc::clone(&fallback),
+            directory: Box::new(directory),
+        });
         let mut failed = preferences.failed;
         let writer = match preferences.writer() {
             Ok(writer) => writer,

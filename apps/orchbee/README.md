@@ -197,6 +197,12 @@ configured `terminal.default_shell`, otherwise the first compatible PowerShell 7
 or system Windows PowerShell. See [Windows configuration](docs/windows-cli-configuration.md#configured-windows-shell)
 for shell mode and startup lifetime. `site start --format json` also works without an interactive console.
 
+On a completely empty Windows Site without a saved position, `cd <project>; orchbee` creates a
+Default Project, a Workspace named after the current directory, and its first terminal in that
+directory. Later launches restore the last displayed Workspace, Tab and Panel; launching from
+another directory does not add a Workspace. See [directory startup](docs/native-directory-startup.md)
+and [startup position](docs/native-context-selection.md#windows-startup-preference).
+
 The prefix is `Ctrl+B`, followed by `|` for a side-by-side split, `-` for a stacked split,
 `h/j/k/l` for pane focus, or `d` to detach. Splitting preserves the current focus. Run the executable
 again to reattach to the retained Site. Detaching leaves shells running; an exited shell remains
@@ -727,6 +733,11 @@ OBCS `attach-binding`; the Open create reference remains an explicit legacy valu
 select this viewer. Bare Linux invocation consumes this path through verified local Site
 activation and Worker lazy Host startup. Explicit Create and Attach intents keep their existing
 Create-reference attachment behavior.
+
+Bare Windows startup first reads canonical membership and resolves its saved selection or
+eligible empty-Site [directory creation](docs/native-directory-startup.md). Existing Sites without
+a saved position use standalone Open followed by a fresh snapshot. These paths share this
+bootstrap/attachment owner and the original deadline.
 
 The pure projector requires exactly one context matching the standalone context ID, no groups,
 and zero through 256 ordered, ungrouped, unpinned Tabs. Every root must be a Panel or a recursively

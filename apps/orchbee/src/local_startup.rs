@@ -28,6 +28,8 @@ pub(crate) use crate::local_activation::StartupFailure;
 
 pub(crate) fn run(locale: Locale, mouse: bool) -> Result<(), StartupFailure> {
     let deadline = Instant::now() + Duration::from_secs(20);
+    #[cfg(windows)]
+    let startup_cwd = std::env::current_dir().ok();
     let inherited = InheritedTerminal::admit().map_err(|_| StartupFailure::Terminal)?;
     // A temporary zero-cell report is not drawable yet but is not a fault
     // either; the bounded wait keeps polling instead of failing admission.
@@ -57,6 +59,15 @@ pub(crate) fn run(locale: Locale, mouse: bool) -> Result<(), StartupFailure> {
     let started =
         local_activation::activate_local_site(deadline).map_err(|failure| failure.failure)?;
     #[cfg(windows)]
+    let directory = crate::terminal_session::StartupDirectory::new(
+        startup_cwd.as_deref(),
+        locale,
+        !matches!(
+            started.restore_notice,
+            Some(orchbee_local_site_runtime::WindowsCheckpointRestoreNotice::Empty)
+        ),
+    );
+    #[cfg(windows)]
     let notice = started.restore_notice.map(|notice| match notice {
         orchbee_local_site_runtime::WindowsCheckpointRestoreNotice::Recovered => {
             crate::client_view::Notice::CheckpointRecovered
@@ -70,22 +81,43 @@ pub(crate) fn run(locale: Locale, mouse: bool) -> Result<(), StartupFailure> {
     let mut client = started.client;
     client.set_submission_deadline(Some(deadline));
     #[cfg(windows)]
-    let mut session = TerminalSession::start_local(client, geometry, &started.runtime_directory)
-        .map_err(|_| StartupFailure::TerminalUnavailable)?;
+    let mut session = TerminalSession::start_local(
+        client,
+        geometry,
+        &started.runtime_directory,
+        directory.clone(),
+    )
+    .map_err(|_| StartupFailure::TerminalUnavailable)?;
     #[cfg(not(windows))]
     let mut session = TerminalSession::start(client, TerminalIntent::Standalone, geometry)
         .map_err(|_| StartupFailure::TerminalUnavailable)?;
-    loop {
-        local_activation::check_deadline(deadline).map_err(|failure| failure.failure)?;
-        if session.startup_draw_ready() {
+    let ready = (|| {
+        loop {
             local_activation::check_deadline(deadline).map_err(|failure| failure.failure)?;
-            break;
+            if session.startup_draw_ready() {
+                local_activation::check_deadline(deadline).map_err(|failure| failure.failure)?;
+                break;
+            }
+            match session.status() {
+                TerminalStatus::Unavailable => return Err(StartupFailure::TerminalUnavailable),
+                TerminalStatus::OutcomeUnknown => return Err(StartupFailure::OutcomeUnknown),
+                _ => local_activation::pause(deadline).map_err(|failure| failure.failure)?,
+            }
         }
-        match session.status() {
-            TerminalStatus::Unavailable => return Err(StartupFailure::TerminalUnavailable),
-            TerminalStatus::OutcomeUnknown => return Err(StartupFailure::OutcomeUnknown),
-            _ => local_activation::pause(deadline).map_err(|failure| failure.failure)?,
+        Ok(())
+    })();
+    if let Err(failure) = ready {
+        #[cfg(windows)]
+        if let Some(note) = directory
+            .failure_note(locale)
+            .map_err(|_| StartupFailure::Interface)?
+        {
+            io::stderr()
+                .lock()
+                .write_all(note.as_bytes())
+                .map_err(|_| StartupFailure::Interface)?;
         }
+        return Err(failure);
     }
     #[cfg(windows)]
     session.finish_local_startup();

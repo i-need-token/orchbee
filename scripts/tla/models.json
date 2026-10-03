@@ -3936,6 +3936,46 @@
 			]
 		},
 		{
+			"id": "native-startup-directory",
+			"owner": "orchbee",
+			"workspace": "apps/orchbee",
+			"module": "apps/orchbee/formal/tla/NativeStartupDirectory.tla",
+			"config": "apps/orchbee/formal/tla/NativeStartupDirectory.cfg",
+			"claims": ["apps/orchbee/docs/native-directory-startup.md"],
+			"triggers": [
+				"apps/orchbee/docs/native-directory-startup.zh-CN.md",
+				"apps/orchbee/src/local_startup.rs",
+				"apps/orchbee/src/terminal_session.rs",
+				"apps/orchbee/src/terminal_session/connection/native.rs",
+				"apps/orchbee/src/terminal_session/connection/native/startup_directory.rs",
+				"apps/orchbee/src/terminal_session/startup_directory.rs",
+				"apps/orchbee/src/terminal_session/startup_directory/**"
+			],
+			"timeoutMilliseconds": 300000,
+			"requiredCoverage": [
+				"PrepareEmpty",
+				"SelectExisting",
+				"SubmitProject",
+				"CommitProject",
+				"RejectProject",
+				"UnknownProject",
+				"RefreshProject",
+				"FailProjectRead",
+				"SubmitWorkspace",
+				"CommitStarted",
+				"CommitPending",
+				"CommitFailed",
+				"CommitUncertain",
+				"RejectWorkspace",
+				"UnknownWorkspace",
+				"RefreshWorkspace",
+				"FailWorkspaceRead",
+				"Draw",
+				"FailDraw",
+				"PeerWrite"
+			]
+		},
+		{
 			"id": "native-startup-preference",
 			"owner": "orchbee",
 			"workspace": "apps/orchbee",

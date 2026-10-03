@@ -16,11 +16,13 @@ Client's last selected Tab and Panel when those identities still belong there; o
 the first surviving member, or Empty when there are no Tabs. Empty can be
 entered and left without creating a terminal. Existing Tab controls act on the active context;
 explicit `c` uses Server's existing directory admission and never falls back to the home directory.
-Bare startup follows the Windows startup preference below; without a saved preference it retains
-the existing standalone Open and first-frame readiness contract.
+Bare Windows startup follows the preference below. Without a saved preference,
+[directory startup](native-directory-startup.md) creates the first Workspace only in an eligible
+empty Site; other Sites retain standalone Open. Both use the existing first-frame readiness contract.
 
-Project/Workspace creation and first-directory configuration belong to
-[Workspace setup](native-workspace-setup.md), which reuses this context installation owner.
+Interactive Project/Workspace creation and first-directory configuration belong to
+[Workspace setup](native-workspace-setup.md); directory startup owns automatic empty-Site creation.
+Both reuse this context installation owner.
 Panel layouts, remote access and production recovery are excluded.
 This unpublished cohort rolls out and rolls back together.
 Changing the Client location does not change canonical navigation or dispose retained execution.
@@ -112,7 +114,8 @@ without retiring a live terminal.
 Restoration validates current canonical ownership before ordinary bootstrap/attachment. A removed
 member selects the first surviving member in its location. A removed location selects the first
 nonempty canonical location, or standalone Empty when all locations are empty. Both produce a
-localized notice. Without a saved record, startup retains standalone Open. Invalid or unsupported records are preserved,
+localized notice. Without a saved record, the directory-startup policy chooses eligible empty-Site
+creation or existing standalone Open. Invalid or unsupported records are preserved,
 disable preference writes for that invocation and produce a localized notice. Explicit context or
 Agent startup retains its exact target. Preferences never grant input, change Create provenance,
 launch, dispose, change checkpoint data or move another live Client.

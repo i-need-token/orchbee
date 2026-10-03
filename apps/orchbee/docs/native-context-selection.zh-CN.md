@@ -12,11 +12,13 @@
 进入其他位置恢复本 Client 上次选择的 Tab 和 Panel，前提是这些身份仍属于该位置；
 否则选择首个现存成员，没有 Tab 则进入 Empty。
 进入和离开 Empty 都不会创建终端。已有 Tab 控制作用于当前上下文；显式 `c` 使用 Server
-已有的目录准入，绝不回退到 home 目录。裸命令启动遵循下面的 Windows 启动偏好；没有偏好时
-保留既有 standalone Open 和首帧就绪契约。
+已有的目录准入，绝不回退到 home 目录。Windows 裸启动遵循下面的启动偏好；没有偏好时，
+[目录启动](native-directory-startup.zh-CN.md)只在符合条件的空 Site 创建首个 Workspace，
+其他 Site 保留 standalone Open。两者使用既有首帧就绪契约。
 
-Project/Workspace 创建和首目录配置属于 [Workspace 设置](native-workspace-setup.zh-CN.md)，
-它复用这里的上下文安装 owner。Panel 布局、远程访问和生产恢复不在范围内。
+交互式 Project/Workspace 创建和首目录配置属于 [Workspace 设置](native-workspace-setup.zh-CN.md)；
+目录启动拥有空 Site 自动创建。两者复用这里的上下文安装 owner。
+Panel 布局、远程访问和生产恢复不在范围内。
 该未发布 cohort 整体启用和回滚。改变 Client 位置不会修改 canonical 导航或销毁保留的执行。
 [位置标签编辑](native-location-labels.zh-CN.md) 修改 canonical Project 或 Workspace 标签，
 并保留这里的有类型位置身份。
@@ -93,7 +95,8 @@ flush 后再验证并发布。遮挡、失败、过期或切换中画面不发�
 
 恢复先验证当前 canonical 归属，再进入普通 bootstrap/attachment。成员已删除则选择该位置
 首个现存成员；位置已删除则选择首个非空 canonical 位置，全部为空则进入 standalone Empty。
-两种回退均提示。没有记录时保留 standalone Open。无效或不支持的记录原样保留，本次禁用
+两种回退均提示。没有记录时，目录启动策略选择符合条件的空 Site 创建或既有 standalone Open。
+无效或不支持的记录原样保留，本次禁用
 偏好写入并提示。显式 context 或 Agent 启动仍使用确切目标。偏好不授予输入、不改变 Create
 provenance、不启动或销毁终端、不改 checkpoint，也不移动其他存活 Client。
 

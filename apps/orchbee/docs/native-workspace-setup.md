@@ -18,11 +18,12 @@ can submit. An accepted new Project remains if the user cancels the later Worksp
 Directory. The input is a literal absolute UTF-8 path, at most 4,096 bytes, without NUL; there is no
 home fallback, shell expansion, filesystem creation or directory browser. Labels retain the existing
 512-Unicode-scalar contract. All prompts, refusals and committed-result notices ship in both locales.
-Bare startup and the existing `q` / `d` exit bindings retain their meanings.
+Bare Windows [directory startup](native-directory-startup.md) is a separate workflow;
+the existing `q` / `d` exit bindings retain their meanings.
 
 A successfully created Workspace is selected through the existing context cleanup and installation
-owner after validating its exact committed identity. Directory acceptance does not start a shell;
-explicit `c` remains the only launch intent. This unpublished cohort activates and rolls back
+owner after validating its exact committed identity. In this wizard, directory acceptance does not
+start a shell; explicit `c` remains the launch intent. This unpublished cohort activates and rolls back
 together. Rollback or cancellation does not undo committed Project, Workspace or Directory facts.
 Remote access, rebinding, deletion, general Directory CRUD, persistence and release packaging are
 excluded.

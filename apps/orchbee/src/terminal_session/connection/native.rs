@@ -58,6 +58,8 @@ mod switch_membership;
 mod tab_close;
 #[cfg(any(target_os = "linux", windows))]
 pub(in crate::terminal_session) use status_recovery::{RecoveryShutdown, run_status_recovery};
+#[cfg(windows)]
+mod startup_directory;
 mod tab_move;
 mod tab_rename;
 mod workspace_setup;
@@ -388,9 +390,20 @@ impl NativeExecutor {
         else {
             return Err(CarrierFailure::Transport);
         };
+        #[cfg(windows)]
+        let (snapshot, created) =
+            self.directory_startup(snapshot, initial_geometry, startup_deadline)?;
+        #[cfg(not(windows))]
+        let created: Option<(
+            crate::terminal_session::workbench_projection::NativeContextTabs,
+            crate::terminal_session::NativeMemberTarget,
+        )> = None;
         #[allow(unused_mut)]
         let mut selection = None;
-        let cache = if let Some(target) = self
+        let cache = if let Some((cache, member)) = created {
+            selection = Some(member);
+            Ok(cache)
+        } else if let Some(target) = self
             .initial_context
             .as_ref()
             .and_then(NativeStartupTarget::context)
@@ -441,7 +454,11 @@ impl NativeExecutor {
         selection: &mut Option<crate::terminal_session::NativeMemberTarget>,
     ) -> Result<Option<crate::terminal_session::workbench_projection::NativeContextTabs>> {
         #[cfg(windows)]
-        if let Some(NativeStartupTarget::Remembered { position, fallback }) = &self.initial_context
+        if let Some(NativeStartupTarget::LocalDirectory {
+            position: Some(position),
+            fallback,
+            ..
+        }) = &self.initial_context
         {
             let (cache, member, changed) =
                 crate::terminal_session::startup_preference::resolve(snapshot, position)

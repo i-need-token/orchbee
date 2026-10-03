@@ -1,4 +1,6 @@
 #[cfg(windows)]
+mod directory_startup;
+#[cfg(windows)]
 mod machines;
 mod notification;
 #[cfg(windows)]

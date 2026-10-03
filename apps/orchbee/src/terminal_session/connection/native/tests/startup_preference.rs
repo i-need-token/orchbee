@@ -16,16 +16,21 @@ fn startup_preference_actual_carrier_restores_second_tab_without_open_or_agent_v
     let mut harness = Harness::start_at(
         steps,
         geometry,
-        NativeStartupTarget::Remembered {
-            position: Position {
+        NativeStartupTarget::LocalDirectory {
+            position: Some(Position {
                 location: target.context.location.clone(),
                 member: Some(NativeMemberTarget {
                     tab: target.tab.clone(),
                     panel: target.panel.clone(),
                     presentation: target.member.clone(),
                 }),
-            },
+            }),
             fallback: std::sync::Arc::clone(&fallback),
+            directory: Box::new(crate::terminal_session::StartupDirectory::new(
+                None,
+                crate::localization::Locale::EnUs,
+                true,
+            )),
         },
     )?;
     let request = harness.carrier.take_read()?;

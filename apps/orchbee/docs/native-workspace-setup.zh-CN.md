@@ -15,10 +15,11 @@ Enter 才能提交。新 Project 已被接受后，即使取消后续 Workspace 
 `Ctrl+B e` 仅为上下文为空且没有主 Directory 的当前 Workspace 配置目录。输入为字面的绝对
 UTF-8 路径，最多 4,096 字节且不能含 NUL；不回退 home、不做 shell 展开、不创建目录，也没有
 目录浏览器。标签保留既有 512 个 Unicode scalar 契约。所有提示、拒绝和已提交结果通知均提供
-双语。裸命令启动及既有 `q` / `d` 退出快捷键保留其含义。
+双语。Windows 裸命令[目录启动](native-directory-startup.zh-CN.md)属于独立流程；
+既有 `q` / `d` 退出快捷键保留其含义。
 
 成功创建 Workspace 后，验证其确切提交身份，再通过既有上下文清理与安装 owner 选入。
-目录接受不启动 shell；显式 `c` 仍是唯一启动意图。该未发布 cohort 整体启用与回滚。回滚或
+在本向导中，目录接受不启动 shell；显式 `c` 仍是启动意图。该未发布 cohort 整体启用与回滚。回滚或
 取消不撤销已经提交的 Project、Workspace 或 Directory 事实。远程访问、重新绑定、删除、
 通用 Directory CRUD、持久化与发布打包不在范围内。
 [位置标签编辑](native-location-labels.zh-CN.md) 使用既有 Project 和 Workspace 重命名命令，

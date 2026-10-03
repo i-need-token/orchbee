@@ -53,9 +53,10 @@ pub(crate) enum NativeStartupTarget {
     #[cfg(windows)]
     Agent(Box<crate::machine_agents::Target>),
     #[cfg(windows)]
-    Remembered {
-        position: super::startup_preference::Position,
+    LocalDirectory {
+        position: Option<super::startup_preference::Position>,
         fallback: std::sync::Arc<std::sync::atomic::AtomicBool>,
+        directory: Box<super::startup_directory::StartupDirectory>,
     },
 }
 impl PartialEq for NativeStartupTarget {
@@ -66,15 +67,21 @@ impl PartialEq for NativeStartupTarget {
             (Self::Agent(left), Self::Agent(right)) => left == right,
             #[cfg(windows)]
             (
-                Self::Remembered {
+                Self::LocalDirectory {
                     position: left,
                     fallback: left_notice,
+                    directory: left_directory,
                 },
-                Self::Remembered {
+                Self::LocalDirectory {
                     position: right,
                     fallback: right_notice,
+                    directory: right_directory,
                 },
-            ) => left == right && std::sync::Arc::ptr_eq(left_notice, right_notice),
+            ) => {
+                left == right
+                    && left_directory == right_directory
+                    && std::sync::Arc::ptr_eq(left_notice, right_notice)
+            }
             #[cfg(windows)]
             _ => false,
         }
@@ -93,7 +100,7 @@ impl NativeStartupTarget {
             #[cfg(windows)]
             Self::Agent(target) => Some(&target.context),
             #[cfg(windows)]
-            Self::Remembered { .. } => None,
+            Self::LocalDirectory { .. } => None,
         }
     }
 }
