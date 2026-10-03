@@ -37,6 +37,7 @@ mod panel_close;
 #[cfg(windows)]
 mod panel_reports;
 mod presentation_selector;
+mod selection;
 #[cfg(windows)]
 mod sidebar_text;
 mod tab_close;
@@ -793,7 +794,7 @@ fn render_native_workbench(
         if let Some(surface) = viewport {
             // A non-Live core owns the whole content area the same way a
             // split leaf does — validated window or mode indicator.
-            viewport::render(
+            viewport::render_selected(
                 frame,
                 content_area,
                 surface,
@@ -801,6 +802,9 @@ fn render_native_workbench(
                 input_enabled,
                 locale,
                 theme,
+                native
+                    .focus_panel_id()
+                    .and_then(|panel| native.pane_selection(panel)),
             );
             if let Some(pane) = active_tab
                 .and_then(|tab| tab.active_panel().and_then(|index| tab.panel(index)))
@@ -817,6 +821,15 @@ fn render_native_workbench(
             }
         } else if let Some(terminal) = terminal {
             terminal_cells::render(frame, content_area, terminal, input_enabled);
+            selection::paint(
+                frame,
+                content_area,
+                terminal.scrollback_rows,
+                native
+                    .focus_panel_id()
+                    .and_then(|panel| native.pane_selection(panel)),
+                theme.style(Role::SurfaceSelection),
+            );
             // The single-pane paint covers the whole content area; the frame
             // border around it stays Client chrome and records nothing. The
             // recorded region carries the pane's exact live incarnation.
@@ -1097,7 +1110,7 @@ fn render_leaf(
     if let Some(surface) = viewport {
         // A non-Live core owns the leaf: its validated window or its mode
         // indicator paints instead of the live frame path.
-        viewport::render(
+        viewport::render_selected(
             frame,
             content,
             surface,
@@ -1105,9 +1118,17 @@ fn render_leaf(
             input_enabled && active,
             locale,
             theme,
+            panel.and_then(|panel| native.pane_selection(panel.panel_id())),
         );
     } else if let Some(terminal) = terminal {
         terminal_cells::render(frame, content, terminal, input_enabled && active);
+        selection::paint(
+            frame,
+            content,
+            terminal.scrollback_rows,
+            panel.and_then(|panel| native.pane_selection(panel.panel_id())),
+            theme.style(Role::SurfaceSelection),
+        );
     } else {
         let status = if panel.is_some_and(|p| native.panel_is_unbound(p.panel_id())) {
             locale.native_unbound_terminal()

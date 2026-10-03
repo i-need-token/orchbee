@@ -824,6 +824,10 @@ impl NativeExecutor {
                         let deadline = self.client.next_operation_deadline();
                         settle_ready_flow(self.run_viewport(&lease, tagged, deadline))
                     }
+                    QueuedCommand::Selection(tagged) => {
+                        let deadline = self.client.next_operation_deadline();
+                        settle_ready_flow(self.run_selection(&lease, tagged, deadline))
+                    }
                     QueuedCommand::Switch(marker) => {
                         self.run_switch(&lease, marker.target().clone())
                     }
@@ -1117,6 +1121,39 @@ impl NativeExecutor {
             .publish_notice_before(
                 WorkerEvent::ViewportOutcome {
                     key: key.clone(),
+                    outcome,
+                },
+                cutoff,
+                &self.clock,
+            )
+            .map_err(|error| self.ready_event_error(lease, &key, deadline, error))?;
+        Ok(())
+    }
+
+    fn run_selection(
+        &mut self,
+        lease: &CommandLease,
+        tagged: &Tagged<crate::terminal_session::terminal_selection::Command>,
+        deadline: Instant,
+    ) -> ReadyResult<()> {
+        let key = tagged.key().clone();
+        if self.attached_ref(&key).is_err() || !self.pane_admitted(lease, &key)? {
+            return Ok(());
+        }
+        let command = *tagged.value();
+        let action = command.viewer_action(self.viewer_id_for(&key)?);
+        let Some((_, outcome)) = self.viewer_for_ready_lease(lease, &key, action, deadline)? else {
+            return Ok(());
+        };
+        if matches!(outcome, TerminalViewerOutcome::Unavailable { .. }) {
+            return self.settle_pane_viewer_lost(lease, &key, deadline);
+        }
+        let cutoff = self.effective_lease_cutoff(lease, deadline)?;
+        self.mailbox
+            .publish_notice_before(
+                WorkerEvent::SelectionOutcome {
+                    key: key.clone(),
+                    command,
                     outcome,
                 },
                 cutoff,

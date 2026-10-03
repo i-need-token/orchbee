@@ -55,6 +55,9 @@ mod mailbox;
 pub(crate) mod state;
 #[cfg(any(target_os = "linux", windows))]
 mod status_recovery;
+mod terminal_clipboard;
+mod terminal_copy;
+mod terminal_selection;
 pub(crate) mod terminal_viewport;
 mod ui;
 mod workbench_projection;
@@ -896,6 +899,18 @@ impl TerminalInputPort for TerminalSession {
             SessionBackend::Native(native) => native.pointer_probe(),
             #[cfg(test)]
             SessionBackend::Legacy(legacy) => legacy.pointer_probe(),
+        }
+    }
+
+    fn pointer_selection(
+        &mut self,
+        key: &state::PaneRef,
+        intent: crate::terminal_input::PointerSelectionIntent,
+    ) -> crate::terminal_input::PointerSelectionAdmission {
+        match &mut self.backend {
+            SessionBackend::Native(native) => native.pointer_selection(key, intent),
+            #[cfg(test)]
+            SessionBackend::Legacy(_) => crate::terminal_input::PointerSelectionAdmission::Rejected,
         }
     }
 

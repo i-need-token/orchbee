@@ -1009,6 +1009,18 @@ impl Locale {
                 Self::EnUs => "History is not available on this pane".to_owned(),
                 Self::ZhCn => "此窗格历史不可用".to_owned(),
             },
+            NativeSessionNotice::SelectionEvicted => match self {
+                Self::EnUs => "Selected rows are no longer available".to_owned(),
+                Self::ZhCn => "所选行已不可用".to_owned(),
+            },
+            NativeSessionNotice::CopyFailed => match self {
+                Self::EnUs => "Could not copy to the clipboard".to_owned(),
+                Self::ZhCn => "未能复制到剪贴板".to_owned(),
+            },
+            NativeSessionNotice::CopyUnknown => match self {
+                Self::EnUs => "Clipboard delivery could not be confirmed".to_owned(),
+                Self::ZhCn => "无法确认剪贴板投递结果".to_owned(),
+            },
         }
     }
 

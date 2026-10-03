@@ -112,6 +112,7 @@ pub(super) fn install_projection(
         viewport: None,
         history_sequence: 0,
         read_watermark,
+        selection: None,
     });
     key
 }

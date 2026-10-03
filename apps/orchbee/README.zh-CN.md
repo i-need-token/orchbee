@@ -279,6 +279,11 @@ navigator 与 viewport；另一 Client 已提交的新 Tab 经自动 publication
 [位置标签](docs/native-location-labels.zh-CN.md) 使用预填编辑器与共享 Server 命令；
 重命名保留运行中终端，peer 通过 publication 探测或显式刷新看到变化。
 
+Windows 上，无程序鼠标跟踪的 pane 中，无修饰拖动选择实时或保留历史文本；双击选词，松开后
+将 Host 的完整导出复制到系统剪贴板。`Shift` 拖动仍交给外层终端。复制失败使用本地化提示，
+绝不重放。[选择与效果](docs/native-terminal-selection-effects.zh-CN.md) 拥有剪贴板依赖和生命周期；
+pane 程序写入、OSC 52 模式和剪贴板配置仍需接入。
+
 [Windows 自定义命令](docs/windows-custom-commands.zh-CN.md) 让 `command list`、`command invoke`、
 配置快捷键和快捷键发现共用一个已安装目录。Shell 作业、Panel 创建、独立弹窗和插件动作
 保留各自既有的执行所有者与回执。

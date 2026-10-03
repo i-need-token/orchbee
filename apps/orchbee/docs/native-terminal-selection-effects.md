@@ -23,12 +23,17 @@ triple press are outside this contract.
 
 ## Integration boundary
 
-The current foundation contains the viewer contracts, Worker and Server relays, and native pointer
-coordination. The native Client still needs selection-command publication, highlight projection,
-export assembly, clipboard policy and its Win32 adapter, and the serialized effect writer. Those
-consumers must implement the contract below before selection copy or pane-program effects become
-available. Pointer regression convergence and native-cohort verification remain required; model
-checks and relay tests alone do not establish the user outcome.
+The native Client publishes selection commands through its existing mailbox, projects Host
+endpoints over live and retained-history rows, and assembles complete acknowledged Host exports.
+Selection copies use a bounded FIFO and one asynchronous Windows Unicode clipboard writer,
+dispatched after a successful draw flush. Its separate hidden window and thread are joined on
+retirement. `clipboard-win` 5.4.1, with default features disabled and only `std`, owns the safe
+clipboard allocation and transfer; its only added dependency is `error-code` 3.4.0 (both BSL-1.0).
+
+Pane-program clipboard/BEL intake, explicit OSC 52 delivery, and reloadable clipboard policy remain
+to be connected. Their requirements below describe that remaining integration. Pointer regression
+convergence, native-cohort verification, and real Windows Terminal acceptance remain required;
+model checks and relay tests alone do not establish the user outcome.
 
 ## Pointer ownership and selection
 
@@ -158,6 +163,15 @@ effect; unknown dispatch is a terminal non-replay result.
 | Win32 copy is the Windows default      | non-null owner, UTF-16, ownership, contention, and teardown tests | selection, Codex/Claude, and Vim clipboard observation                    | Windows only; OSC 52 is explicit                  |
 
 ## Compatibility and recovery
+
+The maintained deterministic evidence includes
+`accepted_release_and_complete_host_export_reach_the_copy_queue_once`, which runs the real
+NativeUi/mailbox command and Host-record intake boundary without changing the shared clipboard,
+and `reverse_drag_uses_absolute_rows_and_highlights_a_wide_glyph_as_one_unit`. Copy-queue tests
+exercise cancellation before dispatch, retirement after dispatch, definite adapter loss, and
+unknown loss without replay. The native hidden-owner test creates and pumps a real Windows window,
+injects the final write, and verifies dispatch and join; it does not prove OS clipboard contents.
+Real Windows Terminal clipboard-content and pointer acceptance remain required.
 
 Selection viewer actions and effect routing are additive contracts delivered by one exact native
 Client, Server, Worker, and Host cohort. They create no durable selection or screen-data migration.

@@ -8,13 +8,14 @@ use orchbee_capability_node_protocol::{
     encode_message,
 };
 use orchbee_terminal_protocol::{
-    AttachmentId, CorrelationId, Envelope, HostEpoch, MessageRole, PayloadEncoding,
-    SelectionChanged, SelectionChangedState, SelectionControl, SelectionExport,
+    AttachmentId, ConnectionControl, CorrelationId, Envelope, HostEpoch, MessageRole,
+    PayloadEncoding, SelectionChanged, SelectionChangedState, SelectionControl, SelectionExport,
     SelectionExportCancel, SelectionExportCancelReason, SelectionExportChunkApplied,
     SelectionExportControl, SelectionExportFinished, SelectionExportFormat, SelectionExportStarted,
     SelectionExportStatus, SelectionGesture, SelectionGestureAction, SelectionGestureGeometry,
     SelectionGesturePosition, SelectionViewportPoint, TRANSPORT_ENVELOPE_HEADER_BYTES,
-    decode_selection_control, decode_selection_export_control, decode_transport_envelope,
+    TypedFailure, decode_connection_control, decode_selection_control,
+    decode_selection_export_control, decode_transport_envelope, encode_connection_control,
     encode_selection_control, encode_selection_export_control, encode_transport_envelope,
 };
 use std::{
@@ -401,5 +402,72 @@ fn selection_actions_convert_exactly_and_preserve_data_bearing_responses() -> Te
     peer.join()
         .unwrap()
         .map_err(|error| -> Box<dyn Error> { error })?;
+    Ok(())
+}
+
+#[test]
+fn selection_failures_preserve_the_exact_host_record_for_client_cancellation() -> TestResult {
+    let requests = raw_requests()?;
+    let count = requests.len();
+    let (host, mut host_peer) = host()?;
+    host.viewers
+        .borrow_mut()
+        .admit(&attach()?)
+        .map_err(|reason| format!("{reason:?}"))?;
+    let (server, _quiet) = UnixStream::pair()?;
+    let peer = thread::spawn(
+        move || -> Result<Vec<Vec<u8>>, Box<dyn Error + Send + Sync>> {
+            let mut originals = Vec::new();
+            for _ in 0..count {
+                let request = read_record(&mut host_peer)?;
+                let envelope = decode_transport_envelope(&request)?;
+                let failure =
+                    encode_connection_control(&ConnectionControl::TypedFailure(TypedFailure {
+                        code: "stale-generation".into(),
+                        message: "The selection generation is no longer current".into(),
+                        retryable: false,
+                    }))?;
+                let original = encode_transport_envelope(&Envelope {
+                    correlation_id: envelope.correlation_id,
+                    host_epoch: envelope.host_epoch,
+                    kind: failure.kind,
+                    optional_message: false,
+                    payload: &failure.payload,
+                    payload_encoding: PayloadEncoding::ControlJson,
+                    protocol: CURRENT_PROTOCOL_VERSION,
+                    role: failure.role,
+                })?;
+                host_peer.write_all(&original)?;
+                originals.push(original);
+            }
+            Ok(originals)
+        },
+    );
+    let mut outcomes = Vec::new();
+    for request in requests {
+        outcomes.push(
+            crate::terminal_viewer_operation::execute(
+                request,
+                orchbee_local_site_protocol::WorkerId::from_bytes([3; 16]),
+                NonZeroU64::MIN,
+                &host,
+                &server,
+            )?
+            .outcome,
+        );
+    }
+    let originals = peer
+        .join()
+        .unwrap()
+        .map_err(|error| -> Box<dyn Error> { error })?;
+    for (outcome, original) in outcomes.into_iter().zip(originals) {
+        let record = decode_record(outcome)?;
+        assert_eq!(record, original);
+        let envelope = decode_transport_envelope(&record)?;
+        assert!(
+            matches!(decode_connection_control(envelope.kind, envelope.role, envelope.payload)?,
+            ConnectionControl::TypedFailure(TypedFailure { code, .. }) if code == "stale-generation")
+        );
+    }
     Ok(())
 }

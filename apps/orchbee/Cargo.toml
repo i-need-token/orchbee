@@ -36,6 +36,8 @@ rustix = { workspace = true, features = ["fs", "termios"] }
 signal-hook = { version = "0.3.18", default-features = false }
 
 [target.'cfg(windows)'.dependencies]
+# Owned Unicode clipboard writes through a hidden HWND; no reads or monitoring.
+clipboard-win = { version = "=5.4.1", default-features = false, features = ["std"] }
 # Original console-title capture/restoration through safe UTF-16 Windows wrappers.
 win32console.workspace = true
 base64.workspace = true

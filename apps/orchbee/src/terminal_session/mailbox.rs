@@ -192,6 +192,8 @@ pub(super) enum QueuedCommand {
     /// recovery rides the ordinary FIFO so recovery always precedes the
     /// input that follows it.
     Viewport(Tagged<ViewportStep>),
+    /// One Host selection or export command for this exact pane incarnation.
+    Selection(Tagged<super::terminal_selection::Command>),
     /// Set-level pane reconciliation: the executor attaches the listed pane
     /// incarnations and canonically disposes every attachment of the anchor it
     /// holds that the list does not name — one absolute deadline, bounded steps.
@@ -302,7 +304,11 @@ impl QueuedCommand {
                 forward_cutoff: marker.deadline(),
                 total: marker.deadline(),
             }),
-            Self::Input(_) | Self::Resize(_) | Self::Poll(_) | Self::Viewport(_) => None,
+            Self::Input(_)
+            | Self::Resize(_)
+            | Self::Poll(_)
+            | Self::Viewport(_)
+            | Self::Selection(_) => None,
         }
     }
 }
@@ -759,6 +765,11 @@ pub(super) enum WorkerEvent {
         key: PaneRef,
         outcome: ViewportOutcome,
     },
+    SelectionOutcome {
+        key: PaneRef,
+        command: super::terminal_selection::Command,
+        outcome: orchbee_client_server_protocol::TerminalViewerOutcome,
+    },
 }
 
 /// The outcome of one `QueuedCommand::Viewport` step as the executor
@@ -914,7 +925,8 @@ impl WorkerEvent {
             Self::PaneDetached { .. }
             | Self::PaneFailed { .. }
             | Self::PollResult { .. }
-            | Self::ViewportOutcome { .. } => {
+            | Self::ViewportOutcome { .. }
+            | Self::SelectionOutcome { .. } => {
                 return None;
             }
         };
@@ -1407,6 +1419,7 @@ impl CommandMailbox {
             // non-Live pane keeps its membership until reconcile disposes
             // it, and recovery must stay admissible even if focus moved.
             QueuedCommand::Viewport(tagged) => state.desired.admits(tagged.key()),
+            QueuedCommand::Selection(tagged) => state.desired.admits(tagged.key()),
             QueuedCommand::Switch(_)
             | QueuedCommand::Create(_)
             | QueuedCommand::Refresh(_)
@@ -2395,6 +2408,7 @@ impl CommandMailbox {
             WorkerEvent::PaneDetached { .. }
                 | WorkerEvent::PaneFailed { .. }
                 | WorkerEvent::ViewportOutcome { .. }
+                | WorkerEvent::SelectionOutcome { .. }
         ));
         let (mut state, mut observed_at) = self.lock_with_fresh_sample(clock);
         if state.desired.awaiting_bootstrap() {
@@ -2626,6 +2640,7 @@ impl CommandMailbox {
                 WorkerEvent::PaneDetached { .. }
                     | WorkerEvent::PaneFailed { .. }
                     | WorkerEvent::ViewportOutcome { .. }
+                    | WorkerEvent::SelectionOutcome { .. }
             ) {
                 return Err(self.close_protocol(&mut state));
             }

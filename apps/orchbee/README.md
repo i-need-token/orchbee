@@ -310,6 +310,13 @@ committed objects. Directory acceptance never starts a terminal.
 renaming preserves the running terminal and becomes visible to peers through the publication
 probe or explicit refresh.
 
+On Windows, unmodified dragging in a pane without application mouse tracking selects live or
+retained-history text; double press selects a word and release copies the complete Host export to
+the system clipboard. `Shift` dragging stays with the outer terminal. Copy failure is localized
+and never replayed. [Selection and effects](docs/native-terminal-selection-effects.md) owns the
+clipboard dependency and lifecycle; pane-program writes, OSC 52 mode, and clipboard configuration
+remain to be connected.
+
 [Windows custom commands](docs/windows-custom-commands.md) share one installed catalog between
 `command list`, `command invoke`, configured shortcuts and shortcut discovery. Shell jobs, Panel
 creation, independent popups and plugin actions retain their existing execution owners and receipts.

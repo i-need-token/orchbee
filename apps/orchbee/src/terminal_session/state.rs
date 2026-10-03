@@ -581,6 +581,9 @@ pub(super) enum SessionNotice {
     /// Retained history could not be entered (demand refused or reset);
     /// the pane stayed Live.
     HistoryUnavailable,
+    SelectionEvicted,
+    CopyFailed,
+    CopyUnknown,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

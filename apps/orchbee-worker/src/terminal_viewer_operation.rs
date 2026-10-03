@@ -444,12 +444,17 @@ fn apply(
                 attachment_id: id,
                 generation,
             }))?;
-            let Some(response) =
-                ack_round_trip(host, server, correlation, command.kind, &command.payload)?
-            else {
-                return Ok(TerminalViewerOutcome::Rejected(
-                    ViewerRejection::HostRejected,
-                ));
+            let response = match selection_round_trip(
+                host,
+                server,
+                correlation,
+                command.kind,
+                &command.payload,
+            )? {
+                SelectionReply::Answer(response) => response,
+                SelectionReply::Failure(response) => {
+                    return Ok(TerminalViewerOutcome::Record(response));
+                }
             };
             let envelope = decode_transport_envelope(&response)?;
             let SelectionControl::ChangedResponse(changed) =
@@ -481,12 +486,17 @@ fn apply(
                     format,
                 },
             ))?;
-            let Some(response) =
-                ack_round_trip(host, server, correlation, command.kind, &command.payload)?
-            else {
-                return Ok(TerminalViewerOutcome::Rejected(
-                    ViewerRejection::HostRejected,
-                ));
+            let response = match selection_round_trip(
+                host,
+                server,
+                correlation,
+                command.kind,
+                &command.payload,
+            )? {
+                SelectionReply::Answer(response) => response,
+                SelectionReply::Failure(response) => {
+                    return Ok(TerminalViewerOutcome::Record(response));
+                }
             };
             let envelope = decode_transport_envelope(&response)?;
             let SelectionExportControl::StartedResponse(started) =
@@ -519,12 +529,17 @@ fn apply(
             let command = encode_selection_export_control(
                 &SelectionExportControl::ChunkAppliedRequest(applied),
             )?;
-            let Some(response) =
-                ack_round_trip(host, server, correlation, command.kind, &command.payload)?
-            else {
-                return Ok(TerminalViewerOutcome::Rejected(
-                    ViewerRejection::HostRejected,
-                ));
+            let response = match selection_round_trip(
+                host,
+                server,
+                correlation,
+                command.kind,
+                &command.payload,
+            )? {
+                SelectionReply::Answer(response) => response,
+                SelectionReply::Failure(response) => {
+                    return Ok(TerminalViewerOutcome::Record(response));
+                }
             };
             let envelope = decode_transport_envelope(&response)?;
             if decode_selection_export_control(envelope.kind, envelope.role, envelope.payload)?
@@ -562,12 +577,17 @@ fn apply(
                     reason,
                 },
             ))?;
-            let Some(response) =
-                ack_round_trip(host, server, correlation, command.kind, &command.payload)?
-            else {
-                return Ok(TerminalViewerOutcome::Rejected(
-                    ViewerRejection::HostRejected,
-                ));
+            let response = match selection_round_trip(
+                host,
+                server,
+                correlation,
+                command.kind,
+                &command.payload,
+            )? {
+                SelectionReply::Answer(response) => response,
+                SelectionReply::Failure(response) => {
+                    return Ok(TerminalViewerOutcome::Record(response));
+                }
             };
             let envelope = decode_transport_envelope(&response)?;
             let SelectionExportControl::FinishedResponse(finished) =
@@ -792,6 +812,39 @@ fn ack_round_trip(
     Ok(Some(response))
 }
 
+enum SelectionReply {
+    Answer(Vec<u8>),
+    Failure(Vec<u8>),
+}
+
+// Selection cancellation needs the Host failure code. Preserve that exact
+// correlated response in the existing opaque record carrier; other control
+// families retain their established host-rejected mapping.
+fn selection_round_trip(
+    host: &HostBrokerConnection,
+    server: &UnixStream,
+    correlation: CorrelationId,
+    kind: u16,
+    payload: &[u8],
+) -> Result<SelectionReply, Box<dyn Error>> {
+    let response = exchange(
+        host,
+        server,
+        correlation,
+        kind,
+        payload,
+        PayloadEncoding::ControlJson,
+    )?;
+    let envelope = decode_transport_envelope(&response)?;
+    if matches!(
+        decode_connection_control(envelope.kind, envelope.role, envelope.payload),
+        Ok(ConnectionControl::TypedFailure(_))
+    ) {
+        Ok(SelectionReply::Failure(response))
+    } else {
+        Ok(SelectionReply::Answer(response))
+    }
+}
 fn rows_rejection_reason(code: &str) -> Option<ViewerRowsRejectedReason> {
     Some(match code {
         "stale-revision" => ViewerRowsRejectedReason::StaleRevision,

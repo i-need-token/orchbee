@@ -20,10 +20,14 @@ copy mode、新增键盘绑定，以及三击选行不属于本契约。
 
 ## 集成边界
 
-当前基础包含 viewer 契约、Worker 与 Server 中继，以及原生指针协调。原生 Client 仍需接入选择命令
-发布、高亮投影、导出组装、剪贴板策略及其 Win32 适配器，以及串行效果 writer。这些消费者完成下面
-的契约后，选择复制和 pane 程序效果才能使用。仍需收敛指针回归并验证原生 cohort；模型检查和中继
-测试不能单独证明用户效果。
+原生 Client 通过现有 mailbox 发布选择命令，将 Host 端点投影到实时与保留历史行，并组装完整且已
+确认的 Host 导出。选择复制使用有界 FIFO 和一个异步 Windows Unicode 剪贴板 writer，仅在绘制
+flush 成功后派发。退出时 join 其独立隐藏窗口和线程。`clipboard-win` 5.4.1 关闭默认功能、仅启用
+`std`，负责安全的剪贴板内存分配与转移；其唯一新增依赖是 `error-code` 3.4.0（均为 BSL-1.0）。
+
+pane 程序剪贴板／BEL 接收、显式 OSC 52 投递和可重载的剪贴板策略仍需接入；下面相应要求描述
+这些待完成的集成。仍需收敛指针回归、验证原生 cohort，并完成真实 Windows Terminal 验收；模型
+检查和中继测试不能单独证明用户效果。
 
 ## 指针归属与选择
 
@@ -132,6 +136,13 @@ sink，以及 pane 程序写入策略的两个取值。字节、Unicode 解码�
 | Win32 复制是 Windows 默认值  | 非空 owner、UTF-16、所有权、争用及拆除测试 | 选择、Codex／Claude 与 Vim 剪贴板观察              | 仅 Windows；OSC 52 为显式模式   |
 
 ## 兼容性与恢复
+
+维护中的确定性证据包括 `accepted_release_and_complete_host_export_reach_the_copy_queue_once`：
+它运行真实 NativeUi／mailbox 命令与 Host 记录接收边界，不修改共享剪贴板；还有
+`reverse_drag_uses_absolute_rows_and_highlights_a_wide_glyph_as_one_unit`。复制队列测试覆盖
+dispatch 前取消、dispatch 后退役等待、adapter 消失的确定失败与未知结果不重放。原生隐藏 owner
+测试创建并泵送真实 Windows 窗口，注入最终写入，验证 dispatch 和 join；它不证明 OS 剪贴板内容。
+真实 Windows Terminal 的剪贴板内容及指针验收仍必需。
 
 选择 viewer 动作和效果路由是由一个精确原生 Client、Server、Worker 与 Host cohort 交付的加法
 契约。它们不产生持久选区或屏幕数据迁移。回退时整体替换该 cohort。旧二进制可以继续原有行为，

@@ -16,6 +16,7 @@ use super::terminal_cells;
 /// frame beneath the badge; `Window` replaces the leaf with retained rows;
 /// `AwaitingWindow`/`Recovering` clear the leaf so no stale content can
 /// linger under their indicators.
+#[cfg(test)]
 pub(super) fn render(
     frame: &mut Frame<'_>,
     area: Rect,
@@ -24,6 +25,29 @@ pub(super) fn render(
     show_cursor: bool,
     locale: Locale,
     theme: &Theme,
+) {
+    render_selected(
+        frame,
+        area,
+        surface,
+        live_frame,
+        show_cursor,
+        locale,
+        theme,
+        None,
+    );
+}
+
+#[expect(clippy::too_many_arguments)]
+pub(super) fn render_selected(
+    frame: &mut Frame<'_>,
+    area: Rect,
+    surface: NativeViewportSurface<'_>,
+    live_frame: Option<&TerminalTextFrame>,
+    show_cursor: bool,
+    locale: Locale,
+    theme: &Theme,
+    selected: Option<&orchbee_terminal_protocol::SelectionChangedState>,
 ) {
     match surface {
         NativeViewportSurface::Window { window, position } => {
@@ -34,6 +58,13 @@ pub(super) fn render(
                 &window.rows,
                 window.foreground,
                 window.background,
+            );
+            super::selection::paint(
+                frame,
+                area,
+                window.route.start_row,
+                selected,
+                theme.style(Role::SurfaceSelection),
             );
             badge(frame, area, locale.terminal_history_badge(), theme);
             bottom_line(frame, area, position, locale, theme);

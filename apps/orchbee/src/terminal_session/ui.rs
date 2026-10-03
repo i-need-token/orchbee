@@ -60,7 +60,10 @@ pub(crate) use workspace_setup::{
     NativeLocationLabelStatus, NativeLocationLabelTarget, NativeSetupDraftView, NativeSetupEdit,
     NativeSetupInputContext, NativeSetupStage, NativeSetupStatus, NativeSetupToken,
 };
+#[cfg(test)]
+mod selection_tests;
 mod tab_rename;
+mod terminal_selection;
 pub(crate) use panel_close::{NativePanelCloseConfirmationToken, NativePanelCloseConfirmationView};
 pub(crate) use tab_close::{
     ModalPresentation, NativeCloseConfirmationKind, NativeCloseConfirmationToken,
@@ -126,6 +129,9 @@ pub(crate) enum NativeSessionNotice {
     ModalOwnsInput,
     HistoryRecovering,
     HistoryUnavailable,
+    SelectionEvicted,
+    CopyFailed,
+    CopyUnknown,
     #[cfg(windows)]
     PopupUnavailable,
     #[cfg(windows)]
@@ -420,6 +426,9 @@ impl<'a> NativeSessionView<'a> {
             SessionNotice::ModalOwnsInput => NativeSessionNotice::ModalOwnsInput,
             SessionNotice::HistoryRecovering => NativeSessionNotice::HistoryRecovering,
             SessionNotice::HistoryUnavailable => NativeSessionNotice::HistoryUnavailable,
+            SessionNotice::SelectionEvicted => NativeSessionNotice::SelectionEvicted,
+            SessionNotice::CopyFailed => NativeSessionNotice::CopyFailed,
+            SessionNotice::CopyUnknown => NativeSessionNotice::CopyUnknown,
         })
     }
 
@@ -460,6 +469,20 @@ impl<'a> NativeSessionView<'a> {
             .iter()
             .find(|projection| projection.key == record.pane_ref())
             .map(|projection| &projection.value)
+    }
+
+    /// Host-owned endpoints for this exact panel incarnation, projected by the painter.
+    pub(crate) fn pane_selection(
+        &self,
+        panel: &WorkbenchPanelId,
+    ) -> Option<&'a orchbee_terminal_protocol::SelectionChangedState> {
+        let record = self.state.as_ref()?.pane_by_panel(panel)?;
+        self.panes
+            .iter()
+            .find(|projection| projection.key == record.pane_ref())?
+            .selection
+            .as_ref()
+            .map(super::terminal_selection::Driver::selection)
     }
 
     /// The exact live incarnation bound to one panel — anchor generation,
@@ -622,6 +645,7 @@ pub(crate) struct KeyedProjection {
     /// a re-minted `KeyedProjection` starts at 0 because a new attachment
     /// legitimately resets the space.
     read_watermark: u64,
+    selection: Option<super::terminal_selection::Driver>,
 }
 
 #[cfg(test)]
@@ -640,6 +664,7 @@ impl KeyedProjection {
             viewport: None,
             history_sequence: 0,
             read_watermark: 0,
+            selection: None,
         }
     }
 }
@@ -682,6 +707,8 @@ pub(super) struct NativeUi {
     /// whole on every snapshot-bearing event.
     agent_index: super::agent_board::PresentationIndex,
     projections: Vec<KeyedProjection>,
+    copies: super::terminal_copy::Queue,
+    clipboard: super::terminal_clipboard::Writer,
     pending_draws: Vec<PendingDraw>,
     poll_cursor: usize,
     ordinary_poll_serial: Option<u64>,
@@ -769,6 +796,8 @@ impl NativeUi {
             state: None,
             outer_focused: None,
             projections: Vec::new(),
+            copies: super::terminal_copy::Queue::default(),
+            clipboard: super::terminal_clipboard::Writer::default(),
             pending_draws: Vec::new(),
             poll_cursor: 0,
             ordinary_poll_serial: None,
@@ -984,6 +1013,7 @@ impl NativeUi {
     }
 
     pub(super) fn tick(&mut self) -> bool {
+        let copy_changed = self.settle_copy_delivery();
         if self.retirement_failure.is_some() {
             return false;
         }
@@ -1054,11 +1084,18 @@ impl NativeUi {
             // Viewport deadline episodes and staged steps advance on the
             // same fair tick as the ordinary schedulers.
             changed |= self.tick_viewports(&mailbox);
+            self.admit_selections(&mailbox);
         }
-        acknowledged || changed || !self.pending_draws.is_empty()
+        acknowledged
+            || changed
+            || copy_changed
+            || self.copies.has_pending()
+            || !self.pending_draws.is_empty()
     }
 
     pub(super) fn after_draw(&mut self) {
+        // The shell calls this only after Backend::flush closed the frame.
+        self.dispatch_copy_after_draw();
         if self.pending_draws.is_empty() {
             return;
         }
@@ -2307,6 +2344,14 @@ impl NativeUi {
             return self.apply_poll_result(mailbox, poll_key, record);
         }
         if wait_key.is_none() {
+            if let WorkerEvent::SelectionOutcome {
+                key,
+                command,
+                outcome,
+            } = event
+            {
+                return self.apply_selection_outcome(mailbox, key, command, outcome);
+            }
             // Viewport outcomes are fire-and-forget publications: a stale
             // incarnation's outcome (or one for a core that already retired)
             // drops silently — unlike pane facts it never diverges
@@ -2446,7 +2491,8 @@ impl NativeUi {
                 | WorkerEvent::CloseResult { .. }
                 | WorkerEvent::SwitchSnapshotResult { .. }
                 | WorkerEvent::MembershipCleanupSkipped { .. }
-                | WorkerEvent::ViewportOutcome { .. } => {
+                | WorkerEvent::ViewportOutcome { .. }
+                | WorkerEvent::SelectionOutcome { .. } => {
                     return Err(CarrierFailure::Protocol);
                 }
                 WorkerEvent::SwitchForwardExpired { .. } => return Err(CarrierFailure::Protocol),
@@ -2527,6 +2573,7 @@ impl NativeUi {
                             viewport: None,
                             history_sequence: 0,
                             read_watermark: 0,
+                            selection: None,
                         });
                     }
                     UiReply::AttachedSettled(disposition)
@@ -2796,6 +2843,22 @@ impl NativeUi {
             });
             return true;
         };
+        match self.apply_selection_event(index, &record) {
+            Ok(true) => {
+                self.pending_draws.push(PendingDraw {
+                    poll_key,
+                    settlement: CausalSettlement::NoFeedback,
+                    frame: None,
+                    ordinary,
+                });
+                return true;
+            }
+            Ok(false) => {}
+            Err(failure) => {
+                self.settle_selection_failure(failure);
+                return true;
+            }
+        }
         let result = self.projections[index]
             .value
             .receive_for_geometry(&record, expected);
@@ -3050,6 +3113,7 @@ impl NativeUi {
     /// Drops every projection and staged draw — used on epoch teardown, where
     /// all panes retire together, and on retirement.
     fn clear_projections(&mut self) {
+        self.copies.close();
         self.projections.clear();
         self.pending_draws.clear();
         self.ordinary_poll_serial = None;
@@ -3060,6 +3124,7 @@ impl NativeUi {
     /// events (`CleanupSettled`, `SetupWithoutAttachment`) and pane-local
     /// disposal land here, leaving sibling panes untouched.
     fn clear_pane_projection(&mut self, key: &PaneRef) {
+        self.copies.cancel_pane(key);
         self.projections.retain(|projection| &projection.key != key);
         self.pending_draws
             .retain(|pending| pending.poll_key.pane_ref() != key);
@@ -3076,6 +3141,9 @@ impl NativeUi {
     }
 
     fn retire(&mut self, failure: CarrierFailure) {
+        self.copies.close();
+        self.clipboard.close();
+        self.settle_copy_delivery();
         #[cfg(any(target_os = "linux", windows))]
         if self.retirement_failure.is_none() {
             self.retirement_poll_serial = self.ordinary_poll_serial;
