@@ -1,5 +1,5 @@
-//! Client-owned ratios and focus use observed revisions and unchanged selection guards.
-use super::{Engine, error, internal};
+//! Shared ratio receipts advance exact tree fences; focus remains Client-owned.
+use super::{Engine, error, internal, ownership};
 use crate::cli::{
     Failure, FailureKind,
     client_control::{Answer, windows as control},
@@ -157,12 +157,36 @@ impl Engine<'_> {
                 expected_split: Some(self.splits[index].clone()),
             },
         )?;
-        if matches!(answer.reply.map(|reply|reply.outcome),Some(ClientViewOutcome::Operation{operation}) if matches!(operation.status,ClientViewControlStatus::LayoutAdjusted{..}))
+        let Some(reply) = answer.reply else {
+            return Err(internal());
+        };
+        let ClientViewOutcome::Operation { operation } = reply.outcome else {
+            return Err(internal());
+        };
+        let ClientViewControlStatus::LayoutAdjusted { adjustment, .. } = operation.status else {
+            return Err(error(FailureKind::Denied, "client-unavailable"));
+        };
+        let orchbee_workbench_protocol::ClientLayoutChange::Split { split: changed } =
+            &adjustment.change
+        else {
+            return Err(internal());
+        };
+        let identity = &self.splits[index];
+        if changed.split_id != identity.split_id
+            || changed.first_slot_id != identity.first_slot_id
+            || changed.second_slot_id != identity.second_slot_id
+            || changed.ratio != self.plan.splits[index].ratio
+            || adjustment.workbench_revision < self.snapshot.revision
         {
-            Ok(())
-        } else {
-            Err(error(FailureKind::Denied, "client-unavailable"))
+            return Err(internal());
         }
+        self.expected = Some(ownership::with_ratio(
+            self.expected.as_ref().ok_or_else(internal)?,
+            &self.destination.context,
+            &adjustment,
+        )?);
+        // Preserve the known commit even if the subsequent read fails; never absorb other edits.
+        self.refresh(adjustment.workbench_revision)
     }
     pub(super) fn select_created(&mut self) -> Result<(), Failure> {
         if !self.destination.focus {

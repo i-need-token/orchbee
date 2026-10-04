@@ -157,6 +157,7 @@
 				},
 				"kind": { "const": "split" },
 				"orientation": { "enum": ["horizontal", "vertical"] },
+				"ratio": { "type": "number", "minimum": 0.1, "maximum": 0.9 },
 				"splitId": { "$ref": "#/$defs/splitId" }
 			}
 		},

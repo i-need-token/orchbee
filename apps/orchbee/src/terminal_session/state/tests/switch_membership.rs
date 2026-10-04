@@ -18,6 +18,7 @@ fn admit(state: &mut NativeSessionState, index: usize, generation: u64) -> Attac
 fn panel_focus_switch_keeps_the_tab_and_targets_the_selected_leaf_binding() {
     let mut source = super::snapshot(1, 1, None);
     source.terminal_contexts[0].tabs[0].root = PanelNode::Split {
+        ratio: Default::default(),
         children: Box::new([
             PanelSlot {
                 node: super::tab(0).root.clone(),

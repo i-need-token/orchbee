@@ -40,6 +40,7 @@ fn leaf_b() -> PanelNode {
 
 fn split_root() -> PanelNode {
     PanelNode::Split {
+        ratio: Default::default(),
         children: Box::new([
             PanelSlot {
                 node: leaf(LEAF_A_PANEL, 4, 6, 7, "1"),

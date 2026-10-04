@@ -54,7 +54,7 @@ fn run_poll(
 
 /// Receives the queued Refresh the debt drain admitted, publishes its snapshot
 /// outcome, and lets the UI settle the event and release the lease.
-fn settle_queued_refresh(
+pub(in crate::terminal_session) fn settle_queued_refresh(
     ui: &mut NativeUi,
     mailbox: &CommandMailbox,
     clock: &LocalOperationClock,
@@ -530,6 +530,7 @@ pub(in crate::terminal_session) fn split_snapshot(revision: u64) -> Snapshot {
     let mut baseline = snapshot(2, revision);
     let original_root = baseline.terminal_contexts[0].tabs[0].root.clone();
     baseline.terminal_contexts[0].tabs[0].root = PanelNode::Split {
+        ratio: Default::default(),
         children: Box::new([
             PanelSlot {
                 node: original_root,

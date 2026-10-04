@@ -146,7 +146,9 @@ impl NativeUi {
             active_panel,
             zoomed,
             &|split, first, second| {
-                state.split_ratio(terminal_context_id, tab_id, split, first, second)
+                tab.panel_tree()
+                    .split_ratio(split, first, second)
+                    .unwrap_or_default()
             },
         )?;
         let neighbors = ClientPanelNeighbors::from_panels(panel_id, &panels);

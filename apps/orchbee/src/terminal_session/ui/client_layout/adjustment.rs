@@ -1,4 +1,4 @@
-//! Prepare one Client-local ratio mutation against rendered and canonical identities.
+//! Resolve one canonical mutation against rendered and canonical split identities.
 use super::*;
 use crate::terminal_session::NativePanelTree;
 use orchbee_workbench_protocol::{
@@ -36,6 +36,28 @@ impl NativeUi {
                 };
                 let (viewport, sidebar) = viewport.ok_or(Reason::ProjectionUnavailable)?;
                 let layout = self.read_client_layout(&read, snapshot, viewport, sidebar)?;
+                if let Some(split) = layout
+                    .resize_split(*direction)
+                    .map_err(|_| Reason::ProjectionUnavailable)?
+                {
+                    let canonical = snapshot
+                        .terminal_contexts
+                        .iter()
+                        .find(|context| &context.terminal_context_id == terminal_context_id)
+                        .and_then(|context| context.tabs.iter().find(|tab| &tab.tab_id == tab_id))
+                        .and_then(|tab| canonical_split_by_id(&tab.root, &split.split_id))
+                        .ok_or(Reason::TargetUnavailable)?;
+                    if canonical
+                        != (
+                            &split.split_id,
+                            &split.first_slot_id,
+                            &split.second_slot_id,
+                            split.ratio,
+                        )
+                    {
+                        return Err(Reason::StaleView);
+                    }
+                }
                 let change = layout
                     .resize_split(*direction)
                     .map_err(|_| Reason::ProjectionUnavailable)?
@@ -74,7 +96,7 @@ impl NativeUi {
                 let canonical_split =
                     canonical_split_at(&canonical.root, path).ok_or(Reason::TargetUnavailable)?;
                 if expected_split.as_ref().is_some_and(|identity| {
-                    canonical_split
+                    (canonical_split.0, canonical_split.1, canonical_split.2)
                         != (
                             &identity.split_id,
                             &identity.first_slot_id,
@@ -105,9 +127,7 @@ impl NativeUi {
                 } else {
                     snapshot.revision
                 };
-                let (split, first, second) = canonical_split;
-                let previous_ratio =
-                    state.split_ratio(terminal_context_id, tab_id, split, first, second);
+                let (split, first, second, previous_ratio) = canonical_split;
                 Ok(ClientLayoutAdjustment {
                     terminal_context_id: terminal_context_id.clone(),
                     tab_id: tab_id.clone(),
@@ -128,15 +148,38 @@ impl NativeUi {
         }
     }
 
-    pub(in crate::terminal_session) fn commit_layout_adjustment(
+    pub(in crate::terminal_session) fn refresh_layout_adjustment(
         &mut self,
-        snapshot: &Snapshot,
-        adjustment: &ClientLayoutAdjustment,
-    ) -> Result<(), Reason> {
-        self.state
-            .as_mut()
-            .ok_or(Reason::ProjectionUnavailable)?
-            .commit_layout_adjustment(snapshot, adjustment)
+        requested: &mut bool,
+    ) -> crate::terminal_session::client_control::ControlStep {
+        use crate::terminal_session::client_control::ControlStep;
+        if self
+            .state
+            .as_ref()
+            .is_some_and(|state| state.pending_refresh_generation().is_some())
+        {
+            return ControlStep::Waiting;
+        }
+        if *requested {
+            return ControlStep::Failed(Reason::ProjectionUnavailable);
+        }
+        let Some(mailbox) = self.mailbox.as_ref().map(std::sync::Arc::clone) else {
+            return ControlStep::Failed(Reason::ProjectionUnavailable);
+        };
+        if let Some(state) = self.state.as_mut() {
+            state.note_publication_hint();
+        }
+        self.drain_publication_refresh(&mailbox);
+        *requested = true;
+        if self
+            .state
+            .as_ref()
+            .is_some_and(|state| state.pending_refresh_generation().is_some())
+        {
+            ControlStep::Changed
+        } else {
+            ControlStep::Failed(Reason::Busy)
+        }
     }
 
     pub(in crate::terminal_session) fn adjustment_observed(
@@ -155,21 +198,42 @@ impl NativeUi {
         };
         view.selection == before.selection
             && view.phase == before.phase
-            && view.workbench_revision == adjustment.workbench_revision
+            && view.workbench_revision >= adjustment.workbench_revision
             && state.split_ratio(
                 &adjustment.terminal_context_id,
                 &adjustment.tab_id,
                 &split.split_id,
                 &split.first_slot_id,
                 &split.second_slot_id,
-            ) == split.ratio
+            ) == Some(split.ratio)
     }
 }
 type SplitIdentity<'a> = (
     &'a WorkbenchSplitId,
     &'a WorkbenchPanelSlotId,
     &'a WorkbenchPanelSlotId,
+    orchbee_workbench_protocol::ClientSplitRatio,
 );
+fn canonical_split_by_id<'a>(
+    node: &'a PanelNode,
+    id: &WorkbenchSplitId,
+) -> Option<SplitIdentity<'a>> {
+    let PanelNode::Split {
+        split_id,
+        children,
+        ratio,
+        ..
+    } = node
+    else {
+        return None;
+    };
+    if split_id == id {
+        return Some((split_id, &children[0].slot_id, &children[1].slot_id, *ratio));
+    }
+    children
+        .iter()
+        .find_map(|child| canonical_split_by_id(&child.node, id))
+}
 fn canonical_split_at<'a>(
     mut node: &'a PanelNode,
     path: &ClientSplitPath,
@@ -181,12 +245,15 @@ fn canonical_split_at<'a>(
         node = &children[usize::from(*index)].node;
     }
     let PanelNode::Split {
-        split_id, children, ..
+        split_id,
+        children,
+        ratio,
+        ..
     } = node
     else {
         return None;
     };
-    Some((split_id, &children[0].slot_id, &children[1].slot_id))
+    Some((split_id, &children[0].slot_id, &children[1].slot_id, *ratio))
 }
 fn native_split_at<'a>(
     mut node: &'a NativePanelTree,
@@ -202,10 +269,11 @@ fn native_split_at<'a>(
         split_id,
         first_slot_id,
         second_slot_id,
+        ratio,
         ..
     } = node
     else {
         return None;
     };
-    Some((split_id, first_slot_id, second_slot_id))
+    Some((split_id, first_slot_id, second_slot_id, *ratio))
 }

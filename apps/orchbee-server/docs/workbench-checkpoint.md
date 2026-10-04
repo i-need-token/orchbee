@@ -9,13 +9,13 @@ checkpoint publication and terminal relaunch. Named-Site routing and the additio
 remain separate obligations. No other platform adapter is introduced.
 
 The checkpoint retains Projects, local directory paths, Workspaces, terminal contexts, ordered
-Tabs, groups, pinned state, split structure, Panel input policy and Presentation labels. It also
+Tabs, groups, pinned state, split structure and ratios, Panel input policy and Presentation labels. It also
 retains Launch Profile definitions and the allocation high-water counter, including deleted IDs.
 All primary and child Presentations survive structurally but carry no terminal binding.
 Version 2 also retains validated external provider references; see [Agent restart references](agent-restart-reference.md).
 
 It does not retain running processes, Site/Worker identities, controller grants, leases, Client
-views/layout overrides, request results, publication cursors, unfinished operations, Agent state
+views/focus/zoom, request results, publication cursors, unfinished operations, Agent state
 or terminal history. Their recovery belongs to the corresponding runtime owners. A checkpoint
 never authorizes replay of a terminal command or Git operation.
 
@@ -24,7 +24,7 @@ never authorizes replay of a terminal command or Git operation.
 | Operation              | Preconditions                                                                                                                    | Result and invariant                                                                                                                                           |
 | ---------------------- | -------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Capture                | Authority is not retired; committed graph is valid; every Directory and bound Presentation belongs to the supplied local Worker. | One bounded checkpoint; source authority is unchanged; process bindings and Worker identities are removed.                                                     |
-| Decode                 | Strict version 1, 2, 3 or 4 document, bounded bytes, valid configuration graph, counters and provider references.                | Complete retained configuration or a typed rejection; never partial or empty fallback.                                                                         |
+| Decode                 | Strict version 1, 2, 3, 4 or 5 document, bounded bytes, valid configuration graph, counters and provider references.             | Complete retained configuration or a typed rejection; never partial or empty fallback.                                                                         |
 | Reconstruct            | Caller supplies a fresh boot Site identity and its admitted local Worker.                                                        | Retained structural IDs and local paths, fresh directory ownership, unbound Presentations, fresh profile Site prefixes, revision 0 and empty transient owners. |
 | Allocate after restore | Restored high-water counter permits advancement.                                                                                 | IDs remain above all previously allocated counters; exhaustion keeps the ordinary typed rejection.                                                             |
 
@@ -47,8 +47,10 @@ Capture maps admitted observations to current Presentation identities. If observ
 
 Evidence must cover exact identity/revision fences, primary/child separation, old-format compatibility, malformed rows, capture/reconstruct without live authority, unresolved viewer cleanup, actual Windows directory changes and a deleted saved directory. A process launch witness alone does not prove this directory lifecycle.
 
-The schema discriminator is `orchbee.workbench.checkpoint`, with numeric `version: 4`. Versions 1–3 remain readable; versions 2–4 require `agentSessions`,
-versions 3–4 require `terminalDirectories`, and version 4 requires `managedNames`. Each of at most
+The schema discriminator is `orchbee.workbench.checkpoint`, with numeric `version: 5`. Versions 1–4 remain readable; versions 2–5 require `agentSessions`,
+versions 3–5 require `terminalDirectories`, and versions 4–5 require `managedNames`.
+Version 5 retains canonical split ratios; older documents restore equal ratios and reject injected
+nondefault weights. See [shared ratios](shared-split-ratios.md). Each of at most
 512 unique name/Presentation claims carries only `presentationId`, `name` and `providerId`, and requires
 a matching admitted official provider reference. See [managed names](agent-canonical-model.md#managed-name-restart).
 `lastIdentity` and each profile `counter` are canonical nonzero 32-character lowercase hex.

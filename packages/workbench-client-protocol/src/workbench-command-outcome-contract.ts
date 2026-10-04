@@ -36,6 +36,7 @@ export const WorkbenchRejectionReasonSchema = z.enum([
 	'workspace-move-index-out-of-bounds',
 	'workspace-move-target-in-block',
 	'panel-unavailable',
+	'split-unavailable',
 	'panel-not-leaf',
 	'last-panel-in-tab',
 	'same-tab',
@@ -145,6 +146,9 @@ export const WorkbenchCommandOutcomeSchema = z.discriminatedUnion('kind', [
 	z.strictObject({ kind: z.literal('renamed'), revision: WorkbenchRevisionSchema }).readonly(),
 	z
 		.strictObject({ kind: z.literal('panel-input-configured'), revision: WorkbenchRevisionSchema })
+		.readonly(),
+	z
+		.strictObject({ kind: z.literal('split-ratio-configured'), revision: WorkbenchRevisionSchema })
 		.readonly(),
 	z.strictObject({ kind: z.literal('unchanged'), revision: WorkbenchRevisionSchema }).readonly(),
 	z

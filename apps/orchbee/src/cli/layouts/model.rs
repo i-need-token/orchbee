@@ -129,6 +129,7 @@ pub(super) fn tree(
                 split_id,
                 orientation,
                 children,
+                ..
             } => {
                 let observed = splits
                     .iter()

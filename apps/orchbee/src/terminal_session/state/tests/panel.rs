@@ -295,6 +295,7 @@ fn user_refresh_preserves_definite_faults_and_departing_viewer_ownership() {
 fn split_two_tab_baseline() -> Snapshot {
     let mut baseline = snapshot(2, 1, None);
     baseline.terminal_contexts[0].tabs[0].root = PanelNode::Split {
+        ratio: Default::default(),
         children: Box::new([
             PanelSlot {
                 node: PanelNode::Panel {
@@ -444,9 +445,11 @@ fn split_grafted_snapshot() -> Snapshot {
     let mut candidate = split_panel_baseline();
     candidate.revision = WorkbenchRevision::new(2);
     candidate.terminal_contexts[0].tabs[0].root = PanelNode::Split {
+        ratio: Default::default(),
         children: Box::new([
             PanelSlot {
                 node: PanelNode::Split {
+                    ratio: Default::default(),
                     children: Box::new([
                         PanelSlot {
                             node: PanelNode::Panel {
@@ -518,6 +521,7 @@ fn move_grafted_snapshot() -> Snapshot {
     let mut candidate = split_panel_baseline();
     candidate.revision = WorkbenchRevision::new(2);
     candidate.terminal_contexts[0].tabs[0].root = PanelNode::Split {
+        ratio: Default::default(),
         children: Box::new([
             PanelSlot {
                 node: PanelNode::Panel {

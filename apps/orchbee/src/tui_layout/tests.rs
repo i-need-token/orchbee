@@ -254,6 +254,7 @@ fn split(
     id: u128,
 ) -> NativePanelTree {
     NativePanelTree::Split {
+        ratio: Default::default(),
         first: Box::new(first),
         second: Box::new(second),
         first_slot_id: WorkbenchPanelSlotId::parse(&tree_id(id)).unwrap(),

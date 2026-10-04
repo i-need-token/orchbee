@@ -9,7 +9,7 @@ sequence. Filter conditions, event/data kinds, source versions, ordered pages an
 validated before interpretation. `matches_semantic_filter` shares pure semantic matching with
 runtime publishers and native CLI receipt checks. The [Windows event model](../../apps/orchbee-server/docs/windows-events.md)
 owns actual publication and observation effects. Optional Client `splitRevision` is the full-width
-ratio-owner counter; legacy omission supplies no ratio-change evidence.
+canonical Workbench revision of the projected cache; legacy omission supplies no ratio-change evidence.
 
 This crate owns the typed requests, responses, validation, and framed transport shared by native Workbench clients and the Server. It defines contracts without opening sockets or executing operations; runtime owners interpret admitted requests.
 
@@ -86,3 +86,5 @@ Focused wire/actor evidence does not establish final GUI/cohort acceptance.
 ## Panel image contracts
 
 `PaneGraphicsRequest` and `PaneGraphicsResult` use OBWP 57/58 with independent preallocation bounds (24 MiB request, 512 KiB result). They cover complete PNG/RGB/RGBA/BGRA uploads, static layers, metadata catalogs, revision-pinned pixel chunks and connection-owned producers. Shapes, canonical base64, channel lengths, damage bounds, full-width producer sequences and response correlations are validated without renderer or file effects. Runtime owners supply PNG decoding, source fences, file leases and actual Client capabilities. Shared conformance cases live under `schemas/workbench/v1/workbench-pane-graphics-conformance-v1.json`.
+
+Canonical `PanelNode::Split.ratio` defaults to 0.5 and admits finite 0.1–0.9 values. The identified CAS command `layout.set-split-ratio` returns `split-ratio-configured`; [shared ratio ownership](../../apps/orchbee-server/docs/shared-split-ratios.md) defines its runtime effects.

@@ -663,6 +663,7 @@ fn split_snapshot() -> Snapshot {
     let mut snapshot = snapshot(1, 1);
     let original_root = snapshot.terminal_contexts[0].tabs[0].root.clone();
     snapshot.terminal_contexts[0].tabs[0].root = PanelNode::Split {
+        ratio: Default::default(),
         children: Box::new([
             PanelSlot {
                 node: original_root,

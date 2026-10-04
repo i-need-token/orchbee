@@ -581,6 +581,14 @@ pub enum WorkbenchAction {
         panel_id: WorkbenchPanelId,
         right_click: crate::PanelRightClickTarget,
     },
+    #[serde(rename = "layout.set-split-ratio")]
+    SplitRatioSet {
+        terminal_context_id: WorkbenchTerminalContextId,
+        tab_id: WorkbenchTabId,
+        split: ClientSplitIdentity,
+        previous_ratio: crate::WorkbenchSplitRatio,
+        ratio: crate::WorkbenchSplitRatio,
+    },
     #[serde(rename = "tab.move")]
     TabMove {
         terminal_context_id: WorkbenchTerminalContextId,
@@ -967,6 +975,7 @@ pub enum WorkbenchRejectionReason {
     /// Exact placement would break the pinned prefix or a contiguous Tab group.
     TabMoveOrderConflict,
     PanelUnavailable,
+    SplitUnavailable,
     ResourceLimit,
     IdentityExhausted,
     RevisionExhausted,
@@ -1057,6 +1066,9 @@ pub enum WorkbenchCommandOutcome {
         revision: WorkbenchRevision,
     },
     PanelInputConfigured {
+        revision: WorkbenchRevision,
+    },
+    SplitRatioConfigured {
         revision: WorkbenchRevision,
     },
     Unchanged {
@@ -1399,6 +1411,9 @@ fn validate_request(request: &WorkbenchRequest) -> Result<(), ContractError> {
     let WorkbenchRequest::Command(command) = request else {
         return Ok(());
     };
+    if let WorkbenchAction::SplitRatioSet { split, .. } = &command.action {
+        split.validate()?;
+    }
     if matches!(
         &command.action,
         WorkbenchAction::PanelRelocate {

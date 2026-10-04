@@ -37,12 +37,12 @@ a process discovered by PID. Server/Worker effects must not bypass registered cr
 
 | Catalog and observed facts                                                                                                         | Result                                                                                 |
 | ---------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| Active v2 or v3; no Spawning; all identified identities gone; all guards and endpoint/storage checks pass                          | Publish Crashed for the old activation; reconcile its marker; begin a fresh generation |
-| Crashed v2 or v3 with matching old marker, or marker absent after runtime loss                                                     | Resume the same guarded reconciliation before a fresh generation                       |
+| Active v2, v3 or v4; no Spawning; all identified identities gone; all guards and endpoint/storage checks pass                      | Publish Crashed for the old activation; reconcile its marker; begin a fresh generation |
+| Crashed v2, v3 or v4 with matching old marker, or marker absent after runtime loss                                                 | Resume the same guarded reconciliation before a fresh generation                       |
 | Any exact identity alive, identity query unknown, Spawning, unsafe storage, conflicting receipt after creation or endpoint present | Refuse and retain data                                                                 |
 | Active v1, malformed or unsupported record                                                                                         | Refuse; absence of legacy identity is not death evidence                               |
-| Valid Stopped v1 or v2 with its legacy plain primary                                                                               | Existing clean-stop restart path; next activation writes v3                            |
-| Valid Stopped v3 with current checkpoint evidence                                                                                  | Existing clean-stop restart path; next activation remains v3                           |
+| Valid Stopped v1 or v2 with its legacy plain primary                                                                               | Existing clean-stop restart path; next activation writes v4                            |
+| Valid Stopped v3/v4 with current checkpoint evidence                                                                               | Existing clean-stop restart path; next activation writes v4                            |
 
 Recovery never terminates old processes, fabricates a clean-stop receipt, deletes checkpoint data,
 or resumes an Agent into a still-owned terminal. A live orphan Host remains protected and requires
@@ -54,7 +54,7 @@ partial committed result, retried for the same activation identity under the sam
 activation never reuses the old identity. Current record contents, rather than an early retained
 copy, carry subsequently registered Host identity into a clean-stop publication.
 
-Catalog publication and runtime marker replacement are separate writes. After a fresh Active v3
+Catalog publication and runtime marker replacement are separate writes. After a fresh Active v4
 record is published, a complete prior Stopped or Crashed receipt may remain if activation is
 interrupted before marker replacement. Recovery admits this boundary only when every role is
 NotStarted: the registration-before-create rule proves that the new generation has created no
@@ -69,11 +69,11 @@ the same guarded reconciliation can retry without inventing a clean-stop result.
 Catalog v1 and v2 remain readable. A valid Stopped legacy record can take the clean-stop activation
 path only with its plain primary. Active or Crashed v2 retains its exact-identity cold-recovery
 path: after every identity is proved gone and the old generation is reconciled, the fresh
-activation publishes v3 and may then read either the legacy plain primary or an absent store.
+activation publishes v4 and may then read either the legacy plain primary or an absent store.
 Active v1 still refuses because it has no death proof. Reading alone never migrates any record.
-Catalog v3 retains the v2 exact process registry and additionally declares the framed multi-slot
-checkpoint layout. The new Active v3 record is atomically published before marker commitment,
-Server spawn or multi-slot storage effects. Earlier readers that admit only v1 and v2 reject v3,
+Catalog v3 retains the v2 exact process registry and declares the framed multi-slot
+checkpoint layout; v4 also admits canonical shared ratios. The new Active v4 record is atomically published before marker commitment,
+Server spawn or multi-slot storage effects. Earlier readers that admit only v1–v3 reject v4,
 including after clean stop; there is no automatic downgrade or inferred legacy cleanup. The
 [Windows checkpoint storage contract](windows-checkpoint-storage.md) owns the version table,
 stopped evidence and old-cohort no-effect boundary.
@@ -97,7 +97,7 @@ The abstract model retains physical processes across generation changes instead 
 owners. Suspended creation, identity publication and resume are separate actions; parent loss can
 occur between them. Process-query denial, legacy records and endpoint obstruction reject recovery.
 Its `legacy` state maps specifically to v1 without process identity. Its registered non-legacy
-states refine both v2 and v3 exact registries; the model does not enumerate those two catalog
+states refine v2, v3 and v4 exact registries; the model does not enumerate those three catalog
 versions as separate process states.
 Its finite bounds and OS/process adapter assumptions do not prove arbitrary kernel behavior or
 Host adoption. Actual Windows reboot and human Windows Terminal acceptance are separate evidence.

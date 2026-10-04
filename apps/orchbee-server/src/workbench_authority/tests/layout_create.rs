@@ -291,6 +291,7 @@ fn missing_context_and_total_panel_capacity_reject_without_allocation() {
     let mut deep = context.tabs[0].root.clone();
     for _ in 0..11 {
         deep = PanelNode::Split {
+            ratio: Default::default(),
             split_id: orchbee_workbench_protocol::WorkbenchSplitId::parse(&identity(9000)).unwrap(),
             orientation: PanelOrientation::Horizontal,
             children: Box::new([

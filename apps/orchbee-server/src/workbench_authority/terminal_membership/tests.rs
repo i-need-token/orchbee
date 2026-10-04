@@ -348,6 +348,7 @@ fn duplicate_bootstrap_binding_is_rejected_before_strict_membership_is_construct
 #[test]
 fn panel_presentation_visitor_is_depth_first_primary_then_children() {
     let node = PanelNode::Split {
+        ratio: Default::default(),
         children: Box::new([
             PanelSlot {
                 node: PanelNode::Panel {
@@ -412,6 +413,7 @@ fn tree_membership_collects_split_primary_leaves_but_legacy_context_rejects_them
     let mut snapshot = authority.projection.snapshot().clone();
     let tab = &mut snapshot.terminal_contexts[0].tabs[0];
     tab.root = PanelNode::Split {
+        ratio: Default::default(),
         children: Box::new([
             PanelSlot {
                 node: PanelNode::Panel {
@@ -493,6 +495,7 @@ fn tree_membership_preserves_unbound_layouts_and_enumerates_only_bound_members()
             panic!("simple member expected")
         };
         tab.root = PanelNode::Split {
+            ratio: Default::default(),
             children: Box::new([
                 PanelSlot {
                     node: PanelNode::Panel {

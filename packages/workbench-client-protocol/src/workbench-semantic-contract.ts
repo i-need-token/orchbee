@@ -147,11 +147,14 @@ export interface WorkbenchPanelNodeSlot {
 	readonly slotId: WorkbenchPanelSlotId;
 }
 
+export const WorkbenchSplitRatioSchema = z.number().finite().min(0.1).max(0.9);
+
 export interface WorkbenchPanelNodeSplit {
 	readonly children: readonly [WorkbenchPanelNodeSlot, WorkbenchPanelNodeSlot];
 	readonly kind: 'split';
 	readonly orientation: 'horizontal' | 'vertical';
 	readonly splitId: WorkbenchSplitId;
+	readonly ratio?: number | undefined;
 }
 
 export type WorkbenchPanelNode = WorkbenchPanelNodePanel | WorkbenchPanelNodeSplit;
@@ -191,6 +194,7 @@ export const WorkbenchPanelNodeSchema: z.ZodType<WorkbenchPanelNode> = z.lazy(()
 				kind: z.literal('split'),
 				orientation: z.enum(['horizontal', 'vertical']),
 				splitId: WorkbenchSplitIdSchema,
+				ratio: WorkbenchSplitRatioSchema.optional(),
 			})
 			.readonly(),
 	]),

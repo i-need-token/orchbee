@@ -46,11 +46,13 @@ mod directory;
 mod identity;
 mod layout_template;
 mod model;
+mod split_ratio;
 pub use layout_template::{
     MAXIMUM_ENCODED_LAYOUT_COMMAND_BYTES, MAXIMUM_LAYOUT_CHILDREN, MAXIMUM_LAYOUT_DEPTH,
     MAXIMUM_LAYOUT_PANELS, WorkbenchLayoutNode, WorkbenchLayoutPresentation,
     WorkbenchLayoutTemplate,
 };
+pub use split_ratio::WorkbenchSplitRatio;
 mod panel_label;
 mod validation;
 mod workspace_order;

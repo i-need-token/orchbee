@@ -230,6 +230,7 @@ fn compatible_rejection(action: &WorkbenchAction, reason: WorkbenchRejectionReas
         | WorkbenchRejectionReason::PanelNotLeaf
         | WorkbenchRejectionReason::LastPanelInTab
         | WorkbenchRejectionReason::SameTab => false,
+        WorkbenchRejectionReason::SplitUnavailable => false,
     }
 }
 

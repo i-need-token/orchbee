@@ -108,6 +108,7 @@ fn tree(node: &WorkbenchLayoutNode, cursor: &mut u128) -> Result<PanelNode, Plan
             PanelNode::Split {
                 orientation: *orientation,
                 split_id,
+                ratio: Default::default(),
                 children: Box::new([
                     PanelSlot {
                         slot_id: first,

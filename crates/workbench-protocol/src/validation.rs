@@ -456,6 +456,7 @@ fn validate_panel_node(
             children,
             orientation: _orientation,
             split_id,
+            ..
         } => {
             if !identities.split_ids.insert(split_id.clone()) {
                 return Err(ValidationError);
@@ -500,6 +501,7 @@ fn validate_panel_node_structure(
             children,
             orientation: _orientation,
             split_id: _split_id,
+            ..
         } => {
             for child in children.iter() {
                 validate_panel_node_structure(&child.node, depth + 1, state, enforce_tree_limits)?;

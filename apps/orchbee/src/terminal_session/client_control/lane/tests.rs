@@ -6,6 +6,8 @@ use orchbee_workbench_protocol::{
 };
 use std::{io::Read, num::NonZeroU64, sync::mpsc};
 
+mod split_ratios;
+
 #[test]
 fn graphics_draw_publication_uses_the_registered_connection_and_shutdown_interrupts_it() {
     use orchbee_workbench_protocol::*;

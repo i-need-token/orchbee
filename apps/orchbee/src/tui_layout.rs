@@ -425,6 +425,7 @@ fn collect_panel_tree<'a>(
             split_id,
             first_slot_id,
             second_slot_id,
+            ..
         } => {
             let ratio = ratios(split_id, first_slot_id, second_slot_id);
             let division = divide_panes(area, *orientation, ratio);
@@ -477,6 +478,7 @@ fn collect_hidden_splits<'a>(
         first_slot_id,
         second_slot_id,
         orientation,
+        ..
     } = tree
     {
         output.push(SplitArea {

@@ -133,6 +133,7 @@ fn rejects_malformed_metadata_and_unsupported_members_without_filtering() {
 fn projects_split_tree_and_directional_leaf_neighbors() {
     let mut split = snapshot(3, 1);
     split.terminal_contexts[0].tabs[1].root = PanelNode::Split {
+        ratio: Default::default(),
         children: Box::new([
             PanelSlot {
                 node: panel(30, 31, 32, 33, "left"),
@@ -165,9 +166,11 @@ fn projects_split_tree_and_directional_leaf_neighbors() {
 fn navigates_nested_split_by_geometric_adjacency() {
     let mut split = snapshot(3, 1);
     split.terminal_contexts[0].tabs[1].root = PanelNode::Split {
+        ratio: Default::default(),
         children: Box::new([
             PanelSlot {
                 node: PanelNode::Split {
+                    ratio: Default::default(),
                     children: Box::new([
                         PanelSlot {
                             node: panel(30, 31, 32, 33, "top-left"),
@@ -185,6 +188,7 @@ fn navigates_nested_split_by_geometric_adjacency() {
             },
             PanelSlot {
                 node: PanelNode::Split {
+                    ratio: Default::default(),
                     children: Box::new([
                         PanelSlot {
                             node: panel(42, 43, 44, 45, "bottom-left"),

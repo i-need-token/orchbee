@@ -328,6 +328,7 @@ pub(crate) enum NativePanelTree {
         second_slot_id: WorkbenchPanelSlotId,
         orientation: PanelOrientation,
         split_id: WorkbenchSplitId,
+        ratio: orchbee_workbench_protocol::WorkbenchSplitRatio,
     },
 }
 
@@ -341,6 +342,31 @@ struct PanelBounds {
 }
 
 impl NativePanelTree {
+    pub(super) fn split_ratio(
+        &self,
+        id: &WorkbenchSplitId,
+        first_id: &WorkbenchPanelSlotId,
+        second_id: &WorkbenchPanelSlotId,
+    ) -> Option<orchbee_workbench_protocol::WorkbenchSplitRatio> {
+        let Self::Split {
+            split_id,
+            first_slot_id,
+            second_slot_id,
+            first,
+            second,
+            ratio,
+            ..
+        } = self
+        else {
+            return None;
+        };
+        if split_id == id {
+            return (first_slot_id == first_id && second_slot_id == second_id).then_some(*ratio);
+        }
+        first
+            .split_ratio(id, first_id, second_id)
+            .or_else(|| second.split_ratio(id, first_id, second_id))
+    }
     /// The leaf panel indices in tree order — canonical for layout and sync.
     pub(super) fn leaf_panel_indices(&self) -> Vec<usize> {
         let mut leaves = Vec::new();
@@ -432,17 +458,30 @@ impl NativePanelTree {
                 first,
                 second,
                 orientation,
+                ratio,
                 ..
             } => match orientation {
                 PanelOrientation::Horizontal => {
-                    let half = width / 2.0;
-                    first.collect_bounds(left, top, half, height, output);
-                    second.collect_bounds(left + half, top, half, height, output);
+                    let first_width = width * ratio.value();
+                    first.collect_bounds(left, top, first_width, height, output);
+                    second.collect_bounds(
+                        left + first_width,
+                        top,
+                        width - first_width,
+                        height,
+                        output,
+                    );
                 }
                 PanelOrientation::Vertical => {
-                    let half = height / 2.0;
-                    first.collect_bounds(left, top, width, half, output);
-                    second.collect_bounds(left, top + half, width, half, output);
+                    let first_height = height * ratio.value();
+                    first.collect_bounds(left, top, width, first_height, output);
+                    second.collect_bounds(
+                        left,
+                        top + first_height,
+                        width,
+                        height - first_height,
+                        output,
+                    );
                 }
             },
         }
@@ -951,6 +990,7 @@ fn tree_shape<'a>(tree: &'a NativePanelTree, panels: &'a [NativePanel]) -> Optio
             second_slot_id,
             orientation,
             split_id,
+            ..
         } => Some(TreeShape::Split {
             first: Box::new(tree_shape(first, panels)?),
             second: Box::new(tree_shape(second, panels)?),
@@ -1014,6 +1054,7 @@ fn ungrafted_shape<'a>(
         second_slot_id,
         orientation,
         split_id,
+        ..
     } = tree
     else {
         return tree_shape(tree, panels);
@@ -1053,6 +1094,7 @@ fn removed_leaf_shape<'a>(
             second_slot_id,
             orientation,
             split_id,
+            ..
         } => {
             match (
                 removed_leaf_shape(first, panels, panel_id),
@@ -1320,6 +1362,7 @@ fn project_panel_tree(
             children,
             orientation,
             split_id,
+            ratio,
         } => {
             let [first, second] = children.as_ref();
             let first_tree = project_panel_tree(&first.node, panels)?;
@@ -1331,6 +1374,7 @@ fn project_panel_tree(
                 second_slot_id: second.slot_id.clone(),
                 orientation: *orientation,
                 split_id: split_id.clone(),
+                ratio: *ratio,
             })
         }
     }
@@ -1599,6 +1643,7 @@ fn collect_structure_tuples<'a>(
         second_slot_id,
         orientation,
         split_id,
+        ..
     } = node
     else {
         return;
@@ -1626,6 +1671,7 @@ fn structure_tuples_retained(
         second_slot_id,
         orientation,
         split_id,
+        ..
     } = node
     else {
         return true;

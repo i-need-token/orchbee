@@ -45,6 +45,7 @@ fn canonical_refresh_accepts_identical_revision_advances_and_ordered_extensions(
 fn canonical_refresh_accepts_one_exact_panel_split_extension() {
     let mut current_snapshot = snapshot(3, 10);
     current_snapshot.terminal_contexts[0].tabs[1].root = PanelNode::Split {
+        ratio: Default::default(),
         children: Box::new([
             PanelSlot {
                 node: panel(30, 31, 32, 33, "left"),
@@ -67,15 +68,18 @@ fn canonical_refresh_accepts_one_exact_panel_split_extension() {
         children,
         orientation,
         split_id: old_split_id,
+        ..
     } = old_root
     else {
         panic!("the baseline fixture must contain a split root");
     };
     let [old_first, old_second] = *children;
     candidate_snapshot.terminal_contexts[0].tabs[1].root = PanelNode::Split {
+        ratio: Default::default(),
         children: Box::new([
             PanelSlot {
                 node: PanelNode::Split {
+                    ratio: Default::default(),
                     children: Box::new([
                         PanelSlot {
                             node: panel(50, 51, 52, 53, "new"),
@@ -107,9 +111,11 @@ fn canonical_refresh_accepts_one_exact_panel_split_extension() {
 fn canonical_refresh_rejects_split_extension_that_mutates_the_untouched_sibling_subtree() {
     let mut current_snapshot = snapshot(2, 10);
     current_snapshot.terminal_contexts[0].tabs[0].root = PanelNode::Split {
+        ratio: Default::default(),
         children: Box::new([
             PanelSlot {
                 node: PanelNode::Split {
+                    ratio: Default::default(),
                     children: Box::new([
                         PanelSlot {
                             node: panel(30, 31, 32, 33, "left"),
@@ -158,9 +164,11 @@ fn canonical_refresh_rejects_split_extension_that_mutates_the_untouched_sibling_
         panic!("the untouched fixture side must contain a split");
     };
     candidate_snapshot.terminal_contexts[0].tabs[0].root = PanelNode::Split {
+        ratio: Default::default(),
         children: Box::new([
             PanelSlot {
                 node: PanelNode::Split {
+                    ratio: Default::default(),
                     children: left_children,
                     orientation: left_orientation,
                     split_id: split_id(99),
@@ -169,6 +177,7 @@ fn canonical_refresh_rejects_split_extension_that_mutates_the_untouched_sibling_
             },
             PanelSlot {
                 node: PanelNode::Split {
+                    ratio: Default::default(),
                     children: Box::new([
                         PanelSlot {
                             node: second.node,
@@ -304,6 +313,7 @@ fn canonical_refresh_accepts_two_folded_panel_split_extensions() {
     // snapshot, so a single refresh can observe the sum of several individually valid splits.
     let mut baseline_snapshot = snapshot(1, 10);
     baseline_snapshot.terminal_contexts[0].tabs[0].root = PanelNode::Split {
+        ratio: Default::default(),
         children: Box::new([
             PanelSlot {
                 node: panel(30, 31, 32, 33, "left"),
@@ -323,9 +333,11 @@ fn canonical_refresh_accepts_two_folded_panel_split_extensions() {
     let mut mid_snapshot = baseline_snapshot;
     mid_snapshot.revision = WorkbenchRevision::new(11);
     mid_snapshot.terminal_contexts[0].tabs[0].root = PanelNode::Split {
+        ratio: Default::default(),
         children: Box::new([
             PanelSlot {
                 node: PanelNode::Split {
+                    ratio: Default::default(),
                     children: Box::new([
                         PanelSlot {
                             node: panel(30, 31, 32, 33, "left"),
@@ -363,6 +375,7 @@ fn canonical_refresh_accepts_two_folded_panel_split_extensions() {
         panic!("the mid fixture must contain a split root");
     };
     children[1].node = PanelNode::Split {
+        ratio: Default::default(),
         children: Box::new([
             PanelSlot {
                 node: panel(35, 36, 37, 38, "right"),

@@ -1203,6 +1203,7 @@ mod linux {
         };
         let internal = || Failure::new(FailureKind::InternalFailure);
         match &resolved.action {
+            WorkbenchAction::SplitRatioSet { .. } => Err(internal()),
             WorkbenchAction::ProjectCreate { .. }
             | WorkbenchAction::ProjectRename { .. }
             | WorkbenchAction::WorkspaceCreate { .. }
@@ -2289,6 +2290,7 @@ mod linux {
                 "workspace-move-target-in-block"
             }
             WorkbenchRejectionReason::PanelUnavailable => "panel-unavailable",
+            WorkbenchRejectionReason::SplitUnavailable => "split-unavailable",
             WorkbenchRejectionReason::PanelNotLeaf => "panel-not-leaf",
             WorkbenchRejectionReason::LastPanelInTab => "last-panel-in-tab",
             WorkbenchRejectionReason::SameTab => "same-tab",

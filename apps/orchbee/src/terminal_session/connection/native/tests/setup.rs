@@ -2497,6 +2497,7 @@ pub(super) fn split_node(
     split: u128,
 ) -> PanelNode {
     PanelNode::Split {
+        ratio: Default::default(),
         children: Box::new([
             PanelSlot {
                 node: first,

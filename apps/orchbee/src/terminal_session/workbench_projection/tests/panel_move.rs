@@ -4,6 +4,7 @@ use super::*;
 fn split_snapshot(tab_count: usize, revision: u64) -> Snapshot {
     let mut snapshot = snapshot(tab_count, revision);
     snapshot.terminal_contexts[0].tabs[0].root = PanelNode::Split {
+        ratio: Default::default(),
         children: Box::new([
             PanelSlot {
                 node: panel(30, 31, 32, 33, "left"),
@@ -23,6 +24,7 @@ fn split_snapshot(tab_count: usize, revision: u64) -> Snapshot {
 /// Split(A, Split(B, C)) — left leaf beside a nested vertical split.
 fn nested_split_root() -> PanelNode {
     PanelNode::Split {
+        ratio: Default::default(),
         children: Box::new([
             PanelSlot {
                 node: panel(30, 31, 32, 33, "left"),
@@ -30,6 +32,7 @@ fn nested_split_root() -> PanelNode {
             },
             PanelSlot {
                 node: PanelNode::Split {
+                    ratio: Default::default(),
                     children: Box::new([
                         PanelSlot {
                             node: panel(35, 36, 37, 38, "middle"),
@@ -58,6 +61,7 @@ fn canonical_refresh_accepts_a_leaf_relocated_beside_its_sibling() {
     // Move A right of B: the root Split is replaced by a fresh Split(B, A).
     let mut candidate_snapshot = split_snapshot(2, 11);
     candidate_snapshot.terminal_contexts[0].tabs[0].root = PanelNode::Split {
+        ratio: Default::default(),
         children: Box::new([
             PanelSlot {
                 node: panel(35, 36, 37, 38, "right"),
@@ -85,6 +89,7 @@ fn canonical_refresh_accepts_a_leaf_relocated_across_orientations() {
     // Move A below B: fresh vertical Split(B, A).
     let mut candidate_snapshot = split_snapshot(2, 11);
     candidate_snapshot.terminal_contexts[0].tabs[0].root = PanelNode::Split {
+        ratio: Default::default(),
         children: Box::new([
             PanelSlot {
                 node: panel(35, 36, 37, 38, "right"),
@@ -115,9 +120,11 @@ fn canonical_refresh_accepts_relocation_into_a_nested_target() {
     let mut candidate_snapshot = current_snapshot;
     candidate_snapshot.revision = WorkbenchRevision::new(11);
     candidate_snapshot.terminal_contexts[0].tabs[0].root = PanelNode::Split {
+        ratio: Default::default(),
         children: Box::new([
             PanelSlot {
                 node: PanelNode::Split {
+                    ratio: Default::default(),
                     children: Box::new([
                         PanelSlot {
                             node: panel(50, 51, 52, 53, "right"),
@@ -159,6 +166,7 @@ fn canonical_refresh_accepts_relocation_that_promotes_the_inner_split_to_root() 
     let mut candidate_snapshot = current_snapshot;
     candidate_snapshot.revision = WorkbenchRevision::new(11);
     candidate_snapshot.terminal_contexts[0].tabs[0].root = PanelNode::Split {
+        ratio: Default::default(),
         children: Box::new([
             PanelSlot {
                 node: panel(35, 36, 37, 38, "middle"),
@@ -166,6 +174,7 @@ fn canonical_refresh_accepts_relocation_that_promotes_the_inner_split_to_root() 
             },
             PanelSlot {
                 node: PanelNode::Split {
+                    ratio: Default::default(),
                     children: Box::new([
                         PanelSlot {
                             node: panel(50, 51, 52, 53, "right"),
@@ -199,6 +208,7 @@ fn canonical_refresh_rejects_a_move_graft_reusing_known_identities() {
     // Fresh children order but the Split identity is retained: not a legitimate graft.
     let mut reused_split = split_snapshot(2, 11);
     reused_split.terminal_contexts[0].tabs[0].root = PanelNode::Split {
+        ratio: Default::default(),
         children: Box::new([
             PanelSlot {
                 node: panel(35, 36, 37, 38, "right"),
@@ -223,6 +233,7 @@ fn canonical_refresh_rejects_a_move_graft_reusing_known_identities() {
     // A fresh Split identity that recycles a baseline Slot identity.
     let mut reused_slot = split_snapshot(2, 11);
     reused_slot.terminal_contexts[0].tabs[0].root = PanelNode::Split {
+        ratio: Default::default(),
         children: Box::new([
             PanelSlot {
                 node: panel(35, 36, 37, 38, "right"),
@@ -255,9 +266,11 @@ fn canonical_refresh_rejects_relocation_that_mutates_the_moved_or_untouched_subt
     let mut mutated_leaf = current_snapshot.clone();
     mutated_leaf.revision = WorkbenchRevision::new(11);
     mutated_leaf.terminal_contexts[0].tabs[0].root = PanelNode::Split {
+        ratio: Default::default(),
         children: Box::new([
             PanelSlot {
                 node: PanelNode::Split {
+                    ratio: Default::default(),
                     children: Box::new([
                         PanelSlot {
                             node: panel(50, 51, 52, 99, "right"),
@@ -293,9 +306,11 @@ fn canonical_refresh_rejects_relocation_that_mutates_the_moved_or_untouched_subt
     let mut mutated_slot = current_snapshot;
     mutated_slot.revision = WorkbenchRevision::new(11);
     mutated_slot.terminal_contexts[0].tabs[0].root = PanelNode::Split {
+        ratio: Default::default(),
         children: Box::new([
             PanelSlot {
                 node: PanelNode::Split {
+                    ratio: Default::default(),
                     children: Box::new([
                         PanelSlot {
                             node: panel(50, 51, 52, 53, "right"),
@@ -339,6 +354,7 @@ fn canonical_refresh_accepts_a_leaf_swapped_within_its_own_parent() {
     let mut candidate_snapshot = current_snapshot;
     candidate_snapshot.revision = WorkbenchRevision::new(11);
     candidate_snapshot.terminal_contexts[0].tabs[0].root = PanelNode::Split {
+        ratio: Default::default(),
         children: Box::new([
             PanelSlot {
                 node: panel(30, 31, 32, 33, "left"),
@@ -346,6 +362,7 @@ fn canonical_refresh_accepts_a_leaf_swapped_within_its_own_parent() {
             },
             PanelSlot {
                 node: PanelNode::Split {
+                    ratio: Default::default(),
                     children: Box::new([
                         PanelSlot {
                             node: panel(50, 51, 52, 53, "right"),
@@ -380,6 +397,7 @@ fn canonical_refresh_accepts_folded_histories_beyond_a_single_relocation() {
     // gained a fresh sibling under a fresh Split.
     let mut closed_then_split = split_snapshot(2, 12);
     closed_then_split.terminal_contexts[0].tabs[0].root = PanelNode::Split {
+        ratio: Default::default(),
         children: Box::new([
             PanelSlot {
                 node: panel(60, 61, 62, 63, "new"),
@@ -407,9 +425,11 @@ fn canonical_refresh_accepts_folded_histories_beyond_a_single_relocation() {
     let mut compounded = nested_current;
     compounded.revision = WorkbenchRevision::new(11);
     compounded.terminal_contexts[0].tabs[0].root = PanelNode::Split {
+        ratio: Default::default(),
         children: Box::new([
             PanelSlot {
                 node: PanelNode::Split {
+                    ratio: Default::default(),
                     children: Box::new([
                         PanelSlot {
                             node: panel(50, 51, 52, 53, "right"),
@@ -447,6 +467,7 @@ fn canonical_refresh_rejects_restructures_that_reassign_retained_identity() {
     // A leaf vanished entirely: the duplicate Panel identity fails the strict projector.
     let mut dropped = split_snapshot(2, 12);
     dropped.terminal_contexts[0].tabs[0].root = PanelNode::Split {
+        ratio: Default::default(),
         children: Box::new([
             PanelSlot {
                 node: panel(30, 31, 32, 33, "left"),
@@ -466,6 +487,7 @@ fn canonical_refresh_rejects_restructures_that_reassign_retained_identity() {
     // complete member tuple differs.
     let mut mutated = split_snapshot(2, 12);
     mutated.terminal_contexts[0].tabs[0].root = PanelNode::Split {
+        ratio: Default::default(),
         children: Box::new([
             PanelSlot {
                 node: panel(60, 61, 62, 63, "new"),

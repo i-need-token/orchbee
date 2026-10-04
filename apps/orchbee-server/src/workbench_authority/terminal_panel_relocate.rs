@@ -496,6 +496,7 @@ fn insert_at_root(
         (previous, moved)
     };
     *root = PanelNode::Split {
+        ratio: Default::default(),
         children: Box::new([
             PanelSlot {
                 node: first_node,

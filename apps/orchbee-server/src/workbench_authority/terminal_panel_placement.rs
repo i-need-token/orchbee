@@ -467,6 +467,7 @@ fn insert_leaf_panel(node: &mut PanelNode, insertion: &PanelMoveInsertion) -> bo
                 (target, insertion.moved.clone())
             };
             *node = PanelNode::Split {
+                ratio: Default::default(),
                 children: Box::new([
                     PanelSlot {
                         node: first_node,

@@ -7,7 +7,7 @@
 探测位置使用独立订阅序号。过滤条件、事件／数据 kind、来源版本、有序分页及明确 gap
 在解释前验证。`matches_semantic_filter` 为运行时发布者与原生 CLI 回执检查共享纯语义匹配。
 [Windows 事件模型](../../apps/orchbee-server/docs/windows-events.zh-CN.md) 管理真实发布与观察副作用。
-可选 Client `splitRevision` 是全宽比例所有者计数；旧观察省略该字段不能证明比例变化。
+可选 Client `splitRevision` 是投影缓存的完整宽度规范 Workbench 修订；旧观察省略该字段不能证明比例变化。
 
 本 crate 管理原生 Workbench 客户端与 Server 共用的请求、响应、校验和帧传输契约。它不打开套接字或执行操作；运行时所有者负责处理已受理请求。
 
@@ -77,3 +77,5 @@ v1–v9 拒绝此意图。公开 Windows `terminal edit-scrollback` 路径由
 ## Panel 图片协议
 
 `PaneGraphicsRequest` 和 `PaneGraphicsResult` 使用 OBWP 57/58，并在分配前独立限制方向（请求 24 MiB、结果 512 KiB）。它们覆盖完整 PNG／RGB／RGBA／BGRA 上传、静态图层、元数据目录、按资源版本读取的像素块以及连接所属的生产者。在没有渲染或文件副作用的情况下验证结构、规范 base64、通道长度、损伤范围、完整宽度生产者序号及响应关联。运行时所有者提供 PNG 解码、来源约束、文件租约和真实 Client 能力。共享案例位于 `schemas/workbench/v1/workbench-pane-graphics-conformance-v1.json`。
+
+规范 `PanelNode::Split.ratio` 默认为 0.5，准入有限的 0.1–0.9 数值。有身份的 CAS 命令 `layout.set-split-ratio` 返回 `split-ratio-configured`；[共享比例归属](../../apps/orchbee-server/docs/shared-split-ratios.zh-CN.md) 定义其运行时效果。

@@ -38,6 +38,7 @@ mod panel_metadata;
 mod plugin_panes;
 #[cfg(windows)]
 mod popup_source;
+mod split_ratios;
 pub use plugin_panes::PluginPaneLaunch;
 mod terminal_membership;
 mod workspace_directory;
@@ -972,6 +973,32 @@ impl WorkbenchAuthority {
                     candidate.revision = revision;
                     WorkbenchCommandOutcome::PanelInputConfigured { revision }
                 }
+                PureWorkbenchAction::SplitRatioSet {
+                    terminal_context_id,
+                    tab_id,
+                    split,
+                    previous_ratio,
+                    ratio,
+                } => {
+                    if self.open_close_fences_context(&terminal_context_id) {
+                        return Ok(self.settled(unavailable(
+                            WorkbenchCommandUnavailableReason::TerminalBusy,
+                        )));
+                    }
+                    if !split_ratios::set(
+                        &mut candidate,
+                        &terminal_context_id,
+                        &tab_id,
+                        &split,
+                        previous_ratio,
+                        ratio,
+                    )? {
+                        return Ok(self.unchanged());
+                    }
+                    let revision = self.next_revision()?;
+                    candidate.revision = revision;
+                    WorkbenchCommandOutcome::SplitRatioConfigured { revision }
+                }
                 PureWorkbenchAction::LaunchProfileCreate { name, launch } => {
                     if self.catalog.len() >= MAXIMUM_LAUNCH_PROFILE_ENTRIES {
                         return reject(WorkbenchRejectionReason::ResourceLimit);
@@ -1190,6 +1217,13 @@ enum PureWorkbenchAction {
         panel_id: orchbee_workbench_protocol::WorkbenchPanelId,
         right_click: orchbee_workbench_protocol::PanelRightClickTarget,
     },
+    SplitRatioSet {
+        terminal_context_id: WorkbenchTerminalContextId,
+        tab_id: WorkbenchTabId,
+        split: orchbee_workbench_protocol::ClientSplitIdentity,
+        previous_ratio: orchbee_workbench_protocol::WorkbenchSplitRatio,
+        ratio: orchbee_workbench_protocol::WorkbenchSplitRatio,
+    },
     LaunchProfileCreate {
         name: orchbee_workbench_protocol::LaunchProfileName,
         launch: orchbee_workbench_protocol::LaunchSelection,
@@ -1277,6 +1311,19 @@ impl PureWorkbenchAction {
                 tab_id: tab_id.clone(),
                 panel_id: panel_id.clone(),
                 right_click: *right_click,
+            },
+            WorkbenchAction::SplitRatioSet {
+                terminal_context_id,
+                tab_id,
+                split,
+                previous_ratio,
+                ratio,
+            } => Self::SplitRatioSet {
+                terminal_context_id: terminal_context_id.clone(),
+                tab_id: tab_id.clone(),
+                split: split.clone(),
+                previous_ratio: *previous_ratio,
+                ratio: *ratio,
             },
             WorkbenchAction::LaunchProfileCreate { name, launch } => Self::LaunchProfileCreate {
                 name: name.clone(),

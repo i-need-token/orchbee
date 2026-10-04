@@ -977,6 +977,7 @@ fn replace_panel(node: &mut PanelNode, replacement: &PanelSplitReplacement<'_>) 
             };
             *node =
                 PanelNode::Split {
+                    ratio: Default::default(),
                     children: Box::new([
                         PanelSlot {
                             node: first_node,

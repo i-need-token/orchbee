@@ -9,6 +9,7 @@ use super::*;
 fn two_tab_split_snapshot(revision: u64) -> Snapshot {
     let mut snapshot = snapshot(2, revision);
     snapshot.terminal_contexts[0].tabs[0].root = PanelNode::Split {
+        ratio: Default::default(),
         children: Box::new([
             PanelSlot {
                 node: panel(30, 31, 32, 33, "left"),
@@ -40,6 +41,7 @@ fn grafted_destination(direction_moved_first: bool) -> PanelNode {
         )
     };
     PanelNode::Split {
+        ratio: Default::default(),
         children: Box::new([
             PanelSlot {
                 node: first,
@@ -110,6 +112,7 @@ fn canonical_refresh_rejects_a_relocated_member_whose_identity_mutated() {
         let mut candidate_snapshot = two_tab_split_snapshot(11);
         candidate_snapshot.terminal_contexts[0].tabs[0].root = panel(30, 31, 32, 33, "left");
         candidate_snapshot.terminal_contexts[0].tabs[1].root = PanelNode::Split {
+            ratio: Default::default(),
             children: Box::new([
                 PanelSlot {
                     node: panel(1011, 1012, 1013, 1014, "2"),
@@ -164,6 +167,7 @@ fn canonical_refresh_rejects_a_retained_split_identity_reparented_across_tabs() 
     let mut candidate_snapshot = two_tab_split_snapshot(11);
     candidate_snapshot.terminal_contexts[0].tabs[0].root = panel(30, 31, 32, 33, "left");
     candidate_snapshot.terminal_contexts[0].tabs[1].root = PanelNode::Split {
+        ratio: Default::default(),
         children: Box::new([
             PanelSlot {
                 node: panel(1011, 1012, 1013, 1014, "2"),

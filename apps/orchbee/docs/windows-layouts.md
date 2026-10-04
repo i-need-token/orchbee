@@ -87,10 +87,14 @@ remain localized. Group/pin roundtrip and complete saved-focus restoration remai
 The pure template/projector owns shape, bounds, member intent and identity-free reconstruction.
 The Server owns canonical membership and launches; the Client owns view observations. The Windows
 adapter owns exact binding joins, send-once submission, ownership fences, cancellation and cleanup.
-No durable migration or dependency is introduced. Mixed releases require a matched private cohort.
+Shared ratios use checkpoint v5/catalog v4; no dependency is introduced. Mixed releases require a matched private cohort.
 
 Focused tests cover old/new inputs, child/unbound roundtrip, literal launch data, every pre-readiness
 failure boundary, exact binding deltas, stale metadata and response correlation. Controlled Windows
 CLI peers exercise actual process dispatch and receipts, not a real provider or interactive Client.
 Full packaged Windows/TUI, provider and multi-Client acceptance and the complete regression gate
 remain final integration obligations; old v1 acceptance does not prove this changed v2 workflow.
+
+Server shares and persists split ratios. Export records the current nominal ratios; apply uses the same canonical mutation path. Each window retains its own focus, zoom and control. See the [shared ratio contract](../../orchbee-server/docs/shared-split-ratios.md) for compatibility.
+
+Each known shared-ratio receipt advances the workflow-owned Tab copy by exactly that identified ratio change. The next Server read still fences the complete new and replaced Tabs, including every other ratio, label, binding and ordered identity. Unknown results do not widen or refresh ownership; no concurrent edit is adopted as part of the workflow.

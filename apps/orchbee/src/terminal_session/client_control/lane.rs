@@ -14,6 +14,8 @@ use std::{
     time::{Duration, Instant},
 };
 mod configured_command;
+mod split_ratio;
+pub(super) use split_ratio::LayoutCompletion;
 
 #[derive(Clone)]
 pub(super) struct Sample {
@@ -36,6 +38,9 @@ struct Handoff {
     invocation: Option<orchbee_workbench_protocol::ConfiguredCommandInvocation>,
     invocation_pending: bool,
     invocation_result: Option<CommandCompletion>,
+    layout: Option<orchbee_workbench_protocol::WorkbenchCommand>,
+    layout_pending: bool,
+    layout_result: Option<LayoutCompletion>,
     sample: Option<Sample>,
     completion: Option<(Sample, ClientViewCompletion)>,
     control: Option<Delivery>,
@@ -50,6 +55,29 @@ pub(super) struct ClientControlLane {
     task: Option<JoinHandle<()>>,
 }
 impl ClientControlLane {
+    pub(super) fn submit_layout(
+        &self,
+        command: orchbee_workbench_protocol::WorkbenchCommand,
+    ) -> bool {
+        let (lock, signal) = &*self.shared;
+        let Ok(mut handoff) = lock.lock() else {
+            return false;
+        };
+        if handoff.stopped
+            || handoff.failed
+            || handoff.layout_pending
+            || handoff.layout_result.is_some()
+        {
+            return false;
+        }
+        handoff.layout_pending = true;
+        handoff.layout = Some(command);
+        signal.notify_one();
+        true
+    }
+    pub(super) fn take_layout_result(&self) -> Option<LayoutCompletion> {
+        self.shared.0.lock().ok()?.layout_result.take()
+    }
     pub(super) fn invoke_configured(
         &self,
         id: String,
@@ -195,6 +223,7 @@ fn run(
         return;
     };
     let mut invocation_task: Option<configured_command::Invocation> = None;
+    let mut layout_task: Option<split_ratio::Mutation> = None;
     let mut exchange_id = 0_u64;
     let mut next_exchange = Instant::now();
     loop {
@@ -295,6 +324,49 @@ fn run(
             handoff.registered = Some((*registered).clone());
             handoff.invocation.take()
         };
+        if layout_task
+            .as_ref()
+            .is_some_and(split_ratio::Mutation::finished)
+        {
+            layout_task.take();
+        }
+        let layout = {
+            let Ok(mut handoff) = lock.lock() else {
+                return;
+            };
+            handoff.layout.take()
+        };
+        if let Some(command) = layout {
+            let operation_id = command.request_id.clone();
+            let started = if layout_task.is_none() {
+                split_ratio::Mutation::start(
+                    Arc::clone(shared),
+                    origin.clone(),
+                    clock.clone(),
+                    command,
+                )
+            } else {
+                Err(io::ErrorKind::WouldBlock.into())
+            };
+            match started {
+                Ok(task) => layout_task = Some(task),
+                Err(_) => {
+                    let Ok(mut handoff) = lock.lock() else {
+                        return;
+                    };
+                    handoff.layout_pending = false;
+                    handoff.layout_result = Some(LayoutCompletion {
+                        operation_id,
+                        reply: Err(
+                            crate::local_client::workbench::split_ratio::SplitRatioFailure {
+                                may_have_committed: false,
+                                reason: orchbee_workbench_protocol::ClientViewControlReason::Busy,
+                            },
+                        ),
+                    });
+                }
+            }
+        }
         if invocation_task
             .as_ref()
             .is_some_and(configured_command::Invocation::finished)
@@ -428,6 +500,17 @@ impl ClientControlLane {
     }
     pub(super) fn completion_for_test(&self) -> Option<(Sample, ClientViewCompletion)> {
         self.shared.0.lock().unwrap().completion.clone()
+    }
+    pub(super) fn take_layout_for_test(
+        &self,
+    ) -> Option<orchbee_workbench_protocol::WorkbenchCommand> {
+        self.shared.0.lock().unwrap().layout.take()
+    }
+    pub(super) fn finish_layout_for_test(&self, result: LayoutCompletion) {
+        let mut handoff = self.shared.0.lock().unwrap();
+        assert!(handoff.layout_pending);
+        handoff.layout_pending = false;
+        assert!(handoff.layout_result.replace(result).is_none());
     }
 }
 

@@ -136,6 +136,9 @@ import {
 	WorkbenchLabelSchema,
 	WorkbenchPanelLabelUpdateSchema,
 	WorkbenchPanelIdSchema,
+	WorkbenchPanelSlotIdSchema,
+	WorkbenchSplitIdSchema,
+	WorkbenchSplitRatioSchema,
 	WorkbenchProjectIdSchema,
 	WorkbenchRequestIdSchema,
 	WorkbenchRevisionSchema,
@@ -254,6 +257,23 @@ export const WorkbenchActionSchema = z.discriminatedUnion('kind', [
 			tabId: WorkbenchTabIdSchema,
 			panelId: WorkbenchPanelIdSchema,
 			rightClick: z.enum(['orchbee', 'panel']),
+		})
+		.readonly(),
+	z
+		.strictObject({
+			kind: z.literal('layout.set-split-ratio'),
+			terminalContextId: WorkbenchTerminalContextIdSchema,
+			tabId: WorkbenchTabIdSchema,
+			split: z
+				.strictObject({
+					splitId: WorkbenchSplitIdSchema,
+					firstSlotId: WorkbenchPanelSlotIdSchema,
+					secondSlotId: WorkbenchPanelSlotIdSchema,
+				})
+				.refine((split) => split.firstSlotId !== split.secondSlotId)
+				.readonly(),
+			previousRatio: WorkbenchSplitRatioSchema,
+			ratio: WorkbenchSplitRatioSchema,
 		})
 		.readonly(),
 	z

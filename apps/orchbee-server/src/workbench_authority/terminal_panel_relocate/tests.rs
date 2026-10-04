@@ -298,6 +298,7 @@ fn relocate_leaf_into_existing_tab_preserves_identity_and_mints_only_the_graft()
         children,
         orientation: PanelOrientation::Vertical,
         split_id: grafted,
+        ..
     } = &after_destination
     else {
         panic!("destination root must be a fresh vertical Split")
@@ -1020,6 +1021,7 @@ fn deep_tree(depth: usize, seed: u128) -> PanelNode {
         };
     }
     PanelNode::Split {
+        ratio: Default::default(),
         split_id: WorkbenchSplitId::parse(&identity(seed)).unwrap(),
         orientation: PanelOrientation::Vertical,
         children: Box::new([

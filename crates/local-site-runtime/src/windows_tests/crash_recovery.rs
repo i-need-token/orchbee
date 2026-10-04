@@ -60,16 +60,16 @@ fn guards(site: &Rendezvous) -> (crate::ModeCheckedSiteLock, crate::ModeCheckedS
 fn dead_default_and_named_generations_recover_without_a_checkpoint_or_erasing_one() {
     for text in ["default", "cold-work"] {
         for saved in [false, true] {
-            for legacy_v2 in [false, true] {
+            for catalog_version in [2, 3, 4] {
                 let base = Fixture::new();
                 let local = Fixture::new();
                 let (catalog, site, scope) = setup(&base, &local, text);
-                if legacy_v2 {
-                    rewrite_record_version(&base, &local, &scope, 2);
+                if catalog_version != 4 {
+                    rewrite_record_version(&base, &local, &scope, catalog_version);
                 }
                 assert_eq!(
                     record_version(&base, &local, &scope),
-                    if legacy_v2 { 2 } else { 3 }
+                    u64::from(catalog_version)
                 );
                 if saved {
                     let mut store = WindowsSessionStore::open(&local.0, &site, 64).unwrap();
@@ -104,7 +104,7 @@ fn dead_default_and_named_generations_recover_without_a_checkpoint_or_erasing_on
                 assert!(catalog.begin_activation(&site, [1; 16]).is_err());
                 catalog.begin_activation(&site, [2; 16]).unwrap();
                 site.commit_activation().unwrap();
-                assert_eq!(record_version(&base, &local, &scope), 3);
+                assert_eq!(record_version(&base, &local, &scope), 4);
                 let record = directory(&base, &local).read(&scope).unwrap().unwrap();
                 assert_eq!(record.activation_id, Some([2; 16]));
                 assert_eq!(record.lifecycle, Lifecycle::Active);

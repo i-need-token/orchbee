@@ -5,6 +5,7 @@ use orchbee_workbench_protocol::{ClientOverlayMember, ClientViewIntent};
 
 fn add_leaf(root: &mut PanelNode, seed: u128) {
     *root = PanelNode::Split {
+        ratio: Default::default(),
         children: Box::new([
             PanelSlot {
                 node: root.clone(),
@@ -107,8 +108,10 @@ fn remove(snapshot: &Snapshot, ids: &[WorkbenchPanelId]) -> Snapshot {
                 children,
                 orientation,
                 split_id,
+                ..
             } => match (prune(&children[0].node, ids), prune(&children[1].node, ids)) {
                 (Some(a), Some(b)) => Some(PanelNode::Split {
+                    ratio: Default::default(),
                     children: Box::new([
                         PanelSlot {
                             node: a,

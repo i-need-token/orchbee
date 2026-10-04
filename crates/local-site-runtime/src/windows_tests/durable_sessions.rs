@@ -204,10 +204,10 @@ fn default_and_exact_names_remain_discoverable_and_restart_after_runtime_loss() 
 }
 
 #[test]
-fn begin_activation_publishes_v3_before_checkpoint_storage_can_write() {
+fn begin_activation_publishes_v4_before_checkpoint_storage_can_write() {
     let base = Fixture::new();
     let local = Fixture::new();
-    let name = WindowsSiteName::parse("catalog-v3-first").unwrap();
+    let name = WindowsSiteName::parse("catalog-v4-first").unwrap();
     let catalog = Catalog::try_lock(&base.0, &local.0).unwrap();
     assert_eq!(
         catalog
@@ -231,16 +231,16 @@ fn begin_activation_publishes_v3_before_checkpoint_storage_can_write() {
 
     catalog.begin_activation(&site, [1; 16]).unwrap();
 
-    assert_eq!(record_version(&base, &local, &name), 3);
+    assert_eq!(record_version(&base, &local, &name), 4);
     assert!(!state.exists());
 }
 
-fn assert_v3_stopped_checkpoint_evidence(leaf: &str, text: &str) {
+fn assert_framed_stopped_checkpoint_evidence(version: u8, leaf: &str, text: &str) {
     let base = Fixture::new();
     let local = Fixture::new();
     let (name, site, mut owner) = start(&base, &local, text, 1);
     stop(&site, &mut owner, 9);
-    rewrite_record_version(&base, &local, &name, 3);
+    rewrite_record_version(&base, &local, &name, version);
     let runtime = site.runtime_directory().to_owned();
     let state = local
         .0
@@ -279,21 +279,30 @@ fn assert_v3_stopped_checkpoint_evidence(leaf: &str, text: &str) {
     };
     site.register_session_name(&activation, &name).unwrap();
     catalog.begin_activation(&site, [2; 16]).unwrap();
-    assert_eq!(record_version(&base, &local, &name), 3);
+    assert_eq!(record_version(&base, &local, &name), 4);
     assert_eq!(fs::read(state.join(leaf)).unwrap(), evidence);
 }
 
 #[test]
-fn v3_stopped_recovery_accepts_backup_only_checkpoint_evidence() {
-    assert_v3_stopped_checkpoint_evidence("checkpoint.previous-1.json", "backup-evidence");
+fn framed_stopped_recovery_accepts_backup_only_checkpoint_evidence() {
+    for version in [3, 4] {
+        assert_framed_stopped_checkpoint_evidence(
+            version,
+            "checkpoint.previous-1.json",
+            "backup-evidence",
+        );
+    }
 }
 
 #[test]
-fn v3_stopped_recovery_accepts_raw_only_checkpoint_evidence() {
-    assert_v3_stopped_checkpoint_evidence(
-        "checkpoint.corrupt-00000000000000000000000000000001.raw",
-        "raw-evidence",
-    );
+fn framed_stopped_recovery_accepts_raw_only_checkpoint_evidence() {
+    for version in [3, 4] {
+        assert_framed_stopped_checkpoint_evidence(
+            version,
+            "checkpoint.corrupt-00000000000000000000000000000001.raw",
+            "raw-evidence",
+        );
+    }
 }
 
 fn assert_v2_stopped_recovery_requires_primary_checkpoint(leaf: &str, text: &str) {
@@ -360,7 +369,7 @@ fn assert_v2_stopped_recovery_requires_primary_checkpoint(leaf: &str, text: &str
     };
     site.register_session_name(&activation, &name).unwrap();
     catalog.begin_activation(&site, [2; 16]).unwrap();
-    assert_eq!(record_version(&base, &local, &name), 3);
+    assert_eq!(record_version(&base, &local, &name), 4);
 }
 
 #[test]
@@ -465,7 +474,7 @@ fn v1_stopped_recovery_requires_primary_checkpoint() {
     };
     site.register_session_name(&activation, &name).unwrap();
     catalog.begin_activation(&site, [2; 16]).unwrap();
-    assert_eq!(record_version(&base, &local, &name), 3);
+    assert_eq!(record_version(&base, &local, &name), 4);
 }
 
 #[test]
@@ -710,7 +719,7 @@ fn malformed_oversized_mismatched_and_linked_records_are_never_repaired() {
     let value: serde_json::Value = serde_json::from_slice(&original).unwrap();
     let mut cases = vec![vec![b' '; 8193], br#"{"version":1,"version":1}"#.to_vec()];
     for (field, replacement) in [
-        ("version", serde_json::json!(4)),
+        ("version", serde_json::json!(5)),
         ("name", serde_json::json!("other")),
         ("runtime", serde_json::json!(local.0.to_str().unwrap())),
         ("activation_id", serde_json::json!(vec![0; 16])),

@@ -10,6 +10,7 @@ mod agent_sessions;
 mod directories;
 mod managed_names;
 mod restore;
+mod split_ratios;
 
 #[test]
 fn admission_validates_the_complete_graph_before_runtime_reconstruction() {
@@ -22,10 +23,10 @@ fn admission_validates_the_complete_graph_before_runtime_reconstruction() {
         changed(|value| value["terminalContexts"][1]["terminalContextId"] = json!(identity(900)));
     assert!(WorkbenchCheckpoint::parse(&invalid_graph).is_err());
     assert!(WorkbenchCheckpoint::parse(b"{}").is_err());
-    let unsupported = changed(|value| value["version"] = json!(5));
+    let unsupported = changed(|value| value["version"] = json!(6));
     assert!(matches!(
         WorkbenchCheckpoint::parse(&unsupported),
-        Err(WorkbenchCheckpointError::UnsupportedVersion(5))
+        Err(WorkbenchCheckpointError::UnsupportedVersion(6))
     ));
 }
 
@@ -389,12 +390,12 @@ fn rejects_missing_unknown_duplicate_and_unsupported_fields() {
     assert!(restore(&changed(|value| value["siteId"] = json!(identity(100)))).is_err());
     assert!(restore(&changed(|value| value["schema"] = json!("another.schema"))).is_err());
     assert_eq!(
-        restore(&changed(|value| value["version"] = json!(5))).err(),
-        Some(WorkbenchCheckpointError::UnsupportedVersion(5))
+        restore(&changed(|value| value["version"] = json!(6))).err(),
+        Some(WorkbenchCheckpointError::UnsupportedVersion(6))
     );
     let encoded = String::from_utf8(checkpoint()).unwrap();
     for (needle, replacement) in [
-        ("\"version\":4", "\"version\":4,\"version\":4"),
+        ("\"version\":5", "\"version\":5,\"version\":5"),
         ("\"binding\":null", "\"binding\":null,\"binding\":null"),
         (
             "\"name\":\"same name\"",

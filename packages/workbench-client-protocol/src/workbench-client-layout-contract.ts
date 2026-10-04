@@ -6,6 +6,7 @@ import {
 	WorkbenchSplitIdSchema,
 	WorkbenchPanelSlotIdSchema,
 	WorkbenchRevisionSchema,
+	WorkbenchSplitRatioSchema,
 	WORKBENCH_MAXIMUM_PANEL_NODES_PER_CONTEXT,
 	WORKBENCH_MAXIMUM_PANEL_NODE_DEPTH,
 } from './workbench-semantic-contract';
@@ -25,7 +26,7 @@ export const ClientCellRectSchema = z
 	)
 	.readonly();
 export const ClientPanelDirectionSchema = z.enum(['left', 'right', 'up', 'down']);
-export const ClientSplitRatioSchema = z.number().min(0.1).max(0.9);
+export const ClientSplitRatioSchema = WorkbenchSplitRatioSchema;
 export const ClientResizeAmountSchema = z.number().min(0).max(0.5);
 export const ClientSplitPathSchema = z
 	.array(z.union([z.literal(0), z.literal(1)]))

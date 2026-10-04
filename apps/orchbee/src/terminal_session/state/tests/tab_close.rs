@@ -341,6 +341,7 @@ fn split_close_uses_the_attached_leaf_binding_for_confirmation_and_submission() 
         worker_id: WorkerId::parse(&super::id(2_011)).unwrap(),
     };
     source.terminal_contexts[0].tabs[0].root = PanelNode::Split {
+        ratio: Default::default(),
         children: Box::new([
             PanelSlot {
                 node: original,

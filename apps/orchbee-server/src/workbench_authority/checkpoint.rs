@@ -38,6 +38,7 @@ pub enum WorkbenchCheckpointError {
     InvalidAgentSession,
     InvalidTerminalDirectory,
     InvalidManagedName,
+    InvalidSplitRatio,
 }
 
 impl fmt::Display for WorkbenchCheckpointError {
@@ -70,6 +71,9 @@ impl fmt::Display for WorkbenchCheckpointError {
             Self::InvalidAgentSession => formatter.write_str("invalid checkpoint Agent session"),
             Self::InvalidManagedName => {
                 formatter.write_str("invalid checkpoint managed Agent name")
+            }
+            Self::InvalidSplitRatio => {
+                formatter.write_str("invalid checkpoint split ratio version")
             }
         }
     }
@@ -289,7 +293,7 @@ impl WorkbenchAuthority {
             .collect::<Result<Vec<_>, WorkbenchCheckpointError>>()?;
         let checkpoint = Checkpoint {
             schema: Schema::Workbench,
-            version: 4,
+            version: 5,
             last_identity,
             navigation: StoredNavigation {
                 workspace_order: snapshot.navigation.workspace_order,
@@ -333,7 +337,7 @@ impl WorkbenchCheckpoint {
         enforce_encoded_limit(encoded)?;
         let checkpoint: Checkpoint = serde_json::from_slice(encoded)
             .map_err(|_error| WorkbenchCheckpointError::InvalidDocument)?;
-        if !matches!(checkpoint.version, 1..=4) {
+        if !matches!(checkpoint.version, 1..=5) {
             return Err(WorkbenchCheckpointError::UnsupportedVersion(
                 checkpoint.version,
             ));
@@ -344,8 +348,18 @@ impl WorkbenchCheckpoint {
         if (checkpoint.version >= 3) != checkpoint.terminal_directories.is_some() {
             return Err(WorkbenchCheckpointError::InvalidTerminalDirectory);
         }
-        if (checkpoint.version == 4) != checkpoint.managed_names.is_some() {
+        if (checkpoint.version >= 4) != checkpoint.managed_names.is_some() {
             return Err(WorkbenchCheckpointError::InvalidManagedName);
+        }
+        if checkpoint.version < 5
+            && checkpoint.terminal_contexts.iter().any(|context| {
+                context
+                    .tabs
+                    .iter()
+                    .any(|tab| has_nondefault_ratio(&tab.root))
+            })
+        {
+            return Err(WorkbenchCheckpointError::InvalidSplitRatio);
         }
         // These values only validate the shared graph shape. No authority is constructed,
         // retained or published; actual boot identities arrive during reconstruction.
@@ -383,6 +397,20 @@ impl WorkbenchCheckpoint {
             .map(|r| (r.presentation_id, r.path))
             .collect();
         Ok(authority)
+    }
+}
+
+fn has_nondefault_ratio(node: &PanelNode) -> bool {
+    match node {
+        PanelNode::Panel { .. } => false,
+        PanelNode::Split {
+            children, ratio, ..
+        } => {
+            !ratio.is_half()
+                || children
+                    .iter()
+                    .any(|child| has_nondefault_ratio(&child.node))
+        }
     }
 }
 

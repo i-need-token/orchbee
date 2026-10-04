@@ -9,31 +9,18 @@ retain unreadable originals, and report an empty restoration when every copy is 
 not authorize starting beside an unknown or living Site owner. Windows crash admission remains
 the local Site runtime's responsibility.
 
-The Workbench payload remains its existing bounded versioned JSON format. Filesystem framing is
-private to this storage owner; it does not add fields to the Workbench document or a public wire
-protocol. Old plain `checkpoint.json` files remain readable. Earlier executable cohorts must not
-open the upgraded Site; keeping Workbench JSON at version 4 does not make the framed multi-slot
-layout backward compatible. Catalog admission must preserve every byte and refuse an earlier
-cohort rather than flattening or deleting upgraded state. Rollback requires a separately authorized
-offline conversion or a different Site. No automatic downgrade or live-owner adoption is provided.
+The Workbench payload is bounded versioned JSON; current checkpoint v5 includes shared split ratios. Framing stays private to this storage owner and unchanged. Old plain `checkpoint.json` remains readable. Catalog v4 admits the new ratio meaning before opening upgraded storage. An earlier cohort must refuse that record without changing catalog, runtime markers or checkpoint bytes. Rollback requires another Site or separately authorized offline conversion; there is no automatic downgrade or live-owner adoption.
 
-The durable session catalog version is the admission boundary for this private layout. It is
-separate from both the Workbench document version and the frame version:
+The catalog version is independent of the Workbench document and frame versions:
 
-| Catalog record | Process identity and recovery                                    | Checkpoint evidence for a stopped Site                                                       |
-| -------------- | ---------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| v1             | No process registry; an Active record is never inferred dead     | Only the legacy plain `checkpoint.json` primary                                              |
-| v2             | Exact PID and creation-FILETIME registry                         | Only the legacy plain `checkpoint.json` primary                                              |
-| v3             | The same exact process registry and current cold-recovery guards | Any fixed slot or an exact owned corrupt-raw archive; the Server still validates all content |
+| Catalog record | Process identity and recovery                                     | Checkpoint evidence for a stopped Site                     |
+| -------------- | ----------------------------------------------------------------- | ---------------------------------------------------------- |
+| v1             | No registry; Active is never inferred dead                        | Legacy plain primary only                                  |
+| v2             | Exact PID and creation-FILETIME registry                          | Legacy plain primary only                                  |
+| v3             | Exact registry and cold-recovery guards; framed multi-slot format | Any fixed slot or exact owned corrupt-raw archive          |
+| v4             | Same registry, guards and framing; canonical shared ratios        | Same fixed-slot/raw evidence; Server validates all content |
 
-Reading v1 or v2 does not migrate it. A valid stopped legacy record can begin a new activation
-only while its plain primary exists. Before committing that activation marker, spawning Server or
-opening the multi-slot store, the activator atomically publishes the new Active record as catalog
-v3. Fresh activations also publish v3 first. An earlier cohort whose parser admits only v1 and v2
-therefore rejects an upgraded Site before changing the catalog, runtime marker or checkpoint
-directory. A stopped v3 record may use backup or raw evidence because a prior all-invalid restore
-can intentionally have no valid slot; content validation and the recovered/empty decision remain
-with the current Server.
+Reading versions 1–3 does not migrate them. A stopped v1/v2 activation requires its plain primary. A stopped v3/v4 activation may use backup or raw evidence because an all-invalid restore can intentionally leave no valid slot. Before marker commitment, Server spawn or storage effects, every fresh activation atomically publishes Active catalog v4. Old parsers admitting at most v3 reject it before effects, including after clean stop. The current Server owns content validation and recovered/empty decisions.
 
 ## State and publication
 
@@ -99,8 +86,8 @@ adding an external notification destination.
 
 ## Evidence and limits
 
-The storage model starts from a v1, v2 or v3 catalog. Its `legacyPrimary` input means one admitted
-plain primary; backup and raw names never satisfy that input. `PublishCatalogV3` maps to successful
+The storage model starts from a v1, v2, v3 or v4 catalog. Its `legacyPrimary` input means one admitted
+plain primary; backup and raw names never satisfy that input. `PublishCatalogV4` maps to successful
 atomic durable-record publication by the activator. Multi-slot prepare and load are disabled until
 that publication. `RefuseOldCohort` changes only the trace observation while retaining catalog and
 storage state. Runtime-marker preservation is outside this storage state vector and requires the

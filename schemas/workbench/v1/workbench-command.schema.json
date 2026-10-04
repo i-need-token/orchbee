@@ -633,6 +633,30 @@
 				},
 				{
 					"type": "object",
+					"additionalProperties": false,
+					"required": ["kind", "terminalContextId", "tabId", "split", "previousRatio", "ratio"],
+					"properties": {
+						"kind": { "const": "layout.set-split-ratio" },
+						"terminalContextId": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/terminalContextId"
+						},
+						"tabId": { "$ref": "urn:orchbee:schema:workbench:v1#/$defs/tabId" },
+						"previousRatio": { "type": "number", "minimum": 0.1, "maximum": 0.9 },
+						"ratio": { "type": "number", "minimum": 0.1, "maximum": 0.9 },
+						"split": {
+							"type": "object",
+							"additionalProperties": false,
+							"required": ["splitId", "firstSlotId", "secondSlotId"],
+							"properties": {
+								"splitId": { "$ref": "urn:orchbee:schema:workbench:v1#/$defs/splitId" },
+								"firstSlotId": { "$ref": "urn:orchbee:schema:workbench:v1#/$defs/panelSlotId" },
+								"secondSlotId": { "$ref": "urn:orchbee:schema:workbench:v1#/$defs/panelSlotId" }
+							}
+						}
+					}
+				},
+				{
+					"type": "object",
 					"properties": {
 						"kind": {
 							"const": "workspace.move"
@@ -836,6 +860,7 @@
 				"terminal-context-unavailable",
 				"tab-unavailable",
 				"panel-unavailable",
+				"split-unavailable",
 				"panel-not-leaf",
 				"last-panel-in-tab",
 				"same-tab",
@@ -1492,6 +1517,15 @@
 					},
 					"required": ["kind", "revision"],
 					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["kind", "revision"],
+					"properties": {
+						"kind": { "const": "split-ratio-configured" },
+						"revision": { "$ref": "urn:orchbee:schema:workbench:v1#/$defs/revision" }
+					}
 				},
 				{
 					"type": "object",

@@ -4800,6 +4800,7 @@ impl Authority {
             label: "1".to_owned(),
             pinned: false,
             root: PanelNode::Split {
+                ratio: Default::default(),
                 children: Box::new([
                     PanelSlot {
                         node: first,
@@ -5101,6 +5102,7 @@ fn graft_split(
             };
             *node =
                 PanelNode::Split {
+                    ratio: Default::default(),
                     children: Box::new([
                         PanelSlot {
                             node: first,
@@ -5181,6 +5183,7 @@ fn graft_move(
             };
             *node =
                 PanelNode::Split {
+                    ratio: Default::default(),
                     children: Box::new([
                         PanelSlot {
                             node: first,

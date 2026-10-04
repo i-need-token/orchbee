@@ -332,15 +332,18 @@ fn same_layout(left: &PanelNode, right: &PanelNode) -> bool {
                 split_id: left_id,
                 orientation: left_axis,
                 children: left,
+                ratio: left_ratio,
             },
             PanelNode::Split {
                 split_id: right_id,
                 orientation: right_axis,
                 children: right,
+                ratio: right_ratio,
             },
         ) => {
             left_id == right_id
                 && left_axis == right_axis
+                && left_ratio == right_ratio
                 && left.iter().zip(right.iter()).all(|(left, right)| {
                     left.slot_id == right.slot_id && same_layout(&left.node, &right.node)
                 })

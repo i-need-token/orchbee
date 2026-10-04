@@ -7,7 +7,9 @@ use orchbee_workbench_protocol::{
 };
 use std::time::Instant;
 
+mod adjustment;
 mod lane;
+use adjustment::SharedAdjustment;
 pub(super) use lane::CommandCompletion;
 use lane::{ClientControlLane, Sample};
 
@@ -55,6 +57,7 @@ pub(super) enum ControlStep {
     Observed,
     ZoomUnchanged,
     Failed(Reason),
+    Completed(ClientViewCompletionOutcome),
 }
 enum Execution {
     Popup {
@@ -64,10 +67,7 @@ enum Execution {
         target: ClientViewControl,
         progress: StepProgress,
     },
-    Adjustment {
-        adjustment: ClientLayoutAdjustment,
-        before: ClientViewObservation,
-    },
+    Adjustment(SharedAdjustment),
 }
 impl Execution {
     fn focus_target(&self) -> Option<&ClientViewControl> {
@@ -90,7 +90,7 @@ impl Execution {
         match self {
             Self::Popup { .. } => true,
             Self::Navigation { progress, .. } => progress.had_effect,
-            Self::Adjustment { .. } => true,
+            Self::Adjustment(flow) => flow.had_effect(),
         }
     }
     fn step(
@@ -151,13 +151,7 @@ impl Execution {
                 ControlStep::Failed(Reason::Interrupted)
             }
             Self::Navigation { target, progress } => native.control_step(target, progress),
-            Self::Adjustment { adjustment, before } => {
-                if native.adjustment_observed(adjustment, before) {
-                    ControlStep::Observed
-                } else {
-                    ControlStep::Failed(Reason::StaleView)
-                }
-            }
+            Self::Adjustment(flow) => flow.step(native),
         }
     }
     fn outcome(
@@ -168,11 +162,7 @@ impl Execution {
     ) -> Option<ClientViewCompletionOutcome> {
         match self {
             Self::Popup { target } => native.popup_control_outcome(target),
-            Self::Adjustment { adjustment, before } => native
-                .adjustment_observed(adjustment, before)
-                .then(|| ClientViewCompletionOutcome::LayoutAdjusted {
-                    adjustment: adjustment.clone(),
-                }),
+            Self::Adjustment(flow) => flow.outcome(native),
             Self::Navigation { target, progress } => {
                 if target
                     .intent
@@ -308,7 +298,8 @@ impl ClientControl {
             return false;
         };
         if self.lane.is_none() {
-            match ClientControlLane::spawn(self.origin.clone(), self.clock.clone(), site_id) {
+            match ClientControlLane::spawn(self.origin.clone(), self.clock.clone(), site_id.clone())
+            {
                 Ok(lane) => self.lane = Some(lane),
                 Err(_) => {
                     self.close();
@@ -319,6 +310,13 @@ impl ClientControl {
         let Some(lane) = &self.lane else {
             return false;
         };
+        if let Some(result) = lane.take_layout_result()
+            && let Some(pending) = self.pending.as_mut()
+            && pending.command.operation_id == result.operation_id
+            && let Execution::Adjustment(flow) = &mut pending.execution
+        {
+            flow.settle(result.reply);
+        }
         let command_changed = if let Some(result) = lane.take_invocation_result() {
             native.configured_command_completed(result);
             true
@@ -387,16 +385,40 @@ impl ClientControl {
                     .as_ref()
                     .ok_or(Reason::ProjectionUnavailable)
                     .and_then(|snapshot| {
-                        let adjustment =
-                            native.prepare_layout_adjustment(&command, snapshot, self.viewport)?;
-                        native.commit_layout_adjustment(snapshot, &adjustment)?;
-                        Ok(adjustment)
+                        if shell_blocked || native.control_modal() {
+                            return Err(Reason::Interrupted);
+                        }
+                        native.prepare_layout_adjustment(&command, snapshot, self.viewport)
                     });
                 match prepared {
-                    Ok(adjustment) if adjustment.selected && adjustment.change.changed() => {
-                        Execution::Adjustment {
+                    Ok(adjustment) if adjustment.change.changed() => {
+                        let prepared = SharedAdjustment::prepare(
+                            site_id,
+                            &command,
                             adjustment,
-                            before: sample.view.clone(),
+                            sample.view.clone(),
+                        )
+                        .and_then(|(flow, mutation)| {
+                            if lane.submit_layout(mutation) {
+                                Ok(flow)
+                            } else {
+                                Err(Reason::Busy)
+                            }
+                        });
+                        match prepared {
+                            Ok(flow) => Execution::Adjustment(flow),
+                            Err(reason) => {
+                                if !lane.complete(
+                                    sample,
+                                    ClientViewCompletion {
+                                        operation_id: command.operation_id,
+                                        outcome: ClientViewCompletionOutcome::Rejected { reason },
+                                    },
+                                ) {
+                                    self.close();
+                                }
+                                return false;
+                            }
                         }
                     }
                     result => {
@@ -466,6 +488,29 @@ impl ClientControl {
                 .step(native, shell_mode, too_small, &mut self.dismiss_shell_modes)
         };
         match step {
+            ControlStep::Completed(outcome) => {
+                let completion = ClientViewCompletion {
+                    operation_id: pending.command.operation_id.clone(),
+                    outcome,
+                };
+                self.pending = None;
+                let Some((_, view)) = native.control_observation(shell_blocked) else {
+                    self.close();
+                    return false;
+                };
+                let Some(sample) = self.sample(view, native) else {
+                    self.close();
+                    return false;
+                };
+                if !self
+                    .lane
+                    .as_ref()
+                    .is_some_and(|lane| lane.complete(sample, completion))
+                {
+                    self.close();
+                }
+                view_changed
+            }
             ControlStep::Waiting => view_changed,
             ControlStep::Changed => true,
             ControlStep::Observed | ControlStep::ZoomUnchanged => {

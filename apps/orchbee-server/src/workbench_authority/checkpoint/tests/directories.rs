@@ -20,7 +20,7 @@ fn v3_requires_strict_directory_rows_and_preserves_v1_v2_compatibility() {
         let upgraded: Value =
             serde_json::from_slice(&restore(&bytes).unwrap().checkpoint(&worker(400)).unwrap())
                 .unwrap();
-        assert_eq!(upgraded["version"], 4);
+        assert_eq!(upgraded["version"], 5);
         assert_eq!(upgraded["terminalDirectories"], json!([]));
     }
     for fault in 0..9 {

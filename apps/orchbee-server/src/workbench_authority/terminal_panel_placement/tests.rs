@@ -206,6 +206,7 @@ fn panel_move_relocates_a_leaf_right_with_fresh_graft_identities() {
         children: before_children,
         orientation: PanelOrientation::Horizontal,
         split_id: before_split_id,
+        ..
     } = &tab.root
     else {
         panic!("expected a horizontal Split root")
@@ -254,6 +255,7 @@ fn panel_move_relocates_a_leaf_right_with_fresh_graft_identities() {
         children,
         orientation: PanelOrientation::Horizontal,
         split_id,
+        ..
     } = &tab.root
     else {
         panic!("expected a horizontal Split root")
@@ -518,6 +520,7 @@ fn panel_move_restructures_nested_subtrees_and_preserves_untouched_identities() 
         children: new_outer,
         orientation: PanelOrientation::Horizontal,
         split_id: new_outer_split,
+        ..
     } = &tab.root
     else {
         panic!("expected horizontal outer Split")
@@ -530,6 +533,7 @@ fn panel_move_restructures_nested_subtrees_and_preserves_untouched_identities() 
         children: graft,
         orientation: PanelOrientation::Horizontal,
         split_id: graft_split,
+        ..
     } = &new_outer[0].node
     else {
         panic!("expected grafted Split")

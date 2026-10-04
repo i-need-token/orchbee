@@ -434,6 +434,9 @@ fn run(steps: &[Step]) -> Result<(), String> {
                 | WorkbenchAction::PanelRelocate { .. } => {
                     return Err("direct navigation trace generated Site-composed move".to_owned());
                 }
+                WorkbenchAction::SplitRatioSet { .. } => {
+                    return Err("split ratios belong to their dedicated hierarchy trace".to_owned());
+                }
                 WorkbenchAction::LaunchProfileCreate { .. }
                 | WorkbenchAction::LaunchProfileDelete { .. } => {
                     return Err("navigation trace generated a launch-profile mutation".to_owned());

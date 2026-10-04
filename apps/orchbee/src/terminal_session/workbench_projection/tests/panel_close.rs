@@ -3,6 +3,7 @@ use super::*;
 fn split_snapshot(tab_count: usize, revision: u64) -> Snapshot {
     let mut snapshot = snapshot(tab_count, revision);
     snapshot.terminal_contexts[0].tabs[0].root = PanelNode::Split {
+        ratio: Default::default(),
         children: Box::new([
             PanelSlot {
                 node: panel(30, 31, 32, 33, "left"),
@@ -21,6 +22,7 @@ fn split_snapshot(tab_count: usize, revision: u64) -> Snapshot {
 
 fn nested_split_root() -> PanelNode {
     PanelNode::Split {
+        ratio: Default::default(),
         children: Box::new([
             PanelSlot {
                 node: panel(30, 31, 32, 33, "left"),
@@ -28,6 +30,7 @@ fn nested_split_root() -> PanelNode {
             },
             PanelSlot {
                 node: PanelNode::Split {
+                    ratio: Default::default(),
                     children: Box::new([
                         PanelSlot {
                             node: panel(35, 36, 37, 38, "middle"),
@@ -93,6 +96,7 @@ fn canonical_refresh_accepts_close_contraction_inside_a_surviving_split() {
     };
     let [middle, right] = *inner;
     candidate_snapshot.terminal_contexts[0].tabs[0].root = PanelNode::Split {
+        ratio: Default::default(),
         children: Box::new([
             first,
             PanelSlot {
@@ -138,9 +142,11 @@ fn canonical_refresh_accepts_close_contraction_that_promotes_a_subtree_to_root()
 fn canonical_refresh_rejects_contraction_that_mutates_the_untouched_sibling_subtree() {
     let mut current_snapshot = snapshot(2, 10);
     current_snapshot.terminal_contexts[0].tabs[0].root = PanelNode::Split {
+        ratio: Default::default(),
         children: Box::new([
             PanelSlot {
                 node: PanelNode::Split {
+                    ratio: Default::default(),
                     children: Box::new([
                         PanelSlot {
                             node: panel(30, 31, 32, 33, "left"),
@@ -158,6 +164,7 @@ fn canonical_refresh_rejects_contraction_that_mutates_the_untouched_sibling_subt
             },
             PanelSlot {
                 node: PanelNode::Split {
+                    ratio: Default::default(),
                     children: Box::new([
                         PanelSlot {
                             node: panel(50, 51, 52, 53, "right"),
@@ -209,6 +216,7 @@ fn canonical_refresh_rejects_contraction_that_mutates_the_untouched_sibling_subt
         panic!("the untouched fixture side must contain a split");
     };
     candidate_snapshot.terminal_contexts[0].tabs[0].root = PanelNode::Split {
+        ratio: Default::default(),
         children: Box::new([
             PanelSlot {
                 node: middle.node,
@@ -216,6 +224,7 @@ fn canonical_refresh_rejects_contraction_that_mutates_the_untouched_sibling_subt
             },
             PanelSlot {
                 node: PanelNode::Split {
+                    ratio: Default::default(),
                     children: right_children,
                     orientation: right_orientation,
                     split_id: split_id(99),
@@ -279,6 +288,7 @@ fn canonical_refresh_rejects_contraction_candidates_that_reassign_retained_ident
     // The Split kept its shape while a leaf vanished from it.
     let mut swapped = split_snapshot(2, 11);
     swapped.terminal_contexts[0].tabs[0].root = PanelNode::Split {
+        ratio: Default::default(),
         children: Box::new([
             PanelSlot {
                 node: panel(30, 31, 32, 33, "left"),
@@ -313,6 +323,7 @@ fn canonical_refresh_rejects_contraction_candidates_that_reassign_retained_ident
     };
     let [_middle, right] = *inner;
     reordered.terminal_contexts[0].tabs[0].root = PanelNode::Split {
+        ratio: Default::default(),
         children: Box::new([
             PanelSlot {
                 node: right.node,

@@ -55,6 +55,8 @@ pub(crate) mod label_rename;
 #[allow(dead_code)]
 pub(crate) mod launch_profile;
 pub(crate) mod panel_input;
+#[cfg(windows)]
+pub(crate) mod split_ratio;
 mod tab_close;
 mod tab_move;
 mod workspace_close;

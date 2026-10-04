@@ -292,3 +292,5 @@ configured-command请求／结果绑定与Client的 `command-popup-open` 意图�
 ## Panel 图片绑定
 
 pane graphics 绑定与 Rust 共用封闭的图片、图层、像素块和生产者协议。它检查编码及解码字节上限、规范 base64、资源排序、损伤矩形和完整宽度序号字符串。元数据目录不包含像素。渲染能力和可见性字段来自真实 Client 观察；空字段不表示已有渲染支持。共享图形案例检查 TypeScript、Rust 和 JSON Schema 的边界。
+
+语义与命令边界独立校验规范分割比例及有身份的 `layout.set-split-ratio` CAS。原生[共享比例行为](../../apps/orchbee-server/docs/shared-split-ratios.zh-CN.md) 负责提交、持久化及绘制确认；Client 几何仍按各自视口计算。

@@ -2038,6 +2038,7 @@ fn graft_split(
                 }
             };
             *node = PanelNode::Split {
+                ratio: Default::default(),
                 children: Box::new([
                     PanelSlot {
                         node: first_node,
@@ -2122,6 +2123,7 @@ fn graft_move(
                 }
             };
             *node = PanelNode::Split {
+                ratio: Default::default(),
                 children: Box::new([
                     PanelSlot {
                         node: first_node,

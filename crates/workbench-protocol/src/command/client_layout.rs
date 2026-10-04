@@ -5,43 +5,14 @@ use crate::{
     WorkbenchPanelSlotId, WorkbenchRevision, WorkbenchSplitId, WorkbenchTabId,
     WorkbenchTerminalContextId,
 };
-use serde::{Deserialize, Deserializer, Serialize, Serializer, de};
+use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 
 /// Maximum encoded request or response containing one complete Client layout.
 pub const MAXIMUM_ENCODED_CLIENT_LAYOUT_BYTES: usize = 1024 * 1024;
 
-/// A finite split proportion. Equality is safe because NaN and signed zero are inadmissible.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct ClientSplitRatio(f64);
-impl Eq for ClientSplitRatio {}
-impl ClientSplitRatio {
-    /// The default equal split, before integer cell rounding.
-    pub const HALF: Self = Self(0.5);
-    /// Admit the supported finite split range without silently clamping input.
-    pub fn new(value: f64) -> Result<Self, ContractError> {
-        if value.is_finite() && (0.1..=0.9).contains(&value) {
-            Ok(Self(value))
-        } else {
-            Err(ContractError::InvalidDocument)
-        }
-    }
-    /// Return the admitted numeric proportion.
-    #[must_use]
-    pub const fn value(self) -> f64 {
-        self.0
-    }
-}
-impl Serialize for ClientSplitRatio {
-    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        serializer.serialize_f64(self.0)
-    }
-}
-impl<'de> Deserialize<'de> for ClientSplitRatio {
-    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        Self::new(f64::deserialize(deserializer)?).map_err(de::Error::custom)
-    }
-}
+/// The canonical nominal proportion observed in one Client's cell projection.
+pub type ClientSplitRatio = crate::WorkbenchSplitRatio;
 
 /// An integer cell rectangle; sums are validated in widened arithmetic.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]

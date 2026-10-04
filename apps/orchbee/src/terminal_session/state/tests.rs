@@ -783,6 +783,7 @@ fn peer_panel_split_refresh_preserves_active_panel_identity() {
     let mut baseline = snapshot(1, 1, None);
     let original_root = baseline.terminal_contexts[0].tabs[0].root.clone();
     baseline.terminal_contexts[0].tabs[0].root = PanelNode::Split {
+        ratio: Default::default(),
         children: Box::new([
             PanelSlot {
                 node: original_root,
@@ -823,16 +824,19 @@ fn peer_panel_split_refresh_preserves_active_panel_identity() {
         children,
         orientation,
         split_id,
+        ..
     } = old_root
     else {
         unreachable!();
     };
     let [old_first, old_second] = *children;
     refreshed.terminal_contexts[0].tabs[0].root = PanelNode::Split {
+        ratio: Default::default(),
         children: Box::new([
             old_first,
             PanelSlot {
                 node: PanelNode::Split {
+                    ratio: Default::default(),
                     children: Box::new([
                         PanelSlot {
                             node: PanelNode::Panel {
@@ -894,6 +898,7 @@ fn split_panel_baseline() -> Snapshot {
     let mut baseline = snapshot(1, 1, None);
     let original_root = baseline.terminal_contexts[0].tabs[0].root.clone();
     baseline.terminal_contexts[0].tabs[0].root = PanelNode::Split {
+        ratio: Default::default(),
         children: Box::new([
             PanelSlot {
                 node: original_root,

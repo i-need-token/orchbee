@@ -102,6 +102,8 @@ pub enum PanelNode {
         children: Box<[PanelSlot; 2]>,
         orientation: PanelOrientation,
         split_id: WorkbenchSplitId,
+        #[serde(default, skip_serializing_if = "crate::WorkbenchSplitRatio::is_half")]
+        ratio: crate::WorkbenchSplitRatio,
     },
 }
 

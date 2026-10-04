@@ -7,11 +7,11 @@
 检查点发布及终端重新启动分离。命名 Site 路由和其他恢复所有者仍有独立义务，不新增其他平台适配器。
 
 检查点保留 Project、本地目录路径、Workspace、终端上下文、有序 Tab、分组、固定状态、
-分屏结构、Panel 输入策略及 Presentation 标签，同时保留 Launch Profile 定义和分配高水位，
+分屏结构及比例、Panel 输入策略及 Presentation 标签，同时保留 Launch Profile 定义和分配高水位，
 包括已删除 ID。主／子 Presentation 均保留结构，但不携带终端绑定。
 版本 2 还保留已校验的外部 provider 引用，详见 [Agent 重启引用](agent-restart-reference.zh-CN.md)。
 
-它不保留运行进程、Site／Worker 身份、控制权、租约、Client 视图／布局覆盖、请求结果、发布
+它不保留运行进程、Site／Worker 身份、控制权、租约、Client 视图／焦点／zoom、请求结果、发布
 游标、未完成操作、Agent 状态或终端历史；这些恢复责任属于各自运行时所有者。检查点从不授权
 重放终端命令或 Git 操作。
 
@@ -20,7 +20,7 @@
 | 操作       | 前提                                                                                         | 结果与不变式                                                                                                   |
 | ---------- | -------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
 | 捕获       | 权威未退役；已提交对象图有效；每个 Directory 和已绑定 Presentation 都属于传入的本地 Worker。 | 一个有界检查点；源权威不变；移除进程绑定和 Worker 身份。                                                       |
-| 解码       | 严格 version 1、2、3 或 4 文档、字节有界、配置图、计数器及 provider 引用有效。               | 完整保留配置或类型化拒绝；不返回部分结果或空成功。                                                             |
+| 解码       | 严格 version 1、2、3、4 或 5 文档、字节有界、配置图、计数器及 provider 引用有效。            | 完整保留配置或类型化拒绝；不返回部分结果或空成功。                                                             |
 | 重建       | 调用者传入新启动的 Site 身份及其已准入本地 Worker。                                          | 保留结构 ID 和本地路径，使用新目录所有者、无绑定 Presentation、新 Profile Site 前缀、revision 0 和空临时状态。 |
 | 恢复后分配 | 恢复的高水位允许递增。                                                                       | 新 ID 高于所有已分配计数器；耗尽时保留既有类型化拒绝。                                                         |
 
@@ -45,8 +45,9 @@
 
 证据必须覆盖精确身份／修订围栏、主子分离、旧格式兼容、非法记录、不恢复活跃权威的捕获／重建、未结算查看器清理、实际 Windows 目录切换及保存目录被删除。启动进程证据本身不能证明此目录生命周期。
 
-schema 标识为 `orchbee.workbench.checkpoint`，数字版本为 `version: 4`。版本 1–3 仍可读取；版本 2–4 要求 `agentSessions`，
-版本 3–4 要求 `terminalDirectories`，版本 4 要求 `managedNames`。最多 512 个唯一名称／
+schema 标识为 `orchbee.workbench.checkpoint`，数字版本为 `version: 5`。版本 1–4 仍可读取；版本 2–5 要求 `agentSessions`，
+版本 3–5 要求 `terminalDirectories`，版本 4–5 要求 `managedNames`。版本 5 保留规范分割比例；
+旧文档恢复等比例，并拒绝注入的非默认权重。见[共享比例](shared-split-ratios.zh-CN.md)。最多 512 个唯一名称／
 Presentation 声明仅携带 `presentationId`、`name`、`providerId`，且必须有匹配的已接纳官方
 provider 引用。见[托管名称](agent-canonical-model.zh-CN.md#托管名称重启)。`lastIdentity`
 和每个 Profile 的 `counter` 都是规范化、非零的 32 字符小写十六进制数。导航中的本地目录仅包含

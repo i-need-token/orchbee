@@ -24,6 +24,7 @@ fn split_fixture(count: u128) -> (WorkbenchAuthority, WorkbenchGrant) {
     let tab = &mut snapshot.terminal_contexts[0].tabs[0];
     let left = tab.root.clone();
     tab.root = PanelNode::Split {
+        ratio: Default::default(),
         children: Box::new([
             PanelSlot {
                 node: left,

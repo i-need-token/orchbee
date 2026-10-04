@@ -8,6 +8,7 @@ mod launch_profile;
 mod layout_create;
 mod panel_input;
 mod panel_labels;
+mod split_ratios;
 mod stateful;
 mod workspace_directory;
 mod workspace_group_close;

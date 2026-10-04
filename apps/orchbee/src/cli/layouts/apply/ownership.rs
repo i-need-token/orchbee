@@ -2,9 +2,9 @@
 use super::error;
 use crate::cli::{Failure, FailureKind};
 use orchbee_workbench_protocol::{
-    ClientSplitIdentity, PanelNode, Presentation, Snapshot, Tab, TerminalPresentationId,
-    WorkbenchLayoutNode, WorkbenchLayoutPresentation, WorkbenchPanelId,
-    WorkbenchPanelSplitDirection, WorkbenchTabId, WorkbenchTerminalContextId,
+    ClientLayoutAdjustment, ClientLayoutChange, ClientSplitIdentity, PanelNode, Presentation,
+    Snapshot, Tab, TerminalPresentationId, WorkbenchLayoutNode, WorkbenchLayoutPresentation,
+    WorkbenchPanelId, WorkbenchPanelSplitDirection, WorkbenchTabId, WorkbenchTerminalContextId,
 };
 
 pub(super) fn tab<'a>(
@@ -32,6 +32,49 @@ pub(super) fn unchanged(
 }
 pub(super) fn changed() -> Failure {
     error(FailureKind::Denied, "layout-changed")
+}
+
+/// Fold only a known identified ratio receipt; subsequent full-tree fences stay exact.
+pub(super) fn with_ratio(
+    expected: &Tab,
+    context: &WorkbenchTerminalContextId,
+    adjustment: &ClientLayoutAdjustment,
+) -> Result<Tab, Failure> {
+    if adjustment.terminal_context_id != *context || adjustment.tab_id != expected.tab_id {
+        return Err(changed());
+    }
+    let ClientLayoutChange::Split { split } = &adjustment.change else {
+        return Err(changed());
+    };
+    fn find<'a>(
+        node: &'a mut PanelNode,
+        id: &orchbee_workbench_protocol::WorkbenchSplitId,
+    ) -> Option<&'a mut PanelNode> {
+        if matches!(node, PanelNode::Split { split_id, .. } if split_id==id) {
+            return Some(node);
+        }
+        let PanelNode::Split { children, .. } = node else {
+            return None;
+        };
+        children
+            .iter_mut()
+            .find_map(|slot| find(&mut slot.node, id))
+    }
+    let mut candidate = expected.clone();
+    let PanelNode::Split {
+        children, ratio, ..
+    } = find(&mut candidate.root, &split.split_id).ok_or_else(changed)?
+    else {
+        return Err(changed());
+    };
+    if children[0].slot_id != split.first_slot_id
+        || children[1].slot_id != split.second_slot_id
+        || *ratio != split.previous_ratio
+    {
+        return Err(changed());
+    }
+    *ratio = split.ratio;
+    Ok(candidate)
 }
 pub(super) fn leaf<'a>(node: &'a PanelNode, id: &WorkbenchPanelId) -> Option<&'a PanelNode> {
     match node {

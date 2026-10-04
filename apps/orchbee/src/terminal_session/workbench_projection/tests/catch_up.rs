@@ -7,6 +7,7 @@ fn baseline_split_snapshot(revision: u64) -> Snapshot {
     // S40{ left@34, S46{ middle@44, right@45 }@39 }(H): two Splits, three leaves.
     let mut snapshot = snapshot(2, revision);
     snapshot.terminal_contexts[0].tabs[0].root = PanelNode::Split {
+        ratio: Default::default(),
         children: Box::new([
             PanelSlot {
                 node: panel(30, 31, 32, 33, "left"),
@@ -14,6 +15,7 @@ fn baseline_split_snapshot(revision: u64) -> Snapshot {
             },
             PanelSlot {
                 node: PanelNode::Split {
+                    ratio: Default::default(),
                     children: Box::new([
                         PanelSlot {
                             node: panel(35, 36, 37, 38, "middle"),
@@ -41,6 +43,7 @@ fn mixed_history_root() -> PanelNode {
     // split "right" under a fresh S60, then move the fresh leaf to the root under a fresh S70 graft
     // (S60 collapses back to "right" in slot 39). Retained tuples: left, right, S40, slots 34/39.
     PanelNode::Split {
+        ratio: Default::default(),
         children: Box::new([
             PanelSlot {
                 node: panel(60, 61, 62, 63, "new"),
@@ -48,6 +51,7 @@ fn mixed_history_root() -> PanelNode {
             },
             PanelSlot {
                 node: PanelNode::Split {
+                    ratio: Default::default(),
                     children: Box::new([
                         PanelSlot {
                             node: panel(30, 31, 32, 33, "left"),
@@ -160,6 +164,7 @@ fn canonical_refresh_rejects_structure_mutation_inside_a_folded_history() {
     // The retained Slot 39 was re-parented under the fresh S70 instead of staying under S40.
     let mut reparented = mixed_history_snapshot(13);
     reparented.terminal_contexts[0].tabs[0].root = PanelNode::Split {
+        ratio: Default::default(),
         children: Box::new([
             PanelSlot {
                 node: panel(50, 51, 52, 53, "right"),
@@ -167,6 +172,7 @@ fn canonical_refresh_rejects_structure_mutation_inside_a_folded_history() {
             },
             PanelSlot {
                 node: PanelNode::Split {
+                    ratio: Default::default(),
                     children: Box::new([
                         PanelSlot {
                             node: panel(30, 31, 32, 33, "left"),
@@ -202,6 +208,7 @@ fn publication_fold_then_canonical_refresh_accepts_delta_batches_and_snapshot_fa
     let baseline_snapshot = baseline_split_snapshot(10);
     let mut mid_snapshot = baseline_split_snapshot(11);
     mid_snapshot.terminal_contexts[0].tabs[0].root = PanelNode::Split {
+        ratio: Default::default(),
         children: Box::new([
             PanelSlot {
                 node: panel(30, 31, 32, 33, "left"),

@@ -62,6 +62,7 @@ fn deadlines() -> OperationDeadlines {
 fn split_root(root: &mut PanelNode, seed: u128) {
     let original = root.clone();
     *root = PanelNode::Split {
+        ratio: Default::default(),
         children: Box::new([
             PanelSlot {
                 node: original,

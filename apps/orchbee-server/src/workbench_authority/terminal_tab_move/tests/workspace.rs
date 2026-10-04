@@ -332,6 +332,7 @@ fn workspace_unbound_primary_child_and_split_preserve_missing_target_and_boundar
                         TerminalPresentationId::parse(&identity(802)).unwrap();
                     primary_presentation.binding = None;
                     context.tabs[1].root = PanelNode::Split {
+                        ratio: Default::default(),
                         split_id: WorkbenchSplitId::parse(&identity(800)).unwrap(),
                         orientation: PanelOrientation::Horizontal,
                         children: Box::new([
@@ -400,6 +401,7 @@ fn indexed_workspace_move_preserves_complete_split_records_and_other_contexts() 
             primary_presentation.custom_label = Some(PanelCustomLabel::parse("保留 😀").unwrap());
             *right_click = PanelRightClickTarget::Panel;
             context.tabs[1].root = PanelNode::Split {
+                ratio: Default::default(),
                 split_id: WorkbenchSplitId::parse(&identity(800)).unwrap(),
                 orientation: PanelOrientation::Horizontal,
                 children: Box::new([

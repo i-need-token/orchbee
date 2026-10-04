@@ -310,6 +310,7 @@ fn narrow_split_headers_drop_controls_without_covering_title_or_terminal_content
         _ => unreachable!(),
     };
     children[0].node = PanelNode::Split {
+        ratio: Default::default(),
         split_id: WorkbenchSplitId::parse(&format!("{:032x}", 20000)).unwrap(),
         orientation: PanelOrientation::Horizontal,
         children: Box::new([

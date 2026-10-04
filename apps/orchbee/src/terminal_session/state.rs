@@ -35,7 +35,6 @@ mod presentations;
 pub(super) mod rename_draft;
 #[cfg(any(target_os = "linux", windows))]
 pub(super) mod retired_membership;
-mod split_ratios;
 #[cfg(windows)]
 pub(super) use plugin_overlays::{OverlayJob, OverlayResult};
 mod switch_membership;
@@ -1161,7 +1160,6 @@ pub(super) struct NativeSessionState {
     zoomed_tabs: std::collections::BTreeSet<WorkbenchTabId>,
     #[cfg(windows)]
     plugin_overlays: Vec<plugin_overlays::Overlay>,
-    split_ratios: split_ratios::SplitRatios,
 }
 
 impl NativeSessionState {
@@ -1301,7 +1299,6 @@ impl NativeSessionState {
             zoomed_tabs: std::collections::BTreeSet::new(),
             #[cfg(windows)]
             plugin_overlays: Vec::new(),
-            split_ratios: split_ratios::SplitRatios::default(),
         }
     }
 
@@ -3529,7 +3526,7 @@ impl NativeSessionState {
         true
     }
 
-    /// Read one Client-local ratio only when both ordered slot identities still match.
+    /// Read a ratio from the admitted selected-context projection with exact ordered slots.
     pub(super) fn split_ratio(
         &self,
         context: &WorkbenchTerminalContextId,
@@ -3537,23 +3534,18 @@ impl NativeSessionState {
         split: &orchbee_workbench_protocol::WorkbenchSplitId,
         first: &orchbee_workbench_protocol::WorkbenchPanelSlotId,
         second: &orchbee_workbench_protocol::WorkbenchPanelSlotId,
-    ) -> orchbee_workbench_protocol::ClientSplitRatio {
-        self.split_ratios.get(context, tab, split, first, second)
-    }
-
-    pub(super) fn commit_layout_adjustment(
-        &mut self,
-        snapshot: &orchbee_workbench_protocol::Snapshot,
-        adjustment: &orchbee_workbench_protocol::ClientLayoutAdjustment,
-    ) -> Result<(), orchbee_workbench_protocol::ClientViewControlReason> {
-        if snapshot.site_id != *self.cache.site_id() || snapshot.revision < self.cache.revision() {
-            return Err(orchbee_workbench_protocol::ClientViewControlReason::StaleView);
+    ) -> Option<orchbee_workbench_protocol::ClientSplitRatio> {
+        if context != self.cache.terminal_context_id() {
+            return None;
         }
-        self.split_ratios.commit(snapshot, adjustment)
+        self.cache
+            .tab_index(tab)
+            .and_then(|index| self.cache.tabs().get(index))
+            .and_then(|tab| tab.panel_tree().split_ratio(split, first, second))
     }
     #[cfg(windows)]
     pub(super) fn split_revision(&self) -> WorkbenchRevision {
-        self.split_ratios.sequence()
+        self.cache.revision()
     }
 
     /// Read-side adjudication: the active Tab draws zoomed exactly while its
@@ -3999,8 +3991,6 @@ impl<'a> NativeSessionView<'a> {
             .filter(|active| active.index() == index)
             .map(SelectedTab::panel_index);
         Some(NativeTabView {
-            ratios: &self.state.split_ratios,
-            context: self.state.cache.terminal_context_id(),
             tab,
             position: index + 1,
             active: active_panel.is_some(),
@@ -4057,8 +4047,6 @@ impl<'a> NativeSessionView<'a> {
 
 #[derive(Clone, Copy)]
 pub(super) struct NativeTabView<'a> {
-    ratios: &'a split_ratios::SplitRatios,
-    context: &'a WorkbenchTerminalContextId,
     tab: &'a NativeSimpleTab,
     position: usize,
     active: bool,
@@ -4080,8 +4068,10 @@ impl<'a> NativeTabView<'a> {
         first: &orchbee_workbench_protocol::WorkbenchPanelSlotId,
         second: &orchbee_workbench_protocol::WorkbenchPanelSlotId,
     ) -> orchbee_workbench_protocol::ClientSplitRatio {
-        self.ratios
-            .get(self.context, self.tab.tab_id(), split, first, second)
+        self.tab
+            .panel_tree()
+            .split_ratio(split, first, second)
+            .unwrap_or_default()
     }
 
     pub(super) const fn position(&self) -> usize {

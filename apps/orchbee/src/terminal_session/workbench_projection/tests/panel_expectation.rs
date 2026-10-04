@@ -21,6 +21,7 @@ fn graft(
     split: u128,
 ) -> PanelNode {
     PanelNode::Split {
+        ratio: Default::default(),
         split_id: split_id(split),
         orientation,
         children: Box::new([

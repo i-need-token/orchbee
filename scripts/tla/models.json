@@ -5663,6 +5663,43 @@
 			]
 		},
 		{
+			"id": "shared-split-ratios",
+			"workers": 8,
+			"timeoutMilliseconds": 600000,
+			"owner": "orchbee-server",
+			"workspace": "apps/orchbee-server",
+			"module": "apps/orchbee-server/formal/tla/SharedSplitRatios.tla",
+			"config": "apps/orchbee-server/formal/tla/SharedSplitRatios.cfg",
+			"claims": ["apps/orchbee-server/docs/shared-split-ratios.md"],
+			"triggers": [
+				"apps/orchbee-server/src/workbench_authority.rs",
+				"apps/orchbee-server/src/workbench_authority/split_ratios/**",
+				"apps/orchbee-server/src/workbench_authority/split_ratios.rs",
+				"apps/orchbee/src/terminal_session/client_control/**",
+				"apps/orchbee/src/terminal_session/client_control.rs",
+				"apps/orchbee/src/terminal_session/ui/client_layout/**",
+				"apps/orchbee/src/local_client/workbench/split_ratio.rs",
+				"crates/workbench-protocol/src/split_ratio.rs",
+				"crates/workbench-protocol/src/model.rs",
+				"crates/workbench-protocol/src/command.rs"
+			],
+			"requiredCoverage": [
+				"Prepare",
+				"Submit",
+				"BackendCommit",
+				"BackendReject",
+				"Replay",
+				"Receive",
+				"LoseReply",
+				"Publish",
+				"Draw",
+				"CompleteInactive",
+				"Interrupt",
+				"ReplaceSplit",
+				"OtherMetadata"
+			]
+		},
+		{
 			"id": "terminal-launch-authorization",
 			"owner": "orchbee-server",
 			"workspace": "apps/orchbee-server",
@@ -7534,6 +7571,8 @@
 			"workspace": "crates/local-site-runtime",
 			"module": "crates/local-site-runtime/formal/tla/WindowsCheckpointStorage.tla",
 			"config": "crates/local-site-runtime/formal/tla/WindowsCheckpointStorage.cfg",
+			"workers": 8,
+			"timeoutMilliseconds": 600000,
 			"claims": ["crates/local-site-runtime/docs/windows-checkpoint-storage.md"],
 			"triggers": [
 				"crates/local-site-runtime/src/session_store_windows.rs",
@@ -7548,7 +7587,7 @@
 				"apps/orchbee-server/src/local_site_service/managed/**"
 			],
 			"requiredCoverage": [
-				"PublishCatalogV3",
+				"PublishCatalogV4",
 				"RefuseOldCohort",
 				"Prepare",
 				"Flush",

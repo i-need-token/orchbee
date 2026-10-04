@@ -34,6 +34,7 @@ fn observations(
             split_id,
             children,
             orientation,
+            ..
         } = node
         {
             out.push(ClientSplitArea {

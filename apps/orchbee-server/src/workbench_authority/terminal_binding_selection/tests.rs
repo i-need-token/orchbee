@@ -104,6 +104,7 @@ fn exposure_walks_nested_panels_and_checks_primary_and_child_presentations() {
             pinned: false,
             tab_id: orchbee_workbench_protocol::WorkbenchTabId::parse(&identity(100)).unwrap(),
             root: PanelNode::Split {
+                ratio: Default::default(),
                 children: Box::new([
                     PanelSlot {
                         node: PanelNode::Panel {
@@ -128,6 +129,7 @@ fn exposure_walks_nested_panels_and_checks_primary_and_child_presentations() {
                     },
                     PanelSlot {
                         node: PanelNode::Split {
+                            ratio: Default::default(),
                             children: Box::new([
                                 PanelSlot {
                                     node: PanelNode::Panel {

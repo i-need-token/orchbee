@@ -2,7 +2,7 @@
 
 ## Inputs and ownership
 
-Windows `tab create` and `panel split` create one canonical resource before optional Client-local
+Windows `tab create` and `panel split` create one canonical resource before optional shared ratio and Client-local
 work. They use an existing Site; they never start a Site or retry an uncertain creation.
 `--focus` and `--no-focus` are exclusive, with no focus as the default. `--client` names one exact
 interactive Client. The total `--timeout` defaults to 30000 ms and admits 1 through 3600000 ms.
@@ -23,13 +23,13 @@ exec/args, profile and environment validation retain their owners. Windows direc
 resolved before creation as specified below; explicit paths remain per-launch overrides.
 
 `panel split --ratio` supplies the first child's share, independent of split direction. Finite
-numbers clamp to 0.1–0.9. The ratio belongs only to the selected TUI session; other Clients retain
-their own weights. A ratio does not imply focus. Right-click input policy is a separate capability.
+numbers clamp to 0.1–0.9. Server stores the ratio in the canonical split and restart checkpoint; every Client projects
+the same proportion at its own viewport size. A ratio does not imply focus. Right-click input policy is a separate capability.
 
 The invocation parser owns optional input. The CLI creation workflow fixes exact identities and
 owns phase order. Existing Workbench mutation resolution and typed Tab/Panel creation carriers
 own the one canonical command. Server/Worker/Host retain topology, launch and terminal lifecycle.
-The TUI owns its ratio and focus through existing Client control. No owner acquires another's state.
+The TUI resolves ratios through existing Client control; Server owns their canonical commit, while focus stays local. No owner acquires another's state.
 
 ## Workflow and guards
 
