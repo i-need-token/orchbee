@@ -16,6 +16,10 @@ impl NativeSetupToken {
 }
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum NativeSetupStage {
+    PreparingWorkspace,
+    QuickProject,
+    QuickName,
+    QuickDirectory,
     ChooseProject,
     ProjectLabel,
     WorkspaceLabel,
@@ -40,6 +44,7 @@ pub(crate) enum NativeSetupStatus {
 /// U5's typed-input bridge delivers. Text operations apply to the stage's
 /// line editor and are inert while the picker owns the draft.
 pub(crate) enum NativeSetupEdit<'a> {
+    NextField,
     Append(&'a str),
     Paste(&'a str),
     Backspace,
@@ -77,6 +82,8 @@ pub(in crate::terminal_session) enum NativeSetupIntent {
 }
 #[derive(Clone, Debug)]
 pub(super) struct SetupDraft {
+    pub(super) continuation: Option<super::OperationDeadlines>,
+    pub(super) quick: Option<super::quick::QuickWorkspaceFields>,
     pub(super) token: NativeSetupToken,
     pub(super) baseline: NativeContextTabs,
     pub(super) stage: NativeSetupStage,
@@ -96,6 +103,27 @@ pub(crate) struct NativeSetupProjectView<'a> {
     pub(super) selected: bool,
     pub(super) label: Option<&'a str>,
 }
+impl SetupDraft {
+    fn text_field(&self) -> bool {
+        !matches!(
+            self.stage,
+            NativeSetupStage::ChooseProject
+                | NativeSetupStage::QuickProject
+                | NativeSetupStage::PreparingWorkspace
+        )
+    }
+    pub(super) fn editor(&self) -> &LineEditor {
+        self.quick.as_ref().map_or(&self.editor, |fields| {
+            fields.field(self.stage == NativeSetupStage::QuickDirectory)
+        })
+    }
+    fn editor_mut(&mut self) -> &mut LineEditor {
+        match &mut self.quick {
+            Some(fields) => fields.field_mut(self.stage == NativeSetupStage::QuickDirectory),
+            None => &mut self.editor,
+        }
+    }
+}
 impl<'a> NativeSetupProjectView<'a> {
     pub(crate) fn position(&self) -> usize {
         self.position
@@ -108,6 +136,13 @@ impl<'a> NativeSetupProjectView<'a> {
     }
 }
 impl<'a> NativeSetupDraftView<'a> {
+    pub(crate) fn quick_window(
+        &self,
+        directory: bool,
+        width: usize,
+    ) -> Option<NativeFieldWindow<'a>> {
+        field_window(self.draft.quick.as_ref()?.field(directory), width)
+    }
     pub(crate) fn token(&self) -> NativeSetupToken {
         self.draft.token
     }
@@ -117,13 +152,13 @@ impl<'a> NativeSetupDraftView<'a> {
     /// The draft's exact raw text — what a submit sends and a cancel
     /// discards.
     pub(crate) fn text(&self) -> &'a str {
-        self.draft.editor.text()
+        self.draft.editor().text()
     }
     /// Pure display-space projection of the draft inside a
     /// `field_width`-cell field; `None` when the field has no drawable
     /// width.
     pub(crate) fn field_window(&self, field_width: usize) -> Option<NativeFieldWindow<'a>> {
-        field_window(&self.draft.editor, field_width)
+        field_window(self.draft.editor(), field_width)
     }
     pub(crate) fn faulted(&self) -> bool {
         self.draft.faulted
@@ -132,7 +167,7 @@ impl<'a> NativeSetupDraftView<'a> {
         self.draft.known_project_created
     }
     pub(crate) fn project_count(&self) -> usize {
-        self.draft.baseline.projects().len() + 1
+        self.draft.baseline.projects().len() + usize::from(self.draft.quick.is_none())
     }
     pub(crate) fn project_at(&self, index: usize) -> Option<NativeSetupProjectView<'a>> {
         if index >= self.project_count() {
@@ -248,12 +283,15 @@ impl NativeSessionState {
             shown: false,
             complete: true,
             faulted: false,
+            quick: None,
+            continuation: None,
         });
         Some(token)
     }
     pub(in crate::terminal_session) fn setup_draft(&self) -> Option<NativeSetupDraftView<'_>> {
         let draft = self.setup.draft.as_ref()?;
-        (self.setup_authority_available() && draft.baseline == self.cache)
+        ((self.setup_authority_available() || self.setup.preparation.is_some())
+            && draft.baseline == self.cache)
             .then_some(NativeSetupDraftView { draft })
     }
     pub(in crate::terminal_session) fn clear_settled_setup_status(&mut self) {
@@ -274,6 +312,7 @@ impl NativeSessionState {
     }
     pub(in crate::terminal_session) fn cancel_setup_on_retirement(&mut self) {
         self.setup.draft = None;
+        self.setup.preparation = None;
     }
     /// A draw receipt reporting that the draft could not be presented cancels
     /// the capture with a notice instead of leaving it open swallowing keys.
@@ -298,22 +337,46 @@ impl NativeSessionState {
         token: NativeSetupToken,
         edit: NativeSetupEdit<'_>,
     ) -> bool {
-        if self.setup_draft().is_none() {
+        if self.setup_draft().is_none() || self.quick_continuation().is_some() {
             return false;
         }
         let Some(draft) = self.setup.draft.as_mut().filter(|d| d.token == token) else {
             return false;
         };
         match edit {
+            NativeSetupEdit::NextField
+                if draft.complete
+                    && draft.quick.is_some()
+                    && matches!(
+                        draft.stage,
+                        NativeSetupStage::QuickName | NativeSetupStage::QuickDirectory
+                    ) =>
+            {
+                let Some(next) = self.setup.last_token.checked_add(1) else {
+                    return false;
+                };
+                draft.stage = if draft.stage == NativeSetupStage::QuickName {
+                    NativeSetupStage::QuickDirectory
+                } else {
+                    NativeSetupStage::QuickName
+                };
+                draft.token = NativeSetupToken(next);
+                self.setup.last_token = next;
+                draft.shown = false;
+            }
             NativeSetupEdit::Completeness(value) => draft.complete = value,
             NativeSetupEdit::Fault => draft.faulted = true,
             NativeSetupEdit::SelectPreviousProject | NativeSetupEdit::SelectNextProject
-                if draft.complete && draft.stage == NativeSetupStage::ChooseProject =>
+                if draft.complete
+                    && matches!(
+                        draft.stage,
+                        NativeSetupStage::ChooseProject | NativeSetupStage::QuickProject
+                    ) =>
             {
                 let Some(next_token) = self.setup.last_token.checked_add(1) else {
                     return false;
                 };
-                let count = draft.baseline.projects().len() + 1;
+                let count = draft.baseline.projects().len() + usize::from(draft.quick.is_none());
                 draft.selected = if matches!(edit, NativeSetupEdit::SelectNextProject) {
                     (draft.selected + 1) % count
                 } else {
@@ -329,57 +392,41 @@ impl NativeSessionState {
                 draft.shown = false;
             }
             NativeSetupEdit::Append(value) | NativeSetupEdit::Paste(value)
-                if draft.complete && draft.stage != NativeSetupStage::ChooseProject =>
+                if draft.complete && draft.text_field() =>
             {
                 // Typed input and paste share the editor's one atomic insert
                 // path; a rejected insertion faults without touching text.
-                if draft.editor.insert(value).is_err() {
+                if draft.editor_mut().insert(value).is_err() {
                     draft.faulted = true;
                 }
             }
-            NativeSetupEdit::Backspace
-                if draft.complete && draft.stage != NativeSetupStage::ChooseProject =>
-            {
-                draft.editor.backspace();
+            NativeSetupEdit::Backspace if draft.complete && draft.text_field() => {
+                draft.editor_mut().backspace();
                 draft.faulted = false;
             }
-            NativeSetupEdit::Delete
-                if draft.complete && draft.stage != NativeSetupStage::ChooseProject =>
-            {
-                draft.editor.delete();
+            NativeSetupEdit::Delete if draft.complete && draft.text_field() => {
+                draft.editor_mut().delete();
                 draft.faulted = false;
             }
-            NativeSetupEdit::WordBackspace
-                if draft.complete && draft.stage != NativeSetupStage::ChooseProject =>
-            {
-                draft.editor.word_back();
+            NativeSetupEdit::WordBackspace if draft.complete && draft.text_field() => {
+                draft.editor_mut().word_back();
                 draft.faulted = false;
             }
-            NativeSetupEdit::Clear
-                if draft.complete && draft.stage != NativeSetupStage::ChooseProject =>
-            {
-                draft.editor.clear();
+            NativeSetupEdit::Clear if draft.complete && draft.text_field() => {
+                draft.editor_mut().clear();
                 draft.faulted = false;
             }
-            NativeSetupEdit::Left
-                if draft.complete && draft.stage != NativeSetupStage::ChooseProject =>
-            {
-                draft.editor.left();
+            NativeSetupEdit::Left if draft.complete && draft.text_field() => {
+                draft.editor_mut().left();
             }
-            NativeSetupEdit::Right
-                if draft.complete && draft.stage != NativeSetupStage::ChooseProject =>
-            {
-                draft.editor.right();
+            NativeSetupEdit::Right if draft.complete && draft.text_field() => {
+                draft.editor_mut().right();
             }
-            NativeSetupEdit::Home
-                if draft.complete && draft.stage != NativeSetupStage::ChooseProject =>
-            {
-                draft.editor.home();
+            NativeSetupEdit::Home if draft.complete && draft.text_field() => {
+                draft.editor_mut().home();
             }
-            NativeSetupEdit::End
-                if draft.complete && draft.stage != NativeSetupStage::ChooseProject =>
-            {
-                draft.editor.end();
+            NativeSetupEdit::End if draft.complete && draft.text_field() => {
+                draft.editor_mut().end();
             }
             _ => return false,
         }
@@ -397,7 +444,10 @@ impl NativeSessionState {
                 && d.shown
                 && d.complete
                 && !d.faulted
-                && d.stage == NativeSetupStage::ChooseProject
+                && matches!(
+                    d.stage,
+                    NativeSetupStage::ChooseProject | NativeSetupStage::QuickProject
+                )
         }) else {
             return false;
         };
@@ -409,7 +459,15 @@ impl NativeSessionState {
             .projects()
             .get(draft.selected)
             .map(|p| p.project_id.clone());
-        draft.stage = if draft.project.is_some() {
+        draft.stage = if let Some(fields) = &mut draft.quick {
+            let Some(project) = &draft.project else {
+                return false;
+            };
+            if !fields.select_project(project, &draft.baseline) {
+                return false;
+            }
+            NativeSetupStage::QuickName
+        } else if draft.project.is_some() {
             NativeSetupStage::WorkspaceLabel
         } else {
             NativeSetupStage::ProjectLabel
@@ -421,6 +479,11 @@ impl NativeSessionState {
     }
 }
 impl<'a> crate::terminal_session::state::NativeSessionView<'a> {
+    pub(in crate::terminal_session) fn quick_workspace_recovery(
+        &self,
+    ) -> Option<super::quick::QuickRecovery<'a>> {
+        self.state.quick_workspace_recovery()
+    }
     pub(in crate::terminal_session) fn setup_draft(&self) -> Option<NativeSetupDraftView<'a>> {
         self.state.setup_draft()
     }

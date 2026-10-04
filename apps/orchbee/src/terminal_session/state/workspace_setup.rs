@@ -1,6 +1,7 @@
 mod draft;
 mod labels;
 mod projection;
+pub(in crate::terminal_session) mod quick;
 use super::line_editor::{LengthLimit, LineEditor};
 use super::{
     NativeContextTabs, NativeSessionState, NavigatorRefreshStatus, OperationDeadlines,
@@ -26,6 +27,7 @@ use orchbee_workbench_protocol::{
 
 #[derive(Default)]
 pub(super) struct SetupState {
+    preparation: Option<quick::QuickPreparation>,
     last_token: u64,
     draft: Option<SetupDraft>,
     pending: Option<SetupOperation>,
@@ -38,6 +40,7 @@ pub(super) struct SetupState {
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(in crate::terminal_session) struct SetupOperation {
+    pub(in crate::terminal_session) quick: Option<quick::QuickLaunchPlan>,
     pub(in crate::terminal_session) generation: u64,
     pub(in crate::terminal_session) command: WorkbenchCommand,
     pub(in crate::terminal_session) request: WorkbenchSetupRequest,
@@ -82,6 +85,9 @@ impl SetupOperation {
                 ) | (
                     WorkbenchAction::WorkspacePrimaryDirectoryAccept { .. },
                     WorkbenchSetupCommit::WorkspacePrimaryDirectoryAccepted { .. }
+                ) | (
+                    WorkbenchAction::WorkspaceLaunch { .. },
+                    WorkbenchSetupCommit::WorkspaceLaunched(_)
                 )
             );
             if !compatible {
@@ -155,7 +161,9 @@ impl NativeSessionState {
             )
     }
     pub(in crate::terminal_session) fn setup_blocks_structure(&self) -> bool {
-        self.setup.draft.is_some() || self.setup_operation_in_progress()
+        self.setup.draft.is_some()
+            || self.setup.preparation.is_some()
+            || self.setup_operation_in_progress()
     }
     pub(super) fn setup_operation_in_progress(&self) -> bool {
         self.setup.pending.is_some() || self.setup.known.is_some() || self.setup.uncertain.is_some()
@@ -185,10 +193,40 @@ impl NativeSessionState {
         deadlines: OperationDeadlines,
     ) -> Option<SetupOperation> {
         let draft = self.setup_draft()?.draft;
-        if draft.token != token || !draft.shown || !draft.complete || draft.faulted {
+        if draft.token != token
+            || (!draft.shown && draft.continuation.is_none())
+            || !draft.complete
+            || draft.faulted
+        {
             return None;
         }
         let action = match draft.stage {
+            NativeSetupStage::QuickName | NativeSetupStage::QuickDirectory => {
+                let plan = draft.quick.as_ref()?.plan()?;
+                match &plan.project {
+                    quick::QuickProject::CreateDefault => WorkbenchAction::ProjectCreate {
+                        label: plan.default_project_label,
+                    },
+                    quick::QuickProject::Existing(project_id) => WorkbenchAction::WorkspaceLaunch {
+                        project_id: project_id.clone(),
+                        label: plan.label,
+                        geometry: orchbee_workbench_protocol::WorkbenchTerminalGeometry::new(
+                            self.latest_geometry.columns(),
+                            self.latest_geometry.rows(),
+                            self.latest_geometry.cell_pixel_width(),
+                            self.latest_geometry.cell_pixel_height(),
+                        )
+                        .ok()?,
+                        launch: None,
+                        profile: None,
+                        options: Box::new(orchbee_workbench_protocol::LaunchOptions {
+                            cwd: Some(plan.cwd),
+                            ..Default::default()
+                        }),
+                    },
+                    quick::QuickProject::Choose => return None,
+                }
+            }
             NativeSetupStage::ProjectLabel => WorkbenchAction::ProjectCreate {
                 label: WorkbenchLabel::parse(draft.editor.text()).ok()?,
             },
@@ -239,7 +277,9 @@ impl NativeSessionState {
                     }
                 }
             }
-            NativeSetupStage::ChooseProject => return None,
+            NativeSetupStage::ChooseProject
+            | NativeSetupStage::QuickProject
+            | NativeSetupStage::PreparingWorkspace => return None,
         };
         let command = WorkbenchCommand {
             protocol_version: ProtocolVersion,
@@ -249,6 +289,10 @@ impl NativeSessionState {
             action,
         };
         Some(SetupOperation {
+            quick: draft
+                .quick
+                .as_ref()
+                .and_then(quick::QuickWorkspaceFields::plan),
             generation,
             request: WorkbenchSetupRequest::try_from(command.clone()).ok()?,
             command,
@@ -364,6 +408,7 @@ impl NativeSessionState {
     ) -> Option<Box<PreparedSetupCompletion>> {
         let known = self.setup.known.as_ref()?;
         let status = match &known.commit {
+            WorkbenchSetupCommit::WorkspaceLaunched(_) => NativeSetupStatus::WorkspaceCreated,
             WorkbenchSetupCommit::WorkspaceOrder { .. } => return None,
             WorkbenchSetupCommit::ProjectRenamed { unchanged, .. }
             | WorkbenchSetupCommit::WorkspaceRenamed { unchanged, .. } => known.operation.status(
@@ -385,7 +430,11 @@ impl NativeSessionState {
                 self.setup.last_token.checked_add(1).map(|next| SetupDraft {
                     token: NativeSetupToken(next),
                     baseline: candidate.clone(),
-                    stage: NativeSetupStage::WorkspaceLabel,
+                    stage: if known.operation.quick.is_some() {
+                        NativeSetupStage::QuickName
+                    } else {
+                        NativeSetupStage::WorkspaceLabel
+                    },
                     selected: candidate
                         .projects()
                         .iter()
@@ -400,6 +449,14 @@ impl NativeSessionState {
                     shown: false,
                     complete: true,
                     faulted: false,
+                    quick: known.operation.quick.as_ref().map(|plan| {
+                        quick::QuickWorkspaceFields::continuation(plan, project_id.clone())
+                    }),
+                    continuation: known
+                        .operation
+                        .quick
+                        .as_ref()
+                        .map(|_| known.operation.deadlines),
                 })
             }
             _ => None,

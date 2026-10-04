@@ -1,0 +1,276 @@
+//! The actual carrier borrows the live primary Viewer or releases its own temporary Viewer.
+use super::super::AttachedTerminal;
+use super::super::NativeExecutor;
+use super::setup::{TestResult, admit, fixture_geometry, snapshot};
+use crate::local_client::LocalClient;
+use crate::local_client::test_server::FakeServer;
+use crate::terminal_session::state::workspace_setup::{NativeSetupToken, quick::QuickPreparation};
+use crate::terminal_session::state::{AttachmentKey, ControllerMode, PaneKey, PaneRef};
+use crate::terminal_session::workbench_projection::project_native_standalone_tabs;
+use crate::terminal_session::{
+    mailbox::CommandMailbox,
+    state::{CarrierFailure, OperationDeadlines},
+};
+use orchbee_client_server_protocol::{
+    ClientMessage, ServerMessage, TerminalViewerAction, TerminalViewerOutcome,
+    TerminalViewerResult, ViewerId, read_client_message, write_server_message,
+};
+use orchbee_terminal_protocol::{
+    AttachmentId, CURRENT_PROTOCOL_VERSION, CorrelationId, Envelope, HostEpoch, MessageRole,
+    PayloadEncoding, ProcessInfoControl, TerminalId, TerminalProcess, TerminalProcessInfo,
+    encode_process_info_control, encode_transport_envelope,
+};
+use orchbee_workbench_protocol::{WorkbenchDirectoryPath, WorkbenchSnapshotOutcome};
+use std::io::{self, Read};
+use std::{sync::Arc, time::Instant};
+
+fn process_record(cwd: Option<&str>, wrong_identity: bool) -> TestResult<Vec<u8>> {
+    let value = TerminalProcessInfo {
+        attachment_id: AttachmentId::from_bytes([if wrong_identity { 9 } else { 1 }; 16])?,
+        terminal_id: TerminalId::from_bytes([2; 16])?,
+        root_pid: 41,
+        processes: vec![
+            TerminalProcess {
+                pid: 41,
+                parent_pid: None,
+                creation_time: 900,
+                image: Some("powershell.exe".into()),
+                command_line: None,
+                current_directory: cwd.map(str::to_owned),
+            },
+            TerminalProcess {
+                pid: 42,
+                parent_pid: Some(41),
+                creation_time: 901,
+                image: Some("agent.exe".into()),
+                command_line: None,
+                current_directory: Some("C:/wrong-child".into()),
+            },
+        ],
+    };
+    let encoded = encode_process_info_control(&ProcessInfoControl::ProcessInfo(value))?;
+    Ok(encode_transport_envelope(&Envelope {
+        protocol: CURRENT_PROTOCOL_VERSION,
+        role: MessageRole::Response,
+        kind: encoded.kind,
+        optional_message: false,
+        payload_encoding: PayloadEncoding::ControlJson,
+        correlation_id: Some(CorrelationId::from_bytes([3; 16])?),
+        host_epoch: Some(HostEpoch::from_bytes([4; 16])?),
+        payload: &encoded.payload,
+    })?)
+}
+
+fn preparation() -> TestResult<(QuickPreparation, WorkbenchSnapshotOutcome)> {
+    let snapshot = snapshot(1, 1);
+    let baseline = project_native_standalone_tabs(&snapshot).unwrap();
+    let primary = baseline.tabs()[0]
+        .panel(0)
+        .unwrap()
+        .primary()
+        .binding()
+        .cloned();
+    Ok((
+        QuickPreparation {
+            generation: 1,
+            token: NativeSetupToken::for_test(1),
+            baseline,
+            primary,
+            primary_pane: None,
+            deadlines: OperationDeadlines::from_sample(Instant::now()).unwrap(),
+        },
+        WorkbenchSnapshotOutcome::Available { snapshot },
+    ))
+}
+
+#[test]
+fn quick_workspace_carrier_samples_the_primary_root_and_detaches_before_accepting_or_refusing()
+-> TestResult {
+    for (cwd, wrong_identity) in [
+        (Some("C:/项目 space"), false),
+        (None, false),
+        (Some("relative"), false),
+        (Some("C:/valid"), true),
+    ] {
+        let record = process_record(cwd, wrong_identity)?;
+        let (preparation, outcome) = preparation()?;
+        let binding = preparation.primary.clone().unwrap();
+        let site = preparation.baseline.site_id().clone();
+        let server = FakeServer::start(move |mut stream| {
+            admit(&mut stream)?;
+            let expected = [
+                TerminalViewerAction::AttachBinding {
+                    site_id: orchbee_client_server_protocol::SiteId::parse(site.as_str())
+                        .map_err(io::Error::other)?,
+                    worker_id: orchbee_client_server_protocol::WorkerId::parse(
+                        binding.worker_id().as_str(),
+                    )
+                    .map_err(io::Error::other)?,
+                    terminal_id: orchbee_client_server_protocol::TerminalId::parse(
+                        binding.terminal_id().as_str(),
+                    )
+                    .map_err(io::Error::other)?,
+                },
+                TerminalViewerAction::ReadProcessInfo {
+                    attachment_id: ViewerId::parse(&"01".repeat(16)).map_err(io::Error::other)?,
+                },
+                TerminalViewerAction::Detach {
+                    attachment_id: ViewerId::parse(&"01".repeat(16)).map_err(io::Error::other)?,
+                },
+            ];
+            let outcomes = [
+                TerminalViewerOutcome::Attached {
+                    attachment_id: ViewerId::parse(&"01".repeat(16)).map_err(io::Error::other)?,
+                    host_epoch: orchbee_client_server_protocol::HostEpoch::parse(&"04".repeat(16))
+                        .map_err(io::Error::other)?,
+                    host_terminal_id: orchbee_client_server_protocol::HostTerminalId::parse(
+                        &"02".repeat(16),
+                    )
+                    .map_err(io::Error::other)?,
+                },
+                TerminalViewerOutcome::Record(record),
+                TerminalViewerOutcome::Detached {},
+            ];
+            let mut ids = Vec::new();
+            for (action, outcome) in expected.into_iter().zip(outcomes) {
+                let ClientMessage::TerminalViewer(request) =
+                    read_client_message(&mut stream).map_err(io::Error::other)?
+                else {
+                    return Err(io::Error::other("read-only viewer expected"));
+                };
+                if request.action() != &action || ids.contains(request.request_id()) {
+                    return Err(io::Error::other(
+                        "wrong source, viewer, request identity or release order",
+                    ));
+                }
+                ids.push(request.request_id().clone());
+                write_server_message(
+                    &mut stream,
+                    &ServerMessage::TerminalViewerResult(TerminalViewerResult::new(
+                        request.request_id().clone(),
+                        outcome,
+                    )),
+                )
+                .map_err(io::Error::other)?;
+            }
+            let mut trailing = [0];
+            if stream.read(&mut trailing)? != 0 {
+                return Err(io::Error::other(
+                    "unscripted creation or repeated preparation",
+                ));
+            }
+            Ok(())
+        })?;
+        let client = LocalClient::connect(server.endpoint(), "native-quick-test")?;
+        let mailbox = Arc::new(CommandMailbox::new(10, fixture_geometry()?));
+        let mut executor = NativeExecutor::new(client, mailbox);
+        let result = executor.prepare_quick_cwd(&preparation, &outcome);
+        if wrong_identity {
+            assert_eq!(result, Err(CarrierFailure::Protocol));
+        } else if cwd == Some("relative") {
+            assert_eq!(result, Ok(None));
+        } else {
+            let expected = cwd.map(str::to_owned).unwrap_or_else(|| {
+                orchbee_local_site_runtime::normalize_windows_user_path(
+                    "~",
+                    |name| std::env::var_os(name),
+                    std::env::current_dir,
+                )
+                .unwrap()
+            });
+            assert_eq!(result, Ok(Some(WorkbenchDirectoryPath::parse(&expected)?)));
+        }
+        assert!(
+            executor.attachments.is_empty(),
+            "temporary Viewer cannot become a pane attachment"
+        );
+        drop(executor);
+        server.finish()?;
+    }
+    Ok(())
+}
+
+#[test]
+fn quick_workspace_carrier_borrows_the_live_primary_viewer_without_reattaching_or_detaching_it()
+-> TestResult {
+    for wrong_identity in [false, true] {
+        let record = process_record(Some("C:/live-root"), wrong_identity)?;
+        let (mut preparation, outcome) = preparation()?;
+        let tab = &preparation.baseline.tabs()[0];
+        let pane = PaneRef::new(
+            PaneKey::new(
+                AttachmentKey::new(1, tab.tab_id().clone()),
+                tab.panel(0).unwrap().panel_id().clone(),
+            ),
+            1,
+        );
+        preparation.primary_pane = Some(pane.clone());
+        let attachment_id = ViewerId::parse(&"01".repeat(16))?;
+        let expected = attachment_id.clone();
+        let server = FakeServer::start(move |mut stream| {
+            admit(&mut stream)?;
+            let ClientMessage::TerminalViewer(request) =
+                read_client_message(&mut stream).map_err(io::Error::other)?
+            else {
+                return Err(io::Error::other("borrowed read expected"));
+            };
+            if request.action()
+                != &(TerminalViewerAction::ReadProcessInfo {
+                    attachment_id: expected,
+                })
+            {
+                return Err(io::Error::other("live Viewer must never be attached twice"));
+            }
+            write_server_message(
+                &mut stream,
+                &ServerMessage::TerminalViewerResult(TerminalViewerResult::new(
+                    request.request_id().clone(),
+                    TerminalViewerOutcome::Record(record),
+                )),
+            )
+            .map_err(io::Error::other)?;
+            let mut trailing = [0];
+            if stream.read(&mut trailing)? != 0 {
+                return Err(io::Error::other(
+                    "borrowed Viewer must not be detached, resized or replayed",
+                ));
+            }
+            Ok(())
+        })?;
+        let client = LocalClient::connect(server.endpoint(), "native-quick-test")?;
+        let mut executor = NativeExecutor::new(
+            client,
+            Arc::new(CommandMailbox::new(10, fixture_geometry()?)),
+        );
+        executor.attachments.push(AttachedTerminal {
+            key: pane.clone(),
+            attachment_id,
+            host_epoch: orchbee_client_server_protocol::HostEpoch::parse(&"04".repeat(16))?,
+            host_terminal_id: orchbee_client_server_protocol::HostTerminalId::parse(
+                &"02".repeat(16),
+            )?,
+            setup: None,
+            announced: true,
+            mode: Some(ControllerMode::ReadOnly),
+            next_sequence: 47,
+            accepted_geometry: None,
+        });
+        let result = executor.prepare_quick_cwd(&preparation, &outcome);
+        assert_eq!(
+            result,
+            if wrong_identity {
+                Err(CarrierFailure::Protocol)
+            } else {
+                Ok(Some(WorkbenchDirectoryPath::parse("C:/live-root")?))
+            }
+        );
+        assert_eq!(executor.attachments.len(), 1);
+        assert_eq!(executor.attachments[0].key, pane);
+        assert_eq!(executor.attachments[0].next_sequence, 47);
+        assert_eq!(executor.attachments[0].mode, Some(ControllerMode::ReadOnly));
+        assert!(executor.attachments[0].announced && executor.attachments[0].setup.is_none());
+        drop(executor);
+        server.finish()?;
+    }
+    Ok(())
+}

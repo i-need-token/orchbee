@@ -5,6 +5,8 @@ mod context_selection;
 mod location_labels;
 mod panel;
 mod presentations;
+#[cfg(windows)]
+mod quick_workspace;
 mod setup;
 #[cfg(windows)]
 mod startup_directory;

@@ -254,7 +254,10 @@ impl InputDispatcher {
                     .rename_input_context()
                     .map_or(0, |context| context.remaining_scalar_capacity()),
                 Some(ModalEpoch::Setup(_)) => port.setup_input_context().map_or(0, |context| {
-                    if context.stage() == NativeSetupStage::DirectoryPath {
+                    if matches!(
+                        context.stage(),
+                        NativeSetupStage::DirectoryPath | NativeSetupStage::QuickDirectory
+                    ) {
                         context.remaining_bytes()
                     } else {
                         context.remaining_scalars()
@@ -622,12 +625,16 @@ impl InputDispatcher {
             let events = self.decoder.cancel(now);
             self.apply_events(view, port, events, now);
         }
-        let capacity =
-            if setup.is_some_and(|context| context.stage() == NativeSetupStage::DirectoryPath) {
-                ModalCapacity::Bytes4096
-            } else {
-                ModalCapacity::Scalars512
-            };
+        let capacity = if setup.is_some_and(|context| {
+            matches!(
+                context.stage(),
+                NativeSetupStage::DirectoryPath | NativeSetupStage::QuickDirectory
+            )
+        }) {
+            ModalCapacity::Bytes4096
+        } else {
+            ModalCapacity::Scalars512
+        };
         if let Some(token) = current
             && self.decoder.start_with_capacity(capacity)
         {
@@ -687,7 +694,8 @@ impl InputDispatcher {
                     port.cancel_rename_draft(token);
                     continue;
                 }
-                ModalInputEvent::InputFailure
+                ModalInputEvent::NextField
+                | ModalInputEvent::InputFailure
                 | ModalInputEvent::Focus(_)
                 | ModalInputEvent::HostReply(_) => continue,
             };
@@ -708,8 +716,12 @@ impl InputDispatcher {
             return;
         };
         let edit = match event {
+            ModalInputEvent::NextField => NativeSetupEdit::NextField,
             ModalInputEvent::Append(ref text)
-                if context.stage() == NativeSetupStage::ChooseProject =>
+                if matches!(
+                    context.stage(),
+                    NativeSetupStage::ChooseProject | NativeSetupStage::QuickProject
+                ) =>
             {
                 match text.as_str() {
                     "[" => NativeSetupEdit::SelectPreviousProject,
@@ -743,15 +755,29 @@ impl InputDispatcher {
         };
         let selecting = matches!(
             edit,
-            NativeSetupEdit::SelectPreviousProject | NativeSetupEdit::SelectNextProject
+            NativeSetupEdit::SelectPreviousProject
+                | NativeSetupEdit::SelectNextProject
+                | NativeSetupEdit::NextField
         );
         if port.edit_setup_draft(token, edit)
             && selecting
             && let Some(context) = port.setup_input_context()
-            && context.stage() == NativeSetupStage::ChooseProject
+            && matches!(
+                context.stage(),
+                NativeSetupStage::ChooseProject
+                    | NativeSetupStage::QuickProject
+                    | NativeSetupStage::QuickName
+                    | NativeSetupStage::QuickDirectory
+            )
         {
             // Selection changes draw authority, while this decoder still owns the same picker.
             self.epoch = Some(ModalEpoch::Setup(context.token()));
+            self.decoder
+                .set_capacity(if context.stage() == NativeSetupStage::QuickDirectory {
+                    ModalCapacity::Bytes4096
+                } else {
+                    ModalCapacity::Scalars512
+                });
         }
     }
 }

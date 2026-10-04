@@ -782,6 +782,8 @@ mod client_presentation;
 mod client_viewport;
 #[cfg(windows)]
 mod independent_popup;
+#[cfg(all(test, windows))]
+mod quick_workspace_tests;
 #[cfg(test)]
 mod workspace_setup_tests;
 
@@ -1901,6 +1903,10 @@ impl NativeUi {
             | ClientAction::PreviousAgent
             | ClientAction::NextAgent
             | ClientAction::FocusAgent(_) => SessionActionDisposition::KeepNavigator,
+            ClientAction::RequestQuickWorkspace => {
+                self.request_quick_workspace();
+                SessionActionDisposition::KeepNavigator
+            }
             ClientAction::RequestWorkspaceCreate
             | ClientAction::RequestWorkspaceDirectory
             | ClientAction::RequestWorkspaceRename
@@ -2485,6 +2491,19 @@ impl NativeUi {
             WorkerEvent::PanelResult { operation, outcome } => {
                 return self.apply_panel_event(mailbox, wait_key, operation, outcome);
             }
+            WorkerEvent::QuickWorkspacePrepared {
+                preparation,
+                cwd,
+                outcome,
+            } => {
+                return self.apply_quick_preparation_event(
+                    mailbox,
+                    wait_key,
+                    *preparation,
+                    cwd,
+                    *outcome,
+                );
+            }
             WorkerEvent::WorkspaceSetupResult { operation, outcome } => {
                 return self.apply_workspace_setup_event(mailbox, wait_key, operation, outcome);
             }
@@ -2505,7 +2524,8 @@ impl NativeUi {
         let mut install_projection = None;
         let result = mailbox.deposit_ui_reply_before(&wait_key, &self.clock, |transaction| {
             let reply = match event {
-                WorkerEvent::WorkspaceSetupResult { .. }
+                WorkerEvent::QuickWorkspacePrepared { .. }
+                | WorkerEvent::WorkspaceSetupResult { .. }
                 | WorkerEvent::RenameResult { .. }
                 | WorkerEvent::MoveResult { .. }
                 | WorkerEvent::PanelResult { .. }

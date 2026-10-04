@@ -43,6 +43,7 @@ pub(crate) enum PanelDirection {
 pub(crate) enum BackendAction {
     ReloadConfiguration,
     CreateWorkspace,
+    QuickCreateWorkspace,
     ConfigureWorkspaceDirectory,
     RenameWorkspace,
     RenameProject,
@@ -69,6 +70,7 @@ pub(crate) enum ClientAction {
     ConfiguredCommand(String),
     ReloadConfiguration,
     RequestWorkspaceCreate,
+    RequestQuickWorkspace,
     RequestWorkspaceDirectory,
     RequestWorkspaceRename,
     RequestProjectRename,
@@ -217,6 +219,7 @@ impl ClientAction {
             }
             Self::ReloadConfiguration => Some(BackendAction::ReloadConfiguration),
             Self::RequestWorkspaceCreate => Some(BackendAction::CreateWorkspace),
+            Self::RequestQuickWorkspace => Some(BackendAction::QuickCreateWorkspace),
             Self::RequestWorkspaceDirectory => Some(BackendAction::ConfigureWorkspaceDirectory),
             Self::RequestWorkspaceRename => Some(BackendAction::RenameWorkspace),
             Self::RequestProjectRename => Some(BackendAction::RenameProject),

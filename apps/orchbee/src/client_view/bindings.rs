@@ -80,6 +80,7 @@ pub(crate) enum PrefixDesc {
     AgentIndex,
     ReloadConfiguration,
     WorkspaceCreate,
+    QuickWorkspaceCreate,
     WorkspaceDirectory,
     WorkspaceRename,
     ProjectRename,
@@ -135,6 +136,11 @@ use super::PanelDirection;
 /// Every prefix-layer binding group, in help order. The first member label of
 /// each group joins with `" / "` into the help chord column.
 pub(crate) static PREFIX_GROUPS: &[PrefixGroup] = &[
+    #[cfg(windows)]
+    PrefixGroup {
+        members: &[member(shift_key('n'), ClientAction::RequestQuickWorkspace)],
+        desc: PrefixDesc::QuickWorkspaceCreate,
+    },
     #[cfg(windows)]
     PrefixGroup {
         members: &[member(key(KeyCode::Char('M')), ClientAction::OpenMachines)],

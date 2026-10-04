@@ -293,6 +293,7 @@ visible through the automatic publication probe, and explicit refresh remains av
 | `n` / `p`              | Select the next / previous Tab in the current Client snapshot.                                                                                                                       |
 | `1` … `9`              | Select that position when present.                                                                                                                                                   |
 | `[` / `]`              | Select the previous / next standalone or Workspace context in Server navigation order.                                                                                               |
+| `Shift+N`              | On Windows, open a name/directory form, then create a Workspace with its first shell and enter it after one confirmation.                                                            |
 | `a`                    | Create a Workspace in an existing or new Project through separate explicit submissions.                                                                                              |
 | `e`                    | Configure the first directory of the current Empty, unconfigured Workspace.                                                                                                          |
 | `r` / `R`              | Rename the current Workspace / its Project; standalone has neither target.                                                                                                           |
@@ -307,11 +308,17 @@ visible through the automatic publication probe, and explicit refresh remains av
 | `q` / `d`              | Close this Client while retained execution continues.                                                                                                                                |
 
 [Context selection](docs/native-context-selection.md) preserves each retained terminal while
-switching location. The navigator and Workbench title show the current Project/Workspace. Empty
-Workspaces can be entered and left; only explicit `c` creates a terminal, using the Workspace's
-accepted directory. [Workspace setup](docs/native-workspace-setup.md) provides creation and literal
+switching location. The navigator and Workbench title show the current Project/Workspace. The
+advanced setup wizard creates Empty Workspaces that can be entered and left; explicit `c` starts
+a terminal there using the accepted directory. [Workspace setup](docs/native-workspace-setup.md) provides creation and literal
 absolute-path input. Each step requires a complete first draw; cancellation preserves earlier
 committed objects. Directory acceptance never starts a terminal.
+On Windows, quick creation pre-fills the primary terminal root's current directory and follows
+the current Workspace's Project. With no source Workspace it uses the sole Project, creates
+Default only after confirmation when none exists, or asks for an existing Project when several
+exist. Tab switches the name/directory fields; paths support `~` and relative input against the
+prepared directory. Escape before submission creates nothing. Known partial results remain
+inspectable with `orchbee project list` and `orchbee workspace list`; unknown outcomes never replay.
 [Location labels](docs/native-location-labels.md) use a prefilled editor and shared Server commands;
 renaming preserves the running terminal and becomes visible to peers through the publication
 probe or explicit refresh.

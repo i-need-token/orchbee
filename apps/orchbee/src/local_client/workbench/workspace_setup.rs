@@ -9,6 +9,7 @@ use orchbee_workbench_protocol::{
 
 use crate::local_client::{ExchangeAttempt, LocalClient, exchange_once};
 
+mod launch;
 mod outcome;
 use outcome::classify_outcome;
 
@@ -26,6 +27,9 @@ impl LocalClient {
         deadline: Instant,
         wake: Option<orchbee_local_ipc::LocalIo<'_>>,
     ) -> WorkbenchSetupSubmission {
+        if matches!(request.0.action, WorkbenchAction::WorkspaceLaunch { .. }) {
+            return self.submit_setup_launch(request.0, deadline, wake);
+        }
         if self.connection.is_none() {
             return WorkbenchSetupSubmission::DefinitelyNotSubmitted(
                 WorkbenchSetupNotSubmitted::SessionUnavailable,
@@ -141,6 +145,7 @@ impl TryFrom<WorkbenchCommand> for WorkbenchSetupRequest {
                 | WorkbenchAction::WorkspaceMove { .. }
                 | WorkbenchAction::WorkspaceMoveBlock { .. }
                 | WorkbenchAction::WorkspaceCreate { .. }
+                | WorkbenchAction::WorkspaceLaunch { .. }
                 | WorkbenchAction::WorkspacePrimaryDirectoryAccept { .. }
         ) {
             Ok(Self(command))
@@ -152,6 +157,10 @@ impl TryFrom<WorkbenchCommand> for WorkbenchSetupRequest {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum WorkbenchSetupPrecommit {
+    ProfileUnavailable,
+    ProfileAmbiguous {
+        candidate_ids: Vec<orchbee_workbench_protocol::LaunchProfileId>,
+    },
     Rejected {
         revision: WorkbenchRevision,
         reason: WorkbenchRejectionReason,
@@ -207,6 +216,7 @@ impl std::error::Error for WorkbenchSetupNotSubmitted {
 
 #[derive(Debug)]
 pub(crate) enum WorkbenchSetupOutcomeUnknownReason {
+    Launch(Box<super::WorkbenchTabCreateOutcomeUnknownReason>),
     Write(io::Error),
     Response(WorkbenchWireError),
     ResponseDeadline(io::Error),
@@ -228,6 +238,7 @@ pub(crate) enum WorkbenchSetupOutcomeUnknownReason {
 impl fmt::Display for WorkbenchSetupOutcomeUnknownReason {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::Launch(reason) => write!(f, "Workspace launch: {reason}"),
             Self::Write(error) => write!(f, "request write failed: {error}"),
             Self::Response(error) => write!(f, "invalid command response: {error}"),
             Self::ResponseDeadline(error) => write!(f, "command response failed: {error}"),
@@ -256,6 +267,7 @@ impl fmt::Display for WorkbenchSetupOutcomeUnknownReason {
 impl std::error::Error for WorkbenchSetupOutcomeUnknownReason {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
+            Self::Launch(reason) => Some(reason.as_ref()),
             Self::Write(error) | Self::ResponseDeadline(error) => Some(error),
             Self::Response(error) => Some(error),
             Self::UnexpectedResponse
@@ -269,6 +281,7 @@ impl std::error::Error for WorkbenchSetupOutcomeUnknownReason {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum WorkbenchSetupCommit {
+    WorkspaceLaunched(Box<super::workspace_launch::WorkspaceLaunchCommit>),
     WorkspaceOrder {
         revision: WorkbenchRevision,
         workspace_order: Option<orchbee_workbench_protocol::WorkbenchWorkspaceList>,
@@ -305,6 +318,7 @@ pub(crate) enum WorkbenchSetupCommit {
 impl WorkbenchSetupCommit {
     pub(crate) const fn revision(&self) -> WorkbenchRevision {
         match self {
+            Self::WorkspaceLaunched(commit) => commit.revision,
             Self::WorkspaceOrder { revision, .. }
             | Self::ProjectCreated { revision, .. }
             | Self::ProjectRenamed { revision, .. }

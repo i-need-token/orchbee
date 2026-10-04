@@ -49,6 +49,11 @@ impl NativeSetupInputContext {
     }
 }
 impl<'a> NativeSessionView<'a> {
+    pub(crate) fn quick_workspace_recovery(
+        &self,
+    ) -> Option<super::super::state::workspace_setup::quick::QuickRecovery<'a>> {
+        self.state.as_ref()?.quick_workspace_recovery()
+    }
     pub(crate) fn setup_draft(&self) -> Option<NativeSetupDraftView<'a>> {
         self.state.as_ref()?.setup_draft()
     }
@@ -65,6 +70,47 @@ impl<'a> NativeSessionView<'a> {
     }
 }
 impl NativeUi {
+    pub(in crate::terminal_session) fn request_quick_workspace(&mut self) -> bool {
+        if self.retirement_failure.is_some() {
+            return false;
+        }
+        let Some(deadlines) = OperationDeadlines::from_sample(self.clock.now()) else {
+            return false;
+        };
+        let (Some(mailbox), Some(state)) = (self.mailbox.as_ref(), self.state.as_mut()) else {
+            return false;
+        };
+        mailbox.try_enqueue_quick_preparation_for(state, deadlines, &self.clock)
+    }
+    pub(super) fn apply_quick_preparation_event(
+        &mut self,
+        mailbox: &Arc<CommandMailbox>,
+        wait: super::super::mailbox::UiWaitKey,
+        preparation: super::super::state::workspace_setup::quick::QuickPreparation,
+        cwd: Option<orchbee_workbench_protocol::WorkbenchDirectoryPath>,
+        outcome: orchbee_workbench_protocol::WorkbenchSnapshotOutcome,
+    ) -> bool {
+        let Some(state) = self.state.as_mut() else {
+            self.retire(CarrierFailure::Protocol);
+            return true;
+        };
+        let Some(active) = state.take_quick_preparation(&preparation) else {
+            self.retire(CarrierFailure::Protocol);
+            return true;
+        };
+        let changed = self.apply_refresh_event(mailbox, wait, preparation.generation, outcome);
+        if active
+            && self.retirement_failure.is_none()
+            && let Some(state) = self.state.as_mut()
+        {
+            state.finish_quick_preparation(
+                &preparation,
+                cwd,
+                crate::localization::select_locale(|name| std::env::var_os(name)),
+            );
+        }
+        changed || active
+    }
     pub(in crate::terminal_session) fn setup_worker_loss(&self) -> Option<SetupWorkerEvidence> {
         self.mailbox
             .as_ref()
@@ -141,7 +187,15 @@ impl NativeUi {
         &mut self,
         token: NativeSetupToken,
     ) -> SessionActionDisposition {
-        let Some(deadlines) = OperationDeadlines::from_sample(self.clock.now()) else {
+        let continuation = self
+            .state
+            .as_ref()
+            .and_then(|state| state.quick_continuation())
+            .filter(|(current, _)| *current == token)
+            .map(|(_, deadlines)| deadlines);
+        let Some(deadlines) =
+            continuation.or_else(|| OperationDeadlines::from_sample(self.clock.now()))
+        else {
             return SessionActionDisposition::KeepNavigator;
         };
         let (Some(mailbox), Some(state)) =
@@ -158,7 +212,12 @@ impl NativeUi {
                 self.retire(closed.failure());
                 SessionActionDisposition::KeepNavigator
             }
-            Err(_) => SessionActionDisposition::KeepNavigator,
+            Err(_) => {
+                if continuation.is_some() {
+                    state.abort_quick_continuation(token);
+                }
+                SessionActionDisposition::KeepNavigator
+            }
         }
     }
     pub(super) fn refresh_workspace_setup(&mut self) -> SessionActionDisposition {
@@ -207,7 +266,16 @@ impl NativeUi {
                     self.retire(CarrierFailure::Protocol);
                     return true;
                 }
-                self.apply_refresh_event(mailbox, wait, operation.generation, *outcome)
+                let changed =
+                    self.apply_refresh_event(mailbox, wait, operation.generation, *outcome);
+                if let Some((token, _)) = self
+                    .state
+                    .as_ref()
+                    .and_then(|state| state.quick_continuation())
+                {
+                    self.submit_setup_draft(token);
+                }
+                changed
             }
             SetupResult::NotApplied => {
                 let result = mailbox.deposit_ui_reply_before(&wait, &self.clock, |transaction| {

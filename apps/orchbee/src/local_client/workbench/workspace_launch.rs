@@ -37,7 +37,7 @@ pub(crate) enum WorkspaceLaunchSubmission {
     },
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct WorkspaceLaunchCommit {
     pub(crate) revision: WorkbenchRevision,
     pub(crate) project_id: WorkbenchProjectId,

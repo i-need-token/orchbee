@@ -7,6 +7,14 @@ impl SetupKnownCommit {
     pub(super) fn target(&self) -> NativeContextLocation {
         match (&self.operation.command.action, &self.commit) {
             (
+                WorkbenchAction::WorkspaceLaunch { project_id, .. },
+                WorkbenchSetupCommit::WorkspaceLaunched(commit),
+            ) => NativeContextLocation::Workspace {
+                project_id: project_id.clone(),
+                workspace_id: commit.workspace_id.clone(),
+                terminal_context_id: commit.terminal_context_id.clone(),
+            },
+            (
                 WorkbenchAction::WorkspaceCreate { project_id, .. },
                 WorkbenchSetupCommit::WorkspaceCreated {
                     workspace_id,
@@ -25,6 +33,73 @@ impl SetupKnownCommit {
         let baseline = &self.operation.baseline;
         if snapshot.site_id != *baseline.site_id() || snapshot.revision < self.commit.revision() {
             return None;
+        }
+        if let WorkbenchSetupCommit::WorkspaceLaunched(commit) = &self.commit {
+            let WorkbenchAction::WorkspaceLaunch {
+                project_id,
+                options,
+                ..
+            } = &self.operation.command.action
+            else {
+                return None;
+            };
+            if project_id != &commit.project_id
+                || !matches!(
+                    commit.terminal_outcome,
+                    Some(orchbee_workbench_protocol::WorkbenchTerminalOutcome::Started { .. })
+                )
+            {
+                return None;
+            }
+            if baseline.navigation().iter().any(|context| {
+                context.location.terminal_context_id() == &commit.terminal_context_id
+                    || matches!(
+                        &context.location,
+                        NativeContextLocation::Workspace { workspace_id, .. }
+                            if workspace_id == &commit.workspace_id
+                    )
+            }) {
+                return None;
+            }
+            let target = project_native_context_tabs(snapshot, &self.target()).ok()?;
+            if snapshot.revision == commit.revision {
+                let WorkbenchAction::WorkspaceLaunch { label, .. } = &self.operation.command.action
+                else {
+                    return None;
+                };
+                let workspace = snapshot
+                    .navigation
+                    .projects
+                    .iter()
+                    .find(|project| &project.project_id == project_id)?
+                    .workspaces
+                    .iter()
+                    .find(|workspace| workspace.workspace_id == commit.workspace_id)?;
+                if workspace.label != label.as_str()
+                    || target.tabs().len() != 1
+                    || target.tabs()[0].panel_count() != 1
+                {
+                    return None;
+                }
+            }
+            let directory = target.directory()?;
+            if directory.directory_id != commit.directory_id
+                || options.cwd.as_ref() != Some(&directory.path)
+            {
+                return None;
+            }
+            let tab = target
+                .tabs()
+                .iter()
+                .find(|tab| tab.tab_id() == &commit.tab_id)?;
+            let panel = tab.panel(tab.panel_index(&commit.panel_id)?)?;
+            let primary = panel.primary();
+            if primary.presentation_id() != &commit.presentation_id
+                || primary.binding()?.worker_id() != &directory.worker_id
+            {
+                return None;
+            }
+            return Some(target);
         }
         let active =
             validate_canonical_refresh(baseline, baseline.project_snapshot(snapshot).ok()?).ok()?;

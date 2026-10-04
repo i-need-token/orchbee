@@ -617,7 +617,6 @@ mod linux {
 
     submissions! {
         (WorkbenchPanelInputNotSubmitted, WorkbenchPanelInputPrecommit, WorkbenchPanelInputOutcomeUnknownReason);
-        (WorkbenchSetupNotSubmitted, WorkbenchSetupPrecommit, WorkbenchSetupOutcomeUnknownReason);
         (LaunchProfileMutationNotSubmitted, WorkbenchLaunchProfileMutationPrecommit, LaunchProfileOutcomeUnknownReason);
         (WorkbenchLabelRenameNotSubmitted, WorkbenchLabelRenamePrecommit, WorkbenchLabelRenameOutcomeUnknownReason);
         (WorkbenchTabMoveNotSubmitted, WorkbenchTabMovePrecommit, WorkbenchTabMoveOutcomeUnknownReason);
@@ -629,6 +628,7 @@ mod linux {
     }
 
     submissions_with_profile! {
+        (WorkbenchSetupNotSubmitted, WorkbenchSetupPrecommit, WorkbenchSetupOutcomeUnknownReason);
         (WorkbenchTabCreateNotSubmitted, WorkbenchTabCreatePrecommit, WorkbenchTabCreateOutcomeUnknownReason);
         (WorkbenchPanelSplitNotSubmitted, WorkbenchPanelSplitPrecommit, WorkbenchPanelSplitOutcomeUnknownReason);
     }

@@ -31,6 +31,33 @@ impl WorkspaceSetupMarker {
     }
 }
 impl CommandMailbox {
+    pub(in crate::terminal_session) fn try_enqueue_quick_preparation_for(
+        &self,
+        canonical: &mut NativeSessionState,
+        deadlines: OperationDeadlines,
+        clock: &LocalOperationClock,
+    ) -> bool {
+        let Some((state, _)) = self.lock_before(deadlines.forward_cutoff(), clock) else {
+            return false;
+        };
+        if clock.now() >= deadlines.forward_cutoff() {
+            return false;
+        }
+        self.try_enqueue_refresh_intent_for(
+            state,
+            canonical,
+            deadlines.total(),
+            Some(deadlines),
+            |canonical, generation| {
+                canonical
+                    .begin_quick_preparation(generation, deadlines)
+                    .map(Some)
+                    .ok_or(())
+            },
+            |_canonical, _result| {},
+        )
+        .is_ok()
+    }
     pub(in crate::terminal_session) fn open_setup_draft_for(
         &self,
         canonical: &mut NativeSessionState,

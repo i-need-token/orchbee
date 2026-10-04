@@ -53,6 +53,7 @@ fn en_us_prefix_desc(desc: PrefixDesc) -> &'static str {
         #[cfg(windows)]
         PrefixDesc::AgentIndex => "Focus numbered Agent in the filtered machine view",
         PrefixDesc::ReloadConfiguration => "Reload Site configuration",
+        PrefixDesc::QuickWorkspaceCreate => "Create a Workspace and enter its first terminal",
         PrefixDesc::WorkspaceCreate => "Create a Workspace in an existing or new Project",
         PrefixDesc::WorkspaceDirectory => "Configure an empty Workspace's first directory",
         PrefixDesc::WorkspaceRename => "Rename current Workspace",
@@ -96,6 +97,7 @@ fn zh_cn_prefix_desc(desc: PrefixDesc) -> &'static str {
         #[cfg(windows)]
         PrefixDesc::AgentIndex => "按机器视图的筛选顺序聚焦编号 Agent",
         PrefixDesc::ReloadConfiguration => "重载 Site 配置",
+        PrefixDesc::QuickWorkspaceCreate => "创建工作区并进入第一个终端",
         PrefixDesc::WorkspaceCreate => "在现有或新建 Project 中创建 Workspace",
         PrefixDesc::WorkspaceDirectory => "配置空 Workspace 的首个目录",
         PrefixDesc::WorkspaceRename => "重命名当前 Workspace",
@@ -462,13 +464,17 @@ impl Locale {
             (
                 Self::EnUs,
                 Some(Notice::BackendUnavailable(
-                    BackendAction::CreateWorkspace | BackendAction::ConfigureWorkspaceDirectory,
+                    BackendAction::CreateWorkspace
+                    | BackendAction::QuickCreateWorkspace
+                    | BackendAction::ConfigureWorkspaceDirectory,
                 )),
             ) => "Workspace setup unavailable · no command was sent",
             (
                 Self::ZhCn,
                 Some(Notice::BackendUnavailable(
-                    BackendAction::CreateWorkspace | BackendAction::ConfigureWorkspaceDirectory,
+                    BackendAction::CreateWorkspace
+                    | BackendAction::QuickCreateWorkspace
+                    | BackendAction::ConfigureWorkspaceDirectory,
                 )),
             ) => "Workspace 设置不可用 · 未发送命令",
             (Self::EnUs, Some(Notice::BackendUnavailable(BackendAction::RenameTab))) => {
@@ -687,6 +693,13 @@ impl Locale {
         self,
         view: &crate::terminal_session::NativeSessionView<'_>,
     ) -> String {
+        if let Some(recovery) = view.quick_workspace_recovery() {
+            return self.quick_workspace_failure(
+                recovery.project,
+                recovery.workspace,
+                recovery.unknown,
+            );
+        }
         if view.phase() == crate::terminal_session::NativeDisplayPhase::SelectedWithoutAttachment
             && view.selected_is_unbound()
             && view.retirement().is_none()

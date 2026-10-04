@@ -263,6 +263,7 @@ navigator 与 viewport；另一 Client 已提交的新 Tab 经自动 publication
 | `n` / `p`              | 在当前 Client snapshot 中选择下一个 / 上一个 Tab。                                                                                  |
 | `1` … `9`              | 该位置存在时选择它。                                                                                                                |
 | `[` / `]`              | 按 Server 导航顺序选择上一个 / 下一个独立上下文或 Workspace。                                                                       |
+| `Shift+N`              | Windows 上打开名称／目录表单，一次确认后创建 Workspace 与首个 shell，并进入它。                                                     |
 | `a`                    | 通过分步显式提交，在已有或新建 Project 中创建 Workspace。                                                                           |
 | `e`                    | 配置当前尚未配置且为空的 Workspace 的首个目录。                                                                                     |
 | `r` / `R`              | 重命名当前 Workspace / 其所属 Project；standalone 没有这两种目标。                                                                  |
@@ -277,10 +278,15 @@ navigator 与 viewport；另一 Client 已提交的新 Tab 经自动 publication
 | `q` / `d`              | 关闭此 Client，保留的执行继续运行。                                                                                                 |
 
 [上下文选择](docs/native-context-selection.zh-CN.md) 在切换位置时保留各终端的执行。
-导航器和 Workbench 标题显示当前 Project/Workspace。可以进入和离开空 Workspace；只有显式 `c`
+导航器和 Workbench 标题显示当前 Project/Workspace。高级设置向导创建可进入和离开的空 Workspace；显式 `c`
 才使用 Workspace 已接受的目录创建终端。[Workspace 设置](docs/native-workspace-setup.zh-CN.md)
 提供创建及字面绝对路径输入。每一步要求首次完整绘制；取消保留更早已提交的对象。
 目录接受绝不启动终端。
+Windows 快速新建会预填主终端根进程的当前目录，并沿用当前 Workspace 的 Project。
+没有来源 Workspace 时，使用唯一 Project；零个时在确认后创建 Default；多个时先要求选择
+已有 Project。Tab 切换名称／目录字段；路径支持 `~`，相对输入基于准备得到的目录解析。
+提交前 Escape 不创建任何对象。已知部分结果可通过 `orchbee project list` 和
+`orchbee workspace list` 检查；未知结果绝不重放。
 [位置标签](docs/native-location-labels.zh-CN.md) 使用预填编辑器与共享 Server 命令；
 重命名保留运行中终端，peer 通过 publication 探测或显式刷新看到变化。
 

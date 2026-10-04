@@ -38,6 +38,7 @@ impl ModalCapacity {
 /// authoritative decoder; the names and meanings do not diverge.
 #[derive(Debug, Eq, PartialEq)]
 pub(super) enum ModalInputEvent {
+    NextField,
     Append(String),
     Paste(String),
     Left,
@@ -165,6 +166,9 @@ impl Default for ModalDecoder {
 }
 
 impl ModalDecoder {
+    pub(super) fn set_capacity(&mut self, capacity: ModalCapacity) {
+        self.capacity = capacity;
+    }
     pub(super) fn owns_input(&self) -> bool {
         !matches!(self.phase, Phase::Idle)
     }
@@ -413,6 +417,7 @@ impl ModalDecoder {
     fn text_byte(&mut self, byte: u8, now: Instant, events: &mut Vec<ModalInputEvent>) {
         self.phase = Phase::Text;
         match byte {
+            b'\t' => events.push(ModalInputEvent::NextField),
             0 if self.capacity == ModalCapacity::Bytes4096 => {
                 events.push(ModalInputEvent::Append("\0".to_owned()));
             }

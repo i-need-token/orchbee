@@ -73,6 +73,21 @@ impl NativeExecutor {
                 if !self.mailbox.retain_setup_known(&known) {
                     return Err(CarrierFailure::Protocol);
                 }
+                if let crate::local_client::workbench::workspace_setup::WorkbenchSetupCommit::WorkspaceLaunched(commit) = &known.commit
+                    && !matches!(
+                        commit.terminal_outcome,
+                        Some(orchbee_workbench_protocol::WorkbenchTerminalOutcome::Started { .. })
+                    )
+                {
+                    return Err(if matches!(
+                        commit.terminal_outcome,
+                        Some(orchbee_workbench_protocol::WorkbenchTerminalOutcome::OutcomeUnknown { .. })
+                    ) {
+                        CarrierFailure::OutcomeUnknown
+                    } else {
+                        CarrierFailure::Transport
+                    });
+                }
                 self.ensure_before(cutoff)?;
                 let request_id = self
                     .mailbox

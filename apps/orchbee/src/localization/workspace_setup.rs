@@ -78,6 +78,16 @@ impl Locale {
 
     pub(crate) const fn setup_title(self, stage: NativeSetupStage) -> &'static str {
         match (self, stage) {
+            (Self::EnUs, NativeSetupStage::PreparingWorkspace) => "Preparing Workspace directory…",
+            (Self::ZhCn, NativeSetupStage::PreparingWorkspace) => "正在准备工作区目录…",
+            (Self::EnUs, NativeSetupStage::QuickProject) => "New Workspace · choose Project",
+            (Self::ZhCn, NativeSetupStage::QuickProject) => "新建工作区 · 选择 Project",
+            (Self::EnUs, NativeSetupStage::QuickName | NativeSetupStage::QuickDirectory) => {
+                "New Workspace"
+            }
+            (Self::ZhCn, NativeSetupStage::QuickName | NativeSetupStage::QuickDirectory) => {
+                "新建工作区"
+            }
             (Self::EnUs, NativeSetupStage::ChooseProject) => "Create Workspace · choose Project",
             (Self::ZhCn, NativeSetupStage::ChooseProject) => "创建 Workspace · 选择 Project",
             (Self::EnUs, NativeSetupStage::ProjectLabel) => "Create Workspace · new Project name",
@@ -88,6 +98,30 @@ impl Locale {
             (Self::ZhCn, NativeSetupStage::DirectoryPath) => "配置 Workspace 目录",
             (_, NativeSetupStage::ProjectRename) => self.location_rename_title(true),
             (_, NativeSetupStage::WorkspaceRename) => self.location_rename_title(false),
+        }
+    }
+    pub(crate) const fn quick_workspace_name(self) -> &'static str {
+        match self {
+            Self::EnUs => "Name",
+            Self::ZhCn => "名称",
+        }
+    }
+    pub(crate) const fn quick_workspace_directory(self) -> &'static str {
+        match self {
+            Self::EnUs => "Directory",
+            Self::ZhCn => "目录",
+        }
+    }
+    pub(crate) const fn quick_workspace_actions(self) -> &'static str {
+        match self {
+            Self::EnUs => "Tab: name / directory · Enter: create and enter · Esc: cancel",
+            Self::ZhCn => "Tab：切换名称／目录 · Enter：创建并进入 · Esc：取消",
+        }
+    }
+    pub(crate) const fn quick_workspace_preparing_actions(self) -> &'static str {
+        match self {
+            Self::EnUs => "Esc: cancel · no Workspace has been created",
+            Self::ZhCn => "Esc：取消 · 尚未创建工作区",
         }
     }
 

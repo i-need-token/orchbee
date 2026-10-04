@@ -58,6 +58,7 @@ mod switch_membership;
 mod tab_close;
 #[cfg(any(target_os = "linux", windows))]
 pub(in crate::terminal_session) use status_recovery::{RecoveryShutdown, run_status_recovery};
+mod quick_workspace;
 #[cfg(windows)]
 mod startup_directory;
 mod tab_move;
@@ -235,6 +236,8 @@ impl SetupTarget {
 struct AttachedTerminal {
     key: PaneRef,
     attachment_id: orchbee_client_server_protocol::ViewerId,
+    host_epoch: orchbee_client_server_protocol::HostEpoch,
+    host_terminal_id: orchbee_client_server_protocol::HostTerminalId,
     /// `Some` while the setup pipeline is unfinished — including a reconcile
     /// setup that yielded on `ServerBusy`, which leaves the half-installed
     /// viewer parked for the next reconcile pass to dispose and re-attach.
@@ -533,6 +536,8 @@ impl NativeExecutor {
         self.attachments.push(AttachedTerminal {
             key: target.key.clone(),
             attachment_id: attachment_id.clone(),
+            host_epoch: host_epoch.clone(),
+            host_terminal_id: host_terminal_id.clone(),
             setup: Some(target.clone()),
             announced: false,
             mode: None,
@@ -874,7 +879,7 @@ impl NativeExecutor {
                         self.run_switch(&lease, marker.target().clone())
                     }
                     QueuedCommand::Create(_) => Err(CarrierFailure::Protocol),
-                    QueuedCommand::Refresh(marker) => self.run_refresh(&lease, *marker),
+                    QueuedCommand::Refresh(marker) => self.run_refresh(&lease, marker.clone()),
                     QueuedCommand::Move(marker) => {
                         self.run_move(&lease, marker.operation().clone())
                     }
@@ -1736,15 +1741,29 @@ impl NativeExecutor {
             .allocate_workbench_request_id()
             .map_err(closed)?;
         let outcome = self.read_workbench_before(request_id, snapshot_deadline)?;
-        let wait = self
-            .mailbox
-            .publish_refresh_result_before(
-                marker.generation(),
-                outcome,
-                snapshot_deadline,
-                &self.clock,
-            )
-            .map_err(event)?;
+        let wait = if let Some(preparation) = marker.quick_preparation() {
+            let cwd = self.prepare_quick_cwd(preparation, &outcome)?;
+            self.mailbox
+                .publish_event_before(
+                    WorkerEvent::QuickWorkspacePrepared {
+                        preparation: Box::new(preparation.clone()),
+                        cwd,
+                        outcome: Box::new(outcome),
+                    },
+                    EventDeadline::PlacementOnly(snapshot_deadline),
+                    &self.clock,
+                )
+                .map_err(event)?
+        } else {
+            self.mailbox
+                .publish_refresh_result_before(
+                    marker.generation(),
+                    outcome,
+                    snapshot_deadline,
+                    &self.clock,
+                )
+                .map_err(event)?
+        };
         #[cfg(any(target_os = "linux", windows))]
         let bounded_recovery = self.membership_recovery;
         #[cfg(not(any(target_os = "linux", windows)))]

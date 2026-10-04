@@ -145,11 +145,12 @@ impl CreateMarker {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub(super) struct RefreshMarker {
     generation: u64,
     deadline: Instant,
     context_deadlines: Option<OperationDeadlines>,
+    quick: Option<Box<super::state::workspace_setup::quick::QuickPreparation>>,
 }
 
 impl RefreshMarker {
@@ -158,22 +159,29 @@ impl RefreshMarker {
             generation,
             deadline,
             context_deadlines: None,
+            quick: None,
         }
     }
 
-    pub(super) const fn context_deadlines(self) -> Option<OperationDeadlines> {
+    pub(super) const fn context_deadlines(&self) -> Option<OperationDeadlines> {
         self.context_deadlines
     }
 
-    pub(super) const fn generation(self) -> u64 {
+    pub(super) const fn generation(&self) -> u64 {
         self.generation
     }
 
-    pub(super) const fn deadline(self) -> Instant {
+    pub(super) const fn deadline(&self) -> Instant {
         self.deadline
     }
 
-    const fn barrier(self) -> BarrierFence {
+    pub(super) fn quick_preparation(
+        &self,
+    ) -> Option<&super::state::workspace_setup::quick::QuickPreparation> {
+        self.quick.as_deref()
+    }
+
+    const fn barrier(&self) -> BarrierFence {
         BarrierFence {
             kind: BarrierKind::Refresh,
             forward_cutoff: self.deadline,
@@ -646,6 +654,11 @@ impl UiWaitKey {
 }
 
 pub(super) enum WorkerEvent {
+    QuickWorkspacePrepared {
+        preparation: Box<super::state::workspace_setup::quick::QuickPreparation>,
+        cwd: Option<orchbee_workbench_protocol::WorkbenchDirectoryPath>,
+        outcome: Box<WorkbenchSnapshotOutcome>,
+    },
     WorkspaceSetupResult {
         operation: SetupOperation,
         outcome: SetupResult,
@@ -870,6 +883,10 @@ impl WorkerEvent {
             Self::PanelResult { operation, .. } => (
                 UiCorrelation::Panel(operation.request_id().clone()),
                 UiReplyKind::Panel,
+            ),
+            Self::QuickWorkspacePrepared { preparation, .. } => (
+                UiCorrelation::Refresh(preparation.generation),
+                UiReplyKind::Refresh,
             ),
             Self::WorkspaceSetupResult { operation, .. } => (
                 UiCorrelation::Refresh(operation.generation),
@@ -1805,7 +1822,14 @@ impl CommandMailbox {
         prepare: impl FnOnce(&mut Canonical, u64) -> Result<(), BuildError>,
         finish: impl FnOnce(&mut Canonical, &Result<u64, AdmissionError<BuildError>>),
     ) -> Result<u64, AdmissionError<BuildError>> {
-        self.try_enqueue_refresh_intent_for(self.lock(), canonical, deadline, None, prepare, finish)
+        self.try_enqueue_refresh_intent_for(
+            self.lock(),
+            canonical,
+            deadline,
+            None,
+            |canonical, generation| prepare(canonical, generation).map(|()| None),
+            finish,
+        )
     }
 
     pub(super) fn try_enqueue_context_selection_for<Canonical, BuildError>(
@@ -1838,7 +1862,7 @@ impl CommandMailbox {
             canonical,
             deadlines.total(),
             Some(deadlines),
-            prepare,
+            |canonical, generation| prepare(canonical, generation).map(|()| None),
             finish,
         )
         .map(Some)
@@ -1850,7 +1874,13 @@ impl CommandMailbox {
         canonical: &mut Canonical,
         deadline: Instant,
         context_deadlines: Option<OperationDeadlines>,
-        prepare: impl FnOnce(&mut Canonical, u64) -> Result<(), BuildError>,
+        prepare: impl FnOnce(
+            &mut Canonical,
+            u64,
+        ) -> Result<
+            Option<super::state::workspace_setup::quick::QuickPreparation>,
+            BuildError,
+        >,
         finish: impl FnOnce(&mut Canonical, &Result<u64, AdmissionError<BuildError>>),
     ) -> Result<u64, AdmissionError<BuildError>> {
         let result = (|| {
@@ -1873,7 +1903,7 @@ impl CommandMailbox {
                     return Err(self.close_admission(&mut state, CarrierFailure::IdentityExhausted));
                 }
             };
-            prepare(canonical, generation).map_err(AdmissionError::Build)?;
+            let quick = prepare(canonical, generation).map_err(AdmissionError::Build)?;
             state.refresh_generation = generation;
             state.next_command_serial = serial;
             state.refresh_flight = Some(RefreshFlight {
@@ -1882,6 +1912,7 @@ impl CommandMailbox {
             });
             let mut marker = RefreshMarker::new(generation, deadline);
             marker.context_deadlines = context_deadlines;
+            marker.quick = quick.map(Box::new);
             state.queue.push_back(QueuedRecord {
                 serial,
                 command: QueuedCommand::Refresh(marker),
@@ -2311,7 +2342,12 @@ impl CommandMailbox {
         if !Self::switch_event_matches_receipt(&state, &event, deadline, event_anchor_serial) {
             return Err(self.close_protocol(&mut state));
         }
-        if let WorkerEvent::RefreshSnapshotResult { generation, .. } = &event {
+        let refresh_generation = match &event {
+            WorkerEvent::RefreshSnapshotResult { generation, .. } => Some(*generation),
+            WorkerEvent::QuickWorkspacePrepared { preparation, .. } => Some(preparation.generation),
+            _ => None,
+        };
+        if let Some(generation) = refresh_generation {
             if matches!(
                 state.structural_mutation_pending,
                 Some(StructuralMutationFlight::Setup(_))
@@ -2321,13 +2357,13 @@ impl CommandMailbox {
                     Some(RefreshFlight {
                         generation: current,
                         stage: PendingRefreshStage::InFlight,
-                    }) if current == *generation
+                    }) if current == generation
                 )
             {
                 return Err(self.close_protocol(&mut state));
             }
             state.refresh_flight = Some(RefreshFlight {
-                generation: *generation,
+                generation,
                 stage: PendingRefreshStage::AwaitingUi,
             });
         }

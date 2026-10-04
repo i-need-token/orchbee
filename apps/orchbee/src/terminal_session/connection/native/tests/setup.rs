@@ -1466,7 +1466,8 @@ impl UiDriver {
                 }
                 Ok(UiEvent::PaneFailed)
             }
-            WorkerEvent::WorkspaceSetupResult { .. }
+            WorkerEvent::QuickWorkspacePrepared { .. }
+            | WorkerEvent::WorkspaceSetupResult { .. }
             | WorkerEvent::RenameResult { .. }
             | WorkerEvent::ViewportOutcome { .. }
             | WorkerEvent::SelectionOutcome { .. } => {
@@ -2323,7 +2324,7 @@ impl UiDriver {
     }
 }
 
-fn admit(stream: &mut UnixStream) -> io::Result<()> {
+pub(super) fn admit(stream: &mut UnixStream) -> io::Result<()> {
     if !matches!(
         read_message(stream).map_err(io::Error::other)?,
         LocalClientMessage::ClientHello(_)

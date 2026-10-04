@@ -37,6 +37,35 @@ pub(super) fn render(
     content_area: Rect,
     theme: &Theme,
 ) -> (Rect, ModalPresentation<NativeSetupToken>) {
+    if matches!(
+        draft.stage(),
+        NativeSetupStage::QuickName | NativeSetupStage::QuickDirectory
+    ) {
+        return render_quick(frame, locale, draft, content_area, theme);
+    }
+    if draft.stage() == NativeSetupStage::PreparingWorkspace {
+        let text = Text::from(vec![
+            Line::from(locale.setup_title(draft.stage())),
+            Line::from(""),
+            Line::from(locale.quick_workspace_preparing_actions()),
+        ]);
+        let (area, complete) = render_content(
+            frame,
+            content_area,
+            locale.setup_resize_hint(),
+            text,
+            None,
+            theme,
+        );
+        return (
+            area,
+            if complete {
+                ModalPresentation::Presented(draft.token())
+            } else {
+                ModalPresentation::NotPresented
+            },
+        );
+    }
     let rename = match draft.stage() {
         NativeSetupStage::ProjectRename => Some(true),
         NativeSetupStage::WorkspaceRename => Some(false),
@@ -49,7 +78,10 @@ pub(super) fn render(
     // The editable line's index inside `lines`, when the stage owns a text
     // field; the picker stage has none.
     let mut field_index = None;
-    if draft.stage() == NativeSetupStage::ChooseProject {
+    if matches!(
+        draft.stage(),
+        NativeSetupStage::ChooseProject | NativeSetupStage::QuickProject
+    ) {
         for index in 0..draft.project_count() {
             if let Some(project) = draft.project_at(index) {
                 let marker = if project.selected() { ">" } else { " " };
@@ -118,7 +150,12 @@ pub(super) fn render(
         lines.push(Line::from(""));
     }
     lines.push(Line::from(rename.map_or_else(
-        || locale.setup_actions(draft.stage() == NativeSetupStage::ChooseProject),
+        || {
+            locale.setup_actions(matches!(
+                draft.stage(),
+                NativeSetupStage::ChooseProject | NativeSetupStage::QuickProject
+            ))
+        },
         |project| locale.location_rename_actions(project),
     )));
     let resize_hint = rename.map_or_else(
@@ -143,6 +180,107 @@ pub(super) fn render(
     )
 }
 
+fn render_quick(
+    frame: &mut Frame<'_>,
+    locale: Locale,
+    draft: &NativeSetupDraftView<'_>,
+    content_area: Rect,
+    theme: &Theme,
+) -> (Rect, ModalPresentation<NativeSetupToken>) {
+    let project = draft
+        .project_label()
+        .unwrap_or(locale.cli_default_project_label());
+    let directory_active = draft.stage() == NativeSetupStage::QuickDirectory;
+    let mut lines = vec![
+        Line::from(locale.setup_title(draft.stage())),
+        Line::from(""),
+        Line::from(format!(
+            "{}: {}",
+            locale.setup_project(),
+            sanitize_terminal_text(project)
+        )),
+        Line::from(""),
+        Line::from(format!(
+            "{}{}",
+            if directory_active { "  " } else { "> " },
+            locale.quick_workspace_name()
+        )),
+        Line::from(""),
+        Line::from(format!(
+            "{}{}",
+            if directory_active { "> " } else { "  " },
+            locale.quick_workspace_directory()
+        )),
+        Line::from(""),
+        Line::from(""),
+        Line::from(locale.quick_workspace_actions()),
+    ];
+    if draft.faulted() {
+        lines.push(Line::from(locale.setup_fault()));
+    }
+    let area = modal_area(content_area, &Text::from(lines.clone()));
+    let block = overlay_block(theme);
+    let inner = block.inner(area);
+    let name = draft.quick_window(false, usize::from(inner.width));
+    let directory = draft.quick_window(true, usize::from(inner.width));
+    if let Some(window) = &name {
+        lines[5] = Line::from(window.display().to_owned());
+    }
+    if let Some(window) = &directory {
+        lines[7] = Line::from(window.display().to_owned());
+    }
+    let text = Text::from(lines);
+    let complete = name.is_some() && directory.is_some() && wrapped_text_fits(&text, inner);
+    frame.render_widget(Clear, area);
+    frame.render_widget(block, area);
+    if complete {
+        frame.render_widget(
+            Paragraph::new(text.clone()).wrap(Wrap { trim: false }),
+            inner,
+        );
+        if let Some(window) = if directory_active {
+            directory.as_ref()
+        } else {
+            name.as_ref()
+        } {
+            set_modal_cursor(
+                frame,
+                &text,
+                inner,
+                if directory_active { 7 } else { 5 },
+                window.cursor_column(),
+            );
+        }
+    } else {
+        frame.render_widget(
+            Paragraph::new(locale.setup_resize_hint())
+                .style(theme.style(Role::StatusWarning))
+                .wrap(Wrap { trim: false }),
+            inner,
+        );
+    }
+    (
+        area,
+        if complete {
+            ModalPresentation::Presented(draft.token())
+        } else {
+            ModalPresentation::NotPresented
+        },
+    )
+}
+
+fn overlay_block(theme: &Theme) -> Block<'static> {
+    Block::new()
+        .borders(Borders::ALL)
+        .padding(Padding::horizontal(2))
+        .style(
+            theme
+                .style(Role::SurfaceOverlay)
+                .fg(theme.color(Role::TextPrimary)),
+        )
+        .border_style(theme.style(Role::AccentFocus))
+}
+
 fn render_content(
     frame: &mut Frame<'_>,
     content_area: Rect,
@@ -152,15 +290,7 @@ fn render_content(
     theme: &Theme,
 ) -> (Rect, bool) {
     let area = modal_area(content_area, &text);
-    let block = Block::new()
-        .borders(Borders::ALL)
-        .padding(Padding::horizontal(2))
-        .style(
-            theme
-                .style(Role::SurfaceOverlay)
-                .fg(theme.color(Role::TextPrimary)),
-        )
-        .border_style(theme.style(Role::AccentFocus));
+    let block = overlay_block(theme);
     let inner = block.inner(area);
     // The raw draft stays exact; what the modal draws is its safe projection
     // inside the inner width, with the raw cursor mapped through the same

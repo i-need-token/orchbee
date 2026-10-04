@@ -19,6 +19,8 @@ mod panel;
 #[cfg(windows)]
 mod plugin_overlays;
 mod presentations;
+#[cfg(windows)]
+mod quick_workspace;
 mod rename_draft;
 mod reorder;
 mod reorder_history;

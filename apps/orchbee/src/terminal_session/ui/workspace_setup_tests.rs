@@ -80,7 +80,7 @@ fn submit(ui: &mut NativeUi, mailbox: &CommandMailbox, existing: bool) -> Comman
     );
     lease
 }
-fn place(
+pub(super) fn place(
     mailbox: &CommandMailbox,
     clock: &LocalOperationClock,
     lease: &CommandLease,

@@ -70,6 +70,87 @@ decoder 义务。
 显式在所选路径启动终端、返回原 standalone shell，并观察无效目录拒绝且不回退。这些是本地
 开发见证，不证明安装后或跨平台就绪。
 
+## Windows 快速启动 Workspace
+
+`Ctrl+B Shift+N` 打开一个名称／目录表单，确认后创建带有第一个 shell 的 Workspace 并进入
+该终端。`Ctrl+B a` 保留高级空 Workspace 向导。快速表单不创建 Git checkout 或分支。
+关闭 Workspace 仍是独立动作。
+
+### 输入、决策和所有权
+
+Setup 所有者捕获发起 Client 的精确 context、焦点 Panel、主 Terminal binding、revision 和
+准备 token。有界只读准备使用新快照和主 Terminal 根进程目录，即使前台是 Agent 展示。
+只有明确缺失的根进程 cwd 才回退到 Workspace 主目录，再到 Windows 用户 home；采样不可用、
+根进程缺失、路径非法或来源改变均为拒绝。标签、进程采样和可编辑路径仍是不可信输入。
+executor 借用确切的存活主 pane Viewer，并校验已记录的 Host epoch 与物理 Terminal 身份；
+不会在同一 Session 中再次附着同一 Terminal，也不释放借用的 Viewer。主终端未附着时，
+使用临时只读 Viewer，在准备阶段原始清理截止时间内先释放，再接受或拒绝采样。
+路径复用既有 Windows 用户路径规范化（包括 `~`）；相对输入基于已准备的来源目录解析。
+名称限 512 个 Unicode scalar，路径限 4096 个 UTF-8 字节，不截断。
+
+| Project 情况                     | 选择                                 |
+| -------------------------------- | ------------------------------------ |
+| 来源是 Workspace                 | 其精确 Project ID                    |
+| 没有来源 Workspace；一个 Project | 该精确 Project ID                    |
+| 没有来源 Workspace；零个 Project | 确认后创建一个本地化 Default Project |
+| 没有来源 Workspace；多个 Project | 要求明确选择已有 Project             |
+
+目录 basename 提供初始名称，根目录使用本地化回退。Tab 在名称和目录间切换；Project 选择器
+使用精确身份，包括重复标签。Setup 草稿拥有原始字段、完整性、绘制回执和 token。Mailbox
+拥有 FIFO、截止时间、准备／命令 lease 和保留的 Worker 证据。Server navigation 拥有 revision
+及已提交结构身份；Worker／Host 拥有实际 shell 启动。既有 membership 与 attachment 所有者
+释放旧 Viewer、attach 新目标并建立首帧。其他 Client 保留其选择。
+
+### 转移和结果
+
+| 状态／事件                      | 守卫及结果                                                          |
+| ------------------------------- | ------------------------------------------------------------------- |
+| 打开快速表单                    | 既有结构权威空闲；捕获来源并排队一次只读准备                        |
+| 准备完成                        | 来源和 revision 相同；以新 token 显示预填可编辑字段                 |
+| 取消准备／表单                  | 丢弃草稿；不修改 Project 或 Workspace，忽略迟到准备                 |
+| 选择 Project／切换字段          | 新 token，并须再次完整绘制才能用 Enter 确认                         |
+| 确认                            | 解码完整且已完整绘制；校验两个字段，捕获一个不可变启动计划          |
+| 零个 Project                    | 提交一次 revision-fenced ProjectCreate；必要的新读取前保留其 ID     |
+| Project 已知且快照新鲜          | 只继续一次已确认计划；不要求第二次表单确认                          |
+| 启动                            | 提交一次显式规范 cwd、默认 shell 的 WorkspaceLaunch                 |
+| 启动已提交                      | 再读取前保留 Project／Workspace／目录／context／tab／Panel／展示 ID |
+| Terminal Started 且证明新鲜成员 | 使用既有清理、attach、控制权／尺寸及首帧流程，再进入终端            |
+| 明确拒绝                        | 保留原成员及已知先前 Project；不重放或自动 rebase                   |
+| 已知 pending／failed 启动       | 保留结构结果；显示可检查结果，不宣称 Ready 或创建替代对象           |
+| 丢失结果或提交后读取／交接失败  | 保留已知证据，必要时退役，显示明确恢复；不重放或补偿                |
+
+提交已接受后 Escape 不能撤销 Server 工作。迟到输入、旧 token、窄或失败绘制、peer revision
+变化及已取消准备不能授权另一启动。Default Project 创建和 Workspace 启动是两个独立提交；
+取消或失败绝不删除先前已提交 Project。既有 checkpoint 和位置偏好格式不变；位置发布仍须
+目标首帧成功绘制。
+
+### 正确性范围
+
+可执行的 [NativeQuickWorkspace 模型](../formal/tla/NativeQuickWorkspace.tla) 与其
+[配置](../formal/tla/NativeQuickWorkspace.cfg) 注册为 `native-quick-workspace`，覆盖一个
+Client／Site、四种 Project 情况、最多两次准备／表单打开、两次字段变化、八个已签发 token 值（零表示未设置）、
+一个已确认计划、一次可选 Project 交付、一次 Workspace 交付及一次 peer revision 写入。
+字段与完整解码抽象为布尔值，不枚举路径或终端字节。六个不变量与两个时态 action 性质
+检查确认、取消、至多一次提交、Project 前提、回执保留、未知结果不重放，以及 Started／
+新目标／首帧的 Ready 门槛。为有意停止的状态禁用死锁检查；不使用状态约束、对称归约、
+公平性或活性声明。TLC 2.19 穷尽 4,187 个独立状态、深度18、剩余状态0，22个必需 coverage
+转移均非零；证明范围仅为这些有限安全边界。
+
+模型细化到 setup 草稿的准备／token／绘制准入和不可变计划、mailbox 的单命令 flight 与
+保留证据，以及既有 membership／attachment 收尾。维护的 core 测试覆盖 Project ID 策略和
+Windows 字段上限；输入与真实 NativeUi／mailbox 测试覆盖字段 token 更新、取消、单次确认
+及 Default 继续。真实本地 carrier 测试采样主根进程而非子进程，要求精确的
+临时 Viewer 所需的 Attach／ReadProcessInfo／Detach 顺序，验证成功或拒绝前先释放；
+存活主 Viewer 则仅接收 ReadProcessInfo，在成功或身份无效时均保留其所有权。实际 shell renderer 检查
+两种语言并拒绝不完整表单。这些层不证明 Windows 进程采样、文件系统可访问性、完整 Viewer
+行为或真人 Windows Terminal／provider 会话；正常 Windows ConPTY 主流程是独立证据。
+
+正常开发 cohort 在受控 Windows ConPTY 下通过中英文流程：提交前取消、跟随 shell 切换后的
+中文／空格 cwd、编辑两个字段、相对路径、`~`、连续创建，以及另一个存活 Client 保留选择。
+零 Project 时一次确认后自动继续创建 Default 并启动 shell；重复标签 Project 选择器按选中的
+精确 ID 启动。每个已进入的 Workspace 都有一个首个 Tab／Panel、Ready Client，以及根 cwd
+与确认路径一致的存活 shell。这些隔离本地证据不等于真人 Windows Terminal 或真实 provider 会话。
+
 ## 全局 Workspace 排序
 
 Windows 的 `workspace move <target> --insert-index N` 和 `workspace move-block <targets...> [--before target]` 在同一快照中解析全部精确 ID、标签或 Workspace 后缀，再通过导航权威提交一次。全局显示顺序保留 Project／目录归属、终端身份及各 Client 的选择。索引是原顺序的插入边界；块按调用者顺序移动，允许跨 Project，来源包含 1–1023 个不同的已解析 ID。无变化时保留修订。

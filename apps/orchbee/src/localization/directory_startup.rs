@@ -7,15 +7,36 @@ impl Locale {
         workspace: Option<&str>,
         unknown: Option<&str>,
     ) -> String {
-        let mut text = match self {
-            Self::EnUs => "Initial workspace creation did not finish.\n",
-            Self::ZhCn => "首次工作区创建未完成。\n",
+        self.workspace_creation_failure(true, project, workspace, unknown)
+    }
+    pub(crate) fn quick_workspace_failure(
+        self,
+        project: Option<&str>,
+        workspace: Option<&str>,
+        unknown: Option<&str>,
+    ) -> String {
+        self.workspace_creation_failure(false, project, workspace, unknown)
+    }
+    fn workspace_creation_failure(
+        self,
+        initial: bool,
+        project: Option<&str>,
+        workspace: Option<&str>,
+        unknown: Option<&str>,
+    ) -> String {
+        let mut text = match (self, initial) {
+            (Self::EnUs, true) => "Initial workspace creation did not finish.\n",
+            (Self::ZhCn, true) => "首次工作区创建未完成。\n",
+            (Self::EnUs, false) => "Workspace creation did not finish.\n",
+            (Self::ZhCn, false) => "工作区创建未完成。\n",
         }
         .to_owned();
         if let Some(id) = project {
-            let label = match self {
-                Self::EnUs => "Created Project",
-                Self::ZhCn => "已创建项目",
+            let label = match (self, initial) {
+                (Self::EnUs, true) => "Created Project",
+                (Self::ZhCn, true) => "已创建项目",
+                (Self::EnUs, false) => "Project",
+                (Self::ZhCn, false) => "项目",
             };
             text.push_str(&format!("{label}: {id}\n"));
         }

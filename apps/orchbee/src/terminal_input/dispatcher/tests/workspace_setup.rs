@@ -94,6 +94,21 @@ impl TerminalInputPort for SetupPort {
     fn edit_setup_draft(&mut self, token: NativeSetupToken, edit: NativeSetupEdit<'_>) -> bool {
         assert_eq!(token, self.token());
         match edit {
+            NativeSetupEdit::NextField => {
+                if !matches!(
+                    self.stage,
+                    NativeSetupStage::QuickName | NativeSetupStage::QuickDirectory
+                ) {
+                    return false;
+                }
+                self.stage = if self.stage == NativeSetupStage::QuickName {
+                    NativeSetupStage::QuickDirectory
+                } else {
+                    NativeSetupStage::QuickName
+                };
+                self.token += 1;
+                self.shown = false;
+            }
             NativeSetupEdit::Append(text) => self.text.push_str(text),
             NativeSetupEdit::Paste(text) => {
                 self.edits.push("paste");
@@ -135,7 +150,10 @@ impl TerminalInputPort for SetupPort {
             self.submissions.push(self.stage);
             if matches!(
                 self.stage,
-                NativeSetupStage::ProjectRename | NativeSetupStage::WorkspaceRename
+                NativeSetupStage::ProjectRename
+                    | NativeSetupStage::WorkspaceRename
+                    | NativeSetupStage::QuickName
+                    | NativeSetupStage::QuickDirectory
             ) {
                 self.active = false;
                 return Some(SessionActionDisposition::KeepNavigator);
@@ -147,10 +165,48 @@ impl TerminalInputPort for SetupPort {
                 | NativeSetupStage::DirectoryPath
                 | NativeSetupStage::ProjectRename
                 | NativeSetupStage::WorkspaceRename => NativeSetupStage::DirectoryPath,
+                NativeSetupStage::PreparingWorkspace
+                | NativeSetupStage::QuickProject
+                | NativeSetupStage::QuickName
+                | NativeSetupStage::QuickDirectory => {
+                    panic!("quick launch requires its own port scenario")
+                }
             });
         }
         Some(SessionActionDisposition::KeepNavigator)
     }
+}
+
+#[test]
+fn quick_workspace_tab_changes_capacity_and_requires_a_fresh_draw_before_submit() {
+    let mut port = SetupPort::new(NativeSetupStage::QuickName);
+    port.shown = true;
+    let mut dispatcher = InputDispatcher::default();
+    let now = Instant::now();
+    dispatch(&mut dispatcher, &mut port, b"\t\r", now);
+    assert_eq!(port.stage, NativeSetupStage::QuickDirectory);
+    assert!(port.submissions.is_empty());
+    assert!(!port.shown);
+    port.shown = true;
+    let path = format!("C:/{}x", "猫".repeat(1364));
+    let input = format!("\x1b[200~{path}\x1b[201~\r");
+    dispatch(&mut dispatcher, &mut port, input.as_bytes(), now);
+    assert_eq!(port.text, path);
+    assert!(!port.fault);
+    assert_eq!(port.submissions, [NativeSetupStage::QuickDirectory]);
+    assert!(port.forwarded.is_empty());
+}
+
+#[test]
+fn quick_workspace_tab_remains_inert_in_the_advanced_wizard() {
+    let mut port = SetupPort::new(NativeSetupStage::WorkspaceLabel);
+    port.shown = true;
+    let token = port.token();
+    let mut dispatcher = InputDispatcher::default();
+    dispatch(&mut dispatcher, &mut port, b"\t", Instant::now());
+    assert_eq!(port.token(), token);
+    assert_eq!(port.stage, NativeSetupStage::WorkspaceLabel);
+    assert!(port.forwarded.is_empty());
 }
 
 #[test]
