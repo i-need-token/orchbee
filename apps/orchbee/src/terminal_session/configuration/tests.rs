@@ -14,6 +14,7 @@ use std::{
 fn snapshot(revision: u64, profile: &str) -> ConfigurationSnapshot {
     ConfigurationSnapshot {
         revision: WorkbenchRevision::new(revision),
+        diagnostics: Default::default(),
         keys_profile: profile.into(),
         notification_profile: "[ui.toast]\ndelivery='off'\n".into(),
         agent_sidebar_profile: r#"{"rows":null,"rows_by_agent":{},"row_gap":0}"#.into(),
@@ -34,7 +35,8 @@ fn bad_sidebar_publication_retains_keys_notifications_layout_and_revision_atomic
         shared: Arc::new((Mutex::new(Handoff::default()), Condvar::new())),
         wake,
         task: None,
-        revision: 0,
+        revision: None,
+        applied_snapshot: None,
         notification_update: None,
     };
     let mut view = ClientView::new(120);
@@ -44,7 +46,7 @@ fn bad_sidebar_publication_retains_keys_notifications_layout_and_revision_atomic
     candidate.agent_sidebar_profile = "{}".into();
     watcher.shared.0.lock().unwrap().snapshot = Some(candidate.clone());
     assert!(watcher.tick(&mut view));
-    assert_eq!(watcher.revision, 0);
+    assert_eq!(watcher.revision, None);
     assert_eq!(view.bindings(), before.bindings());
     assert_eq!(view.notifications, before.notifications);
     assert_eq!(view.machines, before.machines);
@@ -53,14 +55,14 @@ fn bad_sidebar_publication_retains_keys_notifications_layout_and_revision_atomic
     candidate.spaces_sidebar_profile = "{}".into();
     watcher.shared.0.lock().unwrap().snapshot = Some(candidate.clone());
     assert!(watcher.tick(&mut view));
-    assert_eq!(watcher.revision, 0);
+    assert_eq!(watcher.revision, None);
     assert_eq!(view.bindings(), before.bindings());
     assert_eq!(view.notifications, before.notifications);
     assert_eq!(view.machines, before.machines);
     candidate.spaces_sidebar_profile = r#"{"rows":[],"row_gap":3}"#.into();
     watcher.shared.0.lock().unwrap().snapshot = Some(candidate);
     assert!(watcher.tick(&mut view));
-    assert_eq!(watcher.revision, 1);
+    assert_eq!(watcher.revision, Some(1));
     assert!(
         view.bindings()
             .prefix
@@ -79,52 +81,594 @@ fn bad_sidebar_publication_retains_keys_notifications_layout_and_revision_atomic
 }
 
 #[test]
-fn only_valid_newer_publications_replace_keys_and_clear_prefix_without_changing_pointer_ownership()
-{
+fn authoritative_server_baseline_applies_once_then_revision_order_is_strict() {
+    use orchbee_workbench_protocol::{
+        ConfigurationDiagnostic, ConfigurationDiagnosticDisposition, ConfigurationDiagnostics,
+    };
     let (_reader, wake) = LocalStream::pair().unwrap();
     let mut watcher = Watcher {
         shared: Arc::new((Mutex::new(Handoff::default()), Condvar::new())),
         wake,
         task: None,
-        revision: 0,
+        revision: None,
+        applied_snapshot: None,
         notification_update: None,
     };
     let mut view = ClientView::new(120);
+    view.configure_keys(&WindowsKeySettings::from_profile("[keys]\nprefix='ctrl+a'").unwrap());
     view.settle_pointer_released(true);
     let prefix = view.decide(PrefixInput::Key(KeyEvent::press(
-        KeyCode::Char('b'),
+        KeyCode::Char('a'),
         Modifiers::CTRL,
     )));
     view.commit(prefix, SessionActionDisposition::KeepNavigator);
     assert!(view.prefix_active());
-    watcher.shared.0.lock().unwrap().snapshot = Some(snapshot(0, "[keys]\nprefix='ctrl+x'"));
-    assert!(
-        !watcher.tick(&mut view),
-        "startup baseline is not a publication"
-    );
-    assert!(view.prefix_active());
-    watcher.shared.0.lock().unwrap().snapshot = Some(snapshot(1, "[keys]\nprefix='ctrl+a'"));
+    let mut baseline = snapshot(0, "[keys]\nprefix='ctrl+x'");
+    baseline.diagnostics = ConfigurationDiagnostics {
+        items: vec![ConfigurationDiagnostic {
+            field: "keys.help".into(),
+            reason: "unsafe-binding".into(),
+            disposition: ConfigurationDiagnosticDisposition::Disabled,
+        }],
+        omitted_count: 0,
+    };
+    watcher.shared.0.lock().unwrap().snapshot = Some(baseline);
     assert!(watcher.tick(&mut view));
+    assert_eq!(watcher.revision, Some(0));
     assert!(!view.prefix_active());
     assert!(view.pointer_released());
+    assert!(
+        view.bindings()
+            .prefix
+            .matches(KeyEvent::press(KeyCode::Char('x'), Modifiers::CTRL))
+    );
+    assert_eq!(view.notice(), Some(Notice::ConfigurationWarning));
+    let retained = view.clone();
+    watcher.shared.0.lock().unwrap().snapshot = Some(snapshot(0, "[keys]\nprefix='ctrl+b'"));
+    assert!(!watcher.tick(&mut view));
+    assert_eq!(retained, view);
+    watcher.shared.0.lock().unwrap().snapshot = Some(snapshot(1, "[keys]\nprefix='ctrl+a'"));
+    assert!(watcher.tick(&mut view));
+    assert_eq!(watcher.revision, Some(1));
     assert!(
         view.bindings()
             .prefix
             .matches(KeyEvent::press(KeyCode::Char('a'), Modifiers::CTRL))
     );
     let retained = view.clone();
-    watcher.shared.0.lock().unwrap().snapshot = Some(snapshot(1, "[keys]\nprefix='ctrl+x'"));
+    watcher.shared.0.lock().unwrap().snapshot = Some(snapshot(0, "[keys]\nprefix='ctrl+x'"));
     assert!(!watcher.tick(&mut view));
     assert_eq!(retained, view);
     {
         let mut state = watcher.shared.0.lock().unwrap();
         state.snapshot = Some(snapshot(2, "[keys]\nhelp='ctrl+c'"));
-        state.notice = Some(Notice::ConfigurationPublished);
+        state.notice = Some(PendingNotice {
+            revision: Some(2),
+            needs_application: true,
+            notice: Notice::ConfigurationPublished,
+        });
     }
     assert!(watcher.tick(&mut view));
-    assert_eq!(watcher.revision, 1);
+    assert_eq!(watcher.revision, Some(1));
     assert_eq!(view.bindings(), retained.bindings());
     assert_eq!(view.notice(), Some(Notice::ConfigurationFailed));
+}
+
+#[test]
+fn diagnostics_follow_only_a_complete_newer_snapshot_and_clean_publication_clears_warning() {
+    use orchbee_workbench_protocol::{
+        ConfigurationDiagnostic, ConfigurationDiagnosticDisposition, ConfigurationDiagnostics,
+    };
+    let (_reader, wake) = LocalStream::pair().unwrap();
+    let mut watcher = Watcher {
+        shared: Arc::new((Mutex::new(Handoff::default()), Condvar::new())),
+        wake,
+        task: None,
+        revision: None,
+        applied_snapshot: None,
+        notification_update: None,
+    };
+    let mut view = ClientView::new(120);
+    let mut warning = snapshot(1, "[keys]\nprefix='ctrl+a'");
+    warning.diagnostics = ConfigurationDiagnostics {
+        items: vec![ConfigurationDiagnostic {
+            field: "keys.help".into(),
+            reason: "unsafe-binding".into(),
+            disposition: ConfigurationDiagnosticDisposition::Disabled,
+        }],
+        omitted_count: 0,
+    };
+    watcher.shared.0.lock().unwrap().snapshot = Some(warning);
+    assert!(watcher.tick(&mut view));
+    assert_eq!(watcher.revision, Some(1));
+    assert_eq!(view.notice(), Some(Notice::ConfigurationWarning));
+
+    {
+        let mut state = watcher.shared.0.lock().unwrap();
+        state.snapshot = Some(snapshot(1, "[keys]\nprefix='ctrl+x'"));
+        state.notice = Some(PendingNotice {
+            revision: Some(1),
+            needs_application: true,
+            notice: Notice::ConfigurationPublished,
+        });
+    }
+    assert!(!watcher.tick(&mut view));
+    assert_eq!(watcher.revision, Some(1));
+    assert_eq!(view.notice(), Some(Notice::ConfigurationWarning));
+
+    {
+        let mut state = watcher.shared.0.lock().unwrap();
+        state.snapshot = Some(snapshot(1, "[keys]\nprefix='ctrl+x'"));
+        state.notice = Some(PendingNotice {
+            revision: Some(1),
+            needs_application: false,
+            notice: Notice::ConfigurationPublished,
+        });
+    }
+    assert!(!watcher.tick(&mut view));
+    assert_eq!(watcher.revision, Some(1));
+    assert_eq!(view.notice(), Some(Notice::ConfigurationWarning));
+
+    watcher.shared.0.lock().unwrap().snapshot = Some(snapshot(2, "[keys]\nprefix='ctrl+x'"));
+    assert!(watcher.tick(&mut view));
+    assert_eq!(watcher.revision, Some(2));
+    assert_eq!(view.notice(), None);
+}
+
+#[test]
+fn warning_reload_keeps_the_agent_notification_surface_available() {
+    use orchbee_workbench_protocol::{
+        ConfigurationDiagnostic, ConfigurationDiagnosticDisposition, ConfigurationDiagnostics,
+        ConfigurationResult, WorkbenchResponse, write_workbench_response,
+    };
+    let server = FakeServer::start_connections(2, move |index, mut stream| {
+        assert!(matches!(
+            read_message(&mut stream).map_err(io::Error::other)?,
+            LocalClientMessage::ClientHello(_)
+        ));
+        write_message(
+            &mut stream,
+            &LocalClientMessage::ClientAccepted {
+                generation: NonZeroU64::new(u64::try_from(index + 1).unwrap()).unwrap(),
+            },
+        )
+        .map_err(io::Error::other)?;
+        if index == 0 {
+            return Ok(());
+        }
+        let WorkbenchRequest::Configuration(current) =
+            read_workbench_request(&mut stream).map_err(io::Error::other)?
+        else {
+            panic!("configuration current");
+        };
+        assert_eq!(current.action, ConfigurationAction::Current);
+        write_workbench_response(
+            &mut stream,
+            &WorkbenchResponse::Configuration(ConfigurationResult {
+                protocol_version: ProtocolVersion,
+                request_id: current.request_id,
+                site_id: current.site_id,
+                outcome: ConfigurationOutcome::Current {
+                    snapshot: snapshot(0, "[keys]\nprefix='ctrl+b'"),
+                },
+            }),
+        )
+        .map_err(io::Error::other)?;
+        let WorkbenchRequest::Configuration(reload) =
+            read_workbench_request(&mut stream).map_err(io::Error::other)?
+        else {
+            panic!("configuration reload");
+        };
+        assert_eq!(reload.action, ConfigurationAction::Reload);
+        let mut warning = snapshot(1, "[keys]\nprefix='ctrl+b'");
+        warning.diagnostics = ConfigurationDiagnostics {
+            items: vec![ConfigurationDiagnostic {
+                field: "keys.help".into(),
+                reason: "unsafe-binding".into(),
+                disposition: ConfigurationDiagnosticDisposition::Disabled,
+            }],
+            omitted_count: 0,
+        };
+        write_workbench_response(
+            &mut stream,
+            &WorkbenchResponse::Configuration(ConfigurationResult {
+                protocol_version: ProtocolVersion,
+                request_id: reload.request_id,
+                site_id: reload.site_id,
+                outcome: ConfigurationOutcome::Reloaded {
+                    snapshot: warning,
+                    changed: true,
+                },
+            }),
+        )
+        .map_err(io::Error::other)?;
+        assert_eq!(stream.read(&mut [0])?, 0);
+        Ok(())
+    })
+    .unwrap();
+    let client = LocalClient::connect(server.endpoint(), "test-cohort").unwrap();
+    let mut watcher = Watcher::spawn(
+        client.origin(),
+        client.operation_clock(),
+        SiteId::parse(&format!("{:032x}", 2)).unwrap(),
+    )
+    .unwrap();
+    drop(client);
+    let mut view = ClientView::new(120);
+    let deadline = std::time::Instant::now() + Duration::from_secs(3);
+    while watcher.revision != Some(0) {
+        assert!(
+            std::time::Instant::now() < deadline,
+            "initial snapshot deadline"
+        );
+        watcher.tick(&mut view);
+        thread::sleep(Duration::from_millis(5));
+    }
+    assert!(watcher.reload());
+    let deadline = std::time::Instant::now() + Duration::from_secs(3);
+    while watcher.revision != Some(1) {
+        assert!(
+            std::time::Instant::now() < deadline,
+            "warning reload deadline"
+        );
+        watcher.tick(&mut view);
+        thread::sleep(Duration::from_millis(5));
+    }
+    assert_eq!(view.notice(), Some(Notice::ConfigurationWarning));
+    assert!(!view.has_transient_notice());
+    assert!(crate::notifications::available(
+        &view,
+        Some(crate::terminal_session::TerminalSessionView::Native(
+            crate::terminal_session::NativeSessionView::notification_test_view(),
+        )),
+    ));
+    watcher.close();
+    server.finish().unwrap();
+}
+
+#[test]
+fn warning_reload_reports_restart_then_restores_warning_and_notification_availability() {
+    use orchbee_workbench_protocol::{
+        ConfigurationDiagnostic, ConfigurationDiagnosticDisposition, ConfigurationDiagnostics,
+        ConfigurationRestart, ConfigurationResult, WorkbenchResponse, write_workbench_response,
+    };
+    let server = FakeServer::start_connections(2, move |index, mut stream| {
+        assert!(matches!(
+            read_message(&mut stream).map_err(io::Error::other)?,
+            LocalClientMessage::ClientHello(_)
+        ));
+        write_message(
+            &mut stream,
+            &LocalClientMessage::ClientAccepted {
+                generation: NonZeroU64::new(u64::try_from(index + 1).unwrap()).unwrap(),
+            },
+        )
+        .map_err(io::Error::other)?;
+        if index == 0 {
+            return Ok(());
+        }
+        let WorkbenchRequest::Configuration(current) =
+            read_workbench_request(&mut stream).map_err(io::Error::other)?
+        else {
+            panic!("configuration current");
+        };
+        assert_eq!(current.action, ConfigurationAction::Current);
+        write_workbench_response(
+            &mut stream,
+            &WorkbenchResponse::Configuration(ConfigurationResult {
+                protocol_version: ProtocolVersion,
+                request_id: current.request_id,
+                site_id: current.site_id,
+                outcome: ConfigurationOutcome::Current {
+                    snapshot: snapshot(0, "[keys]\nprefix='ctrl+b'"),
+                },
+            }),
+        )
+        .map_err(io::Error::other)?;
+        let WorkbenchRequest::Configuration(reload) =
+            read_workbench_request(&mut stream).map_err(io::Error::other)?
+        else {
+            panic!("configuration reload");
+        };
+        assert_eq!(reload.action, ConfigurationAction::Reload);
+        let mut warning = snapshot(1, "[keys]\nprefix='ctrl+b'");
+        warning.diagnostics = ConfigurationDiagnostics {
+            items: vec![ConfigurationDiagnostic {
+                field: "keys.help".into(),
+                reason: "unsafe-binding".into(),
+                disposition: ConfigurationDiagnosticDisposition::Disabled,
+            }],
+            omitted_count: 0,
+        };
+        warning.restart_required = vec![ConfigurationRestart::ResumeAgents];
+        write_workbench_response(
+            &mut stream,
+            &WorkbenchResponse::Configuration(ConfigurationResult {
+                protocol_version: ProtocolVersion,
+                request_id: reload.request_id,
+                site_id: reload.site_id,
+                outcome: ConfigurationOutcome::Reloaded {
+                    snapshot: warning,
+                    changed: true,
+                },
+            }),
+        )
+        .map_err(io::Error::other)?;
+        assert_eq!(stream.read(&mut [0])?, 0);
+        Ok(())
+    })
+    .unwrap();
+    let client = LocalClient::connect(server.endpoint(), "test-cohort").unwrap();
+    let mut watcher = Watcher::spawn(
+        client.origin(),
+        client.operation_clock(),
+        SiteId::parse(&format!("{:032x}", 2)).unwrap(),
+    )
+    .unwrap();
+    drop(client);
+    let mut view = ClientView::new(120);
+    let deadline = std::time::Instant::now() + Duration::from_secs(3);
+    while watcher.revision != Some(0) {
+        assert!(
+            std::time::Instant::now() < deadline,
+            "initial snapshot deadline"
+        );
+        watcher.tick(&mut view);
+        thread::sleep(Duration::from_millis(5));
+    }
+    assert!(watcher.reload());
+    let deadline = std::time::Instant::now() + Duration::from_secs(3);
+    while watcher.revision != Some(1) {
+        assert!(
+            std::time::Instant::now() < deadline,
+            "warning restart reload deadline"
+        );
+        watcher.tick(&mut view);
+        thread::sleep(Duration::from_millis(5));
+    }
+    assert_eq!(view.notice(), Some(Notice::ConfigurationRestart));
+    assert!(view.has_transient_notice());
+    assert!(!crate::notifications::available(
+        &view,
+        Some(crate::terminal_session::TerminalSessionView::Native(
+            crate::terminal_session::NativeSessionView::notification_test_view(),
+        )),
+    ));
+
+    let prefix = view.decide(PrefixInput::Key(KeyEvent::press(
+        KeyCode::Char('b'),
+        Modifiers::CTRL,
+    )));
+    view.commit(prefix, SessionActionDisposition::KeepNavigator);
+    let dismiss = view.decide(PrefixInput::Key(KeyEvent::press(
+        KeyCode::Char('c'),
+        Modifiers::NONE,
+    )));
+    view.commit(dismiss, SessionActionDisposition::KeepNavigator);
+    assert_eq!(view.notice(), Some(Notice::ConfigurationWarning));
+    assert!(!view.has_transient_notice());
+    assert!(crate::notifications::available(
+        &view,
+        Some(crate::terminal_session::TerminalSessionView::Native(
+            crate::terminal_session::NativeSessionView::notification_test_view(),
+        )),
+    ));
+    watcher.close();
+    server.finish().unwrap();
+}
+
+#[test]
+fn unchanged_reload_reports_restart_without_reapplying_the_existing_snapshot() {
+    use orchbee_workbench_protocol::{
+        ConfigurationRestart, ConfigurationResult, WorkbenchResponse, write_workbench_response,
+    };
+    let server = FakeServer::start_connections(2, move |index, mut stream| {
+        assert!(matches!(
+            read_message(&mut stream).map_err(io::Error::other)?,
+            LocalClientMessage::ClientHello(_)
+        ));
+        write_message(
+            &mut stream,
+            &LocalClientMessage::ClientAccepted {
+                generation: NonZeroU64::new(u64::try_from(index + 1).unwrap()).unwrap(),
+            },
+        )
+        .map_err(io::Error::other)?;
+        if index == 0 {
+            return Ok(());
+        }
+        let WorkbenchRequest::Configuration(current) =
+            read_workbench_request(&mut stream).map_err(io::Error::other)?
+        else {
+            panic!("configuration current");
+        };
+        assert_eq!(current.action, ConfigurationAction::Current);
+        let mut baseline = snapshot(1, "[keys]\nprefix='ctrl+b'");
+        baseline.restart_required = vec![ConfigurationRestart::ResumeAgents];
+        write_workbench_response(
+            &mut stream,
+            &WorkbenchResponse::Configuration(ConfigurationResult {
+                protocol_version: ProtocolVersion,
+                request_id: current.request_id,
+                site_id: current.site_id,
+                outcome: ConfigurationOutcome::Current {
+                    snapshot: baseline.clone(),
+                },
+            }),
+        )
+        .map_err(io::Error::other)?;
+        let WorkbenchRequest::Configuration(reload) =
+            read_workbench_request(&mut stream).map_err(io::Error::other)?
+        else {
+            panic!("configuration reload");
+        };
+        assert_eq!(reload.action, ConfigurationAction::Reload);
+        write_workbench_response(
+            &mut stream,
+            &WorkbenchResponse::Configuration(ConfigurationResult {
+                protocol_version: ProtocolVersion,
+                request_id: reload.request_id,
+                site_id: reload.site_id,
+                outcome: ConfigurationOutcome::Reloaded {
+                    snapshot: baseline,
+                    changed: false,
+                },
+            }),
+        )
+        .map_err(io::Error::other)?;
+        assert_eq!(stream.read(&mut [0])?, 0);
+        Ok(())
+    })
+    .unwrap();
+    let client = LocalClient::connect(server.endpoint(), "test-cohort").unwrap();
+    let mut watcher = Watcher::spawn(
+        client.origin(),
+        client.operation_clock(),
+        SiteId::parse(&format!("{:032x}", 2)).unwrap(),
+    )
+    .unwrap();
+    drop(client);
+    let mut view = ClientView::new(120);
+    let deadline = std::time::Instant::now() + Duration::from_secs(3);
+    while watcher.revision != Some(1) {
+        assert!(
+            std::time::Instant::now() < deadline,
+            "initial snapshot deadline"
+        );
+        watcher.tick(&mut view);
+        thread::sleep(Duration::from_millis(5));
+    }
+    let prefix = view.decide(PrefixInput::Key(KeyEvent::press(
+        KeyCode::Char('b'),
+        Modifiers::CTRL,
+    )));
+    view.commit(prefix, SessionActionDisposition::KeepNavigator);
+    assert!(view.prefix_active());
+    assert!(watcher.reload());
+    let deadline = std::time::Instant::now() + Duration::from_secs(3);
+    while view.notice() != Some(Notice::ConfigurationRestart) {
+        assert!(
+            std::time::Instant::now() < deadline,
+            "unchanged reload receipt deadline"
+        );
+        watcher.tick(&mut view);
+        thread::sleep(Duration::from_millis(5));
+    }
+    assert_eq!(watcher.revision, Some(1));
+    assert!(
+        view.prefix_active(),
+        "unchanged snapshot must not be replayed"
+    );
+    assert!(watcher.take_notification_update().is_none());
+    watcher.close();
+    server.finish().unwrap();
+}
+
+#[test]
+fn unchanged_reload_catches_up_a_lagging_client_once_before_reporting_success() {
+    use orchbee_workbench_protocol::{
+        ConfigurationResult, WorkbenchResponse, write_workbench_response,
+    };
+    let server = FakeServer::start_connections(2, move |index, mut stream| {
+        assert!(matches!(
+            read_message(&mut stream).map_err(io::Error::other)?,
+            LocalClientMessage::ClientHello(_)
+        ));
+        write_message(
+            &mut stream,
+            &LocalClientMessage::ClientAccepted {
+                generation: NonZeroU64::new(u64::try_from(index + 1).unwrap()).unwrap(),
+            },
+        )
+        .map_err(io::Error::other)?;
+        if index == 0 {
+            return Ok(());
+        }
+        let WorkbenchRequest::Configuration(current) =
+            read_workbench_request(&mut stream).map_err(io::Error::other)?
+        else {
+            panic!("configuration current");
+        };
+        assert_eq!(current.action, ConfigurationAction::Current);
+        write_workbench_response(
+            &mut stream,
+            &WorkbenchResponse::Configuration(ConfigurationResult {
+                protocol_version: ProtocolVersion,
+                request_id: current.request_id,
+                site_id: current.site_id,
+                outcome: ConfigurationOutcome::Current {
+                    snapshot: snapshot(1, "[keys]\nprefix='ctrl+b'"),
+                },
+            }),
+        )
+        .map_err(io::Error::other)?;
+        let WorkbenchRequest::Configuration(reload) =
+            read_workbench_request(&mut stream).map_err(io::Error::other)?
+        else {
+            panic!("configuration reload");
+        };
+        assert_eq!(reload.action, ConfigurationAction::Reload);
+        write_workbench_response(
+            &mut stream,
+            &WorkbenchResponse::Configuration(ConfigurationResult {
+                protocol_version: ProtocolVersion,
+                request_id: reload.request_id,
+                site_id: reload.site_id,
+                outcome: ConfigurationOutcome::Reloaded {
+                    snapshot: snapshot(2, "[keys]\nprefix='ctrl+x'"),
+                    changed: false,
+                },
+            }),
+        )
+        .map_err(io::Error::other)?;
+        assert_eq!(stream.read(&mut [0])?, 0);
+        Ok(())
+    })
+    .unwrap();
+    let client = LocalClient::connect(server.endpoint(), "test-cohort").unwrap();
+    let mut watcher = Watcher::spawn(
+        client.origin(),
+        client.operation_clock(),
+        SiteId::parse(&format!("{:032x}", 2)).unwrap(),
+    )
+    .unwrap();
+    drop(client);
+    let mut view = ClientView::new(120);
+    let deadline = std::time::Instant::now() + Duration::from_secs(3);
+    while watcher.revision != Some(1) {
+        assert!(
+            std::time::Instant::now() < deadline,
+            "initial snapshot deadline"
+        );
+        watcher.tick(&mut view);
+        thread::sleep(Duration::from_millis(5));
+    }
+    assert!(watcher.reload());
+    let deadline = std::time::Instant::now() + Duration::from_secs(3);
+    while view.notice() != Some(Notice::ConfigurationPublished) {
+        assert!(
+            std::time::Instant::now() < deadline,
+            "lagging reload receipt deadline"
+        );
+        watcher.tick(&mut view);
+        thread::sleep(Duration::from_millis(5));
+    }
+    assert_eq!(watcher.revision, Some(2));
+    assert!(
+        view.bindings()
+            .prefix
+            .matches(KeyEvent::press(KeyCode::Char('x'), Modifiers::CTRL))
+    );
+    assert_eq!(
+        watcher
+            .take_notification_update()
+            .map(|(revision, _)| revision),
+        Some(2)
+    );
+    assert!(!watcher.tick(&mut view));
+    assert!(watcher.take_notification_update().is_none());
+    watcher.close();
+    server.finish().unwrap();
 }
 
 #[test]
@@ -252,7 +796,7 @@ fn submitted_reload_loss_recovers_by_read_only_and_installs_the_observed_publica
     release_tx.send(()).unwrap();
     let mut view = ClientView::new(120);
     let deadline = std::time::Instant::now() + Duration::from_secs(3);
-    while watcher.revision != 2 {
+    while watcher.revision != Some(2) {
         assert!(
             std::time::Instant::now() < deadline,
             "publication recovery deadline"
@@ -277,7 +821,8 @@ fn notification_policy_and_keys_are_applied_as_one_valid_publication() {
         shared: Arc::new((Mutex::new(Handoff::default()), Condvar::new())),
         wake,
         task: None,
-        revision: 0,
+        revision: None,
+        applied_snapshot: None,
         notification_update: None,
     };
     let mut view = ClientView::new(100);
@@ -291,7 +836,7 @@ fn notification_policy_and_keys_are_applied_as_one_valid_publication() {
     invalid.notification_profile = "[ui.toast]\ndelivery='bad'".into();
     watcher.shared.0.lock().unwrap().snapshot = Some(invalid);
     assert!(watcher.tick(&mut view));
-    assert_eq!(watcher.revision, 1);
+    assert_eq!(watcher.revision, Some(1));
     assert_eq!(view.bindings(), &keys);
     assert!(view.notifications.card_delivery());
 }

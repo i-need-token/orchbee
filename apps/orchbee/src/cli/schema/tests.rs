@@ -295,6 +295,144 @@ fn configuration_v4_requires_update_policy_without_widening_v3() {
 }
 
 #[test]
+fn configuration_v13_admits_bounded_warnings_without_widening_v12() {
+    use serde_json::json;
+    let schema: Value =
+        serde_json::from_str(super::document("orchbee.config.check").unwrap()).unwrap();
+    let full_validator = jsonschema::validator_for(&schema).unwrap();
+    let mut reduced = schema.clone();
+    reduced["$ref"] = json!("#/$defs/userConfigCheckV13");
+    reduced.as_object_mut().unwrap().remove("required");
+    reduced.as_object_mut().unwrap().remove("properties");
+    reduced
+        .as_object_mut()
+        .unwrap()
+        .remove("additionalProperties");
+    reduced.as_object_mut().unwrap().remove("allOf");
+    let validator = jsonschema::validator_for(&reduced).unwrap();
+    let details = json!({
+        "path": null,
+        "exists": false,
+        "newCwd": "follow",
+        "worktreeDirectory": null,
+        "resumeAgentsOnRestore": true,
+        "resumeAgentsOnRestoreSource": "default",
+        "manifestCheck": true,
+        "manifestCheckSource": "default",
+        "defaultShell": "",
+        "shellMode": "auto",
+        "keyPrefix": "Ctrl+B",
+        "keyOverrides": 0,
+        "windowTitle": "{hostname}: {workspace}",
+        "windowTitleDiagnostic": null,
+        "notificationDelivery": "off",
+        "notificationPosition": "bottom-right",
+        "agentSidebarProfile": "{}",
+        "spacesSidebarProfile": "{}",
+        "notificationAgentDelivery": "orchbee",
+        "notificationDelaySeconds": 1,
+        "notificationSoundEnabled": false,
+        "notificationAgentSounds": {},
+        "diagnostics": [],
+        "diagnosticsOmitted": 0
+    });
+    let pass = json!({"name":"user-config","status":"pass","details":details});
+    assert!(validator.is_valid(&pass));
+    let mut all_action_overrides = pass.clone();
+    all_action_overrides["details"]["keyOverrides"] = json!(33);
+    assert!(validator.is_valid(&all_action_overrides));
+    all_action_overrides["details"]["keyOverrides"] = json!(34);
+    assert!(!validator.is_valid(&all_action_overrides));
+    let mut warning = pass.clone();
+    warning["status"] = json!("warning");
+    warning["details"]["diagnostics"] = json!([{
+        "field":"theme.name",
+        "reason":"unsupported-herdr",
+        "disposition":"unsupported"
+    }]);
+    assert!(validator.is_valid(&warning));
+    let mut invalid_field = warning.clone();
+    invalid_field["details"]["diagnostics"][0]["field"] = json!("theme\u{0085}name");
+    assert!(!validator.is_valid(&invalid_field));
+    let mut invalid_reason = warning.clone();
+    invalid_reason["details"]["diagnostics"][0]["reason"] = json!("1unsupported");
+    assert!(!validator.is_valid(&invalid_reason));
+    let mut invalid_title_diagnostic = warning.clone();
+    invalid_title_diagnostic["details"]["windowTitleDiagnostic"] = json!("unknown-token");
+    assert!(!validator.is_valid(&invalid_title_diagnostic));
+    let mut invalid_pass = warning.clone();
+    invalid_pass["status"] = json!("pass");
+    assert!(!validator.is_valid(&invalid_pass));
+    let mut invalid_warning = pass.clone();
+    invalid_warning["status"] = json!("warning");
+    assert!(!validator.is_valid(&invalid_warning));
+    let endpoint = json!({"presence":"absent","status":"not-applicable"});
+    let budget = json!({"presence":"unchecked","status":"not-applicable","reason":"presence-not-inspected","addressBytes":12,"addressCapacityBytes":200,"path":"C:/endpoint"});
+    let mut fatal = json!({
+        "schema":"orchbee.config.check", "version":13, "source":{"kind":"local-runtime"},
+        "result":{"ok":false,"checks":[
+            {"name":"runtime-base","status":"pass","details":{"exists":true,"path":"C:/runtime"}},
+            {"name":"runtime-directory","status":"pass","details":{"exists":true,"path":"C:/runtime/site"}},
+            {"name":"cohort","status":"pass","details":{"verified":true}},
+            {"name":"locale","status":"pass","details":{"locale":"en-US","source":"LC_ALL"}},
+            {"name":"sockets","status":"not-applicable","details":{"client":endpoint,"worker":endpoint,"host":budget,"clientPending":budget}},
+            {"name":"user-config","status":"fail","details":{"field":"file","reason":"invalid-toml"}}
+        ]}
+    });
+    for (field, reason) in [
+        ("file", "invalid-path"),
+        ("file", "missing"),
+        ("file", "io-error"),
+        ("file", "not-file"),
+        ("file", "too-large"),
+        ("file", "invalid-utf8"),
+        ("file", "invalid-toml"),
+        ("ORCHBEE_CONFIG_FILE", "invalid-path"),
+        ("APPDATA", "invalid-path"),
+        ("ORCHBEE_RESUME_AGENTS_ON_RESTORE", "invalid-boolean"),
+    ] {
+        fatal["result"]["checks"][5]["details"] = json!({"field":field,"reason":reason});
+        assert!(full_validator.is_valid(&fatal), "{field}: {reason}");
+    }
+    for (field, reason) in [
+        ("keys", "invalid-binding"),
+        ("ui.toast", "wrong-type"),
+        ("session.resume_agents_on_restore", "wrong-type"),
+        ("file", "invalid-boolean"),
+        ("terminal.new_cwd", "invalid-path"),
+        ("worktrees.directory", "invalid-path"),
+        ("ORCHBEE_RESUME_AGENTS_ON_RESTORE", "invalid-path"),
+    ] {
+        fatal["result"]["checks"][5]["details"] = json!({"field":field,"reason":reason});
+        assert!(
+            !full_validator.is_valid(&fatal),
+            "field-local or mismatched fatal pair admitted: {field}: {reason}"
+        );
+    }
+    drop(full_validator);
+    let mut v12 = schema;
+    v12["$ref"] = json!("#/$defs/userConfigCheckV12");
+    v12.as_object_mut().unwrap().remove("required");
+    v12.as_object_mut().unwrap().remove("properties");
+    v12.as_object_mut().unwrap().remove("additionalProperties");
+    v12.as_object_mut().unwrap().remove("allOf");
+    let v12_validator = jsonschema::validator_for(&v12).unwrap();
+    assert!(!v12_validator.is_valid(&warning));
+    let mut legacy_fatal = json!({
+        "name":"user-config",
+        "status":"fail",
+        "details":{"field":"terminal.new_cwd","reason":"invalid-path"}
+    });
+    for field in ["terminal.new_cwd", "worktrees.directory"] {
+        legacy_fatal["details"] = json!({"field":field,"reason":"invalid-path"});
+        assert!(
+            v12_validator.is_valid(&legacy_fatal),
+            "legacy v12 stopped accepting {field}: invalid-path"
+        );
+    }
+}
+
+#[test]
 fn popup_receipts_and_client_control_v9_keep_older_versions_closed() {
     use serde_json::json;
     let corpus: Value = serde_json::from_str(include_str!(

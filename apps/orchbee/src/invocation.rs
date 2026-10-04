@@ -1595,6 +1595,9 @@ pub(crate) enum Request {
     Version,
     /// The embedded, locale-selected Agent guide; no runtime capabilities.
     Skill,
+    #[cfg(windows)]
+    /// The canonical Windows user configuration template; no runtime discovery.
+    DefaultConfig,
     RootHelp,
     Help(HelpTopic),
     Completion(CompletionShell),
@@ -1995,6 +1998,8 @@ enum Token {
     HelpFlag(&'static str),
     VersionFlag,
     SkillFlag,
+    #[cfg(windows)]
+    DefaultConfigFlag,
 }
 
 #[derive(Default)]
@@ -2687,6 +2692,11 @@ fn scan(tokens: Vec<String>) -> Result<SelectedRequest, ParseFailure> {
                 positionals.push(Token::SkillFlag);
                 index += 1;
             }
+            #[cfg(windows)]
+            "--default-config" => {
+                positionals.push(Token::DefaultConfigFlag);
+                index += 1;
+            }
             _ if token.starts_with('-') && token.len() > 1 => {
                 return Err(usage_with(
                     UsageReason::UnknownOption {
@@ -2720,6 +2730,16 @@ fn scan(tokens: Vec<String>) -> Result<SelectedRequest, ParseFailure> {
         })
         .transpose()?;
     let request = resolve(positionals, options)?;
+    #[cfg(windows)]
+    if matches!(&request, Request::DefaultConfig) && site.is_some() {
+        return Err(usage_with(
+            UsageReason::UnexpectedOption {
+                context: UsageContext::Literal("orchbee --default-config"),
+                option: "--site",
+            },
+            envelope,
+        ));
+    }
     #[cfg(windows)]
     if let Request::NamedSession { command, .. } = &request
         && let Some(name) = command.name()
@@ -2918,6 +2938,15 @@ fn apply_value_flag(
 
 fn resolve(positionals: Vec<Token>, options: Options) -> Result<Request, ParseFailure> {
     let envelope = selection_envelope(options.format);
+    #[cfg(windows)]
+    if positionals.len() == 1 && matches!(positionals[0], Token::DefaultConfigFlag) {
+        reject_extras(
+            &options,
+            UsageContext::Literal("orchbee --default-config"),
+            envelope,
+        )?;
+        return Ok(Request::DefaultConfig);
+    }
     if positionals.len() == 1 && matches!(positionals[0], Token::SkillFlag) {
         reject_extras(&options, UsageContext::Literal("orchbee --skill"), envelope)?;
         return Ok(Request::Skill);
@@ -2956,6 +2985,8 @@ fn resolve(positionals: Vec<Token>, options: Options) -> Result<Request, ParseFa
             Token::HelpFlag(_) | Token::VersionFlag | Token::SkillFlag => {
                 unreachable!("flags excluded above")
             }
+            #[cfg(windows)]
+            Token::DefaultConfigFlag => unreachable!("flags excluded above"),
         })
         .collect();
     resolve_words(&words, &options, envelope)
@@ -2966,6 +2997,8 @@ fn flag_literal(token: &Token) -> Option<&'static str> {
         Token::HelpFlag(literal) => Some(literal),
         Token::VersionFlag => Some("--version"),
         Token::SkillFlag => Some("--skill"),
+        #[cfg(windows)]
+        Token::DefaultConfigFlag => Some("--default-config"),
         Token::Word(_) => None,
     }
 }
@@ -2974,6 +3007,8 @@ fn word_literal(token: &Token) -> Option<&str> {
     match token {
         Token::Word(word) => Some(word.as_str()),
         Token::HelpFlag(_) | Token::VersionFlag | Token::SkillFlag => None,
+        #[cfg(windows)]
+        Token::DefaultConfigFlag => None,
     }
 }
 

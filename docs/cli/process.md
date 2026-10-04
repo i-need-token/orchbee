@@ -30,7 +30,7 @@ later phase:
    failure already knows its output format.
 2. Validate the complete grammar: command path, options, operands, targets, and value sets. A
    syntactic failure touches no configuration, filesystem, cohort, or endpoint.
-3. Answer offline commands — help, version, completion, and schema listings — from the build alone.
+3. Answer offline commands — help, version, default configuration, completion, and schema listings — from the build alone.
 4. Discover the runtime through the configured base and reject unsafe paths without repairing them.
 5. Admit exactly one session. Ordinary commands perform at most one read and one effect.
    Declared observation commands may repeat bounded reads; declared workflows may execute a finite

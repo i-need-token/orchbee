@@ -1,8 +1,11 @@
 //! CLI projection of the shared Windows settings owner.
 use super::{Failure, FailureKind};
 use crate::invocation::CreationDirectory;
+#[cfg(test)]
+use orchbee_local_site_runtime::WindowsUserSettings;
 use orchbee_local_site_runtime::{
-    WindowsDirectoryPolicy, WindowsSettingsError, WindowsUserSettings, read_windows_user_settings,
+    WindowsDirectoryPolicy, WindowsSettingsDiagnostics, WindowsSettingsError,
+    WindowsUserSettingsLoad, read_windows_user_settings,
 };
 use orchbee_workbench_protocol::{LaunchOptions, WorkbenchDirectoryPath};
 use std::path::PathBuf;
@@ -23,6 +26,7 @@ pub(super) struct Settings {
     manifest_check: bool,
     manifest_check_source: &'static str,
     resume_agents_on_restore_source: &'static str,
+    pub(super) diagnostics: WindowsSettingsDiagnostics,
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -77,7 +81,11 @@ pub(super) fn load() -> Result<Settings, Error> {
     project(read_windows_user_settings(|name| std::env::var_os(name))?)
 }
 
-fn project(raw: WindowsUserSettings) -> Result<Settings, Error> {
+fn project(load: WindowsUserSettingsLoad) -> Result<Settings, Error> {
+    let WindowsUserSettingsLoad {
+        settings: raw,
+        diagnostics,
+    } = load;
     let path = |value: String, field| {
         WorkbenchDirectoryPath::parse(&value).map_err(|_| Error::new(field, "invalid-path"))
     };
@@ -115,6 +123,7 @@ fn project(raw: WindowsUserSettings) -> Result<Settings, Error> {
         manifest_check: raw.manifest_check,
         manifest_check_source: raw.manifest_check_source,
         resume_agents_on_restore_source: raw.resume_agents_on_restore_source,
+        diagnostics,
     })
 }
 
@@ -132,7 +141,7 @@ impl Settings {
         }
     }
     pub(super) fn check_details(&self) -> serde_json::Map<String, serde_json::Value> {
-        serde_json::Map::from_iter([
+        let mut details = serde_json::Map::from_iter([
             (
                 "spacesSidebarProfile".into(),
                 self.space_sidebar.profile().into(),
@@ -229,7 +238,28 @@ impl Settings {
                 "worktreeDirectory".into(),
                 serde_json::json!(self.worktree_root),
             ),
-        ])
+        ]);
+        details.insert(
+            "diagnostics".into(),
+            serde_json::Value::Array(
+                self.diagnostics
+                    .items()
+                    .iter()
+                    .map(|diagnostic| {
+                        serde_json::json!({
+                            "field": diagnostic.field,
+                            "reason": diagnostic.reason,
+                            "disposition": diagnostic.disposition.as_str(),
+                        })
+                    })
+                    .collect(),
+            ),
+        );
+        details.insert(
+            "diagnosticsOmitted".into(),
+            self.diagnostics.omitted_count().into(),
+        );
+        details
     }
 }
 

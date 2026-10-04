@@ -15,7 +15,9 @@ fn sidebar_admission_shares_the_whole_file_owner_with_keys_and_notifications() {
     );
     assert_eq!(
         read("[ui.sidebar.spaces]\nrows=[[\"agent\"]]")
-            .unwrap_err()
+            .unwrap()
+            .diagnostics
+            .items()[0]
             .field,
         "ui.sidebar.spaces"
     );
@@ -32,9 +34,12 @@ fn sidebar_admission_shares_the_whole_file_owner_with_keys_and_notifications() {
         "[ui.sidebar.agents]\nrows=[['typo']]",
         "[ui]\nsidebar=42",
     ] {
-        assert_eq!(read(text).unwrap_err().field, "ui.sidebar.agents");
+        assert!(!read(text).unwrap().diagnostics.is_empty());
     }
-    assert!(read("[ui.sidebar.agents]\nrows=[['agent']]\n[keys]\nhelp='ctrl+c'").is_err());
+    let admitted = read("[ui.sidebar.agents]\nrows=[['agent']]\n[keys]\nhelp='ctrl+c'").unwrap();
+    assert_eq!(admitted.keys.overrides[0].action, "help");
+    assert!(admitted.keys.overrides[0].triggers.is_empty());
+    assert_eq!(admitted.diagnostics.items()[0].field, "keys.help");
 }
 
 #[test]
@@ -60,12 +65,18 @@ fn update_channel_is_strict_and_independent_of_manifest_checks() {
         ("'Preview'", "invalid-channel"),
         ("''", "invalid-channel"),
     ] {
-        let error = read(&format!("[update]\nchannel={value}")).unwrap_err();
-        assert_eq!(error.field, "update.channel");
-        assert_eq!(error.reason, reason);
+        let admitted = read(&format!("[update]\nchannel={value}")).unwrap();
+        assert_eq!(admitted.update_channel, WindowsUpdateChannel::Stable);
+        assert!(admitted.diagnostics.items().iter().any(|diagnostic| {
+            diagnostic.field == "update.channel" && diagnostic.reason == reason
+        }));
     }
-    assert!(read("[update]\nchannel='preview'\nunknown=true").is_err());
-    assert!(read("[update]\nchannel='preview'\nmanifest_check='true'").is_err());
+    let unknown = read("[update]\nchannel='preview'\nunknown=true").unwrap();
+    assert_eq!(unknown.update_channel, WindowsUpdateChannel::Preview);
+    assert_eq!(unknown.diagnostics.items()[0].field, "update.unknown");
+    let invalid = read("[update]\nchannel='preview'\nmanifest_check='true'").unwrap();
+    assert_eq!(invalid.update_channel, WindowsUpdateChannel::Preview);
+    assert!(invalid.manifest_check);
 }
 
 #[test]
@@ -88,13 +99,17 @@ fn configured_shell_is_strict_literal_and_keeps_directory_settings() {
         ("default_shell", "'C:relative.exe'"),
         ("default_shell", "'./shell.exe'"),
     ] {
-        let error = parse(
+        let admitted = parse(
             &format!("[terminal]\n{field}={value}"),
             Path::new(r"C:\config.toml"),
             &|_| None,
         )
-        .unwrap_err();
-        assert_eq!(error.field, format!("terminal.{field}"));
+        .unwrap();
+        assert_eq!(admitted.shell, WindowsShellSettings::default());
+        assert_eq!(
+            admitted.diagnostics.items()[0].field,
+            format!("terminal.{field}")
+        );
     }
     assert!(WindowsShellSettings::new(&"x".repeat(4096), "auto").is_ok());
     assert!(WindowsShellSettings::new(&"x".repeat(4097), "auto").is_err());
@@ -180,7 +195,10 @@ impl Fixture {
     fn file(&self) -> PathBuf {
         self.0.join("config.toml")
     }
-    fn read(&self, value: Option<OsString>) -> Result<WindowsUserSettings, WindowsSettingsError> {
+    fn read(
+        &self,
+        value: Option<OsString>,
+    ) -> Result<WindowsUserSettingsLoad, WindowsSettingsError> {
         read_windows_user_settings(|key| match key {
             "ORCHBEE_CONFIG_FILE" => Some(self.file().into_os_string()),
             "ORCHBEE_RESUME_AGENTS_ON_RESTORE" => value.clone(),
@@ -198,21 +216,16 @@ impl Drop for Fixture {
 }
 
 #[test]
-fn strict_sections_types_duplicate_keys_and_private_diagnostics() {
+fn parsed_field_failures_warn_without_exposing_values_and_duplicate_toml_is_fatal() {
     for (text, field, reason) in [
-        ("secret = 'DO-NOT-ECHO'", "file", "unknown-key"),
+        ("secret = 'DO-NOT-ECHO'", "secret", "unknown-key"),
         (
             "[terminal]\nunknown = 'DO-NOT-ECHO'",
-            "terminal.new_cwd",
+            "terminal.unknown",
             "unknown-key",
         ),
-        ("terminal = 2", "terminal.new_cwd", "wrong-type"),
+        ("terminal = 2", "terminal", "wrong-type"),
         ("[terminal]\nnew_cwd = 5", "terminal.new_cwd", "wrong-type"),
-        (
-            "[terminal]\nnew_cwd = 'home'\nnew_cwd = 'follow'",
-            "file",
-            "invalid-toml",
-        ),
         (
             "[worktrees]\ndirectory = ''",
             "worktrees.directory",
@@ -223,11 +236,7 @@ fn strict_sections_types_duplicate_keys_and_private_diagnostics() {
             "worktrees.directory",
             "invalid-path",
         ),
-        (
-            "session = 1",
-            "session.resume_agents_on_restore",
-            "wrong-type",
-        ),
+        ("session = 1", "session", "wrong-type"),
         (
             "[session]\nresume_agents_on_restore = 'false'",
             "session.resume_agents_on_restore",
@@ -240,19 +249,27 @@ fn strict_sections_types_duplicate_keys_and_private_diagnostics() {
         ),
         (
             "[session]\nunknown = false",
-            "session.resume_agents_on_restore",
+            "session.unknown",
             "unknown-key",
         ),
-        (
-            "[session]\nresume_agents_on_restore = true\nresume_agents_on_restore = false",
-            "file",
-            "invalid-toml",
-        ),
     ] {
-        let error = parse(text, Path::new(r"C:\config\config.toml"), &|_| None).unwrap_err();
-        assert_eq!((error.field, error.reason), (field, reason));
-        assert!(!format!("{error:?} {error}").contains("DO-NOT-ECHO"));
+        let admitted = parse(text, Path::new(r"C:\config\config.toml"), &|_| None).unwrap();
+        assert!(
+            admitted
+                .diagnostics
+                .items()
+                .iter()
+                .any(|diagnostic| { diagnostic.field == field && diagnostic.reason == reason })
+        );
+        assert!(!format!("{:?}", admitted.diagnostics).contains("DO-NOT-ECHO"));
     }
+    let error = parse(
+        "[session]\nresume_agents_on_restore = true\nresume_agents_on_restore = false",
+        Path::new(r"C:\config\config.toml"),
+        &|_| None,
+    )
+    .unwrap_err();
+    assert_eq!((error.field, error.reason), ("file", "invalid-toml"));
 }
 
 #[test]
@@ -306,9 +323,27 @@ fn defaults_file_and_environment_precedence_are_complete() {
         "[session]\nresume_agents_on_restore='secret'",
     )
     .unwrap();
+    let admitted = fixture.read(Some("true".into())).unwrap();
+    assert!(admitted.resume_agents_on_restore);
+    assert_eq!(admitted.resume_agents_on_restore_source, "environment");
     assert_eq!(
-        fixture.read(Some("true".into())).unwrap_err().field,
+        admitted.diagnostics.items()[0].field,
         "session.resume_agents_on_restore"
+    );
+
+    std::fs::write(fixture.file(), "[session]\nresume_agents_on_restore=true").unwrap();
+    let reloaded = read_windows_user_settings_at(Some(&fixture.file()), true, |name| {
+        (name == "ORCHBEE_RESUME_AGENTS_ON_RESTORE").then(|| "false".into())
+    })
+    .unwrap();
+    assert!(!reloaded.resume_agents_on_restore);
+    assert_eq!(reloaded.resume_agents_on_restore_source, "environment");
+    assert_eq!(
+        read_windows_user_settings_at(Some(&fixture.file()), true, |name| {
+            (name == "ORCHBEE_RESUME_AGENTS_ON_RESTORE").then(|| "invalid".into())
+        })
+        .unwrap_err(),
+        WindowsSettingsError::new("ORCHBEE_RESUME_AGENTS_ON_RESTORE", "invalid-boolean")
     );
 }
 
@@ -329,6 +364,10 @@ fn file_bounds_missing_locations_and_no_creation_are_preserved() {
     assert_eq!(fixture.read(None).unwrap_err().reason, "too-large");
     std::fs::write(fixture.file(), [0xff]).unwrap();
     assert_eq!(fixture.read(None).unwrap_err().reason, "invalid-utf8");
+    std::fs::remove_file(fixture.file()).unwrap();
+    std::fs::create_dir(fixture.file()).unwrap();
+    assert_eq!(fixture.read(None).unwrap_err().reason, "not-file");
+    std::fs::remove_dir(fixture.file()).unwrap();
     for value in ["", "relative", "C:relative", r"\\server\share\config.toml"] {
         assert_eq!(
             location(&|name| (name == "ORCHBEE_CONFIG_FILE").then(|| value.into()))
@@ -387,8 +426,9 @@ fn manifest_check_is_strict_defaulted_and_reload_keeps_the_frozen_location() {
     assert_eq!(next.manifest_check_source, "file");
     for text in ["[update]\nmanifest_check='false'", "[update]\nunknown=true"] {
         std::fs::write(fixture.file(), text).unwrap();
-        let error = fixture.read(None).unwrap_err();
-        assert_eq!(error.field, "update.manifest_check");
+        let admitted = fixture.read(None).unwrap();
+        assert!(admitted.manifest_check);
+        assert!(!admitted.diagnostics.is_empty());
     }
     std::fs::remove_file(fixture.file()).unwrap();
     assert_eq!(
@@ -408,7 +448,7 @@ fn window_title_settings_default_empty_invalid_syntax_and_strict_type() {
         WindowsUserSettings::default().window_title,
         "{hostname}: {workspace}"
     );
-    for title in ["", "{workspace}/{tab}", "{unknown}"] {
+    for title in ["", "{workspace}/{tab}"] {
         let settings = parse(
             &format!("[ui]\nwindow_title='{title}'\n[update]\nmanifest_check=false"),
             Path::new(r"C:\config.toml"),
@@ -418,12 +458,231 @@ fn window_title_settings_default_empty_invalid_syntax_and_strict_type() {
         assert_eq!(settings.window_title, title);
         assert!(!settings.manifest_check);
     }
+    let invalid = parse(
+        "[ui]\nwindow_title='{unknown}'",
+        Path::new(r"C:\config.toml"),
+        &|_| None,
+    )
+    .unwrap();
+    assert_eq!(invalid.window_title, DEFAULT_WINDOW_TITLE);
+    assert_eq!(invalid.diagnostics.items()[0].reason, "unknown-token");
     for text in ["[ui]\nwindow_title=2", "[ui]\nunknown='x'"] {
-        assert_eq!(
-            parse(text, Path::new(r"C:\config.toml"), &|_| None)
-                .unwrap_err()
-                .field,
-            "ui.window_title"
+        assert!(
+            !parse(text, Path::new(r"C:\config.toml"), &|_| None)
+                .unwrap()
+                .diagnostics
+                .is_empty()
         );
     }
+}
+
+#[test]
+fn herdr_only_fields_and_partial_key_failures_are_bounded_warnings() {
+    let admitted = parse(
+        "onboarding=false\n[theme]\nname='one-light'\n[terminal]\nkitty_graphics=true\n[keys]\nhelp=['prefix+?', 'ctrl+c', 'f1']\nnew_tab='prefix+n'\nnavigate_pane_left='h'\nindexed=true\n[ui]\nsidebar_width=24\nunknown_presentation=true\n[ui.sound]\ndone_path='done.mp3'",
+        Path::new(r"C:\config.toml"),
+        &|_| None,
+    )
+    .unwrap();
+    assert!(admitted.diagnostics.items().iter().any(|diagnostic| {
+        diagnostic.field == "onboarding"
+            && diagnostic.disposition == WindowsSettingsDiagnosticDisposition::Unsupported
+    }));
+    assert!(admitted.diagnostics.items().iter().any(|diagnostic| {
+        diagnostic.field == "theme.name" && diagnostic.reason == "unsupported-herdr"
+    }));
+    for field in [
+        "keys.indexed",
+        "keys.navigate_pane_left",
+        "ui.sidebar_width",
+        "ui.sound.done_path",
+    ] {
+        assert!(admitted.diagnostics.items().iter().any(|diagnostic| {
+            diagnostic.field == field
+                && diagnostic.reason == "unsupported-herdr"
+                && diagnostic.disposition == WindowsSettingsDiagnosticDisposition::Unsupported
+        }));
+    }
+    assert!(admitted.diagnostics.items().iter().any(|diagnostic| {
+        diagnostic.field == "ui.unknown_presentation"
+            && diagnostic.reason == "unknown-key"
+            && diagnostic.disposition == WindowsSettingsDiagnosticDisposition::Ignored
+    }));
+    let help = admitted
+        .keys
+        .overrides
+        .iter()
+        .find(|override_| override_.action == "help")
+        .unwrap();
+    assert_eq!(help.triggers.len(), 2);
+    assert!(
+        admitted
+            .keys
+            .overrides
+            .iter()
+            .any(|override_| { override_.action == "new_tab" && override_.triggers.len() == 1 })
+    );
+}
+
+#[test]
+fn invalid_explicit_key_action_stays_explicitly_disabled() {
+    for body in ["help=[]", "help=''", "help=42", "help=['ctrl+c']"] {
+        let admitted = parse(
+            &format!("[keys]\n{body}\nnew_tab='prefix+n'"),
+            Path::new(r"C:\config.toml"),
+            &|_| None,
+        )
+        .unwrap();
+        let help = admitted
+            .keys
+            .overrides
+            .iter()
+            .find(|override_| override_.action == "help")
+            .unwrap();
+        assert!(help.triggers.is_empty());
+        assert!(
+            admitted.keys.overrides.iter().any(|override_| {
+                override_.action == "new_tab" && override_.triggers.len() == 1
+            })
+        );
+        assert!(
+            admitted
+                .diagnostics
+                .items()
+                .iter()
+                .any(|diagnostic| diagnostic.field == "keys.help")
+        );
+    }
+}
+
+#[test]
+fn explicit_key_conflicts_use_registry_order_instead_of_toml_order() {
+    for body in [
+        "help='prefix+q'\nnew_tab='prefix+q'",
+        "new_tab='prefix+q'\nhelp='prefix+q'",
+    ] {
+        let admitted = parse(
+            &format!("[keys]\n{body}"),
+            Path::new(r"C:\config.toml"),
+            &|_| None,
+        )
+        .unwrap();
+        let help = admitted
+            .keys
+            .overrides
+            .iter()
+            .find(|setting| setting.action == "help")
+            .unwrap();
+        let new_tab = admitted
+            .keys
+            .overrides
+            .iter()
+            .find(|setting| setting.action == "new_tab")
+            .unwrap();
+        assert_eq!(help.triggers.len(), 1);
+        assert!(new_tab.triggers.is_empty());
+        assert!(admitted.diagnostics.items().iter().any(|diagnostic| {
+            diagnostic.field == "keys.new_tab"
+                && diagnostic.reason == "duplicate-binding"
+                && diagnostic.disposition == WindowsSettingsDiagnosticDisposition::Disabled
+        }));
+    }
+}
+
+#[test]
+fn every_registered_action_can_be_explicitly_disabled() {
+    let text = format!(
+        "[keys]\n{}",
+        keys::ACTIONS
+            .iter()
+            .map(|action| format!("{action}=[]"))
+            .collect::<Vec<_>>()
+            .join("\n")
+    );
+    let admitted = parse(&text, Path::new(r"C:\config.toml"), &|_| None).unwrap();
+    assert_eq!(keys::ACTIONS.len(), 33);
+    assert_eq!(admitted.keys.overrides.len(), keys::ACTIONS.len());
+    assert!(
+        admitted
+            .keys
+            .overrides
+            .iter()
+            .all(|setting| setting.triggers.is_empty())
+    );
+}
+
+#[test]
+fn invalid_explicit_notification_delivery_beats_legacy_enabled_and_defaults_off() {
+    let admitted = parse(
+        "[ui.toast]\nenabled=true\ndelivery='invalid'",
+        Path::new(r"C:\config.toml"),
+        &|_| None,
+    )
+    .unwrap();
+    assert_eq!(
+        admitted.notifications.delivery,
+        WindowsNotificationDelivery::Off
+    );
+    assert!(admitted.diagnostics.items().iter().any(|diagnostic| {
+        diagnostic.field == "ui.toast.delivery"
+            && diagnostic.disposition == WindowsSettingsDiagnosticDisposition::Defaulted
+    }));
+}
+
+#[test]
+fn warning_record_is_sorted_bounded_and_reports_omissions() {
+    let text: String = (0..140)
+        .map(|index| format!("unknown_{index:03}=true\n"))
+        .collect();
+    let admitted = parse(&text, Path::new(r"C:\config.toml"), &|_| None).unwrap();
+    assert_eq!(
+        admitted.diagnostics.items().len(),
+        MAXIMUM_WINDOWS_SETTINGS_DIAGNOSTICS
+    );
+    assert_eq!(admitted.diagnostics.omitted_count(), 12);
+    assert!(admitted.diagnostics.items().windows(2).all(|pair| (
+        pair[0].field.as_str(),
+        pair[0].reason
+    ) <= (
+        pair[1].field.as_str(),
+        pair[1].reason
+    )));
+}
+
+#[test]
+fn empty_unknown_key_has_a_nonempty_canonical_diagnostic_field() {
+    let admitted = parse("\"\" = true", Path::new(r"C:\config.toml"), &|_| None).unwrap();
+    assert_eq!(admitted.diagnostics.items().len(), 1);
+    assert_eq!(admitted.diagnostics.items()[0].field, "\\u{empty}");
+    assert_eq!(admitted.diagnostics.items()[0].reason, "unknown-key");
+}
+
+#[test]
+fn printed_default_configuration_roundtrips_without_freezing_action_defaults() {
+    let text = default_windows_user_settings_toml();
+    assert!(text.ends_with('\n'));
+    assert!(!text.ends_with("\n\n"));
+    let admitted = parse(text, Path::new(r"C:\config.toml"), &|_| None).unwrap();
+    let defaults = WindowsUserSettings::default();
+    assert!(admitted.diagnostics.is_empty());
+    assert_eq!(admitted.keys, defaults.keys);
+    assert_eq!(admitted.shell, defaults.shell);
+    assert_eq!(admitted.notifications, defaults.notifications);
+    assert_eq!(admitted.agent_sidebar, defaults.agent_sidebar);
+    assert_eq!(admitted.space_sidebar, defaults.space_sidebar);
+    assert_eq!(admitted.window_title, defaults.window_title);
+    assert_eq!(admitted.update_channel, defaults.update_channel);
+    assert_eq!(admitted.update_channel_source, "file");
+    assert_eq!(admitted.manifest_check, defaults.manifest_check);
+    assert_eq!(admitted.manifest_check_source, "file");
+    assert_eq!(
+        admitted.resume_agents_on_restore,
+        defaults.resume_agents_on_restore
+    );
+    assert_eq!(admitted.resume_agents_on_restore_source, "file");
+    assert_eq!(admitted.cwd, None);
+    assert_eq!(admitted.worktree_root, None);
+    assert_eq!(admitted.path, Some(PathBuf::from(r"C:\config.toml")));
+    assert!(admitted.exists);
+    assert!(!admitted.explicit);
 }

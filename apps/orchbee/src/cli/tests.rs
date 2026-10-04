@@ -292,6 +292,11 @@ fn fixed_outputs_are_far_below_the_bound() {
         )
     })
     .collect();
+    #[cfg(windows)]
+    bodies.push((
+        "default config".to_owned(),
+        orchbee_local_site_runtime::default_windows_user_settings_toml().to_owned(),
+    ));
     for family in [
         Family::Agent,
         Family::AgentIntegration,

@@ -2,6 +2,10 @@
 use crate::{ContractError, ProtocolVersion, SiteId, WorkbenchRequestId, WorkbenchRevision};
 use serde::{Deserialize, Serialize};
 pub const MAXIMUM_CONFIGURATION_BYTES: usize = 256 * 1024;
+pub const MAXIMUM_CONFIGURATION_DIAGNOSTICS: usize = 128;
+pub const MAXIMUM_CONFIGURATION_DIAGNOSTIC_FIELD_BYTES: usize = 256;
+pub const MAXIMUM_CONFIGURATION_DIAGNOSTIC_REASON_BYTES: usize = 64;
+pub const MAXIMUM_CONFIGURATION_DIAGNOSTICS_OMITTED: u32 = 65_536;
 pub const MAXIMUM_NOTIFICATION_PROFILE_BYTES: usize = 16 * 1024;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -30,10 +34,70 @@ pub enum ConfigurationRestart {
     ResumeAgents,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum ConfigurationDiagnosticDisposition {
+    Defaulted,
+    Disabled,
+    Ignored,
+    Unsupported,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ConfigurationDiagnostic {
+    pub field: String,
+    pub reason: String,
+    pub disposition: ConfigurationDiagnosticDisposition,
+}
+impl ConfigurationDiagnostic {
+    fn valid(&self) -> bool {
+        !self.field.is_empty()
+            && self.field.len() <= MAXIMUM_CONFIGURATION_DIAGNOSTIC_FIELD_BYTES
+            && !self.field.chars().any(char::is_control)
+            && !self.reason.is_empty()
+            && self.reason.len() <= MAXIMUM_CONFIGURATION_DIAGNOSTIC_REASON_BYTES
+            && self.reason.bytes().enumerate().all(|(index, byte)| {
+                byte.is_ascii_lowercase()
+                    || byte.is_ascii_digit()
+                    || (byte == b'-'
+                        && index > 0
+                        && index + 1 < self.reason.len()
+                        && self.reason.as_bytes()[index - 1] != b'-')
+            })
+            && self.reason.as_bytes()[0].is_ascii_lowercase()
+    }
+}
+
+#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ConfigurationDiagnostics {
+    pub items: Vec<ConfigurationDiagnostic>,
+    pub omitted_count: u32,
+}
+impl ConfigurationDiagnostics {
+    pub fn validate(&self) -> Result<(), ContractError> {
+        let valid = self.items.len() <= MAXIMUM_CONFIGURATION_DIAGNOSTICS
+            && self.omitted_count <= MAXIMUM_CONFIGURATION_DIAGNOSTICS_OMITTED
+            && self.items.iter().enumerate().all(|(index, item)| {
+                item.valid()
+                    && (index == 0
+                        || (&self.items[index - 1].field, &self.items[index - 1].reason)
+                            < (&item.field, &item.reason))
+            });
+        if valid {
+            Ok(())
+        } else {
+            Err(ContractError::InvalidDocument)
+        }
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ConfigurationSnapshot {
     pub revision: WorkbenchRevision,
+    pub diagnostics: ConfigurationDiagnostics,
     /// Canonical [keys] only, never arbitrary configuration-file contents.
     pub keys_profile: String,
     pub window_title: String,
@@ -138,7 +202,8 @@ impl ConfigurationResult {
         let valid = match &self.outcome {
             ConfigurationOutcome::Current { snapshot }
             | ConfigurationOutcome::Reloaded { snapshot, .. } => {
-                !snapshot.keys_profile.is_empty()
+                snapshot.diagnostics.validate().is_ok()
+                    && !snapshot.keys_profile.is_empty()
                     && snapshot.keys_profile.len() <= 64 * 1024
                     && snapshot.window_title.len() <= 4096
                     && !snapshot.notification_profile.is_empty()

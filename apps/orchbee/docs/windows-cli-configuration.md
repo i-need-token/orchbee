@@ -2,7 +2,7 @@
 
 ## File and validation
 
-Windows CLI creation reads `APPDATA/Orchbee/config.toml`, or the absolute file named by `ORCHBEE_CONFIG_FILE`. A missing default file means unchanged defaults; a missing explicit file is an error. Invalid or empty location variables, unreadable files, directories, files larger than 64 KiB, invalid UTF-8/TOML, unknown keys and wrong types fail before creation. Diagnostics identify the field and reason without echoing file contents. No configuration directory or file is created by reading or checking it.
+Windows CLI creation reads `APPDATA/Orchbee/config.toml`, or the absolute file named by `ORCHBEE_CONFIG_FILE`. A missing default file means unchanged defaults; a missing explicit file is an error. Invalid or empty location variables, unreadable files, directories, files larger than 64 KiB and invalid UTF-8/TOML are fatal before creation. A successfully parsed document is admitted field by field: an invalid supported leaf uses its existing safe default, an invalid profile uses that profile's existing safe default, and unknown fields are ignored. The reader reports every fallback as a warning without echoing values or commands. No configuration directory or file is created by reading or checking it.
 
 ```toml
 [terminal]
@@ -21,7 +21,15 @@ channel = "stable"
 manifest_check = true
 ```
 
-Only documented sections and keys are accepted, including the `[keys]` and `[ui]` families described below. `terminal.new_cwd` accepts `follow`, `home`, `current`, `workspace`, or a path. An empty value means `follow`. Paths use the Windows CLI path adapter: relative paths resolve against the configuration file's parent, tilde paths use Windows home, and ambiguous drive-relative, UNC and device paths are rejected. A missing `APPDATA` leaves defaults available; an explicit malformed value does not silently fall back.
+Only documented sections and keys affect Orchbee, including the `[keys]` and `[ui]` families described below. The known Herdr-only top-level families `onboarding`, `theme`, `server`, `advanced`, `experimental` and `remote` are identified as unsupported instead of being treated as generic unknown fields. Known unsupported nested fields include `terminal.kitty_graphics`, `update.version_check`, Herdr-only presentation and clipboard settings, custom sound paths, and key actions that have no Orchbee action. Recognition never enables a plugin, installs a provider or runs a configured command. Orchbee does not automatically read a Herdr configuration file.
+
+`terminal.new_cwd` accepts `follow`, `home`, `current`, `workspace`, or a path. An empty value means `follow`. Paths use the Windows CLI path adapter: relative paths resolve against the configuration file's parent, tilde paths use Windows home, and ambiguous drive-relative, UNC and device paths are rejected. An invalid path falls back only that leaf. A missing `APPDATA` leaves defaults available; an explicit malformed value does not silently fall back. The documented `ORCHBEE_RESUME_AGENTS_ON_RESTORE` environment override remains strict: anything other than exact `true` or `false` is fatal and cannot be hidden by file fallback.
+
+Warnings use a bounded canonical reason grammar and a closed disposition vocabulary, and carry only a bounded canonical dotted field path. They are deduplicated and sorted by field and reason. A result carries at most 128 warning entries and an exact omitted count, so truncation is always visible. Unknown path segments are escaped and truncated on a UTF-8 boundary; distinct original fields are deduplicated before display truncation.
+
+### Default configuration output
+
+`orchbee --default-config` is a sole offline invocation. Argument parsing selects it before any environment read or runtime discovery, and it does not activate a Site. It writes deterministic UTF-8 TOML with one trailing newline to stdout. The output contains explicit setting defaults and the default `keys.prefix`, while action overrides remain absent so redirecting the output to `config.toml` does not freeze the Client's evolving default action registry. Parsing the emitted document produces the same effective settings and bindings as an absent default file.
 
 ## Creation policy
 
@@ -39,19 +47,19 @@ The creation settings govern Windows CLI creation. The legacy explicit empty-Wor
 
 ## Check and correctness
 
-Windows `config check` version 2 adds a sixth `user-config` check to the five runtime checks. Version 1 keeps its five-check schema. The added check reports the selected file, presence, normalized effective settings, or a bounded reason and field. Invalid creation configuration uses the separate `orchbee.cli.failure.configuration` version-1 envelope and exits 1. Failed source discovery stops configured-path creation before first-Project setup; no mutation is retried.
+Windows `config check` version 13 extends the `user-config` check with the admitted warning list and omitted count. A warning result reports status `warning`, keeps the overall document successful and exits 0. Fatal file or environment admission reports status `fail` and exits 1. Versions 1 through 12 remain closed. The check reports the selected file, presence and normalized effective settings; fatal creation configuration continues to use the separate `orchbee.cli.failure.configuration` envelope. Failed source discovery stops configured-path creation before first-Project setup; no mutation is retried.
 
-The shared Windows settings reader owns bounded file inspection and normalization; the creation workflows own precedence and existing effect receipts. Reads have no writer or cached mutable state; the explicit reset operation below owns configuration repair. Core evidence covers malformed and duplicate TOML, unknown keys, bounds, relative/tilde paths, override precedence and pinned Herdr slug vectors. Windows public IPC traces cover effective launch cwd, configured checkout intent, failed discovery with no mutation, explicit path without discovery and unchanged no-file behavior. Full application acceptance remains a separate gate. Reference behavior: Herdr `e0507237ad8d41f60aece10d00ef29ce2339ca34`, `TerminalConfig`, `WorktreesConfig` and `default_checkout_path`.
+The shared Windows settings reader owns bounded file inspection, deterministic field admission and normalization; the creation workflows own precedence and existing effect receipts. Reads have no writer or cached mutable state; the explicit reset operation below owns configuration repair. Core evidence covers malformed and duplicate TOML, field-local fallback, stable bounded warnings, relative/tilde paths, override precedence and pinned Herdr slug vectors. Windows public IPC traces cover effective launch cwd, configured checkout intent, failed discovery with no mutation, explicit path without discovery and unchanged no-file behavior. Full application acceptance remains a separate gate. Reference behavior: Herdr `e0507237ad8d41f60aece10d00ef29ce2339ca34`, `TerminalConfig`, `WorktreesConfig` and `default_checkout_path`.
 
 ## Restore policy
 
-The shared Windows settings reader in `orchbee-local-site-runtime` owns bounded file inspection, strict TOML types and literal Windows path normalization. The CLI projects creation paths into Workbench types; no Workbench dependency is added to the runtime library. The existing pinned `toml` parser is a Windows dependency for the actual Client and Server consumers.
+The shared Windows settings reader in `orchbee-local-site-runtime` owns bounded file inspection, field-local typed admission and literal Windows path normalization. The CLI projects creation paths into Workbench types; no Workbench dependency is added to the runtime library. The existing pinned `toml` parser is a Windows dependency for the actual Client and Server consumers.
 
 `[session] resume_agents_on_restore` is a TOML boolean, default `true`. `ORCHBEE_RESUME_AGENTS_ON_RESTORE` overrides it with exactly `true` or `false`; an override never hides an invalid file. This setting applies only when starting a new Site lifetime. Existing Site admission does not read it, and editing it does not change a running Site.
 
-Client startup reads and validates once before durable Active publication or activation marker commitment. It passes the resolved boolean as a private Server argument; the Server validates that argument without rereading mutable settings. Direct managed Server startup without that argument reads the same file/environment owner before Worker launch. Invalid input leaves the preceding checkpoint and stopped state available for correction and retry. The private argument requires a matched cohort; rollback uses the preceding whole cohort.
+Client startup reads and validates once before durable Active publication or activation marker commitment. It passes the resolved restore boolean together with the frozen configuration location as private Server arguments. The Server validates those arguments and does not rederive the restore decision after consuming it. Before configuration publication, the Server reads one complete candidate at the frozen location, with the same inherited strict environment override, and makes that candidate the authoritative revision-0 baseline. Direct managed Server startup establishes the same startup decision and frozen location from its own first read. Fatal input leaves the preceding checkpoint and stopped state available for correction and retry. The private arguments require a matched cohort; rollback uses the preceding whole cohort.
 
-Windows `config check` version 3 reports `resumeAgentsOnRestore` and `resumeAgentsOnRestoreSource` (`default`, `file`, `environment`). Schemas for versions 1 and 2 remain available. Diagnostics report only a bounded field/reason. Checks must cover default/file/environment precedence, malformed and non-UTF-8 values, strict types/keys, read bounds, before-commit refusal and corrected retry, unchanged existing-Site admission, and actual disabled/enabled restart. Live reload, names and managed-state restoration are separate obligations.
+Windows `config check` version 3 reports `resumeAgentsOnRestore` and `resumeAgentsOnRestoreSource` (`default`, `file`, `environment`). Schemas for versions 1 and 2 remain available. Diagnostics report only a bounded field/reason. Checks must cover default/file/environment precedence, malformed and non-UTF-8 files, field-local type and key admission, read bounds, fatal before-commit refusal and corrected retry, unchanged existing-Site admission, and actual disabled/enabled restart. Live reload, names and managed-state restoration are separate obligations.
 
 ## Rule update policy
 
@@ -60,15 +68,18 @@ Windows `config check` version 3 reports `resumeAgentsOnRestore` and `resumeAgen
 `[update] manifest_check` is a TOML boolean, default true, with `default`/`file` provenance.
 Windows `config check` v4 adds `manifestCheck` and `manifestCheckSource` while v1-v3 remain closed.
 Client activation passes the validated check value/provenance and configuration path/explicit-file
-flag together with the resume policy. The managed Server admits this complete private snapshot
-without rereading the file; direct startup uses the shared settings reader once. Cohorts must match.
+flag together with the resume policy. The managed Server admits these private values as its
+startup-policy snapshot, then reads the complete authoritative revision-0 candidate at the
+frozen location; already-consumed restore policy does not change. Direct startup establishes both
+roles through the same settings owner. Cohorts must match.
 `read_windows_user_settings_at` supports bounded explicit reload at the frozen location, retaining
 missing-default versus missing-explicit semantics. It does not create configuration files.
 
 Persistent managed release Sites check rules at startup and every thirty minutes. Debug/test builds
 and standalone endpoints disable automatic network work. `site agent-manifests` exposes effective
 policy and latest automatic results. `site reload-agent-manifests` validates the complete file and
-atomically refreshes the rule-check switch with the detector; invalid configuration retains both.
+atomically refreshes the rule-check switch with the detector. A fatal file/TOML error retains both;
+field warnings apply the admitted fallback settings.
 Turning checks off removes scheduling; turning them back on schedules an immediate check. An
 active update returns busy for reload. Other running settings and keybindings are not hot-reloaded
 by this command. Explicit updates remain available when automatic checks are disabled. See the
@@ -159,12 +170,14 @@ cover this implementation; no ARM64 hardware acceptance is claimed.
 The bounded shared settings reader admits `[keys]` before Client startup. Each Client owns an
 immutable binding snapshot until publication; file edits/reset affect the next Client or an explicit live reload. The Client resolves implemented
 semantic actions against its default registry. User overrides replace that action's defaults and
-conflicting default chords. Ambiguous user chords, unsupported actions and invalid syntax fail
-admission. This strict failure policy differs from Herdr's diagnostic-and-disable policy and remains
-an explicit parity gap.
+conflicting default chords. An invalid explicit action remains an explicit disabled override, so its
+built-in default cannot silently return; other actions and valid alternatives in the same action remain
+available. Unknown actions are ignored with a warning, and known Herdr-only actions are reported as
+unsupported. When explicit actions claim the same chord, the fixed action-registry order selects the
+first and reports the later conflict. Diagnostics never retain the original binding or command.
 
-`prefix` accepts one chord. Action values accept a string or at most 16 alternatives; an empty
-string or array disables the action. `prefix+` selects the prefix layer; otherwise a safe direct
+`prefix` accepts one chord. Action values accept a string or at most 16 alternatives. An empty
+string or array remains an explicit disabled override and emits a bounded warning. `prefix+` selects the prefix layer; otherwise a safe direct
 chord is required. `switch_tab` and `focus_agent` admit `1..9` with modifiers. Agent ordinals follow
 the filtered machine Agent list; `focus_agent` is unbound by default. Complete modifiers and uppercase
 letters normalize before collision checks. The prefix itself is reserved in both layers. Direct
@@ -181,9 +194,10 @@ not queued. Profiles opting into these action names require a matching current c
 keys before using an older reader. Other existing profiles retain their defaults. Direct resize bindings require a modifier or a function key; bare editing keys stay with the pane.
 
 The resolved registry supplies dispatch, help rows and principal live hints. Disabled actions stay
-in help. Existing native defaults remain; unsupported Herdr fields fail explicitly. Complete reload parity,
-custom commands, navigation-mode mappings, ordinal Agent/indexed Workspace keys and other unsupported
-actions remain unfinished. Targeted evidence covers bounds, collisions/default precedence,
+in help. Existing native defaults remain for actions without an explicit override; unsupported Herdr
+fields warn without changing the effective registry. Invalid custom-command configuration disables
+configured commands rather than executing a partial or unvalidated command. Navigation-mode mappings,
+ordinal Agent/indexed Workspace keys and other unsupported actions remain unfinished. Targeted evidence covers bounds, collisions/default precedence,
 ownership, dispatch and discovery; no full regression or visual acceptance is claimed.
 
 Supported action fields are `help`, `new_workspace`, `rename_workspace`, `workspace_picker`,
@@ -206,13 +220,12 @@ focus_agent = "prefix+alt+1..9"
 zoom = ""
 ```
 
-Windows `config check` v6 adds `keyPrefix` and `keyOverrides`; key configuration failures use
-configuration failure v3. Older versions retain their closed field sets. The example lets new Tab
+Windows `config check` v13 retains `keyPrefix` and `keyOverrides` and adds the bounded warning record;
+historical key configuration failure v3 remains closed for older cohorts. The example lets new Tab
 replace the default next-Tab chord; empty `zoom` disables its shortcut. Bindings currently apply to
 the main TUI. CLI terminal-stream attach deliberately keeps its independent Ctrl+B/q escape;
 pinned Herdr `e0507237` also uses a fixed escape in `src/client/attach.rs`, so configurable attach
-is not a parity requirement. Complete keymap import and recovery through nonfatal diagnostics
-remain future implementation.
+is not a parity requirement. Complete keymap import remains a separate slice.
 
 Function keys use the actual xterm F1–F12 sequence numbers (skipping 16 and 22), modified
 F1–F4, and kitty F1–F24. Modifier event tails retain press, repeat and release; invalid events or
@@ -225,34 +238,63 @@ The sidebar profile participates in the same admission/publication transition:
 `ui.sidebar.agents.rows`, `rows_by_agent` and `row_gap` are validated by the shared
 Windows settings owner, then published as a bounded canonical profile. A Client
 validates keys, notifications and sidebar before installing any of them. A bad
-profile leaves the whole previous Client configuration intact. Startup applies
-the same admitted settings; configuration checking reports the supported layout
-and its bounds. See the [Agent sidebar configuration model](machines.md#agent-sidebar-configuration-model)
+private wire profile leaves the whole previous Client configuration intact. Startup applies
+the Server's complete admitted baseline after the first snapshot arrives; a local projection shown
+while connecting is provisional. Configuration checking reports the supported layout and its bounds.
+See the [Agent sidebar configuration model](machines.md#agent-sidebar-configuration-model)
 for tokens, provider selection, rules, geometry and evidence obligations.
 
 Windows `site reload-config` requests a reload in the running Site; `site config` reads the last
 published revision. Neither activates a Site. Server freezes the startup configuration location,
-serializes reloads, validates the bounded whole file and prepares its canonical key profile before
-commit. Failure retains the previous revision, key profile and live manifest-check schedule.
-Revision 0 is a startup baseline, not a live publication. The first successful reload publishes revision 1; later revisions advance only when admitted settings change. Readers may observe busy
+serializes reloads, parses the bounded whole file and prepares one admitted candidate containing
+effective settings and warnings before commit. A fatal read or parse failure retains the previous
+revision, every profile, diagnostics and live manifest-check schedule. A warning candidate atomically
+replaces effective settings and diagnostics; a Client never combines settings from one revision with
+diagnostics from another. Revision 0 is the authoritative startup baseline. A Client applies its first
+complete Server snapshot once, including revision 0, then rejects duplicate or older revisions. The first
+successful reload publishes revision 1; later revisions advance when either admitted settings or diagnostics change.
+This includes clearing a warning whose fallback value equals the newly valid explicit value. Readers may observe busy
 while another reload owns admission. A submitted request with a lost reply is outcome-unknown;
 Clients do not automatically resubmit mutations and can read current state for recovery.
 
-Server commits the supported live manifest-check policy and publishes keys for connected main-TUI
-Clients. Publication is not an acknowledgement from every Client. Each Client owns a cancellable
-configuration watcher and applies only a validated newer profile between input packets; pending
-prefix state is cleared, editor/confirmation ownership and user drafts remain intact. Reload failure
-keeps current keys and produces a localized notice. The reload action itself is configurable through `reload_config`. The native default is prefix F5; Herdr uses prefix Shift+R, which conflicts with the existing native Project rename default. A profile such as `reload_config = "prefix+shift+r"` explicitly replaces that conflicting default.
+The 64 KiB source limit and each profile's individual bound are admission inputs; the composed
+response must also fit the unchanged 256 KiB configuration-response limit. Before installing
+revision 0 or applying any live policy, and before every reload commit, Server runs the same exact
+serializer preflight over a complete `ConfigurationResult` (`Current` at startup and `Reloaded` on
+reload) with fixed-width legal correlation identifiers. An admitted source whose combined escaped
+profiles and diagnostics exceed that response bound is rejected without truncating otherwise valid
+settings. Startup installs no configuration state or live policy; reload retains the complete prior
+snapshot and live policy.
+
+Server commits the supported live manifest-check policy and publishes keys, profiles and the bounded
+warning record for connected main-TUI Clients. Publication is not an acknowledgement from every
+Client. Each Client owns a cancellable configuration watcher, rejects stale or duplicate revisions and
+applies one complete validated snapshot between input packets. Pending prefix state is cleared;
+editor/confirmation ownership and user drafts remain intact. A warning snapshot applies its effective
+settings and shows a localized summary directing the user to `orchbee config check`; a later clean
+snapshot clears that warning. Configuration health is retained independently from transient notices:
+a checkpoint-recovery notice wins the first startup display, then the warning returns after that notice
+is dismissed; the warning does not suppress Agent notification cards. Reload failure keeps current settings and warning record and produces a
+localized failure notice. The reload action itself is configurable through `reload_config`. The native default is prefix F5; Herdr uses prefix Shift+R, which conflicts with the existing native Project rename default. A profile such as `reload_config = "prefix+shift+r"` explicitly replaces that conflicting default.
 
 Changed restore-on-start policy is returned in `restartRequired` relative to Site startup;
 already-restored sessions remain owned by their current lifetime. Default shell and mode apply to
 subsequent preparations without a restart. CLI directory/worktree defaults are caller reads on the
-next invocation. This is partial Herdr reload parity: strict whole-file rejection, unimplemented
+next invocation. This is partial Herdr reload parity: unimplemented
 configuration families and Client-specific profile policy remain unfinished.
 The wire key profile is capped at 64 KiB; up to 144 expanded triggers per action preserve the user file limit of 16 indexed alternatives. Polling uses an independent cancellable connection every 500 ms, with a two-second exchange limit. A successful reload is published state, not an acknowledgement that every Client has applied it.
 
-No persisted configuration migration or automatic retry is introduced. Tests cover authorization,
-bounded serialization, failure retention, no-change reload, publication application and shutdown.
+No persisted configuration migration or automatic retry is introduced. The
+`WindowsConfigurationPublication` model checks provisional Client startup, one initial authoritative
+snapshot application, fatal preservation, atomic settings/diagnostic generations, monotonic later Client
+application, warning publication and warning clearing after application.
+Delivery fairness is not assumed; connection tests provide propagation evidence. Tests also cover
+authorization, bounded serialization, failure retention, no-change reload, publication application and
+shutdown.
+
+`site config` and `site reload-config` version 8 add the required `diagnostics` object to every
+successful snapshot. Text output prints the visible count, exact omitted count and each bounded
+field/reason/disposition record. Versions 1 through 7 remain closed and do not accept this member.
 
 ## Live defaults for subsequent Windows terminals
 
@@ -266,7 +308,7 @@ Launch preparation failure records the existing known pre-handoff failure, retai
 
 ## Outer window titles
 
-`[ui] window_title` defaults to `{hostname}: {workspace}` and reloads online. The [title owner](windows-terminal-title.md#configured-templates) defines tokens, literal braces, invalid/empty policy, bounded rendering and CLI override precedence. `config check` v8 reports `windowTitle` and nullable `windowTitleDiagnostic`; invalid template syntax is advisory, while wrong types/unknown UI keys/over-4096-byte values fail before admission (`orchbee.cli.failure.configuration` v4). `site config`/`site reload-config` v4 expose the published raw template. Prior public versions remain closed.
+`[ui] window_title` defaults to `{hostname}: {workspace}` and reloads online. The [title owner](windows-terminal-title.md#configured-templates) defines tokens, literal braces, invalid/empty policy, bounded rendering and CLI override precedence. Invalid syntax, a wrong type or an over-4096-byte value now defaults this leaf and appears in the `config check` v13 warning record; unknown `[ui]` keys are ignored with their own warning. The effective `windowTitle` remains valid and `windowTitleDiagnostic` therefore stays null. `site config`/`site reload-config` v8 expose the effective published template and diagnostics. Prior public versions remain closed.
 
 ## Custom-notification configuration
 

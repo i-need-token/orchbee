@@ -48,6 +48,15 @@ fn fail(name: &'static str, details: Map<String, Value>) -> CheckReport {
     }
 }
 
+#[cfg(windows)]
+fn warning(name: &'static str, details: Map<String, Value>) -> CheckReport {
+    CheckReport {
+        name,
+        status: "warning",
+        details,
+    }
+}
+
 #[cfg(any(target_os = "linux", windows))]
 fn not_applicable(name: &'static str, details: Map<String, Value>) -> CheckReport {
     CheckReport {
@@ -127,7 +136,7 @@ pub(crate) fn check(format: OutputFormat, locale: Locale) -> Output {
                 OutputFormat::Json => {
                     let document = json!({
                         "schema": "orchbee.config.check",
-                        "version": if cfg!(windows) { 12 } else { 1 },
+                        "version": if cfg!(windows) { 13 } else { 1 },
                         "source": local_runtime_source(),
                         "result": result,
                     });
@@ -194,7 +203,14 @@ fn run_checks() -> Result<Vec<CheckReport>, Failure> {
     checks.push(socket_checks(&site, &scope_directory));
     #[cfg(windows)]
     checks.push(match super::configuration::load() {
-        Ok(settings) => pass("user-config", settings.check_details()),
+        Ok(settings) => {
+            let status = if settings.diagnostics.is_empty() {
+                pass
+            } else {
+                warning
+            };
+            status("user-config", settings.check_details())
+        }
         Err(error) => fail(
             "user-config",
             Map::from_iter([

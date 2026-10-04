@@ -98,8 +98,17 @@ use presentation::{ProcessResult, present};
 const _: fn(localization::Locale, bool) -> Result<(), tui_shell::TuiFailure> = tui_shell::run;
 
 fn main() -> ExitCode {
+    let selected = parse_selected_request(env::args_os().skip(1));
+    #[cfg(windows)]
+    if let Ok(selected) = &selected
+        && matches!(&selected.request, invocation::Request::DefaultConfig)
+    {
+        // The canonical template is locale-neutral. Keep this sole offline route ahead of every
+        // environment read, including locale selection.
+        return emit(cli::default_config(Locale::EnUs), Locale::EnUs);
+    }
     let locale = select_locale(|name| env::var_os(name));
-    let parsed = parse_selected_request(env::args_os().skip(1)).map(|selected| {
+    let parsed = selected.map(|selected| {
         #[cfg(windows)]
         local_activation::select_site(selected.site);
         selected.request
@@ -156,6 +165,8 @@ fn main() -> ExitCode {
             }
             Ok(invocation::Request::Help(topic)) => cli::help(topic, locale),
             Ok(invocation::Request::Skill) => cli::skill(locale),
+            #[cfg(windows)]
+            Ok(invocation::Request::DefaultConfig) => cli::default_config(locale),
             Ok(invocation::Request::Completion(shell)) => cli::completion(shell, locale),
             #[cfg(windows)]
             Ok(invocation::Request::TerminalClear { target, format }) => {

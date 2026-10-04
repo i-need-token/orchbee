@@ -428,9 +428,9 @@ The shared pure `windows_reported_directory` decoder preserves valid terminal-re
 
 ## Windows user settings
 
-The same strict reader owns `WindowsUpdateChannel` (`stable`/`preview`, default stable) and default/file provenance. Native `channel show` consumes this preference offline; it does not infer installed release identity or run an updater.
+The same reader owns `WindowsUpdateChannel` (`stable`/`preview`, default stable) and default/file provenance. An invalid file value defaults that leaf and enters the warning record; the documented environment boundary remains fatal. Native `channel show` consumes the effective preference offline; it does not infer installed release identity or run an updater.
 
-The shared bounded settings reader and pure Windows user-path adapter serve CLI configuration, common Client activation and direct managed Server startup. They own strict file/type/path admission and resolved restore policy; applications own wire projection, activation commit and private child arguments. See [configuration and precedence](../../apps/orchbee/docs/windows-cli-configuration.md). The Windows-only pinned `toml` dependency parses at this file boundary. No mutable cache, writer or Workbench dependency is introduced.
+The shared bounded settings reader and pure Windows user-path adapter serve CLI configuration, common Client activation and direct managed Server startup. They own fatal file/path/environment admission, field-local fallback to existing safe defaults, resolved restore policy and a deterministic warning record; applications own wire projection, activation commit and private child arguments. The load result keeps effective settings and diagnostics together. Diagnostics are deduplicated before display truncation, sorted by field and reason, capped at 128 entries with an exact omitted count, and never retain source values or commands. See [configuration and precedence](../../apps/orchbee/docs/windows-cli-configuration.md). The Windows-only pinned `toml` dependency parses at this file boundary. No mutable cache, writer or Workbench dependency is introduced.
 
 The pure `windows_user_settings_path` resolver exposes the same configuration-file location for companion assets without opening the file or applying settings. It preserves explicit `ORCHBEE_CONFIG_FILE` precedence over `%APPDATA%/Orchbee/config.toml`; absent roots remain absent. The Server uses its parent for detection-rule inputs.
 
@@ -448,7 +448,7 @@ The Server updater is the real consumer; this adapter alone does not implement r
 
 `read_existing` pins and validates an existing private directory tree and performs a bounded leaf read without creating directories, lock files or staging files. It serves startup/reload status inspection; missing cache paths remain absent.
 
-Windows settings also admit strict `[update] manifest_check` (default true) and retain default/file provenance plus explicit-location status. `read_windows_user_settings_at` serves explicit reload at a frozen path, preserving missing-default/missing-explicit behavior without creating files. Applications retain startup snapshot transport and automatic scheduling policy.
+Windows settings also admit `[update] manifest_check` (default true) and retain default/file provenance plus explicit-location status. Invalid supported leaves default independently; invalid key actions remain explicit disabled overrides, while valid chords from the same action survive. `read_windows_user_settings_at` reads a complete candidate at a frozen path, reapplies the strict resume environment override, preserves missing-default/missing-explicit behavior and creates no files. Applications retain atomic settings/diagnostics publication, the authoritative Server startup baseline and automatic scheduling policy.
 
 ## Windows keybinding configuration repair
 

@@ -86,18 +86,21 @@ candidate waits and never replaces it. One accepted candidate produces effects a
 not persisted across Client exit.
 
 The Site publishes keys, sidebar settings and this complete notification profile atomically. An
-invalid startup or reload candidate retains the previous profile. A valid changed revision cancels
-all old automatic candidates and undrawn notification effects; later state transitions use the new
-profile. The default automatic popup is in-app and the default automatic sound is off. Disabling
-both at runtime and reloading is the immediate rollback. Because settings parsing is strict, rolling
-back to an older binary also requires removing `agent_delivery`, `delay_seconds` and `[ui.sound]`.
+unreadable, oversized, non-UTF-8 or malformed-TOML startup/reload source retains the previous
+profile. An invalid notification leaf uses its safe default, emits a warning and participates in the
+complete atomic candidate; a malformed private wire profile is still rejected before Client
+installation. A valid changed revision cancels all old automatic candidates and undrawn notification
+effects; later state transitions use the new profile. The default automatic popup is in-app and the
+default automatic sound is off. Disabling both at runtime and reloading is the immediate rollback.
+Rolling back to an older binary also requires removing `agent_delivery`, `delay_seconds` and
+`[ui.sound]`.
 
 ### Correctness claims and evidence
 
 The reducer claims: baselines, replacements and unknown transitions never alert; only the two rows
 above create candidates; stale or seen candidates never deliver; acknowledgement is Client-local;
 each exact Client/identity/sequence/kind delivers at most once; muted Agents have no automatic
-sound; invalid reload preserves policy; valid reload cancels old work; a busy manual surface is
+sound; fatal-source or malformed-wire reload preserves policy; valid reload cancels old work; a busy manual surface is
 never overwritten; pending work is bounded; and retirement produces no late effect.
 `NativeAgentNotifications` is a global transition machine parameterized by any nonempty finite
 `Clients` set. The inventory TLC configuration enumerates one symmetric Client coordinate with the
@@ -109,7 +112,7 @@ a direct TLC enumeration of the Cartesian product.
 | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Shared logical clock only  | `AdvanceTime`                                                                                                                                                                              |
 | One Client coordinate only | baseline installation; all four changed observations; replacement; unavailable; exact presentation; successful draw; valid reload; sink busy/available; emit; seen suppression; retirement |
-| Pure stutter               | repeated observation; stale presentation; invalid reload; all-retired stutter                                                                                                              |
+| Pure stutter               | repeated observation; stale presentation; fatal or malformed reload; all-retired stutter                                                                                                   |
 
 For a Client `c`, project a global behavior to `c`'s status, observation, identity generation,
 version, seen state, candidate, configuration, sink, draw, last-emitted position and violation

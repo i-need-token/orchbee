@@ -4648,6 +4648,47 @@
 			]
 		},
 		{
+			"id": "windows-configuration-publication",
+			"owner": "orchbee",
+			"workspace": "apps/orchbee",
+			"module": "apps/orchbee/formal/tla/WindowsConfigurationPublication.tla",
+			"config": "apps/orchbee/formal/tla/WindowsConfigurationPublication.cfg",
+			"claims": ["apps/orchbee/docs/windows-cli-configuration.md"],
+			"triggers": [
+				"apps/orchbee/docs/windows-cli-configuration.md",
+				"apps/orchbee/docs/windows-cli-configuration.zh-CN.md",
+				"apps/orchbee/src/cli/config.rs",
+				"apps/orchbee/src/cli/configuration.rs",
+				"apps/orchbee/src/cli/runtime_configuration.rs",
+				"apps/orchbee/src/cli/schemas/orchbee.site.configuration.json",
+				"apps/orchbee/src/client_view.rs",
+				"apps/orchbee/src/terminal_session/configuration.rs",
+				"apps/orchbee/src/tui_shell.rs",
+				"apps/orchbee-server/src/local_terminal_service/configuration.rs",
+				"apps/orchbee-server/src/local_terminal_service/process_observer.rs",
+				"apps/orchbee-server/src/local_terminal_service/process_observer/manifests.rs",
+				"apps/orchbee-server/src/local_terminal_service/process_observer/manifests/**",
+				"crates/local-site-runtime/src/windows_user_settings.rs",
+				"crates/local-site-runtime/src/windows_user_settings/**",
+				"crates/workbench-protocol/src/command/configuration.rs",
+				"packages/workbench-client-protocol/src/workbench-configuration-contract.ts",
+				"schemas/workbench/v1/workbench-configuration-conformance-v1.json",
+				"schemas/workbench/v1/workbench-configuration.schema.json"
+			],
+			"workers": 1,
+			"requiredCoverage": [
+				"ApplyInitialSnapshot",
+				"ReloadWarning",
+				"ReloadClean",
+				"PublishWarningWithoutSettingChange",
+				"ClearWarningWithoutSettingChange",
+				"PublishFirstUnchanged",
+				"ReloadFatal",
+				"ApplyNewerSnapshot",
+				"RejectStaleSnapshot"
+			]
+		},
+		{
 			"id": "client-view-control",
 			"workers": 8,
 			"owner": "orchbee-server",

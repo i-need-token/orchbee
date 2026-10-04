@@ -28,6 +28,7 @@ fn configuration_roundtrips_have_distinct_carrier_kinds_and_exact_correlation() 
         outcome: ConfigurationOutcome::Reloaded {
             snapshot: ConfigurationSnapshot {
                 revision: WorkbenchRevision::new(1),
+                diagnostics: ConfigurationDiagnostics::default(),
                 keys_profile: format!("[keys]\n#{}", "x".repeat(20_000)),
                 default_shell: String::new(),
                 shell_mode: orchbee_workbench_protocol::ConfigurationShellMode::Auto,
@@ -80,6 +81,7 @@ fn configuration_rejects_unknown_fields_oversize_and_invalid_failure_shapes() {
     result.outcome = ConfigurationOutcome::Current {
         snapshot: ConfigurationSnapshot {
             revision: WorkbenchRevision::new(1),
+            diagnostics: ConfigurationDiagnostics::default(),
             keys_profile: "x".repeat(65537),
             notification_profile: "[ui.toast]".into(),
             agent_sidebar_profile: r#"{"rows":null,"rows_by_agent":{},"row_gap":0}"#.into(),
@@ -92,6 +94,75 @@ fn configuration_rejects_unknown_fields_oversize_and_invalid_failure_shapes() {
         },
     };
     assert!(serialize_workbench_response(&WorkbenchResponse::Configuration(result)).is_err());
+}
+
+fn diagnostic(field: impl Into<String>, reason: impl Into<String>) -> ConfigurationDiagnostic {
+    ConfigurationDiagnostic {
+        field: field.into(),
+        reason: reason.into(),
+        disposition: ConfigurationDiagnosticDisposition::Defaulted,
+    }
+}
+
+#[test]
+fn configuration_diagnostics_are_bounded_closed_and_canonical() {
+    let mut diagnostics = ConfigurationDiagnostics {
+        items: (0..MAXIMUM_CONFIGURATION_DIAGNOSTICS)
+            .map(|index| diagnostic(format!("keys.action.{index:03}"), "invalid-binding"))
+            .collect(),
+        omitted_count: MAXIMUM_CONFIGURATION_DIAGNOSTICS_OMITTED,
+    };
+    assert!(diagnostics.validate().is_ok());
+
+    diagnostics
+        .items
+        .push(diagnostic("keys.overflow", "wrong-type"));
+    assert!(diagnostics.validate().is_err());
+    diagnostics.items.pop();
+
+    diagnostics.items = vec![diagnostic(format!("{}a", "界".repeat(85)), "unknown-key")];
+    assert_eq!(diagnostics.items[0].field.len(), 256);
+    assert!(diagnostics.validate().is_ok());
+    diagnostics.items[0].field.push('界');
+    assert!(diagnostics.validate().is_err());
+
+    diagnostics.items = vec![diagnostic("keys.help", "Invalid_Binding")];
+    assert!(diagnostics.validate().is_err());
+    diagnostics.items[0].reason = "a".repeat(MAXIMUM_CONFIGURATION_DIAGNOSTIC_REASON_BYTES);
+    assert!(diagnostics.validate().is_ok());
+    diagnostics.items[0].reason.push('a');
+    assert!(diagnostics.validate().is_err());
+
+    diagnostics.items = vec![diagnostic("keys.\u{85}help", "wrong-type")];
+    assert!(diagnostics.validate().is_err());
+    diagnostics.items = vec![
+        diagnostic("keys.help", "invalid-binding"),
+        diagnostic("keys.help", "wrong-type"),
+    ];
+    assert!(diagnostics.validate().is_ok());
+    diagnostics.items.reverse();
+    assert!(diagnostics.validate().is_err());
+    diagnostics.items = vec![
+        diagnostic("\u{e000}", "wrong-type"),
+        diagnostic("\u{10000}", "wrong-type"),
+    ];
+    assert!(diagnostics.validate().is_ok());
+    diagnostics.items.reverse();
+    assert!(diagnostics.validate().is_err());
+    diagnostics.items = vec![
+        diagnostic("keys.help", "wrong-type"),
+        diagnostic("keys.help", "wrong-type"),
+    ];
+    assert!(diagnostics.validate().is_err());
+    diagnostics.items = vec![
+        diagnostic("keys.zoom", "wrong-type"),
+        diagnostic("keys.help", "wrong-type"),
+    ];
+    assert!(diagnostics.validate().is_err());
+
+    diagnostics.items.clear();
+    diagnostics.omitted_count = MAXIMUM_CONFIGURATION_DIAGNOSTICS_OMITTED + 1;
+    assert!(diagnostics.validate().is_err());
 }
 
 #[test]
@@ -124,6 +195,7 @@ fn configuration_notification_profile_has_a_closed_16_kib_wire_bound() {
         outcome: ConfigurationOutcome::Current {
             snapshot: ConfigurationSnapshot {
                 revision: WorkbenchRevision::new(1),
+                diagnostics: ConfigurationDiagnostics::default(),
                 keys_profile: "[keys]".into(),
                 notification_profile,
                 agent_sidebar_profile: r#"{"rows":null,"rows_by_agent":{},"row_gap":0}"#.into(),
@@ -156,6 +228,7 @@ fn configuration_frame_fits_both_bounded_escaped_profiles_and_checks_header_befo
         outcome: ConfigurationOutcome::Current {
             snapshot: ConfigurationSnapshot {
                 revision: WorkbenchRevision::new(1),
+                diagnostics: ConfigurationDiagnostics::default(),
                 keys_profile: "x".repeat(20000),
                 notification_profile: "[ui.toast]".into(),
                 agent_sidebar_profile: agent,

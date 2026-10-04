@@ -196,6 +196,7 @@ fn run_with_client(
 ) -> Result<(), TuiFailure> {
     let inherited = InheritedTerminal::admit().map_err(TuiFailure::Admission)?;
     let dimensions = inherited.window_dimensions().map_err(TuiFailure::Runtime)?;
+    let server_configuration = connection.is_some();
     let terminal_input: Box<dyn TerminalSurface> = match connection {
         Some((client, intent)) => {
             let geometry =
@@ -213,7 +214,15 @@ fn run_with_client(
         }
         None => Box::new(UnavailableTerminalInputPort),
     };
-    run_prepared_surface(locale, inherited, dimensions, terminal_input, mouse, None)
+    run_prepared_surface(
+        locale,
+        inherited,
+        dimensions,
+        terminal_input,
+        mouse,
+        None,
+        server_configuration,
+    )
 }
 
 #[cfg(any(target_os = "linux", windows))]
@@ -232,6 +241,7 @@ pub(crate) fn run_prepared(
         Box::new(session),
         mouse,
         notice,
+        true,
     )
 }
 
@@ -242,7 +252,10 @@ fn run_prepared_surface(
     terminal_input: Box<dyn TerminalSurface>,
     mouse: bool,
     notice: Option<crate::client_view::Notice>,
+    server_configuration: bool,
 ) -> Result<(), TuiFailure> {
+    #[cfg(not(windows))]
+    let _ = server_configuration;
     #[cfg(windows)]
     let mut terminal_input = terminal_input;
     let mut initial_view = ClientView::new(dimensions.columns);
@@ -251,20 +264,34 @@ fn run_prepared_surface(
     }
     #[cfg(windows)]
     {
-        let settings =
-            orchbee_local_site_runtime::read_windows_user_settings(|name| std::env::var_os(name))
-                .map_err(|error| {
-                TuiFailure::Runtime(io::Error::new(io::ErrorKind::InvalidInput, error))
-            })?;
-        initial_view.configure_keys(&settings.keys);
-        terminal_input.configure_agent_notifications(0, &settings.notifications);
-        initial_view.notifications.configure(settings.notifications);
-        initial_view
-            .machines
-            .configure_agent_sidebar(settings.agent_sidebar);
-        initial_view
-            .machines
-            .configure_space_sidebar(settings.space_sidebar);
+        // A connected Client may paint one provisional local projection while the configuration
+        // watcher obtains the Server's authoritative baseline. A later local fatal error cannot
+        // invalidate an already admitted Site; standalone startup still fails on that boundary.
+        let load =
+            orchbee_local_site_runtime::read_windows_user_settings(|name| std::env::var_os(name));
+        if let Err(error) = &load
+            && !server_configuration
+        {
+            return Err(TuiFailure::Runtime(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                error.to_string(),
+            )));
+        }
+        if let Ok(load) = load {
+            if !load.diagnostics.is_empty() {
+                initial_view.configuration_warning(true);
+            }
+            let settings = load.settings;
+            initial_view.configure_keys(&settings.keys);
+            terminal_input.configure_agent_notifications(0, &settings.notifications);
+            initial_view.notifications.configure(settings.notifications);
+            initial_view
+                .machines
+                .configure_agent_sidebar(settings.agent_sidebar);
+            initial_view
+                .machines
+                .configure_space_sidebar(settings.space_sidebar);
+        }
     }
     let termination = TerminationSignal::install().map_err(TuiFailure::Runtime)?;
     let mut modes = TerminalModeGuard::enter(InheritedTerminalModes::new(inherited.clone()))

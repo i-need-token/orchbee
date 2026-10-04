@@ -16,7 +16,7 @@ fn installed() -> Arc<LocalTerminalService> {
     ));
     let mut settings =
         orchbee_local_site_runtime::read_windows_user_settings_at(None, false, |_| None).unwrap();
-    settings.keys = orchbee_local_site_runtime::WindowsKeySettings::from_profile(
+    settings.settings.keys = orchbee_local_site_runtime::WindowsKeySettings::from_profile(
         "[[keys.command]]\ncommand='echo shell'\n[[keys.command]]\ncommand='echo pane'\ntype='pane'\n[[keys.command]]\ncommand='echo popup'\ntype='popup'\nwidth='70%'\n[[keys.command]]\ncommand='tools.refresh'\ntype='plugin_action'",
     ).unwrap();
     service.configuration.initialize(&settings).unwrap();

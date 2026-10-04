@@ -622,6 +622,27 @@ impl<'a> NativeSessionView<'a> {
 
 #[cfg(test)]
 impl<'a> NativeSessionView<'a> {
+    /// Empty, unobstructed Native surface for consumers whose test owns no session state.
+    #[cfg(windows)]
+    pub(super) fn notification_test_view() -> Self {
+        Self {
+            state: None,
+            panes: &[],
+            focus: None,
+            projection_status: NativeProjectionStatus::Empty,
+            retirement: None,
+            board: None,
+            board_summary: None,
+            attention: None,
+            reports: None,
+            graphics: None,
+            graphics_surface: None,
+            popup_failed: false,
+            command_notice: None,
+            popup: None,
+        }
+    }
+
     /// Test-only view over a bare session state: the caller supplies the
     /// live projections and the focus draw status the paint pass would
     /// report — the exact shape `pane_geometries`, `active_pane_area`, and

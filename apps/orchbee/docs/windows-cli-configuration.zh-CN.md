@@ -2,7 +2,7 @@
 
 ## 文件与校验
 
-Windows CLI 创建操作读取 `APPDATA/Orchbee/config.toml`，或 `ORCHBEE_CONFIG_FILE` 指定的绝对文件路径。默认文件不存在时保持默认行为；显式文件不存在则报错。位置变量无效或为空、文件无法读取、目标是目录、文件超过 64 KiB、UTF-8/TOML 无效、未知键或类型错误，均在创建前失败。诊断标明字段和原因，不回显文件内容。读取和检查不会创建配置目录或文件。
+Windows CLI 创建操作读取 `APPDATA/Orchbee/config.toml`，或 `ORCHBEE_CONFIG_FILE` 指定的绝对文件路径。默认文件不存在时保持默认行为；显式文件不存在则报错。位置变量无效或为空、文件无法读取、目标是目录、文件超过 64 KiB、UTF-8/TOML 无效，均在创建前构成致命错误。成功解析的文档逐字段接纳：非法的受支持叶字段使用已有安全默认值，非法 profile 使用该 profile 的已有安全默认值，未知字段则忽略。读取器将每次回退作为警告报告，且不回显值或命令。读取和检查不会创建配置目录或文件。
 
 ```toml
 [terminal]
@@ -21,7 +21,15 @@ channel = "stable"
 manifest_check = true
 ```
 
-仅接受本文记录的配置段和键，包括下文的 `[keys]` 与 `[ui]` 配置族。`terminal.new_cwd` 接受 `follow`、`home`、`current`、`workspace` 或路径。空值表示 `follow`。路径使用 Windows CLI 路径适配器：相对路径基于配置文件父目录，波浪线路径使用 Windows 主目录，拒绝有歧义的驱动器相对路径、UNC 和设备路径。缺少 `APPDATA` 时仍可使用默认值；显式值无效时不会静默回退。
+只有本文记录的配置段和键会影响 Orchbee，包括下文的 `[keys]` 与 `[ui]` 配置族。已知仅属于 Herdr 的顶层配置族 `onboarding`、`theme`、`server`、`advanced`、`experimental` 和 `remote` 会标记为不支持，而不是普通未知字段。已知不支持的嵌套字段包括 `terminal.kitty_graphics`、`update.version_check`、仅属于 Herdr 的呈现和剪贴板设置、自定义声音路径，以及不存在对应 Orchbee 动作的按键动作。识别这些字段绝不会启用插件、安装 Provider 或运行配置命令。Orchbee 不会自动读取 Herdr 配置文件。
+
+`terminal.new_cwd` 接受 `follow`、`home`、`current`、`workspace` 或路径。空值表示 `follow`。路径使用 Windows CLI 路径适配器：相对路径基于配置文件父目录，波浪线路径使用 Windows 主目录，拒绝有歧义的驱动器相对路径、UNC 和设备路径。非法路径仅让该叶字段回退。缺少 `APPDATA` 时仍可使用默认值；显式值无效时不会静默回退。已记录的 `ORCHBEE_RESUME_AGENTS_ON_RESTORE` 环境覆盖仍采用严格策略：除精确的 `true` 或 `false` 外均为致命错误，不能被文件回退隐藏。
+
+警告使用有界的规范原因语法和封闭的处置词汇，只携带有界的规范点分字段路径。警告按字段和原因去重、排序。一份结果最多携带 128 条警告及精确的省略数量，因此截断始终可见。未知路径段会转义并在 UTF-8 边界截短；不同原始字段在显示截短前去重。
+
+### 默认配置输出
+
+`orchbee --default-config` 是独占式离线调用。参数解析会在读取任何环境变量或发现运行时前选中它，且不会激活 Site。它向 stdout 写入确定性的 UTF-8 TOML，并以一个换行结尾。输出包含显式的设置默认值和默认 `keys.prefix`，但不包含动作覆盖，因此将输出重定向到 `config.toml` 不会冻结 Client 后续演进的默认动作注册表。解析输出文档会得到与默认文件缺失时相同的有效设置和按键绑定。
 
 ## 创建策略
 
@@ -39,19 +47,19 @@ manifest_check = true
 
 ## 检查与正确性
 
-Windows `config check` 版本 2 在五项运行时检查后增加第六项 `user-config` 检查。版本 1 保留原有五项检查的 schema。新增检查报告选定文件、存在状态、规范化有效配置，或有界原因和字段。创建配置无效时使用独立的 `orchbee.cli.failure.configuration` 版本 1 信封并以 1 退出。来源发现失败会在首个 Project 创建前停止配置路径创建，不重试修改。
+Windows `config check` 版本 13 为 `user-config` 检查增加已接纳的警告列表和省略数量。带警告的结果使用 `warning` 状态，整体文档仍成功并以 0 退出。致命文件或环境接纳错误使用 `fail` 状态并以 1 退出。版本 1 至 12 保持封闭。检查报告选定文件、存在状态和规范化有效配置；致命的创建配置继续使用独立的 `orchbee.cli.failure.configuration` 信封。来源发现失败会在首个 Project 创建前停止配置路径创建，不重试修改。
 
-共享 Windows 设置读取器拥有有界文件检查和规范化；创建流程拥有优先级及已有副作用回执。读取没有写入器或可变缓存状态；下述显式恢复操作负责配置修复。核心证据覆盖格式错误和重复 TOML、未知键、大小边界、相对及波浪线路径、覆盖优先级和固定 Herdr 的目录名向量。Windows 公开 IPC 轨迹覆盖有效启动 cwd、配置检出意图、发现失败后无修改、显式路径不查询及无文件时行为不变。完整应用验收为独立关卡。参考行为：Herdr `e0507237ad8d41f60aece10d00ef29ce2339ca34` 的 `TerminalConfig`、`WorktreesConfig` 和 `default_checkout_path`。
+共享 Windows 设置读取器拥有有界文件检查、确定性的逐字段接纳和规范化；创建流程拥有优先级及已有副作用回执。读取没有写入器或可变缓存状态；下述显式恢复操作负责配置修复。核心证据覆盖格式错误和重复 TOML、字段局部回退、稳定且有界的警告、相对及波浪线路径、覆盖优先级和固定 Herdr 的目录名向量。Windows 公开 IPC 轨迹覆盖有效启动 cwd、配置检出意图、发现失败后无修改、显式路径不查询及无文件时行为不变。完整应用验收为独立关卡。参考行为：Herdr `e0507237ad8d41f60aece10d00ef29ce2339ca34` 的 `TerminalConfig`、`WorktreesConfig` 和 `default_checkout_path`。
 
 ## 恢复策略
 
-共享的 Windows 设置读取器位于 `orchbee-local-site-runtime`，负责有界文件检查、严格 TOML 类型和字面 Windows 路径规范化。CLI 将创建路径投影为 Workbench 类型；运行时库不新增 Workbench 依赖。现有固定版本的 `toml` 解析器作为 Windows 依赖，供实际 Client 和 Server 消费者使用。
+共享的 Windows 设置读取器位于 `orchbee-local-site-runtime`，负责有界文件检查、逐字段类型接纳和字面 Windows 路径规范化。CLI 将创建路径投影为 Workbench 类型；运行时库不新增 Workbench 依赖。现有固定版本的 `toml` 解析器作为 Windows 依赖，供实际 Client 和 Server 消费者使用。
 
 `[session] resume_agents_on_restore` 是 TOML 布尔值，默认 `true`。`ORCHBEE_RESUME_AGENTS_ON_RESTORE` 用精确的 `true` 或 `false` 覆盖它；覆盖不能隐藏非法配置文件。此设置仅适用于启动新的 Site 生命周期。已有 Site 的准入不读取它，编辑它也不会改变正在运行的 Site。
 
-Client 启动在持久 Active 发布或激活标记提交前读取并校验一次，将确定的布尔值作为私有 Server 参数传递；Server 校验该参数，不重新读取可能变化的设置。未携带该参数的直接托管 Server 启动，在 Worker 启动前通过同一所有者读取文件和环境。非法输入保留此前检查点和已停止状态，可修正后重试。私有参数需要匹配 cohort；回退使用此前完整 cohort。
+Client 启动在持久 Active 发布或激活标记提交前读取并校验一次，将确定的恢复布尔值与冻结配置位置作为私有 Server 参数传递。Server 校验这些参数，恢复决定一经消费便不再重新推导。配置发布前，Server 在冻结位置按同一套继承的严格环境覆盖规则读取一个完整候选，并将其作为权威版本 0 基线。未携带私有参数的直接托管 Server 启动，通过自己的首次读取确定相同的启动决定和冻结位置。致命输入保留此前检查点和已停止状态，可修正后重试。私有参数需要匹配 cohort；回退使用此前完整 cohort。
 
-Windows `config check` 版本 3 报告 `resumeAgentsOnRestore` 和 `resumeAgentsOnRestoreSource`（`default`、`file`、`environment`）。保留版本 1、2 的 schema。诊断只报告有界字段和原因。验证须覆盖默认值／文件／环境优先级、非法及非 UTF-8 值、严格类型／键、读取边界、提交前拒绝及修正重试、已有 Site 准入不变和实际禁用／启用恢复。热重载、名称和托管状态恢复仍是独立义务。
+Windows `config check` 版本 3 报告 `resumeAgentsOnRestore` 和 `resumeAgentsOnRestoreSource`（`default`、`file`、`environment`）。保留版本 1、2 的 schema。诊断只报告有界字段和原因。验证须覆盖默认值／文件／环境优先级、畸形及非 UTF-8 文件、字段级类型／键准入、读取边界、致命错误提交前拒绝及修正重试、已有 Site 准入不变和实际禁用／启用恢复。热重载、名称和托管状态恢复仍是独立义务。
 
 ## 规则更新策略
 
@@ -60,13 +68,14 @@ Windows `config check` 版本 3 报告 `resumeAgentsOnRestore` 和 `resumeAgents
 `[update] manifest_check` 是 TOML 布尔值，默认 true，来源为 `default`／`file`。
 Windows `config check` v4 增加 `manifestCheck` 和 `manifestCheckSource`，v1-v3 保持封闭。
 Client 激活将已校验的检查值、来源、配置路径和显式文件标志与恢复策略一起传递。
-托管 Server 接纳完整私有快照，不重新读取文件；直接启动只调用一次共享设置读取器。cohort 必须匹配。
+托管 Server 将其接纳为启动策略快照，随后在冻结位置读取完整的权威版本 0 候选；已消费的恢复策略不会改变。
+直接启动通过同一设置所有者建立这两种角色。cohort 必须匹配。
 `read_windows_user_settings_at` 在冻结位置支持有界显式重载，保留默认文件缺失与显式文件缺失的
 差别，不创建配置文件。
 
 持久托管发布版 Site 在启动时及每三十分钟检查规则。调试／测试构建和独立端点关闭自动网络任务。
 `site agent-manifests` 暴露实际策略及最近自动结果。`site reload-agent-manifests` 验证完整配置，
-并将规则检查开关与检测器原子刷新；配置无效保留两者。关闭检查停止调度；重新开启立即安排检查。
+并将规则检查开关与检测器原子刷新。致命文件/TOML 错误保留两者；字段警告应用已接纳的回退设置。关闭检查停止调度；重新开启立即安排检查。
 活动更新期间重载返回忙碌。此命令不热重载其他运行中设置及键位。自动检查关闭时仍可显式更新。
 参见[屏幕模型](../../orchbee-server/docs/agent-screen-model.zh-CN.md#自动检查与配置快照)。
 发布版验收夹具若不以公开网络访问为测试目标，须显式关闭自动检查。回退到不认识此键的读取器时，
@@ -113,10 +122,12 @@ Client 激活在提交前连同已有配置冻结这两个值。匹配版本的 
 
 有界共享设置读取器在 Client 启动前接纳 `[keys]`。每个 Client 在在线发布前持有不可变绑定快照；
 编辑文件或重置在下一个 Client 或显式在线重载后生效。Client 将已实现的语义动作映射到默认注册表。
-用户覆盖替换该动作的默认绑定，并取代冲突的默认按键。用户绑定歧义、未支持动作或
-语法错误会拒绝接纳。这种严格失败策略与 Herdr 的诊断并禁用策略有差异，仍明确列为缺口。
+用户覆盖替换该动作的默认绑定，并取代冲突的默认按键。无效的显式动作仍保留为显式禁用覆盖，
+不会静默恢复内置默认；其他动作及同一动作里的有效候选仍可使用。未知动作会警告并忽略，已知仅
+属于 Herdr 的动作会报告为不支持。多个显式动作占用同一按键时，固定动作注册表顺序选择第一项并
+报告后续冲突。诊断不保留原始按键或命令。
 
-`prefix` 接受一个按键。动作值接受字符串或最多 16 个候选；空字符串或空数组禁用动作。
+`prefix` 接受一个按键。动作值接受字符串或最多 16 个候选；空字符串或空数组保留为显式禁用覆盖，并发出有界警告。
 `prefix+` 指定前缀层，其余必须是安全直达按键。`switch_tab` 和 `focus_agent` 支持带修饰键的 `1..9`。Agent 序号按过滤后的机器
 Agent 列表计算，`focus_agent` 默认未绑定。
 完整修饰键及大写字母在冲突检查前归一化。前缀本身在两层均保留。直达可打印字符、
@@ -131,8 +142,9 @@ Esc 退出。待定期间额外调整键被消费，不排队。使用这些新�
 使用旧 reader 前需删除这些键。其他现有配置保留默认行为。 直接调整绑定要求修饰键或功能键；裸编辑键仍属于 pane。
 
 解析后的注册表同时提供分发、帮助行和主要实时提示。禁用动作保留在帮助中。现有原生
-默认值保留；未支持的 Herdr 字段明确失败。完整重载对齐、自定义命令、导航模式映射、
-按序 Agent/Workspace 按键及其他未支持动作仍未完成。定向证据覆盖边界、冲突与默认
+默认值仅为没有显式覆盖的动作保留；未支持的 Herdr 字段发出警告且不改变有效注册表。
+自定义命令配置无效时禁用已配置命令，不执行部分或未经验证的命令。导航模式映射、按序
+Agent/Workspace 按键及其他未支持动作仍未完成。定向证据覆盖边界、冲突与默认
 优先级、输入归属、分发及发现；不宣称全量回归或视觉验收通过。
 
 支持的动作字段为 `help`、`new_workspace`、`rename_workspace`、`workspace_picker`、
@@ -155,11 +167,11 @@ focus_agent = "prefix+alt+1..9"
 zoom = ""
 ```
 
-Windows `config check` v6 增加 `keyPrefix`、`keyOverrides`，按键配置错误使用
-configuration failure v3；旧版本保留封闭字段集合。示例让新建 Tab 取代默认的下一 Tab
+Windows `config check` v13 保留 `keyPrefix`、`keyOverrides` 并增加有界警告记录；历史
+按键配置 failure v3 对旧 cohort 保持封闭。示例让新建 Tab 取代默认的下一 Tab
 快捷键；空 `zoom` 禁用放大快捷键。当前绑定只在主 TUI 使用。CLI 终端流 attach 保留
 独立的 Ctrl+B/q 转义；固定 Herdr `e0507237` 在 `src/client/attach.rs` 同样使用固定转义，
-因此可配置 attach 不是对齐要求。全量键位导入和无害警告恢复仍需后续实现。
+因此可配置 attach 不是对齐要求。全量键位导入仍是独立切片。
 
 功能键使用 xterm 的实际 F1–F12 序列编号（跳过 16 和 22），带修饰符的 F1–F4
 以及 kitty F1–F24。修饰符事件尾部保留按下、重复和释放；无效事件或无法表示的
@@ -169,28 +181,50 @@ Hyper/Meta 修饰位不会降级为普通快捷键。宿主是否实际提供这
 
 侧栏 profile 使用同一接纳/发布转换：共享 Windows 配置所有者验证
 `ui.sidebar.agents.rows`、`rows_by_agent`、`row_gap`，再发布有界规范 profile。
-Client 在安装任何设置前同时验证键位、通知、侧栏；无效 profile 保留全部原配置。
-启动使用同一已接纳配置，配置检查报告支持的布局及边界。token、Provider 选择、
+Client 在安装任何设置前同时验证键位、通知、侧栏；畸形私有线协议 profile 保留全部原配置。
+首个快照到达后，启动使用 Server 的完整已接纳基线；连接期间显示的本地投影只是临时值。
+配置检查报告支持的布局及边界。token、Provider 选择、
 规则、几何与证据见 [Agent 侧栏配置模型](machines.zh-CN.md#agent-侧栏配置模型)。
 
 Windows `site reload-config` 请求运行中 Site 重载；`site config` 读取最后发布的版本。
 两者均不激活 Site。Server 冻结启动配置位置，串行接纳重载，验证整个有界文件并准备
-规范键位配置后才提交。失败保留原版本、键位和在线 manifest-check 调度。版本 0 仅是启动基线，不是在线发布；首次成功重载发布版本 1，之后仅在已接纳设置变化时版本递增。另一重载持有接纳权时读取可返回忙。提交后丢失响应属于结果未知；
+一个包含有效设置和警告的接纳候选后才提交。致命读取或解析失败会保留原版本、全部 profile、
+诊断和在线 manifest-check 调度。带警告的候选会原子替换有效设置和诊断；Client 绝不会把一个
+版本的设置与另一个版本的诊断拼接。版本 0 是权威启动基线。Client 会应用首个完整 Server
+快照一次，包括版本 0；之后拒绝重复或更旧版本。首次成功重载发布版本 1，之后只要已接纳
+设置或诊断任一变化，版本就递增。这也包括回退值与后来合法显式值
+相同但警告已清除的情况。另一重载持有接纳权时读取可返回忙。提交后丢失响应属于结果未知；
 Client 不自动重发变更，可通过读取当前状态恢复判断。
 
-Server 提交已支持的在线 manifest-check 策略，并向连接中的主 TUI Client 发布键位。
+64 KiB 源文件限额和各 profile 的独立边界都是接纳输入；组合后的响应还必须满足不变的
+256 KiB 配置响应上限。安装版本 0 或应用任何在线策略前，以及每次重载提交前，Server 使用同一个精确
+serializer 预检，对包含固定宽度合法关联标识的完整 `ConfigurationResult` 执行序列化（启动时为
+`Current`，重载时为 `Reloaded`）。已接纳源文件的组合转义 profile 和诊断如果超过该响应上限，则会被拒绝，
+不截断其他合法设置。启动不安装配置状态或在线策略；重载保留完整旧快照和在线策略。
+
+Server 提交已支持的在线 manifest-check 策略，并向连接中的主 TUI Client 发布键位、profile
+及有界警告记录。
 发布不等于所有 Client 都已确认应用。每个 Client 拥有可取消的配置观察线程，仅在输入包
-之间应用已验证的新版本配置；清除待处理前缀，保留编辑器/确认归属和草稿。重载失败
-保留现有键位并显示本地化提示。重载动作可通过 `reload_config` 配置。原生默认是前缀 F5；Herdr 使用前缀 Shift+R，与原生已有的 Project 重命名默认冲突。配置 `reload_config = "prefix+shift+r"` 会明确替换该冲突默认。
+之间应用完整且已验证的新版本快照，并拒绝过时或重复版本；清除待处理前缀，保留编辑器／
+确认归属和草稿。带警告的快照会应用有效设置，并显示本地化摘要，引导用户运行
+`orchbee config check`；后续干净快照会清除此警告。配置健康状态与临时提示独立保留：检查点恢复提示
+优先用于首次启动显示；该提示消除后，配置警告会重新显示，而且不会阻止 Agent 通知卡片。重载失败保留现有设置和警告记录，并显示
+本地化失败提示。重载动作可通过 `reload_config` 配置。原生默认是前缀 F5；Herdr 使用前缀 Shift+R，与原生已有的 Project 重命名默认冲突。配置 `reload_config = "prefix+shift+r"` 会明确替换该冲突默认。
 
 启动恢复策略相对 Site 启动时的变化通过 `restartRequired` 返回；已恢复会话仍由当前
 生命周期拥有。默认 Shell 和模式无须重启，对后续准备生效。CLI 目录/worktree 默认值
-在下一次调用读取。这是部分 Herdr 重载对齐：严格整文件拒绝、未实现的配置族和
+在下一次调用读取。这是部分 Herdr 重载对齐：未实现的配置族和
 Client 独立配置策略仍待补全。
 在线键位配置上限为 64 KiB；每动作最多 144 个展开触发键，容纳用户文件最多 16 个数字范围候选。独立可取消连接每 500 毫秒读取一次，单次交换限时两秒。成功重载表示已发布，不表示每个 Client 都已应用。
 
-不新增持久化格式迁移或自动重试。
-测试覆盖授权、有界序列化、失败保留、无变化重载、发布应用及关闭。
+不新增持久化格式迁移或自动重试。`WindowsConfigurationPublication` 模型检查 Client 临时启动
+投影、首次权威快照的一次应用、致命错误保留、设置／诊断代际原子性、后续 Client 单调应用、
+警告发布及应用后警告清除。模型不假设交付公平性；
+传播证据由连接测试提供。测试还覆盖授权、有界序列化、失败保留、无变化重载、发布应用及关闭。
+
+`site config` 与 `site reload-config` 版本 8 为每个成功快照增加必需的 `diagnostics` 对象。
+文本输出包含可见数量、精确省略数量，以及每条有界的字段／原因／处置记录。版本 1 至 7
+保持封闭，不接受该成员。
 
 ## 后续 Windows 终端的在线默认值
 
@@ -204,7 +238,7 @@ Client 独立配置策略仍待补全。
 
 ## 外层窗口标题
 
-`[ui] window_title` 默认为 `{hostname}: {workspace}`，可在线重载。[标题所有者](windows-terminal-title.zh-CN.md#配置模板) 定义变量、字面花括号、无效/空策略、有界渲染及 CLI 覆盖优先级。`config check` v8 报告 `windowTitle` 及可空 `windowTitleDiagnostic`；模板语法错误提供建议性诊断，类型错误/未知 UI 键/超过 4096 字节则在接入前失败（`orchbee.cli.failure.configuration` v5）。`site config`/`site reload-config` v4 暴露已发布的原始模板，旧公开版本保持封闭。
+`[ui] window_title` 默认为 `{hostname}: {workspace}`，可在线重载。[标题所有者](windows-terminal-title.zh-CN.md#配置模板) 定义变量、字面花括号、无效/空策略、有界渲染及 CLI 覆盖优先级。语法错误、类型错误或超过 4096 字节现在只让该叶字段回退，并出现在 `config check` v13 的警告记录中；未知 `[ui]` 键会忽略并单独警告。有效 `windowTitle` 始终可解析，因此 `windowTitleDiagnostic` 保持 null。`site config`/`site reload-config` v8 暴露已发布的有效模板及诊断，旧公开版本保持封闭。
 
 ## 自定义通知配置
 

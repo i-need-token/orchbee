@@ -335,6 +335,25 @@ fn usage(envelope: FailureEnvelope) -> ParseFailure {
     }
 }
 
+#[cfg(windows)]
+#[test]
+fn default_config_is_a_sole_offline_root_mode() {
+    assert_eq!(parse(&["--default-config"]), Ok(Request::DefaultConfig));
+    for words in [
+        vec!["--default-config", "--format", "json"],
+        vec!["--format=json", "--default-config"],
+        vec!["--default-config", "status"],
+        vec!["status", "--default-config"],
+        vec!["--default-config", "--default-config"],
+        vec!["--default-config", "--help"],
+        vec!["--", "--default-config"],
+        vec!["--site", "work", "--default-config"],
+        vec!["--machine", "work", "--default-config"],
+    ] {
+        assert!(parse(&words).is_err(), "{words:?}");
+    }
+}
+
 fn identifier(resource: Resource, target: &str, envelope: FailureEnvelope) -> ParseFailure {
     ParseFailure {
         kind: ParseFailureKind::InvalidIdentifier {

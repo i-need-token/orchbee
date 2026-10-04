@@ -162,6 +162,7 @@ pub(crate) enum Notice {
     CheckpointRecovered,
     CheckpointEmpty,
     ConfigurationPublished,
+    ConfigurationWarning,
     ConfigurationRestart,
     ConfigurationFailed,
     ConfigurationUnknown,
@@ -307,6 +308,8 @@ pub(crate) struct ClientView {
     #[cfg(windows)]
     pub(crate) window_title: Option<orchbee_workbench_protocol::WindowTitleSnapshot>,
     notice: Option<Notice>,
+    #[cfg(windows)]
+    configuration_warning: bool,
     overlay: Option<Overlay>,
     prefix_active: bool,
     #[cfg(windows)]
@@ -349,6 +352,8 @@ impl ClientView {
             #[cfg(windows)]
             window_title: None,
             notice: None,
+            #[cfg(windows)]
+            configuration_warning: false,
             overlay: None,
             prefix_active: false,
             #[cfg(windows)]
@@ -363,7 +368,21 @@ impl ClientView {
     }
 
     pub(crate) const fn notice(&self) -> Option<Notice> {
-        self.notice
+        if self.notice.is_some() {
+            return self.notice;
+        }
+        #[cfg(windows)]
+        if self.configuration_warning {
+            return Some(Notice::ConfigurationWarning);
+        }
+        None
+    }
+
+    /// Persistent configuration health does not suppress transient Agent notifications. A
+    /// higher-priority notice still does, while the warning returns to the status line afterward.
+    #[cfg(windows)]
+    pub(crate) const fn has_transient_notice(&self) -> bool {
+        self.notice.is_some()
     }
 
     pub(crate) const fn overlay(&self) -> Option<Overlay> {
@@ -499,6 +518,14 @@ impl ClientView {
 
     pub(crate) fn configuration_notice(&mut self, notice: Notice) {
         self.notice = Some(notice);
+    }
+
+    #[cfg(windows)]
+    pub(crate) fn configuration_warning(&mut self, present: bool) {
+        self.configuration_warning = present;
+        if !present && self.notice == Some(Notice::ConfigurationWarning) {
+            self.notice = None;
+        }
     }
 
     pub(crate) fn startup_notice(&mut self, notice: Notice) {

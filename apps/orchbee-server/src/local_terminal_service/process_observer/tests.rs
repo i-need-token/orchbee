@@ -7,7 +7,44 @@ use orchbee_capability_node_protocol::{
     WorkerId,
 };
 use orchbee_workbench_protocol::{PresentationBinding, SiteId};
-use std::num::NonZeroU64;
+use std::{
+    num::NonZeroU64,
+    path::PathBuf,
+    sync::atomic::{AtomicU64, Ordering as AtomicOrdering},
+};
+
+static SETTINGS_SERIAL: AtomicU64 = AtomicU64::new(0);
+
+struct SettingsFixture(PathBuf);
+impl SettingsFixture {
+    fn new() -> Self {
+        let path = std::env::temp_dir().join(format!(
+            "orchbee-observer-config-{}-{}",
+            std::process::id(),
+            SETTINGS_SERIAL.fetch_add(1, AtomicOrdering::Relaxed)
+        ));
+        std::fs::create_dir(&path).unwrap();
+        Self(path)
+    }
+    fn file(&self) -> PathBuf {
+        self.0.join("config.toml")
+    }
+}
+impl Drop for SettingsFixture {
+    fn drop(&mut self) {
+        let target = self.0.canonicalize().unwrap();
+        assert!(target.starts_with(std::env::temp_dir().canonicalize().unwrap()));
+        assert!(
+            self.0
+                .file_name()
+                .unwrap()
+                .to_str()
+                .unwrap()
+                .starts_with("orchbee-observer-config-")
+        );
+        std::fs::remove_dir_all(target).unwrap();
+    }
+}
 fn target(n: u128) -> ProcessObservationTarget {
     ProcessObservationTarget {
         site_id: SiteId::parse(&format!("{:032x}", 99)).unwrap(),
@@ -64,6 +101,44 @@ fn idle_observer_wakes_joins_and_cannot_restart_after_stop() {
         io::ErrorKind::NotConnected
     );
 }
+
+#[test]
+fn oversized_initial_publication_does_not_install_manifest_policy_or_schedule() {
+    let fixture = SettingsFixture::new();
+    std::fs::write(
+        fixture.file(),
+        super::super::configuration::tests::maximum_accepted_source_with_escaped_profiles(),
+    )
+    .unwrap();
+    let current = orchbee_local_site_runtime::read_windows_user_settings_at(
+        Some(&fixture.file()),
+        true,
+        |_| None,
+    )
+    .unwrap();
+    let startup = current.settings.clone();
+    let service = Arc::new(LocalTerminalService::new(Arc::new(Mutex::new(
+        WorkerRegistry::new(),
+    ))));
+
+    let error = service
+        .process_observer
+        .start(&service, startup, current, false)
+        .unwrap_err();
+
+    assert_eq!(error.kind(), io::ErrorKind::InvalidData);
+    assert_eq!(
+        service
+            .process_observer
+            .wake
+            .manifests
+            .initialization_for_test(),
+        (false, false)
+    );
+    assert!(!service.configuration.initialized_for_test());
+    assert!(service.process_observer.handle.lock().unwrap().is_none());
+}
+
 #[test]
 fn deadline_keeps_live_handle_until_its_admitted_work_really_finishes() {
     let owner = ProcessObserver::default();

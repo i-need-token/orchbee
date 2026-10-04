@@ -35,6 +35,10 @@
 					"kind": "reloaded",
 					"snapshot": {
 						"revision": "1",
+						"diagnostics": {
+							"items": [],
+							"omittedCount": 0
+						},
 						"keysProfile": "[keys]\nprefix=\"ctrl+a\"\n",
 						"restartRequired": [],
 						"manifestCheck": true,
@@ -61,6 +65,10 @@
 					"kind": "current",
 					"snapshot": {
 						"revision": "0",
+						"diagnostics": {
+							"items": [],
+							"omittedCount": 0
+						},
 						"keysProfile": "[keys]\nprefix=\"ctrl+a\"\n",
 						"restartRequired": [],
 						"manifestCheck": true,
@@ -118,6 +126,10 @@
 					"kind": "reloaded",
 					"snapshot": {
 						"revision": "1",
+						"diagnostics": {
+							"items": [],
+							"omittedCount": 0
+						},
 						"keysProfile": "[keys]\nprefix=\"ctrl+a\"\n",
 						"restartRequired": [],
 						"manifestCheck": true,
@@ -144,6 +156,10 @@
 					"kind": "reloaded",
 					"snapshot": {
 						"revision": "1",
+						"diagnostics": {
+							"items": [],
+							"omittedCount": 0
+						},
 						"keysProfile": "[keys]\nprefix=\"ctrl+a\"\n",
 						"restartRequired": [],
 						"manifestCheck": true,
@@ -170,6 +186,10 @@
 					"kind": "reloaded",
 					"snapshot": {
 						"revision": "1",
+						"diagnostics": {
+							"items": [],
+							"omittedCount": 0
+						},
 						"keysProfile": "[keys]\nprefix=\"ctrl+a\"\n",
 						"restartRequired": [],
 						"manifestCheck": true,
@@ -196,6 +216,10 @@
 					"kind": "reloaded",
 					"snapshot": {
 						"revision": "1",
+						"diagnostics": {
+							"items": [],
+							"omittedCount": 0
+						},
 						"keysProfile": "[keys]\nprefix=\"ctrl+a\"\n",
 						"restartRequired": [],
 						"manifestCheck": true,
@@ -222,6 +246,10 @@
 					"kind": "reloaded",
 					"snapshot": {
 						"revision": "1",
+						"diagnostics": {
+							"items": [],
+							"omittedCount": 0
+						},
 						"keysProfile": "[keys]\nprefix=\"ctrl+a\"\n",
 						"restartRequired": [],
 						"manifestCheck": true,
@@ -235,9 +263,1098 @@
 					"changed": true
 				}
 			}
+		},
+		{
+			"name": "current-with-diagnostics",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.configuration.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "current",
+					"snapshot": {
+						"revision": "1",
+						"diagnostics": {
+							"items": [
+								{
+									"field": "keys.help",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "theme.name",
+									"reason": "unsupported-herdr",
+									"disposition": "unsupported"
+								}
+							],
+							"omittedCount": 3
+						},
+						"keysProfile": "[keys]\nprefix=\"ctrl+a\"\n",
+						"restartRequired": [],
+						"manifestCheck": true,
+						"defaultShell": "",
+						"shellMode": "auto",
+						"windowTitle": "{hostname}: {workspace}",
+						"notificationProfile": "[ui.toast]\ndelivery='off'\n",
+						"agentSidebarProfile": "{\"rows\":null,\"rows_by_agent\":{},\"row_gap\":0}",
+						"spacesSidebarProfile": "{\"rows\":[],\"row_gap\":0}"
+					}
+				}
+			}
+		},
+		{
+			"name": "diagnostics-exact-bounds",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.configuration.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "current",
+					"snapshot": {
+						"revision": "1",
+						"diagnostics": {
+							"items": [
+								{
+									"field": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+									"reason": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+									"disposition": "defaulted"
+								},
+								{
+									"field": "f001",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f002",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f003",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f004",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f005",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f006",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f007",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f008",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f009",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f010",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f011",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f012",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f013",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f014",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f015",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f016",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f017",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f018",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f019",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f020",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f021",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f022",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f023",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f024",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f025",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f026",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f027",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f028",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f029",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f030",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f031",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f032",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f033",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f034",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f035",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f036",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f037",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f038",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f039",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f040",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f041",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f042",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f043",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f044",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f045",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f046",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f047",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f048",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f049",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f050",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f051",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f052",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f053",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f054",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f055",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f056",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f057",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f058",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f059",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f060",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f061",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f062",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f063",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f064",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f065",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f066",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f067",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f068",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f069",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f070",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f071",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f072",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f073",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f074",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f075",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f076",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f077",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f078",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f079",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f080",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f081",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f082",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f083",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f084",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f085",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f086",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f087",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f088",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f089",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f090",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f091",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f092",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f093",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f094",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f095",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f096",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f097",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f098",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f099",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f100",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f101",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f102",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f103",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f104",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f105",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f106",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f107",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f108",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f109",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f110",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f111",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f112",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f113",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f114",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f115",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f116",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f117",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f118",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f119",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f120",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f121",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f122",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f123",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f124",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f125",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f126",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f127",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								}
+							],
+							"omittedCount": 65536
+						},
+						"keysProfile": "[keys]\nprefix=\"ctrl+a\"\n",
+						"restartRequired": [],
+						"manifestCheck": true,
+						"defaultShell": "",
+						"shellMode": "auto",
+						"windowTitle": "{hostname}: {workspace}",
+						"notificationProfile": "[ui.toast]\ndelivery='off'\n",
+						"agentSidebarProfile": "{\"rows\":null,\"rows_by_agent\":{},\"row_gap\":0}",
+						"spacesSidebarProfile": "{\"rows\":[],\"row_gap\":0}"
+					}
+				}
+			}
 		}
 	],
 	"invalid": [
+		{
+			"name": "diagnostics-missing-omitted-count",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.configuration.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "current",
+					"snapshot": {
+						"revision": "1",
+						"diagnostics": {
+							"items": []
+						},
+						"keysProfile": "[keys]\nprefix=\"ctrl+a\"\n",
+						"restartRequired": [],
+						"manifestCheck": true,
+						"defaultShell": "",
+						"shellMode": "auto",
+						"windowTitle": "{hostname}: {workspace}",
+						"notificationProfile": "[ui.toast]\ndelivery='off'\n",
+						"agentSidebarProfile": "{\"rows\":null,\"rows_by_agent\":{},\"row_gap\":0}",
+						"spacesSidebarProfile": "{\"rows\":[],\"row_gap\":0}"
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "diagnostic-unknown-field",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.configuration.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "current",
+					"snapshot": {
+						"revision": "1",
+						"diagnostics": {
+							"items": [
+								{
+									"field": "keys.help",
+									"reason": "invalid-binding",
+									"disposition": "disabled",
+									"unexpected": true
+								}
+							],
+							"omittedCount": 0
+						},
+						"keysProfile": "[keys]\nprefix=\"ctrl+a\"\n",
+						"restartRequired": [],
+						"manifestCheck": true,
+						"defaultShell": "",
+						"shellMode": "auto",
+						"windowTitle": "{hostname}: {workspace}",
+						"notificationProfile": "[ui.toast]\ndelivery='off'\n",
+						"agentSidebarProfile": "{\"rows\":null,\"rows_by_agent\":{},\"row_gap\":0}",
+						"spacesSidebarProfile": "{\"rows\":[],\"row_gap\":0}"
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "missing-diagnostics",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.configuration.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "current",
+					"snapshot": {
+						"revision": "1",
+						"keysProfile": "[keys]\nprefix=\"ctrl+a\"\n",
+						"restartRequired": [],
+						"manifestCheck": true,
+						"defaultShell": "",
+						"shellMode": "auto",
+						"windowTitle": "{hostname}: {workspace}",
+						"notificationProfile": "[ui.toast]\ndelivery='off'\n",
+						"agentSidebarProfile": "{\"rows\":null,\"rows_by_agent\":{},\"row_gap\":0}",
+						"spacesSidebarProfile": "{\"rows\":[],\"row_gap\":0}"
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "diagnostics-unknown-field",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.configuration.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "current",
+					"snapshot": {
+						"revision": "1",
+						"diagnostics": {
+							"items": [],
+							"omittedCount": 0,
+							"unexpected": true
+						},
+						"keysProfile": "[keys]\nprefix=\"ctrl+a\"\n",
+						"restartRequired": [],
+						"manifestCheck": true,
+						"defaultShell": "",
+						"shellMode": "auto",
+						"windowTitle": "{hostname}: {workspace}",
+						"notificationProfile": "[ui.toast]\ndelivery='off'\n",
+						"agentSidebarProfile": "{\"rows\":null,\"rows_by_agent\":{},\"row_gap\":0}",
+						"spacesSidebarProfile": "{\"rows\":[],\"row_gap\":0}"
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "diagnostic-unknown-disposition",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.configuration.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "current",
+					"snapshot": {
+						"revision": "1",
+						"diagnostics": {
+							"items": [
+								{
+									"field": "keys.help",
+									"reason": "invalid-binding",
+									"disposition": "preserved"
+								}
+							],
+							"omittedCount": 0
+						},
+						"keysProfile": "[keys]\nprefix=\"ctrl+a\"\n",
+						"restartRequired": [],
+						"manifestCheck": true,
+						"defaultShell": "",
+						"shellMode": "auto",
+						"windowTitle": "{hostname}: {workspace}",
+						"notificationProfile": "[ui.toast]\ndelivery='off'\n",
+						"agentSidebarProfile": "{\"rows\":null,\"rows_by_agent\":{},\"row_gap\":0}",
+						"spacesSidebarProfile": "{\"rows\":[],\"row_gap\":0}"
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "diagnostic-invalid-reason-token",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.configuration.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "current",
+					"snapshot": {
+						"revision": "1",
+						"diagnostics": {
+							"items": [
+								{
+									"field": "keys.help",
+									"reason": "Invalid_Binding",
+									"disposition": "disabled"
+								}
+							],
+							"omittedCount": 0
+						},
+						"keysProfile": "[keys]\nprefix=\"ctrl+a\"\n",
+						"restartRequired": [],
+						"manifestCheck": true,
+						"defaultShell": "",
+						"shellMode": "auto",
+						"windowTitle": "{hostname}: {workspace}",
+						"notificationProfile": "[ui.toast]\ndelivery='off'\n",
+						"agentSidebarProfile": "{\"rows\":null,\"rows_by_agent\":{},\"row_gap\":0}",
+						"spacesSidebarProfile": "{\"rows\":[],\"row_gap\":0}"
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "diagnostic-field-control",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.configuration.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "current",
+					"snapshot": {
+						"revision": "1",
+						"diagnostics": {
+							"items": [
+								{
+									"field": "keys.\nhelp",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								}
+							],
+							"omittedCount": 0
+						},
+						"keysProfile": "[keys]\nprefix=\"ctrl+a\"\n",
+						"restartRequired": [],
+						"manifestCheck": true,
+						"defaultShell": "",
+						"shellMode": "auto",
+						"windowTitle": "{hostname}: {workspace}",
+						"notificationProfile": "[ui.toast]\ndelivery='off'\n",
+						"agentSidebarProfile": "{\"rows\":null,\"rows_by_agent\":{},\"row_gap\":0}",
+						"spacesSidebarProfile": "{\"rows\":[],\"row_gap\":0}"
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "diagnostic-field-byte-overflow",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.configuration.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "current",
+					"snapshot": {
+						"revision": "1",
+						"diagnostics": {
+							"items": [
+								{
+									"field": "界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								}
+							],
+							"omittedCount": 0
+						},
+						"keysProfile": "[keys]\nprefix=\"ctrl+a\"\n",
+						"restartRequired": [],
+						"manifestCheck": true,
+						"defaultShell": "",
+						"shellMode": "auto",
+						"windowTitle": "{hostname}: {workspace}",
+						"notificationProfile": "[ui.toast]\ndelivery='off'\n",
+						"agentSidebarProfile": "{\"rows\":null,\"rows_by_agent\":{},\"row_gap\":0}",
+						"spacesSidebarProfile": "{\"rows\":[],\"row_gap\":0}"
+					}
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "diagnostics-unsorted",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.configuration.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "current",
+					"snapshot": {
+						"revision": "1",
+						"diagnostics": {
+							"items": [
+								{
+									"field": "keys.zoom",
+									"reason": "wrong-type",
+									"disposition": "defaulted"
+								},
+								{
+									"field": "keys.help",
+									"reason": "wrong-type",
+									"disposition": "defaulted"
+								}
+							],
+							"omittedCount": 0
+						},
+						"keysProfile": "[keys]\nprefix=\"ctrl+a\"\n",
+						"restartRequired": [],
+						"manifestCheck": true,
+						"defaultShell": "",
+						"shellMode": "auto",
+						"windowTitle": "{hostname}: {workspace}",
+						"notificationProfile": "[ui.toast]\ndelivery='off'\n",
+						"agentSidebarProfile": "{\"rows\":null,\"rows_by_agent\":{},\"row_gap\":0}",
+						"spacesSidebarProfile": "{\"rows\":[],\"row_gap\":0}"
+					}
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "diagnostics-duplicate-key",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.configuration.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "current",
+					"snapshot": {
+						"revision": "1",
+						"diagnostics": {
+							"items": [
+								{
+									"field": "keys.help",
+									"reason": "wrong-type",
+									"disposition": "defaulted"
+								},
+								{
+									"field": "keys.help",
+									"reason": "wrong-type",
+									"disposition": "ignored"
+								}
+							],
+							"omittedCount": 0
+						},
+						"keysProfile": "[keys]\nprefix=\"ctrl+a\"\n",
+						"restartRequired": [],
+						"manifestCheck": true,
+						"defaultShell": "",
+						"shellMode": "auto",
+						"windowTitle": "{hostname}: {workspace}",
+						"notificationProfile": "[ui.toast]\ndelivery='off'\n",
+						"agentSidebarProfile": "{\"rows\":null,\"rows_by_agent\":{},\"row_gap\":0}",
+						"spacesSidebarProfile": "{\"rows\":[],\"row_gap\":0}"
+					}
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "diagnostics-omitted-count-overflow",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.configuration.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "current",
+					"snapshot": {
+						"revision": "1",
+						"diagnostics": {
+							"items": [],
+							"omittedCount": 65537
+						},
+						"keysProfile": "[keys]\nprefix=\"ctrl+a\"\n",
+						"restartRequired": [],
+						"manifestCheck": true,
+						"defaultShell": "",
+						"shellMode": "auto",
+						"windowTitle": "{hostname}: {workspace}",
+						"notificationProfile": "[ui.toast]\ndelivery='off'\n",
+						"agentSidebarProfile": "{\"rows\":null,\"rows_by_agent\":{},\"row_gap\":0}",
+						"spacesSidebarProfile": "{\"rows\":[],\"row_gap\":0}"
+					}
+				}
+			},
+			"boundary": "schema"
+		},
 		{
 			"name": "unknown-field",
 			"direction": "request",
@@ -309,6 +1426,10 @@
 					"kind": "current",
 					"snapshot": {
 						"revision": "1",
+						"diagnostics": {
+							"items": [],
+							"omittedCount": 0
+						},
 						"keysProfile": "[keys]\nprefix=\"ctrl+a\"\n",
 						"restartRequired": ["terminal.default_shell", "terminal.default_shell"],
 						"manifestCheck": true,
@@ -335,6 +1456,10 @@
 					"kind": "current",
 					"snapshot": {
 						"revision": "18446744073709551616",
+						"diagnostics": {
+							"items": [],
+							"omittedCount": 0
+						},
 						"keysProfile": "[keys]\nprefix=\"ctrl+a\"\n",
 						"restartRequired": [],
 						"manifestCheck": true,
@@ -361,6 +1486,10 @@
 					"kind": "current",
 					"snapshot": {
 						"revision": "1",
+						"diagnostics": {
+							"items": [],
+							"omittedCount": 0
+						},
 						"keysProfile": "",
 						"restartRequired": [],
 						"manifestCheck": true,
@@ -387,6 +1516,10 @@
 					"kind": "reloaded",
 					"snapshot": {
 						"revision": "1",
+						"diagnostics": {
+							"items": [],
+							"omittedCount": 0
+						},
 						"keysProfile": "[keys]\nprefix=\"ctrl+a\"\n",
 						"restartRequired": [],
 						"manifestCheck": true,
@@ -414,6 +1547,10 @@
 					"kind": "reloaded",
 					"snapshot": {
 						"revision": "1",
+						"diagnostics": {
+							"items": [],
+							"omittedCount": 0
+						},
 						"keysProfile": "[keys]\nprefix=\"ctrl+a\"\n",
 						"restartRequired": [],
 						"manifestCheck": true,
@@ -441,6 +1578,10 @@
 					"kind": "reloaded",
 					"snapshot": {
 						"revision": "1",
+						"diagnostics": {
+							"items": [],
+							"omittedCount": 0
+						},
 						"keysProfile": "[keys]\nprefix=\"ctrl+a\"\n",
 						"restartRequired": [],
 						"manifestCheck": true,
@@ -468,6 +1609,10 @@
 					"kind": "reloaded",
 					"snapshot": {
 						"revision": "1",
+						"diagnostics": {
+							"items": [],
+							"omittedCount": 0
+						},
 						"keysProfile": "[keys]\nprefix=\"ctrl+a\"\n",
 						"restartRequired": [],
 						"manifestCheck": true,
@@ -494,6 +1639,10 @@
 					"kind": "reloaded",
 					"snapshot": {
 						"revision": "1",
+						"diagnostics": {
+							"items": [],
+							"omittedCount": 0
+						},
 						"keysProfile": "[keys]\nprefix=\"ctrl+a\"\n",
 						"restartRequired": [],
 						"manifestCheck": true,
@@ -520,6 +1669,10 @@
 					"kind": "reloaded",
 					"snapshot": {
 						"revision": "1",
+						"diagnostics": {
+							"items": [],
+							"omittedCount": 0
+						},
 						"keysProfile": "[keys]\nprefix=\"ctrl+a\"\n",
 						"restartRequired": [],
 						"manifestCheck": true,
@@ -546,6 +1699,10 @@
 					"kind": "reloaded",
 					"snapshot": {
 						"revision": "1",
+						"diagnostics": {
+							"items": [],
+							"omittedCount": 0
+						},
 						"keysProfile": "[keys]\nprefix=\"ctrl+a\"\n",
 						"restartRequired": [],
 						"manifestCheck": true,
@@ -573,6 +1730,10 @@
 					"kind": "reloaded",
 					"snapshot": {
 						"revision": "1",
+						"diagnostics": {
+							"items": [],
+							"omittedCount": 0
+						},
 						"keysProfile": "[keys]\nprefix=\"ctrl+a\"\n",
 						"restartRequired": [],
 						"manifestCheck": true,
@@ -598,6 +1759,10 @@
 					"kind": "reloaded",
 					"snapshot": {
 						"revision": "1",
+						"diagnostics": {
+							"items": [],
+							"omittedCount": 0
+						},
 						"keysProfile": "[keys]\nprefix=\"ctrl+a\"\n",
 						"restartRequired": [],
 						"manifestCheck": true,
@@ -624,6 +1789,10 @@
 					"kind": "reloaded",
 					"snapshot": {
 						"revision": "1",
+						"diagnostics": {
+							"items": [],
+							"omittedCount": 0
+						},
 						"keysProfile": "[keys]\nprefix=\"ctrl+a\"\n",
 						"restartRequired": [],
 						"manifestCheck": true,
@@ -651,6 +1820,10 @@
 					"kind": "reloaded",
 					"snapshot": {
 						"revision": "1",
+						"diagnostics": {
+							"items": [],
+							"omittedCount": 0
+						},
 						"keysProfile": "[keys]\nprefix=\"ctrl+a\"\n",
 						"restartRequired": [],
 						"manifestCheck": true,
@@ -678,6 +1851,10 @@
 					"kind": "reloaded",
 					"snapshot": {
 						"revision": "1",
+						"diagnostics": {
+							"items": [],
+							"omittedCount": 0
+						},
 						"keysProfile": "[keys]\nprefix=\"ctrl+a\"\n",
 						"restartRequired": [],
 						"manifestCheck": true,
@@ -702,6 +1879,10 @@
 					"kind": "reloaded",
 					"snapshot": {
 						"revision": "1",
+						"diagnostics": {
+							"items": [],
+							"omittedCount": 0
+						},
 						"keysProfile": "[keys]\nprefix=\"ctrl+a\"\n",
 						"restartRequired": [],
 						"manifestCheck": true,
@@ -728,6 +1909,10 @@
 					"kind": "reloaded",
 					"snapshot": {
 						"revision": "1",
+						"diagnostics": {
+							"items": [],
+							"omittedCount": 0
+						},
 						"keysProfile": "[keys]\nprefix=\"ctrl+a\"\n",
 						"restartRequired": [],
 						"manifestCheck": true,
@@ -754,6 +1939,10 @@
 					"kind": "reloaded",
 					"snapshot": {
 						"revision": "1",
+						"diagnostics": {
+							"items": [],
+							"omittedCount": 0
+						},
 						"keysProfile": "[keys]\nprefix=\"ctrl+a\"\n",
 						"restartRequired": [],
 						"manifestCheck": true,
@@ -779,6 +1968,10 @@
 					"kind": "reloaded",
 					"snapshot": {
 						"revision": "1",
+						"diagnostics": {
+							"items": [],
+							"omittedCount": 0
+						},
 						"keysProfile": "[keys]\nprefix=\"ctrl+a\"\n",
 						"restartRequired": [],
 						"manifestCheck": true,
@@ -792,6 +1985,718 @@
 					"changed": true
 				}
 			}
+		},
+		{
+			"name": "diagnostics-item-count-overflow",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.configuration.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "current",
+					"snapshot": {
+						"revision": "1",
+						"diagnostics": {
+							"items": [
+								{
+									"field": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+									"reason": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+									"disposition": "defaulted"
+								},
+								{
+									"field": "f001",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f002",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f003",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f004",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f005",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f006",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f007",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f008",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f009",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f010",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f011",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f012",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f013",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f014",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f015",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f016",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f017",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f018",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f019",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f020",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f021",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f022",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f023",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f024",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f025",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f026",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f027",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f028",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f029",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f030",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f031",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f032",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f033",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f034",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f035",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f036",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f037",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f038",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f039",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f040",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f041",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f042",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f043",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f044",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f045",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f046",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f047",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f048",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f049",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f050",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f051",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f052",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f053",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f054",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f055",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f056",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f057",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f058",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f059",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f060",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f061",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f062",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f063",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f064",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f065",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f066",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f067",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f068",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f069",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f070",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f071",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f072",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f073",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f074",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f075",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f076",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f077",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f078",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f079",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f080",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f081",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f082",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f083",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f084",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f085",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f086",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f087",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f088",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f089",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f090",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f091",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f092",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f093",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f094",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f095",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f096",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f097",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f098",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f099",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f100",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f101",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f102",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f103",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f104",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f105",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f106",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f107",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f108",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f109",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f110",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f111",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f112",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f113",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f114",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f115",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f116",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f117",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f118",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f119",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f120",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f121",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f122",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f123",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f124",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f125",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f126",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "f127",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								},
+								{
+									"field": "z999",
+									"reason": "invalid-binding",
+									"disposition": "disabled"
+								}
+							],
+							"omittedCount": 65536
+						},
+						"keysProfile": "[keys]\nprefix=\"ctrl+a\"\n",
+						"restartRequired": [],
+						"manifestCheck": true,
+						"defaultShell": "",
+						"shellMode": "auto",
+						"windowTitle": "{hostname}: {workspace}",
+						"notificationProfile": "[ui.toast]\ndelivery='off'\n",
+						"agentSidebarProfile": "{\"rows\":null,\"rows_by_agent\":{},\"row_gap\":0}",
+						"spacesSidebarProfile": "{\"rows\":[],\"row_gap\":0}"
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "diagnostic-reason-byte-overflow",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.configuration.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "current",
+					"snapshot": {
+						"revision": "1",
+						"diagnostics": {
+							"items": [
+								{
+									"field": "keys.help",
+									"reason": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+									"disposition": "disabled"
+								}
+							],
+							"omittedCount": 0
+						},
+						"keysProfile": "[keys]\nprefix=\"ctrl+a\"\n",
+						"restartRequired": [],
+						"manifestCheck": true,
+						"defaultShell": "",
+						"shellMode": "auto",
+						"windowTitle": "{hostname}: {workspace}",
+						"notificationProfile": "[ui.toast]\ndelivery='off'\n",
+						"agentSidebarProfile": "{\"rows\":null,\"rows_by_agent\":{},\"row_gap\":0}",
+						"spacesSidebarProfile": "{\"rows\":[],\"row_gap\":0}"
+					}
+				}
+			},
+			"boundary": "schema"
 		}
 	]
 }

@@ -5,5 +5,14 @@ mod tests;
 
 pub(super) fn render() -> String {
     let grammar = super::grammar::build().to_string().replace('\'', "''");
-    include_str!("elvish.elv").replace("__ORCHBEE_GRAMMAR__", &grammar)
+    include_str!("elvish.elv")
+        .replace("__ORCHBEE_GRAMMAR__", &grammar)
+        .replace(
+            "__ORCHBEE_DEFAULT_CONFIG_ELVISH__",
+            if cfg!(windows) {
+                " --default-config"
+            } else {
+                ""
+            },
+        )
 }

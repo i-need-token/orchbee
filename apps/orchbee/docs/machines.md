@@ -434,8 +434,10 @@ Windows users can select sidebar content through `ui.sidebar.agents.rows`,
 bounded whole file and a canonical, closed JSON profile of at most 32 KiB.
 The existing Site configuration owner publishes that profile alongside keys and
 notification policy; only the Client UI owner installs a newer, completely
-validated publication. Bad candidates retain all previously installed settings.
-No renderer reads configuration files or starts background work.
+validated publication. Fatal source failures retain all previously installed settings. An invalid
+configured sidebar profile uses its safe default, emits a warning and remains part of the complete
+atomic candidate; a malformed private wire profile is rejected before Client installation. No
+renderer reads configuration files or starts background work.
 
 Rows contain `state_icon`, `state_text`, `machine`, `workspace`, `tab`, `pane`,
 `agent`, `terminal_title`, `terminal_title_stripped`, or `$name`. Missing values and tokens hidden by rules disappear; rows
@@ -458,7 +460,8 @@ builtins.
 | Layout or publication changes                  | Reset follow-focus window and pending scroll; do not alter filters, seen state or physical identity                     |
 | Variable-height viewport                       | Fit whole entries and inter-entry gaps; an oversized single entry is clipped to the actual body                         |
 | Scroll                                         | Move by entries, at most the painted entry count per cadence; clamp against the final page computed from actual heights |
-| Invalid file/profile/reload                    | Reject before publication or UI installation; retain previous keys, notification policy and sidebar                     |
+| Invalid configured sidebar profile             | Use the safe sidebar default, emit a warning and publish it with the complete candidate                                 |
+| Fatal file/TOML or malformed wire profile      | Reject before publication or UI installation; retain previous keys, notification policy and sidebar                     |
 
 At most 16 rows, 16 tokens per row, 16 rules per token and 64 provider overrides
 are admitted. Custom keys use the metadata ASCII grammar; provider keys are
@@ -573,8 +576,9 @@ reducing sidebar sections. Text-token widths reserve fixed icon/Git-count widths
 long branch/custom values shrink before readable ahead/behind counts.
 
 The Site publishes keys, notifications and both bounded canonical sidebar
-profiles as one candidate. Invalid publication retains every prior Client
-setting. The two 32 KiB sidebar profiles use a 256 KiB configuration frame,
+profiles as one candidate. Fatal source failure or a malformed private publication retains every
+prior Client setting; an invalid configured sidebar uses its safe default and warning in the atomic
+candidate. The two 32 KiB sidebar profiles use a 256 KiB configuration frame,
 including JSON escaping; field budgets remain separate. Matched cohorts update
 together; public versioned CLI documents keep
 older variants closed. Core and adapter evidence cover strict admission,

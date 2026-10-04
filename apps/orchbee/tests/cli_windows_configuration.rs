@@ -61,12 +61,11 @@ fn channel_set_persists_before_failed_update_and_never_activates_a_site() {
             && text.contains("# retained channel note")
     );
     assert!(text.contains("manifest_check=false") && text.contains("new_cwd='home'"));
-    for invalid in [
-        "[unknown]\nsecret='kept'",
-        "[update]\nchannel=true",
-        "not TOML",
+    for (warning, retained) in [
+        ("[unknown]\nsecret='kept'", Some("secret='kept'")),
+        ("[update]\nchannel=true", None),
     ] {
-        std::fs::write(&config, invalid).unwrap();
+        std::fs::write(&config, warning).unwrap();
         let output = fixture.run_with_env(
             &["channel", "set", "preview", "--format=json"],
             None,
@@ -76,10 +75,32 @@ fn channel_set_persists_before_failed_update_and_never_activates_a_site() {
         assert_eq!(output.status.code(), Some(1));
         let doc = document(output);
         validate(&doc, schema);
-        assert_eq!(doc["result"]["channelSaved"], false);
-        assert_eq!(doc["result"]["error"], "configuration");
-        assert_eq!(std::fs::read_to_string(&config).unwrap(), invalid);
+        assert_eq!(doc["result"]["channelSaved"], true);
+        assert_eq!(doc["result"]["channel"], "preview");
+        assert_eq!(doc["result"]["error"], "source-unconfigured");
+        let saved = std::fs::read_to_string(&config).unwrap();
+        if let Some(retained) = retained {
+            assert!(saved.contains(retained));
+        }
+        assert_eq!(
+            document(fixture.run(&["channel", "show", "--format=json"]))["result"]["channel"],
+            "preview"
+        );
     }
+    let invalid = "not TOML";
+    std::fs::write(&config, invalid).unwrap();
+    let output = fixture.run_with_env(
+        &["channel", "set", "preview", "--format=json"],
+        None,
+        None,
+        &env,
+    );
+    assert_eq!(output.status.code(), Some(1));
+    let doc = document(output);
+    validate(&doc, schema);
+    assert_eq!(doc["result"]["channelSaved"], false);
+    assert_eq!(doc["result"]["error"], "configuration");
+    assert_eq!(std::fs::read_to_string(&config).unwrap(), invalid);
     for args in [
         vec!["channel", "set"],
         vec!["channel", "set", "nightly"],
@@ -98,7 +119,7 @@ fn channel_set_persists_before_failed_update_and_never_activates_a_site() {
 }
 
 #[test]
-fn channel_show_reads_strict_shared_settings_without_a_site_or_writes() {
+fn channel_show_uses_the_effective_channel_and_preserves_warning_input() {
     let fixture = Fixture::new();
     let config = fixture.0.join("appdata/Orchbee/config.toml");
     let run = || fixture.run(&["channel", "show", "--format=json"]);
@@ -129,35 +150,24 @@ fn channel_show_reads_strict_shared_settings_without_a_site_or_writes() {
     assert!(text.status.success());
     assert_eq!(text.stdout, b"preview\n");
     assert_eq!(std::fs::read(&config).unwrap(), bytes);
-    for content in ["[update]\nchannel='DO-NOT-ECHO'", "[update]\nchannel=true"] {
+    for (content, reason) in [
+        ("[update]\nchannel='DO-NOT-ECHO'", "invalid-channel"),
+        ("[update]\nchannel=true", "wrong-type"),
+    ] {
         std::fs::write(&config, content).unwrap();
         let output = run();
-        assert_eq!(output.status.code(), Some(1));
+        assert!(output.status.success());
         assert!(!String::from_utf8_lossy(&output.stdout).contains("DO-NOT-ECHO"));
         let doc = document(output);
         validate(
             &doc,
-            include_str!("../src/cli/schemas/orchbee.cli.failure.configuration.json"),
+            include_str!("../src/cli/schemas/orchbee.channel.show.json"),
         );
-        assert_eq!(doc["version"], 6);
-        assert_eq!(doc["failure"]["details"]["field"], "update.channel");
-        let schema: Value = serde_json::from_str(include_str!(
-            "../src/cli/schemas/orchbee.cli.failure.configuration.json"
-        ))
-        .unwrap();
-        let mut legacy = doc.clone();
-        legacy["version"] = json!(5);
-        assert!(
-            !jsonschema::validator_for(&schema)
-                .unwrap()
-                .is_valid(&legacy)
-        );
-        let checked = document(fixture.run(&["config", "check", "--format=json"]));
-        validate(
-            &checked,
-            include_str!("../src/cli/schemas/orchbee.config.check.json"),
-        );
-        assert_eq!(checked["version"], 12);
+        assert_eq!(doc["result"]["channel"], "stable");
+        assert_eq!(doc["result"]["source"], "default");
+        assert_eq!(doc["result"]["exists"], true);
+        let checked = config_check_document(&fixture);
+        assert_warning_diagnostic(&checked, "update.channel", reason, "defaulted");
         assert_eq!(std::fs::read_to_string(&config).unwrap(), content);
     }
     let missing = fixture.0.join("explicit-missing.toml");
@@ -186,7 +196,7 @@ fn id(n: u64) -> String {
 }
 
 #[test]
-fn sidebar_configuration_check_projects_profiles_and_rejects_invalid_creation_before_ipc() {
+fn sidebar_configuration_check_projects_profiles_and_defaults_invalid_profiles() {
     let fixture = Fixture::new();
     let config = fixture.0.join("appdata/Orchbee/config.toml");
     std::fs::create_dir_all(config.parent().unwrap()).unwrap();
@@ -195,7 +205,7 @@ fn sidebar_configuration_check_projects_profiles_and_rejects_invalid_creation_be
     let mut doc = document(fixture.run(&["config", "check", "--format=json"]));
     let schema = include_str!("../src/cli/schemas/orchbee.config.check.json");
     validate(&doc, schema);
-    assert_eq!(doc["version"], 12);
+    assert_eq!(doc["version"], 13);
     let profile = orchbee_local_site_runtime::WindowsAgentSidebarSettings::from_profile(
         doc["result"]["checks"][5]["details"]["agentSidebarProfile"]
             .as_str()
@@ -212,6 +222,8 @@ fn sidebar_configuration_check_projects_profiles_and_rejects_invalid_creation_be
         "notificationDelaySeconds",
         "notificationSoundEnabled",
         "notificationAgentSounds",
+        "diagnostics",
+        "diagnosticsOmitted",
     ] {
         doc["result"]["checks"][5]["details"]
             .as_object_mut()
@@ -238,25 +250,18 @@ fn sidebar_configuration_check_projects_profiles_and_rejects_invalid_creation_be
     ] {
         let invalid = format!("[ui.sidebar.agents]\nrows=[['{token}']]");
         std::fs::write(&config, &invalid).unwrap();
-        let checked = document(fixture.run(&["config", "check", "--format=json"]));
-        validate(&checked, schema);
-        assert_eq!(
-            checked["result"]["checks"][5]["details"]["field"],
-            "ui.sidebar.agents"
-        );
-        assert_eq!(checked["result"]["checks"][5]["details"]["reason"], reason);
-        let output = fixture.run(&["workspace", "create", "--cwd=C:/explicit", "--format=json"]);
-        assert_eq!(output.status.code(), Some(1));
-        let failure = document(output);
-        validate(
-            &failure,
-            include_str!("../src/cli/schemas/orchbee.cli.failure.configuration.json"),
-        );
-        assert_eq!(failure["version"], 7);
-        assert_eq!(failure["failure"]["details"]["field"], "ui.sidebar.agents");
+        let checked = config_check_document(&fixture);
+        assert_warning_diagnostic(&checked, "ui.sidebar.agents", reason, "defaulted");
+        let profile = orchbee_local_site_runtime::WindowsAgentSidebarSettings::from_profile(
+            checked["result"]["checks"][5]["details"]["agentSidebarProfile"]
+                .as_str()
+                .unwrap(),
+        )
+        .unwrap();
+        assert!(profile.rows_for_agent("codex", None).is_none());
+        assert_creation_reaches_missing_site(&fixture);
         assert_eq!(std::fs::read_to_string(&config).unwrap(), invalid);
     }
-    assert!(!fixture.0.join("runtime").exists());
 }
 fn document(output: std::process::Output) -> Value {
     serde_json::from_slice(&output.stdout).unwrap_or_else(|_| {
@@ -266,6 +271,67 @@ fn document(output: std::process::Output) -> Value {
             String::from_utf8_lossy(&output.stderr)
         )
     })
+}
+
+fn config_check_document(fixture: &Fixture) -> Value {
+    let runtime = fixture.0.join("runtime");
+    let remove_runtime = !runtime.exists();
+    if remove_runtime {
+        std::fs::create_dir(&runtime).unwrap();
+    }
+    let output = fixture.run(&["config", "check", "--format=json"]);
+    if remove_runtime {
+        std::fs::remove_dir(&runtime).unwrap();
+    }
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let document = document(output);
+    validate(
+        &document,
+        include_str!("../src/cli/schemas/orchbee.config.check.json"),
+    );
+    assert_eq!(document["version"], 13);
+    document
+}
+
+fn assert_warning_diagnostic(document: &Value, field: &str, reason: &str, disposition: &str) {
+    assert_eq!(document["result"]["ok"], true);
+    let check = &document["result"]["checks"][5];
+    assert_eq!(check["name"], "user-config");
+    assert_eq!(check["status"], "warning");
+    assert!(
+        check["details"]["diagnostics"]
+            .as_array()
+            .unwrap()
+            .contains(&json!({
+                "field": field,
+                "reason": reason,
+                "disposition": disposition,
+            })),
+        "{check}"
+    );
+}
+
+fn assert_creation_reaches_missing_site(fixture: &Fixture) {
+    std::fs::create_dir_all(fixture.0.join("runtime")).unwrap();
+    let output = fixture.run(&["workspace", "create", "--cwd=C:/explicit", "--format=json"]);
+    assert_eq!(
+        output.status.code(),
+        Some(4),
+        "{} {}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let failure = document(output);
+    validate(
+        &failure,
+        include_str!("../src/cli/schemas/orchbee.cli.failure.json"),
+    );
+    assert_eq!(failure["failure"]["kind"], "service-unavailable");
 }
 fn snapshot(stream: &mut LocalStream, project: bool) {
     let WorkbenchRequest::SnapshotRead(request) = read_workbench_request(stream).unwrap() else {
@@ -284,31 +350,36 @@ fn snapshot(stream: &mut LocalStream, project: bool) {
 }
 
 #[test]
-fn malformed_or_missing_explicit_configuration_stops_every_creation_before_ipc() {
+fn file_level_or_missing_explicit_configuration_stops_every_creation_before_ipc() {
     let fixture = Fixture::new();
     let config = fixture.0.join("config.toml");
     let schema = include_str!("../src/cli/schemas/orchbee.cli.failure.configuration.json");
+    let check_schema = include_str!("../src/cli/schemas/orchbee.config.check.json");
     for (bytes, reason) in [
-        (b"unknown = 'DO-NOT-ECHO'".to_vec(), "unknown-key"),
         (vec![b'a'; 65537], "too-large"),
         (vec![0xff], "invalid-utf8"),
-        (b"[terminal]\nnew_cwd=1".to_vec(), "wrong-type"),
-        (
-            b"[terminal]\ndefault_shell='C:relative.exe'".to_vec(),
-            "invalid-executable",
-        ),
-        (b"[terminal]\nshell_mode='INVALID'".to_vec(), "invalid-mode"),
-        (b"[keys]\nhelp='ctrl+d'".to_vec(), "unsafe-binding"),
-        (
-            b"[keys]\nhelp='prefix+Q'\nnew_tab='prefix+shift+q'".to_vec(),
-            "duplicate-binding",
-        ),
         (
             b"[terminal]\nnew_cwd='home'\nnew_cwd='follow'".to_vec(),
             "invalid-toml",
         ),
     ] {
         std::fs::write(&config, bytes).unwrap();
+        let checked = fixture.run_with_env(
+            &["config", "check", "--format=json"],
+            None,
+            None,
+            &[("ORCHBEE_CONFIG_FILE", config.as_os_str())],
+        );
+        assert_eq!(checked.status.code(), Some(1));
+        let checked = document(checked);
+        validate(&checked, check_schema);
+        assert_eq!(checked["version"], 13);
+        assert_eq!(checked["result"]["ok"], false);
+        assert_eq!(checked["result"]["checks"][5]["status"], "fail");
+        assert_eq!(
+            checked["result"]["checks"][5]["details"],
+            json!({"field": "file", "reason": reason})
+        );
         for args in [
             vec!["workspace", "create", "--cwd=C:/explicit", "--format=json"],
             vec!["tab", "create", "--standalone", "--format=json"],
@@ -338,16 +409,6 @@ fn malformed_or_missing_explicit_configuration_stops_every_creation_before_ipc()
             let doc = document(output);
             validate(&doc, schema);
             assert_eq!(doc["failure"]["details"]["reason"], reason);
-            if matches!(reason, "invalid-executable" | "invalid-mode") {
-                assert_eq!(doc["version"], 2);
-                let mut old = doc;
-                old["version"] = json!(1);
-                assert!(
-                    !jsonschema::validator_for(&serde_json::from_str::<Value>(schema).unwrap())
-                        .unwrap()
-                        .is_valid(&old)
-                );
-            }
         }
     }
     std::fs::remove_file(&config).unwrap();
@@ -360,6 +421,179 @@ fn malformed_or_missing_explicit_configuration_stops_every_creation_before_ipc()
     validate(&doc, schema);
     assert_eq!(doc["failure"]["details"]["reason"], "missing");
     assert!(!config.exists());
+
+    let checked = fixture.run_with_env(
+        &["config", "check", "--format=json"],
+        None,
+        None,
+        &[("ORCHBEE_CONFIG_FILE", config.as_os_str())],
+    );
+    assert_eq!(checked.status.code(), Some(1));
+    let checked = document(checked);
+    validate(&checked, check_schema);
+    assert_eq!(checked["result"]["checks"][5]["status"], "fail");
+    assert_eq!(
+        checked["result"]["checks"][5]["details"],
+        json!({"field": "file", "reason": "missing"})
+    );
+
+    std::fs::create_dir(&config).unwrap();
+    let doc = document(fixture.run_with_env(
+        &["workspace", "create", "--format=json"],
+        None,
+        None,
+        &[("ORCHBEE_CONFIG_FILE", config.as_os_str())],
+    ));
+    validate(&doc, schema);
+    assert_eq!(doc["failure"]["details"]["reason"], "not-file");
+    let checked = fixture.run_with_env(
+        &["config", "check", "--format=json"],
+        None,
+        None,
+        &[("ORCHBEE_CONFIG_FILE", config.as_os_str())],
+    );
+    assert_eq!(checked.status.code(), Some(1));
+    let checked = document(checked);
+    validate(&checked, check_schema);
+    assert_eq!(
+        checked["result"]["checks"][5]["details"],
+        json!({"field": "file", "reason": "not-file"})
+    );
+    std::fs::remove_dir(&config).unwrap();
+
+    let output = fixture.run_with_env(
+        &["workspace", "create", "--format=json"],
+        None,
+        None,
+        &[(
+            "ORCHBEE_RESUME_AGENTS_ON_RESTORE",
+            std::ffi::OsStr::new("not-a-boolean"),
+        )],
+    );
+    assert_eq!(output.status.code(), Some(1));
+    let doc = document(output);
+    validate(&doc, schema);
+    assert_eq!(
+        doc["failure"]["details"],
+        json!({
+            "field": "ORCHBEE_RESUME_AGENTS_ON_RESTORE",
+            "reason": "invalid-boolean",
+        })
+    );
+    let checked = fixture.run_with_env(
+        &["config", "check", "--format=json"],
+        None,
+        None,
+        &[(
+            "ORCHBEE_RESUME_AGENTS_ON_RESTORE",
+            std::ffi::OsStr::new("not-a-boolean"),
+        )],
+    );
+    assert_eq!(checked.status.code(), Some(1));
+    let checked = document(checked);
+    validate(&checked, check_schema);
+    assert_eq!(checked["result"]["checks"][5]["status"], "fail");
+    assert_eq!(
+        checked["result"]["checks"][5]["details"],
+        json!({
+            "field": "ORCHBEE_RESUME_AGENTS_ON_RESTORE",
+            "reason": "invalid-boolean",
+        })
+    );
+}
+
+#[test]
+fn field_errors_warn_default_or_disable_only_the_affected_setting() {
+    let fixture = Fixture::new();
+    let config = fixture.0.join("appdata/Orchbee/config.toml");
+    std::fs::create_dir_all(config.parent().unwrap()).unwrap();
+    for (text, field, reason, disposition) in [
+        (
+            "unknown = 'DO-NOT-ECHO'",
+            "unknown",
+            "unknown-key",
+            "ignored",
+        ),
+        (
+            "[theme]\nname='night'",
+            "theme.name",
+            "unsupported-herdr",
+            "unsupported",
+        ),
+        (
+            "[terminal]\nnew_cwd=1",
+            "terminal.new_cwd",
+            "wrong-type",
+            "defaulted",
+        ),
+        (
+            "[terminal]\ndefault_shell='C:relative.exe'",
+            "terminal.default_shell",
+            "invalid-executable",
+            "defaulted",
+        ),
+        (
+            "[terminal]\nshell_mode='INVALID'",
+            "terminal.shell_mode",
+            "invalid-mode",
+            "defaulted",
+        ),
+        (
+            "[keys]\nhelp='ctrl+d'",
+            "keys.help",
+            "unsafe-binding",
+            "disabled",
+        ),
+        (
+            "[keys]\nhelp='prefix+Q'\nnew_tab='prefix+shift+q'",
+            "keys.new_tab",
+            "duplicate-binding",
+            "disabled",
+        ),
+    ] {
+        std::fs::write(&config, text).unwrap();
+        let checked = config_check_document(&fixture);
+        assert_warning_diagnostic(&checked, field, reason, disposition);
+        assert_eq!(
+            checked["result"]["checks"][5]["details"]["diagnosticsOmitted"],
+            0
+        );
+        assert!(!checked.to_string().contains("DO-NOT-ECHO"));
+        let mut old = checked.clone();
+        old["version"] = 12.into();
+        let schema: Value =
+            serde_json::from_str(include_str!("../src/cli/schemas/orchbee.config.check.json"))
+                .unwrap();
+        assert!(!jsonschema::validator_for(&schema).unwrap().is_valid(&old));
+        assert_creation_reaches_missing_site(&fixture);
+        assert_eq!(std::fs::read_to_string(&config).unwrap(), text);
+    }
+}
+
+#[test]
+fn config_check_bounds_diagnostics_and_reports_the_exact_omitted_count() {
+    let fixture = Fixture::new();
+    let config = fixture.0.join("appdata/Orchbee/config.toml");
+    std::fs::create_dir_all(config.parent().unwrap()).unwrap();
+    let text = (0..130)
+        .map(|index| format!("unknown_{index:03}=true"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    std::fs::write(&config, text).unwrap();
+    let checked = config_check_document(&fixture);
+    let details = &checked["result"]["checks"][5]["details"];
+    assert_eq!(checked["result"]["checks"][5]["status"], "warning");
+    assert_eq!(details["diagnostics"].as_array().unwrap().len(), 128);
+    assert_eq!(details["diagnosticsOmitted"], 2);
+    assert_eq!(
+        details["diagnostics"][0],
+        json!({
+            "field": "unknown_000",
+            "reason": "unknown-key",
+            "disposition": "ignored",
+        })
+    );
+    assert_eq!(details["diagnostics"][127]["field"], "unknown_127");
 }
 
 #[test]
@@ -384,7 +618,7 @@ fn config_check_reports_the_actual_file_without_creating_it() {
         !validator.is_valid(&old),
         "v2 must not silently omit user configuration"
     );
-    assert_eq!(doc["version"], 12);
+    assert_eq!(doc["version"], 13);
     assert_eq!(doc["result"]["checks"][5]["details"]["defaultShell"], "");
     assert_eq!(doc["result"]["checks"][5]["details"]["shellMode"], "auto");
     assert_eq!(doc["result"]["checks"][5]["details"]["manifestCheck"], true);
@@ -428,6 +662,8 @@ fn config_check_reports_the_actual_file_without_creating_it() {
         "notificationPosition",
         "agentSidebarProfile",
         "spacesSidebarProfile",
+        "diagnostics",
+        "diagnosticsOmitted",
     ] {
         old["result"]["checks"][5]["details"]
             .as_object_mut()
@@ -442,9 +678,12 @@ fn config_check_reports_the_actual_file_without_creating_it() {
         fixture.0.join("appdata/Orchbee/../trees")
     );
     std::fs::write(&config, "[worktrees]\ndirectory=3").unwrap();
-    let doc = document(fixture.run(&["config", "check", "--format=json"]));
-    validate(&doc, schema);
-    assert_eq!(doc["result"]["checks"][5]["status"], "fail");
+    let doc = config_check_document(&fixture);
+    assert_warning_diagnostic(&doc, "worktrees.directory", "wrong-type", "defaulted");
+    assert_eq!(
+        doc["result"]["checks"][5]["details"]["worktreeDirectory"],
+        Value::Null
+    );
 }
 
 #[test]
@@ -460,10 +699,11 @@ fn config_check_validates_keys_and_keeps_previous_envelopes_closed() {
     let schema = include_str!("../src/cli/schemas/orchbee.config.check.json");
     let validator =
         jsonschema::validator_for(&serde_json::from_str::<Value>(schema).unwrap()).unwrap();
-    let doc = document(fixture.run(&["config", "check", "--format=json"]));
-    validate(&doc, schema);
+    let doc = config_check_document(&fixture);
+    assert_eq!(doc["result"]["checks"][5]["status"], "warning");
     assert_eq!(doc["result"]["checks"][5]["details"]["keyPrefix"], "Ctrl+A");
     assert_eq!(doc["result"]["checks"][5]["details"]["keyOverrides"], 3);
+    assert_warning_diagnostic(&doc, "keys.new_tab", "invalid-binding", "disabled");
     let mut old = doc;
     old["version"] = json!(5);
     assert!(!validator.is_valid(&old));
@@ -480,22 +720,20 @@ fn config_check_validates_keys_and_keeps_previous_envelopes_closed() {
         "notificationPosition",
         "agentSidebarProfile",
         "spacesSidebarProfile",
+        "diagnostics",
+        "diagnosticsOmitted",
     ] {
         old["result"]["checks"][5]["details"]
             .as_object_mut()
             .unwrap()
             .remove(key);
     }
+    old["result"]["checks"][5]["status"] = json!("pass");
     assert!(validator.is_valid(&old));
     std::fs::write(&config, "[keys]\nhelp='ctrl+c'").unwrap();
-    let output = fixture.run(&["config", "check", "--format=json"]);
-    assert_eq!(output.status.code(), Some(1));
-    let doc = document(output);
-    validate(&doc, schema);
-    assert_eq!(
-        doc["result"]["checks"][5]["details"],
-        json!({"field":"keys", "reason":"unsafe-binding"})
-    );
+    let doc = config_check_document(&fixture);
+    assert_warning_diagnostic(&doc, "keys.help", "unsafe-binding", "disabled");
+    assert_eq!(doc["result"]["checks"][5]["details"]["keyOverrides"], 1);
 }
 
 #[test]
@@ -819,49 +1057,55 @@ fn config_check_window_title_diagnostics_and_closed_previous_versions() {
     let schema = include_str!("../src/cli/schemas/orchbee.config.check.json");
     let validator =
         jsonschema::validator_for(&serde_json::from_str::<Value>(schema).unwrap()).unwrap();
-    for (title, diagnostic) in [
-        ("", None),
-        ("{workspace}/{tab}", None),
-        ("{unknown}", Some("unknown-token")),
-        ("{tab", Some("unclosed-brace")),
+    let default = orchbee_local_site_runtime::DEFAULT_WINDOW_TITLE;
+    for (title, effective, diagnostic) in [
+        ("", "", None),
+        ("{workspace}/{tab}", "{workspace}/{tab}", None),
+        ("{unknown}", default, Some("unknown-token")),
+        ("{tab", default, Some("unclosed-brace")),
     ] {
         std::fs::write(&config, format!("[ui]\nwindow_title='{title}'")).unwrap();
-        let doc = document(fixture.run(&["config", "check", "--format=json"]));
-        validate(&doc, schema);
+        let doc = config_check_document(&fixture);
         let check = &doc["result"]["checks"][5];
-        assert_eq!(check["status"], "pass");
-        assert_eq!(check["details"]["windowTitle"], title);
-        assert_eq!(check["details"]["windowTitleDiagnostic"], json!(diagnostic));
-        let mut old = doc.clone();
-        old["version"] = json!(6);
-        assert!(!validator.is_valid(&old));
-        for key in [
-            "windowTitle",
-            "windowTitleDiagnostic",
-            "notificationDelivery",
-            "notificationAgentDelivery",
-            "notificationDelaySeconds",
-            "notificationSoundEnabled",
-            "notificationAgentSounds",
-            "notificationPosition",
-            "agentSidebarProfile",
-            "spacesSidebarProfile",
-        ] {
-            old["result"]["checks"][5]["details"]
-                .as_object_mut()
-                .unwrap()
-                .remove(key);
+        assert_eq!(check["details"]["windowTitle"], effective);
+        assert_eq!(check["details"]["windowTitleDiagnostic"], Value::Null);
+        if let Some(diagnostic) = diagnostic {
+            assert_warning_diagnostic(&doc, "ui.window_title", diagnostic, "defaulted");
+        } else {
+            assert_eq!(check["status"], "pass");
+            let mut old = doc.clone();
+            old["version"] = json!(6);
+            assert!(!validator.is_valid(&old));
+            for key in [
+                "windowTitle",
+                "windowTitleDiagnostic",
+                "notificationDelivery",
+                "notificationAgentDelivery",
+                "notificationDelaySeconds",
+                "notificationSoundEnabled",
+                "notificationAgentSounds",
+                "notificationPosition",
+                "agentSidebarProfile",
+                "spacesSidebarProfile",
+                "diagnostics",
+                "diagnosticsOmitted",
+            ] {
+                old["result"]["checks"][5]["details"]
+                    .as_object_mut()
+                    .unwrap()
+                    .remove(key);
+            }
+            assert!(validator.is_valid(&old));
         }
-        assert!(validator.is_valid(&old));
     }
     std::fs::write(&config, "[ui]\nwindow_title=false").unwrap();
-    let doc = document(fixture.run(&["workspace", "create", "--format=json"]));
-    validate(
-        &doc,
-        include_str!("../src/cli/schemas/orchbee.cli.failure.configuration.json"),
+    let checked = config_check_document(&fixture);
+    assert_warning_diagnostic(&checked, "ui.window_title", "wrong-type", "defaulted");
+    assert_eq!(
+        checked["result"]["checks"][5]["details"]["windowTitle"],
+        default
     );
-    assert_eq!(doc["version"], 4);
-    assert_eq!(doc["failure"]["details"]["field"], "ui.window_title");
+    assert_creation_reaches_missing_site(&fixture);
 }
 
 #[test]
@@ -915,6 +1159,8 @@ fn config_check_notification_policy_validates_actual_file_and_closed_versions() 
         "notificationPosition",
         "agentSidebarProfile",
         "spacesSidebarProfile",
+        "diagnostics",
+        "diagnosticsOmitted",
     ] {
         old["result"]["checks"][5]["details"]
             .as_object_mut()
@@ -922,54 +1168,39 @@ fn config_check_notification_policy_validates_actual_file_and_closed_versions() 
             .remove(name);
     }
     assert!(validator.is_valid(&old));
-    std::fs::write(&config, "[ui.toast]\ndelivery='bad'").unwrap();
-    let failure = document(fixture.run(&["workspace", "create", "--format=json"]));
-    validate(
-        &failure,
-        include_str!("../src/cli/schemas/orchbee.cli.failure.configuration.json"),
-    );
-    assert_eq!(failure["version"], 5);
-    assert_eq!(failure["failure"]["details"]["field"], "ui.toast");
-    let validator = jsonschema::validator_for(
-        &serde_json::from_str::<Value>(include_str!(
-            "../src/cli/schemas/orchbee.cli.failure.configuration.json"
-        ))
-        .unwrap(),
-    )
-    .unwrap();
-    let mut old_failure = failure;
-    for version in 1..=4 {
-        old_failure["version"] = json!(version);
-        assert!(!validator.is_valid(&old_failure));
+    for (text, field, reason, detail, expected) in [
+        (
+            "[ui.toast]\ndelivery='bad'",
+            "ui.toast.delivery",
+            "invalid-mode",
+            "notificationDelivery",
+            json!("off"),
+        ),
+        (
+            "[ui.sound]\nenabled='yes'",
+            "ui.sound.enabled",
+            "wrong-type",
+            "notificationSoundEnabled",
+            json!(false),
+        ),
+        (
+            "[ui.toast]\ndelay_seconds=3601",
+            "ui.toast.delay_seconds",
+            "invalid-delay",
+            "notificationDelaySeconds",
+            json!(1),
+        ),
+    ] {
+        std::fs::write(&config, text).unwrap();
+        let checked = config_check_document(&fixture);
+        assert_warning_diagnostic(&checked, field, reason, "defaulted");
+        assert_eq!(checked["result"]["checks"][5]["details"][detail], expected);
+        assert_creation_reaches_missing_site(&fixture);
     }
-    std::fs::write(&config, "[ui.sound]\nenabled='yes'").unwrap();
-    let mut sound_failure = document(fixture.run(&["workspace", "create", "--format=json"]));
-    validate(
-        &sound_failure,
-        include_str!("../src/cli/schemas/orchbee.cli.failure.configuration.json"),
-    );
-    assert_eq!(sound_failure["version"], 9);
-    assert_eq!(sound_failure["failure"]["details"]["field"], "ui.sound");
-    sound_failure["version"] = 8.into();
-    assert!(!validator.is_valid(&sound_failure));
-    std::fs::write(&config, "[ui.toast]\ndelay_seconds=3601").unwrap();
-    let mut delay_failure = document(fixture.run(&["workspace", "create", "--format=json"]));
-    validate(
-        &delay_failure,
-        include_str!("../src/cli/schemas/orchbee.cli.failure.configuration.json"),
-    );
-    assert_eq!(delay_failure["version"], 9);
-    assert_eq!(delay_failure["failure"]["details"]["field"], "ui.toast");
-    assert_eq!(
-        delay_failure["failure"]["details"]["reason"],
-        "invalid-delay"
-    );
-    delay_failure["version"] = 8.into();
-    assert!(!validator.is_valid(&delay_failure));
 }
 
 #[test]
-fn workspace_sidebar_configuration_has_separate_profiles_and_closed_versioned_failures() {
+fn workspace_sidebar_configuration_has_separate_profiles_and_defaults_invalid_profiles() {
     let fixture = Fixture::new();
     let config = fixture.0.join("appdata/Orchbee/config.toml");
     std::fs::create_dir_all(config.parent().unwrap()).unwrap();
@@ -978,7 +1209,7 @@ fn workspace_sidebar_configuration_has_separate_profiles_and_closed_versioned_fa
     let mut doc = document(fixture.run(&["config", "check", "--format=json"]));
     let schema = include_str!("../src/cli/schemas/orchbee.config.check.json");
     validate(&doc, schema);
-    assert_eq!(doc["version"], 12);
+    assert_eq!(doc["version"], 13);
     let details = &doc["result"]["checks"][5]["details"];
     let profile = orchbee_local_site_runtime::WindowsSpaceSidebarSettings::from_profile(
         details["spacesSidebarProfile"].as_str().unwrap(),
@@ -992,6 +1223,8 @@ fn workspace_sidebar_configuration_has_separate_profiles_and_closed_versioned_fa
         "notificationDelaySeconds",
         "notificationSoundEnabled",
         "notificationAgentSounds",
+        "diagnostics",
+        "diagnosticsOmitted",
     ] {
         doc["result"]["checks"][5]["details"]
             .as_object_mut()
@@ -1008,29 +1241,36 @@ fn workspace_sidebar_configuration_has_separate_profiles_and_closed_versioned_fa
         .remove("spacesSidebarProfile");
     assert!(validator.is_valid(&doc));
     assert_eq!(std::fs::read_to_string(&config).unwrap(), text);
-    for invalid in [
-        "rows=[['agent']]",
-        "rows=[[{token='git_status',rules=[{gt=0}]}]]",
-        "rows_by_agent={codex=[]}",
+    for (invalid, field, reason, disposition) in [
+        (
+            "rows=[['agent']]",
+            "ui.sidebar.spaces",
+            "invalid-token",
+            "defaulted",
+        ),
+        (
+            "rows=[[{token='git_status',rules=[{gt=0}]}]]",
+            "ui.sidebar.spaces",
+            "invalid-rules",
+            "defaulted",
+        ),
+        (
+            "rows_by_agent={codex=[]}",
+            "ui.sidebar.spaces.rows_by_agent",
+            "unknown-key",
+            "ignored",
+        ),
     ] {
         std::fs::write(&config, format!("[ui.sidebar.spaces]\n{invalid}")).unwrap();
-        let checked = document(fixture.run(&["config", "check", "--format=json"]));
-        validate(&checked, schema);
-        assert_eq!(
-            checked["result"]["checks"][5]["details"]["field"],
-            "ui.sidebar.spaces"
-        );
-        let mut failure = document(fixture.run(&["workspace", "create", "--format=json"]));
-        let schema = include_str!("../src/cli/schemas/orchbee.cli.failure.configuration.json");
-        validate(&failure, schema);
-        assert_eq!(failure["version"], 8);
-        assert_eq!(failure["failure"]["details"]["field"], "ui.sidebar.spaces");
-        failure["version"] = 7.into();
-        assert!(
-            !jsonschema::validator_for(&serde_json::from_str::<Value>(schema).unwrap())
-                .unwrap()
-                .is_valid(&failure)
-        );
+        let checked = config_check_document(&fixture);
+        assert_warning_diagnostic(&checked, field, reason, disposition);
+        let profile = orchbee_local_site_runtime::WindowsSpaceSidebarSettings::from_profile(
+            checked["result"]["checks"][5]["details"]["spacesSidebarProfile"]
+                .as_str()
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(profile.rows().len(), 2);
+        assert_creation_reaches_missing_site(&fixture);
     }
-    assert!(!fixture.0.join("runtime").exists());
 }

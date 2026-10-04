@@ -57,8 +57,19 @@ struct State {
     stopped: bool,
 }
 impl Registry {
+    #[cfg(test)]
+    pub(super) fn initialization_for_test(&self) -> (bool, bool) {
+        let state = self.0.lock().unwrap();
+        (
+            state.is_some(),
+            state.as_ref().is_some_and(|state| state.schedule.is_some()),
+        )
+    }
     pub(super) fn apply_configuration(&self, settings: &WindowsUserSettings) -> bool {
-        let Ok(mut lock) = self.0.lock() else {
+        // Configuration publication already owns the coordinator. Manifest activation owns
+        // this registry before installing into that coordinator, so waiting here would invert
+        // the lock order. A busy maintenance transition refuses this reload atomically.
+        let Ok(mut lock) = self.0.try_lock() else {
             return false;
         };
         let Some(state) = lock.as_mut() else {
@@ -494,6 +505,13 @@ mod tests {
                 .project(true)
                 .enabled
         );
+        {
+            let _maintenance = registry.0.lock().unwrap();
+            assert!(
+                !registry.apply_configuration(&disabled),
+                "configuration admission must not wait behind manifest maintenance"
+            );
+        }
         registry.cancel();
         assert!(!registry.apply_configuration(&disabled));
     }
@@ -972,7 +990,7 @@ mod automatic_tests {
             matches!(wake.manifests.execute(&Action::Current {}),Outcome::Current {snapshot} if !snapshot.maintenance.as_ref().unwrap().automatic.as_ref().unwrap().enabled)
         );
         let before = wake.manifests.execute(&Action::Current {});
-        std::fs::write(&path, "[update]\nmanifest_check='bad'").unwrap();
+        std::fs::write(&path, "[update\nmanifest_check=false").unwrap();
         wake.manifests.execute(&Action::Reload {
             operation_id: id(3),
         });

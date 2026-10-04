@@ -46,7 +46,8 @@
 //!      bookkeeping as the separate spelling for the grammar's declared
 //!      value flags; the inline value never claims the next word, and a
 //!      boolean or unknown name in that shape is usage
-//! 7. `--help`/`--version` → terminal flags: nothing may follow → done
+//! 7. `--help`/`--version`/`--skill` (plus Windows `--default-config`) → terminal flags:
+//!    nothing may follow → done
 //! 8. unknown `-x` → usage → done
 //! 9. other word → positional dispatch:
 //!    - verb: family→sub | `status`→leaf (optional client/server child; fails if a business flag or
@@ -1774,6 +1775,15 @@ const HELP_LEVEL3: &[(&str, &[&str])] = &[
 const SHELLS: &[&str] = &["bash", "elvish", "fish", "powershell", "zsh"];
 const FORMAT_VALUES: &[&str] = &["text", "json"];
 
+#[cfg(windows)]
+const DEFAULT_CONFIG_PATTERN: &str = "|--default-config";
+#[cfg(not(windows))]
+const DEFAULT_CONFIG_PATTERN: &str = "";
+#[cfg(windows)]
+const DEFAULT_CONFIG_CANDIDATE: &str = " --default-config";
+#[cfg(not(windows))]
+const DEFAULT_CONFIG_CANDIDATE: &str = "";
+
 pub(crate) fn render(shell: CompletionShell) -> String {
     match shell {
         CompletionShell::Bash => bash(),
@@ -2774,7 +2784,7 @@ fn bash() -> String {
             "{joined_seen_cases}\n",
             "                    esac\n",
             "                fi ;;\n",
-            "            --help|--version|--skill) done=1 ;;\n",
+            "            --help|--version|--skill{default_config_pattern}) done=1 ;;\n",
             "            -*) done=1 ;;\n",
             "            *)\n",
             "                case \"$state\" in\n",
@@ -2911,7 +2921,7 @@ fn bash() -> String {
             "        ((seen_format)) || candidates=\"$candidates --format --format=\"\n",
             "        [[ \" $possible \" == *\" tui \"* || \" $possible \" == *\" agent \"* || \" $possible \" == *\" terminal \"* ]] && ((!seen_mouse)) && candidates=\"$candidates --mouse\"\n",
             "        if (({no_options})); then\n",
-            "            candidates=\"$candidates --help --version --skill\"\n",
+            "            candidates=\"$candidates --help --version --skill{default_config_candidate}\"\n",
             "        fi\n",
             "    elif [[ $state == sub ]]; then\n",
             "        candidates=\"$verbs\"\n",
@@ -2975,6 +2985,8 @@ fn bash() -> String {
         roots = ROOT_WORDS.join(" "),
         format_roots = FORMAT_ROOT_WORDS.join(" "),
         shells = SHELLS.join(" "),
+        default_config_pattern = DEFAULT_CONFIG_PATTERN,
+        default_config_candidate = DEFAULT_CONFIG_CANDIDATE,
         flag_patterns = BUSINESS_FLAGS.join("|"),
         seen_decls = BUSINESS_FLAGS
             .iter()
@@ -3155,7 +3167,7 @@ fn zsh() -> String {
             "{joined_seen_cases}\n",
             "                    esac\n",
             "                fi ;;\n",
-            "            --help|--version|--skill) done=1 ;;\n",
+            "            --help|--version|--skill{default_config_pattern}) done=1 ;;\n",
             "            -*) done=1 ;;\n",
             "            *)\n",
             "                case \"$state\" in\n",
@@ -3282,7 +3294,7 @@ fn zsh() -> String {
             "        ((seen_format)) || candidates=\"$candidates --format --format=\"\n",
             "        [[ \" $possible \" == *\" tui \"* || \" $possible \" == *\" agent \"* || \" $possible \" == *\" terminal \"* ]] && ((!seen_mouse)) && candidates=\"$candidates --mouse\"\n",
             "        if (({no_options})); then\n",
-            "            candidates=\"$candidates --help --version --skill\"\n",
+            "            candidates=\"$candidates --help --version --skill{default_config_candidate}\"\n",
             "        fi\n",
             "    elif [[ $state == sub ]]; then\n",
             "        candidates=\"$verbs\"\n",
@@ -3342,6 +3354,8 @@ fn zsh() -> String {
         roots = ROOT_WORDS.join(" "),
         format_roots = FORMAT_ROOT_WORDS.join(" "),
         shells = SHELLS.join(" "),
+        default_config_pattern = DEFAULT_CONFIG_PATTERN,
+        default_config_candidate = DEFAULT_CONFIG_CANDIDATE,
         flag_patterns = BUSINESS_FLAGS.join("|"),
         seen_decls = BUSINESS_FLAGS
             .iter()
@@ -3985,7 +3999,7 @@ fn fish() -> String {
             "{joined_seen_cases}\n",
             "                    end\n",
             "                end\n",
-            "            case '--help' '--version' '--skill'; set done 1\n",
+            "            case '--help' '--version' '--skill'{default_config_candidate}; set done 1\n",
             "            case '-*'; set done 1\n",
             "            case '*'\n",
             "                switch \"$state\"\n",
@@ -4122,7 +4136,7 @@ fn fish() -> String {
             "        if test $seen_format -eq 0; set -a candidates --format --format=; end\n",
             "        if begin; contains -- tui $possible; or contains -- agent $possible; or contains -- terminal $possible; end; and test $seen_mouse -eq 0; set -a candidates --mouse; end\n",
             "        if {no_options}\n",
-            "            set -a candidates --help --version --skill\n",
+            "            set -a candidates --help --version --skill{default_config_candidate}\n",
             "        end\n",
             "    else if test \"$state\" = sub\n",
             "        set candidates $verbs\n",
@@ -4179,6 +4193,7 @@ fn fish() -> String {
         roots = ROOT_WORDS.join(" "),
         format_roots = FORMAT_ROOT_WORDS.join(" "),
         shells = SHELLS.join(" "),
+        default_config_candidate = DEFAULT_CONFIG_CANDIDATE,
         flag_patterns = BUSINESS_FLAGS
             .iter()
             .map(|flag| format!("'{flag}'"))
@@ -4415,6 +4430,7 @@ mod tests {
                 assert!(script.contains(flag), "{shell:?} lacks {flag}");
             }
             assert!(script.contains("--format"));
+            assert_eq!(script.contains("--default-config"), cfg!(windows));
             assert!(script.contains("--mouse"), "{shell:?} lacks --mouse");
             for value in FORMAT_VALUES {
                 assert!(script.contains(value), "{shell:?} lacks {value}");

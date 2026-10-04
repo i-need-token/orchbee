@@ -30,17 +30,19 @@ mod windows_user_settings;
 pub use windows_user_settings::{
     DEFAULT_WINDOW_TITLE, MAXIMUM_AGENT_SIDEBAR_PROFILE_BYTES, MAXIMUM_AGENT_SOUND_OVERRIDES,
     MAXIMUM_NOTIFICATION_DELAY_SECONDS, MAXIMUM_NOTIFICATION_PROFILE_BYTES,
-    MAXIMUM_SPACE_SIDEBAR_PROFILE_BYTES, WindowsAgentSidebarSettings, WindowsAgentSidebarToken,
-    WindowsAgentSidebarTokenKind, WindowsAgentSoundSetting, WindowsCommandSize,
-    WindowsCustomCommand, WindowsCustomCommandAction, WindowsCustomCommandEntry,
-    WindowsDirectoryPolicy, WindowsKeyChord, WindowsKeyOverride, WindowsKeySettings,
-    WindowsKeyTrigger, WindowsKeysResetOutcome, WindowsKeysResetReport,
-    WindowsNotificationDelivery, WindowsNotificationSettings, WindowsSettingsError,
+    MAXIMUM_SPACE_SIDEBAR_PROFILE_BYTES, MAXIMUM_WINDOWS_SETTINGS_DIAGNOSTICS,
+    WindowsAgentSidebarSettings, WindowsAgentSidebarToken, WindowsAgentSidebarTokenKind,
+    WindowsAgentSoundSetting, WindowsCommandSize, WindowsCustomCommand, WindowsCustomCommandAction,
+    WindowsCustomCommandEntry, WindowsDirectoryPolicy, WindowsKeyChord, WindowsKeyOverride,
+    WindowsKeySettings, WindowsKeyTrigger, WindowsKeysResetOutcome, WindowsKeysResetReport,
+    WindowsNotificationDelivery, WindowsNotificationSettings, WindowsSettingsDiagnostic,
+    WindowsSettingsDiagnosticDisposition, WindowsSettingsDiagnostics, WindowsSettingsError,
     WindowsShellMode, WindowsShellSettings, WindowsSidebarTokenStyle, WindowsSpaceSidebarSettings,
     WindowsSpaceSidebarToken, WindowsSpaceSidebarTokenKind, WindowsUpdateChannel,
-    WindowsUserSettings, WindowsWindowTitleTemplate, read_windows_user_settings,
-    read_windows_user_settings_at, reset_windows_keybindings, set_windows_update_channel,
-    trigger_label, windows_user_settings_path,
+    WindowsUserSettings, WindowsUserSettingsLoad, WindowsWindowTitleTemplate,
+    default_windows_user_settings_toml, read_windows_user_settings, read_windows_user_settings_at,
+    reset_windows_keybindings, set_windows_update_channel, trigger_label,
+    windows_user_settings_path,
 };
 #[cfg(windows)]
 mod windows_directory;

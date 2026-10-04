@@ -1,5 +1,7 @@
-//! Shared Windows user settings: bounded strict reads and explicitly invoked repair.
+//! Shared Windows user settings: fatal source boundaries, field-local admission, and explicit repair.
 mod agent_sidebar;
+mod diagnostics;
+use diagnostics::{DiagnosticsCollector, unknown_field};
 mod sidebar_tokens;
 mod space_sidebar;
 pub use sidebar_tokens::WindowsSidebarTokenStyle;
@@ -13,6 +15,10 @@ pub use agent_sidebar::{
     WindowsAgentSidebarTokenKind,
 };
 mod notifications;
+pub use diagnostics::{
+    MAXIMUM_WINDOWS_SETTINGS_DIAGNOSTICS, WindowsSettingsDiagnostic,
+    WindowsSettingsDiagnosticDisposition, WindowsSettingsDiagnostics,
+};
 pub use notifications::{
     MAXIMUM_AGENT_SOUND_OVERRIDES, MAXIMUM_NOTIFICATION_DELAY_SECONDS,
     MAXIMUM_NOTIFICATION_PROFILE_BYTES, WindowsAgentSoundSetting, WindowsNotificationDelivery,
@@ -38,8 +44,71 @@ use std::{
 pub use window_title::{DEFAULT_WINDOW_TITLE, WindowsWindowTitleTemplate};
 
 const LIMIT: u64 = 64 * 1024;
+const HERDR_ONLY_UI_FIELDS: &[&str] = &[
+    "sidebar_width",
+    "sidebar_min_width",
+    "sidebar_max_width",
+    "sidebar_start_collapsed",
+    "sidebar_collapsed_mode",
+    "mobile_width_threshold",
+    "mouse_capture",
+    "copy_on_select",
+    "host_cursor",
+    "right_click_passthrough_modifier",
+    "redraw_on_focus_gained",
+    "mouse_scroll_lines",
+    "confirm_close",
+    "prompt_new_tab_name",
+    "prompt_new_workspace_name",
+    "pane_borders",
+    "pane_outer_borders",
+    "pane_scrollbars",
+    "pane_gaps",
+    "show_agent_labels_on_pane_borders",
+    "hide_tab_bar_when_single_tab",
+    "tab_bar_position",
+    "tab_bar_right",
+    "tab_bar_right_separator",
+    "agent_panel_sort",
+    "agent_panel_scope",
+    "status_indicators",
+    "accent",
+];
+const DEFAULT_CONFIG: &str = r#"[terminal]
+default_shell = ""
+shell_mode = "auto"
+
+[session]
+resume_agents_on_restore = true
+
+[update]
+channel = "stable"
+manifest_check = true
+
+[keys]
+prefix = "ctrl+b"
+
+[ui]
+window_title = "{hostname}: {workspace}"
+
+[ui.toast]
+delivery = "off"
+agent_delivery = "orchbee"
+delay_seconds = 1
+
+[ui.toast.herdr]
+position = "bottom-right"
+
+[ui.sound]
+enabled = false
+"#;
 mod channel;
 pub use channel::set_windows_update_channel;
+
+/// Return the deterministic offline Windows configuration template.
+pub const fn default_windows_user_settings_toml() -> &'static str {
+    DEFAULT_CONFIG
+}
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct WindowsUserSettings {
@@ -60,6 +129,23 @@ pub struct WindowsUserSettings {
     pub worktree_root: Option<String>,
     pub resume_agents_on_restore: bool,
     pub resume_agents_on_restore_source: &'static str,
+}
+
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+/// One complete effective settings candidate and its bounded admission diagnostics.
+pub struct WindowsUserSettingsLoad {
+    /// Effective settings after field-local fallback.
+    pub settings: WindowsUserSettings,
+    /// Diagnostics describing every visible fallback, ignored field, or unsupported field.
+    pub diagnostics: WindowsSettingsDiagnostics,
+}
+
+impl std::ops::Deref for WindowsUserSettingsLoad {
+    type Target = WindowsUserSettings;
+
+    fn deref(&self) -> &Self::Target {
+        &self.settings
+    }
 }
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
@@ -104,10 +190,18 @@ impl Default for WindowsUserSettings {
 /// Resolve once; an environment override never bypasses full-file validation.
 pub fn read_windows_user_settings(
     env: impl Fn(&str) -> Option<OsString>,
-) -> Result<WindowsUserSettings, WindowsSettingsError> {
-    let mut settings = read_file(&env)?;
+) -> Result<WindowsUserSettingsLoad, WindowsSettingsError> {
+    let mut load = read_file(&env)?;
+    apply_resume_environment(&mut load, &env)?;
+    Ok(load)
+}
+
+fn apply_resume_environment(
+    load: &mut WindowsUserSettingsLoad,
+    env: &impl Fn(&str) -> Option<OsString>,
+) -> Result<(), WindowsSettingsError> {
     if let Some(value) = env("ORCHBEE_RESUME_AGENTS_ON_RESTORE") {
-        settings.resume_agents_on_restore = match value.to_str() {
+        load.settings.resume_agents_on_restore = match value.to_str() {
             Some("true") => true,
             Some("false") => false,
             _ => {
@@ -117,9 +211,9 @@ pub fn read_windows_user_settings(
                 ));
             }
         };
-        settings.resume_agents_on_restore_source = "environment";
+        load.settings.resume_agents_on_restore_source = "environment";
     }
-    Ok(settings)
+    Ok(())
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -198,9 +292,9 @@ pub fn windows_user_settings_path(
 
 fn read_file(
     env: impl Fn(&str) -> Option<OsString>,
-) -> Result<WindowsUserSettings, WindowsSettingsError> {
+) -> Result<WindowsUserSettingsLoad, WindowsSettingsError> {
     let location = location(&env)?;
-    read_windows_user_settings_at(
+    read_file_at(
         location.as_ref().map(|(path, _)| path.as_path()),
         location.as_ref().is_some_and(|(_, explicit)| *explicit),
         env,
@@ -211,20 +305,33 @@ pub fn read_windows_user_settings_at(
     path: Option<&Path>,
     explicit: bool,
     env: impl Fn(&str) -> Option<OsString>,
-) -> Result<WindowsUserSettings, WindowsSettingsError> {
+) -> Result<WindowsUserSettingsLoad, WindowsSettingsError> {
+    let mut load = read_file_at(path, explicit, &env)?;
+    apply_resume_environment(&mut load, &env)?;
+    Ok(load)
+}
+
+fn read_file_at(
+    path: Option<&Path>,
+    explicit: bool,
+    env: impl Fn(&str) -> Option<OsString>,
+) -> Result<WindowsUserSettingsLoad, WindowsSettingsError> {
     let Some(path) = path else {
         if explicit {
             return Err(WindowsSettingsError::new("file", "invalid-path"));
         }
-        return Ok(WindowsUserSettings::default());
+        return Ok(WindowsUserSettingsLoad::default());
     };
     let path = path.to_owned();
     let file = match File::open(&path) {
         Ok(file) => file,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound && !explicit => {
-            return Ok(WindowsUserSettings {
-                path: Some(path),
-                ..WindowsUserSettings::default()
+            return Ok(WindowsUserSettingsLoad {
+                settings: WindowsUserSettings {
+                    path: Some(path),
+                    ..WindowsUserSettings::default()
+                },
+                diagnostics: WindowsSettingsDiagnostics::default(),
             });
         }
         Err(error) => {
@@ -232,6 +339,8 @@ pub fn read_windows_user_settings_at(
                 "file",
                 if error.kind() == std::io::ErrorKind::NotFound {
                     "missing"
+                } else if std::fs::metadata(&path).is_ok_and(|metadata| !metadata.is_file()) {
+                    "not-file"
                 } else {
                     "io-error"
                 },
@@ -256,16 +365,16 @@ pub fn read_windows_user_settings_at(
     }
     let text = std::str::from_utf8(&bytes)
         .map_err(|_| WindowsSettingsError::new("file", "invalid-utf8"))?;
-    let mut settings = parse(text, &path, &env)?;
-    settings.explicit = explicit;
-    Ok(settings)
+    let mut load = parse(text, &path, &env)?;
+    load.settings.explicit = explicit;
+    Ok(load)
 }
 
 fn parse(
     text: &str,
     path: &Path,
     env: &impl Fn(&str) -> Option<OsString>,
-) -> Result<WindowsUserSettings, WindowsSettingsError> {
+) -> Result<WindowsUserSettingsLoad, WindowsSettingsError> {
     let table: toml::Table =
         toml::from_str(text).map_err(|_| WindowsSettingsError::new("file", "invalid-toml"))?;
     let mut settings = WindowsUserSettings {
@@ -273,144 +382,431 @@ fn parse(
         exists: true,
         ..WindowsUserSettings::default()
     };
+    let mut diagnostics = DiagnosticsCollector::default();
     for (section, value) in table {
         if section == "ui" {
-            let table = value
-                .as_table()
-                .ok_or(WindowsSettingsError::new("ui.window_title", "wrong-type"))?;
-            if table
-                .keys()
-                .any(|key| !matches!(key.as_str(), "window_title" | "toast" | "sound" | "sidebar"))
-            {
-                return Err(WindowsSettingsError::new("ui.window_title", "unknown-key"));
+            let Some(table) = value.as_table() else {
+                diagnostics.push(
+                    "ui",
+                    "wrong-type",
+                    WindowsSettingsDiagnosticDisposition::Defaulted,
+                );
+                continue;
+            };
+            for key in table.keys().filter(|key| {
+                !matches!(key.as_str(), "window_title" | "toast" | "sound" | "sidebar")
+            }) {
+                diagnostics.push(
+                    unknown_field("ui", key),
+                    if HERDR_ONLY_UI_FIELDS.contains(&key.as_str()) {
+                        "unsupported-herdr"
+                    } else {
+                        "unknown-key"
+                    },
+                    if HERDR_ONLY_UI_FIELDS.contains(&key.as_str()) {
+                        WindowsSettingsDiagnosticDisposition::Unsupported
+                    } else {
+                        WindowsSettingsDiagnosticDisposition::Ignored
+                    },
+                );
             }
             if table.contains_key("toast") || table.contains_key("sound") {
-                settings.notifications =
-                    WindowsNotificationSettings::parse(table.get("toast"), table.get("sound"))?;
+                settings.notifications = WindowsNotificationSettings::parse_lenient(
+                    table.get("toast"),
+                    table.get("sound"),
+                    &mut diagnostics,
+                );
             }
             if let Some(sidebar) = table.get("sidebar") {
-                let sidebar = sidebar
-                    .as_table()
-                    .ok_or(agent_sidebar::error("invalid-layout"))?;
-                if sidebar
-                    .keys()
-                    .any(|key| !matches!(key.as_str(), "agents" | "spaces"))
-                {
-                    return Err(agent_sidebar::error("unknown-key"));
-                }
-                if let Some(spaces) = sidebar.get("spaces") {
-                    settings.space_sidebar = WindowsSpaceSidebarSettings::parse(spaces)?;
-                }
-                if let Some(agents) = sidebar.get("agents") {
-                    settings.agent_sidebar = WindowsAgentSidebarSettings::parse(agents)?;
+                if let Some(sidebar) = sidebar.as_table() {
+                    for key in sidebar
+                        .keys()
+                        .filter(|key| !matches!(key.as_str(), "agents" | "spaces"))
+                    {
+                        diagnostics.push(
+                            unknown_field("ui.sidebar", key),
+                            "unknown-key",
+                            WindowsSettingsDiagnosticDisposition::Ignored,
+                        );
+                    }
+                    if let Some(spaces) = sidebar.get("spaces") {
+                        match parse_space_sidebar(spaces, &mut diagnostics) {
+                            Ok(profile) => settings.space_sidebar = profile,
+                            Err(error) => diagnostics.push_error(
+                                &error,
+                                WindowsSettingsDiagnosticDisposition::Defaulted,
+                            ),
+                        }
+                    }
+                    if let Some(agents) = sidebar.get("agents") {
+                        match parse_agent_sidebar(agents, &mut diagnostics) {
+                            Ok(profile) => settings.agent_sidebar = profile,
+                            Err(error) => diagnostics.push_error(
+                                &error,
+                                WindowsSettingsDiagnosticDisposition::Defaulted,
+                            ),
+                        }
+                    }
+                } else {
+                    diagnostics.push(
+                        "ui.sidebar",
+                        "wrong-type",
+                        WindowsSettingsDiagnosticDisposition::Defaulted,
+                    );
                 }
             }
             if let Some(value) = table.get("window_title") {
-                let value = value
-                    .as_str()
-                    .ok_or(WindowsSettingsError::new("ui.window_title", "wrong-type"))?;
-                if value.len() > 4096 {
-                    return Err(WindowsSettingsError::new(
+                if let Some(value) = value.as_str() {
+                    match WindowsWindowTitleTemplate::parse(value) {
+                        Ok(_) => settings.window_title = value.into(),
+                        Err(reason) => diagnostics.push(
+                            "ui.window_title",
+                            reason,
+                            WindowsSettingsDiagnosticDisposition::Defaulted,
+                        ),
+                    }
+                } else {
+                    diagnostics.push(
                         "ui.window_title",
-                        "value-too-long",
-                    ));
+                        "wrong-type",
+                        WindowsSettingsDiagnosticDisposition::Defaulted,
+                    );
                 }
-                settings.window_title = value.into();
             }
             continue;
         }
         if section == "keys" {
-            settings.keys = WindowsKeySettings::parse(&value)?;
+            settings.keys = WindowsKeySettings::parse_lenient(&value, &mut diagnostics);
             continue;
         }
-        let (key, field) = match section.as_str() {
-            "terminal" => ("new_cwd", "terminal.new_cwd"),
-            "update" => ("manifest_check", "update.manifest_check"),
-            "worktrees" => ("directory", "worktrees.directory"),
-            "session" => (
-                "resume_agents_on_restore",
-                "session.resume_agents_on_restore",
-            ),
-            _ => return Err(WindowsSettingsError::new("file", "unknown-key")),
-        };
-        let table = value
-            .as_table()
-            .ok_or(WindowsSettingsError::new(field, "wrong-type"))?;
-        if table.keys().any(|entry| {
-            entry != key
-                && !(section == "update" && entry == "channel")
-                && !(section == "terminal"
-                    && matches!(entry.as_str(), "default_shell" | "shell_mode"))
-        }) {
-            return Err(WindowsSettingsError::new(field, "unknown-key"));
+        if matches!(
+            section.as_str(),
+            "onboarding" | "theme" | "server" | "advanced" | "experimental" | "remote"
+        ) {
+            record_unsupported_fields(&section, &value, &mut diagnostics);
+            continue;
         }
-        if section == "update"
-            && let Some(value) = table.get("channel")
-        {
-            settings.update_channel = match value
-                .as_str()
-                .ok_or(WindowsSettingsError::new("update.channel", "wrong-type"))?
-            {
-                "stable" => WindowsUpdateChannel::Stable,
-                "preview" => WindowsUpdateChannel::Preview,
+        let Some(table) = value.as_table() else {
+            let field = match section.as_str() {
+                "terminal" => "terminal",
+                "update" => "update",
+                "worktrees" => "worktrees",
+                "session" => "session",
                 _ => {
-                    return Err(WindowsSettingsError::new(
-                        "update.channel",
-                        "invalid-channel",
-                    ));
+                    diagnostics.push(
+                        unknown_field("", &section),
+                        "unknown-key",
+                        WindowsSettingsDiagnosticDisposition::Ignored,
+                    );
+                    continue;
                 }
             };
-            settings.update_channel_source = "file";
-        }
-        if section == "terminal" {
-            let shell_value = |key, field, default| {
-                table.get(key).map_or(Ok(default), |value| {
-                    value
-                        .as_str()
-                        .ok_or(WindowsSettingsError::new(field, "wrong-type"))
-                })
-            };
-            settings.shell = WindowsShellSettings::new(
-                shell_value("default_shell", "terminal.default_shell", "")?,
-                shell_value("shell_mode", "terminal.shell_mode", "auto")?,
-            )?;
-        }
-        let Some(value) = table.get(key) else {
+            diagnostics.push(
+                field,
+                "wrong-type",
+                WindowsSettingsDiagnosticDisposition::Defaulted,
+            );
             continue;
         };
-        if section == "update" {
-            settings.manifest_check = value
-                .as_bool()
-                .ok_or(WindowsSettingsError::new(field, "wrong-type"))?;
-            settings.manifest_check_source = "file";
-            continue;
-        }
-        if section == "session" {
-            settings.resume_agents_on_restore = value
-                .as_bool()
-                .ok_or(WindowsSettingsError::new(field, "wrong-type"))?;
-            settings.resume_agents_on_restore_source = "file";
-            continue;
-        }
-        let value = value
-            .as_str()
-            .ok_or(WindowsSettingsError::new(field, "wrong-type"))?;
-        if section == "terminal" {
-            settings.cwd = Some(match value.trim() {
-                "" | "follow" => (WindowsDirectoryPolicy::Follow, None),
-                "home" => (WindowsDirectoryPolicy::Home, None),
-                "current" => (WindowsDirectoryPolicy::Current, None),
-                "workspace" => (WindowsDirectoryPolicy::Workspace, None),
-                _ => (
-                    WindowsDirectoryPolicy::Explicit,
-                    Some(normalize(value, path, env, field)?),
-                ),
-            });
-        } else {
-            settings.worktree_root = Some(normalize(value, path, env, field)?);
+        match section.as_str() {
+            "terminal" => parse_terminal(table, &mut settings, &mut diagnostics, path, env),
+            "update" => parse_update(table, &mut settings, &mut diagnostics),
+            "worktrees" => parse_worktrees(table, &mut settings, &mut diagnostics, path, env),
+            "session" => parse_session(table, &mut settings, &mut diagnostics),
+            _ => diagnostics.push(
+                unknown_field("", &section),
+                "unknown-key",
+                WindowsSettingsDiagnosticDisposition::Ignored,
+            ),
         }
     }
-    Ok(settings)
+    Ok(WindowsUserSettingsLoad {
+        settings,
+        diagnostics: diagnostics.finish(),
+    })
+}
+
+fn record_unsupported_fields(
+    section: &str,
+    value: &toml::Value,
+    diagnostics: &mut DiagnosticsCollector,
+) {
+    let Some(table) = value.as_table() else {
+        diagnostics.push(
+            section,
+            "unsupported-herdr",
+            WindowsSettingsDiagnosticDisposition::Unsupported,
+        );
+        return;
+    };
+    if table.is_empty() {
+        diagnostics.push(
+            section,
+            "unsupported-herdr",
+            WindowsSettingsDiagnosticDisposition::Unsupported,
+        );
+    }
+    for key in table.keys() {
+        diagnostics.push(
+            unknown_field(section, key),
+            "unsupported-herdr",
+            WindowsSettingsDiagnosticDisposition::Unsupported,
+        );
+    }
+}
+
+fn parse_agent_sidebar(
+    value: &toml::Value,
+    diagnostics: &mut DiagnosticsCollector,
+) -> Result<WindowsAgentSidebarSettings, WindowsSettingsError> {
+    let Some(table) = value.as_table() else {
+        return WindowsAgentSidebarSettings::parse(value);
+    };
+    let mut admitted = table.clone();
+    admitted.retain(|key, _| {
+        let known = matches!(key, "rows" | "rows_by_agent" | "row_gap");
+        if !known {
+            diagnostics.push(
+                unknown_field("ui.sidebar.agents", key),
+                "unknown-key",
+                WindowsSettingsDiagnosticDisposition::Ignored,
+            );
+        }
+        known
+    });
+    WindowsAgentSidebarSettings::parse(&toml::Value::Table(admitted))
+}
+
+fn parse_space_sidebar(
+    value: &toml::Value,
+    diagnostics: &mut DiagnosticsCollector,
+) -> Result<WindowsSpaceSidebarSettings, WindowsSettingsError> {
+    let Some(table) = value.as_table() else {
+        return WindowsSpaceSidebarSettings::parse(value);
+    };
+    let mut admitted = table.clone();
+    admitted.retain(|key, _| {
+        let known = matches!(key, "rows" | "row_gap");
+        if !known {
+            diagnostics.push(
+                unknown_field("ui.sidebar.spaces", key),
+                "unknown-key",
+                WindowsSettingsDiagnosticDisposition::Ignored,
+            );
+        }
+        known
+    });
+    WindowsSpaceSidebarSettings::parse(&toml::Value::Table(admitted))
+}
+
+fn parse_terminal(
+    table: &toml::Table,
+    settings: &mut WindowsUserSettings,
+    diagnostics: &mut DiagnosticsCollector,
+    path: &Path,
+    env: &impl Fn(&str) -> Option<OsString>,
+) {
+    for key in table
+        .keys()
+        .filter(|key| !matches!(key.as_str(), "new_cwd" | "default_shell" | "shell_mode"))
+    {
+        let unsupported = key == "kitty_graphics";
+        diagnostics.push(
+            unknown_field("terminal", key),
+            if unsupported {
+                "unsupported-herdr"
+            } else {
+                "unknown-key"
+            },
+            if unsupported {
+                WindowsSettingsDiagnosticDisposition::Unsupported
+            } else {
+                WindowsSettingsDiagnosticDisposition::Ignored
+            },
+        );
+    }
+    let mut executable = String::new();
+    if let Some(value) = table.get("default_shell") {
+        match value.as_str() {
+            Some(value) => match WindowsShellSettings::new(value, "auto") {
+                Ok(shell) => executable = shell.executable().to_owned(),
+                Err(error) => {
+                    diagnostics.push_error(&error, WindowsSettingsDiagnosticDisposition::Defaulted)
+                }
+            },
+            None => diagnostics.push(
+                "terminal.default_shell",
+                "wrong-type",
+                WindowsSettingsDiagnosticDisposition::Defaulted,
+            ),
+        }
+    }
+    let mut mode = "auto";
+    if let Some(value) = table.get("shell_mode") {
+        match value.as_str() {
+            Some(value) => match WindowsShellSettings::new("", value) {
+                Ok(_) => mode = value,
+                Err(error) => {
+                    diagnostics.push_error(&error, WindowsSettingsDiagnosticDisposition::Defaulted)
+                }
+            },
+            None => diagnostics.push(
+                "terminal.shell_mode",
+                "wrong-type",
+                WindowsSettingsDiagnosticDisposition::Defaulted,
+            ),
+        }
+    }
+    settings.shell = WindowsShellSettings::new(&executable, mode)
+        .expect("independently admitted shell leaves compose");
+    let Some(value) = table.get("new_cwd") else {
+        return;
+    };
+    let Some(value) = value.as_str() else {
+        diagnostics.push(
+            "terminal.new_cwd",
+            "wrong-type",
+            WindowsSettingsDiagnosticDisposition::Defaulted,
+        );
+        return;
+    };
+    let candidate = match value.trim() {
+        "" | "follow" => Ok((WindowsDirectoryPolicy::Follow, None)),
+        "home" => Ok((WindowsDirectoryPolicy::Home, None)),
+        "current" => Ok((WindowsDirectoryPolicy::Current, None)),
+        "workspace" => Ok((WindowsDirectoryPolicy::Workspace, None)),
+        _ => normalize(value, path, env, "terminal.new_cwd")
+            .map(|value| (WindowsDirectoryPolicy::Explicit, Some(value))),
+    };
+    match candidate {
+        Ok(candidate) => settings.cwd = Some(candidate),
+        Err(error) => {
+            diagnostics.push_error(&error, WindowsSettingsDiagnosticDisposition::Defaulted)
+        }
+    }
+}
+
+fn parse_update(
+    table: &toml::Table,
+    settings: &mut WindowsUserSettings,
+    diagnostics: &mut DiagnosticsCollector,
+) {
+    for key in table
+        .keys()
+        .filter(|key| !matches!(key.as_str(), "channel" | "manifest_check"))
+    {
+        let unsupported = key == "version_check";
+        diagnostics.push(
+            unknown_field("update", key),
+            if unsupported {
+                "unsupported-herdr"
+            } else {
+                "unknown-key"
+            },
+            if unsupported {
+                WindowsSettingsDiagnosticDisposition::Unsupported
+            } else {
+                WindowsSettingsDiagnosticDisposition::Ignored
+            },
+        );
+    }
+    if let Some(value) = table.get("channel") {
+        match value.as_str() {
+            Some("stable") => {
+                settings.update_channel = WindowsUpdateChannel::Stable;
+                settings.update_channel_source = "file";
+            }
+            Some("preview") => {
+                settings.update_channel = WindowsUpdateChannel::Preview;
+                settings.update_channel_source = "file";
+            }
+            Some(_) => diagnostics.push(
+                "update.channel",
+                "invalid-channel",
+                WindowsSettingsDiagnosticDisposition::Defaulted,
+            ),
+            None => diagnostics.push(
+                "update.channel",
+                "wrong-type",
+                WindowsSettingsDiagnosticDisposition::Defaulted,
+            ),
+        }
+    }
+    if let Some(value) = table.get("manifest_check") {
+        match value.as_bool() {
+            Some(value) => {
+                settings.manifest_check = value;
+                settings.manifest_check_source = "file";
+            }
+            None => diagnostics.push(
+                "update.manifest_check",
+                "wrong-type",
+                WindowsSettingsDiagnosticDisposition::Defaulted,
+            ),
+        }
+    }
+}
+
+fn parse_worktrees(
+    table: &toml::Table,
+    settings: &mut WindowsUserSettings,
+    diagnostics: &mut DiagnosticsCollector,
+    path: &Path,
+    env: &impl Fn(&str) -> Option<OsString>,
+) {
+    for key in table.keys().filter(|key| key.as_str() != "directory") {
+        diagnostics.push(
+            unknown_field("worktrees", key),
+            "unknown-key",
+            WindowsSettingsDiagnosticDisposition::Ignored,
+        );
+    }
+    let Some(value) = table.get("directory") else {
+        return;
+    };
+    let candidate = value
+        .as_str()
+        .ok_or(WindowsSettingsError::new(
+            "worktrees.directory",
+            "wrong-type",
+        ))
+        .and_then(|value| normalize(value, path, env, "worktrees.directory"));
+    match candidate {
+        Ok(value) => settings.worktree_root = Some(value),
+        Err(error) => {
+            diagnostics.push_error(&error, WindowsSettingsDiagnosticDisposition::Defaulted)
+        }
+    }
+}
+
+fn parse_session(
+    table: &toml::Table,
+    settings: &mut WindowsUserSettings,
+    diagnostics: &mut DiagnosticsCollector,
+) {
+    for key in table
+        .keys()
+        .filter(|key| key.as_str() != "resume_agents_on_restore")
+    {
+        diagnostics.push(
+            unknown_field("session", key),
+            "unknown-key",
+            WindowsSettingsDiagnosticDisposition::Ignored,
+        );
+    }
+    if let Some(value) = table.get("resume_agents_on_restore") {
+        match value.as_bool() {
+            Some(value) => {
+                settings.resume_agents_on_restore = value;
+                settings.resume_agents_on_restore_source = "file";
+            }
+            None => diagnostics.push(
+                "session.resume_agents_on_restore",
+                "wrong-type",
+                WindowsSettingsDiagnosticDisposition::Defaulted,
+            ),
+        }
+    }
 }
 
 fn normalize(

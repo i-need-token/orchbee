@@ -483,9 +483,13 @@ export {
 } from './workbench-agent-manifest-update-contract';
 export { AgentManifestActivationSchema } from './workbench-agent-manifests-contract';
 export {
+	ConfigurationDiagnosticSchema,
+	ConfigurationDiagnosticsSchema,
 	ConfigurationRequestSchema,
 	ConfigurationResultSchema,
 	WORKBENCH_MAXIMUM_ENCODED_CONFIGURATION_BYTES,
+	type ConfigurationDiagnostic,
+	type ConfigurationDiagnostics,
 	type ConfigurationRequest,
 	type ConfigurationResult,
 } from './workbench-configuration-contract';

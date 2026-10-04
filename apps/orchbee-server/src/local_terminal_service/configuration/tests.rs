@@ -22,7 +22,9 @@ impl Fixture {
         std::fs::write(self.file(), text).unwrap();
     }
     fn settings(&self, explicit: bool) -> WindowsUserSettings {
-        read_windows_user_settings_at(Some(&self.file()), explicit, |_| None).unwrap()
+        read_windows_user_settings_at(Some(&self.file()), explicit, |_| None)
+            .unwrap()
+            .settings
     }
 }
 impl Drop for Fixture {
@@ -58,8 +60,121 @@ fn current(registry: &Registry) -> ConfigurationSnapshot {
     snapshot
 }
 
+pub(in crate::local_terminal_service) fn maximum_accepted_source_with_escaped_profiles() -> String {
+    let command = "\\".repeat(4096);
+    let description = "\\".repeat(512);
+    let mut commands = String::new();
+    for _ in 0..7 {
+        commands.push_str(&format!(
+            "[[keys.command]]\ncommand='{command}'\ndescription='{description}'\n"
+        ));
+    }
+    commands.push_str(&format!(
+        "[[keys.command]]\ncommand='{}'\n",
+        "\\".repeat(279)
+    ));
+    let rules = [4089, 4000, 4000, 4000]
+        .map(|length| format!("{{equals='{}'}}", "\\".repeat(length)))
+        .into_iter()
+        .collect::<Vec<_>>()
+        .join(",");
+    let sidebars = format!(
+        "[ui.sidebar.agents]\nrows=[[{{token='agent',rules=[{rules}]}}]]\n\
+         [ui.sidebar.spaces]\nrows=[[{{token='workspace',rules=[{rules}]}}]]\n"
+    );
+    let unknown_fields = (0..40)
+        .map(|index| format!("'{index:02}'=1\n"))
+        .collect::<String>();
+    let source = format!("{commands}[ui]\n{unknown_fields}{sidebars}#x\n");
+    assert_eq!(source.len(), 64 * 1024);
+    source
+}
+
 #[test]
-fn sidebar_reload_publishes_exact_profile_and_invalid_layout_retains_whole_publication() {
+fn startup_and_reload_reject_an_accepted_source_whose_composed_response_is_oversized() {
+    let fixture = Fixture::new();
+    fixture.write(&maximum_accepted_source_with_escaped_profiles());
+    let candidate = read_windows_user_settings_at(Some(&fixture.file()), true, |_| None).unwrap();
+    assert_eq!(candidate.diagnostics.items().len(), 40);
+    let keys_profile = candidate.settings.keys.profile();
+    let agent_sidebar_profile = candidate.settings.agent_sidebar.profile();
+    let spaces_sidebar_profile = candidate.settings.space_sidebar.profile();
+    assert_eq!(keys_profile.len(), 65_534);
+    assert_eq!(agent_sidebar_profile.len(), 32_767);
+    assert_eq!(spaces_sidebar_profile.len(), 32_752);
+    assert!(orchbee_local_site_runtime::WindowsKeySettings::from_profile(&keys_profile).is_ok());
+    assert!(
+        orchbee_local_site_runtime::WindowsAgentSidebarSettings::from_profile(
+            &agent_sidebar_profile
+        )
+        .is_ok()
+    );
+    assert!(
+        orchbee_local_site_runtime::WindowsSpaceSidebarSettings::from_profile(
+            &spaces_sidebar_profile
+        )
+        .is_ok()
+    );
+    let diagnostics = protocol_diagnostics(&candidate.diagnostics).unwrap();
+    assert!(diagnostics.validate().is_ok());
+    let candidate_snapshot = snapshot(&candidate.settings, &candidate.settings, diagnostics, 0);
+    let publication = Outcome::Current {
+        snapshot: candidate_snapshot,
+    };
+    assert!(publication_result(publication.clone()).validate().is_ok());
+    let Err(ContractError::EncodedValueTooLarge { actual, maximum }) =
+        preflight_publication(&publication)
+    else {
+        panic!("composed Current response must exceed its exact wire bound")
+    };
+    assert!(actual > maximum);
+    assert_eq!(
+        maximum,
+        orchbee_workbench_protocol::MAXIMUM_CONFIGURATION_BYTES
+    );
+
+    let startup = Registry::default();
+    let error = startup
+        .initialize_load(&candidate.settings, &candidate)
+        .unwrap_err();
+    assert_eq!(error.kind(), std::io::ErrorKind::InvalidData);
+    assert!(matches!(
+        startup.execute(&request(Action::Current), |_| panic!(
+            "uninitialized startup"
+        )),
+        Outcome::Failed {
+            reason: Failure::Unavailable,
+            ..
+        }
+    ));
+
+    let registry = Registry::default();
+    registry
+        .initialize(&WindowsUserSettings::default())
+        .unwrap();
+    let retained = current(&registry);
+    let mut applied = false;
+    let outcome = registry.execute_with(
+        &request(Action::Reload),
+        move |_, _| Ok(candidate),
+        |_| {
+            applied = true;
+            true
+        },
+    );
+    assert!(matches!(
+        outcome,
+        Outcome::Failed {
+            reason: Failure::LoadFailed,
+            ..
+        }
+    ));
+    assert!(!applied);
+    assert_eq!(current(&registry), retained);
+}
+
+#[test]
+fn sidebar_reload_publishes_valid_profiles_and_defaults_only_invalid_profiles() {
     let fixture = Fixture::new();
     fixture.write(
         "[keys]\nprefix='ctrl+a'\n[ui.sidebar.agents]\nrows=[['state_text','$summary']]\nrow_gap=1\n[ui.sidebar.spaces]\nrows=[['workspace','$summary']]\nrow_gap=3",
@@ -80,10 +195,25 @@ fn sidebar_reload_publishes_exact_profile_and_invalid_layout_retains_whole_publi
         "$summary"
     );
     fixture.write("[keys]\nprefix='ctrl+x'\n[ui.toast]\ndelivery='terminal'\n[ui.sidebar.agents]\nrows=[['invalid-token']]");
-    assert!(
-        matches!(registry.execute(&request(Action::Reload), |_| panic!("invalid candidate cannot apply")), Outcome::Failed { reason: Failure::LoadFailed, field: Some(field), .. } if field == "ui.sidebar.agents")
+    let Outcome::Reloaded {
+        snapshot: agent_warning,
+        changed: true,
+    } = registry.execute(&request(Action::Reload), |_| true)
+    else {
+        panic!("field warning remains an admitted publication")
+    };
+    assert!(agent_warning.keys_profile.contains("ctrl+x"));
+    assert_eq!(
+        agent_warning.diagnostics.items[0].field,
+        "ui.sidebar.agents"
     );
-    assert_eq!(current(&registry), snapshot);
+    assert_eq!(
+        orchbee_local_site_runtime::WindowsAgentSidebarSettings::from_profile(
+            &agent_warning.agent_sidebar_profile
+        )
+        .unwrap(),
+        orchbee_local_site_runtime::WindowsAgentSidebarSettings::default()
+    );
     assert_eq!(
         orchbee_local_site_runtime::WindowsSpaceSidebarSettings::from_profile(
             &snapshot.spaces_sidebar_profile
@@ -93,17 +223,27 @@ fn sidebar_reload_publishes_exact_profile_and_invalid_layout_retains_whole_publi
         3
     );
     fixture.write("[keys]\nprefix='ctrl+x'\n[ui.toast]\ndelivery='terminal'\n[ui.sidebar.agents]\nrows=[]\n[ui.sidebar.spaces]\nrows=[['agent']]");
-    assert!(
-        matches!(registry.execute(&request(Action::Reload), |_| panic!("invalid spaces cannot apply")), Outcome::Failed { reason: Failure::LoadFailed, field: Some(field), .. } if field == "ui.sidebar.spaces")
+    let Outcome::Reloaded {
+        snapshot: spaces_warning,
+        changed: true,
+    } = registry.execute(&request(Action::Reload), |_| true)
+    else {
+        panic!("field warning remains an admitted publication")
+    };
+    assert_eq!(
+        spaces_warning.diagnostics.items[0].field,
+        "ui.sidebar.spaces"
     );
-    assert_eq!(current(&registry), snapshot);
+    assert_eq!(current(&registry), spaces_warning);
     fixture.write("[keys]\nprefix='ctrl+x'\n[ui.sidebar.agents]\nrows=[]\nrow_gap=2");
     let Outcome::Reloaded { snapshot: next, .. } =
         registry.execute(&request(Action::Reload), |_| true)
     else {
         panic!()
     };
-    assert_eq!(next.revision.value(), snapshot.revision.value() + 1);
+    assert_eq!(next.revision.value(), spaces_warning.revision.value() + 1);
+    assert!(next.diagnostics.items.is_empty());
+    assert_eq!(next.diagnostics.omitted_count, 0);
     assert!(next.keys_profile.contains("ctrl+x"));
     assert_eq!(
         orchbee_local_site_runtime::WindowsAgentSidebarSettings::from_profile(
@@ -113,6 +253,46 @@ fn sidebar_reload_publishes_exact_profile_and_invalid_layout_retains_whole_publi
         .row_gap(),
         2
     );
+}
+
+#[test]
+fn managed_startup_rereads_one_complete_authoritative_server_baseline() {
+    use crate::{local_terminal_service::LocalTerminalService, worker_registry::WorkerRegistry};
+    use std::{
+        sync::{Arc, Mutex},
+        time::{Duration, Instant},
+    };
+    struct Owner(Arc<LocalTerminalService>);
+    impl Drop for Owner {
+        fn drop(&mut self) {
+            self.0
+                .stop_process_observer_before(Instant::now() + Duration::from_secs(3))
+                .unwrap();
+        }
+    }
+
+    let fixture = Fixture::new();
+    fixture.write("[keys]\nprefix='ctrl+a'");
+    let startup = fixture.settings(true);
+    fixture.write("[keys]\nprefix='ctrl+x'\n[update]\nchannel='invalid'");
+    let current = request(Action::Current);
+    let owner = Owner(Arc::new(LocalTerminalService::from_identity(
+        Arc::new(Mutex::new(WorkerRegistry::new())),
+        Ok(current.site_id.clone()),
+    )));
+    owner
+        .0
+        .start_process_observer_with_settings(startup, false)
+        .unwrap();
+    let Outcome::Current { snapshot } = owner.0.execute_configuration(current).outcome else {
+        panic!("current startup configuration")
+    };
+    assert_eq!(snapshot.revision.value(), 0);
+    assert!(snapshot.keys_profile.contains("ctrl+x"));
+    assert!(!snapshot.keys_profile.contains("ctrl+a"));
+    assert_eq!(snapshot.diagnostics.items.len(), 1);
+    assert_eq!(snapshot.diagnostics.items[0].field, "update.channel");
+    assert_eq!(snapshot.diagnostics.items[0].reason, "invalid-channel");
 }
 
 #[test]
@@ -188,15 +368,20 @@ fn real_configuration_owner_updates_coordinator_and_invalid_reload_retains_live_
     assert_eq!(new.executable(), "new.exe");
     assert_eq!(new.mode().as_str(), "login");
     fixture.write("[terminal]\ndefault_shell='wrong.exe'\nshell_mode='invalid'");
-    assert!(matches!(
-        owner.0.execute_configuration(reload.clone()).outcome,
-        Outcome::Failed {
-            reason: Failure::LoadFailed,
-            ..
-        }
-    ));
-    assert_eq!(capture(13), new);
-    assert_eq!(current(&owner.0.configuration), snapshot);
+    let Outcome::Reloaded {
+        snapshot: warning,
+        changed: true,
+    } = owner.0.execute_configuration(reload.clone()).outcome
+    else {
+        panic!("invalid shell mode defaults only that leaf")
+    };
+    assert_eq!(warning.default_shell, "wrong.exe");
+    assert_eq!(warning.shell_mode, ConfigurationShellMode::Auto);
+    assert_eq!(warning.diagnostics.items[0].field, "terminal.shell_mode");
+    let fallback = capture(13);
+    assert_eq!(fallback.executable(), "wrong.exe");
+    assert_eq!(fallback.mode().as_str(), "auto");
+    assert_eq!(current(&owner.0.configuration), warning);
     assert_eq!(old.executable(), "old.exe");
     fixture.write("[terminal]\ndefault_shell='blocked.exe'");
     owner
@@ -207,8 +392,8 @@ fn real_configuration_owner_updates_coordinator_and_invalid_reload_retains_live_
         owner.0.execute_configuration(reload).outcome,
         Outcome::Failed { .. }
     ));
-    assert_eq!(capture(14), new);
-    assert_eq!(current(&owner.0.configuration), snapshot);
+    assert_eq!(capture(14), fallback);
+    assert_eq!(current(&owner.0.configuration), warning);
 }
 
 #[test]
@@ -245,14 +430,25 @@ fn reload_publishes_valid_candidates_and_retains_previous_state_on_load_or_apply
     ));
     assert_eq!(current(&registry), snapshot);
     fixture.write("[keys]\nhelp='ctrl+c'");
+    let Outcome::Reloaded {
+        snapshot: warning,
+        changed: true,
+    } = registry.execute(&request(Action::Reload), |_| true)
+    else {
+        panic!("invalid action override disables that action")
+    };
+    assert_eq!(warning.diagnostics.items[0].field, "keys.help");
+    fixture.write("[keys");
     assert!(matches!(
-        registry.execute(&request(Action::Reload), |_| panic!("invalid cannot apply")),
+        registry.execute(&request(Action::Reload), |_| panic!(
+            "fatal parse cannot apply"
+        )),
         Outcome::Failed {
             reason: Failure::LoadFailed,
             ..
         }
     ));
-    assert_eq!(current(&registry), snapshot);
+    assert_eq!(current(&registry), warning);
     std::fs::remove_file(fixture.file()).unwrap();
     assert!(matches!(
         registry.execute(&request(Action::Reload), |_| panic!(
@@ -263,7 +459,7 @@ fn reload_publishes_valid_candidates_and_retains_previous_state_on_load_or_apply
             ..
         }
     ));
-    assert_eq!(current(&registry), snapshot);
+    assert_eq!(current(&registry), warning);
 }
 
 #[test]
@@ -321,36 +517,81 @@ fn busy_exhaustion_and_uninitialized_owner_never_apply_settings() {
 }
 
 #[test]
-fn window_title_reload_publishes_invalid_syntax_without_losing_other_settings() {
+fn reload_releases_committed_state_while_loading_the_configuration_file() {
+    let registry = Registry::default();
+    let settings = WindowsUserSettings::default();
+    registry.initialize(&settings).unwrap();
+    let candidate = orchbee_local_site_runtime::WindowsUserSettingsLoad {
+        settings,
+        diagnostics: orchbee_local_site_runtime::WindowsSettingsDiagnostics::default(),
+    };
+    let outcome = registry.execute_with(
+        &request(Action::Reload),
+        |_, _| {
+            let state = registry
+                .0
+                .try_lock()
+                .expect("configuration file loading must not own committed state");
+            assert!(state.as_ref().unwrap().reloading);
+            drop(state);
+            assert!(matches!(
+                registry.execute(&request(Action::Current), |_| panic!()),
+                Outcome::Current { .. }
+            ));
+            Ok(candidate)
+        },
+        |_| true,
+    );
+    assert!(matches!(outcome, Outcome::Reloaded { .. }));
+    assert!(!registry.0.lock().unwrap().as_ref().unwrap().reloading);
+}
+
+#[test]
+fn window_title_reload_defaults_invalid_leaf_and_publishes_its_warning() {
     let fixture = Fixture::new();
     fixture.write("[ui]\nwindow_title='{workspace}'");
     let registry = Registry::default();
     registry.initialize(&fixture.settings(true)).unwrap();
     assert_eq!(current(&registry).window_title, "{workspace}");
-    for title in ["{tab}/{pane}", "{unknown}", ""] {
-        fixture.write(&format!("[ui]\nwindow_title='{title}'"));
-        let Outcome::Reloaded { snapshot, .. } =
-            registry.execute(&request(Action::Reload), |_| true)
-        else {
-            panic!()
-        };
-        assert_eq!(snapshot.window_title, title);
-        assert!(snapshot.restart_required.is_empty());
-    }
-    let before = current(&registry);
+    fixture.write("[ui]\nwindow_title='{tab}/{pane}'");
+    let Outcome::Reloaded { snapshot, .. } = registry.execute(&request(Action::Reload), |_| true)
+    else {
+        panic!()
+    };
+    assert_eq!(snapshot.window_title, "{tab}/{pane}");
+    assert!(snapshot.diagnostics.items.is_empty());
+    fixture.write("[ui]\nwindow_title='{unknown}'");
+    let Outcome::Reloaded { snapshot, .. } = registry.execute(&request(Action::Reload), |_| true)
+    else {
+        panic!()
+    };
+    assert_eq!(
+        snapshot.window_title,
+        orchbee_local_site_runtime::DEFAULT_WINDOW_TITLE
+    );
+    assert_eq!(snapshot.diagnostics.items[0].field, "ui.window_title");
+    fixture.write("[ui]\nwindow_title=''");
+    let Outcome::Reloaded { snapshot, .. } = registry.execute(&request(Action::Reload), |_| true)
+    else {
+        panic!()
+    };
+    assert!(snapshot.window_title.is_empty());
+    assert!(snapshot.diagnostics.items.is_empty());
     fixture.write("[ui]\nwindow_title=2");
-    assert!(matches!(
-        registry.execute(&request(Action::Reload), |_| panic!()),
-        Outcome::Failed {
-            reason: Failure::LoadFailed,
-            ..
-        }
-    ));
-    assert_eq!(current(&registry), before);
+    let Outcome::Reloaded { snapshot, .. } = registry.execute(&request(Action::Reload), |_| true)
+    else {
+        panic!()
+    };
+    assert_eq!(
+        snapshot.window_title,
+        orchbee_local_site_runtime::DEFAULT_WINDOW_TITLE
+    );
+    assert_eq!(snapshot.diagnostics.items[0].field, "ui.window_title");
+    assert_eq!(snapshot.diagnostics.items[0].reason, "wrong-type");
 }
 
 #[test]
-fn notification_reload_exposes_policy_and_rejects_bad_candidate_without_publication() {
+fn notification_reload_exposes_policy_and_defaults_invalid_leaves() {
     let fixture = Fixture::new();
     fixture.write("");
     let registry = Registry::default();
@@ -386,23 +627,63 @@ fn notification_reload_exposes_policy_and_rejects_bad_candidate_without_publicat
         assert_eq!(parsed.position(), "top-left");
         assert!(snapshot.restart_required.is_empty());
     }
-    let retained = current(&registry);
     fixture.write("[ui.toast]\ndelivery='bad'");
-    assert!(matches!(
-        registry.execute(&request(Action::Reload), |_| panic!()),
-        Outcome::Failed {
-            reason: Failure::LoadFailed,
-            ..
-        }
-    ));
-    assert_eq!(current(&registry), retained);
+    let Outcome::Reloaded {
+        snapshot: delivery_warning,
+        ..
+    } = registry.execute(&request(Action::Reload), |_| true)
+    else {
+        panic!()
+    };
+    assert_eq!(
+        delivery_warning.diagnostics.items[0].field,
+        "ui.toast.delivery"
+    );
+    assert_eq!(
+        orchbee_local_site_runtime::WindowsNotificationSettings::from_profile(
+            &delivery_warning.notification_profile
+        )
+        .unwrap(),
+        orchbee_local_site_runtime::WindowsNotificationSettings::default()
+    );
     fixture.write("[ui.sound]\nenabled='yes'");
-    assert!(matches!(
-        registry.execute(&request(Action::Reload), |_| panic!()),
-        Outcome::Failed {
-            reason: Failure::LoadFailed,
-            ..
-        }
-    ));
-    assert_eq!(current(&registry), retained);
+    let Outcome::Reloaded {
+        snapshot: sound_warning,
+        ..
+    } = registry.execute(&request(Action::Reload), |_| true)
+    else {
+        panic!()
+    };
+    assert_eq!(sound_warning.diagnostics.items[0].field, "ui.sound.enabled");
+    assert_eq!(current(&registry), sound_warning);
+}
+
+#[test]
+fn warning_record_changes_advance_revision_when_effective_settings_are_equal() {
+    let fixture = Fixture::new();
+    fixture.write("");
+    let registry = Registry::default();
+    registry.initialize(&fixture.settings(true)).unwrap();
+    fixture.write("[update]\nchannel='invalid'");
+    let Outcome::Reloaded {
+        snapshot: warning,
+        changed: true,
+    } = registry.execute(&request(Action::Reload), |_| true)
+    else {
+        panic!()
+    };
+    assert_eq!(warning.revision.value(), 1);
+    assert_eq!(warning.diagnostics.items[0].field, "update.channel");
+    fixture.write("");
+    let Outcome::Reloaded {
+        snapshot: clean,
+        changed: true,
+    } = registry.execute(&request(Action::Reload), |_| true)
+    else {
+        panic!()
+    };
+    assert_eq!(clean.revision.value(), 2);
+    assert!(clean.diagnostics.items.is_empty());
+    assert_eq!(clean.keys_profile, warning.keys_profile);
+    assert_eq!(clean.notification_profile, warning.notification_profile);
 }

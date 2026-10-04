@@ -349,7 +349,7 @@ scope 传给子终端，使内部 CLI 命令保持所属 Site，即使 Server �
 
 列表输出 `orchbee.session.list` v2；v1 保持原有封闭状态集合。`recoverable` 表示受门保护的当次观察
 确认 v2/v3 登记完整、所有确切身份消失且资源空闲；其 `running=false`、`pid=null`，不承诺稍后的启动。
-删除仍使用 `orchbee.session.delete` v1；内嵌 schema 清单为 v139。
+删除仍使用 `orchbee.session.delete` v1；内嵌 schema 清单为 v140。
 
 持久清单在 LocalAppData 保留精确的默认/命名身份和停止回执。使用相同的已准入运行时基目录时，
 即使运行时叶目录被移除，`session list` 仍能发现已停止会话；`session attach`/`site start` 会重建
@@ -786,6 +786,7 @@ orchbee site stop-status <request-id>
 orchbee site diagnose
 orchbee config check
 orchbee completion bash|zsh|fish|powershell|elvish
+orchbee --default-config  # Windows
 orchbee --skill
 orchbee help <recognized path>
 orchbee <recognized path> -h|--help
@@ -799,7 +800,8 @@ orchbee <recognized path> -h|--help
 完全相同。后缀 help 优先于缺失的业务参数（`project get --help` 描述 `project get`），但不优先于
 已给出的业务参数或多余 token（`project get x --help`、`status extra --help` 都是 usage）。未列出的
 目标如 `help help`、`help version`、`help --version` 按未知路径 → usage。Help、`--version`、
-`--skill`、`completion` 与不带 `--output` 的 `api schema` 绝不触碰平台、运行、cohort 或 Site 状态。显式 Windows schema 导出仅操作调用者选择的文件目标及自有同目录临时文件。
+`--skill`、`completion`、不带 `--output` 的 `api schema` 与 Windows `--default-config` 绝不触碰平台、运行、cohort 或 Site 状态。显式 Windows schema 导出仅操作调用者选择的文件目标及自有同目录临时文件。
+在 Windows 上，`--default-config` 必须是根命令的唯一参数，直接从构建输出规范 UTF-8 TOML，不读取用户配置或运行时选择环境。
 `--skill` 必须是根命令的唯一参数，输出内嵌且本地化的 CLI 使用指南。PowerShell
 补全是静态语法投影：绝不执行用户表达式或查询 Site；需显式加载，不修改 shell profile。
 
@@ -822,7 +824,7 @@ Windows ConPTY 证据单独检查实际交互注册与加载。这证明静态�
 `[<geometry>]` 代表可选的全有或全无组 `--cols <n> --rows <n> --cell-width <n>
 --cell-height <n>`；省略时命令请求默认的 80x24 网格与未知单元像素 (0,0)。
 
-`help`、`completion`、`tui`、`--version`、`--skill` 与裸调用是固定文本输出，不接受 `--format`；一个合法
+`help`、`completion`、`tui`、`--version`、`--skill`、裸调用与 Windows `--default-config` 是固定文本输出，不接受 `--format`；一个合法
 `--format=json` 会把随后产生的语法失败变成 JSON `invalid-usage` 失败文档，而 text/默认失败仍
 保持 stdout 为空。数据命令（`status`、全部 `list`/`get`、`workspace close-status`、`agent explain`、`agent doctor`、`agent wait`、
 `api snapshot`、`api schema`、`site start`、`site stop`、`site stop-status`、`site diagnose`、`config check`，以及全部四条 `agent integration` 命令）与全部 mutation 命令接受 `--format`。`api` 命令是机器面：`api snapshot` 或 `api schema` 成功时在
@@ -1930,8 +1932,8 @@ deadline 到期在 wire 请求尚不存在时即退出。
 ## 不变量
 
 - 语法非法的调用绝不触碰文件系统、cohort 或 socket。
-- 离线命令（`help`、`--version`、`--skill`、`completion`、`api schema`）绝不执行平台、运行、cohort 或
-  Site 发现。
+- 离线命令（`help`、`--version`、`--skill`、`completion`、`api schema` 与 Windows
+  `--default-config`）绝不执行平台、运行、cohort 或 Site 发现。
 - 网络查询不创建任何事物：无目录、锁、标记、终端、viewer、控制授权或第二个请求——唯一
   例外是 `terminal read`/`terminal wait-output`，其只读能力 viewer attachment 是唯一被
   认可的读路径副作用，最小化持有并在输出前释放。至多持有一个短暂 Client Session，且绝不
@@ -2319,6 +2321,8 @@ Hermes 新增 Windows 插件激活及不含内容的会话观察。其离线 doc
 
 [Windows CLI 配置](windows-cli-configuration.zh-CN.md) 拥有有界 TOML 读取器、`ORCHBEE_CONFIG_FILE`、`[terminal] new_cwd`、`[worktrees] directory` 及创建副作用前的优先级。Windows `config check` v2 保留五项运行时检查并增加 `user-config`；v1 仍是五项检查。`orchbee.cli.failure.configuration` v1 报告有界准备错误。目录 v69 包含 78 个 schema 和 94 条命令路径。
 
+当前 Windows `config check` v13 仍把致命文件和环境接纳错误报告为 `fail`／退出 1，并把已接纳的字段回退报告为 `warning`，同时保持 `ok:true`／退出 0。有界 `diagnostics` 与精确的 `diagnosticsOmitted` 数量不会放宽 v1-v12。`site config`／`site reload-config` v8 在每个成功快照中携带同一份已接纳警告记录，v1-v7 保持封闭。内嵌 schema 目录为 v140。
+
 ## Windows 终端观察流
 
 `terminal session observe <terminal> [--cols <n>] [--rows <n>] [--timeout <ms>]` 从一个已有绑定输出 NDJSON，不获取控制权，也不改变 Host 尺寸。[流契约](windows-terminal-streams.zh-CN.md) 拥有完整安全 ANSI 帧、重置、先刷新后确认、期限和清理规则。默认视口为 120×40，默认不限时。两种输出格式均产生 `orchbee.terminal.stream` v2 记录。目录 v69 含 78 个 schema、94 条原生命令路径。机器控制现通过 `terminal session control` 接收 NDJSON 输入；交互式 terminal/Agent attach 已实现，仍有保真与验收义务。
@@ -2433,7 +2437,7 @@ Windows `agent view get`、`agent view set --spec <json>` 和
 
 ## Agent 侧栏配置发布
 
-Windows `config check` v10 与 `site config`/`site reload-config` v5 暴露必需的有界 `agentSidebarProfile`；配置失败 v7 增加侧栏接纳诊断。旧公开版本保持封闭。[Windows 配置所有者](windows-cli-configuration.zh-CN.md#windows-agent-侧栏布局)定义启动、严格整文件验证、规范发布及 Client 原子应用。目录 v122 仍含 105 个 schema 和 141 条命令路径。
+Windows `config check` v10 与 `site config`/`site reload-config` v5 暴露必需的有界 `agentSidebarProfile`；配置失败 v7 增加侧栏接纳诊断。旧公开版本保持封闭。[Windows 配置所有者](windows-cli-configuration.zh-CN.md#windows-agent-侧栏布局)定义启动、致命来源边界、字段级准入、规范发布及 Client 原子应用。目录 v122 仍含 105 个 schema 和 141 条命令路径。
 
 ## Windows CLI 进程验证
 

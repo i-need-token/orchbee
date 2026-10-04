@@ -49,7 +49,8 @@ impl ProcessObserver {
     fn start(
         &self,
         service: &Arc<LocalTerminalService>,
-        settings: orchbee_local_site_runtime::WindowsUserSettings,
+        startup: orchbee_local_site_runtime::WindowsUserSettings,
+        current: orchbee_local_site_runtime::WindowsUserSettingsLoad,
         background: bool,
     ) -> io::Result<()> {
         let mut handle = self
@@ -62,16 +63,21 @@ impl ProcessObserver {
         if handle.is_some() {
             return Err(io::ErrorKind::AlreadyExists.into());
         }
+        let settings = &current.settings;
         let root = settings.path.as_deref().and_then(std::path::Path::parent);
         let detector = ScreenDetector::load(root).map_err(io::Error::other)?;
+        // Validate the complete authoritative rev0 response before manifest policy or its schedule
+        // can become visible. Installation remains after manifest initialization so a later
+        // manifest failure cannot leave the configuration owner half-started.
+        let configuration = super::configuration::Registry::prepare_initial(&startup, &current)?;
         self.wake.manifests.initialize_settings(
-            &settings,
+            settings,
             &detector,
             background,
             !cfg!(debug_assertions) && !cfg!(test),
         )?;
-        service.configuration.initialize(&settings)?;
-        if !service.apply_configuration(&settings) {
+        service.configuration.install_initial(configuration)?;
+        if !service.apply_configuration(settings) {
             return Err(io::Error::other(
                 "Configuration launch policy is unavailable",
             ));
@@ -169,17 +175,28 @@ impl LocalTerminalService {
     }
     /// Starts the sole periodic sampler; a stopped or already running owner cannot restart.
     pub(crate) fn start_process_observer(self: &Arc<Self>) -> io::Result<()> {
-        let settings =
+        let startup =
             orchbee_local_site_runtime::read_windows_user_settings(|name| std::env::var_os(name))
-                .map_err(io::Error::other)?;
-        self.start_process_observer_with_settings(settings, false)
+                .map_err(io::Error::other)?
+                .settings;
+        self.start_process_observer_with_settings(startup, false)
     }
     pub(crate) fn start_process_observer_with_settings(
         self: &Arc<Self>,
-        settings: orchbee_local_site_runtime::WindowsUserSettings,
+        startup: orchbee_local_site_runtime::WindowsUserSettings,
         background: bool,
     ) -> io::Result<()> {
-        self.process_observer.start(self, settings, background)
+        // Restore policy was consumed from `startup`; the Server rereads one complete candidate
+        // at that frozen location so revision zero, diagnostics and every live profile share one
+        // authoritative generation for all Clients.
+        let current = orchbee_local_site_runtime::read_windows_user_settings_at(
+            startup.path.as_deref(),
+            startup.explicit,
+            |name| std::env::var_os(name),
+        )
+        .map_err(io::Error::other)?;
+        self.process_observer
+            .start(self, startup, current, background)
     }
     /// Stops new sampling and joins admitted work; unresolved viewer cleanup transfers to Site shutdown.
     pub(crate) fn stop_process_observer_before(&self, deadline: Instant) -> io::Result<()> {

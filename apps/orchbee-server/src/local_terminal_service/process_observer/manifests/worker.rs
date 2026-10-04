@@ -66,7 +66,8 @@ impl Worker {
                         |name| std::env::var_os(name),
                     )
                 })
-                .transpose();
+                .transpose()
+                .map(|settings| settings.map(|load| load.settings));
             let settings = match settings {
                 Ok(settings) => settings,
                 Err(_) => {

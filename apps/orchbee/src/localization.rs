@@ -508,6 +508,12 @@ impl Locale {
                 "Configuration published; keys updated"
             }
             (Self::ZhCn, Some(Notice::ConfigurationPublished)) => "配置已发布；键位已更新",
+            (Self::EnUs, Some(Notice::ConfigurationWarning)) => {
+                "Configuration loaded with warnings; run orchbee config check"
+            }
+            (Self::ZhCn, Some(Notice::ConfigurationWarning)) => {
+                "配置已加载，但有警告；请运行 orchbee config check"
+            }
             (Self::EnUs, Some(Notice::ConfigurationRestart)) => {
                 "Keys updated; some Site settings need a restart"
             }

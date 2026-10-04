@@ -2,12 +2,15 @@ use super::*;
 
 #[test]
 fn explicit_creation_wins_over_shared_file_policy() {
-    let settings = project(WindowsUserSettings {
-        cwd: Some((WindowsDirectoryPolicy::Explicit, Some(r"C:\项目".into()))),
-        worktree_root: Some(r"C:\worktrees".into()),
-        resume_agents_on_restore: false,
-        resume_agents_on_restore_source: "file",
-        ..WindowsUserSettings::default()
+    let settings = project(WindowsUserSettingsLoad {
+        settings: WindowsUserSettings {
+            cwd: Some((WindowsDirectoryPolicy::Explicit, Some(r"C:\项目".into()))),
+            worktree_root: Some(r"C:\worktrees".into()),
+            resume_agents_on_restore: false,
+            resume_agents_on_restore_source: "file",
+            ..WindowsUserSettings::default()
+        },
+        diagnostics: WindowsSettingsDiagnostics::default(),
     })
     .unwrap();
     let mut directory = CreationDirectory::Default;

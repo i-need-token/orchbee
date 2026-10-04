@@ -89,7 +89,11 @@ fn windows(action: ConfigurationAction, format: OutputFormat, locale: Locale) ->
                         | ConfigurationOutcome::Reloaded { snapshot, .. },
                     ) => (
                         0,
-                        if snapshot.revision.value() == 0 {
+                        if !snapshot.diagnostics.items.is_empty()
+                            || snapshot.diagnostics.omitted_count > 0
+                        {
+                            "warning"
+                        } else if snapshot.revision.value() == 0 {
                             "startup"
                         } else if snapshot.restart_required.is_empty() {
                             "published"
@@ -112,7 +116,7 @@ fn windows(action: ConfigurationAction, format: OutputFormat, locale: Locale) ->
                         0,
                     ),
                 };
-            let document = serde_json::json!({"schema":"orchbee.site.configuration","version":7,"source":{"kind":"local-runtime"},"result":{"action":action,"reply":reply,"interrupted":interrupted,"cleanupFailed":cleanup_failed}});
+            let document = serde_json::json!({"schema":"orchbee.site.configuration","version":8,"source":{"kind":"local-runtime"},"result":{"action":action,"reply":reply,"interrupted":interrupted,"cleanupFailed":cleanup_failed}});
             let encoded = match format {
                 OutputFormat::Json => output::encode_document(&document),
                 OutputFormat::Text => {
@@ -139,6 +143,22 @@ fn windows(action: ConfigurationAction, format: OutputFormat, locale: Locale) ->
                         text.push_str(&locale.cli_configuration_sidebar(&super::escape::escape(
                             &snapshot.agent_sidebar_profile,
                         )));
+                        text.push_str(&locale.cli_configuration_diagnostics(
+                            snapshot.diagnostics.items.len(),
+                            snapshot.diagnostics.omitted_count,
+                        ));
+                        for diagnostic in &snapshot.diagnostics.items {
+                            text.push_str(&locale.cli_configuration_diagnostic(
+                                &super::escape::escape(&diagnostic.field),
+                                &diagnostic.reason,
+                                match diagnostic.disposition {
+                                    orchbee_workbench_protocol::ConfigurationDiagnosticDisposition::Defaulted => "defaulted",
+                                    orchbee_workbench_protocol::ConfigurationDiagnosticDisposition::Disabled => "disabled",
+                                    orchbee_workbench_protocol::ConfigurationDiagnosticDisposition::Ignored => "ignored",
+                                    orchbee_workbench_protocol::ConfigurationDiagnosticDisposition::Unsupported => "unsupported",
+                                },
+                            ));
+                        }
                     }
                     output::encode_text(&text)
                 }

@@ -3,6 +3,7 @@ import Ajv2020 from 'ajv/dist/2020';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { WorkbenchRequestSchema, WorkbenchResponseSchema } from '../workbench-command-contract';
+import { ConfigurationDiagnosticsSchema } from '../workbench-configuration-contract';
 const caseSchema = z.strictObject({
 	name: z.string(),
 	direction: z.enum(['request', 'response']),
@@ -38,6 +39,7 @@ const configurationResult = (notificationProfile: string) => ({
 		kind: 'current',
 		snapshot: {
 			revision: '1',
+			diagnostics: { items: [], omittedCount: 0 },
 			keysProfile: '[keys]',
 			windowTitle: '',
 			notificationProfile,
@@ -76,6 +78,7 @@ describe('Site configuration publication', () => {
 	it('fits two independently bounded escaped sidebar profiles in the shared frame', () => {
 		const snapshot = {
 			revision: '1',
+			diagnostics: { items: [], omittedCount: 0 },
 			keysProfile: 'x'.repeat(20000),
 			windowTitle: '',
 			notificationProfile: '[ui.toast]',
@@ -109,6 +112,7 @@ describe('Site configuration publication', () => {
 					kind: 'current',
 					snapshot: {
 						revision: '0',
+						diagnostics: { items: [], omittedCount: 0 },
 						keysProfile: '[keys]',
 						windowTitle: '',
 						notificationProfile: '[ui.toast]',
@@ -120,6 +124,63 @@ describe('Site configuration publication', () => {
 						shellMode: 'auto',
 					},
 				},
+			}).success,
+		).toBe(false);
+	});
+	it('bounds and canonically orders configuration diagnostics by Unicode scalar value', () => {
+		const entry = (field: string, reason = 'wrong-type') => ({
+			field,
+			reason,
+			disposition: 'defaulted' as const,
+		});
+		expect(
+			ConfigurationDiagnosticsSchema.safeParse({
+				items: [entry('\ue000'), entry('\u{10000}')],
+				omittedCount: 65536,
+			}).success,
+		).toBe(true);
+		expect(
+			ConfigurationDiagnosticsSchema.safeParse({
+				items: [entry('\u{10000}'), entry('\ue000')],
+				omittedCount: 0,
+			}).success,
+		).toBe(false);
+		expect(
+			ConfigurationDiagnosticsSchema.safeParse({
+				items: [entry('keys.help', 'invalid-binding'), entry('keys.help', 'wrong-type')],
+				omittedCount: 0,
+			}).success,
+		).toBe(true);
+		expect(
+			ConfigurationDiagnosticsSchema.safeParse({
+				items: [entry('keys.help', 'wrong-type'), entry('keys.help', 'invalid-binding')],
+				omittedCount: 0,
+			}).success,
+		).toBe(false);
+		expect(
+			ConfigurationDiagnosticsSchema.safeParse({
+				items: [entry('keys.help'), entry('keys.help')],
+				omittedCount: 0,
+			}).success,
+		).toBe(false);
+		expect(
+			ConfigurationDiagnosticsSchema.safeParse({
+				items: [entry(`${'界'.repeat(85)}a`)],
+				omittedCount: 0,
+			}).success,
+		).toBe(true);
+		expect(
+			ConfigurationDiagnosticsSchema.safeParse({
+				items: [entry('界'.repeat(86))],
+				omittedCount: 0,
+			}).success,
+		).toBe(false);
+		expect(
+			ConfigurationDiagnosticsSchema.safeParse({
+				items: Array.from({ length: 129 }, (_, index) =>
+					entry(`keys.${index.toString().padStart(3, '0')}`),
+				),
+				omittedCount: 0,
 			}).success,
 		).toBe(false);
 	});

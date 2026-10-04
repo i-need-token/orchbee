@@ -354,9 +354,9 @@ Windows 停止细化将仅不可变启动尝试的解释改为同一个已准入
 
 ## Windows 用户设置
 
-同一严格读取器拥有 `WindowsUpdateChannel`（`stable`/`preview`，默认 stable）及 default/file 来源。原生 `channel show` 离线读取该偏好，不推断已安装的发布身份，也不执行更新器。
+同一读取器拥有 `WindowsUpdateChannel`（`stable`/`preview`，默认 stable）及 default/file 来源。文件值非法时仅让该叶字段回退并进入警告记录；已记录的环境边界仍为致命错误。原生 `channel show` 离线读取有效偏好，不推断已安装的发布身份，也不执行更新器。
 
-共享有界设置读取器和纯 Windows 用户路径适配器服务于 CLI 配置、公共 Client 激活和直接托管 Server 启动，负责严格文件／类型／路径准入和恢复策略解析；应用负责协议投影、激活提交和私有子进程参数。参见[配置与优先级](../../apps/orchbee/docs/windows-cli-configuration.zh-CN.md)。仅 Windows 的固定版本 `toml` 依赖在此文件边界解析。不引入可变缓存、写入器或 Workbench 依赖。
+共享有界设置读取器和纯 Windows 用户路径适配器服务于 CLI 配置、公共 Client 激活和直接托管 Server 启动，负责致命文件／路径／环境准入、逐字段回退到已有安全默认值、恢复策略解析及确定性警告记录；应用负责协议投影、激活提交和私有子进程参数。读取结果把有效设置与诊断保存在一起。诊断在显示截短前去重，按字段和原因排序，最多 128 条并携带精确省略数量，且绝不保留来源值或命令。参见[配置与优先级](../../apps/orchbee/docs/windows-cli-configuration.zh-CN.md)。仅 Windows 的固定版本 `toml` 依赖在此文件边界解析。不引入可变缓存、写入器或 Workbench 依赖。
 
 纯函数 `windows_user_settings_path` 为伴随资源暴露相同配置文件位置，不打开文件或应用设置。它保留显式 `ORCHBEE_CONFIG_FILE` 优先于 `%APPDATA%/Orchbee/config.toml` 的规则；缺少根目录时仍返回缺失。Server 使用其父目录定位检测规则输入。
 
@@ -371,7 +371,7 @@ Server 更新器是真实消费者；此适配器本身不代表已实现远程�
 
 `read_existing` 固定并验证已有私有目录树，进行有界叶文件读取，不创建目录、锁文件或暂存文件。它服务于启动及重载时的状态检查；缺失缓存路径仍保持缺失。
 
-Windows 设置也接纳严格布尔值 `[update] manifest_check`（默认 true），保留默认／文件来源及显式位置状态。`read_windows_user_settings_at` 在冻结路径提供显式重载，保留默认缺失／显式缺失的差别，不创建文件。应用仍拥有启动快照传输及自动调度策略。
+Windows 设置也接纳 `[update] manifest_check`（默认 true），保留默认／文件来源及显式位置状态。非法的受支持叶字段独立回退；非法按键动作保留为显式禁用覆盖，同一动作里的合法 chord 仍会保留。`read_windows_user_settings_at` 在冻结路径读取完整候选，重新应用严格的恢复环境覆盖，保留默认缺失／显式缺失的差别且不创建文件。应用仍拥有设置／诊断原子发布、Server 权威启动基线及自动调度策略。
 
 ## Windows 快捷键配置修复
 

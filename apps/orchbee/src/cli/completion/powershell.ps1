@@ -45,7 +45,7 @@ __ORCHBEE_GRAMMAR__
             $pending = ''
             continue
         }
-        if ($word -cin @('--help', '-h', '--version', '--skill')) { return }
+        if ($word -cin @('--help', '-h', '--version', '--skill'__ORCHBEE_DEFAULT_CONFIG_PS__)) { return }
         if ($word.StartsWith('-') -and $word.Length -gt 1) {
             $pair = $word.Split([char[]]@('='), 2, [System.StringSplitOptions]::None)
             $flag = $pair[0]
@@ -199,7 +199,12 @@ __ORCHBEE_GRAMMAR__
         } else {
             $candidates.AddRange($offeredFlags)
             if ($positionals.Count -eq 0 -and $businessSeen.Count -eq 0) {
-                if ($machine) { $candidates.Add('help') } else { $candidates.AddRange([string[]]@('help', 'completion', '--version', '--skill')) }
+                if ($machine) {
+                    $candidates.Add('help')
+                } else {
+                    $candidates.AddRange([string[]]@('help', 'completion', '--version', '--skill'))
+                    __ORCHBEE_DEFAULT_CONFIG_OFFER_PS__
+                }
             }
         }
     }

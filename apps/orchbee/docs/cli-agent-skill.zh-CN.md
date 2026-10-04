@@ -1,6 +1,6 @@
 # Orchbee 原生 CLI Agent 指引
 
-Windows 命名 Site 生命周期：`session list [--format json]` 读取有界本地清单；`session attach <name> [--mouse on|off]` 进入真实 TUI；`session stop <name> --confirm` 发布最终检查点。`session delete <name> --confirm` 只移除经证明已停止或未使用的自有运行时和检查点状态，绝不删除用户项目/worktree 目录。它拒绝 default、不确定或运行中状态。未完成的删除会阻止启动；解决所报告原因后再次执行相同删除命令。名称操作数必须与显式 `--site` 一致。列表输出 `orchbee.session.list` v2（保留封闭的 v1），增加 `recoverable`；删除保留 v1，内嵌清单为 v139。启动仅在 v2/v3 登记完整、全部确切进程消失且资源检查通过时自动恢复。新激活会在提交标记、拉起 Server 或发布检查点存储前先发布 catalog v3；Stopped v1/v2 要求主检查点，Stopped v3 准入固定槽位与精确的自有损坏原件名。只支持 v1/v2 的读取器会在产生效果前拒绝 v3。后台及正常停止检查点会恢复布局、Launch Profile、采样 cwd 和唯一 provider 恢复引用；损坏字节会保留，启动在回退或打开空工作区时发出警告。旧版 Active、存活或不确定所有者均拒绝且不删除；用相同 `--site` 诊断，或另开命名 Site。不保存存活 Agent 状态、终端历史或屏幕内容；活 Host 接管仍另行实现。
+Windows 命名 Site 生命周期：`session list [--format json]` 读取有界本地清单；`session attach <name> [--mouse on|off]` 进入真实 TUI；`session stop <name> --confirm` 发布最终检查点。`session delete <name> --confirm` 只移除经证明已停止或未使用的自有运行时和检查点状态，绝不删除用户项目/worktree 目录。它拒绝 default、不确定或运行中状态。未完成的删除会阻止启动；解决所报告原因后再次执行相同删除命令。名称操作数必须与显式 `--site` 一致。列表输出 `orchbee.session.list` v2（保留封闭的 v1），增加 `recoverable`；删除保留 v1，内嵌清单为 v140。启动仅在 v2/v3 登记完整、全部确切进程消失且资源检查通过时自动恢复。新激活会在提交标记、拉起 Server 或发布检查点存储前先发布 catalog v3；Stopped v1/v2 要求主检查点，Stopped v3 准入固定槽位与精确的自有损坏原件名。只支持 v1/v2 的读取器会在产生效果前拒绝 v3。后台及正常停止检查点会恢复布局、Launch Profile、采样 cwd 和唯一 provider 恢复引用；损坏字节会保留，启动在回退或打开空工作区时发出警告。旧版 Active、存活或不确定所有者均拒绝且不删除；用相同 `--site` 诊断，或另开命名 Site。不保存存活 Agent 状态、终端历史或屏幕内容；活 Host 接管仍另行实现。
 
 `orchbee terminal run <terminal-id> "Write-Output ready" --format json` 在一个输入请求中粘贴命令，再发送 Enter。命令须为一个引号字符串；保持原始文本，目标只接受完整 ID 或 `@terminal:<suffix>`。回执确认输入提交，不保证 Shell 已就绪、命令完成或退出状态；部分或未知结果不得重放。 [命令提交契约](native-terminal-run.zh-CN.md).
 
@@ -12,7 +12,7 @@ Windows `terminal wait-output` 默认 recent80 且无总超时，显式来源选
 
 ## 发现当前构建
 
-使用 `orchbee --help`、`orchbee help <family>` 和 `orchbee help <family> <command>` 获取精确语法。`orchbee --version`、`orchbee --skill`、`orchbee completion powershell` 和 `orchbee api schema` 均可离线使用。`orchbee api schema <schema-id>` 输出内嵌结果 schema。原生程序与 Desktop CLI 的能力不同；应读取实际调用程序的帮助。
+使用 `orchbee --help`、`orchbee help <family>` 和 `orchbee help <family> <command>` 获取精确语法。`orchbee --version`、`orchbee --skill`、`orchbee completion powershell` 和 `orchbee api schema` 均可离线使用；Windows 另提供离线的 `orchbee --default-config`。`orchbee api schema <schema-id>` 输出内嵌结果 schema。原生程序与 Desktop CLI 的能力不同；应读取实际调用程序的帮助。
 
 不带参数的 `orchbee` 会启动交互 TUI。自动化应使用显式命令。帮助和补全不启动 Site。`orchbee site start --format json` 显式启动或连接已配置的本地 Site。现有运行时选择使用 `ORCHBEE_RUNTIME_BASE`；不要猜测端点路径，也不要仅为查看帮助而激活 Site。
 

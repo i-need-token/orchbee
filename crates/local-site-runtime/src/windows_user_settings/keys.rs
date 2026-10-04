@@ -1,11 +1,13 @@
 //! Bounded Windows key configuration. Semantic dispatch stays with the Client.
-use super::WindowsSettingsError;
+use super::{
+    DiagnosticsCollector, WindowsSettingsDiagnosticDisposition, WindowsSettingsError, unknown_field,
+};
 mod commands;
 pub use commands::{
     WindowsCommandSize, WindowsCustomCommand, WindowsCustomCommandAction, WindowsCustomCommandEntry,
 };
 
-const ACTIONS: &[&str] = &[
+pub(super) const ACTIONS: &[&str] = &[
     "resize_mode",
     "resize_pane_left",
     "resize_pane_right",
@@ -39,6 +41,36 @@ const ACTIONS: &[&str] = &[
     "close_pane",
     "zoom",
     "toggle_sidebar",
+];
+
+const HERDR_ONLY_ACTIONS: &[&str] = &[
+    "settings",
+    "new_worktree",
+    "open_worktree",
+    "remove_worktree",
+    "close_workspace",
+    "goto",
+    "navigate_workspace_up",
+    "navigate_workspace_down",
+    "navigate_pane_left",
+    "navigate_pane_down",
+    "navigate_pane_up",
+    "navigate_pane_right",
+    "open_notification_target",
+    "remote_image_paste",
+    "switch_workspace",
+    "rename_pane",
+    "edit_scrollback",
+    "clear_pane",
+    "copy_mode",
+    "swap_pane_left",
+    "swap_pane_down",
+    "swap_pane_up",
+    "swap_pane_right",
+    "cycle_pane_next",
+    "cycle_pane_previous",
+    "last_pane",
+    "indexed",
 ];
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -90,6 +122,95 @@ fn error(reason: &'static str) -> WindowsSettingsError {
 }
 
 impl WindowsKeySettings {
+    pub(super) fn parse_lenient(
+        value: &toml::Value,
+        diagnostics: &mut DiagnosticsCollector,
+    ) -> Self {
+        let Some(table) = value.as_table() else {
+            diagnostics.push(
+                "keys",
+                "wrong-type",
+                WindowsSettingsDiagnosticDisposition::Defaulted,
+            );
+            return Self::default();
+        };
+        let mut result = Self::default();
+        if let Some(value) = table.get("prefix") {
+            let candidate = value
+                .as_str()
+                .ok_or_else(|| error("wrong-type"))
+                .and_then(parse_chord);
+            match candidate {
+                Ok(prefix) => result.prefix = prefix,
+                Err(error) => diagnostics.push(
+                    "keys.prefix",
+                    error.reason,
+                    WindowsSettingsDiagnosticDisposition::Defaulted,
+                ),
+            }
+        }
+        for key in table.keys().filter(|key| {
+            !matches!(key.as_str(), "prefix" | "command" | "fullscreen")
+                && !ACTIONS.contains(&key.as_str())
+        }) {
+            let unsupported = HERDR_ONLY_ACTIONS.contains(&key.as_str());
+            diagnostics.push(
+                unknown_field("keys", key),
+                if unsupported {
+                    "unsupported-herdr"
+                } else {
+                    "unknown-key"
+                },
+                if unsupported {
+                    WindowsSettingsDiagnosticDisposition::Unsupported
+                } else {
+                    WindowsSettingsDiagnosticDisposition::Ignored
+                },
+            );
+        }
+        for action in ACTIONS {
+            let (field, value) = match (table.get(*action), *action) {
+                (Some(value), _) => (*action, Some(value)),
+                (None, "zoom") => ("fullscreen", table.get("fullscreen")),
+                (None, _) => (*action, None),
+            };
+            let Some(value) = value else {
+                continue;
+            };
+            parse_action_lenient(action, field, value, &mut result, diagnostics, 16);
+        }
+        if table.contains_key("zoom") && table.contains_key("fullscreen") {
+            diagnostics.push(
+                "keys.fullscreen",
+                "duplicate-binding",
+                WindowsSettingsDiagnosticDisposition::Ignored,
+            );
+        }
+        if let Some(commands) = table.get("command") {
+            match commands::parse(Some(commands), &result) {
+                Ok(commands) => result.commands = commands,
+                Err(error) => diagnostics.push(
+                    "keys.command",
+                    error.reason,
+                    WindowsSettingsDiagnosticDisposition::Disabled,
+                ),
+            }
+        }
+        if result.profile().len() > 64 * 1024 {
+            for setting in &mut result.overrides {
+                setting.triggers.clear();
+            }
+            result.commands.clear();
+            diagnostics.push(
+                "keys",
+                "too-large",
+                WindowsSettingsDiagnosticDisposition::Disabled,
+            );
+        }
+        result
+    }
+
+    #[cfg(test)]
     pub(super) fn parse(value: &toml::Value) -> Result<Self, WindowsSettingsError> {
         Self::parse_with_limit(value, 16)
     }
@@ -188,6 +309,152 @@ impl WindowsKeySettings {
         }
         Ok(result)
     }
+}
+
+fn parse_action_lenient(
+    action: &'static str,
+    source_field: &str,
+    value: &toml::Value,
+    result: &mut WindowsKeySettings,
+    diagnostics: &mut DiagnosticsCollector,
+    limit: usize,
+) {
+    let field = format!("keys.{source_field}");
+    let values: Vec<Option<&str>> = match value {
+        toml::Value::String(value) => vec![Some(value)],
+        toml::Value::Array(values) if values.is_empty() => {
+            diagnostics.push(
+                field.clone(),
+                "invalid-binding",
+                WindowsSettingsDiagnosticDisposition::Disabled,
+            );
+            Vec::new()
+        }
+        toml::Value::Array(values) if values.len() <= limit => values
+            .iter()
+            .map(|value| {
+                let value = value.as_str();
+                if value.is_none() {
+                    diagnostics.push(
+                        field.clone(),
+                        "wrong-type",
+                        WindowsSettingsDiagnosticDisposition::Disabled,
+                    );
+                }
+                value
+            })
+            .collect(),
+        toml::Value::Array(_) => {
+            diagnostics.push(
+                field.clone(),
+                "too-many-bindings",
+                WindowsSettingsDiagnosticDisposition::Disabled,
+            );
+            Vec::new()
+        }
+        _ => {
+            diagnostics.push(
+                field.clone(),
+                "wrong-type",
+                WindowsSettingsDiagnosticDisposition::Disabled,
+            );
+            Vec::new()
+        }
+    };
+    let mut triggers = Vec::new();
+    for raw in values.into_iter().flatten() {
+        let raw = raw.trim();
+        if raw.is_empty() {
+            diagnostics.push(
+                field.clone(),
+                "invalid-binding",
+                WindowsSettingsDiagnosticDisposition::Disabled,
+            );
+            continue;
+        }
+        let (prefix, body) = raw
+            .strip_prefix("prefix+")
+            .map_or((false, raw), |body| (true, body));
+        let bodies = if body.split('+').any(|part| part.trim() == "1..9") {
+            if !matches!(action, "switch_tab" | "focus_agent") {
+                diagnostics.push(
+                    field.clone(),
+                    "invalid-binding",
+                    WindowsSettingsDiagnosticDisposition::Disabled,
+                );
+                continue;
+            }
+            (1..=9)
+                .map(|digit| body.replace("1..9", &digit.to_string()))
+                .collect()
+        } else {
+            vec![body.to_owned()]
+        };
+        for body in bodies {
+            let chord = match parse_chord(&body) {
+                Ok(chord) => chord,
+                Err(error) => {
+                    diagnostics.push(
+                        field.clone(),
+                        error.reason,
+                        WindowsSettingsDiagnosticDisposition::Disabled,
+                    );
+                    continue;
+                }
+            };
+            let reason = if matches!(action, "switch_tab" | "focus_agent")
+                && !(chord.key.len() == 1 && matches!(chord.key.as_bytes()[0], b'1'..=b'9'))
+            {
+                Some("invalid-binding")
+            } else if chord == result.prefix || (prefix && chord.key == "esc" && !chord.modified())
+            {
+                Some("reserved-binding")
+            } else if !prefix
+                && (!chord.safe_direct()
+                    || (action.starts_with("resize_")
+                        && !chord.modified()
+                        && !chord.key.starts_with('f')))
+            {
+                Some("unsafe-binding")
+            } else {
+                None
+            };
+            if let Some(reason) = reason {
+                diagnostics.push(
+                    field.clone(),
+                    reason,
+                    WindowsSettingsDiagnosticDisposition::Disabled,
+                );
+                continue;
+            }
+            let trigger = WindowsKeyTrigger { prefix, chord };
+            if triggers.contains(&trigger)
+                || result
+                    .overrides
+                    .iter()
+                    .any(|entry| entry.triggers.contains(&trigger))
+            {
+                diagnostics.push(
+                    field.clone(),
+                    "duplicate-binding",
+                    WindowsSettingsDiagnosticDisposition::Disabled,
+                );
+                continue;
+            }
+            if triggers.len() >= 144 {
+                diagnostics.push(
+                    field.clone(),
+                    "too-many-bindings",
+                    WindowsSettingsDiagnosticDisposition::Disabled,
+                );
+                break;
+            }
+            triggers.push(trigger);
+        }
+    }
+    result
+        .overrides
+        .push(WindowsKeyOverride { action, triggers });
 }
 
 impl WindowsKeyChord {

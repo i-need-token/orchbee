@@ -120,7 +120,7 @@ pub(crate) fn available(view: &ClientView, session: Option<TerminalSessionView<'
     !view.machines.open
         && !view.prefix_active()
         && view.overlay().is_none()
-        && view.notice().is_none()
+        && !view.has_transient_notice()
         && matches!(session,
         Some(TerminalSessionView::Native(native)) if native.agent_board().is_none()
         && native.close_confirmation().is_none() && native.panel_close_confirmation().is_none()

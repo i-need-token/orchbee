@@ -23,14 +23,21 @@ struct Handoff {
     stopped: bool,
     reload: bool,
     snapshot: Option<ConfigurationSnapshot>,
-    notice: Option<Notice>,
+    notice: Option<PendingNotice>,
+}
+#[derive(Clone, Copy)]
+struct PendingNotice {
+    revision: Option<u64>,
+    needs_application: bool,
+    notice: Notice,
 }
 type Shared = Arc<(Mutex<Handoff>, Condvar)>;
 pub(super) struct Watcher {
     shared: Shared,
     wake: LocalStream,
     task: Option<JoinHandle<()>>,
-    revision: u64,
+    revision: Option<u64>,
+    applied_snapshot: Option<ConfigurationSnapshot>,
     notification_update: Option<(u64, WindowsNotificationSettings)>,
 }
 impl Watcher {
@@ -49,7 +56,8 @@ impl Watcher {
             shared,
             wake,
             task: Some(task),
-            revision: 0,
+            revision: None,
+            applied_snapshot: None,
             notification_update: None,
         })
     }
@@ -73,32 +81,54 @@ impl Watcher {
         let notice = state.notice.take();
         drop(state);
         let mut changed = false;
-        if let Some(snapshot) = snapshot
-            && snapshot.revision.value() > self.revision
-        {
-            match (
-                WindowsKeySettings::from_profile(&snapshot.keys_profile),
-                WindowsNotificationSettings::from_profile(&snapshot.notification_profile),
-                WindowsAgentSidebarSettings::from_profile(&snapshot.agent_sidebar_profile),
-                WindowsSpaceSidebarSettings::from_profile(&snapshot.spaces_sidebar_profile),
-            ) {
-                (Ok(keys), Ok(notifications), Ok(sidebar), Ok(spaces)) => {
-                    view.machines.configure_space_sidebar(spaces);
-                    view.machines.configure_agent_sidebar(sidebar);
-                    view.notifications.configure(notifications.clone());
-                    self.notification_update = Some((snapshot.revision.value(), notifications));
-                    view.configure_keys(&keys);
-                    self.revision = snapshot.revision.value();
-                    changed = true;
-                }
-                _ => {
-                    view.configuration_notice(Notice::ConfigurationFailed);
-                    return true;
+        let mut applied_revision = None;
+        let mut unchanged_revision = None;
+        if let Some(snapshot) = snapshot {
+            if self.applied_snapshot.as_ref() == Some(&snapshot) {
+                unchanged_revision = Some(snapshot.revision.value());
+            }
+            if self
+                .revision
+                .is_none_or(|revision| snapshot.revision.value() > revision)
+            {
+                match (
+                    WindowsKeySettings::from_profile(&snapshot.keys_profile),
+                    WindowsNotificationSettings::from_profile(&snapshot.notification_profile),
+                    WindowsAgentSidebarSettings::from_profile(&snapshot.agent_sidebar_profile),
+                    WindowsSpaceSidebarSettings::from_profile(&snapshot.spaces_sidebar_profile),
+                ) {
+                    (Ok(keys), Ok(notifications), Ok(sidebar), Ok(spaces)) => {
+                        view.machines.configure_space_sidebar(spaces);
+                        view.machines.configure_agent_sidebar(sidebar);
+                        view.notifications.configure(notifications.clone());
+                        self.notification_update = Some((snapshot.revision.value(), notifications));
+                        view.configure_keys(&keys);
+                        view.configuration_warning(
+                            !snapshot.diagnostics.items.is_empty()
+                                || snapshot.diagnostics.omitted_count > 0,
+                        );
+                        self.revision = Some(snapshot.revision.value());
+                        applied_revision = self.revision;
+                        self.applied_snapshot = Some(snapshot);
+                        changed = true;
+                    }
+                    _ => {
+                        view.configuration_notice(Notice::ConfigurationFailed);
+                        return true;
+                    }
                 }
             }
         }
-        if let Some(notice) = notice {
-            view.configuration_notice(notice);
+        if let Some(notice) = notice
+            && match notice.revision {
+                None => true,
+                Some(revision) if notice.needs_application => applied_revision == Some(revision),
+                Some(revision) => {
+                    applied_revision == Some(revision) || unchanged_revision == Some(revision)
+                }
+            }
+        {
+            view.configuration_notice(notice.notice);
             changed = true;
         }
         changed
@@ -195,24 +225,35 @@ fn run(
             return;
         }
         match outcome {
-            Some(
-                ConfigurationOutcome::Current { snapshot }
-                | ConfigurationOutcome::Reloaded { snapshot, .. },
-            ) => {
+            Some(ConfigurationOutcome::Current { snapshot }) => {
+                state.snapshot = Some(snapshot);
+            }
+            Some(ConfigurationOutcome::Reloaded { snapshot, changed }) => {
                 if reload {
-                    state.notice = Some(if snapshot.restart_required.is_empty() {
-                        Notice::ConfigurationPublished
+                    let warning = !snapshot.diagnostics.items.is_empty()
+                        || snapshot.diagnostics.omitted_count > 0;
+                    let notice = if snapshot.restart_required.is_empty() {
+                        (!warning).then_some(Notice::ConfigurationPublished)
                     } else {
-                        Notice::ConfigurationRestart
+                        Some(Notice::ConfigurationRestart)
+                    };
+                    state.notice = notice.map(|notice| PendingNotice {
+                        revision: Some(snapshot.revision.value()),
+                        needs_application: changed,
+                        notice,
                     });
                 }
                 state.snapshot = Some(snapshot);
             }
             _ if reload => {
-                state.notice = Some(if submitted {
-                    Notice::ConfigurationUnknown
-                } else {
-                    Notice::ConfigurationFailed
+                state.notice = Some(PendingNotice {
+                    revision: None,
+                    needs_application: false,
+                    notice: if submitted {
+                        Notice::ConfigurationUnknown
+                    } else {
+                        Notice::ConfigurationFailed
+                    },
                 });
             }
             _ => {}

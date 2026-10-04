@@ -1,7 +1,9 @@
 //! Manual and automatic notification policy shared by startup, checking and live reload.
 use std::collections::BTreeMap;
 
-use super::WindowsSettingsError;
+use super::{
+    DiagnosticsCollector, WindowsSettingsDiagnosticDisposition, WindowsSettingsError, unknown_field,
+};
 
 pub const MAXIMUM_NOTIFICATION_PROFILE_BYTES: usize = 16 * 1024;
 pub const MAXIMUM_AGENT_SOUND_OVERRIDES: usize = 64;
@@ -138,6 +140,236 @@ impl WindowsNotificationSettings {
             settings.parse_sound(raw)?;
         }
         Ok(settings)
+    }
+
+    pub(super) fn parse_lenient(
+        toast: Option<&toml::Value>,
+        sound: Option<&toml::Value>,
+        diagnostics: &mut DiagnosticsCollector,
+    ) -> Self {
+        let mut settings = Self::default();
+        if let Some(raw) = toast {
+            settings.parse_toast_lenient(raw, diagnostics);
+        }
+        if let Some(raw) = sound {
+            settings.parse_sound_lenient(raw, diagnostics);
+        }
+        settings
+    }
+
+    fn parse_toast_lenient(&mut self, raw: &toml::Value, diagnostics: &mut DiagnosticsCollector) {
+        let Some(table) = raw.as_table() else {
+            diagnostics.push(
+                "ui.toast",
+                "wrong-type",
+                WindowsSettingsDiagnosticDisposition::Defaulted,
+            );
+            return;
+        };
+        for key in table.keys().filter(|key| {
+            !matches!(
+                key.as_str(),
+                "delivery" | "enabled" | "agent_delivery" | "delay_seconds" | "herdr"
+            )
+        }) {
+            let unsupported = key == "clipboard";
+            diagnostics.push(
+                unknown_field("ui.toast", key),
+                if unsupported {
+                    "unsupported-herdr"
+                } else {
+                    "unknown-key"
+                },
+                if unsupported {
+                    WindowsSettingsDiagnosticDisposition::Unsupported
+                } else {
+                    WindowsSettingsDiagnosticDisposition::Ignored
+                },
+            );
+        }
+        if let Some(enabled) = table.get("enabled") {
+            match enabled.as_bool() {
+                Some(true) => self.delivery = WindowsNotificationDelivery::Tui,
+                Some(false) => self.delivery = WindowsNotificationDelivery::Off,
+                None => diagnostics.push(
+                    "ui.toast.enabled",
+                    "wrong-type",
+                    WindowsSettingsDiagnosticDisposition::Defaulted,
+                ),
+            }
+        }
+        if let Some(delivery) = table.get("delivery") {
+            match parse_delivery(delivery, toast_error) {
+                Ok(value) => self.delivery = value,
+                Err(error) => {
+                    self.delivery = WindowsNotificationDelivery::Off;
+                    diagnostics.push(
+                        "ui.toast.delivery",
+                        error.reason,
+                        WindowsSettingsDiagnosticDisposition::Defaulted,
+                    );
+                }
+            }
+        }
+        if let Some(delivery) = table.get("agent_delivery") {
+            match parse_delivery(delivery, toast_error) {
+                Ok(value) => self.agent_delivery = value,
+                Err(error) => diagnostics.push(
+                    "ui.toast.agent_delivery",
+                    error.reason,
+                    WindowsSettingsDiagnosticDisposition::Defaulted,
+                ),
+            }
+        }
+        if let Some(delay) = table.get("delay_seconds") {
+            match delay.as_integer().and_then(|value| value.try_into().ok()) {
+                Some(value) if value <= MAXIMUM_NOTIFICATION_DELAY_SECONDS => {
+                    self.delay_seconds = value;
+                }
+                Some(_) => diagnostics.push(
+                    "ui.toast.delay_seconds",
+                    "invalid-delay",
+                    WindowsSettingsDiagnosticDisposition::Defaulted,
+                ),
+                None => diagnostics.push(
+                    "ui.toast.delay_seconds",
+                    if delay.as_integer().is_some() {
+                        "invalid-delay"
+                    } else {
+                        "wrong-type"
+                    },
+                    WindowsSettingsDiagnosticDisposition::Defaulted,
+                ),
+            }
+        }
+        let Some(herdr) = table.get("herdr") else {
+            return;
+        };
+        let Some(herdr) = herdr.as_table() else {
+            diagnostics.push(
+                "ui.toast.herdr",
+                "wrong-type",
+                WindowsSettingsDiagnosticDisposition::Defaulted,
+            );
+            return;
+        };
+        for key in herdr.keys().filter(|key| key.as_str() != "position") {
+            diagnostics.push(
+                unknown_field("ui.toast.herdr", key),
+                "unknown-key",
+                WindowsSettingsDiagnosticDisposition::Ignored,
+            );
+        }
+        if let Some(position) = herdr.get("position") {
+            match position.as_str() {
+                Some("top-left") => self.position = "top-left",
+                Some("top-right") => self.position = "top-right",
+                Some("bottom-left") => self.position = "bottom-left",
+                Some("bottom-right") => self.position = "bottom-right",
+                Some(_) => diagnostics.push(
+                    "ui.toast.herdr.position",
+                    "invalid-mode",
+                    WindowsSettingsDiagnosticDisposition::Defaulted,
+                ),
+                None => diagnostics.push(
+                    "ui.toast.herdr.position",
+                    "wrong-type",
+                    WindowsSettingsDiagnosticDisposition::Defaulted,
+                ),
+            }
+        }
+    }
+
+    fn parse_sound_lenient(&mut self, raw: &toml::Value, diagnostics: &mut DiagnosticsCollector) {
+        let Some(table) = raw.as_table() else {
+            diagnostics.push(
+                "ui.sound",
+                "wrong-type",
+                WindowsSettingsDiagnosticDisposition::Defaulted,
+            );
+            return;
+        };
+        for key in table
+            .keys()
+            .filter(|key| !matches!(key.as_str(), "enabled" | "agents"))
+        {
+            let unsupported = matches!(key.as_str(), "path" | "done_path" | "request_path");
+            diagnostics.push(
+                unknown_field("ui.sound", key),
+                if unsupported {
+                    "unsupported-herdr"
+                } else {
+                    "unknown-key"
+                },
+                if unsupported {
+                    WindowsSettingsDiagnosticDisposition::Unsupported
+                } else {
+                    WindowsSettingsDiagnosticDisposition::Ignored
+                },
+            );
+        }
+        if let Some(enabled) = table.get("enabled") {
+            match enabled.as_bool() {
+                Some(value) => self.sound_enabled = value,
+                None => diagnostics.push(
+                    "ui.sound.enabled",
+                    "wrong-type",
+                    WindowsSettingsDiagnosticDisposition::Defaulted,
+                ),
+            }
+        }
+        let Some(agents) = table.get("agents") else {
+            return;
+        };
+        let Some(agents) = agents.as_table() else {
+            diagnostics.push(
+                "ui.sound.agents",
+                "wrong-type",
+                WindowsSettingsDiagnosticDisposition::Defaulted,
+            );
+            return;
+        };
+        if agents.len() > MAXIMUM_AGENT_SOUND_OVERRIDES {
+            diagnostics.push(
+                "ui.sound.agents",
+                "too-many-agents",
+                WindowsSettingsDiagnosticDisposition::Defaulted,
+            );
+            return;
+        }
+        for (agent, value) in agents {
+            let field = unknown_field("ui.sound.agents", agent);
+            if !valid_agent_id(agent) {
+                diagnostics.push(
+                    field,
+                    "invalid-agent",
+                    WindowsSettingsDiagnosticDisposition::Ignored,
+                );
+                continue;
+            }
+            let setting = match value.as_str() {
+                Some("default") => WindowsAgentSoundSetting::Default,
+                Some("on") => WindowsAgentSoundSetting::On,
+                Some("off") => WindowsAgentSoundSetting::Off,
+                Some(_) => {
+                    diagnostics.push(
+                        field,
+                        "invalid-mode",
+                        WindowsSettingsDiagnosticDisposition::Defaulted,
+                    );
+                    continue;
+                }
+                None => {
+                    diagnostics.push(
+                        field,
+                        "wrong-type",
+                        WindowsSettingsDiagnosticDisposition::Defaulted,
+                    );
+                    continue;
+                }
+            };
+            self.agent_sounds.insert(agent.clone(), setting);
+        }
     }
 
     fn parse_toast(&mut self, raw: &toml::Value) -> Result<(), WindowsSettingsError> {

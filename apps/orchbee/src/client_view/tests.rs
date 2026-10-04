@@ -31,6 +31,25 @@ fn enter_prefix(view: &mut ClientView) {
 
 #[cfg(windows)]
 #[test]
+fn checkpoint_recovery_precedes_the_persistent_configuration_warning() {
+    let mut view = ClientView::new(120);
+    view.startup_notice(Notice::CheckpointEmpty);
+    view.configuration_warning(true);
+    assert_eq!(view.notice(), Some(Notice::CheckpointEmpty));
+    assert!(view.has_transient_notice());
+
+    enter_prefix(&mut view);
+    let transition = commit(&mut view, plain('n'));
+    assert_eq!(transition.action(), Some(ClientAction::SelectNextTab));
+    assert_eq!(view.notice(), Some(Notice::ConfigurationWarning));
+    assert!(!view.has_transient_notice());
+
+    view.configuration_warning(false);
+    assert_eq!(view.notice(), None);
+}
+
+#[cfg(windows)]
+#[test]
 fn agent_focus_dismissal_clears_shell_capture_without_changing_pointer_or_sidebar() {
     let mut view = ClientView::new(120);
     view.overlay = Some(Overlay::WorkbenchNavigator);

@@ -1174,6 +1174,7 @@ pub(super) const CASES: &[(&str, &str, bool)] = &[
     ("orchbee launch-profile create --e", "--env", false),
     ("orchbee status --c", "--cwd", false),
     ("orchbee ", "--skill", true),
+    ("orchbee ", "--default-config", true),
     ("orchbee completion ", "powershell", true),
     ("orchbee help agent integration ", "enable", true),
     ("orchbee terminal ", "send", true),
@@ -1257,6 +1258,10 @@ pub(super) const CASES: &[(&str, &str, bool)] = &[
     ("orchbee STATUS --f", "--format", false),
     ("orchbee -- --s", "--skill", false),
     ("orchbee --skill --f", "--format", false),
+    ("orchbee -- --d", "--default-config", false),
+    ("orchbee --default-config --f", "--format", false),
+    ("orchbee --site work --d", "--default-config", false),
+    ("orchbee --machine work --d", "--default-config", false),
     (
         "orchbee terminal send terminal-1 --file ",
         "--format",

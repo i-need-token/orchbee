@@ -59,6 +59,7 @@ pub(crate) fn run(
         #[cfg(windows)]
         let settings = configuration_windows::resolve(arguments, || {
             orchbee_local_site_runtime::read_windows_user_settings(|name| std::env::var_os(name))
+                .map(|load| load.settings)
         })?;
         #[cfg(not(windows))]
         if arguments.next().is_some() {

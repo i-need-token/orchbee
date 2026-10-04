@@ -16,7 +16,7 @@ Herdr 参照为 `e0507237ad8d41f60aece10d00ef29ce2339ca34`，尤其是 `server/h
 
 ## 自定义通知投递配置
 
-Windows `[ui.toast] delivery` 选择 `off`（默认）、`orchbee`（`herdr` 为导入别名）、`terminal` 或 `system`。`[ui.toast.herdr] position` 用既有四个 CLI 位置名称选择默认角落。CLI 省略位置时使用各接收 Client 的配置，显式位置优先。启动使用 Client 配置；显式 Site 配置发布将有界规范通知配置与键位一起应用，无效发布同时保留旧策略。其他 Agent/剪贴板/声音偏好不属于本批自定义通知范围。
+Windows `[ui.toast] delivery` 选择 `off`（默认）、`orchbee`（`herdr` 为导入别名）、`terminal` 或 `system`。`[ui.toast.herdr] position` 用既有四个 CLI 位置名称选择默认角落。CLI 省略位置时使用各接收 Client 的配置，显式位置优先。启动使用 Client 配置；显式 Site 配置发布将有界规范通知配置与键位一起应用，致命来源错误或畸形私有发布同时保留旧策略。其他 Agent/剪贴板/声音偏好不属于本批自定义通知范围。
 
 Off 关闭视觉提示，显式请求的自定义声音仍独立生效。没有 Client 时，Server 的 off 策略返回 `disabled`，否则返回 `no-foreground-client`。连接中的 Client 即使使用 off，也可以将传输接纳报告为 `shown`。策略变化丢弃未投递效果和卡片，不重放此前消息。
 
@@ -79,17 +79,18 @@ seen。移除、替换、状态变化、确认已读、有效配置替换或 Cli
 对话框、提示或其他用户所有 surface 会使 sink 繁忙；有界自动候选等待，绝不替换该
 surface。一个已接纳候选最多产生一次效果，Client 退出后不持久化。
 
-Site 将键位、侧栏设置及完整通知 profile 原子发布。启动或 reload 候选无效时保留旧
-profile。有效且不同的修订会取消全部旧自动候选及尚未绘制的通知效果；后续状态转移使用
-新 profile。自动弹窗默认使用应用内投递，自动声音默认关闭。运行时同时关闭两者再 reload
-即可立即回滚。因为设置解析严格，回滚旧二进制前还必须移除 `agent_delivery`、
-`delay_seconds` 和 `[ui.sound]`。
+Site 将键位、侧栏设置及完整通知 profile 原子发布。启动或 reload 来源不可读、过大、
+非 UTF-8 或 TOML 畸形时保留旧 profile。无效通知叶字段使用安全默认值、产生警告并参与
+完整候选的原子发布；畸形私有线协议 profile 仍在 Client 安装前拒绝。有效且不同的修订会
+取消全部旧自动候选及尚未绘制的通知效果；后续状态转移使用新 profile。自动弹窗默认使用
+应用内投递，自动声音默认关闭。运行时同时关闭两者再 reload 即可立即回滚。回滚旧二进制
+前还必须移除 `agent_delivery`、`delay_seconds` 和 `[ui.sound]`。
 
 ### 正确性声明与证据
 
 Reducer 声明：基线、替换及 unknown 转移绝不提醒；只有上表两行产生候选；过期或已读
 候选绝不投递；确认在 Client 间隔离；每个精确 Client／identity／sequence／kind 最多投递
-一次；静音 Agent 没有自动声音；无效 reload 保留策略；有效 reload 取消旧工作；繁忙手动
+一次；静音 Agent 没有自动声音；致命来源或畸形线协议 reload 保留策略；有效 reload 取消旧工作；繁忙手动
 surface 不被覆盖；待处理工作有界；Client 退出后没有迟到效果。`NativeAgentNotifications`
 是以任意非空有限 `Clients` 集合为参数的全局转移机。Inventory
 中的 TLC 配置使用完整时间、版本、generation、绘制及配置边界，枚举一个对称 Client 坐标。
@@ -100,7 +101,7 @@ surface 不被覆盖；待处理工作有界；Client 退出后没有迟到效�
 | -------------------- | ------------------------------------------------------------------------------------------------------------- |
 | 只改共享逻辑时钟     | `AdvanceTime`                                                                                                 |
 | 只改一个 Client 坐标 | 安装基线；四种变化观察；替换；不可用；精确展示；成功绘制；有效 reload；sink 繁忙／可用；投递；seen 抑制；退出 |
-| 纯 stutter           | 重复观察；过期展示；无效 reload；全部退出后的 stutter                                                         |
+| 纯 stutter           | 重复观察；过期展示；致命或畸形 reload；全部退出后的 stutter                                                   |
 
 对 Client `c`，把全局行为投影为 `c` 的 status、观察、身份 generation、version、seen、候选、配置、
 sink、绘制序号、最近投递位置及违例见证，再加共享 `now`。每个非 stutter 本地 action 的 guard

@@ -362,6 +362,18 @@ fn localizes_checkpoint_recovery_outcomes_in_both_locales() {
     );
 }
 
+#[test]
+fn localizes_configuration_warning_in_both_locales() {
+    assert_eq!(
+        Locale::EnUs.shell_notice(Some(Notice::ConfigurationWarning)),
+        "Configuration loaded with warnings; run orchbee config check"
+    );
+    assert_eq!(
+        Locale::ZhCn.shell_notice(Some(Notice::ConfigurationWarning)),
+        "配置已加载，但有警告；请运行 orchbee config check"
+    );
+}
+
 #[cfg(unix)]
 #[test]
 fn native_tab_copy_matches_the_accepted_english_table() {

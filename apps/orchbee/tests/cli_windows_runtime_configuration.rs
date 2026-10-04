@@ -15,6 +15,9 @@ fn current_reload_rejections_and_lost_reply_have_closed_typed_receipts_without_r
         "current",
         "reload",
         "restart",
+        "warning",
+        "warning-en",
+        "warning-zh",
         "denied",
         "invalid",
         "lost",
@@ -45,6 +48,18 @@ fn current_reload_rejections_and_lost_reply_have_closed_typed_receipts_without_r
             }
             let snapshot = ConfigurationSnapshot {
                 revision: WorkbenchRevision::new(if case == "startup" { 0 } else { 3 }),
+                diagnostics: if case.starts_with("warning") {
+                    ConfigurationDiagnostics {
+                        items: vec![ConfigurationDiagnostic {
+                            field: "keys.help".into(),
+                            reason: "invalid-keybinding".into(),
+                            disposition: ConfigurationDiagnosticDisposition::Disabled,
+                        }],
+                        omitted_count: 2,
+                    }
+                } else {
+                    Default::default()
+                },
                 keys_profile: "[keys]\nprefix='ctrl+a'\n".into(),
                 notification_profile: "[ui.toast]\ndelivery='off'\n".into(),
                 agent_sidebar_profile: r#"{"rows":null,"rows_by_agent":{},"row_gap":0}"#.into(),
@@ -96,7 +111,7 @@ fn current_reload_rejections_and_lost_reply_have_closed_typed_receipts_without_r
             .unwrap();
             assert_closed(&mut stream);
         });
-        let text = matches!(case, "en" | "zh");
+        let text = matches!(case, "en" | "zh" | "warning-en" | "warning-zh");
         let output = fixture.run_with_env(
             &[
                 "site",
@@ -108,7 +123,7 @@ fn current_reload_rejections_and_lost_reply_have_closed_typed_receipts_without_r
             None,
             &[(
                 "LC_ALL",
-                std::ffi::OsStr::new(if case == "zh" {
+                std::ffi::OsStr::new(if matches!(case, "zh" | "warning-zh") {
                     "zh_CN.UTF-8"
                 } else {
                     "en_US.UTF-8"
@@ -129,19 +144,33 @@ fn current_reload_rejections_and_lost_reply_have_closed_typed_receipts_without_r
         );
         if text {
             let text = String::from_utf8(output.stdout).unwrap();
-            assert!(text.contains(if case == "zh" {
+            assert!(text.contains(if case == "warning-zh" {
+                "配置已发布但含警告"
+            } else if case == "warning-en" {
+                "Configuration published with warnings"
+            } else if case == "zh" {
                 "配置已发布"
             } else {
                 "Configuration published"
             }));
             assert!(text.contains("mode=auto"));
-            if case == "zh" {
+            if matches!(case, "zh" | "warning-zh") {
                 assert!(text.contains("（平台默认）"));
                 assert!(text.contains("窗口标题模板：\"{hostname}: {workspace}\""));
             } else {
-                assert!(text.contains(r#"Window title template: "{tab}\n\u{202e}""#));
-                assert!(text.contains(r"C:\\tools\\\u{202e}shell.exe"));
+                assert!(text.contains(if case == "en" {
+                    r#"Window title template: "{tab}\n\u{202e}""#
+                } else {
+                    r#"Window title template: "{hostname}: {workspace}""#
+                }));
+                if case == "en" {
+                    assert!(text.contains(r"C:\\tools\\\u{202e}shell.exe"));
+                }
                 assert!(!text.contains('\u{202e}'));
+            }
+            if case.starts_with("warning") {
+                assert!(text.contains("visible=1 omitted=2"));
+                assert!(text.contains("field=\"keys.help\" reason=invalid-keybinding"));
             }
         } else {
             let document: Value = serde_json::from_slice(&output.stdout).unwrap();
@@ -149,8 +178,11 @@ fn current_reload_rejections_and_lost_reply_have_closed_typed_receipts_without_r
                 &document,
                 include_str!("../src/cli/schemas/orchbee.site.configuration.json"),
             );
-            assert_eq!(document["version"], 7);
-            if matches!(case, "startup" | "current" | "reload" | "restart") {
+            assert_eq!(document["version"], 8);
+            if matches!(
+                case,
+                "startup" | "current" | "reload" | "restart" | "warning"
+            ) {
                 assert_eq!(
                     document["result"]["reply"]["outcome"]["snapshot"]["defaultShell"],
                     ""
@@ -158,6 +190,16 @@ fn current_reload_rejections_and_lost_reply_have_closed_typed_receipts_without_r
                 assert_eq!(
                     document["result"]["reply"]["outcome"]["snapshot"]["shellMode"],
                     "auto"
+                );
+            }
+            if case == "warning" {
+                assert_eq!(
+                    document["result"]["reply"]["outcome"]["snapshot"]["diagnostics"]["items"][0]["field"],
+                    "keys.help"
+                );
+                assert_eq!(
+                    document["result"]["reply"]["outcome"]["snapshot"]["diagnostics"]["omittedCount"],
+                    2
                 );
             }
             if matches!(case, "lost" | "wrong-action") {
@@ -231,6 +273,28 @@ fn public_configuration_versions_keep_closed_independent_snapshots() {
     document["version"] = 7.into();
     document["result"]["reply"]["outcome"]["snapshot"]["notificationProfile"] =
         "x".repeat(1025).into();
+    assert!(validator.is_valid(&document));
+    document["version"] = 8.into();
+    assert!(!validator.is_valid(&document));
+    document["result"]["reply"]["outcome"]["snapshot"]["diagnostics"] = serde_json::json!({
+        "items": [{"field":"keys.help","reason":"invalid-keybinding","disposition":"disabled"}],
+        "omittedCount": 0
+    });
+    assert!(validator.is_valid(&document));
+    document["result"]["reply"]["outcome"]["snapshot"]["diagnostics"]["items"] = serde_json::json!([
+        {"field":"keys.help","reason":"invalid-keybinding","disposition":"disabled"},
+        {"field":"keys.help","reason":"invalid-keybinding","disposition":"disabled"}
+    ]);
+    assert!(!validator.is_valid(&document));
+    document["result"]["reply"]["outcome"]["snapshot"]["diagnostics"]["items"] = serde_json::json!([
+        {"field":"keys.help","reason":"invalid-keybinding","disposition":"disabled"}
+    ]);
+    document["version"] = 7.into();
+    assert!(!validator.is_valid(&document));
+    document["result"]["reply"]["outcome"]["snapshot"]
+        .as_object_mut()
+        .unwrap()
+        .remove("diagnostics");
     assert!(validator.is_valid(&document));
     document["version"] = 6.into();
     assert!(!validator.is_valid(&document));

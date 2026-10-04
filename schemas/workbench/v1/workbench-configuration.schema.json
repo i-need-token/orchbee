@@ -32,10 +32,55 @@
 				}
 			]
 		},
+		"configurationDiagnostic": {
+			"type": "object",
+			"required": ["field", "reason", "disposition"],
+			"additionalProperties": false,
+			"properties": {
+				"field": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 256,
+					"pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]+$",
+					"$comment": "Bindings additionally enforce the 256 UTF-8 byte limit."
+				},
+				"reason": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 64,
+					"pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$"
+				},
+				"disposition": {
+					"enum": ["defaulted", "disabled", "ignored", "unsupported"]
+				}
+			}
+		},
+		"configurationDiagnostics": {
+			"type": "object",
+			"required": ["items", "omittedCount"],
+			"additionalProperties": false,
+			"properties": {
+				"items": {
+					"type": "array",
+					"maxItems": 128,
+					"uniqueItems": true,
+					"items": {
+						"$ref": "#/$defs/configurationDiagnostic"
+					},
+					"$comment": "Bindings additionally require strict ascending (field, reason) order."
+				},
+				"omittedCount": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 65536
+				}
+			}
+		},
 		"snapshot": {
 			"type": "object",
 			"required": [
 				"revision",
+				"diagnostics",
 				"keysProfile",
 				"manifestCheck",
 				"restartRequired",
@@ -53,6 +98,9 @@
 					"pattern": "^(0|[1-9][0-9]{0,19})$",
 					"maxLength": 20,
 					"format": "orchbee-uint64"
+				},
+				"diagnostics": {
+					"$ref": "#/$defs/configurationDiagnostics"
 				},
 				"keysProfile": {
 					"type": "string",

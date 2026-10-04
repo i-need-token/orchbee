@@ -86,6 +86,7 @@ pub(crate) fn run(
     #[cfg(windows)]
     let shell =
         orchbee_local_site_runtime::read_windows_user_settings(|name| std::env::var_os(name))?
+            .settings
             .shell;
     let server = connect_to_server(&options.server_endpoint, cohort)?;
     // The Agent Drain queue belongs to this admitted Server connection and is

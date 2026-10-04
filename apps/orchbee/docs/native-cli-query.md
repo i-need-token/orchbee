@@ -448,7 +448,7 @@ Deletion checks Ctrl+C before each filesystem phase and exits 130 on interruptio
 List emits `orchbee.session.list` v2; v1 remains closed to its original states. `recoverable` means
 a guarded observation found complete v2/v3 registration, all exact identities gone and idle resources;
 it carries `running=false` and `pid=null`, and does not promise a later start. Delete retains
-`orchbee.session.delete` v1. The embedded schema catalog is v139.
+`orchbee.session.delete` v1. The embedded schema catalog is v140.
 
 The durable catalog preserves exact default/named identities and stopped receipts in LocalAppData.
 With the same admitted runtime base, `session list` still discovers a stopped session after its
@@ -973,6 +973,7 @@ orchbee site stop-status <request-id>
 orchbee site diagnose
 orchbee config check
 orchbee completion bash|zsh|fish|powershell|elvish
+orchbee --default-config  # Windows
 orchbee --skill
 orchbee help <recognized path>
 orchbee <recognized path> -h|--help
@@ -987,7 +988,8 @@ path (no filters, no format). A trailing `-h` or `--help` is the same request on
 arguments (`project get --help` describes `project get`) but not over supplied business
 arguments or extra tokens (`project get x --help`, `status extra --help` are usage). Unlisted
 targets such as `help help`, `help version`, `help --version` are unknown paths → usage. Help,
-`--version`, `--skill`, `completion`, and `api schema` without `--output` never touch platform, runtime, cohort, or Site state. Explicit Windows schema export touches only the caller-selected file destination and its owned sibling temporary.
+`--version`, `--skill`, `completion`, `api schema` without `--output`, and Windows `--default-config` never touch platform, runtime, cohort, or Site state. Explicit Windows schema export touches only the caller-selected file destination and its owned sibling temporary.
+On Windows, `--default-config` must be the sole root argument and emits canonical UTF-8 TOML from the build without reading user configuration or runtime-selection environment.
 `--skill` must be the sole root argument and emits the localized, embedded CLI usage guide.
 PowerShell completion is a static grammar projection: it never executes user expressions or
 queries a Site; loading it is explicit and does not modify a shell profile.
@@ -1016,7 +1018,7 @@ loading. This proves static completion, not runtime target discovery or other op
 --cell-width <n> --cell-height <n>`; omitted, the command requests the default 80x24
 grid with unknown cell pixels (0,0).
 
-`help`, `completion`, `tui`, `--version`, `--skill`, and the bare invocation are fixed text outputs that do
+`help`, `completion`, `tui`, `--version`, `--skill`, the bare invocation, and Windows `--default-config` are fixed text outputs that do
 not accept `--format`; a single valid `--format=json` turns the resulting syntax failure into a
 JSON `invalid-usage` failure document, while a text/default failure keeps stdout empty. Data
 commands (`status`, all `list`/`get`, `workspace close-status`, `agent explain`,
@@ -2320,7 +2322,7 @@ cancellation or an expired shared deadline exits without a wire request ever exi
 ## Invariants
 
 - A syntactically invalid invocation never touches the filesystem, cohort, or socket.
-- Offline commands (`help`, `--version`, `--skill`, `completion`, `api schema`) never perform platform,
+- Offline commands (`help`, `--version`, `--skill`, `completion`, `api schema`, and Windows `--default-config`) never perform platform,
   runtime, cohort, or Site discovery.
 - A network query creates nothing: no directory, lock, marker, terminal, viewer, control grant,
   or second request — except `terminal read`/`terminal wait-output`, whose read-capability
@@ -2756,6 +2758,8 @@ Hermes adds Windows plugin activation and content-free session observation. Its 
 
 [Windows CLI configuration](windows-cli-configuration.md) owns the bounded TOML reader, `ORCHBEE_CONFIG_FILE`, `[terminal] new_cwd`, `[worktrees] directory`, and precedence before any creation effect. Windows `config check` v2 preserves five runtime checks and adds `user-config`; v1 remains five checks. `orchbee.cli.failure.configuration` v1 reports bounded preparation errors. Catalog v69 contains 78 schemas and 94 command paths.
 
+The current Windows `config check` v13 keeps fatal file and environment admission as `fail`/exit 1 and reports admitted field fallbacks as `warning` with `ok:true`/exit 0. Its bounded `diagnostics` and exact `diagnosticsOmitted` count do not widen v1-v12. `site config`/`site reload-config` v8 carry the same admitted warning record in each successful snapshot while v1-v7 remain closed. The embedded schema catalog is v140.
+
 ## Windows terminal observation stream
 
 `terminal session observe <terminal> [--cols <n>] [--rows <n>] [--timeout <ms>]` emits NDJSON from one existing binding without control or Host resizing. The [stream contract](windows-terminal-streams.md) owns full safe ANSI frames, resets, flush-before-ACK, deadlines and cleanup. Default viewport: 120×40; default duration: unlimited. Both output formats emit `orchbee.terminal.stream` v2 records. Catalog v69 has 78 schemas and 94 native command paths. Machine control now accepts NDJSON input through `terminal session control`; interactive terminal/Agent attach is implemented with remaining fidelity and acceptance obligations.
@@ -2888,7 +2892,7 @@ v121 includes 105 schemas and 141 native grammar paths.
 
 ## Agent sidebar configuration publication
 
-Windows `config check` v10 and `site config`/`site reload-config` v5 expose the required bounded `agentSidebarProfile`; configuration failure v7 includes sidebar admission diagnostics. Older public versions remain closed. The [Windows configuration owner](windows-cli-configuration.md#windows-agent-sidebar-layouts) defines startup, strict whole-file validation, canonical publication and atomic Client application. Catalog v122 contains the same 105 schemas and 141 command paths.
+Windows `config check` v10 and `site config`/`site reload-config` v5 expose the required bounded `agentSidebarProfile`; configuration failure v7 includes sidebar admission diagnostics. Older public versions remain closed. The [Windows configuration owner](windows-cli-configuration.md#windows-agent-sidebar-layouts) defines startup, fatal source boundaries, field-local admission, canonical publication and atomic Client application. Catalog v122 contains the same 105 schemas and 141 command paths.
 
 ## Windows CLI process verification
 
