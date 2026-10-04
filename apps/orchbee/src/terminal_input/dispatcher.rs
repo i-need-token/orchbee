@@ -384,9 +384,19 @@ impl InputDispatcher {
             port.observe_input_intent();
         }
         if self.confirm_packet || port.capture_confirmation_key(client_key(&item)) {
+            #[cfg(windows)]
+            view.exit_resize_mode();
             self.flush_pending(view, port);
             self.confirm_packet = true;
             return Ok(DispatchOutcome::Continue);
+        }
+        #[cfg(windows)]
+        if view.resize_mode() {
+            self.flush_pending(view, port);
+            if matches!(item.kind, DecodedKind::Key(event) if event.kind == KeyKind::Release) {
+                return Ok(DispatchOutcome::Continue);
+            }
+            return self.decide(view, port, now, item, after_layout, mode);
         }
         if view.prefix_active() {
             self.flush_pending(view, port);
@@ -610,6 +620,10 @@ impl InputDispatcher {
         now: Instant,
     ) -> bool {
         self.settle_board_edge(port);
+        #[cfg(windows)]
+        if port.popup_captured() || view.machines.open || port.agent_board_input() {
+            view.exit_resize_mode();
+        }
         let setup = port.setup_input_context();
         let current = setup
             .as_ref()
@@ -638,6 +652,8 @@ impl InputDispatcher {
         if let Some(token) = current
             && self.decoder.start_with_capacity(capacity)
         {
+            #[cfg(windows)]
+            view.exit_resize_mode();
             self.epoch = Some(token);
         }
         true

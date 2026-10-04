@@ -19,21 +19,45 @@ pub(crate) struct Bindings {
 
 impl Default for Bindings {
     fn default() -> Self {
+        let entries = PREFIX_GROUPS
+            .iter()
+            .flat_map(|group| {
+                group.members.iter().map(|member| Entry {
+                    enabled: true,
+                    prefix: true,
+                    member: member.clone(),
+                    desc: group.desc,
+                })
+            })
+            .collect::<Vec<_>>();
+        #[cfg(windows)]
+        let entries = {
+            let mut entries = entries;
+            for name in [
+                "resize_pane_left",
+                "resize_pane_right",
+                "resize_pane_up",
+                "resize_pane_down",
+            ] {
+                let (action, desc, shell) = action(name);
+                entries.push(Entry {
+                    enabled: false,
+                    prefix: false,
+                    member: PrefixMember {
+                        keys: KeySet::One(PREFIX_CHORD),
+                        action,
+                        shell,
+                    },
+                    desc,
+                });
+            }
+            entries
+        };
         Self {
             #[cfg(windows)]
             commands: Vec::new(),
             prefix: PREFIX_CHORD,
-            entries: PREFIX_GROUPS
-                .iter()
-                .flat_map(|group| {
-                    group.members.iter().map(|member| Entry {
-                        enabled: true,
-                        prefix: true,
-                        member: member.clone(),
-                        desc: group.desc,
-                    })
-                })
-                .collect(),
+            entries,
         }
     }
 }
@@ -399,6 +423,35 @@ fn action(name: &str) -> (PrefixAction, PrefixDesc, ShellCommand) {
     use ClientAction as A;
     use PrefixDesc as D;
     let (action, desc) = match name {
+        "resize_mode" => (A::EnterResizeMode, D::ResizeMode),
+        "resize_pane_left" => (
+            A::ResizePane {
+                direction: PanelDirection::Left,
+                fine: false,
+            },
+            D::ResizeLeft,
+        ),
+        "resize_pane_right" => (
+            A::ResizePane {
+                direction: PanelDirection::Right,
+                fine: false,
+            },
+            D::ResizeRight,
+        ),
+        "resize_pane_up" => (
+            A::ResizePane {
+                direction: PanelDirection::Up,
+                fine: false,
+            },
+            D::ResizeUp,
+        ),
+        "resize_pane_down" => (
+            A::ResizePane {
+                direction: PanelDirection::Down,
+                fine: false,
+            },
+            D::ResizeDown,
+        ),
         "reload_config" => (A::ReloadConfiguration, D::ReloadConfiguration),
         "help" => return (PrefixAction::ShowHelp, D::ShowHelp, ShellCommand::None),
         "workspace_picker" => {

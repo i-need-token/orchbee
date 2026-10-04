@@ -12,6 +12,8 @@ Simplified Chinese review translation:
 [tui-input-vocabulary.zh-CN.md](tui-input-vocabulary.zh-CN.md).
 English remains canonical.
 
+Windows keyboard resizing now follows the accepted [native keyboard contract](../../apps/orchbee/docs/native-keyboard-resize.md). The broader PANEL vocabulary below remains proposed; its design inventory does not replace current app authority.
+
 ## Purpose
 
 The current TUI input system is a single `Ctrl+B` prefix layer over a raw byte stream. It works

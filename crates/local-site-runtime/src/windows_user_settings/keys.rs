@@ -6,6 +6,11 @@ pub use commands::{
 };
 
 const ACTIONS: &[&str] = &[
+    "resize_mode",
+    "resize_pane_left",
+    "resize_pane_right",
+    "resize_pane_up",
+    "resize_pane_down",
     "reload_config",
     "help",
     "new_workspace",
@@ -150,7 +155,12 @@ impl WindowsKeySettings {
                     {
                         return Err(error("reserved-binding"));
                     }
-                    if !prefix && !chord.safe_direct() {
+                    if !prefix
+                        && (!chord.safe_direct()
+                            || (action.starts_with("resize_")
+                                && !chord.modified()
+                                && !chord.key.starts_with('f')))
+                    {
                         return Err(error("unsafe-binding"));
                     }
                     let trigger = WindowsKeyTrigger { prefix, chord };

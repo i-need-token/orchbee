@@ -3,6 +3,39 @@ use orchbee_workbench_protocol::{
 };
 use serde_json::{Value, json};
 
+#[test]
+fn directional_ratios_retain_exact_identity_through_numeric_json() {
+    use orchbee_workbench_protocol::{
+        ClientPanelDirection, ClientResizeAmount, WorkbenchSplitRatio,
+    };
+    // The production decoder once rounded 0.54 - 0.05 from
+    // 0.49000000000000005 to 0.49, making a committed adjustment look stale.
+    // Workspace dev dependencies hid that failure by enabling float_roundtrip.
+    for percentage in 10..=90 {
+        let before = WorkbenchSplitRatio::new(f64::from(percentage) / 100.0).unwrap();
+        for amount in [0.01, 0.05] {
+            for direction in [
+                ClientPanelDirection::Left,
+                ClientPanelDirection::Right,
+                ClientPanelDirection::Up,
+                ClientPanelDirection::Down,
+            ] {
+                let ratio = ClientResizeAmount::new(amount)
+                    .unwrap()
+                    .apply(before, direction);
+                let encoded = serde_json::to_vec(&ratio).unwrap();
+                let decoded: WorkbenchSplitRatio = serde_json::from_slice(&encoded).unwrap();
+                assert_eq!(decoded, ratio, "{percentage}% {amount} {direction:?}");
+                assert!(
+                    serde_json::from_slice::<Value>(&encoded)
+                        .unwrap()
+                        .is_number()
+                );
+            }
+        }
+    }
+}
+
 fn document() -> Value {
     serde_json::from_str::<Value>(include_str!(
         "../../../schemas/workbench/v1/workbench-conformance-v1.json"

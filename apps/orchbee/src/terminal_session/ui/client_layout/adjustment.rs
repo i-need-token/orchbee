@@ -7,6 +7,108 @@ use orchbee_workbench_protocol::{
 };
 
 impl NativeUi {
+    pub(in crate::terminal_session) fn prepare_keyboard_adjustment(
+        &self,
+        direction: orchbee_workbench_protocol::ClientPanelDirection,
+        fine: bool,
+        viewport: Option<(Rect, SidebarSurface)>,
+    ) -> Result<
+        (
+            orchbee_workbench_protocol::SiteId,
+            ClientLayoutAdjustment,
+            ClientViewObservation,
+        ),
+        Reason,
+    > {
+        let (site, before) = self
+            .control_observation(false)
+            .ok_or(Reason::ProjectionUnavailable)?;
+        if before.phase != orchbee_workbench_protocol::ClientViewPhase::Ready {
+            return Err(Reason::Busy);
+        }
+        let state = self.state.as_ref().ok_or(Reason::ProjectionUnavailable)?;
+        let tab = state
+            .active()
+            .and_then(|active| state.cache().tabs().get(active.index()))
+            .ok_or(Reason::TargetUnavailable)?;
+        let source = state
+            .focus_panel_id()
+            .cloned()
+            .ok_or(Reason::TargetUnavailable)?;
+        let (viewport, sidebar) = viewport.ok_or(Reason::ProjectionUnavailable)?;
+        let focused = tab.panel_index(&source);
+        let (area, panels, splits) = project_geometry(
+            viewport,
+            sidebar,
+            tab,
+            focused,
+            state.zoom_active(),
+            &|split, first, second| {
+                tab.panel_tree()
+                    .split_ratio(split, first, second)
+                    .unwrap_or_default()
+            },
+        )?;
+        let layout = ClientPanelLayout {
+            terminal_context_id: state.cache().terminal_context_id().clone(),
+            tab_id: tab.tab_id().clone(),
+            source_panel_id: source.clone(),
+            workbench_revision: state.cache().revision(),
+            viewport: cell(viewport),
+            area: cell(area),
+            selected: true,
+            zoomed: state.zoom_active(),
+            focused_panel_id: Some(source.clone()),
+            source_available: panels
+                .iter()
+                .any(|panel| panel.panel_id == source && panel.unzoomed.is_some()),
+            neighbors: ClientPanelNeighbors::from_panels(&source, &panels),
+            panels,
+            splits,
+        };
+        layout
+            .validate()
+            .map_err(|_| Reason::ProjectionUnavailable)?;
+        let amount =
+            orchbee_workbench_protocol::ClientResizeAmount::new(if fine { 0.01 } else { 0.05 })
+                .expect("fixed admitted keyboard step");
+        let change = layout
+            .resize_split(direction)
+            .map_err(|_| Reason::ProjectionUnavailable)?
+            .map_or(ClientLayoutChange::NoSplit {}, |split| {
+                ClientLayoutChange::Split {
+                    split: ClientSplitChange {
+                        split_id: split.split_id.clone(),
+                        first_slot_id: split.first_slot_id.clone(),
+                        second_slot_id: split.second_slot_id.clone(),
+                        previous_ratio: split.ratio,
+                        ratio: amount.apply(split.ratio, direction),
+                    },
+                }
+            });
+        Ok((
+            site,
+            ClientLayoutAdjustment {
+                terminal_context_id: layout.terminal_context_id,
+                tab_id: layout.tab_id,
+                workbench_revision: layout.workbench_revision,
+                selected: true,
+                change,
+            },
+            before,
+        ))
+    }
+
+    pub(in crate::terminal_session) fn keyboard_adjustment_request_id(
+        &self,
+    ) -> Result<orchbee_workbench_protocol::WorkbenchRequestId, Reason> {
+        self.mailbox
+            .as_ref()
+            .ok_or(Reason::ProjectionUnavailable)?
+            .allocate_workbench_request_id()
+            .map_err(|_| Reason::ProjectionUnavailable)
+    }
+
     pub(in crate::terminal_session) fn prepare_layout_adjustment(
         &self,
         command: &ClientViewControl,
@@ -153,15 +255,15 @@ impl NativeUi {
         requested: &mut bool,
     ) -> crate::terminal_session::client_control::ControlStep {
         use crate::terminal_session::client_control::ControlStep;
-        if self
-            .state
-            .as_ref()
-            .is_some_and(|state| state.pending_refresh_generation().is_some())
-        {
+        if self.state.as_ref().is_some_and(|state| {
+            state.pending_refresh_generation().is_some() || state.publication_debt_pending()
+        }) {
             return ControlStep::Waiting;
         }
         if *requested {
-            return ControlStep::Failed(Reason::ProjectionUnavailable);
+            // An older read does not invalidate the commit. Publication advances independently,
+            // while the owning adjustment bounds this wait without another read or mutation.
+            return ControlStep::Waiting;
         }
         let Some(mailbox) = self.mailbox.as_ref().map(std::sync::Arc::clone) else {
             return ControlStep::Failed(Reason::ProjectionUnavailable);
@@ -177,6 +279,14 @@ impl NativeUi {
             .is_some_and(|state| state.pending_refresh_generation().is_some())
         {
             ControlStep::Changed
+        } else if self
+            .state
+            .as_ref()
+            .is_some_and(|state| state.publication_debt_pending())
+        {
+            // The publication owner retains Busy/Full demand; its later drain is a read,
+            // never a retry of the committed mutation. The adjustment keeps its deadline.
+            ControlStep::Waiting
         } else {
             ControlStep::Failed(Reason::Busy)
         }

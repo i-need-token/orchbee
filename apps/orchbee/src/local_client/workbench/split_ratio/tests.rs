@@ -28,6 +28,7 @@ fn canonical_reply_is_correlated_and_unknown_reply_drops_connection_without_repl
         "malformed",
         "lost",
     ] {
+        let (closed, client_closed) = std::sync::mpsc::sync_channel(0);
         let server = FakeServer::start_connections(1, move |_, mut stream| {
             assert!(matches!(
                 read_message(&mut stream).map_err(io::Error::other)?,
@@ -82,6 +83,11 @@ fn canonical_reply_is_correlated_and_unknown_reply_drops_connection_without_repl
                 )
                 .map_err(io::Error::other)?;
             }
+            // Probe after the owning Client has dropped: buffered retry bytes would still fail
+            // the zero-byte assertion, while Client scheduling cannot consume the EOF guard.
+            client_closed
+                .recv_timeout(Duration::from_secs(3))
+                .map_err(io::Error::other)?;
             assert_eq!(
                 stream.read(&mut [0])?,
                 0,
@@ -119,6 +125,11 @@ fn canonical_reply_is_correlated_and_unknown_reply_drops_connection_without_repl
             );
         }
         drop(client);
-        server.finish().unwrap();
+        if case != "lost" {
+            closed.send(()).unwrap();
+        }
+        server
+            .finish()
+            .unwrap_or_else(|error| panic!("{case}: {error}"));
     }
 }

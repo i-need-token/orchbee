@@ -1291,6 +1291,20 @@ fn render_status(
         };
         (hint.to_owned(), theme.style(Role::HintLabel))
     };
+    #[cfg(windows)]
+    let (label, style) = if view.resize_mode() {
+        (
+            locale
+                .resize_hint(tier == ViewportTier::Full, view.resize_pending)
+                .to_owned(),
+            theme
+                .style(Role::TextInverse)
+                .bg(theme.color(Role::AccentFocus))
+                .add_modifier(Modifier::BOLD),
+        )
+    } else {
+        (label, style)
+    };
     let right_width = u16::try_from(Line::raw(label.as_str()).width())
         .unwrap_or(u16::MAX)
         .max(24)

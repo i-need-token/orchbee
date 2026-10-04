@@ -88,3 +88,13 @@ Focused wire/actor evidence does not establish final GUI/cohort acceptance.
 `PaneGraphicsRequest` and `PaneGraphicsResult` use OBWP 57/58 with independent preallocation bounds (24 MiB request, 512 KiB result). They cover complete PNG/RGB/RGBA/BGRA uploads, static layers, metadata catalogs, revision-pinned pixel chunks and connection-owned producers. Shapes, canonical base64, channel lengths, damage bounds, full-width producer sequences and response correlations are validated without renderer or file effects. Runtime owners supply PNG decoding, source fences, file leases and actual Client capabilities. Shared conformance cases live under `schemas/workbench/v1/workbench-pane-graphics-conformance-v1.json`.
 
 Canonical `PanelNode::Split.ratio` defaults to 0.5 and admits finite 0.1–0.9 values. The identified CAS command `layout.set-split-ratio` returns `split-ratio-configured`; [shared ratio ownership](../../apps/orchbee-server/docs/shared-split-ratios.md) defines its runtime effects.
+
+The runtime JSON dependency explicitly enables `float_roundtrip` so numeric ratios
+retain their exact `f64` identity across transport and checkpoints. For example,
+0.54 minus 0.05 produces 0.49000000000000005; decoding it as 0.49 would invalidate
+the exact CAS/publication comparison after a successful adjustment. This changes
+neither the JSON shape nor the admitted range. `tests/split_ratios.rs` covers all
+648 directional coarse/fine numeric roundtrips. Development dependencies can
+also enable this feature, so test builds alone do not prove shipment coverage;
+the [keyboard resize model](../../apps/orchbee/docs/native-keyboard-resize.md)
+requires an ordinary Windows cohort witness as well.

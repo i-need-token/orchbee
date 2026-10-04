@@ -1960,6 +1960,18 @@ impl NativeUi {
             ClientAction::RequestCloseTab => self.request_close_confirmation(),
             ClientAction::RequestWorkspaceClose => self.request_workspace_close(),
             ClientAction::RequestControlTakeover => self.request_takeover(),
+            #[cfg(windows)]
+            ClientAction::EnterResizeMode => {
+                let _consumed = self.history_key(&crate::client_view::KeyEvent::press(
+                    crate::client_view::KeyCode::Esc,
+                    crate::client_view::Modifiers::NONE,
+                ));
+                SessionActionDisposition::KeepNavigator
+            }
+            #[cfg(windows)]
+            ClientAction::ResizePane { .. } | ClientAction::ExitResizeMode => {
+                SessionActionDisposition::KeepNavigator
+            }
             ClientAction::ConfirmClose => self.confirm_close(),
             ClientAction::CancelClose => self.cancel_close(),
             ClientAction::CreateTab => self.create_tab(),

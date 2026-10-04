@@ -79,3 +79,11 @@ v1–v9 拒绝此意图。公开 Windows `terminal edit-scrollback` 路径由
 `PaneGraphicsRequest` 和 `PaneGraphicsResult` 使用 OBWP 57/58，并在分配前独立限制方向（请求 24 MiB、结果 512 KiB）。它们覆盖完整 PNG／RGB／RGBA／BGRA 上传、静态图层、元数据目录、按资源版本读取的像素块以及连接所属的生产者。在没有渲染或文件副作用的情况下验证结构、规范 base64、通道长度、损伤范围、完整宽度生产者序号及响应关联。运行时所有者提供 PNG 解码、来源约束、文件租约和真实 Client 能力。共享案例位于 `schemas/workbench/v1/workbench-pane-graphics-conformance-v1.json`。
 
 规范 `PanelNode::Split.ratio` 默认为 0.5，准入有限的 0.1–0.9 数值。有身份的 CAS 命令 `layout.set-split-ratio` 返回 `split-ratio-configured`；[共享比例归属](../../apps/orchbee-server/docs/shared-split-ratios.zh-CN.md) 定义其运行时效果。
+
+运行时 JSON 依赖显式启用 `float_roundtrip`，让数值比例经过传输及 checkpoint
+后保持精确的 `f64` 身份。例如 0.54 减 0.05 得到 0.49000000000000005，若解码
+成 0.49，会在调整成功后破坏精确的 CAS／发布比较。JSON 形状和准入范围不变。
+`tests/split_ratios.rs` 覆盖全部 648 个方向及粗／细调整的数值往返。开发依赖
+也可能隐式启用此特性，因此测试构建本身不能证明交付构建已覆盖；
+[键盘调整模型](../../apps/orchbee/docs/native-keyboard-resize.zh-CN.md)还要求普通
+Windows cohort 的整链见证。

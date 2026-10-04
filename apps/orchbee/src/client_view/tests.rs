@@ -1,7 +1,7 @@
 use super::{
     BackendAction, ClientAction, ClientTransition, ClientView, KeyCode, KeyEvent, Modifiers,
-    Notice, Overlay, PREFIX_GROUPS, PanelDirection, PrefixInput, SessionActionDisposition,
-    ShellCommand, SidebarSurface, ViewportClass, WIDE_VIEWPORT_MINIMUM_COLUMNS,
+    Notice, Overlay, PanelDirection, PrefixInput, SessionActionDisposition, ShellCommand,
+    SidebarSurface, ViewportClass, WIDE_VIEWPORT_MINIMUM_COLUMNS,
 };
 
 fn key(code: KeyCode) -> PrefixInput {
@@ -506,16 +506,17 @@ fn the_help_page_counter_is_bounded_and_settles_the_renderers_effective_page() {
     enter_prefix(&mut view);
     commit(&mut view, plain('?'));
 
+    let bound = view.bindings().descriptions().len();
     // PageDown can never run away: the counter is capped by the registry
     // row bound, and PageUp saturates at 0.
-    for _ in 0..(PREFIX_GROUPS.len() + 8) {
+    for _ in 0..(bound + 8) {
         enter_prefix(&mut view);
         commit(&mut view, key(KeyCode::PageDown));
     }
-    assert_eq!(view.help_page(), PREFIX_GROUPS.len());
+    assert_eq!(view.help_page(), bound);
     enter_prefix(&mut view);
     commit(&mut view, key(KeyCode::PageUp));
-    assert_eq!(view.help_page(), PREFIX_GROUPS.len() - 1);
+    assert_eq!(view.help_page(), bound - 1);
 
     // The UI loop's write-back of the renderer's effective page is the
     // only way an out-of-range index (e.g. after a resize shrank the page
@@ -523,7 +524,7 @@ fn the_help_page_counter_is_bounded_and_settles_the_renderers_effective_page() {
     view.settle_help_page(3);
     assert_eq!(view.help_page(), 3);
     view.settle_help_page(usize::MAX);
-    assert_eq!(view.help_page(), PREFIX_GROUPS.len());
+    assert_eq!(view.help_page(), bound);
     view.settle_help_page(0);
     assert_eq!(view.help_page(), 0);
 }

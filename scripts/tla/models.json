@@ -3854,6 +3854,48 @@
 			]
 		},
 		{
+			"id": "native-keyboard-resize",
+			"owner": "orchbee",
+			"workspace": "apps/orchbee",
+			"module": "apps/orchbee/formal/tla/KeyboardResize.tla",
+			"config": "apps/orchbee/formal/tla/KeyboardResize.cfg",
+			"claims": ["apps/orchbee/docs/native-keyboard-resize.md"],
+			"triggers": [
+				"apps/orchbee/docs/native-keyboard-resize.zh-CN.md",
+				"apps/orchbee/src/client_view.rs",
+				"apps/orchbee/src/client_view/resize/**",
+				"apps/orchbee/src/client_view/bindings/**",
+				"apps/orchbee/src/client_view/bindings.rs",
+				"apps/orchbee/src/terminal_input/dispatcher.rs",
+				"apps/orchbee/src/terminal_session/client_control.rs",
+				"apps/orchbee/src/terminal_session/client_control/**",
+				"apps/orchbee/src/terminal_session/ui/client_layout/**",
+				"apps/orchbee/src/terminal_session/ui/client_layout.rs",
+				"apps/orchbee/src/terminal_session.rs",
+				"crates/local-site-runtime/src/windows_user_settings/keys.rs"
+			],
+			"requiredCoverage": [
+				"EnterMode",
+				"ExitMode",
+				"ModeKey",
+				"OrdinaryKey",
+				"StartLocal",
+				"StartRemote",
+				"BusyKey",
+				"Submit",
+				"Resolve",
+				"NotSubmitted",
+				"Deliver",
+				"Publish",
+				"Draw",
+				"Finish",
+				"Failure",
+				"Interrupt",
+				"Replace",
+				"LateReply"
+			]
+		},
+		{
 			"id": "native-location-labels",
 			"owner": "orchbee",
 			"workspace": "apps/orchbee",

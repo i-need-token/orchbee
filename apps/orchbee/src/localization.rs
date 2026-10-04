@@ -50,6 +50,22 @@ fn en_us_prefix_desc(desc: PrefixDesc) -> &'static str {
         #[cfg(windows)]
         PrefixDesc::ConfiguredCommand(_) => "Run configured command",
         #[cfg(windows)]
+        PrefixDesc::ResizeMode => "Enter pane resize mode",
+        #[cfg(windows)]
+        PrefixDesc::ResizeLeft => "Move pane divider left by 5%",
+        #[cfg(windows)]
+        PrefixDesc::ResizeRight => "Move pane divider right by 5%",
+        #[cfg(windows)]
+        PrefixDesc::ResizeUp => "Move pane divider up by 5%",
+        #[cfg(windows)]
+        PrefixDesc::ResizeDown => "Move pane divider down by 5%",
+        #[cfg(windows)]
+        PrefixDesc::ResizeCoarse => "Move divider by 5 percentage points",
+        #[cfg(windows)]
+        PrefixDesc::ResizeFine => "Move divider by 1 percentage point",
+        #[cfg(windows)]
+        PrefixDesc::ResizeExit => "Leave resize mode",
+        #[cfg(windows)]
         PrefixDesc::Machines => "Choose local or saved SSH machine",
         #[cfg(windows)]
         PrefixDesc::AgentCycle => "Select previous / next Agent in the filtered machine view",
@@ -97,6 +113,22 @@ fn zh_cn_prefix_desc(desc: PrefixDesc) -> &'static str {
     match desc {
         #[cfg(windows)]
         PrefixDesc::ConfiguredCommand(_) => "运行配置命令",
+        #[cfg(windows)]
+        PrefixDesc::ResizeMode => "进入 pane 大小调整模式",
+        #[cfg(windows)]
+        PrefixDesc::ResizeLeft => "分隔线向左移动 5%",
+        #[cfg(windows)]
+        PrefixDesc::ResizeRight => "分隔线向右移动 5%",
+        #[cfg(windows)]
+        PrefixDesc::ResizeUp => "分隔线向上移动 5%",
+        #[cfg(windows)]
+        PrefixDesc::ResizeDown => "分隔线向下移动 5%",
+        #[cfg(windows)]
+        PrefixDesc::ResizeCoarse => "分隔线移动 5 个百分点",
+        #[cfg(windows)]
+        PrefixDesc::ResizeFine => "分隔线移动 1 个百分点",
+        #[cfg(windows)]
+        PrefixDesc::ResizeExit => "退出大小调整模式",
         #[cfg(windows)]
         PrefixDesc::Machines => "选择本地或已保存的 SSH 机器",
         #[cfg(windows)]
@@ -404,8 +436,42 @@ impl Locale {
         }
     }
 
+    #[cfg(windows)]
+    pub(crate) const fn resize_hint(self, full: bool, pending: bool) -> &'static str {
+        match (self, full, pending) {
+            (Self::EnUs, true, false) => "RESIZE · arrows 5% · Shift 1% · ? · Esc exit",
+            (Self::EnUs, true, true) => "RESIZE pending · Esc exit",
+            (Self::EnUs, false, _) => "RESIZE · Esc exit",
+            (Self::ZhCn, true, false) => "调整 · 方向键 5% · Shift 1% · ? · Esc 退出",
+            (Self::ZhCn, true, true) => "调整待定 · Esc 退出",
+            (Self::ZhCn, false, _) => "调整 · Esc 退出",
+        }
+    }
+
     pub(crate) const fn shell_notice(self, notice: Option<Notice>) -> &'static str {
         match (self, notice) {
+            #[cfg(windows)]
+            (Self::EnUs, Some(Notice::ResizeBusy)) => "Resize pending; key was not queued",
+            #[cfg(windows)]
+            (Self::ZhCn, Some(Notice::ResizeBusy)) => "大小调整待定；按键未排队",
+            #[cfg(windows)]
+            (Self::EnUs, Some(Notice::ResizeFailed)) => "Resize failed; inspect the current layout",
+            #[cfg(windows)]
+            (Self::ZhCn, Some(Notice::ResizeFailed)) => "大小调整失败；请检查当前布局",
+            #[cfg(windows)]
+            (Self::EnUs, Some(Notice::ResizeUnknown)) => {
+                "Resize outcome unknown; inspect layout before trying again"
+            }
+            #[cfg(windows)]
+            (Self::ZhCn, Some(Notice::ResizeUnknown)) => "大小调整结果不确定；请先检查布局再操作",
+            #[cfg(windows)]
+            (Self::EnUs, Some(Notice::ResizeNoSplit)) => "No divider on this axis",
+            #[cfg(windows)]
+            (Self::ZhCn, Some(Notice::ResizeNoSplit)) => "该方向没有分隔线",
+            #[cfg(windows)]
+            (Self::EnUs, Some(Notice::ResizeLimit)) => "Divider is at its size limit",
+            #[cfg(windows)]
+            (Self::ZhCn, Some(Notice::ResizeLimit)) => "分隔线已达到大小边界",
             (Self::EnUs, Some(Notice::CheckpointRecovered)) => {
                 "Unreadable workspace snapshots retained; restored a valid snapshot"
             }
@@ -1444,6 +1510,25 @@ impl ShellText<'static> {
             self.zoom_badge,
         ]
         .map(|hint| self.bound_hint(view, hint));
+        #[cfg(windows)]
+        let hints = {
+            let mut hints = hints;
+            if view.resize_mode() {
+                hints[2] = format!(
+                    "? · {} · Esc · {}",
+                    (self.prefix_desc)(PrefixDesc::ShowHelp),
+                    (self.prefix_desc)(PrefixDesc::ResizeExit)
+                );
+                hints[3] = format!("Esc · {}", (self.prefix_desc)(PrefixDesc::ResizeExit));
+                hints[4] = view
+                    .resize_help_rows()
+                    .into_iter()
+                    .find(|(_, desc)| *desc == PrefixDesc::HelpPage)
+                    .expect("resize registry includes help paging")
+                    .0;
+            }
+            hints
+        };
         BoundShellText { base: self, hints }
     }
 
@@ -1491,6 +1576,14 @@ impl ShellText<'_> {
         &self,
         view: &crate::client_view::ClientView,
     ) -> Vec<(String, String)> {
+        #[cfg(windows)]
+        if view.resize_mode() {
+            return view
+                .resize_help_rows()
+                .into_iter()
+                .map(|(key, desc)| (format!("{key} "), (self.prefix_desc)(desc).to_owned()))
+                .collect();
+        }
         let mut rows: Vec<_> = view
             .bindings()
             .descriptions()

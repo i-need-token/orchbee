@@ -15,7 +15,7 @@ pub(super) struct SharedAdjustment {
 impl SharedAdjustment {
     pub(super) fn prepare(
         site: SiteId,
-        command: &ClientViewControl,
+        operation_id: orchbee_workbench_protocol::WorkbenchRequestId,
         adjustment: ClientLayoutAdjustment,
         before: ClientViewObservation,
     ) -> Result<(Self, WorkbenchCommand), Reason> {
@@ -24,7 +24,7 @@ impl SharedAdjustment {
         };
         let mutation = WorkbenchCommand {
             protocol_version: orchbee_workbench_protocol::ProtocolVersion,
-            request_id: command.operation_id.clone(),
+            request_id: operation_id,
             site_id: site,
             expected_revision: adjustment.workbench_revision,
             action: WorkbenchAction::SplitRatioSet {

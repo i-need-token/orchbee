@@ -73,6 +73,22 @@ pub(crate) enum PrefixDesc {
     #[cfg(windows)]
     ConfiguredCommand(u8),
     #[cfg(windows)]
+    ResizeMode,
+    #[cfg(windows)]
+    ResizeLeft,
+    #[cfg(windows)]
+    ResizeRight,
+    #[cfg(windows)]
+    ResizeUp,
+    #[cfg(windows)]
+    ResizeDown,
+    #[cfg(windows)]
+    ResizeCoarse,
+    #[cfg(windows)]
+    ResizeFine,
+    #[cfg(windows)]
+    ResizeExit,
+    #[cfg(windows)]
     Machines,
     #[cfg(windows)]
     AgentCycle,
@@ -138,6 +154,17 @@ use super::PanelDirection;
 /// Every prefix-layer binding group, in help order. The first member label of
 /// each group joins with `" / "` into the help chord column.
 pub(crate) static PREFIX_GROUPS: &[PrefixGroup] = &[
+    #[cfg(windows)]
+    PrefixGroup {
+        members: &[member(
+            KeySet::One(Binding::new(
+                KeyCode::Char('p'),
+                Modifiers::NONE.with_shift(),
+            )),
+            ClientAction::EnterResizeMode,
+        )],
+        desc: PrefixDesc::ResizeMode,
+    },
     #[cfg(windows)]
     PrefixGroup {
         members: &[member(shift_key('n'), ClientAction::RequestQuickWorkspace)],

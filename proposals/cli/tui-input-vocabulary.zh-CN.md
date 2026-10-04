@@ -12,6 +12,8 @@
 [tui-input-vocabulary.md](tui-input-vocabulary.md)。
 如有冲突，以英文为准。
 
+Windows 键盘调整已遵循接受的[原生键盘契约](../../apps/orchbee/docs/native-keyboard-resize.zh-CN.md)。下文更完整的 PANEL 词表仍是提案；其设计清单不替代当前 app 权威。
+
 ## 目的
 
 当前 TUI 输入系统是在原始 byte stream 之上的单层 `Ctrl+B` 前缀。它今天可用，但已准入的

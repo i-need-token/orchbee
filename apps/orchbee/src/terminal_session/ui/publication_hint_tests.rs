@@ -178,6 +178,14 @@ fn full_refused_publication_hint_survives_until_queue_drains() {
             .expect("PollResult publication"),
         MutationResult::Applied
     );
+    // A committed adjustment must keep waiting on the same retained demand.
+    let mut requested = false;
+    for _ in 0..3 {
+        assert!(matches!(
+            ui.refresh_layout_adjustment(&mut requested),
+            crate::terminal_session::client_control::ControlStep::Waiting
+        ));
+    }
     ui.tick();
 
     // The hint became debt even though refresh admission reported Full.

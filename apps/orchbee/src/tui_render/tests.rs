@@ -1103,3 +1103,56 @@ fn popup_draw_clears_the_underlying_cells_and_records_only_its_painted_close_and
         ]
     );
 }
+
+#[cfg(windows)]
+#[test]
+fn resize_mode_status_is_persistent_across_tiers_locales_themes_and_pending_feedback() {
+    for (width, height) in [(80, 24), (120, 40), (70, 18), (40, 10), (18, 4)] {
+        for locale in [Locale::EnUs, Locale::ZhCn] {
+            for theme in [
+                crate::tui_theme::Theme::terminal_native(),
+                crate::tui_theme::Theme::rgb_test_dark(),
+            ] {
+                let mut view = ClientView::new(width);
+                prefix(&mut view, plain('P'));
+                for pending in [false, true] {
+                    view.resize_pending = pending;
+                    view.configuration_notice(crate::client_view::Notice::ResizeBusy);
+                    let mut terminal = infallible(Terminal::new(TestBackend::new(width, height)));
+                    infallible(terminal.draw(|frame| {
+                        render_shell(frame, &view, locale, &theme);
+                    }));
+                    let rendered: String = terminal
+                        .backend()
+                        .buffer()
+                        .content
+                        .iter()
+                        .map(|cell| cell.symbol())
+                        .collect();
+                    assert!(
+                        without_cell_padding(&rendered).contains(if locale == Locale::EnUs {
+                            "RESIZE"
+                        } else {
+                            "调整"
+                        }),
+                        "{width}x{height}: {rendered}"
+                    );
+                    assert!(rendered.contains("Esc"));
+                }
+            }
+        }
+    }
+    let mut view = ClientView::new(120);
+    prefix(&mut view, plain('P'));
+    commit(&mut view, plain('?'));
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        let rows = locale.shell().configured_shortcut_rows(&view);
+        assert_eq!(rows.len(), 5);
+        assert_eq!(rows.last().unwrap().0.trim(), "Esc");
+        assert!(rows[0].1.contains('5'));
+        assert!(rows[1].1.contains('1'));
+        let rendered = rendered_text(120, 40, &view, locale);
+        assert!(rendered.contains("Esc"));
+        assert!(!rendered.contains("Send to the terminal input port"));
+    }
+}

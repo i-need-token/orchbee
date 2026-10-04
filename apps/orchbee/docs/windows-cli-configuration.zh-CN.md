@@ -123,6 +123,13 @@ Agent 列表计算，`focus_agent` 默认未绑定。
 裸编辑键及 Ctrl+C/D/Z 被拒绝。捕获与模式先于直达分发；粘贴及释放事件不触发绑定。
 双前缀优先发送规范 C0，否则发送原始字节，不再硬编码回退为 Ctrl+B。
 
+`resize_mode` 进入[键盘调整模式](native-keyboard-resize.zh-CN.md)，默认 `prefix+P`。
+`resize_pane_left`、`resize_pane_right`、`resize_pane_up` 和 `resize_pane_down` 默认
+未绑定，接受相同的安全组合键。不进入模式，直接将最近可用分隔线移动五个百分点；
+例如 `resize_pane_left = "ctrl+left"`。模式内方向键固定为五个百分点，Shift+方向键为一个，
+Esc 退出。待定期间额外调整键被消费，不排队。使用这些新动作名的配置需要匹配当前 cohort；
+使用旧 reader 前需删除这些键。其他现有配置保留默认行为。 直接调整绑定要求修饰键或功能键；裸编辑键仍属于 pane。
+
 解析后的注册表同时提供分发、帮助行和主要实时提示。禁用动作保留在帮助中。现有原生
 默认值保留；未支持的 Herdr 字段明确失败。完整重载对齐、自定义命令、导航模式映射、
 按序 Agent/Workspace 按键及其他未支持动作仍未完成。定向证据覆盖边界、冲突与默认
@@ -131,7 +138,7 @@ Agent 列表计算，`focus_agent` 默认未绑定。
 支持的动作字段为 `help`、`new_workspace`、`rename_workspace`、`workspace_picker`、
 `detach`、`previous_workspace`、`next_workspace`、`previous_agent`、`next_agent`、`focus_agent`、`new_tab`、`rename_tab`、`previous_tab`、
 `next_tab`、`move_tab_previous`、`move_tab_next`、`switch_tab`、`close_tab`、
-`focus_pane_left/down/up/right`（四个字段）、`split_vertical`、`split_horizontal`、
+`resize_mode`, `resize_pane_left/down/up/right`，以及 `focus_pane_left/down/up/right`（四个字段）、`split_vertical`、`split_horizontal`、
 `close_pane`、`zoom`（别名 `fullscreen`）、`toggle_sidebar` 和 `reload_config`。它们调用现有原生动作；
 Workspace 对应原生 Workbench 位置，竖向分屏向右、横向分屏向下。
 Agent 上一个/下一个默认使用前缀 `{`/`}`，使用同一临时筛选/排序后的

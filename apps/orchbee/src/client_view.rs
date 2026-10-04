@@ -1,11 +1,13 @@
 #[cfg(test)]
-pub(crate) use bindings::{PREFIX_CHORD, PrefixGroup};
+pub(crate) use bindings::{PREFIX_CHORD, PREFIX_GROUPS, PrefixGroup};
 pub(crate) const WIDE_VIEWPORT_MINIMUM_COLUMNS: u16 = 96;
 
 mod bindings;
 mod keys;
+#[cfg(windows)]
+mod resize;
 
-pub(crate) use bindings::{Bindings, PREFIX_GROUPS, PrefixAction, PrefixDesc};
+pub(crate) use bindings::{Bindings, PrefixAction, PrefixDesc};
 pub(crate) use keys::{Binding, KeyCode, KeyEvent, KeyKind, LabelStyle, Modifiers, format_binding};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -69,6 +71,15 @@ pub(crate) enum BackendAction {
 pub(crate) enum ClientAction {
     #[cfg(windows)]
     ConfiguredCommand(String),
+    #[cfg(windows)]
+    EnterResizeMode,
+    #[cfg(windows)]
+    ExitResizeMode,
+    #[cfg(windows)]
+    ResizePane {
+        direction: PanelDirection,
+        fine: bool,
+    },
     ReloadConfiguration,
     RequestWorkspaceCreate,
     RequestQuickWorkspace,
@@ -138,6 +149,16 @@ pub(crate) enum ClientAction {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum Notice {
+    #[cfg(windows)]
+    ResizeBusy,
+    #[cfg(windows)]
+    ResizeFailed,
+    #[cfg(windows)]
+    ResizeUnknown,
+    #[cfg(windows)]
+    ResizeNoSplit,
+    #[cfg(windows)]
+    ResizeLimit,
     CheckpointRecovered,
     CheckpointEmpty,
     ConfigurationPublished,
@@ -215,6 +236,8 @@ impl ClientAction {
     pub(crate) fn backend_action(&self) -> Option<BackendAction> {
         match self {
             #[cfg(windows)]
+            Self::EnterResizeMode | Self::ExitResizeMode | Self::ResizePane { .. } => None,
+            #[cfg(windows)]
             Self::ConfiguredCommand(_) => None,
             #[cfg(windows)]
             Self::OpenMachines | Self::PreviousAgent | Self::NextAgent | Self::FocusAgent(_) => {
@@ -286,6 +309,10 @@ pub(crate) struct ClientView {
     notice: Option<Notice>,
     overlay: Option<Overlay>,
     prefix_active: bool,
+    #[cfg(windows)]
+    resize_mode: bool,
+    #[cfg(windows)]
+    pub(crate) resize_pending: bool,
     viewport: ViewportClass,
     wide_sidebar_visible: bool,
     /// The shortcut-help page the renderer was asked for. Client-local
@@ -303,11 +330,14 @@ pub(crate) struct ClientView {
 }
 
 impl ClientView {
-    /// The largest page index the dispatcher may ask for. The registry's
-    /// row count bounds the real page count (every page shows at least one
-    /// row), so a held PageDown can never grow this counter past the
-    /// number of binding groups — no allocation scales with input.
-    const HELP_PAGE_BOUND: usize = PREFIX_GROUPS.len();
+    // The resolved registry, including configured-only actions, bounds held paging input.
+    fn help_page_bound(&self) -> usize {
+        #[cfg(windows)]
+        if self.resize_mode {
+            return self.resize_help_rows().len();
+        }
+        self.bindings.descriptions().len()
+    }
 
     pub(crate) fn new(width: u16) -> Self {
         Self {
@@ -321,6 +351,10 @@ impl ClientView {
             notice: None,
             overlay: None,
             prefix_active: false,
+            #[cfg(windows)]
+            resize_mode: false,
+            #[cfg(windows)]
+            resize_pending: false,
             viewport: ViewportClass::from_width(width),
             wide_sidebar_visible: true,
             help_page: 0,
@@ -342,6 +376,48 @@ impl ClientView {
 
     /// The help page the renderer should draw. Consumed by the paged
     /// `render_shortcut_help` seam; always a bounded counter.
+    #[cfg(windows)]
+    pub(crate) const fn resize_mode(&self) -> bool {
+        self.resize_mode
+    }
+
+    #[cfg(windows)]
+    pub(crate) fn clear_resize_notice(&mut self) {
+        if matches!(
+            self.notice,
+            Some(
+                Notice::ResizeBusy
+                    | Notice::ResizeFailed
+                    | Notice::ResizeUnknown
+                    | Notice::ResizeNoSplit
+                    | Notice::ResizeLimit
+            )
+        ) {
+            self.notice = None;
+        }
+    }
+
+    #[cfg(windows)]
+    pub(crate) fn exit_resize_mode(&mut self) {
+        if self.resize_mode {
+            self.resize_mode = false;
+            if self.overlay == Some(Overlay::ShortcutHelp) {
+                self.overlay = None;
+            }
+        }
+    }
+
+    #[cfg(windows)]
+    pub(crate) fn resize_help_rows(&self) -> Vec<(String, PrefixDesc)> {
+        vec![
+            (resize::labels(false), PrefixDesc::ResizeCoarse),
+            (resize::labels(true), PrefixDesc::ResizeFine),
+            (resize::help_label(), PrefixDesc::ShowHelp),
+            (resize::page_label(), PrefixDesc::HelpPage),
+            (resize::exit_label(), PrefixDesc::ResizeExit),
+        ]
+    }
+
     pub(crate) const fn help_page(&self) -> usize {
         self.help_page
     }
@@ -351,7 +427,7 @@ impl ClientView {
     /// actually painted (or clamped to after a resize shrank the page
     /// count) and this state follows that receipt.
     pub(crate) fn settle_help_page(&mut self, effective_page: usize) {
-        self.help_page = effective_page.min(Self::HELP_PAGE_BOUND);
+        self.help_page = effective_page.min(self.help_page_bound());
     }
 
     pub(crate) const fn sidebar_surface(&self) -> SidebarSurface {
@@ -407,6 +483,7 @@ impl ClientView {
     pub(crate) fn dismiss_focus_modes(&mut self) {
         self.dismiss_overlay();
         self.prefix_active = false;
+        self.exit_resize_mode();
     }
 
     /// Applies the navigator settlement of a pointer-issued action. Pointer
@@ -443,12 +520,59 @@ impl ClientView {
 
     #[cfg(windows)]
     pub(crate) fn configure_keys(&mut self, keys: &orchbee_local_site_runtime::WindowsKeySettings) {
+        self.exit_resize_mode();
         self.bindings = std::sync::Arc::new(Bindings::configured(keys));
         self.prefix_active = false;
     }
 
     pub(crate) fn decide(&self, input: PrefixInput) -> ClientTransition {
         let mut next = self.clone();
+        #[cfg(windows)]
+        if self.resize_mode {
+            let key = match input {
+                PrefixInput::Key(key) => resize::decide(key),
+                _ => None,
+            };
+            let action = match key {
+                Some(resize::ResizeKey::Adjust { direction, fine }) => {
+                    next.notice = None;
+                    Some(ClientAction::ResizePane { direction, fine })
+                }
+                Some(resize::ResizeKey::Exit) => {
+                    next.exit_resize_mode();
+                    Some(ClientAction::ExitResizeMode)
+                }
+                Some(resize::ResizeKey::Help) => {
+                    next.settle_help_page(0);
+                    if next.overlay == Some(Overlay::ShortcutHelp) {
+                        next.overlay = None;
+                        Some(ClientAction::CloseShortcutHelp)
+                    } else {
+                        next.overlay = Some(Overlay::ShortcutHelp);
+                        Some(ClientAction::OpenShortcutHelp)
+                    }
+                }
+                Some(resize::ResizeKey::Page { previous }) => {
+                    if next.overlay == Some(Overlay::ShortcutHelp) {
+                        next.settle_help_page(if previous {
+                            next.help_page().saturating_sub(1)
+                        } else {
+                            next.help_page() + 1
+                        });
+                        Some(ClientAction::PageShortcutHelp)
+                    } else {
+                        None
+                    }
+                }
+                None => None,
+            };
+            return ClientTransition {
+                next,
+                action,
+                shell: ShellCommand::None,
+                layout_changed: false,
+            };
+        }
         if self.prefix_active {
             let (action, shell) = next.decide_prefix(input);
             return ClientTransition {
@@ -527,6 +651,14 @@ impl ClientView {
             return (ClientAction::UnknownPrefix, ShellCommand::None);
         };
         match &member.action {
+            #[cfg(windows)]
+            PrefixAction::Client(ClientAction::EnterResizeMode) => {
+                self.resize_mode = true;
+                self.prefix_active = false;
+                self.overlay = None;
+                self.settle_help_page(0);
+                (ClientAction::EnterResizeMode, ShellCommand::None)
+            }
             PrefixAction::Client(action) => (action.clone(), member.shell),
             #[cfg(windows)]
             PrefixAction::SelectAgentDigit => {

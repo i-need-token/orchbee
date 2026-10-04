@@ -601,12 +601,26 @@ impl TerminalSession {
                 control.observe_geometry(viewport, view.sidebar_surface());
                 let changed = control.tick(
                     native,
-                    view.overlay().is_some() || view.prefix_active() || view.machines.open,
+                    view.overlay().is_some()
+                        || view.prefix_active()
+                        || view.machines.open
+                        || view.resize_mode(),
                 );
+                let mut keyboard_changed = view.resize_pending != control.keyboard_pending();
+                view.resize_pending = control.keyboard_pending();
+                if let Some(feedback) = control.take_keyboard_feedback() {
+                    keyboard_changed = true;
+                    match feedback {
+                        client_control::KeyboardFeedback::Clear => view.clear_resize_notice(),
+                        client_control::KeyboardFeedback::Notice(notice) => {
+                            view.configuration_notice(notice)
+                        }
+                    }
+                }
                 if control.take_shell_mode_dismissal() {
                     view.dismiss_focus_modes();
                 }
-                changed || configuration_changed
+                changed || configuration_changed || keyboard_changed
             }
             _ => configuration_changed,
         }
@@ -1073,6 +1087,28 @@ impl TerminalInputPort for TerminalSession {
     }
 
     fn apply_client_action(&mut self, action: ClientAction) -> Option<SessionActionDisposition> {
+        #[cfg(windows)]
+        if let ClientAction::ResizePane { direction, fine } = action {
+            let native = self.backend.native_mut()?;
+            if let Some(control) = &mut self.client_control {
+                control.resize(native, direction, fine);
+            }
+            return Some(SessionActionDisposition::KeepNavigator);
+        }
+        #[cfg(windows)]
+        if matches!(
+            action,
+            ClientAction::ExitResizeMode
+                | ClientAction::OpenShortcutHelp
+                | ClientAction::CloseShortcutHelp
+                | ClientAction::PageShortcutHelp
+        ) && self
+            .client_control
+            .as_ref()
+            .is_some_and(client_control::ClientControl::keyboard_pending)
+        {
+            return Some(SessionActionDisposition::KeepNavigator);
+        }
         #[cfg(windows)]
         if let ClientAction::ConfiguredCommand(id) = &action {
             let native = self.backend.native_mut()?;

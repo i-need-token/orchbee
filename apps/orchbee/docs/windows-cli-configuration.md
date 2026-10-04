@@ -172,6 +172,14 @@ printable keys, bare editing keys and Ctrl+C/D/Z are refused. Capture and mode o
 direct dispatch; paste and releases never invoke bindings. Double prefix forwards canonical C0
 where available, otherwise original bytes, without a hardcoded Ctrl+B fallback.
 
+`resize_mode` enters the [keyboard resize mode](native-keyboard-resize.md), default `prefix+P`.
+`resize_pane_left`, `resize_pane_right`, `resize_pane_up` and `resize_pane_down` are unbound
+by default and accept the same safe chords. They move the nearest eligible divider five percentage
+points without entering the mode; for example, `resize_pane_left = "ctrl+left"`. Mode arrows are
+fixed at five points, Shift+arrows at one, and Esc exits. Extra resize keys while pending are consumed,
+not queued. Profiles opting into these action names require a matching current cohort; remove those
+keys before using an older reader. Other existing profiles retain their defaults. Direct resize bindings require a modifier or a function key; bare editing keys stay with the pane.
+
 The resolved registry supplies dispatch, help rows and principal live hints. Disabled actions stay
 in help. Existing native defaults remain; unsupported Herdr fields fail explicitly. Complete reload parity,
 custom commands, navigation-mode mappings, ordinal Agent/indexed Workspace keys and other unsupported
@@ -181,7 +189,7 @@ ownership, dispatch and discovery; no full regression or visual acceptance is cl
 Supported action fields are `help`, `new_workspace`, `rename_workspace`, `workspace_picker`,
 `detach`, `previous_workspace`, `next_workspace`, `previous_agent`, `next_agent`, `focus_agent`, `new_tab`, `rename_tab`, `previous_tab`,
 `next_tab`, `move_tab_previous`, `move_tab_next`, `switch_tab`, `close_tab`,
-`focus_pane_left/down/up/right` (four fields), `split_vertical`, `split_horizontal`,
+`resize_mode`, `resize_pane_left/down/up/right`, and `focus_pane_left/down/up/right` (four fields), `split_vertical`, `split_horizontal`,
 `close_pane`, `zoom` (alias `fullscreen`), `toggle_sidebar` and `reload_config`. They invoke existing native actions;
 Workspace means the native Workbench location, vertical split is rightward and horizontal is downward.
 Agent previous/next defaults to prefix `{`/`}` and uses the same ephemeral filtered/sorted
