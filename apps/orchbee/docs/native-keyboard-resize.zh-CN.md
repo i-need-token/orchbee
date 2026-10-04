@@ -45,4 +45,4 @@ Windows Client 通过 `Ctrl+B P` 进入调整模式。普通方向键将附近�
 | 精确规范提交后发布/绘制                    | 受控原生轨迹及正常双 Client Windows ConPTY 轨迹                                    | `KeyboardResize` 顺序及 `SharedSplitRatios` CAS；仅原生 x64 |
 | 不接管情况下共享比例及物理控制者尺寸       | 正常 Windows ConPTY 轨迹，包含明确尺寸及进程身份                                   | T06 持久/权限 owner；不声明真人 Windows Terminal 或物理重启 |
 
-运行 `node scripts/tla/run-models.mjs --models native-keyboard-resize --jobs 1`、定向 `orchbee` Client-view、dispatcher 及 Client-control 测试，再运行 `pnpm verify`。渲染保持纯函数，两种已交付语言均包含本地化指示和帮助。鼠标拖动分隔线、更完整的 PANEL 模式词表及活孤儿进程恢复属于独立能力。
+运行 `node scripts/tla/run-models.mjs --models native-keyboard-resize --jobs 1`、定向 `orchbee` Client-view、dispatcher 及 Client-control 测试，再运行 `pnpm verify`。渲染保持纯函数，两种已交付语言均包含本地化指示和帮助。[鼠标拖动分隔线](native-divider-resize.zh-CN.md) 共用局部确认；更完整的 PANEL 模式词表及活孤儿进程恢复属于独立能力。

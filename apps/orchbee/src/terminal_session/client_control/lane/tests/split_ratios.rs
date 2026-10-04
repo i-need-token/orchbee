@@ -3,6 +3,35 @@ use orchbee_workbench_protocol::*;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 #[test]
+fn divider_submission_atomically_distinguishes_a_dead_lane_from_transient_backlog() {
+    let command: WorkbenchCommand = serde_json::from_value(serde_json::json!({
+        "protocolVersion":1, "requestId":format!("{:032x}",1), "siteId":format!("{:032x}",2),
+        "expectedRevision":"0", "action":{"kind":"layout.set-split-ratio", "terminalContextId":format!("{:032x}",3),
+        "tabId":format!("{:032x}",4), "split":{"splitId":format!("{:032x}",5),
+        "firstSlotId":format!("{:032x}",6), "secondSlotId":format!("{:032x}",7)}, "previousRatio":0.5, "ratio":0.7}
+    })).unwrap();
+    for state in 0..3 {
+        let lane = ClientControlLane::for_test();
+        assert_eq!(lane.layout_admission(), Ok(()));
+        {
+            let mut handoff = lane.shared.0.lock().unwrap();
+            match state {
+                0 => handoff.stopped = true,
+                1 => handoff.failed = true,
+                _ => handoff.layout_pending = true,
+            }
+        }
+        let expected = Err(if state == 2 {
+            ClientViewControlReason::Busy
+        } else {
+            ClientViewControlReason::ProjectionUnavailable
+        });
+        assert_eq!(lane.submit_layout(command.clone()), expected);
+        assert!(lane.take_layout_for_test().is_none());
+    }
+}
+
+#[test]
 fn stalled_mutation_preserves_heartbeats_and_lane_shutdown_joins_its_connection() {
     for during_admission in [false, true] {
         let stalled = Arc::new(AtomicBool::new(false));
@@ -102,8 +131,12 @@ fn stalled_mutation_preserves_heartbeats_and_lane_shutdown_joins_its_connection(
                 "firstSlotId":format!("{:032x}",6),"secondSlotId":format!("{:032x}",7)},
                 "previousRatio":0.5,"ratio":0.7}}))
             .unwrap();
-        assert!(lane.submit_layout(command.clone()));
-        assert!(!lane.submit_layout(command), "only one unresolved mutation");
+        assert_eq!(lane.submit_layout(command.clone()), Ok(()));
+        assert_eq!(
+            lane.submit_layout(command),
+            Err(ClientViewControlReason::Busy),
+            "only one unresolved mutation"
+        );
         let corpus: serde_json::Value = serde_json::from_str(include_str!(
             "../../../../../../../schemas/workbench/v1/workbench-client-view-conformance-v1.json"
         ))

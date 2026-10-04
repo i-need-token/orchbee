@@ -606,13 +606,14 @@ impl TerminalSession {
                         || view.machines.open
                         || view.resize_mode(),
                 );
-                let mut keyboard_changed = view.resize_pending != control.keyboard_pending();
-                view.resize_pending = control.keyboard_pending();
-                if let Some(feedback) = control.take_keyboard_feedback() {
-                    keyboard_changed = true;
+                let mut local_resize_changed =
+                    view.resize_pending != control.local_resize_pending();
+                view.resize_pending = control.local_resize_pending();
+                if let Some(feedback) = control.take_local_resize_feedback() {
+                    local_resize_changed = true;
                     match feedback {
-                        client_control::KeyboardFeedback::Clear => view.clear_resize_notice(),
-                        client_control::KeyboardFeedback::Notice(notice) => {
+                        client_control::LocalResizeFeedback::Clear => view.clear_resize_notice(),
+                        client_control::LocalResizeFeedback::Notice(notice) => {
                             view.configuration_notice(notice)
                         }
                     }
@@ -620,7 +621,7 @@ impl TerminalSession {
                 if control.take_shell_mode_dismissal() {
                     view.dismiss_focus_modes();
                 }
-                changed || configuration_changed || keyboard_changed
+                changed || configuration_changed || local_resize_changed
             }
             _ => configuration_changed,
         }
@@ -636,6 +637,17 @@ impl TerminalSession {
             native.popup_surface(area, pixels);
         }
     }
+    #[cfg(windows)]
+    pub(crate) fn observe_client_viewport(
+        &mut self,
+        view: &crate::client_view::ClientView,
+        viewport: ratatui::layout::Rect,
+    ) {
+        if let Some(control) = &mut self.client_control {
+            control.observe_geometry(viewport, view.sidebar_surface());
+        }
+    }
+
     pub(crate) fn after_draw(&mut self) {
         self.retirement_redraw_pending = false;
         match &mut self.backend {
@@ -1066,6 +1078,34 @@ impl TerminalInputPort for TerminalSession {
         }
     }
 
+    #[cfg(windows)]
+    fn pointer_divider_ready(
+        &mut self,
+        target: &crate::tui_layout::DrawnDivider,
+    ) -> Result<(), crate::client_view::Notice> {
+        let native = self
+            .backend
+            .native_mut()
+            .ok_or(crate::client_view::Notice::ResizeFailed)?;
+        self.client_control
+            .as_mut()
+            .ok_or(crate::client_view::Notice::ResizeFailed)?
+            .divider_ready(native, target)
+    }
+
+    #[cfg(windows)]
+    fn pointer_divider_resize(
+        &mut self,
+        target: &crate::tui_layout::DrawnDivider,
+        ratio: orchbee_workbench_protocol::ClientSplitRatio,
+    ) {
+        if let Some(native) = self.backend.native_mut()
+            && let Some(control) = &mut self.client_control
+        {
+            control.resize_divider(native, target, ratio);
+        }
+    }
+
     fn history_key(&mut self, event: &crate::client_view::KeyEvent) -> bool {
         let consumed = match &mut self.backend {
             SessionBackend::Native(native) => native.history_key(event),
@@ -1105,7 +1145,7 @@ impl TerminalInputPort for TerminalSession {
         ) && self
             .client_control
             .as_ref()
-            .is_some_and(client_control::ClientControl::keyboard_pending)
+            .is_some_and(client_control::ClientControl::local_resize_pending)
         {
             return Some(SessionActionDisposition::KeepNavigator);
         }

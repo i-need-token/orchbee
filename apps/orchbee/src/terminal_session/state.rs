@@ -3952,6 +3952,17 @@ pub(super) struct NativeSessionView<'a> {
 }
 
 impl<'a> NativeSessionView<'a> {
+    pub(super) fn divider_source(&self) -> Option<crate::tui_layout::DividerSource> {
+        let active = self.state.active()?;
+        let tab = self.state.cache.tabs().get(active.index())?;
+        Some(crate::tui_layout::DividerSource {
+            site: self.state.cache.site_id().clone(),
+            context: self.state.cache.terminal_context_id().clone(),
+            tab: tab.tab_id().clone(),
+            focus: self.state.focus_panel_id()?.clone(),
+            revision: self.state.cache.revision(),
+        })
+    }
     pub(super) fn unbound_panel_key(&self, panel: &super::NativePanel) -> Option<PaneKey> {
         let active = self.state.active()?;
         let tab = self.state.cache.tabs().get(active.index())?;

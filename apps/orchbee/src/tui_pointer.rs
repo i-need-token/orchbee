@@ -79,6 +79,9 @@ pub(crate) enum HitLayer {
 /// state so a reorder between paint and click cannot misroute.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum HitTarget {
+    /// A visible divider with its exact canonical and geometric source.
+    #[cfg(windows)]
+    Divider(crate::tui_layout::DrawnDivider),
     #[cfg(windows)]
     Popup {
         id: orchbee_workbench_protocol::WorkbenchRequestId,
@@ -268,6 +271,24 @@ impl HitMapBuilder {
 
     pub(crate) fn finish(self) -> FrameHitMap {
         self.map
+    }
+
+    /// Only a matching exposed divider can paint a local preview above the current frame.
+    #[cfg(windows)]
+    pub(crate) fn exposes_divider(&self, target: &crate::tui_layout::DrawnDivider) -> bool {
+        self.map.exposes_divider(target)
+    }
+}
+
+#[cfg(windows)]
+impl FrameHitMap {
+    fn exposes_divider(&self, target: &crate::tui_layout::DrawnDivider) -> bool {
+        !self.overlay_active
+            && self.regions.iter().any(|region| {
+                region.layer == HitLayer::Foreground
+                    && region.rect == target.divider
+                    && matches!(&region.target, HitTarget::Divider(painted) if painted == target)
+            })
     }
 }
 
@@ -509,6 +530,8 @@ enum Gesture {
     Pending(PendingFocus),
     Pane(PaneGesture),
     Selection(SelectionGesture),
+    #[cfg(windows)]
+    Divider(crate::tui_layout::DividerDrag),
 }
 
 /// What one host report did to the pointer state — the dispatcher maps it
@@ -568,6 +591,26 @@ pub(crate) struct PointerState {
 }
 
 impl PointerState {
+    /// Current reversible geometry, never a source of authoritative terminal dimensions.
+    #[cfg(windows)]
+    pub(crate) fn divider_preview(&self) -> Option<&crate::tui_layout::DividerDrag> {
+        match &self.gesture {
+            Gesture::Divider(drag) => Some(drag),
+            _ => None,
+        }
+    }
+
+    /// Cancels unsubmitted resize only; a submitted adjustment belongs to ClientControl.
+    #[cfg(windows)]
+    pub(crate) fn cancel_divider(&mut self) -> bool {
+        if matches!(self.gesture, Gesture::Divider(_)) {
+            self.gesture = Gesture::Idle;
+            true
+        } else {
+            false
+        }
+    }
+
     #[cfg(windows)]
     pub(crate) fn popup_event(
         &mut self,
@@ -822,6 +865,13 @@ impl PointerState {
     /// The draw completed — the recorded map becomes the resolution
     /// authority until the next layout change.
     pub(crate) fn publish(&mut self, map: FrameHitMap) {
+        #[cfg(windows)]
+        if self
+            .divider_preview()
+            .is_some_and(|drag| !map.exposes_divider(&drag.target))
+        {
+            self.cancel_divider();
+        }
         self.map = Some(map);
     }
 
@@ -889,6 +939,8 @@ impl PointerState {
             Gesture::Pending(_) => self.pending_event(view, port, &probe, now, event),
             Gesture::Pane(_) => self.pane_event(view, port, &probe, event),
             Gesture::Selection(_) => self.selection_event(port, &probe, event),
+            #[cfg(windows)]
+            Gesture::Divider(_) => self.divider_event(view, port, event),
             Gesture::Idle => self.fresh_event(view, port, &probe, now, event),
         }
     }
@@ -920,6 +972,26 @@ impl PointerState {
             return changed;
         }
         let mut changed = false;
+        #[cfg(windows)]
+        if self.divider_preview().is_some_and(|drag| {
+            view.overlay().is_some()
+                || view.prefix_active()
+                || view.resize_mode()
+                || view.machines.open
+                || self
+                    .map
+                    .as_ref()
+                    .is_none_or(|map| !map.exposes_divider(&drag.target))
+        }) {
+            changed |= self.cancel_divider();
+        }
+        #[cfg(windows)]
+        if let Some(drag) = self.divider_preview()
+            && let Err(notice) = port.pointer_divider_ready(&drag.target)
+        {
+            changed |= self.cancel_divider();
+            view.configuration_notice(notice);
+        }
         if matches!(&self.gesture, Gesture::Selection(selection) if !selection.alive(&probe)) {
             changed |= self.cancel_selection(port);
         }
@@ -980,6 +1052,27 @@ impl PointerState {
             return PointerOutcome::Ignored;
         };
         match map.hit(event.column, event.row) {
+            #[cfg(windows)]
+            HitResolution::Region(HitTarget::Divider(target)) => {
+                if event.action != MouseAction::Press
+                    || event.button != MouseButton::Left
+                    || event.mods != crate::client_view::Modifiers::NONE
+                {
+                    return PointerOutcome::Ignored;
+                }
+                if let Err(notice) = port.pointer_divider_ready(target) {
+                    view.configuration_notice(notice);
+                    return PointerOutcome::Handled;
+                }
+                if let Some(drag) =
+                    crate::tui_layout::DividerDrag::begin(target.clone(), event.column, event.row)
+                {
+                    self.click = None;
+                    self.wheel.clear();
+                    self.gesture = Gesture::Divider(drag);
+                }
+                PointerOutcome::Handled
+            }
             HitResolution::Dead => PointerOutcome::Ignored,
             HitResolution::OverlayBackdrop => {
                 // An outside click on a capturing overlay dismisses it and
@@ -1213,6 +1306,53 @@ impl PointerState {
                 self.pane_press(view, port, probe, now, event, target)
             }
         }
+    }
+
+    #[cfg(windows)]
+    fn divider_event<Port: TerminalInputPort + ?Sized>(
+        &mut self,
+        view: &mut ClientView,
+        port: &mut Port,
+        event: MouseEvent,
+    ) -> PointerOutcome {
+        let Gesture::Divider(drag) = &mut self.gesture else {
+            return PointerOutcome::Ignored;
+        };
+        if event.mods.shift {
+            self.cancel_divider();
+            return PointerOutcome::Ignored;
+        }
+        if self
+            .map
+            .as_ref()
+            .is_none_or(|map| !map.exposes_divider(&drag.target))
+        {
+            self.cancel_divider();
+            return PointerOutcome::Handled;
+        }
+        if let Err(notice) = port.pointer_divider_ready(&drag.target) {
+            self.cancel_divider();
+            view.configuration_notice(notice);
+            return PointerOutcome::Handled;
+        }
+        match event.action {
+            MouseAction::Motion if event.button == MouseButton::Left => {
+                drag.update(event.column, event.row);
+            }
+            MouseAction::Release
+                if matches!(event.button, MouseButton::Left | MouseButton::None) =>
+            {
+                let Gesture::Divider(mut drag) = std::mem::take(&mut self.gesture) else {
+                    unreachable!()
+                };
+                drag.update(event.column, event.row);
+                if drag.ratio != drag.target.ratio {
+                    port.pointer_divider_resize(&drag.target, drag.ratio);
+                }
+            }
+            _ => {}
+        }
+        PointerOutcome::Handled
     }
 
     /// A press landing on a pane region: focus first (Client-local, before

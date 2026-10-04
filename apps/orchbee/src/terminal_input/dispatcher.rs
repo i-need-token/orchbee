@@ -162,6 +162,14 @@ impl InputDispatcher {
     /// surface that owns it is still available.
     pub(crate) fn cancel_pointer(&mut self, port: &mut (impl TerminalInputPort + ?Sized)) {
         self.pointer.cancel_selection(port);
+        #[cfg(windows)]
+        self.pointer.cancel_divider();
+    }
+
+    /// Immutable preview supplied by the gesture owner for one paint pass.
+    #[cfg(windows)]
+    pub(crate) fn divider_preview(&self) -> Option<&crate::tui_layout::DividerDrag> {
+        self.pointer.divider_preview()
     }
 
     /// The board's open or close edge changes what the recorded regions
@@ -391,6 +399,14 @@ impl InputDispatcher {
             return Ok(DispatchOutcome::Continue);
         }
         #[cfg(windows)]
+        if matches!(item.kind, DecodedKind::Key(event) if event.kind != KeyKind::Release
+            && event.code == crate::client_view::KeyCode::Esc && event.mods == crate::client_view::Modifiers::NONE)
+            && self.pointer.cancel_divider()
+        {
+            self.flush_pending(view, port);
+            return Ok(DispatchOutcome::Continue);
+        }
+        #[cfg(windows)]
         if view.resize_mode() {
             self.flush_pending(view, port);
             if matches!(item.kind, DecodedKind::Key(event) if event.kind == KeyKind::Release) {
@@ -505,6 +521,8 @@ impl InputDispatcher {
         after_layout: &mut impl FnMut(&mut ClientView, &mut Port) -> Result<(), Error>,
         mode: &mut impl FnMut(ModeRequest) -> Result<(), Error>,
     ) -> Result<DispatchOutcome, Error> {
+        #[cfg(windows)]
+        self.pointer.cancel_divider();
         let input = match item.kind {
             DecodedKind::Key(event) if event.kind != KeyKind::Release => PrefixInput::Key(event),
             _ => PrefixInput::NonKey,
@@ -583,7 +601,7 @@ impl InputDispatcher {
         }
         match shell {
             ShellCommand::Exit => {
-                self.pointer.cancel_selection(port);
+                self.cancel_pointer(port);
                 return Ok(DispatchOutcome::Exit);
             }
             ShellCommand::ForwardTerminal => {

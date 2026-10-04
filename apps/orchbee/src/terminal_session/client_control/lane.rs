@@ -2,10 +2,10 @@
 use crate::local_client::{LocalClientOrigin, LocalOperationClock};
 use orchbee_local_ipc::{AsLocalIo, LocalStream};
 use orchbee_workbench_protocol::{
-    ClientViewAction, ClientViewCompletion, ClientViewControl, ClientViewIntent,
-    ClientViewObservation, ClientViewOutcome, ClientViewSequence, ProtocolVersion, SiteId,
-    Snapshot, SnapshotReadIntent, WorkbenchClientViewRequest, WorkbenchRequestId,
-    WorkbenchSnapshotOutcome,
+    ClientViewAction, ClientViewCompletion, ClientViewControl, ClientViewControlReason as Reason,
+    ClientViewIntent, ClientViewObservation, ClientViewOutcome, ClientViewSequence,
+    ProtocolVersion, SiteId, Snapshot, SnapshotReadIntent, WorkbenchClientViewRequest,
+    WorkbenchRequestId, WorkbenchSnapshotOutcome,
 };
 use std::{
     io,
@@ -49,31 +49,42 @@ struct Handoff {
 }
 type Shared = Arc<(Mutex<Handoff>, Condvar)>;
 
+impl Handoff {
+    fn layout_admission(&self) -> Result<(), Reason> {
+        if self.stopped || self.failed {
+            Err(Reason::ProjectionUnavailable)
+        } else if self.layout_pending || self.layout_result.is_some() {
+            Err(Reason::Busy)
+        } else {
+            Ok(())
+        }
+    }
+}
+
 pub(super) struct ClientControlLane {
     shared: Shared,
     wake: LocalStream,
     task: Option<JoinHandle<()>>,
 }
 impl ClientControlLane {
+    pub(super) fn layout_admission(&self) -> Result<(), Reason> {
+        self.shared
+            .0
+            .lock()
+            .map_err(|_| Reason::ProjectionUnavailable)?
+            .layout_admission()
+    }
     pub(super) fn submit_layout(
         &self,
         command: orchbee_workbench_protocol::WorkbenchCommand,
-    ) -> bool {
+    ) -> Result<(), Reason> {
         let (lock, signal) = &*self.shared;
-        let Ok(mut handoff) = lock.lock() else {
-            return false;
-        };
-        if handoff.stopped
-            || handoff.failed
-            || handoff.layout_pending
-            || handoff.layout_result.is_some()
-        {
-            return false;
-        }
+        let mut handoff = lock.lock().map_err(|_| Reason::ProjectionUnavailable)?;
+        handoff.layout_admission()?;
         handoff.layout_pending = true;
         handoff.layout = Some(command);
         signal.notify_one();
-        true
+        Ok(())
     }
     pub(super) fn take_layout_result(&self) -> Option<LayoutCompletion> {
         self.shared.0.lock().ok()?.layout_result.take()

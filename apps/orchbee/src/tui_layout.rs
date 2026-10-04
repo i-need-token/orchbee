@@ -1,3 +1,6 @@
+//! Deterministic shell and pane geometry; no terminal or shared-layout mutations.
+mod divider;
+pub(crate) use divider::{DividerDrag, DividerSource, DrawnDivider};
 use ratatui::layout::{Constraint, Layout, Rect};
 
 use orchbee_workbench_protocol::{

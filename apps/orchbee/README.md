@@ -330,6 +330,12 @@ Client; Esc cancels. Git directories remain, and canonical removal returns this 
 renaming preserves the running terminal and becomes visible to peers through the publication
 probe or explicit refresh.
 
+On Windows, drag a visible pane divider with the plain left button to preview its new position,
+then release to apply one shared, saved ratio. Esc, navigation or viewport changes cancel the
+preview; Shift stays with the outer terminal. Further drags during submission are not queued.
+[Divider resizing](docs/native-divider-resize.md) shares the keyboard adjustment's acknowledgement
+and leaves terminal control unchanged.
+
 On Windows, unmodified dragging in a pane without application mouse tracking selects live or
 retained-history text; double press selects a word and release copies the complete Host export to
 the system clipboard. `Shift` dragging stays with the outer terminal. Copy failure is localized

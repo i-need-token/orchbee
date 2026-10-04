@@ -8,9 +8,9 @@ use orchbee_workbench_protocol::{
 use std::time::Instant;
 
 mod adjustment;
-mod keyboard;
-pub(super) use keyboard::KeyboardFeedback;
-use keyboard::KeyboardPending;
+mod local_resize;
+pub(super) use local_resize::LocalResizeFeedback;
+use local_resize::LocalResizePending;
 mod lane;
 use adjustment::SharedAdjustment;
 pub(super) use lane::CommandCompletion;
@@ -216,15 +216,15 @@ pub(super) struct ClientControl {
     revision: u64,
     observed: Option<ClientViewObservation>,
     pending: Option<Pending>,
-    keyboard: Option<KeyboardPending>,
-    keyboard_feedback: Option<KeyboardFeedback>,
+    local_resize: Option<LocalResizePending>,
+    local_resize_feedback: Option<LocalResizeFeedback>,
     shell_blocked: bool,
     dismiss_shell_modes: bool,
     viewport: Option<(ratatui::layout::Rect, crate::client_view::SidebarSurface)>,
 }
 impl ClientControl {
     pub(super) fn invoke_configured(&mut self, native: &NativeUi, id: String) -> bool {
-        if self.pending.is_some() || self.keyboard.is_some() || self.stopped {
+        if self.pending.is_some() || self.local_resize.is_some() || self.stopped {
             return false;
         }
         let Some((source, view)) = native.configured_command_source() else {
@@ -244,8 +244,8 @@ impl ClientControl {
             revision: 0,
             observed: None,
             pending: None,
-            keyboard: None,
-            keyboard_feedback: None,
+            local_resize: None,
+            local_resize_feedback: None,
             shell_blocked: false,
             dismiss_shell_modes: false,
             viewport: None,
@@ -272,7 +272,7 @@ impl ClientControl {
         })
     }
     pub(super) fn interrupt(&mut self) {
-        self.interrupt_keyboard();
+        self.interrupt_local_resize();
         if let Some(pending) = &mut self.pending {
             pending.interrupted = true;
         }
@@ -298,7 +298,7 @@ impl ClientControl {
             return false;
         }
         let Some((site_id, view)) =
-            native.control_observation(shell_blocked || self.keyboard.is_some())
+            native.control_observation(shell_blocked || self.local_resize.is_some())
         else {
             return false;
         };
@@ -322,7 +322,7 @@ impl ClientControl {
             .as_ref()
             .and_then(ClientControlLane::take_layout_result)
         {
-            if let Some(pending) = self.keyboard.as_mut()
+            if let Some(pending) = self.local_resize.as_mut()
                 && pending.request_id == result.operation_id
             {
                 pending.flow.settle(result.reply);
@@ -333,9 +333,9 @@ impl ClientControl {
                 flow.settle(result.reply);
             }
         }
-        let keyboard_changed = self.advance_keyboard(native, too_small);
+        let local_resize_changed = self.advance_local_resize(native, too_small);
         let Some(lane) = &self.lane else {
-            return keyboard_changed;
+            return local_resize_changed;
         };
         let command_changed = if let Some(result) = lane.take_invocation_result() {
             native.configured_command_completed(result);
@@ -353,7 +353,7 @@ impl ClientControl {
                 self.close();
                 return false;
             }
-            let reason = if self.keyboard.is_some() {
+            let reason = if self.local_resize.is_some() {
                 Some(Reason::Busy)
             } else if command.expected_view_revision != sample.revision {
                 Some(Reason::StaleView)
@@ -420,13 +420,7 @@ impl ClientControl {
                             adjustment,
                             sample.view.clone(),
                         )
-                        .and_then(|(flow, mutation)| {
-                            if lane.submit_layout(mutation) {
-                                Ok(flow)
-                            } else {
-                                Err(Reason::Busy)
-                            }
-                        });
+                        .and_then(|(flow, mutation)| lane.submit_layout(mutation).map(|()| flow));
                         match prepared {
                             Ok(flow) => Execution::Adjustment(flow),
                             Err(reason) => {
@@ -498,7 +492,7 @@ impl ClientControl {
             });
         }
         let Some(pending) = &mut self.pending else {
-            return command_changed || keyboard_changed;
+            return command_changed || local_resize_changed;
         };
         let step = if pending.interrupted {
             ControlStep::Failed(Reason::Interrupted)
@@ -573,9 +567,9 @@ impl ClientControl {
         if self.stopped {
             return;
         }
-        self.keyboard_after_draw(native);
+        self.local_resize_after_draw(native);
         let Some((_, view)) =
-            native.control_observation(self.shell_blocked || self.keyboard.is_some())
+            native.control_observation(self.shell_blocked || self.local_resize.is_some())
         else {
             return;
         };
@@ -623,8 +617,8 @@ impl ClientControl {
     }
     pub(super) fn close(&mut self) {
         self.stopped = true;
-        if self.keyboard.take().is_some() {
-            self.keyboard_feedback = Some(KeyboardFeedback::Notice(
+        if self.local_resize.take().is_some() {
+            self.local_resize_feedback = Some(LocalResizeFeedback::Notice(
                 crate::client_view::Notice::ResizeUnknown,
             ));
         }

@@ -282,6 +282,10 @@ pub(crate) struct NativeSessionView<'a> {
 }
 
 impl<'a> NativeSessionView<'a> {
+    /// Immutable selected layout identity for a divider painted from this view.
+    pub(crate) fn divider_source(&self) -> Option<crate::tui_layout::DividerSource> {
+        self.state.as_ref()?.divider_source()
+    }
     #[cfg(windows)]
     pub(super) fn window_title_context(&self) -> orchbee_workbench_protocol::WindowTitleContext {
         let workspace = self

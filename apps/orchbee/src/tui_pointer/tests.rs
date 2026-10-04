@@ -2,6 +2,8 @@
 //! pointer ownership state. A recording port supplies the probe facts;
 //! each test drives `PointerState::event`/`tick` like the dispatcher does.
 use super::*;
+#[cfg(windows)]
+mod divider;
 
 use orchbee_terminal_protocol::MouseFormat;
 use orchbee_workbench_protocol::WorkbenchPanelId;

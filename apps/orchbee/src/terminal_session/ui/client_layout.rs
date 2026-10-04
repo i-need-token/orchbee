@@ -1,5 +1,6 @@
 //! Read-only target projection using canonical membership and the observing Client's geometry.
 mod adjustment;
+mod divider;
 use super::NativeUi;
 use crate::{
     client_view::SidebarSurface,

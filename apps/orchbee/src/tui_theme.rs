@@ -21,7 +21,7 @@ pub(crate) enum Role {
     TextDisabled,
     TextInverse,
     AccentFocus,
-    #[cfg(test)]
+    #[cfg(any(windows, test))]
     AccentSelection,
     #[cfg(test)]
     AccentLink,
@@ -146,7 +146,7 @@ pub(crate) struct RoleStyles {
     pub text_disabled: Style,
     pub text_inverse: Style,
     pub accent_focus: Style,
-    #[cfg(test)]
+    #[cfg(any(windows, test))]
     pub accent_selection: Style,
     #[cfg(test)]
     pub accent_link: Style,
@@ -179,7 +179,7 @@ impl RoleStyles {
             Role::TextDisabled => self.text_disabled,
             Role::TextInverse => self.text_inverse,
             Role::AccentFocus => self.accent_focus,
-            #[cfg(test)]
+            #[cfg(any(windows, test))]
             Role::AccentSelection => self.accent_selection,
             #[cfg(test)]
             Role::AccentLink => self.accent_link,
@@ -267,7 +267,7 @@ impl Theme {
                 text_disabled: dim,
                 text_inverse: reset,
                 accent_focus: Style::new().fg(Color::Cyan),
-                #[cfg(test)]
+                #[cfg(any(windows, test))]
                 accent_selection: Style::new().fg(Color::White).bg(Color::Blue),
                 #[cfg(test)]
                 accent_link: Style::new()

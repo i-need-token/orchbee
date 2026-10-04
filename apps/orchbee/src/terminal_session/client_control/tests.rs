@@ -1300,4 +1300,5 @@ fn panel_focus_preflight_accepts_a_new_canonical_target_before_local_refresh() {
 
 mod split_ratios;
 
+mod divider;
 mod keyboard;

@@ -6,6 +6,8 @@ use std::{cell::RefCell, io, rc::Rc};
 
 #[cfg(windows)]
 mod configured;
+#[cfg(windows)]
+mod divider;
 mod workspace_setup;
 
 #[cfg(windows)]
@@ -700,7 +702,7 @@ fn forwarded_bytes(calls: &Rc<RefCell<Vec<Call>>>) -> Vec<u8> {
 fn dispatch_all(
     dispatcher: &mut InputDispatcher,
     view: &mut ClientView,
-    port: &mut UnavailablePort,
+    port: &mut impl TerminalInputPort,
     bytes: &[u8],
 ) {
     dispatcher

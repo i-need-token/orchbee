@@ -1,4 +1,6 @@
 #[cfg(windows)]
+mod divider;
+#[cfg(windows)]
 mod machines;
 
 #[cfg(unix)]
@@ -503,6 +505,18 @@ fn run_surface_loop<B: Backend + ResizableBackend>(
         terminal_input.observe_host_graphics(dispatcher.graphics_facts());
         let _changed = terminal_input.tick();
         #[cfg(windows)]
+        if terminal_input.client_control_tick(&mut view, to_area(dimensions), chrome.locale) {
+            dispatcher.invalidate_hit_map(terminal_input);
+            synchronize_viewport(
+                terminal,
+                viewport,
+                &mut view,
+                terminal_input,
+                &mut dimensions,
+                dispatcher.graphics_facts().measurement,
+            )?;
+        }
+        #[cfg(windows)]
         update_graphics_surface(terminal, &mut dispatcher, inputs.sample_time());
         draw_surface(
             terminal,
@@ -617,6 +631,12 @@ fn run_surface_loop<B: Backend + ResizableBackend>(
                         view.window_title_unavailable();
                     }
                     view.machines.invalidate();
+                    // This new surface has not participated in the old surface's controller tick.
+                    surface.active().client_control_tick(
+                        &mut view,
+                        to_area(dimensions),
+                        chrome.locale,
+                    );
                     synchronize_viewport(
                         terminal,
                         viewport,
@@ -694,46 +714,53 @@ fn draw_surface<B: Backend + ResizableBackend>(
     mode: &mut impl FnMut(ModeRequest) -> io::Result<()>,
 ) -> Result<(), LoopFailure<B::Error>> {
     #[cfg(windows)]
+    surface.observe_client_viewport(view, terminal.get_frame().area());
+    #[cfg(windows)]
     let mut notification_painted = false;
     let mut receipt = crate::terminal_session::NativeDrawReceipt::default();
     let mut hits = HitMapBuilder::new();
     #[cfg(windows)]
+    let preview = dispatcher.divider_preview();
+    #[cfg(windows)]
     let graphics = terminal.backend().graphics_surface();
     #[cfg(windows)]
-    if let Some(graphics) = &graphics {
-        graphics.begin_frame(
-            view.machines.open
-                || (!view.notifications.empty()
-                    && crate::notifications::available(view, surface.view())),
-        );
-    }
+    let mut preview_painted = false;
     let drawn = terminal.draw(|frame| {
         #[cfg(windows)]
-        let session = {
-            let mut session = surface.view();
-            if let Some(crate::terminal_session::TerminalSessionView::Native(native)) =
-                session.as_mut()
-            {
-                native.set_graphics_surface(graphics.clone());
-            }
-            session
-        };
+        {
+            (receipt, preview_painted) = divider::render(
+                frame,
+                view,
+                chrome,
+                surface,
+                graphics.as_ref(),
+                preview,
+                &mut hits,
+            );
+        }
         #[cfg(not(windows))]
-        let session = surface.view();
-        receipt =
-            render_terminal_shell(frame, view, chrome.locale, session, chrome.theme, &mut hits);
+        {
+            receipt = render_terminal_shell(
+                frame,
+                view,
+                chrome.locale,
+                surface.view(),
+                chrome.theme,
+                &mut hits,
+            );
+        }
         #[cfg(windows)]
         if !view.machines.open && crate::notifications::available(view, surface.view()) {
             notification_painted =
                 crate::notifications::render(frame, &view.notifications, chrome.theme);
         }
         #[cfg(windows)]
-        view.machines.render(frame, chrome.locale, chrome.theme);
+        render_machine_surface(frame, view, chrome, preview_painted);
         #[cfg(windows)]
         if let Some(graphics) = &graphics {
             graphics.finish_frame(
                 receipt.graphics_draws(),
-                view.machines.open || notification_painted,
+                preview_painted || view.machines.open || notification_painted,
             );
         }
     });
@@ -768,6 +795,21 @@ fn draw_surface<B: Backend + ResizableBackend>(
         .deliver_terminal_effect(&mut || mode(ModeRequest::Bell))
         .map_err(LoopFailure::Input)?;
     Ok(())
+}
+
+#[cfg(windows)]
+fn render_machine_surface(
+    frame: &mut ratatui::Frame<'_>,
+    view: &mut ClientView,
+    chrome: Chrome<'_>,
+    preview_painted: bool,
+) {
+    // The preview's persistent status owns this tail until the gesture ends.
+    if preview_painted {
+        view.machines.invalidate();
+    } else {
+        view.machines.render(frame, chrome.locale, chrome.theme);
+    }
 }
 
 fn synchronize_viewport<B: Backend + ResizableBackend>(
@@ -1013,6 +1055,8 @@ pub(crate) fn pane_geometries(
 
 trait TerminalSurface: crate::terminal_input::TerminalInputPort {
     #[cfg(windows)]
+    fn observe_client_viewport(&mut self, _view: &ClientView, _viewport: Rect) {}
+    #[cfg(windows)]
     fn popup_surface(&mut self, _area: Rect, _pixels: (u16, u16)) {}
 
     #[cfg(windows)]
@@ -1079,6 +1123,10 @@ trait TerminalSurface: crate::terminal_input::TerminalInputPort {
 }
 impl TerminalSurface for UnavailableTerminalInputPort {}
 impl TerminalSurface for crate::terminal_session::TerminalSession {
+    #[cfg(windows)]
+    fn observe_client_viewport(&mut self, view: &ClientView, viewport: Rect) {
+        self.observe_client_viewport(view, viewport);
+    }
     #[cfg(windows)]
     fn configure_agent_notifications(
         &mut self,

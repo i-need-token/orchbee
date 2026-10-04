@@ -253,6 +253,24 @@ pub(crate) trait TerminalInputPort {
         PointerProbe::default()
     }
 
+    /// Revalidates the full painted source without taking input control or submitting work.
+    #[cfg(windows)]
+    fn pointer_divider_ready(
+        &mut self,
+        _target: &crate::tui_layout::DrawnDivider,
+    ) -> Result<(), crate::client_view::Notice> {
+        Err(crate::client_view::Notice::ResizeFailed)
+    }
+
+    /// Hands off one changed release; the asynchronous local owner reports its eventual result.
+    #[cfg(windows)]
+    fn pointer_divider_resize(
+        &mut self,
+        _target: &crate::tui_layout::DrawnDivider,
+        _ratio: orchbee_workbench_protocol::ClientSplitRatio,
+    ) {
+    }
+
     /// Sends one cell-semantic selection step for the exact painted pane.
     /// Only `Start` has an admission decision; callers ignore the return for
     /// later steps after a start was admitted. The default is closed.

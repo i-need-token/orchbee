@@ -45,7 +45,7 @@ fn known_keyboard_commit_waits_through_an_older_refresh_without_resubmission_unt
         control.tick(&mut native, true);
         control.after_draw(&mut native);
         assert!(
-            control.keyboard_pending(),
+            control.local_resize_pending(),
             "an older read is not proof of commit failure"
         );
         control.resize(&native, PanelDirection::Right, false);
@@ -61,10 +61,10 @@ fn known_keyboard_commit_waits_through_an_older_refresh_without_resubmission_unt
     }
     elapsed.fetch_add(50_001, Ordering::SeqCst);
     control.tick(&mut native, true);
-    assert!(!control.keyboard_pending());
+    assert!(!control.local_resize_pending());
     assert!(matches!(
-        control.take_keyboard_feedback(),
-        Some(KeyboardFeedback::Notice(Notice::ResizeUnknown))
+        control.take_local_resize_feedback(),
+        Some(LocalResizeFeedback::Notice(Notice::ResizeUnknown))
     ));
     assert!(
         control
@@ -143,7 +143,7 @@ fn keyboard_submits_once_drops_repeats_and_owns_no_remote_receipt_until_shared_d
     control.tick(&mut native, false);
     let before = native.control_observation(false).unwrap();
     control.resize(&native, PanelDirection::Right, false);
-    assert!(control.keyboard_pending());
+    assert!(control.local_resize_pending());
     let mutation = control
         .lane
         .as_ref()
@@ -158,8 +158,8 @@ fn keyboard_submits_once_drops_repeats_and_owns_no_remote_receipt_until_shared_d
         control.resize(&native, PanelDirection::Right, false);
     }
     assert!(matches!(
-        control.take_keyboard_feedback(),
-        Some(KeyboardFeedback::Notice(Notice::ResizeBusy))
+        control.take_local_resize_feedback(),
+        Some(LocalResizeFeedback::Notice(Notice::ResizeBusy))
     ));
     assert!(
         control
@@ -171,7 +171,7 @@ fn keyboard_submits_once_drops_repeats_and_owns_no_remote_receipt_until_shared_d
     );
     control.tick(&mut native, true); // resize mode is shell-blocked for remote commands, not for its own completion
     control.after_draw(&mut native);
-    assert!(control.keyboard_pending());
+    assert!(control.local_resize_pending());
     assert_eq!(native.control_observation(false).unwrap(), before);
     assert!(completion(&control).is_none());
     let command = command(&control, None);
@@ -183,7 +183,7 @@ fn keyboard_submits_once_drops_repeats_and_owns_no_remote_receipt_until_shared_d
             reason: Reason::Busy
         }
     );
-    assert!(control.keyboard_pending());
+    assert!(control.local_resize_pending());
     control
         .lane
         .as_ref()
@@ -194,7 +194,7 @@ fn keyboard_submits_once_drops_repeats_and_owns_no_remote_receipt_until_shared_d
         });
     assert!(control.tick(&mut native, true));
     control.after_draw(&mut native);
-    assert!(control.keyboard_pending(), "commit alone is not drawn");
+    assert!(control.local_resize_pending(), "commit alone is not drawn");
     let mut snapshot = split_snapshot(3);
     let PanelNode::Split { ratio, .. } = &mut snapshot.terminal_contexts[0].tabs[0].root else {
         panic!()
@@ -207,12 +207,12 @@ fn keyboard_submits_once_drops_repeats_and_owns_no_remote_receipt_until_shared_d
         WorkbenchSnapshotOutcome::Available { snapshot },
     );
     assert!(control.tick(&mut native, true));
-    assert!(control.keyboard_pending());
+    assert!(control.local_resize_pending());
     control.after_draw(&mut native);
-    assert!(!control.keyboard_pending());
+    assert!(!control.local_resize_pending());
     assert!(matches!(
-        control.take_keyboard_feedback(),
-        Some(KeyboardFeedback::Clear)
+        control.take_local_resize_feedback(),
+        Some(LocalResizeFeedback::Clear)
     ));
     assert_eq!(
         completion(&control).unwrap().1.outcome,
@@ -265,13 +265,13 @@ fn failed_interrupted_and_stale_keyboard_completions_never_replay_or_complete_an
             });
         control.tick(&mut native, false);
         if ending == "stale" {
-            assert!(control.keyboard_pending());
+            assert!(control.local_resize_pending());
             control.interrupt();
             control.tick(&mut native, false);
         }
-        assert!(!control.keyboard_pending());
+        assert!(!control.local_resize_pending());
         assert!(
-            matches!(control.take_keyboard_feedback(), Some(KeyboardFeedback::Notice(n)) if n == if ending == "rejected" { Notice::ResizeFailed } else { Notice::ResizeUnknown })
+            matches!(control.take_local_resize_feedback(), Some(LocalResizeFeedback::Notice(n)) if n == if ending == "rejected" { Notice::ResizeFailed } else { Notice::ResizeUnknown })
         );
         assert!(completion(&control).is_none());
         assert!(

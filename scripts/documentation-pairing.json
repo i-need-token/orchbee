@@ -178,8 +178,8 @@
 			"zhCnSha256": "d8cf567e78cd38c101dfca1292c92433c89c1b1ba326ded06fa9c811210da3f0"
 		},
 		"apps/orchbee/README.md": {
-			"englishSha256": "84bdee0a4e0a15e6607a353e6202df3c16f3d1b6923666978cd3d74ffd677ad8",
-			"zhCnSha256": "05eca49f9b614af510089c1eecce3ffe73972b7d7f770d97c00051090ce25fb3"
+			"englishSha256": "d47ca3bf95767ffa69893712561c44605d653a1a69b03a9053f3d56040b52290",
+			"zhCnSha256": "88d7dfedebb188998775c549aa4c4f2aab8f0669541051aa941060c15aefa48f"
 		},
 		"apps/orchbee/docs/agent-board.md": {
 			"englishSha256": "c3eda3a21211ed7f247488703a536792efd9f9183fd06a99ce0b80d793cfd59b",
@@ -229,9 +229,13 @@
 			"englishSha256": "d1f54e593a3164fbd449d04d99eaa607a29fe8bfb7ed88bb6fc6c138e230a608",
 			"zhCnSha256": "9f44030b058e82763fc6a841ca509e6d8107a625ca96b13e89ab3e965e87e593"
 		},
+		"apps/orchbee/docs/native-divider-resize.md": {
+			"englishSha256": "3f7b37c2656d90b56e37e3b67c149ce622188db4100bb9e3454b8317befa62ca",
+			"zhCnSha256": "119cd4e220099e67400099ce6930ad9927f68882c736d1e412c283ff220e022e"
+		},
 		"apps/orchbee/docs/native-keyboard-resize.md": {
-			"englishSha256": "90f997de75d6f38197d876ec84a9cbeda16f1f03820aa8266aeac28b69949403",
-			"zhCnSha256": "6f3023c0b56209c298e517784cccde6f0ffa6f8299d8b9a1fd50b76581c76ef6"
+			"englishSha256": "d084875599b4ad4869214c6dbbffdfd359208aa24a1343a2f555ea8f68c8dba6",
+			"zhCnSha256": "9bb8166dce671307e9f53ff0393f4fc28ce7239f92e87194d5ca45d5b41f7086"
 		},
 		"apps/orchbee/docs/native-line-editor.md": {
 			"englishSha256": "725e69537a835c2e5402a50ab5a02f81455021fa47bbcf5e07d54ef1d6056d62",
@@ -242,8 +246,8 @@
 			"zhCnSha256": "b5a1dececa17f108826426e617944a5a474b240408c77e881cf2b62427027001"
 		},
 		"apps/orchbee/docs/native-mouse-input.md": {
-			"englishSha256": "91a019537b5e9b6686357c2398fa057e4086c567caa168703c8df87c1077fe42",
-			"zhCnSha256": "14d2ec2d2d58570f4efb3094e3d9735a5589bbc5a8257919030ca2f898f0938e"
+			"englishSha256": "d21c0e81ed168bd618b5d5daa3211cc68721b8403f83c51c71c9d22c326421e6",
+			"zhCnSha256": "231ffcd943132aa606ad68d5ab8b4f989400fed11ceba6d5072d2d38c9ca0c17"
 		},
 		"apps/orchbee/docs/native-panel-close-confirmation.md": {
 			"englishSha256": "42183a7bf85524f5000ff6a4ba34e607ca07a0337b499083d5213246f944db50",

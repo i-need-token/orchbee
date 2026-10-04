@@ -99,7 +99,7 @@ impl NativeUi {
         ))
     }
 
-    pub(in crate::terminal_session) fn keyboard_adjustment_request_id(
+    pub(in crate::terminal_session) fn local_adjustment_request_id(
         &self,
     ) -> Result<orchbee_workbench_protocol::WorkbenchRequestId, Reason> {
         self.mailbox

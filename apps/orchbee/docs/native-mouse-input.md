@@ -14,7 +14,9 @@ satisfy; [native terminal environment](native-terminal-environment.md) owns the 
 machinery that arming and restoration ride on. [Native terminal selection and effects](native-terminal-selection-effects.md)
 owns untracked-pane selection and its copy lifecycle.
 
-Divider drag-resize, scroll-indicator jumps, right-button context menus, middle-press surfaces,
+Windows [divider resizing](native-divider-resize.md) owns reversible split previews and one release-only shared ratio submission.
+
+Scroll-indicator jumps, right-button context menus, middle-press surfaces,
 pixel-format reports, a selection-copy key binding, and triple-press line selection remain separate
 decisions.
 
@@ -57,7 +59,8 @@ front to back and never overlap within one layer:
 | Compact tab-strip token                  | `Foreground`     | `Tab(tab_id)`       | Press selects that Tab (`SelectTab`)                                                                                                 |
 | Pane leaf viewport (content rect)        | `Foreground`     | `Pane{tab,panel}`   | Press focuses, then the pane's reported contract decides program passthrough or Client selection                                     |
 | Pane leaf title row outside the viewport | `Foreground`     | `Pane{tab,panel}`   | Press focuses only; the pane's program sees nothing                                                                                  |
-| Everything else (status, dividers, gaps) | —                | dead space          | Ignored                                                                                                                              |
+| Visible Windows pane divider             | `Foreground`     | `Divider(source)`   | Plain left press starts preview; release applies once; Esc or Shift cancels                                                          |
+| Everything else (status, gaps)           | —                | dead space          | Ignored                                                                                                                              |
 
 A press on a pane region resolves against the _tab that was painted_: a stale-map edge where the
 painted Tab is no longer active degrades to a plain Tab selection rather than focusing an
@@ -68,6 +71,7 @@ unreachable panel.
 | State       | Meaning and exits                                                                                                                                                                                                                                             |
 | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `Idle`      | No pointer owner. A press on a hit region opens a gesture or applies navigation directly.                                                                                                                                                                     |
+| `Divider`   | Windows: one exact painted split owns a reversible line preview. Release hands off one changed ratio; cancellation discards it. Submission belongs to the shared local resize owner, not the pointer gesture.                                                 |
 | `Pane`      | A focused reporting pane owns the pointer until release. Motion and release encode pane-local against the press's painted viewport origin — a drag that leaves the region still belongs to it. A release is never dropped mid-gesture.                        |
 | `Selection` | A focused untracked pane owns one Host selection gesture for its exact attachment and projection generation. Motion coalesces within the pane; release remains behind the latest motion and only a Host-accepted active end may request copy.                 |
 | `Pending`   | A press on an unfocused pane fired `FocusPanel`; the press and later input queue (FIFO, bound 16, motion merges to the newest cell) until the switch settles. Overflow cancels before any new input is accepted and reports the bounded dropped-input notice. |
@@ -157,7 +161,7 @@ use the [retained viewport](native-terminal-viewport.md) owner.
 
 | Production surface                          | Model correspondence                                                                                                                                                                                                   |
 | ------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `tui_pointer.rs`                            | `PointerState` capture/map/gesture lifecycle, `FrameHitMap`/`HitMapBuilder` staged regions, `Gesture` (`Idle`/`Pending`/`Pane`), `WheelStream`                                                                         |
+| `tui_pointer.rs`                            | `PointerState` capture/map/gesture lifecycle, `FrameHitMap`/`HitMapBuilder` staged regions, `Gesture` (`Idle`/`Pending`/`Pane`/`Selection`/`Divider`), `WheelStream`                                                   |
 | `terminal_input/mouse.rs`                   | `MouseEvent` decode (`decode_sgr`, `decode_x10`), `pane_owns_pointer`, `encode_pane_report`, `encode_cursor_arrows`                                                                                                    |
 | `terminal_input/decoder.rs`                 | Typed `DecodedKind::Mouse`/`Ignored` items; X10 atomic three-byte body consumption, timeout, and abort; mouse-shaped malformed/aborted/over-bound runs decode `Ignored`                                                |
 | `terminal_input/dispatcher.rs`              | Explicit `Mouse` and `Ignored` arms before the raw-passthrough wildcard — `Ignored` is consumed and dropped, never pending; pending-byte flush first; `RegionsChanged` map staleness; external-change `invalidate_map` |

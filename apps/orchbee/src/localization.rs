@@ -448,12 +448,32 @@ impl Locale {
         }
     }
 
+    /// A release-only divider gesture's persistent status hint.
+    #[cfg(windows)]
+    pub(crate) const fn divider_drag_hint(self, full: bool) -> &'static str {
+        match (self, full) {
+            (Self::EnUs, true) => "Divider · release to apply · Esc cancel",
+            (Self::EnUs, false) => "Divider · release / Esc",
+            (Self::ZhCn, true) => "分隔线 · 松手应用 · Esc 取消",
+            (Self::ZhCn, false) => "分隔线 · 松手 / Esc",
+        }
+    }
+
+    /// The local adjustment remains pending after the pointer preview ends.
+    #[cfg(windows)]
+    pub(crate) const fn resize_pending_hint(self) -> &'static str {
+        match self {
+            Self::EnUs => "Resizing…",
+            Self::ZhCn => "正在调整…",
+        }
+    }
+
     pub(crate) const fn shell_notice(self, notice: Option<Notice>) -> &'static str {
         match (self, notice) {
             #[cfg(windows)]
-            (Self::EnUs, Some(Notice::ResizeBusy)) => "Resize pending; key was not queued",
+            (Self::EnUs, Some(Notice::ResizeBusy)) => "Resize pending; input was not queued",
             #[cfg(windows)]
-            (Self::ZhCn, Some(Notice::ResizeBusy)) => "大小调整待定；按键未排队",
+            (Self::ZhCn, Some(Notice::ResizeBusy)) => "大小调整待定；输入未排队",
             #[cfg(windows)]
             (Self::EnUs, Some(Notice::ResizeFailed)) => "Resize failed; inspect the current layout",
             #[cfg(windows)]

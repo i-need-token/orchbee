@@ -32,12 +32,16 @@ mod agent_board;
 mod agent_sidebar;
 mod contexts;
 #[cfg(windows)]
+mod divider_resize;
+#[cfg(windows)]
 mod pane_graphics;
 mod panel_close;
 #[cfg(windows)]
 mod panel_reports;
 mod presentation_selector;
 mod selection;
+#[cfg(windows)]
+pub(crate) use divider_resize::render_divider_preview;
 #[cfg(windows)]
 mod sidebar_text;
 mod tab_close;
@@ -665,6 +669,8 @@ fn render_native_workbench(
     let text = bound_text.text();
     let input_enabled = client_view.overlay().is_none()
         && native.close_confirmation().is_none()
+        && native.panel_close_confirmation().is_none()
+        && native.agent_board().is_none()
         && native.workspace_close_confirmation().is_none()
         && native.rename_draft().is_none()
         && native.setup_draft().is_none();
@@ -817,6 +823,20 @@ fn render_native_workbench(
             }
         }
         render_dividers(frame, &projection.dividers, theme);
+        #[cfg(windows)]
+        if input_enabled && let Some(source) = native.divider_source() {
+            for split in &projection.splits {
+                if let Some(target) =
+                    crate::tui_layout::DrawnDivider::new(source.clone(), frame.area(), split)
+                {
+                    hits.record(
+                        HitLayer::Foreground,
+                        target.divider,
+                        HitTarget::Divider(target),
+                    );
+                }
+            }
+        }
     } else {
         let terminal = if native.projection_status() == NativeProjectionStatus::FrameAvailable {
             native
@@ -1301,6 +1321,11 @@ fn render_status(
                 .style(Role::TextInverse)
                 .bg(theme.color(Role::AccentFocus))
                 .add_modifier(Modifier::BOLD),
+        )
+    } else if view.resize_pending {
+        (
+            locale.resize_pending_hint().to_owned(),
+            theme.style(Role::StatusPending),
         )
     } else {
         (label, style)

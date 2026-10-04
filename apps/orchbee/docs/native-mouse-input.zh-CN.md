@@ -13,7 +13,9 @@
 mode-lease 机制。[原生终端选择与效果](native-terminal-selection-effects.zh-CN.md)拥有未跟踪
 pane 的选择及其复制生命周期。
 
-分隔条拖动 resize、滚动指示器跳转、右键上下文菜单、中键表面、pixel 格式报告、选择复制
+Windows [分隔线调整](native-divider-resize.zh-CN.md) 拥有可撤销 split 预览及一次仅松手提交的共享比例修改。
+
+滚动指示器跳转、右键上下文菜单、中键表面、pixel 格式报告、选择复制
 键位和三击选行仍属于独立决策。
 
 ## 捕获策略
@@ -42,16 +44,17 @@ map。区域携带稳定身份——`WorkbenchTabId`、`NativeContextLocation`�
 点击时按新探测解析为位置，因此绘制与点击之间的重排不会误路由。层从前到后解析，同层内
 区域绝不重叠：
 
-| 绘制表面                       | 层               | 目标                | 接受的手势                                                                                  |
-| ------------------------------ | ---------------- | ------------------- | ------------------------------------------------------------------------------------------- |
-| Navigator context 行           | `Overlay`        | `Context(location)` | Press 选择该 context（`SelectContextAt`）                                                   |
-| Navigator tab 行               | `Overlay`        | `Tab(tab_id)`       | Press 选择该 Tab（`SelectTab`）                                                             |
-| 控件之外的 overlay 本体        | `OverlaySurface` | `OverlaySurface`    | 吞掉——绝不到达下层                                                                          |
-| 捕获型 overlay 之外            | —                | backdrop            | Press 关闭该 overlay；其下任何区域——包括未被遮盖的 tab 条或 pane 等前景构件——都看不到该事件 |
-| 紧凑 tab-strip 标记            | `Foreground`     | `Tab(tab_id)`       | Press 选择该 Tab（`SelectTab`）                                                             |
-| Pane 叶视口（content 矩形）    | `Foreground`     | `Pane{tab,panel}`   | Press 先聚焦，再由该 pane 的上报契约决定程序透传或 Client 选择                              |
-| 视口之外的 pane 叶标题行       | `Foreground`     | `Pane{tab,panel}`   | Press 只聚焦；pane 内程序看不到任何内容                                                     |
-| 其余一切（状态、分隔条、空隙） | —                | dead space          | 忽略                                                                                        |
+| 绘制表面                    | 层               | 目标                | 接受的手势                                                                                  |
+| --------------------------- | ---------------- | ------------------- | ------------------------------------------------------------------------------------------- |
+| Navigator context 行        | `Overlay`        | `Context(location)` | Press 选择该 context（`SelectContextAt`）                                                   |
+| Navigator tab 行            | `Overlay`        | `Tab(tab_id)`       | Press 选择该 Tab（`SelectTab`）                                                             |
+| 控件之外的 overlay 本体     | `OverlaySurface` | `OverlaySurface`    | 吞掉——绝不到达下层                                                                          |
+| 捕获型 overlay 之外         | —                | backdrop            | Press 关闭该 overlay；其下任何区域——包括未被遮盖的 tab 条或 pane 等前景构件——都看不到该事件 |
+| 紧凑 tab-strip 标记         | `Foreground`     | `Tab(tab_id)`       | Press 选择该 Tab（`SelectTab`）                                                             |
+| Pane 叶视口（content 矩形） | `Foreground`     | `Pane{tab,panel}`   | Press 先聚焦，再由该 pane 的上报契约决定程序透传或 Client 选择                              |
+| 视口之外的 pane 叶标题行    | `Foreground`     | `Pane{tab,panel}`   | Press 只聚焦；pane 内程序看不到任何内容                                                     |
+| Windows 可见 pane 分隔线    | `Foreground`     | `Divider(source)`   | 无修饰左键按下开始预览，松手一次应用，Esc 或 Shift 取消                                     |
+| 其余一切（状态、空隙）      | —                | dead space          | 忽略                                                                                        |
 
 pane 区域上的 press 按*被绘制的那个 Tab* 解析：当绘制时的 Tab 不再处于 active 的
 stale-map 边界退化为普通 Tab 选择，而不是聚焦一个不可达的 panel。
@@ -61,6 +64,7 @@ stale-map 边界退化为普通 Tab 选择，而不是聚焦一个不可达的 p
 | 状态        | 含义与出口                                                                                                                                                                                 |
 | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `Idle`      | 无指针 owner。命中区域上的 press 打开一个手势或直接应用导航。                                                                                                                              |
+| `Divider`   | Windows：一条精确已绘制 split 拥有可撤销预览线。松手交接一次有变化比例，取消则丢弃。提交由共用局部调整所有者拥有，不属于 pointer 手势。                                                    |
 | `Pane`      | 已聚焦的上报 pane 拥有指针直至 release。motion 与 release 按 press 时绘制的视口原点编码为 pane-local——拖出区域的 drag 仍属于它。release 在手势中途绝不丢弃。                               |
 | `Selection` | 已聚焦且未跟踪鼠标的 pane 为其精确 attachment 和投影 generation 拥有一个 Host 选择手势。motion 在 pane 内合并；release 留在最新 motion 之后，并且只有 Host 接受的活动 end 才能请求复制。   |
 | `Pending`   | 落在未聚焦 pane 上的 press 触发了 `FocusPanel`；该 press 与随后的输入排队（FIFO，上界 16，motion 合并为最新 cell），直至切换就绪。溢出在任何新输入被接受之前取消并报告有界的输入丢弃说明。 |
@@ -138,7 +142,7 @@ Shift 始终属于宿主。进入、合并导航与恢复沿用[保留视口](na
 
 | 生产表面                                    | 模型对应                                                                                                                                                                        |
 | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `tui_pointer.rs`                            | `PointerState` 捕获/map/手势生命周期、`FrameHitMap`/`HitMapBuilder` 暂存区域、`Gesture`（`Idle`/`Pending`/`Pane`）、`WheelStream`                                               |
+| `tui_pointer.rs`                            | `PointerState` 捕获/map/手势生命周期、`FrameHitMap`/`HitMapBuilder` 暂存区域、`Gesture`（`Idle`/`Pending`/`Pane`/`Selection`/`Divider`）、`WheelStream`                         |
 | `terminal_input/mouse.rs`                   | `MouseEvent` 解码（`decode_sgr`、`decode_x10`）、`pane_owns_pointer`、`encode_pane_report`、`encode_cursor_arrows`                                                              |
 | `terminal_input/decoder.rs`                 | 类型化 `DecodedKind::Mouse`/`Ignored` item；X10 三字节 body 原子消费、超时与中止；鼠标形态的畸形/中止/越界运行解码为 `Ignored`                                                  |
 | `terminal_input/dispatcher.rs`              | 位于 raw 透传通配之前的显式 `Mouse` 与 `Ignored` 臂——`Ignored` 被消费并丢弃、绝不入 pending；先 flush pending 字节；`RegionsChanged` 置 map 为 stale；外部变化 `invalidate_map` |
