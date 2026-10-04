@@ -44,6 +44,7 @@ pub(crate) struct NativeDrawReceipt {
     rename: Option<ModalPresentation<super::NativeRenameDraftToken>>,
     setup: Option<ModalPresentation<super::NativeSetupToken>>,
     panel_prompt: Option<ModalPresentation<NativePanelCloseConfirmationToken>>,
+    workspace_prompt: Option<ModalPresentation<super::WorkspaceCloseToken>>,
     /// The Agent board's painted verdict: `Some` while the board is open —
     /// `presented` gates its input capture and `viewport_rows` bounds its
     /// selection window. `None` means the board is closed.
@@ -124,6 +125,7 @@ impl NativeDrawReceipt {
             rename: None,
             setup: None,
             panel_prompt: None,
+            workspace_prompt: None,
             agent_board: None,
             help_page: None,
             #[cfg(windows)]
@@ -144,6 +146,13 @@ impl NativeDrawReceipt {
         panel_prompt: Option<ModalPresentation<NativePanelCloseConfirmationToken>>,
     ) -> Self {
         self.panel_prompt = panel_prompt;
+        self
+    }
+    pub(crate) const fn with_workspace_close(
+        mut self,
+        prompt: Option<ModalPresentation<super::WorkspaceCloseToken>>,
+    ) -> Self {
+        self.workspace_prompt = prompt;
         self
     }
     /// Whether this draw presented an editable text field and therefore placed
@@ -275,6 +284,9 @@ impl NativeUi {
     }
 
     pub(in crate::terminal_session) fn capture_confirmation_key(&mut self, key: ClientKey) -> bool {
+        if self.capture_workspace_close_key(key) {
+            return true;
+        }
         if self.capture_panel_confirmation_key(key) {
             return true;
         }
@@ -415,6 +427,7 @@ impl NativeUi {
             }
         }
         self.after_panel_close_draw(receipt.panel_prompt);
+        self.after_workspace_close_draw(receipt.workspace_prompt);
         self.after_rename_draw(receipt.rename);
         self.after_setup_draw(receipt.setup);
         self.after_agent_board_draw(receipt.agent_board);
@@ -426,6 +439,7 @@ impl NativeUi {
     pub(in crate::terminal_session) fn invalidate_close_display(&mut self) {
         if let Some(state) = &mut self.state {
             state.invalidate_close_display();
+            state.acknowledge_workspace_close_draw(None);
         }
         self.invalidate_panel_close_display();
     }

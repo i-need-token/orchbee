@@ -319,6 +319,9 @@ Default only after confirmation when none exists, or asks for an existing Projec
 exist. Tab switches the name/directory fields; paths support `~` and relative input against the
 prepared directory. Escape before submission creates nothing. Known partial results remain
 inspectable with `orchbee project list` and `orchbee workspace list`; unknown outcomes never replay.
+`Ctrl+B Shift+D` opens the Windows [Workspace Close confirmation](docs/native-workspace-close.md).
+After a complete draw, lowercase `y` closes its terminals and its known worktree group for every
+Client; Esc cancels. Git directories remain, and canonical removal returns this Client to Standalone.
 [Location labels](docs/native-location-labels.md) use a prefilled editor and shared Server commands;
 renaming preserves the running terminal and becomes visible to peers through the publication
 probe or explicit refresh.

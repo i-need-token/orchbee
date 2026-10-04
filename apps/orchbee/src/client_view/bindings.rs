@@ -81,6 +81,7 @@ pub(crate) enum PrefixDesc {
     ReloadConfiguration,
     WorkspaceCreate,
     QuickWorkspaceCreate,
+    WorkspaceClose,
     WorkspaceDirectory,
     WorkspaceRename,
     ProjectRename,
@@ -140,6 +141,11 @@ pub(crate) static PREFIX_GROUPS: &[PrefixGroup] = &[
     PrefixGroup {
         members: &[member(shift_key('n'), ClientAction::RequestQuickWorkspace)],
         desc: PrefixDesc::QuickWorkspaceCreate,
+    },
+    #[cfg(windows)]
+    PrefixGroup {
+        members: &[member(shift_key('d'), ClientAction::RequestWorkspaceClose)],
+        desc: PrefixDesc::WorkspaceClose,
     },
     #[cfg(windows)]
     PrefixGroup {

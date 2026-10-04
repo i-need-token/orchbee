@@ -45,6 +45,7 @@ impl NativeSessionView<'_> {
 
     fn attention_uncovered(&self) -> bool {
         self.close_confirmation().is_none()
+            && self.workspace_close_confirmation().is_none()
             && self.panel_close_confirmation().is_none()
             && self.rename_draft().is_none()
             && self.setup_draft().is_none()

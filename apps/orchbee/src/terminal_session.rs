@@ -84,7 +84,8 @@ pub(crate) use ui::{
     NativeRenameEdit, NativeRenameInputContext, NativeSessionNotice, NativeSessionView,
     NativeSetupDraftView, NativeSetupEdit, NativeSetupInputContext, NativeSetupStage,
     NativeSetupStatus, NativeSetupToken, NativeTabView, NativeViewportSurface,
-    PresentationPlacement,
+    PresentationPlacement, WorkspaceCloseConfirmationView, WorkspaceCloseStatus,
+    WorkspaceCloseStatusView, WorkspaceCloseToken,
 };
 
 #[derive(Clone, Debug)]
@@ -684,6 +685,7 @@ impl TerminalSession {
         }
         #[cfg(any(target_os = "linux", windows))]
         let mut retired_poll = None;
+        let workspace_close_return;
         let (
             pending_create,
             pending_move,
@@ -700,6 +702,7 @@ impl TerminalSession {
                         retired_poll = returned.take_unavailable_poll();
                     }
                     let setup = returned.take_setup_result();
+                    workspace_close_return = returned.take_workspace_close_result();
                     let pending = returned.into_pending_results();
                     (
                         pending.create,
@@ -711,6 +714,11 @@ impl TerminalSession {
                     )
                 }
                 Err(_) => {
+                    workspace_close_return = match &self.backend {
+                        SessionBackend::Native(native) => native.workspace_close_worker_loss(),
+                        #[cfg(test)]
+                        SessionBackend::Legacy(_) => None,
+                    };
                     let evidence = match &self.backend {
                         SessionBackend::Native(native) => native.close_worker_loss(),
                         #[cfg(test)]
@@ -745,6 +753,7 @@ impl TerminalSession {
         // The UI can admit the next wizard command after settling the previous result,
         // while that previous worker lease is still returning. Preserve both identities.
         let queued_setup_return = native.setup_worker_loss();
+        let queued_workspace_close_return = native.workspace_close_worker_loss();
         #[cfg(any(target_os = "linux", windows))]
         let clean_return = pending_create.is_none()
             && pending_move.is_none()
@@ -752,17 +761,34 @@ impl TerminalSession {
             && rename_return.is_none()
             && setup_return.is_none()
             && queued_setup_return.is_none()
+            && workspace_close_return.is_none()
+            && queued_workspace_close_return.is_none()
             && matches!(close_return, state::CloseWorkerReturn::Returned(None));
         let rename_accepted = native.finalize_rename_worker(rename_return);
         let setup_accepted = native.finalize_setup_worker(setup_return);
         let queued_setup_accepted = native.finalize_setup_worker(queued_setup_return);
+        let workspace_close_accepted =
+            native.finalize_workspace_close_worker(workspace_close_return);
+        let queued_workspace_close_accepted =
+            native.finalize_workspace_close_worker(queued_workspace_close_return);
         #[cfg(any(target_os = "linux", windows))]
         native.finish_retired_peer_join(
             retired_poll,
-            clean_return && rename_accepted && setup_accepted && queued_setup_accepted,
+            clean_return
+                && rename_accepted
+                && setup_accepted
+                && queued_setup_accepted
+                && workspace_close_accepted
+                && queued_workspace_close_accepted,
         );
         #[cfg(not(any(target_os = "linux", windows)))]
-        let _accepted_setup_and_rename = (rename_accepted, setup_accepted, queued_setup_accepted);
+        let _accepted_setup_and_rename = (
+            rename_accepted,
+            setup_accepted,
+            queued_setup_accepted,
+            workspace_close_accepted,
+            queued_workspace_close_accepted,
+        );
         let _accepted =
             native.finalize_retirement(pending_create, pending_move, pending_panel, close_return);
         // The board lane's blocked thread join precedes mailbox release —

@@ -55,7 +55,12 @@ mod presentations;
 #[cfg(any(target_os = "linux", windows))]
 mod retired_membership;
 mod tab_close;
+mod workspace_close;
 mod workspace_setup;
+pub(crate) use workspace_close::{
+    WorkspaceCloseConfirmationView, WorkspaceCloseStatus, WorkspaceCloseStatusView,
+    WorkspaceCloseToken,
+};
 pub(crate) use workspace_setup::{
     NativeLocationLabelStatus, NativeLocationLabelTarget, NativeSetupDraftView, NativeSetupEdit,
     NativeSetupInputContext, NativeSetupStage, NativeSetupStatus, NativeSetupToken,
@@ -129,6 +134,7 @@ pub(crate) enum NativeSessionNotice {
     PanelNotApplied,
     RenameNotRenamed,
     CloseRequestNotApplied,
+    WorkspaceCloseUnavailable,
     ConfirmationCancelled,
     DraftCancelled,
     ModalOwnsInput,
@@ -432,6 +438,9 @@ impl<'a> NativeSessionView<'a> {
             SessionNotice::PanelNotApplied => NativeSessionNotice::PanelNotApplied,
             SessionNotice::RenameNotRenamed => NativeSessionNotice::RenameNotRenamed,
             SessionNotice::CloseRequestNotApplied => NativeSessionNotice::CloseRequestNotApplied,
+            SessionNotice::WorkspaceCloseUnavailable => {
+                NativeSessionNotice::WorkspaceCloseUnavailable
+            }
             SessionNotice::ConfirmationCancelled => NativeSessionNotice::ConfirmationCancelled,
             SessionNotice::DraftCancelled => NativeSessionNotice::DraftCancelled,
             SessionNotice::ModalOwnsInput => NativeSessionNotice::ModalOwnsInput,
@@ -785,6 +794,8 @@ mod independent_popup;
 #[cfg(all(test, windows))]
 mod quick_workspace_tests;
 #[cfg(test)]
+pub(in crate::terminal_session) mod workspace_close_tests;
+#[cfg(test)]
 mod workspace_setup_tests;
 
 impl NativeUi {
@@ -1081,6 +1092,10 @@ impl NativeUi {
                 .as_mut()
                 .is_some_and(|state| state.settle_stale_close_confirmations());
             self.reconcile_ordinary_poll(&mailbox);
+            changed |= self.state.as_mut().is_some_and(|state| {
+                state.settle_stale_workspace_close()
+                    | state.tick_workspace_close_pending(self.clock.now())
+            });
             self.drain_publication_refresh(&mailbox);
             self.schedule_close_reconciliation(&mailbox);
             self.schedule_close_read(&mailbox);
@@ -1796,7 +1811,9 @@ impl NativeUi {
             || self.panel_close_confirmation_armed();
         let view = self.view();
         let mut probe = PointerProbe {
-            input_captured: input_captured || view.close_confirmation().is_some(),
+            input_captured: input_captured
+                || view.close_confirmation().is_some()
+                || view.workspace_close_confirmation().is_some(),
             ..PointerProbe::default()
         };
         let Some(state) = self.state.as_ref() else {
@@ -1933,6 +1950,7 @@ impl NativeUi {
                 }
             }
             ClientAction::RequestCloseTab => self.request_close_confirmation(),
+            ClientAction::RequestWorkspaceClose => self.request_workspace_close(),
             ClientAction::ConfirmClose => self.confirm_close(),
             ClientAction::CancelClose => self.cancel_close(),
             ClientAction::CreateTab => self.create_tab(),
@@ -2507,6 +2525,9 @@ impl NativeUi {
             WorkerEvent::WorkspaceSetupResult { operation, outcome } => {
                 return self.apply_workspace_setup_event(mailbox, wait_key, operation, outcome);
             }
+            WorkerEvent::WorkspaceCloseResult { evidence, outcome } => {
+                return self.apply_workspace_close_event(mailbox, wait_key, evidence, *outcome);
+            }
             WorkerEvent::RenameResult { operation, outcome } => {
                 return self.apply_rename_event(mailbox, wait_key, operation, outcome);
             }
@@ -2526,6 +2547,7 @@ impl NativeUi {
             let reply = match event {
                 WorkerEvent::QuickWorkspacePrepared { .. }
                 | WorkerEvent::WorkspaceSetupResult { .. }
+                | WorkerEvent::WorkspaceCloseResult { .. }
                 | WorkerEvent::RenameResult { .. }
                 | WorkerEvent::MoveResult { .. }
                 | WorkerEvent::PanelResult { .. }
@@ -2714,7 +2736,8 @@ impl NativeUi {
         // mailbox mutex. Only the prepared value is committed in the exact reply transaction.
         let prepared = state.prepare_refresh(generation, outcome);
         let recovery_deadlines = state
-            .setup_deadlines()
+            .workspace_close_deadlines()
+            .or_else(|| state.setup_deadlines())
             .or_else(|| state.context_selection_deadlines())
             .or_else(|| {
                 prepared
@@ -3227,6 +3250,7 @@ impl NativeUi {
         if let Some(state) = &mut self.state {
             state.close_carrier_retired();
             state.cancel_panel_close_confirmation();
+            state.cancel_workspace_close();
             state.cancel_rename_draft();
             state.cancel_setup_on_retirement();
         }

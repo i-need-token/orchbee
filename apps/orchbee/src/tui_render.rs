@@ -45,6 +45,7 @@ mod tab_rename;
 mod tabs;
 mod terminal_cells;
 mod viewport;
+mod workspace_close;
 mod workspace_setup;
 #[cfg(windows)]
 mod workspace_sidebar;
@@ -82,6 +83,7 @@ pub(crate) fn render_terminal_shell(
     let graphics_uncovered = matches!(session.as_ref(), Some(TerminalSessionView::Native(native))
         if native.popup().is_none() && view.overlay().is_none()
             && native.close_confirmation().is_none() && native.panel_close_confirmation().is_none()
+            && native.workspace_close_confirmation().is_none()
             && native.rename_draft().is_none() && native.setup_draft().is_none()
             && native.agent_board().is_none()
             && areas.sidebar.is_none_or(|sidebar| sidebar.layer != SidebarLayer::Overlay));
@@ -93,6 +95,7 @@ pub(crate) fn render_terminal_shell(
     let mut status_draw: Option<(NativeCloseStatusToken, Rect)> = None;
     let mut prompt = None;
     let mut panel_prompt = None;
+    let mut workspace_prompt = None;
     let mut rename = None;
     let mut setup = None;
     let mut overlay_refused = false;
@@ -147,9 +150,14 @@ pub(crate) fn render_terminal_shell(
         Some(TerminalSessionView::Native(native)) => {
             let phase_status = locale.native_phase_status(native);
             let close = native.close_status();
-            let status = close.as_ref().map_or_else(
-                || locale.native_status(native),
-                |status| locale.native_close_status(status),
+            let status = native.workspace_close_status().map_or_else(
+                || {
+                    close.as_ref().map_or_else(
+                        || locale.native_status(native),
+                        |status| locale.native_close_status(status),
+                    )
+                },
+                |status| locale.workspace_close_status(status),
             );
             secondary_notice = native.notice().map(|notice| locale.native_notice(notice));
             sidebar_status = phase_status.to_owned();
@@ -190,6 +198,7 @@ pub(crate) fn render_terminal_shell(
                         native.agent_board().is_some()
                             || native.close_confirmation().is_some()
                             || native.panel_close_confirmation().is_some()
+                            || native.workspace_close_confirmation().is_some()
                             || native.rename_draft().is_some()
                             || native.setup_draft().is_some()
                     }
@@ -281,6 +290,14 @@ pub(crate) fn render_terminal_shell(
         }
 
         if let Some(TerminalSessionView::Native(native)) = session.as_ref()
+            && let Some(confirmation) = native.workspace_close_confirmation()
+        {
+            let (area, token) =
+                workspace_close::render(frame, locale, confirmation, overlay_area(&areas), theme);
+            status_draw = status_draw.filter(|(_, status_area)| !status_area.intersects(area));
+            workspace_prompt = Some(token);
+        }
+        if let Some(TerminalSessionView::Native(native)) = session.as_ref()
             && let Some(confirmation) = native.close_confirmation()
         {
             let modal =
@@ -336,6 +353,9 @@ pub(crate) fn render_terminal_shell(
         // reports NotPresented so it settles cancelled with a notice instead
         // of surviving as an invisible key capture.
         if let Some(TerminalSessionView::Native(native)) = session.as_ref() {
+            if native.workspace_close_confirmation().is_some() {
+                workspace_prompt = Some(ModalPresentation::NotPresented);
+            }
             if native.close_confirmation().is_some() {
                 prompt = Some(ModalPresentation::NotPresented);
             }
@@ -401,6 +421,7 @@ pub(crate) fn render_terminal_shell(
     let receipt = NativeDrawReceipt::new(prompt, status_draw.map(|(token, _)| token))
         .with_help_page(help_page)
         .with_panel_close(panel_prompt)
+        .with_workspace_close(workspace_prompt)
         .with_rename(rename)
         .with_setup(setup)
         .with_agent_board(board_draw);
@@ -638,6 +659,7 @@ fn render_native_workbench(
     let text = bound_text.text();
     let input_enabled = client_view.overlay().is_none()
         && native.close_confirmation().is_none()
+        && native.workspace_close_confirmation().is_none()
         && native.rename_draft().is_none()
         && native.setup_draft().is_none();
     #[cfg(windows)]
@@ -877,6 +899,10 @@ fn render_native_workbench(
                 native.workspace_directory_unconfigured(),
             )
             .unwrap_or_else(|| panel_status.to_owned());
+            let panel_status = native
+                .workspace_close_status()
+                .filter(|_| native.retirement().is_some())
+                .map_or(panel_status, |status| locale.workspace_close_status(status));
             frame.render_widget(
                 Paragraph::new(panel_status)
                     .style(theme.style(Role::TextSecondary))

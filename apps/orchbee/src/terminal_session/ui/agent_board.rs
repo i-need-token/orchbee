@@ -69,6 +69,7 @@ impl NativeUi {
         if self.rename_input_context().is_some()
             || self.setup_input_context().is_some()
             || self.panel_close_confirmation_armed()
+            || self.view().workspace_close_confirmation().is_some()
         {
             return true;
         }

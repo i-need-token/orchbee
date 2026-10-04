@@ -307,13 +307,38 @@ fn help_paginates_wrapped_rows_and_clamps_the_requested_page() {
     let (_, page) = placed.expect("help must fit in 60x12");
     assert_eq!(page, 0);
     let rows = buffer_rows(&terminal, 60, 12);
-    let first = if cfg!(windows) {
-        "Ctrl+B M"
-    } else {
-        "Ctrl+B a"
-    };
+    let entries = text.configured_shortcut_rows(&ClientView::new(100));
+    let first = entries.first().unwrap().0.trim();
     assert!(rows.iter().any(|row| row.contains(first)), "{rows:?}");
     assert!(rows[9].contains("1/"), "{:?}", rows[9]);
+
+    // Adding a row may move an existing shortcut to the next page. Every
+    // offered chord must still appear in the content of at least one page,
+    // and each page must preserve its effective number and exit footer.
+    let mut content = Vec::new();
+    for requested in 0..last {
+        infallible(terminal.draw(|frame| {
+            placed = super::render_shortcut_help(
+                frame,
+                frame.area(),
+                text,
+                &ClientView::new(100),
+                requested,
+                &theme,
+            );
+        }));
+        assert_eq!(placed.map(|(_, page)| page), Some(requested));
+        let rows = buffer_rows(&terminal, 60, 12);
+        assert!(rows[9].contains(&format!("{}/{last}", requested + 1)));
+        assert!(rows[8].contains("Ctrl+B ? closes"));
+        content.extend_from_slice(&rows[2..8]);
+    }
+    for (chord, _) in entries {
+        assert!(
+            content.iter().any(|row| row.contains(chord.trim())),
+            "missing shortcut {chord:?}: {content:?}"
+        );
+    }
 }
 
 #[test]

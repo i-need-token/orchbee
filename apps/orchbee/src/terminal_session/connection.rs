@@ -59,9 +59,22 @@ pub(super) struct NativeWorkerExit {
     pending_close: Option<PendingCloseResult>,
     pending_rename: Option<super::state::tab_rename::RenameWorkerEvidence>,
     pending_setup: Option<super::state::workspace_setup::SetupWorkerEvidence>,
+    pending_workspace_close: Option<super::state::workspace_close::WorkspaceCloseEvidence>,
 }
 
 impl NativeWorkerExit {
+    fn with_workspace_close(
+        mut self,
+        evidence: Option<super::state::workspace_close::WorkspaceCloseEvidence>,
+    ) -> Self {
+        self.pending_workspace_close = evidence;
+        self
+    }
+    pub(super) fn take_workspace_close_result(
+        &mut self,
+    ) -> Option<super::state::workspace_close::WorkspaceCloseEvidence> {
+        self.pending_workspace_close.take()
+    }
     fn with_setup(
         mut self,
         evidence: Option<super::state::workspace_setup::SetupWorkerEvidence>,
@@ -105,6 +118,7 @@ impl NativeWorkerExit {
             pending_close,
             pending_rename,
             pending_setup: None,
+            pending_workspace_close: None,
         }
     }
 

@@ -63,6 +63,7 @@ mod quick_workspace;
 mod startup_directory;
 mod tab_move;
 mod tab_rename;
+mod workspace_close;
 mod workspace_setup;
 
 type Result<Value> = std::result::Result<Value, CarrierFailure>;
@@ -109,7 +110,8 @@ pub(super) fn run_at(
         executor.pending_close.take(),
         executor.pending_rename.take(),
     )
-    .with_setup(executor.pending_setup.take());
+    .with_setup(executor.pending_setup.take())
+    .with_workspace_close(executor.pending_workspace_close.take());
     #[cfg(any(target_os = "linux", windows))]
     let returned = returned.with_unavailable_poll(executor.unavailable_poll.take());
     returned
@@ -157,6 +159,8 @@ struct NativeExecutor {
     pending_close: Option<PendingCloseResult>,
     pending_rename: Option<crate::terminal_session::state::tab_rename::RenameWorkerEvidence>,
     pending_setup: Option<crate::terminal_session::state::workspace_setup::SetupWorkerEvidence>,
+    pending_workspace_close:
+        Option<crate::terminal_session::state::workspace_close::WorkspaceCloseEvidence>,
 }
 
 /// Minimum interval between publication probes piggybacked on ordinary polls.
@@ -329,6 +333,7 @@ impl NativeExecutor {
             pending_close: None,
             pending_rename: None,
             pending_setup: None,
+            pending_workspace_close: None,
         }
     }
 
@@ -1724,6 +1729,9 @@ impl NativeExecutor {
         lease: &CommandLease,
         marker: crate::terminal_session::mailbox::RefreshMarker,
     ) -> Result<()> {
+        if let Some(operation) = marker.workspace_close().cloned() {
+            return self.run_workspace_close(lease, marker, operation);
+        }
         if self
             .mailbox
             .mark_refresh_in_flight(marker.generation())
@@ -1764,16 +1772,25 @@ impl NativeExecutor {
                 )
                 .map_err(event)?
         };
+        self.finish_refresh(lease, &marker, &wait)
+    }
+
+    fn finish_refresh(
+        &mut self,
+        lease: &CommandLease,
+        marker: &crate::terminal_session::mailbox::RefreshMarker,
+        wait: &crate::terminal_session::mailbox::UiWaitKey,
+    ) -> Result<()> {
         #[cfg(any(target_os = "linux", windows))]
         let bounded_recovery = self.membership_recovery;
         #[cfg(not(any(target_os = "linux", windows)))]
         let bounded_recovery = false;
         let reply = if bounded_recovery || marker.context_deadlines().is_some() {
             self.mailbox
-                .await_ui_reply_before(&wait, marker.deadline(), &self.clock)
+                .await_ui_reply_before(wait, marker.deadline(), &self.clock)
         } else {
             self.mailbox
-                .await_ui_reply(&wait)
+                .await_ui_reply(wait)
                 .map_err(EventError::Closed)
         }
         .map_err(event)?

@@ -14,6 +14,7 @@ mod startup_directory;
 mod startup_preference;
 mod switch_membership;
 mod tab_move;
+mod workspace_close;
 mod workspace_setup;
 
 use self::setup::*;

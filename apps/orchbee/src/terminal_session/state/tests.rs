@@ -30,6 +30,7 @@ mod startup_preference;
 mod switch_membership;
 mod tab_close;
 mod tab_rename;
+mod workspace_close;
 mod workspace_setup;
 mod zoom;
 

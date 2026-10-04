@@ -35,6 +35,8 @@ mod tab_close;
 #[cfg(any(unix, windows))]
 mod tab_rename;
 #[cfg(any(unix, windows))]
+mod workspace_close;
+#[cfg(any(unix, windows))]
 mod workspace_setup;
 
 const EN_US_TUI_UNAVAILABLE: &str = "The Orchbee TUI is unavailable in this development slice.\n";
@@ -54,6 +56,9 @@ fn en_us_prefix_desc(desc: PrefixDesc) -> &'static str {
         PrefixDesc::AgentIndex => "Focus numbered Agent in the filtered machine view",
         PrefixDesc::ReloadConfiguration => "Reload Site configuration",
         PrefixDesc::QuickWorkspaceCreate => "Create a Workspace and enter its first terminal",
+        PrefixDesc::WorkspaceClose => {
+            "Close current Workspace / worktree group (asks for confirmation)"
+        }
         PrefixDesc::WorkspaceCreate => "Create a Workspace in an existing or new Project",
         PrefixDesc::WorkspaceDirectory => "Configure an empty Workspace's first directory",
         PrefixDesc::WorkspaceRename => "Rename current Workspace",
@@ -98,6 +103,7 @@ fn zh_cn_prefix_desc(desc: PrefixDesc) -> &'static str {
         PrefixDesc::AgentIndex => "按机器视图的筛选顺序聚焦编号 Agent",
         PrefixDesc::ReloadConfiguration => "重载 Site 配置",
         PrefixDesc::QuickWorkspaceCreate => "创建工作区并进入第一个终端",
+        PrefixDesc::WorkspaceClose => "关闭当前工作区 / worktree 组（需要确认）",
         PrefixDesc::WorkspaceCreate => "在现有或新建 Project 中创建 Workspace",
         PrefixDesc::WorkspaceDirectory => "配置空 Workspace 的首个目录",
         PrefixDesc::WorkspaceRename => "重命名当前 Workspace",
@@ -477,6 +483,12 @@ impl Locale {
                     | BackendAction::ConfigureWorkspaceDirectory,
                 )),
             ) => "Workspace 设置不可用 · 未发送命令",
+            (Self::EnUs, Some(Notice::BackendUnavailable(BackendAction::CloseWorkspace))) => {
+                "Workspace Close unavailable · no command was sent"
+            }
+            (Self::ZhCn, Some(Notice::BackendUnavailable(BackendAction::CloseWorkspace))) => {
+                "工作区关闭不可用 · 未发送命令"
+            }
             (Self::EnUs, Some(Notice::BackendUnavailable(BackendAction::RenameTab))) => {
                 "Rename unavailable · no command has been sent"
             }
@@ -679,6 +691,9 @@ impl Locale {
         self,
         view: &crate::terminal_session::NativeSessionView<'_>,
     ) -> String {
+        if let Some(status) = view.workspace_close_status() {
+            return self.workspace_close_status(status);
+        }
         self.native_status_with_setup(
             self.native_phase_status(view),
             view.retirement().is_some(),
@@ -962,6 +977,10 @@ impl Locale {
             NativeSessionNotice::CloseRequestNotApplied => match self {
                 Self::EnUs => "Close request was not applied".to_owned(),
                 Self::ZhCn => "关闭请求未执行".to_owned(),
+            },
+            NativeSessionNotice::WorkspaceCloseUnavailable => match self {
+                Self::EnUs => "Select a Workspace to close; Standalone stays open".to_owned(),
+                Self::ZhCn => "请先选择要关闭的工作区；独立终端保持打开".to_owned(),
             },
             NativeSessionNotice::RenameNotRenamed => match self {
                 Self::EnUs => "Tab not renamed".to_owned(),

@@ -235,6 +235,7 @@ impl NativeUi {
     pub(in crate::terminal_session) fn control_dialog(&self) -> bool {
         let view = self.view();
         view.close_confirmation().is_some()
+            || view.workspace_close_confirmation().is_some()
             || view.close_status().is_some()
             || view.panel_close_confirmation().is_some()
             || view.rename_draft().is_some()

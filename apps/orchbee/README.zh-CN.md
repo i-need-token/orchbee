@@ -287,6 +287,9 @@ Windows 快速新建会预填主终端根进程的当前目录，并沿用当前
 已有 Project。Tab 切换名称／目录字段；路径支持 `~`，相对输入基于准备得到的目录解析。
 提交前 Escape 不创建任何对象。已知部分结果可通过 `orchbee project list` 和
 `orchbee workspace list` 检查；未知结果绝不重放。
+`Ctrl+B Shift+D` 打开 Windows [工作区关闭确认](docs/native-workspace-close.zh-CN.md)。
+完整绘制后，小写 `y` 结束其终端及已知 worktree 组的终端，影响所有 Client；Esc 取消。
+Git 目录保留，规范移除后此 Client 回到 Standalone。
 [位置标签](docs/native-location-labels.zh-CN.md) 使用预填编辑器与共享 Server 命令；
 重命名保留运行中终端，peer 通过 publication 探测或显式刷新看到变化。
 

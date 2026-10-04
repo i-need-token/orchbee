@@ -18,6 +18,7 @@ mod context_removal;
 mod context_selection;
 mod field_window;
 pub(super) mod line_editor;
+pub(super) mod workspace_close;
 pub(super) mod workspace_setup;
 pub(crate) use context_selection::NativeContextView;
 pub(crate) use field_window::NativeFieldWindow;
@@ -569,6 +570,7 @@ pub(super) enum SessionNotice {
     MoveOrderConflict,
     RenameNotRenamed,
     CloseRequestNotApplied,
+    WorkspaceCloseUnavailable,
     PanelNotApplied,
     ConfirmationCancelled,
     DraftCancelled,
@@ -1144,6 +1146,7 @@ pub(super) struct NativeSessionState {
     panel_close: PanelCloseState,
     rename: rename_draft::RenameDraftState,
     setup: workspace_setup::SetupState,
+    workspace_close: workspace_close::WorkspaceCloseState,
     pending_membership: Option<membership::PendingMembership>,
     settled_create: Option<CommittedTabCreate>,
     /// Volatile per-Tab Client-local zoom flags (`Ctrl+B z`): a flag lives
@@ -1289,6 +1292,7 @@ impl NativeSessionState {
             panel_close: PanelCloseState::default(),
             rename: rename_draft::RenameDraftState::default(),
             setup: workspace_setup::SetupState::default(),
+            workspace_close: workspace_close::WorkspaceCloseState::default(),
             pending_membership: None,
             settled_create: None,
             zoomed_tabs: std::collections::BTreeSet::new(),
@@ -3671,6 +3675,7 @@ impl NativeSessionState {
 
     pub(super) fn phase_allows_refresh(&self) -> bool {
         self.pending_mutation.is_none()
+            && !self.workspace_close_blocks_structure()
             && !self.setup_pending_or_draft()
             && !self.rename_draft_blocks_structure()
             && matches!(
@@ -3730,6 +3735,7 @@ impl NativeSessionState {
     pub(super) fn retire(&mut self, failure: CarrierFailure) {
         self.retire_close_reconciliations();
         self.cancel_close_confirmation();
+        self.cancel_workspace_close();
         self.cancel_panel_close_confirmation();
         self.cancel_rename_draft();
         self.cancel_setup_on_retirement();
@@ -3780,6 +3786,7 @@ impl NativeSessionState {
             || !self.panel_invariant_holds()
             || !self.rename_invariant_holds()
             || !self.setup_invariant_holds()
+            || !self.workspace_close_invariant_holds()
         {
             return false;
         }

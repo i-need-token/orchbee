@@ -145,6 +145,7 @@ impl NativeSessionState {
     }
     fn setup_authority_available(&self) -> bool {
         self.pending_refresh.is_none()
+            && !self.workspace_close_blocks_structure()
             && self.pending_mutation.is_none()
             && self.pending_membership.is_none()
             && self.move_recovery.is_none()

@@ -9,6 +9,7 @@ impl NativeSessionView<'_> {
     ) -> Option<Draw> {
         if self.retirement.is_some()
             || self.close_confirmation().is_some()
+            || self.workspace_close_confirmation().is_some()
             || self.panel_close_confirmation().is_some()
             || self.rename_draft().is_some()
             || self.setup_draft().is_some()

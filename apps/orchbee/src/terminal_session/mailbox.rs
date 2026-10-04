@@ -40,6 +40,8 @@ mod tab_close;
 mod workspace_setup;
 use super::state::workspace_setup::{SetupOperation, SetupResult};
 use workspace_setup::SetupFlight;
+mod workspace_close;
+use workspace_close::WorkspaceCloseFlight;
 pub(super) use workspace_setup::WorkspaceSetupMarker;
 mod tab_rename;
 use super::state::tab_rename::{RenameOperation, RenameResult};
@@ -151,6 +153,7 @@ pub(super) struct RefreshMarker {
     deadline: Instant,
     context_deadlines: Option<OperationDeadlines>,
     quick: Option<Box<super::state::workspace_setup::quick::QuickPreparation>>,
+    workspace_close: Option<Box<super::state::workspace_close::WorkspaceCloseOperation>>,
 }
 
 impl RefreshMarker {
@@ -160,6 +163,7 @@ impl RefreshMarker {
             deadline,
             context_deadlines: None,
             quick: None,
+            workspace_close: None,
         }
     }
 
@@ -181,7 +185,16 @@ impl RefreshMarker {
         self.quick.as_deref()
     }
 
+    pub(super) fn workspace_close(
+        &self,
+    ) -> Option<&super::state::workspace_close::WorkspaceCloseOperation> {
+        self.workspace_close.as_deref()
+    }
+
     const fn barrier(&self) -> BarrierFence {
+        if let Some(operation) = &self.workspace_close {
+            return BarrierFence::from_deadlines(BarrierKind::Refresh, operation.deadlines);
+        }
         BarrierFence {
             kind: BarrierKind::Refresh,
             forward_cutoff: self.deadline,
@@ -654,6 +667,10 @@ impl UiWaitKey {
 }
 
 pub(super) enum WorkerEvent {
+    WorkspaceCloseResult {
+        evidence: super::state::workspace_close::WorkspaceCloseEvidence,
+        outcome: Box<WorkbenchSnapshotOutcome>,
+    },
     QuickWorkspacePrepared {
         preparation: Box<super::state::workspace_setup::quick::QuickPreparation>,
         cwd: Option<orchbee_workbench_protocol::WorkbenchDirectoryPath>,
@@ -886,6 +903,10 @@ impl WorkerEvent {
             ),
             Self::QuickWorkspacePrepared { preparation, .. } => (
                 UiCorrelation::Refresh(preparation.generation),
+                UiReplyKind::Refresh,
+            ),
+            Self::WorkspaceCloseResult { evidence, .. } => (
+                UiCorrelation::Refresh(evidence.operation.generation),
                 UiReplyKind::Refresh,
             ),
             Self::WorkspaceSetupResult { operation, .. } => (
@@ -1229,6 +1250,7 @@ struct MailboxState {
     causal: CausalCell,
     refresh_flight: Option<RefreshFlight>,
     structural_mutation_pending: Option<StructuralMutationFlight>,
+    workspace_close_flight: Option<WorkspaceCloseFlight>,
     close_flight: Option<CloseFlight>,
     close_reconciliation: Option<CloseReconciliationFlight>,
     close_acknowledgement: Option<CloseLeaseAcknowledgement>,
@@ -1359,6 +1381,7 @@ impl CommandMailbox {
                 causal: CausalCell::Empty,
                 refresh_flight: None,
                 structural_mutation_pending: None,
+                workspace_close_flight: None,
                 close_flight: None,
                 close_reconciliation: None,
                 close_acknowledgement: None,
@@ -2345,9 +2368,17 @@ impl CommandMailbox {
         let refresh_generation = match &event {
             WorkerEvent::RefreshSnapshotResult { generation, .. } => Some(*generation),
             WorkerEvent::QuickWorkspacePrepared { preparation, .. } => Some(preparation.generation),
+            WorkerEvent::WorkspaceCloseResult { evidence, .. } => {
+                Some(evidence.operation.generation)
+            }
             _ => None,
         };
         if let Some(generation) = refresh_generation {
+            if let WorkerEvent::WorkspaceCloseResult { evidence, .. } = &event
+                && !Self::workspace_close_event_matches(&state, evidence)
+            {
+                return Err(self.close_protocol(&mut state));
+            }
             if matches!(
                 state.structural_mutation_pending,
                 Some(StructuralMutationFlight::Setup(_))
@@ -2919,6 +2950,7 @@ impl CommandMailbox {
                 if !matches!(settlement.decision(), RefreshDecision::Cleanup(_)) {
                     if generation.is_some() {
                         state.refresh_flight = None;
+                        state.workspace_close_flight = None;
                         if matches!(
                             state.structural_mutation_pending,
                             Some(StructuralMutationFlight::Setup(_))

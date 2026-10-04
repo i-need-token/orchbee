@@ -1467,6 +1467,7 @@ impl UiDriver {
                 Ok(UiEvent::PaneFailed)
             }
             WorkerEvent::QuickWorkspacePrepared { .. }
+            | WorkerEvent::WorkspaceCloseResult { .. }
             | WorkerEvent::WorkspaceSetupResult { .. }
             | WorkerEvent::RenameResult { .. }
             | WorkerEvent::ViewportOutcome { .. }
