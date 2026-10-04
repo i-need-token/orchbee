@@ -281,10 +281,14 @@ pub(super) fn read_reply(stream: &mut LocalStream, verb: &str, outcome: Value) -
 }
 
 pub(super) fn assert_closed(stream: &mut LocalStream) {
+    assert_closed_for(stream, "peer");
+}
+
+pub(super) fn assert_closed_for(stream: &mut LocalStream, context: &str) {
     assert_eq!(
         stream.read(&mut [0]).unwrap(),
         0,
-        "no extra exchange or replay"
+        "{context}: no extra exchange or replay"
     );
 }
 

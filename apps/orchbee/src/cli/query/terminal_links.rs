@@ -49,7 +49,7 @@ pub(crate) fn run(command: &TerminalLinkCommand, format: OutputFormat, locale: L
                     },
                 )
             } else {
-                let resolved = plain(reader, cursor, viewport)?;
+                let resolved = plain(reader, cursor, viewport.clone())?;
                 (
                     if resolved.url.is_some() {
                         "plain-text"
@@ -81,6 +81,7 @@ pub(crate) fn run(command: &TerminalLinkCommand, format: OutputFormat, locale: L
                     resolved.url.as_deref(),
                     row,
                     command.cursor.col,
+                    viewport,
                     kind == "explicit",
                 )?;
                 status = activation.status();
@@ -106,7 +107,7 @@ pub(crate) fn run(command: &TerminalLinkCommand, format: OutputFormat, locale: L
     )
 }
 
-fn plain(
+pub(super) fn plain(
     reader: &mut BufferReader<'_>,
     cursor: TerminalTextPoint,
     viewport: Range<u64>,

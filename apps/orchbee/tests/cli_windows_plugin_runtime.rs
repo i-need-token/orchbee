@@ -71,6 +71,7 @@ fn plugin_invoke_real_cli_reports_admission_failure_or_unknown_without_resubmiss
                 plugin_id,
                 action_id,
                 context,
+                ..
             } = &request.action
             else {
                 panic!()

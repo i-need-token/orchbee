@@ -34,9 +34,48 @@ The manifest must remain unchanged after building. A linked local ID refuses rep
 
 Storage v2 preserves managed GitHub provenance and a bounded recovery list. Existing v1 catalogs remain readable and migrate on a mutation; old binaries reject v2 rather than discarding its state. `orchbee.plugin.registry` v2 adds a nullable managed source while its v1 schema stays closed. `orchbee.plugin.provision` v1 reports the operation identity, phase, committed change, failed command/exit/output, truncation and pending cleanup paths. Install/update source commitment is separate from build-created external effects, which cannot be rolled back by deleting a checkout. Exit 7 means work deadline, 8 physical uncertainty, 130 interruption, and other provisioning failures use 1.
 
+## Native TUI link activation
+
+An exact Ctrl+primary click in the Windows native TUI resolves the cell from the last complete
+draw without changing focus or acquiring terminal control. The painted source carries the exact
+Pane/member binding and terminal content fences. A private read-only viewer must reproduce the
+captured host epoch, generation, revision, geometry, and total row count before resolving OSC 8
+metadata or a verified soft-wrapped lowercase HTTP(S) token. Stale, rebound, malformed, busy, or
+unavailable observations have no external effect and are never replayed.
+
+The TUI and public `terminal link-activate` share one application-private ordered-handler
+preflight and outcome boundary. The first enabled Windows handler whose manifest pattern matches
+is fixed from the persisted registered catalog, the exact clicked terminal context is observed,
+and the complete ordered catalog fingerprint, registry entry, handler, and action are re-read
+immediately before one plugin submission. The guarded Server route validates that same registered
+catalog fingerprint before resolving the action. The registered read uses the bounded private
+catalog file only: link admission accepts a fixed local volume, pins non-reparse private-cache
+ancestors, and bounds the file to 1 MiB; it never refreshes a linked manifest. A linked manifest edit becomes
+eligible for link clicks only after an explicit relink or managed update publishes it. Registry
+drift refuses the click; it does not select a replacement handler. A started, failed, or unknown
+plugin outcome is final and never opens a browser. The registered catalog is re-read at the browser
+handoff; only a still-definite no-handler result opens a lowercase `http://` or `https://` URL once
+through the Windows shell.
+
+The optional guarded invocation field is a matched-cohort protocol extension; Rust, TypeScript,
+JSON, Client, and Server peers deploy together. Ordinary unguarded plugin invocation retains its
+existing live manifest refresh behavior.
+
+Context observation remains attached to the clicked presentation. It rechecks canonical
+membership around bounded reads of the exact terminal directory, presentation Agent report,
+matching live Agent sessions, and Workspace worktree facts. The pane directory overrides the
+Workspace primary directory for `workspaceCwd`; unknown Agent, status, directory, or worktree facts
+are omitted rather than inferred. Source, report, and catalog drift refuse the click before effect
+handoff.
+
+Other schemes have no fallback. The TUI keeps one bounded job, does not queue or retry busy clicks,
+and joins its owned lane at shutdown without claiming
+ownership of an accepted plugin action or shell-launched browser process. Ctrl-hover decoration is
+a later surface and does not enable any-motion capture.
+
 ## Delivery and evidence
 
-Catalog, action invocation, retained logs and managed source install/uninstall have native integration. Plugin Pane lifecycle is specified below. Public `terminal link-activate` now invokes ordered enabled Windows link handlers with the exact clicked terminal context through this execution boundary; its read fences, no-match/refusal/unknown receipts and bounds belong to [Native CLI Query](native-cli-query.md#activate-a-terminal-link). TUI hover/click integration and remaining plugin hook obligations stay separate. Catalog acceptance is not an execution receipt. Reference behavior is pinned Herdr `e0507237ad8d41f60aece10d00ef29ce2339ca34`, especially `cli/plugin.rs`, `app/api/plugins/manifest.rs` and `persist/plugin_registry.rs`.
+Catalog, action invocation, retained logs and managed source install/uninstall have native integration. Plugin Pane lifecycle is specified below. Public `terminal link-activate` and the native TUI click route invoke ordered enabled Windows link handlers with the exact clicked terminal context through the shared boundary; CLI read fences, no-match/refusal/unknown receipts and bounds belong to [Native CLI Query](native-cli-query.md#activate-a-terminal-link), while pointer/source ownership belongs to [Native mouse input](native-mouse-input.md#link-activation). Catalog acceptance is not an execution receipt. Reference behavior is pinned Herdr `e0507237ad8d41f60aece10d00ef29ce2339ca34`, especially `cli/plugin.rs`, `app/api/plugins/manifest.rs` and `persist/plugin_registry.rs`.
 
 Focused evidence covers parser limits, identity/path collisions, unavailable-source retention, read-only absence, atomic catalog transitions and actual Windows CLI receipts. Test fixtures own and remove their temporary paths. Full Windows visual/provider/multi-Client and aggregate regression acceptance remain separate.
 

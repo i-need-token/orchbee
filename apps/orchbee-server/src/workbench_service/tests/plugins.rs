@@ -29,6 +29,7 @@ fn plugin_execution_requires_read_create_and_lifecycle_authority_before_resoluti
                         plugin_id: None,
                         action_id: "hello".into(),
                         context: Box::new(PluginInvocationContext::default()),
+                        link_catalog: None,
                     },
                 };
                 let WorkbenchResponse::Plugin(result) =

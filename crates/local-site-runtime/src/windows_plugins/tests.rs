@@ -148,6 +148,48 @@ fn plugin_catalog_transitions_preserve_sources_and_user_dirs() {
         PluginRegistryError::PluginNotFound
     );
 }
+
+#[test]
+fn registered_catalog_does_not_refresh_linked_manifests() {
+    let root = Root::new();
+    let registry = root.registry();
+    let path = root.source();
+    registry
+        .mutate(PluginRegistryMutation::Link {
+            path: path.clone(),
+            enabled: true,
+        })
+        .unwrap();
+    let before = registry.list_registered().unwrap();
+    assert_eq!(before.plugins[0].manifest.name, "Tools");
+
+    fs::write(&path, SOURCE.replace("name='Tools'", "name='Changed'")).unwrap();
+    let stored = registry.list_registered().unwrap();
+    assert_eq!(stored, before, "linked edits are not click authority");
+    assert_eq!(
+        registry.list(None).unwrap().plugins[0].manifest.name,
+        "Changed"
+    );
+
+    registry
+        .mutate(PluginRegistryMutation::Link {
+            path,
+            enabled: true,
+        })
+        .unwrap();
+    let published = registry.list_registered().unwrap();
+    assert_eq!(published.plugins[0].manifest.name, "Changed");
+    assert_ne!(published.fingerprint, before.fingerprint);
+}
+
+#[test]
+fn registered_catalog_refuses_non_disk_roots_before_reading() {
+    let registry = PluginRegistry::at(PathBuf::from(r"\\server\share\plugins")).unwrap();
+    assert_eq!(
+        registry.list_registered().unwrap_err(),
+        PluginRegistryError::InvalidPath
+    );
+}
 #[test]
 fn plugin_catalog_lock_and_corruption_never_overwrite_previous_state() {
     let root = Root::new();

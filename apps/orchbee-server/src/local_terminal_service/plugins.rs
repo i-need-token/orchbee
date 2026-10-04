@@ -72,10 +72,17 @@ impl LocalTerminalService {
                 plugin_id,
                 action_id,
                 context,
+                link_catalog,
             } => {
                 let registry = PluginRegistry::from_environment(|name| std::env::var_os(name))
                     .map_err(|_| Failure::SourceUnavailable)?;
-                let intent = resolve(&registry, plugin_id.as_deref(), action_id, context)?;
+                let intent = resolve(
+                    &registry,
+                    plugin_id.as_deref(),
+                    action_id,
+                    context,
+                    link_catalog.as_ref(),
+                )?;
                 (
                     identity(operation_id)?,
                     node::PluginJobAction::Start(intent),
@@ -184,21 +191,37 @@ fn resolve(
     plugin_id: Option<&str>,
     action_id: &str,
     context: &PluginInvocationContext,
+    link_catalog: Option<&orchbee_workbench_protocol::PluginLinkCatalogGuard>,
 ) -> Result<node::PluginCommandIntent, Failure> {
-    let catalog = registry
-        .list(plugin_id)
-        .map_err(|_| Failure::SourceUnavailable)?;
-    let mut candidates = catalog.plugins.iter().flat_map(|entry| {
-        entry
-            .manifest
-            .actions
-            .iter()
-            .filter(move |action| {
-                action.id == action_id
-                    || format!("{}.{}", entry.manifest.id, action.id) == action_id
-            })
-            .map(move |action| (entry, action))
-    });
+    let plugins = if let Some(expected) = link_catalog {
+        let catalog = registry
+            .list_registered()
+            .map_err(|_| Failure::SourceUnavailable)?;
+        if catalog.revision != expected.revision || catalog.fingerprint != expected.fingerprint {
+            return Err(Failure::Conflict);
+        }
+        verify_link_selection(&catalog.plugins, plugin_id, action_id, context)?;
+        catalog.plugins
+    } else {
+        registry
+            .list(plugin_id)
+            .map_err(|_| Failure::SourceUnavailable)?
+            .plugins
+    };
+    let mut candidates = plugins
+        .iter()
+        .filter(|entry| plugin_id.is_none_or(|id| entry.manifest.id == id))
+        .flat_map(|entry| {
+            entry
+                .manifest
+                .actions
+                .iter()
+                .filter(move |action| {
+                    action.id == action_id
+                        || format!("{}.{}", entry.manifest.id, action.id) == action_id
+                })
+                .map(move |action| (entry, action))
+        });
     let (entry, action) = candidates.next().ok_or(Failure::NotFound)?;
     if candidates.next().is_some() {
         return Err(Failure::Ambiguous);
@@ -252,6 +275,54 @@ fn resolve(
     };
     intent.validate().map_err(|_| Failure::InvalidIntent)?;
     Ok(intent)
+}
+
+fn verify_link_selection(
+    plugins: &[orchbee_local_site_runtime::PluginRegistryEntry],
+    plugin_id: Option<&str>,
+    action_id: &str,
+    context: &PluginInvocationContext,
+) -> Result<(), Failure> {
+    let clicked = context
+        .clicked_url
+        .as_deref()
+        .ok_or(Failure::InvalidIntent)?;
+    let handler_id = context
+        .link_handler_id
+        .as_deref()
+        .ok_or(Failure::InvalidIntent)?;
+    let selected = plugins
+        .iter()
+        .filter(|entry| entry.enabled && entry.warning.is_none())
+        .find_map(|entry| {
+            entry.manifest.link_handlers.iter().find_map(|handler| {
+                let action = entry
+                    .manifest
+                    .actions
+                    .iter()
+                    .find(|action| action.id == handler.action)?;
+                if !entry.manifest.supports_windows(&handler.platforms)
+                    || !entry.manifest.supports_windows(&action.platforms)
+                {
+                    return None;
+                }
+                let pattern = regex::RegexBuilder::new(&handler.pattern)
+                    .size_limit(1024 * 1024)
+                    .build()
+                    .ok()?;
+                pattern
+                    .is_match(clicked)
+                    .then_some((entry, handler, action))
+            })
+        })
+        .ok_or(Failure::Conflict)?;
+    if plugin_id != Some(selected.0.manifest.id.as_str())
+        || handler_id != selected.1.id
+        || action_id != selected.2.id
+    {
+        return Err(Failure::Conflict);
+    }
+    Ok(())
 }
 fn project(log: node::PluginCommandLog) -> PluginCommandLog {
     use orchbee_workbench_protocol::PluginCommandFailure as Failure;

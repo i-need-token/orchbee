@@ -12,11 +12,17 @@
 				"action": {
 					"kind": "invoke",
 					"operationId": "44444444444444444444444444444444",
-					"pluginId": null,
+					"pluginId": "tools",
 					"actionId": "tools.hello",
 					"context": {
 						"selectedText": "你好",
-						"invocationSource": "cli"
+						"invocationSource": "link_click",
+						"clickedUrl": "https://example.test",
+						"linkHandlerId": "web"
+					},
+					"linkCatalog": {
+						"revision": 7,
+						"fingerprint": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 					}
 				}
 			}
@@ -969,6 +975,133 @@
 					"actionId": "tools.hello",
 					"context": {
 						"danger": true
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "link-catalog-uppercase-fingerprint",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.plugin",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"action": {
+					"kind": "invoke",
+					"operationId": "44444444444444444444444444444444",
+					"pluginId": "tools",
+					"actionId": "hello",
+					"context": {
+						"invocationSource": "link_click",
+						"clickedUrl": "https://example.test",
+						"linkHandlerId": "web"
+					},
+					"linkCatalog": {
+						"revision": 7,
+						"fingerprint": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "link-catalog-unsafe-revision",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.plugin",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"action": {
+					"kind": "invoke",
+					"operationId": "44444444444444444444444444444444",
+					"pluginId": "tools",
+					"actionId": "hello",
+					"context": {
+						"invocationSource": "link_click",
+						"clickedUrl": "https://example.test",
+						"linkHandlerId": "web"
+					},
+					"linkCatalog": {
+						"revision": 9007199254740992,
+						"fingerprint": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "link-catalog-non-link-context",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.plugin",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"action": {
+					"kind": "invoke",
+					"operationId": "44444444444444444444444444444444",
+					"pluginId": "tools",
+					"actionId": "hello",
+					"context": {
+						"invocationSource": "cli",
+						"clickedUrl": "https://example.test",
+						"linkHandlerId": "web"
+					},
+					"linkCatalog": {
+						"revision": 7,
+						"fingerprint": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "link-catalog-null",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.plugin",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"action": {
+					"kind": "invoke",
+					"operationId": "44444444444444444444444444444444",
+					"pluginId": "tools",
+					"actionId": "hello",
+					"context": {
+						"invocationSource": "link_click",
+						"clickedUrl": "https://example.test",
+						"linkHandlerId": "web"
+					},
+					"linkCatalog": null
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "link-catalog-null-clicked-url",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.plugin",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"action": {
+					"kind": "invoke",
+					"operationId": "44444444444444444444444444444444",
+					"pluginId": "tools",
+					"actionId": "hello",
+					"context": {
+						"invocationSource": "link_click",
+						"clickedUrl": null,
+						"linkHandlerId": "web"
+					},
+					"linkCatalog": {
+						"revision": 7,
+						"fingerprint": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 					}
 				}
 			},

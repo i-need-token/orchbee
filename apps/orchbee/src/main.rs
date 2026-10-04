@@ -53,6 +53,8 @@ mod terminal_input;
 #[cfg(any(unix, windows))]
 mod terminal_lifecycle;
 #[cfg(windows)]
+mod terminal_link_activation;
+#[cfg(windows)]
 mod terminal_links;
 #[cfg(any(unix, windows))]
 mod terminal_projection;

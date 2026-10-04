@@ -163,7 +163,10 @@ protected environment. Existing Worker Jobs own launch, output logs and cancella
 display data cannot supply argv, directory policy or Worker authority. This command
 does not open a browser, send terminal input, navigate/focus, change clipboard or
 start a Site. One existing viewer and the entire preflight/submission share five
-seconds and cancellation; all outcomes release the viewer through Detach/EOF.
+seconds and cancellation. A matched effect path requires one correlated Detach
+acknowledgement after its final content/member fences and before plugin submission;
+a rejected or uncertain Detach submits no plugin and is never retried. Read-only
+and no-effect outcomes retain best-effort Detach plus session EOF cleanup.
 An admitted plugin Job outlives that temporary viewer under its existing Job owner.
 
 Closed `orchbee.terminal.link-activate` v1 retains the resolved link, viewport and

@@ -534,11 +534,13 @@ export {
 
 export {
 	PluginInvocationContextSchema,
+	PluginLinkCatalogGuardSchema,
 	PluginCommandLogSchema,
 	PluginRequestSchema,
 	PluginResultSchema,
 	type PluginRequest,
 	type PluginResult,
+	type PluginLinkCatalogGuard,
 } from './workbench-plugin-contract';
 
 export {

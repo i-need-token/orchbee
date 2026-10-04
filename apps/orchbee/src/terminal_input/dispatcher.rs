@@ -340,6 +340,7 @@ impl InputDispatcher {
             self.flush_pending(view, port);
             if !self.popup_packet {
                 if let DecodedKind::Mouse(event) = item.kind {
+                    self.pointer.external_capture_event(event);
                     self.pointer.popup_event(port, event);
                 } else {
                     port.popup_input(&item);
@@ -358,6 +359,7 @@ impl InputDispatcher {
                 match item.kind {
                     DecodedKind::Key(key) => view.machines.key(key),
                     DecodedKind::Mouse(event) => {
+                        self.pointer.external_capture_event(event);
                         view.machines.pointer(event);
                     }
                     _ => {}
@@ -375,6 +377,7 @@ impl InputDispatcher {
             && view.machines.pointer(event)
         {
             self.flush_pending(view, port);
+            self.pointer.external_capture_event(event);
             self.machine_packet = true;
             self.pointer.invalidate_map_with_port(port);
             return Ok(DispatchOutcome::Continue);

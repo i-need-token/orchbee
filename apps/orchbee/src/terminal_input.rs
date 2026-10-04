@@ -93,6 +93,14 @@ pub(crate) enum PointerSelectionAdmission {
     Rejected,
 }
 
+#[cfg(windows)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum PointerLinkAdmission {
+    Admitted,
+    Busy,
+    Rejected,
+}
+
 /// One tab's stable identity plus its 1-based position — what a recorded
 /// tab region resolves against at click time. Pane identity inside the
 /// tab never resolves positionally: hit regions carry exact `PaneRef`
@@ -280,6 +288,17 @@ pub(crate) trait TerminalInputPort {
         _intent: PointerSelectionIntent,
     ) -> PointerSelectionAdmission {
         PointerSelectionAdmission::Rejected
+    }
+
+    /// Admit one Ctrl+click from an exact successfully painted pane source.
+    /// This read-only path never focuses the pane or acquires terminal control.
+    #[cfg(windows)]
+    fn pointer_link(
+        &mut self,
+        _source: crate::terminal_link_activation::PaintedLinkSource,
+        _cell: PointerSelectionCell,
+    ) -> PointerLinkAdmission {
+        PointerLinkAdmission::Rejected
     }
 
     fn apply_client_action(&mut self, _action: ClientAction) -> Option<SessionActionDisposition> {

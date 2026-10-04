@@ -3,7 +3,7 @@
 //! it never acquires terminal input.
 use super::{
     LocalClient, TerminalTextFrame, TerminalViewerAction, TerminalViewerOutcome,
-    TerminalViewerRequest, ViewerId, attach_viewer_cancellable, classify_rows_rejected,
+    TerminalViewerRequest, ViewerId, attach_viewer_cancellable_with_host, classify_rows_rejected,
     classify_viewer, classify_viewer_rejected, decode_history_window, obcs_request_id,
     poll_terminal_frame_cancellable, stream_snapshot, viewer_protocol_invalid, viewer_unavailable,
 };
@@ -40,6 +40,7 @@ pub(super) struct BufferReader<'a> {
     viewer: &'a ViewerId,
     pub(super) frame: &'a TerminalTextFrame,
     pub(super) terminal: &'a results::TerminalRow,
+    host_terminal: &'a orchbee_terminal_protocol::TerminalId,
     pub(super) total: u64,
     deadline: Instant,
     signals: &'a mut ArmedSignals,
@@ -47,6 +48,7 @@ pub(super) struct BufferReader<'a> {
     sequence: u64,
     remaining_bytes: usize,
     remaining_glyphs: usize,
+    effect_detach_attempted: &'a mut bool,
 }
 pub(super) fn limit() -> Failure {
     classify_rows_rejected(ViewerRowsRejectedReason::LimitExceeded, "read-history")
@@ -102,9 +104,16 @@ fn execute(
     signals.check_before(deadline)?;
     let (mut client, snapshot) = stream_snapshot(deadline, signals.poll_fd())?;
     let source = results::snapshot_source(&snapshot);
-    let (terminal, viewer, attachment, epoch, projection) =
-        attach_viewer_cancellable(&mut client, deadline, &snapshot, target, signals.poll_fd())
-            .map_err(|failure| failure.source(source.clone()))?;
+    let (terminal, viewer, attachment, epoch, host_terminal, projection) =
+        attach_viewer_cancellable_with_host(
+            &mut client,
+            deadline,
+            &snapshot,
+            target,
+            signals.poll_fd(),
+        )
+        .map_err(|failure| failure.source(source.clone()))?;
+    let mut effect_detach_attempted = false;
     let observed = (|| {
         let frame = poll_terminal_frame_cancellable(
             &mut client,
@@ -144,6 +153,7 @@ fn execute(
             viewer: &viewer,
             frame: &frame,
             terminal: &terminal,
+            host_terminal: &host_terminal,
             total,
             deadline,
             signals,
@@ -151,17 +161,20 @@ fn execute(
             sequence: 0,
             remaining_bytes: output::LIMIT,
             remaining_glyphs: 1048576,
+            effect_detach_attempted: &mut effect_detach_attempted,
         };
         let prepared = prepare(&mut reader)?;
         Ok((frame, prepared))
     })();
-    // Detach is bounded by the original deadline; connection Drop releases on failure/cancellation.
-    if let Ok(id) = obcs_request_id() {
+    // Read-only paths retain best-effort cleanup. A matched-link effect handoff
+    // owns one explicit Detach attempt; uncertainty drops this connection and
+    // must never be retried after that attempt.
+    if !effect_detach_attempted && let Ok(id) = obcs_request_id() {
         let _ = client.submit_terminal_viewer_cancellable(
             TerminalViewerRequest::new(
                 id,
                 TerminalViewerAction::Detach {
-                    attachment_id: viewer,
+                    attachment_id: viewer.clone(),
                 },
             ),
             Some(deadline),
@@ -207,6 +220,7 @@ impl BufferReader<'_> {
         url: Option<&str>,
         row: u64,
         col: u16,
+        viewport: Range<u64>,
         explicit: bool,
     ) -> Result<crate::cli::plugins::links::Activation, Failure> {
         use crate::cli::plugins::links;
@@ -216,19 +230,46 @@ impl BufferReader<'_> {
         let Some(selection) = links::select(url, self.deadline, self.signals)? else {
             return Ok(links::Activation::NoHandler);
         };
-        let invocation = links::preflight(
+        let preflight = links::preflight(url, selection)?;
+        let pane_directory = self.link_directory()?;
+        let (invocation, member) = links::observe(
             self.client,
             self.snapshot,
             self.terminal,
-            url,
-            selection,
+            pane_directory,
+            preflight,
             self.deadline,
             self.signals,
         )?;
         let final_uri = self.hyperlink(row, col)?;
-        if final_uri.as_deref() != explicit.then_some(url) {
+        let same_url = if explicit {
+            final_uri.as_deref() == Some(url)
+        } else if final_uri.is_none() {
+            super::terminal_links::plain(
+                self,
+                TerminalTextPoint {
+                    row: u32::try_from(row).map_err(|_| limit())?,
+                    col,
+                },
+                viewport,
+            )?
+            .url
+            .as_deref()
+                == Some(url)
+        } else {
+            false
+        };
+        if !same_url {
             return Err(viewer_protocol_invalid());
         }
+        links::fence(
+            self.client,
+            self.snapshot,
+            &member,
+            self.deadline,
+            self.signals,
+        )?;
+        self.detach_before_effect()?;
         links::submit(
             self.client,
             self.snapshot,
@@ -237,6 +278,79 @@ impl BufferReader<'_> {
             self.signals,
         )
     }
+
+    fn detach_before_effect(&mut self) -> Result<(), Failure> {
+        if *self.effect_detach_attempted {
+            return Err(viewer_protocol_invalid());
+        }
+        *self.effect_detach_attempted = true;
+        self.signals.check_before(self.deadline)?;
+        let response = self
+            .client
+            .submit_terminal_viewer_cancellable(
+                TerminalViewerRequest::new(
+                    obcs_request_id()?,
+                    TerminalViewerAction::Detach {
+                        attachment_id: self.viewer.clone(),
+                    },
+                ),
+                Some(self.deadline),
+                self.signals.poll_fd(),
+            )
+            .map_err(classify_viewer)?;
+        self.signals.check_before(self.deadline)?;
+        match response.outcome() {
+            TerminalViewerOutcome::Detached {} => Ok(()),
+            TerminalViewerOutcome::Rejected { reason } => Err(classify_viewer_rejected(*reason)),
+            TerminalViewerOutcome::Unavailable { .. } => Err(viewer_unavailable()),
+            _ => Err(viewer_protocol_invalid()),
+        }
+    }
+
+    fn link_directory(&mut self) -> Result<Option<String>, Failure> {
+        if let Some(directory) = self
+            .frame
+            .current_directory
+            .as_deref()
+            .and_then(orchbee_local_site_runtime::windows_reported_directory)
+        {
+            return Ok(Some(directory));
+        }
+        self.signals.check_before(self.deadline)?;
+        let response = self
+            .client
+            .submit_terminal_viewer_cancellable(
+                TerminalViewerRequest::new(
+                    obcs_request_id()?,
+                    TerminalViewerAction::ReadProcessInfo {
+                        attachment_id: self.viewer.clone(),
+                    },
+                ),
+                Some(self.deadline),
+                self.signals.poll_fd(),
+            )
+            .map_err(classify_viewer)?;
+        self.signals.check_before(self.deadline)?;
+        match response.outcome() {
+            TerminalViewerOutcome::Record(record) => {
+                crate::terminal_link_activation::context::process_directory(
+                    record,
+                    self.frame.route.attachment_id,
+                    self.frame.route.host_epoch,
+                    self.host_terminal,
+                )
+                .map_err(|()| viewer_protocol_invalid())
+            }
+            TerminalViewerOutcome::Rejected { reason } => Err(classify_viewer_rejected(*reason)),
+            TerminalViewerOutcome::Unavailable {
+                reason:
+                    orchbee_client_server_protocol::ViewerUnavailableReason::TerminalRuntimeUnavailable,
+            } => Ok(None),
+            TerminalViewerOutcome::Unavailable { .. } => Err(viewer_unavailable()),
+            _ => Err(viewer_protocol_invalid()),
+        }
+    }
+
     pub(super) fn validate_point(&self, point: TerminalTextPoint) -> Result<(), Failure> {
         if u64::from(point.row) >= self.total || point.col >= self.frame.geometry.columns {
             Err(limit())
@@ -292,18 +406,7 @@ impl BufferReader<'_> {
             .rows()
             .next()
             .ok_or_else(viewer_protocol_invalid)?;
-        let cell = row
-            .cells()
-            .nth(usize::from(col))
-            .ok_or_else(viewer_protocol_invalid)?;
-        let cell = if cell.width == 2 && col > 0 {
-            row.cells()
-                .nth(usize::from(col - 1))
-                .ok_or_else(viewer_protocol_invalid)?
-        } else {
-            cell
-        };
-        Ok(cell.hyperlink.map(str::to_owned))
+        crate::terminal_links::explicit_url(row, col).map_err(|()| viewer_protocol_invalid())
     }
     fn window_record(
         &mut self,

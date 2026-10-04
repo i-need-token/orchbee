@@ -1137,6 +1137,173 @@ fn machine_picker_owns_closing_packet_and_split_paste_across_surface_switch() {
 }
 
 #[cfg(windows)]
+#[derive(Default)]
+struct ModalLinkPort {
+    probe: crate::terminal_input::PointerProbe,
+    selections: Vec<crate::terminal_input::PointerSelectionIntent>,
+    links: usize,
+    forwarded: Vec<Vec<u8>>,
+}
+
+#[cfg(windows)]
+impl TerminalInputPort for ModalLinkPort {
+    fn forward(&mut self, bytes: &[u8]) -> Result<(), TerminalInputUnavailable> {
+        self.forwarded.push(bytes.to_vec());
+        Ok(())
+    }
+
+    fn pointer_probe(&mut self) -> crate::terminal_input::PointerProbe {
+        self.probe.clone()
+    }
+
+    fn pointer_selection(
+        &mut self,
+        _pane: &crate::terminal_session::state::PaneRef,
+        intent: crate::terminal_input::PointerSelectionIntent,
+    ) -> crate::terminal_input::PointerSelectionAdmission {
+        self.selections.push(intent);
+        crate::terminal_input::PointerSelectionAdmission::Admitted
+    }
+
+    fn pointer_link(
+        &mut self,
+        _source: crate::terminal_link_activation::PaintedLinkSource,
+        _cell: crate::terminal_input::PointerSelectionCell,
+    ) -> crate::terminal_input::PointerLinkAdmission {
+        self.links += 1;
+        crate::terminal_input::PointerLinkAdmission::Admitted
+    }
+}
+
+#[cfg(windows)]
+fn dispatcher_link_source(
+    pane: crate::terminal_session::state::PaneRef,
+) -> crate::terminal_link_activation::PaintedLinkSource {
+    fn id(value: u128) -> String {
+        format!("{value:032x}")
+    }
+
+    let tab = pane.anchor().tab_id().clone();
+    let panel = pane.pane().panel().clone();
+    crate::terminal_link_activation::PaintedLinkSource {
+        pane,
+        member: crate::terminal_link_activation::SnapshotMember {
+            site: orchbee_workbench_protocol::SiteId::parse(&id(20)).unwrap(),
+            context: orchbee_workbench_protocol::WorkbenchTerminalContextId::parse(&id(21))
+                .unwrap(),
+            tab,
+            panel,
+            presentation: orchbee_workbench_protocol::TerminalPresentationId::parse(&id(22))
+                .unwrap(),
+            worker: orchbee_workbench_protocol::WorkerId::parse(&id(23)).unwrap(),
+            terminal: orchbee_workbench_protocol::TerminalId::parse(&id(24)).unwrap(),
+        },
+        rows: crate::terminal_link_activation::PaintedRows {
+            attachment: orchbee_terminal_protocol::AttachmentId::from_bytes([25; 16]).unwrap(),
+            host_epoch: orchbee_terminal_protocol::HostEpoch::from_bytes([26; 16]).unwrap(),
+            sequence: std::num::NonZeroU64::MIN,
+            generation: std::num::NonZeroU64::MIN,
+            revision: 1,
+            columns: 10,
+            total_rows: 3,
+            start_row: 0,
+            row_count: 3,
+            history: false,
+        },
+    }
+}
+
+#[cfg(windows)]
+#[test]
+fn machine_picker_retires_a_cancelled_link_release_before_the_next_pane_press() {
+    use crate::terminal_input::{PointerFrameFacts, PointerPane, PointerProbe, PointerTab};
+    use orchbee_terminal_protocol::{MouseFormat, MouseTracking};
+    use ratatui::layout::Rect;
+
+    let pane = crate::terminal_input::legacy_pane_ref();
+    let source = dispatcher_link_source(pane.clone());
+    let mut port = ModalLinkPort {
+        probe: PointerProbe {
+            focus: Some(pane.clone()),
+            desired: Some(pane.pane().clone()),
+            panes: vec![PointerPane {
+                right_click_reporting: false,
+                right_click: Default::default(),
+                record: pane.clone(),
+                attached: true,
+                controlling: Some(true),
+                frame_available: true,
+            }],
+            tabs: vec![PointerTab {
+                id: pane.anchor().tab_id().clone(),
+                position: 1,
+            }],
+            selection_ready: true,
+            frame: Some(PointerFrameFacts {
+                tracking: MouseTracking::None,
+                format: MouseFormat::Sgr,
+                cell_pixel: (0, 0),
+                alternate_screen: false,
+                alternate_scroll: false,
+                application_cursor: false,
+            }),
+            ..PointerProbe::default()
+        },
+        ..ModalLinkPort::default()
+    };
+    let mut dispatcher = InputDispatcher::default();
+    let mut view = ClientView::new(100);
+    view.machines.available = true;
+    dispatcher.set_pointer_capture(&mut view, &mut port, true);
+    let publish = |dispatcher: &mut InputDispatcher| {
+        let content = Rect::new(0, 0, 10, 3);
+        let mut hits = crate::tui_pointer::HitMapBuilder::new();
+        hits.record(
+            crate::tui_pointer::HitLayer::Foreground,
+            content,
+            crate::tui_pointer::HitTarget::Pane {
+                pane: pane.clone(),
+                content,
+            },
+        );
+        hits.record_link_source(content, source.clone());
+        dispatcher.publish_hit_map(hits.finish());
+    };
+    let dispatch = |dispatcher: &mut InputDispatcher,
+                    view: &mut ClientView,
+                    port: &mut ModalLinkPort,
+                    packet: &[u8]| {
+        dispatcher
+            .dispatch(
+                view,
+                packet,
+                port,
+                Instant::now(),
+                |_, _| Ok::<(), io::Error>(()),
+                &mut |_| Ok(()),
+            )
+            .unwrap();
+    };
+
+    publish(&mut dispatcher);
+    dispatch(&mut dispatcher, &mut view, &mut port, b"\x1b[<16;2;2M");
+    dispatch(&mut dispatcher, &mut view, &mut port, b"\x02M");
+    assert!(view.machines.open);
+    dispatch(&mut dispatcher, &mut view, &mut port, b"\x1b[<0;2;2m");
+    assert_eq!(port.links, 0, "the modal-owned release cannot activate");
+
+    view.machines.open = false;
+    dispatcher.machine_surface_changed();
+    publish(&mut dispatcher);
+    dispatch(&mut dispatcher, &mut view, &mut port, b"\x1b[<0;2;2M");
+    assert!(matches!(
+        port.selections.as_slice(),
+        [crate::terminal_input::PointerSelectionIntent::Start { .. }]
+    ));
+    assert!(port.forwarded.is_empty());
+}
+
+#[cfg(windows)]
 #[test]
 fn default_agent_cycle_opens_filtered_navigation_and_query_completion_is_captured() {
     for (shortcut, action) in [

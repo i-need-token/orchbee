@@ -34,9 +34,40 @@ Server 在解析调用前要求读取、终端创建和生命周期权限。确�
 
 存储 v2 保留托管 GitHub 来源和有界恢复列表。v1 目录仍可读取，并在修改时迁移；旧二进制拒绝 v2，不丢弃其状态。`orchbee.plugin.registry` v2 增加可空的托管来源，v1 schema 保持封闭。`orchbee.plugin.provision` v1 报告操作身份、阶段、已提交变更、失败命令/退出码/输出、截断及未清理路径。源码安装/更新提交与构建产生的外部副作用分开，删除 checkout 无法回滚外部副作用。退出码 7 表示执行超时，8 表示物理状态不确定，130 表示中断，其余安装/卸载失败使用 1。
 
+## 原生 TUI 链接激活
+
+Windows 原生 TUI 中的精确 Ctrl+主键点击，从最近一次完整绘制解析 cell，不改变焦点也不取得
+终端控制权。已绘制来源携带精确 Pane／成员 binding 和终端内容围栏。私有只读 viewer 必须
+重现捕获的 host epoch、generation、revision、几何和总行数，之后才可解析 OSC 8 元数据或
+经过验证的软折行小写 HTTP(S) token。过期、重新绑定、格式错误、忙碌或不可用的观察都不
+产生外部效果，也不重放。
+
+TUI 与公开 `terminal link-activate` 共用一个应用私有的有序 handler 预检和结果边界。固定
+持久注册目录中第一个清单 pattern 匹配的已启用 Windows handler，观察精确点击终端上下文，
+并在单次插件提交前立即重读完整有序目录指纹、registry 条目、handler 和 action。受 guard
+保护的 Server 路由在解析 action 前校验同一注册目录指纹。注册读取只访问有界私有目录文件：
+链接准入只接受固定本地卷，固定私有缓存的非 reparse 祖先，并将文件限制为 1 MiB；它不刷新链接
+清单。链接清单的编辑只有经过显式重新 link 或托管 update 发布后才可用于链接点击。registry
+漂移会拒绝点击，不选择替代 handler。插件启动、失败或结果未知都是最终结果，绝不打开浏览器。
+浏览器交接前会重读注册目录；只有仍能确定无 handler 时，才通过 Windows shell 打开一次小写
+`http://` 或 `https://` URL。
+
+可选的受 guard 保护调用字段是匹配 cohort 的协议扩展；Rust、TypeScript、JSON、Client 和
+Server peer 必须一起部署。普通的不带 guard 插件调用保留现有的实时清单刷新行为。
+
+上下文观察始终绑定到被点击的 presentation。它在对精确终端目录、presentation Agent 报告、
+匹配的存活 Agent session 和 Workspace worktree 事实进行有界读取的前后，重新核对规范成员关系。
+Pane 目录覆盖 Workspace 主目录，作为 `workspaceCwd`；未知的 Agent、状态、目录或 worktree 事实
+会被省略，不会推断。来源、报告或目录漂移会在效果交接前拒绝点击。
+
+其他 scheme 没有 fallback。TUI 只保留一个有界作业，忙碌点击不排队也不重试；关闭时 join
+自有通道，但不宣称拥有已经
+受理的插件 action 或 shell 启动的浏览器进程。Ctrl 悬停装饰属于后续表面，不启用
+any-motion capture。
+
 ## 交付与证据
 
-原生已接通目录、action 调用、保留日志及托管源码安装/卸载。插件 Pane 生命周期如下。公开 `terminal link-activate` 通过现有执行边界，按顺序调用已启用的 Windows 链接处理器并带上精确点击终端上下文；读取围栏、无匹配／拒绝／未知回执和限制属于 [原生 CLI 查询](native-cli-query.zh-CN.md#激活终端链接)。TUI 悬停／点击集成和剩余插件 hook 义务继续单列。目录接受不代表命令已执行。参照固定 Herdr `e0507237ad8d41f60aece10d00ef29ce2339ca34`，主要为 `cli/plugin.rs`、`app/api/plugins/manifest.rs` 和 `persist/plugin_registry.rs`。
+原生已接通目录、action 调用、保留日志及托管源码安装/卸载。插件 Pane 生命周期如下。公开 `terminal link-activate` 和原生 TUI 点击路径通过共享边界，按顺序调用已启用的 Windows 链接处理器并带上精确点击终端上下文；CLI 的读取围栏、无匹配／拒绝／未知回执和限制属于 [原生 CLI 查询](native-cli-query.zh-CN.md#激活终端链接)，指针／来源归属属于[原生鼠标输入](native-mouse-input.zh-CN.md#链接激活)。目录接受不代表命令已执行。参照固定 Herdr `e0507237ad8d41f60aece10d00ef29ce2339ca34`，主要为 `cli/plugin.rs`、`app/api/plugins/manifest.rs` 和 `persist/plugin_registry.rs`。
 
 定向证据覆盖解析上限、标识符/路径碰撞、源不可用时保留条目、缺失目录只读、目录原子转换及真实 Windows CLI 回执。测试夹具拥有并回收临时路径。完整 Windows 视觉/provider/多 Client 与全量回归验收另行执行。
 

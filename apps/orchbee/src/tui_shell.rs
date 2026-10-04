@@ -799,6 +799,10 @@ fn draw_surface<B: Backend + ResizableBackend>(
     }
     #[cfg(windows)]
     if notification_painted {
+        // The card is intentionally noncapturing, so ordinary pane clicks
+        // keep their existing policy. Its covered cells must not expose a
+        // terminal link source or preserve an earlier link effect handoff.
+        hits.suppress_link_sources();
         crate::notifications::sound(view.notifications.take_sound_after_draw());
     }
     dispatcher.publish_hit_map(hits.finish());

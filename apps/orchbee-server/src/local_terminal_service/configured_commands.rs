@@ -300,6 +300,7 @@ impl LocalTerminalService {
                         plugin_id: None,
                         action_id: prepared.command.command,
                         context: Box::new(prepared.context),
+                        link_catalog: None,
                     },
                 });
                 Ok(Outcome::Plugin {

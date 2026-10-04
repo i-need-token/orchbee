@@ -8,6 +8,8 @@ mod divider;
 use orchbee_terminal_protocol::MouseFormat;
 use orchbee_workbench_protocol::WorkbenchPanelId;
 
+#[cfg(windows)]
+use crate::terminal_input::PointerLinkAdmission;
 use crate::terminal_input::{
     PointerPane, PointerSelectionAdmission, PointerSelectionCell, PointerSelectionIntent,
     PointerTab,
@@ -256,6 +258,13 @@ struct RecordingPort {
     non_live: Vec<PaneKey>,
     selection_admitted: bool,
     selections: Vec<(PaneRef, PointerSelectionIntent)>,
+    #[cfg(windows)]
+    link_admission: Option<PointerLinkAdmission>,
+    #[cfg(windows)]
+    links: Vec<(
+        crate::terminal_link_activation::PaintedLinkSource,
+        PointerSelectionCell,
+    )>,
 }
 
 impl RecordingPort {
@@ -288,6 +297,17 @@ impl TerminalInputPort for RecordingPort {
         } else {
             PointerSelectionAdmission::Rejected
         }
+    }
+
+    #[cfg(windows)]
+    fn pointer_link(
+        &mut self,
+        source: crate::terminal_link_activation::PaintedLinkSource,
+        cell: PointerSelectionCell,
+    ) -> PointerLinkAdmission {
+        self.links.push((source, cell));
+        self.link_admission
+            .unwrap_or(PointerLinkAdmission::Rejected)
     }
 
     fn history_wheel(&mut self, key: &PaneRef, up: bool) -> bool {
@@ -387,6 +407,435 @@ fn active_probe(tab_index: usize, panel_index: usize, tabs: usize, panels: usize
         frame: Some(frame_facts(MouseTracking::None, MouseFormat::Sgr, false)),
         ..PointerProbe::default()
     }
+}
+
+#[cfg(windows)]
+fn painted_link_source(
+    pane: PaneRef,
+    columns: u16,
+    rows: u16,
+) -> crate::terminal_link_activation::PaintedLinkSource {
+    fn id(value: u128) -> String {
+        format!("{value:032x}")
+    }
+
+    let tab = pane.anchor().tab_id().clone();
+    let panel = pane.pane().panel().clone();
+    crate::terminal_link_activation::PaintedLinkSource {
+        pane,
+        member: crate::terminal_link_activation::SnapshotMember {
+            site: orchbee_workbench_protocol::SiteId::parse(&id(20)).unwrap(),
+            context: orchbee_workbench_protocol::WorkbenchTerminalContextId::parse(&id(21))
+                .unwrap(),
+            tab,
+            panel,
+            presentation: orchbee_workbench_protocol::TerminalPresentationId::parse(&id(22))
+                .unwrap(),
+            worker: orchbee_workbench_protocol::WorkerId::parse(&id(23)).unwrap(),
+            terminal: orchbee_workbench_protocol::TerminalId::parse(&id(24)).unwrap(),
+        },
+        rows: crate::terminal_link_activation::PaintedRows {
+            attachment: orchbee_terminal_protocol::AttachmentId::from_bytes([25; 16]).unwrap(),
+            host_epoch: orchbee_terminal_protocol::HostEpoch::from_bytes([26; 16]).unwrap(),
+            sequence: std::num::NonZeroU64::MIN,
+            generation: std::num::NonZeroU64::MIN,
+            revision: 1,
+            columns,
+            total_rows: 100,
+            start_row: 50,
+            row_count: rows,
+            history: false,
+        },
+    }
+}
+
+#[cfg(windows)]
+fn publish_link_map(
+    pointer: &mut PointerState,
+    source: &crate::terminal_link_activation::PaintedLinkSource,
+    content: Rect,
+) {
+    let mut hits = HitMapBuilder::new();
+    hits.record(
+        HitLayer::Foreground,
+        content,
+        HitTarget::Pane {
+            pane: source.pane.clone(),
+            content,
+        },
+    );
+    hits.record_link_source(content, source.clone());
+    pointer.publish(hits.finish());
+}
+
+#[cfg(windows)]
+fn link_fixture() -> (
+    PointerState,
+    ClientView,
+    RecordingPort,
+    crate::terminal_link_activation::PaintedLinkSource,
+    Rect,
+) {
+    let content = Rect::new(4, 3, 10, 5);
+    let source = painted_link_source(pane_ref(1, 1, 1, 0), content.width, content.height);
+    let mut pointer = PointerState::default();
+    pointer.set_capture(true);
+    publish_link_map(&mut pointer, &source, content);
+    let port = RecordingPort {
+        probe: active_probe(0, 0, 1, 1),
+        link_admission: Some(PointerLinkAdmission::Admitted),
+        ..RecordingPort::default()
+    };
+    (pointer, ClientView::new(120), port, source, content)
+}
+
+#[cfg(windows)]
+fn notification_covered_link_map(
+    source: &crate::terminal_link_activation::PaintedLinkSource,
+    content: Rect,
+) -> FrameHitMap {
+    let mut hits = HitMapBuilder::new();
+    hits.record(
+        HitLayer::Foreground,
+        content,
+        HitTarget::Pane {
+            pane: source.pane.clone(),
+            content,
+        },
+    );
+    hits.record_link_source(content, source.clone());
+    hits.suppress_link_sources();
+    hits.finish()
+}
+
+#[cfg(windows)]
+#[test]
+fn notification_card_keeps_plain_pane_hit_but_suppresses_the_hidden_link_source() {
+    let content = Rect::new(4, 3, 10, 5);
+    let source = painted_link_source(pane_ref(1, 1, 1, 0), content.width, content.height);
+    let map = notification_covered_link_map(&source, content);
+
+    assert!(matches!(
+        map.hit(content.x + 2, content.y + 1),
+        HitResolution::Region(HitTarget::Pane { pane, content: painted })
+            if pane == &source.pane && *painted == content
+    ));
+    assert_eq!(
+        map.link_source(&source.pane, content.x + 2, content.y + 1),
+        None
+    );
+}
+
+#[cfg(windows)]
+#[test]
+fn notification_frame_cancels_a_pressed_link_and_its_release_stays_swallowed() {
+    let (mut pointer, mut view, mut port, source, content) = link_fixture();
+    let mut down = press(content.x + 2, content.y + 1);
+    down.mods = Modifiers::CTRL;
+    assert_eq!(
+        pointer.event(&mut view, &mut port, now(), down),
+        PointerOutcome::Handled
+    );
+    assert!(matches!(
+        &pointer.gesture,
+        Gesture::Link(LinkGesture {
+            cancelled: false,
+            ..
+        })
+    ));
+
+    pointer.publish(notification_covered_link_map(&source, content));
+    assert!(matches!(
+        &pointer.gesture,
+        Gesture::Link(LinkGesture {
+            cancelled: true,
+            ..
+        })
+    ));
+    assert_eq!(
+        pointer.event(
+            &mut view,
+            &mut port,
+            now(),
+            event(
+                MouseAction::Release,
+                MouseButton::Left,
+                content.x + 2,
+                content.y + 1,
+            ),
+        ),
+        PointerOutcome::Handled
+    );
+    assert!(port.links.is_empty());
+    assert!(port.forwarded.is_empty() && port.actions.is_empty() && port.selections.is_empty());
+}
+
+#[cfg(windows)]
+#[test]
+fn exact_ctrl_left_click_submits_the_same_painted_cell_without_pane_input() {
+    let (mut pointer, mut view, mut port, source, content) = link_fixture();
+    pointer.wheel.accumulate(true, 4, false);
+    let mut down = press(content.x + 2, content.y + 1);
+    down.mods = Modifiers::CTRL;
+    assert_eq!(
+        pointer.event(&mut view, &mut port, now(), down),
+        PointerOutcome::Handled
+    );
+    assert_eq!(pointer.wheel.pending, 0);
+
+    // The press-time owner completes even when Ctrl is released first.
+    let up = event(
+        MouseAction::Release,
+        MouseButton::Left,
+        content.x + 2,
+        content.y + 1,
+    );
+    assert_eq!(
+        pointer.event(&mut view, &mut port, now(), up),
+        PointerOutcome::Handled
+    );
+    assert_eq!(
+        port.links,
+        [(source, PointerSelectionCell { column: 2, row: 1 })]
+    );
+    assert!(port.forwarded.is_empty() && port.actions.is_empty() && port.selections.is_empty());
+}
+
+#[cfg(windows)]
+#[test]
+fn ctrl_left_without_a_painted_link_source_still_owns_and_swallows_release() {
+    let content = Rect::new(4, 3, 10, 5);
+    let pane = pane_ref(1, 1, 1, 0);
+    let mut hits = HitMapBuilder::new();
+    hits.record(
+        HitLayer::Foreground,
+        content,
+        HitTarget::Pane { pane, content },
+    );
+    let mut pointer = PointerState::default();
+    pointer.set_capture(true);
+    pointer.publish(hits.finish());
+    let mut view = ClientView::new(120);
+    let mut port = RecordingPort {
+        probe: active_probe(0, 0, 1, 1),
+        ..RecordingPort::default()
+    };
+    port.probe.frame = Some(frame_facts(MouseTracking::Button, MouseFormat::Sgr, false));
+
+    let mut down = press(content.x + 2, content.y + 1);
+    down.mods = Modifiers::CTRL;
+    assert_eq!(
+        pointer.event(&mut view, &mut port, now(), down),
+        PointerOutcome::Handled
+    );
+    assert_eq!(
+        pointer.event(
+            &mut view,
+            &mut port,
+            now(),
+            event(
+                MouseAction::Release,
+                MouseButton::Left,
+                content.x + 2,
+                content.y + 1,
+            ),
+        ),
+        PointerOutcome::Handled
+    );
+    assert!(port.links.is_empty());
+    assert!(port.forwarded.is_empty() && port.actions.is_empty() && port.selections.is_empty());
+}
+
+#[cfg(windows)]
+#[test]
+fn link_owner_cancels_on_movement_modifiers_and_painted_source_drift() {
+    for case in 0..7 {
+        let (mut pointer, mut view, mut port, source, content) = link_fixture();
+        let mut down = press(content.x + 2, content.y + 1);
+        down.mods = Modifiers::CTRL;
+        pointer.event(&mut view, &mut port, now(), down);
+
+        match case {
+            0 => {
+                let mut motion = event(
+                    MouseAction::Motion,
+                    MouseButton::Left,
+                    content.x + 3,
+                    content.y + 1,
+                );
+                motion.mods = Modifiers::CTRL;
+                pointer.event(&mut view, &mut port, now(), motion);
+            }
+            1 => {}
+            2 => {
+                pointer.invalidate_map();
+                publish_link_map(&mut pointer, &source, content);
+            }
+            3 => {
+                pointer.set_capture(false);
+                pointer.set_capture(true);
+            }
+            4 => {
+                let mut changed = source.clone();
+                changed.rows.revision += 1;
+                publish_link_map(&mut pointer, &changed, content);
+            }
+            5 => {
+                let other = event(
+                    MouseAction::Release,
+                    MouseButton::Right,
+                    content.x + 2,
+                    content.y + 1,
+                );
+                assert_eq!(
+                    pointer.event(&mut view, &mut port, now(), other),
+                    PointerOutcome::Handled
+                );
+                assert!(port.links.is_empty());
+            }
+            6 => {
+                let mut motion = event(
+                    MouseAction::Motion,
+                    MouseButton::Left,
+                    content.x + 2,
+                    content.y + 1,
+                );
+                motion.mods = Modifiers::CTRL;
+                pointer.event(&mut view, &mut port, now(), motion);
+            }
+            _ => unreachable!(),
+        }
+
+        let mut up = event(
+            MouseAction::Release,
+            MouseButton::Left,
+            content.x + 2,
+            content.y + 1,
+        );
+        if case == 1 {
+            up.mods = Modifiers::CTRL.with_shift();
+        }
+        assert_eq!(
+            pointer.event(&mut view, &mut port, now(), up),
+            PointerOutcome::Handled,
+            "case {case} must retain and swallow the matching release"
+        );
+        assert!(port.links.is_empty(), "case {case} must submit no effect");
+        assert!(port.forwarded.is_empty());
+    }
+}
+
+#[cfg(windows)]
+#[test]
+fn modal_capture_cancels_a_link_once_without_a_redraw_loop() {
+    let (mut pointer, mut view, mut port, _source, content) = link_fixture();
+    let mut down = press(content.x + 2, content.y + 1);
+    down.mods = Modifiers::CTRL;
+    pointer.event(&mut view, &mut port, now(), down);
+
+    port.probe.input_captured = true;
+    assert!(pointer.tick(&mut view, &mut port, now()));
+    assert!(!pointer.tick(&mut view, &mut port, now()));
+
+    pointer.wheel.accumulate(true, 4, false);
+    assert_eq!(
+        pointer.event(
+            &mut view,
+            &mut port,
+            now(),
+            event(
+                MouseAction::Release,
+                MouseButton::Left,
+                content.x + 2,
+                content.y + 1,
+            ),
+        ),
+        PointerOutcome::Handled
+    );
+    assert!(port.links.is_empty());
+    assert_eq!(pointer.wheel.pending, 0);
+    assert!(pointer.wheel.up.is_none());
+    assert!(!pointer.tick(&mut view, &mut port, now()));
+}
+
+#[cfg(windows)]
+#[test]
+fn ctrl_added_after_an_existing_pointer_owner_never_steals_that_gesture() {
+    let content = Rect::new(4, 3, 10, 5);
+    let source = painted_link_source(pane_ref(1, 1, 1, 0), content.width, content.height);
+
+    // Client selection owns this press.
+    let mut pointer = PointerState::default();
+    pointer.set_capture(true);
+    publish_link_map(&mut pointer, &source, content);
+    let mut view = ClientView::new(120);
+    let mut port = RecordingPort {
+        probe: active_probe(0, 0, 1, 1),
+        selection_admitted: true,
+        link_admission: Some(PointerLinkAdmission::Admitted),
+        ..RecordingPort::default()
+    };
+    pointer.event(
+        &mut view,
+        &mut port,
+        now(),
+        press(content.x + 1, content.y + 1),
+    );
+    let mut up = event(
+        MouseAction::Release,
+        MouseButton::Left,
+        content.x + 1,
+        content.y + 1,
+    );
+    up.mods = Modifiers::CTRL;
+    pointer.event(&mut view, &mut port, now(), up);
+    assert!(port.links.is_empty());
+    assert!(matches!(
+        port.selections.last(),
+        Some((_, PointerSelectionIntent::End { .. }))
+    ));
+
+    // An application-reporting pane owns this press.
+    let mut pointer = PointerState::default();
+    pointer.set_capture(true);
+    publish_link_map(&mut pointer, &source, content);
+    let mut port = RecordingPort {
+        probe: active_probe(0, 0, 1, 1),
+        link_admission: Some(PointerLinkAdmission::Admitted),
+        ..RecordingPort::default()
+    };
+    port.probe.frame = Some(frame_facts(MouseTracking::Button, MouseFormat::Sgr, false));
+    pointer.event(
+        &mut view,
+        &mut port,
+        now(),
+        press(content.x + 1, content.y + 1),
+    );
+    pointer.event(&mut view, &mut port, now(), up);
+    assert!(port.links.is_empty());
+    assert!(!port.forwarded.is_empty());
+
+    // A sibling focus transition whose frame is not ready owns a Pending press.
+    let pending_pane = pane_ref(1, 1, 2, 0);
+    let pending_source = painted_link_source(pending_pane.clone(), content.width, content.height);
+    let mut pointer = PointerState::default();
+    pointer.set_capture(true);
+    publish_link_map(&mut pointer, &pending_source, content);
+    let mut probe = active_probe(0, 0, 1, 2);
+    set_leaf(&mut probe, pane_leaf(1, 1, 2, 0, true, Some(true), false));
+    let mut port = RecordingPort {
+        probe,
+        link_admission: Some(PointerLinkAdmission::Admitted),
+        ..RecordingPort::default()
+    };
+    pointer.event(
+        &mut view,
+        &mut port,
+        now(),
+        press(content.x + 1, content.y + 1),
+    );
+    pointer.event(&mut view, &mut port, now(), up);
+    assert!(port.links.is_empty());
 }
 
 /// Replaces the probe's leaf facts for one logical pane — how a test

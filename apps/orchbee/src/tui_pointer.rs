@@ -171,6 +171,8 @@ fn contains(rect: Rect, column: u16, row: u16) -> bool {
 pub(crate) struct FrameHitMap {
     overlay_active: bool,
     regions: Vec<HitRegion>,
+    #[cfg(windows)]
+    link_sources: Vec<(Rect, crate::terminal_link_activation::PaintedLinkSource)>,
 }
 
 impl FrameHitMap {
@@ -206,6 +208,19 @@ impl FrameHitMap {
         HitResolution::Dead
     }
 
+    #[cfg(windows)]
+    fn link_source(
+        &self,
+        pane: &PaneRef,
+        column: u16,
+        row: u16,
+    ) -> Option<&crate::terminal_link_activation::PaintedLinkSource> {
+        self.link_sources
+            .iter()
+            .find(|(rect, source)| source.pane == *pane && contains(*rect, column, row))
+            .map(|(_, source)| source)
+    }
+
     /// Test-only probe: the target a press at `(column, row)` would
     /// resolve to — the drawn-set witness that a zoomed frame exposes
     /// exactly the focused pane and nothing else.
@@ -231,6 +246,8 @@ impl HitMapBuilder {
             map: FrameHitMap {
                 overlay_active: false,
                 regions: Vec::new(),
+                #[cfg(windows)]
+                link_sources: Vec::new(),
             },
         }
     }
@@ -250,6 +267,26 @@ impl HitMapBuilder {
             rect,
             target,
         });
+    }
+
+    /// Record the link source from the same terminal paint and pane geometry
+    /// as the foreground hit region. It publishes atomically with this map.
+    #[cfg(windows)]
+    pub(crate) fn record_link_source(
+        &mut self,
+        rect: Rect,
+        source: crate::terminal_link_activation::PaintedLinkSource,
+    ) {
+        if !rect.is_empty() {
+            self.map.link_sources.push((rect, source));
+        }
+    }
+
+    /// A noncapturing surface covered terminal content after it was painted.
+    /// Keep ordinary pane hits, but publish no terminal link source through it.
+    #[cfg(windows)]
+    pub(crate) fn suppress_link_sources(&mut self) {
+        self.map.link_sources.clear();
     }
 
     /// Exact positive-size pane content recorded by this paint pass.
@@ -379,6 +416,44 @@ struct SelectionGesture {
     viewport: Rect,
 }
 
+/// Ctrl+Left owns one exact painted pane cell through its matching release.
+/// Cancellation is sticky so a later release is swallowed rather than
+/// leaking into a pane after map, modifier, or membership drift.
+#[cfg(windows)]
+struct LinkGesture {
+    source: Option<crate::terminal_link_activation::PaintedLinkSource>,
+    viewport: Rect,
+    press_column: u16,
+    press_row: u16,
+    cell: PointerSelectionCell,
+    cancelled: bool,
+}
+
+#[cfg(windows)]
+impl LinkGesture {
+    fn alive(&self, probe: &PointerProbe) -> bool {
+        self.source.as_ref().is_some_and(|source| {
+            probe
+                .panes
+                .iter()
+                .any(|pane| pane.record == source.pane && pane.attached)
+        })
+    }
+
+    fn source_matches(&self, map: &FrameHitMap) -> bool {
+        self.source.as_ref().is_some_and(|source| {
+            match map.hit(self.press_column, self.press_row) {
+                HitResolution::Region(HitTarget::Pane { pane, content })
+                    if *content == self.viewport && pane == &source.pane =>
+                {
+                    map.link_source(pane, self.press_column, self.press_row) == Some(source)
+                }
+                _ => false,
+            }
+        })
+    }
+}
+
 impl SelectionGesture {
     fn alive(&self, probe: &PointerProbe) -> bool {
         probe.selection_ready
@@ -419,6 +494,13 @@ fn plain_primary_press(event: MouseEvent) -> bool {
     event.action == MouseAction::Press
         && event.button == MouseButton::Left
         && event.mods == crate::client_view::Modifiers::NONE
+}
+
+#[cfg(windows)]
+fn link_press(event: MouseEvent) -> bool {
+    event.action == MouseAction::Press
+        && event.button == MouseButton::Left
+        && event.mods == crate::client_view::Modifiers::CTRL
 }
 
 /// A live pane gesture: the exact pane incarnation that owns the pointer
@@ -532,6 +614,8 @@ enum Gesture {
     Selection(SelectionGesture),
     #[cfg(windows)]
     Divider(crate::tui_layout::DividerDrag),
+    #[cfg(windows)]
+    Link(LinkGesture),
 }
 
 /// What one host report did to the pointer state — the dispatcher maps it
@@ -671,6 +755,22 @@ impl PointerState {
 
     pub(crate) const fn capture_enabled(&self) -> bool {
         self.capture
+    }
+
+    /// An external modal surface consumed this decoded mouse event before
+    /// ordinary pointer dispatch. A cancelled link press still owns its
+    /// matching release, but the modal remains the only effect owner.
+    #[cfg(windows)]
+    pub(crate) fn external_capture_event(&mut self, event: MouseEvent) {
+        let Gesture::Link(link) = &mut self.gesture else {
+            return;
+        };
+        link.cancelled = true;
+        if event.action == MouseAction::Release
+            && matches!(event.button, MouseButton::Left | MouseButton::None)
+        {
+            self.gesture = Gesture::Idle;
+        }
     }
 
     fn next_click_count(&self, expected: &PaneRef, cell: PointerSelectionCell, at: Instant) -> u8 {
@@ -840,7 +940,19 @@ impl PointerState {
         }
         self.capture = enabled;
         if !enabled {
-            self.gesture = Gesture::Idle;
+            #[cfg(windows)]
+            if let Gesture::Link(link) = &mut self.gesture {
+                // Keep a cancelled tombstone until the matching release so
+                // re-arming capture cannot reinterpret that release as a
+                // fresh pane event.
+                link.cancelled = true;
+            } else {
+                self.gesture = Gesture::Idle;
+            }
+            #[cfg(not(windows))]
+            {
+                self.gesture = Gesture::Idle;
+            }
             #[cfg(windows)]
             {
                 self.popup_gesture = None;
@@ -872,6 +984,14 @@ impl PointerState {
         {
             self.cancel_divider();
         }
+        #[cfg(windows)]
+        if let Gesture::Link(link) = &mut self.gesture
+            && !link.source_matches(&map)
+        {
+            // The matching release remains pointer-owned, but a covered or
+            // replaced source can no longer hand off an external effect.
+            link.cancelled = true;
+        }
         self.map = Some(map);
     }
 
@@ -887,7 +1007,16 @@ impl PointerState {
         {
             self.popup_gesture = None;
         }
-        self.gesture = Gesture::Idle;
+        #[cfg(windows)]
+        if let Gesture::Link(link) = &mut self.gesture {
+            link.cancelled = true;
+        } else {
+            self.gesture = Gesture::Idle;
+        }
+        #[cfg(not(windows))]
+        {
+            self.gesture = Gesture::Idle;
+        }
         self.wheel.clear();
     }
 
@@ -929,6 +1058,18 @@ impl PointerState {
             // A modal draft or an armed confirmation owns input: pointer
             // events are swallowed without producing gestures.
             self.cancel_selection(port);
+            #[cfg(windows)]
+            if let Gesture::Link(link) = &mut self.gesture {
+                link.cancelled = true;
+                if event.action == MouseAction::Release
+                    && matches!(event.button, MouseButton::Left | MouseButton::None)
+                {
+                    self.gesture = Gesture::Idle;
+                }
+                self.wheel.clear();
+                view.machines.cancel_sidebar_scroll();
+                return PointerOutcome::Handled;
+            }
             self.gesture = Gesture::Idle;
             self.wheel.clear();
             #[cfg(windows)]
@@ -941,6 +1082,8 @@ impl PointerState {
             Gesture::Selection(_) => self.selection_event(port, &probe, event),
             #[cfg(windows)]
             Gesture::Divider(_) => self.divider_event(view, port, event),
+            #[cfg(windows)]
+            Gesture::Link(_) => self.link_event(port, &probe, event),
             Gesture::Idle => self.fresh_event(view, port, &probe, now, event),
         }
     }
@@ -965,9 +1108,23 @@ impl PointerState {
             view.machines.cancel_sidebar_scroll();
         }
         if probe.input_captured {
-            let changed = !matches!(self.gesture, Gesture::Idle) || self.wheel.pending != 0;
+            let mut gesture_changed = !matches!(self.gesture, Gesture::Idle);
+            #[cfg(windows)]
+            if let Gesture::Link(link) = &self.gesture {
+                gesture_changed = !link.cancelled;
+            }
+            let changed = gesture_changed || self.wheel.pending != 0;
             self.cancel_selection(port);
-            self.gesture = Gesture::Idle;
+            #[cfg(windows)]
+            if let Gesture::Link(link) = &mut self.gesture {
+                link.cancelled = true;
+            } else {
+                self.gesture = Gesture::Idle;
+            }
+            #[cfg(not(windows))]
+            {
+                self.gesture = Gesture::Idle;
+            }
             self.wheel.clear();
             return changed;
         }
@@ -1299,6 +1456,35 @@ impl PointerState {
                 PointerOutcome::RegionsChanged
             }
             HitResolution::Region(HitTarget::Pane { pane, content }) => {
+                #[cfg(windows)]
+                if link_press(event) && contains(*content, event.column, event.row) {
+                    let cell = PointerSelectionCell {
+                        column: event.column - content.x,
+                        row: event.row - content.y,
+                    };
+                    let source = map
+                        .link_source(pane, event.column, event.row)
+                        .cloned()
+                        .filter(|source| {
+                            probe
+                                .panes
+                                .iter()
+                                .any(|live| live.record == source.pane && live.attached)
+                        })
+                        .filter(|source| source.rows.point(cell.column, cell.row).is_some());
+                    let cancelled = source.is_none();
+                    self.click = None;
+                    self.wheel.clear();
+                    self.gesture = Gesture::Link(LinkGesture {
+                        source,
+                        viewport: *content,
+                        press_column: event.column,
+                        press_row: event.row,
+                        cell,
+                        cancelled,
+                    });
+                    return PointerOutcome::Handled;
+                }
                 let target = PaneTarget {
                     expected: pane.clone(),
                     content: *content,
@@ -1353,6 +1539,58 @@ impl PointerState {
             _ => {}
         }
         PointerOutcome::Handled
+    }
+
+    #[cfg(windows)]
+    fn link_event<Port: TerminalInputPort + ?Sized>(
+        &mut self,
+        port: &mut Port,
+        probe: &PointerProbe,
+        event: MouseEvent,
+    ) -> PointerOutcome {
+        let Gesture::Link(link) = &mut self.gesture else {
+            return PointerOutcome::Ignored;
+        };
+        let same_cell = event.column == link.press_column && event.row == link.press_row;
+        let current_source_matches = self
+            .map
+            .as_ref()
+            .is_some_and(|map| link.source_matches(map));
+        if !current_source_matches
+            || !link.alive(probe)
+            || event.mods.shift
+            || event.mods.alt
+            || event.mods.super_
+            || event.action == MouseAction::Motion
+        {
+            link.cancelled = true;
+        }
+        match event.action {
+            MouseAction::Motion => PointerOutcome::Handled,
+            MouseAction::Press => {
+                link.cancelled = true;
+                PointerOutcome::Handled
+            }
+            MouseAction::Release
+                if matches!(event.button, MouseButton::Left | MouseButton::None) =>
+            {
+                let previous = std::mem::replace(&mut self.gesture, Gesture::Idle);
+                let Gesture::Link(link) = previous else {
+                    return PointerOutcome::Handled;
+                };
+                if same_cell
+                    && !link.cancelled
+                    && let Some(source) = link.source
+                {
+                    let _admission = port.pointer_link(source, link.cell);
+                }
+                PointerOutcome::Handled
+            }
+            MouseAction::Release => {
+                link.cancelled = true;
+                PointerOutcome::Handled
+            }
+        }
     }
 
     /// A press landing on a pane region: focus first (Client-local, before

@@ -803,6 +803,8 @@ fn render_native_workbench(
             if let Some(panel) = tab.panel(leaf.panel_index) {
                 #[cfg(windows)]
                 render_panel_graphics(frame, leaf.content, panel, native, graphics_draws);
+                #[cfg(windows)]
+                let link_source = native.painted_link_source(panel.panel_id());
                 let target = native
                     .pane_ref_for_panel(panel.panel_id())
                     .map(|pane| HitTarget::Pane {
@@ -819,6 +821,10 @@ fn render_native_workbench(
                     });
                 if let Some(target) = target {
                     presentation_selector::record_leaf(hits, leaf.leaf, target, selector);
+                }
+                #[cfg(windows)]
+                if let Some(source) = link_source {
+                    hits.record_link_source(leaf.content, source);
                 }
             }
         }
@@ -875,6 +881,13 @@ fn render_native_workbench(
                         content: content_area,
                     },
                 );
+                #[cfg(windows)]
+                if let Some(source) = native
+                    .focus_panel_id()
+                    .and_then(|panel| native.painted_link_source(panel))
+                {
+                    hits.record_link_source(content_area, source);
+                }
             }
         } else if let Some(terminal) = terminal {
             terminal_cells::render(frame, content_area, terminal, input_enabled);
@@ -902,6 +915,13 @@ fn render_native_workbench(
                         content: content_area,
                     },
                 );
+                #[cfg(windows)]
+                if let Some(source) = native
+                    .focus_panel_id()
+                    .and_then(|panel| native.painted_link_source(panel))
+                {
+                    hits.record_link_source(content_area, source);
+                }
             }
         } else {
             let panel_status = if matches!(

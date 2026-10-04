@@ -3963,6 +3963,17 @@ impl<'a> NativeSessionView<'a> {
             revision: self.state.cache.revision(),
         })
     }
+
+    #[cfg(windows)]
+    pub(super) fn site_id(&self) -> &SiteId {
+        self.state.cache.site_id()
+    }
+
+    #[cfg(windows)]
+    pub(super) fn terminal_context_id(&self) -> &WorkbenchTerminalContextId {
+        self.state.cache.terminal_context_id()
+    }
+
     pub(super) fn unbound_panel_key(&self, panel: &super::NativePanel) -> Option<PaneKey> {
         let active = self.state.active()?;
         let tab = self.state.cache.tabs().get(active.index())?;

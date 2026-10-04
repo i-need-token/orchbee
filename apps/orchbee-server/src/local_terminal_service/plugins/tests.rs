@@ -37,7 +37,7 @@ impl Drop for Root {
 fn plugin_resolution_checks_availability_platform_ambiguity_and_freezes_argv_context() {
     let root = Root::new();
     let registry = PluginRegistry::at(root.0.join("catalog")).unwrap();
-    let source = "id='tools'\nname='Tools'\nversion='1'\n[[actions]]\nid='hello'\ntitle='Hello'\ncommand=['cmd.exe','/d','/c','echo hello']\n";
+    let source = "id='tools'\nname='Tools'\nversion='1'\n[[actions]]\nid='hello'\ntitle='Hello'\ncommand=['cmd.exe','/d','/c','echo hello']\n[[link_handlers]]\nid='web'\ntitle='Web'\npattern='^https://'\naction='hello'\n";
     let path = root.0.join("orchbee-plugin.toml");
     fs::write(&path, source).unwrap();
     registry
@@ -51,7 +51,7 @@ fn plugin_resolution_checks_availability_platform_ambiguity_and_freezes_argv_con
         ..Default::default()
     };
     assert_eq!(
-        resolve(&registry, None, "hello", &context),
+        resolve(&registry, None, "hello", &context, None),
         Err(Failure::Disabled)
     );
     registry
@@ -60,7 +60,7 @@ fn plugin_resolution_checks_availability_platform_ambiguity_and_freezes_argv_con
             enabled: true,
         })
         .unwrap();
-    let intent = resolve(&registry, None, "tools.hello", &context).unwrap();
+    let intent = resolve(&registry, None, "tools.hello", &context, None).unwrap();
     assert_eq!(intent.argv, vec!["cmd.exe", "/d", "/c", "echo hello"]);
     assert_eq!(
         serde_json::from_str::<PluginInvocationContext>(
@@ -93,12 +93,18 @@ fn plugin_resolution_checks_availability_platform_ambiguity_and_freezes_argv_con
     )
     .unwrap();
     assert_eq!(
-        resolve(&registry, None, "hello", &context),
+        resolve(&registry, None, "hello", &context, None),
         Err(Failure::Unsupported)
     );
     fs::write(&path, source).unwrap();
     let other = root.0.join("other.toml");
-    fs::write(&other, source.replace("id='tools'", "id='other'")).unwrap();
+    fs::write(
+        &other,
+        source
+            .replace("id='tools'", "id='other'")
+            .replace("pattern='^https://'", "pattern='^other://'"),
+    )
+    .unwrap();
     registry
         .mutate(PluginRegistryMutation::Link {
             path: other,
@@ -106,14 +112,70 @@ fn plugin_resolution_checks_availability_platform_ambiguity_and_freezes_argv_con
         })
         .unwrap();
     assert_eq!(
-        resolve(&registry, None, "hello", &context),
+        resolve(&registry, None, "hello", &context, None),
         Err(Failure::Ambiguous)
     );
-    assert!(resolve(&registry, Some("tools"), "hello", &context).is_ok());
+    assert!(resolve(&registry, Some("tools"), "hello", &context, None).is_ok());
+    let registered = registry.list_registered().unwrap();
+    let guard = orchbee_workbench_protocol::PluginLinkCatalogGuard {
+        revision: registered.revision,
+        fingerprint: registered.fingerprint,
+    };
+    let link_context = PluginInvocationContext {
+        invocation_source: Some("link_click".into()),
+        clicked_url: Some("https://example.test".into()),
+        link_handler_id: Some("web".into()),
+        ..context.clone()
+    };
     fs::write(&path, "bad=true").unwrap();
+    assert!(
+        resolve(
+            &registry,
+            Some("tools"),
+            "hello",
+            &link_context,
+            Some(&guard)
+        )
+        .is_ok(),
+        "guarded link invocation must not refresh the linked source"
+    );
+    let mut wrong_handler = link_context.clone();
+    wrong_handler.link_handler_id = Some("other".into());
     assert_eq!(
-        resolve(&registry, Some("tools"), "hello", &context),
+        resolve(
+            &registry,
+            Some("tools"),
+            "hello",
+            &wrong_handler,
+            Some(&guard)
+        ),
+        Err(Failure::Conflict)
+    );
+    assert_eq!(
+        resolve(&registry, Some("tools"), "hello", &context, None),
         Err(Failure::SourceUnavailable)
+    );
+    fs::write(
+        &path,
+        source.replace("pattern='^https://'", "pattern='^other://'"),
+    )
+    .unwrap();
+    registry
+        .mutate(PluginRegistryMutation::Link {
+            path,
+            enabled: true,
+        })
+        .unwrap();
+    assert_eq!(
+        resolve(
+            &registry,
+            Some("tools"),
+            "hello",
+            &link_context,
+            Some(&guard)
+        ),
+        Err(Failure::Conflict),
+        "a newly published registered catalog invalidates the old guard"
     );
 }
 #[test]

@@ -47,6 +47,10 @@ const worker = z.strictObject({
 const positive = z.number().int().min(1).max(Number.MAX_SAFE_INTEGER);
 const timestamp = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER);
 const cursor = z.strictObject({ worker, before: positive });
+export const PluginLinkCatalogGuardSchema = z.strictObject({
+	revision: timestamp,
+	fingerprint: z.string().regex(/^[0-9a-f]{64}$/u),
+});
 const correlation = {
 	protocolVersion: z.literal(WORKBENCH_PROTOCOL_VERSION),
 	requestId: WorkbenchRequestIdSchema,
@@ -124,6 +128,7 @@ export const PluginRequestSchema = z
 				pluginId: identifier(120).nullable(),
 				actionId: identifier(241),
 				context: PluginInvocationContextSchema,
+				linkCatalog: PluginLinkCatalogGuardSchema.optional(),
 			}),
 			z.strictObject({
 				kind: z.literal('logs'),
@@ -134,6 +139,18 @@ export const PluginRequestSchema = z
 			z.strictObject({ kind: z.literal('get'), worker, jobId }),
 			z.strictObject({ kind: z.literal('cancel'), worker, jobId }),
 		]),
+	})
+	.superRefine((request, context) => {
+		if (request.action.kind !== 'invoke' || request.action.linkCatalog === undefined) return;
+		if (
+			request.action.pluginId === null ||
+			request.action.context.invocationSource !== 'link_click' ||
+			request.action.context.clickedUrl === undefined ||
+			request.action.context.clickedUrl === null ||
+			request.action.context.linkHandlerId === undefined ||
+			request.action.context.linkHandlerId === null
+		)
+			context.addIssue({ code: 'custom', message: 'catalog guard requires link click context' });
 	})
 	.readonly();
 export const PluginResultSchema = z
@@ -229,3 +246,4 @@ export const PluginResultSchema = z
 	.readonly();
 export type PluginRequest = z.infer<typeof PluginRequestSchema>;
 export type PluginResult = z.infer<typeof PluginResultSchema>;
+export type PluginLinkCatalogGuard = z.infer<typeof PluginLinkCatalogGuardSchema>;

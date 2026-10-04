@@ -15,6 +15,23 @@ pub struct WindowsPrivateCache {
     _lock: File,
     _pins: Vec<File>,
 }
+
+/// One read whose admitted private ancestors remain pinned until validation completes.
+pub(crate) struct WindowsPrivateRead {
+    bytes: Option<Vec<u8>>,
+    _pins: Vec<File>,
+}
+
+impl WindowsPrivateRead {
+    pub(crate) fn bytes(&self) -> Option<&[u8]> {
+        self.bytes.as_deref()
+    }
+
+    fn into_bytes(self) -> Option<Vec<u8>> {
+        self.bytes
+    }
+}
+
 impl WindowsPrivateCache {
     /// Creates missing private descendants; rejects unsafe existing objects without repair.
     pub fn acquire(path: &Path) -> io::Result<Self> {
@@ -46,13 +63,27 @@ impl WindowsPrivateCache {
     }
     /// Reads an existing private cache without creating directories or acquiring a writer lock.
     pub fn read_existing(path: &Path, name: &str, maximum: usize) -> io::Result<Option<Vec<u8>>> {
+        Self::read_existing_pinned(path, name, maximum).map(WindowsPrivateRead::into_bytes)
+    }
+    /// Reads while retaining every admitted ancestor handle for caller-side content validation.
+    pub(crate) fn read_existing_pinned(
+        path: &Path,
+        name: &str,
+        maximum: usize,
+    ) -> io::Result<WindowsPrivateRead> {
         let leaf = cache_leaf(path, name)?;
-        let _pins = match permissions::open_tree(path) {
+        let pins = match permissions::open_tree(path) {
             Ok(pins) => pins,
-            Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {
+                return Ok(WindowsPrivateRead {
+                    bytes: None,
+                    _pins: Vec::new(),
+                });
+            }
             Err(error) => return Err(error),
         };
-        read_leaf(&leaf, maximum)
+        let bytes = read_leaf(&leaf, maximum)?;
+        Ok(WindowsPrivateRead { bytes, _pins: pins })
     }
     /// Flushes a complete new value before replacing the admitted leaf. No partial target is visible.
     pub fn replace(&mut self, name: &str, bytes: &[u8]) -> io::Result<()> {

@@ -125,8 +125,10 @@ context 16 KiB、request 32 KiB；匹配 URL 无法准入时在提交前失败�
 Server 独自解析当前动作可执行文件、插件根 cwd 与保护环境；已有 Worker Job
 拥有启动、输出日志和取消。显示数据不能提供 argv、目录策略或 Worker 权限。
 本命令不打开浏览器、不发终端输入、不导航／聚焦、不改剪贴板、不启动 Site。
-一个既有 viewer 与全部预检／提交共用五秒和取消；任何结果都通过 Detach／EOF
-释放 viewer。已准入的插件 Job 由现有 Job 所有者管理，可在临时 viewer 结束后继续。
+一个既有 viewer 与全部预检／提交共用五秒和取消。匹配的效果路径在最终内容／成员
+围栏后、提交插件前，必须取得一次相关联的 Detach 确认；Detach 被拒或结果不明时不
+提交插件，也不重试。只读及无效果结果保留尽力 Detach 与会话 EOF 清理。已准入的
+插件 Job 由现有 Job 所有者管理，可在临时 viewer 结束后继续。
 
 封闭 `orchbee.terminal.link-activate` v1 保留已解析链接、视口、内容／绑定回执，
 并增加激活状态和操作身份。`handled=true` 必须有相关联且已知的 Started 回答，

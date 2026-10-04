@@ -1,6 +1,6 @@
 //! Bounded plain-link policy and viewport regions over validated physical glyphs.
 use crate::terminal_buffer_text::{Segment, TerminalTextPoint, segments};
-use orchbee_terminal_protocol::TerminalTextWindowRow;
+use orchbee_terminal_protocol::{TerminalProjectionRow, TerminalTextWindowRow};
 use std::ops::Range;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -27,6 +27,22 @@ pub(crate) enum LinkRead {
     Complete(ResolvedLink),
     NeedContext { before: bool, after: bool },
     LimitExceeded,
+}
+
+/// Resolve OSC 8 metadata for one rendered cell. Projection rows expose a
+/// wide glyph's tail with the head width marker, so the tail inherits the
+/// preceding head's hyperlink instead of becoming an unrelated cell.
+pub(crate) fn explicit_url(
+    row: TerminalProjectionRow<'_, '_>,
+    column: u16,
+) -> Result<Option<String>, ()> {
+    let cell = row.cells().nth(usize::from(column)).ok_or(())?;
+    let cell = if cell.width == 2 && column > 0 {
+        row.cells().nth(usize::from(column - 1)).ok_or(())?
+    } else {
+        cell
+    };
+    Ok(cell.hyperlink.map(str::to_owned))
 }
 struct Glyph<'a> {
     text: &'a str,

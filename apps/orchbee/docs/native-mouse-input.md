@@ -7,8 +7,8 @@ last-drawn-frame hit map, the gesture vocabulary the painted regions accept, pas
 to pane programs, and the alternate-screen wheel fallback. Maintain it with `tui_pointer.rs`,
 `terminal_input/mouse.rs`, `terminal_input/decoder.rs`, `terminal_input/dispatcher.rs`,
 `terminal_lifecycle.rs`, `tui_render.rs` and its `tabs`/`contexts` painters, `tui_shell.rs`,
-`client_view.rs` and `client_view/bindings.rs`, `terminal_session/ui.rs`, `invocation.rs`, and
-`localization.rs`. The repository standard
+`client_view.rs` and `client_view/bindings.rs`, `terminal_session/ui.rs`, `invocation.rs`,
+`terminal_link_activation.rs`, and `localization.rs`. The repository standard
 [`docs/tui/mouse-input.md`](../../../docs/tui/mouse-input.md) owns the rules this mapping must
 satisfy; [native terminal environment](native-terminal-environment.md) owns the mode-lease
 machinery that arming and restoration ride on. [Native terminal selection and effects](native-terminal-selection-effects.md)
@@ -17,8 +17,8 @@ owns untracked-pane selection and its copy lifecycle.
 Windows [divider resizing](native-divider-resize.md) owns reversible split previews and one release-only shared ratio submission.
 
 Scroll-indicator jumps, right-button context menus, middle-press surfaces,
-pixel-format reports, a selection-copy key binding, and triple-press line selection remain separate
-decisions.
+pixel-format reports, a selection-copy key binding, triple-press line selection, and Ctrl-hover
+link decoration remain separate decisions.
 
 ## Capture policy
 
@@ -50,17 +50,17 @@ publishes the map only after the frame's draw completes. Regions carry stable id
 fresh probe at click time, so a reorder between paint and click cannot misroute. Layers resolve
 front to back and never overlap within one layer:
 
-| Painted surface                          | Layer            | Target              | Accepted gesture                                                                                                                     |
-| ---------------------------------------- | ---------------- | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| Navigator context row                    | `Overlay`        | `Context(location)` | Press selects that context (`SelectContextAt`)                                                                                       |
-| Navigator tab row                        | `Overlay`        | `Tab(tab_id)`       | Press selects that Tab (`SelectTab`)                                                                                                 |
-| Overlay body off every control           | `OverlaySurface` | `OverlaySurface`    | Swallowed — never reaches the layers beneath                                                                                         |
-| Outside a capturing overlay              | —                | backdrop            | Press dismisses the overlay; no region beneath — including uncovered foreground chrome like the tab strip or a pane — sees the event |
-| Compact tab-strip token                  | `Foreground`     | `Tab(tab_id)`       | Press selects that Tab (`SelectTab`)                                                                                                 |
-| Pane leaf viewport (content rect)        | `Foreground`     | `Pane{tab,panel}`   | Press focuses, then the pane's reported contract decides program passthrough or Client selection                                     |
-| Pane leaf title row outside the viewport | `Foreground`     | `Pane{tab,panel}`   | Press focuses only; the pane's program sees nothing                                                                                  |
-| Visible Windows pane divider             | `Foreground`     | `Divider(source)`   | Plain left press starts preview; release applies once; Esc or Shift cancels                                                          |
-| Everything else (status, gaps)           | —                | dead space          | Ignored                                                                                                                              |
+| Painted surface                          | Layer            | Target                             | Accepted gesture                                                                                                                     |
+| ---------------------------------------- | ---------------- | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| Navigator context row                    | `Overlay`        | `Context(location)`                | Press selects that context (`SelectContextAt`)                                                                                       |
+| Navigator tab row                        | `Overlay`        | `Tab(tab_id)`                      | Press selects that Tab (`SelectTab`)                                                                                                 |
+| Overlay body off every control           | `OverlaySurface` | `OverlaySurface`                   | Swallowed — never reaches the layers beneath                                                                                         |
+| Outside a capturing overlay              | —                | backdrop                           | Press dismisses the overlay; no region beneath — including uncovered foreground chrome like the tab strip or a pane — sees the event |
+| Compact tab-strip token                  | `Foreground`     | `Tab(tab_id)`                      | Press selects that Tab (`SelectTab`)                                                                                                 |
+| Pane leaf viewport (content rect)        | `Foreground`     | `Pane{tab,panel}` + painted source | Exact `Ctrl`+primary click opens the painted link; other presses focus, then use program passthrough or Client selection             |
+| Pane leaf title row outside the viewport | `Foreground`     | `Pane{tab,panel}`                  | Press focuses only; the pane's program sees nothing                                                                                  |
+| Visible Windows pane divider             | `Foreground`     | `Divider(source)`                  | Plain left press starts preview; release applies once; Esc or Shift cancels                                                          |
+| Everything else (status, gaps)           | —                | dead space                         | Ignored                                                                                                                              |
 
 A press on a pane region resolves against the _tab that was painted_: a stale-map edge where the
 painted Tab is no longer active degrades to a plain Tab selection rather than focusing an
@@ -75,6 +75,7 @@ unreachable panel.
 | `Pane`      | A focused reporting pane owns the pointer until release. Motion and release encode pane-local against the press's painted viewport origin — a drag that leaves the region still belongs to it. A release is never dropped mid-gesture.                        |
 | `Selection` | A focused untracked pane owns one Host selection gesture for its exact attachment and projection generation. Motion coalesces within the pane; release remains behind the latest motion and only a Host-accepted active end may request copy.                 |
 | `Pending`   | A press on an unfocused pane fired `FocusPanel`; the press and later input queue (FIFO, bound 16, motion merges to the newest cell) until the switch settles. Overflow cancels before any new input is accepted and reports the bounded dropped-input notice. |
+| `Link`      | An exact `Ctrl`+primary press owns one painted cell until its matching same-cell release. Movement or source invalidation cancels it; modifier changes never transfer it to a pane or selection owner.                                                        |
 
 Readiness is adjudicated against a fresh probe, never a cached sequence or a generation delta.
 The queued press waits for its exact recorded pane incarnation to remain attached, become the
@@ -119,6 +120,72 @@ press, modal surfaces swallow it.
   implicit acquire. Read focus never substitutes for application-input permission, and history
   never turns a program-owned tracking gesture into Client selection.
 
+## Link activation
+
+An exact `Ctrl`+primary press with neither `Shift` nor `Alt` claims a pane content cell before
+program tracking, focus, or selection admission. The explicit modifier is a distinct gesture
+owner: an ordinary gesture already owned by `Pane`, `Selection`, or `Pending` cannot be stolen by
+a later Ctrl change, while a `Link` gesture consumes later modifier changes until its matching
+release. It neither focuses the pane nor requests terminal control, so a read-only Client can open
+a link. Movement, a different release cell, capture release, a replaced pane incarnation, a
+changed viewport, or hit-map invalidation cancels without replaying any event to the pane.
+
+The renderer records a link source from the same frame or retained-history window it paints. The
+successful paint of a noncapturing notification card suppresses every terminal link source for
+that published frame. If such a frame replaces an in-flight link source, the gesture becomes a
+cancelled tombstone: its matching release is swallowed and produces no external effect. The
+source combines the exact pane/member binding with local attachment and sequence provenance, the
+host epoch, content generation and revision, columns, total rows, and the painted viewport's
+absolute start. Live rows start at `scrollback_rows`; retained-history rows use the validated row
+window's `start_row`. A release converts its painted cell to one absolute terminal row and column
+once. A fresh read-only viewer may have another attachment and sequence, but its member binding,
+host epoch, generation, revision, columns, and total rows must match before and after row reads and
+again before effect handoff. A mismatch has no effect.
+
+Each temporary viewer must acknowledge its one detach before another read or an external effect.
+An uncertain detach is not retried: the lane drops that connection and refuses the click.
+
+Resolution reads render detail for the clicked row first, preserving OSC 8 metadata and applying
+the shared wide-tail-to-head rule. Without an explicit hyperlink it uses the same bounded
+lowercase `http://`/`https://` resolver as `terminal link-resolve`, including verified soft-wrap
+context outside the visible viewport. One private, joined lane admits at most one click; a busy
+lane reports refusal without queueing or retrying. Ordered enabled Windows plugin link handlers
+have priority. A matching handler is revalidated immediately before its single submission. A
+started, failed, or unknown handler outcome is final for that click. Only a definite no-handler
+result may open a lowercase HTTP(S) URL through the Windows shell, once. Shell failure is visible
+and is never replayed. Shutdown interrupts owned waits and joins the lane; it does not claim to
+cancel an accepted plugin action or a browser process owned by Windows. Ctrl-hover decoration is
+not part of this button-event capture slice.
+
+### Link workflow and correctness
+
+`PointerState` owns the `Link` gesture until release; `terminal_link_activation::Driver` owns the
+single-flight admission bit and notice; its joined lane owns the accepted job through one terminal
+outcome. The Workbench Snapshot and terminal Host remain canonical for member binding and content,
+and the Windows plugin registry remains canonical for handler order. Inputs are one exact painted
+source and cell, fresh Snapshot/viewer records, registry entries, and plugin or shell outcomes.
+Missing or malformed facts are refusal, never an inferred no-handler result. Outputs are `Opened`,
+`Handled`, `NoLink`, `Busy`, `Failed`, or `Unknown`; only plugin submission and Windows shell launch
+are external effects.
+
+| State / event                                                     | Guard                                                                | Next state and command                                                                       |
+| ----------------------------------------------------------------- | -------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `Idle` + exact Ctrl-primary press                                 | Published pane/content; no prior owner                               | `Link`; retain a valid source/cell, otherwise a cancelled tombstone; no effect               |
+| `Link` + movement, Shift/Alt, membership/source/map/capture drift | Press owner still consumes reports                                   | Cancelled `Link`; matching release is swallowed; no effect                                   |
+| `Link` + matching same-cell release                               | Source and exact pane remain current                                 | Single-flight `Resolving`; no pane input, focus, or control request                          |
+| `Resolving` + fresh reads                                         | Member and content fences match twice                                | Fixed plugin preflight, definite no-handler browser eligibility, or terminal no-link/failure |
+| Selected handler + registry re-read                               | Same entry, handler, action, URL, and context                        | At most one plugin submission; its started/failed/unknown result is final                    |
+| Definite no handler + lowercase HTTP(S)                           | Deadline live; full registered-catalog identity unchanged at handoff | At most one `ShellExecute`; success/failure is final                                         |
+| Busy admission or shutdown                                        | Existing job owns the lane                                           | Refuse without queue/retry, or stop waits and join the owned lane                            |
+
+[`NativeTerminalLinkActivation`](../formal/tla/NativeTerminalLinkActivation.tla), registered in
+`scripts/tla/models.json`, checks bounded gesture ownership, stale/registry refusal, one effect per
+click, plugin/browser eligibility, and joined-lane shutdown. `LinkGesture`, `PaintedLinkSource`,
+`ReadSession`, plugin `Preflight`/`Invocation`, `EffectHandoff`, and `Driver` are the implementation
+refinement points. TLC checks the declared finite state graph; it does not prove Win32 behavior,
+plugin execution, terminal protocol implementations, or cancellation of effects accepted by other
+owners. Deterministic Rust tests and controlled Windows integration provide those boundaries.
+
 ## Wheel fallback
 
 Over an alternate-screen pane whose program reports no tracking and enables DEC 1007, wheel notches encode as cursor
@@ -144,6 +211,10 @@ use the [retained viewport](native-terminal-viewport.md) owner.
   re-resolved at click time; no cached index survives a reorder.
 - `OneGestureOwner`: press, drag, and release resolve against the press's region; capture
   release, modal capture, or an external layout change cancels the whole gesture.
+- `OneLinkEffect`: one matching link release admits at most one plugin submission or one browser
+  launch; handler failure, uncertainty, or registry drift never falls through to another effect.
+- `PaintedLinkFence`: link coordinates and content fences come from the same completed draw; a
+  fresh viewer must prove the captured member and content version before an external effect.
 - `ReleaseNeverCrossesPress`: pending-focus input flushes in FIFO order — a release can never be
   delivered ahead of its press, and cancellation drops the queue rather than reordering it.
 - `FocusIsClientLocal`: the focus change a press causes applies before any byte reaches the pane.
@@ -161,7 +232,7 @@ use the [retained viewport](native-terminal-viewport.md) owner.
 
 | Production surface                          | Model correspondence                                                                                                                                                                                                   |
 | ------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `tui_pointer.rs`                            | `PointerState` capture/map/gesture lifecycle, `FrameHitMap`/`HitMapBuilder` staged regions, `Gesture` (`Idle`/`Pending`/`Pane`/`Selection`/`Divider`), `WheelStream`                                                   |
+| `tui_pointer.rs`                            | `PointerState` capture/map/gesture lifecycle, `FrameHitMap`/`HitMapBuilder` staged regions, `Gesture` (`Idle`/`Pending`/`Pane`/`Selection`/`Divider`/`Link`), `WheelStream`                                            |
 | `terminal_input/mouse.rs`                   | `MouseEvent` decode (`decode_sgr`, `decode_x10`), `pane_owns_pointer`, `encode_pane_report`, `encode_cursor_arrows`                                                                                                    |
 | `terminal_input/decoder.rs`                 | Typed `DecodedKind::Mouse`/`Ignored` items; X10 atomic three-byte body consumption, timeout, and abort; mouse-shaped malformed/aborted/over-bound runs decode `Ignored`                                                |
 | `terminal_input/dispatcher.rs`              | Explicit `Mouse` and `Ignored` arms before the raw-passthrough wildcard — `Ignored` is consumed and dropped, never pending; pending-byte flush first; `RegionsChanged` map staleness; external-change `invalidate_map` |
@@ -170,6 +241,7 @@ use the [retained viewport](native-terminal-viewport.md) owner.
 | `tui_render.rs`, `tabs`, `contexts`         | Per-painted-rect region recording for tab tokens, navigator rows, overlay surface, and pane leaves                                                                                                                     |
 | `client_view.rs`, `client_view/bindings.rs` | `Ctrl+B m` → `TogglePointerCapture`, `SelectContextAt`/`FocusPanel`/`SelectTab` dispositions, released indicator and pointer notices                                                                                   |
 | `terminal_session/ui.rs`, `state/`          | `pointer_probe` fresh facts, `focus_panel`/`select_context_at` admission, stable-id accessors (`tab_id`, `panel_id`, `location`)                                                                                       |
+| `terminal_link_activation.rs`               | Exact source fences, OSC 8/plain resolution, ordered handler handoff, one-effect browser fallback, bounded lane and joined shutdown                                                                                    |
 | `terminal_session.rs` (test seam)           | Single-pane `Legacy` probe backed by the real projection frame and controller status — the connected-PTY witness backend                                                                                               |
 | `terminal_input.rs`                         | `PointerProbe`/`PointerTab`/`PointerFrameFacts` port surface and `forward_or_report` delivery                                                                                                                          |
 | `invocation.rs`, `cli/`                     | `tui --mouse off\|on` admission, help text, and three-shell completion                                                                                                                                                 |
@@ -181,18 +253,19 @@ The Unix PTY suites below track the shared contract; they are not Windows execut
 Windows cell fallback is covered by the encoder, pointer and attach regressions and the packaged
 control/attach byte witnesses described in [terminal streams](windows-terminal-streams.md).
 
-| Surface                   | Evidence                                                                                                                                                                                                                                                                                                                                                                      |
-| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Decode                    | `terminal_input/mouse/tests` SGR/X10 tables — press/release/motion/wheel/modifiers, cross-chunk atomicity, malformed rejection without key fallthrough; `terminal_input/decoder/tests` — valid SGR/X10 items, X10 split feeds, timeout drain, ESC/C1 abort, malformed bodies, over-bound runs, and interleave with keys/paste — all malformed mouse-shaped bytes as `Ignored` |
-| Encode contract           | `encode_pane_report` table rows for every tracking × format cell, release finals, dedup, clamping, legacy bound, and SGR cell fallback                                                                                                                                                                                                                                        |
-| Hit map                   | `tui_pointer/tests` layer order, edge/outside cells, overlay capture and backdrop dismiss — including an outside press on the uncovered tab strip and pane that never selects or forwards — stale-map drop                                                                                                                                                                    |
-| Gesture and pending focus | `tui_pointer/tests` press/release ordering, queue bound and overflow cancel, timeout, orphan, read-only, target-moved refusal, settled-without-frame wait, and fact-gated admission                                                                                                                                                                                           |
-| Dispatcher port writes    | `terminal_input/dispatcher/tests` — malformed SGR/X10 and aborted/timed-out mouse runs produce zero forwarded bytes while ordinary keys, paste, and unrelated unknown CSI pass through in order                                                                                                                                                                               |
-| Wheel stream              | `tui_pointer/tests` three-per-notch, per-pass viewport cap, reversal clearing, stream close on drain                                                                                                                                                                                                                                                                          |
-| Capture lifecycle         | `terminal_lifecycle/tests` lease pairing and restoration; dispatcher `Ctrl+B m` toggle test; status indicator                                                                                                                                                                                                                                                                 |
-| CLI                       | `invocation/tests` `tui --mouse` value admission, bare/other-family refusal, `--format` refusal; `cli/completion` scripts                                                                                                                                                                                                                                                     |
-| Real PTY (Legacy seam)    | `tui_shell/connected_tests::real_tui_routes_pointer_reports_to_the_reporting_pane_and_restores_modes` — recorded pane-local SGR bytes, pane-local translation, read-only drop, SGR cell fallback, wheel→arrows, capture toggle, mode restoration                                                                                                                              |
-| Real PTY (public Native)  | `tests/local_startup_process/native_pointer.rs` — the spawned `orchbee` binary on a real PTY: capture arming, X10 and SGR pane-local reports, unfocused-pane click focus and queued flush, read-only rejection, wheel→arrows, `Ctrl+B m`, `--mouse off`, exit restoration, and zero-pixel host geometry keeping cell-addressed reports while `?1016` uses SGR cell fallback   |
+| Surface                   | Evidence                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Decode                    | `terminal_input/mouse/tests` SGR/X10 tables — press/release/motion/wheel/modifiers, cross-chunk atomicity, malformed rejection without key fallthrough; `terminal_input/decoder/tests` — valid SGR/X10 items, X10 split feeds, timeout drain, ESC/C1 abort, malformed bodies, over-bound runs, and interleave with keys/paste — all malformed mouse-shaped bytes as `Ignored`                                                       |
+| Encode contract           | `encode_pane_report` table rows for every tracking × format cell, release finals, dedup, clamping, legacy bound, and SGR cell fallback                                                                                                                                                                                                                                                                                              |
+| Hit map                   | `tui_pointer/tests` layer order, edge/outside cells, overlay capture and backdrop dismiss — including an outside press on the uncovered tab strip and pane that never selects or forwards — stale-map drop                                                                                                                                                                                                                          |
+| Gesture and pending focus | `tui_pointer/tests` press/release ordering, queue bound and overflow cancel, timeout, orphan, read-only, target-moved refusal, settled-without-frame wait, and fact-gated admission                                                                                                                                                                                                                                                 |
+| Dispatcher port writes    | `terminal_input/dispatcher/tests` — malformed SGR/X10 and aborted/timed-out mouse runs produce zero forwarded bytes while ordinary keys, paste, and unrelated unknown CSI pass through in order                                                                                                                                                                                                                                     |
+| Wheel stream              | `tui_pointer/tests` three-per-notch, per-pass viewport cap, reversal clearing, stream close on drain                                                                                                                                                                                                                                                                                                                                |
+| Capture lifecycle         | `terminal_lifecycle/tests` lease pairing and restoration; dispatcher `Ctrl+B m` toggle test; status indicator                                                                                                                                                                                                                                                                                                                       |
+| Link click                | Recording pointer ports cover exact modifiers, same-cell release, cancellation, prior gesture owners and busy admission; the shared OSC 8 wide-cell and wrapped HTTP(S) resolvers retain their CLI integration fixtures; route tests use a recording browser port for priority, accepted ambiguity, definite no-handler fallback and one effect; controlled Windows integration covers the fresh viewer and native plugin transport |
+| CLI                       | `invocation/tests` `tui --mouse` value admission, bare/other-family refusal, `--format` refusal; `cli/completion` scripts                                                                                                                                                                                                                                                                                                           |
+| Real PTY (Legacy seam)    | `tui_shell/connected_tests::real_tui_routes_pointer_reports_to_the_reporting_pane_and_restores_modes` — recorded pane-local SGR bytes, pane-local translation, read-only drop, SGR cell fallback, wheel→arrows, capture toggle, mode restoration                                                                                                                                                                                    |
+| Real PTY (public Native)  | `tests/local_startup_process/native_pointer.rs` — the spawned `orchbee` binary on a real PTY: capture arming, X10 and SGR pane-local reports, unfocused-pane click focus and queued flush, read-only rejection, wheel→arrows, `Ctrl+B m`, `--mouse off`, exit restoration, and zero-pixel host geometry keeping cell-addressed reports while `?1016` uses SGR cell fallback                                                         |
 
 ## Shared right-button policy
 

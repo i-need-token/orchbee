@@ -54,6 +54,7 @@ pub(super) fn run(command: PluginCommand, format: OutputFormat, locale: Locale) 
                         plugin_id,
                         action_id,
                         context: Box::new(context),
+                        link_catalog: None,
                     },
                     0,
                 )

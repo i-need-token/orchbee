@@ -65,6 +65,29 @@ pub struct PluginInvocationContext {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub link_handler_id: Option<String>,
 }
+
+/// Registered-catalog identity carried only by a preselected link activation.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct PluginLinkCatalogGuard {
+    pub revision: u64,
+    pub fingerprint: String,
+}
+
+impl PluginLinkCatalogGuard {
+    pub fn validate(&self) -> Result<(), ContractError> {
+        if self.revision > MAX_INTEGER
+            || self.fingerprint.len() != 64
+            || !self
+                .fingerprint
+                .bytes()
+                .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+        {
+            return Err(ContractError::InvalidDocument);
+        }
+        Ok(())
+    }
+}
 impl PluginInvocationContext {
     pub fn validate(&self) -> Result<(), ContractError> {
         if self.worktree.as_ref().is_some_and(|worktree| {
@@ -187,6 +210,12 @@ pub enum PluginAction {
         plugin_id: Option<String>,
         action_id: String,
         context: Box<PluginInvocationContext>,
+        #[serde(
+            default,
+            deserialize_with = "deserialize_optional_link_catalog",
+            skip_serializing_if = "Option::is_none"
+        )]
+        link_catalog: Option<PluginLinkCatalogGuard>,
     },
     Logs {
         #[serde(deserialize_with = "super::json_fields::deserialize_nullable")]
@@ -204,6 +233,16 @@ pub enum PluginAction {
         job_id: String,
     },
 }
+
+fn deserialize_optional_link_catalog<'de, D>(
+    deserializer: D,
+) -> Result<Option<PluginLinkCatalogGuard>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    PluginLinkCatalogGuard::deserialize(deserializer).map(Some)
+}
+
 impl PluginAction {
     pub fn mutating(&self) -> bool {
         matches!(
@@ -225,6 +264,7 @@ impl PluginAction {
                 plugin_id,
                 action_id,
                 context,
+                link_catalog,
             } => {
                 if !plugin_job_identifier(operation_id)
                     || !plugin_identifier(action_id, 241)
@@ -234,7 +274,18 @@ impl PluginAction {
                 {
                     return Err(ContractError::InvalidDocument);
                 }
-                context.validate()
+                context.validate()?;
+                if let Some(guard) = link_catalog {
+                    guard.validate()?;
+                    if plugin_id.is_none()
+                        || context.invocation_source.as_deref() != Some("link_click")
+                        || context.clicked_url.is_none()
+                        || context.link_handler_id.is_none()
+                    {
+                        return Err(ContractError::InvalidDocument);
+                    }
+                }
+                Ok(())
             }
             Self::Logs {
                 plugin_id,

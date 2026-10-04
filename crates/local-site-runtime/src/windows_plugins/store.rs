@@ -8,7 +8,7 @@ use sha2::{Digest, Sha256};
 use std::{
     fs::File,
     io::{self, Read},
-    path::{Path, PathBuf},
+    path::{Path, PathBuf, Prefix},
 };
 
 const REGISTRY_LIMIT: usize = 1024 * 1024;
@@ -58,6 +58,13 @@ impl Default for Catalog {
 pub struct PluginRegistryResult {
     pub revision: u64,
     pub changed: bool,
+    pub plugins: Vec<PluginRegistryEntry>,
+}
+/// Persisted catalog authority for a link click. It never reads linked manifest paths.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PluginRegisteredCatalog {
+    pub revision: u64,
+    pub fingerprint: String,
     pub plugins: Vec<PluginRegistryEntry>,
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -113,6 +120,21 @@ impl PluginRegistry {
         Ok(PluginRegistryResult {
             revision: catalog.revision,
             changed: false,
+            plugins: catalog.plugins,
+        })
+    }
+    /// Read the stored catalog from a pinned fixed local volume without refreshing linked sources.
+    pub fn list_registered(&self) -> Result<PluginRegisteredCatalog, Error> {
+        if !fixed_local_volume(&self.root) {
+            return Err(Error::InvalidPath);
+        }
+        let read = WindowsPrivateCache::read_existing_pinned(&self.root, FILE, REGISTRY_LIMIT)
+            .map_err(storage)?;
+        let catalog = decode(read.bytes(), &self.root)?;
+        let fingerprint = registered_fingerprint(catalog.revision, &catalog.plugins)?;
+        Ok(PluginRegisteredCatalog {
+            revision: catalog.revision,
+            fingerprint,
             plugins: catalog.plugins,
         })
     }
@@ -205,6 +227,31 @@ impl PluginRegistry {
             plugins: catalog.plugins,
         })
     }
+}
+
+fn fixed_local_volume(path: &Path) -> bool {
+    let Some(prefix) = path.components().next() else {
+        return false;
+    };
+    let drive = match prefix {
+        std::path::Component::Prefix(prefix) => match prefix.kind() {
+            Prefix::Disk(letter) | Prefix::VerbatimDisk(letter) => letter,
+            _ => return false,
+        },
+        _ => return false,
+    };
+    let root = format!("{}:\\", char::from(drive));
+    winsafe::GetDriveType(Some(&root)) == winsafe::co::DRIVE::FIXED
+}
+
+fn registered_fingerprint(revision: u64, plugins: &[PluginRegistryEntry]) -> Result<String, Error> {
+    let encoded = serde_json::to_vec(plugins).map_err(|_| Error::InvalidRegistry)?;
+    let mut hash = Sha256::new();
+    hash.update(b"orchbee.plugin.registered-catalog.v1\0");
+    hash.update(revision.to_le_bytes());
+    hash.update((encoded.len() as u64).to_le_bytes());
+    hash.update(encoded);
+    Ok(format!("{:x}", hash.finalize()))
 }
 fn linked_dirs_needed(catalog: &Catalog, id: &str) -> bool {
     catalog.plugins.iter().any(|entry| entry.manifest.id == id)

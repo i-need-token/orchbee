@@ -10,8 +10,8 @@ use serde::{Deserialize, Serialize};
 pub use source::{PluginGithubSource, PluginManagedSource, plugin_git_reference};
 pub use store::{
     PluginProvisionCommand, PluginProvisionExecutor, PluginProvisionFailure, PluginProvisionOutput,
-    PluginProvisionReport, PluginProvisionStage, PluginRegistry, PluginRegistryEntry,
-    PluginRegistryMutation, PluginRegistryResult,
+    PluginProvisionReport, PluginProvisionStage, PluginRegisteredCatalog, PluginRegistry,
+    PluginRegistryEntry, PluginRegistryMutation, PluginRegistryResult,
 };
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]

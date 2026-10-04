@@ -158,6 +158,29 @@ pub(crate) enum NativeSessionNotice {
     CommandFailed,
     #[cfg(windows)]
     CommandUnknown,
+    #[cfg(windows)]
+    LinkOpened,
+    #[cfg(windows)]
+    LinkHandled,
+    #[cfg(windows)]
+    LinkNoLink,
+    #[cfg(windows)]
+    LinkBusy,
+    #[cfg(windows)]
+    LinkFailed,
+    #[cfg(windows)]
+    LinkUnknown,
+}
+
+#[cfg(windows)]
+const fn link_notice(notice: crate::terminal_link_activation::Notice) -> NativeSessionNotice {
+    match notice {
+        crate::terminal_link_activation::Notice::Opened => NativeSessionNotice::LinkOpened,
+        crate::terminal_link_activation::Notice::Handled => NativeSessionNotice::LinkHandled,
+        crate::terminal_link_activation::Notice::NoLink => NativeSessionNotice::LinkNoLink,
+        crate::terminal_link_activation::Notice::Failed => NativeSessionNotice::LinkFailed,
+        crate::terminal_link_activation::Notice::Unknown => NativeSessionNotice::LinkUnknown,
+    }
 }
 
 /// What one pane's retained-history surface paints right now. `Window`
@@ -573,6 +596,66 @@ impl<'a> NativeSessionView<'a> {
         })
     }
 
+    /// Capture the exact canonical member and terminal row surface this view
+    /// would paint for one panel. Loading indicators and unbound panes expose
+    /// no link source.
+    #[cfg(windows)]
+    pub(crate) fn painted_link_source(
+        &self,
+        panel_id: &WorkbenchPanelId,
+    ) -> Option<crate::terminal_link_activation::PaintedLinkSource> {
+        use crate::terminal_link_activation::{PaintedLinkSource, PaintedRows, SnapshotMember};
+
+        let state = self.state.as_ref()?;
+        let record = state.pane_by_panel(panel_id)?;
+        let pane = record.pane_ref();
+        let tab = self.tab(self.active_position()?.checked_sub(1)?)?;
+        if tab.tab_id() != pane.anchor().tab_id() {
+            return None;
+        }
+        let panel = (0..tab.panel_count())
+            .filter_map(|index| tab.panel(index))
+            .find(|panel| panel.panel_id() == panel_id)?;
+        let selected = self.selected_presentation(panel);
+        let binding = selected.binding()?;
+        if record.binding() != binding {
+            return None;
+        }
+        let rows = match self.pane_viewport(panel_id) {
+            Some(NativeViewportSurface::Window { window, .. }) => PaintedRows {
+                attachment: window.route.attachment_id,
+                host_epoch: window.route.host_epoch,
+                sequence: window.route.sequence,
+                generation: window.route.generation,
+                revision: window.route.revision,
+                columns: window.route.columns,
+                total_rows: window.route.total_rows,
+                start_row: window.route.start_row,
+                row_count: window.route.row_count,
+                history: true,
+            },
+            Some(
+                NativeViewportSurface::Entering
+                | NativeViewportSurface::AwaitingWindow
+                | NativeViewportSurface::Recovering,
+            ) => return None,
+            None => PaintedRows::live(self.pane_projection(panel_id)?.frame()?)?,
+        };
+        Some(PaintedLinkSource {
+            pane,
+            member: SnapshotMember {
+                site: state.site_id().clone(),
+                context: state.terminal_context_id().clone(),
+                tab: tab.tab_id().clone(),
+                panel: panel_id.clone(),
+                presentation: selected.presentation_id().clone(),
+                worker: binding.worker_id().clone(),
+                terminal: binding.terminal_id().clone(),
+            },
+            rows,
+        })
+    }
+
     /// The panel identity of the focus pane — the leaf that takes input,
     /// resize and the focused-frame chrome.
     pub(crate) const fn focus_panel_id(&self) -> Option<&'a WorkbenchPanelId> {
@@ -756,6 +839,8 @@ pub(super) struct NativeUi {
     #[cfg(windows)]
     overlays: super::plugin_overlays::Driver,
     #[cfg(windows)]
+    links: crate::terminal_link_activation::Driver,
+    #[cfg(windows)]
     popup: super::independent_popup::Driver,
     #[cfg(windows)]
     command_notice: Option<(NativeSessionNotice, std::time::Instant)>,
@@ -819,6 +904,8 @@ mod client_viewport;
 mod control_takeover_tests;
 #[cfg(windows)]
 mod independent_popup;
+#[cfg(windows)]
+mod link_activation;
 #[cfg(all(test, windows))]
 mod quick_workspace_tests;
 #[cfg(test)]
@@ -851,6 +938,8 @@ impl NativeUi {
             graphics: super::pane_graphics::Driver::new(clock.clone()),
             #[cfg(windows)]
             overlays: super::plugin_overlays::Driver::new(clock.clone()),
+            #[cfg(windows)]
+            links: crate::terminal_link_activation::Driver::new(clock.clone()),
             #[cfg(windows)]
             popup: super::independent_popup::Driver::new(clock.clone()),
             #[cfg(windows)]
@@ -923,10 +1012,11 @@ impl NativeUi {
             #[cfg(windows)]
             popup_failed: self.popup.failed(),
             #[cfg(windows)]
-            command_notice: self
-                .command_notice
-                .filter(|(_, until)| self.clock.now() < *until)
-                .map(|(notice, _)| notice),
+            command_notice: self.links.notice().map(link_notice).or_else(|| {
+                self.command_notice
+                    .filter(|(_, until)| self.clock.now() < *until)
+                    .map(|(notice, _)| notice)
+            }),
             #[cfg(windows)]
             popup: self.popup.view(),
         }
@@ -1078,12 +1168,24 @@ impl NativeUi {
     }
 
     pub(super) fn tick(&mut self) -> bool {
+        #[cfg(windows)]
+        let command_notice_changed = if self
+            .command_notice
+            .is_some_and(|(_, until)| self.clock.now() >= until)
+        {
+            self.command_notice = None;
+            true
+        } else {
+            false
+        };
+        #[cfg(not(windows))]
+        let command_notice_changed = false;
         let effect_changed = self.settle_effect_delivery();
         if self.retirement_failure.is_some() {
-            return false;
+            return command_notice_changed;
         }
         let Some(mailbox) = self.mailbox.as_ref().map(Arc::clone) else {
-            return false;
+            return command_notice_changed;
         };
         let acknowledged = if let Some(ack) = mailbox.take_close_acknowledgement()
             && let Some(state) = &mut self.state
@@ -1100,7 +1202,7 @@ impl NativeUi {
         let taken = match mailbox.take_event_before(&self.clock) {
             Ok(taken) => taken,
             Err(EventError::ForwardExpired) => {
-                return acknowledged || !self.pending_draws.is_empty();
+                return command_notice_changed || acknowledged || !self.pending_draws.is_empty();
             }
             Err(EventError::Closed(closed)) => {
                 self.retire(closed.failure());
@@ -1142,6 +1244,7 @@ impl NativeUi {
                     state.note_publication_hint();
                     changed = true;
                 }
+                changed |= self.links.tick();
                 changed |= self.popup.tick();
                 changed |= self.graphics.tick(self.state.as_ref());
                 changed |= self.attention.tick();
@@ -1157,6 +1260,7 @@ impl NativeUi {
             self.admit_selections(&mailbox);
         }
         acknowledged
+            || command_notice_changed
             || changed
             || effect_changed
             || self.effects.has_pending()
@@ -3295,6 +3399,8 @@ impl NativeUi {
         self.graphics.close();
         #[cfg(windows)]
         self.overlays.close();
+        #[cfg(windows)]
+        self.links.close();
         #[cfg(windows)]
         self.popup.shutdown();
         if let Some(state) = &mut self.state {

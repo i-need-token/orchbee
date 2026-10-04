@@ -150,7 +150,9 @@ use orchbee_local_site_runtime::{
     ModeCheckedLocalSiteRendezvous, NativeCohort, RendezvousError, SiteScope,
 };
 #[cfg(any(target_os = "linux", windows))]
-use orchbee_terminal_protocol::{AttachmentId, HostEpoch, TerminalTextFrame};
+use orchbee_terminal_protocol::{
+    AttachmentId, HostEpoch, TerminalId as HostTerminalId, TerminalTextFrame,
+};
 #[cfg(any(target_os = "linux", windows))]
 use orchbee_workbench_protocol::{
     LaunchProfileCatalogOutcome, LaunchProfileSelector, ProtocolVersion, Snapshot,
@@ -1479,6 +1481,31 @@ pub(super) fn attach_viewer_cancellable(
     ),
     Failure,
 > {
+    attach_viewer_cancellable_with_host(client, deadline, snapshot, target, wake).map(
+        |(row, viewer, attachment, epoch, _host_terminal, projection)| {
+            (row, viewer, attachment, epoch, projection)
+        },
+    )
+}
+
+#[cfg(any(target_os = "linux", windows))]
+pub(super) fn attach_viewer_cancellable_with_host(
+    client: &mut LocalClient,
+    deadline: Instant,
+    snapshot: &Snapshot,
+    target: &Target,
+    wake: Option<BorrowedFd<'_>>,
+) -> Result<
+    (
+        super::results::TerminalRow,
+        ViewerId,
+        AttachmentId,
+        HostEpoch,
+        HostTerminalId,
+        TerminalProjection,
+    ),
+    Failure,
+> {
     // Typed IDs and `@terminal:` selectors resolve against the snapshot's
     // complete bound set; the attach request carries the resolved full id.
     let row = super::results::terminal_select(snapshot, target)?;
@@ -1500,17 +1527,20 @@ pub(super) fn attach_viewer_cancellable(
         TerminalViewerOutcome::Attached {
             attachment_id,
             host_epoch,
-            ..
+            host_terminal_id,
         } => {
             let attachment = AttachmentId::parse(attachment_id.as_str())
                 .map_err(|_| Failure::new(FailureKind::InternalFailure))?;
             let epoch = HostEpoch::parse(host_epoch.as_str())
+                .map_err(|_| Failure::new(FailureKind::InternalFailure))?;
+            let host_terminal = HostTerminalId::parse(host_terminal_id.as_str())
                 .map_err(|_| Failure::new(FailureKind::InternalFailure))?;
             Ok((
                 row,
                 attachment_id.clone(),
                 attachment,
                 epoch,
+                host_terminal,
                 TerminalProjection::new(attachment, epoch),
             ))
         }

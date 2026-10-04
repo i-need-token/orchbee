@@ -1106,6 +1106,19 @@ impl TerminalInputPort for TerminalSession {
         }
     }
 
+    #[cfg(windows)]
+    fn pointer_link(
+        &mut self,
+        source: crate::terminal_link_activation::PaintedLinkSource,
+        cell: crate::terminal_input::PointerSelectionCell,
+    ) -> crate::terminal_input::PointerLinkAdmission {
+        match &mut self.backend {
+            SessionBackend::Native(native) => native.pointer_link(source, cell),
+            #[cfg(test)]
+            SessionBackend::Legacy(_) => crate::terminal_input::PointerLinkAdmission::Rejected,
+        }
+    }
+
     fn history_key(&mut self, event: &crate::client_view::KeyEvent) -> bool {
         let consumed = match &mut self.backend {
             SessionBackend::Native(native) => native.history_key(event),

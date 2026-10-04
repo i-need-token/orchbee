@@ -3,6 +3,7 @@ use super::*;
 use orchbee_agent_observation_protocol::{
     AgentRequest, AgentResult, read_agent_request, write_agent_result,
 };
+use orchbee_local_site_runtime::{PluginRegistry, PluginRegistryMutation};
 use orchbee_workbench_protocol::*;
 use serde_json::json;
 const SCHEMA: &str = include_str!("../../../src/cli/schemas/orchbee.terminal.link-activate.json");
@@ -28,15 +29,18 @@ fn render(stream: &mut LocalStream, sequence: u64, uri: &str) {
         ))),
     );
 }
-fn context(stream: &mut LocalStream, terminal: &str) {
-    let AgentRequest::Read(req) = read_agent_request(stream).unwrap() else {
-        panic!("agent read")
-    };
-    assert_eq!(json!(req)["kind"], "agent.session.list.request");
-    write_agent_result(stream,&AgentResult::Read(serde_json::from_value(json!({"kind":"agent.session.list.result","requestId":req.request_id(),"result":{"outcome":{"kind":"listed","revision":3,"items":[],"nextCursor":null}}})).unwrap())).unwrap();
+fn context(stream: &mut LocalStream, terminal: &str, viewer: &obcs::ViewerId) {
+    context_with_agent(stream, terminal, viewer, false);
+}
+fn context_with_agent(
+    stream: &mut LocalStream,
+    terminal: &str,
+    viewer: &obcs::ViewerId,
+    agent_unavailable: bool,
+) {
     let req = request(stream);
     assert!(
-        matches!(req.action(),Action::AttachBinding{terminal_id,..} if terminal_id.as_str()==terminal)
+        matches!(req.action(),Action::ReadProcessInfo{attachment_id} if attachment_id == viewer)
     );
     reply(
         stream,
@@ -45,7 +49,88 @@ fn context(stream: &mut LocalStream, terminal: &str) {
             reason: obcs::ViewerUnavailableReason::TerminalRuntimeUnavailable,
         },
     );
-    // Existing fixture answers typed metadata reads before the final snapshot.
+
+    let WorkbenchRequest::PanelAgent(req) = read_workbench_request(stream).unwrap() else {
+        panic!("presentation Agent read")
+    };
+    let PanelAgentAction::ReadPresentations { presentation_ids } = &req.action else {
+        panic!("exact presentation Agent read")
+    };
+    let presentation = if terminal == ID {
+        "11111111111111111111111111111111"
+    } else {
+        "44444444444444444444444444444444"
+    };
+    assert_eq!(
+        presentation_ids.as_slice(),
+        [TerminalPresentationId::parse(presentation).unwrap()]
+    );
+    write_workbench_response(
+        stream,
+        &WorkbenchResponse::PanelAgent(PanelAgentResult {
+            protocol_version: ProtocolVersion,
+            request_id: req.request_id,
+            site_id: req.site_id,
+            outcome: PanelAgentOutcome::PresentationsRead {
+                workbench_revision: WorkbenchRevision::new(9),
+                report_revision: WorkbenchRevision::new(2),
+                presentations: vec![PresentationAgentRow {
+                    presentation_id: TerminalPresentationId::parse(presentation).unwrap(),
+                    panel: PanelAgentRow {
+                        panel_id: WorkbenchPanelId::parse("22222222222222222222222222222222")
+                            .unwrap(),
+                        binding: Some(PresentationBinding {
+                            worker_id: WorkerId::parse("6f7263686265652d6c6f63616c2d7631").unwrap(),
+                            terminal_id: orchbee_workbench_protocol::TerminalId::parse(terminal)
+                                .unwrap(),
+                        }),
+                        report: Some(if agent_unavailable {
+                            PanelAgentView::default()
+                        } else {
+                            PanelAgentView {
+                                agent: Some("codex".into()),
+                                state: PanelAgentState::Working,
+                                ..PanelAgentView::default()
+                            }
+                        }),
+                    },
+                }],
+            },
+        }),
+    )
+    .unwrap();
+
+    let AgentRequest::Read(req) = read_agent_request(stream).unwrap() else {
+        panic!("agent read")
+    };
+    assert_eq!(json!(req)["kind"], "agent.session.list.request");
+    let outcome = if agent_unavailable {
+        json!({"kind":"unavailable","reason":"runtime-unavailable"})
+    } else {
+        json!({"kind":"listed","revision":3,"items":[],"nextCursor":null})
+    };
+    write_agent_result(stream,&AgentResult::Read(serde_json::from_value(json!({"kind":"agent.session.list.result","requestId":req.request_id(),"result":{"outcome":outcome}})).unwrap())).unwrap();
+    let WorkbenchRequest::PanelAgent(req) = read_workbench_request(stream).unwrap() else {
+        panic!("presentation Agent fence")
+    };
+    assert!(matches!(
+        &req.action,
+        PanelAgentAction::ReadPresentations { presentation_ids } if presentation_ids.is_empty()
+    ));
+    write_workbench_response(
+        stream,
+        &WorkbenchResponse::PanelAgent(PanelAgentResult {
+            protocol_version: ProtocolVersion,
+            request_id: req.request_id,
+            site_id: req.site_id,
+            outcome: PanelAgentOutcome::PresentationsRead {
+                workbench_revision: WorkbenchRevision::new(9),
+                report_revision: WorkbenchRevision::new(2),
+                presentations: Vec::new(),
+            },
+        }),
+    )
+    .unwrap();
     bound_snapshot_reply(stream);
 }
 fn output(fixture: &Fixture, terminal: &str) -> std::process::Output {
@@ -119,6 +204,7 @@ fn link_activation_invokes_once_with_exact_clicked_primary_or_child_and_preserve
         "primary",
         "child",
         "plain",
+        "agent-unavailable",
         "refused",
         "unknown",
         "lost",
@@ -161,7 +247,7 @@ fn link_activation_invokes_once_with_exact_clicked_primary_or_child_and_preserve
             } else {
                 render(&mut stream, 1, clicked);
             }
-            context(&mut stream, terminal);
+            context_with_agent(&mut stream, terminal, &viewer, mode == "agent-unavailable");
             if mode == "plain" {
                 let req = row_request(&mut stream, 10, 1, 3, obcs::ViewerRowDetail::Render);
                 reply(
@@ -169,9 +255,31 @@ fn link_activation_invokes_once_with_exact_clicked_primary_or_child_and_preserve
                     &req,
                     Outcome::Record(history_record(&render_window(10, 3, None, false, clicked))),
                 );
+                let frame = decode_terminal_text_frame(OBTF).unwrap();
+                let req = row_request(&mut stream, 10, 2, 4, obcs::ViewerRowDetail::Text);
+                reply(
+                    &mut stream,
+                    &req,
+                    Outcome::Record(history_record(&obrw_window(
+                        10,
+                        10 + u64::from(frame.geometry.rows),
+                        frame.geometry.columns,
+                        4,
+                        frame.route.revision,
+                        frame.route.generation.get(),
+                        &[(0, clicked), (0, "")],
+                    ))),
+                );
             } else {
                 render(&mut stream, 2, clicked);
             }
+            bound_snapshot_reply(&mut stream);
+            let detach = request(&mut stream);
+            assert!(
+                matches!(detach.action(), Action::Detach { attachment_id } if attachment_id == &viewer),
+                "{mode}: detach once before plugin handoff"
+            );
+            reply(&mut stream, &detach, Outcome::Detached {});
 
             let WorkbenchRequest::Plugin(req) = read_workbench_request(&mut stream).unwrap() else {
                 panic!("one invocation")
@@ -181,6 +289,7 @@ fn link_activation_invokes_once_with_exact_clicked_primary_or_child_and_preserve
                 plugin_id,
                 action_id,
                 context,
+                link_catalog,
             } = &req.action
             else {
                 panic!()
@@ -192,10 +301,21 @@ fn link_activation_invokes_once_with_exact_clicked_primary_or_child_and_preserve
                 Some("22222222222222222222222222222222")
             );
             assert_eq!(context.tab_label.as_deref(), Some("tab"));
+            if mode == "agent-unavailable" {
+                assert!(context.focused_pane_agent.is_none());
+                assert!(context.focused_pane_status.is_none());
+            } else {
+                assert_eq!(context.focused_pane_agent.as_deref(), Some("codex"));
+                assert_eq!(context.focused_pane_status.as_deref(), Some("working"));
+            }
             assert!(context.workspace_id.is_none());
             assert_eq!(context.invocation_source.as_deref(), Some("link_click"));
             assert_eq!(context.clicked_url.as_deref(), Some(clicked));
             assert_eq!(context.link_handler_id.as_deref(), Some("handler"));
+            assert!(
+                link_catalog.is_some(),
+                "link activation must carry a catalog guard"
+            );
             assert_eq!(
                 context.correlation_id.as_deref(),
                 Some(operation_id.as_str())
@@ -247,11 +367,7 @@ fn link_activation_invokes_once_with_exact_clicked_primary_or_child_and_preserve
                 }),
             )
             .unwrap();
-            if mode == "wrong-job" {
-                assert_closed(&mut stream);
-            } else {
-                detached(&mut stream, &viewer);
-            }
+            assert_closed_for(&mut stream, mode);
         });
         let out = output(&fixture, terminal);
         handler.join().unwrap();
@@ -275,10 +391,17 @@ fn link_activation_invokes_once_with_exact_clicked_primary_or_child_and_preserve
     }
 }
 #[test]
-fn link_activation_refuses_stale_content_changed_catalog_and_oversized_context_without_invoking() {
-    for mode in ["stale", "catalog", "large-url"] {
+fn link_activation_refuses_stale_content_catalog_limits_and_uncertain_detach_without_invoking() {
+    for mode in [
+        "stale",
+        "catalog",
+        "large-url",
+        "detach-rejected",
+        "detach-lost",
+    ] {
         let fixture = Fixture::new();
         let source = plugin(&fixture);
+        let registry_root = fixture.0.join("appdata/Orchbee/plugins");
         let listener = LocalListener::bind(fixture.rendezvous().client_socket_path()).unwrap();
         let handler = peer(&fixture, listener, move |mut stream| {
             bound_snapshot_reply(&mut stream);
@@ -290,7 +413,7 @@ fn link_activation_refuses_stale_content_changed_catalog_and_oversized_context_w
             };
             render(&mut stream, 1, &url);
             if mode != "large-url" {
-                context(&mut stream, ID);
+                context(&mut stream, ID, &viewer);
                 if mode == "stale" {
                     let req = row_request(&mut stream, 10, 1, 2, obcs::ViewerRowDetail::Render);
                     reply(
@@ -301,14 +424,43 @@ fn link_activation_refuses_stale_content_changed_catalog_and_oversized_context_w
                         },
                     );
                 } else {
-                    let text = std::fs::read_to_string(&source)
-                        .unwrap()
-                        .replace("pattern='^(custom|https?)://'", "pattern='^other://'");
-                    std::fs::write(&source, text).unwrap();
+                    if mode == "catalog" {
+                        let text = std::fs::read_to_string(&source)
+                            .unwrap()
+                            .replace("pattern='^(custom|https?)://'", "pattern='^other://'");
+                        std::fs::write(&source, text).unwrap();
+                        PluginRegistry::at(registry_root.clone())
+                            .unwrap()
+                            .mutate(PluginRegistryMutation::Link {
+                                path: source.clone(),
+                                enabled: true,
+                            })
+                            .unwrap();
+                    }
                     render(&mut stream, 2, URL);
+                    bound_snapshot_reply(&mut stream);
+                    if matches!(mode, "detach-rejected" | "detach-lost") {
+                        let req = request(&mut stream);
+                        assert!(matches!(
+                            req.action(),
+                            Action::Detach { attachment_id } if attachment_id == &viewer
+                        ));
+                        if mode == "detach-rejected" {
+                            reply(
+                                &mut stream,
+                                &req,
+                                Outcome::Rejected {
+                                    reason: obcs::ViewerRejectedReason::FeedbackMismatch,
+                                },
+                            );
+                            assert_closed(&mut stream);
+                        }
+                        return;
+                    }
                 }
             }
             detached(&mut stream, &viewer);
+            assert_closed(&mut stream);
         });
         let out = output(&fixture, ID);
         handler.join().unwrap();

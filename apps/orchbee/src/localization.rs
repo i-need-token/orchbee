@@ -1130,6 +1130,38 @@ impl Locale {
                 Self::ZhCn => "命令结果不确定 · 请检查后再决定是否执行".into(),
             },
             #[cfg(windows)]
+            NativeSessionNotice::LinkOpened => match self {
+                Self::EnUs => "Link opened".into(),
+                Self::ZhCn => "链接已打开".into(),
+            },
+            #[cfg(windows)]
+            NativeSessionNotice::LinkHandled => match self {
+                Self::EnUs => "Link sent to a plugin".into(),
+                Self::ZhCn => "链接已交给插件处理".into(),
+            },
+            #[cfg(windows)]
+            NativeSessionNotice::LinkNoLink => match self {
+                Self::EnUs => "No link at that cell".into(),
+                Self::ZhCn => "该单元格没有链接".into(),
+            },
+            #[cfg(windows)]
+            NativeSessionNotice::LinkBusy => match self {
+                Self::EnUs => "Another link activation is still running".into(),
+                Self::ZhCn => "另一个链接仍在处理中".into(),
+            },
+            #[cfg(windows)]
+            NativeSessionNotice::LinkFailed => match self {
+                Self::EnUs => "Link activation failed".into(),
+                Self::ZhCn => "链接打开失败".into(),
+            },
+            #[cfg(windows)]
+            NativeSessionNotice::LinkUnknown => match self {
+                Self::EnUs => {
+                    "Link activation outcome unknown · inspect before trying again".into()
+                }
+                Self::ZhCn => "链接处理结果不确定 · 请检查后再决定是否重试".into(),
+            },
+            #[cfg(windows)]
             NativeSessionNotice::PopupUnavailable => match self {
                 Self::EnUs => {
                     "Popup connection or cleanup uncertain · restart the Site before reopening"
